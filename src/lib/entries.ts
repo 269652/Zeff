@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { Job, TimeEntry } from "@/db/schema";
 import { NotFoundError, ValidationError } from "./errors";
@@ -82,6 +82,7 @@ export function requireEntry(id: number): EntryWithJob {
 export function createEntry(
   raw: TimeEntryInput,
   source: TimeEntry["source"],
+  opts: { externalId?: string } = {},
 ): EntryWithJob {
   const parsed = timeEntryInputSchema.safeParse(raw);
   if (!parsed.success) throw new ValidationError(formatZodError(parsed.error));
@@ -97,6 +98,7 @@ export function createEntry(
       ticket: input.ticket || null,
       reportedBy: input.reportedBy || (source === "mcp" ? "agent" : "web"),
       source,
+      externalId: opts.externalId ?? null,
     })
     .returning()
     .get();
@@ -129,6 +131,17 @@ export function deleteEntry(id: number): EntryWithJob {
   const entry = requireEntry(id);
   getDb().delete(timeEntries).where(eq(timeEntries.id, id)).run();
   return entry;
+}
+
+/** Which of the given calendar event ids already have a time entry. */
+export function findImportedExternalIds(ids: string[]): Set<string> {
+  if (ids.length === 0) return new Set();
+  const rows = getDb()
+    .select({ externalId: timeEntries.externalId })
+    .from(timeEntries)
+    .where(inArray(timeEntries.externalId, ids))
+    .all();
+  return new Set(rows.map((r) => r.externalId).filter((x): x is string => x !== null));
 }
 
 /** Sum of hours booked on a job, optionally limited to an inclusive date range. */

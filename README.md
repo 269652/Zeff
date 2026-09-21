@@ -6,6 +6,11 @@ Hourly time reports for job numbers, with a built-in **MCP server** so a coding 
 - **Weekly report** — hours per job and weekday (Mon–Sun), totals, all entries of the week,
   filter by reporter, CSV export.
 - **Jobs** — the job numbers time is booked on (create, edit, deactivate).
+- **Working hours & absences** — a weekly part-time pattern (e.g. free Fridays) and one-off vacation/
+  sick/holiday, so the weekly report shows booked hours against your target.
+- **Import meetings** — pulls the finished meetings of a week from your Outlook / Teams calendar
+  (via a no-OAuth browser bookmarklet, or Microsoft Graph where allowed) into a preview where you
+  pick the job, then books them as time entries.
 - **MCP server** at `/api/mcp` — `report_time`, `list_jobs`, `create_job`,
   `get_weekly_report`, `list_time_entries`, `update_time_entry`, `delete_time_entry`.
 - **Local SQLite** database (`data/zeff.db`), created and migrated automatically on first start.
@@ -17,7 +22,7 @@ Stack: Next.js 16 (App Router, Turbopack) · React 19 · Tailwind CSS 4 · Drizz
 
 ```bash
 npm install
-npm run db:seed   # optional: three example jobs
+npm run db:seed   # creates the known job numbers (see scripts/seed.ts)
 npm run dev       # http://localhost:3000
 ```
 
@@ -64,6 +69,41 @@ automatic, add a line like this to the project's `CLAUDE.md`:
 > After finishing a ticket, book the time spent with the Zeff `report_time` tool
 > (job 2026-0815, reportedBy "Claude Code", ticket = the JIRA key).
 
+## Import meetings from Outlook / Teams
+
+The `/import` page turns finished calendar meetings into time entries: subject -> description,
+duration rounded to quarter hours, a JIRA-style key in the subject (`PROJ-337`) -> ticket, one job
+for all (or per row). All-day, cancelled and declined meetings and anything still in the future are
+skipped; meetings imported before are marked and cannot be booked twice (the calendar event id is
+stored on the entry).
+
+### Bookmarklet bridge (no OAuth, no admin — the primary method)
+
+Many tenants block app-based calendar access (OAuth / Microsoft Graph) at the admin-consent level,
+and "New Outlook" has no local API. So Zeff reads the calendar through the browser session you are
+already signed in to, with a one-click bookmarklet:
+
+1. Open `/import` and drag **📅 Zeff: import meetings** to your bookmarks bar (once).
+2. Open [outlook.office.com](https://outlook.office.com/calendar/view/week) in **Week view**, pick a
+   week, and click the bookmark. It reads that week's meetings from the page and opens Zeff with them
+   (the data rides in the URL fragment; the server ingests it same-origin at `POST /api/calendar/ingest`).
+3. Review and book. Repeat per week. **Clear** empties the inbox.
+
+Nothing leaves your machine and no credentials are handled — the browser already has the session, and
+only calendar event labels (subject/time/organizer) are read.
+
+If your browser blocks the popup, use the **copy & paste** fallback on the same page: the copy
+bookmarklet puts the meetings on your clipboard and you paste them into Zeff's box.
+
+### Other sources
+
+- **Fixture:** `ZEFF_CALENDAR_FIXTURE=./fixtures/calendar-example.json` serves Graph-shaped events
+  from a file — the whole flow works offline against the sample week.
+- **Microsoft Graph (if your tenant allows it):** the `/import` page also offers device-code sign-in
+  via Microsoft's public Graph client, and browser-redirect sign-in when you set `MS_CLIENT_ID` /
+  `MS_TENANT_ID` for your own Entra app. Both need delegated `Calendars.Read`; where admin consent is
+  required they will say so, and the bookmarklet is the fallback.
+
 ### Protecting the endpoint
 
 Set `ZEFF_MCP_TOKEN` in `.env.local`; clients must then send
@@ -78,9 +118,13 @@ Without a token the endpoint is open, which is fine on localhost.
 | `npm run build/start` | Production build / server                                 |
 | `npm run typecheck`   | `tsc --noEmit`                                            |
 | `npm run lint`        | ESLint                                                    |
-| `npm run db:seed`     | Create example jobs (only if there are none)              |
-| `npm run db:generate` | Generate a new SQL migration after editing `src/db/schema.ts` (applied automatically at startup) |
+| `npm run db:seed`     | Create the known job numbers from `scripts/seed.ts` (skips existing) |
+| `npm run db:generate` | Generate a new SQL migration after editing `src/db/schema.ts` (applied when the server next starts — restart `npm run dev`) |
 | `npm run db:studio`   | Browse the database with Drizzle Studio                   |
+| `npm run serve`       | Production server on 127.0.0.1:9333 (after `npm run build`) |
+| `npm run autostart:install` | Start Zeff automatically on Windows login (see below) |
+| `npm run autostart:uninstall` | Remove the login autostart                          |
+| `npm run autostart:status`  | Show autostart + server status                        |
 
 ## Project layout
 
@@ -90,16 +134,50 @@ src/
     page.tsx              weekly report (/?week=2026-W39&by=name)
     jobs/                 job list, /jobs/[id] edit + entries
     entries/[id]/         edit a single entry
+    settings/             working hours & absences
     mcp/                  connection instructions
+    import/               meeting import preview (Outlook / Teams via Microsoft Graph)
+    api/calendar/         OAuth connect + callback + ingest (bookmarklet) routes
     api/mcp/route.ts      MCP endpoint (Streamable HTTP)
     api/report/route.ts   CSV export for a week
     actions.ts            server actions used by the forms
   mcp/server.ts           MCP tool definitions
   lib/                    week math, validation, jobs + entries data access
+  lib/calendar/           Graph client, OAuth/PKCE, meeting → entry planning
+fixtures/                 example calendar events for ZEFF_CALENDAR_FIXTURE
   db/                     Drizzle schema + SQLite connection (auto-migrates ./drizzle)
+scripts/                  seed, and Windows autostart (autostart.ps1, zeff-serve.ps1)
 drizzle/                  generated SQL migrations
 data/zeff.db              the database (git-ignored)
 ```
+
+## Working hours & absences
+
+Open **Schedule** (`/settings`) to set your weekly working pattern and record time off:
+
+- **Weekly hours** — expected hours per weekday. Set a day to 0 to make it non-working, e.g. free
+  Fridays for an 80% week. The total shows your weekly target.
+- **Absences** — vacation, sick, holiday or other, over a date range. A full-day absence zeroes that
+  day's target; set *Hours/day* for a partial day.
+
+The weekly report then shows **Booked / Target / Remaining** (Remaining turns to *Overtime* when you
+go over), a **Target** row per weekday, and marks non-working and absence days in the day headers.
+
+## Run on startup (Windows)
+
+Make the server start on login (production build, http://127.0.0.1:9333), no admin needed:
+
+```bash
+npm run build            # once, and after code changes
+npm run autostart:install
+npm run autostart:status
+```
+
+`autostart:install` drops a shortcut in your Startup folder that runs `scripts/zeff-serve.ps1`
+hidden; it launches `next start` and restarts it if it ever exits (log: `data/autostart.log`).
+Start/stop it now without rebooting via `scriptsautostart.ps1 -Start` / `-Stop`, and remove it with
+`npm run autostart:uninstall`. Because it serves a production build, run `npm run build` again after
+changing code (then `-Stop` and `-Start`, or just re-login).
 
 ## Notes
 
