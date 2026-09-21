@@ -57,6 +57,9 @@ export function WeekNav({
         <a href={csvHref} className="btn" download>
           CSV
         </a>
+        <Link href={`/import?week=${week.key}`} className="btn">
+          Import meetings
+        </Link>
       </form>
     </div>
   );

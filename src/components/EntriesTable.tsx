@@ -45,7 +45,7 @@ export function EntriesTable({
               <td className="font-mono whitespace-nowrap">{e.ticket ?? ""}</td>
               <td className="whitespace-nowrap">{e.reportedBy}</td>
               <td>
-                <span className={`badge ${e.source === "mcp" ? "badge-mcp" : "badge-web"}`}>
+                <span className={`badge badge-${e.source}`}>
                   {e.source}
                 </span>
               </td>

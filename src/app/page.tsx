@@ -6,8 +6,9 @@ import { EntryForm } from "@/components/EntryForm";
 import { WeekNav } from "@/components/WeekNav";
 import { WeekTable } from "@/components/WeekTable";
 import { getWeeklyReport, listReporters } from "@/lib/entries";
-import { formatHours } from "@/lib/format";
+import { formatHours, round2 } from "@/lib/format";
 import { listJobs } from "@/lib/jobs";
+import { getWeekTargets } from "@/lib/schedule";
 import { currentWeek, resolveWeek, todayIso } from "@/lib/week";
 
 export const metadata: Metadata = { title: "Weekly report" };
@@ -15,7 +16,7 @@ export const metadata: Metadata = { title: "Weekly report" };
 export default async function WeekPage({
   searchParams,
 }: {
-  searchParams: Promise<{ week?: string; by?: string }>;
+  searchParams: Promise<{ week?: string; by?: string; imported?: string; skipped?: string }>;
 }) {
   await connection();
   const sp = await searchParams;
@@ -24,6 +25,8 @@ export default async function WeekPage({
   const by = sp.by?.trim() || undefined;
 
   const report = getWeeklyReport(week, { reportedBy: by });
+  const targets = getWeekTargets(week);
+  const remaining = round2(targets.weekTarget - report.total);
   const jobs = listJobs();
   const reporters = listReporters();
 
@@ -34,21 +37,33 @@ export default async function WeekPage({
     <div className="space-y-6">
       <WeekNav week={week} by={by} reporters={reporters} />
 
+      {sp.imported !== undefined && (
+        <p className="alert-ok">
+          Imported {sp.imported} meeting{sp.imported === "1" ? "" : "s"} as time entries
+          {sp.skipped ? ` (${sp.skipped} already booked, skipped)` : ""}.
+        </p>
+      )}
+
       {sp.week && !requested && (
         <p className="alert-error">
           Could not read week &quot;{sp.week}&quot; — showing the current week instead.
         </p>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Stat label="Hours this week" value={formatHours(report.total)} />
-        <Stat label="Jobs worked on" value={String(report.rows.length)} />
+      <div className="grid gap-3 sm:grid-cols-4">
+        <Stat label="Booked this week" value={`${formatHours(report.total)} h`} />
+        <Stat label="Target" value={`${formatHours(targets.weekTarget)} h`} />
+        <Stat
+          label={remaining >= 0 ? "Remaining" : "Overtime"}
+          value={`${remaining >= 0 ? "" : "+"}${formatHours(Math.abs(remaining))} h`}
+          tone={remaining < 0 ? "over" : remaining === 0 ? "done" : "default"}
+        />
         <Stat label="Entries" value={String(report.entries.length)} />
       </div>
 
       <section className="card p-4">
         <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">Hours per job and day</h2>
-        <WeekTable report={report} />
+        <WeekTable report={report} targets={targets} />
       </section>
 
       <section className="card p-4">
@@ -66,11 +81,25 @@ export default async function WeekPage({
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "over" | "done";
+}) {
+  const valueClass =
+    tone === "over"
+      ? "text-amber-600 dark:text-amber-400"
+      : tone === "done"
+        ? "text-emerald-600 dark:text-emerald-400"
+        : "";
   return (
     <div className="card px-4 py-3">
       <div className="text-xs font-medium text-zinc-500 uppercase">{label}</div>
-      <div className="text-2xl font-semibold tabular-nums">{value}</div>
+      <div className={`text-2xl font-semibold tabular-nums ${valueClass}`}>{value}</div>
     </div>
   );
 }
