@@ -2,7 +2,7 @@
   "mcpServers": {
     "zeff": {
       "type": "http",
-      "url": "http://localhost:3000/api/mcp"
+      "url": "http://127.0.0.1:9333/api/mcp"
     }
   }
 }
