@@ -6,8 +6,10 @@ import { round2 } from "./format";
 import { ValidationError } from "./errors";
 import {
   defaultRules,
+  matchedRule,
   parseRules,
-  renderEntryLabel,
+  reportGroupKey,
+  reportGroupLabel,
   validateRules,
   type ReportRule,
 } from "./report-shared";
@@ -123,22 +125,26 @@ function toLineEntry(e: EntryWithJob): ReportLineEntry {
  * it merges several entries, or when its label rewrites a single entry's text.
  */
 function buildDay(date: string, entries: EntryWithJob[], rules: ReportRule[]): ReportDay {
-  const groups = new Map<string, EntryWithJob[]>();
+  const groups = new Map<string, { rule: ReportRule; entries: EntryWithJob[] }>();
   const order: string[] = [];
   for (const e of entries) {
-    const label = renderEntryLabel(rules, e);
-    if (!groups.has(label)) {
-      groups.set(label, []);
-      order.push(label);
+    const rule = matchedRule(rules, e);
+    const key = reportGroupKey(rule, e, e.id);
+    let g = groups.get(key);
+    if (!g) {
+      g = { rule, entries: [] };
+      groups.set(key, g);
+      order.push(key);
     }
-    groups.get(label)!.push(e);
+    g.entries.push(e);
   }
 
-  const lines: ReportLine[] = order.map((label) => {
-    const es = groups.get(label)!;
+  const lines: ReportLine[] = order.map((key) => {
+    const { rule, entries: es } = groups.get(key)!;
     const first = es[0];
+    const label = reportGroupLabel(rule, first, es.length);
     return {
-      key: label,
+      key,
       label,
       type: first.type,
       ticket: first.ticket,
@@ -146,7 +152,10 @@ function buildDay(date: string, entries: EntryWithJob[], rules: ReportRule[]): R
       tags: unionTags(es),
       count: es.length,
       entries: es.map(toLineEntry),
-      expandable: es.length > 1 || label !== first.description,
+      // Expandable when it merges several entries, or when a single entry's label
+      // HIDES its description (e.g. "Meetings"). A lone ticket line whose label
+      // already shows the description ("PROJ-80: …") is not a group.
+      expandable: es.length > 1 || !label.includes(first.description.trim()),
     };
   });
 

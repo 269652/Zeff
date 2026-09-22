@@ -96,7 +96,7 @@ export function ReportView({ report, text, today }: { report: RewrittenReport; t
                 type="button"
                 onClick={() => toggleDay(day.date)}
                 aria-expanded={open}
-                className={`flex w-full items-center justify-between bg-zinc-50 px-3 py-1.5 text-sm font-semibold hover:bg-zinc-100 dark:bg-zinc-900/60 dark:hover:bg-zinc-800/60 ${open ? "border-b border-zinc-100 dark:border-zinc-800" : ""}`}
+                className={`flex w-full cursor-pointer items-center justify-between bg-zinc-50 px-3 py-1.5 text-sm font-semibold hover:bg-zinc-100 dark:bg-zinc-900/60 dark:hover:bg-zinc-800/60 ${open ? "border-b border-zinc-100 dark:border-zinc-800" : ""}`}
               >
                 <span className="flex items-center gap-2">
                   <span className="w-3 text-zinc-400">{open ? "▾" : "▸"}</span>

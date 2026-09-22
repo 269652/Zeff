@@ -80,9 +80,9 @@ export function matchRule(rule: ReportRule, e: RuleEntry): boolean {
  * Substitute {ticket} {desc} {description} {type} {tags}. When {ticket} or {tags}
  * is empty, its trailing/leading separator (e.g. the ": " in "{ticket}: {desc}")
  * is dropped so nothing dangles, then leftover leading separators and double
- * spaces are tidied.
+ * spaces are tidied. May return "" (no fallback) — for renderTemplate's use.
  */
-export function renderTemplate(tpl: string, e: RuleEntry): string {
+function substitute(tpl: string, e: RuleEntry): string {
   const tags = e.tags.map((t) => `#${t.name}`).join(" ");
   let s = tpl;
   if (e.ticket) s = s.replaceAll("{ticket}", e.ticket);
@@ -90,11 +90,15 @@ export function renderTemplate(tpl: string, e: RuleEntry): string {
   s = s.replaceAll("{description}", e.description).replaceAll("{desc}", e.description).replaceAll("{type}", TYPE_LABEL[e.type]);
   if (tags) s = s.replaceAll("{tags}", tags);
   else s = s.replace(/\s*\{tags\}/g, "");
-  s = s
+  return s
     .replace(/^[\s:–\-|,]+/, "")
     .replace(/\s{2,}/g, " ")
     .trim();
-  return s || e.description || e.ticket || "(untitled)";
+}
+
+/** Render a rule template for one entry (with a sensible fallback when it comes out empty). */
+export function renderTemplate(tpl: string, e: RuleEntry): string {
+  return substitute(tpl, e) || e.description || e.ticket || "(untitled)";
 }
 
 /** The first matching rule, or a synthetic description-only fallback. */
@@ -103,8 +107,29 @@ export function matchedRule(rules: ReportRule[], e: RuleEntry): ReportRule {
   return { id: "fallback", field: "always", value: "", template: "{desc}" };
 }
 
-export function renderEntryLabel(rules: ReportRule[], e: RuleEntry): string {
-  return renderTemplate(matchedRule(rules, e).template, e);
+const hasDescPlaceholder = (tpl: string) => /\{desc(ription)?\}/.test(tpl);
+
+/**
+ * The key entries are grouped by within a day: the rule's template with the
+ * description removed, so entries that differ ONLY by description (e.g. two
+ * bookings on the same ticket) group together. A description-only template
+ * (nothing left once {desc} is gone) groups per entry so those lines stay
+ * separate.
+ */
+export function reportGroupKey(rule: ReportRule, e: RuleEntry, entryId: number): string {
+  const stripped = rule.template.replaceAll("{description}", "").replaceAll("{desc}", "");
+  const base = substitute(stripped, e);
+  return base ? `g:${rule.id}:${base}` : `e:${entryId}`;
+}
+
+/**
+ * The label for a group: the rendered template for a single entry, or — when
+ * several entries merge and the template shows a description — "Contains N items"
+ * in place of the description (never a concatenation of the individual ones).
+ */
+export function reportGroupLabel(rule: ReportRule, first: RuleEntry, count: number): string {
+  if (count <= 1 || !hasDescPlaceholder(rule.template)) return renderTemplate(rule.template, first);
+  return renderTemplate(rule.template, { ...first, description: `Contains ${count} items` });
 }
 
 function isRuleField(v: unknown): v is RuleField {
