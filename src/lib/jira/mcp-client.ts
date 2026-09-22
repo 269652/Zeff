@@ -14,18 +14,21 @@ type JsonRpcResponse = {
   error?: { code: number; message: string };
 };
 
+/** A tool caller bound to an open MCP session. Returns the raw tools/call result envelope. */
+export type ToolCaller = (toolName: string, args: Record<string, unknown>) => Promise<unknown>;
+
 /**
- * Call a single tool on a stdio MCP server and return its result. Pure JSON-RPC
- * over the process's stdin/stdout — no LLM involved. Spawns the server, performs
- * the MCP initialize handshake, calls `tools/call`, then shuts it down.
+ * Open one stdio MCP session (spawn + initialize handshake), run `body` with a
+ * `call` function that can invoke any number of tools over the same process, then
+ * shut the server down. Pure JSON-RPC over stdin/stdout — no LLM involved. This
+ * amortizes the server's cold start (~30s) across many calls (e.g. board sync).
  */
-export function callStdioTool(
+export function runStdioSession<T>(
   config: McpStdioConfig,
-  toolName: string,
-  args: Record<string, unknown>,
-  timeoutMs = 45000,
-): Promise<unknown> {
-  return new Promise((resolve, reject) => {
+  body: (call: ToolCaller) => Promise<T>,
+  timeoutMs = 150000,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
     let child;
     try {
       child = spawn(config.command, config.args, {
@@ -58,7 +61,7 @@ export function callStdioTool(
     };
     const fail = (msg: string) => finish(() => reject(new Error(msg)));
     const timer = setTimeout(
-      () => fail(`Jira MCP call timed out after ${timeoutMs}ms.${stderr ? ` stderr: ${stderr.slice(0, 400)}` : ""}`),
+      () => fail(`Jira MCP session timed out after ${timeoutMs}ms.${stderr ? ` stderr: ${stderr.slice(0, 400)}` : ""}`),
       timeoutMs,
     );
 
@@ -100,6 +103,19 @@ export function callStdioTool(
       child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method, params })}\n`);
     };
 
+    const call: ToolCaller = async (toolName, args) => {
+      const res = await send("tools/call", { name: toolName, arguments: args });
+      if (res.error) throw new Error(`Jira MCP tool "${toolName}" returned an error: ${res.error.message}`);
+      // A tool can also report failure via isError on the result envelope.
+      const result = res.result as Record<string, unknown> | undefined;
+      if (result?.isError) {
+        const content = Array.isArray(result.content) ? (result.content as Record<string, unknown>[]) : [];
+        const text = content.map((c) => (typeof c.text === "string" ? c.text : "")).filter(Boolean).join(" ");
+        throw new Error(`Jira MCP tool "${toolName}": ${text || "returned an error"}`);
+      }
+      return res.result;
+    };
+
     (async () => {
       const init = await send("initialize", {
         protocolVersion: "2025-06-18",
@@ -108,18 +124,23 @@ export function callStdioTool(
       });
       if (init.error) return fail(`Jira MCP initialize failed: ${init.error.message}`);
       notify("notifications/initialized");
-      const res = await send("tools/call", { name: toolName, arguments: args });
-      if (res.error) return fail(`Jira MCP tool "${toolName}" returned an error: ${res.error.message}`);
-      // A tool can also report failure via isError on the result envelope.
-      const result = res.result as Record<string, unknown> | undefined;
-      if (result?.isError) {
-        const content = Array.isArray(result.content) ? (result.content as Record<string, unknown>[]) : [];
-        const text = content.map((c) => (typeof c.text === "string" ? c.text : "")).filter(Boolean).join(" ");
-        return fail(`Jira MCP tool "${toolName}": ${text || "returned an error"}`);
-      }
-      finish(() => resolve(res.result));
-    })().catch((e) => fail(`Jira MCP call failed: ${(e as Error).message}`));
+      const out = await body(call);
+      finish(() => resolve(out));
+    })().catch((e) => fail(`Jira MCP session failed: ${(e as Error).message}`));
   });
+}
+
+/**
+ * Call a single tool on a stdio MCP server and return its result envelope. Thin
+ * wrapper over {@link runStdioSession} for the common one-shot case.
+ */
+export function callStdioTool(
+  config: McpStdioConfig,
+  toolName: string,
+  args: Record<string, unknown>,
+  timeoutMs = 45000,
+): Promise<unknown> {
+  return runStdioSession(config, (call) => call(toolName, args), timeoutMs);
 }
 
 /** Some servers wrap the payload as `{ result: "<json string>" }` — unwrap it. */

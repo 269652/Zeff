@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { clearJiraAction } from "@/app/actions";
+import { BoardJobSelect } from "@/components/BoardJobSelect";
+import { BoardSyncControls } from "@/components/BoardSyncControls";
 import { JiraJobSelect } from "@/components/JiraJobSelect";
 import { JiraSyncControls } from "@/components/JiraSyncControls";
 import { SubmitButton } from "@/components/SubmitButton";
 import type { JiraStatusCategory } from "@/db/schema";
 import { getJiraSyncConfig } from "@/lib/jira/sync";
-import { jiraStats, listJiraTickets } from "@/lib/jira/store";
+import { jiraStats, listJiraBoards, listJiraTickets } from "@/lib/jira/store";
 import { listJobs } from "@/lib/jobs";
 
 export const metadata: Metadata = { title: "Jira" };
@@ -23,7 +25,11 @@ export default async function JiraPage() {
   const cfg = getJiraSyncConfig();
   const stats = jiraStats();
   const tickets = listJiraTickets();
-  const jobs = listJobs().map((j) => ({ number: j.number, name: j.name }));
+  const boards = listJiraBoards();
+  const jobRows = listJobs();
+  const jobs = jobRows.map((j) => ({ number: j.number, name: j.name }));
+  const jobName = new Map(jobRows.map((j) => [j.number, j.name]));
+  const boardMap = new Map(boards.map((b) => [b.id, b]));
 
   return (
     <div className="space-y-6">
@@ -72,6 +78,47 @@ export default async function JiraPage() {
         <Stat label="Linked to a job" value={String(stats.withJob)} />
       </div>
 
+      <section className="card space-y-3 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Boards → default job</h2>
+          <BoardSyncControls />
+        </div>
+        <p className="text-xs text-zinc-400">
+          Map a Jira board to a job and every ticket on that board defaults to it (override per ticket below).
+          Sync boards after syncing tickets; it reads each board&apos;s issues over one Jira session.
+        </p>
+        {boards.length === 0 ? (
+          <p className="py-2 text-sm text-zinc-500">No boards yet — click “Sync boards”.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Board</th>
+                  <th>Type</th>
+                  <th>Project</th>
+                  <th className="text-right">Tickets</th>
+                  <th>Default job</th>
+                </tr>
+              </thead>
+              <tbody>
+                {boards.map((b) => (
+                  <tr key={b.id}>
+                    <td className="font-medium whitespace-nowrap">{b.name}</td>
+                    <td className="text-xs text-zinc-500">{b.type}</td>
+                    <td className="font-mono text-xs">{b.projectKey}</td>
+                    <td className="text-right tabular-nums text-zinc-500">{b.memberCount}</td>
+                    <td>
+                      <BoardJobSelect boardId={b.id} jobs={jobs} current={b.jobNumber} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       <section className="card p-4">
         <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">Tickets ({tickets.length})</h2>
         {tickets.length === 0 ? (
@@ -87,29 +134,40 @@ export default async function JiraPage() {
                   <th>Type</th>
                   <th>Summary</th>
                   <th>Status</th>
+                  <th>Board</th>
                   <th>Job</th>
                 </tr>
               </thead>
               <tbody>
-                {tickets.map((t) => (
-                  <tr key={t.id} className={t.active ? "" : "opacity-50"}>
-                    <td className="font-mono whitespace-nowrap">
-                      {t.url ? (
-                        <a href={t.url} target="_blank" rel="noreferrer" className="hover:underline">{t.key}</a>
-                      ) : (
-                        t.key
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap text-xs text-zinc-500">{t.issueType ?? ""}</td>
-                    <td className="max-w-md truncate" title={t.summary}>{t.summary}</td>
-                    <td className="whitespace-nowrap">
-                      <span className={`badge ${CAT_BADGE[t.statusCategory]}`}>{t.status || t.statusCategory}</span>
-                    </td>
-                    <td>
-                      <JiraJobSelect ticketKey={t.key} jobs={jobs} current={t.jobNumber} />
-                    </td>
-                  </tr>
-                ))}
+                {tickets.map((t) => {
+                  const board = t.boardId != null ? boardMap.get(t.boardId) : undefined;
+                  const boardJobName = board?.jobNumber ? (jobName.get(board.jobNumber) ?? board.jobNumber) : null;
+                  return (
+                    <tr key={t.id} className={t.active ? "" : "opacity-50"}>
+                      <td className="font-mono whitespace-nowrap">
+                        {t.url ? (
+                          <a href={t.url} target="_blank" rel="noreferrer" className="hover:underline">{t.key}</a>
+                        ) : (
+                          t.key
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap text-xs text-zinc-500">{t.issueType ?? ""}</td>
+                      <td className="max-w-md truncate" title={t.summary}>{t.summary}</td>
+                      <td className="whitespace-nowrap">
+                        <span className={`badge ${CAT_BADGE[t.statusCategory]}`}>{t.status || t.statusCategory}</span>
+                      </td>
+                      <td className="whitespace-nowrap text-xs text-zinc-500" title={board?.name}>{board?.name ?? ""}</td>
+                      <td>
+                        <JiraJobSelect
+                          ticketKey={t.key}
+                          jobs={jobs}
+                          current={t.jobNumber}
+                          boardDefault={t.jobNumber ? null : boardJobName}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

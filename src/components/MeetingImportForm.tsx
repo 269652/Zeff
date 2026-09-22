@@ -137,7 +137,7 @@ export function MeetingImportForm({
                   <td>
                     <select name={`job-${i}`} className="input min-w-44" value={r.jobNumber} onChange={(e) => update(i, { jobNumber: e.target.value })} disabled={imported}>
                       {jobs.map((j) => (
-                        <option key={j.id} value={j.number}>{j.number}</option>
+                        <option key={j.id} value={j.number}>{j.number} — {j.name}</option>
                       ))}
                     </select>
                   </td>

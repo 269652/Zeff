@@ -13,6 +13,7 @@ import {
   type WeeklyReport,
 } from "@/lib/entries";
 import { formatHours } from "@/lib/format";
+import { getTicketDefaultJob } from "@/lib/jira/store";
 import { createJob, listJobs } from "@/lib/jobs";
 import { formatDay, formatWeekRange, resolveWeek, todayIso, weekFromDate } from "@/lib/week";
 
@@ -155,7 +156,8 @@ export function registerZeffTools(server: McpServer): void {
     async (args) =>
       run(() => {
         const jobNumber =
-          args.jobNumber ?? (args.ticket ? getJobNumberForTicket(args.ticket) : undefined);
+          args.jobNumber ??
+          (args.ticket ? (getTicketDefaultJob(args.ticket) ?? getJobNumberForTicket(args.ticket)) : undefined);
         if (!jobNumber) {
           return fail(
             args.ticket
