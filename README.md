@@ -73,7 +73,8 @@ should call `list_jobs` first (the server's MCP instructions tell it to). To mak
 automatic, add a line like this to the project's `CLAUDE.md`:
 
 > After finishing a ticket, book the time spent with the Zeff `report_time` tool
-> (job 2026-0815, reportedBy "Claude Code", ticket = the JIRA key).
+> (job 2026-0815, reportedBy "Claude Code", ticket = the JIRA key) using a concise
+> one-line description — no commit logs or file lists.
 
 ## Import meetings from Outlook / Teams
 
