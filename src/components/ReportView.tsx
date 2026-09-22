@@ -29,13 +29,13 @@ function Line({ line }: { line: ReportLine }) {
         onClick={expandable ? () => setOpen((o) => !o) : undefined}
       >
         <span className="min-w-0">
-          <span className={`badge badge-${line.type} mr-1 align-middle`}>{line.type}</span>
           {expandable && <span className="mr-1 inline-block w-3 text-zinc-400">{open ? "▾" : "▸"}</span>}
           {line.label}
           {expandable && <span className="ml-1 text-xs text-zinc-400">×{line.count}</span>}
         </span>
-        <span className="flex shrink-0 items-center gap-3">
+        <span className="flex shrink-0 items-center gap-2">
           <Chips tags={line.tags} />
+          <span className={`badge badge-${line.type}`}>{line.type}</span>
           <span className="tabular-nums font-medium">{formatHours(line.hours)} h</span>
         </span>
       </div>
