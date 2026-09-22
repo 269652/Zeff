@@ -60,7 +60,18 @@ function Line({ line }: { line: ReportLine }) {
   );
 }
 
-export function ReportView({ report, text }: { report: RewrittenReport; text: string }) {
+export function ReportView({ report, text, today }: { report: RewrittenReport; text: string; today?: string }) {
+  const [openDays, setOpenDays] = useState<Set<string>>(
+    () => new Set(report.days.filter((d) => d.date === today).map((d) => d.date)),
+  );
+  const toggleDay = (date: string) =>
+    setOpenDays((s) => {
+      const next = new Set(s);
+      if (next.has(date)) next.delete(date);
+      else next.add(date);
+      return next;
+    });
+
   if (report.days.length === 0) {
     return <p className="py-4 text-center text-sm text-zinc-500">No time booked in this week.</p>;
   }
@@ -77,19 +88,33 @@ export function ReportView({ report, text }: { report: RewrittenReport; text: st
       </div>
 
       <div className="space-y-3">
-        {report.days.map((day) => (
-          <div key={day.date} className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
-            <div className="flex items-center justify-between border-b border-zinc-100 bg-zinc-50 px-3 py-1.5 text-sm font-semibold dark:border-zinc-800 dark:bg-zinc-900/60">
-              <span>{formatDay(new Date(day.date + "T00:00:00"), "EEEE, d MMM")}</span>
-              <span className="tabular-nums">{formatHours(day.total)} h</span>
+        {report.days.map((day) => {
+          const open = openDays.has(day.date);
+          return (
+            <div key={day.date} className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
+              <button
+                type="button"
+                onClick={() => toggleDay(day.date)}
+                aria-expanded={open}
+                className={`flex w-full items-center justify-between bg-zinc-50 px-3 py-1.5 text-sm font-semibold hover:bg-zinc-100 dark:bg-zinc-900/60 dark:hover:bg-zinc-800/60 ${open ? "border-b border-zinc-100 dark:border-zinc-800" : ""}`}
+              >
+                <span className="flex items-center gap-2">
+                  <span className="w-3 text-zinc-400">{open ? "▾" : "▸"}</span>
+                  {formatDay(new Date(day.date + "T00:00:00"), "EEEE, d MMM")}
+                  {!open && <span className="text-xs font-normal text-zinc-400">· {day.lines.length} lines</span>}
+                </span>
+                <span className="tabular-nums">{formatHours(day.total)} h</span>
+              </button>
+              {open && (
+                <ul className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
+                  {day.lines.map((l) => (
+                    <Line key={l.key} line={l} />
+                  ))}
+                </ul>
+              )}
             </div>
-            <ul className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
-              {day.lines.map((l) => (
-                <Line key={l.key} line={l} />
-              ))}
-            </ul>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="flex items-center justify-between border-t border-zinc-200 pt-2 text-sm font-semibold dark:border-zinc-800">
