@@ -7,26 +7,30 @@ export function JiraJobSelect({
   ticketKey,
   jobs,
   current,
-  boardDefault,
+  boardJob,
 }: {
   ticketKey: string;
   jobs: { number: string; name: string }[];
   current: string | null;
-  /** Job name inherited from the ticket's board (shown when no explicit job is set). */
-  boardDefault?: string | null;
+  /** The job inherited from the ticket's (enabled) board, if any. */
+  boardJob?: { number: string; name: string } | null;
 }) {
   const ref = useRef<HTMLFormElement>(null);
-  const placeholder = boardDefault ? `↳ ${boardDefault} (board)` : "— job —";
+  // Show the effective job: the explicit one, else the board default (so the
+  // dropdown is never blank when a board supplies a default).
+  const effective = current ?? boardJob?.number ?? "";
+  const inherited = !current && !!boardJob;
   return (
     <form action={setTicketJobAction} ref={ref}>
       <input type="hidden" name="key" value={ticketKey} />
       <select
         name="jobNumber"
-        defaultValue={current ?? ""}
-        className={`input py-1 text-xs ${current ? "" : "text-zinc-500"}`}
+        defaultValue={effective}
+        title={inherited ? `Inherited from board (${boardJob!.name})` : undefined}
+        className={`input py-1 text-xs ${inherited ? "text-zinc-500 italic" : ""}`}
         onChange={() => ref.current?.requestSubmit()}
       >
-        <option value="">{placeholder}</option>
+        <option value="">{boardJob ? "— inherit board —" : "— job —"}</option>
         {jobs.map((j) => (
           <option key={j.number} value={j.number}>
             {j.number} — {j.name}

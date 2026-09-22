@@ -16,6 +16,8 @@ export function listJiraTickets(opts: { activeOnly?: boolean; category?: JiraSta
   const conds = [];
   if (opts.activeOnly) conds.push(eq(jiraTickets.active, true));
   if (opts.category) conds.push(eq(jiraTickets.statusCategory, opts.category));
+  const boardCond = enabledBoardTicketCond();
+  if (boardCond) conds.push(boardCond);
   return getDb()
     .select()
     .from(jiraTickets)
@@ -121,7 +123,7 @@ export function clearJiraTickets(): void {
 }
 
 export function jiraStats(): JiraStats {
-  const rows = getDb().select().from(jiraTickets).all();
+  const rows = getDb().select().from(jiraTickets).where(enabledBoardTicketCond()).all();
   const byCategory: Record<JiraStatusCategory, number> = { todo: 0, inprogress: 0, done: 0, unknown: 0 };
   let withJob = 0;
   let lastSyncedAt: string | null = null;
@@ -133,21 +135,33 @@ export function jiraStats(): JiraStats {
   return { total: rows.length, byCategory, withJob, lastSyncedAt };
 }
 
-/** Autocomplete source: open (not-done) tickets first, with their effective job (explicit or board default). */
+/**
+ * Autocomplete source: active tickets with their effective job (explicit or the
+ * board default). When any board is enabled, only tickets on an enabled board are
+ * offered (stale boards are curated out); with no enabled boards it falls back to
+ * all active tickets so the dropdown is never empty by surprise.
+ */
 export function ticketSuggestions(): { ticket: string; summary: string; jobNumber: string | null; done: boolean }[] {
+  const filterByBoards = hasEnabledBoards();
+  const boardJoin = filterByBoards
+    ? and(eq(jiraBoards.id, jiraTickets.boardId), eq(jiraBoards.enabled, true))
+    : eq(jiraBoards.id, jiraTickets.boardId);
   return getDb()
     .select({
       ticket: jiraTickets.key,
       summary: jiraTickets.summary,
       jobNumber: jiraTickets.jobNumber,
       boardJob: jiraBoards.jobNumber,
+      boardId: jiraBoards.id,
       statusCategory: jiraTickets.statusCategory,
     })
     .from(jiraTickets)
-    .leftJoin(jiraBoards, eq(jiraBoards.id, jiraTickets.boardId))
+    .leftJoin(jiraBoards, boardJoin)
     .where(eq(jiraTickets.active, true))
     .orderBy(asc(jiraTickets.statusCategory), asc(jiraTickets.key))
     .all()
+    // When filtering by boards, keep only tickets matched to an enabled board.
+    .filter((r) => !filterByBoards || r.boardId !== null)
     .map((r) => ({ ticket: r.ticket, summary: r.summary, jobNumber: r.jobNumber ?? r.boardJob ?? null, done: r.statusCategory === "done" }));
 }
 
@@ -162,6 +176,7 @@ export function ticketsClosedBetween(fromIso: string, toIso: string): JiraTicket
         sql`${jiraTickets.resolvedAt} is not null`,
         gte(sql`substr(${jiraTickets.resolvedAt}, 1, 10)`, fromIso),
         lte(sql`substr(${jiraTickets.resolvedAt}, 1, 10)`, toIso),
+        enabledBoardTicketCond(),
       ),
     )
     .all();
@@ -188,7 +203,7 @@ export function ticketLifecycles(): TicketLifecycle[] {
       respondedAt: jiraTickets.respondedAt,
     })
     .from(jiraTickets)
-    .where(sql`${jiraTickets.openedAt} is not null`)
+    .where(and(sql`${jiraTickets.openedAt} is not null`, enabledBoardTicketCond()))
     .all();
 }
 
@@ -200,6 +215,7 @@ export function earliestJiraDate(): string | null {
       minResolved: sql<string | null>`min(substr(${jiraTickets.resolvedAt}, 1, 10))`,
     })
     .from(jiraTickets)
+    .where(enabledBoardTicketCond())
     .get();
   const days = [row?.minOpen, row?.minResolved].filter((d): d is string => !!d && /^\d{4}-\d{2}-\d{2}$/.test(d));
   return days.length ? days.sort()[0] : null;
@@ -243,8 +259,38 @@ export function setBoardJob(id: number, jobNumber: string | null): void {
   getDb().update(jiraBoards).set({ jobNumber: jobNumber || null }).where(eq(jiraBoards.id, id)).run();
 }
 
+export function setBoardEnabled(id: number, enabled: boolean): void {
+  getDb().update(jiraBoards).set({ enabled }).where(eq(jiraBoards.id, id)).run();
+}
+
+/** Enabled boards first, then the ones with the most of your tickets — stale/empty boards sink. */
 export function listJiraBoards(): JiraBoard[] {
-  return getDb().select().from(jiraBoards).orderBy(asc(jiraBoards.projectKey), asc(jiraBoards.name)).all();
+  return getDb()
+    .select()
+    .from(jiraBoards)
+    .orderBy(desc(jiraBoards.enabled), desc(jiraBoards.memberCount), asc(jiraBoards.name))
+    .all();
+}
+
+export function enabledBoardIds(): number[] {
+  return getDb().select({ id: jiraBoards.id }).from(jiraBoards).where(eq(jiraBoards.enabled, true)).all().map((r) => r.id);
+}
+
+export function hasEnabledBoards(): boolean {
+  return getDb().select({ n: sql<number>`count(*)` }).from(jiraBoards).where(eq(jiraBoards.enabled, true)).get()?.n
+    ? true
+    : false;
+}
+
+/**
+ * A WHERE condition limiting tickets to those on an ENABLED board, or undefined
+ * for "no restriction". Undefined when no board is enabled, so scoped views (the
+ * Jira tab list & stats, Analysis, the dropdown) fall back to all tickets rather
+ * than going empty. This is the single definition of "tickets that count".
+ */
+function enabledBoardTicketCond() {
+  if (!hasEnabledBoards()) return undefined;
+  return inArray(jiraTickets.boardId, enabledBoardIds());
 }
 
 /**
@@ -263,13 +309,13 @@ export function assignTicketBoards(considered: string[], assignments: { key: str
   }
 }
 
-/** The board-derived default job for a ticket (its board's mapped job), or null. */
+/** The board-derived default job for a ticket (its ENABLED board's mapped job), or null. */
 export function getBoardJobForTicket(key: string): string | null {
   const row = getDb()
     .select({ jobNumber: jiraBoards.jobNumber })
     .from(jiraTickets)
     .innerJoin(jiraBoards, eq(jiraBoards.id, jiraTickets.boardId))
-    .where(sql`lower(${jiraTickets.key}) = lower(${key})`)
+    .where(and(sql`lower(${jiraTickets.key}) = lower(${key})`, eq(jiraBoards.enabled, true)))
     .get();
   return row?.jobNumber ?? null;
 }
