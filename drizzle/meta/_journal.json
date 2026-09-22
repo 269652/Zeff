@@ -71,6 +71,13 @@
       "when": 1790073355145,
       "tag": "0009_clammy_white_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1790075336115,
+      "tag": "0010_cool_rick_jones",
+      "breakpoints": true
     }
   ]
 }

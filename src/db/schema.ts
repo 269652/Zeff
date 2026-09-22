@@ -225,6 +225,8 @@ export const jiraBoards = sqliteTable("jira_boards", {
   projectKey: text("project_key"),
   /** Zeff job number this board defaults to (set on the Jira tab). */
   jobNumber: text("job_number"),
+  /** Whether this board is synced and feeds the ticket dropdown (curates out stale boards). */
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
   /** How many synced tickets are on this board (informational). */
   memberCount: integer("member_count").notNull().default(0),
   syncedAt: text("synced_at")

@@ -531,7 +531,7 @@ export async function syncBoardsAction(): Promise<ActionState> {
     revalidateAll();
     return {
       ok: true,
-      message: `Synced ${r.boards} boards across ${r.projects} projects; matched ${r.mappedTickets} tickets to a board.`,
+      message: `Synced ${r.enabledBoards} enabled of ${r.boards} boards (${r.projects} projects); matched ${r.mappedTickets} tickets.`,
     };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
@@ -547,5 +547,17 @@ export async function setBoardJobAction(fd: FormData): Promise<void> {
     revalidateAll();
   } catch (err) {
     console.error("setBoardJobAction", err);
+  }
+}
+
+export async function setBoardEnabledAction(fd: FormData): Promise<void> {
+  const boardId = Number(str(fd, "boardId"));
+  if (!Number.isFinite(boardId)) return;
+  const { setBoardEnabled } = await import("@/lib/jira/store");
+  try {
+    setBoardEnabled(boardId, fd.get("enabled") === "on");
+    revalidateAll();
+  } catch (err) {
+    console.error("setBoardEnabledAction", err);
   }
 }

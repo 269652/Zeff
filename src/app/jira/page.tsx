@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { clearJiraAction } from "@/app/actions";
+import { BoardEnableToggle } from "@/components/BoardEnableToggle";
 import { BoardJobSelect } from "@/components/BoardJobSelect";
 import { BoardSyncControls } from "@/components/BoardSyncControls";
 import { JiraJobSelect } from "@/components/JiraJobSelect";
@@ -84,8 +85,9 @@ export default async function JiraPage() {
           <BoardSyncControls />
         </div>
         <p className="text-xs text-zinc-400">
-          Map a Jira board to a job and every ticket on that board defaults to it (override per ticket below).
-          Sync boards after syncing tickets; it reads each board&apos;s issues over one Jira session.
+          Only <strong>enabled</strong> boards are synced and feed the ticket dropdown — uncheck stale boards to
+          declutter. Map a board to a job and every ticket on it defaults to that job (override per ticket below).
+          Re-syncing only re-reads enabled and newly-found boards.
         </p>
         {boards.length === 0 ? (
           <p className="py-2 text-sm text-zinc-500">No boards yet — click “Sync boards”.</p>
@@ -94,6 +96,7 @@ export default async function JiraPage() {
             <table className="table">
               <thead>
                 <tr>
+                  <th className="text-center">On</th>
                   <th>Board</th>
                   <th>Type</th>
                   <th>Project</th>
@@ -103,7 +106,10 @@ export default async function JiraPage() {
               </thead>
               <tbody>
                 {boards.map((b) => (
-                  <tr key={b.id}>
+                  <tr key={b.id} className={b.enabled ? "" : "opacity-45"}>
+                    <td className="text-center">
+                      <BoardEnableToggle boardId={b.id} enabled={b.enabled} />
+                    </td>
                     <td className="font-medium whitespace-nowrap">{b.name}</td>
                     <td className="text-xs text-zinc-500">{b.type}</td>
                     <td className="font-mono text-xs">{b.projectKey}</td>
@@ -141,7 +147,10 @@ export default async function JiraPage() {
               <tbody>
                 {tickets.map((t) => {
                   const board = t.boardId != null ? boardMap.get(t.boardId) : undefined;
-                  const boardJobName = board?.jobNumber ? (jobName.get(board.jobNumber) ?? board.jobNumber) : null;
+                  const boardJob =
+                    board?.enabled && board.jobNumber
+                      ? { number: board.jobNumber, name: jobName.get(board.jobNumber) ?? board.jobNumber }
+                      : null;
                   return (
                     <tr key={t.id} className={t.active ? "" : "opacity-50"}>
                       <td className="font-mono whitespace-nowrap">
@@ -158,12 +167,7 @@ export default async function JiraPage() {
                       </td>
                       <td className="whitespace-nowrap text-xs text-zinc-500" title={board?.name}>{board?.name ?? ""}</td>
                       <td>
-                        <JiraJobSelect
-                          ticketKey={t.key}
-                          jobs={jobs}
-                          current={t.jobNumber}
-                          boardDefault={t.jobNumber ? null : boardJobName}
-                        />
+                        <JiraJobSelect ticketKey={t.key} jobs={jobs} current={t.jobNumber} boardJob={boardJob} />
                       </td>
                     </tr>
                   );
