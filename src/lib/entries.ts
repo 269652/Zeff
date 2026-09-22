@@ -237,6 +237,15 @@ export function listWeekTickets(week: WeekInfo): TicketSuggestion[] {
   return out.sort((a, b) => a.ticket.localeCompare(b.ticket, undefined, { numeric: true }));
 }
 
+/** Earliest booked entry date (YYYY-MM-DD), or undefined when there are none. */
+export function getEarliestEntryDate(): string | undefined {
+  const row = getDb()
+    .select({ d: sql<string | null>`min(${timeEntries.date})` })
+    .from(timeEntries)
+    .get();
+  return row?.d ?? undefined;
+}
+
 /** Sum of hours booked on a job, optionally limited to an inclusive date range. */
 export function getJobHours(jobId: number, from?: string, to?: string): number {
   const conditions = [eq(timeEntries.jobId, jobId)];
