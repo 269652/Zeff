@@ -165,6 +165,8 @@ export const reportSettings = sqliteTable("report_settings", {
   groupTicketsByDay: integer("group_tickets_by_day", { mode: "boolean" }).notNull().default(true),
   /** Template for a ticket line; {ticket} and {description} are substituted. */
   ticketTemplate: text("ticket_template").notNull().default("{ticket}: {description}"),
+  /** JSON array of report-rewriting rules (condition → template). Null = derive from the legacy fields above. */
+  rules: text("rules"),
   updatedAt: text("updated_at")
     .notNull()
     .default(sql`(CURRENT_TIMESTAMP)`),

@@ -463,17 +463,12 @@ export async function deleteTagAction(fd: FormData): Promise<void> {
 
 export async function saveReportSettingsAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const { updateReportSettings } = await import("@/lib/report");
+  const { parseRules } = await import("@/lib/report-shared");
   try {
-    const gb = str(fd, "groupBy");
-    updateReportSettings({
-      groupBy: gb === "type" || gb === "tag" || gb === "ticket" ? gb : undefined,
-      groupMeetingsByDay: fd.get("groupMeetingsByDay") === "on",
-      meetingsLabel: str(fd, "meetingsLabel"),
-      groupTicketsByDay: fd.get("groupTicketsByDay") === "on",
-      ticketTemplate: str(fd, "ticketTemplate"),
-    });
+    const rules = parseRules(str(fd, "rules") ?? null);
+    updateReportSettings({ rules });
     revalidateAll();
-    return { ok: true, message: "Report settings saved." };
+    return { ok: true, message: "Report rules saved." };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
