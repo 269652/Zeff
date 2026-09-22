@@ -82,7 +82,7 @@ export default async function AnalysisPage({
         : undefined,
   }));
 
-  const performancePoints: LinePoint[] = a.weeks.map((w) => ({ label: `W${w.label}`, value: w.avgLeadDays }));
+  const performancePoints: LinePoint[] = a.weeks.map((w) => ({ label: `W${w.label}`, value: w.avgResolutionDays }));
   const parallelPoints: LinePoint[] = a.weeks.map((w) => ({ label: `W${w.label}`, value: w.wip }));
   const days = (v: number | null) => (v === null ? "—" : `${formatHours(v)} d`);
 
@@ -138,8 +138,19 @@ export default async function AnalysisPage({
           )}
 
           {a.jira && a.hasTicketDates && (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              <Stat label="Avg reaction time" value={days(a.avgReactionDays)} tone="indigo" />
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Stat
+                label="Avg reaction time"
+                value={a.hasReactionData ? days(a.avgReactionDays) : "—"}
+                tone="sky"
+                hint="Time to respond: ticket opened → first status change (Jira changelog)."
+              />
+              <Stat
+                label="Avg resolution time"
+                value={days(a.avgResolutionDays)}
+                tone="indigo"
+                hint="Ticket opened → resolved, averaged over tickets resolved in range."
+              />
               <Stat label="Avg closed / week" value={formatHours(a.avgClosedPerWeek)} tone="indigo" />
               <Stat label="Avg parallel tickets" value={formatHours(a.avgParallelPerWeek)} tone="amber" />
             </div>
@@ -199,7 +210,7 @@ export default async function AnalysisPage({
               <section className="card p-4">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <h2 className="text-sm font-semibold text-zinc-500 uppercase">Performance</h2>
-                  <span className="text-xs text-zinc-500">cycle time · lower is better</span>
+                  <span className="text-xs text-zinc-500">resolution time · lower is better</span>
                 </div>
                 <LineChart points={performancePoints} colorClass="text-indigo-500" unit=" d" empty="No tickets closed in range." />
                 <p className="mt-2 text-xs text-zinc-400">Avg days from a ticket opening to its resolution, by the week it was resolved.</p>
@@ -247,12 +258,26 @@ const STAT_TONE = {
   violet: "text-violet-600 dark:text-violet-400",
   indigo: "text-indigo-600 dark:text-indigo-400",
   amber: "text-amber-600 dark:text-amber-400",
+  sky: "text-sky-600 dark:text-sky-400",
 } as const;
 
-function Stat({ label, value, tone }: { label: string; value: string; tone?: keyof typeof STAT_TONE }) {
+function Stat({
+  label,
+  value,
+  tone,
+  hint,
+}: {
+  label: string;
+  value: string;
+  tone?: keyof typeof STAT_TONE;
+  hint?: string;
+}) {
   return (
-    <div className="card px-4 py-3">
-      <div className="text-xs font-medium text-zinc-500 uppercase">{label}</div>
+    <div className="card px-4 py-3" title={hint}>
+      <div className="flex items-center gap-1 text-xs font-medium text-zinc-500 uppercase">
+        {label}
+        {hint && <span className="text-zinc-400" aria-hidden>ⓘ</span>}
+      </div>
       <div className={`text-2xl font-semibold tabular-nums ${tone ? STAT_TONE[tone] : ""}`}>{value}</div>
     </div>
   );

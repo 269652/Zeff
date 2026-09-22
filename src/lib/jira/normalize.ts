@@ -12,6 +12,8 @@ export type NormalizedTicket = {
   openedAt?: string | null;
   updatedAt?: string | null;
   resolvedAt?: string | null;
+  /** First status transition from the changelog (time-to-respond signal). */
+  respondedAt?: string | null;
 };
 
 const KEY_RE = /^[A-Z][A-Z0-9]+-\d+$/;
@@ -20,6 +22,38 @@ function str(v: unknown): string | undefined {
   if (typeof v === "string") return v;
   if (typeof v === "number") return String(v);
   return undefined;
+}
+
+/**
+ * Earliest "response" from a Jira changelog: the first status transition, or, if
+ * none, the first change of any kind. Handles mcp-atlassian's flattened
+ * `changelogs` array and raw REST `changelog.histories`. Timestamps are ISO
+ * strings and compared lexically (same format), which is exact enough for days.
+ */
+function firstResponseAt(o: Record<string, unknown>): string | null {
+  let histories: unknown[] = [];
+  if (Array.isArray(o.changelogs)) {
+    histories = o.changelogs;
+  } else if (o.changelog && typeof o.changelog === "object") {
+    const cl = o.changelog as Record<string, unknown>;
+    if (Array.isArray(cl.histories)) histories = cl.histories;
+    else if (Array.isArray(cl.values)) histories = cl.values;
+  }
+  let firstStatus: string | null = null;
+  let firstAny: string | null = null;
+  for (const h of histories) {
+    if (!h || typeof h !== "object") continue;
+    const he = h as Record<string, unknown>;
+    const created = str(he.created) ?? str(he.timestamp);
+    if (!created) continue;
+    if (!firstAny || created < firstAny) firstAny = created;
+    const items = Array.isArray(he.items) ? he.items : [];
+    const hasStatus = items.some(
+      (x) => x && typeof x === "object" && String((x as Record<string, unknown>).field ?? "").toLowerCase() === "status",
+    );
+    if (hasStatus && (!firstStatus || created < firstStatus)) firstStatus = created;
+  }
+  return firstStatus ?? firstAny;
 }
 
 /** Map a Jira status name or category key to a coarse category. */
@@ -102,6 +136,7 @@ export function normalizeIssue(raw: unknown, baseUrl?: string): NormalizedTicket
     openedAt: str(fields.created) ?? str(o.created) ?? str(o.createdAt) ?? str(o.opened) ?? null,
     updatedAt: str(fields.updated) ?? str(o.updated) ?? str(o.updatedAt) ?? null,
     resolvedAt: str(fields.resolutiondate) ?? str(o.resolutiondate) ?? str(o.resolved) ?? str(o.resolvedAt) ?? null,
+    respondedAt: firstResponseAt(o),
   };
 }
 

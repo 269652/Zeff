@@ -2,7 +2,7 @@ import { addDays, endOfISOWeek, getISOWeek, getISOWeekYear, startOfISOWeek, subW
 import { getEarliestEntryDate, listEntries, type EntryWithJob } from "./entries";
 import { round2 } from "./format";
 import type { EntryType, JiraStatusCategory } from "@/db/schema";
-import { hasJiraData, jiraStats, ticketLifecycles, ticketsClosedBetween } from "./jira/store";
+import { earliestJiraDate, hasJiraData, jiraStats, ticketLifecycles, ticketsClosedBetween } from "./jira/store";
 import type { TagLite } from "./tags-shared";
 import { isoDate } from "./week";
 
@@ -29,8 +29,8 @@ export type WeekStat = {
   closed: number;
   /** Jira tickets open at any point during this week (parallel work in flight). */
   wip: number;
-  /** Average cycle time (days, open→resolved) of tickets resolved this week, or null. */
-  avgLeadDays: number | null;
+  /** Average resolution time (days, open→resolved) of tickets resolved this week, or null. */
+  avgResolutionDays: number | null;
 };
 
 export type Analysis = {
@@ -54,14 +54,20 @@ export type Analysis = {
   jira: { total: number; byCategory: Record<JiraStatusCategory, number> } | null;
   /** Jira tickets resolved within the range (by resolution date). */
   ticketsClosed: number;
-  /** Average cycle time in days (open→resolved) over tickets resolved in range, or null. */
+  /** Average resolution time in days (open→resolved) over tickets resolved in range, or null. */
+  avgResolutionDays: number | null;
+  /** Average time-to-respond in days (open→first status change) over responses in range, or null. */
   avgReactionDays: number | null;
+  /** Number of tickets whose first response fell in range (the reaction-time sample). */
+  reactionSample: number;
   /** Tickets resolved in range divided by the number of weeks in range. */
   avgClosedPerWeek: number;
   /** Average number of tickets open in parallel across the weeks in range. */
   avgParallelPerWeek: number;
-  /** Whether Jira tickets carry opened dates (cycle time / parallelism available). */
+  /** Whether Jira tickets carry opened dates (resolution / parallelism available). */
   hasTicketDates: boolean;
+  /** Whether any ticket has a first-response timestamp (reaction time available). */
+  hasReactionData: boolean;
   filter: { reportedBy?: string };
 };
 
@@ -90,17 +96,26 @@ function daysBetween(a: string | null, b: string | null): number | null {
  * Resolve the analysis window: the last `weeks` ISO weeks (including the current
  * one), or all recorded time when `weeks` <= 0.
  */
-export function resolveRange(weeks: number, earliest?: string): { fromIso: string; toIso: string; weeks: number; allTime: boolean } {
+export function resolveRange(
+  weeks: number,
+  earliest?: string,
+  earliestJira?: string,
+): { fromIso: string; toIso: string; weeks: number; allTime: boolean } {
   const today = new Date();
   const toIso = isoDate(endOfISOWeek(today));
   if (weeks > 0) {
     return { fromIso: isoDate(startOfISOWeek(subWeeks(today, weeks - 1))), toIso, weeks, allTime: false };
   }
-  return { fromIso: earliest ?? isoDate(startOfISOWeek(subWeeks(today, 11))), toIso, weeks: 0, allTime: true };
+  // All-time spans the earliest of any signal — time entries OR Jira history —
+  // so Jira metrics (closures, cycle time, WIP) aren't cut off by a short booking history.
+  const floors = [earliest, earliestJira].filter((d): d is string => !!d);
+  const fromIso = floors.length ? floors.sort()[0] : isoDate(startOfISOWeek(subWeeks(today, 11)));
+  return { fromIso, toIso, weeks: 0, allTime: true };
 }
 
 export function getAnalysis(opts: { weeks: number; reportedBy?: string; earliest?: string }): Analysis {
-  const range = resolveRange(opts.weeks, opts.earliest);
+  const jiraPresent = hasJiraData();
+  const range = resolveRange(opts.weeks, opts.earliest, jiraPresent ? earliestJiraDate() ?? undefined : undefined);
   const entries = listEntries({ from: range.fromIso, to: range.toIso, reportedBy: opts.reportedBy });
 
   const byType = emptyTypeHours();
@@ -127,7 +142,7 @@ export function getAnalysis(opts: { weeks: number; reportedBy?: string; earliest
       newTickets: 0,
       closed: 0,
       wip: 0,
-      avgLeadDays: null,
+      avgResolutionDays: null,
     });
   }
   const weekTickets = new Map<string, Set<string>>();
@@ -193,14 +208,17 @@ export function getAnalysis(opts: { weeks: number; reportedBy?: string; earliest
     if (wk) wk.newTickets += 1;
   }
 
-  // Jira completion + cycle time: bucket resolved tickets by resolution week, and
-  // measure open→resolved cycle time (the reaction/lead time proxy) per week and overall.
-  const jira = hasJiraData() ? jiraStats() : null;
+  // Jira completion + resolution time: bucket resolved tickets by resolution week,
+  // and measure open→resolved resolution time per week and overall.
+  const jira = jiraPresent ? jiraStats() : null;
   let ticketsClosed = 0;
-  let leadSum = 0;
-  let leadCount = 0;
+  let resolutionSum = 0;
+  let resolutionCount = 0;
+  let reactionSum = 0;
+  let reactionCount = 0;
   let hasTicketDates = false;
-  const weekLead = new Map<string, { sum: number; n: number }>();
+  let hasReactionData = false;
+  const weekResolution = new Map<string, { sum: number; n: number }>();
   if (jira) {
     for (const t of ticketsClosedBetween(range.fromIso, range.toIso)) {
       const rd = dayPart(t.resolvedAt);
@@ -209,20 +227,34 @@ export function getAnalysis(opts: { weeks: number; reportedBy?: string; earliest
       const wkey = weekKeyOf(new Date(rd + "T00:00:00"));
       const wk = weekMap.get(wkey);
       if (wk) wk.closed += 1;
-      const lead = daysBetween(dayPart(t.openedAt), rd);
-      if (lead !== null) {
-        leadSum += lead;
-        leadCount++;
-        const wl = weekLead.get(wkey) ?? { sum: 0, n: 0 };
-        wl.sum += lead;
-        wl.n += 1;
-        weekLead.set(wkey, wl);
+      const res = daysBetween(dayPart(t.openedAt), rd);
+      if (res !== null) {
+        resolutionSum += res;
+        resolutionCount++;
+        const wr = weekResolution.get(wkey) ?? { sum: 0, n: 0 };
+        wr.sum += res;
+        wr.n += 1;
+        weekResolution.set(wkey, wr);
       }
     }
 
-    // Parallelism: count tickets open at any point during each week (WIP).
     const lifecycles = ticketLifecycles();
     hasTicketDates = lifecycles.length > 0;
+    hasReactionData = lifecycles.some((lc) => lc.respondedAt && lc.openedAt);
+
+    // Reaction time (time to respond): open→first status change, over responses in range.
+    for (const lc of lifecycles) {
+      const opened = dayPart(lc.openedAt);
+      const responded = dayPart(lc.respondedAt);
+      if (!opened || !responded) continue;
+      if (responded < range.fromIso || responded > range.toIso) continue;
+      const react = daysBetween(opened, responded);
+      if (react === null) continue;
+      reactionSum += react;
+      reactionCount++;
+    }
+
+    // Parallelism: count tickets open at any point during each week (WIP).
     for (const wk of weekMap.values()) {
       const weekEnd = isoDate(addDays(new Date(wk.startIso + "T00:00:00"), 6));
       let wip = 0;
@@ -236,8 +268,8 @@ export function getAnalysis(opts: { weeks: number; reportedBy?: string; earliest
         wip++;
       }
       wk.wip = wip;
-      const wl = weekLead.get(wk.weekKey);
-      wk.avgLeadDays = wl ? round2(wl.sum / wl.n) : null;
+      const wr = weekResolution.get(wk.weekKey);
+      wk.avgResolutionDays = wr ? round2(wr.sum / wr.n) : null;
     }
   }
 
@@ -245,7 +277,8 @@ export function getAnalysis(opts: { weeks: number; reportedBy?: string; earliest
   const weeks = [...weekMap.values()].sort((a, b) => a.startIso.localeCompare(b.startIso));
   const activeWeeks = weeks.filter((w) => w.total > 0).length || 1;
   const weekCount = weeks.length || 1;
-  const avgReactionDays = leadCount > 0 ? round2(leadSum / leadCount) : null;
+  const avgResolutionDays = resolutionCount > 0 ? round2(resolutionSum / resolutionCount) : null;
+  const avgReactionDays = reactionCount > 0 ? round2(reactionSum / reactionCount) : null;
   const avgClosedPerWeek = round2(ticketsClosed / weekCount);
   const avgParallelPerWeek = round2(weeks.reduce((sum, w) => sum + w.wip, 0) / weekCount);
 
@@ -272,10 +305,13 @@ export function getAnalysis(opts: { weeks: number; reportedBy?: string; earliest
     topTickets,
     jira: jira ? { total: jira.total, byCategory: jira.byCategory } : null,
     ticketsClosed,
+    avgResolutionDays,
     avgReactionDays,
+    reactionSample: reactionCount,
     avgClosedPerWeek,
     avgParallelPerWeek,
     hasTicketDates,
+    hasReactionData,
     filter: { reportedBy: opts.reportedBy },
   };
 }
