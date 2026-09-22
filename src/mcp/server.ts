@@ -20,12 +20,14 @@ export const SERVER_INFO = { name: "zeff", version: "0.1.0" };
 
 export const INSTRUCTIONS = `Zeff is a time-tracking (Zeiterfassung) server. Time is booked in hours against job numbers.
 
-Workflow when you finished work on a ticket:
-1. Find the job to book on with list_jobs (job numbers are the booking targets; tickets are just references stored with the entry).
-2. Call report_time with jobNumber, hours (decimal, e.g. 1.5), a short description of what was done, the ticket key and your name as reportedBy.
-3. Report each piece of work once. If you made a mistake, correct it with update_time_entry or delete_time_entry instead of reporting again.
+When you finish or pause work on a ticket:
+1. Pick the job with list_jobs (jobs are the booking target; the ticket is just a reference stored on the entry).
+2. Call report_time with jobNumber, hours (decimal, e.g. 1.5), a concise one-line description, the ticket key and your name as reportedBy.
+3. Book each piece of work once. Fix mistakes with update_time_entry / delete_time_entry — don't re-report.
 
-Use get_weekly_report to review what has been booked in a week.`;
+Descriptions are ONE short line (aim for <80 chars): what was done, not how. No commit logs, file/function lists, MR or commit numbers, test counts or multi-clause summaries. Good: "Hängender Einzug für mehrzeilige Footer-Links". Don't repeat the ticket key — the report prepends it. Put #tags in the description to tag the entry.
+
+Use get_weekly_report to review a week.`;
 
 // ---------------------------------------------------------------------------
 // Result helpers
@@ -110,10 +112,9 @@ export function registerZeffTools(server: McpServer): void {
     {
       title: "Report time",
       description:
-        "Book hours on a job. Call this once you have finished (or paused) work on a ticket. " +
-        "If you pass a ticket that was booked before, jobNumber is optional — the job it was last " +
-        "booked on is reused. Otherwise pass a jobNumber (see list_jobs). You can put #tags in the " +
-        "description; they are moved into the entry's tags.",
+        "Book hours on a job (one entry) with a concise one-line description of what was done. " +
+        "jobNumber is optional if the ticket was booked before (its last job is reused); otherwise " +
+        "see list_jobs. #tags in the description become the entry's tags.",
       inputSchema: z.object({
         jobNumber: z
           .string()
@@ -127,7 +128,10 @@ export function registerZeffTools(server: McpServer): void {
         description: z
           .string()
           .min(1)
-          .describe("What was done, short but specific. May contain #tags."),
+          .describe(
+            "What was done, as ONE short line (<80 chars); no commit logs, file lists or MR/commit numbers. " +
+              "Don't repeat the ticket key. May contain #tags.",
+          ),
         date: z
           .string()
           .optional()
