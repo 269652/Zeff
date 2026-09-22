@@ -75,6 +75,7 @@ export function upsertTickets(tickets: NormalizedTicket[], opts: { markMissingIn
           openedAt: t.openedAt ?? existing.openedAt,
           updatedAt: t.updatedAt ?? existing.updatedAt,
           resolvedAt: t.resolvedAt ?? existing.resolvedAt,
+          respondedAt: t.respondedAt ?? existing.respondedAt,
           active: true,
           syncedAt: now,
         })
@@ -95,6 +96,7 @@ export function upsertTickets(tickets: NormalizedTicket[], opts: { markMissingIn
           openedAt: t.openedAt ?? null,
           updatedAt: t.updatedAt ?? null,
           resolvedAt: t.resolvedAt ?? null,
+          respondedAt: t.respondedAt ?? null,
           active: true,
           syncedAt: now,
         })
@@ -169,9 +171,10 @@ export type TicketLifecycle = {
   openedAt: string | null;
   updatedAt: string | null;
   resolvedAt: string | null;
+  respondedAt: string | null;
 };
 
-/** Opened/updated/resolved dates for every ticket that has an opened date — for cycle time and WIP. */
+/** Opened/responded/updated/resolved dates for every ticket that has an opened date — cycle time, WIP, reaction. */
 export function ticketLifecycles(): TicketLifecycle[] {
   return getDb()
     .select({
@@ -180,10 +183,24 @@ export function ticketLifecycles(): TicketLifecycle[] {
       openedAt: jiraTickets.openedAt,
       updatedAt: jiraTickets.updatedAt,
       resolvedAt: jiraTickets.resolvedAt,
+      respondedAt: jiraTickets.respondedAt,
     })
     .from(jiraTickets)
     .where(sql`${jiraTickets.openedAt} is not null`)
     .all();
+}
+
+/** Earliest known Jira day (min of opened/resolved dates), YYYY-MM-DD, or null. */
+export function earliestJiraDate(): string | null {
+  const row = getDb()
+    .select({
+      minOpen: sql<string | null>`min(substr(${jiraTickets.openedAt}, 1, 10))`,
+      minResolved: sql<string | null>`min(substr(${jiraTickets.resolvedAt}, 1, 10))`,
+    })
+    .from(jiraTickets)
+    .get();
+  const days = [row?.minOpen, row?.minResolved].filter((d): d is string => !!d && /^\d{4}-\d{2}-\d{2}$/.test(d));
+  return days.length ? days.sort()[0] : null;
 }
 
 export function hasJiraData(): boolean {

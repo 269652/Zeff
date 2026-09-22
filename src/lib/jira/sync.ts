@@ -147,7 +147,13 @@ export async function syncFromJira(): Promise<SyncResult> {
   }
   const config: McpStdioConfig = { command: cfg.command, args: cfg.args, env: cfg.env };
   // mcp-atlassian cold-starts in ~30s (Python env + Jira connect), so allow generous time.
-  const result = await callStdioTool(config, cfg.tool, { jql: cfg.jql, limit: cfg.limit, fields: cfg.fields }, 150000);
+  // expand=changelog brings each issue's history so we can derive time-to-respond.
+  const result = await callStdioTool(
+    config,
+    cfg.tool,
+    { jql: cfg.jql, limit: cfg.limit, fields: cfg.fields, expand: "changelog" },
+    150000,
+  );
   const payload = resultToPayload(result);
   const issues = extractIssues(payload);
   const tickets = issues

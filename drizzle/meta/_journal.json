@@ -50,6 +50,13 @@
       "when": 1790068568318,
       "tag": "0006_cultured_stardust",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1790069799776,
+      "tag": "0007_plain_dragon_lord",
+      "breakpoints": true
     }
   ]
 }

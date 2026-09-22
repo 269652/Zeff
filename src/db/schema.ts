@@ -196,6 +196,8 @@ export const jiraTickets = sqliteTable(
     openedAt: text("opened_at"),
     updatedAt: text("updated_at"),
     resolvedAt: text("resolved_at"),
+    /** First status transition (from the changelog) — a "time to respond" signal. */
+    respondedAt: text("responded_at"),
     /** Still returned by the last sync (i.e. currently assigned / in scope). */
     active: integer("active", { mode: "boolean" }).notNull().default(true),
     syncedAt: text("synced_at")
