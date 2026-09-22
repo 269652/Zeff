@@ -84,10 +84,12 @@ export function ReportSettingsForm({
       <p className="text-xs text-zinc-500">
         Rules are tried top-down; the first whose conditions ALL match rewrites the entry&apos;s report line, and
         entries that render to the same label on a day are merged (hours summed). A rule with no conditions is a
-        catch-all — keep it last. Placeholders: <code className="code">{"{ticket}"}</code>{" "}
-        <code className="code">{"{desc}"}</code> <code className="code">{"{type}"}</code>{" "}
-        <code className="code">{"{tags}"}</code> <code className="code">{"{job}"}</code>{" "}
-        <code className="code">{"{jobName}"}</code>.
+        catch-all — keep it last. Placeholders: <code className="code">{"{ticket-nr}"}</code>{" "}
+        <code className="code">{"{ticket-name}"}</code> <code className="code">{"{desc}"}</code>{" "}
+        <code className="code">{"{type}"}</code> <code className="code">{"{tags}"}</code>{" "}
+        <code className="code">{"{job}"}</code> <code className="code">{"{jobName}"}</code> (
+        <code className="code">{"{ticket-nr}"}</code> is the key, <code className="code">{"{ticket-name}"}</code> the
+        Jira title).
       </p>
 
       <datalist id="rule-tags">
