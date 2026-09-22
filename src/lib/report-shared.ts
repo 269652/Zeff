@@ -9,12 +9,12 @@ import type { EntryType } from "@/db/schema";
  * top-down; the FIRST match renders the entry's report line, and entries that
  * render to the same label on the same day are merged (their hours summed).
  */
-export type RuleField = "type" | "tag" | "ticket" | "always";
+export type RuleField = "type" | "tag" | "ticket" | "job" | "always";
 
 export type ReportRule = {
   id: string;
   field: RuleField;
-  /** type: ticket|meeting|other · tag: tag name · ticket: key prefix · always: ignored. */
+  /** type: ticket|meeting|other · tag: tag name · ticket: key prefix · job: job number · always: ignored. */
   value: string;
   /** Output template, e.g. "Meetings" or "{ticket}: {desc}". */
   template: string;
@@ -26,12 +26,15 @@ export type RuleEntry = {
   ticket: string | null;
   description: string;
   tags: { name: string }[];
+  jobNumber: string;
+  jobName: string;
 };
 
 export const RULE_FIELD_LABELS: Record<RuleField, string> = {
   type: "Type is",
   tag: "Has tag",
   ticket: "Ticket starts with",
+  job: "Job is",
   always: "Any other entry",
 };
 
@@ -69,6 +72,10 @@ export function matchRule(rule: ReportRule, e: RuleEntry): boolean {
       const v = rule.value.trim().toLowerCase();
       return v ? e.ticket.toLowerCase().startsWith(v) : true;
     }
+    case "job": {
+      const v = rule.value.trim();
+      return v ? e.jobNumber === v : true;
+    }
     case "always":
       return true;
     default:
@@ -88,6 +95,7 @@ function substitute(tpl: string, e: RuleEntry): string {
   if (e.ticket) s = s.replaceAll("{ticket}", e.ticket);
   else s = s.replace(/\{ticket\}\s*[:–\-|]?[ \t]*/g, "");
   s = s.replaceAll("{description}", e.description).replaceAll("{desc}", e.description).replaceAll("{type}", TYPE_LABEL[e.type]);
+  s = s.replaceAll("{jobName}", e.jobName).replaceAll("{job}", e.jobNumber);
   if (tags) s = s.replaceAll("{tags}", tags);
   else s = s.replace(/\s*\{tags\}/g, "");
   return s
@@ -173,6 +181,7 @@ export function validateRules(rules: ReportRule[]): string | null {
       return "Pick a type (Ticket / Meeting / Other) for a Type rule.";
     }
     if (r.field === "tag" && !r.value.trim()) return "Give the tag name for a Has-tag rule.";
+    if (r.field === "job" && !r.value.trim()) return "Pick a job for a Job rule.";
   }
   return null;
 }

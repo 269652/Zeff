@@ -6,6 +6,7 @@ import { ReportSettingsForm } from "@/components/ReportSettingsForm";
 import { ScheduleForm } from "@/components/ScheduleForm";
 import { SubmitButton } from "@/components/SubmitButton";
 import { getReportRules, getReportSettings } from "@/lib/report";
+import { listJobs } from "@/lib/jobs";
 import { listTags } from "@/lib/tags";
 import { formatHours } from "@/lib/format";
 import {
@@ -27,6 +28,7 @@ export default async function SettingsPage() {
   const absences = listAbsences();
   const reportRules = getReportRules(getReportSettings());
   const tagNames = listTags().map((t) => t.name);
+  const jobOptions = listJobs().map((j) => ({ number: j.number, name: j.name }));
 
   return (
     <div className="space-y-6">
@@ -53,7 +55,7 @@ export default async function SettingsPage() {
             entry maps to an output label.
           </p>
         </div>
-        <ReportSettingsForm initialRules={reportRules} tags={tagNames} />
+        <ReportSettingsForm initialRules={reportRules} tags={tagNames} jobs={jobOptions} />
       </section>
 
       <section className="card space-y-4 p-4">

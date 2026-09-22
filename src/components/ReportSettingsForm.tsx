@@ -12,9 +12,17 @@ import {
 } from "@/lib/report-shared";
 import { SubmitButton } from "./SubmitButton";
 
-const FIELD_ORDER: RuleField[] = ["tag", "ticket", "type", "always"];
+const FIELD_ORDER: RuleField[] = ["tag", "ticket", "type", "job", "always"];
 
-export function ReportSettingsForm({ initialRules, tags }: { initialRules: ReportRule[]; tags: string[] }) {
+export function ReportSettingsForm({
+  initialRules,
+  tags,
+  jobs,
+}: {
+  initialRules: ReportRule[];
+  tags: string[];
+  jobs: { number: string; name: string }[];
+}) {
   const [rules, setRules] = useState<ReportRule[]>(initialRules.length ? initialRules : defaultRules());
   const [state, action] = useActionState<ActionState, FormData>(saveReportSettingsAction, null);
 
@@ -37,10 +45,11 @@ export function ReportSettingsForm({ initialRules, tags }: { initialRules: Repor
       <input type="hidden" name="rules" value={JSON.stringify(rules)} />
       <p className="text-xs text-zinc-500">
         Rules are tried top-down; the first match rewrites the entry&apos;s report line, and entries that
-        render to the same label on a day are merged (hours summed). Put specific rules (a tag) above
+        render to the same label on a day are merged (hours summed). Put specific rules (a tag or job) above
         general ones (a type). Placeholders: <code className="code">{"{ticket}"}</code>{" "}
         <code className="code">{"{desc}"}</code> <code className="code">{"{type}"}</code>{" "}
-        <code className="code">{"{tags}"}</code>.
+        <code className="code">{"{tags}"}</code> <code className="code">{"{job}"}</code>{" "}
+        <code className="code">{"{jobName}"}</code>.
       </p>
 
       <datalist id="rule-tags">
@@ -58,7 +67,8 @@ export function ReportSettingsForm({ initialRules, tags }: { initialRules: Repor
               value={r.field}
               onChange={(e) => {
                 const field = e.target.value as RuleField;
-                update(r.id, { field, value: field === "type" ? "meeting" : "" });
+                const value = field === "type" ? "meeting" : field === "job" ? (jobs[0]?.number ?? "") : "";
+                update(r.id, { field, value });
               }}
             >
               {FIELD_ORDER.map((f) => (
@@ -91,6 +101,15 @@ export function ReportSettingsForm({ initialRules, tags }: { initialRules: Repor
                 value={r.value}
                 onChange={(e) => update(r.id, { value: e.target.value })}
               />
+            ) : r.field === "job" ? (
+              <select className="input w-44 py-1 text-sm" value={r.value} onChange={(e) => update(r.id, { value: e.target.value })}>
+                {jobs.length === 0 && <option value="">(no jobs)</option>}
+                {jobs.map((j) => (
+                  <option key={j.number} value={j.number}>
+                    {j.number} — {j.name}
+                  </option>
+                ))}
+              </select>
             ) : (
               <span className="w-28 text-xs text-zinc-400">every remaining entry</span>
             )}
@@ -133,8 +152,10 @@ export function ReportSettingsForm({ initialRules, tags }: { initialRules: Repor
       </div>
 
       <p className="text-xs text-zinc-400">
-        Example: <code className="code">Has tag · Migration → [Migration] {"{ticket}: {desc}"}</code> above{" "}
-        <code className="code">Type is · Ticket → {"{ticket}: {desc}"}</code> prefixes migration tickets.
+        Examples: <code className="code">Has tag · Migration → [Migration] {"{ticket}: {desc}"}</code> above{" "}
+        <code className="code">Type is · Ticket → {"{ticket}: {desc}"}</code> prefixes migration tickets. Since not
+        all meetings share a job, <code className="code">Type is · Meeting → Meetings — {"{jobName}"}</code> keeps
+        a separate “Meetings” line per job, or use <code className="code">Job is · … → Meetings</code> for one job.
       </p>
     </form>
   );
