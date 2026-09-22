@@ -90,14 +90,20 @@ export default async function WeekPage({
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">Report · week {week.week}</h2>
           <span className="text-xs text-zinc-400">grouped per day · configure on Schedule</span>
         </div>
-        <ReportView report={rewritten} text={reportText} />
+        <ReportView report={rewritten} text={reportText} today={today} />
       </section>
 
       <section className="card p-4">
-        <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">
-          Entries in week {week.week}
-        </h2>
-        <EntriesTable entries={report.entries} />
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-zinc-500 uppercase [&::-webkit-details-marker]:hidden">
+            <span className="text-zinc-400 transition-transform group-open:rotate-90">▸</span>
+            Entries in week {week.week}
+            <span className="font-normal normal-case text-zinc-400">({report.entries.length})</span>
+          </summary>
+          <div className="mt-3">
+            <EntriesTable entries={report.entries} />
+          </div>
+        </details>
       </section>
     </div>
   );
