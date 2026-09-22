@@ -1,9 +1,9 @@
-import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
-import type { JiraStatusCategory, JiraTicket } from "@/db/schema";
+import type { JiraBoard, JiraStatusCategory, JiraTicket } from "@/db/schema";
 import type { NormalizedTicket } from "./normalize";
 
-const { jiraTickets } = schema;
+const { jiraTickets, jiraBoards } = schema;
 
 export type JiraStats = {
   total: number;
@@ -133,20 +133,22 @@ export function jiraStats(): JiraStats {
   return { total: rows.length, byCategory, withJob, lastSyncedAt };
 }
 
-/** Autocomplete source: open (not-done) tickets first, with their linked job. */
+/** Autocomplete source: open (not-done) tickets first, with their effective job (explicit or board default). */
 export function ticketSuggestions(): { ticket: string; summary: string; jobNumber: string | null; done: boolean }[] {
   return getDb()
     .select({
       ticket: jiraTickets.key,
       summary: jiraTickets.summary,
       jobNumber: jiraTickets.jobNumber,
+      boardJob: jiraBoards.jobNumber,
       statusCategory: jiraTickets.statusCategory,
     })
     .from(jiraTickets)
+    .leftJoin(jiraBoards, eq(jiraBoards.id, jiraTickets.boardId))
     .where(eq(jiraTickets.active, true))
     .orderBy(asc(jiraTickets.statusCategory), asc(jiraTickets.key))
     .all()
-    .map((r) => ({ ticket: r.ticket, summary: r.summary, jobNumber: r.jobNumber, done: r.statusCategory === "done" }));
+    .map((r) => ({ ticket: r.ticket, summary: r.summary, jobNumber: r.jobNumber ?? r.boardJob ?? null, done: r.statusCategory === "done" }));
 }
 
 /** Count of tickets resolved (done) within an inclusive date range, by resolvedAt. */
@@ -205,6 +207,82 @@ export function earliestJiraDate(): string | null {
 
 export function hasJiraData(): boolean {
   const row = getDb().select({ n: sql<number>`count(*)` }).from(jiraTickets).get();
+  return Number(row?.n ?? 0) > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Boards (Jira Agile boards -> default job)
+// ---------------------------------------------------------------------------
+
+export type BoardInput = { id: number; name: string; type?: string | null; projectKey?: string | null };
+
+/** Upsert boards by id, preserving any locally-assigned jobNumber. */
+export function upsertBoards(boards: BoardInput[]): void {
+  const db = getDb();
+  const now = new Date().toISOString();
+  for (const b of boards) {
+    const existing = db.select().from(jiraBoards).where(eq(jiraBoards.id, b.id)).get();
+    if (existing) {
+      db.update(jiraBoards)
+        .set({ name: b.name, type: b.type ?? existing.type, projectKey: b.projectKey ?? existing.projectKey, syncedAt: now })
+        .where(eq(jiraBoards.id, b.id))
+        .run();
+    } else {
+      db.insert(jiraBoards)
+        .values({ id: b.id, name: b.name, type: b.type ?? null, projectKey: b.projectKey ?? null, syncedAt: now })
+        .run();
+    }
+  }
+}
+
+export function setBoardMemberCount(id: number, n: number): void {
+  getDb().update(jiraBoards).set({ memberCount: n }).where(eq(jiraBoards.id, id)).run();
+}
+
+export function setBoardJob(id: number, jobNumber: string | null): void {
+  getDb().update(jiraBoards).set({ jobNumber: jobNumber || null }).where(eq(jiraBoards.id, id)).run();
+}
+
+export function listJiraBoards(): JiraBoard[] {
+  return getDb().select().from(jiraBoards).orderBy(asc(jiraBoards.projectKey), asc(jiraBoards.name)).all();
+}
+
+/**
+ * Apply board membership from a board sync: reset board_id on every considered
+ * ticket, then set it for the members. `considered` are all ticket keys that were
+ * checked (so tickets that left a board are cleared).
+ */
+export function assignTicketBoards(considered: string[], assignments: { key: string; boardId: number }[]): void {
+  const db = getDb();
+  for (let i = 0; i < considered.length; i += 400) {
+    const chunk = considered.slice(i, i + 400);
+    if (chunk.length) db.update(jiraTickets).set({ boardId: null }).where(inArray(jiraTickets.key, chunk)).run();
+  }
+  for (const m of assignments) {
+    db.update(jiraTickets).set({ boardId: m.boardId }).where(sql`lower(${jiraTickets.key}) = lower(${m.key})`).run();
+  }
+}
+
+/** The board-derived default job for a ticket (its board's mapped job), or null. */
+export function getBoardJobForTicket(key: string): string | null {
+  const row = getDb()
+    .select({ jobNumber: jiraBoards.jobNumber })
+    .from(jiraTickets)
+    .innerJoin(jiraBoards, eq(jiraBoards.id, jiraTickets.boardId))
+    .where(sql`lower(${jiraTickets.key}) = lower(${key})`)
+    .get();
+  return row?.jobNumber ?? null;
+}
+
+/** The effective default job for a ticket: its explicit job, else its board's job. */
+export function getTicketDefaultJob(key: string): string | null {
+  const t = getJiraTicket(key);
+  if (t?.jobNumber) return t.jobNumber;
+  return getBoardJobForTicket(key);
+}
+
+export function hasBoardData(): boolean {
+  const row = getDb().select({ n: sql<number>`count(*)` }).from(jiraBoards).get();
   return Number(row?.n ?? 0) > 0;
 }
 

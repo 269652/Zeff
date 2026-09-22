@@ -528,3 +528,29 @@ export async function clearJiraAction(): Promise<void> {
   revalidateAll();
   redirect("/jira");
 }
+
+export async function syncBoardsAction(): Promise<ActionState> {
+  const { syncBoardsFromJira } = await import("@/lib/jira/boards");
+  try {
+    const r = await syncBoardsFromJira();
+    revalidateAll();
+    return {
+      ok: true,
+      message: `Synced ${r.boards} boards across ${r.projects} projects; matched ${r.mappedTickets} tickets to a board.`,
+    };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+export async function setBoardJobAction(fd: FormData): Promise<void> {
+  const boardId = Number(str(fd, "boardId"));
+  if (!Number.isFinite(boardId)) return;
+  const { setBoardJob } = await import("@/lib/jira/store");
+  try {
+    setBoardJob(boardId, str(fd, "jobNumber") ?? null);
+    revalidateAll();
+  } catch (err) {
+    console.error("setBoardJobAction", err);
+  }
+}

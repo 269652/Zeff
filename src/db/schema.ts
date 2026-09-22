@@ -198,6 +198,8 @@ export const jiraTickets = sqliteTable(
     resolvedAt: text("resolved_at"),
     /** First status transition (from the changelog) — a "time to respond" signal. */
     respondedAt: text("responded_at"),
+    /** Jira Agile board this ticket belongs to (from board sync); drives the board default job. */
+    boardId: integer("board_id"),
     /** Still returned by the last sync (i.e. currently assigned / in scope). */
     active: integer("active", { mode: "boolean" }).notNull().default(true),
     syncedAt: text("synced_at")
@@ -206,6 +208,27 @@ export const jiraTickets = sqliteTable(
   },
   (t) => [index("jira_tickets_status_idx").on(t.statusCategory)],
 );
+
+/**
+ * Jira Agile boards discovered for the projects the synced tickets belong to.
+ * A board can be mapped to a Zeff job (`jobNumber`); tickets on that board then
+ * default to it. Populated by the board sync (jira_get_agile_boards + members).
+ */
+export const jiraBoards = sqliteTable("jira_boards", {
+  /** The real Jira board id. */
+  id: integer("id").primaryKey(),
+  name: text("name").notNull().default(""),
+  /** kanban | scrum | simple. */
+  type: text("type"),
+  projectKey: text("project_key"),
+  /** Zeff job number this board defaults to (set on the Jira tab). */
+  jobNumber: text("job_number"),
+  /** How many synced tickets are on this board (informational). */
+  memberCount: integer("member_count").notNull().default(0),
+  syncedAt: text("synced_at")
+    .notNull()
+    .default(sql`(CURRENT_TIMESTAMP)`),
+});
 
 export type Job = typeof jobs.$inferSelect;
 export type NewJob = typeof jobs.$inferInsert;
@@ -219,3 +242,4 @@ export type Tag = typeof tags.$inferSelect;
 export type ReportSettings = typeof reportSettings.$inferSelect;
 export type JiraTicket = typeof jiraTickets.$inferSelect;
 export type JiraStatusCategory = JiraTicket["statusCategory"];
+export type JiraBoard = typeof jiraBoards.$inferSelect;
