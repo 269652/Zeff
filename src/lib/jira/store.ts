@@ -327,6 +327,14 @@ export function getTicketDefaultJob(key: string): string | null {
   return getBoardJobForTicket(key);
 }
 
+/** All Jira ticket titles by upper-cased key — for the {ticket-name} report placeholder. */
+export function getTicketSummaries(): Map<string, string> {
+  const rows = getDb().select({ key: jiraTickets.key, summary: jiraTickets.summary }).from(jiraTickets).all();
+  const m = new Map<string, string>();
+  for (const r of rows) if (r.summary) m.set(r.key.toUpperCase(), r.summary);
+  return m;
+}
+
 export function hasBoardData(): boolean {
   const row = getDb().select({ n: sql<number>`count(*)` }).from(jiraBoards).get();
   return Number(row?.n ?? 0) > 0;

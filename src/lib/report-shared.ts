@@ -26,6 +26,8 @@ export type ReportRule = {
 export type RuleEntry = {
   type: EntryType;
   ticket: string | null;
+  /** The ticket's Jira title, for {ticket-name} (empty when unknown). */
+  ticketName: string;
   description: string;
   tags: { name: string }[];
   jobNumber: string;
@@ -103,14 +105,19 @@ export function matchRule(rule: ReportRule, e: RuleEntry): boolean {
 function substitute(tpl: string, e: RuleEntry): string {
   const tags = e.tags.map((t) => `#${t.name}`).join(" ");
   let s = tpl;
-  if (e.ticket) s = s.replaceAll("{ticket}", e.ticket);
-  else s = s.replace(/\{ticket\}\s*[:–\-|]?[ \t]*/g, "");
+  // Ticket number: {ticket-nr} (and {ticket} as an alias). Ticket title: {ticket-name}.
+  // When a token is empty, drop it AND an adjacent separator on either side (e.g. the
+  // " — " in "{ticket-nr} — {ticket-name}") so nothing dangles.
+  if (e.ticket) s = s.replaceAll("{ticket-nr}", e.ticket).replaceAll("{ticket}", e.ticket);
+  else s = s.replace(/\s*[:—–\-|·]?\s*\{ticket-nr\}\s*[:—–\-|·]?[ \t]*/g, " ").replace(/\s*[:—–\-|·]?\s*\{ticket\}\s*[:—–\-|·]?[ \t]*/g, " ");
+  if (e.ticketName) s = s.replaceAll("{ticket-name}", e.ticketName);
+  else s = s.replace(/\s*[:—–\-|·]?\s*\{ticket-name\}\s*[:—–\-|·]?[ \t]*/g, " ");
   s = s.replaceAll("{description}", e.description).replaceAll("{desc}", e.description).replaceAll("{type}", TYPE_LABEL[e.type]);
   s = s.replaceAll("{jobName}", e.jobName).replaceAll("{job}", e.jobNumber);
   if (tags) s = s.replaceAll("{tags}", tags);
-  else s = s.replace(/\s*\{tags\}/g, "");
+  else s = s.replace(/\s*[:—–\-|·]?\s*\{tags\}\s*[:—–\-|·]?[ \t]*/g, " ");
   return s
-    .replace(/^[\s:–\-|,]+/, "")
+    .replace(/^[\s:—–\-|·,]+/, "")
     .replace(/\s{2,}/g, " ")
     .trim();
 }

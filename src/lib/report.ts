@@ -4,6 +4,7 @@ import type { EntryType, ReportSettings } from "@/db/schema";
 import { listEntries, type EntryWithJob } from "./entries";
 import { round2 } from "./format";
 import { ValidationError } from "./errors";
+import { getTicketSummaries } from "./jira/store";
 import {
   defaultRules,
   matchedRule,
@@ -120,9 +121,17 @@ function toLineEntry(e: EntryWithJob): ReportLineEntry {
   return { id: e.id, date: e.date, description: e.description, hours: e.hours, ticket: e.ticket, type: e.type, tags: e.tags };
 }
 
-/** Flatten an entry into the shape the rules match on (job number/name lifted up). */
-function toRuleEntry(e: EntryWithJob): RuleEntry {
-  return { type: e.type, ticket: e.ticket, description: e.description, tags: e.tags, jobNumber: e.job.number, jobName: e.job.name };
+/** Flatten an entry into the shape the rules match on (job + Jira ticket title lifted in). */
+function toRuleEntry(e: EntryWithJob, summaries: Map<string, string>): RuleEntry {
+  return {
+    type: e.type,
+    ticket: e.ticket,
+    ticketName: e.ticket ? (summaries.get(e.ticket.toUpperCase()) ?? "") : "",
+    description: e.description,
+    tags: e.tags,
+    jobNumber: e.job.number,
+    jobName: e.job.name,
+  };
 }
 
 /**
@@ -130,11 +139,11 @@ function toRuleEntry(e: EntryWithJob): RuleEntry {
  * that render to the same label merge (hours summed). A line stays expandable when
  * it merges several entries, or when its label rewrites a single entry's text.
  */
-function buildDay(date: string, entries: EntryWithJob[], rules: ReportRule[]): ReportDay {
+function buildDay(date: string, entries: EntryWithJob[], rules: ReportRule[], summaries: Map<string, string>): ReportDay {
   const groups = new Map<string, { rule: ReportRule; entries: EntryWithJob[] }>();
   const order: string[] = [];
   for (const e of entries) {
-    const re = toRuleEntry(e);
+    const re = toRuleEntry(e, summaries);
     const rule = matchedRule(rules, re);
     const key = reportGroupKey(rule, re, e.id);
     let g = groups.get(key);
@@ -149,7 +158,7 @@ function buildDay(date: string, entries: EntryWithJob[], rules: ReportRule[]): R
   const lines: ReportLine[] = order.map((key) => {
     const { rule, entries: es } = groups.get(key)!;
     const first = es[0];
-    const label = reportGroupLabel(rule, toRuleEntry(first), es.length);
+    const label = reportGroupLabel(rule, toRuleEntry(first, summaries), es.length);
     return {
       key,
       label,
@@ -174,6 +183,7 @@ export function getRewrittenReport(week: WeekInfo, filter: { reportedBy?: string
   const settings = getReportSettings();
   const rules = getReportRules(settings);
   const entries = listEntries({ from: week.startIso, to: week.endIso, reportedBy: filter.reportedBy });
+  const summaries = getTicketSummaries();
 
   const byDate = new Map<string, EntryWithJob[]>();
   for (const e of entries) (byDate.get(e.date) ?? byDate.set(e.date, []).get(e.date)!).push(e);
@@ -182,7 +192,7 @@ export function getRewrittenReport(week: WeekInfo, filter: { reportedBy?: string
   for (const d of week.days) {
     const iso = isoDate(d);
     const dayEntries = byDate.get(iso);
-    if (dayEntries?.length) days.push(buildDay(iso, dayEntries, rules));
+    if (dayEntries?.length) days.push(buildDay(iso, dayEntries, rules, summaries));
   }
 
   return { week, days, total: round2(days.reduce((a, d) => a + d.total, 0)), settings, filter };
