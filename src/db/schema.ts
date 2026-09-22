@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 /**
  * Jobs (Aufträge) — every time entry is booked against a job number.
@@ -32,6 +32,10 @@ export const timeEntries = sqliteTable(
     /** Hours as a decimal, e.g. 1.5 = 1h 30m. */
     hours: real("hours").notNull(),
     description: text("description").notNull(),
+    /** Kind of work — drives report grouping. */
+    type: text("type", { enum: ["ticket", "meeting", "other"] })
+      .notNull()
+      .default("other"),
     /** Optional ticket reference, e.g. "PROJ-337". */
     ticket: text("ticket"),
     /** Who reported the time — a person or an agent name. */
@@ -120,10 +124,59 @@ export const absences = sqliteTable(
   (t) => [index("absences_range_idx").on(t.startDate, t.endDate)],
 );
 
+/** Tags that can be attached to time entries (many-to-many). */
+export const tags = sqliteTable("tags", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull().unique(),
+  color: text("color"),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(CURRENT_TIMESTAMP)`),
+});
+
+export const entryTags = sqliteTable(
+  "entry_tags",
+  {
+    entryId: integer("entry_id")
+      .notNull()
+      .references(() => timeEntries.id, { onDelete: "cascade" }),
+    tagId: integer("tag_id")
+      .notNull()
+      .references(() => tags.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.entryId, t.tagId] }),
+    index("entry_tags_tag_idx").on(t.tagId),
+  ],
+);
+
+/**
+ * How the weekly report is rewritten for output. One row (id = 1).
+ */
+export const reportSettings = sqliteTable("report_settings", {
+  id: integer("id").primaryKey(),
+  /** How entries are grouped per day: by ticket (default), by type, or by tag. */
+  groupBy: text("group_by", { enum: ["ticket", "type", "tag"] }).notNull().default("ticket"),
+  /** Collapse all Meeting entries on a day into a single line (ticket mode). */
+  groupMeetingsByDay: integer("group_meetings_by_day", { mode: "boolean" }).notNull().default(true),
+  /** Label for the collapsed meetings line. */
+  meetingsLabel: text("meetings_label").notNull().default("Meetings"),
+  /** Merge same-ticket entries per day into one line (ticket mode). */
+  groupTicketsByDay: integer("group_tickets_by_day", { mode: "boolean" }).notNull().default(true),
+  /** Template for a ticket line; {ticket} and {description} are substituted. */
+  ticketTemplate: text("ticket_template").notNull().default("{ticket}: {description}"),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`(CURRENT_TIMESTAMP)`),
+});
+
 export type Job = typeof jobs.$inferSelect;
 export type NewJob = typeof jobs.$inferInsert;
 export type TimeEntry = typeof timeEntries.$inferSelect;
 export type NewTimeEntry = typeof timeEntries.$inferInsert;
+export type EntryType = TimeEntry["type"];
 export type CalendarConnection = typeof calendarConnections.$inferSelect;
 export type WorkSchedule = typeof workSchedule.$inferSelect;
 export type Absence = typeof absences.$inferSelect;
+export type Tag = typeof tags.$inferSelect;
+export type ReportSettings = typeof reportSettings.$inferSelect;

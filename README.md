@@ -6,6 +6,9 @@ Hourly time reports for job numbers, with a built-in **MCP server** so a coding 
 - **Weekly report** — hours per job and weekday (Mon–Sun), totals, all entries of the week,
   filter by reporter, CSV export.
 - **Jobs** — the job numbers time is booked on (create, edit, deactivate).
+- **Entry types, tags & report** — each entry is a Ticket / Meeting / Other; #tags in a description
+  autocomplete and become tags (managed on the Tags page); the weekly **Report** view groups per day
+  (meetings collapsed into one line, tickets as `KEY: description`), configurable by ticket / type / tag.
 - **Working hours & absences** — a weekly part-time pattern (e.g. free Fridays) and one-off vacation/
   sick/holiday, so the weekly report shows booked hours against your target.
 - **Import meetings** — pulls the finished meetings of a week from your Outlook / Teams calendar
@@ -134,7 +137,8 @@ src/
     page.tsx              weekly report (/?week=2026-W39&by=name)
     jobs/                 job list, /jobs/[id] edit + entries
     entries/[id]/         edit a single entry
-    settings/             working hours & absences
+    settings/             working hours, absences & report rewriting
+    tags/                 tag management
     mcp/                  connection instructions
     import/               meeting import preview (Outlook / Teams via Microsoft Graph)
     api/calendar/         OAuth connect + callback + ingest (bookmarklet) routes
@@ -163,7 +167,21 @@ Open **Schedule** (`/settings`) to set your weekly working pattern and record ti
 The weekly report then shows **Booked / Target / Remaining** (Remaining turns to *Overtime* when you
 go over), a **Target** row per weekday, and marks non-working and absence days in the day headers.
 
-## Run on startup (Windows)
+## Types, tags & the report
+
+- **Type** — every entry is `ticket`, `meeting` or `other`. Calendar imports are always meetings;
+  entries with a ticket key default to ticket. It drives report grouping.
+- **Ticket → job memory** — once a ticket is booked on a job, booking it again (including the MCP
+  `report_time` tool with no jobNumber) reuses that job. The ticket field autocompletes with the
+  week's tickets and auto-selects the job.
+- **Tags** — manage on **/tags**, or type `#tag` in a description: an autocomplete pops up, and on
+  confirm the `#tag` is removed from the text and added as a tag. Works via MCP too (`#tags` in the
+  description are extracted server-side).
+- **Report** (weekly page) — a per-day grouped, copy-ready view. Configure grouping on **Schedule →
+  Report rewriting**: by ticket/meeting (meetings → one “Meetings” line, tickets → `{ticket}: {description}`),
+  by type, or by tag. Grouped lines are expandable to the underlying entries.
+
+$anchor
 
 Make the server start on login (production build, http://127.0.0.1:9333), no admin needed:
 

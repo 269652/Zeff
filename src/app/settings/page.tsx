@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import { deleteAbsenceAction } from "@/app/actions";
 import { AbsenceForm } from "@/components/AbsenceForm";
+import { ReportSettingsForm } from "@/components/ReportSettingsForm";
 import { ScheduleForm } from "@/components/ScheduleForm";
 import { SubmitButton } from "@/components/SubmitButton";
+import { getReportSettings } from "@/lib/report";
 import { formatHours } from "@/lib/format";
 import {
   ABSENCE_LABELS,
@@ -22,6 +24,7 @@ export default async function SettingsPage() {
   const hours = scheduleHours(schedule);
   const weekTotal = hours.reduce((a, b) => a + b, 0);
   const absences = listAbsences();
+  const reportSettings = getReportSettings();
 
   return (
     <div className="space-y-6">
@@ -38,6 +41,17 @@ export default async function SettingsPage() {
           Weekly hours · {formatHours(weekTotal)} h/week
         </h2>
         <ScheduleForm hours={hours} />
+      </section>
+
+      <section className="card space-y-3 p-4">
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Report rewriting</h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            Controls the grouped “Report” view on the weekly page (meetings collapsed per day, tickets
+            as <em>key: description</em>).
+          </p>
+        </div>
+        <ReportSettingsForm settings={reportSettings} />
       </section>
 
       <section className="card space-y-4 p-4">

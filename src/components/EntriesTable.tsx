@@ -21,10 +21,10 @@ export function EntriesTable({
           <tr>
             <th>Date</th>
             {showJob && <th>Job</th>}
+            <th>Type</th>
             <th className="num">Hours</th>
             <th>Description</th>
             <th>Ticket</th>
-            <th>By</th>
             <th>Source</th>
             <th></th>
           </tr>
@@ -40,10 +40,19 @@ export function EntriesTable({
                   </Link>
                 </td>
               )}
+              <td><span className={`badge badge-${e.type}`}>{e.type}</span></td>
               <td className="num font-semibold">{formatHours(e.hours)}</td>
-              <td className="max-w-md">{e.description}</td>
+              <td className="max-w-md">
+                {e.description}
+                {e.tags.length > 0 && (
+                  <span className="ml-1 inline-flex flex-wrap gap-1">
+                    {e.tags.map((t) => (
+                      <span key={t.id} className="badge badge-tag">#{t.name}</span>
+                    ))}
+                  </span>
+                )}
+              </td>
               <td className="font-mono whitespace-nowrap">{e.ticket ?? ""}</td>
-              <td className="whitespace-nowrap">{e.reportedBy}</td>
               <td>
                 <span className={`badge badge-${e.source}`}>
                   {e.source}

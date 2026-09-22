@@ -5,6 +5,7 @@ import {
   createEntry,
   deleteEntry,
   getJobHours,
+  getJobNumberForTicket,
   getWeeklyReport,
   listEntries,
   updateEntry,
@@ -57,10 +58,12 @@ function describeEntry(e: EntryWithJob): string {
     `#${e.id}`,
     e.date,
     `${formatHours(e.hours)}h`,
+    e.type,
     `${e.job.number} (${e.job.name})`,
     `"${e.description}"`,
   ];
   if (e.ticket) parts.push(`ticket ${e.ticket}`);
+  if (e.tags.length) parts.push(`tags ${e.tags.map((t) => `#${t.name}`).join(" ")}`);
   parts.push(`by ${e.reportedBy}`);
   return parts.join(" · ");
 }
@@ -108,9 +111,14 @@ export function registerZeffTools(server: McpServer): void {
       title: "Report time",
       description:
         "Book hours on a job. Call this once you have finished (or paused) work on a ticket. " +
-        "The job must exist — use list_jobs to find the right job number.",
+        "If you pass a ticket that was booked before, jobNumber is optional — the job it was last " +
+        "booked on is reused. Otherwise pass a jobNumber (see list_jobs). You can put #tags in the " +
+        "description; they are moved into the entry's tags.",
       inputSchema: z.object({
-        jobNumber: z.string().min(1).describe("Job number to book the time on (see list_jobs)."),
+        jobNumber: z
+          .string()
+          .optional()
+          .describe("Job number to book on (see list_jobs). Optional if the ticket was booked before."),
         hours: z
           .number()
           .positive()
@@ -119,7 +127,7 @@ export function registerZeffTools(server: McpServer): void {
         description: z
           .string()
           .min(1)
-          .describe("What was done, short but specific (e.g. 'Implemented CSV export, added tests')."),
+          .describe("What was done, short but specific. May contain #tags."),
         date: z
           .string()
           .optional()
@@ -128,6 +136,11 @@ export function registerZeffTools(server: McpServer): void {
           .string()
           .optional()
           .describe("Ticket / issue key the work belongs to, e.g. 'PROJ-337'."),
+        type: z
+          .enum(["ticket", "meeting", "other"])
+          .optional()
+          .describe("Kind of work. Defaults to 'ticket' when a ticket is given, else 'other'."),
+        tags: z.array(z.string()).optional().describe("Tag names to attach."),
         reportedBy: z
           .string()
           .optional()
@@ -137,13 +150,24 @@ export function registerZeffTools(server: McpServer): void {
     },
     async (args) =>
       run(() => {
+        const jobNumber =
+          args.jobNumber ?? (args.ticket ? getJobNumberForTicket(args.ticket) : undefined);
+        if (!jobNumber) {
+          return fail(
+            args.ticket
+              ? `No job given and ticket "${args.ticket}" has not been booked before. Pass jobNumber (see list_jobs).`
+              : "No jobNumber given. Pass jobNumber (see list_jobs).",
+          );
+        }
         const entry = createEntry(
           {
-            jobNumber: args.jobNumber,
+            jobNumber,
             hours: args.hours,
             description: args.description,
             date: args.date ?? todayIso(),
             ticket: args.ticket,
+            type: args.type,
+            tags: args.tags,
             reportedBy: args.reportedBy,
           },
           "mcp",
@@ -283,6 +307,8 @@ export function registerZeffTools(server: McpServer): void {
         description: z.string().min(1).optional(),
         date: z.string().optional().describe("YYYY-MM-DD"),
         ticket: z.string().nullable().optional().describe("Ticket key; null clears it."),
+        type: z.enum(["ticket", "meeting", "other"]).optional(),
+        tags: z.array(z.string()).optional().describe("Replaces the entry's tags."),
         reportedBy: z.string().optional(),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
