@@ -43,6 +43,13 @@
       "when": 1790066287927,
       "tag": "0005_huge_goliath",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790068568318,
+      "tag": "0006_cultured_stardust",
+      "breakpoints": true
     }
   ]
 }

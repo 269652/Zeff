@@ -18,7 +18,7 @@ export type JiraSyncConfig = {
   baseUrl?: string;
 };
 
-const DEFAULT_FIELDS = "summary,status,updated,resolutiondate,issuetype,priority,assignee";
+const DEFAULT_FIELDS = "summary,status,created,updated,resolutiondate,issuetype,priority,assignee";
 
 /** Parse a dotenv-style file into a plain object (used for the MCP server's envFile). */
 function loadEnvFile(file: string): Record<string, string> {

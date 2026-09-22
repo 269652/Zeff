@@ -9,6 +9,7 @@ export type NormalizedTicket = {
   priority?: string | null;
   assignee?: string | null;
   url?: string | null;
+  openedAt?: string | null;
   updatedAt?: string | null;
   resolvedAt?: string | null;
 };
@@ -98,6 +99,7 @@ export function normalizeIssue(raw: unknown, baseUrl?: string): NormalizedTicket
     priority: priority ?? null,
     assignee: assignee ?? null,
     url: url ?? null,
+    openedAt: str(fields.created) ?? str(o.created) ?? str(o.createdAt) ?? str(o.opened) ?? null,
     updatedAt: str(fields.updated) ?? str(o.updated) ?? str(o.updatedAt) ?? null,
     resolvedAt: str(fields.resolutiondate) ?? str(o.resolutiondate) ?? str(o.resolved) ?? str(o.resolvedAt) ?? null,
   };

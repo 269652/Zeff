@@ -192,7 +192,8 @@ export const jiraTickets = sqliteTable(
     url: text("url"),
     /** Zeff job this ticket is booked on (learned or set on the Jira tab). */
     jobNumber: text("job_number"),
-    /** Jira "updated" timestamp (ISO), and resolution date when done. */
+    /** Jira "created" (opened) timestamp, "updated" timestamp, and resolution date when done. */
+    openedAt: text("opened_at"),
     updatedAt: text("updated_at"),
     resolvedAt: text("resolved_at"),
     /** Still returned by the last sync (i.e. currently assigned / in scope). */

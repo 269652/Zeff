@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
-import { BarList, Donut, Legend, TYPE_STYLE, WeeklyBars, type BarItem } from "@/components/charts";
+import { BarList, Donut, Legend, LineChart, TYPE_STYLE, WeeklyBars, type BarItem, type LinePoint } from "@/components/charts";
 import { getAnalysis, getEarliestEntryDate } from "@/lib/analysis";
 import { listReporters } from "@/lib/entries";
 import { formatHours } from "@/lib/format";
@@ -82,6 +82,10 @@ export default async function AnalysisPage({
         : undefined,
   }));
 
+  const performancePoints: LinePoint[] = a.weeks.map((w) => ({ label: `W${w.label}`, value: w.avgLeadDays }));
+  const parallelPoints: LinePoint[] = a.weeks.map((w) => ({ label: `W${w.label}`, value: w.wip }));
+  const days = (v: number | null) => (v === null ? "—" : `${formatHours(v)} d`);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -130,6 +134,14 @@ export default async function AnalysisPage({
               <Stat label="Open" value={String(a.jira.byCategory.todo + a.jira.byCategory.inprogress)} />
               <Stat label="Done" value={String(a.jira.byCategory.done)} tone="violet" />
               <Stat label="Closed in range" value={String(a.ticketsClosed)} tone="violet" />
+            </div>
+          )}
+
+          {a.jira && a.hasTicketDates && (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <Stat label="Avg reaction time" value={days(a.avgReactionDays)} tone="indigo" />
+              <Stat label="Avg closed / week" value={formatHours(a.avgClosedPerWeek)} tone="indigo" />
+              <Stat label="Avg parallel tickets" value={formatHours(a.avgParallelPerWeek)} tone="amber" />
             </div>
           )}
 
@@ -182,6 +194,33 @@ export default async function AnalysisPage({
             <WeeklyBars weeks={weekColumns} />
           </section>
 
+          {a.jira && a.hasTicketDates && (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <section className="card p-4">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h2 className="text-sm font-semibold text-zinc-500 uppercase">Performance</h2>
+                  <span className="text-xs text-zinc-500">cycle time · lower is better</span>
+                </div>
+                <LineChart points={performancePoints} colorClass="text-indigo-500" unit=" d" empty="No tickets closed in range." />
+                <p className="mt-2 text-xs text-zinc-400">Avg days from a ticket opening to its resolution, by the week it was resolved.</p>
+              </section>
+              <section className="card p-4">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h2 className="text-sm font-semibold text-zinc-500 uppercase">Parallelism</h2>
+                  <span className="text-xs text-zinc-500">tickets open at once</span>
+                </div>
+                <LineChart points={parallelPoints} colorClass="text-amber-500" empty="No open tickets." />
+                <p className="mt-2 text-xs text-zinc-400">Number of tickets in flight (opened but not yet resolved) during each week.</p>
+              </section>
+            </div>
+          )}
+
+          {a.jira && !a.hasTicketDates && (
+            <p className="card p-4 text-sm text-zinc-500">
+              Reaction time and parallelism need ticket <em>opened</em> dates. Re-sync on the Jira tab to backfill them.
+            </p>
+          )}
+
           <div className="grid gap-4 lg:grid-cols-2">
             <section className="card p-4">
               <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">Hours by tag</h2>
@@ -204,13 +243,17 @@ export default async function AnalysisPage({
   );
 }
 
-function Stat({ label, value, tone }: { label: string; value: string; tone?: "violet" }) {
+const STAT_TONE = {
+  violet: "text-violet-600 dark:text-violet-400",
+  indigo: "text-indigo-600 dark:text-indigo-400",
+  amber: "text-amber-600 dark:text-amber-400",
+} as const;
+
+function Stat({ label, value, tone }: { label: string; value: string; tone?: keyof typeof STAT_TONE }) {
   return (
     <div className="card px-4 py-3">
       <div className="text-xs font-medium text-zinc-500 uppercase">{label}</div>
-      <div className={`text-2xl font-semibold tabular-nums ${tone === "violet" ? "text-violet-600 dark:text-violet-400" : ""}`}>
-        {value}
-      </div>
+      <div className={`text-2xl font-semibold tabular-nums ${tone ? STAT_TONE[tone] : ""}`}>{value}</div>
     </div>
   );
 }

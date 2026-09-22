@@ -72,6 +72,7 @@ export function upsertTickets(tickets: NormalizedTicket[], opts: { markMissingIn
           priority: t.priority ?? null,
           assignee: t.assignee ?? null,
           url: t.url ?? existing.url,
+          openedAt: t.openedAt ?? existing.openedAt,
           updatedAt: t.updatedAt ?? existing.updatedAt,
           resolvedAt: t.resolvedAt ?? existing.resolvedAt,
           active: true,
@@ -91,6 +92,7 @@ export function upsertTickets(tickets: NormalizedTicket[], opts: { markMissingIn
           priority: t.priority ?? null,
           assignee: t.assignee ?? null,
           url: t.url ?? null,
+          openedAt: t.openedAt ?? null,
           updatedAt: t.updatedAt ?? null,
           resolvedAt: t.resolvedAt ?? null,
           active: true,
@@ -158,6 +160,29 @@ export function ticketsClosedBetween(fromIso: string, toIso: string): JiraTicket
         lte(sql`substr(${jiraTickets.resolvedAt}, 1, 10)`, toIso),
       ),
     )
+    .all();
+}
+
+export type TicketLifecycle = {
+  key: string;
+  statusCategory: JiraStatusCategory;
+  openedAt: string | null;
+  updatedAt: string | null;
+  resolvedAt: string | null;
+};
+
+/** Opened/updated/resolved dates for every ticket that has an opened date — for cycle time and WIP. */
+export function ticketLifecycles(): TicketLifecycle[] {
+  return getDb()
+    .select({
+      key: jiraTickets.key,
+      statusCategory: jiraTickets.statusCategory,
+      openedAt: jiraTickets.openedAt,
+      updatedAt: jiraTickets.updatedAt,
+      resolvedAt: jiraTickets.resolvedAt,
+    })
+    .from(jiraTickets)
+    .where(sql`${jiraTickets.openedAt} is not null`)
     .all();
 }
 
