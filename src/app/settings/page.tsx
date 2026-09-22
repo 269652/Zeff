@@ -5,7 +5,8 @@ import { AbsenceForm } from "@/components/AbsenceForm";
 import { ReportSettingsForm } from "@/components/ReportSettingsForm";
 import { ScheduleForm } from "@/components/ScheduleForm";
 import { SubmitButton } from "@/components/SubmitButton";
-import { getReportSettings } from "@/lib/report";
+import { getReportRules, getReportSettings } from "@/lib/report";
+import { listTags } from "@/lib/tags";
 import { formatHours } from "@/lib/format";
 import {
   ABSENCE_LABELS,
@@ -24,7 +25,8 @@ export default async function SettingsPage() {
   const hours = scheduleHours(schedule);
   const weekTotal = hours.reduce((a, b) => a + b, 0);
   const absences = listAbsences();
-  const reportSettings = getReportSettings();
+  const reportRules = getReportRules(getReportSettings());
+  const tagNames = listTags().map((t) => t.name);
 
   return (
     <div className="space-y-6">
@@ -47,11 +49,11 @@ export default async function SettingsPage() {
         <div>
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">Report rewriting</h2>
           <p className="mt-1 text-sm text-zinc-500">
-            Controls the grouped “Report” view on the weekly page (meetings collapsed per day, tickets
-            as <em>key: description</em>).
+            Rules that rewrite and group the “Report” view on the weekly page — a condition on each
+            entry maps to an output label.
           </p>
         </div>
-        <ReportSettingsForm settings={reportSettings} />
+        <ReportSettingsForm initialRules={reportRules} tags={tagNames} />
       </section>
 
       <section className="card space-y-4 p-4">

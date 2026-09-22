@@ -64,6 +64,13 @@
       "when": 1790072621986,
       "tag": "0008_talented_mockingbird",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1790073355145,
+      "tag": "0009_clammy_white_tiger",
+      "breakpoints": true
     }
   ]
 }

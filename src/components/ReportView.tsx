@@ -64,12 +64,7 @@ export function ReportView({ report, text }: { report: RewrittenReport; text: st
   if (report.days.length === 0) {
     return <p className="py-4 text-center text-sm text-zinc-500">No time booked in this week.</p>;
   }
-  const groupLabel =
-    report.settings.groupBy === "type"
-      ? "grouped by type"
-      : report.settings.groupBy === "tag"
-        ? "grouped by tag"
-        : "grouped by ticket / meeting";
+  const groupLabel = "rewritten by your report rules";
 
   return (
     <div className="space-y-4">

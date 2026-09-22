@@ -4,13 +4,34 @@ import type { EntryType, ReportSettings } from "@/db/schema";
 import { listEntries, type EntryWithJob } from "./entries";
 import { round2 } from "./format";
 import { ValidationError } from "./errors";
+import {
+  defaultRules,
+  parseRules,
+  renderEntryLabel,
+  validateRules,
+  type ReportRule,
+} from "./report-shared";
 import type { TagLite } from "./tags-shared";
-import { dedupeTags } from "./tags-shared";
 import { isoDate, type WeekInfo } from "./week";
 
 const { reportSettings } = schema;
 
 export type GroupBy = ReportSettings["groupBy"];
+
+/**
+ * The active rewriting rules: the stored JSON rules, else rules derived from the
+ * legacy group_by / meetings-label / ticket-template columns (so existing setups
+ * keep working until the user saves new rules).
+ */
+export function getReportRules(s: ReportSettings): ReportRule[] {
+  const stored = parseRules(s.rules);
+  if (stored.length) return stored;
+  const rules: ReportRule[] = [];
+  if (s.groupMeetingsByDay) rules.push({ id: "meetings", field: "type", value: "meeting", template: s.meetingsLabel || "Meetings" });
+  rules.push({ id: "tickets", field: "type", value: "ticket", template: s.ticketTemplate || "{ticket}: {desc}" });
+  rules.push({ id: "rest", field: "always", value: "", template: "{desc}" });
+  return rules.length ? rules : defaultRules();
+}
 
 // ---------------------------------------------------------------------------
 // Settings
@@ -23,33 +44,16 @@ export function getReportSettings(): ReportSettings {
   return db.insert(reportSettings).values({ id: 1 }).returning().get();
 }
 
-export function updateReportSettings(patch: {
-  groupBy?: GroupBy;
-  groupMeetingsByDay?: boolean;
-  meetingsLabel?: string;
-  groupTicketsByDay?: boolean;
-  ticketTemplate?: string;
-}): ReportSettings {
-  const label = patch.meetingsLabel?.trim();
-  const tpl = patch.ticketTemplate?.trim();
-  if (patch.meetingsLabel !== undefined && !label) {
-    throw new ValidationError("The meetings label cannot be empty.");
-  }
-  if (tpl !== undefined && !tpl.includes("{ticket}") && !tpl.includes("{description}")) {
-    throw new ValidationError("The ticket template should contain {ticket} and/or {description}.");
-  }
-  if (patch.groupBy !== undefined && !["ticket", "type", "tag"].includes(patch.groupBy)) {
-    throw new ValidationError(`Unknown grouping "${patch.groupBy}".`);
+export function updateReportSettings(patch: { rules?: ReportRule[] }): ReportSettings {
+  if (patch.rules !== undefined) {
+    const err = validateRules(patch.rules);
+    if (err) throw new ValidationError(err);
   }
   getReportSettings();
   return getDb()
     .update(reportSettings)
     .set({
-      ...(patch.groupBy !== undefined && { groupBy: patch.groupBy }),
-      ...(patch.groupMeetingsByDay !== undefined && { groupMeetingsByDay: patch.groupMeetingsByDay }),
-      ...(label !== undefined && { meetingsLabel: label }),
-      ...(patch.groupTicketsByDay !== undefined && { groupTicketsByDay: patch.groupTicketsByDay }),
-      ...(tpl !== undefined && { ticketTemplate: tpl }),
+      ...(patch.rules !== undefined && { rules: JSON.stringify(patch.rules) }),
       updatedAt: new Date().toISOString(),
     })
     .where(eq(reportSettings.id, 1))
@@ -103,98 +107,46 @@ export type RewrittenReport = {
   filter: { reportedBy?: string };
 };
 
-function applyTicketTemplate(tpl: string, ticket: string | null, description: string): string {
-  const label = tpl
-    .replaceAll("{ticket}", ticket ?? "")
-    .replaceAll("{description}", description)
-    .trim();
-  return label.replace(/^[:\-–\s]+/, "").trim() || description || ticket || "(untitled)";
-}
-
 function unionTags(entries: EntryWithJob[]): TagLite[] {
   const map = new Map<number, TagLite>();
   for (const e of entries) for (const t of e.tags) map.set(t.id, t);
   return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function primaryTag(e: EntryWithJob): TagLite | undefined {
-  return [...e.tags].sort((a, b) => a.name.localeCompare(b.name))[0];
-}
-
-/** The group key an entry falls into under the configured grouping. */
-function keyOf(e: EntryWithJob, s: ReportSettings): string {
-  if (s.groupBy === "type") return `type:${e.type}`;
-  if (s.groupBy === "tag") {
-    const t = primaryTag(e);
-    if (t) return `tag:${t.name.toLowerCase()}`;
-    // untagged entries fall back to the ticket-mode grouping
-  }
-  if (e.type === "meeting") return s.groupMeetingsByDay ? "meetings" : `id:${e.id}`;
-  if (e.type === "ticket") {
-    return s.groupTicketsByDay ? `ticket:${(e.ticket || e.description).toLowerCase()}` : `id:${e.id}`;
-  }
-  return `id:${e.id}`;
-}
-
-function labelGroup(key: string, entries: EntryWithJob[], s: ReportSettings): { label: string; type: EntryType; ticket: string | null } {
-  const first = entries[0];
-  if (key.startsWith("type:")) {
-    const label = first.type === "meeting" ? s.meetingsLabel : first.type === "ticket" ? "Tickets" : "Other";
-    return { label, type: first.type, ticket: null };
-  }
-  if (key.startsWith("tag:")) {
-    return { label: `#${primaryTag(first)?.name ?? ""}`, type: first.type, ticket: null };
-  }
-  if (key === "meetings") return { label: s.meetingsLabel, type: "meeting", ticket: null };
-  if (key.startsWith("ticket:")) {
-    const descriptions = dedupeTags(entries.map((e) => e.description).filter(Boolean));
-    return {
-      label: applyTicketTemplate(s.ticketTemplate, first.ticket, descriptions.join("; ")),
-      type: "ticket",
-      ticket: first.ticket,
-    };
-  }
-  // individual entry
-  const label =
-    first.type === "meeting"
-      ? first.description || s.meetingsLabel
-      : first.type === "ticket"
-        ? applyTicketTemplate(s.ticketTemplate, first.ticket, first.description)
-        : first.description;
-  return { label, type: first.type, ticket: first.ticket };
-}
-
 function toLineEntry(e: EntryWithJob): ReportLineEntry {
   return { id: e.id, date: e.date, description: e.description, hours: e.hours, ticket: e.ticket, type: e.type, tags: e.tags };
 }
 
-function buildDay(date: string, entries: EntryWithJob[], settings: ReportSettings): ReportDay {
+/**
+ * Group a day's entries by the label their first matching rule renders — entries
+ * that render to the same label merge (hours summed). A line stays expandable when
+ * it merges several entries, or when its label rewrites a single entry's text.
+ */
+function buildDay(date: string, entries: EntryWithJob[], rules: ReportRule[]): ReportDay {
   const groups = new Map<string, EntryWithJob[]>();
   const order: string[] = [];
   for (const e of entries) {
-    const key = keyOf(e, settings);
-    if (!groups.has(key)) {
-      groups.set(key, []);
-      order.push(key);
+    const label = renderEntryLabel(rules, e);
+    if (!groups.has(label)) {
+      groups.set(label, []);
+      order.push(label);
     }
-    groups.get(key)!.push(e);
+    groups.get(label)!.push(e);
   }
 
-  const lines: ReportLine[] = order.map((key) => {
-    const es = groups.get(key)!;
-    const { label, type, ticket } = labelGroup(key, es, settings);
-    // Collapsed group labels hide their entries even with one row, so keep them expandable.
-    const isCollapsedGroup = key === "meetings" || key.startsWith("type:") || key.startsWith("tag:");
+  const lines: ReportLine[] = order.map((label) => {
+    const es = groups.get(label)!;
+    const first = es[0];
     return {
-      key,
+      key: label,
       label,
-      type,
-      ticket,
+      type: first.type,
+      ticket: first.ticket,
       hours: round2(es.reduce((a, e) => a + e.hours, 0)),
       tags: unionTags(es),
       count: es.length,
       entries: es.map(toLineEntry),
-      expandable: es.length > 1 || isCollapsedGroup,
+      expandable: es.length > 1 || label !== first.description,
     };
   });
 
@@ -204,6 +156,7 @@ function buildDay(date: string, entries: EntryWithJob[], settings: ReportSetting
 
 export function getRewrittenReport(week: WeekInfo, filter: { reportedBy?: string } = {}): RewrittenReport {
   const settings = getReportSettings();
+  const rules = getReportRules(settings);
   const entries = listEntries({ from: week.startIso, to: week.endIso, reportedBy: filter.reportedBy });
 
   const byDate = new Map<string, EntryWithJob[]>();
@@ -213,7 +166,7 @@ export function getRewrittenReport(week: WeekInfo, filter: { reportedBy?: string
   for (const d of week.days) {
     const iso = isoDate(d);
     const dayEntries = byDate.get(iso);
-    if (dayEntries?.length) days.push(buildDay(iso, dayEntries, settings));
+    if (dayEntries?.length) days.push(buildDay(iso, dayEntries, rules));
   }
 
   return { week, days, total: round2(days.reduce((a, d) => a + d.total, 0)), settings, filter };
