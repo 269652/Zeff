@@ -30,9 +30,9 @@ export function getReportRules(s: ReportSettings): ReportRule[] {
   const stored = parseRules(s.rules);
   if (stored.length) return stored;
   const rules: ReportRule[] = [];
-  if (s.groupMeetingsByDay) rules.push({ id: "meetings", field: "type", value: "meeting", template: s.meetingsLabel || "Meetings" });
-  rules.push({ id: "tickets", field: "type", value: "ticket", template: s.ticketTemplate || "{ticket}: {desc}" });
-  rules.push({ id: "rest", field: "always", value: "", template: "{desc}" });
+  if (s.groupMeetingsByDay) rules.push({ id: "meetings", conditions: [{ field: "type", value: "meeting" }], template: s.meetingsLabel || "Meetings" });
+  rules.push({ id: "tickets", conditions: [{ field: "type", value: "ticket" }], template: s.ticketTemplate || "{ticket}: {desc}" });
+  rules.push({ id: "rest", conditions: [], template: "{desc}" });
   return rules.length ? rules : defaultRules();
 }
 

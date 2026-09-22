@@ -9,13 +9,15 @@ import type { EntryType } from "@/db/schema";
  * top-down; the FIRST match renders the entry's report line, and entries that
  * render to the same label on the same day are merged (their hours summed).
  */
-export type RuleField = "type" | "tag" | "ticket" | "job" | "always";
+export type RuleField = "type" | "tag" | "ticket" | "job";
+
+/** One condition on an entry. type: ticket|meeting|other · tag: tag name · ticket: key prefix · job: job number. */
+export type RuleCondition = { field: RuleField; value: string };
 
 export type ReportRule = {
   id: string;
-  field: RuleField;
-  /** type: ticket|meeting|other · tag: tag name · ticket: key prefix · job: job number · always: ignored. */
-  value: string;
+  /** ALL conditions must match (AND). An empty list matches every entry (a catch-all). */
+  conditions: RuleCondition[];
   /** Output template, e.g. "Meetings" or "{ticket}: {desc}". */
   template: string;
 };
@@ -35,8 +37,9 @@ export const RULE_FIELD_LABELS: Record<RuleField, string> = {
   tag: "Has tag",
   ticket: "Ticket starts with",
   job: "Job is",
-  always: "Any other entry",
 };
+
+export const RULE_FIELDS: RuleField[] = ["type", "tag", "ticket", "job"];
 
 export const ENTRY_TYPE_OPTIONS: { value: EntryType; label: string }[] = [
   { value: "ticket", label: "Ticket" },
@@ -50,37 +53,45 @@ export function newRuleId(): string {
   return Math.random().toString(36).slice(2, 9);
 }
 
+export function newCondition(): RuleCondition {
+  return { field: "type", value: "meeting" };
+}
+
 /** The out-of-the-box rules (also the fallback): meetings collapse, tickets as "key: desc". */
 export function defaultRules(): ReportRule[] {
   return [
-    { id: "meetings", field: "type", value: "meeting", template: "Meetings" },
-    { id: "tickets", field: "type", value: "ticket", template: "{ticket}: {desc}" },
-    { id: "rest", field: "always", value: "", template: "{desc}" },
+    { id: "meetings", conditions: [{ field: "type", value: "meeting" }], template: "Meetings" },
+    { id: "tickets", conditions: [{ field: "type", value: "ticket" }], template: "{ticket}: {desc}" },
+    { id: "rest", conditions: [], template: "{desc}" },
   ];
 }
 
-export function matchRule(rule: ReportRule, e: RuleEntry): boolean {
-  switch (rule.field) {
+/** Whether one condition matches an entry. */
+export function matchCondition(c: RuleCondition, e: RuleEntry): boolean {
+  switch (c.field) {
     case "type":
-      return e.type === rule.value;
+      return e.type === c.value;
     case "tag": {
-      const v = rule.value.trim().replace(/^#/, "").toLowerCase();
+      const v = c.value.trim().replace(/^#/, "").toLowerCase();
       return v ? e.tags.some((t) => t.name.toLowerCase() === v) : e.tags.length > 0;
     }
     case "ticket": {
       if (!e.ticket) return false;
-      const v = rule.value.trim().toLowerCase();
+      const v = c.value.trim().toLowerCase();
       return v ? e.ticket.toLowerCase().startsWith(v) : true;
     }
     case "job": {
-      const v = rule.value.trim();
+      const v = c.value.trim();
       return v ? e.jobNumber === v : true;
     }
-    case "always":
-      return true;
     default:
       return false;
   }
+}
+
+/** A rule matches when ALL its conditions match (an empty list is a catch-all). */
+export function matchRule(rule: ReportRule, e: RuleEntry): boolean {
+  return rule.conditions.every((c) => matchCondition(c, e));
 }
 
 /**
@@ -112,7 +123,7 @@ export function renderTemplate(tpl: string, e: RuleEntry): string {
 /** The first matching rule, or a synthetic description-only fallback. */
 export function matchedRule(rules: ReportRule[], e: RuleEntry): ReportRule {
   for (const r of rules) if (matchRule(r, e)) return r;
-  return { id: "fallback", field: "always", value: "", template: "{desc}" };
+  return { id: "fallback", conditions: [], template: "{desc}" };
 }
 
 const hasDescPlaceholder = (tpl: string) => /\{desc(ription)?\}/.test(tpl);
@@ -141,10 +152,26 @@ export function reportGroupLabel(rule: ReportRule, first: RuleEntry, count: numb
 }
 
 function isRuleField(v: unknown): v is RuleField {
-  return v === "type" || v === "tag" || v === "ticket" || v === "always";
+  return v === "type" || v === "tag" || v === "ticket" || v === "job";
 }
 
-/** Parse rules from stored JSON, dropping anything malformed. Returns [] when absent/empty. */
+function parseConditions(raw: unknown): RuleCondition[] {
+  if (!Array.isArray(raw)) return [];
+  const out: RuleCondition[] = [];
+  for (const c of raw) {
+    if (!c || typeof c !== "object") continue;
+    const o = c as Record<string, unknown>;
+    if (!isRuleField(o.field)) continue;
+    out.push({ field: o.field, value: typeof o.value === "string" ? o.value : "" });
+  }
+  return out;
+}
+
+/**
+ * Parse rules from stored JSON, dropping anything malformed and migrating the
+ * legacy single-condition shape ({field, value}; "always" = catch-all) to the
+ * multi-condition shape ({conditions: [...]}). Returns [] when absent/empty.
+ */
 export function parseRules(json: string | null | undefined): ReportRule[] {
   if (!json) return [];
   let arr: unknown;
@@ -158,15 +185,18 @@ export function parseRules(json: string | null | undefined): ReportRule[] {
   for (const raw of arr) {
     if (!raw || typeof raw !== "object") continue;
     const o = raw as Record<string, unknown>;
-    if (!isRuleField(o.field)) continue;
     const template = typeof o.template === "string" ? o.template : "";
     if (!template.trim()) continue;
-    out.push({
-      id: typeof o.id === "string" && o.id ? o.id : newRuleId(),
-      field: o.field,
-      value: typeof o.value === "string" ? o.value : "",
-      template,
-    });
+    let conditions: RuleCondition[];
+    if (Array.isArray(o.conditions)) {
+      conditions = parseConditions(o.conditions);
+    } else if (typeof o.field === "string") {
+      // Legacy single-condition rule; "always" becomes a catch-all (no conditions).
+      conditions = isRuleField(o.field) ? [{ field: o.field, value: typeof o.value === "string" ? o.value : "" }] : [];
+    } else {
+      conditions = [];
+    }
+    out.push({ id: typeof o.id === "string" && o.id ? o.id : newRuleId(), conditions, template });
   }
   return out;
 }
@@ -175,13 +205,15 @@ export function parseRules(json: string | null | undefined): ReportRule[] {
 export function validateRules(rules: ReportRule[]): string | null {
   if (rules.length === 0) return "Add at least one rule.";
   for (const r of rules) {
-    if (!isRuleField(r.field)) return "Each rule needs a valid condition.";
     if (!r.template.trim()) return "Every rule needs an output template.";
-    if (r.field === "type" && !["ticket", "meeting", "other"].includes(r.value)) {
-      return "Pick a type (Ticket / Meeting / Other) for a Type rule.";
+    for (const c of r.conditions) {
+      if (!isRuleField(c.field)) return "Each condition needs a valid field.";
+      if (c.field === "type" && !["ticket", "meeting", "other"].includes(c.value)) {
+        return "Pick a type (Ticket / Meeting / Other) for a Type condition.";
+      }
+      if (c.field === "tag" && !c.value.trim()) return "Give the tag name for a Has-tag condition.";
+      if (c.field === "job" && !c.value.trim()) return "Pick a job for a Job condition.";
     }
-    if (r.field === "tag" && !r.value.trim()) return "Give the tag name for a Has-tag rule.";
-    if (r.field === "job" && !r.value.trim()) return "Pick a job for a Job rule.";
   }
   return null;
 }
