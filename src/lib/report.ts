@@ -81,6 +81,12 @@ export type ReportLine = {
   count: number;
   /** The individual entries merged into this line (for expansion). */
   entries: ReportLineEntry[];
+  /**
+   * Whether the line can be expanded to its entries. True for multi-entry lines
+   * and for collapsed group labels (Meetings / type / tag) whose label hides the
+   * underlying entries even when there is only one.
+   */
+  expandable: boolean;
 };
 
 export type ReportDay = {
@@ -177,6 +183,8 @@ function buildDay(date: string, entries: EntryWithJob[], settings: ReportSetting
   const lines: ReportLine[] = order.map((key) => {
     const es = groups.get(key)!;
     const { label, type, ticket } = labelGroup(key, es, settings);
+    // Collapsed group labels hide their entries even with one row, so keep them expandable.
+    const isCollapsedGroup = key === "meetings" || key.startsWith("type:") || key.startsWith("tag:");
     return {
       key,
       label,
@@ -186,6 +194,7 @@ function buildDay(date: string, entries: EntryWithJob[], settings: ReportSetting
       tags: unionTags(es),
       count: es.length,
       entries: es.map(toLineEntry),
+      expandable: es.length > 1 || isCollapsedGroup,
     };
   });
 

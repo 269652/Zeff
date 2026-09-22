@@ -20,7 +20,7 @@ function Chips({ tags }: { tags: TagLite[] }) {
 
 function Line({ line }: { line: ReportLine }) {
   const [open, setOpen] = useState(false);
-  const expandable = line.count > 1;
+  const expandable = line.expandable;
 
   return (
     <li className="text-sm">
@@ -31,7 +31,7 @@ function Line({ line }: { line: ReportLine }) {
         <span className="min-w-0">
           {expandable && <span className="mr-1 inline-block w-3 text-zinc-400">{open ? "▾" : "▸"}</span>}
           {line.label}
-          {expandable && <span className="ml-1 text-xs text-zinc-400">×{line.count}</span>}
+          {line.count > 1 && <span className="ml-1 text-xs text-zinc-400">×{line.count}</span>}
         </span>
         <span className="flex shrink-0 items-center gap-2">
           <Chips tags={line.tags} />
