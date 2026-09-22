@@ -4,12 +4,22 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { deleteConnection } from "@/lib/calendar/microsoft";
-import { createEntry, deleteEntry, updateEntry } from "@/lib/entries";
+import { createEntry, deleteEntry, getJobNumberForTicket, updateEntry } from "@/lib/entries";
 import { errorMessage } from "@/lib/errors";
 import { formatHours } from "@/lib/format";
 import { createJob, deleteJob, updateJob } from "@/lib/jobs";
+import type { EntryType } from "@/db/schema";
 
 export type ActionState = { ok: boolean; error?: string; message?: string } | null;
+
+function tagsFrom(fd: FormData): string[] {
+  return fd.getAll("tags").map((v) => String(v).trim()).filter(Boolean);
+}
+
+function entryTypeFrom(fd: FormData): EntryType | undefined {
+  const t = str(fd, "type");
+  return t === "ticket" || t === "meeting" || t === "other" ? t : undefined;
+}
 
 function str(fd: FormData, key: string): string | undefined {
   const v = fd.get(key);
@@ -43,13 +53,18 @@ export async function createEntryAction(_prev: ActionState, fd: FormData): Promi
   try {
     const hours = num(fd, "hours");
     if (hours === undefined) return { ok: false, error: "Hours is required (e.g. 1.5)." };
+    const ticket = str(fd, "ticket");
+    // Reuse the job a ticket was last booked on when none was chosen.
+    const jobNumber = (str(fd, "jobNumber") ?? "") || (ticket ? getJobNumberForTicket(ticket) ?? "" : "");
     const entry = createEntry(
       {
-        jobNumber: str(fd, "jobNumber") ?? "",
+        jobNumber,
         date: str(fd, "date") ?? "",
         hours,
         description: str(fd, "description") ?? "",
-        ticket: str(fd, "ticket"),
+        ticket,
+        type: entryTypeFrom(fd),
+        tags: tagsFrom(fd),
         reportedBy: str(fd, "reportedBy"),
       },
       "web",
@@ -79,6 +94,8 @@ export async function updateEntryAction(
       hours,
       description: str(fd, "description"),
       ticket: str(fd, "ticket") ?? null,
+      type: entryTypeFrom(fd),
+      tags: tagsFrom(fd),
       reportedBy: str(fd, "reportedBy"),
     });
     date = entry.date;
@@ -397,5 +414,67 @@ export async function deleteAbsenceAction(fd: FormData): Promise<void> {
     revalidateAll();
   } catch (err) {
     console.error("deleteAbsenceAction", err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tags
+// ---------------------------------------------------------------------------
+
+export async function createTagAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { createTag } = await import("@/lib/tags");
+  try {
+    const tag = createTag(str(fd, "name") ?? "", str(fd, "color"));
+    revalidateAll();
+    return { ok: true, message: `Added tag #${tag.name}.` };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+export async function renameTagAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const id = int(fd, "id");
+  if (id === undefined) return { ok: false, error: "Missing tag id." };
+  const { renameTag } = await import("@/lib/tags");
+  try {
+    const tag = renameTag(id, str(fd, "name") ?? "", str(fd, "color") ?? null);
+    revalidateAll();
+    return { ok: true, message: `Saved #${tag.name}.` };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+export async function deleteTagAction(fd: FormData): Promise<void> {
+  const id = int(fd, "id");
+  if (id === undefined) return;
+  const { deleteTag } = await import("@/lib/tags");
+  try {
+    deleteTag(id);
+    revalidateAll();
+  } catch (err) {
+    console.error("deleteTagAction", err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Report settings
+// ---------------------------------------------------------------------------
+
+export async function saveReportSettingsAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { updateReportSettings } = await import("@/lib/report");
+  try {
+    const gb = str(fd, "groupBy");
+    updateReportSettings({
+      groupBy: gb === "type" || gb === "tag" || gb === "ticket" ? gb : undefined,
+      groupMeetingsByDay: fd.get("groupMeetingsByDay") === "on",
+      meetingsLabel: str(fd, "meetingsLabel"),
+      groupTicketsByDay: fd.get("groupTicketsByDay") === "on",
+      ticketTemplate: str(fd, "ticketTemplate"),
+    });
+    revalidateAll();
+    return { ok: true, message: "Report settings saved." };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
   }
 }

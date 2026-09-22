@@ -17,6 +17,10 @@ export const jobNumberSchema = z
   .min(1, "Job number is required")
   .max(64, "Job number is too long");
 
+export const entryTypeSchema = z.enum(["ticket", "meeting", "other"]);
+
+export const tagNamesSchema = z.array(z.string().trim().min(1).max(40)).max(20);
+
 export const timeEntryInputSchema = z.object({
   jobNumber: jobNumberSchema,
   date: isoDateSchema,
@@ -28,6 +32,8 @@ export const timeEntryInputSchema = z.object({
     .max(2000, "Description is too long"),
   ticket: z.string().trim().max(100).optional(),
   reportedBy: z.string().trim().max(100).optional(),
+  type: entryTypeSchema.optional(),
+  tags: tagNamesSchema.optional(),
 });
 
 export type TimeEntryInput = z.infer<typeof timeEntryInputSchema>;
@@ -39,6 +45,8 @@ export const timeEntryPatchSchema = z.object({
   description: z.string().trim().min(1).max(2000).optional(),
   ticket: z.string().trim().max(100).nullable().optional(),
   reportedBy: z.string().trim().min(1).max(100).optional(),
+  type: entryTypeSchema.optional(),
+  tags: tagNamesSchema.optional(),
 });
 
 export type TimeEntryPatch = z.infer<typeof timeEntryPatchSchema>;

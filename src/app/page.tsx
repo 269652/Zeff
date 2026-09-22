@@ -3,12 +3,15 @@ import { connection } from "next/server";
 import { createEntryAction } from "@/app/actions";
 import { EntriesTable } from "@/components/EntriesTable";
 import { EntryForm } from "@/components/EntryForm";
+import { ReportView } from "@/components/ReportView";
 import { WeekNav } from "@/components/WeekNav";
 import { WeekTable } from "@/components/WeekTable";
-import { getWeeklyReport, listReporters } from "@/lib/entries";
+import { getWeeklyReport, listReporters, listWeekTickets } from "@/lib/entries";
 import { formatHours, round2 } from "@/lib/format";
 import { listJobs } from "@/lib/jobs";
+import { getRewrittenReport, reportToText } from "@/lib/report";
 import { getWeekTargets } from "@/lib/schedule";
+import { listTags } from "@/lib/tags";
 import { currentWeek, resolveWeek, todayIso } from "@/lib/week";
 
 export const metadata: Metadata = { title: "Weekly report" };
@@ -27,8 +30,12 @@ export default async function WeekPage({
   const report = getWeeklyReport(week, { reportedBy: by });
   const targets = getWeekTargets(week);
   const remaining = round2(targets.weekTarget - report.total);
+  const rewritten = getRewrittenReport(week, { reportedBy: by });
+  const reportText = reportToText(rewritten, formatHours);
   const jobs = listJobs();
   const reporters = listReporters();
+  const allTags = listTags().map((t) => t.name);
+  const ticketSuggestions = listWeekTickets(week);
 
   const today = todayIso();
   const defaultDate = today >= week.startIso && today <= week.endIso ? today : week.startIso;
@@ -68,7 +75,21 @@ export default async function WeekPage({
 
       <section className="card p-4">
         <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">Add entry</h2>
-        <EntryForm jobs={jobs} action={createEntryAction} defaults={{ date: defaultDate }} />
+        <EntryForm
+          jobs={jobs}
+          action={createEntryAction}
+          defaults={{ date: defaultDate }}
+          allTags={allTags}
+          ticketSuggestions={ticketSuggestions}
+        />
+      </section>
+
+      <section className="card p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Report · week {week.week}</h2>
+          <span className="text-xs text-zinc-400">grouped per day · configure on Schedule</span>
+        </div>
+        <ReportView report={rewritten} text={reportText} />
       </section>
 
       <section className="card p-4">

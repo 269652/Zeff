@@ -1,9 +1,11 @@
 import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
-import type { Job, TimeEntry } from "@/db/schema";
+import type { EntryType, Job, TimeEntry } from "@/db/schema";
 import { NotFoundError, ValidationError } from "./errors";
 import { round2 } from "./format";
 import { requireJobByNumber } from "./jobs";
+import { getOrCreateTags, getTagsForEntries, setEntryTags } from "./tags";
+import { dedupeTags, extractHashtags, type TagLite } from "./tags-shared";
 import {
   formatZodError,
   timeEntryInputSchema,
@@ -17,7 +19,7 @@ const { jobs, timeEntries } = schema;
 
 export type JobRef = Pick<Job, "id" | "number" | "name" | "customer" | "active">;
 
-export type EntryWithJob = TimeEntry & { job: JobRef };
+export type EntryWithJob = TimeEntry & { job: JobRef; tags: TagLite[] };
 
 export type ListEntriesOptions = {
   jobId?: number;
@@ -46,7 +48,14 @@ function selectEntries() {
 }
 
 function shape(row: { entry: TimeEntry; job: JobRef }): EntryWithJob {
-  return { ...row.entry, job: row.job };
+  return { ...row.entry, job: row.job, tags: [] };
+}
+
+/** Batch-load and attach each entry's tags. */
+function attachTags(entries: EntryWithJob[]): EntryWithJob[] {
+  const byEntry = getTagsForEntries(entries.map((e) => e.id));
+  for (const e of entries) e.tags = byEntry.get(e.id) ?? [];
+  return entries;
 }
 
 export function listEntries(opts: ListEntriesOptions = {}): EntryWithJob[] {
@@ -65,12 +74,12 @@ export function listEntries(opts: ListEntriesOptions = {}): EntryWithJob[] {
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(timeEntries.date), desc(timeEntries.id));
   const rows = opts.limit ? q.limit(opts.limit).all() : q.all();
-  return rows.map(shape);
+  return attachTags(rows.map(shape));
 }
 
 export function getEntry(id: number): EntryWithJob | undefined {
   const row = selectEntries().where(eq(timeEntries.id, id)).get();
-  return row ? shape(row) : undefined;
+  return row ? attachTags([shape(row)])[0] : undefined;
 }
 
 export function requireEntry(id: number): EntryWithJob {
@@ -88,13 +97,20 @@ export function createEntry(
   if (!parsed.success) throw new ValidationError(formatZodError(parsed.error));
   const input = parsed.data;
   const job = requireJobByNumber(input.jobNumber);
+
+  // Move any #tags in the description into the tag list, cleaning the text.
+  const { text: description, tags: hashTags } = extractHashtags(input.description);
+  const tagNames = dedupeTags([...(input.tags ?? []), ...hashTags]);
+  const type: EntryType = input.type ?? defaultType(input.ticket, source);
+
   const inserted = getDb()
     .insert(timeEntries)
     .values({
       jobId: job.id,
       date: input.date,
       hours: round2(input.hours),
-      description: input.description,
+      description,
+      type,
       ticket: input.ticket || null,
       reportedBy: input.reportedBy || (source === "mcp" ? "agent" : "web"),
       source,
@@ -102,28 +118,57 @@ export function createEntry(
     })
     .returning()
     .get();
+  if (tagNames.length) {
+    setEntryTags(inserted.id, getOrCreateTags(tagNames).map((t) => t.id));
+  }
   return requireEntry(inserted.id);
+}
+
+function defaultType(ticket: string | undefined, source: TimeEntry["source"]): EntryType {
+  if (source === "calendar") return "meeting"; // imported meetings are always Meetings
+  if (ticket) return "ticket";
+  return "other";
 }
 
 export function updateEntry(id: number, raw: TimeEntryPatch): EntryWithJob {
   const parsed = timeEntryPatchSchema.safeParse(raw);
   if (!parsed.success) throw new ValidationError(formatZodError(parsed.error));
   const patch = parsed.data;
-  requireEntry(id);
+  const existing = requireEntry(id);
   const jobId = patch.jobNumber !== undefined ? requireJobByNumber(patch.jobNumber).id : undefined;
+
+  // Extract #tags from a new description, if one was given.
+  let description = patch.description;
+  let hashTags: string[] = [];
+  if (patch.description !== undefined) {
+    const parsedDesc = extractHashtags(patch.description);
+    description = parsedDesc.text;
+    hashTags = parsedDesc.tags;
+  }
+
   getDb()
     .update(timeEntries)
     .set({
       ...(jobId !== undefined && { jobId }),
       ...(patch.date !== undefined && { date: patch.date }),
       ...(patch.hours !== undefined && { hours: round2(patch.hours) }),
-      ...(patch.description !== undefined && { description: patch.description }),
+      ...(description !== undefined && { description }),
+      ...(patch.type !== undefined && { type: patch.type }),
       ...(patch.ticket !== undefined && { ticket: patch.ticket || null }),
       ...(patch.reportedBy !== undefined && { reportedBy: patch.reportedBy }),
       updatedAt: sql`(CURRENT_TIMESTAMP)`,
     })
     .where(eq(timeEntries.id, id))
     .run();
+
+  // Tags: an explicit list replaces; otherwise merge any new #tags into the existing set.
+  if (patch.tags !== undefined) {
+    const names = dedupeTags([...patch.tags, ...hashTags]);
+    setEntryTags(id, getOrCreateTags(names).map((t) => t.id));
+  } else if (hashTags.length) {
+    const names = dedupeTags([...existing.tags.map((t) => t.name), ...hashTags]);
+    setEntryTags(id, getOrCreateTags(names).map((t) => t.id));
+  }
   return requireEntry(id);
 }
 
@@ -142,6 +187,54 @@ export function findImportedExternalIds(ids: string[]): Set<string> {
     .where(inArray(timeEntries.externalId, ids))
     .all();
   return new Set(rows.map((r) => r.externalId).filter((x): x is string => x !== null));
+}
+
+/**
+ * The job number a ticket was most recently booked on, so automated bookings of
+ * the same ticket reuse the same job.
+ */
+export function getJobNumberForTicket(ticket: string): string | undefined {
+  const t = ticket.trim();
+  if (!t) return undefined;
+  const row = getDb()
+    .select({ number: jobs.number })
+    .from(timeEntries)
+    .innerJoin(jobs, eq(jobs.id, timeEntries.jobId))
+    .where(sql`lower(${timeEntries.ticket}) = lower(${t})`)
+    .orderBy(desc(timeEntries.date), desc(timeEntries.id))
+    .limit(1)
+    .get();
+  return row?.number;
+}
+
+export type TicketSuggestion = {
+  ticket: string;
+  jobId: number;
+  jobNumber: string;
+  jobName: string;
+  description: string;
+};
+
+/** Distinct tickets that have entries within the week, newest first per ticket. */
+export function listWeekTickets(week: WeekInfo): TicketSuggestion[] {
+  const entries = listEntries({ from: week.startIso, to: week.endIso });
+  const seen = new Set<string>();
+  const out: TicketSuggestion[] = [];
+  for (const e of entries) {
+    // listEntries is ordered date desc, id desc, so the first hit per ticket is newest.
+    if (!e.ticket) continue;
+    const key = e.ticket.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      ticket: e.ticket,
+      jobId: e.job.id,
+      jobNumber: e.job.number,
+      jobName: e.job.name,
+      description: e.description,
+    });
+  }
+  return out.sort((a, b) => a.ticket.localeCompare(b.ticket, undefined, { numeric: true }));
 }
 
 /** Sum of hours booked on a job, optionally limited to an inclusive date range. */

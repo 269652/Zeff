@@ -5,9 +5,10 @@ import { connection } from "next/server";
 import { deleteEntryAction, updateEntryAction } from "@/app/actions";
 import { EntryForm } from "@/components/EntryForm";
 import { SubmitButton } from "@/components/SubmitButton";
-import { getEntry } from "@/lib/entries";
+import { getEntry, listWeekTickets } from "@/lib/entries";
 import { formatHours } from "@/lib/format";
 import { listJobs } from "@/lib/jobs";
+import { listTags } from "@/lib/tags";
 import { weekFromDate } from "@/lib/week";
 
 export const metadata: Metadata = { title: "Edit entry" };
@@ -26,6 +27,8 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
     jobs.unshift({ ...entry.job, description: null, createdAt: "", entryCount: 0, totalHours: 0 });
   }
   const week = weekFromDate(new Date(entry.date + "T00:00:00"));
+  const allTags = listTags().map((t) => t.name);
+  const ticketSuggestions = listWeekTickets(week);
 
   return (
     <div className="space-y-6">
@@ -61,6 +64,8 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
           action={updateEntryAction.bind(null, entry.id)}
           submitLabel="Save"
           resetOnSuccess={false}
+          allTags={allTags}
+          ticketSuggestions={ticketSuggestions}
           defaults={{
             jobNumber: entry.job.number,
             date: entry.date,
@@ -68,6 +73,8 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
             description: entry.description,
             ticket: entry.ticket ?? "",
             reportedBy: entry.reportedBy,
+            type: entry.type,
+            tags: entry.tags.map((t) => t.name),
           }}
         />
       </section>

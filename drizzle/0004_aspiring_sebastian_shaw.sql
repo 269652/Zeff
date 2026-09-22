@@ -1,0 +1,1 @@
+ALTER TABLE `report_settings` ADD `group_by` text DEFAULT 'ticket' NOT NULL;

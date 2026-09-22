@@ -7,6 +7,7 @@ const links = [
   { href: "/", label: "Weekly report" },
   { href: "/jobs", label: "Jobs" },
   { href: "/settings", label: "Schedule" },
+  { href: "/tags", label: "Tags" },
   { href: "/mcp", label: "MCP" },
 ];
 
