@@ -73,7 +73,13 @@ export default async function AnalysisPage({
       { type: "ticket" as const, value: w.byType.ticket },
       { type: "other" as const, value: w.byType.other },
     ],
-    badge: w.ticketsWorked ? `${w.ticketsWorked}🎫` : undefined,
+    badge: a.jira
+      ? w.closed
+        ? `${w.closed}✓`
+        : undefined
+      : w.ticketsWorked
+        ? `${w.ticketsWorked}🎫`
+        : undefined,
   }));
 
   return (
@@ -118,6 +124,15 @@ export default async function AnalysisPage({
             <Stat label="Avg / active week" value={`${formatHours(a.avgHoursPerActiveWeek)} h`} />
           </div>
 
+          {a.jira && (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Stat label="Jira assigned" value={String(a.jira.total)} />
+              <Stat label="Open" value={String(a.jira.byCategory.todo + a.jira.byCategory.inprogress)} />
+              <Stat label="Done" value={String(a.jira.byCategory.done)} tone="violet" />
+              <Stat label="Closed in range" value={String(a.ticketsClosed)} tone="violet" />
+            </div>
+          )}
+
           <div className="grid gap-4 lg:grid-cols-2">
             <section className="card p-4">
               <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">Time split by type</h2>
@@ -158,7 +173,9 @@ export default async function AnalysisPage({
                   { dot: TYPE_STYLE.meeting.dot, label: "Meetings" },
                   { dot: TYPE_STYLE.ticket.dot, label: "Tickets" },
                   { dot: TYPE_STYLE.other.dot, label: "Other" },
-                  { dot: "bg-sky-400", label: "🎫 tickets worked" },
+                  a.jira
+                    ? { dot: "bg-emerald-400", label: "✓ tickets closed" }
+                    : { dot: "bg-sky-400", label: "🎫 tickets worked" },
                 ]}
               />
             </div>
@@ -177,8 +194,9 @@ export default async function AnalysisPage({
           </div>
 
           <p className="text-xs text-zinc-400">
-            “Tickets worked” counts distinct ticket keys booked in a week. Zeff doesn’t track ticket
-            status, so it can’t report actual closures — this reflects activity, not completion.
+            {a.jira
+              ? "“Tickets closed” buckets synced Jira tickets by their resolution date; some done tickets have no resolution date and aren't counted per week. Sync tickets on the Jira tab."
+              : "“Tickets worked” counts distinct ticket keys booked in a week (activity, not closures). Sync Jira on the Jira tab to track actual closures."}
           </p>
         </>
       )}

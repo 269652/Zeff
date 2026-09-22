@@ -1,7 +1,8 @@
 import { addDays, endOfISOWeek, getISOWeek, getISOWeekYear, startOfISOWeek, subWeeks } from "date-fns";
 import { getEarliestEntryDate, listEntries, type EntryWithJob } from "./entries";
 import { round2 } from "./format";
-import type { EntryType } from "@/db/schema";
+import type { EntryType, JiraStatusCategory } from "@/db/schema";
+import { hasJiraData, jiraStats, ticketsClosedBetween } from "./jira/store";
 import type { TagLite } from "./tags-shared";
 import { isoDate } from "./week";
 
@@ -24,6 +25,8 @@ export type WeekStat = {
   byType: TypeHours;
   ticketsWorked: number;
   newTickets: number;
+  /** Jira tickets resolved (by resolution date) in this week. */
+  closed: number;
 };
 
 export type Analysis = {
@@ -43,6 +46,10 @@ export type Analysis = {
   byJob: JobStat[];
   weeks: WeekStat[];
   topTickets: TicketStat[];
+  /** Jira completion snapshot (present when tickets have been synced). */
+  jira: { total: number; byCategory: Record<JiraStatusCategory, number> } | null;
+  /** Jira tickets resolved within the range (by resolution date). */
+  ticketsClosed: number;
   filter: { reportedBy?: string };
 };
 
@@ -93,6 +100,7 @@ export function getAnalysis(opts: { weeks: number; reportedBy?: string; earliest
       byType: emptyTypeHours(),
       ticketsWorked: 0,
       newTickets: 0,
+      closed: 0,
     });
   }
   const weekTickets = new Map<string, Set<string>>();
@@ -158,6 +166,19 @@ export function getAnalysis(opts: { weeks: number; reportedBy?: string; earliest
     if (wk) wk.newTickets += 1;
   }
 
+  // Jira completion: bucket resolved tickets into the week of their resolution date.
+  const jira = hasJiraData() ? jiraStats() : null;
+  let ticketsClosed = 0;
+  if (jira) {
+    for (const t of ticketsClosedBetween(range.fromIso, range.toIso)) {
+      const rd = (t.resolvedAt ?? "").slice(0, 10);
+      if (!rd) continue;
+      ticketsClosed++;
+      const wk = weekMap.get(weekKeyOf(new Date(rd + "T00:00:00")));
+      if (wk) wk.closed += 1;
+    }
+  }
+
   const totalHours = round2(byType.ticket + byType.meeting + byType.other);
   const weeks = [...weekMap.values()].sort((a, b) => a.startIso.localeCompare(b.startIso));
   const activeWeeks = weeks.filter((w) => w.total > 0).length || 1;
@@ -183,6 +204,8 @@ export function getAnalysis(opts: { weeks: number; reportedBy?: string; earliest
     byJob: [...jobMap.values()].sort((a, b) => b.hours - a.hours),
     weeks,
     topTickets,
+    jira: jira ? { total: jira.total, byCategory: jira.byCategory } : null,
+    ticketsClosed,
     filter: { reportedBy: opts.reportedBy },
   };
 }

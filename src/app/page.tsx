@@ -6,10 +6,11 @@ import { EntryForm } from "@/components/EntryForm";
 import { ReportView } from "@/components/ReportView";
 import { WeekNav } from "@/components/WeekNav";
 import { WeekTable } from "@/components/WeekTable";
-import { getWeeklyReport, listReporters, listWeekTickets } from "@/lib/entries";
+import { getWeeklyReport, listReporters } from "@/lib/entries";
 import { formatHours, round2 } from "@/lib/format";
 import { listJobs } from "@/lib/jobs";
 import { getRewrittenReport, reportToText } from "@/lib/report";
+import { getEntryTicketSuggestions } from "@/lib/ticket-suggestions";
 import { getWeekTargets } from "@/lib/schedule";
 import { listTags } from "@/lib/tags";
 import { currentWeek, resolveWeek, todayIso } from "@/lib/week";
@@ -35,7 +36,7 @@ export default async function WeekPage({
   const jobs = listJobs();
   const reporters = listReporters();
   const allTags = listTags().map((t) => t.name);
-  const ticketSuggestions = listWeekTickets(week);
+  const ticketSuggestions = getEntryTicketSuggestions(week);
 
   const today = todayIso();
   const defaultDate = today >= week.startIso && today <= week.endIso ? today : week.startIso;

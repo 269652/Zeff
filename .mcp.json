@@ -3,6 +3,12 @@
     "zeff": {
       "type": "http",
       "url": "http://127.0.0.1:9333/api/mcp"
-    }
+    },
+
+    "jira": {
+            "command": "uvx",
+            "args": ["mcp-atlassian"],
+            "envFile": "${workspaceFolder}/.env"
+        }
   }
 }

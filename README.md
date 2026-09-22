@@ -11,6 +11,9 @@ Hourly time reports for job numbers, with a built-in **MCP server** so a coding 
   (meetings collapsed into one line, tickets as `KEY: description`), configurable by ticket / type / tag.
 - **Working hours & absences** — a weekly part-time pattern (e.g. free Fridays) and one-off vacation/
   sick/holiday, so the weekly report shows booked hours against your target.
+- **Jira** — a local, syncable copy of your assigned tickets, pulled from your Jira MCP server with
+  no LLM. Populates the ticket autocomplete, links tickets to jobs, and tracks completion (tickets
+  closed per week) in Analysis.
 - **Import meetings** — pulls the finished meetings of a week from your Outlook / Teams calendar
   (via a no-OAuth browser bookmarklet, or Microsoft Graph where allowed) into a preview where you
   pick the job, then books them as time entries.
@@ -139,6 +142,8 @@ src/
     entries/[id]/         edit a single entry
     settings/             working hours, absences & report rewriting
     tags/                 tag management
+    jira/                 synced Jira tickets
+    analysis/             analytics dashboard
     mcp/                  connection instructions
     import/               meeting import preview (Outlook / Teams via Microsoft Graph)
     api/calendar/         OAuth connect + callback + ingest (bookmarklet) routes
@@ -148,6 +153,7 @@ src/
   mcp/server.ts           MCP tool definitions
   lib/                    week math, validation, jobs + entries data access
   lib/calendar/           Graph client, OAuth/PKCE, meeting → entry planning
+  lib/jira/               Jira MCP stdio client, sync, normalize, store
 fixtures/                 example calendar events for ZEFF_CALENDAR_FIXTURE
   db/                     Drizzle schema + SQLite connection (auto-migrates ./drizzle)
 scripts/                  seed, and Windows autostart (autostart.ps1, zeff-serve.ps1)
@@ -196,6 +202,21 @@ hidden; it launches `next start` and restarts it if it ever exits (log: `data/au
 Start/stop it now without rebooting via `scriptsautostart.ps1 -Start` / `-Stop`, and remove it with
 `npm run autostart:uninstall`. Because it serves a production build, run `npm run build` again after
 changing code (then `-Stop` and `-Start`, or just re-login).
+
+## Jira
+
+The **Jira** tab keeps a local copy of your assigned tickets and drives ticket autocomplete,
+ticket→job memory, and the completion metrics in Analysis.
+
+- **Sync** calls your Jira MCP server **directly, without an LLM** (a plain MCP stdio client). Zeff
+  auto-reads a `jira` (or `mcp-atlassian`) stdio server from `.mcp.json` and loads its `envFile`, so
+  if that server works for your editor it works here — e.g. `uvx mcp-atlassian` with `JIRA_URL` +
+  `JIRA_PERSONAL_TOKEN` in `.env`. Override with `JIRA_MCP_COMMAND` / `JIRA_JQL` etc. (see `.env.example`).
+  First sync is slow (~30s) while `uvx` starts the server.
+- **Paste import** is a fallback that needs no server: paste an array of issues or `{"issues":[…]}`.
+- Each ticket can be linked to a **job**; selecting that ticket in the entry form then auto-fills the job.
+- Analysis uses ticket status + resolution date to report **tickets closed per week** and a done/open
+  breakdown (tickets resolved without a resolution date aren’t counted per week).
 
 ## Notes
 

@@ -170,6 +170,40 @@ export const reportSettings = sqliteTable("report_settings", {
     .default(sql`(CURRENT_TIMESTAMP)`),
 });
 
+/**
+ * A local, syncable copy of Jira issues assigned to the user. Populated by the
+ * Jira MCP sync (no LLM) or a manual import. Feeds the ticket autocomplete,
+ * ticket->job memory, and completion tracking in Analysis.
+ */
+export const jiraTickets = sqliteTable(
+  "jira_tickets",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    key: text("key").notNull().unique(),
+    summary: text("summary").notNull().default(""),
+    status: text("status").notNull().default(""),
+    /** Jira status category: todo | inprogress | done | unknown. */
+    statusCategory: text("status_category", { enum: ["todo", "inprogress", "done", "unknown"] })
+      .notNull()
+      .default("unknown"),
+    issueType: text("issue_type"),
+    priority: text("priority"),
+    assignee: text("assignee"),
+    url: text("url"),
+    /** Zeff job this ticket is booked on (learned or set on the Jira tab). */
+    jobNumber: text("job_number"),
+    /** Jira "updated" timestamp (ISO), and resolution date when done. */
+    updatedAt: text("updated_at"),
+    resolvedAt: text("resolved_at"),
+    /** Still returned by the last sync (i.e. currently assigned / in scope). */
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    syncedAt: text("synced_at")
+      .notNull()
+      .default(sql`(CURRENT_TIMESTAMP)`),
+  },
+  (t) => [index("jira_tickets_status_idx").on(t.statusCategory)],
+);
+
 export type Job = typeof jobs.$inferSelect;
 export type NewJob = typeof jobs.$inferInsert;
 export type TimeEntry = typeof timeEntries.$inferSelect;
@@ -180,3 +214,5 @@ export type WorkSchedule = typeof workSchedule.$inferSelect;
 export type Absence = typeof absences.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
 export type ReportSettings = typeof reportSettings.$inferSelect;
+export type JiraTicket = typeof jiraTickets.$inferSelect;
+export type JiraStatusCategory = JiraTicket["statusCategory"];
