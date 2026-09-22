@@ -34,6 +34,8 @@ export type Analysis = {
   activeDays: number;
   byType: TypeHours;
   meetingPercent: number;
+  /** Meeting hours divided by the number of days with any booking. */
+  avgMeetingHoursPerActiveDay: number;
   distinctTickets: number;
   avgHoursPerActiveWeek: number;
   byTag: TagStat[];
@@ -173,6 +175,7 @@ export function getAnalysis(opts: { weeks: number; reportedBy?: string; earliest
     activeDays: activeDaySet.size,
     byType,
     meetingPercent: totalHours > 0 ? Math.round((byType.meeting / totalHours) * 100) : 0,
+    avgMeetingHoursPerActiveDay: round2(byType.meeting / (activeDaySet.size || 1)),
     distinctTickets: ticketMap.size,
     avgHoursPerActiveWeek: round2(totalHours / activeWeeks),
     byTag: [...tagMap.values()].sort((a, b) => b.hours - a.hours),

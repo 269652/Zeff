@@ -110,9 +110,10 @@ export default async function AnalysisPage({
         <p className="card p-6 text-center text-sm text-zinc-500">No time booked in this range.</p>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <Stat label="Total booked" value={`${formatHours(a.totalHours)} h`} />
             <Stat label="Meetings" value={`${a.meetingPercent}%`} tone="violet" />
+            <Stat label="Avg meetings / day" value={`${formatHours(a.avgMeetingHoursPerActiveDay)} h`} tone="violet" />
             <Stat label="Distinct tickets" value={String(a.distinctTickets)} />
             <Stat label="Avg / active week" value={`${formatHours(a.avgHoursPerActiveWeek)} h`} />
           </div>
