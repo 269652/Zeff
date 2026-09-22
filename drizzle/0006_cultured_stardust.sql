@@ -1,0 +1,1 @@
+ALTER TABLE `jira_tickets` ADD `opened_at` text;

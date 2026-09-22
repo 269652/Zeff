@@ -118,6 +118,87 @@ export function WeeklyBars({ weeks, height = 130 }: { weeks: WeekColumn[]; heigh
   );
 }
 
+export type LinePoint = { label: string; value: number | null };
+
+/**
+ * A single-series line chart (inline SVG, no chart lib). `value: null` points are
+ * gaps and the line connects across them. Colors inherit from `colorClass`
+ * (a text-* class) via currentColor, so it reads on light and dark.
+ */
+export function LineChart({
+  points,
+  height = 132,
+  colorClass = "text-indigo-500",
+  format = (v: number) => String(v),
+  unit = "",
+  empty = "No data.",
+}: {
+  points: LinePoint[];
+  height?: number;
+  colorClass?: string;
+  format?: (v: number) => string;
+  unit?: string;
+  empty?: string;
+}) {
+  const defined = points
+    .map((p, i) => ({ i, label: p.label, value: p.value }))
+    .filter((p): p is { i: number; label: string; value: number } => p.value !== null);
+  if (defined.length === 0) return <p className="py-6 text-center text-sm text-zinc-500">{empty}</p>;
+
+  const max = Math.max(...defined.map((p) => p.value), 1);
+  const n = points.length;
+  const padY = 8; // % headroom top & bottom
+  const base = 100 - padY;
+  const x = (i: number) => (n <= 1 ? 50 : (i / (n - 1)) * 100);
+  const y = (v: number) => base - (v / max) * (base - padY);
+
+  const coords = defined.map((p) => ({ cx: x(p.i), cy: y(p.value), label: p.label, value: p.value }));
+  const line = coords.map((c, k) => `${k === 0 ? "M" : "L"}${c.cx.toFixed(2)},${c.cy.toFixed(2)}`).join(" ");
+  const area = `${line} L${coords[coords.length - 1].cx.toFixed(2)},${base} L${coords[0].cx.toFixed(2)},${base} Z`;
+
+  // Up to ~7 x-axis labels, evenly spaced.
+  const step = Math.max(1, Math.ceil(n / 7));
+  const last = defined[defined.length - 1];
+
+  return (
+    <div className={colorClass}>
+      <div className="mb-1 flex items-baseline justify-between text-[11px] text-zinc-500 tabular-nums">
+        <span>
+          max {format(max)}
+          {unit}
+        </span>
+        <span className="font-medium text-current">
+          now {format(last.value)}
+          {unit}
+        </span>
+      </div>
+      <div className="relative w-full" style={{ height }}>
+        <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
+          <line x1="0" y1={base} x2="100" y2={base} className="stroke-zinc-200 dark:stroke-zinc-800" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+          <path d={area} className="fill-current opacity-10" />
+          <path d={line} className="stroke-current" strokeWidth="2" fill="none" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+        </svg>
+        {coords.map((c) => (
+          <span
+            key={c.label}
+            className="absolute block size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-current"
+            style={{ left: `${c.cx}%`, top: `${c.cy}%` }}
+            title={`${c.label}: ${format(c.value)}${unit}`}
+          />
+        ))}
+      </div>
+      <div className="mt-1 flex justify-between text-[10px] text-zinc-500">
+        {points
+          .map((p, i) => ({ p, i }))
+          .filter(({ i }) => i % step === 0 || i === n - 1)
+          .map(({ p, i }) => (
+            <span key={i}>{p.label}</span>
+          ))}
+      </div>
+    </div>
+  );
+}
+
 export function Legend({ items }: { items: { dot: string; label: string; value?: string }[] }) {
   return (
     <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
