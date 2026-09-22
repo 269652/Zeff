@@ -12,6 +12,7 @@ import {
   reportGroupLabel,
   validateRules,
   type ReportRule,
+  type RuleEntry,
 } from "./report-shared";
 import type { TagLite } from "./tags-shared";
 import { isoDate, type WeekInfo } from "./week";
@@ -119,6 +120,11 @@ function toLineEntry(e: EntryWithJob): ReportLineEntry {
   return { id: e.id, date: e.date, description: e.description, hours: e.hours, ticket: e.ticket, type: e.type, tags: e.tags };
 }
 
+/** Flatten an entry into the shape the rules match on (job number/name lifted up). */
+function toRuleEntry(e: EntryWithJob): RuleEntry {
+  return { type: e.type, ticket: e.ticket, description: e.description, tags: e.tags, jobNumber: e.job.number, jobName: e.job.name };
+}
+
 /**
  * Group a day's entries by the label their first matching rule renders — entries
  * that render to the same label merge (hours summed). A line stays expandable when
@@ -128,8 +134,9 @@ function buildDay(date: string, entries: EntryWithJob[], rules: ReportRule[]): R
   const groups = new Map<string, { rule: ReportRule; entries: EntryWithJob[] }>();
   const order: string[] = [];
   for (const e of entries) {
-    const rule = matchedRule(rules, e);
-    const key = reportGroupKey(rule, e, e.id);
+    const re = toRuleEntry(e);
+    const rule = matchedRule(rules, re);
+    const key = reportGroupKey(rule, re, e.id);
     let g = groups.get(key);
     if (!g) {
       g = { rule, entries: [] };
@@ -142,7 +149,7 @@ function buildDay(date: string, entries: EntryWithJob[], rules: ReportRule[]): R
   const lines: ReportLine[] = order.map((key) => {
     const { rule, entries: es } = groups.get(key)!;
     const first = es[0];
-    const label = reportGroupLabel(rule, first, es.length);
+    const label = reportGroupLabel(rule, toRuleEntry(first), es.length);
     return {
       key,
       label,
