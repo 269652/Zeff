@@ -9,6 +9,7 @@ const links = [
   { href: "/settings", label: "Schedule" },
   { href: "/tags", label: "Tags" },
   { href: "/analysis", label: "Analysis" },
+  { href: "/jira", label: "Jira" },
   { href: "/mcp", label: "MCP" },
 ];
 

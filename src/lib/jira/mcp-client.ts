@@ -1,0 +1,160 @@
+import { spawn } from "node:child_process";
+
+export type McpStdioConfig = {
+  command: string;
+  args: string[];
+  env?: Record<string, string>;
+  cwd?: string;
+};
+
+type JsonRpcResponse = {
+  jsonrpc: "2.0";
+  id?: number | string;
+  result?: unknown;
+  error?: { code: number; message: string };
+};
+
+/**
+ * Call a single tool on a stdio MCP server and return its result. Pure JSON-RPC
+ * over the process's stdin/stdout — no LLM involved. Spawns the server, performs
+ * the MCP initialize handshake, calls `tools/call`, then shuts it down.
+ */
+export function callStdioTool(
+  config: McpStdioConfig,
+  toolName: string,
+  args: Record<string, unknown>,
+  timeoutMs = 45000,
+): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    let child;
+    try {
+      child = spawn(config.command, config.args, {
+        env: { ...process.env, ...config.env },
+        cwd: config.cwd,
+        stdio: ["pipe", "pipe", "pipe"],
+        shell: false,
+      });
+    } catch (e) {
+      reject(new Error(`Cannot start Jira MCP command "${config.command}": ${(e as Error).message}`));
+      return;
+    }
+
+    let stderr = "";
+    let buffer = "";
+    let settled = false;
+    let nextId = 1;
+    const pending = new Map<number, (r: JsonRpcResponse) => void>();
+
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try {
+        child.kill();
+      } catch {
+        // ignore
+      }
+      fn();
+    };
+    const fail = (msg: string) => finish(() => reject(new Error(msg)));
+    const timer = setTimeout(
+      () => fail(`Jira MCP call timed out after ${timeoutMs}ms.${stderr ? ` stderr: ${stderr.slice(0, 400)}` : ""}`),
+      timeoutMs,
+    );
+
+    child.on("error", (e) => fail(`Cannot start Jira MCP command "${config.command}": ${e.message}`));
+    child.stderr.on("data", (d) => {
+      stderr += d.toString();
+    });
+    child.stdout.on("data", (d) => {
+      buffer += d.toString();
+      let idx: number;
+      while ((idx = buffer.indexOf("\n")) >= 0) {
+        const line = buffer.slice(0, idx).trim();
+        buffer = buffer.slice(idx + 1);
+        if (!line) continue;
+        let msg: JsonRpcResponse;
+        try {
+          msg = JSON.parse(line);
+        } catch {
+          continue; // ignore non-JSON log lines
+        }
+        if (msg.id !== undefined && pending.has(Number(msg.id))) {
+          const resolveFn = pending.get(Number(msg.id))!;
+          pending.delete(Number(msg.id));
+          resolveFn(msg);
+        }
+      }
+    });
+    child.on("exit", (code) => {
+      if (!settled) fail(`Jira MCP process exited early (code ${code}).${stderr ? ` stderr: ${stderr.slice(0, 400)}` : ""}`);
+    });
+
+    const send = (method: string, params?: unknown): Promise<JsonRpcResponse> => {
+      const id = nextId++;
+      const p = new Promise<JsonRpcResponse>((res) => pending.set(id, res));
+      child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
+      return p;
+    };
+    const notify = (method: string, params?: unknown) => {
+      child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method, params })}\n`);
+    };
+
+    (async () => {
+      const init = await send("initialize", {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "zeff", version: "0.1.0" },
+      });
+      if (init.error) return fail(`Jira MCP initialize failed: ${init.error.message}`);
+      notify("notifications/initialized");
+      const res = await send("tools/call", { name: toolName, arguments: args });
+      if (res.error) return fail(`Jira MCP tool "${toolName}" returned an error: ${res.error.message}`);
+      // A tool can also report failure via isError on the result envelope.
+      const result = res.result as Record<string, unknown> | undefined;
+      if (result?.isError) {
+        const content = Array.isArray(result.content) ? (result.content as Record<string, unknown>[]) : [];
+        const text = content.map((c) => (typeof c.text === "string" ? c.text : "")).filter(Boolean).join(" ");
+        return fail(`Jira MCP tool "${toolName}": ${text || "returned an error"}`);
+      }
+      finish(() => resolve(res.result));
+    })().catch((e) => fail(`Jira MCP call failed: ${(e as Error).message}`));
+  });
+}
+
+/** Some servers wrap the payload as `{ result: "<json string>" }` — unwrap it. */
+function unwrap(v: unknown): unknown {
+  if (v && typeof v === "object" && "result" in (v as Record<string, unknown>)) {
+    const inner = (v as Record<string, unknown>).result;
+    if (typeof inner === "string") {
+      try {
+        return JSON.parse(inner);
+      } catch {
+        return inner;
+      }
+    }
+    return inner;
+  }
+  return v;
+}
+
+/** Extract usable JSON (or text) from an MCP tools/call result envelope. */
+export function resultToPayload(result: unknown): unknown {
+  if (result && typeof result === "object") {
+    const r = result as Record<string, unknown>;
+    if (r.structuredContent !== undefined) return unwrap(r.structuredContent);
+    if (Array.isArray(r.content)) {
+      for (const c of r.content as Record<string, unknown>[]) {
+        if (c.type === "text" && typeof c.text === "string") {
+          try {
+            return unwrap(JSON.parse(c.text));
+          } catch {
+            return c.text;
+          }
+        }
+        if (c.resource) return c.resource;
+      }
+    }
+  }
+  return result;
+}

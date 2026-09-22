@@ -5,9 +5,10 @@ import { connection } from "next/server";
 import { deleteEntryAction, updateEntryAction } from "@/app/actions";
 import { EntryForm } from "@/components/EntryForm";
 import { SubmitButton } from "@/components/SubmitButton";
-import { getEntry, listWeekTickets } from "@/lib/entries";
+import { getEntry } from "@/lib/entries";
 import { formatHours } from "@/lib/format";
 import { listJobs } from "@/lib/jobs";
+import { getEntryTicketSuggestions } from "@/lib/ticket-suggestions";
 import { listTags } from "@/lib/tags";
 import { weekFromDate } from "@/lib/week";
 
@@ -28,7 +29,7 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
   }
   const week = weekFromDate(new Date(entry.date + "T00:00:00"));
   const allTags = listTags().map((t) => t.name);
-  const ticketSuggestions = listWeekTickets(week);
+  const ticketSuggestions = getEntryTicketSuggestions(week);
 
   return (
     <div className="space-y-6">

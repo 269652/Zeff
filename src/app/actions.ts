@@ -478,3 +478,53 @@ export async function saveReportSettingsAction(_prev: ActionState, fd: FormData)
     return { ok: false, error: errorMessage(err) };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Jira
+// ---------------------------------------------------------------------------
+
+export async function syncJiraAction(): Promise<ActionState> {
+  const { syncFromJira } = await import("@/lib/jira/sync");
+  try {
+    const r = await syncFromJira();
+    revalidateAll();
+    return {
+      ok: true,
+      message: `Synced ${r.total} tickets (${r.inserted} new, ${r.updated} updated${r.deactivated ? `, ${r.deactivated} no longer assigned` : ""}).`,
+    };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+export async function importJiraAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const raw = str(fd, "json");
+  if (!raw) return { ok: false, error: "Paste the Jira issues JSON." };
+  const { importPastedTickets } = await import("@/lib/jira/sync");
+  try {
+    const r = importPastedTickets(raw);
+    revalidateAll();
+    return { ok: true, message: `Imported ${r.total} tickets (${r.inserted} new, ${r.updated} updated).` };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+export async function setTicketJobAction(fd: FormData): Promise<void> {
+  const key = str(fd, "key");
+  if (!key) return;
+  const { setTicketJob } = await import("@/lib/jira/store");
+  try {
+    setTicketJob(key, str(fd, "jobNumber") ?? null);
+    revalidateAll();
+  } catch (err) {
+    console.error("setTicketJobAction", err);
+  }
+}
+
+export async function clearJiraAction(): Promise<void> {
+  const { clearJiraTickets } = await import("@/lib/jira/store");
+  clearJiraTickets();
+  revalidateAll();
+  redirect("/jira");
+}
