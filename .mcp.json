@@ -9,6 +9,11 @@
             "command": "uvx",
             "args": ["mcp-atlassian"],
             "envFile": "${workspaceFolder}/.env"
-        }
+        },
+
+    "roar": {
+      "command": "node",
+      "args": ["${workspaceFolder}/scripts/roar-mcp.mjs"]
+    }
   }
 }

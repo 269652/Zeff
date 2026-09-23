@@ -1,0 +1,37 @@
+<#
+  Launch Chrome with the DevTools debug port so the Roar export (roar-mcp) can
+  attach to it. Sign in to Roar ONCE in this window; the session is kept in a
+  dedicated profile (data\roar-chrome-profile), separate from your normal Chrome,
+  so there is no profile-lock conflict. Re-run any time; it reuses the session.
+
+  Usage: npm run roar:chrome   (or: powershell -ExecutionPolicy Bypass -File scripts\roar-chrome.ps1)
+#>
+$ErrorActionPreference = "Stop"
+$root = Split-Path -Parent $PSScriptRoot
+$profileDir = Join-Path $root "data\roar-chrome-profile"
+New-Item -ItemType Directory -Force -Path $profileDir | Out-Null
+$port = if ($env:ROAR_CDP_PORT) { $env:ROAR_CDP_PORT } else { 9222 }
+
+$chrome = @(
+  "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
+  "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
+  "$env:LocalAppData\Google\Chrome\Application\chrome.exe"
+) | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $chrome) { throw "Chrome not found in the usual locations." }
+
+# Is the debug port already serving?
+try {
+  Invoke-WebRequest -UseBasicParsing "http://127.0.0.1:$port/json/version" -TimeoutSec 2 | Out-Null
+  Write-Host "A debug Chrome is already running on port $port. Sign in to Roar there if needed."
+  return
+} catch { }
+
+Start-Process -FilePath $chrome -ArgumentList @(
+  "--remote-debugging-port=$port",
+  "--user-data-dir=`"$profileDir`"",
+  "--no-first-run",
+  "--no-default-browser-check",
+  "https://roar.marcel.ai/app/timesheet"
+)
+Write-Host "Launched Chrome with debug port $port."
+Write-Host "Sign in to Roar in that window once (Microsoft SSO). Then use 'Export to Roar' in Zeff."
