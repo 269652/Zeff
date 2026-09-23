@@ -112,6 +112,38 @@ async function fillAbsence(frame, absenceType) {
   await frame.page().waitForTimeout(200);
 }
 
+/** Open TimO's "Anwesenheit erfassen" (working-time booking) dialog; it has date/time/art (Kommt/Geht). */
+async function openAnwesenheit(frame) {
+  await frame.getByText(/^\s*Anwesenheit erfassen\s*$/).first().click().catch(() => {});
+  await frame.page().waitForTimeout(1000);
+  return frame.locator('input[name="date"]').first().isVisible().catch(() => false);
+}
+async function setField(frame, name, value) {
+  const el = frame.locator(`input[name="${name}"]`).first();
+  if (!(await el.isVisible().catch(() => false))) return;
+  await el.click();
+  await el.press("Control+a").catch(() => {});
+  await el.pressSequentially(String(value), { delay: 30 });
+  await frame.page().waitForTimeout(150);
+}
+/** One booking: date (DD.MM.YYYY) + time (HH:MM) + type ("Kommt"/"Geht"). */
+async function fillBooking(frame, deDateStr, time, artType) {
+  await setField(frame, "date", deDateStr);
+  await frame.page().keyboard.press("Escape").catch(() => {}); // close the date picker
+  await setField(frame, "time", time);
+  const a = frame.locator('input[name="art"]').first();
+  if (await a.isVisible().catch(() => false)) {
+    await a.click();
+    await a.press("Control+a").catch(() => {});
+    await a.pressSequentially(artType, { delay: 30 });
+    await frame.page().waitForTimeout(400);
+    const opt = frame.locator('.x-boundlist-item, [role="option"]').filter({ hasText: new RegExp(`^\\s*${artType}\\s*$`, "i") }).first();
+    if (await opt.isVisible().catch(() => false)) await opt.click().catch(() => {});
+    else await frame.page().keyboard.press("Escape").catch(() => {});
+  }
+  await frame.page().waitForTimeout(200);
+}
+
 async function saveDialog(frame) {
   const save = frame.getByText(/^Speichern$/i).first();
   if (await save.isVisible().catch(() => false)) { await save.click().catch(() => {}); await frame.page().waitForTimeout(1200); return true; }
@@ -153,11 +185,10 @@ async function timoExport({ days, dryRun }) {
     for (const d of days) {
       const kind = d.kind || "work";
       try {
-        const opened = await openDay(frame, d.iso);
-        if (!opened) { failed.push(`${d.iso.slice(5)} (day dialog not found)`); continue; }
-
         if (kind === "absence") {
-          // The day-click dialog IS "Abwesenheit eintragen" — set the type + full day.
+          // Absence: the calendar day-click opens "Abwesenheit eintragen" (art + full day).
+          const opened = await openDay(frame, d.iso);
+          if (!opened) { failed.push(`${d.iso.slice(5)} (absence dialog not found)`); continue; }
           if (dryRun) { const info = await readDialog(frame); await cancelDialog(frame); done.push(`${d.iso.slice(5)} → absence:${d.absenceType || "Urlaub"} (art=${info.art ?? "?"})`); continue; }
           await fillAbsence(frame, d.absenceType);
           const saved = await saveDialog(frame);
@@ -166,19 +197,16 @@ async function timoExport({ days, dryRun }) {
           continue;
         }
 
-        // Work day: clicking a day only opens the ABSENCE form (Kommen/Gehen fields are hidden).
-        // Never save it (that would create a wrong absence). Only fill if a working dialog is shown.
-        const canWork = await frame.locator('input[name="hours_from"]').first().isVisible().catch(() => false);
-        if (!canWork) {
-          await cancelDialog(frame);
-          failed.push(`${d.iso.slice(5)} work (TimO records working time separately — not on this dialog)`);
-          continue;
+        // Work: two bookings via "Anwesenheit erfassen" (date + time + Kommt/Geht).
+        if (dryRun) { done.push(`${d.iso.slice(5)} → ${d.start} Kommt / ${d.end} Geht`); continue; }
+        let ok = true;
+        for (const [time, art] of [[d.start, "Kommt"], [d.end, "Geht"]]) {
+          if (!(await openAnwesenheit(frame))) { failed.push(`${d.iso.slice(5)} (Anwesenheit dialog not found)`); ok = false; break; }
+          await fillBooking(frame, deDate(d.iso), time, art);
+          const saved = await saveDialog(frame);
+          if (!saved) { await cancelDialog(frame); failed.push(`${d.iso.slice(5)} ${art} (Speichern not found)`); ok = false; break; }
         }
-        if (dryRun) { await cancelDialog(frame); done.push(`${d.iso.slice(5)} → ${d.start}-${d.end}`); continue; }
-        await fillWorkTime(frame, d.start, d.end);
-        const saved = await saveDialog(frame);
-        if (!saved) { await cancelDialog(frame); failed.push(`${d.iso.slice(5)} (Speichern not found)`); continue; }
-        done.push(`${d.iso.slice(5)} ${d.start}-${d.end}`);
+        if (ok) done.push(`${d.iso.slice(5)} ${d.start} Kommt / ${d.end} Geht`);
       } catch (e) {
         await cancelDialog(frame).catch(() => {});
         failed.push(`${d.iso.slice(5)} (${String(e).slice(0, 60)})`);
