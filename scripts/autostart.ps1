@@ -1,9 +1,12 @@
 <#
-  Install / remove Zeff autostart on Windows login (no admin required).
+  Install / remove Zeff autostart on Windows (no admin required).
 
-  It drops a shortcut in your Startup folder that launches scripts\zeff-serve.ps1
-  hidden, which runs the production server on http://127.0.0.1:9333 and keeps it
-  alive. Uses the per-user Startup folder, so no elevation is needed.
+  Registers a per-user Scheduled Task "Zeff Server" that launches
+  scripts\zeff-serve.ps1 hidden (the watchdog that runs the production server on
+  http://127.0.0.1:9333 and keeps it alive). The task fires on log on AND on
+  session unlock / console connect, so it also starts after a Windows "Fast
+  Startup" resume - where a plain Startup-folder shortcut does NOT re-run. The
+  task launches the watchdog detached from any terminal, so it survives your shell.
 
   Usage:
     powershell -ExecutionPolicy Bypass -File scripts\autostart.ps1 -Install
@@ -23,25 +26,57 @@ param(
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $serve = Join-Path $root "scripts\zeff-serve.ps1"
-$startup = [Environment]::GetFolderPath("Startup")
-$lnk = Join-Path $startup "Zeff Server.lnk"
 $psExe = (Get-Command powershell).Source
 $port = 9333
+$taskName = "Zeff Server"
+$oldLnk = Join-Path ([Environment]::GetFolderPath("Startup")) "Zeff Server.lnk"
+$me = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 
 function Get-ZeffProcesses {
   Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" -ErrorAction SilentlyContinue |
     Where-Object { $_.CommandLine -and $_.CommandLine -match 'next(\\|/)dist.*start' -and $_.CommandLine -match "$port" }
 }
 
+function Get-ZeffTask { Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue }
+
+function Install-ZeffTask {
+  $action = New-ScheduledTaskAction -Execute $psExe `
+    -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$serve`"" -WorkingDirectory $root
+
+  $triggers = @(New-ScheduledTaskTrigger -AtLogOn -User $me)
+  # Session-state triggers cover a Fast-Startup resume (no fresh logon fires):
+  # 8 = SessionUnlock, 1 = ConsoleConnect.
+  $cls = Get-CimClass -Namespace Root/Microsoft/Windows/TaskScheduler -ClassName MSFT_TaskSessionStateChangeTrigger
+  foreach ($sc in 8, 1) {
+    $t = New-CimInstance -CimClass $cls -ClientOnly
+    $t.StateChange = [uint32]$sc
+    $t.UserId = $me
+    $t.Enabled = $true
+    $triggers += $t
+  }
+
+  $principal = New-ScheduledTaskPrincipal -UserId $me -LogonType Interactive -RunLevel Limited
+  $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+    -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero) -Hidden
+
+  Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $triggers `
+    -Principal $principal -Settings $settings -Description "Keep the Zeff time-tracking server running (logon + unlock)." -Force | Out-Null
+
+  if (Test-Path $oldLnk) { Remove-Item $oldLnk -Force; Write-Host "Removed the old Startup-folder shortcut." }
+}
+
 function Start-Zeff {
-  Start-Process -FilePath $psExe `
-    -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", "`"$serve`"") `
-    -WindowStyle Hidden | Out-Null
-  Write-Host "Started the Zeff server (http://127.0.0.1:$port). Give it a few seconds."
+  if (Get-ZeffTask) {
+    Start-ScheduledTask -TaskName $taskName
+    Write-Host "Started Zeff via the scheduled task (http://127.0.0.1:$port). Give it a few seconds."
+  } else {
+    Start-Process -FilePath $psExe -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", "`"$serve`"") -WindowStyle Hidden | Out-Null
+    Write-Host "Task not installed - ran the watchdog directly (run -Install for reliable autostart)."
+  }
 }
 
 function Stop-Zeff {
-  # Stop the watchdog shells first, then the server processes.
+  if (Get-ZeffTask) { Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue | Out-Null }
   Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" -ErrorAction SilentlyContinue |
     Where-Object { $_.CommandLine -match 'zeff-serve\.ps1' } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
@@ -51,26 +86,22 @@ function Stop-Zeff {
 }
 
 if ($Install) {
-  $ws = New-Object -ComObject WScript.Shell
-  $s = $ws.CreateShortcut($lnk)
-  $s.TargetPath = $psExe
-  $s.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$serve`""
-  $s.WorkingDirectory = $root
-  $s.WindowStyle = 7  # minimized (no visible window)
-  $s.Description = "Start the Zeff time-tracking server on login"
-  $s.Save()
-  Write-Host "Installed autostart shortcut:`n  $lnk"
-  Write-Host "Zeff will start on your next login. Use -Start to launch it now."
+  Install-ZeffTask
+  Write-Host "Installed autostart task '$taskName' (fires on log on, unlock and console connect)."
+  Write-Host "Zeff will start automatically. Use -Start to launch it now."
 }
 elseif ($Uninstall) {
-  if (Test-Path $lnk) { Remove-Item $lnk -Force; Write-Host "Removed autostart shortcut." }
-  else { Write-Host "No autostart shortcut was installed." }
+  if (Get-ZeffTask) { Unregister-ScheduledTask -TaskName $taskName -Confirm:$false; Write-Host "Removed the autostart task." }
+  else { Write-Host "No autostart task was installed." }
+  if (Test-Path $oldLnk) { Remove-Item $oldLnk -Force; Write-Host "Removed the old Startup-folder shortcut." }
 }
 elseif ($Start) { Start-Zeff }
 elseif ($Stop) { Stop-Zeff }
 else {
   # Status (default)
-  if (Test-Path $lnk) { Write-Host "Autostart: INSTALLED ($lnk)" } else { Write-Host "Autostart: not installed (run -Install)" }
+  if (Get-ZeffTask) { Write-Host "Autostart: INSTALLED (scheduled task '$taskName' - logon + unlock + console connect)" }
+  elseif (Test-Path $oldLnk) { Write-Host "Autostart: OLD Startup shortcut only (run -Install to switch to the scheduled task)" }
+  else { Write-Host "Autostart: not installed (run -Install)" }
   $procs = Get-ZeffProcesses
   if ($procs) { Write-Host "Server process: running (PID $($procs.ProcessId -join ', '))" } else { Write-Host "Server process: not running" }
   try {
