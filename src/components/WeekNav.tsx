@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { currentWeek, formatWeekRange, shiftWeek, type WeekInfo } from "@/lib/week";
+import { WeekJump } from "./WeekJump";
 
 function weekHref(w: WeekInfo, by?: string) {
   return `/?week=${w.key}${by ? `&by=${encodeURIComponent(by)}` : ""}`;
@@ -39,28 +40,15 @@ export function WeekNav({
         )}
       </div>
 
-      <form method="get" action="/" className="flex flex-wrap items-end gap-2">
-        <div>
-          <label className="label" htmlFor="week">Jump to week</label>
-          <input id="week" type="week" name="week" defaultValue={week.key} className="input" />
-        </div>
-        <div>
-          <label className="label" htmlFor="by">Reported by</label>
-          <select id="by" name="by" defaultValue={by ?? ""} className="input min-w-36">
-            <option value="">Everyone</option>
-            {reporters.map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
-        </div>
-        <button type="submit" className="btn">Apply</button>
+      <div className="flex flex-wrap items-end gap-2">
+        <WeekJump key={`${week.key}|${by ?? ""}`} weekKey={week.key} by={by} reporters={reporters} />
         <a href={csvHref} className="btn" download>
           CSV
         </a>
         <Link href={`/import?week=${week.key}`} className="btn">
           Import meetings
         </Link>
-      </form>
+      </div>
     </div>
   );
 }
