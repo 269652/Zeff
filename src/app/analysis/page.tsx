@@ -3,7 +3,6 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { BarList, Donut, Legend, LineChart, TYPE_STYLE, WeeklyBars, type BarItem, type LinePoint } from "@/components/charts";
 import { getAnalysis, getEarliestEntryDate } from "@/lib/analysis";
-import { listReporters } from "@/lib/entries";
 import { formatHours } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Analysis" };
@@ -19,16 +18,15 @@ const RANGES = [
 export default async function AnalysisPage({
   searchParams,
 }: {
-  searchParams: Promise<{ weeks?: string; by?: string }>;
+  searchParams: Promise<{ weeks?: string; tickets?: string }>;
 }) {
   await connection();
   const sp = await searchParams;
   const weeks = sp.weeks !== undefined && /^\d+$/.test(sp.weeks) ? Number(sp.weeks) : 8;
-  const by = sp.by?.trim() || undefined;
-  const a = getAnalysis({ weeks, reportedBy: by, earliest: getEarliestEntryDate() });
-  const reporters = listReporters();
+  const mine = sp.tickets === "mine";
+  const a = getAnalysis({ weeks, earliest: getEarliestEntryDate(), ticketScope: mine ? "mine" : "all" });
 
-  const href = (w: number, r?: string) => `/analysis?weeks=${w}${r ? `&by=${encodeURIComponent(r)}` : ""}`;
+  const href = (w: number, m = mine) => `/analysis?weeks=${w}${m ? "&tickets=mine" : ""}`;
   const pct = (h: number) => (a.totalHours > 0 ? Math.round((h / a.totalHours) * 100) : 0);
 
   const tagItems: BarItem[] = a.byTag.slice(0, 12).map((t) => ({
@@ -93,26 +91,30 @@ export default async function AnalysisPage({
           <h1 className="text-lg font-semibold">Analysis</h1>
           <p className="text-sm text-zinc-500">
             {a.range.allTime ? "All recorded time" : `Last ${a.range.weeks} weeks`} · {a.range.fromIso} → {a.range.toIso}
+            {a.jira &&
+              (a.myTickets
+                ? ` · Jira metrics: ${a.myTickets.worked} ticket${a.myTickets.worked === 1 ? "" : "s"} you worked on${
+                    a.myTickets.inJira < a.myTickets.worked ? ` (${a.myTickets.inJira} in Jira)` : ""
+                  }`
+                : " · Jira metrics: all tickets")}
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
+          <div className="flex gap-1" title="Jira metrics for everyone's tickets, or only the tickets you booked time on in this range">
+            <Link href={href(weeks, false)} className={`btn btn-sm ${mine ? "" : "btn-primary"}`}>
+              Everyone
+            </Link>
+            <Link href={href(weeks, true)} className={`btn btn-sm ${mine ? "btn-primary" : ""}`}>
+              Mine
+            </Link>
+          </div>
           <div className="flex gap-1">
             {RANGES.map((r) => (
-              <Link key={r.weeks} href={href(r.weeks, by)} className={`btn btn-sm ${weeks === r.weeks ? "btn-primary" : ""}`}>
+              <Link key={r.weeks} href={href(r.weeks)} className={`btn btn-sm ${weeks === r.weeks ? "btn-primary" : ""}`}>
                 {r.label}
               </Link>
             ))}
           </div>
-          <form method="get" action="/analysis" className="flex items-end gap-2">
-            <input type="hidden" name="weeks" value={weeks} />
-            <select name="by" defaultValue={by ?? ""} className="input min-w-32">
-              <option value="">Everyone</option>
-              {reporters.map((r) => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-            <button type="submit" className="btn btn-sm">Filter</button>
-          </form>
         </div>
       </div>
 
@@ -130,7 +132,11 @@ export default async function AnalysisPage({
 
           {a.jira && (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Stat label="Jira assigned" value={String(a.jira.total)} />
+              <Stat
+                label={a.myTickets ? "Worked on" : "Jira tickets"}
+                value={String(a.jira.total)}
+                hint={a.myTickets ? "Synced Jira tickets you booked time on in this range." : "All synced tickets on enabled boards, plus yours."}
+              />
               <Stat label="Open" value={String(a.jira.byCategory.todo + a.jira.byCategory.inprogress)} />
               <Stat label="Done" value={String(a.jira.byCategory.done)} tone="violet" />
               <Stat label="Closed in range" value={String(a.ticketsClosed)} tone="violet" />

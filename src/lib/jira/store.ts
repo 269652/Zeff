@@ -191,8 +191,20 @@ export function insertTitleOnlyTickets(tickets: NormalizedTicket[]): number {
   return n;
 }
 
-export function jiraStats(): JiraStats {
-  const rows = getDb().select().from(jiraTickets).where(enabledBoardTicketCond()).all();
+/**
+ * Which tickets the Analysis metrics cover: `keys` (lower-case ticket keys, e.g. the
+ * ones you booked time on) are taken as-is on any board; without keys, the board scope
+ * from {@link enabledBoardTicketCond} applies.
+ */
+function scopeCond(keys?: Set<string>) {
+  return keys ? undefined : enabledBoardTicketCond();
+}
+function onlyKeys<T extends { key: string }>(rows: T[], keys?: Set<string>): T[] {
+  return keys ? rows.filter((r) => keys.has(r.key.toLowerCase())) : rows;
+}
+
+export function jiraStats(keys?: Set<string>): JiraStats {
+  const rows = onlyKeys(getDb().select().from(jiraTickets).where(scopeCond(keys)).all(), keys);
   const byCategory: Record<JiraStatusCategory, number> = { todo: 0, inprogress: 0, done: 0, unknown: 0 };
   let withJob = 0;
   let lastSyncedAt: string | null = null;
@@ -244,8 +256,8 @@ export function ticketSuggestions(): { ticket: string; summary: string; jobNumbe
 }
 
 /** Count of tickets resolved (done) within an inclusive date range, by resolvedAt. */
-export function ticketsClosedBetween(fromIso: string, toIso: string): JiraTicket[] {
-  return getDb()
+export function ticketsClosedBetween(fromIso: string, toIso: string, keys?: Set<string>): JiraTicket[] {
+  const rows = getDb()
     .select()
     .from(jiraTickets)
     .where(
@@ -254,10 +266,11 @@ export function ticketsClosedBetween(fromIso: string, toIso: string): JiraTicket
         sql`${jiraTickets.resolvedAt} is not null`,
         gte(sql`substr(${jiraTickets.resolvedAt}, 1, 10)`, fromIso),
         lte(sql`substr(${jiraTickets.resolvedAt}, 1, 10)`, toIso),
-        enabledBoardTicketCond(),
+        scopeCond(keys),
       ),
     )
     .all();
+  return onlyKeys(rows, keys);
 }
 
 export type TicketLifecycle = {
@@ -270,8 +283,8 @@ export type TicketLifecycle = {
 };
 
 /** Opened/responded/updated/resolved dates for every ticket that has an opened date — cycle time, WIP, reaction. */
-export function ticketLifecycles(): TicketLifecycle[] {
-  return getDb()
+export function ticketLifecycles(keys?: Set<string>): TicketLifecycle[] {
+  const rows = getDb()
     .select({
       key: jiraTickets.key,
       statusCategory: jiraTickets.statusCategory,
@@ -281,8 +294,9 @@ export function ticketLifecycles(): TicketLifecycle[] {
       respondedAt: jiraTickets.respondedAt,
     })
     .from(jiraTickets)
-    .where(and(sql`${jiraTickets.openedAt} is not null`, enabledBoardTicketCond()))
+    .where(and(sql`${jiraTickets.openedAt} is not null`, scopeCond(keys)))
     .all();
+  return onlyKeys(rows, keys);
 }
 
 /** Earliest known Jira day (min of opened/resolved dates), YYYY-MM-DD, or null. */
