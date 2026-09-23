@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { connection } from "next/server";
 import { createEntryAction } from "@/app/actions";
 import { EntriesTable } from "@/components/EntriesTable";
@@ -86,9 +87,17 @@ export default async function WeekPage({
       </section>
 
       <section className="card p-4">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">Report · week {week.week}</h2>
-          <span className="text-xs text-zinc-400">grouped per day · configure on Schedule</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-zinc-400">grouped per day · configure on Schedule</span>
+            <Link
+              href={`/export/chrono?week=${week.key}${by ? `&by=${encodeURIComponent(by)}` : ""}`}
+              className="btn btn-sm"
+            >
+              Export to Chrono →
+            </Link>
+          </div>
         </div>
         <ReportView report={rewritten} text={reportText} today={today} />
       </section>

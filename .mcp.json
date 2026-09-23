@@ -9,6 +9,11 @@
             "command": "uvx",
             "args": ["mcp-atlassian"],
             "envFile": "${workspaceFolder}/.env"
-        }
+        },
+
+    "chrono": {
+      "command": "node",
+      "args": ["${workspaceFolder}/scripts/chrono-mcp.mjs"]
+    }
   }
 }

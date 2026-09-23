@@ -561,3 +561,43 @@ export async function setBoardEnabledAction(fd: FormData): Promise<void> {
     console.error("setBoardEnabledAction", err);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Chrono export (Playwright MCP, no LLM — attaches to your debug Chrome)
+// ---------------------------------------------------------------------------
+
+async function callChrono(tool: "chrono_status" | "chrono_export", args: Record<string, unknown>): Promise<string> {
+  const path = await import("node:path");
+  const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
+  const script = path.join(process.cwd(), "scripts", "chrono-mcp.mjs");
+  const out = await runStdioSession(
+    { command: process.execPath, args: [script], env: {} },
+    async (call) => resultToPayload(await call(tool, args)),
+    180000,
+  );
+  return typeof out === "string" ? out : JSON.stringify(out);
+}
+
+export async function chronoStatusAction(): Promise<ActionState> {
+  try {
+    return { ok: true, message: await callChrono("chrono_status", {}) };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+export async function exportToChronoAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { resolveWeek } = await import("@/lib/week");
+  const week = resolveWeek(str(fd, "week"));
+  if (!week) return { ok: false, error: "Could not read the week." };
+  const dryRun = fd.get("dryRun") === "on";
+  const { getChronoExportPlan, toChronoPayload } = await import("@/lib/chrono");
+  const plan = getChronoExportPlan(week, { reportedBy: str(fd, "by") });
+  if (plan.rows.length === 0) return { ok: false, error: "Nothing booked in this week to export." };
+  try {
+    const msg = await callChrono("chrono_export", { ...toChronoPayload(plan), dryRun });
+    return { ok: true, message: msg };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}

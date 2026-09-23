@@ -14,7 +14,8 @@
     "serve": "next start -H 127.0.0.1 -p 9333",
     "autostart:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/autostart.ps1 -Install",
     "autostart:uninstall": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/autostart.ps1 -Uninstall",
-    "autostart:status": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/autostart.ps1 -Status"
+    "autostart:status": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/autostart.ps1 -Status",
+    "chrono:chrome": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/chrono-chrome.ps1"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "^2.0.0",
@@ -23,6 +24,7 @@
     "drizzle-orm": "^0.45.2",
     "mcp-handler": "^2.2.0",
     "next": "16.3.5",
+    "playwright-core": "^1.63.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "zod": "^4.6.5"
