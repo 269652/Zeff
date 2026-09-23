@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import { callStdioTool, resultToPayload, type McpStdioConfig } from "./mcp-client";
+import { resultToPayload, runStdioSession, type McpStdioConfig } from "./mcp-client";
 import { extractIssues, normalizeIssue, type NormalizedTicket } from "./normalize";
-import { upsertTickets, type UpsertResult } from "./store";
+import { bookedTicketKeysMissingTitle, insertTitleOnlyTickets, upsertTickets, type UpsertResult } from "./store";
 
 export type JiraSyncConfig = {
   configured: boolean;
@@ -132,11 +132,13 @@ export function getJiraSyncConfig(): JiraSyncConfig {
   return { configured: false, source: "none", args: [], env: {}, tool, jql, fields, limit, baseUrl: process.env.JIRA_BASE_URL?.trim() || undefined };
 }
 
-export type SyncResult = UpsertResult & { fetched: number };
+export type SyncResult = UpsertResult & { fetched: number; titlesAdded: number };
 
 /**
  * Sync assigned tickets by calling the configured Jira MCP server directly
  * (no LLM), then upserting them. Tickets no longer returned are marked inactive.
+ * In the same session it also fetches titles for tickets booked in Zeff that are
+ * not assigned to the user, so their {ticket-name} shows in the report.
  */
 export async function syncFromJira(): Promise<SyncResult> {
   const cfg = getJiraSyncConfig();
@@ -146,26 +148,40 @@ export async function syncFromJira(): Promise<SyncResult> {
     );
   }
   const config: McpStdioConfig = { command: cfg.command, args: cfg.args, env: cfg.env };
-  // mcp-atlassian cold-starts in ~30s (Python env + Jira connect), so allow generous time.
-  // expand=changelog brings each issue's history so we can derive time-to-respond.
-  const result = await callStdioTool(
+  const normalize = (issues: unknown[]) =>
+    issues.map((i) => normalizeIssue(i, cfg.baseUrl)).filter((t): t is NormalizedTicket => t !== null);
+
+  // mcp-atlassian cold-starts in ~30s; do both searches over ONE session.
+  return runStdioSession(
     config,
-    cfg.tool,
-    { jql: cfg.jql, limit: cfg.limit, fields: cfg.fields, expand: "changelog" },
+    async (call) => {
+      // 1. Assigned tickets (expand=changelog brings history for time-to-respond).
+      const payload = resultToPayload(await call(cfg.tool, { jql: cfg.jql, limit: cfg.limit, fields: cfg.fields, expand: "changelog" }));
+      const issues = extractIssues(payload);
+      const tickets = normalize(issues);
+      if (tickets.length === 0) {
+        throw new Error(
+          `The Jira MCP tool "${cfg.tool}" returned no recognizable issues (fetched ${issues.length} raw items). Check JIRA_MCP_TOOL / JIRA_JQL.`,
+        );
+      }
+      const upserted = upsertTickets(tickets, { markMissingInactive: true });
+
+      // 2. Titles for tickets booked in Zeff but not assigned to the user.
+      const missing = bookedTicketKeysMissingTitle();
+      let titlesAdded = 0;
+      for (let i = 0; i < missing.length; i += 50) {
+        const chunk = missing.slice(i, i + 50);
+        try {
+          const p2 = resultToPayload(await call(cfg.tool, { jql: `key in (${chunk.join(",")})`, limit: chunk.length, fields: cfg.fields }));
+          titlesAdded += insertTitleOnlyTickets(normalize(extractIssues(p2)));
+        } catch {
+          // ignore title-fetch failures (e.g. tickets the user can't view)
+        }
+      }
+      return { ...upserted, fetched: issues.length, titlesAdded };
+    },
     150000,
   );
-  const payload = resultToPayload(result);
-  const issues = extractIssues(payload);
-  const tickets = issues
-    .map((i) => normalizeIssue(i, cfg.baseUrl))
-    .filter((t): t is NormalizedTicket => t !== null);
-  if (tickets.length === 0) {
-    throw new Error(
-      `The Jira MCP tool "${cfg.tool}" returned no recognizable issues (fetched ${issues.length} raw items). Check JIRA_MCP_TOOL / JIRA_JQL.`,
-    );
-  }
-  const upserted = upsertTickets(tickets, { markMissingInactive: true });
-  return { ...upserted, fetched: issues.length };
 }
 
 /** Import tickets from pasted JSON (an array of issues or an object with issues/results). */
@@ -184,5 +200,5 @@ export function importPastedTickets(text: string, baseUrl?: string): SyncResult 
     throw new Error("No recognizable Jira issues found (need objects with a key like PROJ-80).");
   }
   const upserted = upsertTickets(tickets);
-  return { ...upserted, fetched: issues.length };
+  return { ...upserted, fetched: issues.length, titlesAdded: 0 };
 }
