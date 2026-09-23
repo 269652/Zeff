@@ -12,6 +12,7 @@ import type { JiraStatusCategory } from "@/db/schema";
 import { getJiraSyncConfig } from "@/lib/jira/sync";
 import { jiraStats, listJiraBoards, listJiraTickets } from "@/lib/jira/store";
 import { listJobs } from "@/lib/jobs";
+import { getUiOpen } from "@/lib/ui-state";
 
 export const metadata: Metadata = { title: "Jira" };
 
@@ -38,6 +39,7 @@ export default async function JiraPage({
   const boards = listJiraBoards();
   const jobRows = listJobs();
   const jobs = jobRows.map((j) => ({ number: j.number, name: j.name }));
+  const ui = await getUiOpen();
   const jobName = new Map(jobRows.map((j) => [j.number, j.name]));
   const boardMap = new Map(boards.map((b) => [b.id, b]));
 
@@ -70,7 +72,7 @@ export default async function JiraPage({
             {stats.lastSyncedAt ? ` · last synced ${stats.lastSyncedAt.replace("T", " ").slice(0, 16)}` : ""}
           </span>
         </div>
-        <JiraSyncControls configured={cfg.configured} />
+        <JiraSyncControls configured={cfg.configured} ui={ui} />
         {cfg.configured && (
           <p className="text-xs text-zinc-400">
             JQL: <code className="code">{cfg.jql}</code>

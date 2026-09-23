@@ -138,14 +138,15 @@ const hasDescPlaceholder = (tpl: string) => /\{desc(ription)?\}/.test(tpl);
 /**
  * The key entries are grouped by within a day: the rule's template with the
  * description removed, so entries that differ ONLY by description (e.g. two
- * bookings on the same ticket) group together. A description-only template
- * (nothing left once {desc} is gone) groups per entry so those lines stay
- * separate.
+ * bookings on the same ticket) group together. The key is the rendered text, not
+ * the rule, so rules that render the same label (e.g. "Meetings" for two jobs)
+ * share one line. A description-only template (nothing left once {desc} is gone)
+ * groups per entry so those lines stay separate.
  */
 export function reportGroupKey(rule: ReportRule, e: RuleEntry, entryId: number): string {
   const stripped = rule.template.replaceAll("{description}", "").replaceAll("{desc}", "");
   const base = substitute(stripped, e);
-  return base ? `g:${rule.id}:${base}` : `e:${entryId}`;
+  return base ? `g:${base}` : `e:${entryId}`;
 }
 
 /**
