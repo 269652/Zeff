@@ -6,7 +6,7 @@ import { TimoExportControls } from "@/components/TimoExportControls";
 import { formatHours } from "@/lib/format";
 import { listJobs } from "@/lib/jobs";
 import { getReportSettings, getTimoConfig } from "@/lib/report";
-import { getTimoExportPlan } from "@/lib/timo";
+import { computeEnd, getTimoExportPlan } from "@/lib/timo";
 import { currentWeek, formatWeekRange, resolveWeek } from "@/lib/week";
 
 export const metadata: Metadata = { title: "Export to TimO" };
@@ -71,7 +71,7 @@ export default async function TimoExportPage({
               </thead>
               <tbody>
                 {plan.days.map((d) => (
-                  <tr key={d.iso}>
+                  <tr key={`${d.iso}-${d.kind}`}>
                     <td className="whitespace-nowrap">{d.label} <span className="font-mono text-xs text-zinc-400">{d.iso}</span></td>
                     <td className="font-mono tabular-nums">{d.kind === "absence" ? "—" : d.start}</td>
                     <td className="font-mono tabular-nums">{d.kind === "absence" ? "—" : d.end}</td>
@@ -80,6 +80,7 @@ export default async function TimoExportPage({
                       {d.kind === "absence" ? (
                         <span className="badge bg-indigo-100 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300">
                           Absence · {d.absenceType}
+                          {d.halfDay ? " · ½ day" : ""}
                         </span>
                       ) : (
                         <span className={`badge ${d.source === "gap" ? "badge-web" : "badge-mcp"}`}>
@@ -99,10 +100,11 @@ export default async function TimoExportPage({
           </div>
         )}
         <p className="mt-3 text-xs text-zinc-400">
-          Working days record a start–end span (break added so the net matches, e.g. {config.startTime} +{" "}
-          {config.workdayHours}h + {config.breakMinutes} min → {" "}
-          <span className="font-mono">{plan.days.find((d) => d.kind === "work")?.end ?? "16:30"}</span>). Entries on the{" "}
-          <strong>absence job</strong> are booked in TimO&apos;s absence form as <strong>{config.absenceType}</strong>.
+          Working days record a start–end span. TimO deducts its automatic break, so days over 6 h get{" "}
+          {config.breakMinutes} min added to match the net (e.g. {config.startTime} + {config.workdayHours}h +{" "}
+          {config.breakMinutes} min → <span className="font-mono">{computeEnd(config.startTime, config.workdayHours, config.breakMinutes)}</span>).
+          Entries on the <strong>absence job</strong> are booked in TimO&apos;s absence form as{" "}
+          <strong>{config.absenceType}</strong> — up to half a work day as a half day.
         </p>
       </section>
 
@@ -114,9 +116,15 @@ export default async function TimoExportPage({
       <section className="card space-y-3 p-4">
         <h2 className="text-sm font-semibold text-zinc-500 uppercase">Transfer</h2>
         <ol className="list-decimal space-y-1 pl-5 text-sm text-zinc-600 dark:text-zinc-300">
-          <li>Sign in to TimO once in the same Chrome window used for Roar (<code className="code">npm run roar:chrome</code>).</li>
-          <li><strong>Check TimO connection</strong>, then <strong>Dry run</strong> to confirm each day is reachable.</li>
-          <li><strong>Fill in TimO</strong> enters each day&apos;s start–end — review and submit in TimO yourself (it never submits).</li>
+          <li>
+            Sign in to TimO once in the same Chrome window used for Roar (<code className="code">npm run roar:chrome</code>) and
+            leave it on the <strong>Zeitbuchung</strong> view.
+          </li>
+          <li><strong>Check TimO connection</strong>, then <strong>Dry run</strong> — it fills and validates each day&apos;s TimO form without saving.</li>
+          <li>
+            <strong>Fill in TimO</strong> saves each day as Kommt/Geht bookings and absences in TimO&apos;s absence form. Days that
+            already have TimO entries are skipped, so re-running is safe.
+          </li>
         </ol>
         <TimoExportControls week={week.key} by={by} fillGaps={fillGaps} />
       </section>

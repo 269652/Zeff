@@ -33,23 +33,34 @@ export function minutesToTime(min: number): string {
   const m = ((Math.round(min) % (24 * 60)) + 24 * 60) % (24 * 60);
   return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 }
+/**
+ * Break TimO deducts from a day's span (its automatic pause follows the German ArbZG):
+ * none up to 6 h, the configured break above that, at least 45 min over 9 h.
+ */
+export function breakFor(hours: number, breakMinutes: number): number {
+  if (hours <= 6) return 0;
+  return Math.max(0, hours > 9 ? Math.max(breakMinutes, 45) : breakMinutes);
+}
 /** End of the span so the net (span − break) equals the target hours. */
 export function computeEnd(startTime: string, hours: number, breakMinutes: number): string {
-  return minutesToTime(timeToMinutes(startTime) + Math.round(hours * 60) + Math.max(0, breakMinutes));
+  return minutesToTime(timeToMinutes(startTime) + Math.round(hours * 60) + breakFor(hours, breakMinutes));
 }
 
 export type TimoDay = {
   iso: string;
   label: string;
-  /** Working time (Kommen/Gehen span) or a full-day absence (TimO absence form). */
+  /** Working time (Kommen/Gehen span) or an absence (TimO absence form); a half day off can have both. */
   kind: "work" | "absence";
   /** Net hours (work hours, or the absence's booked hours for reference). */
   hours: number;
   /** Only for work days. */
   start: string;
   end: string;
-  /** Only for absence days: the TimO absence type (`art`). */
+  /** Only for absence days: the TimO absence type (`art`), and whether it's a half day. */
   absenceType?: string;
+  halfDay?: boolean;
+  /** Work day that shares its date with a half day off. */
+  withAbsence?: boolean;
   /** Where it came from: Zeff bookings, or a gap filled with the default day. */
   source: "zeff" | "gap";
 };
@@ -88,9 +99,10 @@ export function getTimoExportPlan(
     const isWorkday = (schedule[i] ?? 0) > 0;
 
     if (absenceHours > 0) {
-      // A day booked on the absence job → a full-day absence (TimO absence form).
-      days.push({ iso, label, kind: "absence", hours: round2(absenceHours), start: "", end: "", absenceType: config.absenceType || "Urlaub", source: "zeff" });
-      return;
+      // A day booked on the absence job → TimO's absence form; up to half the work day is a half day.
+      const halfDay = absenceHours <= config.workdayHours / 2;
+      days.push({ iso, label, kind: "absence", hours: round2(absenceHours), start: "", end: "", absenceType: config.absenceType || "Urlaub", halfDay, source: "zeff" });
+      if (!halfDay || workHours <= 0) return; // a whole day off, or nothing else booked that day
     }
     let hours = 0;
     let source: "zeff" | "gap" = "zeff";
@@ -111,6 +123,7 @@ export function getTimoExportPlan(
       start: config.startTime,
       end: computeEnd(config.startTime, hours, config.breakMinutes),
       source,
+      ...(absenceHours > 0 ? { withAbsence: true } : {}),
     });
   });
 
@@ -134,12 +147,24 @@ export type TimoExportPayload = {
     end: string;
     hours: number;
     absenceType?: string;
+    halfDay?: boolean;
+    withAbsence?: boolean;
     source: "zeff" | "gap";
   }[];
 };
 
 export function toTimoPayload(plan: TimoExportPlan): TimoExportPayload {
   return {
-    days: plan.days.map((d) => ({ iso: d.iso, kind: d.kind, start: d.start, end: d.end, hours: d.hours, absenceType: d.absenceType, source: d.source })),
+    days: plan.days.map((d) => ({
+      iso: d.iso,
+      kind: d.kind,
+      start: d.start,
+      end: d.end,
+      hours: d.hours,
+      absenceType: d.absenceType,
+      halfDay: d.halfDay,
+      withAbsence: d.withAbsence,
+      source: d.source,
+    })),
   };
 }

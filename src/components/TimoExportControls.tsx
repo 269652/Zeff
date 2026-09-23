@@ -18,8 +18,8 @@ export function TimoExportControls({ week, by, fillGaps }: { week: string; by?: 
           <input type="hidden" name="week" value={week} />
           {by ? <input type="hidden" name="by" value={by} /> : null}
           {fillGaps ? <input type="hidden" name="fillGaps" value="on" /> : null}
-          <SubmitButton className="btn btn-sm" name="dryRun" value="on" pendingText="Checking days…">
-            Dry run (reach days)
+          <SubmitButton className="btn btn-sm" name="dryRun" value="on" pendingText="Checking forms…">
+            Dry run (no save)
           </SubmitButton>
           <SubmitButton className="btn btn-primary" pendingText="Filling TimO…">Fill in TimO</SubmitButton>
         </form>
