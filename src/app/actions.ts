@@ -485,7 +485,7 @@ export async function syncJiraAction(): Promise<ActionState> {
     revalidateAll();
     return {
       ok: true,
-      message: `Synced ${r.total} tickets (${r.inserted} new, ${r.updated} updated${r.deactivated ? `, ${r.deactivated} no longer assigned` : ""}).`,
+      message: `Synced ${r.total} tickets (${r.inserted} new, ${r.updated} updated${r.deactivated ? `, ${r.deactivated} no longer assigned` : ""})${r.titlesAdded ? `; +${r.titlesAdded} booked-ticket titles` : ""}.`,
     };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };

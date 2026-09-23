@@ -122,6 +122,75 @@ export function clearJiraTickets(): void {
   getDb().delete(jiraTickets).run();
 }
 
+/** Ticket keys booked in Zeff that have no title in jira_tickets yet (not in the assignee sync). */
+export function bookedTicketKeysMissingTitle(): string[] {
+  const db = getDb();
+  const have = new Set(
+    db.select({ key: jiraTickets.key }).from(jiraTickets).where(sql`${jiraTickets.summary} <> ''`).all().map((r) => r.key.toUpperCase()),
+  );
+  const rows = db
+    .selectDistinct({ ticket: schema.timeEntries.ticket })
+    .from(schema.timeEntries)
+    .where(sql`${schema.timeEntries.ticket} is not null and ${schema.timeEntries.ticket} <> ''`)
+    .all();
+  const out: string[] = [];
+  for (const r of rows) {
+    const t = r.ticket;
+    if (t && !have.has(t.toUpperCase())) out.push(t);
+  }
+  return out;
+}
+
+/**
+ * Store title-only tickets (booked in Zeff but not assigned to the user) as
+ * INACTIVE, so their {ticket-name} is available to the report without letting
+ * them into the ticket dropdown or Analysis (which filter to active/enabled).
+ */
+export function insertTitleOnlyTickets(tickets: NormalizedTicket[]): number {
+  const db = getDb();
+  const now = new Date().toISOString();
+  let n = 0;
+  for (const t of tickets) {
+    const existing = getJiraTicket(t.key);
+    if (existing) {
+      db.update(jiraTickets)
+        .set({
+          summary: t.summary,
+          status: t.status,
+          statusCategory: t.statusCategory,
+          issueType: t.issueType ?? existing.issueType,
+          openedAt: t.openedAt ?? existing.openedAt,
+          updatedAt: t.updatedAt ?? existing.updatedAt,
+          resolvedAt: t.resolvedAt ?? existing.resolvedAt,
+          syncedAt: now,
+        })
+        .where(eq(jiraTickets.id, existing.id))
+        .run();
+    } else {
+      db.insert(jiraTickets)
+        .values({
+          key: t.key,
+          summary: t.summary,
+          status: t.status,
+          statusCategory: t.statusCategory,
+          issueType: t.issueType ?? null,
+          priority: t.priority ?? null,
+          assignee: t.assignee ?? null,
+          url: t.url ?? null,
+          openedAt: t.openedAt ?? null,
+          updatedAt: t.updatedAt ?? null,
+          resolvedAt: t.resolvedAt ?? null,
+          respondedAt: t.respondedAt ?? null,
+          active: false,
+          syncedAt: now,
+        })
+        .run();
+    }
+    n++;
+  }
+  return n;
+}
+
 export function jiraStats(): JiraStats {
   const rows = getDb().select().from(jiraTickets).where(enabledBoardTicketCond()).all();
   const byCategory: Record<JiraStatusCategory, number> = { todo: 0, inprogress: 0, done: 0, unknown: 0 };
