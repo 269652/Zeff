@@ -198,11 +198,14 @@ npm run autostart:install
 npm run autostart:status
 ```
 
-`autostart:install` drops a shortcut in your Startup folder that runs `scripts/zeff-serve.ps1`
-hidden; it launches `next start` and restarts it if it ever exits (log: `data/autostart.log`).
-Start/stop it now without rebooting via `scriptsautostart.ps1 -Start` / `-Stop`, and remove it with
-`npm run autostart:uninstall`. Because it serves a production build, run `npm run build` again after
-changing code (then `-Stop` and `-Start`, or just re-login).
+`autostart:install` registers a per-user Scheduled Task **“Zeff Server”** that runs
+`scripts/zeff-serve.ps1` hidden; it launches `next start` and restarts it if it ever exits
+(log: `data/autostart.log`). The task fires on **log on, session unlock and console connect** — so it
+also starts after a Windows **Fast Startup** resume, where a plain Startup-folder shortcut does *not*
+re-run (that was the old, unreliable mechanism). It launches the watchdog detached (via Task
+Scheduler), so it survives closing your terminal. Start/stop it now without rebooting via
+`scripts\autostart.ps1 -Start` / `-Stop`, and remove it with `npm run autostart:uninstall`. Because it
+serves a production build, run `npm run build` again after changing code (then `-Stop` and `-Start`).
 
 ## Jira
 
