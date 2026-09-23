@@ -67,7 +67,33 @@ export function parseMeetingJobRules(json: string | null | undefined): MeetingJo
   }
 }
 
-export function updateReportSettings(patch: { rules?: ReportRule[]; meetingJobRules?: MeetingJobRule[] }): ReportSettings {
+/** Per-job Chrono WorkCode overrides ({ jobNumber: workCode }); used by the Chrono export. */
+export function getChronoWorkcodes(s: ReportSettings): Record<string, string> {
+  return parseChronoWorkcodes(s.chronoWorkcodes);
+}
+
+export function parseChronoWorkcodes(json: string | null | undefined): Record<string, string> {
+  if (!json) return {};
+  try {
+    const raw = JSON.parse(json);
+    if (!raw || typeof raw !== "object") return {};
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      const num = String(k).trim();
+      const code = String(v ?? "").trim();
+      if (num && code) out[num] = code;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export function updateReportSettings(patch: {
+  rules?: ReportRule[];
+  meetingJobRules?: MeetingJobRule[];
+  chronoWorkcodes?: Record<string, string>;
+}): ReportSettings {
   if (patch.rules !== undefined) {
     const err = validateRules(patch.rules);
     if (err) throw new ValidationError(err);
@@ -78,6 +104,7 @@ export function updateReportSettings(patch: { rules?: ReportRule[]; meetingJobRu
     .set({
       ...(patch.rules !== undefined && { rules: JSON.stringify(patch.rules) }),
       ...(patch.meetingJobRules !== undefined && { meetingJobRules: JSON.stringify(patch.meetingJobRules) }),
+      ...(patch.chronoWorkcodes !== undefined && { chronoWorkcodes: JSON.stringify(patch.chronoWorkcodes) }),
       updatedAt: new Date().toISOString(),
     })
     .where(eq(reportSettings.id, 1))

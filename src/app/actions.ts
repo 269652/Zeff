@@ -632,11 +632,29 @@ export async function exportToChronoAction(_prev: ActionState, fd: FormData): Pr
   if (!week) return { ok: false, error: "Could not read the week." };
   const dryRun = fd.get("dryRun") === "on";
   const { getChronoExportPlan, toChronoPayload } = await import("@/lib/chrono");
+  const { getReportSettings, getChronoWorkcodes } = await import("@/lib/report");
   const plan = getChronoExportPlan(week, { reportedBy: str(fd, "by") });
   if (plan.rows.length === 0) return { ok: false, error: "Nothing booked in this week to export." };
+  // Attach any per-job WorkCode overrides (e.g. Abwesenheit → ABSENCE).
+  const workcodes = getChronoWorkcodes(getReportSettings());
+  const payload = toChronoPayload(plan);
+  payload.rows = payload.rows.map((r) => ({ ...r, workcode: workcodes[r.jobNumber] || undefined }));
   try {
-    const msg = await callChrono("chrono_export", { ...toChronoPayload(plan), dryRun });
+    const msg = await callChrono("chrono_export", { ...payload, dryRun });
     return { ok: true, message: msg };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+export async function saveChronoWorkcodesAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { updateReportSettings, parseChronoWorkcodes } = await import("@/lib/report");
+  try {
+    const map = parseChronoWorkcodes(str(fd, "chronoWorkcodes") ?? null);
+    updateReportSettings({ chronoWorkcodes: map });
+    revalidateAll();
+    const n = Object.keys(map).length;
+    return { ok: true, message: `Saved ${n} WorkCode override${n === 1 ? "" : "s"}.` };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

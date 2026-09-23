@@ -1,0 +1,1 @@
+ALTER TABLE `report_settings` ADD `chrono_workcodes` text;

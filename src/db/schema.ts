@@ -169,6 +169,8 @@ export const reportSettings = sqliteTable("report_settings", {
   rules: text("rules"),
   /** JSON array of meeting→job rules: assign a job to an imported meeting by its title. */
   meetingJobRules: text("meeting_job_rules"),
+  /** JSON map {jobNumber: chronoWorkCode}: force a Chrono WorkCode for a job on export (e.g. Abwesenheit → ABSENCE). */
+  chronoWorkcodes: text("chrono_workcodes"),
   updatedAt: text("updated_at")
     .notNull()
     .default(sql`(CURRENT_TIMESTAMP)`),
