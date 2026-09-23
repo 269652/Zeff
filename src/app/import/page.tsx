@@ -15,6 +15,7 @@ import { getCalendarStatus, getWeekEvents } from "@/lib/calendar/provider";
 import { findImportedExternalIds } from "@/lib/entries";
 import { errorMessage } from "@/lib/errors";
 import { listJobs } from "@/lib/jobs";
+import { getMeetingJobRules, getReportSettings } from "@/lib/report";
 import { currentWeek, formatWeekRange, resolveWeek, shiftWeek } from "@/lib/week";
 
 export const metadata: Metadata = { title: "Import meetings" };
@@ -194,7 +195,13 @@ async function Preview({ weekKey, from, to, reportedBy }: { weekKey: string; fro
   return (
     <>
       <section className="card p-4">
-        <MeetingImportForm weekKey={weekKey} meetings={plan.meetings} jobs={listJobs()} defaultReportedBy={reportedBy} />
+        <MeetingImportForm
+          weekKey={weekKey}
+          meetings={plan.meetings}
+          jobs={listJobs()}
+          jobRules={getMeetingJobRules(getReportSettings())}
+          defaultReportedBy={reportedBy}
+        />
       </section>
       {plan.excluded.length > 0 && (
         <p className="text-xs text-zinc-500">

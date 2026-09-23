@@ -78,6 +78,20 @@
       "when": 1790075336115,
       "tag": "0010_cool_rick_jones",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1790181892161,
+      "tag": "0011_meeting_job_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1790184937761,
+      "tag": "0012_jira_ticket_mine",
+      "breakpoints": true
     }
   ]
 }

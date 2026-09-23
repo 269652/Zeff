@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { JiraBoard, JiraStatusCategory, JiraTicket } from "@/db/schema";
 import type { NormalizedTicket } from "./normalize";
@@ -210,7 +210,7 @@ export function jiraStats(): JiraStats {
  * offered (stale boards are curated out); with no enabled boards it falls back to
  * all active tickets so the dropdown is never empty by surprise.
  */
-export function ticketSuggestions(): { ticket: string; summary: string; jobNumber: string | null; done: boolean }[] {
+export function ticketSuggestions(): { ticket: string; summary: string; jobNumber: string | null; done: boolean; assignee: string | null; mine: boolean }[] {
   const filterByBoards = hasEnabledBoards();
   const boardJoin = filterByBoards
     ? and(eq(jiraBoards.id, jiraTickets.boardId), eq(jiraBoards.enabled, true))
@@ -223,15 +223,24 @@ export function ticketSuggestions(): { ticket: string; summary: string; jobNumbe
       boardJob: jiraBoards.jobNumber,
       boardId: jiraBoards.id,
       statusCategory: jiraTickets.statusCategory,
+      assignee: jiraTickets.assignee,
+      mine: jiraTickets.mine,
     })
     .from(jiraTickets)
     .leftJoin(jiraBoards, boardJoin)
     .where(eq(jiraTickets.active, true))
     .orderBy(asc(jiraTickets.statusCategory), asc(jiraTickets.key))
     .all()
-    // When filtering by boards, keep only tickets matched to an enabled board.
-    .filter((r) => !filterByBoards || r.boardId !== null)
-    .map((r) => ({ ticket: r.ticket, summary: r.summary, jobNumber: r.jobNumber ?? r.boardJob ?? null, done: r.statusCategory === "done" }));
+    // When filtering by boards, keep tickets on an enabled board OR assigned to me.
+    .filter((r) => !filterByBoards || r.boardId !== null || r.mine)
+    .map((r) => ({
+      ticket: r.ticket,
+      summary: r.summary,
+      jobNumber: r.jobNumber ?? r.boardJob ?? null,
+      done: r.statusCategory === "done",
+      assignee: r.assignee ?? null,
+      mine: r.mine,
+    }));
 }
 
 /** Count of tickets resolved (done) within an inclusive date range, by resolvedAt. */
@@ -359,7 +368,9 @@ export function hasEnabledBoards(): boolean {
  */
 function enabledBoardTicketCond() {
   if (!hasEnabledBoards()) return undefined;
-  return inArray(jiraTickets.boardId, enabledBoardIds());
+  // Show tickets on an enabled board OR assigned to me (so my tickets never hide,
+  // even if their board is stale/disabled); teammates' tickets need an enabled board.
+  return or(inArray(jiraTickets.boardId, enabledBoardIds()), eq(jiraTickets.mine, true));
 }
 
 /**
@@ -375,6 +386,20 @@ export function assignTicketBoards(considered: string[], assignments: { key: str
   }
   for (const m of assignments) {
     db.update(jiraTickets).set({ boardId: m.boardId }).where(sql`lower(${jiraTickets.key}) = lower(${m.key})`).run();
+  }
+}
+
+/** Flag which tickets (within `scope`) are assigned to the current user; the rest of `scope` is cleared. */
+export function setTicketsMine(mineKeys: string[], scopeKeys: string[]): void {
+  const db = getDb();
+  const up = (keys: string[]) => keys.map((k) => k.toUpperCase());
+  for (let i = 0; i < scopeKeys.length; i += 400) {
+    const chunk = up(scopeKeys.slice(i, i + 400));
+    if (chunk.length) db.update(jiraTickets).set({ mine: false }).where(inArray(jiraTickets.key, chunk)).run();
+  }
+  for (let i = 0; i < mineKeys.length; i += 400) {
+    const chunk = up(mineKeys.slice(i, i + 400));
+    if (chunk.length) db.update(jiraTickets).set({ mine: true }).where(inArray(jiraTickets.key, chunk)).run();
   }
 }
 

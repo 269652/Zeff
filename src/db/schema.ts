@@ -167,6 +167,8 @@ export const reportSettings = sqliteTable("report_settings", {
   ticketTemplate: text("ticket_template").notNull().default("{ticket}: {description}"),
   /** JSON array of report-rewriting rules (condition → template). Null = derive from the legacy fields above. */
   rules: text("rules"),
+  /** JSON array of meeting→job rules: assign a job to an imported meeting by its title. */
+  meetingJobRules: text("meeting_job_rules"),
   updatedAt: text("updated_at")
     .notNull()
     .default(sql`(CURRENT_TIMESTAMP)`),
@@ -204,6 +206,8 @@ export const jiraTickets = sqliteTable(
     boardId: integer("board_id"),
     /** Still returned by the last sync (i.e. currently assigned / in scope). */
     active: integer("active", { mode: "boolean" }).notNull().default(true),
+    /** Assigned to the current user (vs. a teammate) — set from the assignee=currentUser sync. */
+    mine: integer("mine", { mode: "boolean" }).notNull().default(false),
     syncedAt: text("synced_at")
       .notNull()
       .default(sql`(CURRENT_TIMESTAMP)`),

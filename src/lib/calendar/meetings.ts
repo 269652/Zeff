@@ -56,6 +56,24 @@ export function extractTicket(subject: string): string | undefined {
   return TICKET_RE.exec(subject)?.[1];
 }
 
+/** A rule that auto-assigns a Zeff job to an imported meeting whose title matches. */
+export type MeetingJobRule = {
+  /** Case-insensitive substring the meeting title must contain (e.g. "Mob Programming"). */
+  match: string;
+  /** Job number to book the meeting on (e.g. "AB123-000001-00"). */
+  jobNumber: string;
+};
+
+/** The job number of the first rule whose `match` is a substring of the title, else undefined. */
+export function jobForMeeting(subject: string, rules: MeetingJobRule[]): string | undefined {
+  const s = (subject ?? "").toLowerCase();
+  for (const r of rules) {
+    const needle = (r.match ?? "").trim().toLowerCase();
+    if (needle && r.jobNumber && s.includes(needle)) return r.jobNumber;
+  }
+  return undefined;
+}
+
 /** Round minutes to the nearest quarter hour, never below 0.25 h. */
 export function roundHours(minutes: number): number {
   return Math.max(0.25, round2(Math.round(minutes / 15) * 0.25));

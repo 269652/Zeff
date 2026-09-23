@@ -2,7 +2,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { resultToPayload, runStdioSession, type McpStdioConfig } from "./mcp-client";
 import { extractIssues, normalizeIssue, type NormalizedTicket } from "./normalize";
-import { bookedTicketKeysMissingTitle, insertTitleOnlyTickets, upsertTickets, type UpsertResult } from "./store";
+import {
+  assignTicketBoards,
+  bookedTicketKeysMissingTitle,
+  enabledBoardIds,
+  insertTitleOnlyTickets,
+  setTicketsMine,
+  upsertTickets,
+  type UpsertResult,
+} from "./store";
 
 export type JiraSyncConfig = {
   configured: boolean;
@@ -132,13 +140,16 @@ export function getJiraSyncConfig(): JiraSyncConfig {
   return { configured: false, source: "none", args: [], env: {}, tool, jql, fields, limit, baseUrl: process.env.JIRA_BASE_URL?.trim() || undefined };
 }
 
-export type SyncResult = UpsertResult & { fetched: number; titlesAdded: number };
+export type SyncResult = UpsertResult & { fetched: number; titlesAdded: number; boardTickets: number; mine: number };
 
 /**
- * Sync assigned tickets by calling the configured Jira MCP server directly
- * (no LLM), then upserting them. Tickets no longer returned are marked inactive.
- * In the same session it also fetches titles for tickets booked in Zeff that are
- * not assigned to the user, so their {ticket-name} shows in the report.
+ * Sync tickets by calling the configured Jira MCP server directly (no LLM):
+ *   1. tickets assigned to the current user (any board), and
+ *   2. ALL issues on every ENABLED board (any assignee),
+ * merged and upserted in one session. Each ticket is flagged `mine` (assigned to
+ * you) vs. a teammate's, and mapped to its board. Tickets no longer returned are
+ * marked inactive. It also fetches titles for tickets booked in Zeff that aren't
+ * in either set, so their {ticket-name} shows in the report.
  */
 export async function syncFromJira(): Promise<SyncResult> {
   const cfg = getJiraSyncConfig();
@@ -151,22 +162,61 @@ export async function syncFromJira(): Promise<SyncResult> {
   const normalize = (issues: unknown[]) =>
     issues.map((i) => normalizeIssue(i, cfg.baseUrl)).filter((t): t is NormalizedTicket => t !== null);
 
-  // mcp-atlassian cold-starts in ~30s; do both searches over ONE session.
+  // mcp-atlassian cold-starts in ~30s; do every fetch over ONE session.
   return runStdioSession(
     config,
     async (call) => {
-      // 1. Assigned tickets (expand=changelog brings history for time-to-respond).
-      const payload = resultToPayload(await call(cfg.tool, { jql: cfg.jql, limit: cfg.limit, fields: cfg.fields, expand: "changelog" }));
-      const issues = extractIssues(payload);
-      const tickets = normalize(issues);
-      if (tickets.length === 0) {
-        throw new Error(
-          `The Jira MCP tool "${cfg.tool}" returned no recognizable issues (fetched ${issues.length} raw items). Check JIRA_MCP_TOOL / JIRA_JQL.`,
-        );
-      }
-      const upserted = upsertTickets(tickets, { markMissingInactive: true });
+      // 1. My assigned tickets (expand=changelog brings history for time-to-respond).
+      const myRaw = extractIssues(resultToPayload(await call(cfg.tool, { jql: cfg.jql, limit: cfg.limit, fields: cfg.fields, expand: "changelog" })));
+      const myTickets = normalize(myRaw);
+      const myKeys = myTickets.map((t) => t.key);
 
-      // 2. Titles for tickets booked in Zeff but not assigned to the user.
+      // 2. All issues on each enabled board (any assignee). First enabled board wins per ticket.
+      //    jira_get_board_issues caps `limit` at 50 and requires `jql`; page with `start_at`.
+      const BOARD_PAGE = 50;
+      const BOARD_MAX = 300; // most-recently-updated per board, to bound huge boards
+      const boardIds = enabledBoardIds();
+      const members: { key: string; boardId: number }[] = [];
+      const seen = new Set<string>();
+      const boardTickets: NormalizedTicket[] = [];
+      for (const boardId of boardIds) {
+        for (let startAt = 0; startAt < BOARD_MAX; startAt += BOARD_PAGE) {
+          let payload: unknown;
+          try {
+            payload = resultToPayload(
+              await call("jira_get_board_issues", { board_id: String(boardId), jql: "ORDER BY updated DESC", fields: cfg.fields, limit: BOARD_PAGE, start_at: startAt }),
+            );
+          } catch {
+            break; // can't read this board/page — stop paging it (its tickets just aren't refreshed)
+          }
+          const raw = extractIssues(payload);
+          if (raw.length === 0) break;
+          for (const t of normalize(raw)) {
+            boardTickets.push(t);
+            if (!seen.has(t.key)) { seen.add(t.key); members.push({ key: t.key, boardId }); }
+          }
+          const total = Number((payload as { total?: unknown })?.total ?? 0);
+          if (raw.length < BOARD_PAGE || (total > 0 && startAt + BOARD_PAGE >= total)) break;
+        }
+      }
+
+      if (myTickets.length === 0 && boardTickets.length === 0) {
+        throw new Error(`The Jira MCP tool "${cfg.tool}" / jira_get_board_issues returned no recognizable issues. Check the config on the Jira tab.`);
+      }
+
+      // 3. Merge (my tickets win for shared keys — they carry the changelog), upsert, deactivate the rest.
+      const byKey = new Map<string, NormalizedTicket>();
+      for (const t of boardTickets) byKey.set(t.key, t);
+      for (const t of myTickets) byKey.set(t.key, t);
+      const all = [...byKey.values()];
+      const upserted = upsertTickets(all, { markMissingInactive: true });
+
+      // 4. Board membership + mine flags across everything we just synced.
+      const unionKeys = all.map((t) => t.key);
+      assignTicketBoards(unionKeys, members);
+      setTicketsMine(myKeys, unionKeys);
+
+      // 5. Titles for tickets booked in Zeff but not in either set above.
       const missing = bookedTicketKeysMissingTitle();
       let titlesAdded = 0;
       for (let i = 0; i < missing.length; i += 50) {
@@ -178,9 +228,9 @@ export async function syncFromJira(): Promise<SyncResult> {
           // ignore title-fetch failures (e.g. tickets the user can't view)
         }
       }
-      return { ...upserted, fetched: issues.length, titlesAdded };
+      return { ...upserted, fetched: myRaw.length + boardTickets.length, titlesAdded, boardTickets: boardTickets.length, mine: myKeys.length };
     },
-    150000,
+    180000,
   );
 }
 
@@ -200,5 +250,5 @@ export function importPastedTickets(text: string, baseUrl?: string): SyncResult 
     throw new Error("No recognizable Jira issues found (need objects with a key like PROJ-80).");
   }
   const upserted = upsertTickets(tickets);
-  return { ...upserted, fetched: issues.length, titlesAdded: 0 };
+  return { ...upserted, fetched: issues.length, titlesAdded: 0, boardTickets: 0, mine: 0 };
 }

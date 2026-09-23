@@ -2,6 +2,7 @@ import Link from "next/link";
 import { deleteEntryAction } from "@/app/actions";
 import type { EntryWithJob } from "@/lib/entries";
 import { formatHours } from "@/lib/format";
+import { CopyEntryButton } from "./CopyEntryButton";
 import { SubmitButton } from "./SubmitButton";
 
 export function EntriesTable({
@@ -60,6 +61,7 @@ export function EntriesTable({
               </td>
               <td className="whitespace-nowrap">
                 <div className="flex justify-end gap-1">
+                  <CopyEntryButton entryId={e.id} date={e.date} />
                   <Link href={`/entries/${e.id}`} className="btn btn-sm">
                     Edit
                   </Link>

@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { EntryType, ReportSettings } from "@/db/schema";
+import type { MeetingJobRule } from "./calendar/meetings";
 import { listEntries, type EntryWithJob } from "./entries";
 import { round2 } from "./format";
 import { ValidationError } from "./errors";
@@ -48,7 +49,25 @@ export function getReportSettings(): ReportSettings {
   return db.insert(reportSettings).values({ id: 1 }).returning().get();
 }
 
-export function updateReportSettings(patch: { rules?: ReportRule[] }): ReportSettings {
+/** Stored meeting→job rules (auto-assign a job to an imported meeting by its title). */
+export function getMeetingJobRules(s: ReportSettings): MeetingJobRule[] {
+  return parseMeetingJobRules(s.meetingJobRules);
+}
+
+export function parseMeetingJobRules(json: string | null | undefined): MeetingJobRule[] {
+  if (!json) return [];
+  try {
+    const raw = JSON.parse(json);
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .map((r) => ({ match: String(r?.match ?? "").trim(), jobNumber: String(r?.jobNumber ?? "").trim() }))
+      .filter((r) => r.match && r.jobNumber);
+  } catch {
+    return [];
+  }
+}
+
+export function updateReportSettings(patch: { rules?: ReportRule[]; meetingJobRules?: MeetingJobRule[] }): ReportSettings {
   if (patch.rules !== undefined) {
     const err = validateRules(patch.rules);
     if (err) throw new ValidationError(err);
@@ -58,6 +77,7 @@ export function updateReportSettings(patch: { rules?: ReportRule[] }): ReportSet
     .update(reportSettings)
     .set({
       ...(patch.rules !== undefined && { rules: JSON.stringify(patch.rules) }),
+      ...(patch.meetingJobRules !== undefined && { meetingJobRules: JSON.stringify(patch.meetingJobRules) }),
       updatedAt: new Date().toISOString(),
     })
     .where(eq(reportSettings.id, 1))

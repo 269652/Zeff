@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { connection } from "next/server";
 import { clearJiraAction } from "@/app/actions";
 import { BoardEnableToggle } from "@/components/BoardEnableToggle";
@@ -21,11 +22,19 @@ const CAT_BADGE: Record<JiraStatusCategory, string> = {
   unknown: "badge-junknown",
 };
 
-export default async function JiraPage() {
+export default async function JiraPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ mine?: string }>;
+}) {
   await connection();
+  const sp = await searchParams;
+  const mineOnly = sp.mine === "1";
   const cfg = getJiraSyncConfig();
   const stats = jiraStats();
-  const tickets = listJiraTickets();
+  const allTickets = listJiraTickets();
+  const mineCount = allTickets.filter((t) => t.mine).length;
+  const tickets = mineOnly ? allTickets.filter((t) => t.mine) : allTickets;
   const boards = listJiraBoards();
   const jobRows = listJobs();
   const jobs = jobRows.map((j) => ({ number: j.number, name: j.name }));
@@ -126,10 +135,18 @@ export default async function JiraPage() {
       </section>
 
       <section className="card p-4">
-        <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">Tickets ({tickets.length})</h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">
+            Tickets ({tickets.length}{mineOnly ? ` of ${allTickets.length}` : ""})
+          </h2>
+          <div className="flex items-center gap-1">
+            <Link href="/jira" className={`btn btn-sm ${mineOnly ? "" : "btn-primary"}`}>All {allTickets.length}</Link>
+            <Link href="/jira?mine=1" className={`btn btn-sm ${mineOnly ? "btn-primary" : ""}`}>Mine {mineCount}</Link>
+          </div>
+        </div>
         {tickets.length === 0 ? (
           <p className="py-4 text-center text-sm text-zinc-500">
-            No tickets yet. Sync from Jira, or paste issues JSON above.
+            {mineOnly ? "None of the synced tickets are assigned to you." : "No tickets yet. Sync from Jira, or paste issues JSON above."}
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -140,6 +157,7 @@ export default async function JiraPage() {
                   <th>Type</th>
                   <th>Summary</th>
                   <th>Status</th>
+                  <th>Assignee</th>
                   <th>Board</th>
                   <th>Job</th>
                 </tr>
@@ -152,7 +170,7 @@ export default async function JiraPage() {
                       ? { number: board.jobNumber, name: jobName.get(board.jobNumber) ?? board.jobNumber }
                       : null;
                   return (
-                    <tr key={t.id} className={t.active ? "" : "opacity-50"}>
+                    <tr key={t.id} className={`${t.active ? "" : "opacity-50"} ${t.mine ? "bg-indigo-50/50 dark:bg-indigo-950/20" : ""}`}>
                       <td className="font-mono whitespace-nowrap">
                         {t.url ? (
                           <a href={t.url} target="_blank" rel="noreferrer" className="hover:underline">{t.key}</a>
@@ -164,6 +182,18 @@ export default async function JiraPage() {
                       <td className="max-w-md truncate" title={t.summary}>{t.summary}</td>
                       <td className="whitespace-nowrap">
                         <span className={`badge ${CAT_BADGE[t.statusCategory]}`}>{t.status || t.statusCategory}</span>
+                      </td>
+                      <td className="whitespace-nowrap">
+                        {t.assignee ? (
+                          <span
+                            className={`badge ${t.mine ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300" : "badge-web"}`}
+                            title={t.mine ? "Assigned to you" : t.assignee}
+                          >
+                            {t.assignee}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-zinc-400">Unassigned</span>
+                        )}
                       </td>
                       <td className="whitespace-nowrap text-xs text-zinc-500" title={board?.name}>{board?.name ?? ""}</td>
                       <td>

@@ -213,6 +213,9 @@ export type TicketSuggestion = {
   jobNumber: string;
   jobName: string;
   description: string;
+  /** Jira assignee display name, and whether it's the current user (from the Jira sync). */
+  assignee?: string | null;
+  mine?: boolean;
 };
 
 /** Distinct tickets that have entries within the week, newest first per ticket. */
