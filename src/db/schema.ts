@@ -171,6 +171,8 @@ export const reportSettings = sqliteTable("report_settings", {
   meetingJobRules: text("meeting_job_rules"),
   /** JSON map {jobNumber: roarWorkCode}: force a Roar WorkCode for a job on export (e.g. Abwesenheit → ABSENCE). */
   roarWorkcodes: text("roar_workcodes"),
+  /** JSON {startTime,workdayHours,breakMinutes}: the default TimO work day used by the TimO export. */
+  timoConfig: text("timo_config"),
   updatedAt: text("updated_at")
     .notNull()
     .default(sql`(CURRENT_TIMESTAMP)`),

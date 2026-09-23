@@ -97,6 +97,12 @@ export default async function WeekPage({
             >
               Export to Roar →
             </Link>
+            <Link
+              href={`/export/timo?week=${week.key}${by ? `&by=${encodeURIComponent(by)}` : ""}`}
+              className="btn btn-sm"
+            >
+              Export to TimO →
+            </Link>
           </div>
         </div>
         <ReportView report={rewritten} text={reportText} today={today} />

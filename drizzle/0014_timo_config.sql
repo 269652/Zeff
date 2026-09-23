@@ -1,0 +1,1 @@
+ALTER TABLE `report_settings` ADD `timo_config` text;

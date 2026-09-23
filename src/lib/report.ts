@@ -3,6 +3,7 @@ import { getDb, schema } from "@/db";
 import type { EntryType, ReportSettings } from "@/db/schema";
 import type { MeetingJobRule } from "./calendar/meetings";
 import { listEntries, type EntryWithJob } from "./entries";
+import { DEFAULT_TIMO_CONFIG, type TimoConfig } from "./timo";
 import { round2 } from "./format";
 import { ValidationError } from "./errors";
 import { getTicketSummaries } from "./jira/store";
@@ -89,10 +90,33 @@ export function parseRoarWorkcodes(json: string | null | undefined): Record<stri
   }
 }
 
+/** The default TimO work day (start/hours/break) used by the TimO export. */
+export function getTimoConfig(s: ReportSettings): TimoConfig {
+  return parseTimoConfig(s.timoConfig);
+}
+
+export function parseTimoConfig(json: string | null | undefined): TimoConfig {
+  if (!json) return { ...DEFAULT_TIMO_CONFIG };
+  try {
+    const raw = JSON.parse(json) as Partial<TimoConfig>;
+    const startTime = /^\d{1,2}:\d{2}$/.test(String(raw?.startTime ?? "")) ? String(raw.startTime) : DEFAULT_TIMO_CONFIG.startTime;
+    const workdayHours = Number(raw?.workdayHours);
+    const breakMinutes = Number(raw?.breakMinutes);
+    return {
+      startTime,
+      workdayHours: Number.isFinite(workdayHours) && workdayHours > 0 && workdayHours <= 24 ? workdayHours : DEFAULT_TIMO_CONFIG.workdayHours,
+      breakMinutes: Number.isFinite(breakMinutes) && breakMinutes >= 0 && breakMinutes < 600 ? breakMinutes : DEFAULT_TIMO_CONFIG.breakMinutes,
+    };
+  } catch {
+    return { ...DEFAULT_TIMO_CONFIG };
+  }
+}
+
 export function updateReportSettings(patch: {
   rules?: ReportRule[];
   meetingJobRules?: MeetingJobRule[];
   roarWorkcodes?: Record<string, string>;
+  timoConfig?: TimoConfig;
 }): ReportSettings {
   if (patch.rules !== undefined) {
     const err = validateRules(patch.rules);
@@ -105,6 +129,7 @@ export function updateReportSettings(patch: {
       ...(patch.rules !== undefined && { rules: JSON.stringify(patch.rules) }),
       ...(patch.meetingJobRules !== undefined && { meetingJobRules: JSON.stringify(patch.meetingJobRules) }),
       ...(patch.roarWorkcodes !== undefined && { roarWorkcodes: JSON.stringify(patch.roarWorkcodes) }),
+      ...(patch.timoConfig !== undefined && { timoConfig: JSON.stringify(patch.timoConfig) }),
       updatedAt: new Date().toISOString(),
     })
     .where(eq(reportSettings.id, 1))

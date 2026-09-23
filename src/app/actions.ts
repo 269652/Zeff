@@ -659,3 +659,63 @@ export async function saveRoarWorkcodesAction(_prev: ActionState, fd: FormData):
     return { ok: false, error: errorMessage(err) };
   }
 }
+
+// ---------------------------------------------------------------------------
+// TimO (attendance) export — Playwright MCP over the same debug Chrome
+// ---------------------------------------------------------------------------
+
+async function callTimo(tool: "timo_status" | "timo_export", args: Record<string, unknown>): Promise<string> {
+  const path = await import("node:path");
+  const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
+  const script = path.join(process.cwd(), "scripts", "timo-mcp.mjs");
+  const out = await runStdioSession(
+    { command: process.execPath, args: [script], env: {} },
+    async (call) => resultToPayload(await call(tool, args)),
+    240000,
+  );
+  return typeof out === "string" ? out : JSON.stringify(out);
+}
+
+export async function timoStatusAction(): Promise<ActionState> {
+  try {
+    return { ok: true, message: await callTimo("timo_status", {}) };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+export async function saveTimoConfigAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { updateReportSettings } = await import("@/lib/report");
+  try {
+    const startTime = (str(fd, "startTime") ?? "").trim();
+    updateReportSettings({
+      timoConfig: {
+        startTime: /^\d{1,2}:\d{2}$/.test(startTime) ? startTime : "08:00",
+        workdayHours: num(fd, "workdayHours") ?? 8,
+        breakMinutes: num(fd, "breakMinutes") ?? 30,
+      },
+    });
+    revalidateAll();
+    return { ok: true, message: "TimO work day saved." };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+export async function exportToTimoAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { resolveWeek } = await import("@/lib/week");
+  const week = resolveWeek(str(fd, "week"));
+  if (!week) return { ok: false, error: "Could not read the week." };
+  const dryRun = fd.get("dryRun") === "on";
+  const fillGaps = fd.get("fillGaps") === "on";
+  const { getTimoExportPlan, toTimoPayload } = await import("@/lib/timo");
+  const { getReportSettings, getTimoConfig } = await import("@/lib/report");
+  const plan = getTimoExportPlan(week, getTimoConfig(getReportSettings()), { reportedBy: str(fd, "by"), fillGaps });
+  if (plan.days.length === 0) return { ok: false, error: "Nothing to record (no bookings; turn on gap-fill for default days)." };
+  try {
+    const msg = await callTimo("timo_export", { ...toTimoPayload(plan), dryRun });
+    return { ok: true, message: msg };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
