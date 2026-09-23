@@ -68,7 +68,12 @@ export type Analysis = {
   hasTicketDates: boolean;
   /** Whether any ticket has a first-response timestamp (reaction time available). */
   hasReactionData: boolean;
-  filter: { reportedBy?: string };
+  /**
+   * "mine": the Jira metrics cover only the tickets booked in range (`worked` keys, of
+   * which `inJira` are synced); "all": every synced ticket in the board scope.
+   */
+  ticketScope: "all" | "mine";
+  myTickets: { worked: number; inJira: number } | null;
 };
 
 function emptyTypeHours(): TypeHours {
@@ -113,10 +118,23 @@ export function resolveRange(
   return { fromIso, toIso, weeks: 0, allTime: true };
 }
 
-export function getAnalysis(opts: { weeks: number; reportedBy?: string; earliest?: string }): Analysis {
+export function getAnalysis(opts: {
+  weeks: number;
+  earliest?: string;
+  /** "mine" limits the Jira metrics to tickets with time booked in the range. */
+  ticketScope?: "all" | "mine";
+}): Analysis {
   const jiraPresent = hasJiraData();
-  const range = resolveRange(opts.weeks, opts.earliest, jiraPresent ? earliestJiraDate() ?? undefined : undefined);
-  const entries = listEntries({ from: range.fromIso, to: range.toIso, reportedBy: opts.reportedBy });
+  const ticketScope = opts.ticketScope === "mine" ? "mine" : "all";
+  // All-time reaches back into Jira history for everyone's metrics; "mine" means your booking history.
+  const jiraFloor = jiraPresent && ticketScope === "all" ? earliestJiraDate() ?? undefined : undefined;
+  const range = resolveRange(opts.weeks, opts.earliest, jiraFloor);
+  const entries = listEntries({ from: range.fromIso, to: range.toIso });
+  // "Mine" = every ticket key booked in range, whatever the entry type (a mob session on a ticket counts).
+  const myKeys =
+    ticketScope === "mine"
+      ? new Set(entries.flatMap((e) => (e.ticket?.trim() ? [e.ticket.trim().toLowerCase()] : [])))
+      : undefined;
 
   const byType = emptyTypeHours();
   const tagMap = new Map<number, TagStat>();
@@ -210,7 +228,7 @@ export function getAnalysis(opts: { weeks: number; reportedBy?: string; earliest
 
   // Jira completion + resolution time: bucket resolved tickets by resolution week,
   // and measure open→resolved resolution time per week and overall.
-  const jira = jiraPresent ? jiraStats() : null;
+  const jira = jiraPresent ? jiraStats(myKeys) : null;
   let ticketsClosed = 0;
   let resolutionSum = 0;
   let resolutionCount = 0;
@@ -220,7 +238,7 @@ export function getAnalysis(opts: { weeks: number; reportedBy?: string; earliest
   let hasReactionData = false;
   const weekResolution = new Map<string, { sum: number; n: number }>();
   if (jira) {
-    for (const t of ticketsClosedBetween(range.fromIso, range.toIso)) {
+    for (const t of ticketsClosedBetween(range.fromIso, range.toIso, myKeys)) {
       const rd = dayPart(t.resolvedAt);
       if (!rd) continue;
       ticketsClosed++;
@@ -238,9 +256,12 @@ export function getAnalysis(opts: { weeks: number; reportedBy?: string; earliest
       }
     }
 
-    const lifecycles = ticketLifecycles();
-    hasTicketDates = lifecycles.length > 0;
-    hasReactionData = lifecycles.some((lc) => lc.respondedAt && lc.openedAt);
+    const lifecycles = ticketLifecycles(myKeys);
+    // Whether the synced data carries these dates at all — judged on every ticket, so a
+    // narrow "mine" selection doesn't prompt a pointless re-sync.
+    const available = myKeys ? ticketLifecycles() : lifecycles;
+    hasTicketDates = available.length > 0;
+    hasReactionData = available.some((lc) => lc.respondedAt && lc.openedAt);
 
     // Reaction time (time to respond): open→first status change, over responses in range.
     for (const lc of lifecycles) {
@@ -312,7 +333,8 @@ export function getAnalysis(opts: { weeks: number; reportedBy?: string; earliest
     avgParallelPerWeek,
     hasTicketDates,
     hasReactionData,
-    filter: { reportedBy: opts.reportedBy },
+    ticketScope,
+    myTickets: myKeys ? { worked: myKeys.size, inJira: jira?.total ?? 0 } : null,
   };
 }
 
