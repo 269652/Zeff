@@ -1,7 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // `data/` holds only local runtime state (the SQLite DB + WAL, and the Chrono
+  // Chrome profile). None of it is a build dependency, and some files are held
+  // open by another process (the dev server has the DB open; a running Chrono
+  // Chrome exclusively locks its `Cookies`), which makes output file tracing
+  // fail with "os error 32 (file in use)". Keep the whole folder out of the trace.
+  outputFileTracingExcludes: {
+    "/": ["data/**", "data/**/*"],
+    "/**": ["data/**", "data/**/*"],
+  },
 };
 
 export default nextConfig;
