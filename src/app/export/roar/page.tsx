@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { RoarExportControls } from "@/components/RoarExportControls";
+import { RoarWorkcodesForm } from "@/components/RoarWorkcodesForm";
 import { formatHours } from "@/lib/format";
+import { listJobs } from "@/lib/jobs";
+import { getReportSettings, getRoarWorkcodes } from "@/lib/report";
 import { getRoarExportPlan } from "@/lib/roar";
 import { currentWeek, formatWeekRange, resolveWeek } from "@/lib/week";
 
@@ -18,6 +21,8 @@ export default async function RoarExportPage({
   const week = resolveWeek(sp.week) ?? currentWeek();
   const by = sp.by?.trim() || undefined;
   const plan = getRoarExportPlan(week, { reportedBy: by });
+  const jobOptions = listJobs().map((j) => ({ number: j.number, name: j.name }));
+  const roarWorkcodes = getRoarWorkcodes(getReportSettings());
 
   return (
     <div className="space-y-6">
@@ -120,6 +125,23 @@ export default async function RoarExportPage({
           </li>
         </ol>
         {plan.rows.length > 0 && <RoarExportControls week={week.key} by={by} />}
+      </section>
+
+      <section className="card p-4">
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-zinc-500 uppercase [&::-webkit-details-marker]:hidden">
+            <span className="text-zinc-400 transition-transform group-open:rotate-90">▸</span>
+            Roar WorkCode per job
+            <span className="font-normal normal-case text-zinc-400">(optional)</span>
+          </summary>
+          <div className="mt-3 space-y-3">
+            <p className="text-sm text-zinc-500">
+              Most jobs pre-fill a WorkCode from your role. Some (e.g. <strong>Abwesenheit</strong>) start empty and need
+              a specific code before Roar will save — set it here so the export picks it automatically.
+            </p>
+            <RoarWorkcodesForm jobs={jobOptions} current={roarWorkcodes} />
+          </div>
+        </details>
       </section>
     </div>
   );

@@ -99,6 +99,8 @@ export type RoarExportPayload = {
     jobName: string;
     /** ISO date -> individual entries to create in that cell. */
     entriesByDay: Record<string, RoarEntry[]>;
+    /** Optional forced Roar WorkCode for this job (code or keyword), matched against the job's list. */
+    workcode?: string;
   }[];
 };
 

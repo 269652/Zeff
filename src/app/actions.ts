@@ -632,11 +632,29 @@ export async function exportToRoarAction(_prev: ActionState, fd: FormData): Prom
   if (!week) return { ok: false, error: "Could not read the week." };
   const dryRun = fd.get("dryRun") === "on";
   const { getRoarExportPlan, toRoarPayload } = await import("@/lib/roar");
+  const { getReportSettings, getRoarWorkcodes } = await import("@/lib/report");
   const plan = getRoarExportPlan(week, { reportedBy: str(fd, "by") });
   if (plan.rows.length === 0) return { ok: false, error: "Nothing booked in this week to export." };
+  // Attach any per-job WorkCode overrides (e.g. Abwesenheit → ABSENCE).
+  const workcodes = getRoarWorkcodes(getReportSettings());
+  const payload = toRoarPayload(plan);
+  payload.rows = payload.rows.map((r) => ({ ...r, workcode: workcodes[r.jobNumber] || undefined }));
   try {
-    const msg = await callRoar("roar_export", { ...toRoarPayload(plan), dryRun });
+    const msg = await callRoar("roar_export", { ...payload, dryRun });
     return { ok: true, message: msg };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+export async function saveRoarWorkcodesAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { updateReportSettings, parseRoarWorkcodes } = await import("@/lib/report");
+  try {
+    const map = parseRoarWorkcodes(str(fd, "roarWorkcodes") ?? null);
+    updateReportSettings({ roarWorkcodes: map });
+    revalidateAll();
+    const n = Object.keys(map).length;
+    return { ok: true, message: `Saved ${n} WorkCode override${n === 1 ? "" : "s"}.` };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

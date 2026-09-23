@@ -192,14 +192,84 @@ function entryPanel(frame) {
 }
 
 const roundTenth = (h) => Math.ceil(Number(h) * 10 - 1e-9) / 10;
+const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Click an option in the currently-open combobox list by its L-code (e.g. "L04090"). */
+async function pickOptionByCode(frame, text) {
+  const code = (String(text).match(/[A-Za-z]\d{3,}/) || [String(text)])[0];
+  const opt = frame.getByRole("option", { name: new RegExp(reEsc(code), "i") }).first();
+  if (await opt.isVisible().catch(() => false)) {
+    await opt.click().catch(() => {});
+    await frame.page().waitForTimeout(300);
+    return true;
+  }
+  await frame.page().keyboard.press("Escape").catch(() => {});
+  return false;
+}
+
+/**
+ * WorkCode and Billable Indicator are required to Save. Most jobs pre-fill them from
+ * your default role, but some (e.g. the Abwesenheit job) start with an EMPTY WorkCode
+ * and offer only a short, job-specific list (e.g. Project Manager / ABSENCE / ABSENCE -
+ * TIME IN LIEU) that does NOT include your role code — so we must pick from that list.
+ * We capture your role code from the first job that has one, and where a field is empty
+ * we open its own list and choose: your role code if offered, else a plain "Absence"
+ * code, else the only option. Picking the WorkCode usually auto-fills Billable.
+ */
+async function ensureWorkcodeBillable(frame, ctx, jobWorkcode) {
+  const wc = frame.locator("input#workcodeInput").first();
+  if (await wc.isVisible().catch(() => false)) {
+    const cur = ((await wc.inputValue().catch(() => "")) || "").trim();
+    if (cur) {
+      if (!ctx.workcode) ctx.workcode = cur;
+    } else {
+      await wc.click();
+      await frame.page().waitForTimeout(500);
+      const options = await frame.evaluate(() =>
+        [...document.querySelectorAll('[role="option"]')].map((o) => (o.textContent || "").trim()).filter(Boolean),
+      );
+      const codeOf = (o) => (String(o).match(/[A-Za-z]\d{3,}/) || [])[0];
+      const cfg = jobWorkcode ? String(jobWorkcode).trim() : "";
+      const cfgCode = cfg ? codeOf(cfg) : null;
+      const roleCode = ctx.workcode ? codeOf(ctx.workcode) : null;
+      const absence = options.filter((o) => /absence|abwesen|urlaub|leave|vacation|holiday/i.test(o));
+      const pick =
+        (cfgCode && options.find((o) => codeOf(o) === cfgCode)) || // configured WorkCode by code (e.g. "L04090")
+        (cfg && !cfgCode && options.find((o) => o.toLowerCase().includes(cfg.toLowerCase()))) || // configured by keyword
+        (roleCode && options.find((o) => o.includes(roleCode))) || // your role, if this job offers it
+        absence.find((o) => /[-–]\s*absence\s*$/i.test(o)) || // plain "… - ABSENCE" over qualified variants
+        absence[0] ||
+        (options.length === 1 ? options[0] : null);
+      if (pick) await pickOptionByCode(frame, pick);
+      else await frame.page().keyboard.press("Escape").catch(() => {}); // no sensible option -> Save stays disabled (clear error)
+    }
+  }
+  const bi = frame.locator("input#billableIndicatorInput").first();
+  if (await bi.isVisible().catch(() => false)) {
+    const cur = ((await bi.inputValue().catch(() => "")) || "").trim();
+    if (cur) {
+      if (!ctx.billable) ctx.billable = cur;
+    } else {
+      await bi.click();
+      await frame.page().waitForTimeout(400);
+      const want = ctx.billable || "Covered by fee";
+      let opt = frame.getByRole("option", { name: new RegExp(reEsc(want), "i") }).first();
+      if (!(await opt.isVisible().catch(() => false))) opt = frame.getByRole("option").first();
+      if (await opt.isVisible().catch(() => false)) await opt.click().catch(() => {});
+      else await frame.page().keyboard.press("Escape").catch(() => {});
+      await frame.page().waitForTimeout(300);
+    }
+  }
+}
 
 /**
  * Add ONE entry to a job×day cell through the entry-details panel: open the cell,
  * click "New entry" when the cell already holds entries (so we ADD rather than edit),
- * fill the duration (rounded up to 0.1) + comment, then Save. WorkCode/Billable keep
- * their pre-filled defaults. Never submits.
+ * fill the duration (rounded up to 0.1) + comment, ensure WorkCode/Billable are set,
+ * then Save. `ctx` carries the captured default WorkCode/Billable across entries.
+ * Never submits.
  */
-async function addOneEntry(frame, guid, iso, entry, isAdditional) {
+async function addOneEntry(frame, guid, iso, entry, isAdditional, ctx, jobWorkcode) {
   const cell = frame.locator(`input[id="${iso}-${guid}"]`).first();
   await cell.scrollIntoViewIfNeeded().catch(() => {});
   await cell.click();
@@ -228,10 +298,11 @@ async function addOneEntry(frame, guid, iso, entry, isAdditional) {
       await c.fill(String(entry.comment).slice(0, 125)).catch(() => {});
     }
   }
+  await ensureWorkcodeBillable(frame, ctx, jobWorkcode); // some jobs (Abwesenheit) start with an empty WorkCode
   const save = entryPanel(frame).locator('button[type="submit"]').first();
   await save.waitFor({ state: "visible", timeout: 5000 });
   for (let i = 0; i < 15 && !(await save.isEnabled().catch(() => false)); i++) await frame.page().waitForTimeout(200);
-  if (!(await save.isEnabled().catch(() => false))) throw new Error(`entry Save stayed disabled for ${iso} (WorkCode/Billable default missing?)`);
+  if (!(await save.isEnabled().catch(() => false))) throw new Error(`${iso}: Save stayed disabled (no WorkCode — needs a job with a default WorkCode filled first)`);
   await save.click();
   await frame.page().waitForTimeout(900);
   // Close the panel if it stayed open so the next entry starts from a clean cell.
@@ -292,6 +363,7 @@ async function roarExport({ weekStartIso, rows, dryRun }) {
 
     const done = [];
     const failed = [];
+    const wcCtx = {}; // captured default WorkCode/Billable, reused where a job (e.g. Abwesenheit) has none
     for (const r of rows) {
       try {
         if (dryRun) {
@@ -332,7 +404,7 @@ async function roarExport({ weekStartIso, rows, dryRun }) {
           if (info.disabled) { flags.push(`${iso.slice(5)} future/locked`); continue; }
           if (Math.abs(cur - desired) <= 0.05) { okCells += 1; continue; } // already matches Zeff — no-op
           if (cur > 0) { flags.push(`${iso.slice(5)} has ${cur}h≠${desired}h (clear in Roar to refill)`); continue; }
-          for (let i = 0; i < items.length; i++) { await addOneEntry(frame, guid, iso, items[i], i > 0); created += 1; }
+          for (let i = 0; i < items.length; i++) { await addOneEntry(frame, guid, iso, items[i], i > 0, wcCtx, r.workcode); created += 1; }
         }
         const parts = [`${created} new`];
         if (okCells) parts.push(`${okCells} cell${okCells === 1 ? "" : "s"} already ok`);

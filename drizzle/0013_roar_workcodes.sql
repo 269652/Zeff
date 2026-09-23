@@ -1,0 +1,1 @@
+ALTER TABLE `report_settings` ADD `roar_workcodes` text;
