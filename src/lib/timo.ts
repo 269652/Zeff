@@ -16,9 +16,13 @@ export type TimoConfig = {
   workdayHours: number;
   /** Break (minutes) added to the span so TimO's net matches the target hours. */
   breakMinutes: number;
+  /** Zeff job number whose entries are absences (booked via TimO's absence form, not Kommen/Gehen). */
+  absenceJobNumber?: string;
+  /** TimO absence type (`art`) for those entries, e.g. "Urlaub". */
+  absenceType?: string;
 };
 
-export const DEFAULT_TIMO_CONFIG: TimoConfig = { startTime: "08:00", workdayHours: 8, breakMinutes: 30 };
+export const DEFAULT_TIMO_CONFIG: TimoConfig = { startTime: "08:00", workdayHours: 8, breakMinutes: 30, absenceJobNumber: "", absenceType: "Urlaub" };
 
 export function timeToMinutes(hhmm: string): number {
   const m = /^(\d{1,2}):(\d{2})$/.exec((hhmm || "").trim());
@@ -37,11 +41,16 @@ export function computeEnd(startTime: string, hours: number, breakMinutes: numbe
 export type TimoDay = {
   iso: string;
   label: string;
-  /** Net working hours to record for the day. */
+  /** Working time (Kommen/Gehen span) or a full-day absence (TimO absence form). */
+  kind: "work" | "absence";
+  /** Net hours (work hours, or the absence's booked hours for reference). */
   hours: number;
+  /** Only for work days. */
   start: string;
   end: string;
-  /** Where the hours came from: Zeff bookings, or a gap filled with the default day. */
+  /** Only for absence days: the TimO absence type (`art`). */
+  absenceType?: string;
+  /** Where it came from: Zeff bookings, or a gap filled with the default day. */
   source: "zeff" | "gap";
 };
 
@@ -61,19 +70,32 @@ export function getTimoExportPlan(
   opts: { reportedBy?: string; fillGaps?: boolean } = {},
 ): TimoExportPlan {
   const entries = listEntries({ from: week.startIso, to: week.endIso, reportedBy: opts.reportedBy });
-  const byDay = new Map<string, number>();
-  for (const e of entries) byDay.set(e.date, round2((byDay.get(e.date) ?? 0) + e.hours));
+  const absenceJob = (config.absenceJobNumber ?? "").trim();
+  const workByDay = new Map<string, number>();
+  const absenceByDay = new Map<string, number>();
+  for (const e of entries) {
+    const map = absenceJob && e.job.number === absenceJob ? absenceByDay : workByDay;
+    map.set(e.date, round2((map.get(e.date) ?? 0) + e.hours));
+  }
   const schedule = scheduleHours(getWorkSchedule()); // hours per weekday, index 0 = Monday … 6 = Sunday
 
   const days: TimoDay[] = [];
   week.days.forEach((d, i) => {
     const iso = isoDate(d);
-    const zeff = byDay.get(iso) ?? 0;
+    const label = formatDay(d, "EEE d");
+    const absenceHours = absenceByDay.get(iso) ?? 0;
+    const workHours = workByDay.get(iso) ?? 0;
     const isWorkday = (schedule[i] ?? 0) > 0;
+
+    if (absenceHours > 0) {
+      // A day booked on the absence job → a full-day absence (TimO absence form).
+      days.push({ iso, label, kind: "absence", hours: round2(absenceHours), start: "", end: "", absenceType: config.absenceType || "Urlaub", source: "zeff" });
+      return;
+    }
     let hours = 0;
     let source: "zeff" | "gap" = "zeff";
-    if (zeff > 0) {
-      hours = zeff;
+    if (workHours > 0) {
+      hours = workHours;
       source = "zeff";
     } else if (opts.fillGaps && isWorkday) {
       hours = config.workdayHours;
@@ -83,7 +105,8 @@ export function getTimoExportPlan(
     }
     days.push({
       iso,
-      label: formatDay(d, "EEE d"),
+      label,
+      kind: "work",
       hours: round2(hours),
       start: config.startTime,
       end: computeEnd(config.startTime, hours, config.breakMinutes),
@@ -104,9 +127,19 @@ export function getTimoExportPlan(
 
 /** The compact payload handed to the timo-mcp export tool. */
 export type TimoExportPayload = {
-  days: { iso: string; start: string; end: string; hours: number; source: "zeff" | "gap" }[];
+  days: {
+    iso: string;
+    kind: "work" | "absence";
+    start: string;
+    end: string;
+    hours: number;
+    absenceType?: string;
+    source: "zeff" | "gap";
+  }[];
 };
 
 export function toTimoPayload(plan: TimoExportPlan): TimoExportPayload {
-  return { days: plan.days.map((d) => ({ iso: d.iso, start: d.start, end: d.end, hours: d.hours, source: d.source })) };
+  return {
+    days: plan.days.map((d) => ({ iso: d.iso, kind: d.kind, start: d.start, end: d.end, hours: d.hours, absenceType: d.absenceType, source: d.source })),
+  };
 }

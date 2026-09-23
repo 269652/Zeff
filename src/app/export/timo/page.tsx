@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { TimoConfigForm } from "@/components/TimoConfigForm";
 import { TimoExportControls } from "@/components/TimoExportControls";
 import { formatHours } from "@/lib/format";
+import { listJobs } from "@/lib/jobs";
 import { getReportSettings, getTimoConfig } from "@/lib/report";
 import { getTimoExportPlan } from "@/lib/timo";
 import { currentWeek, formatWeekRange, resolveWeek } from "@/lib/week";
@@ -21,6 +22,7 @@ export default async function TimoExportPage({
   const by = sp.by?.trim() || undefined;
   const fillGaps = sp.gaps === "1";
   const config = getTimoConfig(getReportSettings());
+  const jobOptions = listJobs().map((j) => ({ number: j.number, name: j.name }));
   const plan = getTimoExportPlan(week, config, { reportedBy: by, fillGaps });
   const qp = (extra: Record<string, string>) =>
     new URLSearchParams({ week: week.key, ...(by ? { by } : {}), ...extra }).toString();
@@ -71,13 +73,19 @@ export default async function TimoExportPage({
                 {plan.days.map((d) => (
                   <tr key={d.iso}>
                     <td className="whitespace-nowrap">{d.label} <span className="font-mono text-xs text-zinc-400">{d.iso}</span></td>
-                    <td className="font-mono tabular-nums">{d.start}</td>
-                    <td className="font-mono tabular-nums">{d.end}</td>
+                    <td className="font-mono tabular-nums">{d.kind === "absence" ? "—" : d.start}</td>
+                    <td className="font-mono tabular-nums">{d.kind === "absence" ? "—" : d.end}</td>
                     <td className="text-right tabular-nums">{formatHours(d.hours)}</td>
                     <td>
-                      <span className={`badge ${d.source === "gap" ? "badge-web" : "badge-mcp"}`}>
-                        {d.source === "gap" ? "8h default" : "Zeff"}
-                      </span>
+                      {d.kind === "absence" ? (
+                        <span className="badge bg-indigo-100 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300">
+                          Absence · {d.absenceType}
+                        </span>
+                      ) : (
+                        <span className={`badge ${d.source === "gap" ? "badge-web" : "badge-mcp"}`}>
+                          {d.source === "gap" ? "8h default" : "Zeff"}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -91,15 +99,16 @@ export default async function TimoExportPage({
           </div>
         )}
         <p className="mt-3 text-xs text-zinc-400">
-          TimO records a start–end span; the break is added so the net matches your hours (e.g. {config.startTime} +{" "}
-          {config.workdayHours}h + {config.breakMinutes} min break). Absences and per-project bookings aren&apos;t
-          transferred yet.
+          Working days record a start–end span (break added so the net matches, e.g. {config.startTime} +{" "}
+          {config.workdayHours}h + {config.breakMinutes} min → {" "}
+          <span className="font-mono">{plan.days.find((d) => d.kind === "work")?.end ?? "16:30"}</span>). Entries on the{" "}
+          <strong>absence job</strong> are booked in TimO&apos;s absence form as <strong>{config.absenceType}</strong>.
         </p>
       </section>
 
       <section className="card space-y-3 p-4">
-        <h2 className="text-sm font-semibold text-zinc-500 uppercase">Default work day</h2>
-        <TimoConfigForm config={config} />
+        <h2 className="text-sm font-semibold text-zinc-500 uppercase">TimO settings</h2>
+        <TimoConfigForm config={config} jobs={jobOptions} />
       </section>
 
       <section className="card space-y-3 p-4">

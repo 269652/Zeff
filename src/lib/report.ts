@@ -106,6 +106,8 @@ export function parseTimoConfig(json: string | null | undefined): TimoConfig {
       startTime,
       workdayHours: Number.isFinite(workdayHours) && workdayHours > 0 && workdayHours <= 24 ? workdayHours : DEFAULT_TIMO_CONFIG.workdayHours,
       breakMinutes: Number.isFinite(breakMinutes) && breakMinutes >= 0 && breakMinutes < 600 ? breakMinutes : DEFAULT_TIMO_CONFIG.breakMinutes,
+      absenceJobNumber: String(raw?.absenceJobNumber ?? "").trim(),
+      absenceType: String(raw?.absenceType ?? "").trim() || DEFAULT_TIMO_CONFIG.absenceType,
     };
   } catch {
     return { ...DEFAULT_TIMO_CONFIG };

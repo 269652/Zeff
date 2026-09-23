@@ -85,6 +85,33 @@ async function fillWorkTime(frame, start, end) {
   await frame.page().waitForTimeout(300);
 }
 
+/** Set the ExtJS `art` (absence type) combo by typing + picking the exact option. */
+async function setArt(frame, art) {
+  const el = frame.locator('input[name="art"]').first();
+  if (!(await el.isVisible().catch(() => false))) return false;
+  await el.click();
+  await el.press("Control+a").catch(() => {});
+  await el.pressSequentially(String(art), { delay: 40 });
+  await frame.page().waitForTimeout(500);
+  const opt = frame.locator('.x-boundlist-item, [role="option"], li').filter({ hasText: new RegExp(`^\\s*${art}\\s*$`, "i") }).first();
+  if (await opt.isVisible().catch(() => false)) { await opt.click().catch(() => {}); await frame.page().waitForTimeout(300); return true; }
+  await frame.page().keyboard.press("Escape").catch(() => {});
+  return false;
+}
+async function ensureFullDay(frame) {
+  const cb = frame.locator('input[name="full_day"]').first();
+  if ((await cb.isVisible().catch(() => false)) && !(await cb.isChecked().catch(() => false))) {
+    await cb.click({ force: true }).catch(() => {});
+    await frame.page().waitForTimeout(200);
+  }
+}
+/** Fill the absence form: set art (e.g. Urlaub) + full day; from/to already default to the clicked date. */
+async function fillAbsence(frame, absenceType) {
+  await setArt(frame, absenceType || "Urlaub");
+  await ensureFullDay(frame);
+  await frame.page().waitForTimeout(200);
+}
+
 async function saveDialog(frame) {
   const save = frame.getByText(/^Speichern$/i).first();
   if (await save.isVisible().catch(() => false)) { await save.click().catch(() => {}); await frame.page().waitForTimeout(1200); return true; }
@@ -124,15 +151,30 @@ async function timoExport({ days, dryRun }) {
     const done = [];
     const failed = [];
     for (const d of days) {
+      const kind = d.kind || "work";
       try {
         const opened = await openDay(frame, d.iso);
         if (!opened) { failed.push(`${d.iso.slice(5)} (day dialog not found)`); continue; }
-        if (dryRun) {
-          const info = await readDialog(frame);
-          await cancelDialog(frame);
-          done.push(`${d.iso.slice(5)} → would set ${d.start}-${d.end} (dialog art=${info.art ?? "?"})`);
+
+        if (kind === "absence") {
+          // The day-click dialog IS "Abwesenheit eintragen" — set the type + full day.
+          if (dryRun) { const info = await readDialog(frame); await cancelDialog(frame); done.push(`${d.iso.slice(5)} → absence:${d.absenceType || "Urlaub"} (art=${info.art ?? "?"})`); continue; }
+          await fillAbsence(frame, d.absenceType);
+          const saved = await saveDialog(frame);
+          if (!saved) { await cancelDialog(frame); failed.push(`${d.iso.slice(5)} (Speichern not found)`); continue; }
+          done.push(`${d.iso.slice(5)} absence:${d.absenceType || "Urlaub"}`);
           continue;
         }
+
+        // Work day: clicking a day only opens the ABSENCE form (Kommen/Gehen fields are hidden).
+        // Never save it (that would create a wrong absence). Only fill if a working dialog is shown.
+        const canWork = await frame.locator('input[name="hours_from"]').first().isVisible().catch(() => false);
+        if (!canWork) {
+          await cancelDialog(frame);
+          failed.push(`${d.iso.slice(5)} work (TimO records working time separately — not on this dialog)`);
+          continue;
+        }
+        if (dryRun) { await cancelDialog(frame); done.push(`${d.iso.slice(5)} → ${d.start}-${d.end}`); continue; }
         await fillWorkTime(frame, d.start, d.end);
         const saved = await saveDialog(frame);
         if (!saved) { await cancelDialog(frame); failed.push(`${d.iso.slice(5)} (Speichern not found)`); continue; }
@@ -142,7 +184,7 @@ async function timoExport({ days, dryRun }) {
         failed.push(`${d.iso.slice(5)} (${String(e).slice(0, 60)})`);
       }
     }
-    const head = dryRun ? "Dry run — days reachable in TimO" : "Recorded working time in TimO (review & submit in TimO)";
+    const head = dryRun ? "Dry run — days reachable in TimO" : "Recorded time in TimO (review & submit in TimO)";
     return `${head}:\n  OK: ${done.join(" | ") || "none"}${failed.length ? `\n  PROBLEM: ${failed.join(" | ")}` : ""}`;
   } finally { await browser.close().catch(() => {}); }
 }
