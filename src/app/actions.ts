@@ -693,6 +693,8 @@ export async function savePunchConfigAction(_prev: ActionState, fd: FormData): P
         startTime: /^\d{1,2}:\d{2}$/.test(startTime) ? startTime : "08:00",
         workdayHours: num(fd, "workdayHours") ?? 8,
         breakMinutes: num(fd, "breakMinutes") ?? 30,
+        absenceJobNumber: (str(fd, "absenceJobNumber") ?? "").trim(),
+        absenceType: (str(fd, "absenceType") ?? "").trim() || "Urlaub",
       },
     });
     revalidateAll();

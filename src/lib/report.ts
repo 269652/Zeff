@@ -106,6 +106,8 @@ export function parsePunchConfig(json: string | null | undefined): PunchConfig {
       startTime,
       workdayHours: Number.isFinite(workdayHours) && workdayHours > 0 && workdayHours <= 24 ? workdayHours : DEFAULT_PUNCH_CONFIG.workdayHours,
       breakMinutes: Number.isFinite(breakMinutes) && breakMinutes >= 0 && breakMinutes < 600 ? breakMinutes : DEFAULT_PUNCH_CONFIG.breakMinutes,
+      absenceJobNumber: String(raw?.absenceJobNumber ?? "").trim(),
+      absenceType: String(raw?.absenceType ?? "").trim() || DEFAULT_PUNCH_CONFIG.absenceType,
     };
   } catch {
     return { ...DEFAULT_PUNCH_CONFIG };
