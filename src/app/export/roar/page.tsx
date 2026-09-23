@@ -59,11 +59,21 @@ export default async function RoarExportPage({
                     <td className="whitespace-nowrap">
                       <span className="font-mono">{r.jobNumber}</span> <span className="text-zinc-500">{r.jobName}</span>
                     </td>
-                    {plan.days.map((d) => (
-                      <td key={d.iso} className="text-right tabular-nums">
-                        {r.hoursByDay[d.iso] ? formatHours(r.hoursByDay[d.iso]) : <span className="text-zinc-300 dark:text-zinc-700">·</span>}
-                      </td>
-                    ))}
+                    {plan.days.map((d) => {
+                      const n = r.entriesByDay[d.iso]?.length ?? 0;
+                      return (
+                        <td key={d.iso} className="text-right tabular-nums">
+                          {r.hoursByDay[d.iso] ? (
+                            <>
+                              {formatHours(r.hoursByDay[d.iso])}
+                              {n > 1 ? <span className="ml-0.5 text-xs text-zinc-400">×{n}</span> : null}
+                            </>
+                          ) : (
+                            <span className="text-zinc-300 dark:text-zinc-700">·</span>
+                          )}
+                        </td>
+                      );
+                    })}
                     <td className="text-right font-medium tabular-nums">{formatHours(r.total)}</td>
                   </tr>
                 ))}
@@ -82,8 +92,13 @@ export default async function RoarExportPage({
           </div>
         )}
         <p className="mt-3 text-xs text-zinc-400">
-          Roar&apos;s timesheet is a job × day grid, so entries are summed per job per day; descriptions and tickets
-          aren&apos;t transferred. Jobs are matched to Roar by their number (e.g. <code className="code">AB123-000001-00</code>).
+          Each Zeff booking becomes its <strong>own</strong> Roar entry (they are not summed): the ticket + description go
+          into the entry&apos;s comment, and each entry&apos;s hours are rounded <strong>up</strong> to Roar&apos;s
+          0.1-hour increments. This pushes <span className="tabular-nums font-medium">{plan.entryCount}</span>{" "}
+          {plan.entryCount === 1 ? "entry" : "entries"} across {plan.rows.length}{" "}
+          {plan.rows.length === 1 ? "job" : "jobs"}; a cell shows the day total, with <span className="text-zinc-500">×n</span>{" "}
+          when it holds several entries. Future days are locked by Roar and skipped, and a cell that already has hours is
+          left untouched. Jobs are matched by number (e.g. <code className="code">AB123-000001-00</code>).
         </p>
       </section>
 
@@ -98,6 +113,10 @@ export default async function RoarExportPage({
           <li>
             <strong>Dry run</strong> verifies every job resolves in Roar. Then <strong>Fill in Roar</strong> enters the
             hours — it stops there so you review and save in the Roar window (it never submits for you).
+          </li>
+          <li>
+            <strong>Safe to rerun:</strong> a cell that already matches Zeff is left untouched and only empty cells are
+            filled, so nothing duplicates. To redo a wrong cell, clear it in Roar, then <strong>Fill in Roar</strong> again.
           </li>
         </ol>
         {plan.rows.length > 0 && <RoarExportControls week={week.key} by={by} />}

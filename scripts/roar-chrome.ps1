@@ -1,14 +1,16 @@
 <#
   Launch Chrome with the DevTools debug port so the Roar export (roar-mcp) can
   attach to it. Sign in to Roar ONCE in this window; the session is kept in a
-  dedicated profile (data\roar-chrome-profile), separate from your normal Chrome,
-  so there is no profile-lock conflict. Re-run any time; it reuses the session.
+  dedicated profile under %LOCALAPPDATA%\Zeff\roar-chrome-profile, separate from
+  your normal Chrome, so there is no profile-lock conflict. It lives OUTSIDE the
+  repo on purpose: a running Chrome exclusively locks files in its profile, and a
+  locked file inside the project tree breaks 'next build' (Turbopack traces it).
+  Re-run any time; it reuses the session.
 
   Usage: npm run roar:chrome   (or: powershell -ExecutionPolicy Bypass -File scripts\roar-chrome.ps1)
 #>
 $ErrorActionPreference = "Stop"
-$root = Split-Path -Parent $PSScriptRoot
-$profileDir = Join-Path $root "data\roar-chrome-profile"
+$profileDir = Join-Path $env:LOCALAPPDATA "Zeff\roar-chrome-profile"
 New-Item -ItemType Directory -Force -Path $profileDir | Out-Null
 $port = if ($env:ROAR_CDP_PORT) { $env:ROAR_CDP_PORT } else { 9222 }
 

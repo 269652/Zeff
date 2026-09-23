@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Local data (SQLite DB, the Roar Chrome profile's cached web assets, etc.).
+    "data/**",
   ]),
 ]);
 

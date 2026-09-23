@@ -68,13 +68,25 @@ const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "
 function isoOf(y, mon, d) {
   return `${y}-${String(mon + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
-/** Parse the "Sep 21 - 27, 2026" (or cross-month) header into the Monday ISO date. */
+/**
+ * Parse the "Sep 21 - 27, 2026" (or cross-month "Aug 31 - 06, 2026") header into the
+ * Monday ISO date. A cross-year week is labelled with its END year — "Dec 28 - 03, 2027"
+ * is really Mon 2026-12-28 — so the displayed year can be one off for the start date.
+ * Every Roar week starts on a Monday, so resolve the year to the one near the label
+ * where the start (month, day) actually falls on a Monday.
+ */
 function parseWeekStart(label) {
   const m = /([A-Za-z]{3,})\.?\s+(\d{1,2})\s*[-–—]\s*(?:([A-Za-z]{3,})\.?\s+)?(\d{1,2}),?\s+(\d{4})/.exec(label || "");
   if (!m) return null;
   const mon = MONTHS.indexOf(m[1].slice(0, 3).toLowerCase());
   if (mon < 0) return null;
-  return isoOf(Number(m[5]), mon, Number(m[2]));
+  const day = Number(m[2]);
+  const yr = Number(m[5]);
+  for (const y of [yr, yr - 1, yr + 1]) {
+    const d = new Date(y, mon, day);
+    if (d.getMonth() === mon && d.getDate() === day && d.getDay() === 1) return isoOf(y, mon, day);
+  }
+  return isoOf(yr, mon, day); // fall back to the label's year if no Monday matches
 }
 
 async function readWeekLabel(frame) {
@@ -111,46 +123,133 @@ async function openJobSearch(frame, jobNumber) {
 
 /** Add the job row (search by number, pick the PPM task, add) if it isn't already present. */
 async function ensureJobRow(frame, jobNumber) {
-  if (await frame.getByText(jobNumber, { exact: false }).first().isVisible().catch(() => false)) return;
+  if (await rowGuid(frame, jobNumber)) return;
 
   const dialog = await openJobSearch(frame, jobNumber);
   const addToTs = dialog.getByRole("button", { name: /Add to timesheet/i }).first();
   await addToTs.waitFor({ state: "visible", timeout: 12000 });
-  // Select the PPM task (open the select, choose the only/first option).
-  const taskSelect = dialog.getByText(/Select task name/i).first();
-  if (await taskSelect.isVisible().catch(() => false)) {
-    await taskSelect.click();
+  // Select the PPM task (required) — a "Select task name" placeholder combobox; pick the only/first option.
+  const taskInput = dialog.getByPlaceholder(/Select task name/i).first();
+  if (await taskInput.isVisible().catch(() => false)) {
+    await taskInput.click();
     const option = frame.getByRole("option").first();
-    await option.waitFor({ state: "visible", timeout: 5000 }).catch(() => {});
-    await option.click().catch(() => {});
+    await option.waitFor({ state: "visible", timeout: 6000 });
+    await option.click();
+    await frame.page().waitForTimeout(300);
   }
   await addToTs.click();
   await frame.page().keyboard.press("Escape").catch(() => {}); // close dialog if it stayed open
-  await frame.getByText(jobNumber, { exact: false }).first().waitFor({ state: "visible", timeout: 10000 });
+  // Confirm the row exists (a day cell for it appears).
+  for (let i = 0; i < 20; i++) {
+    if (await rowGuid(frame, jobNumber)) return;
+    await frame.page().waitForTimeout(400);
+  }
+  throw new Error("row did not appear after add");
 }
 
-/** The row GUID for a job (cell inputs are id `<YYYY-MM-DD>-<guid>`), found via the row that shows the job number. */
+/**
+ * The row GUID for a job (cell inputs are id `<YYYY-MM-DD>-<guid>`). Find the LEAF
+ * element that shows the job number, then walk UP to the nearest ancestor that holds
+ * a date-guid cell input, and return that cell's guid.
+ *
+ * (Matching *any* ancestor whose text contains the number is wrong: the job-group
+ * container holds every job number in the group, so the first cell always matched and
+ * all rows in a group collapsed onto the group's first row.)
+ */
 async function rowGuid(frame, jobNumber) {
   return frame.evaluate((num) => {
-    const inputs = [...document.querySelectorAll("input[id]")].filter((i) => /^\d{4}-\d{2}-\d{2}-/.test(i.id));
-    for (const inp of inputs) {
-      let el = inp;
-      for (let d = 0; d < 10 && el; d++, el = el.parentElement) {
-        if (el.textContent && el.textContent.includes(num)) return inp.id.slice(11); // after "YYYY-MM-DD-"
-      }
+    const isCell = (el) => el.tagName === "INPUT" && /^\d{4}-\d{2}-\d{2}-/.test(el.id || "");
+    const all = document.querySelectorAll("*");
+    let leaf = null;
+    for (const el of all) {
+      if (el.children.length === 0 && (el.textContent || "").trim().includes(num)) { leaf = el; break; }
+    }
+    if (!leaf) for (const el of all) { if ((el.textContent || "").includes(num) && !el.querySelector("input")) { leaf = el; break; } }
+    if (!leaf) return null;
+    for (let el = leaf, d = 0; el && d < 15; el = el.parentElement, d++) {
+      const inp = [...el.querySelectorAll("input[id]")].find(isCell);
+      if (inp) return inp.id.slice(11); // after "YYYY-MM-DD-"
     }
     return null;
   }, jobNumber);
 }
 
-/** Set one day's hours for a row, addressing the cell by its exact id `<iso>-<guid>`. */
-async function setDayHours(frame, guid, iso, hours) {
-  const input = frame.locator(`input[id="${iso}-${guid}"]`).first();
-  await input.waitFor({ state: "visible", timeout: 5000 });
-  await input.click();
-  await input.fill(String(hours));
-  await input.press("Tab").catch(() => {});
+/** Grid-cell state for a job×day: whether the day is editable (future days are disabled) and its current value. */
+async function cellInfo(frame, guid, iso) {
+  return frame.evaluate(
+    ({ guid, iso }) => {
+      const el = document.getElementById(`${iso}-${guid}`);
+      if (!el) return { present: false, disabled: true, value: "" };
+      return { present: true, disabled: !!el.disabled, value: el.value || "" };
+    },
+    { guid, iso },
+  );
+}
+
+/** The open entry-details panel (a dialog/drawer). */
+function entryPanel(frame) {
+  return frame.locator('[role="dialog"], .MuiDialog-paper, .MuiDrawer-paper').first();
+}
+
+const roundTenth = (h) => Math.ceil(Number(h) * 10 - 1e-9) / 10;
+
+/**
+ * Add ONE entry to a job×day cell through the entry-details panel: open the cell,
+ * click "New entry" when the cell already holds entries (so we ADD rather than edit),
+ * fill the duration (rounded up to 0.1) + comment, then Save. WorkCode/Billable keep
+ * their pre-filled defaults. Never submits.
+ */
+async function addOneEntry(frame, guid, iso, entry, isAdditional) {
+  const cell = frame.locator(`input[id="${iso}-${guid}"]`).first();
+  await cell.scrollIntoViewIfNeeded().catch(() => {});
+  await cell.click();
+  await frame.page().keyboard.press("Enter");
   await frame.page().waitForTimeout(300);
+  // For the 2nd+ entry in a cell, click "New entry" to open a FRESH form (never edit the
+  // existing one). For the first entry the add-form is shown directly.
+  const newEntry = frame.locator('button, [role="button"], a').filter({ hasText: /^\s*New entry\s*$/i }).first();
+  if (isAdditional) {
+    await newEntry.waitFor({ state: "visible", timeout: 6000 });
+    await newEntry.click();
+    await frame.page().waitForTimeout(500);
+  } else if (await newEntry.isVisible().catch(() => false)) {
+    await newEntry.click().catch(() => {}); // cell unexpectedly already has entries — still add fresh
+    await frame.page().waitForTimeout(400);
+  }
+  const dur = frame.locator("input#durationInput").first();
+  await dur.waitFor({ state: "visible", timeout: 6000 });
+  await dur.click();
+  await dur.fill(String(roundTenth(entry.hours))); // .fill() registers with the panel form (unlike grid cells)
+  await frame.page().waitForTimeout(200);
+  if (entry.comment) {
+    const c = frame.locator("textarea#commentInput").first();
+    if (await c.isVisible().catch(() => false)) {
+      await c.click().catch(() => {});
+      await c.fill(String(entry.comment).slice(0, 125)).catch(() => {});
+    }
+  }
+  const save = entryPanel(frame).locator('button[type="submit"]').first();
+  await save.waitFor({ state: "visible", timeout: 5000 });
+  for (let i = 0; i < 15 && !(await save.isEnabled().catch(() => false)); i++) await frame.page().waitForTimeout(200);
+  if (!(await save.isEnabled().catch(() => false))) throw new Error(`entry Save stayed disabled for ${iso} (WorkCode/Billable default missing?)`);
+  await save.click();
+  await frame.page().waitForTimeout(900);
+  // Close the panel if it stayed open so the next entry starts from a clean cell.
+  if (await entryPanel(frame).isVisible().catch(() => false)) {
+    await frame.page().keyboard.press("Escape").catch(() => {});
+    await frame.page().waitForTimeout(300);
+  }
+}
+
+/** Persist the whole draft via the grid "Save" if present AND enabled. Never submits. */
+async function saveDraft(frame) {
+  const save = frame.getByRole("button", { name: "Save", exact: true }).first();
+  if ((await save.isVisible().catch(() => false)) && (await save.isEnabled().catch(() => false))) {
+    await save.click({ timeout: 5000 }).catch(() => {});
+    await frame.page().waitForTimeout(1500);
+    return true;
+  }
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -214,14 +313,40 @@ async function roarExport({ weekStartIso, rows, dryRun }) {
           failed.push(`${r.jobNumber} (row not found after add)`);
           continue;
         }
-        const entries = Object.entries(r.hoursByDay || {}).filter(([, h]) => Number(h) > 0);
-        for (const [iso, h] of entries) await setDayHours(frame, guid, iso, h);
-        done.push(`${r.jobNumber}: ${entries.map(([d, h]) => `${d.slice(5)}=${h}`).join(", ")}`);
+        // Idempotent, one Roar entry per Zeff booking. Roar has no reliable per-entry
+        // delete, so we reconcile by each cell's TOTAL:
+        //   • cell already equals the Zeff sum  -> leave it (rerun no-op)
+        //   • empty cell                        -> create every entry for that day
+        //   • non-empty but a different total   -> leave it, flag it (clear in Roar to refill)
+        //   • future/locked day                 -> skip
+        // So after a partial run you fix a cell by clearing it in Roar and rerun; only
+        // cleared/missing cells refill, correct cells are untouched, nothing duplicates.
+        const days = Object.entries(r.entriesByDay || {}).filter(([, items]) => Array.isArray(items) && items.length);
+        let created = 0;
+        let okCells = 0;
+        const flags = [];
+        for (const [iso, items] of days) {
+          const info = await cellInfo(frame, guid, iso);
+          const desired = Math.round(items.reduce((a, it) => a + Number(it.hours), 0) * 10) / 10;
+          const cur = Number(info.value) || 0;
+          if (info.disabled) { flags.push(`${iso.slice(5)} future/locked`); continue; }
+          if (Math.abs(cur - desired) <= 0.05) { okCells += 1; continue; } // already matches Zeff — no-op
+          if (cur > 0) { flags.push(`${iso.slice(5)} has ${cur}h≠${desired}h (clear in Roar to refill)`); continue; }
+          for (let i = 0; i < items.length; i++) { await addOneEntry(frame, guid, iso, items[i], i > 0); created += 1; }
+        }
+        const parts = [`${created} new`];
+        if (okCells) parts.push(`${okCells} cell${okCells === 1 ? "" : "s"} already ok`);
+        if (flags.length) parts.push(`SKIPPED ${flags.join("; ")}`);
+        done.push(`${r.jobNumber}: ${parts.join(", ")}`);
       } catch (e) {
         failed.push(`${r.jobNumber} (${String(e).slice(0, 80)})`);
       }
     }
-    const head = dryRun ? "Dry run — jobs checked in Roar" : "Filled Roar (review and save in the Roar window)";
+    let saved = false;
+    if (!dryRun && done.length) saved = await saveDraft(frame);
+    const head = dryRun
+      ? "Dry run — jobs checked in Roar"
+      : `Created entries in Roar${saved ? " and saved the draft" : ""} (review and Submit in the Roar window)`;
     return `${head}:\n  OK: ${done.join(" | ") || "none"}${failed.length ? `\n  PROBLEM: ${failed.join(" | ")}` : ""}`;
   } finally {
     await browser.close().catch(() => {});
@@ -240,17 +365,17 @@ const TOOLS = [
   },
   {
     name: "roar_export",
-    description: "Transfer a week of Zeff time into the Roar timesheet. Fills job×day hours; never submits (you review & save).",
+    description: "Transfer a week of Zeff time into the Roar timesheet. Creates one entry per booking (never summed); never submits (you review & save).",
     inputSchema: {
       type: "object",
       properties: {
         weekStartIso: { type: "string", description: "Monday of the target week, YYYY-MM-DD." },
         rows: {
           type: "array",
-          description: "One per job: { jobNumber, jobName, hoursByDay: { 'YYYY-MM-DD': hours } }.",
+          description: "One per job: { jobNumber, jobName, entriesByDay: { 'YYYY-MM-DD': [{ hours, comment }] } } — each booking becomes one Roar entry.",
           items: { type: "object" },
         },
-        dryRun: { type: "boolean", description: "Only verify each job resolves in Roar; do not add rows or hours." },
+        dryRun: { type: "boolean", description: "Only verify each job resolves in Roar; do not add rows or entries." },
       },
       required: ["weekStartIso", "rows"],
     },
