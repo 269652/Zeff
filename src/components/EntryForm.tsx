@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import type { ActionState } from "@/app/actions";
 import type { EntryType } from "@/db/schema";
 import { TagInput } from "./TagInput";
+import { TicketCombobox } from "./TicketCombobox";
 
 export type EntryFormJob = { id: number; number: string; name: string; customer: string | null };
 
@@ -12,6 +13,8 @@ export type TicketSuggestionLite = {
   jobNumber: string;
   jobName: string;
   description: string;
+  assignee?: string | null;
+  mine?: boolean;
 };
 
 export type EntryFormDefaults = Partial<{
@@ -121,22 +124,7 @@ export function EntryForm({
         </div>
         <div>
           <label className="label" htmlFor="ticket">Ticket</label>
-          <input
-            id="ticket"
-            name="ticket"
-            type="text"
-            list="ticket-suggestions"
-            placeholder="PROJ-337"
-            className="input"
-            value={ticket}
-            onChange={(e) => onTicketChange(e.target.value)}
-            autoComplete="off"
-          />
-          <datalist id="ticket-suggestions">
-            {ticketSuggestions.map((s) => (
-              <option key={s.ticket} value={s.ticket}>{s.jobName} — {s.description}</option>
-            ))}
-          </datalist>
+          <TicketCombobox value={ticket} onChange={onTicketChange} suggestions={ticketSuggestions} />
         </div>
         <div className="sm:col-span-6">
           <label className="label">Description</label>

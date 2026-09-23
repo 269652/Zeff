@@ -22,6 +22,8 @@ export function getEntryTicketSuggestions(week: WeekInfo): TicketSuggestion[] {
       jobNumber: jobNumber ?? "",
       jobName: job?.name ?? "",
       description: j.summary,
+      assignee: j.assignee,
+      mine: j.mine,
     });
   }
   return [...byKey.values()].sort((a, b) => a.ticket.localeCompare(b.ticket, undefined, { numeric: true }));

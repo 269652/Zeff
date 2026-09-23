@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { importMeetingsAction, type ActionState } from "@/app/actions";
-import type { Meeting, MeetingFlag } from "@/lib/calendar/meetings";
+import { jobForMeeting, type Meeting, type MeetingFlag, type MeetingJobRule } from "@/lib/calendar/meetings";
 import type { EntryFormJob } from "./EntryForm";
 
 type Row = Meeting & { jobNumber: string; description: string; ticketValue: string; hoursValue: string };
@@ -18,18 +18,21 @@ export function MeetingImportForm({
   weekKey,
   meetings,
   jobs,
+  jobRules = [],
   defaultReportedBy,
 }: {
   weekKey: string;
   meetings: Meeting[];
   jobs: EntryFormJob[];
+  jobRules?: MeetingJobRule[];
   defaultReportedBy: string;
 }) {
   const [defaultJob, setDefaultJob] = useState(jobs[0]?.number ?? "");
   const [rows, setRows] = useState<Row[]>(() =>
     meetings.map((m) => ({
       ...m,
-      jobNumber: jobs[0]?.number ?? "",
+      // A matching meeting→job rule pre-selects the job; otherwise the first job.
+      jobNumber: jobForMeeting(m.subject, jobRules) ?? jobs[0]?.number ?? "",
       description: m.subject,
       ticketValue: m.ticket ?? "",
       hoursValue: String(m.hours),

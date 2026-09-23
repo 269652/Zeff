@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { deleteConnection } from "@/lib/calendar/microsoft";
-import { createEntry, deleteEntry, getJobNumberForTicket, updateEntry } from "@/lib/entries";
+import { createEntry, deleteEntry, getJobNumberForTicket, requireEntry, updateEntry } from "@/lib/entries";
 import { errorMessage } from "@/lib/errors";
 import { formatHours } from "@/lib/format";
 import { createJob, deleteJob, updateJob } from "@/lib/jobs";
@@ -119,6 +119,34 @@ export async function deleteEntryAction(fd: FormData): Promise<void> {
     return;
   }
   if (redirectTo) redirect(redirectTo);
+}
+
+/** Duplicate an entry onto another day (same job, hours, description, ticket, type, tags). */
+export async function copyEntryAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const id = int(fd, "id");
+  const date = str(fd, "date")?.trim();
+  if (id === undefined) return { ok: false, error: "Missing entry to copy." };
+  if (!date) return { ok: false, error: "Pick a day to copy to." };
+  try {
+    const src = requireEntry(id);
+    createEntry(
+      {
+        jobNumber: src.job.number,
+        date,
+        hours: src.hours,
+        description: src.description,
+        ticket: src.ticket ?? undefined,
+        type: src.type,
+        reportedBy: src.reportedBy,
+        tags: src.tags.map((t) => t.name),
+      },
+      "web",
+    );
+    revalidateAll();
+    return { ok: true, message: `Copied ${formatHours(src.hours)} h to ${date}.` };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -474,6 +502,18 @@ export async function saveReportSettingsAction(_prev: ActionState, fd: FormData)
   }
 }
 
+export async function saveMeetingJobRulesAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { updateReportSettings, parseMeetingJobRules } = await import("@/lib/report");
+  try {
+    const rules = parseMeetingJobRules(str(fd, "meetingJobRules") ?? null);
+    updateReportSettings({ meetingJobRules: rules });
+    revalidateAll();
+    return { ok: true, message: `Saved ${rules.length} meeting rule${rules.length === 1 ? "" : "s"}.` };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Jira
 // ---------------------------------------------------------------------------
@@ -485,7 +525,7 @@ export async function syncJiraAction(): Promise<ActionState> {
     revalidateAll();
     return {
       ok: true,
-      message: `Synced ${r.total} tickets (${r.inserted} new, ${r.updated} updated${r.deactivated ? `, ${r.deactivated} no longer assigned` : ""})${r.titlesAdded ? `; +${r.titlesAdded} booked-ticket titles` : ""}.`,
+      message: `Synced ${r.total} tickets — ${r.mine} yours, ${Math.max(0, r.total - r.mine)} teammates' on your boards (${r.inserted} new, ${r.updated} updated${r.deactivated ? `, ${r.deactivated} dropped` : ""})${r.titlesAdded ? `; +${r.titlesAdded} titles` : ""}.`,
     };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };

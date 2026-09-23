@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import { deleteAbsenceAction } from "@/app/actions";
 import { AbsenceForm } from "@/components/AbsenceForm";
+import { MeetingJobRulesForm } from "@/components/MeetingJobRulesForm";
 import { ReportSettingsForm } from "@/components/ReportSettingsForm";
 import { ScheduleForm } from "@/components/ScheduleForm";
 import { SubmitButton } from "@/components/SubmitButton";
-import { getReportRules, getReportSettings } from "@/lib/report";
+import { getMeetingJobRules, getReportRules, getReportSettings } from "@/lib/report";
 import { listJobs } from "@/lib/jobs";
 import { listTags } from "@/lib/tags";
 import { formatHours } from "@/lib/format";
@@ -26,7 +27,9 @@ export default async function SettingsPage() {
   const hours = scheduleHours(schedule);
   const weekTotal = hours.reduce((a, b) => a + b, 0);
   const absences = listAbsences();
-  const reportRules = getReportRules(getReportSettings());
+  const settings = getReportSettings();
+  const reportRules = getReportRules(settings);
+  const meetingJobRules = getMeetingJobRules(settings);
   const tagNames = listTags().map((t) => t.name);
   const jobOptions = listJobs().map((j) => ({ number: j.number, name: j.name }));
 
@@ -56,6 +59,17 @@ export default async function SettingsPage() {
           </p>
         </div>
         <ReportSettingsForm initialRules={reportRules} tags={tagNames} jobs={jobOptions} />
+      </section>
+
+      <section className="card space-y-3 p-4">
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Meeting → job rules</h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            Auto-pick a job when importing meetings, by matching the meeting title — e.g. book every
+            “Mob Programming” meeting on your Relaunch job.
+          </p>
+        </div>
+        <MeetingJobRulesForm initialRules={meetingJobRules} jobs={jobOptions} />
       </section>
 
       <section className="card space-y-4 p-4">

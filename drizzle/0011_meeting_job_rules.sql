@@ -1,0 +1,1 @@
+ALTER TABLE `report_settings` ADD `meeting_job_rules` text;

@@ -1,0 +1,1 @@
+ALTER TABLE `jira_tickets` ADD `mine` integer DEFAULT false NOT NULL;
