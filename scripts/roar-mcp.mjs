@@ -97,49 +97,60 @@ async function navigateToWeek(frame, targetMondayIso) {
   throw new Error(`Could not reach the week of ${targetMondayIso} in Roar.`);
 }
 
-/** Add the job row (search by job number, pick the PPM task, add) if it isn't already present. */
-async function ensureJobRow(frame, jobNumber) {
-  const existing = frame.getByText(jobNumber, { exact: false }).first();
-  if (await existing.isVisible().catch(() => false)) return true;
-
+/** Open "Add job / task", type the job number into the DIALOG's job search, wait for a result. */
+async function openJobSearch(frame, jobNumber) {
+  await frame.page().keyboard.press("Escape").catch(() => {}); // clear any stray dialog
   await frame.getByRole("button", { name: /Add job \/ task/i }).first().click();
-  const search = frame.locator("#search, input[placeholder*='Search job']").first();
+  const dialog = frame.getByRole("dialog");
+  const search = dialog.getByPlaceholder(/Search job/i).first();
   await search.waitFor({ state: "visible", timeout: 8000 });
-  await search.fill(jobNumber);
-  // Result card for this job number.
-  const card = frame.locator("*", { hasText: jobNumber }).filter({ has: frame.getByText(/Add to timesheet/i) }).first();
-  await card.waitFor({ state: "visible", timeout: 10000 }).catch(() => {});
+  await search.click();
+  await search.pressSequentially(jobNumber, { delay: 60 });
+  return dialog;
+}
+
+/** Add the job row (search by number, pick the PPM task, add) if it isn't already present. */
+async function ensureJobRow(frame, jobNumber) {
+  if (await frame.getByText(jobNumber, { exact: false }).first().isVisible().catch(() => false)) return;
+
+  const dialog = await openJobSearch(frame, jobNumber);
+  const addToTs = dialog.getByRole("button", { name: /Add to timesheet/i }).first();
+  await addToTs.waitFor({ state: "visible", timeout: 12000 });
   // Select the PPM task (open the select, choose the only/first option).
-  const taskSelect = frame.getByText(/Select task name/i).first();
+  const taskSelect = dialog.getByText(/Select task name/i).first();
   if (await taskSelect.isVisible().catch(() => false)) {
     await taskSelect.click();
     const option = frame.getByRole("option").first();
     await option.waitFor({ state: "visible", timeout: 5000 }).catch(() => {});
     await option.click().catch(() => {});
   }
-  await frame.getByRole("button", { name: /Add to timesheet/i }).first().click();
-  // Close the dialog if still open.
-  await frame.getByRole("button", { name: /^Close$|✕/ }).first().click({ timeout: 1500 }).catch(() => {});
-  await frame.page().keyboard.press("Escape").catch(() => {});
-  await frame.getByText(jobNumber, { exact: false }).first().waitFor({ state: "visible", timeout: 8000 });
-  return true;
+  await addToTs.click();
+  await frame.page().keyboard.press("Escape").catch(() => {}); // close dialog if it stayed open
+  await frame.getByText(jobNumber, { exact: false }).first().waitFor({ state: "visible", timeout: 10000 });
 }
 
-/** Set a single day's hours for a job row. Cell inputs have id `<YYYY-MM-DD>-<rowGuid>`. */
-async function setDayHours(frame, jobNumber, iso, hours) {
-  // Find the row that contains the job number, then the day cell by id prefix.
-  const row = frame.locator("*", { hasText: jobNumber }).locator(`xpath=ancestor-or-self::*[.//input[starts-with(@id,'${iso}-')]][1]`).first();
-  let input = row.locator(`input[id^='${iso}-']`).first();
-  if (!(await input.count())) {
-    // Fallback: match by aria-label containing the ISO's weekday date is brittle; try any cell with the id prefix near the job text.
-    input = frame.locator(`input[id^='${iso}-']`).first();
-  }
+/** The row GUID for a job (cell inputs are id `<YYYY-MM-DD>-<guid>`), found via the row that shows the job number. */
+async function rowGuid(frame, jobNumber) {
+  return frame.evaluate((num) => {
+    const inputs = [...document.querySelectorAll("input[id]")].filter((i) => /^\d{4}-\d{2}-\d{2}-/.test(i.id));
+    for (const inp of inputs) {
+      let el = inp;
+      for (let d = 0; d < 10 && el; d++, el = el.parentElement) {
+        if (el.textContent && el.textContent.includes(num)) return inp.id.slice(11); // after "YYYY-MM-DD-"
+      }
+    }
+    return null;
+  }, jobNumber);
+}
+
+/** Set one day's hours for a row, addressing the cell by its exact id `<iso>-<guid>`. */
+async function setDayHours(frame, guid, iso, hours) {
+  const input = frame.locator(`input[id="${iso}-${guid}"]`).first();
   await input.waitFor({ state: "visible", timeout: 5000 });
   await input.click();
   await input.fill(String(hours));
-  await input.press("Enter").catch(() => {});
-  await input.blur().catch(() => {});
-  await frame.page().waitForTimeout(250);
+  await input.press("Tab").catch(() => {});
+  await frame.page().waitForTimeout(300);
 }
 
 // ---------------------------------------------------------------------------
@@ -174,6 +185,8 @@ async function roarExport({ weekStartIso, rows, dryRun }) {
     const page = await getTimesheetPage(browser);
     await page.waitForTimeout(1000);
     if (isLoginUrl(page.url())) throw new Error("Roar is not signed in. Sign in in the Chrome window and retry.");
+    // Reload for a clean slate (no stray open dialogs / leftover filter text).
+    await page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
     let frame = await getAppFrame(page);
     await navigateToWeek(frame, weekStartIso);
     frame = await getAppFrame(page);
@@ -184,18 +197,25 @@ async function roarExport({ weekStartIso, rows, dryRun }) {
       try {
         if (dryRun) {
           // Verify the job resolves in Roar's search without adding it.
-          await frame.getByRole("button", { name: /Add job \/ task/i }).first().click();
-          const search = frame.locator("#search, input[placeholder*='Search job']").first();
-          await search.waitFor({ state: "visible", timeout: 8000 });
-          await search.fill(r.jobNumber);
-          const found = await frame.getByText(r.jobNumber, { exact: false }).first().isVisible({ timeout: 6000 }).catch(() => false);
+          const dialog = await openJobSearch(frame, r.jobNumber);
+          const found = await dialog
+            .getByRole("button", { name: /Add to timesheet/i })
+            .first()
+            .waitFor({ state: "visible", timeout: 10000 })
+            .then(() => true)
+            .catch(() => false);
           await frame.page().keyboard.press("Escape").catch(() => {});
           (found ? done : failed).push(`${r.jobNumber}${found ? "" : " (not found in Roar)"}`);
           continue;
         }
         await ensureJobRow(frame, r.jobNumber);
+        const guid = await rowGuid(frame, r.jobNumber);
+        if (!guid) {
+          failed.push(`${r.jobNumber} (row not found after add)`);
+          continue;
+        }
         const entries = Object.entries(r.hoursByDay || {}).filter(([, h]) => Number(h) > 0);
-        for (const [iso, h] of entries) await setDayHours(frame, r.jobNumber, iso, h);
+        for (const [iso, h] of entries) await setDayHours(frame, guid, iso, h);
         done.push(`${r.jobNumber}: ${entries.map(([d, h]) => `${d.slice(5)}=${h}`).join(", ")}`);
       } catch (e) {
         failed.push(`${r.jobNumber} (${String(e).slice(0, 80)})`);
