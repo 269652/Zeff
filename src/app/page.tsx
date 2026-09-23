@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { createEntryAction } from "@/app/actions";
 import { EntriesTable } from "@/components/EntriesTable";
 import { EntryForm } from "@/components/EntryForm";
+import { PersistentDetails } from "@/components/PersistentDetails";
 import { ReportView } from "@/components/ReportView";
 import { WeekNav } from "@/components/WeekNav";
 import { WeekTable } from "@/components/WeekTable";
@@ -14,6 +15,7 @@ import { getRewrittenReport, reportToText } from "@/lib/report";
 import { getEntryTicketSuggestions } from "@/lib/ticket-suggestions";
 import { getWeekTargets } from "@/lib/schedule";
 import { listTags } from "@/lib/tags";
+import { getUiOpen } from "@/lib/ui-state";
 import { currentWeek, resolveWeek, todayIso } from "@/lib/week";
 
 export const metadata: Metadata = { title: "Weekly report" };
@@ -38,6 +40,7 @@ export default async function WeekPage({
   const reporters = listReporters();
   const allTags = listTags().map((t) => t.name);
   const ticketSuggestions = getEntryTicketSuggestions(week);
+  const ui = await getUiOpen();
 
   const today = todayIso();
   const defaultDate = today >= week.startIso && today <= week.endIso ? today : week.startIso;
@@ -105,11 +108,11 @@ export default async function WeekPage({
             </Link>
           </div>
         </div>
-        <ReportView report={rewritten} text={reportText} today={today} />
+        <ReportView key={week.key} report={rewritten} text={reportText} today={today} ui={ui} />
       </section>
 
       <section className="card p-4">
-        <details className="group">
+        <PersistentDetails name="week-entries" ui={ui} className="group">
           <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-zinc-500 uppercase [&::-webkit-details-marker]:hidden">
             <span className="text-zinc-400 transition-transform group-open:rotate-90">▸</span>
             Entries in week {week.week}
@@ -118,7 +121,7 @@ export default async function WeekPage({
           <div className="mt-3">
             <EntriesTable entries={report.entries} />
           </div>
-        </details>
+        </PersistentDetails>
       </section>
     </div>
   );

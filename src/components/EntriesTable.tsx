@@ -3,6 +3,7 @@ import { deleteEntryAction } from "@/app/actions";
 import type { EntryWithJob } from "@/lib/entries";
 import { formatHours } from "@/lib/format";
 import { CopyEntryButton } from "./CopyEntryButton";
+import { EntryHoursCell } from "./EntryHoursCell";
 import { SubmitButton } from "./SubmitButton";
 
 export function EntriesTable({
@@ -42,7 +43,9 @@ export function EntriesTable({
                 </td>
               )}
               <td><span className={`badge badge-${e.type}`}>{e.type}</span></td>
-              <td className="num font-semibold">{formatHours(e.hours)}</td>
+              <td className="num font-semibold">
+                <EntryHoursCell entryId={e.id} hours={e.hours} />
+              </td>
               <td className="max-w-md">
                 {e.description}
                 {e.tags.length > 0 && (

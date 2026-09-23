@@ -106,6 +106,18 @@ export async function updateEntryAction(
   redirect(`/?week=${date}`);
 }
 
+/** Inline edit from the entries table: change just the hours of one entry. */
+export async function updateEntryHoursAction(id: number, hours: number): Promise<ActionState> {
+  try {
+    if (!Number.isFinite(hours)) return { ok: false, error: "Enter hours as a number, e.g. 1.5." };
+    const entry = updateEntry(id, { hours });
+    revalidateAll();
+    return { ok: true, message: `${formatHours(entry.hours)} h` };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
 export async function deleteEntryAction(fd: FormData): Promise<void> {
   const id = int(fd, "id");
   if (id === undefined) return;
@@ -633,12 +645,17 @@ export async function exportToRoarAction(_prev: ActionState, fd: FormData): Prom
   const dryRun = fd.get("dryRun") === "on";
   const { getRoarExportPlan, toRoarPayload } = await import("@/lib/roar");
   const { getReportSettings, getRoarWorkcodes } = await import("@/lib/report");
-  const plan = getRoarExportPlan(week, { reportedBy: str(fd, "by") });
+  const { listJobs } = await import("@/lib/jobs");
+  const by = str(fd, "by");
+  const plan = getRoarExportPlan(week, { reportedBy: by });
   if (plan.rows.length === 0) return { ok: false, error: "Nothing booked in this week to export." };
   // Attach any per-job WorkCode overrides (e.g. Abwesenheit → ABSENCE).
   const workcodes = getRoarWorkcodes(getReportSettings());
   const payload = toRoarPayload(plan);
   payload.rows = payload.rows.map((r) => ({ ...r, workcode: workcodes[r.jobNumber] || undefined }));
+  // Zeff is the source of truth for its own jobs, so Roar entries it no longer has get
+  // zeroed — but never on a reporter-filtered (partial) export, which may only add.
+  payload.managedJobs = by ? [] : listJobs({ includeInactive: true }).map((j) => j.number);
   try {
     const msg = await callRoar("roar_export", { ...payload, dryRun });
     return { ok: true, message: msg };

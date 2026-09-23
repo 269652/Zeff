@@ -102,6 +102,8 @@ export type RoarExportPayload = {
     /** Optional forced Roar WorkCode for this job (code or keyword), matched against the job's list. */
     workcode?: string;
   }[];
+  /** Jobs Zeff is the source of truth for: their Roar entries that Zeff no longer has are zeroed. */
+  managedJobs?: string[];
 };
 
 export function toRoarPayload(plan: RoarExportPlan): RoarExportPayload {

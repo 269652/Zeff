@@ -8,9 +8,9 @@
  *
  * Tools:
  *   roar_status                      -> is Chrome reachable, is Roar open & logged in
- *   roar_export {weekStartIso, rows, dryRun}
- *                                    -> fill the week's job×day hours; leaves the final
- *                                       save to you (never submits/approves)
+ *   roar_export {weekStartIso, rows, managedJobs, dryRun}
+ *                                    -> sync the week's entries (add / update / zero out
+ *                                       per entry); never submits/approves
  *
  * Start Chrome for it with:  npm run roar:chrome   (then sign in to Roar once)
  */
@@ -324,6 +324,164 @@ async function saveDraft(frame) {
 }
 
 // ---------------------------------------------------------------------------
+// Entry-level sync: read a cell's entries, then keep / update / zero / add
+// ---------------------------------------------------------------------------
+
+const WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+/** "Tue 22.09." for an ISO date. */
+function dayLabel(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${WD[new Date(y, m - 1, d).getDay()]} ${iso.slice(8)}.${iso.slice(5, 7)}.`;
+}
+const normComment = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
+const fmtH = (h) => `${Math.round(Number(h) * 100) / 100} h`;
+
+/**
+ * Every job row of the visible week: job number -> { guid, cells: { iso: { value, disabled } } }.
+ * A row's job number comes from the nearest ancestor naming exactly ONE job (a container
+ * naming several is a job group — ambiguous, so that cell is skipped rather than misassigned).
+ */
+async function readGrid(frame) {
+  const rows = await frame.evaluate(() => {
+    const res = {};
+    for (const el of document.querySelectorAll("input[id]")) {
+      if (!/^\d{4}-\d{2}-\d{2}-/.test(el.id)) continue;
+      let job = null;
+      for (let p = el.parentElement, d = 0; p && d < 12; p = p.parentElement, d++) {
+        const found = [...new Set((p.textContent || "").match(/[A-Z]{2}\d{3}-\d{6}-\d{2}/g) || [])];
+        if (found.length === 1) { job = found[0]; break; }
+        if (found.length > 1) break;
+      }
+      if (!job) continue;
+      const r = (res[job] ||= { guid: el.id.slice(11), cells: {} });
+      r.cells[el.id.slice(0, 10)] = { value: Number(el.value) || 0, disabled: !!el.disabled };
+    }
+    return res;
+  });
+  return new Map(Object.entries(rows));
+}
+
+/** After a (re)load or week change, wait until the week's day cells are rendered (a week may have no rows). */
+async function waitForGrid(frame, weekStartIso) {
+  for (let i = 0; i < 25; i++) {
+    const n = await frame.evaluate((d) => document.querySelectorAll(`input[id^="${d}-"]`).length, weekStartIso).catch(() => 0);
+    if (n > 0) {
+      await frame.page().waitForTimeout(500); // let the remaining rows' values settle
+      return n;
+    }
+    await frame.page().waitForTimeout(400);
+  }
+  return 0;
+}
+
+/** The entry cards of an open cell panel (several entries); a single entry opens directly as its form. */
+function entryCards(frame) {
+  return entryPanel(frame).locator('[role="button"]').filter({ hasText: /Duration/ });
+}
+
+/** Open a job×day cell's entry panel. */
+async function openCell(frame, guid, iso) {
+  await frame.page().keyboard.press("Escape").catch(() => {});
+  await frame.page().waitForTimeout(250);
+  const cell = frame.locator(`input[id="${iso}-${guid}"]`).first();
+  await cell.scrollIntoViewIfNeeded().catch(() => {});
+  await cell.click();
+  await frame.page().keyboard.press("Enter");
+  await entryPanel(frame).waitFor({ state: "visible", timeout: 6000 });
+  await frame.page().waitForTimeout(500);
+}
+
+/** Duration + comment of the entry form currently shown in the panel. */
+async function formValues(frame) {
+  const p = entryPanel(frame);
+  const hours = Number((await p.locator("#durationInput").first().inputValue().catch(() => "")) || 0) || 0;
+  const comment = (await p.locator("#commentInput").first().inputValue().catch(() => "")) || "";
+  return { hours, comment };
+}
+
+/**
+ * Visit the open cell's entries (expanding each card into its form) until `visit`
+ * returns true — that entry's form then stays open. Zeroed (0 h) entries are skipped.
+ */
+async function forEachEntry(frame, visit) {
+  const cards = entryCards(frame);
+  const n = await cards.count();
+  if (n === 0) {
+    const v = await formValues(frame);
+    return v.hours > 0 ? !!(await visit(v)) : false;
+  }
+  for (let i = 0; i < n; i++) {
+    await cards.nth(i).click();
+    await frame.page().waitForTimeout(400);
+    const v = await formValues(frame);
+    if (v.hours > 0 && (await visit(v))) return true;
+  }
+  return false;
+}
+
+/** A cell's entries (hours + comment) and whether its timesheet was already submitted. Read-only. */
+async function readCellEntries(frame, guid, iso) {
+  await openCell(frame, guid, iso);
+  const submitted = /has been submitted/i.test((await entryPanel(frame).textContent().catch(() => "")) || "");
+  const entries = [];
+  await forEachEntry(frame, (v) => {
+    entries.push(v);
+    return false;
+  });
+  await frame.page().keyboard.press("Escape").catch(() => {});
+  await frame.page().waitForTimeout(250);
+  return { entries, submitted };
+}
+
+/** Change one existing entry's duration (0 removes it) and Save; the entry is found by comment + hours. */
+async function setEntryHours(frame, guid, iso, target, newHours) {
+  await openCell(frame, guid, iso);
+  const want = normComment(target.comment);
+  const found = await forEachEntry(frame, (v) => normComment(v.comment) === want && Math.abs(v.hours - target.hours) <= 0.05);
+  if (!found) {
+    await frame.page().keyboard.press("Escape").catch(() => {});
+    throw new Error(`entry “${target.comment}” (${fmtH(target.hours)}) not found`);
+  }
+  const panel = entryPanel(frame);
+  const dur = panel.locator("#durationInput").first();
+  await dur.click();
+  await dur.fill(String(newHours));
+  await frame.page().waitForTimeout(250);
+  const save = panel.locator('button[type="submit"]').first();
+  for (let i = 0; i < 15 && !(await save.isEnabled().catch(() => false)); i++) await frame.page().waitForTimeout(200);
+  if (!(await save.isEnabled().catch(() => false))) {
+    await frame.page().keyboard.press("Escape").catch(() => {});
+    throw new Error(`Save stayed disabled setting “${target.comment}” to ${fmtH(newHours)}`);
+  }
+  await save.click();
+  await frame.page().waitForTimeout(1000);
+  if (await panel.isVisible().catch(() => false)) {
+    await frame.page().keyboard.press("Escape").catch(() => {});
+    await frame.page().waitForTimeout(300);
+  }
+}
+
+/**
+ * Pair a cell's Roar entries with Zeff's: identical ones (comment + hours) stay; same
+ * comment with other hours gets the new duration; leftover Roar entries are removed and
+ * leftover Zeff entries added. Comments compare trimmed, whitespace-collapsed, case-blind.
+ */
+function diffEntries(existing, desired) {
+  const ex = existing.map((e) => ({ ...e, key: normComment(e.comment), used: false }));
+  const want = desired.map((d) => ({ hours: Number(d.hours), comment: d.comment, key: normComment(d.comment), done: false }));
+  for (const w of want) {
+    const e = ex.find((x) => !x.used && x.key === w.key && Math.abs(x.hours - w.hours) <= 0.05);
+    if (e) { e.used = true; w.done = true; }
+  }
+  const update = [];
+  for (const w of want.filter((x) => !x.done)) {
+    const e = ex.find((x) => !x.used && x.key === w.key);
+    if (e) { e.used = true; w.done = true; update.push({ from: e, hours: w.hours }); }
+  }
+  return { update, remove: ex.filter((x) => !x.used), add: want.filter((x) => !x.done) };
+}
+
+// ---------------------------------------------------------------------------
 // Tool implementations
 // ---------------------------------------------------------------------------
 
@@ -348,7 +506,16 @@ async function roarStatus() {
   }
 }
 
-async function roarExport({ weekStartIso, rows, dryRun }) {
+/**
+ * Sync a week of Zeff time into Roar, one Roar entry per Zeff booking. A cell whose total
+ * already matches Zeff is left alone. Otherwise its entries are read and synced entry by
+ * entry — identical ones stay, a changed duration is updated, entries Zeff no longer has
+ * are set to 0 h and saved (Roar's way to remove one), missing ones are added — so moving
+ * a booking to another job moves it in Roar too. That sync (including removals) only
+ * applies to jobs Zeff knows (`managedJobs`) on days tracked in Zeff; other cells are only
+ * filled when empty. dryRun reads everything and lists the changes without saving.
+ */
+async function roarExport({ weekStartIso, rows, managedJobs = [], dryRun }) {
   if (!weekStartIso || !Array.isArray(rows)) throw new Error("weekStartIso and rows are required.");
   const browser = await connect();
   try {
@@ -361,65 +528,106 @@ async function roarExport({ weekStartIso, rows, dryRun }) {
     await navigateToWeek(frame, weekStartIso);
     frame = await getAppFrame(page);
 
-    const done = [];
-    const failed = [];
+    const managed = new Set(managedJobs);
+    const tracked = new Set(rows.flatMap((r) => Object.keys(r.entriesByDay || {})));
+    const zeff = new Map(rows.map((r) => [r.jobNumber, r]));
+    await waitForGrid(frame, weekStartIso);
+    const grid = await readGrid(frame);
+    // Every Zeff row, plus managed Roar rows still holding hours on a tracked day (e.g. a booking moved away).
+    const jobs = [...zeff.keys()];
+    for (const [job, g] of grid) {
+      if (!zeff.has(job) && managed.has(job) && Object.entries(g.cells).some(([iso, c]) => c.value > 0 && tracked.has(iso))) jobs.push(job);
+    }
+
+    const changes = [];
+    const skipped = [];
+    const problems = [];
+    const count = { added: 0, updated: 0, removed: 0, ok: 0 };
+    let touchedSubmitted = false;
     const wcCtx = {}; // captured default WorkCode/Billable, reused where a job (e.g. Abwesenheit) has none
-    for (const r of rows) {
+    const mark = dryRun ? "→" : "✓";
+
+    for (const job of jobs) {
+      const z = zeff.get(job);
+      const name = z?.jobName ? `${job} ${z.jobName}` : job;
+      let guid = grid.get(job)?.guid ?? (await rowGuid(frame, job));
       try {
-        if (dryRun) {
-          // Verify the job resolves in Roar's search without adding it.
-          const dialog = await openJobSearch(frame, r.jobNumber);
-          const found = await dialog
-            .getByRole("button", { name: /Add to timesheet/i })
-            .first()
-            .waitFor({ state: "visible", timeout: 10000 })
-            .then(() => true)
-            .catch(() => false);
-          await frame.page().keyboard.press("Escape").catch(() => {});
-          (found ? done : failed).push(`${r.jobNumber}${found ? "" : " (not found in Roar)"}`);
-          continue;
-        }
-        await ensureJobRow(frame, r.jobNumber);
-        const guid = await rowGuid(frame, r.jobNumber);
         if (!guid) {
-          failed.push(`${r.jobNumber} (row not found after add)`);
-          continue;
+          if (dryRun) {
+            const dialog = await openJobSearch(frame, job);
+            const found = await dialog.getByRole("button", { name: /Add to timesheet/i }).first()
+              .waitFor({ state: "visible", timeout: 10000 }).then(() => true).catch(() => false);
+            await frame.page().keyboard.press("Escape").catch(() => {});
+            if (!found) { problems.push(`${name}: job not found in Roar`); continue; }
+            for (const [iso, items] of Object.entries(z?.entriesByDay || {})) {
+              for (const it of items) changes.push(`${mark} ${name} ${dayLabel(iso)}: add ${fmtH(it.hours)} “${it.comment}” (row gets added)`);
+            }
+            continue;
+          }
+          await ensureJobRow(frame, job);
+          guid = await rowGuid(frame, job);
+          if (!guid) { problems.push(`${name}: row not found after adding it`); continue; }
         }
-        // Idempotent, one Roar entry per Zeff booking. Roar has no reliable per-entry
-        // delete, so we reconcile by each cell's TOTAL:
-        //   • cell already equals the Zeff sum  -> leave it (rerun no-op)
-        //   • empty cell                        -> create every entry for that day
-        //   • non-empty but a different total   -> leave it, flag it (clear in Roar to refill)
-        //   • future/locked day                 -> skip
-        // So after a partial run you fix a cell by clearing it in Roar and rerun; only
-        // cleared/missing cells refill, correct cells are untouched, nothing duplicates.
-        const days = Object.entries(r.entriesByDay || {}).filter(([, items]) => Array.isArray(items) && items.length);
-        let created = 0;
-        let okCells = 0;
-        const flags = [];
-        for (const [iso, items] of days) {
-          const info = await cellInfo(frame, guid, iso);
-          const desired = Math.round(items.reduce((a, it) => a + Number(it.hours), 0) * 10) / 10;
-          const cur = Number(info.value) || 0;
-          if (info.disabled) { flags.push(`${iso.slice(5)} future/locked`); continue; }
-          if (Math.abs(cur - desired) <= 0.05) { okCells += 1; continue; } // already matches Zeff — no-op
-          if (cur > 0) { flags.push(`${iso.slice(5)} has ${cur}h≠${desired}h (clear in Roar to refill)`); continue; }
-          for (let i = 0; i < items.length; i++) { await addOneEntry(frame, guid, iso, items[i], i > 0, wcCtx, r.workcode); created += 1; }
+        const roarDays = managed.has(job) ? Object.entries(grid.get(job)?.cells || {}).filter(([iso, c]) => c.value > 0 && tracked.has(iso)).map(([iso]) => iso) : [];
+        const days = [...new Set([...Object.keys(z?.entriesByDay || {}), ...roarDays])].sort();
+
+        for (const iso of days) {
+          const where = `${name} ${dayLabel(iso)}`;
+          try {
+            const desired = z?.entriesByDay?.[iso] || [];
+            const cell = await cellInfo(frame, guid, iso);
+            const cur = Number(cell.value) || 0;
+            const want = Math.round(desired.reduce((a, it) => a + Number(it.hours), 0) * 10) / 10;
+            if (Math.abs(cur - want) <= 0.05) { count.ok += 1; continue; }
+            if (cell.disabled) { skipped.push(`${where}: future/locked day`); continue; }
+            const sync = managed.has(job) && tracked.has(iso);
+            if (!sync && cur > 0) {
+              skipped.push(`${where}: Roar has ${fmtH(cur)}, Zeff ${fmtH(want)} — ${managed.size ? "day not tracked in Zeff" : "partial (filtered) export"}, fix in Roar`);
+              continue;
+            }
+            const read = cur > 0 ? await readCellEntries(frame, guid, iso) : { entries: [], submitted: false };
+            const plan = diffEntries(read.entries, desired);
+            if (!plan.update.length && !plan.remove.length && !plan.add.length) { count.ok += 1; continue; }
+            if (read.submitted) touchedSubmitted = true;
+
+            for (const r of plan.remove) {
+              if (!dryRun) await setEntryHours(frame, guid, iso, r, 0);
+              changes.push(`${mark} ${where}: remove ${fmtH(r.hours)} “${r.comment}”`);
+              count.removed += 1;
+            }
+            for (const u of plan.update) {
+              if (!dryRun) await setEntryHours(frame, guid, iso, u.from, u.hours);
+              changes.push(`${mark} ${where}: ${fmtH(u.from.hours)} → ${fmtH(u.hours)} “${u.from.comment}”`);
+              count.updated += 1;
+            }
+            for (const a of plan.add) {
+              if (!dryRun) {
+                const now = await cellInfo(frame, guid, iso);
+                await addOneEntry(frame, guid, iso, a, (Number(now.value) || 0) > 0, wcCtx, z?.workcode);
+              }
+              changes.push(`${mark} ${where}: add ${fmtH(a.hours)} “${a.comment}”`);
+              count.added += 1;
+            }
+          } catch (e) {
+            problems.push(`${where}: ${String(e?.message || e).split("\n")[0].slice(0, 120)}`);
+          }
         }
-        const parts = [`${created} new`];
-        if (okCells) parts.push(`${okCells} cell${okCells === 1 ? "" : "s"} already ok`);
-        if (flags.length) parts.push(`SKIPPED ${flags.join("; ")}`);
-        done.push(`${r.jobNumber}: ${parts.join(", ")}`);
       } catch (e) {
-        failed.push(`${r.jobNumber} (${String(e).slice(0, 80)})`);
+        problems.push(`${name}: ${String(e?.message || e).split("\n")[0].slice(0, 120)}`);
       }
     }
+
     let saved = false;
-    if (!dryRun && done.length) saved = await saveDraft(frame);
+    if (!dryRun && changes.length) saved = await saveDraft(frame);
+    const n = `${count.added} to add, ${count.updated} to update, ${count.removed} to remove`;
     const head = dryRun
-      ? "Dry run — jobs checked in Roar"
-      : `Created entries in Roar${saved ? " and saved the draft" : ""} (review and Submit in the Roar window)`;
-    return `${head}:\n  OK: ${done.join(" | ") || "none"}${failed.length ? `\n  PROBLEM: ${failed.join(" | ")}` : ""}`;
+      ? `Dry run — Roar read, nothing saved (${changes.length ? n : "no changes needed"}; ${count.ok} cell${count.ok === 1 ? "" : "s"} already match):`
+      : `Roar — ${count.added} added, ${count.updated} updated, ${count.removed} removed${saved ? ", draft saved" : ""}; ${count.ok} cell${count.ok === 1 ? "" : "s"} already matched:`;
+    const lines = [...changes, ...skipped.map((s) => `↷ ${s}`), ...problems.map((p) => `✗ ${p}`)];
+    const notes = [];
+    if (touchedSubmitted) notes.push(dryRun ? "These cells belong to an already submitted timesheet — resubmit in Roar after filling." : "This timesheet was already submitted — review and resubmit it in Roar.");
+    else if (!dryRun && changes.length) notes.push("Review and Submit in the Roar window.");
+    return [head, ...lines.map((l) => `  ${l}`), ...notes.map((x) => `  ${x}`)].join("\n");
   } finally {
     await browser.close().catch(() => {});
   }
@@ -437,17 +645,23 @@ const TOOLS = [
   },
   {
     name: "roar_export",
-    description: "Transfer a week of Zeff time into the Roar timesheet. Creates one entry per booking (never summed); never submits (you review & save).",
+    description:
+      "Sync a week of Zeff time into the Roar timesheet, one entry per booking (never summed): adds missing entries, updates changed durations and zeroes entries Zeff no longer has (for managedJobs, on days tracked in Zeff). Never submits.",
     inputSchema: {
       type: "object",
       properties: {
         weekStartIso: { type: "string", description: "Monday of the target week, YYYY-MM-DD." },
         rows: {
           type: "array",
-          description: "One per job: { jobNumber, jobName, entriesByDay: { 'YYYY-MM-DD': [{ hours, comment }] } } — each booking becomes one Roar entry.",
+          description: "One per job: { jobNumber, jobName, entriesByDay: { 'YYYY-MM-DD': [{ hours, comment }] }, workcode? } — each booking becomes one Roar entry.",
           items: { type: "object" },
         },
-        dryRun: { type: "boolean", description: "Only verify each job resolves in Roar; do not add rows or entries." },
+        managedJobs: {
+          type: "array",
+          description: "Job numbers Zeff is the source of truth for; their Roar entries not in Zeff are zeroed. Empty = only add (e.g. a reporter-filtered export).",
+          items: { type: "string" },
+        },
+        dryRun: { type: "boolean", description: "Read Roar and list the changes a fill would make, without saving anything." },
       },
       required: ["weekStartIso", "rows"],
     },

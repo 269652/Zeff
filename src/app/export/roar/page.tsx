@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
+import { PersistentDetails } from "@/components/PersistentDetails";
 import { RoarExportControls } from "@/components/RoarExportControls";
 import { RoarWorkcodesForm } from "@/components/RoarWorkcodesForm";
 import { formatHours } from "@/lib/format";
 import { listJobs } from "@/lib/jobs";
 import { getReportSettings, getRoarWorkcodes } from "@/lib/report";
 import { getRoarExportPlan } from "@/lib/roar";
+import { getUiOpen } from "@/lib/ui-state";
 import { currentWeek, formatWeekRange, resolveWeek } from "@/lib/week";
 
 export const metadata: Metadata = { title: "Export to Roar" };
@@ -23,6 +25,7 @@ export default async function RoarExportPage({
   const plan = getRoarExportPlan(week, { reportedBy: by });
   const jobOptions = listJobs().map((j) => ({ number: j.number, name: j.name }));
   const roarWorkcodes = getRoarWorkcodes(getReportSettings());
+  const ui = await getUiOpen();
 
   return (
     <div className="space-y-6">
@@ -102,8 +105,8 @@ export default async function RoarExportPage({
           0.1-hour increments. This pushes <span className="tabular-nums font-medium">{plan.entryCount}</span>{" "}
           {plan.entryCount === 1 ? "entry" : "entries"} across {plan.rows.length}{" "}
           {plan.rows.length === 1 ? "job" : "jobs"}; a cell shows the day total, with <span className="text-zinc-500">×n</span>{" "}
-          when it holds several entries. Future days are locked by Roar and skipped, and a cell that already has hours is
-          left untouched. Jobs are matched by number (e.g. <code className="code">AB123-000001-00</code>).
+          when it holds several entries. Future days are locked by Roar and skipped. Jobs are matched by number (e.g.{" "}
+          <code className="code">AB123-000001-00</code>).
         </p>
       </section>
 
@@ -116,19 +119,21 @@ export default async function RoarExportPage({
           </li>
           <li><strong>Check Roar connection</strong> to confirm the automation can attach.</li>
           <li>
-            <strong>Dry run</strong> verifies every job resolves in Roar. Then <strong>Fill in Roar</strong> enters the
-            hours — it stops there so you review and save in the Roar window (it never submits for you).
+            <strong>Dry run</strong> reads Roar and lists every change a fill would make, without saving. Then{" "}
+            <strong>Fill in Roar</strong> applies them — you review and Submit in the Roar window (it never submits for
+            you).
           </li>
           <li>
-            <strong>Safe to rerun:</strong> a cell that already matches Zeff is left untouched and only empty cells are
-            filled, so nothing duplicates. To redo a wrong cell, clear it in Roar, then <strong>Fill in Roar</strong> again.
+            <strong>Safe to rerun — Roar follows Zeff entry by entry:</strong> matching entries stay, a changed duration is
+            updated, a missing booking is added, and an entry Zeff no longer has (e.g. a meeting moved to another job) is
+            set to 0 h. That clean-up only touches jobs that exist in Zeff, on days you tracked in Zeff{by ? " — and not on this reporter-filtered export, which only adds" : ""}.
           </li>
         </ol>
         {plan.rows.length > 0 && <RoarExportControls week={week.key} by={by} />}
       </section>
 
       <section className="card p-4">
-        <details className="group">
+        <PersistentDetails name="roar-workcodes" ui={ui} className="group">
           <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-zinc-500 uppercase [&::-webkit-details-marker]:hidden">
             <span className="text-zinc-400 transition-transform group-open:rotate-90">▸</span>
             Roar WorkCode per job
@@ -141,7 +146,7 @@ export default async function RoarExportPage({
             </p>
             <RoarWorkcodesForm jobs={jobOptions} current={roarWorkcodes} />
           </div>
-        </details>
+        </PersistentDetails>
       </section>
     </div>
   );

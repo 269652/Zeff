@@ -2,9 +2,11 @@
 
 import { useActionState } from "react";
 import { importJiraAction, syncJiraAction, type ActionState } from "@/app/actions";
+import type { UiOpenState } from "@/lib/ui-state-shared";
+import { PersistentDetails } from "./PersistentDetails";
 import { SubmitButton } from "./SubmitButton";
 
-export function JiraSyncControls({ configured }: { configured: boolean }) {
+export function JiraSyncControls({ configured, ui }: { configured: boolean; ui: UiOpenState }) {
   const [syncState, sync] = useActionState<ActionState, FormData>(syncJiraAction, null);
   const [importState, imp] = useActionState<ActionState, FormData>(importJiraAction, null);
   return (
@@ -22,7 +24,7 @@ export function JiraSyncControls({ configured }: { configured: boolean }) {
         {syncState?.ok && <span className="text-sm text-emerald-600 dark:text-emerald-400">{syncState.message}</span>}
       </div>
 
-      <details className="text-sm">
+      <PersistentDetails name="jira-paste" ui={ui} className="text-sm">
         <summary className="cursor-pointer text-zinc-500">Paste issues JSON (no server needed)</summary>
         <form action={imp} className="mt-2 space-y-2">
           <textarea
@@ -37,7 +39,7 @@ export function JiraSyncControls({ configured }: { configured: boolean }) {
             {importState?.ok && <span className="text-sm text-emerald-600 dark:text-emerald-400">{importState.message}</span>}
           </div>
         </form>
-      </details>
+      </PersistentDetails>
     </div>
   );
 }

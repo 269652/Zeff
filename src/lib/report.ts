@@ -151,6 +151,8 @@ export type ReportLineEntry = {
   ticket: string | null;
   type: EntryType;
   tags: TagLite[];
+  jobNumber: string;
+  jobName: string;
 };
 
 export type ReportLine = {
@@ -192,7 +194,17 @@ function unionTags(entries: EntryWithJob[]): TagLite[] {
 }
 
 function toLineEntry(e: EntryWithJob): ReportLineEntry {
-  return { id: e.id, date: e.date, description: e.description, hours: e.hours, ticket: e.ticket, type: e.type, tags: e.tags };
+  return {
+    id: e.id,
+    date: e.date,
+    description: e.description,
+    hours: e.hours,
+    ticket: e.ticket,
+    type: e.type,
+    tags: e.tags,
+    jobNumber: e.job.number,
+    jobName: e.job.name,
+  };
 }
 
 /** Flatten an entry into the shape the rules match on (job + Jira ticket title lifted in). */

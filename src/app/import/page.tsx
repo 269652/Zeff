@@ -8,6 +8,7 @@ import { DeviceCodeConnect } from "@/components/DeviceCodeConnect";
 import { HashIngest } from "@/components/HashIngest";
 import { MeetingImportForm } from "@/components/MeetingImportForm";
 import { PasteEventsForm } from "@/components/PasteEventsForm";
+import { PersistentDetails } from "@/components/PersistentDetails";
 import { SubmitButton } from "@/components/SubmitButton";
 import { buildBookmarklet, buildCopyBookmarklet } from "@/lib/calendar/bookmarklet";
 import { externalIdOf, planImport, type ExclusionReason } from "@/lib/calendar/meetings";
@@ -16,6 +17,8 @@ import { findImportedExternalIds } from "@/lib/entries";
 import { errorMessage } from "@/lib/errors";
 import { listJobs } from "@/lib/jobs";
 import { getMeetingJobRules, getReportSettings } from "@/lib/report";
+import { getUiOpen } from "@/lib/ui-state";
+import type { UiOpenState } from "@/lib/ui-state-shared";
 import { currentWeek, formatWeekRange, resolveWeek, shiftWeek } from "@/lib/week";
 
 export const metadata: Metadata = { title: "Import meetings" };
@@ -49,6 +52,7 @@ export default async function ImportPage({
 
   const prev = shiftWeek(week, -1);
   const next = shiftWeek(week, 1);
+  const ui = await getUiOpen();
 
   return (
     <div className="space-y-6">
@@ -86,6 +90,7 @@ export default async function ImportPage({
         ingestUrl={ingestUrl}
         inboxCount={status.inboxCount}
         fixture={status.fixture}
+        ui={ui}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -117,12 +122,14 @@ function LoadFromOutlook({
   ingestUrl,
   inboxCount,
   fixture,
+  ui,
 }: {
   bookmarklet: string;
   copyBookmarklet: string;
   ingestUrl: string;
   inboxCount: number;
   fixture: boolean;
+  ui: UiOpenState;
 }) {
   return (
     <section className="card space-y-4 p-4">
@@ -154,7 +161,7 @@ function LoadFromOutlook({
         <li>Come back here — the meetings show up below to review and book. Repeat per week.</li>
       </ol>
 
-      <details className="text-sm">
+      <PersistentDetails name="import-paste" ui={ui} className="text-sm">
         <summary className="cursor-pointer text-zinc-500">Bookmarklet blocked or offline? Use copy &amp; paste</summary>
         <div className="mt-3 space-y-3">
           <p className="text-zinc-500">
@@ -166,14 +173,14 @@ function LoadFromOutlook({
             The bookmarklet posts to <code className="code">{ingestUrl}</code>.
           </p>
         </div>
-      </details>
+      </PersistentDetails>
 
-      <details className="text-sm">
+      <PersistentDetails name="import-signin" ui={ui} className="text-sm">
         <summary className="cursor-pointer text-zinc-500">Have a Microsoft app registration? Sign in directly</summary>
         <div className="mt-3">
           <DeviceCodeConnect />
         </div>
-      </details>
+      </PersistentDetails>
     </section>
   );
 }
