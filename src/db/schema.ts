@@ -171,6 +171,8 @@ export const reportSettings = sqliteTable("report_settings", {
   meetingJobRules: text("meeting_job_rules"),
   /** JSON map {jobNumber: chronoWorkCode}: force a Chrono WorkCode for a job on export (e.g. Abwesenheit → ABSENCE). */
   chronoWorkcodes: text("chrono_workcodes"),
+  /** JSON {startTime,workdayHours,breakMinutes}: the default Punch work day used by the Punch export. */
+  punchConfig: text("punch_config"),
   updatedAt: text("updated_at")
     .notNull()
     .default(sql`(CURRENT_TIMESTAMP)`),

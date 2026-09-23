@@ -1,0 +1,1 @@
+ALTER TABLE `report_settings` ADD `punch_config` text;

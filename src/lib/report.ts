@@ -3,6 +3,7 @@ import { getDb, schema } from "@/db";
 import type { EntryType, ReportSettings } from "@/db/schema";
 import type { MeetingJobRule } from "./calendar/meetings";
 import { listEntries, type EntryWithJob } from "./entries";
+import { DEFAULT_PUNCH_CONFIG, type PunchConfig } from "./punch";
 import { round2 } from "./format";
 import { ValidationError } from "./errors";
 import { getTicketSummaries } from "./jira/store";
@@ -89,10 +90,33 @@ export function parseChronoWorkcodes(json: string | null | undefined): Record<st
   }
 }
 
+/** The default Punch work day (start/hours/break) used by the Punch export. */
+export function getPunchConfig(s: ReportSettings): PunchConfig {
+  return parsePunchConfig(s.punchConfig);
+}
+
+export function parsePunchConfig(json: string | null | undefined): PunchConfig {
+  if (!json) return { ...DEFAULT_PUNCH_CONFIG };
+  try {
+    const raw = JSON.parse(json) as Partial<PunchConfig>;
+    const startTime = /^\d{1,2}:\d{2}$/.test(String(raw?.startTime ?? "")) ? String(raw.startTime) : DEFAULT_PUNCH_CONFIG.startTime;
+    const workdayHours = Number(raw?.workdayHours);
+    const breakMinutes = Number(raw?.breakMinutes);
+    return {
+      startTime,
+      workdayHours: Number.isFinite(workdayHours) && workdayHours > 0 && workdayHours <= 24 ? workdayHours : DEFAULT_PUNCH_CONFIG.workdayHours,
+      breakMinutes: Number.isFinite(breakMinutes) && breakMinutes >= 0 && breakMinutes < 600 ? breakMinutes : DEFAULT_PUNCH_CONFIG.breakMinutes,
+    };
+  } catch {
+    return { ...DEFAULT_PUNCH_CONFIG };
+  }
+}
+
 export function updateReportSettings(patch: {
   rules?: ReportRule[];
   meetingJobRules?: MeetingJobRule[];
   chronoWorkcodes?: Record<string, string>;
+  punchConfig?: PunchConfig;
 }): ReportSettings {
   if (patch.rules !== undefined) {
     const err = validateRules(patch.rules);
@@ -105,6 +129,7 @@ export function updateReportSettings(patch: {
       ...(patch.rules !== undefined && { rules: JSON.stringify(patch.rules) }),
       ...(patch.meetingJobRules !== undefined && { meetingJobRules: JSON.stringify(patch.meetingJobRules) }),
       ...(patch.chronoWorkcodes !== undefined && { chronoWorkcodes: JSON.stringify(patch.chronoWorkcodes) }),
+      ...(patch.punchConfig !== undefined && { punchConfig: JSON.stringify(patch.punchConfig) }),
       updatedAt: new Date().toISOString(),
     })
     .where(eq(reportSettings.id, 1))

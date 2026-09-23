@@ -659,3 +659,63 @@ export async function saveChronoWorkcodesAction(_prev: ActionState, fd: FormData
     return { ok: false, error: errorMessage(err) };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Punch (attendance) export — Playwright MCP over the same debug Chrome
+// ---------------------------------------------------------------------------
+
+async function callPunch(tool: "punch_status" | "punch_export", args: Record<string, unknown>): Promise<string> {
+  const path = await import("node:path");
+  const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
+  const script = path.join(process.cwd(), "scripts", "punch-mcp.mjs");
+  const out = await runStdioSession(
+    { command: process.execPath, args: [script], env: {} },
+    async (call) => resultToPayload(await call(tool, args)),
+    240000,
+  );
+  return typeof out === "string" ? out : JSON.stringify(out);
+}
+
+export async function punchStatusAction(): Promise<ActionState> {
+  try {
+    return { ok: true, message: await callPunch("punch_status", {}) };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+export async function savePunchConfigAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { updateReportSettings } = await import("@/lib/report");
+  try {
+    const startTime = (str(fd, "startTime") ?? "").trim();
+    updateReportSettings({
+      punchConfig: {
+        startTime: /^\d{1,2}:\d{2}$/.test(startTime) ? startTime : "08:00",
+        workdayHours: num(fd, "workdayHours") ?? 8,
+        breakMinutes: num(fd, "breakMinutes") ?? 30,
+      },
+    });
+    revalidateAll();
+    return { ok: true, message: "Punch work day saved." };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+export async function exportToPunchAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { resolveWeek } = await import("@/lib/week");
+  const week = resolveWeek(str(fd, "week"));
+  if (!week) return { ok: false, error: "Could not read the week." };
+  const dryRun = fd.get("dryRun") === "on";
+  const fillGaps = fd.get("fillGaps") === "on";
+  const { getPunchExportPlan, toPunchPayload } = await import("@/lib/punch");
+  const { getReportSettings, getPunchConfig } = await import("@/lib/report");
+  const plan = getPunchExportPlan(week, getPunchConfig(getReportSettings()), { reportedBy: str(fd, "by"), fillGaps });
+  if (plan.days.length === 0) return { ok: false, error: "Nothing to record (no bookings; turn on gap-fill for default days)." };
+  try {
+    const msg = await callPunch("punch_export", { ...toPunchPayload(plan), dryRun });
+    return { ok: true, message: msg };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}

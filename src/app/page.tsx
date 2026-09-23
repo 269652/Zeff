@@ -97,6 +97,12 @@ export default async function WeekPage({
             >
               Export to Chrono →
             </Link>
+            <Link
+              href={`/export/punch?week=${week.key}${by ? `&by=${encodeURIComponent(by)}` : ""}`}
+              className="btn btn-sm"
+            >
+              Export to Punch →
+            </Link>
           </div>
         </div>
         <ReportView report={rewritten} text={reportText} today={today} />
