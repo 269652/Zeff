@@ -4,7 +4,15 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { deleteConnection } from "@/lib/calendar/microsoft";
-import { createEntry, deleteEntry, getJobNumberForTicket, requireEntry, updateEntry } from "@/lib/entries";
+import {
+  applyTypeRulesToEntries,
+  createEntry,
+  deleteEntry,
+  getJobNumberForTicket,
+  reapplyMeetingJobRules,
+  requireEntry,
+  updateEntry,
+} from "@/lib/entries";
 import { errorMessage } from "@/lib/errors";
 import { formatHours } from "@/lib/format";
 import { createJob, deleteJob, updateJob } from "@/lib/jobs";
@@ -18,7 +26,7 @@ function tagsFrom(fd: FormData): string[] {
 
 function entryTypeFrom(fd: FormData): EntryType | undefined {
   const t = str(fd, "type");
-  return t === "ticket" || t === "meeting" || t === "other" ? t : undefined;
+  return t === "ticket" || t === "meeting" || t === "other" || t === "absence" || t === "internal" ? t : undefined;
 }
 
 function str(fd: FormData, key: string): string | undefined {
@@ -516,11 +524,90 @@ export async function saveReportSettingsAction(_prev: ActionState, fd: FormData)
 
 export async function saveMeetingJobRulesAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const { updateReportSettings, parseMeetingJobRules } = await import("@/lib/report");
+  const { listJobs } = await import("@/lib/jobs");
   try {
     const rules = parseMeetingJobRules(str(fd, "meetingJobRules") ?? null);
-    updateReportSettings({ meetingJobRules: rules });
+    const defaultJob = str(fd, "meetingDefaultJob") ?? null;
+    if (defaultJob && !listJobs({ includeInactive: true }).some((j) => j.number === defaultJob)) {
+      return { ok: false, error: `Unknown job ${defaultJob}.` };
+    }
+    updateReportSettings({ meetingJobRules: rules, meetingDefaultJob: defaultJob });
+    // "Save & reapply" (apply=1): also re-book already imported meetings that match a rule.
+    const moves = fd.get("apply") === "1" ? reapplyMeetingJobRules(rules) : null;
     revalidateAll();
-    return { ok: true, message: `Saved ${rules.length} meeting rule${rules.length === 1 ? "" : "s"}.` };
+    const saved = `Saved ${rules.length} meeting rule${rules.length === 1 ? "" : "s"}`;
+    if (moves === null) return { ok: true, message: `${saved}.` };
+    const shown = moves
+      .slice(0, 5)
+      .map((m) => `${m.date.slice(8)}.${m.date.slice(5, 7)}. “${m.description}” → ${m.to}`)
+      .join("; ");
+    return {
+      ok: true,
+      message:
+        `${saved}; moved ${moves.length} imported meeting${moves.length === 1 ? "" : "s"}` +
+        (moves.length ? `: ${shown}${moves.length > 5 ? "; …" : ""}.` : "."),
+    };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/**
+ * Exclude / Include toggle on the import page: excluding adds the meeting's title as an
+ * exclude rule (unless one already matches it); including removes every rule matching it.
+ * Returns the resulting rules so the page can re-check its other meetings.
+ */
+export async function setMeetingExcludedAction(
+  title: string,
+  exclude: boolean,
+): Promise<{ ok: boolean; error?: string; rules?: string[] }> {
+  const { getMeetingExcludeRules, getReportSettings, updateReportSettings } = await import("@/lib/report");
+  const { isExcludedMeeting } = await import("@/lib/calendar/meetings");
+  const t = (title ?? "").trim();
+  if (!t) return { ok: false, error: "The meeting has no title." };
+  try {
+    const rules = getMeetingExcludeRules(getReportSettings());
+    const next = exclude
+      ? isExcludedMeeting(t, rules) ? rules : [...rules, t]
+      : rules.filter((r) => !isExcludedMeeting(t, [r]));
+    updateReportSettings({ meetingExcludeRules: next });
+    revalidateAll();
+    return { ok: true, rules: next };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** Save the entry type rules; the "Save & apply" button (apply=1) also re-types existing entries. */
+export async function saveTypeRulesAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { updateReportSettings } = await import("@/lib/report");
+  const { parseTypeRules } = await import("@/lib/type-rules-shared");
+  const { listJobs } = await import("@/lib/jobs");
+  try {
+    const rules = parseTypeRules(str(fd, "typeRules") ?? null);
+    const known = new Set(listJobs({ includeInactive: true }).map((j) => j.number));
+    const unknown = rules.find((r) => r.jobNumber && !known.has(r.jobNumber));
+    if (unknown) return { ok: false, error: `Unknown job ${unknown.jobNumber}.` };
+    updateReportSettings({ typeRules: rules });
+    const applied = fd.get("apply") === "1" ? applyTypeRulesToEntries() : null;
+    revalidateAll();
+    const saved = `Saved ${rules.length} type rule${rules.length === 1 ? "" : "s"}`;
+    return {
+      ok: true,
+      message: applied === null ? `${saved}.` : `${saved}; re-typed ${applied} existing entr${applied === 1 ? "y" : "ies"}.`,
+    };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+export async function saveMeetingExcludeRulesAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const { parseMeetingExcludeRules, updateReportSettings } = await import("@/lib/report");
+  try {
+    const rules = parseMeetingExcludeRules(str(fd, "meetingExcludeRules") ?? null);
+    updateReportSettings({ meetingExcludeRules: rules });
+    revalidateAll();
+    return { ok: true, message: `Saved ${rules.length} exclude rule${rules.length === 1 ? "" : "s"}.` };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -623,7 +710,7 @@ async function callChrono(tool: "chrono_status" | "chrono_export", args: Record<
   const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
   const script = path.join(process.cwd(), "scripts", "chrono-mcp.mjs");
   const out = await runStdioSession(
-    { command: process.execPath, args: [script], env: {} },
+    { command: process.execPath, args: [script], env: {}, label: "Chrono export" },
     async (call) => resultToPayload(await call(tool, args)),
     180000,
   );
@@ -686,7 +773,7 @@ async function callPunch(tool: "punch_status" | "punch_export", args: Record<str
   const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
   const script = path.join(process.cwd(), "scripts", "punch-mcp.mjs");
   const out = await runStdioSession(
-    { command: process.execPath, args: [script], env: {} },
+    { command: process.execPath, args: [script], env: {}, label: "Punch export" },
     async (call) => resultToPayload(await call(tool, args)),
     240000,
   );

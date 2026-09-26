@@ -1,0 +1,1 @@
+ALTER TABLE `report_settings` ADD `meeting_default_job` text;

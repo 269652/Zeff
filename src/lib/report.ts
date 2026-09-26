@@ -18,6 +18,7 @@ import {
   type RuleEntry,
 } from "./report-shared";
 import type { TagLite } from "./tags-shared";
+import type { TypeRule } from "./type-rules-shared";
 import { isoDate, type WeekInfo } from "./week";
 
 const { reportSettings } = schema;
@@ -53,6 +54,30 @@ export function getReportSettings(): ReportSettings {
 /** Stored meeting→job rules (auto-assign a job to an imported meeting by its title). */
 export function getMeetingJobRules(s: ReportSettings): MeetingJobRule[] {
   return parseMeetingJobRules(s.meetingJobRules);
+}
+
+/** Job for imported meetings that no meeting→job rule matches (null = the first job). */
+export function getMeetingDefaultJob(s: ReportSettings): string | null {
+  return s.meetingDefaultJob?.trim() || null;
+}
+
+/** Title substrings whose imported meetings start unchecked (see isExcludedMeeting). */
+export function getMeetingExcludeRules(s: ReportSettings): string[] {
+  return parseMeetingExcludeRules(s.meetingExcludeRules);
+}
+
+export function parseMeetingExcludeRules(json: string | null | undefined): string[] {
+  if (!json) return [];
+  try {
+    const raw = JSON.parse(json);
+    if (!Array.isArray(raw)) return [];
+    const seen = new Set<string>();
+    return raw
+      .map((r) => String(r ?? "").trim())
+      .filter((r) => r && !seen.has(r.toLowerCase()) && seen.add(r.toLowerCase()));
+  } catch {
+    return [];
+  }
 }
 
 export function parseMeetingJobRules(json: string | null | undefined): MeetingJobRule[] {
@@ -117,6 +142,9 @@ export function parsePunchConfig(json: string | null | undefined): PunchConfig {
 export function updateReportSettings(patch: {
   rules?: ReportRule[];
   meetingJobRules?: MeetingJobRule[];
+  meetingDefaultJob?: string | null;
+  meetingExcludeRules?: string[];
+  typeRules?: TypeRule[];
   chronoWorkcodes?: Record<string, string>;
   punchConfig?: PunchConfig;
 }): ReportSettings {
@@ -130,6 +158,9 @@ export function updateReportSettings(patch: {
     .set({
       ...(patch.rules !== undefined && { rules: JSON.stringify(patch.rules) }),
       ...(patch.meetingJobRules !== undefined && { meetingJobRules: JSON.stringify(patch.meetingJobRules) }),
+      ...(patch.meetingDefaultJob !== undefined && { meetingDefaultJob: patch.meetingDefaultJob || null }),
+      ...(patch.meetingExcludeRules !== undefined && { meetingExcludeRules: JSON.stringify(patch.meetingExcludeRules) }),
+      ...(patch.typeRules !== undefined && { typeRules: JSON.stringify(patch.typeRules) }),
       ...(patch.chronoWorkcodes !== undefined && { chronoWorkcodes: JSON.stringify(patch.chronoWorkcodes) }),
       ...(patch.punchConfig !== undefined && { punchConfig: JSON.stringify(patch.punchConfig) }),
       updatedAt: new Date().toISOString(),
@@ -282,6 +313,52 @@ export function getRewrittenReport(week: WeekInfo, filter: { reportedBy?: string
   }
 
   return { week, days, total: round2(days.reduce((a, d) => a + d.total, 0)), settings, filter };
+}
+
+/** One rewritten report line's share for a single job on a day (see getRewrittenJobLines). */
+export type RewrittenJobLine = {
+  date: string;
+  jobNumber: string;
+  jobName: string;
+  /** The line's label as the report rules render it, e.g. "Meetings" or "PROJ-401: <Jira title>". */
+  label: string;
+  /** Summed hours of the merged entries (unrounded). */
+  hours: number;
+  /** How many entries merged into it. */
+  count: number;
+  /** The first entry — a fallback for labels that render empty. */
+  first: { ticket: string | null; description: string };
+};
+
+/**
+ * The week as the report rewrites it, split per job: one item per day × job × report
+ * group, labelled by the same rules as the Report view. Timesheets book per job, so a
+ * "Meetings" line spanning two jobs becomes one "Meetings" item for each.
+ */
+export function getRewrittenJobLines(week: WeekInfo, filter: { reportedBy?: string } = {}): RewrittenJobLine[] {
+  const rules = getReportRules(getReportSettings());
+  const summaries = getTicketSummaries();
+  const entries = listEntries({ from: week.startIso, to: week.endIso, reportedBy: filter.reportedBy });
+  const groups = new Map<string, { e: EntryWithJob; rule: ReportRule; re: RuleEntry; hours: number; count: number }>();
+  // listEntries is newest first; go oldest first so each day's lines read chronologically.
+  for (const e of [...entries].reverse()) {
+    const re = toRuleEntry(e, summaries);
+    const rule = matchedRule(rules, re);
+    const key = `${e.date}|${e.job.number}|${reportGroupKey(rule, re, e.id)}`;
+    const g = groups.get(key) ?? { e, rule, re, hours: 0, count: 0 };
+    g.hours = round2(g.hours + e.hours);
+    g.count += 1;
+    groups.set(key, g);
+  }
+  return [...groups.values()].map(({ e, rule, re, hours, count }) => ({
+    date: e.date,
+    jobNumber: e.job.number,
+    jobName: e.job.name,
+    label: reportGroupLabel(rule, re, count).trim(),
+    hours,
+    count,
+    first: { ticket: e.ticket, description: e.description },
+  }));
 }
 
 /** Plain-text rendering for copy/paste into a timesheet. */

@@ -37,7 +37,8 @@ var labels=[].slice.call(document.querySelectorAll("[aria-label]"));
 for(var i=0;i<labels.length;i++){
   var l=labels[i].getAttribute("aria-label");
   if(!l||l.length>400||!/(\d{1,2}:\d{2}\s*(?:bis|to)|ganztä|all day)/i.test(l))continue;
-  var ev=parseLabel(l); if(!ev)continue;
+  if(/Arbeitsort|Working location/i.test(l))continue;
+  var ev=parseLabel(l); if(!ev||/^\d{1,2}:\d{2}/.test(ev.subject))continue;
   if(seen[ev.id])continue; seen[ev.id]=1; events.push(ev);
 }
 `;

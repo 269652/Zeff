@@ -15,6 +15,7 @@ import { getRewrittenReport, reportToText } from "@/lib/report";
 import { getEntryTicketSuggestions } from "@/lib/ticket-suggestions";
 import { getWeekTargets } from "@/lib/schedule";
 import { listTags } from "@/lib/tags";
+import { getTypeRules } from "@/lib/type-rules";
 import { getUiOpen } from "@/lib/ui-state";
 import { currentWeek, resolveWeek, todayIso } from "@/lib/week";
 
@@ -86,6 +87,7 @@ export default async function WeekPage({
           defaults={{ date: defaultDate }}
           allTags={allTags}
           ticketSuggestions={ticketSuggestions}
+          typeRules={getTypeRules()}
         />
       </section>
 

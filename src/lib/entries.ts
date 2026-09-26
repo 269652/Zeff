@@ -1,11 +1,14 @@
 import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { EntryType, Job, TimeEntry } from "@/db/schema";
+import { jobForMeeting, type BookedEntry, type MeetingJobRule } from "./calendar/meetings";
 import { NotFoundError, ValidationError } from "./errors";
 import { round2 } from "./format";
 import { requireJobByNumber } from "./jobs";
 import { getOrCreateTags, getTagsForEntries, setEntryTags } from "./tags";
 import { dedupeTags, extractHashtags, type TagLite } from "./tags-shared";
+import { getTypeRules } from "./type-rules";
+import { inferType } from "./type-rules-shared";
 import {
   formatZodError,
   timeEntryInputSchema,
@@ -101,7 +104,9 @@ export function createEntry(
   // Move any #tags in the description into the tag list, cleaning the text.
   const { text: description, tags: hashTags } = extractHashtags(input.description);
   const tagNames = dedupeTags([...(input.tags ?? []), ...hashTags]);
-  const type: EntryType = input.type ?? defaultType(input.ticket, source);
+  // No explicit type (agents, imports): the type rules decide, else the source/ticket default.
+  const type: EntryType =
+    input.type ?? inferType(getTypeRules(), { jobNumber: job.number, description }) ?? defaultType(input.ticket, source);
 
   const inserted = getDb()
     .insert(timeEntries)
@@ -122,6 +127,53 @@ export function createEntry(
     setEntryTags(inserted.id, getOrCreateTags(tagNames).map((t) => t.id));
   }
   return requireEntry(inserted.id);
+}
+
+/**
+ * Re-book imported meetings (source "calendar") whose description matches a meeting→job
+ * rule onto that rule's job. Meetings no rule matches keep their job (it may have been
+ * picked by hand on import). Returns the moves.
+ */
+export function reapplyMeetingJobRules(
+  rules: MeetingJobRule[],
+): { id: number; date: string; description: string; from: string; to: string }[] {
+  if (rules.length === 0) return [];
+  const db = getDb();
+  const rows = db
+    .select({ id: timeEntries.id, date: timeEntries.date, description: timeEntries.description, jobNumber: jobs.number })
+    .from(timeEntries)
+    .innerJoin(jobs, eq(jobs.id, timeEntries.jobId))
+    .where(eq(timeEntries.source, "calendar"))
+    .all();
+  const moves: { id: number; date: string; description: string; from: string; to: string }[] = [];
+  for (const r of rows) {
+    const target = jobForMeeting(r.description, rules);
+    if (!target || target === r.jobNumber) continue;
+    const job = requireJobByNumber(target);
+    db.update(timeEntries).set({ jobId: job.id, updatedAt: sql`(CURRENT_TIMESTAMP)` }).where(eq(timeEntries.id, r.id)).run();
+    moves.push({ id: r.id, date: r.date, description: r.description, from: r.jobNumber, to: target });
+  }
+  return moves;
+}
+
+/** Re-type existing entries by the saved type rules; returns how many changed. */
+export function applyTypeRulesToEntries(): number {
+  const rules = getTypeRules();
+  if (rules.length === 0) return 0;
+  const db = getDb();
+  const rows = db
+    .select({ id: timeEntries.id, type: timeEntries.type, description: timeEntries.description, jobNumber: jobs.number })
+    .from(timeEntries)
+    .innerJoin(jobs, eq(jobs.id, timeEntries.jobId))
+    .all();
+  let changed = 0;
+  for (const r of rows) {
+    const type = inferType(rules, r);
+    if (!type || type === r.type) continue;
+    db.update(timeEntries).set({ type, updatedAt: sql`(CURRENT_TIMESTAMP)` }).where(eq(timeEntries.id, r.id)).run();
+    changed++;
+  }
+  return changed;
 }
 
 function defaultType(ticket: string | undefined, source: TimeEntry["source"]): EntryType {
@@ -178,15 +230,20 @@ export function deleteEntry(id: number): EntryWithJob {
   return entry;
 }
 
-/** Which of the given calendar event ids already have a time entry. */
-export function findImportedExternalIds(ids: string[]): Set<string> {
-  if (ids.length === 0) return new Set();
-  const rows = getDb()
-    .select({ externalId: timeEntries.externalId })
+/** The entries booked on these days — what calendar meetings are matched against (see findBookedMeetings). */
+export function listBookedOnDates(dates: string[]): BookedEntry[] {
+  if (dates.length === 0) return [];
+  return getDb()
+    .select({
+      id: timeEntries.id,
+      date: timeEntries.date,
+      description: timeEntries.description,
+      type: timeEntries.type,
+      externalId: timeEntries.externalId,
+    })
     .from(timeEntries)
-    .where(inArray(timeEntries.externalId, ids))
+    .where(inArray(timeEntries.date, [...new Set(dates)]))
     .all();
-  return new Set(rows.map((r) => r.externalId).filter((x): x is string => x !== null));
 }
 
 /**

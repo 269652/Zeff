@@ -17,7 +17,7 @@ export const jobNumberSchema = z
   .min(1, "Job number is required")
   .max(64, "Job number is too long");
 
-export const entryTypeSchema = z.enum(["ticket", "meeting", "other"]);
+export const entryTypeSchema = z.enum(["ticket", "meeting", "other", "absence", "internal"]);
 
 export const tagNamesSchema = z.array(z.string().trim().min(1).max(40)).max(20);
 

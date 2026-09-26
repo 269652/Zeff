@@ -2,11 +2,14 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import { deleteAbsenceAction } from "@/app/actions";
 import { AbsenceForm } from "@/components/AbsenceForm";
+import { MeetingExcludeRulesForm } from "@/components/MeetingExcludeRulesForm";
 import { MeetingJobRulesForm } from "@/components/MeetingJobRulesForm";
 import { ReportSettingsForm } from "@/components/ReportSettingsForm";
 import { ScheduleForm } from "@/components/ScheduleForm";
 import { SubmitButton } from "@/components/SubmitButton";
-import { getMeetingJobRules, getReportRules, getReportSettings } from "@/lib/report";
+import { TypeRulesForm } from "@/components/TypeRulesForm";
+import { getTypeRules } from "@/lib/type-rules";
+import { getMeetingDefaultJob, getMeetingExcludeRules, getMeetingJobRules, getReportRules, getReportSettings } from "@/lib/report";
 import { listJobs } from "@/lib/jobs";
 import { listTags } from "@/lib/tags";
 import { formatHours } from "@/lib/format";
@@ -52,6 +55,17 @@ export default async function SettingsPage() {
 
       <section className="card space-y-3 p-4">
         <div>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Entry type rules</h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            Infer an entry&apos;s type (Ticket, Meeting, Internal, Other, Absence) from its job and description — e.g. job
+            Abwesenheit + “Urlaub” → Absence. Report rules and exports can then key off the type.
+          </p>
+        </div>
+        <TypeRulesForm initialRules={getTypeRules()} jobs={jobOptions} />
+      </section>
+
+      <section className="card space-y-3 p-4">
+        <div>
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">Report rewriting</h2>
           <p className="mt-1 text-sm text-zinc-500">
             Rules that rewrite and group the “Report” view on the weekly page — a condition on each
@@ -69,7 +83,23 @@ export default async function SettingsPage() {
             “Mob Programming” meeting on your Relaunch job.
           </p>
         </div>
-        <MeetingJobRulesForm initialRules={meetingJobRules} jobs={jobOptions} />
+        <MeetingJobRulesForm
+          initialRules={meetingJobRules}
+          initialDefaultJob={getMeetingDefaultJob(settings)}
+          jobs={jobOptions}
+        />
+      </section>
+
+      <section className="card space-y-3 p-4">
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Meeting exclude rules</h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            Imported meetings whose title contains one of these start unticked — for placeholders and reminders like
+            “Zeiten in Chrono Erfassen”. <strong>Exclude</strong> / <strong>Include</strong> next to a meeting on the import
+            page adds or removes it here.
+          </p>
+        </div>
+        <MeetingExcludeRulesForm initialRules={getMeetingExcludeRules(settings)} />
       </section>
 
       <section className="card space-y-4 p-4">

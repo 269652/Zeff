@@ -5,6 +5,8 @@ export const TYPE_STYLE: Record<EntryType, { bar: string; stroke: string; dot: s
   ticket: { bar: "bg-indigo-500", stroke: "stroke-indigo-500", dot: "bg-indigo-500", label: "Tickets" },
   meeting: { bar: "bg-violet-500", stroke: "stroke-violet-500", dot: "bg-violet-500", label: "Meetings" },
   other: { bar: "bg-zinc-400", stroke: "stroke-zinc-400", dot: "bg-zinc-400", label: "Other" },
+  absence: { bar: "bg-amber-400", stroke: "stroke-amber-400", dot: "bg-amber-400", label: "Absence" },
+  internal: { bar: "bg-emerald-500", stroke: "stroke-emerald-500", dot: "bg-emerald-500", label: "Internal" },
 };
 
 export type DonutSegment = { key: string; value: number; strokeClass: string };
