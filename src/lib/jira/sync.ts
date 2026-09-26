@@ -158,7 +158,7 @@ export async function syncFromJira(): Promise<SyncResult> {
       "Jira MCP sync is not configured. Set JIRA_MCP_COMMAND (and optionally JIRA_MCP_ARGS/JIRA_MCP_ENV/JIRA_JQL) in .env.local, or use Paste import.",
     );
   }
-  const config: McpStdioConfig = { command: cfg.command, args: cfg.args, env: cfg.env };
+  const config: McpStdioConfig = { command: cfg.command, args: cfg.args, env: cfg.env, label: "Jira MCP" };
   const normalize = (issues: unknown[]) =>
     issues.map((i) => normalizeIssue(i, cfg.baseUrl)).filter((t): t is NormalizedTicket => t !== null);
 
