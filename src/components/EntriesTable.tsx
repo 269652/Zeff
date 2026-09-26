@@ -27,7 +27,6 @@ export function EntriesTable({
             <th className="num">Hours</th>
             <th>Description</th>
             <th>Ticket</th>
-            <th>Source</th>
             <th></th>
           </tr>
         </thead>
@@ -57,11 +56,6 @@ export function EntriesTable({
                 )}
               </td>
               <td className="font-mono whitespace-nowrap">{e.ticket ?? ""}</td>
-              <td>
-                <span className={`badge badge-${e.source}`}>
-                  {e.source}
-                </span>
-              </td>
               <td className="whitespace-nowrap">
                 <div className="flex justify-end gap-1">
                   <CopyEntryButton entryId={e.id} date={e.date} />
