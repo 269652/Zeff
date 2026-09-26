@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { startTransition, useActionState, useState } from "react";
 import { saveReportSettingsAction, type ActionState } from "@/app/actions";
 import {
   ENTRY_TYPE_OPTIONS,
@@ -25,7 +25,7 @@ export function ReportSettingsForm({
   jobs: { number: string; name: string }[];
 }) {
   const [rules, setRules] = useState<ReportRule[]>(initialRules.length ? initialRules : defaultRules());
-  const [state, action] = useActionState<ActionState, FormData>(saveReportSettingsAction, null);
+  const [state, action, pending] = useActionState<ActionState, FormData>(saveReportSettingsAction, null);
 
   const setRule = (id: string, patch: Partial<ReportRule>) =>
     setRules((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -79,7 +79,16 @@ export function ReportSettingsForm({
   };
 
   return (
-    <form action={action} className="space-y-3">
+    <form
+      // Submitted by hand, not via `action`: React resets a form after an action, which snaps
+      // controlled selects back to the values they showed when the page loaded.
+      onSubmit={(e) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
+        startTransition(() => action(fd));
+      }}
+      className="space-y-3"
+    >
       <input type="hidden" name="rules" value={JSON.stringify(rules)} />
       <p className="text-xs text-zinc-500">
         Rules are tried top-down; the first whose conditions ALL match rewrites the entry&apos;s report line, and
@@ -159,7 +168,7 @@ export function ReportSettingsForm({
         <button type="button" className="btn btn-sm" onClick={reset}>
           Reset to defaults
         </button>
-        <SubmitButton className="btn btn-primary" pendingText="Saving…">
+        <SubmitButton className="btn btn-primary" pendingText="Saving…" pending={pending}>
           Save report rules
         </SubmitButton>
         {state?.error && <span className="text-sm text-red-600 dark:text-red-400">{state.error}</span>}

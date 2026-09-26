@@ -9,6 +9,7 @@ export function SubmitButton({
   confirm: confirmText,
   name,
   value,
+  pending: pendingProp,
 }: {
   children: React.ReactNode;
   pendingText?: string;
@@ -18,8 +19,11 @@ export function SubmitButton({
   /** Optional form field this button contributes when it is the one clicked. */
   name?: string;
   value?: string;
+  /** Pending state for forms submitted via onSubmit (useFormStatus only sees `action` submissions). */
+  pending?: boolean;
 }) {
-  const { pending } = useFormStatus();
+  const status = useFormStatus();
+  const pending = pendingProp ?? status.pending;
   return (
     <button
       type="submit"

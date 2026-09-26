@@ -11,7 +11,7 @@ import type { EntryType } from "@/db/schema";
  */
 export type RuleField = "type" | "tag" | "ticket" | "job";
 
-/** One condition on an entry. type: ticket|meeting|other · tag: tag name · ticket: key prefix · job: job number. */
+/** One condition on an entry. type: ticket|meeting|other|absence|internal · tag: tag name · ticket: key prefix · job: job number. */
 export type RuleCondition = { field: RuleField; value: string };
 
 export type ReportRule = {
@@ -47,9 +47,17 @@ export const ENTRY_TYPE_OPTIONS: { value: EntryType; label: string }[] = [
   { value: "ticket", label: "Ticket" },
   { value: "meeting", label: "Meeting" },
   { value: "other", label: "Other" },
+  { value: "absence", label: "Absence" },
+  { value: "internal", label: "Internal" },
 ];
 
-const TYPE_LABEL: Record<EntryType, string> = { ticket: "Ticket", meeting: "Meeting", other: "Other" };
+const TYPE_LABEL: Record<EntryType, string> = {
+  ticket: "Ticket",
+  meeting: "Meeting",
+  other: "Other",
+  absence: "Absence",
+  internal: "Internal",
+};
 
 export function newRuleId(): string {
   return Math.random().toString(36).slice(2, 9);

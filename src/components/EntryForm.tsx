@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import type { ActionState } from "@/app/actions";
 import type { EntryType } from "@/db/schema";
+import { inferType, type TypeRule } from "@/lib/type-rules-shared";
 import { TagInput } from "./TagInput";
 import { TicketCombobox } from "./TicketCombobox";
 
@@ -32,6 +33,8 @@ const TYPES: { value: EntryType; label: string }[] = [
   { value: "ticket", label: "Ticket" },
   { value: "meeting", label: "Meeting" },
   { value: "other", label: "Other" },
+  { value: "absence", label: "Absence" },
+  { value: "internal", label: "Internal" },
 ];
 
 export function EntryForm({
@@ -42,6 +45,7 @@ export function EntryForm({
   resetOnSuccess = true,
   allTags = [],
   ticketSuggestions = [],
+  typeRules = [],
 }: {
   jobs: EntryFormJob[];
   action: (prev: ActionState, fd: FormData) => Promise<ActionState>;
@@ -50,23 +54,49 @@ export function EntryForm({
   resetOnSuccess?: boolean;
   allTags?: string[];
   ticketSuggestions?: TicketSuggestionLite[];
+  /** Rules that infer the type from job + description (Settings → Entry type rules). */
+  typeRules?: TypeRule[];
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [state, setState] = useState<ActionState>(null);
   const [pending, startTransition] = useTransition();
 
+  /** The type an untouched entry gets: a matching type rule, else Ticket with a ticket, else Other. */
+  const autoType = (job: string, description: string, tk: string): EntryType =>
+    inferType(typeRules, { jobNumber: job, description }) ?? (tk.trim() ? "ticket" : "other");
+
   const initialJob = defaults.jobNumber ?? jobs[0]?.number ?? "";
-  const initialType: EntryType = defaults.type ?? (defaults.ticket ? "ticket" : "other");
+  const initialType: EntryType = defaults.type ?? autoType(initialJob, defaults.description ?? "", defaults.ticket ?? "");
   const [jobNumber, setJobNumber] = useState(initialJob);
   const [ticket, setTicket] = useState(defaults.ticket ?? "");
+  const [description, setDescription] = useState(defaults.description ?? "");
   const [type, setType] = useState<EntryType>(initialType);
+  // Once you pick a type yourself (or edit an existing entry), it stops following the rules.
+  const [typeTouched, setTypeTouched] = useState(!!defaults.type);
   const [tagKey, setTagKey] = useState(0);
+
+  const retype = (next: { job?: string; description?: string; ticket?: string }) => {
+    if (!typeTouched) setType(autoType(next.job ?? jobNumber, next.description ?? description, next.ticket ?? ticket));
+  };
+
+  function onJobChange(v: string) {
+    setJobNumber(v);
+    retype({ job: v });
+  }
 
   function onTicketChange(v: string) {
     setTicket(v);
     const match = ticketSuggestions.find((s) => s.ticket.toLowerCase() === v.trim().toLowerCase());
     if (match) setJobNumber(match.jobNumber); // reuse the ticket's job
-    if (v.trim() && type === "other") setType("ticket");
+    retype({ job: match?.jobNumber, ticket: v });
+  }
+
+  /** The description lives in TagInput; follow its textarea through the bubbling change event. */
+  function onFormChange(e: React.FormEvent<HTMLFormElement>) {
+    const el = e.target as HTMLTextAreaElement;
+    if (el.name !== "description") return;
+    setDescription(el.value);
+    retype({ description: el.value });
   }
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -79,7 +109,9 @@ export function EntryForm({
         formRef.current?.reset();
         setJobNumber(initialJob);
         setTicket(defaults.ticket ?? "");
+        setDescription(defaults.description ?? "");
         setType(initialType);
+        setTypeTouched(!!defaults.type);
         setTagKey((k) => k + 1);
       }
     });
@@ -95,10 +127,10 @@ export function EntryForm({
 
   return (
     <div className="space-y-2">
-      <form ref={formRef} onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-6">
+      <form ref={formRef} onSubmit={onSubmit} onChange={onFormChange} className="grid gap-3 sm:grid-cols-6">
         <div className="sm:col-span-2">
           <label className="label" htmlFor="jobNumber">Job</label>
-          <select id="jobNumber" name="jobNumber" className="input" value={jobNumber} onChange={(e) => setJobNumber(e.target.value)} required>
+          <select id="jobNumber" name="jobNumber" className="input" value={jobNumber} onChange={(e) => onJobChange(e.target.value)} required>
             {jobs.map((j) => (
               <option key={j.id} value={j.number}>
                 {j.number} — {j.name}{j.customer ? ` (${j.customer})` : ""}
@@ -108,7 +140,16 @@ export function EntryForm({
         </div>
         <div>
           <label className="label" htmlFor="type">Type</label>
-          <select id="type" name="type" className="input" value={type} onChange={(e) => setType(e.target.value as EntryType)}>
+          <select
+            id="type"
+            name="type"
+            className="input"
+            value={type}
+            onChange={(e) => {
+              setType(e.target.value as EntryType);
+              setTypeTouched(true);
+            }}
+          >
             {TYPES.map((t) => (
               <option key={t.value} value={t.value}>{t.label}</option>
             ))}

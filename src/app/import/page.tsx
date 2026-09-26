@@ -11,12 +11,12 @@ import { PasteEventsForm } from "@/components/PasteEventsForm";
 import { PersistentDetails } from "@/components/PersistentDetails";
 import { SubmitButton } from "@/components/SubmitButton";
 import { buildBookmarklet, buildCopyBookmarklet } from "@/lib/calendar/bookmarklet";
-import { externalIdOf, planImport, type ExclusionReason } from "@/lib/calendar/meetings";
+import { planImport, type ExclusionReason } from "@/lib/calendar/meetings";
 import { getCalendarStatus, getWeekEvents } from "@/lib/calendar/provider";
-import { findImportedExternalIds } from "@/lib/entries";
+import { listBookedOnDates } from "@/lib/entries";
 import { errorMessage } from "@/lib/errors";
 import { listJobs } from "@/lib/jobs";
-import { getMeetingJobRules, getReportSettings } from "@/lib/report";
+import { getMeetingDefaultJob, getMeetingExcludeRules, getMeetingJobRules, getReportSettings } from "@/lib/report";
 import { getUiOpen } from "@/lib/ui-state";
 import type { UiOpenState } from "@/lib/ui-state-shared";
 import { currentWeek, formatWeekRange, resolveWeek, shiftWeek } from "@/lib/week";
@@ -30,6 +30,7 @@ const REASON_LABEL: Record<ExclusionReason, string> = {
   "not-finished": "not finished yet",
   "outside-range": "outside the week",
   "too-long": "longer than a day",
+  "no-title": "without a title (working location)",
 };
 
 export default async function ImportPage({
@@ -190,14 +191,16 @@ async function Preview({ weekKey, from, to, reportedBy }: { weekKey: string; fro
   let plan;
   try {
     const events = await getWeekEvents(week);
-    const imported = findImportedExternalIds(events.map(externalIdOf));
-    plan = planImport(events, { from, to, now: new Date(), imported });
+    const booked = listBookedOnDates(events.map((e) => e.start.dateTime.slice(0, 10)));
+    const excludeRules = getMeetingExcludeRules(getReportSettings());
+    plan = planImport(events, { from, to, now: new Date(), booked, excludeRules });
   } catch (err) {
     return <p className="alert-error">Could not load the calendar: {errorMessage(err)}</p>;
   }
 
   const counts = new Map<ExclusionReason, number>();
   for (const x of plan.excluded) counts.set(x.reason, (counts.get(x.reason) ?? 0) + 1);
+  const settings = getReportSettings();
 
   return (
     <>
@@ -206,7 +209,8 @@ async function Preview({ weekKey, from, to, reportedBy }: { weekKey: string; fro
           weekKey={weekKey}
           meetings={plan.meetings}
           jobs={listJobs()}
-          jobRules={getMeetingJobRules(getReportSettings())}
+          jobRules={getMeetingJobRules(settings)}
+          otherMeetingsJob={getMeetingDefaultJob(settings)}
           defaultReportedBy={reportedBy}
         />
       </section>

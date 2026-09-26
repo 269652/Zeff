@@ -142,9 +142,9 @@ export function registerZeffTools(server: McpServer): void {
           .optional()
           .describe("Ticket / issue key the work belongs to, e.g. 'PROJ-337'."),
         type: z
-          .enum(["ticket", "meeting", "other"])
+          .enum(["ticket", "meeting", "other", "absence", "internal"])
           .optional()
-          .describe("Kind of work. Defaults to 'ticket' when a ticket is given, else 'other'."),
+          .describe("Kind of work. When omitted, the user's type rules decide (e.g. an absence job → 'absence'), else 'ticket' when a ticket is given, else 'other'."),
         tags: z.array(z.string()).optional().describe("Tag names to attach."),
         reportedBy: z
           .string()
@@ -313,7 +313,7 @@ export function registerZeffTools(server: McpServer): void {
         description: z.string().min(1).optional(),
         date: z.string().optional().describe("YYYY-MM-DD"),
         ticket: z.string().nullable().optional().describe("Ticket key; null clears it."),
-        type: z.enum(["ticket", "meeting", "other"]).optional(),
+        type: z.enum(["ticket", "meeting", "other", "absence", "internal"]).optional(),
         tags: z.array(z.string()).optional().describe("Replaces the entry's tags."),
         reportedBy: z.string().optional(),
       }),

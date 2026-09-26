@@ -100,9 +100,10 @@ export default async function RoarExportPage({
           </div>
         )}
         <p className="mt-3 text-xs text-zinc-400">
-          Each Zeff booking becomes its <strong>own</strong> Roar entry (they are not summed): the ticket + description go
-          into the entry&apos;s comment, and each entry&apos;s hours are rounded <strong>up</strong> to Roar&apos;s
-          0.1-hour increments. This pushes <span className="tabular-nums font-medium">{plan.entryCount}</span>{" "}
+          Each line of the rewritten weekly report becomes its own Roar entry per job: the line&apos;s label is the
+          comment (e.g. <em>Meetings</em> — set in <Link href="/settings" className="underline">Report rewriting</Link>),
+          and its hours are rounded <strong>up</strong> to Roar&apos;s 0.1-hour increments. This pushes{" "}
+          <span className="tabular-nums font-medium">{plan.entryCount}</span>{" "}
           {plan.entryCount === 1 ? "entry" : "entries"} across {plan.rows.length}{" "}
           {plan.rows.length === 1 ? "job" : "jobs"}; a cell shows the day total, with <span className="text-zinc-500">×n</span>{" "}
           when it holds several entries. Future days are locked by Roar and skipped. Jobs are matched by number (e.g.{" "}

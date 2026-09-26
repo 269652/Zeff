@@ -47,7 +47,8 @@ export function TimoConfigForm({ config, jobs }: { config: TimoConfig; jobs: { n
         {state?.error && <span className="alert-error">{state.error}</span>}
       </div>
       <p className="text-xs text-zinc-400">
-        Entries on the <strong>absence job</strong> are booked in TimO&apos;s absence form as the{" "}
+        Entries on the <strong>absence job</strong> (or of type <strong>Absence</strong>) are booked in TimO&apos;s
+        absence form as the{" "}
         <strong>type</strong> above (e.g. <code className="code">Urlaub</code>, not Krank); everything else is recorded as
         working time (Kommen/Gehen).
       </p>

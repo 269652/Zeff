@@ -33,7 +33,7 @@ export const timeEntries = sqliteTable(
     hours: real("hours").notNull(),
     description: text("description").notNull(),
     /** Kind of work — drives report grouping. */
-    type: text("type", { enum: ["ticket", "meeting", "other"] })
+    type: text("type", { enum: ["ticket", "meeting", "other", "absence", "internal"] })
       .notNull()
       .default("other"),
     /** Optional ticket reference, e.g. "PROJ-337". */
@@ -169,6 +169,12 @@ export const reportSettings = sqliteTable("report_settings", {
   rules: text("rules"),
   /** JSON array of meeting→job rules: assign a job to an imported meeting by its title. */
   meetingJobRules: text("meeting_job_rules"),
+  /** Job number for imported meetings no meeting→job rule matches (null = the first job). */
+  meetingDefaultJob: text("meeting_default_job"),
+  /** JSON array of title substrings: imported meetings matching one start unchecked (placeholders, blockers). */
+  meetingExcludeRules: text("meeting_exclude_rules"),
+  /** JSON array of type rules ({jobNumber, description, type}): infer an entry's type from its job/description. */
+  typeRules: text("type_rules"),
   /** JSON map {jobNumber: roarWorkCode}: force a Roar WorkCode for a job on export (e.g. Abwesenheit → ABSENCE). */
   roarWorkcodes: text("roar_workcodes"),
   /** JSON {startTime,workdayHours,breakMinutes}: the default TimO work day used by the TimO export. */

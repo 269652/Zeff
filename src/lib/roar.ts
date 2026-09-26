@@ -1,18 +1,19 @@
-import { listEntries } from "./entries";
 import { round2 } from "./format";
+import { getRewrittenJobLines } from "./report";
 import { formatDay, isoDate, type WeekInfo } from "./week";
 
 /**
  * The plan pushed to Roar. Roar's timesheet is a job × weekday grid, and each
  * job×day cell can hold several individual entries (each with its own duration
- * and comment). We map ONE Roar entry per Zeff booking — they are NOT summed —
- * so the detail (ticket + description) is preserved. Roar only accepts 0.1-hour
+ * and comment). Each line of the rewritten weekly report becomes ONE Roar entry
+ * per job — so the report rules decide what groups together and what the comment
+ * says ("Meetings", "{ticket}: {ticket-name}", …). Roar only accepts 0.1-hour
  * increments, so each entry's hours are rounded UP to 0.1.
  */
 export type RoarEntry = {
-  /** Rounded-up-to-0.1 hours for this single entry. */
+  /** Rounded-up-to-0.1 hours for this entry. */
   hours: number;
-  /** Roar "Comment" for the entry: "TICKET: description" (or just the description). */
+  /** Roar "Comment" for the entry: the report line's label. */
   comment: string;
 };
 
@@ -46,25 +47,30 @@ export function roundRoarHours(h: number): number {
 /** Roar's comment field caps at 125 chars. */
 const COMMENT_MAX = 125;
 
+function clipComment(s: string): string {
+  return s.length > COMMENT_MAX ? s.slice(0, COMMENT_MAX - 1).trimEnd() + "…" : s;
+}
+
 /** Build a one-line Roar comment from a Zeff booking: "TICKET: description". */
 export function roarComment(ticket: string | null | undefined, description: string): string {
   const t = (ticket ?? "").trim();
   const d = (description ?? "").trim();
-  const s = t && d ? `${t}: ${d}` : t || d;
-  return s.length > COMMENT_MAX ? s.slice(0, COMMENT_MAX - 1).trimEnd() + "…" : s;
+  return clipComment(t && d ? `${t}: ${d}` : t || d);
 }
 
 export function getRoarExportPlan(week: WeekInfo, filter: { reportedBy?: string } = {}): RoarExportPlan {
-  const entries = listEntries({ from: week.startIso, to: week.endIso, reportedBy: filter.reportedBy });
   const byJob = new Map<string, RoarExportRow>();
-  // listEntries is date desc, id desc; process oldest-first so entries read chronologically.
-  for (const e of [...entries].reverse()) {
-    let row = byJob.get(e.job.number);
+  // One entry per rewritten report line and job, in chronological order.
+  for (const l of getRewrittenJobLines(week, filter)) {
+    let row = byJob.get(l.jobNumber);
     if (!row) {
-      row = { jobNumber: e.job.number, jobName: e.job.name, entriesByDay: {}, hoursByDay: {}, entryCount: 0, total: 0 };
-      byJob.set(e.job.number, row);
+      row = { jobNumber: l.jobNumber, jobName: l.jobName, entriesByDay: {}, hoursByDay: {}, entryCount: 0, total: 0 };
+      byJob.set(l.jobNumber, row);
     }
-    (row.entriesByDay[e.date] ??= []).push({ hours: roundRoarHours(e.hours), comment: roarComment(e.ticket, e.description) });
+    (row.entriesByDay[l.date] ??= []).push({
+      hours: roundRoarHours(l.hours),
+      comment: l.label ? clipComment(l.label) : roarComment(l.first.ticket, l.first.description),
+    });
   }
   // Derive per-day sums + totals from the rounded entries.
   for (const row of byJob.values()) {

@@ -70,6 +70,8 @@ export default async function AnalysisPage({
       { type: "meeting" as const, value: w.byType.meeting },
       { type: "ticket" as const, value: w.byType.ticket },
       { type: "other" as const, value: w.byType.other },
+      { type: "absence" as const, value: w.byType.absence },
+      { type: "internal" as const, value: w.byType.internal },
     ],
     badge: a.jira
       ? w.closed
@@ -173,10 +175,12 @@ export default async function AnalysisPage({
                     { key: "meeting", value: a.byType.meeting, strokeClass: TYPE_STYLE.meeting.stroke },
                     { key: "ticket", value: a.byType.ticket, strokeClass: TYPE_STYLE.ticket.stroke },
                     { key: "other", value: a.byType.other, strokeClass: TYPE_STYLE.other.stroke },
+                    { key: "absence", value: a.byType.absence, strokeClass: TYPE_STYLE.absence.stroke },
+                    { key: "internal", value: a.byType.internal, strokeClass: TYPE_STYLE.internal.stroke },
                   ]}
                 />
                 <div className="space-y-2">
-                  {(["meeting", "ticket", "other"] as const).map((t) => (
+                  {(["meeting", "ticket", "internal", "other", "absence"] as const).map((t) => (
                     <div key={t} className="flex items-center gap-2 text-sm">
                       <span className={`inline-block size-2.5 rounded-sm ${TYPE_STYLE[t].dot}`} />
                       <span className="w-20">{TYPE_STYLE[t].label}</span>
@@ -202,6 +206,8 @@ export default async function AnalysisPage({
                   { dot: TYPE_STYLE.meeting.dot, label: "Meetings" },
                   { dot: TYPE_STYLE.ticket.dot, label: "Tickets" },
                   { dot: TYPE_STYLE.other.dot, label: "Other" },
+                  { dot: TYPE_STYLE.absence.dot, label: "Absence" },
+                  { dot: TYPE_STYLE.internal.dot, label: "Internal" },
                   a.jira
                     ? { dot: "bg-emerald-400", label: "✓ tickets closed" }
                     : { dot: "bg-sky-400", label: "🎫 tickets worked" },

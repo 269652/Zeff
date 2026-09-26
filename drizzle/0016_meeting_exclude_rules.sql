@@ -1,0 +1,1 @@
+ALTER TABLE `report_settings` ADD `meeting_exclude_rules` text;

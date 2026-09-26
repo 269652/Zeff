@@ -1,14 +1,15 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { importMeetingsAction, type ActionState } from "@/app/actions";
-import { jobForMeeting, type Meeting, type MeetingFlag, type MeetingJobRule } from "@/lib/calendar/meetings";
+import { importMeetingsAction, setMeetingExcludedAction, type ActionState } from "@/app/actions";
+import { isExcludedMeeting, jobForMeeting, type Meeting, type MeetingFlag, type MeetingJobRule } from "@/lib/calendar/meetings";
 import type { EntryFormJob } from "./EntryForm";
 
 type Row = Meeting & { jobNumber: string; description: string; ticketValue: string; hoursValue: string };
 
 const FLAG_LABEL: Record<MeetingFlag, string> = {
   imported: "already booked",
+  excluded: "excluded",
   tentative: "tentative",
   free: "shown as free",
   private: "private",
@@ -19,20 +20,25 @@ export function MeetingImportForm({
   meetings,
   jobs,
   jobRules = [],
+  otherMeetingsJob,
   defaultReportedBy,
 }: {
   weekKey: string;
   meetings: Meeting[];
   jobs: EntryFormJob[];
   jobRules?: MeetingJobRule[];
+  /** Job for meetings no rule matches (settings: "All other meetings"); null = the first job. */
+  otherMeetingsJob?: string | null;
   defaultReportedBy: string;
 }) {
-  const [defaultJob, setDefaultJob] = useState(jobs[0]?.number ?? "");
+  const fallbackJob =
+    (otherMeetingsJob && jobs.some((j) => j.number === otherMeetingsJob) ? otherMeetingsJob : jobs[0]?.number) ?? "";
+  const [defaultJob, setDefaultJob] = useState(fallbackJob);
   const [rows, setRows] = useState<Row[]>(() =>
     meetings.map((m) => ({
       ...m,
-      // A matching meeting→job rule pre-selects the job; otherwise the first job.
-      jobNumber: jobForMeeting(m.subject, jobRules) ?? jobs[0]?.number ?? "",
+      // A matching meeting→job rule pre-selects the job; otherwise the "All other meetings" job.
+      jobNumber: jobForMeeting(m.subject, jobRules) ?? fallbackJob,
       description: m.subject,
       ticketValue: m.ticket ?? "",
       hoursValue: String(m.hours),
@@ -40,6 +46,29 @@ export function MeetingImportForm({
   );
   const [state, setState] = useState<ActionState>(null);
   const [pending, startTransition] = useTransition();
+  const [ruling, startRuling] = useTransition();
+
+  /** Exclude / Include a meeting by title: save the rule, then re-check every row against the new rules. */
+  function toggleExcluded(subject: string, exclude: boolean) {
+    startRuling(async () => {
+      const r = await setMeetingExcludedAction(subject, exclude);
+      if (!r.ok || !r.rules) {
+        setState({ ok: false, error: r.error ?? "Could not save the exclude rule." });
+        return;
+      }
+      const rules = r.rules;
+      setRows((rs) =>
+        rs.map((row) => {
+          const was = row.flags.includes("excluded");
+          const now = isExcludedMeeting(row.subject, rules);
+          if (was === now) return row;
+          const flags: MeetingFlag[] = now ? [...row.flags, "excluded"] : row.flags.filter((f) => f !== "excluded");
+          // Excluding unchecks; including restores the default tick (unless another flag says otherwise).
+          return { ...row, flags, selected: now ? false : flags.length === 0 };
+        }),
+      );
+    });
+  }
 
   const update = (i: number, patch: Partial<Row>) =>
     setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
@@ -110,6 +139,7 @@ export function MeetingImportForm({
           <tbody>
             {rows.map((r, i) => {
               const imported = r.flags.includes("imported");
+              const excluded = r.flags.includes("excluded");
               return (
                 <tr key={r.externalId} className={r.selected ? "" : "text-zinc-400"}>
                   <td>
@@ -145,11 +175,26 @@ export function MeetingImportForm({
                     </select>
                   </td>
                   <td className="whitespace-nowrap">
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex flex-wrap items-center gap-1">
                       {r.isTeams && <span className="badge badge-mcp">Teams</span>}
                       {r.flags.map((f) => (
                         <span key={f} className="badge badge-web">{FLAG_LABEL[f]}</span>
                       ))}
+                      {!imported && (
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          disabled={ruling}
+                          onClick={() => toggleExcluded(r.subject, !excluded)}
+                          title={
+                            excluded
+                              ? `Stop excluding meetings titled “${r.subject}”`
+                              : `Always uncheck meetings titled “${r.subject}” (adds an exclude rule)`
+                          }
+                        >
+                          {excluded ? "Include" : "Exclude"}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

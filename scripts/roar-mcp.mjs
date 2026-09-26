@@ -14,7 +14,7 @@
  *
  * Start Chrome for it with:  npm run roar:chrome   (then sign in to Roar once)
  */
-import { chromium } from "playwright-core";
+import { connectToChrome, StuckTabError } from "./chrome-cdp.mjs";
 
 const CDP = process.env.ROAR_CDP_ENDPOINT || "http://127.0.0.1:9222";
 const ROAR_URL = "https://roar.marcel.ai/app/timesheet";
@@ -25,7 +25,7 @@ const log = (...a) => process.stderr.write(`[roar-mcp] ${a.join(" ")}\n`);
 // ---------------------------------------------------------------------------
 
 async function connect() {
-  const browser = await chromium.connectOverCDP(CDP, { timeout: 8000 });
+  const browser = await connectToChrome(CDP);
   return browser;
 }
 
@@ -433,8 +433,11 @@ async function readCellEntries(frame, guid, iso) {
   return { entries, submitted };
 }
 
-/** Change one existing entry's duration (0 removes it) and Save; the entry is found by comment + hours. */
-async function setEntryHours(frame, guid, iso, target, newHours) {
+/**
+ * Edit one existing entry — its duration (0 removes it) and/or its comment — and Save.
+ * The entry is found by its current comment + hours.
+ */
+async function editEntry(frame, guid, iso, target, { hours, comment }) {
   await openCell(frame, guid, iso);
   const want = normComment(target.comment);
   const found = await forEachEntry(frame, (v) => normComment(v.comment) === want && Math.abs(v.hours - target.hours) <= 0.05);
@@ -443,15 +446,22 @@ async function setEntryHours(frame, guid, iso, target, newHours) {
     throw new Error(`entry “${target.comment}” (${fmtH(target.hours)}) not found`);
   }
   const panel = entryPanel(frame);
-  const dur = panel.locator("#durationInput").first();
-  await dur.click();
-  await dur.fill(String(newHours));
+  if (hours !== undefined) {
+    const dur = panel.locator("#durationInput").first();
+    await dur.click();
+    await dur.fill(String(hours));
+  }
+  if (comment !== undefined) {
+    const c = panel.locator("#commentInput").first();
+    await c.click();
+    await c.fill(String(comment).slice(0, 125));
+  }
   await frame.page().waitForTimeout(250);
   const save = panel.locator('button[type="submit"]').first();
   for (let i = 0; i < 15 && !(await save.isEnabled().catch(() => false)); i++) await frame.page().waitForTimeout(200);
   if (!(await save.isEnabled().catch(() => false))) {
     await frame.page().keyboard.press("Escape").catch(() => {});
-    throw new Error(`Save stayed disabled setting “${target.comment}” to ${fmtH(newHours)}`);
+    throw new Error(`Save stayed disabled editing “${target.comment}”`);
   }
   await save.click();
   await frame.page().waitForTimeout(1000);
@@ -461,24 +471,45 @@ async function setEntryHours(frame, guid, iso, target, newHours) {
   }
 }
 
+const ticketKey = (s) => ((String(s || "").match(/^\s*([A-Z][A-Z0-9]+-\d+)\b/i) || [])[1] || "").toUpperCase() || null;
+
 /**
- * Pair a cell's Roar entries with Zeff's: identical ones (comment + hours) stay; same
- * comment with other hours gets the new duration; leftover Roar entries are removed and
- * leftover Zeff entries added. Comments compare trimmed, whitespace-collapsed, case-blind.
+ * Pair a cell's Roar entries with Zeff's, most specific first: identical (comment + hours)
+ * stay; the same comment gets the new duration; the same ticket, then the same duration,
+ * then any leftover entry gets the new comment (e.g. a report rule renamed it) and
+ * duration. Remaining Roar entries are removed, remaining Zeff entries added. Comments
+ * compare trimmed, whitespace-collapsed, case-blind. Edits are { from, hours?, comment? }.
  */
 function diffEntries(existing, desired) {
-  const ex = existing.map((e) => ({ ...e, key: normComment(e.comment), used: false }));
-  const want = desired.map((d) => ({ hours: Number(d.hours), comment: d.comment, key: normComment(d.comment), done: false }));
-  for (const w of want) {
-    const e = ex.find((x) => !x.used && x.key === w.key && Math.abs(x.hours - w.hours) <= 0.05);
-    if (e) { e.used = true; w.done = true; }
-  }
-  const update = [];
-  for (const w of want.filter((x) => !x.done)) {
-    const e = ex.find((x) => !x.used && x.key === w.key);
-    if (e) { e.used = true; w.done = true; update.push({ from: e, hours: w.hours }); }
-  }
-  return { update, remove: ex.filter((x) => !x.used), add: want.filter((x) => !x.done) };
+  const sameH = (a, b) => Math.abs(a - b) <= 0.05;
+  const ex = existing.map((e) => ({ ...e, key: normComment(e.comment), tk: ticketKey(e.comment), used: false }));
+  const want = desired.map((d) => ({ hours: Number(d.hours), comment: d.comment, key: normComment(d.comment), tk: ticketKey(d.comment), done: false }));
+  const edits = [];
+  const pair = (test) => {
+    for (const w of want) {
+      if (w.done) continue;
+      const e = ex.find((x) => !x.used && test(x, w));
+      if (!e) continue;
+      e.used = true;
+      w.done = true;
+      const edit = { from: e };
+      if (!sameH(e.hours, w.hours)) edit.hours = w.hours;
+      if (e.key !== w.key) edit.comment = w.comment;
+      if (edit.hours !== undefined || edit.comment !== undefined) edits.push(edit);
+    }
+  };
+  pair((x, w) => x.key === w.key && sameH(x.hours, w.hours));
+  pair((x, w) => x.key === w.key);
+  pair((x, w) => !!x.tk && x.tk === w.tk);
+  pair((x, w) => sameH(x.hours, w.hours));
+  pair(() => true); // reuse any leftover entry rather than zeroing one and adding another
+  return { edits, remove: ex.filter((x) => !x.used), add: want.filter((x) => !x.done) };
+}
+
+/** "0.3 h “old” → 1 h “new”", naming only what an edit changes. */
+function describeEdit({ from, hours, comment }) {
+  const to = [hours !== undefined ? fmtH(hours) : "", comment !== undefined ? `“${comment}”` : ""].filter(Boolean).join(" ");
+  return `${fmtH(from.hours)} “${from.comment}” → ${to}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -490,6 +521,7 @@ async function roarStatus() {
   try {
     browser = await connect();
   } catch (e) {
+    if (e instanceof StuckTabError) return e.message;
     return `Cannot reach Chrome on ${CDP}. Start it with "npm run roar:chrome" and sign in to Roar. (${String(e).slice(0, 120)})`;
   }
   try {
@@ -507,13 +539,13 @@ async function roarStatus() {
 }
 
 /**
- * Sync a week of Zeff time into Roar, one Roar entry per Zeff booking. A cell whose total
- * already matches Zeff is left alone. Otherwise its entries are read and synced entry by
- * entry — identical ones stay, a changed duration is updated, entries Zeff no longer has
- * are set to 0 h and saved (Roar's way to remove one), missing ones are added — so moving
- * a booking to another job moves it in Roar too. That sync (including removals) only
- * applies to jobs Zeff knows (`managedJobs`) on days tracked in Zeff; other cells are only
- * filled when empty. dryRun reads everything and lists the changes without saving.
+ * Sync a week of Zeff time into Roar: one Roar entry per rewritten report line and job.
+ * For jobs Zeff knows (`managedJobs`) on days tracked in Zeff, every cell's entries are
+ * read and synced entry by entry — identical ones stay, changed durations or comments are
+ * edited in place, entries Zeff no longer has are set to 0 h and saved (Roar's way to
+ * remove one), missing ones are added — so moving a booking to another job, or a report
+ * rule renaming it, carries over. Other cells are only filled when empty. dryRun reads
+ * everything and lists the changes without saving.
  */
 async function roarExport({ weekStartIso, rows, managedJobs = [], dryRun }) {
   if (!weekStartIso || !Array.isArray(rows)) throw new Error("weekStartIso and rows are required.");
@@ -578,26 +610,32 @@ async function roarExport({ weekStartIso, rows, managedJobs = [], dryRun }) {
             const cell = await cellInfo(frame, guid, iso);
             const cur = Number(cell.value) || 0;
             const want = Math.round(desired.reduce((a, it) => a + Number(it.hours), 0) * 10) / 10;
-            if (Math.abs(cur - want) <= 0.05) { count.ok += 1; continue; }
-            if (cell.disabled) { skipped.push(`${where}: future/locked day`); continue; }
+            const sameTotal = Math.abs(cur - want) <= 0.05;
             const sync = managed.has(job) && tracked.has(iso);
+            if (cell.disabled) {
+              if (sameTotal) count.ok += 1;
+              else skipped.push(`${where}: future/locked day`);
+              continue;
+            }
+            // Synced cells are always read: the total can match while comments changed (a report rule).
+            if (!sync && sameTotal) { count.ok += 1; continue; }
             if (!sync && cur > 0) {
               skipped.push(`${where}: Roar has ${fmtH(cur)}, Zeff ${fmtH(want)} — ${managed.size ? "day not tracked in Zeff" : "partial (filtered) export"}, fix in Roar`);
               continue;
             }
             const read = cur > 0 ? await readCellEntries(frame, guid, iso) : { entries: [], submitted: false };
             const plan = diffEntries(read.entries, desired);
-            if (!plan.update.length && !plan.remove.length && !plan.add.length) { count.ok += 1; continue; }
+            if (!plan.edits.length && !plan.remove.length && !plan.add.length) { count.ok += 1; continue; }
             if (read.submitted) touchedSubmitted = true;
 
             for (const r of plan.remove) {
-              if (!dryRun) await setEntryHours(frame, guid, iso, r, 0);
+              if (!dryRun) await editEntry(frame, guid, iso, r, { hours: 0 });
               changes.push(`${mark} ${where}: remove ${fmtH(r.hours)} “${r.comment}”`);
               count.removed += 1;
             }
-            for (const u of plan.update) {
-              if (!dryRun) await setEntryHours(frame, guid, iso, u.from, u.hours);
-              changes.push(`${mark} ${where}: ${fmtH(u.from.hours)} → ${fmtH(u.hours)} “${u.from.comment}”`);
+            for (const ed of plan.edits) {
+              if (!dryRun) await editEntry(frame, guid, iso, ed.from, { hours: ed.hours, comment: ed.comment });
+              changes.push(`${mark} ${where}: ${describeEdit(ed)}`);
               count.updated += 1;
             }
             for (const a of plan.add) {

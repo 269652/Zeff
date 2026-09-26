@@ -77,7 +77,7 @@ export type Analysis = {
 };
 
 function emptyTypeHours(): TypeHours {
-  return { ticket: 0, meeting: 0, other: 0 };
+  return { ticket: 0, meeting: 0, other: 0, absence: 0, internal: 0 };
 }
 
 function weekKeyOf(d: Date): string {
@@ -294,7 +294,7 @@ export function getAnalysis(opts: {
     }
   }
 
-  const totalHours = round2(byType.ticket + byType.meeting + byType.other);
+  const totalHours = round2(byType.ticket + byType.meeting + byType.other + byType.absence + byType.internal);
   const weeks = [...weekMap.values()].sort((a, b) => a.startIso.localeCompare(b.startIso));
   const activeWeeks = weeks.filter((w) => w.total > 0).length || 1;
   const weekCount = weeks.length || 1;

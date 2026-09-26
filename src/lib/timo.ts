@@ -85,7 +85,8 @@ export function getTimoExportPlan(
   const workByDay = new Map<string, number>();
   const absenceByDay = new Map<string, number>();
   for (const e of entries) {
-    const map = absenceJob && e.job.number === absenceJob ? absenceByDay : workByDay;
+    // Absences: entries of type Absence, or anything booked on the configured absence job.
+    const map = e.type === "absence" || (absenceJob && e.job.number === absenceJob) ? absenceByDay : workByDay;
     map.set(e.date, round2((map.get(e.date) ?? 0) + e.hours));
   }
   const schedule = scheduleHours(getWorkSchedule()); // hours per weekday, index 0 = Monday … 6 = Sunday
