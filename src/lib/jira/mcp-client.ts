@@ -5,6 +5,8 @@ export type McpStdioConfig = {
   args: string[];
   env?: Record<string, string>;
   cwd?: string;
+  /** Name used in error messages, e.g. "Roar" (default "MCP server"). */
+  label?: string;
 };
 
 type JsonRpcResponse = {
@@ -28,6 +30,7 @@ export function runStdioSession<T>(
   body: (call: ToolCaller) => Promise<T>,
   timeoutMs = 150000,
 ): Promise<T> {
+  const label = config.label ?? "MCP server";
   return new Promise<T>((resolve, reject) => {
     let child;
     try {
@@ -38,7 +41,7 @@ export function runStdioSession<T>(
         shell: false,
       });
     } catch (e) {
-      reject(new Error(`Cannot start Jira MCP command "${config.command}": ${(e as Error).message}`));
+      reject(new Error(`Cannot start the ${label} ("${config.command}"): ${(e as Error).message}`));
       return;
     }
 
@@ -61,11 +64,11 @@ export function runStdioSession<T>(
     };
     const fail = (msg: string) => finish(() => reject(new Error(msg)));
     const timer = setTimeout(
-      () => fail(`Jira MCP session timed out after ${timeoutMs}ms.${stderr ? ` stderr: ${stderr.slice(0, 400)}` : ""}`),
+      () => fail(`${label} timed out after ${timeoutMs}ms.${stderr ? ` stderr: ${stderr.slice(0, 400)}` : ""}`),
       timeoutMs,
     );
 
-    child.on("error", (e) => fail(`Cannot start Jira MCP command "${config.command}": ${e.message}`));
+    child.on("error", (e) => fail(`Cannot start the ${label} ("${config.command}"): ${e.message}`));
     child.stderr.on("data", (d) => {
       stderr += d.toString();
     });
@@ -90,7 +93,7 @@ export function runStdioSession<T>(
       }
     });
     child.on("exit", (code) => {
-      if (!settled) fail(`Jira MCP process exited early (code ${code}).${stderr ? ` stderr: ${stderr.slice(0, 400)}` : ""}`);
+      if (!settled) fail(`${label} exited early (code ${code}).${stderr ? ` stderr: ${stderr.slice(0, 400)}` : ""}`);
     });
 
     const send = (method: string, params?: unknown): Promise<JsonRpcResponse> => {
@@ -105,13 +108,13 @@ export function runStdioSession<T>(
 
     const call: ToolCaller = async (toolName, args) => {
       const res = await send("tools/call", { name: toolName, arguments: args });
-      if (res.error) throw new Error(`Jira MCP tool "${toolName}" returned an error: ${res.error.message}`);
+      if (res.error) throw new Error(`tool "${toolName}" returned an error: ${res.error.message}`);
       // A tool can also report failure via isError on the result envelope.
       const result = res.result as Record<string, unknown> | undefined;
       if (result?.isError) {
         const content = Array.isArray(result.content) ? (result.content as Record<string, unknown>[]) : [];
         const text = content.map((c) => (typeof c.text === "string" ? c.text : "")).filter(Boolean).join(" ");
-        throw new Error(`Jira MCP tool "${toolName}": ${text || "returned an error"}`);
+        throw new Error(`tool "${toolName}": ${text || "returned an error"}`);
       }
       return res.result;
     };
@@ -122,11 +125,11 @@ export function runStdioSession<T>(
         capabilities: {},
         clientInfo: { name: "zeff", version: "0.1.0" },
       });
-      if (init.error) return fail(`Jira MCP initialize failed: ${init.error.message}`);
+      if (init.error) return fail(`${label} initialize failed: ${init.error.message}`);
       notify("notifications/initialized");
       const out = await body(call);
       finish(() => resolve(out));
-    })().catch((e) => fail(`Jira MCP session failed: ${(e as Error).message}`));
+    })().catch((e) => fail(`${label}: ${(e as Error).message}`));
   });
 }
 

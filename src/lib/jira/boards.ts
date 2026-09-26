@@ -58,7 +58,7 @@ export async function syncBoardsFromJira(): Promise<BoardSyncResult> {
   const byProject = ticketKeysByProject();
   if (byProject.size === 0) throw new Error("No synced tickets yet — sync tickets first, then sync boards.");
 
-  const config: McpStdioConfig = { command: cfg.command, args: cfg.args, env: cfg.env };
+  const config: McpStdioConfig = { command: cfg.command, args: cfg.args, env: cfg.env, label: "Jira MCP" };
   const knownBefore = new Set(getDb().select({ id: schema.jiraBoards.id }).from(schema.jiraBoards).all().map((r) => r.id));
 
   const { boardCount, enabledCount, counts, owner, considered } = await runStdioSession(

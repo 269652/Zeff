@@ -17,14 +17,14 @@
  * Days that already hold bookings or absences in TimO are skipped, so re-running is safe.
  * dryRun opens and fills each form, validates it and closes it without saving.
  */
-import { chromium } from "playwright-core";
+import { connectToChrome, StuckTabError } from "./chrome-cdp.mjs";
 
 const CDP = process.env.ROAR_CDP_ENDPOINT || "http://127.0.0.1:9222";
 const TIMO_URL = "https://ac.timo24.de/timo/index.jsp";
 const log = (...a) => process.stderr.write(`[timo-mcp] ${a.join(" ")}\n`);
 
 async function connect() {
-  return chromium.connectOverCDP(CDP, { timeout: 8000 });
+  return connectToChrome(CDP);
 }
 
 /** The TimO tab (its main frame is index.jsp). */
@@ -408,7 +408,10 @@ async function bookAbsence(frame, d) {
 async function timoStatus() {
   let browser;
   try { browser = await connect(); }
-  catch (e) { return `Cannot reach Chrome on ${CDP}. Start it with "npm run roar:chrome" and open TimO in that window. (${String(e).slice(0, 120)})`; }
+  catch (e) {
+    if (e instanceof StuckTabError) return e.message;
+    return `Cannot reach Chrome on ${CDP}. Start it with "npm run roar:chrome" and open TimO in that window. (${String(e).slice(0, 120)})`;
+  }
   try {
     const page = await getTimoPage(browser);
     await page.waitForTimeout(1200);
