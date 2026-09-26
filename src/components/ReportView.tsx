@@ -28,7 +28,7 @@ function EntryRow({ e, nested }: { e: ReportLineEntry; nested?: boolean }) {
       </span>
       <span className="flex shrink-0 items-center gap-2">
         <Chips tags={e.tags} />
-        <span className="tabular-nums text-zinc-500">{formatHours(e.hours)} h</span>
+        <span className="min-w-[7ch] border-l border-zinc-200 pl-2 text-right tabular-nums text-zinc-500 dark:border-zinc-700">{formatHours(e.hours)} h</span>
       </span>
     </li>
   );
@@ -72,7 +72,7 @@ function Line({ line, date, ui }: { line: ReportLine; date: string; ui: UiOpenSt
         <span className="flex shrink-0 items-center gap-2">
           <Chips tags={line.tags} />
           <span className={`badge badge-${line.type}`}>{line.type}</span>
-          <span className="tabular-nums font-medium">{formatHours(line.hours)} h</span>
+          <span className="min-w-[7ch] border-l border-zinc-200 pl-2 text-right font-medium tabular-nums dark:border-zinc-700">{formatHours(line.hours)} h</span>
         </span>
       </div>
 
@@ -85,7 +85,7 @@ function Line({ line, date, ui }: { line: ReportLine; date: string; ui: UiOpenSt
                     <span className="min-w-0">
                       <span className="font-mono">{g.jobNumber}</span>: {g.jobName}
                     </span>
-                    <span className="shrink-0 tabular-nums">{formatHours(g.hours)} h</span>
+                    <span className="min-w-[7ch] shrink-0 border-l border-zinc-200 pl-2 text-right tabular-nums dark:border-zinc-700">{formatHours(g.hours)} h</span>
                   </div>
                   <ul>
                     {g.entries.map((e) => (
