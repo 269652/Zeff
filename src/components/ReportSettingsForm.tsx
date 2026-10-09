@@ -3,7 +3,6 @@
 import { startTransition, useActionState, useState } from "react";
 import { saveReportSettingsAction, type ActionState } from "@/app/actions";
 import {
-  ENTRY_TYPE_OPTIONS,
   RULE_FIELDS,
   RULE_FIELD_LABELS,
   defaultRules,
@@ -13,16 +12,27 @@ import {
   type RuleCondition,
   type RuleField,
 } from "@/lib/report-shared";
+import type { EntryTypeDef } from "@/lib/entry-types-shared";
 import { SubmitButton } from "./SubmitButton";
+import { TagsField } from "./TagsField";
 
 export function ReportSettingsForm({
   initialRules,
   tags,
   jobs,
+  projects = [],
+  meetingTitles = [],
+  types,
 }: {
   initialRules: ReportRule[];
+  /** Entry types, for "Type is" conditions. */
+  types: EntryTypeDef[];
   tags: string[];
   jobs: { number: string; name: string }[];
+  /** Project titles, for "Project is" conditions. */
+  projects?: string[];
+  /** Recent meeting titles, suggested for "Meeting title contains" conditions. */
+  meetingTitles?: string[];
 }) {
   const [rules, setRules] = useState<ReportRule[]>(initialRules.length ? initialRules : defaultRules());
   const [state, action, pending] = useActionState<ActionState, FormData>(saveReportSettingsAction, null);
@@ -48,15 +58,21 @@ export function ReportSettingsForm({
       return copy;
     });
   const addRule = () => setRules((rs) => [...rs, { id: newRuleId(), conditions: [newCondition()], template: "" }]);
-  const reset = () => setRules(defaultRules());
+  // Bumped on reset so each rule's tag field (it keeps its own state) starts over.
+  const [resets, setResets] = useState(0);
+  const reset = () => {
+    setRules(defaultRules());
+    setResets((n) => n + 1);
+  };
 
   const conditionValue = (r: ReportRule, i: number, c: RuleCondition) => {
     const onChange = (value: string) => setCondition(r.id, i, { value });
     if (c.field === "type")
       return (
         <select className="input w-24 py-1 text-sm" value={c.value} onChange={(e) => onChange(e.target.value)}>
-          {ENTRY_TYPE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
+          {c.value && !types.some((t) => t.key === c.value) && <option value={c.value}>{c.value}</option>}
+          {types.map((t) => (
+            <option key={t.key} value={t.key}>{t.label}</option>
           ))}
         </select>
       );
@@ -67,6 +83,27 @@ export function ReportSettingsForm({
     if (c.field === "ticket")
       return (
         <input className="input w-24 py-1 font-mono text-sm" placeholder="PROJ-" value={c.value} onChange={(e) => onChange(e.target.value)} />
+      );
+    if (c.field === "title")
+      return (
+        <input
+          className="input w-56 py-1 text-sm"
+          list="rule-meeting-titles"
+          placeholder="PROJ | Mob Programming"
+          title="Case-insensitive; matches anywhere in the meeting title (the entry's description)"
+          value={c.value}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      );
+    if (c.field === "project")
+      return (
+        <select className="input w-44 py-1 text-sm" value={c.value} onChange={(e) => onChange(e.target.value)}>
+          <option value="">(any project)</option>
+          {c.value && !projects.includes(c.value) && <option value={c.value}>{c.value}</option>}
+          {projects.map((p) => (
+            <option key={p} value={p}>{p}</option>
+          ))}
+        </select>
       );
     return (
       <select className="input w-44 py-1 text-sm" value={c.value} onChange={(e) => onChange(e.target.value)}>
@@ -82,9 +119,10 @@ export function ReportSettingsForm({
     <form
       // Submitted by hand, not via `action`: React resets a form after an action, which snaps
       // controlled selects back to the values they showed when the page loaded.
+      // The clicked button rides along, so "Save & tag existing entries" can tag older entries too.
       onSubmit={(e) => {
         e.preventDefault();
-        const fd = new FormData(e.currentTarget);
+        const fd = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter);
         startTransition(() => action(fd));
       }}
       className="space-y-3"
@@ -96,13 +134,19 @@ export function ReportSettingsForm({
         catch-all — keep it last. Placeholders: <code className="code">{"{ticket-nr}"}</code>{" "}
         <code className="code">{"{ticket-name}"}</code> <code className="code">{"{desc}"}</code>{" "}
         <code className="code">{"{type}"}</code> <code className="code">{"{tags}"}</code>{" "}
-        <code className="code">{"{job}"}</code> <code className="code">{"{jobName}"}</code> (
+        <code className="code">{"{job}"}</code> <code className="code">{"{jobName}"}</code>{" "}
+        <code className="code">{"{project}"}</code> (
         <code className="code">{"{ticket-nr}"}</code> is the key, <code className="code">{"{ticket-name}"}</code> the
         Jira title).
       </p>
 
       <datalist id="rule-tags">
         {tags.map((t) => (
+          <option key={t} value={t} />
+        ))}
+      </datalist>
+      <datalist id="rule-meeting-titles">
+        {meetingTitles.map((t) => (
           <option key={t} value={t} />
         ))}
       </datalist>
@@ -117,7 +161,7 @@ export function ReportSettingsForm({
               {r.conditions.map((c, ci) => (
                 <span key={ci} className="inline-flex items-center gap-1">
                   {ci > 0 && <span className="px-0.5 text-xs font-medium text-zinc-400">and</span>}
-                  <select className="input w-32 py-1 text-sm" value={c.field} onChange={(e) => changeField(r.id, ci, e.target.value as RuleField)}>
+                  <select className="input w-44 py-1 text-sm" value={c.field} onChange={(e) => changeField(r.id, ci, e.target.value as RuleField)}>
                     {RULE_FIELDS.map((f) => (
                       <option key={f} value={f}>{RULE_FIELD_LABELS[f]}</option>
                     ))}
@@ -137,7 +181,7 @@ export function ReportSettingsForm({
                 + and
               </button>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-zinc-400">→</span>
               <input
                 className="input min-w-40 flex-1 py-1 font-mono text-sm"
@@ -145,6 +189,17 @@ export function ReportSettingsForm({
                 value={r.template}
                 onChange={(e) => setRule(r.id, { template: e.target.value })}
               />
+              <div className="w-48" title="Tags for the entries this rule applies to">
+                <TagsField
+                  key={`${r.id}:${resets}`}
+                  name=""
+                  compact
+                  allTags={tags}
+                  defaultValue={r.tags ?? []}
+                  placeholder="+ tags"
+                  onChange={(t) => setRule(r.id, { tags: t })}
+                />
+              </div>
               <div className="flex items-center gap-1">
                 <button type="button" className="btn btn-sm" onClick={() => move(ri, -1)} disabled={ri === 0} aria-label="Move up">
                   ↑
@@ -171,13 +226,20 @@ export function ReportSettingsForm({
         <SubmitButton className="btn btn-primary" pendingText="Saving…" pending={pending}>
           Save report rules
         </SubmitButton>
+        <SubmitButton className="btn btn-sm" pendingText="Tagging…" pending={pending} name="apply" value="1">
+          Save &amp; tag existing entries
+        </SubmitButton>
         {state?.error && <span className="text-sm text-red-600 dark:text-red-400">{state.error}</span>}
         {state?.ok && state.message && <span className="text-sm text-emerald-600 dark:text-emerald-400">{state.message}</span>}
       </div>
 
       <p className="text-xs text-zinc-400">
         Example: <code className="code">Job is · Interne Meetings · and · Type is · Meeting → Internal</code> above{" "}
-        <code className="code">Type is · Meeting → Meetings</code> labels only that job&apos;s meetings differently.
+        <code className="code">Type is · Meeting → Meetings</code> labels only that job&apos;s meetings differently;{" "}
+        <code className="code">Meeting title contains · Mob Programming → Mob Programming</code> above it gives one
+        meeting its own line. A rule&apos;s tags (e.g. <code className="code">#mob</code>) are added to the entries it
+        applies to when they&apos;re booked or imported; <strong>Save &amp; tag existing entries</strong> adds them to
+        entries you already have (it never removes tags).
       </p>
     </form>
   );

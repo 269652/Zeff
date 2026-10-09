@@ -1,15 +1,5 @@
-import type { EntryType } from "@/db/schema";
-
-/** Shared, theme-agnostic palette (mid shades read on light and dark). */
-export const TYPE_STYLE: Record<EntryType, { bar: string; stroke: string; dot: string; label: string }> = {
-  ticket: { bar: "bg-indigo-500", stroke: "stroke-indigo-500", dot: "bg-indigo-500", label: "Tickets" },
-  meeting: { bar: "bg-violet-500", stroke: "stroke-violet-500", dot: "bg-violet-500", label: "Meetings" },
-  other: { bar: "bg-zinc-400", stroke: "stroke-zinc-400", dot: "bg-zinc-400", label: "Other" },
-  absence: { bar: "bg-amber-400", stroke: "stroke-amber-400", dot: "bg-amber-400", label: "Absence" },
-  internal: { bar: "bg-emerald-500", stroke: "stroke-emerald-500", dot: "bg-emerald-500", label: "Internal" },
-};
-
-export type DonutSegment = { key: string; value: number; strokeClass: string };
+/** A donut slice; `color` (e.g. an entry type's) or a stroke-* class. */
+export type DonutSegment = { key: string; value: number; color?: string; strokeClass?: string };
 
 /** A donut chart. Segment values are summed; the center shows `centerValue`. */
 export function Donut({
@@ -39,6 +29,7 @@ export function Donut({
             r="15.915"
             fill="none"
             className={s.strokeClass}
+            style={s.color ? { stroke: s.color } : undefined}
             strokeWidth="4"
             strokeDasharray={`${pcts[i]} ${100 - pcts[i]}`}
             strokeDashoffset={offsets[i]}
@@ -53,7 +44,15 @@ export function Donut({
   );
 }
 
-export type BarItem = { key: string; label: React.ReactNode; value: number; valueLabel: string; barClass?: string };
+export type BarItem = {
+  key: string;
+  label: React.ReactNode;
+  value: number;
+  valueLabel: string;
+  barClass?: string;
+  /** A bar color (e.g. an entry type's) instead of barClass. */
+  color?: string;
+};
 
 /** A horizontal bar list, sorted by the caller. */
 export function BarList({ items, max, empty = "No data." }: { items: BarItem[]; max?: number; empty?: string }) {
@@ -68,8 +67,8 @@ export function BarList({ items, max, empty = "No data." }: { items: BarItem[]; 
           </div>
           <div className="h-4 flex-1 overflow-hidden rounded bg-zinc-100 dark:bg-zinc-800">
             <div
-              className={`h-full rounded ${it.barClass ?? "bg-teal-500"}`}
-              style={{ width: `${Math.max(2, (it.value / top) * 100)}%` }}
+              className={`h-full rounded ${it.color ? "" : (it.barClass ?? "bg-teal-500")}`}
+              style={{ width: `${Math.max(2, (it.value / top) * 100)}%`, ...(it.color ? { backgroundColor: it.color } : {}) }}
             />
           </div>
           <div className="w-16 shrink-0 text-right font-medium tabular-nums">{it.valueLabel}</div>
@@ -82,7 +81,8 @@ export function BarList({ items, max, empty = "No data." }: { items: BarItem[]; 
 export type WeekColumn = {
   key: string;
   label: string;
-  segments: { type: EntryType; value: number }[];
+  /** One stacked part per entry type, bottom-up, in its configured color. */
+  segments: { key: string; label: string; value: number; color: string }[];
   total: number;
   badge?: string;
 };
@@ -99,10 +99,9 @@ export function WeeklyBars({ weeks, height = 130 }: { weeks: WeekColumn[]; heigh
             {w.segments.map((s) =>
               s.value > 0 ? (
                 <div
-                  key={s.type}
-                  className={TYPE_STYLE[s.type].bar}
-                  style={{ height: `${(s.value / max) * 100}%` }}
-                  title={`${TYPE_STYLE[s.type].label}: ${s.value} h`}
+                  key={s.key}
+                  style={{ height: `${(s.value / max) * 100}%`, backgroundColor: s.color }}
+                  title={`${s.label}: ${s.value} h`}
                 />
               ) : null,
             )}
@@ -201,12 +200,12 @@ export function LineChart({
   );
 }
 
-export function Legend({ items }: { items: { dot: string; label: string; value?: string }[] }) {
+export function Legend({ items }: { items: { dot?: string; color?: string; label: string; value?: string }[] }) {
   return (
     <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
       {items.map((it) => (
         <span key={it.label} className="inline-flex items-center gap-1.5">
-          <span className={`inline-block size-2.5 rounded-sm ${it.dot}`} />
+          <span className={`inline-block size-2.5 rounded-sm ${it.dot ?? ""}`} style={it.color ? { backgroundColor: it.color } : undefined} />
           {it.label}
           {it.value && <span className="font-medium tabular-nums">{it.value}</span>}
         </span>

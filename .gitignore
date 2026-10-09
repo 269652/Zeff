@@ -43,3 +43,8 @@ next-env.d.ts
 
 # zeff: local SQLite database
 /data/
+
+# local tooling, not part of the project
+CLAUDE.md
+/.claude/
+scripts/.probe-*.mjs

@@ -45,6 +45,14 @@ export default async function RoarExportPage({
         </Link>
       </div>
 
+      {plan.unassignedHours > 0 && (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
+          {formatHours(plan.unassignedHours)} h this week are booked on projects without a job and are{" "}
+          <strong>not pushed</strong>. Set the job on{" "}
+          <Link href="/projects" className="font-medium underline">Projects</Link> first.
+        </p>
+      )}
+
       <section className="card p-4">
         <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">What will be pushed</h2>
         {plan.rows.length === 0 ? (
@@ -115,8 +123,8 @@ export default async function RoarExportPage({
         <h2 className="text-sm font-semibold text-zinc-500 uppercase">Transfer</h2>
         <ol className="list-decimal space-y-1 pl-5 text-sm text-zinc-600 dark:text-zinc-300">
           <li>
-            Once: run <code className="code">npm run roar:chrome</code> and sign in to Roar in that Chrome window
-            (the session is saved).
+            The buttons below open Zeff&apos;s own Chrome window if it isn&apos;t running (same as{" "}
+            <code className="code">npm run roar:chrome</code>). Sign in to Roar there once — the session is saved.
           </li>
           <li><strong>Check Roar connection</strong> to confirm the automation can attach.</li>
           <li>

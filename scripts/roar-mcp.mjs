@@ -14,18 +14,27 @@
  *
  * Start Chrome for it with:  npm run roar:chrome   (then sign in to Roar once)
  */
-import { connectToChrome, StuckTabError } from "./chrome-cdp.mjs";
+import { connectToChrome, ChromeConnectError, withTabLock } from "./chrome-cdp.mjs";
 
 const CDP = process.env.ROAR_CDP_ENDPOINT || "http://127.0.0.1:9222";
 const ROAR_URL = "https://roar.marcel.ai/app/timesheet";
 const log = (...a) => process.stderr.write(`[roar-mcp] ${a.join(" ")}\n`);
+/** Step-by-step logging when ROAR_DEBUG is set. */
+const debug = (...a) => process.env.ROAR_DEBUG && log(...a);
+
+/**
+ * Run `fn` holding the Roar lock: every run reloads the Roar tab and pages through weeks, so
+ * two at once (an export while a pull runs, a double click, another client) would keep
+ * reloading the tab under each other. A second run waits for the first.
+ */
+const withRoarLock = (tool, fn) => withTabLock("Roar", tool, fn, debug);
 
 // ---------------------------------------------------------------------------
 // Playwright helpers
 // ---------------------------------------------------------------------------
 
 async function connect() {
-  const browser = await connectToChrome(CDP);
+  const browser = await connectToChrome(CDP, { launchUrls: [ROAR_URL] });
   return browser;
 }
 
@@ -49,9 +58,9 @@ function isLoginUrl(u) {
 
 /** The same-origin iframe that hosts the timesheet app. */
 async function getAppFrame(page) {
-  // Wait for the iframe to attach and load the app.
+  // Wait for the iframe to attach and load the app (up to ~30 s: a freshly started Chrome is still booting it).
   await page.waitForTimeout(500);
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 60; i++) {
     const frames = page.frames();
     const f = frames.find((fr) => fr !== page.mainFrame() && fr.url().includes("roar.marcel.ai"));
     if (f) {
@@ -99,6 +108,7 @@ async function navigateToWeek(frame, targetMondayIso) {
   for (let i = 0; i < 60; i++) {
     const label = await readWeekLabel(frame);
     const cur = parseWeekStart(label);
+    debug(`week label "${label}" → ${cur} (target ${targetMondayIso})`);
     if (cur === targetMondayIso) return;
     if (!cur) throw new Error(`Could not read the Roar week (label="${label}").`);
     const dir = new Date(targetMondayIso) > new Date(cur) ? "Next week" : "Previous week";
@@ -361,17 +371,64 @@ async function readGrid(frame) {
   return new Map(Object.entries(rows));
 }
 
-/** After a (re)load or week change, wait until the week's day cells are rendered (a week may have no rows). */
-async function waitForGrid(frame, weekStartIso) {
-  for (let i = 0; i < 25; i++) {
-    const n = await frame.evaluate((d) => document.querySelectorAll(`input[id^="${d}-"]`).length, weekStartIso).catch(() => 0);
-    if (n > 0) {
-      await frame.page().waitForTimeout(500); // let the remaining rows' values settle
-      return n;
+/** ISO date `n` days after `iso`. */
+function addDaysIso(iso, n) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(y, m - 1, d + n);
+  return isoOf(dt.getFullYear(), dt.getMonth(), dt.getDate());
+}
+
+/** The grid's day cells (signature of ids, values, disabled flags) and whether Roar is still loading. */
+async function gridState(frame, weekStartIso) {
+  return frame
+    .evaluate(
+      ({ start, end }) => {
+        const cells = [...document.querySelectorAll("input[id]")].filter((e) => /^\d{4}-\d{2}-\d{2}-/.test(e.id));
+        return {
+          n: cells.length,
+          busy: document.querySelectorAll('[role="progressbar"], .MuiCircularProgress-root, .MuiLinearProgress-root, .MuiSkeleton-root').length > 0,
+          // Cells of another week: the previous week's grid is still up.
+          foreign: cells.some((e) => e.id.slice(0, 10) < start || e.id.slice(0, 10) > end),
+          allDisabled: cells.length > 0 && cells.every((e) => e.disabled),
+          sig: cells.map((e) => `${e.id}:${e.disabled ? 1 : 0}:${e.value}`).join("|"),
+        };
+      },
+      { start: weekStartIso, end: addDaysIso(weekStartIso, 6) },
+    )
+    .catch(() => null);
+}
+
+/**
+ * After a (re)load, a week change or a save, wait until the week's grid has settled. While
+ * Roar loads a week it shows every cell disabled and adds rows as they arrive (the label
+ * already names the new week), so reading then mistakes editable days for locked ones.
+ * Settled = no spinner, only this week's cells, not all of them disabled (once the week has
+ * begun, its past days are editable), and nothing changing for `stableFor` polls (250 ms
+ * apart). A week may have no rows. Gives up after `maxMs` and returns the cell count.
+ */
+async function waitForGrid(frame, weekStartIso, { stableFor = 3, maxMs = 15000 } = {}) {
+  const t0 = Date.now();
+  const started = weekStartIso <= todayIso();
+  let last = null;
+  let stable = 0;
+  while (Date.now() - t0 < maxMs) {
+    const s = await gridState(frame, weekStartIso);
+    debug(`grid ${Date.now() - t0} ms: ${s ? `${s.n} cells, busy ${s.busy}, foreign ${s.foreign}, all disabled ${s.allDisabled}` : "unreadable"}`);
+    if (s && !s.busy && !s.foreign && !(started && s.allDisabled)) {
+      stable = s.sig === last ? stable + 1 : 1;
+      last = s.sig;
+      if (stable >= stableFor) {
+        log(`grid of ${weekStartIso} settled after ${Date.now() - t0} ms (${s.n} cells)`);
+        return s.n;
+      }
+    } else {
+      stable = 0;
+      last = null;
     }
-    await frame.page().waitForTimeout(400);
+    await frame.page().waitForTimeout(250);
   }
-  return 0;
+  log(`grid of ${weekStartIso} didn't settle in ${maxMs} ms`);
+  return (await gridState(frame, weekStartIso))?.n ?? 0;
 }
 
 /** The entry cards of an open cell panel (several entries); a single entry opens directly as its form. */
@@ -474,16 +531,70 @@ async function editEntry(frame, guid, iso, target, { hours, comment }) {
 const ticketKey = (s) => ((String(s || "").match(/^\s*([A-Z][A-Z0-9]+-\d+)\b/i) || [])[1] || "").toUpperCase() || null;
 
 /**
+ * The week's entries from Roar's own timesheet/search answer (captured while the week
+ * loads), by "job|YYYY-MM-DD": [{ hours, comment, status, locked, rejection }]. Approved
+ * entries are locked — Roar doesn't let them change; rejected ones can be corrected and
+ * resubmitted (`rejection` is the approver's comment). null when the answer couldn't be read.
+ */
+function timesheetCells(body) {
+  if (!body) return null;
+  let data;
+  try { data = JSON.parse(body); } catch { return null; }
+  if (!Array.isArray(data?.timesheets)) return null;
+  const cells = new Map();
+  for (const t of data.timesheets) {
+    if (!t || t.isDeleted || t.isVisible === false || !(Number(t.durationValue) > 0)) continue;
+    const key = `${t.jobId}|${String(t.reportedDate || "").slice(0, 10)}`;
+    const status = String(t.timesheetStatus || "");
+    if (!cells.has(key)) cells.set(key, []);
+    cells.get(key).push({
+      hours: Number(t.durationValue),
+      comment: String(t.comment || ""),
+      status,
+      locked: /approv/i.test(status),
+      rejection: /reject/i.test(status) ? String(t.rejectionComment || "").trim() : null,
+    });
+  }
+  return cells;
+}
+
+const isRejected = (e) => /reject/i.test(e?.status || "");
+/** “the approver's comment” of a cell's rejected entries, for notes. */
+function rejectionNote(entries) {
+  const why = [...new Set(entries.filter(isRejected).map((e) => e.rejection).filter(Boolean))];
+  return why.length ? ` (“${why.join("”, “")}”)` : "";
+}
+
+/**
  * Pair a cell's Roar entries with Zeff's, most specific first: identical (comment + hours)
  * stay; the same comment gets the new duration; the same ticket, then the same duration,
  * then any leftover entry gets the new comment (e.g. a report rule renamed it) and
  * duration. Remaining Roar entries are removed, remaining Zeff entries added. Comments
  * compare trimmed, whitespace-collapsed, case-blind. Edits are { from, hours?, comment? }.
+ * Locked (approved) entries are paired first and never edited or removed: where Zeff
+ * differs, that's listed in `blocked` instead.
  */
 function diffEntries(existing, desired) {
   const sameH = (a, b) => Math.abs(a - b) <= 0.05;
   const ex = existing.map((e) => ({ ...e, key: normComment(e.comment), tk: ticketKey(e.comment), used: false }));
   const want = desired.map((d) => ({ hours: Number(d.hours), comment: d.comment, key: normComment(d.comment), tk: ticketKey(d.comment), done: false }));
+  const blocked = [];
+  // Approved entries can't change: match them to Zeff's first and report what differs.
+  const pairLocked = (test) => {
+    for (const w of want) {
+      if (w.done) continue;
+      const e = ex.find((x) => x.locked && !x.used && test(x, w));
+      if (!e) continue;
+      e.used = true;
+      w.done = true;
+      if (!sameH(e.hours, w.hours) || e.key !== w.key) blocked.push({ from: e, want: w });
+    }
+  };
+  pairLocked((x, w) => x.key === w.key && sameH(x.hours, w.hours));
+  pairLocked((x, w) => x.key === w.key);
+  pairLocked((x, w) => !!x.tk && x.tk === w.tk);
+  pairLocked((x, w) => sameH(x.hours, w.hours));
+  for (const x of ex) if (x.locked && !x.used) { x.used = true; blocked.push({ from: x, want: null }); }
   const edits = [];
   const pair = (test) => {
     for (const w of want) {
@@ -503,7 +614,40 @@ function diffEntries(existing, desired) {
   pair((x, w) => !!x.tk && x.tk === w.tk);
   pair((x, w) => sameH(x.hours, w.hours));
   pair(() => true); // reuse any leftover entry rather than zeroing one and adding another
-  return { edits, remove: ex.filter((x) => !x.used), add: want.filter((x) => !x.done) };
+  return { edits, remove: ex.filter((x) => !x.used), add: want.filter((x) => !x.done), blocked };
+}
+
+/** Today as YYYY-MM-DD (local). */
+function todayIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * A day Roar won't let us edit (its cell stays disabled once the grid has loaded, or the
+ * job has no row — e.g. the day is still ahead): what Zeff would change there, each as a
+ * note. [] when Roar already has exactly what Zeff wants.
+ */
+function lockedNotes(where, known, desired, iso) {
+  const plan = diffEntries(known, desired);
+  const statuses = [...new Set(known.map((k) => k.status).filter(Boolean))].join(", ");
+  const why =
+    iso > todayIso()
+      ? "a future day — Roar opens it on that day"
+      : `Roar keeps the cell read-only${statuses ? ` (${statuses})` : ""} — run the export again, or change it in Roar`;
+  return [
+    ...plan.blocked.map((b) => `${where}: ${describeBlocked(b)}`),
+    ...plan.add.map((a) => `${where}: can't add ${fmtH(a.hours)} “${a.comment}” — ${why}`),
+    ...plan.edits.map((e) => `${where}: can't change ${describeEdit(e)} — ${why}`),
+    ...plan.remove.map((r) => `${where}: can't remove ${fmtH(r.hours)} “${r.comment}” — ${why}`),
+  ];
+}
+
+/** Why a locked (approved) entry wasn't changed. */
+function describeBlocked({ from, want }) {
+  return want
+    ? `approved in Roar as ${fmtH(from.hours)} “${from.comment}”, Zeff has ${fmtH(want.hours)} “${want.comment}” — approved entries can't be changed`
+    : `approved ${fmtH(from.hours)} “${from.comment}” isn't in Zeff — approved entries can't be removed`;
 }
 
 /** "0.3 h “old” → 1 h “new”", naming only what an edit changes. */
@@ -516,12 +660,150 @@ function describeEdit({ from, hours, comment }) {
 // Tool implementations
 // ---------------------------------------------------------------------------
 
+/**
+ * One job through Roar's own job search ("Add job / task" → search): the matching item
+ * ({ jobId, jobName, clientName, jobGroupName }), or null when Roar has no such job. The
+ * dialog is closed again — nothing is added. Tried twice before giving up.
+ */
+async function lookupJob(frame, jobNumber) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const hit = await searchJobOnce(frame, jobNumber).catch(() => undefined);
+    if (hit !== undefined) return hit;
+  }
+  throw new Error("Roar's job search didn't answer");
+}
+
+/**
+ * Type the number into the search and take the first definite answer: the search API's
+ * response (Job/searchJobs), or — when Roar answers a repeated search from its cache — the
+ * dialog itself (a result line "name • number", or "No jobs found"). undefined = no answer.
+ */
+async function searchJobOnce(frame, jobNumber) {
+  const page = frame.page();
+  const want = jobNumber.toUpperCase();
+  let apiItems = null;
+  const onResponse = async (r) => {
+    if (!r.url().includes("/Job/searchJobs")) return;
+    try {
+      if (String(new URL(r.url()).searchParams.get("keyword") || "").trim().toUpperCase() !== want) return;
+      apiItems = (await r.json())?.data?.searchJobs?.items ?? [];
+    } catch {}
+  };
+  page.on("response", onResponse);
+  try {
+    const dialog = await openJobSearch(frame, jobNumber);
+    const t0 = Date.now();
+    while (Date.now() - t0 < 12000) {
+      if (apiItems) return apiItems.find((it) => String(it.jobId || "").toUpperCase() === want) ?? null;
+      const text = await dialog.first().innerText().catch(() => "");
+      if (/No jobs found matching/i.test(text)) return null;
+      const line = text.split("\n").find((l) => l.includes("•") && l.toUpperCase().includes(want));
+      if (line) return { jobId: jobNumber, jobName: line.split("•")[0].trim() };
+      await page.waitForTimeout(250);
+    }
+    return undefined;
+  } finally {
+    page.off("response", onResponse);
+    await page.keyboard.press("Escape").catch(() => {});
+    await page.waitForTimeout(300);
+  }
+}
+
+/** Look job numbers up in Roar (read-only). JSON: { jobs: [{ jobNumber, found, name, client, group } | { jobNumber, error }] }. */
+async function roarJobs({ jobNumbers }) {
+  if (!Array.isArray(jobNumbers) || jobNumbers.length === 0) throw new Error("jobNumbers[] is required.");
+  const browser = await connect();
+  try {
+    const page = await getTimesheetPage(browser);
+    await page.waitForTimeout(1000);
+    if (isLoginUrl(page.url())) throw new Error("Roar is not signed in. Sign in in the Chrome window and retry.");
+    const frame = await getAppFrame(page);
+    const jobs = [];
+    for (const jobNumber of jobNumbers) {
+      try {
+        const hit = await lookupJob(frame, jobNumber);
+        jobs.push(hit ? { jobNumber, found: true, name: hit.jobName, client: hit.clientName, group: hit.jobGroupName } : { jobNumber, found: false });
+      } catch (e) {
+        jobs.push({ jobNumber, error: String(e?.message || e).split("\n")[0].slice(0, 160) });
+      }
+    }
+    return JSON.stringify({ jobs });
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}
+
+/** The entries of a timesheet/search answer, as roar_pull returns them. */
+function pulledEntries(body) {
+  const data = JSON.parse(body);
+  return (data?.timesheets || [])
+    .filter((t) => t && !t.isDeleted && t.isVisible !== false && Number(t.durationValue) > 0)
+    .map((t) => ({
+      id: String(t.id),
+      jobNumber: String(t.jobId || ""),
+      jobName: String(t.jobName || ""),
+      date: String(t.reportedDate || "").slice(0, 10),
+      hours: Number(t.durationValue) || 0,
+      comment: String(t.comment || ""),
+      status: String(t.timesheetStatus || ""),
+      rejectionComment: String(t.rejectionComment || ""),
+      approver: String(t.assignedApproverName || ""),
+      approvedBy: String(t.approvedByName || ""),
+      submittedAt: t.submittedDate || null,
+      approvedAt: t.approvalDate || null,
+    }));
+}
+
+/**
+ * Weeks' Roar entries with their approval status (read-only): reload the timesheet once,
+ * then visit each week in date order and take the app's own timesheet/search answer.
+ * `weekStartIso` → JSON { weekStartIso, entries: [{ id, jobNumber, jobName, date, hours,
+ * comment, status, rejectionComment, approver, approvedBy, submittedAt, approvedAt }] };
+ * `weekStartIsos` (several weeks, e.g. a month's) → JSON { weeks: [{ weekStartIso, entries }] }.
+ */
+async function roarPull({ weekStartIso, weekStartIsos }) {
+  const many = Array.isArray(weekStartIsos);
+  const targets = [...new Set(many ? weekStartIsos : [weekStartIso])].map(String).sort();
+  if (!targets.length || targets.some((w) => !/^\d{4}-\d{2}-\d{2}$/.test(w))) {
+    throw new Error("weekStartIso (or weekStartIsos) as YYYY-MM-DD is required.");
+  }
+  const browser = await connect();
+  try {
+    const page = await getTimesheetPage(browser);
+    if (isLoginUrl(page.url())) throw new Error("Roar is not signed in. Sign in in the Chrome window and retry.");
+    const bodies = new Map();
+    const onResponse = async (r) => {
+      if (!r.url().includes("/api/timesheet/search") || !r.ok()) return;
+      try {
+        const week = new URL(r.url()).searchParams.get("weekStartDate");
+        if (targets.includes(week)) bodies.set(week, await r.text());
+      } catch {}
+    };
+    page.on("response", onResponse);
+    try {
+      // A reload makes the app fetch the week it shows; going to another week fetches that one.
+      await page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
+      for (const week of targets) {
+        await navigateToWeek(await getAppFrame(page), week);
+        for (let i = 0; i < 40 && !bodies.has(week); i++) await page.waitForTimeout(500);
+        if (!bodies.has(week)) throw new Error(`Roar didn't load the timesheet for the week of ${week}.`);
+      }
+    } finally {
+      page.off("response", onResponse);
+    }
+    const weeks = targets.map((week) => ({ weekStartIso: week, entries: pulledEntries(bodies.get(week)) }));
+    return JSON.stringify(many ? { weeks } : weeks[0]);
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}
+
 async function roarStatus() {
   let browser;
   try {
     browser = await connect();
   } catch (e) {
-    if (e instanceof StuckTabError) return e.message;
+    if (e instanceof ChromeConnectError) return e.message;
     return `Cannot reach Chrome on ${CDP}. Start it with "npm run roar:chrome" and sign in to Roar. (${String(e).slice(0, 120)})`;
   }
   try {
@@ -554,11 +836,26 @@ async function roarExport({ weekStartIso, rows, managedJobs = [], dryRun }) {
     const page = await getTimesheetPage(browser);
     await page.waitForTimeout(1000);
     if (isLoginUrl(page.url())) throw new Error("Roar is not signed in. Sign in in the Chrome window and retry.");
+    // Read the app's own answer for the week (every entry with its status) while it loads,
+    // so cells are read without clicking through them and approved entries are left alone.
+    let weekBody = null;
+    const onResponse = async (r) => {
+      if (!r.url().includes("/api/timesheet/search")) return;
+      try {
+        if (new URL(r.url()).searchParams.get("weekStartDate") === weekStartIso && r.ok()) weekBody = await r.text();
+      } catch {}
+    };
+    page.on("response", onResponse);
     // Reload for a clean slate (no stray open dialogs / leftover filter text).
     await page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
     let frame = await getAppFrame(page);
     await navigateToWeek(frame, weekStartIso);
     frame = await getAppFrame(page);
+    for (let i = 0; i < 20 && weekBody === null; i++) await page.waitForTimeout(250);
+    page.off("response", onResponse);
+    const apiCells = timesheetCells(weekBody);
+    // Stop in time (Zeff gives the export 10 minutes) and say what's left, rather than being cut off.
+    const deadline = Date.now() + 8.5 * 60 * 1000;
 
     const managed = new Set(managedJobs);
     const tracked = new Set(rows.flatMap((r) => Object.keys(r.entriesByDay || {})));
@@ -576,6 +873,7 @@ async function roarExport({ weekStartIso, rows, managedJobs = [], dryRun }) {
     const problems = [];
     const count = { added: 0, updated: 0, removed: 0, ok: 0 };
     let touchedSubmitted = false;
+    const resubmit = []; // rejected days being corrected: "job Wed 23.09. (“approver's comment”)"
     const wcCtx = {}; // captured default WorkCode/Billable, reused where a job (e.g. Abwesenheit) has none
     const mark = dryRun ? "→" : "✓";
 
@@ -584,6 +882,17 @@ async function roarExport({ weekStartIso, rows, managedJobs = [], dryRun }) {
       const name = z?.jobName ? `${job} ${z.jobName}` : job;
       let guid = grid.get(job)?.guid ?? (await rowGuid(frame, job));
       try {
+        const roarDaysOfJob = apiCells ? [...apiCells.keys()].filter((k) => k.startsWith(`${job}|`)).map((k) => k.slice(job.length + 1)) : [];
+        if (!guid && roarDaysOfJob.length) {
+          // Roar has the job this week but no editable cells for it (all submitted/approved):
+          // the row isn't missing, so don't add it again — say what differs, day by day.
+          for (const iso of [...new Set([...Object.keys(z?.entriesByDay || {}), ...roarDaysOfJob])].sort()) {
+            const notes = lockedNotes(`${name} ${dayLabel(iso)}`, apiCells.get(`${job}|${iso}`) || [], z?.entriesByDay?.[iso] || [], iso);
+            if (notes.length) skipped.push(...notes);
+            else count.ok += 1;
+          }
+          continue;
+        }
         if (!guid) {
           if (dryRun) {
             const dialog = await openJobSearch(frame, job);
@@ -605,15 +914,30 @@ async function roarExport({ weekStartIso, rows, managedJobs = [], dryRun }) {
 
         for (const iso of days) {
           const where = `${name} ${dayLabel(iso)}`;
+          if (Date.now() > deadline) {
+            skipped.push(`${where}: not reached in time — run the export again`);
+            continue;
+          }
           try {
             const desired = z?.entriesByDay?.[iso] || [];
-            const cell = await cellInfo(frame, guid, iso);
+            let cell = await cellInfo(frame, guid, iso);
+            if ((cell.disabled || !cell.present) && iso <= todayIso()) {
+              // A past day reads as locked while Roar (re)loads the week — let it settle, look again.
+              await waitForGrid(frame, weekStartIso, { stableFor: 2, maxMs: 8000 });
+              cell = await cellInfo(frame, guid, iso);
+            }
+            debug(`${where}: cell ${cell.present ? (cell.disabled ? "disabled" : "editable") : "absent"}, value ${cell.value || 0}`);
             const cur = Number(cell.value) || 0;
             const want = Math.round(desired.reduce((a, it) => a + Number(it.hours), 0) * 10) / 10;
             const sameTotal = Math.abs(cur - want) <= 0.05;
             const sync = managed.has(job) && tracked.has(iso);
+            const known = apiCells?.get(`${job}|${iso}`);
             if (cell.disabled) {
-              if (sameTotal) count.ok += 1;
+              if (apiCells) {
+                const notes = lockedNotes(where, known || [], desired, iso);
+                if (notes.length) skipped.push(...notes);
+                else count.ok += 1;
+              } else if (sameTotal) count.ok += 1;
               else skipped.push(`${where}: future/locked day`);
               continue;
             }
@@ -623,10 +947,26 @@ async function roarExport({ weekStartIso, rows, managedJobs = [], dryRun }) {
               skipped.push(`${where}: Roar has ${fmtH(cur)}, Zeff ${fmtH(want)} — ${managed.size ? "day not tracked in Zeff" : "partial (filtered) export"}, fix in Roar`);
               continue;
             }
-            const read = cur > 0 ? await readCellEntries(frame, guid, iso) : { entries: [], submitted: false };
+            // The week's own data when we have it; else read the cell by clicking through it.
+            const read = known
+              ? { entries: known, submitted: known.some((e) => /submit|approv/i.test(e.status) && !/unsubmit/i.test(e.status)) }
+              : cur > 0 // hours in the grid the week data doesn't explain: read the cell itself
+                ? await readCellEntries(frame, guid, iso)
+                : { entries: [], submitted: false };
             const plan = diffEntries(read.entries, desired);
-            if (!plan.edits.length && !plan.remove.length && !plan.add.length) { count.ok += 1; continue; }
+            for (const b of plan.blocked) skipped.push(`${where}: ${describeBlocked(b)}`);
+            // Rejected entries are corrected like any other; ones Zeff still books unchanged stay rejected.
+            const rejected = read.entries.filter(isRejected);
+            const correcting = [...plan.edits.map((ed) => ed.from), ...plan.remove].filter(isRejected).length;
+            if (rejected.length > correcting) {
+              skipped.push(`${where}: rejected in Roar${rejectionNote(rejected)}, but Zeff still has it unchanged — correct it in Zeff, export again, then resubmit in Roar`);
+            }
+            if (!plan.edits.length && !plan.remove.length && !plan.add.length) {
+              if (!plan.blocked.length && !rejected.length) count.ok += 1;
+              continue;
+            }
             if (read.submitted) touchedSubmitted = true;
+            if (rejected.length) resubmit.push(`${job} ${dayLabel(iso)}${rejectionNote(rejected)}`);
 
             for (const r of plan.remove) {
               if (!dryRun) await editEntry(frame, guid, iso, r, { hours: 0 });
@@ -646,6 +986,8 @@ async function roarExport({ weekStartIso, rows, managedJobs = [], dryRun }) {
               changes.push(`${mark} ${where}: add ${fmtH(a.hours)} “${a.comment}”`);
               count.added += 1;
             }
+            // Roar reloads the week after a save; let it settle before the next cell.
+            if (!dryRun) await waitForGrid(frame, weekStartIso, { stableFor: 2, maxMs: 8000 });
           } catch (e) {
             problems.push(`${where}: ${String(e?.message || e).split("\n")[0].slice(0, 120)}`);
           }
@@ -663,8 +1005,12 @@ async function roarExport({ weekStartIso, rows, managedJobs = [], dryRun }) {
       : `Roar — ${count.added} added, ${count.updated} updated, ${count.removed} removed${saved ? ", draft saved" : ""}; ${count.ok} cell${count.ok === 1 ? "" : "s"} already matched:`;
     const lines = [...changes, ...skipped.map((s) => `↷ ${s}`), ...problems.map((p) => `✗ ${p}`)];
     const notes = [];
+    if (resubmit.length) {
+      const days = `rejected day${resubmit.length === 1 ? "" : "s"} in Roar: ${resubmit.join("; ")}`;
+      notes.push(dryRun ? `After filling, resubmit the corrected ${days}.` : `Resubmit the corrected ${days}.`);
+    }
     if (touchedSubmitted) notes.push(dryRun ? "These cells belong to an already submitted timesheet — resubmit in Roar after filling." : "This timesheet was already submitted — review and resubmit it in Roar.");
-    else if (!dryRun && changes.length) notes.push("Review and Submit in the Roar window.");
+    else if (!dryRun && changes.length && !resubmit.length) notes.push("Review and Submit in the Roar window.");
     return [head, ...lines.map((l) => `  ${l}`), ...notes.map((x) => `  ${x}`)].join("\n");
   } finally {
     await browser.close().catch(() => {});
@@ -680,6 +1026,32 @@ const TOOLS = [
     name: "roar_status",
     description: "Check whether Chrome (with the debug port) is reachable and the Roar timesheet is signed in.",
     inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "roar_pull",
+    description:
+      "Read a week's — or several weeks' — Roar entries with their approval status (Approved / Submitted / Rejected …, rejection comment, approver) — read-only: opens the weeks in the timesheet, saves nothing. Returns JSON.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        weekStartIso: { type: "string", description: "Monday of the week, YYYY-MM-DD." },
+        weekStartIsos: {
+          type: "array",
+          items: { type: "string" },
+          description: "Several weeks' Mondays (YYYY-MM-DD) in one visit; returns { weeks: [{ weekStartIso, entries }] }.",
+        },
+      },
+    },
+  },
+  {
+    name: "roar_jobs",
+    description:
+      "Look job numbers up in Roar's job search (read-only: the Add job dialog is closed again, nothing is added). Returns JSON { jobs: [{ jobNumber, found, name, client, group }] }.",
+    inputSchema: {
+      type: "object",
+      properties: { jobNumbers: { type: "array", description: "Zeff job numbers (= Roar job IDs).", items: { type: "string" } } },
+      required: ["jobNumbers"],
+    },
   },
   {
     name: "roar_export",
@@ -732,7 +1104,10 @@ async function handle(msg) {
     const args = params?.arguments || {};
     try {
       if (name === "roar_status") return ok(id, textResult(await roarStatus()));
-      if (name === "roar_export") return ok(id, textResult(await roarExport(args)));
+      // These drive the Roar tab (reload, change weeks): one at a time, across processes.
+      if (name === "roar_export") return ok(id, textResult(await withRoarLock(name, () => roarExport(args))));
+      if (name === "roar_jobs") return ok(id, textResult(await withRoarLock(name, () => roarJobs(args))));
+      if (name === "roar_pull") return ok(id, textResult(await withRoarLock(name, () => roarPull(args))));
       return ok(id, textResult(`Unknown tool "${name}".`, true));
     } catch (e) {
       log("tool error:", String(e));

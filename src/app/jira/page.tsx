@@ -7,11 +7,14 @@ import { BoardJobSelect } from "@/components/BoardJobSelect";
 import { BoardSyncControls } from "@/components/BoardSyncControls";
 import { JiraJobSelect } from "@/components/JiraJobSelect";
 import { JiraSyncControls } from "@/components/JiraSyncControls";
+import { TicketTagsEditor } from "@/components/TicketTagsEditor";
 import { SubmitButton } from "@/components/SubmitButton";
 import type { JiraStatusCategory } from "@/db/schema";
 import { getJiraSyncConfig } from "@/lib/jira/sync";
 import { jiraStats, listJiraBoards, listJiraTickets } from "@/lib/jira/store";
+import { listDefaultTagMaps } from "@/lib/default-tags";
 import { listJobs } from "@/lib/jobs";
+import { listTags } from "@/lib/tags";
 import { getUiOpen } from "@/lib/ui-state";
 
 export const metadata: Metadata = { title: "Jira" };
@@ -38,6 +41,8 @@ export default async function JiraPage({
   const tickets = mineOnly ? allTickets.filter((t) => t.mine) : allTickets;
   const boards = listJiraBoards();
   const jobRows = listJobs();
+  const allTags = listTags().map((t) => t.name);
+  const ticketTags = listDefaultTagMaps().tickets;
   const jobs = jobRows.map((j) => ({ number: j.number, name: j.name }));
   const ui = await getUiOpen();
   const jobName = new Map(jobRows.map((j) => [j.number, j.name]));
@@ -162,6 +167,7 @@ export default async function JiraPage({
                   <th>Assignee</th>
                   <th>Board</th>
                   <th>Job</th>
+                  <th title="Default tags: added to every entry booked on the ticket">Tags</th>
                 </tr>
               </thead>
               <tbody>
@@ -200,6 +206,9 @@ export default async function JiraPage({
                       <td className="whitespace-nowrap text-xs text-zinc-500" title={board?.name}>{board?.name ?? ""}</td>
                       <td>
                         <JiraJobSelect ticketKey={t.key} jobs={jobs} current={t.jobNumber} boardJob={boardJob} />
+                      </td>
+                      <td>
+                        <TicketTagsEditor ticketKey={t.key} tags={ticketTags[t.key.toUpperCase()] ?? []} allTags={allTags} />
                       </td>
                     </tr>
                   );

@@ -1,0 +1,1 @@
+ALTER TABLE `todos` ADD `flagged_at` text;

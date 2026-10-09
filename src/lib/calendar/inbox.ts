@@ -60,15 +60,29 @@ function keyOf(e: GraphEvent): string {
   return `${e.iCalUId || e.id}@${e.start.dateTime.slice(0, 16)}`;
 }
 
-export function readInbox(): GraphEvent[] {
+/** The inbox file: its events, and when each week was last synced from Outlook (Monday → ISO time). */
+type InboxFile = { value: unknown[]; synced: Record<string, string> };
+
+function readFile(): InboxFile {
   try {
-    const raw = fs.readFileSync(INBOX_PATH, "utf8");
-    const json = JSON.parse(raw) as GraphEvent[] | { value?: GraphEvent[] };
-    const arr = Array.isArray(json) ? json : (json.value ?? []);
-    return arr.map(sanitize).filter((e): e is GraphEvent => e !== null);
+    const json = JSON.parse(fs.readFileSync(INBOX_PATH, "utf8")) as unknown[] | { value?: unknown[]; synced?: Record<string, string> };
+    return Array.isArray(json) ? { value: json, synced: {} } : { value: json.value ?? [], synced: json.synced ?? {} };
   } catch {
-    return [];
+    return { value: [], synced: {} };
   }
+}
+
+/** Sort, cap and store events (keeping the latest MAX_EVENTS) with the sync times. */
+function writeFile(events: GraphEvent[], synced: Record<string, string>): number {
+  let merged = [...events].sort((a, b) => a.start.dateTime.localeCompare(b.start.dateTime));
+  if (merged.length > MAX_EVENTS) merged = merged.slice(-MAX_EVENTS);
+  fs.mkdirSync(path.dirname(INBOX_PATH), { recursive: true });
+  fs.writeFileSync(INBOX_PATH, JSON.stringify({ value: merged, synced }, null, 2));
+  return merged.length;
+}
+
+export function readInbox(): GraphEvent[] {
+  return readFile().value.map(sanitize).filter((e): e is GraphEvent => e !== null);
 }
 
 export function inboxCount(): number {
@@ -81,13 +95,44 @@ export function mergeIntoInbox(rawEvents: unknown[]): { accepted: number; total:
   const byKey = new Map<string, GraphEvent>();
   for (const e of readInbox()) byKey.set(keyOf(e), e);
   for (const e of incoming) byKey.set(keyOf(e), e);
+  const total = writeFile([...byKey.values()], readFile().synced);
+  return { accepted: incoming.length, total };
+}
 
-  let merged = [...byKey.values()].sort((a, b) => a.start.dateTime.localeCompare(b.start.dateTime));
-  if (merged.length > MAX_EVENTS) merged = merged.slice(-MAX_EVENTS);
+/**
+ * Store a sync of whole weeks (Monday + its events): each week's events replace what the inbox
+ * had for it — so meetings moved or deleted in Outlook go away — and its sync time is noted.
+ */
+export function replaceInboxWeeks(weeks: { weekStartIso: string; events: unknown[] }[]): { events: number; total: number } {
+  const sunday = (monday: string) => {
+    const [y, m, d] = monday.split("-").map(Number);
+    const s = new Date(y, m - 1, d + 6);
+    return `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, "0")}-${String(s.getDate()).padStart(2, "0")}`;
+  };
+  const ranges = weeks.map((w) => [w.weekStartIso, sunday(w.weekStartIso)]);
+  const synced = (e: GraphEvent) => {
+    const day = e.start.dateTime.slice(0, 10);
+    return ranges.some(([from, to]) => day >= from && day <= to);
+  };
+  const file = readFile();
+  const byKey = new Map<string, GraphEvent>();
+  for (const e of file.value.map(sanitize)) if (e && !synced(e)) byKey.set(keyOf(e), e);
+  let events = 0;
+  for (const w of weeks) {
+    for (const e of w.events.map(sanitize)) {
+      if (!e) continue;
+      byKey.set(keyOf(e), e);
+      events++;
+    }
+  }
+  const at = new Date().toISOString();
+  const times = { ...file.synced, ...Object.fromEntries(weeks.map((w) => [w.weekStartIso, at])) };
+  return { events, total: writeFile([...byKey.values()], times) };
+}
 
-  fs.mkdirSync(path.dirname(INBOX_PATH), { recursive: true });
-  fs.writeFileSync(INBOX_PATH, JSON.stringify({ value: merged }, null, 2));
-  return { accepted: incoming.length, total: merged.length };
+/** When the week (its Monday) was last synced from Outlook, if ever. */
+export function inboxSyncedAt(weekStartIso: string): string | null {
+  return readFile().synced[weekStartIso] ?? null;
 }
 
 export function clearInbox(): void {

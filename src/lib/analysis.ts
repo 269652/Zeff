@@ -1,12 +1,13 @@
 import { addDays, endOfISOWeek, getISOWeek, getISOWeekYear, startOfISOWeek, subWeeks } from "date-fns";
 import { getEarliestEntryDate, listEntries, type EntryWithJob } from "./entries";
 import { round2 } from "./format";
-import type { EntryType, JiraStatusCategory } from "@/db/schema";
+import type { JiraStatusCategory } from "@/db/schema";
 import { earliestJiraDate, hasJiraData, jiraStats, ticketLifecycles, ticketsClosedBetween } from "./jira/store";
 import type { TagLite } from "./tags-shared";
 import { isoDate } from "./week";
 
-export type TypeHours = Record<EntryType, number>;
+/** Hours per entry type key (only the types that have hours). */
+export type TypeHours = Record<string, number>;
 
 export type TagStat = { tag: TagLite; hours: number; entryCount: number };
 export type JobStat = { jobNumber: string; jobName: string; hours: number };
@@ -77,7 +78,7 @@ export type Analysis = {
 };
 
 function emptyTypeHours(): TypeHours {
-  return { ticket: 0, meeting: 0, other: 0, absence: 0, internal: 0 };
+  return {};
 }
 
 function weekKeyOf(d: Date): string {
@@ -166,7 +167,7 @@ export function getAnalysis(opts: {
   const weekTickets = new Map<string, Set<string>>();
 
   for (const e of entries) {
-    byType[e.type] = round2(byType[e.type] + e.hours);
+    byType[e.type] = round2((byType[e.type] ?? 0) + e.hours);
     activeDaySet.add(e.date);
 
     // tags
@@ -205,7 +206,7 @@ export function getAnalysis(opts: {
     const wk = weekMap.get(wkey);
     if (wk) {
       wk.total = round2(wk.total + e.hours);
-      wk.byType[e.type] = round2(wk.byType[e.type] + e.hours);
+      wk.byType[e.type] = round2((wk.byType[e.type] ?? 0) + e.hours);
       if (e.type === "ticket" && e.ticket) {
         const set = weekTickets.get(wkey) ?? new Set<string>();
         set.add(e.ticket.toLowerCase());
@@ -294,7 +295,7 @@ export function getAnalysis(opts: {
     }
   }
 
-  const totalHours = round2(byType.ticket + byType.meeting + byType.other + byType.absence + byType.internal);
+  const totalHours = round2(Object.values(byType).reduce((a, h) => a + h, 0));
   const weeks = [...weekMap.values()].sort((a, b) => a.startIso.localeCompare(b.startIso));
   const activeWeeks = weeks.filter((w) => w.total > 0).length || 1;
   const weekCount = weeks.length || 1;
@@ -315,8 +316,8 @@ export function getAnalysis(opts: {
     entryCount: entries.length,
     activeDays: activeDaySet.size,
     byType,
-    meetingPercent: totalHours > 0 ? Math.round((byType.meeting / totalHours) * 100) : 0,
-    avgMeetingHoursPerActiveDay: round2(byType.meeting / (activeDaySet.size || 1)),
+    meetingPercent: totalHours > 0 ? Math.round(((byType.meeting ?? 0) / totalHours) * 100) : 0,
+    avgMeetingHoursPerActiveDay: round2((byType.meeting ?? 0) / (activeDaySet.size || 1)),
     distinctTickets: ticketMap.size,
     avgHoursPerActiveWeek: round2(totalHours / activeWeeks),
     byTag: [...tagMap.values()].sort((a, b) => b.hours - a.hours),

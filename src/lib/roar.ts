@@ -1,4 +1,5 @@
 import { round2 } from "./format";
+import { NO_JOB_NUMBER } from "./projects-shared";
 import { getRewrittenJobLines } from "./report";
 import { formatDay, isoDate, type WeekInfo } from "./week";
 
@@ -36,6 +37,8 @@ export type RoarExportPlan = {
   rows: RoarExportRow[];
   entryCount: number;
   total: number;
+  /** Hours on projects without a job yet — never pushed (they'd need a Roar job). */
+  unassignedHours: number;
   filter: { reportedBy?: string };
 };
 
@@ -47,7 +50,7 @@ export function roundRoarHours(h: number): number {
 /** Roar's comment field caps at 125 chars. */
 const COMMENT_MAX = 125;
 
-function clipComment(s: string): string {
+export function clipComment(s: string): string {
   return s.length > COMMENT_MAX ? s.slice(0, COMMENT_MAX - 1).trimEnd() + "…" : s;
 }
 
@@ -60,8 +63,13 @@ export function roarComment(ticket: string | null | undefined, description: stri
 
 export function getRoarExportPlan(week: WeekInfo, filter: { reportedBy?: string } = {}): RoarExportPlan {
   const byJob = new Map<string, RoarExportRow>();
+  let unassignedHours = 0;
   // One entry per rewritten report line and job, in chronological order.
   for (const l of getRewrittenJobLines(week, filter)) {
+    if (l.jobNumber === NO_JOB_NUMBER) {
+      unassignedHours = round2(unassignedHours + l.hours);
+      continue;
+    }
     let row = byJob.get(l.jobNumber);
     if (!row) {
       row = { jobNumber: l.jobNumber, jobName: l.jobName, entriesByDay: {}, hoursByDay: {}, entryCount: 0, total: 0 };
@@ -93,6 +101,7 @@ export function getRoarExportPlan(week: WeekInfo, filter: { reportedBy?: string 
     rows,
     entryCount: rows.reduce((a, r) => a + r.entryCount, 0),
     total: round2(rows.reduce((a, r) => a + r.total, 0)),
+    unassignedHours,
     filter,
   };
 }

@@ -1,0 +1,71 @@
+import path from "node:path";
+import { clearAttention, needsSignIn, raiseLogin } from "@/lib/attention";
+import { errorMessage } from "@/lib/errors";
+import { getGitlabSettings, saveGitlabItems, updateGitlabSettings, type GitlabItemInput } from "./store";
+
+const CDP = process.env.GITLAB_CDP_ENDPOINT || process.env.ROAR_CDP_ENDPOINT || "http://127.0.0.1:9222";
+/** How far back a full sync (and branches on every sync) goes. */
+const DAYS = 90;
+
+/** One sync at a time across the whole server (actions and the scheduler are separate module copies). */
+const state = globalThis as { __zeffGitlabSyncing?: boolean };
+
+/** Remember how the sync went, for the GitLab page (and the scheduler's next turn). */
+function record(ok: boolean, message: string): { ok: boolean; message: string } {
+  updateGitlabSettings({ lastSyncAt: new Date().toISOString(), lastResult: message, lastOk: ok });
+  return { ok, message };
+}
+
+/** Whether the automation Chrome runs — the background sync never starts it (it opens a GitLab tab there, though). */
+async function chromeUp(): Promise<boolean> {
+  return fetch(`${CDP}/json/version`, { signal: AbortSignal.timeout(3000) })
+    .then((r) => r.ok)
+    .catch(() => false);
+}
+
+/**
+ * Read your merge requests, their comments (yours too) and your branches from GitLab —
+ * GET requests from a GitLab tab in the automation Chrome (scripts/gitlab-mcp.mjs) — and keep
+ * them. After a sync that worked, only what changed since (a day's overlap) is read again.
+ * `background`: only when Chrome runs with GitLab open; by hand it may open GitLab.
+ */
+export async function syncGitlab({ background = false } = {}): Promise<{ ok: boolean; message: string }> {
+  if (state.__zeffGitlabSyncing) return { ok: false, message: "A GitLab sync is already running." };
+  state.__zeffGitlabSyncing = true;
+  try {
+    const s = getGitlabSettings();
+    const base = s.baseUrl.replace(/\/+$/, "");
+    if (background && !(await chromeUp())) return record(false, "The automation Chrome isn't running. Not synced.");
+    const sinceIso = s.lastOk && s.lastSyncAt ? new Date(new Date(s.lastSyncAt).getTime() - 864e5).toISOString() : undefined;
+    const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
+    const script = path.join(/*turbopackIgnore: true*/ process.cwd(), "scripts", "gitlab-mcp.mjs");
+    const out = await runStdioSession(
+      { command: process.execPath, args: [script], env: {}, label: "GitLab sync" },
+      // GitLab not open: a tab for it (Chrome itself started only by hand).
+      async (call) => resultToPayload(await call("gitlab_items", { baseUrl: base, sinceIso, days: DAYS, openIfMissing: true, launch: !background })),
+      240000,
+    );
+    const data = (typeof out === "string" ? JSON.parse(out) : out) as { items?: GitlabItemInput[] };
+    if (!Array.isArray(data.items)) throw new Error(typeof out === "string" ? out.slice(0, 300) : "GitLab returned nothing readable.");
+    const { added, total } = saveGitlabItems(data.items);
+    // Merge todos waiting for an approval: theirs is in.
+    const { promoteApprovedMerges } = await import("@/lib/boards/store");
+    promoteApprovedMerges(new Set(data.items.filter((i) => i.kind === "mr" && /approved/.test(i.state ?? "")).map((i) => i.key)));
+    // Merge requests a todo asks to open (none open for the branch, as now synced): their button.
+    try {
+      await (await import("@/lib/boards/delivery-ops")).attachOpenMrOps();
+      (await import("@/lib/boards/todo-rules")).applyTodoRules();
+    } catch {
+      // without buttons, then
+    }
+    clearAttention("login:gitlab");
+    return record(true, `${added} new · ${total} in all`);
+  } catch (e) {
+    const message = errorMessage(e).slice(0, 300);
+    // GitLab wants you to sign in (not just unreachable): asked of you, and pinged.
+    if (needsSignIn(message) && !/reachable/i.test(message)) raiseLogin("gitlab", message);
+    return record(false, message);
+  } finally {
+    state.__zeffGitlabSyncing = false;
+  }
+}

@@ -1,0 +1,54 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { connection } from "next/server";
+import { RepoForm } from "@/components/RepoForm";
+import { listRepos, repoChoices } from "@/lib/repos";
+
+export const metadata: Metadata = { title: "Repos" };
+
+/**
+ * Repos: where workers implement — each repo's folder here and GitLab project, and the Jira
+ * boards (and single tickets) whose work goes there. A ticket's work goes to the repo that names
+ * it, else its board's, else the one its merge requests are in.
+ */
+export default async function ReposPage() {
+  await connection();
+  const repos = listRepos();
+  const choices = repoChoices();
+  const boardName = new Map(choices.boards.map((b) => [b.id, b.name]));
+  return (
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h1 className="text-lg font-semibold">Repos</h1>
+        <p className="max-w-[75ch] text-sm text-zinc-500">
+          Where the{" "}
+          <Link href="/work" className="text-indigo-600 hover:underline dark:text-indigo-400">
+            Work
+          </Link>{" "}
+          tab&apos;s workers implement. A ticket&apos;s work goes to the repo that names the ticket, else to the one its Jira board is assigned to, else to the one whose GitLab
+          project its merge requests are in. The projects come from the GitLab sync, the boards from the Jira tab.
+        </p>
+      </div>
+
+      {repos.map((r) => (
+        <section key={r.id} className="card space-y-3 p-4">
+          <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h2 className="font-semibold">{r.name}</h2>
+            <span className={`text-xs ${r.ok ? "text-zinc-500" : "text-red-600 dark:text-red-400"}`}>{r.ok ? `on ${r.branch}` : "folder missing"}</span>
+            <span className="text-xs text-zinc-500">
+              {r.boards.length ? r.boards.map((b) => boardName.get(b) ?? `board ${b}`).join(", ") : "no boards"}
+              {r.tickets.length ? ` · ${r.tickets.join(", ")}` : ""}
+            </span>
+          </header>
+          <RepoForm repo={r} choices={choices} />
+        </section>
+      ))}
+
+      <section className="card space-y-3 p-4">
+        <h2 className="text-sm font-semibold text-zinc-500 uppercase">{repos.length ? "Add another repo" : "Add a repo"}</h2>
+        {!choices.projects.length && <p className="text-sm text-zinc-500">No GitLab projects synced yet — the GitLab tab syncs them; the folder works without one too.</p>}
+        <RepoForm key={repos.length} choices={choices} />
+      </section>
+    </div>
+  );
+}

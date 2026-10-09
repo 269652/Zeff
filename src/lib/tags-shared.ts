@@ -52,3 +52,23 @@ export function hashtagAtCaret(text: string, caret: number): { text: string; sta
   const start = before.length - (query.length + 1); // include the '#'
   return { text: query, start };
 }
+
+/** Default tags by job number, project id and ticket key (upper-case) — see default-tags.ts. */
+export type DefaultTagMaps = {
+  jobs: Record<string, string[]>;
+  projects: Record<number, string[]>;
+  tickets: Record<string, string[]>;
+};
+
+/** The default tags for a booking: its job's, its project's and its (complete) ticket's. */
+export function pickDefaultTags(
+  maps: DefaultTagMaps,
+  sel: { jobNumber?: string | null; projectId?: number | null; ticket?: string | null },
+): string[] {
+  const ticket = sel.ticket?.trim().toUpperCase();
+  return dedupeTags([
+    ...((sel.jobNumber && maps.jobs[sel.jobNumber]) || []),
+    ...((sel.projectId && maps.projects[sel.projectId]) || []),
+    ...((ticket && maps.tickets[ticket]) || []),
+  ]);
+}

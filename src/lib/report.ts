@@ -6,6 +6,7 @@ import { listEntries, type EntryWithJob } from "./entries";
 import { DEFAULT_TIMO_CONFIG, type TimoConfig } from "./timo";
 import { round2 } from "./format";
 import { ValidationError } from "./errors";
+import { entryTypeMap } from "./entry-types";
 import { getTicketSummaries } from "./jira/store";
 import {
   defaultRules,
@@ -239,15 +240,24 @@ function toLineEntry(e: EntryWithJob): ReportLineEntry {
 }
 
 /** Flatten an entry into the shape the rules match on (job + Jira ticket title lifted in). */
-function toRuleEntry(e: EntryWithJob, summaries: Map<string, string>): RuleEntry {
+/** Type key → configured name, for {type}. */
+type TypeLabels = Record<string, string>;
+
+function typeLabels(): TypeLabels {
+  return Object.fromEntries(Object.values(entryTypeMap()).map((t) => [t.key, t.label]));
+}
+
+function toRuleEntry(e: EntryWithJob, summaries: Map<string, string>, labels: TypeLabels): RuleEntry {
   return {
     type: e.type,
     ticket: e.ticket,
     ticketName: e.ticket ? (summaries.get(e.ticket.toUpperCase()) ?? "") : "",
+    typeLabel: labels[e.type] ?? e.type,
     description: e.description,
     tags: e.tags,
     jobNumber: e.job.number,
     jobName: e.job.name,
+    project: e.project?.title ?? "",
   };
 }
 
@@ -256,11 +266,11 @@ function toRuleEntry(e: EntryWithJob, summaries: Map<string, string>): RuleEntry
  * that render to the same label merge (hours summed). A line stays expandable when
  * it merges several entries, or when its label rewrites a single entry's text.
  */
-function buildDay(date: string, entries: EntryWithJob[], rules: ReportRule[], summaries: Map<string, string>): ReportDay {
+function buildDay(date: string, entries: EntryWithJob[], rules: ReportRule[], summaries: Map<string, string>, labels: TypeLabels): ReportDay {
   const groups = new Map<string, { rule: ReportRule; entries: EntryWithJob[] }>();
   const order: string[] = [];
   for (const e of entries) {
-    const re = toRuleEntry(e, summaries);
+    const re = toRuleEntry(e, summaries, labels);
     const rule = matchedRule(rules, re);
     const key = reportGroupKey(rule, re, e.id);
     let g = groups.get(key);
@@ -275,7 +285,7 @@ function buildDay(date: string, entries: EntryWithJob[], rules: ReportRule[], su
   const lines: ReportLine[] = order.map((key) => {
     const { rule, entries: es } = groups.get(key)!;
     const first = es[0];
-    const label = reportGroupLabel(rule, toRuleEntry(first, summaries), es.length);
+    const label = reportGroupLabel(rule, toRuleEntry(first, summaries, labels), es.length);
     return {
       key,
       label,
@@ -301,6 +311,7 @@ export function getRewrittenReport(week: WeekInfo, filter: { reportedBy?: string
   const rules = getReportRules(settings);
   const entries = listEntries({ from: week.startIso, to: week.endIso, reportedBy: filter.reportedBy });
   const summaries = getTicketSummaries();
+  const labels = typeLabels();
 
   const byDate = new Map<string, EntryWithJob[]>();
   for (const e of entries) (byDate.get(e.date) ?? byDate.set(e.date, []).get(e.date)!).push(e);
@@ -309,7 +320,7 @@ export function getRewrittenReport(week: WeekInfo, filter: { reportedBy?: string
   for (const d of week.days) {
     const iso = isoDate(d);
     const dayEntries = byDate.get(iso);
-    if (dayEntries?.length) days.push(buildDay(iso, dayEntries, rules, summaries));
+    if (dayEntries?.length) days.push(buildDay(iso, dayEntries, rules, summaries, labels));
   }
 
   return { week, days, total: round2(days.reduce((a, d) => a + d.total, 0)), settings, filter };
@@ -328,6 +339,8 @@ export type RewrittenJobLine = {
   count: number;
   /** The first entry — a fallback for labels that render empty. */
   first: { ticket: string | null; description: string };
+  /** The Zeff entries merged into it. */
+  entryIds: number[];
 };
 
 /**
@@ -338,19 +351,21 @@ export type RewrittenJobLine = {
 export function getRewrittenJobLines(week: WeekInfo, filter: { reportedBy?: string } = {}): RewrittenJobLine[] {
   const rules = getReportRules(getReportSettings());
   const summaries = getTicketSummaries();
+  const labels = typeLabels();
   const entries = listEntries({ from: week.startIso, to: week.endIso, reportedBy: filter.reportedBy });
-  const groups = new Map<string, { e: EntryWithJob; rule: ReportRule; re: RuleEntry; hours: number; count: number }>();
+  const groups = new Map<string, { e: EntryWithJob; rule: ReportRule; re: RuleEntry; hours: number; count: number; ids: number[] }>();
   // listEntries is newest first; go oldest first so each day's lines read chronologically.
   for (const e of [...entries].reverse()) {
-    const re = toRuleEntry(e, summaries);
+    const re = toRuleEntry(e, summaries, labels);
     const rule = matchedRule(rules, re);
     const key = `${e.date}|${e.job.number}|${reportGroupKey(rule, re, e.id)}`;
-    const g = groups.get(key) ?? { e, rule, re, hours: 0, count: 0 };
+    const g = groups.get(key) ?? { e, rule, re, hours: 0, count: 0, ids: [] };
     g.hours = round2(g.hours + e.hours);
     g.count += 1;
+    g.ids.push(e.id);
     groups.set(key, g);
   }
-  return [...groups.values()].map(({ e, rule, re, hours, count }) => ({
+  return [...groups.values()].map(({ e, rule, re, hours, count, ids }) => ({
     date: e.date,
     jobNumber: e.job.number,
     jobName: e.job.name,
@@ -358,7 +373,79 @@ export function getRewrittenJobLines(week: WeekInfo, filter: { reportedBy?: stri
     hours,
     count,
     first: { ticket: e.ticket, description: e.description },
+    entryIds: ids,
   }));
+}
+
+/** A report label's share of a job over a period (see getJobReportSummaries). */
+export type JobLabelSummary = {
+  label: string;
+  /** The first entry's type (for the badge). */
+  type: EntryType;
+  /** The ticket, when every entry behind the label has the same one. */
+  ticket: string | null;
+  hours: number;
+  /** Days it was booked on. */
+  days: number;
+  /** Entries behind it. */
+  count: number;
+};
+
+export type JobReportSummary = {
+  jobNumber: string;
+  jobName: string;
+  hours: number;
+  /** Most hours first. */
+  lines: JobLabelSummary[];
+};
+
+/**
+ * What each job's time went to over a period: every entry labelled by the report rules
+ * (as on its own, so a template showing the description lists each one), summed per job
+ * and label. Jobs with the most hours first.
+ */
+export function getJobReportSummaries(fromIso: string, toIso: string, filter: { reportedBy?: string } = {}): JobReportSummary[] {
+  const rules = getReportRules(getReportSettings());
+  const summaries = getTicketSummaries();
+  const labels = typeLabels();
+  const entries = listEntries({ from: fromIso, to: toIso, reportedBy: filter.reportedBy });
+  type Acc = JobLabelSummary & { dates: Set<string> };
+  const jobs = new Map<string, { jobNumber: string; jobName: string; hours: number; lines: Map<string, Acc> }>();
+  // listEntries is newest first; go oldest first so equal-hour labels keep their booking order.
+  for (const e of [...entries].reverse()) {
+    const re = toRuleEntry(e, summaries, labels);
+    const label = reportGroupLabel(matchedRule(rules, re), re, 1).trim();
+    const job = jobs.get(e.job.number) ?? { jobNumber: e.job.number, jobName: e.job.name, hours: 0, lines: new Map<string, Acc>() };
+    job.hours = round2(job.hours + e.hours);
+    const line = job.lines.get(label) ?? { label, type: e.type, ticket: e.ticket, hours: 0, days: 0, count: 0, dates: new Set<string>() };
+    line.hours = round2(line.hours + e.hours);
+    line.count += 1;
+    line.dates.add(e.date);
+    if ((line.ticket ?? "").toUpperCase() !== (e.ticket ?? "").toUpperCase()) line.ticket = null;
+    job.lines.set(label, line);
+    jobs.set(e.job.number, job);
+  }
+  return [...jobs.values()]
+    .map((j) => ({
+      jobNumber: j.jobNumber,
+      jobName: j.jobName,
+      hours: j.hours,
+      lines: [...j.lines.values()]
+        .map(({ dates, ...l }) => ({ ...l, days: dates.size }))
+        .sort((a, b) => b.hours - a.hours),
+    }))
+    .sort((a, b) => b.hours - a.hours || a.jobNumber.localeCompare(b.jobNumber, undefined, { numeric: true }));
+}
+
+/** Plain-text rendering of job summaries ("job — h", then "  - label — h (n days)"), for copy/paste. */
+export function jobSummariesToText(title: string, total: number, jobs: JobReportSummary[], formatHours: (h: number) => string): string {
+  const lines = [`${title} — ${formatHours(total)}h`, ""];
+  for (const j of jobs) {
+    lines.push(`${j.jobNumber} ${j.jobName} — ${formatHours(j.hours)}h`);
+    for (const l of j.lines) lines.push(`  - ${l.label} — ${formatHours(l.hours)}h (${l.days} day${l.days === 1 ? "" : "s"})`);
+    lines.push("");
+  }
+  return lines.join("\n").trimEnd();
 }
 
 /** Plain-text rendering for copy/paste into a timesheet. */

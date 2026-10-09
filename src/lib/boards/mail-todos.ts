@@ -1,0 +1,156 @@
+import { and, asc, gte, inArray, isNull } from "drizzle-orm";
+import { getDb, schema } from "@/db";
+import { aiChoice, runAi } from "@/lib/ai";
+import { COPILOT_MAX_PROMPT } from "@/lib/ai/copilot";
+import { errorMessage } from "@/lib/errors";
+import { emitChange } from "@/lib/events";
+import { getJiraTicket } from "@/lib/jira/store";
+import { attributed } from "./activity";
+import { plain } from "./collect";
+import { isTodoKind, TODO_KINDS } from "./shared";
+import { duplicateTodo } from "./similar";
+import { addMailTodo, lastGoodRun, listTodos } from "./store";
+
+const { emails } = schema;
+
+/** How far back the Mail-Durchsicht reads (mails not gone through yet). */
+const DAYS = 14;
+/** A prompt's room for mails (Copilot takes it on the command line). */
+const BATCH_CHARS = COPILOT_MAX_PROMPT - 6000;
+
+const SCHEMA = {
+  type: "object",
+  properties: {
+    todos: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          text: { type: "string" },
+          kind: { type: "string", enum: [...TODO_KINDS] },
+          owner: { type: "string", enum: ["me", "other"] },
+          ticket: { type: "string" },
+          refs: { type: "array", items: { type: "string" } },
+        },
+        required: ["text", "refs"],
+      },
+    },
+  },
+  required: ["todos"],
+};
+type Answer = { todos?: { text?: string; kind?: string; owner?: string; ticket?: string; refs?: string[] }[] };
+
+const INSTRUCTIONS = `Du gehst meine neuen E-Mails durch und findest, was ICH zu tun habe. Unten stehen Mails aus meinem Posteingang (Kennung in eckigen Klammern, z. B. [mail:…], dann Datum, Ordner, Absender, Betreff und die ersten Zeilen, wie Outlooks Liste sie zeigt), meine Tickets und die Todos, die schon offen sind.
+
+Lege für jede Aufgabe, die eine Mail an mich stellt, ein Todo an: ein Satz, Verb zuerst, prüfbar, mit Frist, wenn die Mail eine nennt (z. B. „Compliance-Training ‚Datenschutz 2026‘ bis 31.10. absolvieren“, „Reisekostenabrechnung für September einreichen“, „Termin mit Anna für die Abnahme bestätigen“). Auch Erinnerungen und automatische Mails zählen, wenn sie von mir etwas verlangen (Pflichtschulungen, Fristen, Freigaben, Formulare, Zeiterfassung, Umfragen mit Frist). Zu jedem Todo unter refs die Kennungen der Mails, aus denen es folgt (mehrere Mails zur selben Sache → EIN Todo mit allen). Gehört es zu einem meiner Tickets, gib dessen Schlüssel unter ticket an, sonst lass ticket leer. owner = other nur, wenn ich auf jemand anderen warte.
+
+KEINE Todos für: Newsletter, Werbung, reine Info ohne Handlung, Benachrichtigungen über Jira-/GitLab-Kommentare und Statuswechsel (die kennt die Ticket-Lage schon), Lesebestätigungen, Termine, die nur informieren — und nichts, was ein schon offenes Todo abdeckt oder schon erledigt ist (z. B. eine spätere Mail bestätigt es). Gibt es nichts zu tun, ist die Liste leer.`;
+
+const state = globalThis as unknown as { __zeffMailTodos?: Promise<MailTodosResult> | null };
+export type MailTodosResult = { ok: boolean; reviewed: number; added: number; batches: number; error?: string };
+
+/** A ticket key in a mail's subject or lines (one of the tickets the Lage reads — it has those mails). */
+const namesTicket = (keys: string[], text: string) => keys.some((k) => new RegExp(`(^|[^A-Za-z0-9])${k}(?![0-9])`, "i").test(text));
+
+/**
+ * The Mail-Durchsicht (after the Ticket-Lage, before the Mail-Zuordnung): the AI goes through the
+ * mails not gone through yet (the last two weeks; those naming a Lage ticket are the Lage's) and
+ * makes todos of what they ask of you — a compliance training, a form, a deadline. Each mail is
+ * gone through once. In batches, each its own prompt; one at a time.
+ */
+export function reviewMailsForTodos(runId: number | null = null): Promise<MailTodosResult> {
+  if (state.__zeffMailTodos) return state.__zeffMailTodos;
+  const run = (async (): Promise<MailTodosResult> => {
+    const since = new Date(Date.now() - DAYS * 864e5).toISOString();
+    const rows = getDb()
+      .select()
+      .from(emails)
+      .where(and(isNull(emails.reviewedAt), isNull(emails.resolvedAt), gte(emails.receivedAt, since)))
+      .orderBy(asc(emails.receivedAt))
+      .all();
+    const markReviewed = (keys: string[]) => {
+      if (keys.length) getDb().update(emails).set({ reviewedAt: new Date().toISOString() }).where(inArray(emails.key, keys)).run();
+    };
+    const tickets = lastGoodRun()?.tickets.map((t) => t.key) ?? [];
+    const cited = new Set(listTodos({ status: "all" }).flatMap((t) => t.refs.filter((r) => r.startsWith("mail:")).map((r) => r.slice(5))));
+    // The Lage's (they name its tickets) and those a todo has already: gone through.
+    const theirs = rows.filter((m) => cited.has(m.key) || namesTicket(tickets, `${m.subject} ${m.preview}`));
+    markReviewed(theirs.map((m) => m.key));
+    const mails = rows.filter((m) => !theirs.includes(m));
+    if (!mails.length) return { ok: true, reviewed: theirs.length, added: 0, batches: 0 };
+
+    const ticketLines = tickets.map((k) => `- ${k}${getJiraTicket(k)?.summary ? ` — ${plain(getJiraTicket(k)!.summary, 120)}` : ""}`);
+    const line = (m: (typeof mails)[number]) =>
+      `- [mail:${m.key}] ${m.receivedAt.slice(0, 16).replace("T", " ")} (${m.folder}) ${m.fromName ?? m.fromEmail ?? "?"}: „${plain(m.subject, 200)}“ — ${plain(m.preview, 400)}`;
+    const limit = aiChoice().provider === "copilot" ? BATCH_CHARS : 3 * BATCH_CHARS;
+    const batches: (typeof mails)[] = [];
+    let size = 0;
+    for (const m of mails) {
+      const n = line(m).length + 1;
+      if (!batches.length || size + n > limit) {
+        batches.push([]);
+        size = 0;
+      }
+      batches[batches.length - 1].push(m);
+      size += n;
+    }
+
+    let added = 0;
+    let failed = 0;
+    let reviewed = theirs.length;
+    for (const batch of batches) {
+      const open = listTodos({ status: "open" });
+      const prompt = [
+        INSTRUCTIONS,
+        "",
+        "# Meine Tickets",
+        ...(ticketLines.length ? ticketLines : ["(keine)"]),
+        "",
+        "# Schon offene Todos",
+        ...open.slice(0, 60).map((t) => `- [${t.id}]${t.ticket ? ` ${t.ticket}` : ""}: ${plain(t.text, 160)}`),
+        "",
+        "# Mails",
+        ...batch.map(line),
+      ].join("\n");
+      const answer = await runAi<Answer>(prompt, SCHEMA, { timeoutMs: 10 * 60000, maxBudgetUsd: 1 }).catch((e) => {
+        console.error("[mail-todos]", errorMessage(e));
+        failed++;
+        return null;
+      });
+      // A batch that fails: its mails are gone through next time.
+      if (!answer) continue;
+      const known = new Set(batch.map((m) => `mail:${m.key}`));
+      for (const td of answer.output?.todos ?? []) {
+        const text = td.text?.trim();
+        const refs = (td.refs ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).map((r) => (r.startsWith("mail:") ? r : `mail:${r}`)).filter((r) => known.has(r));
+        if (!text || !refs.length) continue;
+        const ticket = td.ticket?.trim().toUpperCase() ?? "";
+        if (duplicateTodo({ text, ops: [] }, open)) continue;
+        const t = attributed(runId ? `lage:${runId}` : "mail", () =>
+          addMailTodo({ ticket: tickets.includes(ticket) ? ticket : "", text, kind: isTodoKind(td.kind) ? td.kind : "other", owner: td.owner === "other" ? "other" : "me", refs, runId }),
+        );
+        open.push(t);
+        added++;
+      }
+      markReviewed(batch.map((m) => m.key));
+      reviewed += batch.length;
+    }
+    if (added) emitChange("todos");
+    return {
+      ok: failed < batches.length,
+      reviewed,
+      added,
+      batches: batches.length,
+      ...(failed ? { error: `${failed} von ${batches.length} Teilen fehlgeschlagen` } : {}),
+    };
+  })()
+    .catch((e): MailTodosResult => {
+      console.error("[mail-todos]", errorMessage(e));
+      return { ok: false, reviewed: 0, added: 0, batches: 0, error: errorMessage(e) };
+    })
+    .finally(() => {
+      state.__zeffMailTodos = null;
+    });
+  state.__zeffMailTodos = run;
+  return run;
+}

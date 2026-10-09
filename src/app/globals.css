@@ -10,6 +10,18 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  /* Jira — our Jira colour (#BA9765) as a scale, for its badges and icons. */
+  --color-jira-50: #faf6f0;
+  --color-jira-100: #f3eadc;
+  --color-jira-200: #e7d4b9;
+  --color-jira-300: #d8bb93;
+  --color-jira-400: #c9a77a;
+  --color-jira-500: #ba9765;
+  --color-jira-600: #a07c4b;
+  --color-jira-700: #85653d;
+  --color-jira-800: #6b5133;
+  --color-jira-900: #58432b;
+  --color-jira-950: #2f2316;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -47,6 +59,13 @@ body {
   .btn-sm {
     @apply px-2 py-1 text-xs;
   }
+  /* A borderless square button showing just an icon (give it a title and an aria-label). */
+  .icon-btn {
+    @apply inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100;
+  }
+  .icon-btn-danger {
+    @apply hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50 dark:hover:text-red-400;
+  }
   .table {
     @apply w-full border-collapse text-sm;
   }
@@ -80,26 +99,30 @@ body {
   .badge-tag {
     @apply border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-900 dark:bg-teal-950 dark:text-teal-300;
   }
-  .badge-ticket {
-    @apply border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-300;
-  }
-  .badge-meeting {
-    @apply border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-300;
-  }
-  .badge-other {
-    @apply border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300;
-  }
-  .badge-internal {
-    @apply border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300;
-  }
-  .badge-absence {
-    @apply border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300;
-  }
   .badge-calendar {
     @apply border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-300;
   }
   .badge-web {
     @apply border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300;
+  }
+  /* Entry types: tinted from the type's configured color (--type-color, set inline). */
+  .badge-type {
+    border-color: color-mix(in oklab, var(--type-color) 35%, transparent);
+    background-color: color-mix(in oklab, var(--type-color) 12%, transparent);
+    color: color-mix(in oklab, var(--type-color) 75%, black);
+  }
+  @media (prefers-color-scheme: dark) {
+    .badge-type {
+      border-color: color-mix(in oklab, var(--type-color) 45%, transparent);
+      background-color: color-mix(in oklab, var(--type-color) 22%, transparent);
+      color: color-mix(in oklab, var(--type-color) 55%, white);
+    }
+  }
+  .badge-project {
+    @apply border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 dark:border-fuchsia-900 dark:bg-fuchsia-950 dark:text-fuchsia-300;
+  }
+  .badge-nojob {
+    @apply border-dashed border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300;
   }
   .alert-error {
     @apply rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300;
@@ -112,5 +135,20 @@ body {
   }
   .pre {
     @apply overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-50 p-3 font-mono text-[13px] leading-relaxed text-zinc-800 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100;
+  }
+}
+
+/* The element the address points at (#todo-75): outlined — see HashHighlight. */
+[data-highlight] {
+  outline: 2px solid var(--color-amber-400);
+  outline-offset: 3px;
+  border-radius: 0.375rem;
+  background-color: color-mix(in oklab, var(--color-amber-100) 55%, transparent);
+  scroll-margin-top: 6rem;
+}
+@media (prefers-color-scheme: dark) {
+  [data-highlight] {
+    outline-color: var(--color-amber-600);
+    background-color: color-mix(in oklab, var(--color-amber-900) 35%, transparent);
   }
 }

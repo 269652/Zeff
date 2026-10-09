@@ -1,4 +1,5 @@
 import type { EntryType } from "@/db/schema";
+import { dedupeTags, normalizeTagName } from "./tags-shared";
 
 /**
  * Report-rewriting rules — a server-free module so the client settings form and
@@ -9,9 +10,13 @@ import type { EntryType } from "@/db/schema";
  * top-down; the FIRST match renders the entry's report line, and entries that
  * render to the same label on the same day are merged (their hours summed).
  */
-export type RuleField = "type" | "tag" | "ticket" | "job";
+export type RuleField = "type" | "title" | "tag" | "ticket" | "job" | "project";
 
-/** One condition on an entry. type: ticket|meeting|other|absence|internal · tag: tag name · ticket: key prefix · job: job number. */
+/**
+ * One condition on an entry. type: an entry type key · title: text in the description (an
+ * imported meeting's title) · tag: tag name · ticket: key prefix · job: job number ·
+ * project: project title.
+ */
 export type RuleCondition = { field: RuleField; value: string };
 
 export type ReportRule = {
@@ -20,11 +25,18 @@ export type ReportRule = {
   conditions: RuleCondition[];
   /** Output template, e.g. "Meetings" or "{ticket}: {desc}". */
   template: string;
+  /**
+   * Tags for the entries this rule applies to (it's their first match), e.g. "mob" — added
+   * when an entry is booked or imported, and to older entries on "Save & tag existing".
+   */
+  tags?: string[];
 };
 
 /** The minimal entry shape the rules need (kept structural so both sides can pass it). */
 export type RuleEntry = {
   type: EntryType;
+  /** The type's configured name, for {type}. */
+  typeLabel: string;
   ticket: string | null;
   /** The ticket's Jira title, for {ticket-name} (empty when unknown). */
   ticketName: string;
@@ -32,32 +44,20 @@ export type RuleEntry = {
   tags: { name: string }[];
   jobNumber: string;
   jobName: string;
+  /** Title of the entry's project ("" when it has none), for {project}. */
+  project: string;
 };
 
 export const RULE_FIELD_LABELS: Record<RuleField, string> = {
   type: "Type is",
+  title: "Meeting title contains",
   tag: "Has tag",
   ticket: "Ticket starts with",
   job: "Job is",
+  project: "Project is",
 };
 
-export const RULE_FIELDS: RuleField[] = ["type", "tag", "ticket", "job"];
-
-export const ENTRY_TYPE_OPTIONS: { value: EntryType; label: string }[] = [
-  { value: "ticket", label: "Ticket" },
-  { value: "meeting", label: "Meeting" },
-  { value: "other", label: "Other" },
-  { value: "absence", label: "Absence" },
-  { value: "internal", label: "Internal" },
-];
-
-const TYPE_LABEL: Record<EntryType, string> = {
-  ticket: "Ticket",
-  meeting: "Meeting",
-  other: "Other",
-  absence: "Absence",
-  internal: "Internal",
-};
+export const RULE_FIELDS: RuleField[] = ["type", "title", "tag", "ticket", "job", "project"];
 
 export function newRuleId(): string {
   return Math.random().toString(36).slice(2, 9);
@@ -94,6 +94,15 @@ export function matchCondition(c: RuleCondition, e: RuleEntry): boolean {
       const v = c.value.trim();
       return v ? e.jobNumber === v : true;
     }
+    case "project": {
+      const v = c.value.trim().toLowerCase();
+      return v ? e.project.toLowerCase() === v : e.project !== "";
+    }
+    case "title": {
+      // The description — for an imported meeting, its title ("PROJ | Mob Programming").
+      const v = c.value.trim().toLowerCase();
+      return v ? e.description.toLowerCase().includes(v) : false;
+    }
     default:
       return false;
   }
@@ -105,8 +114,8 @@ export function matchRule(rule: ReportRule, e: RuleEntry): boolean {
 }
 
 /**
- * Substitute {ticket} {desc} {description} {type} {tags}. When {ticket} or {tags}
- * is empty, its trailing/leading separator (e.g. the ": " in "{ticket}: {desc}")
+ * Substitute {ticket} {desc} {description} {type} {tags} {project}. When {ticket}, {tags}
+ * or {project} is empty, its trailing/leading separator (e.g. the ": " in "{ticket}: {desc}")
  * is dropped so nothing dangles, then leftover leading separators and double
  * spaces are tidied. May return "" (no fallback) — for renderTemplate's use.
  */
@@ -120,8 +129,10 @@ function substitute(tpl: string, e: RuleEntry): string {
   else s = s.replace(/\s*[:—–\-|·]?\s*\{ticket-nr\}\s*[:—–\-|·]?[ \t]*/g, " ").replace(/\s*[:—–\-|·]?\s*\{ticket\}\s*[:—–\-|·]?[ \t]*/g, " ");
   if (e.ticketName) s = s.replaceAll("{ticket-name}", e.ticketName);
   else s = s.replace(/\s*[:—–\-|·]?\s*\{ticket-name\}\s*[:—–\-|·]?[ \t]*/g, " ");
-  s = s.replaceAll("{description}", e.description).replaceAll("{desc}", e.description).replaceAll("{type}", TYPE_LABEL[e.type]);
+  s = s.replaceAll("{description}", e.description).replaceAll("{desc}", e.description).replaceAll("{type}", e.typeLabel);
   s = s.replaceAll("{jobName}", e.jobName).replaceAll("{job}", e.jobNumber);
+  if (e.project) s = s.replaceAll("{project}", e.project);
+  else s = s.replace(/\s*[:—–\-|·]?\s*\{project\}\s*[:—–\-|·]?[ \t]*/g, " ");
   if (tags) s = s.replaceAll("{tags}", tags);
   else s = s.replace(/\s*[:—–\-|·]?\s*\{tags\}\s*[:—–\-|·]?[ \t]*/g, " ");
   return s
@@ -139,6 +150,11 @@ export function renderTemplate(tpl: string, e: RuleEntry): string {
 export function matchedRule(rules: ReportRule[], e: RuleEntry): ReportRule {
   for (const r of rules) if (matchRule(r, e)) return r;
   return { id: "fallback", conditions: [], template: "{desc}" };
+}
+
+/** The tags the rule an entry falls under (its first match) adds to it. */
+export function ruleTags(rules: ReportRule[], e: RuleEntry): string[] {
+  return matchedRule(rules, e).tags ?? [];
 }
 
 const hasDescPlaceholder = (tpl: string) => /\{desc(ription)?\}/.test(tpl);
@@ -168,7 +184,7 @@ export function reportGroupLabel(rule: ReportRule, first: RuleEntry, count: numb
 }
 
 function isRuleField(v: unknown): v is RuleField {
-  return v === "type" || v === "tag" || v === "ticket" || v === "job";
+  return (RULE_FIELDS as unknown[]).includes(v);
 }
 
 function parseConditions(raw: unknown): RuleCondition[] {
@@ -212,7 +228,8 @@ export function parseRules(json: string | null | undefined): ReportRule[] {
     } else {
       conditions = [];
     }
-    out.push({ id: typeof o.id === "string" && o.id ? o.id : newRuleId(), conditions, template });
+    const tags = Array.isArray(o.tags) ? dedupeTags(o.tags.map((t) => normalizeTagName(String(t ?? ""))).filter(Boolean)) : [];
+    out.push({ id: typeof o.id === "string" && o.id ? o.id : newRuleId(), conditions, template, ...(tags.length ? { tags } : {}) });
   }
   return out;
 }
@@ -224,11 +241,10 @@ export function validateRules(rules: ReportRule[]): string | null {
     if (!r.template.trim()) return "Every rule needs an output template.";
     for (const c of r.conditions) {
       if (!isRuleField(c.field)) return "Each condition needs a valid field.";
-      if (c.field === "type" && !["ticket", "meeting", "other"].includes(c.value)) {
-        return "Pick a type (Ticket / Meeting / Other) for a Type condition.";
-      }
+      if (c.field === "type" && !c.value.trim()) return "Pick a type for a Type condition.";
       if (c.field === "tag" && !c.value.trim()) return "Give the tag name for a Has-tag condition.";
       if (c.field === "job" && !c.value.trim()) return "Pick a job for a Job condition.";
+      if (c.field === "title" && !c.value.trim()) return "Give the text a meeting title should contain.";
     }
   }
   return null;

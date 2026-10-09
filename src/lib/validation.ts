@@ -17,12 +17,17 @@ export const jobNumberSchema = z
   .min(1, "Job number is required")
   .max(64, "Job number is too long");
 
-export const entryTypeSchema = z.enum(["ticket", "meeting", "other", "absence", "internal"]);
+/** An entry_types key; whether it exists is checked when the entry is saved. */
+export const entryTypeSchema = z.string().trim().min(1).max(40);
 
 export const tagNamesSchema = z.array(z.string().trim().min(1).max(40)).max(20);
 
+const projectIdSchema = z.number().int().positive();
+
 export const timeEntryInputSchema = z.object({
-  jobNumber: jobNumberSchema,
+  /** The job to book on. Optional when projectId is given (the project's job is used). */
+  jobNumber: jobNumberSchema.optional(),
+  projectId: projectIdSchema.optional(),
   date: isoDateSchema,
   hours: hoursSchema,
   description: z
@@ -40,6 +45,8 @@ export type TimeEntryInput = z.infer<typeof timeEntryInputSchema>;
 
 export const timeEntryPatchSchema = z.object({
   jobNumber: jobNumberSchema.optional(),
+  /** A project books the entry on its job; null detaches it (then jobNumber, or the current job, is kept). */
+  projectId: projectIdSchema.nullable().optional(),
   date: isoDateSchema.optional(),
   hours: hoursSchema.optional(),
   description: z.string().trim().min(1).max(2000).optional(),
@@ -60,6 +67,21 @@ export const jobInputSchema = z.object({
 });
 
 export type JobInput = z.infer<typeof jobInputSchema>;
+
+const optionalIsoDate = z.union([isoDateSchema, z.literal("")]).optional();
+
+export const projectInputSchema = z.object({
+  title: z.string().trim().min(1, "Title is required").max(200),
+  description: z.string().trim().max(2000).optional(),
+  customer: z.string().trim().max(200).optional(),
+  /** Job number the project books on; empty = no job yet. */
+  jobNumber: z.string().trim().max(64).optional(),
+  startDate: optionalIsoDate,
+  endDate: optionalIsoDate,
+  active: z.boolean().optional(),
+});
+
+export type ProjectInput = z.infer<typeof projectInputSchema>;
 
 /** Turn a zod error into a single readable line. */
 export function formatZodError(err: z.ZodError): string {

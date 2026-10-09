@@ -1,0 +1,1 @@
+ALTER TABLE `jira_tickets` ADD `followed` integer DEFAULT 0 NOT NULL;

@@ -1,0 +1,31 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { syncOutlookAction, type ActionState } from "@/app/actions";
+
+/** Reads the calendar from Outlook in the automation Chrome (read-only) into Zeff. */
+export function OutlookSyncButton({ week, syncedAt }: { week: string; syncedAt: string | null }) {
+  const [state, setState] = useState<ActionState>(null);
+  const [pending, startTransition] = useTransition();
+  const synced = syncedAt ? new Date(syncedAt) : null;
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
+      {state?.error && <span className="text-red-600 dark:text-red-400">{state.error}</span>}
+      {state?.ok && state.message && <span className="text-emerald-600 dark:text-emerald-400">{state.message}</span>}
+      {!state && synced && (
+        <span className="text-zinc-400" title={synced.toLocaleString()}>
+          Synced {synced.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+        </span>
+      )}
+      <button
+        type="button"
+        className="btn btn-primary btn-sm"
+        disabled={pending}
+        onClick={() => startTransition(async () => setState(await syncOutlookAction(week)))}
+        title="Read your Outlook calendar — from the start of last month to next week — in the automation Chrome (nothing is changed in Outlook)"
+      >
+        {pending ? "Syncing Outlook…" : "Sync Outlook"}
+      </button>
+    </div>
+  );
+}

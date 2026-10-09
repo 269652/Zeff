@@ -1,6 +1,8 @@
 import { listEntries } from "./entries";
 import { round2 } from "./format";
-import { getWorkSchedule, scheduleHours } from "./schedule";
+import { listPausesByDate } from "./pauses";
+import type { PauseRange } from "./pauses-shared";
+import { getDefaultPauses, getFlexTime, getWorkSchedule, scheduleHours } from "./schedule";
 import { formatDay, isoDate, type WeekInfo } from "./week";
 
 /**
@@ -46,6 +48,38 @@ export function computeEnd(startTime: string, hours: number, breakMinutes: numbe
   return minutesToTime(timeToMinutes(startTime) + Math.round(hours * 60) + breakFor(hours, breakMinutes));
 }
 
+/**
+ * Lay a day's net hours out from the start time around its breaks: work until a break,
+ * pause, carry on — TimO then gets Kommt/Geht around each break. Breaks outside the
+ * working span (before the start, or after the work is done) are left out. A recorded
+ * break counts toward TimO's automatic pause, so only what's missing to it is added at
+ * the end; with no break this is exactly computeEnd.
+ */
+export function layoutDay(
+  startTime: string,
+  hours: number,
+  breaks: PauseRange[],
+  breakMinutes: number,
+): { start: string; end: string; breaks: PauseRange[] } {
+  const start = timeToMinutes(startTime);
+  let t = start;
+  let left = Math.round(hours * 60);
+  let recorded = 0;
+  const used: PauseRange[] = [];
+  for (const b of [...breaks].sort((x, y) => timeToMinutes(x.start) - timeToMinutes(y.start))) {
+    const from = timeToMinutes(b.start);
+    const to = timeToMinutes(b.end);
+    if (from < t) continue; // before the day starts (or overlapping the previous break)
+    if (from - t >= left) break; // the work is done before this break
+    left -= from - t;
+    recorded += to - from;
+    used.push(b);
+    t = to;
+  }
+  const topUp = Math.max(0, breakFor(hours, breakMinutes) - recorded);
+  return { start: minutesToTime(start), end: minutesToTime(t + left + topUp), breaks: used };
+}
+
 export type TimoDay = {
   iso: string;
   label: string;
@@ -56,6 +90,9 @@ export type TimoDay = {
   /** Only for work days. */
   start: string;
   end: string;
+  /** Breaks recorded between start and end (as Geht/Kommt), and where they came from. */
+  breaks?: PauseRange[];
+  breakSource?: "entered" | "default";
   /** Only for absence days: the TimO absence type (`art`), and whether it's a half day. */
   absenceType?: string;
   halfDay?: boolean;
@@ -73,6 +110,8 @@ export type TimoExportPlan = {
   total: number;
   fillGaps: boolean;
   filter: { reportedBy?: string };
+  /** Flex time (Gleitzeit) booked per day — not recorded: TimO's own balance covers it. */
+  flex: { iso: string; label: string; hours: number }[];
 };
 
 export function getTimoExportPlan(
@@ -82,22 +121,37 @@ export function getTimoExportPlan(
 ): TimoExportPlan {
   const entries = listEntries({ from: week.startIso, to: week.endIso, reportedBy: opts.reportedBy });
   const absenceJob = (config.absenceJobNumber ?? "").trim();
+  const workSchedule = getWorkSchedule();
+  const flexJob = getFlexTime(workSchedule).jobNumber;
   const workByDay = new Map<string, number>();
   const absenceByDay = new Map<string, number>();
+  const flexByDay = new Map<string, number>();
   for (const e of entries) {
-    // Absences: entries of type Absence, or anything booked on the configured absence job.
-    const map = e.type === "absence" || (absenceJob && e.job.number === absenceJob) ? absenceByDay : workByDay;
+    // Absences: entries of type Absence, or anything booked on the configured absence job. Flex time
+    // (the Gleitzeit job) isn't working time: left out, TimO's flex balance goes down by it.
+    const map =
+      e.type === "absence" || (absenceJob && e.job.number === absenceJob)
+        ? absenceByDay
+        : flexJob && e.job.number === flexJob
+          ? flexByDay
+          : workByDay;
     map.set(e.date, round2((map.get(e.date) ?? 0) + e.hours));
   }
-  const schedule = scheduleHours(getWorkSchedule()); // hours per weekday, index 0 = Monday … 6 = Sunday
+  const schedule = scheduleHours(workSchedule); // hours per weekday, index 0 = Monday … 6 = Sunday
+  // Breaks: the ones entered in the Pause row ([] = "no break"), else the default break when enabled.
+  const entered = listPausesByDate(week.startIso, week.endIso);
+  const defaultBreaks = workSchedule.timoDefaultPauses ? getDefaultPauses(workSchedule) : [];
 
   const days: TimoDay[] = [];
+  const flex: TimoExportPlan["flex"] = [];
   week.days.forEach((d, i) => {
     const iso = isoDate(d);
     const label = formatDay(d, "EEE d");
     const absenceHours = absenceByDay.get(iso) ?? 0;
     const workHours = workByDay.get(iso) ?? 0;
+    const flexHours = flexByDay.get(iso) ?? 0;
     const isWorkday = (schedule[i] ?? 0) > 0;
+    if (flexHours > 0) flex.push({ iso, label, hours: flexHours });
 
     if (absenceHours > 0) {
       // A day booked on the absence job → TimO's absence form; up to half the work day is a half day.
@@ -110,19 +164,24 @@ export function getTimoExportPlan(
     if (workHours > 0) {
       hours = workHours;
       source = "zeff";
-    } else if (opts.fillGaps && isWorkday) {
+    } else if (opts.fillGaps && isWorkday && flexHours <= 0) {
       hours = config.workdayHours;
       source = "gap";
     } else {
-      return; // nothing booked and not a gap to fill
+      return; // nothing booked (or flex time only), and not a gap to fill
     }
+    const dayBreaks = entered[iso] ?? defaultBreaks;
+    const layout = layoutDay(config.startTime, hours, dayBreaks, config.breakMinutes);
     days.push({
       iso,
       label,
       kind: "work",
       hours: round2(hours),
-      start: config.startTime,
-      end: computeEnd(config.startTime, hours, config.breakMinutes),
+      start: layout.start,
+      end: layout.end,
+      ...(layout.breaks.length
+        ? { breaks: layout.breaks, breakSource: entered[iso] ? ("entered" as const) : ("default" as const) }
+        : {}),
       source,
       ...(absenceHours > 0 ? { withAbsence: true } : {}),
     });
@@ -136,6 +195,7 @@ export function getTimoExportPlan(
     total: round2(days.reduce((a, d) => a + d.hours, 0)),
     fillGaps: !!opts.fillGaps,
     filter: { reportedBy: opts.reportedBy },
+    flex,
   };
 }
 
@@ -146,6 +206,8 @@ export type TimoExportPayload = {
     kind: "work" | "absence";
     start: string;
     end: string;
+    /** Breaks inside the span: Geht at each start, Kommt at each end. */
+    breaks?: PauseRange[];
     hours: number;
     absenceType?: string;
     halfDay?: boolean;
@@ -161,6 +223,7 @@ export function toTimoPayload(plan: TimoExportPlan): TimoExportPayload {
       kind: d.kind,
       start: d.start,
       end: d.end,
+      breaks: d.breaks,
       hours: d.hours,
       absenceType: d.absenceType,
       halfDay: d.halfDay,

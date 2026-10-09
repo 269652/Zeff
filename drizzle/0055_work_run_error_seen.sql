@@ -1,0 +1,1 @@
+ALTER TABLE `work_runs` ADD `error_seen_at` text;

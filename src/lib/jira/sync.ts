@@ -26,7 +26,7 @@ export type JiraSyncConfig = {
   baseUrl?: string;
 };
 
-const DEFAULT_FIELDS = "summary,status,created,updated,resolutiondate,issuetype,priority,assignee";
+const DEFAULT_FIELDS = "summary,description,status,created,updated,resolutiondate,issuetype,priority,assignee";
 
 /** Parse a dotenv-style file into a plain object (used for the MCP server's envFile). */
 function loadEnvFile(file: string): Record<string, string> {
@@ -152,6 +152,20 @@ export type SyncResult = UpsertResult & { fetched: number; titlesAdded: number; 
  * in either set, so their {ticket-name} shows in the report.
  */
 export async function syncFromJira(): Promise<SyncResult> {
+  const { clearAttention, raiseLogin } = await import("@/lib/attention");
+  try {
+    const r = await readFromJira();
+    clearAttention("login:jira");
+    return r;
+  } catch (e) {
+    // Jira turned the token away: you're asked to sign in (or renew the token) — not Zeff.
+    const message = e instanceof Error ? e.message : String(e);
+    if (/\b40[13]\b|unauthori[sz]ed|forbidden|not authenticated/i.test(message)) raiseLogin("jira", message);
+    throw e;
+  }
+}
+
+async function readFromJira(): Promise<SyncResult> {
   const cfg = getJiraSyncConfig();
   if (!cfg.configured || !cfg.command) {
     throw new Error(

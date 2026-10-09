@@ -1,35 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { typeMapOf, type EntryTypeDef } from "@/lib/entry-types-shared";
+import type { TicketCard } from "@/lib/jira/ticket-card-shared";
 import { formatHours, round2 } from "@/lib/format";
 import type { ReportLine, ReportLineEntry, RewrittenReport } from "@/lib/report";
-import type { TagLite } from "@/lib/tags-shared";
 import { isOpen, rememberOpen, uiKey, type UiOpenState } from "@/lib/ui-state-shared";
 import { formatDay } from "@/lib/week";
 import { CopyButton } from "./CopyButton";
+import { TicketLink } from "./TicketLink";
+import { TypeBadge } from "./TypeBadge";
 
-function Chips({ tags }: { tags: TagLite[] }) {
-  if (tags.length === 0) return null;
-  return (
-    <span className="inline-flex flex-wrap justify-end gap-1">
-      {tags.map((t) => (
-        <span key={t.id} className="badge badge-tag">#{t.name}</span>
-      ))}
-    </span>
-  );
-}
-
-function EntryRow({ e, nested }: { e: ReportLineEntry; nested?: boolean }) {
+function EntryRow({ e, nested, tickets }: { e: ReportLineEntry; nested?: boolean; tickets: Record<string, TicketCard> }) {
   return (
     <li className={`flex items-start justify-between gap-3 py-1 pr-3 text-xs ${nested ? "pl-14" : "pl-10"}`}>
-      <span className="min-w-0 text-zinc-600 dark:text-zinc-300">
-        {e.ticket && <span className="mr-1 font-mono text-zinc-400">{e.ticket}</span>}
+      <div className="min-w-0 text-zinc-600 dark:text-zinc-300">
+        {e.ticket && (
+          <span className="mr-1 text-zinc-400">
+            <TicketLink ticket={e.ticket} card={tickets[e.ticket.toUpperCase()]} />
+          </span>
+        )}
         {e.description}
-      </span>
-      <span className="flex shrink-0 items-center gap-2">
-        <Chips tags={e.tags} />
-        <span className="min-w-[7ch] border-l border-zinc-200 pl-2 text-right tabular-nums text-zinc-500 dark:border-zinc-700">{formatHours(e.hours)} h</span>
-      </span>
+      </div>
+      <span className="min-w-[7ch] shrink-0 border-l border-zinc-200 pl-2 text-right tabular-nums text-zinc-500 dark:border-zinc-700">{formatHours(e.hours)} h</span>
     </li>
   );
 }
@@ -46,7 +39,19 @@ function groupByJob(entries: ReportLineEntry[]) {
   return [...groups.values()].sort((a, b) => a.jobNumber.localeCompare(b.jobNumber, undefined, { numeric: true }));
 }
 
-function Line({ line, date, ui }: { line: ReportLine; date: string; ui: UiOpenState }) {
+function Line({
+  line,
+  date,
+  ui,
+  types,
+  tickets,
+}: {
+  line: ReportLine;
+  date: string;
+  ui: UiOpenState;
+  types: Record<string, EntryTypeDef>;
+  tickets: Record<string, TicketCard>;
+}) {
   const stateKey = uiKey.line(date, line.key);
   const [open, setOpen] = useState(() => isOpen(ui, stateKey));
   const expandable = line.expandable;
@@ -64,14 +69,13 @@ function Line({ line, date, ui }: { line: ReportLine; date: string; ui: UiOpenSt
         className={`flex items-start justify-between gap-3 px-3 py-1.5 ${expandable ? "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/40" : ""}`}
         onClick={expandable ? toggle : undefined}
       >
-        <span className="min-w-0">
+        <div className="min-w-0">
           {expandable && <span className="mr-1 inline-block w-3 text-zinc-400">{open ? "▾" : "▸"}</span>}
           {line.label}
           {line.count > 1 && <span className="ml-1 text-xs text-zinc-400">×{line.count}</span>}
-        </span>
+        </div>
         <span className="flex shrink-0 items-center gap-2">
-          <Chips tags={line.tags} />
-          <span className={`badge badge-${line.type}`}>{line.type}</span>
+          <TypeBadge type={line.type} types={types} />
           <span className="min-w-[7ch] border-l border-zinc-200 pl-2 text-right font-medium tabular-nums dark:border-zinc-700">{formatHours(line.hours)} h</span>
         </span>
       </div>
@@ -89,12 +93,12 @@ function Line({ line, date, ui }: { line: ReportLine; date: string; ui: UiOpenSt
                   </div>
                   <ul>
                     {g.entries.map((e) => (
-                      <EntryRow key={e.id} e={e} nested />
+                      <EntryRow key={e.id} e={e} nested tickets={tickets} />
                     ))}
                   </ul>
                 </li>
               ))
-            : line.entries.map((e) => <EntryRow key={e.id} e={e} />)}
+            : line.entries.map((e) => <EntryRow key={e.id} e={e} tickets={tickets} />)}
         </ul>
       )}
     </li>
@@ -106,13 +110,20 @@ export function ReportView({
   text,
   today,
   ui,
+  types,
+  ticketCards,
 }: {
   report: RewrittenReport;
   text: string;
   today?: string;
   /** Remembered open/closed days and lines (today's day is open by default). */
   ui: UiOpenState;
+  /** The configured entry types (names and colors of the line badges). */
+  types: EntryTypeDef[];
+  /** Hover cards for the tickets in the report (by upper-case key). */
+  ticketCards: Record<string, TicketCard>;
 }) {
+  const typeMap = useMemo(() => typeMapOf(types), [types]);
   const [openDays, setOpenDays] = useState<Set<string>>(
     () => new Set(report.days.filter((d) => isOpen(ui, uiKey.day(d.date), d.date === today)).map((d) => d.date)),
   );
@@ -163,7 +174,7 @@ export function ReportView({
               {open && (
                 <ul className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
                   {day.lines.map((l) => (
-                    <Line key={l.key} line={l} date={day.date} ui={ui} />
+                    <Line key={l.key} line={l} date={day.date} ui={ui} types={typeMap} tickets={ticketCards} />
                   ))}
                 </ul>
               )}

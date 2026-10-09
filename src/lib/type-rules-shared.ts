@@ -1,5 +1,4 @@
 import type { EntryType } from "@/db/schema";
-import { ENTRY_TYPE_OPTIONS } from "./report-shared";
 
 /**
  * Type rules infer an entry's type from its job and description — e.g. job Abwesenheit
@@ -16,8 +15,6 @@ export type TypeRule = {
   type: EntryType;
 };
 
-const TYPES = new Set<string>(ENTRY_TYPE_OPTIONS.map((o) => o.value));
-
 export function parseTypeRules(json: string | null | undefined): TypeRule[] {
   if (!json) return [];
   try {
@@ -30,7 +27,7 @@ export function parseTypeRules(json: string | null | undefined): TypeRule[] {
         description: String(r?.description ?? "").trim(),
         type: String(r?.type ?? "") as EntryType,
       }))
-      .filter((r) => (r.jobNumber || r.description) && TYPES.has(r.type));
+      .filter((r) => (r.jobNumber || r.description) && r.type);
   } catch {
     return [];
   }

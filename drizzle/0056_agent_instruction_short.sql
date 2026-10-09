@@ -1,0 +1,2 @@
+-- The copied instruction for code todos, short: strict TDD and the branch rules are in Zeff's MCP instructions now (left alone when changed by hand).
+UPDATE `app_settings` SET `agent_instruction_code` = 'Implement $todo.id' WHERE `agent_instruction_code` IN ('Implement $todo.id using strict TDD — continue on the ticket''s existing feature branch if there is one; only if none exists, create a new feature branch in a separate worktree', 'Implement $todo.id using strict TDD in a separate worktree');

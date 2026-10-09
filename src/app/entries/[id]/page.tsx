@@ -2,12 +2,26 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { deleteEntryAction, updateEntryAction } from "@/app/actions";
-import { EntryForm } from "@/components/EntryForm";
+import { createContextAction, deleteEntryAction, linkContextAction, updateEntryAction } from "@/app/actions";
+import { ContextCard } from "@/components/ContextCard";
+import { EntrySourceRows } from "@/components/EntrySourceRows";
+import { ContextFormOptionsProvider } from "@/components/ContextFormOptions";
+import { ContextSyncButton } from "@/components/ContextSyncButton";
+import { EntryContextAdders } from "@/components/EntryContextAdders";
+import { EntrySourceAdder } from "@/components/EntrySourceAdder";
+import { EntryForm, type TicketSuggestionLite } from "@/components/EntryForm";
+import { LinkContextForm } from "@/components/LinkContextForm";
+import { resolveLinks } from "@/lib/context-links";
+import { contextsForEntry, listContextPeople, listContexts } from "@/lib/contexts";
+import { CONTEXT_KIND_LABELS, contextHeadline, itemSource, jiraSyncState } from "@/lib/contexts-shared";
+import { getTicketCards } from "@/lib/jira/store";
 import { SubmitButton } from "@/components/SubmitButton";
+import { listDefaultTagMaps } from "@/lib/default-tags";
+import { listEntryTypes } from "@/lib/entry-types";
 import { getEntry } from "@/lib/entries";
 import { formatHours } from "@/lib/format";
-import { listJobs } from "@/lib/jobs";
+import { isNoJobPlaceholder, listJobs } from "@/lib/jobs";
+import { listProjectOptions } from "@/lib/projects";
 import { getEntryTicketSuggestions } from "@/lib/ticket-suggestions";
 import { listTags } from "@/lib/tags";
 import { weekFromDate } from "@/lib/week";
@@ -22,10 +36,11 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
   const entry = getEntry(entryId);
   if (!entry) notFound();
 
-  // Offer active jobs, plus the entry's own job even if it has been deactivated.
-  const jobs = listJobs();
-  if (!jobs.some((j) => j.id === entry.jobId)) {
-    jobs.unshift({ ...entry.job, description: null, createdAt: "", entryCount: 0, totalHours: 0 });
+  // Offer active jobs and projects, plus the entry's own even if deactivated (never the "No job yet" placeholder).
+  const jobs = listJobs().map((j) => ({ id: j.id, number: j.number, name: j.name, customer: j.customer }));
+  const projects = listProjectOptions(entry.projectId);
+  if (!isNoJobPlaceholder(entry.job) && !jobs.some((j) => j.id === entry.jobId)) {
+    jobs.unshift({ id: entry.job.id, number: entry.job.number, name: entry.job.name, customer: entry.job.customer });
   }
   const week = weekFromDate(new Date(entry.date + "T00:00:00"));
   const allTags = listTags().map((t) => t.name);
@@ -40,7 +55,7 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
           </Link>
           <h1 className="text-lg font-semibold">
             Entry #{entry.id} · {formatHours(entry.hours)}h on{" "}
-            <span className="font-mono">{entry.job.number}</span>
+            {entry.project ? entry.project.title : <span className="font-mono">{entry.job.number}</span>}
           </h1>
           <p className="text-sm text-zinc-500">
             Reported by {entry.reportedBy} via {entry.source} · created {entry.createdAt} UTC
@@ -62,13 +77,17 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
       <section className="card p-4">
         <EntryForm
           jobs={jobs}
+          projects={projects}
           action={updateEntryAction.bind(null, entry.id)}
           submitLabel="Save"
           resetOnSuccess={false}
           allTags={allTags}
           ticketSuggestions={ticketSuggestions}
+          defaultTagMaps={listDefaultTagMaps()}
+          types={listEntryTypes()}
           defaults={{
             jobNumber: entry.job.number,
+            projectId: entry.projectId ?? undefined,
             date: entry.date,
             hours: entry.hours,
             description: entry.description,
@@ -79,6 +98,70 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
           }}
         />
       </section>
+
+      <ContextSection entryId={entry.id} ticket={entry.ticket} date={entry.date} ticketOptions={ticketSuggestions} />
     </div>
+  );
+}
+
+/**
+ * The entry's context: the search that adds Teams messages and GitLab items, those as rows,
+ * notes as cards; writing a note, linking an existing item; syncing to Jira.
+ */
+function ContextSection({
+  entryId,
+  ticket,
+  date,
+  ticketOptions,
+}: {
+  entryId: number;
+  ticket: string | null;
+  date: string;
+  /** Tickets to pick for an item (the entry form's suggestions). */
+  ticketOptions: TicketSuggestionLite[];
+}) {
+  const items = contextsForEntry(entryId);
+  const linked = new Set(items.map((c) => c.id));
+  const options = listContexts({ limit: 300 })
+    .filter((c) => !linked.has(c.id))
+    .map((c) => ({
+      id: c.id,
+      label: [CONTEXT_KIND_LABELS[c.kind], c.author, c.date, c.ticket, contextHeadline(c)].filter(Boolean).join(" · "),
+    }));
+  const toSync = items.filter((c) => ["unsynced", "changed"].includes(jiraSyncState(c)));
+  const tickets = getTicketCards(items.map((c) => c.ticket));
+  // A synced Teams message or GitLab item of its own is a badge row; notes are cards.
+  const entities = resolveLinks(items.flatMap((c) => c.links.map((l) => l.url)));
+  const sources = items.filter((c) => itemSource(c, entities));
+  const notes = items.filter((c) => !itemSource(c, entities));
+  const people = listContextPeople();
+
+  return (
+    <ContextFormOptionsProvider value={{ people, tickets: ticketOptions }}>
+      <section id="context" className="card scroll-mt-4 space-y-3 p-4">
+        <div className="flex min-h-7 flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">
+            Context <span className="font-normal normal-case text-zinc-400">({items.length})</span>
+          </h2>
+          {/* One at a time is each row's own Sync. */}
+          {toSync.length > 1 && (
+            <ContextSyncButton ids={toSync.map((c) => c.id)} tickets={toSync.map((c) => c.ticket!)} label={`Sync ${toSync.length} to Jira`} />
+          )}
+        </div>
+        <EntrySourceAdder entryId={entryId} ticket={ticket} linked={items.flatMap((c) => c.links.map((l) => l.url))} />
+        {sources.length > 0 && <EntrySourceRows entryId={entryId} items={sources} tickets={tickets} entities={entities} />}
+        {notes.map((c) => (
+          <ContextCard key={c.id} item={c} entryId={entryId} tickets={tickets} entities={entities} />
+        ))}
+        {items.length === 0 && (
+          <p className="text-sm text-zinc-500">Nothing yet — search Teams and GitLab above for what colleagues wrote about this work, or write a note.</p>
+        )}
+        <EntryContextAdders
+          noteAction={createContextAction.bind(null, entryId)}
+          noteDefaults={{ ticket, date }}
+          link={options.length > 0 ? <LinkContextForm action={linkContextAction.bind(null, entryId)} options={options} /> : undefined}
+        />
+      </section>
+    </ContextFormOptionsProvider>
   );
 }

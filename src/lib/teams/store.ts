@@ -1,0 +1,202 @@
+import { and, desc, eq, inArray, like, or, sql } from "drizzle-orm";
+import { getDb, schema } from "@/db";
+import type { TeamsSettings } from "@/db/schema";
+import { teamsLinkKey, type TeamsKind, type TeamsMessageView } from "./shared";
+
+const { teamsMessages, teamsSettings, contexts } = schema;
+
+/** A message as the Teams driver (scripts/teams-mcp.mjs) reads it. */
+export type TeamsMessageInput = {
+  key: string;
+  kind: TeamsKind;
+  mentionType: string | null;
+  conversationId: string;
+  replyChainId: string | null;
+  messageId: string;
+  place: string | null;
+  senderName: string | null;
+  senderId: string | null;
+  /** Milliseconds since the epoch. */
+  sentAt: number;
+  subject: string | null;
+  html: string;
+  text: string;
+  link: string;
+  isRead: boolean | null;
+};
+
+export function getTeamsSettings(): TeamsSettings {
+  const db = getDb();
+  return db.select().from(teamsSettings).limit(1).get() ?? db.insert(teamsSettings).values({ id: 1 }).returning().get();
+}
+
+export function updateTeamsSettings(patch: Partial<Omit<TeamsSettings, "id">>): TeamsSettings {
+  getTeamsSettings(); // ensure the row exists
+  return getDb().update(teamsSettings).set(patch).returning().get();
+}
+
+/** Keep what was read (each message replacing its last copy). Returns how many are new and how many there are in all. */
+export function saveTeamsMessages(list: TeamsMessageInput[]): { added: number; total: number } {
+  const db = getDb();
+  const syncedAt = new Date().toISOString();
+  const keys = list.map((m) => m.key);
+  const known = new Set<string>();
+  for (let i = 0; i < keys.length; i += 500) {
+    for (const r of db.select({ key: teamsMessages.key }).from(teamsMessages).where(inArray(teamsMessages.key, keys.slice(i, i + 500))).all()) known.add(r.key);
+  }
+  db.transaction((tx) => {
+    for (const m of list) {
+      if (!m?.key || !m.conversationId || !m.messageId || !Number.isFinite(m.sentAt)) continue;
+      const row = {
+        kind: m.kind === "pm" || m.kind === "chat" ? m.kind : "mention",
+        mentionType: m.mentionType ?? null,
+        conversationId: m.conversationId,
+        replyChainId: m.replyChainId ?? null,
+        messageId: m.messageId,
+        place: m.place ?? null,
+        senderName: m.senderName ?? null,
+        senderId: m.senderId ?? null,
+        sentAt: new Date(m.sentAt).toISOString(),
+        subject: m.subject ?? null,
+        html: String(m.html ?? ""),
+        text: String(m.text ?? ""),
+        link: String(m.link ?? ""),
+        isRead: m.isRead ?? null,
+        syncedAt,
+      };
+      tx.insert(teamsMessages).values({ key: m.key, ...row }).onConflictDoUpdate({ target: teamsMessages.key, set: row }).run();
+    }
+  });
+  const total = db.select({ n: sql<number>`count(*)` }).from(teamsMessages).get()?.n ?? 0;
+  return { added: keys.filter((k) => !known.has(k)).length, total: Number(total) };
+}
+
+/**
+ * Messages, newest first: of one kind, matching words (sender, place, subject or text) — or
+ * the one a pasted message link points at — and whether each is already context.
+ */
+export function listTeamsMessages(opts: { q?: string; kind?: TeamsKind; limit?: number } = {}): TeamsMessageView[] {
+  const conditions = [];
+  // A chat's other messages (yours, group chats) only when asked for: the lists are what came to you.
+  conditions.push(opts.kind ? eq(teamsMessages.kind, opts.kind) : sql`${teamsMessages.kind} <> 'chat'`);
+  const link = teamsLinkKey(opts.q);
+  if (link) conditions.push(eq(teamsMessages.key, link));
+  const words = link ? [] : (opts.q ?? "").trim().split(/\s+/).filter(Boolean).slice(0, 6);
+  for (const word of words) {
+    const p = `%${word.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
+    conditions.push(
+      or(
+        sql`${teamsMessages.text} like ${p} escape '\\'`,
+        sql`${teamsMessages.senderName} like ${p} escape '\\'`,
+        sql`${teamsMessages.place} like ${p} escape '\\'`,
+        sql`${teamsMessages.subject} like ${p} escape '\\'`,
+      )!,
+    );
+  }
+  const rows = getDb()
+    .select()
+    .from(teamsMessages)
+    .where(conditions.length ? and(...conditions) : undefined)
+    .orderBy(desc(teamsMessages.sentAt))
+    .limit(Math.min(500, opts.limit ?? 100))
+    .all();
+  // Already context: an item links to the message (its "Open in Teams" link names conversation and message).
+  const used = new Set<string>();
+  if (rows.length) {
+    const linked = getDb().select({ links: contexts.links }).from(contexts).where(like(contexts.links, "%teams.microsoft.com/l/message/%")).all();
+    const all = linked.map((r) => r.links).join("\n");
+    for (const r of rows) if (all.includes(`/l/message/${r.conversationId}/${r.messageId}`)) used.add(r.key);
+  }
+  return rows.map((r) => toView(r, used.has(r.key)));
+}
+
+function toView(r: typeof teamsMessages.$inferSelect, inContext = false): TeamsMessageView {
+  return {
+    key: r.key,
+    kind: r.kind === "pm" || r.kind === "chat" ? r.kind : "mention",
+    mentionType: r.mentionType,
+    place: r.place,
+    senderName: r.senderName,
+    sentAt: r.sentAt,
+    subject: r.subject,
+    html: r.html,
+    text: r.text,
+    link: r.link,
+    isRead: r.isRead,
+    inContext,
+    resolvedAt: r.resolvedAt,
+  };
+}
+
+/** The synced messages with these keys ("<conversationId>|<messageId>"), by key. */
+export function teamsMessagesByKeys(keys: string[]): Map<string, TeamsMessageView> {
+  const wanted = [...new Set(keys.filter(Boolean))].slice(0, 50);
+  if (!wanted.length) return new Map();
+  const rows = getDb().select().from(teamsMessages).where(inArray(teamsMessages.key, wanted)).all();
+  return new Map(rows.map((r) => [r.key, toView(r)]));
+}
+
+/**
+ * A message's conversation, oldest first, itself among it: a channel reply's thread (its reply
+ * chain) — else what was written in the chat around it (up to `days` before, a few after).
+ */
+/** In a chat, a pause longer than this ends a stretch of talk. */
+const CHAT_GAP = 2 * 3600_000;
+
+export function teamsConversation(key: string, opts: { before?: number; after?: number; days?: number } = {}): TeamsMessageView[] {
+  const db = getDb();
+  const m = db.select().from(teamsMessages).where(eq(teamsMessages.key, key)).get();
+  if (!m) return [];
+  const chain =
+    m.replyChainId &&
+    db
+      .select({ n: sql<number>`count(*)` })
+      .from(teamsMessages)
+      .where(and(eq(teamsMessages.conversationId, m.conversationId), eq(teamsMessages.replyChainId, m.replyChainId), sql`${teamsMessages.messageId} <> ${m.messageId}`))
+      .get()!.n > 0;
+  const same = chain ? and(eq(teamsMessages.conversationId, m.conversationId), eq(teamsMessages.replyChainId, m.replyChainId!)) : eq(teamsMessages.conversationId, m.conversationId);
+  const at = Date.parse(m.sentAt);
+  const day = 86400000;
+  const from = new Date(at - (opts.days ?? 3) * day).toISOString();
+  const to = new Date(at + day).toISOString();
+  const before = db
+    .select()
+    .from(teamsMessages)
+    .where(and(same, sql`${teamsMessages.sentAt} <= ${m.sentAt}`, sql`${teamsMessages.sentAt} >= ${from}`))
+    .orderBy(desc(teamsMessages.sentAt))
+    .limit(opts.before ?? 12)
+    .all()
+    .reverse();
+  const after = db
+    .select()
+    .from(teamsMessages)
+    .where(and(same, sql`${teamsMessages.sentAt} > ${m.sentAt}`, sql`${teamsMessages.sentAt} <= ${to}`))
+    .orderBy(teamsMessages.sentAt)
+    .limit(opts.after ?? 6)
+    .all();
+  // A chat (no thread to go by): only the stretch of talk it's in — messages at most 2h apart,
+  // not what was said hours before or after about something else.
+  const near = (list: typeof before, from: Date) => {
+    const out: typeof before = [];
+    let last = from.getTime();
+    for (const r of list) {
+      const t = Date.parse(r.sentAt);
+      if (Math.abs(t - last) > CHAT_GAP) break;
+      out.push(r);
+      last = t;
+    }
+    return out;
+  };
+  const sent = new Date(at);
+  const all = chain
+    ? [...before, ...after]
+    : [...near(before.filter((r) => r.key !== m.key).reverse(), sent).reverse(), ...near(after, sent)];
+  return (all.some((r) => r.key === m.key) ? all : [...all, m].sort((a, b) => a.sentAt.localeCompare(b.sentAt))).map((r) => toView(r));
+}
+
+/** How many messages there are, by kind. */
+export function teamsMessageCounts(): { all: number; mention: number; pm: number } {
+  const rows = getDb().select({ kind: teamsMessages.kind, n: sql<number>`count(*)` }).from(teamsMessages).groupBy(teamsMessages.kind).all();
+  const by = Object.fromEntries(rows.map((r) => [r.kind, Number(r.n)]));
+  return { all: (by.mention ?? 0) + (by.pm ?? 0), mention: by.mention ?? 0, pm: by.pm ?? 0 };
+}

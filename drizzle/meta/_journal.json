@@ -127,6 +127,356 @@
       "when": 1790249974240,
       "tag": "0017_type_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1790780285487,
+      "tag": "0018_projects",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1790783537895,
+      "tag": "0019_pauses",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1790784161288,
+      "tag": "0020_default_pauses",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1790790068678,
+      "tag": "0021_roar_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1790850384764,
+      "tag": "0022_default_tags",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1790859854649,
+      "tag": "0023_entry_types",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1790862978671,
+      "tag": "0024_jira_description",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1790868816597,
+      "tag": "0025_roar_entries",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1791293715761,
+      "tag": "0026_contexts",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1791299705319,
+      "tag": "0027_flex_time",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1791307933386,
+      "tag": "0028_timo_days",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1791310764233,
+      "tag": "0029_teams_messages",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1791311902554,
+      "tag": "0030_gitlab_items",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1791326867786,
+      "tag": "0031_entry_context_order",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1791371502180,
+      "tag": "0032_boards",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1791373174209,
+      "tag": "0033_app_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1791374229961,
+      "tag": "0034_sync_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1791374486804,
+      "tag": "0035_resolved",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1791375279258,
+      "tag": "0036_gitlab_resolved",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1791377444391,
+      "tag": "0037_work",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1791379546686,
+      "tag": "0038_ticket_actions",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1791379725045,
+      "tag": "0039_repos",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1791382813947,
+      "tag": "0040_todo_ops",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1791383665071,
+      "tag": "0041_board_minutes",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "6",
+      "when": 1791385114159,
+      "tag": "0042_gitlab_threads",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1791385236987,
+      "tag": "0043_ignored_branches",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1791385729029,
+      "tag": "0044_repo_delivery",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "6",
+      "when": 1791386802164,
+      "tag": "0045_todo_entry",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "6",
+      "when": 1791388389018,
+      "tag": "0046_jira_comments",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "6",
+      "when": 1791397158599,
+      "tag": "0047_day_recaps",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "6",
+      "when": 1791409892836,
+      "tag": "0048_todo_plans",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "6",
+      "when": 1791453217139,
+      "tag": "0049_followed_tickets",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "6",
+      "when": 1791457945173,
+      "tag": "0050_agent_instructions",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "6",
+      "when": 1791460575677,
+      "tag": "0051_todo_needs_input",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "6",
+      "when": 1791461628954,
+      "tag": "0052_todo_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "6",
+      "when": 1791463174190,
+      "tag": "0053_agent_instruction_branch",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "6",
+      "when": 1791468095308,
+      "tag": "0054_todo_user_notes",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "6",
+      "when": 1791472580365,
+      "tag": "0055_work_run_error_seen",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "6",
+      "when": 1791473316134,
+      "tag": "0056_agent_instruction_short",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "6",
+      "when": 1791473952639,
+      "tag": "0057_todo_deferred",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "6",
+      "when": 1791478212353,
+      "tag": "0058_work_copilot_mode",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "6",
+      "when": 1791480162846,
+      "tag": "0059_todo_flagged",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "6",
+      "when": 1791480698330,
+      "tag": "0060_emails",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "6",
+      "when": 1791482453895,
+      "tag": "0061_email_folders",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "6",
+      "when": 1791557879473,
+      "tag": "0062_todo_also_tickets",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "6",
+      "when": 1791561891458,
+      "tag": "0063_todo_mail_refs",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "6",
+      "when": 1791564097417,
+      "tag": "0064_entry_suggestions",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "6",
+      "when": 1791564445377,
+      "tag": "0065_email_reviewed",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "6",
+      "when": 1791567778625,
+      "tag": "0066_backups",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "6",
+      "when": 1791570487875,
+      "tag": "0067_backup_rotation",
+      "breakpoints": true
     }
   ]
 }

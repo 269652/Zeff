@@ -2,6 +2,7 @@ import { and, asc, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { JiraBoard, JiraStatusCategory, JiraTicket } from "@/db/schema";
 import type { NormalizedTicket } from "./normalize";
+import type { TicketCard } from "./ticket-card-shared";
 
 const { jiraTickets, jiraBoards } = schema;
 
@@ -32,6 +33,11 @@ export function getJiraTicket(key: string): JiraTicket | undefined {
     .from(jiraTickets)
     .where(sql`lower(${jiraTickets.key}) = lower(${key})`)
     .get();
+}
+
+/** You, as Jira names you (the assignee of the tickets synced as yours), if known. */
+export function myJiraName(): string | null {
+  return getDb().select({ a: jiraTickets.assignee }).from(jiraTickets).where(eq(jiraTickets.mine, true)).limit(1).get()?.a ?? null;
 }
 
 /** The Zeff job a ticket is linked to in the Jira store (if any). */
@@ -68,6 +74,7 @@ export function upsertTickets(tickets: NormalizedTicket[], opts: { markMissingIn
       db.update(jiraTickets)
         .set({
           summary: t.summary,
+          description: t.description !== undefined ? t.description : undefined,
           status: t.status,
           statusCategory: t.statusCategory,
           issueType: t.issueType ?? null,
@@ -89,6 +96,7 @@ export function upsertTickets(tickets: NormalizedTicket[], opts: { markMissingIn
         .values({
           key: t.key,
           summary: t.summary,
+          description: t.description !== undefined ? t.description : undefined,
           status: t.status,
           statusCategory: t.statusCategory,
           issueType: t.issueType ?? null,
@@ -156,6 +164,7 @@ export function insertTitleOnlyTickets(tickets: NormalizedTicket[]): number {
       db.update(jiraTickets)
         .set({
           summary: t.summary,
+          description: t.description !== undefined ? t.description : undefined,
           status: t.status,
           statusCategory: t.statusCategory,
           issueType: t.issueType ?? existing.issueType,
@@ -171,6 +180,7 @@ export function insertTitleOnlyTickets(tickets: NormalizedTicket[]): number {
         .values({
           key: t.key,
           summary: t.summary,
+          description: t.description !== undefined ? t.description : undefined,
           status: t.status,
           statusCategory: t.statusCategory,
           issueType: t.issueType ?? null,
@@ -218,12 +228,14 @@ export function jiraStats(keys?: Set<string>): JiraStats {
 
 /**
  * Autocomplete source: active tickets with their effective job (explicit or the
- * board default). When any board is enabled, only tickets on an enabled board are
- * offered (stale boards are curated out); with no enabled boards it falls back to
- * all active tickets so the dropdown is never empty by surprise.
+ * board default). When any board is enabled, only tickets on an enabled board — or
+ * assigned to me, unless their project's boards are all switched off — are offered
+ * (stale boards are curated out); with no enabled boards it falls back to all active
+ * tickets so the dropdown is never empty by surprise.
  */
 export function ticketSuggestions(): { ticket: string; summary: string; jobNumber: string | null; done: boolean; assignee: string | null; mine: boolean }[] {
   const filterByBoards = hasEnabledBoards();
+  const off = filterByBoards ? disabledProjects() : [];
   const boardJoin = filterByBoards
     ? and(eq(jiraBoards.id, jiraTickets.boardId), eq(jiraBoards.enabled, true))
     : eq(jiraBoards.id, jiraTickets.boardId);
@@ -243,8 +255,8 @@ export function ticketSuggestions(): { ticket: string; summary: string; jobNumbe
     .where(eq(jiraTickets.active, true))
     .orderBy(asc(jiraTickets.statusCategory), asc(jiraTickets.key))
     .all()
-    // When filtering by boards, keep tickets on an enabled board OR assigned to me.
-    .filter((r) => !filterByBoards || r.boardId !== null || r.mine)
+    // When filtering by boards, keep tickets on an enabled board, or mine on a project not switched off.
+    .filter((r) => !filterByBoards || r.boardId !== null || (r.mine && !inProjects(r.ticket, off)))
     .map((r) => ({
       ticket: r.ticket,
       summary: r.summary,
@@ -375,6 +387,24 @@ export function hasEnabledBoards(): boolean {
 }
 
 /**
+ * Projects (upper-case keys) whose boards are all switched off — e.g. AINEWS once both its
+ * boards are deselected on the Jira tab.
+ */
+function disabledProjects(): string[] {
+  return getDb()
+    .select({ key: jiraBoards.projectKey })
+    .from(jiraBoards)
+    .where(sql`${jiraBoards.projectKey} is not null`)
+    .groupBy(jiraBoards.projectKey)
+    .having(sql`max(${jiraBoards.enabled}) = 0`)
+    .all()
+    .map((r) => String(r.key).toUpperCase());
+}
+
+/** Whether a ticket key belongs to one of these projects ("AINEWS-52" → AINEWS). */
+const inProjects = (key: string, projects: string[]) => projects.some((p) => key.toUpperCase().startsWith(`${p}-`));
+
+/**
  * A WHERE condition limiting tickets to those on an ENABLED board, or undefined
  * for "no restriction". Undefined when no board is enabled, so scoped views (the
  * Jira tab list & stats, Analysis, the dropdown) fall back to all tickets rather
@@ -382,9 +412,10 @@ export function hasEnabledBoards(): boolean {
  */
 function enabledBoardTicketCond() {
   if (!hasEnabledBoards()) return undefined;
-  // Show tickets on an enabled board OR assigned to me (so my tickets never hide,
-  // even if their board is stale/disabled); teammates' tickets need an enabled board.
-  return or(inArray(jiraTickets.boardId, enabledBoardIds()), eq(jiraTickets.mine, true));
+  // Tickets on an enabled board, or assigned to me — so my tickets don't hide on a stale or
+  // unsynced board — unless every board of their project is switched off (left out on purpose).
+  const off = disabledProjects().map((p) => sql`substr(upper(${jiraTickets.key}), 1, ${p.length + 1}) <> ${`${p}-`}`);
+  return or(inArray(jiraTickets.boardId, enabledBoardIds()), and(eq(jiraTickets.mine, true), ...off));
 }
 
 /**
@@ -448,3 +479,60 @@ export function hasBoardData(): boolean {
   return Number(row?.n ?? 0) > 0;
 }
 
+
+/** "https://jira.example.com/browse/" from any synced ticket's URL — to link tickets Zeff hasn't synced. */
+function jiraBrowseBase(): string | null {
+  const row = getDb()
+    .select({ url: jiraTickets.url })
+    .from(jiraTickets)
+    .where(sql`${jiraTickets.url} like '%/browse/%'`)
+    .limit(1)
+    .get();
+  const url = row?.url;
+  return url ? url.slice(0, url.indexOf("/browse/") + "/browse/".length) : null;
+}
+
+/** Hover-card data for ticket keys (by upper-case key); unsynced tickets get just a link. */
+export function getTicketCards(keys: (string | null | undefined)[]): Record<string, TicketCard> {
+  const wanted = [...new Set(keys.flatMap((k) => (k?.trim() ? [k.trim().toUpperCase()] : [])))];
+  if (wanted.length === 0) return {};
+  const rows = getDb().select().from(jiraTickets).where(inArray(jiraTickets.key, wanted)).all();
+  const byKey = new Map(rows.map((r) => [r.key.toUpperCase(), r]));
+  const base = jiraBrowseBase();
+  const cards: Record<string, TicketCard> = {};
+  for (const key of wanted) {
+    const r = byKey.get(key);
+    cards[key] = r
+      ? {
+          key,
+          url: r.url ?? (base ? base + key : null),
+          synced: true,
+          summary: r.summary,
+          description: r.description,
+          status: r.status,
+          statusCategory: r.statusCategory,
+          issueType: r.issueType,
+          priority: r.priority,
+          assignee: r.assignee,
+          openedAt: r.openedAt,
+          resolvedAt: r.resolvedAt,
+          jobNumber: r.jobNumber,
+        }
+      : {
+          key,
+          url: base ? base + key : null,
+          synced: false,
+          summary: "",
+          description: null,
+          status: "",
+          statusCategory: "unknown",
+          issueType: null,
+          priority: null,
+          assignee: null,
+          openedAt: null,
+          resolvedAt: null,
+          jobNumber: null,
+        };
+  }
+  return cards;
+}

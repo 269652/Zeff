@@ -182,3 +182,13 @@ export function resultToPayload(result: unknown): unknown {
   }
   return result;
 }
+
+/**
+ * Jira not there to answer (its maintenance page, a proxy's error page instead of data): what to
+ * say instead of the tool's raw error — null when it's another error.
+ */
+export function jiraDown(message: string): string | null {
+  if (!/<!DOCTYPE html|<html|Maintenance|Wartung|502 Bad Gateway|503 Service|504 Gateway/i.test(message)) return null;
+  const maintenance = /Maintenance|Wartung/i.test(message);
+  return `Jira ist gerade nicht erreichbar${maintenance ? " (Wartungsseite)" : " (es antwortet mit einer Fehlerseite statt Daten)"} — später noch mal.`;
+}

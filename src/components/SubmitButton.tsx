@@ -10,6 +10,8 @@ export function SubmitButton({
   name,
   value,
   pending: pendingProp,
+  title,
+  label,
 }: {
   children: React.ReactNode;
   pendingText?: string;
@@ -21,6 +23,10 @@ export function SubmitButton({
   value?: string;
   /** Pending state for forms submitted via onSubmit (useFormStatus only sees `action` submissions). */
   pending?: boolean;
+  /** Tooltip. */
+  title?: string;
+  /** Accessible name, for a button that shows just an icon. */
+  label?: string;
 }) {
   const status = useFormStatus();
   const pending = pendingProp ?? status.pending;
@@ -31,6 +37,8 @@ export function SubmitButton({
       className={className}
       name={name}
       value={value}
+      title={title}
+      aria-label={label}
       onClick={(e) => {
         if (confirmText && !window.confirm(confirmText)) e.preventDefault();
       }}
