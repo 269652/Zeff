@@ -1,0 +1,2 @@
+-- The copied instruction for code todos: the ticket's existing feature branch first, a new worktree only without one (left alone when changed by hand).
+UPDATE `app_settings` SET `agent_instruction_code` = 'Implement $todo.id using strict TDD — continue on the ticket''s existing feature branch if there is one; only if none exists, create a new feature branch in a separate worktree' WHERE `agent_instruction_code` = 'Implement $todo.id using strict TDD in a separate worktree';

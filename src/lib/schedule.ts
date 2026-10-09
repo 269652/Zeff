@@ -3,18 +3,21 @@ import { getDb, schema } from "@/db";
 import type { Absence, WorkSchedule } from "@/db/schema";
 import { ValidationError } from "./errors";
 import { round2 } from "./format";
+import { formatPauses, parsePauses, type PauseRange } from "./pauses-shared";
 import {
   ABSENCE_TYPES,
+  DEFAULT_FLEX_COMMENT,
   WEEKDAY_KEYS,
   type AbsenceType,
+  type FlexTime,
   type WeekdayKey,
 } from "./schedule-shared";
 import { isoDate, type WeekInfo } from "./week";
 
 const { workSchedule, absences } = schema;
 
-export { ABSENCE_LABELS, ABSENCE_TYPES, WEEKDAY_KEYS, WEEKDAY_LABELS } from "./schedule-shared";
-export type { AbsenceType, WeekdayKey } from "./schedule-shared";
+export { ABSENCE_LABELS, ABSENCE_TYPES, DEFAULT_FLEX_COMMENT, WEEKDAY_KEYS, WEEKDAY_LABELS } from "./schedule-shared";
+export type { AbsenceType, FlexTime, WeekdayKey } from "./schedule-shared";
 
 // ---------------------------------------------------------------------------
 // Weekly working pattern (part-time)
@@ -50,6 +53,49 @@ export function updateWorkSchedule(hours: Record<WeekdayKey, number>): WorkSched
       fri: round2(hours.fri),
       sat: round2(hours.sat),
       sun: round2(hours.sun),
+      updatedAt: new Date().toISOString(),
+    })
+    .returning()
+    .get();
+}
+
+/** The default break window(s) on workdays (e.g. 12:00–13:00); empty when none is set. */
+export function getDefaultPauses(s: WorkSchedule = getWorkSchedule()): PauseRange[] {
+  if (!s.defaultPauses) return [];
+  const parsed = parsePauses(s.defaultPauses);
+  return parsed.ok ? parsed.pauses : [];
+}
+
+/** Set the default break ("12:00-13:00", "12 30m", …; empty = none) and whether Punch records it. */
+export function updateDefaultPauses(text: string, exportToPunch: boolean): WorkSchedule {
+  const parsed = parsePauses(text);
+  if (!parsed.ok) throw new ValidationError(parsed.error);
+  getWorkSchedule(); // ensure the row exists
+  return getDb()
+    .update(workSchedule)
+    .set({
+      defaultPauses: parsed.pauses.length ? formatPauses(parsed.pauses) : null,
+      punchDefaultPauses: exportToPunch,
+      updatedAt: new Date().toISOString(),
+    })
+    .returning()
+    .get();
+}
+
+/** The flex-time (Gleitzeit) job and comment: where a day's missing hours can be booked in one click. */
+export function getFlexTime(s: WorkSchedule = getWorkSchedule()): FlexTime {
+  return { jobNumber: s.flexJobNumber?.trim() || null, comment: s.flexComment?.trim() || DEFAULT_FLEX_COMMENT };
+}
+
+/** Set the flex-time job (null = off) and the comment its bookings get (empty = the default). */
+export function updateFlexTime(input: { jobNumber: string | null; comment: string }): WorkSchedule {
+  getWorkSchedule(); // ensure the row exists
+  const comment = input.comment.trim().slice(0, 200);
+  return getDb()
+    .update(workSchedule)
+    .set({
+      flexJobNumber: input.jobNumber?.trim() || null,
+      flexComment: comment && comment !== DEFAULT_FLEX_COMMENT ? comment : null,
       updatedAt: new Date().toISOString(),
     })
     .returning()
@@ -126,30 +172,44 @@ export type WeekTargets = {
 };
 
 export function getWeekTargets(week: WeekInfo): WeekTargets {
+  const days = getDayTargets(week.days);
+  const targets = days.map((d) => d.target);
+  return {
+    targets,
+    base: days.map((d) => d.base),
+    absenceByDay: days.map((d) => d.absence),
+    weekTarget: round2(targets.reduce((a, b) => a + b, 0)),
+  };
+}
+
+/** A day's target: its weekday's scheduled hours, less any absence covering it. */
+export type DayTarget = {
+  /** YYYY-MM-DD */
+  date: string;
+  target: number;
+  /** The schedule's hours for the weekday, before absences. */
+  base: number;
+  /** The absence covering the day, if any. */
+  absence: Absence | undefined;
+};
+
+/** The targets of consecutive days (a week, a month). */
+export function getDayTargets(days: Date[]): DayTarget[] {
+  if (days.length === 0) return [];
   const base = scheduleHours(getWorkSchedule());
-  const weekAbsences = listAbsences({ from: week.startIso, to: week.endIso });
-
-  const targets: number[] = [];
-  const absenceByDay: (Absence | undefined)[] = [];
-
-  week.days.forEach((day, i) => {
-    const iso = isoDate(day);
-    let target = base[i];
-    let covering: Absence | undefined;
-    for (const a of weekAbsences) {
+  const isos = days.map(isoDate);
+  const covering = listAbsences({ from: isos[0], to: isos[isos.length - 1] });
+  return days.map((day, i) => {
+    const iso = isos[i];
+    const weekday = (day.getDay() + 6) % 7; // 0 = Monday
+    let target = base[weekday];
+    let absence: Absence | undefined;
+    for (const a of covering) {
       if (iso >= a.startDate && iso <= a.endDate) {
-        covering ??= a;
+        absence ??= a;
         target = a.hours == null ? 0 : Math.max(0, target - a.hours);
       }
     }
-    targets.push(round2(target));
-    absenceByDay.push(covering);
+    return { date: iso, target: round2(target), base: base[weekday], absence };
   });
-
-  return {
-    targets,
-    base,
-    absenceByDay,
-    weekTarget: round2(targets.reduce((a, b) => a + b, 0)),
-  };
 }

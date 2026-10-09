@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
-import { BarList, Donut, Legend, LineChart, TYPE_STYLE, WeeklyBars, type BarItem, type LinePoint } from "@/components/charts";
+import { BarList, Donut, Legend, LineChart, WeeklyBars, type BarItem, type LinePoint } from "@/components/charts";
+import { LinkSelect } from "@/components/LinkSelect";
+import { TicketLink } from "@/components/TicketLink";
 import { getAnalysis, getEarliestEntryDate } from "@/lib/analysis";
+import { listEntryTypes } from "@/lib/entry-types";
+import { getTicketCards } from "@/lib/jira/store";
+import { FALLBACK_TYPE_COLOR } from "@/lib/entry-types-shared";
 import { formatHours } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Analysis" };
@@ -18,15 +23,37 @@ const RANGES = [
 export default async function AnalysisPage({
   searchParams,
 }: {
-  searchParams: Promise<{ weeks?: string; tickets?: string }>;
+  searchParams: Promise<{ weeks?: string; tickets?: string; split?: string }>;
 }) {
   await connection();
   const sp = await searchParams;
   const weeks = sp.weeks !== undefined && /^\d+$/.test(sp.weeks) ? Number(sp.weeks) : 8;
   const mine = sp.tickets === "mine";
+  // The "Hours by …" panel: by tag (default) or by type.
+  const split = sp.split === "type" ? "type" : "tag";
   const a = getAnalysis({ weeks, earliest: getEarliestEntryDate(), ticketScope: mine ? "mine" : "all" });
 
-  const href = (w: number, m = mine) => `/analysis?weeks=${w}${m ? "&tickets=mine" : ""}`;
+  const href = (w: number, m = mine, s = split) => `/analysis?weeks=${w}${m ? "&tickets=mine" : ""}${s === "type" ? "&split=type" : ""}`;
+
+  // Entry types in their configured order and colors; keys with hours but no type (deleted) go last, in grey.
+  const configured = listEntryTypes();
+  const known = new Set(configured.map((t) => t.key));
+  const types = [
+    ...configured,
+    ...Object.keys(a.byType)
+      .filter((k) => !known.has(k))
+      .map((k) => ({ key: k, label: k, color: FALLBACK_TYPE_COLOR, builtin: false })),
+  ];
+  const typesWithHours = types.filter((t) => (a.byType[t.key] ?? 0) > 0);
+  const typeItems: BarItem[] = [...typesWithHours]
+    .sort((x, y) => (a.byType[y.key] ?? 0) - (a.byType[x.key] ?? 0))
+    .map((t) => ({
+      key: t.key,
+      label: t.label,
+      value: a.byType[t.key] ?? 0,
+      valueLabel: `${formatHours(a.byType[t.key] ?? 0)} h`,
+      color: t.color,
+    }));
   const pct = (h: number) => (a.totalHours > 0 ? Math.round((h / a.totalHours) * 100) : 0);
 
   const tagItems: BarItem[] = a.byTag.slice(0, 12).map((t) => ({
@@ -46,9 +73,10 @@ export default async function AnalysisPage({
     });
   }
 
+  const ticketCards = getTicketCards(a.topTickets.map((t) => t.ticket));
   const ticketItems: BarItem[] = a.topTickets.map((t) => ({
     key: t.ticket,
-    label: <span className="font-mono">{t.ticket}</span>,
+    label: <TicketLink ticket={t.ticket} card={ticketCards[t.ticket.toUpperCase()]} />,
     value: t.hours,
     valueLabel: `${formatHours(t.hours)} h`,
     barClass: "bg-indigo-500",
@@ -66,13 +94,7 @@ export default async function AnalysisPage({
     key: w.weekKey,
     label: `W${w.label}`,
     total: w.total,
-    segments: [
-      { type: "meeting" as const, value: w.byType.meeting },
-      { type: "ticket" as const, value: w.byType.ticket },
-      { type: "other" as const, value: w.byType.other },
-      { type: "absence" as const, value: w.byType.absence },
-      { type: "internal" as const, value: w.byType.internal },
-    ],
+    segments: typesWithHours.map((t) => ({ key: t.key, label: t.label, value: w.byType[t.key] ?? 0, color: t.color })),
     badge: a.jira
       ? w.closed
         ? `${w.closed}✓`
@@ -171,21 +193,15 @@ export default async function AnalysisPage({
                 <Donut
                   centerValue={`${a.meetingPercent}%`}
                   centerLabel="Meetings"
-                  segments={[
-                    { key: "meeting", value: a.byType.meeting, strokeClass: TYPE_STYLE.meeting.stroke },
-                    { key: "ticket", value: a.byType.ticket, strokeClass: TYPE_STYLE.ticket.stroke },
-                    { key: "other", value: a.byType.other, strokeClass: TYPE_STYLE.other.stroke },
-                    { key: "absence", value: a.byType.absence, strokeClass: TYPE_STYLE.absence.stroke },
-                    { key: "internal", value: a.byType.internal, strokeClass: TYPE_STYLE.internal.stroke },
-                  ]}
+                  segments={typesWithHours.map((t) => ({ key: t.key, value: a.byType[t.key] ?? 0, color: t.color }))}
                 />
                 <div className="space-y-2">
-                  {(["meeting", "ticket", "internal", "other", "absence"] as const).map((t) => (
-                    <div key={t} className="flex items-center gap-2 text-sm">
-                      <span className={`inline-block size-2.5 rounded-sm ${TYPE_STYLE[t].dot}`} />
-                      <span className="w-20">{TYPE_STYLE[t].label}</span>
-                      <span className="font-medium tabular-nums">{formatHours(a.byType[t])} h</span>
-                      <span className="text-zinc-500 tabular-nums">{pct(a.byType[t])}%</span>
+                  {typesWithHours.map((t) => (
+                    <div key={t.key} className="flex items-center gap-2 text-sm">
+                      <span className="inline-block size-2.5 rounded-sm" style={{ backgroundColor: t.color }} />
+                      <span className="w-20 truncate" title={t.label}>{t.label}</span>
+                      <span className="font-medium tabular-nums">{formatHours(a.byType[t.key] ?? 0)} h</span>
+                      <span className="text-zinc-500 tabular-nums">{pct(a.byType[t.key] ?? 0)}%</span>
                     </div>
                   ))}
                 </div>
@@ -203,11 +219,7 @@ export default async function AnalysisPage({
               <h2 className="text-sm font-semibold text-zinc-500 uppercase">Weekly hours &amp; tickets</h2>
               <Legend
                 items={[
-                  { dot: TYPE_STYLE.meeting.dot, label: "Meetings" },
-                  { dot: TYPE_STYLE.ticket.dot, label: "Tickets" },
-                  { dot: TYPE_STYLE.other.dot, label: "Other" },
-                  { dot: TYPE_STYLE.absence.dot, label: "Absence" },
-                  { dot: TYPE_STYLE.internal.dot, label: "Internal" },
+                  ...typesWithHours.map((t) => ({ color: t.color, label: t.label })),
                   a.jira
                     ? { dot: "bg-emerald-400", label: "✓ tickets closed" }
                     : { dot: "bg-sky-400", label: "🎫 tickets worked" },
@@ -246,8 +258,22 @@ export default async function AnalysisPage({
 
           <div className="grid gap-4 lg:grid-cols-2">
             <section className="card p-4">
-              <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">Hours by tag</h2>
-              <BarList items={tagItems} empty="No tagged entries." />
+              <div className="mb-3 flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-zinc-500 uppercase">Hours by</h2>
+                <LinkSelect
+                  label="Hours by"
+                  value={split}
+                  options={[
+                    { value: "tag", label: "Tag", href: href(weeks, mine, "tag") },
+                    { value: "type", label: "Type", href: href(weeks, mine, "type") },
+                  ]}
+                />
+              </div>
+              {split === "type" ? (
+                <BarList items={typeItems} empty="No entries." />
+              ) : (
+                <BarList items={tagItems} empty="No tagged entries." />
+              )}
             </section>
             <section className="card p-4">
               <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">Top tickets by hours</h2>

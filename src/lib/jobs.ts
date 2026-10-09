@@ -1,7 +1,8 @@
-import { and, asc, desc, eq, like, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, like, ne, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { Job } from "@/db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "./errors";
+import { NO_JOB_NAME, NO_JOB_NUMBER } from "./projects-shared";
 import { formatZodError, jobInputSchema, type JobInput } from "./validation";
 
 const { jobs, timeEntries } = schema;
@@ -15,12 +16,15 @@ export type ListJobsOptions = {
   /** Case-insensitive match on number, name or customer. */
   query?: string;
   includeInactive?: boolean;
+  /** Also list the built-in "No job yet" placeholder (hidden by default). */
+  includePlaceholder?: boolean;
 };
 
 export function listJobs(opts: ListJobsOptions = {}): JobWithStats[] {
   const db = getDb();
   const conditions = [];
   if (!opts.includeInactive) conditions.push(eq(jobs.active, true));
+  if (!opts.includePlaceholder) conditions.push(ne(jobs.number, NO_JOB_NUMBER));
   if (opts.query?.trim()) {
     const q = `%${opts.query.trim()}%`;
     conditions.push(
@@ -84,7 +88,7 @@ export function requireJobByNumber(number: string): Job {
 export function suggestJobs(number: string, limit = 5): Job[] {
   const db = getDb();
   const needle = number.trim();
-  const active = eq(jobs.active, true);
+  const active = and(eq(jobs.active, true), ne(jobs.number, NO_JOB_NUMBER));
   let rows: Job[] = [];
   if (needle) {
     const q = `%${needle}%`;
@@ -102,11 +106,40 @@ export function suggestJobs(number: string, limit = 5): Job[] {
   return rows;
 }
 
+/**
+ * The built-in placeholder job for entries of a project that has no job yet
+ * (created on first use). Hidden from job listings; the Chrono export skips it.
+ */
+export function getNoJobPlaceholder(): Job {
+  const existing = getJobByNumber(NO_JOB_NUMBER);
+  if (existing) return existing;
+  return getDb()
+    .insert(jobs)
+    .values({
+      number: NO_JOB_NUMBER,
+      name: NO_JOB_NAME,
+      description: "Built-in placeholder: entries of projects that have no job yet. Set the project's job to move them.",
+    })
+    .returning()
+    .get();
+}
+
+export function isNoJobPlaceholder(job: Pick<Job, "number">): boolean {
+  return job.number === NO_JOB_NUMBER;
+}
+
+function assertNotReserved(number: string) {
+  if (number.trim().toLowerCase() === NO_JOB_NUMBER.toLowerCase()) {
+    throw new ValidationError(`"${NO_JOB_NUMBER}" is reserved for entries of projects without a job.`);
+  }
+}
+
 export function createJob(raw: JobInput): Job {
   const parsed = jobInputSchema.safeParse(raw);
   if (!parsed.success) throw new ValidationError(formatZodError(parsed.error));
   const input = parsed.data;
   const db = getDb();
+  assertNotReserved(input.number);
   if (getJobByNumber(input.number)) {
     throw new ConflictError(`A job with number "${input.number}" already exists.`);
   }
@@ -131,6 +164,7 @@ export function updateJob(id: number, raw: Partial<JobInput>): Job {
   const existing = getJob(id);
   if (!existing) throw new NotFoundError(`Job #${id} not found.`);
   if (patch.number !== undefined) {
+    if (patch.number !== existing.number) assertNotReserved(patch.number);
     const clash = getJobByNumber(patch.number);
     if (clash && clash.id !== id) {
       throw new ConflictError(`A job with number "${patch.number}" already exists.`);
@@ -165,4 +199,28 @@ export function deleteJob(id: number): void {
     );
   }
   db.delete(jobs).where(eq(jobs.id, id)).run();
+}
+
+export type ChronoLookup = { jobNumber: string; found: boolean; name?: string; client?: string; group?: string };
+
+/** Store the result of looking jobs up in Chrono ("Sync with Chrono"); returns how many jobs were updated. */
+export function recordChronoLookup(results: ChronoLookup[]): number {
+  const db = getDb();
+  const checkedAt = new Date().toISOString();
+  let updated = 0;
+  for (const r of results) {
+    const job = getJobByNumber(r.jobNumber);
+    if (!job) continue;
+    db.update(jobs)
+      .set({
+        chronoFound: r.found,
+        chronoName: r.found ? (r.name ?? null) : null,
+        chronoClient: r.found ? [r.client, r.group].filter(Boolean).join(" · ") || null : null,
+        chronoCheckedAt: checkedAt,
+      })
+      .where(eq(jobs.id, job.id))
+      .run();
+    updated++;
+  }
+  return updated;
 }

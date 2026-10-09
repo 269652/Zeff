@@ -8,7 +8,9 @@ import { EntriesTable } from "@/components/EntriesTable";
 import { JobForm } from "@/components/JobForm";
 import { getJobHours, listEntries } from "@/lib/entries";
 import { formatHours } from "@/lib/format";
+import { getDefaultTags } from "@/lib/default-tags";
 import { getJob } from "@/lib/jobs";
+import { listTags } from "@/lib/tags";
 
 export const metadata: Metadata = { title: "Job" };
 
@@ -45,7 +47,9 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
           action={updateJobAction.bind(null, job.id)}
           mode="edit"
           submitLabel="Save"
+          allTags={listTags().map((t) => t.name)}
           defaults={{
+            tags: getDefaultTags({ job: job.id }),
             number: job.number,
             name: job.name,
             customer: job.customer ?? "",

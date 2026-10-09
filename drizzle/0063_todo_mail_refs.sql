@@ -1,0 +1,1 @@
+ALTER TABLE `todos` ADD `mail_refs` text DEFAULT '[]' NOT NULL;

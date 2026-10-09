@@ -1,0 +1,1 @@
+ALTER TABLE `gitlab_items` ADD `resolved_at` text;

@@ -3,11 +3,18 @@
 import { useRef, useState, useTransition } from "react";
 import type { ActionState } from "@/app/actions";
 import type { EntryType } from "@/db/schema";
+import { ENTRY_CONTEXT_PREFIX } from "@/lib/contexts-shared";
+import type { EntryTypeDef } from "@/lib/entry-types-shared";
+import { bookOnValue, parseBookOn, type ProjectOption } from "@/lib/projects-shared";
+import { dedupeTags, pickDefaultTags, type DefaultTagMaps } from "@/lib/tags-shared";
 import { inferType, type TypeRule } from "@/lib/type-rules-shared";
+import { ContextFields, useContextDraft } from "./ContextForm";
 import { TagInput } from "./TagInput";
 import { TicketCombobox } from "./TicketCombobox";
 
 export type EntryFormJob = { id: number; number: string; name: string; customer: string | null };
+
+export type EntryFormProject = ProjectOption;
 
 export type TicketSuggestionLite = {
   ticket: string;
@@ -20,6 +27,8 @@ export type TicketSuggestionLite = {
 
 export type EntryFormDefaults = Partial<{
   jobNumber: string;
+  /** Book on this project (takes precedence over jobNumber). */
+  projectId: number;
   date: string;
   hours: number;
   description: string;
@@ -29,16 +38,9 @@ export type EntryFormDefaults = Partial<{
   tags: string[];
 }>;
 
-const TYPES: { value: EntryType; label: string }[] = [
-  { value: "ticket", label: "Ticket" },
-  { value: "meeting", label: "Meeting" },
-  { value: "other", label: "Other" },
-  { value: "absence", label: "Absence" },
-  { value: "internal", label: "Internal" },
-];
-
 export function EntryForm({
   jobs,
+  projects = [],
   action,
   defaults = {},
   submitLabel = "Add entry",
@@ -46,8 +48,12 @@ export function EntryForm({
   allTags = [],
   ticketSuggestions = [],
   typeRules = [],
+  defaultTagMaps = { jobs: {}, projects: {}, tickets: {} },
+  types,
+  withContext = false,
 }: {
   jobs: EntryFormJob[];
+  projects?: EntryFormProject[];
   action: (prev: ActionState, fd: FormData) => Promise<ActionState>;
   defaults?: EntryFormDefaults;
   submitLabel?: string;
@@ -56,18 +62,41 @@ export function EntryForm({
   ticketSuggestions?: TicketSuggestionLite[];
   /** Rules that infer the type from job + description (Settings → Entry type rules). */
   typeRules?: TypeRule[];
+  /** Default tags of jobs, projects and tickets — filled in as you pick them. */
+  defaultTagMaps?: DefaultTagMaps;
+  /** The configured entry types (Tags page). */
+  types: EntryTypeDef[];
+  /**
+   * Offer "+ Add context" (a colleague's message, links, files) to save with the new entry.
+   * Needs a ContextFormOptionsProvider around the form for its pickers.
+   */
+  withContext?: boolean;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [state, setState] = useState<ActionState>(null);
   const [pending, startTransition] = useTransition();
+  // "+ Add context": its ticket and date are the entry's until changed there.
+  const context = useContextDraft({ ticket: defaults.ticket ?? "", date: defaults.date ?? "" }, { fromEntry: true });
+  const [contextOpen, setContextOpen] = useState(false);
 
   /** The type an untouched entry gets: a matching type rule, else Ticket with a ticket, else Other. */
   const autoType = (job: string, description: string, tk: string): EntryType =>
     inferType(typeRules, { jobNumber: job, description }) ?? (tk.trim() ? "ticket" : "other");
 
-  const initialJob = defaults.jobNumber ?? jobs[0]?.number ?? "";
-  const initialType: EntryType = defaults.type ?? autoType(initialJob, defaults.description ?? "", defaults.ticket ?? "");
-  const [jobNumber, setJobNumber] = useState(initialJob);
+  /** The job a "Book on" value lands on: the job itself, or the project's job ("" = no job yet). */
+  const jobOf = (value: string): string => {
+    const b = parseBookOn(value);
+    if (!b) return "";
+    if ("jobNumber" in b) return b.jobNumber;
+    return projects.find((p) => p.id === b.projectId)?.jobNumber ?? "";
+  };
+
+  const initialBookOn = defaults.projectId
+    ? bookOnValue({ projectId: defaults.projectId })
+    : bookOnValue({ jobNumber: defaults.jobNumber ?? jobs[0]?.number ?? "" });
+  const initialType: EntryType =
+    defaults.type ?? autoType(jobOf(initialBookOn), defaults.description ?? "", defaults.ticket ?? "");
+  const [bookOn, setBookOn] = useState(initialBookOn);
   const [ticket, setTicket] = useState(defaults.ticket ?? "");
   const [description, setDescription] = useState(defaults.description ?? "");
   const [type, setType] = useState<EntryType>(initialType);
@@ -75,25 +104,51 @@ export function EntryForm({
   const [typeTouched, setTypeTouched] = useState(!!defaults.type);
   const [tagKey, setTagKey] = useState(0);
 
+  /** The default tags for a booking: its job's (a project's job too), its project's and its ticket's. */
+  const defaultTagsFor = (value: string, tk: string): string[] => {
+    const b = parseBookOn(value);
+    return pickDefaultTags(defaultTagMaps, { jobNumber: jobOf(value), projectId: b && "projectId" in b ? b.projectId : null, ticket: tk });
+  };
+  // A new entry starts with its defaults; an edited one keeps its tags.
+  const initialAuto = defaults.tags ? [] : defaultTagsFor(initialBookOn, defaults.ticket ?? "");
+  const initialTags = defaults.tags ?? initialAuto;
+  const [tags, setTags] = useState<string[]>(initialTags);
+  const [autoTags, setAutoTags] = useState<string[]>(initialAuto);
+
+  /** Swap the previous selection's default tags for the new one's; tags you added yourself stay. */
+  function refreshDefaultTags(value: string, tk: string) {
+    const next = defaultTagsFor(value, tk);
+    const prev = new Set(autoTags.map((t) => t.toLowerCase()));
+    setTags((cur) => dedupeTags([...cur.filter((t) => !prev.has(t.toLowerCase())), ...next]));
+    setAutoTags(next);
+  }
+
   const retype = (next: { job?: string; description?: string; ticket?: string }) => {
-    if (!typeTouched) setType(autoType(next.job ?? jobNumber, next.description ?? description, next.ticket ?? ticket));
+    if (!typeTouched) setType(autoType(next.job ?? jobOf(bookOn), next.description ?? description, next.ticket ?? ticket));
   };
 
-  function onJobChange(v: string) {
-    setJobNumber(v);
-    retype({ job: v });
+  function onBookOnChange(v: string) {
+    setBookOn(v);
+    retype({ job: jobOf(v) });
+    refreshDefaultTags(v, ticket);
   }
 
   function onTicketChange(v: string) {
     setTicket(v);
+    context.followEntry({ ticket: v });
     const match = ticketSuggestions.find((s) => s.ticket.toLowerCase() === v.trim().toLowerCase());
-    if (match) setJobNumber(match.jobNumber); // reuse the ticket's job
-    retype({ job: match?.jobNumber, ticket: v });
+    // Reuse the ticket's job — unless you're booking on a project, which keeps its job.
+    const reuse = match && !bookOn.startsWith("p:");
+    const nextBookOn = reuse ? bookOnValue({ jobNumber: match.jobNumber }) : bookOn;
+    if (reuse) setBookOn(nextBookOn);
+    retype({ job: reuse ? match.jobNumber : undefined, ticket: v });
+    refreshDefaultTags(nextBookOn, v);
   }
 
-  /** The description lives in TagInput; follow its textarea through the bubbling change event. */
+  /** The description lives in TagInput; follow its textarea through the bubbling change event (and the date for the context). */
   function onFormChange(e: React.FormEvent<HTMLFormElement>) {
     const el = e.target as HTMLTextAreaElement;
+    if (el.name === "date") context.followEntry({ date: el.value });
     if (el.name !== "description") return;
     setDescription(el.value);
     retype({ description: el.value });
@@ -101,23 +156,30 @@ export function EntryForm({
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // The context's pictures being fetched, or its link being looked up, go along once they're here.
+    if (withContext && (context.fetching || context.resolving)) return;
     const fd = new FormData(e.currentTarget);
     startTransition(async () => {
+      if (withContext) await context.prepare(fd, ENTRY_CONTEXT_PREFIX);
       const result = await action(null, fd);
       setState(result ?? null);
       if (result?.ok && resetOnSuccess) {
         formRef.current?.reset();
-        setJobNumber(initialJob);
+        setBookOn(initialBookOn);
         setTicket(defaults.ticket ?? "");
         setDescription(defaults.description ?? "");
         setType(initialType);
         setTypeTouched(!!defaults.type);
+        setTags(initialTags);
+        setAutoTags(initialAuto);
         setTagKey((k) => k + 1);
+        context.reset();
+        setContextOpen(false);
       }
     });
   }
 
-  if (jobs.length === 0) {
+  if (jobs.length === 0 && projects.length === 0) {
     return (
       <p className="text-sm text-zinc-500">
         No active jobs yet — create one on the Jobs page before booking time.
@@ -125,17 +187,32 @@ export function EntryForm({
     );
   }
 
+  const jobOptions = jobs.map((j) => (
+    <option key={j.id} value={bookOnValue({ jobNumber: j.number })}>
+      {j.number} — {j.name}{j.customer ? ` (${j.customer})` : ""}
+    </option>
+  ));
+
   return (
     <div className="space-y-2">
       <form ref={formRef} onSubmit={onSubmit} onChange={onFormChange} className="grid gap-3 sm:grid-cols-6">
         <div className="sm:col-span-2">
-          <label className="label" htmlFor="jobNumber">Job</label>
-          <select id="jobNumber" name="jobNumber" className="input" value={jobNumber} onChange={(e) => onJobChange(e.target.value)} required>
-            {jobs.map((j) => (
-              <option key={j.id} value={j.number}>
-                {j.number} — {j.name}{j.customer ? ` (${j.customer})` : ""}
-              </option>
-            ))}
+          <label className="label" htmlFor="bookOn">{projects.length ? "Book on" : "Job"}</label>
+          <select id="bookOn" name="bookOn" className="input" value={bookOn} onChange={(e) => onBookOnChange(e.target.value)} required>
+            {projects.length > 0 ? (
+              <>
+                <optgroup label="Projects">
+                  {projects.map((p) => (
+                    <option key={p.id} value={bookOnValue({ projectId: p.id })}>
+                      {p.title} {p.jobNumber ? `→ ${p.jobNumber}` : "(no job yet)"}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Jobs">{jobOptions}</optgroup>
+              </>
+            ) : (
+              jobOptions
+            )}
           </select>
         </div>
         <div>
@@ -150,8 +227,9 @@ export function EntryForm({
               setTypeTouched(true);
             }}
           >
-            {TYPES.map((t) => (
-              <option key={t.value} value={t.value}>{t.label}</option>
+            {!types.some((t) => t.key === type) && <option value={type}>{type}</option>}
+            {types.map((t) => (
+              <option key={t.key} value={t.key}>{t.label}</option>
             ))}
           </select>
         </div>
@@ -173,13 +251,33 @@ export function EntryForm({
             key={tagKey}
             allTags={allTags}
             defaultDescription={defaults.description ?? ""}
-            defaultTags={defaults.tags ?? []}
+            tags={tags}
+            onTagsChange={setTags}
+            autoTags={autoTags}
             required
           />
         </div>
+        {withContext && (
+          <details
+            className="rounded-lg border border-dashed border-zinc-300 p-3 sm:col-span-6 dark:border-zinc-700"
+            open={contextOpen}
+            onToggle={(e) => setContextOpen(e.currentTarget.open)}
+          >
+            <summary className="cursor-pointer text-sm font-medium text-zinc-600 dark:text-zinc-300">
+              + Add context
+              <span className="ml-2 font-normal text-zinc-400">
+                {context.hasContent ? "· saved with the entry" : "Teams messages, merge requests, a note — kept with this entry"}
+              </span>
+            </summary>
+            <div className="mt-3">
+              {/* On the entry's ticket (or the one a merge request names): the Ticket field above. */}
+              <ContextFields draft={context} prefix={ENTRY_CONTEXT_PREFIX} ticket={false} />
+            </div>
+          </details>
+        )}
         <div className="flex items-end">
-          <button type="submit" className="btn btn-primary w-full" disabled={pending}>
-            {pending ? "Saving…" : submitLabel}
+          <button type="submit" className="btn btn-primary w-full" disabled={pending || (withContext && context.fetching > 0)}>
+            {pending ? "Saving…" : withContext && context.fetching > 0 ? "Fetching pictures…" : submitLabel}
           </button>
         </div>
       </form>

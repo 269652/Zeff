@@ -1,0 +1,116 @@
+import { spawn } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+/**
+ * Where the Claude CLI is: CLAUDE_CLI, else the native claude(.exe) that the npm shim on the
+ * PATH starts (a .cmd can't be started without a shell), else claude(.exe) on the PATH.
+ */
+export function findClaudeCli(): string | null {
+  const own = process.env.CLAUDE_CLI?.trim();
+  if (own && fs.existsSync(/*turbopackIgnore: true*/ own)) return own;
+  const exe = process.platform === "win32" ? "claude.exe" : "claude";
+  for (const dir of (process.env.PATH ?? "").split(path.delimiter).filter(Boolean)) {
+    for (const candidate of [path.join(dir, "node_modules", "@anthropic-ai", "claude-code", "bin", exe), path.join(dir, exe)]) {
+      if (fs.existsSync(/*turbopackIgnore: true*/ candidate)) return candidate;
+    }
+  }
+  const local = path.join(os.homedir(), ".local", "bin", exe); // the native installer's place
+  return fs.existsSync(/*turbopackIgnore: true*/ local) ? local : null;
+}
+
+export type AiAnswer<T> = { output: T; model: string | null; costUsd: number | null; durationMs: number | null };
+
+/**
+ * One headless Claude CLI run, closed and read-only: no tools, no MCP servers, no settings
+ * (so no hooks), no session kept — the prompt on stdin, the answer as JSON matching `schema`.
+ * Signed in as the CLI is (your Claude login). Rejects with what went wrong.
+ */
+export function runClaude<T>(
+  prompt: string,
+  schema: object,
+  opts: { model?: string; systemPrompt?: string; timeoutMs?: number; maxBudgetUsd?: number } = {},
+): Promise<AiAnswer<T>> {
+  const cli = findClaudeCli();
+  if (!cli) return Promise.reject(new Error("The Claude CLI wasn't found — install Claude Code, or set CLAUDE_CLI to claude.exe."));
+  // Somewhere without a CLAUDE.md or project settings of its own.
+  const cwd = path.join(os.tmpdir(), "zeff-boards");
+  fs.mkdirSync(/*turbopackIgnore: true*/ cwd, { recursive: true });
+  const args = [
+    "-p",
+    "--output-format",
+    "json",
+    "--json-schema",
+    JSON.stringify(schema),
+    "--tools",
+    "",
+    "--strict-mcp-config",
+    "--no-session-persistence",
+    "--disable-slash-commands",
+    "--setting-sources",
+    "",
+  ];
+  if (opts.model) args.push("--model", opts.model);
+  if (opts.systemPrompt) args.push("--append-system-prompt", opts.systemPrompt);
+  if (opts.maxBudgetUsd) args.push("--max-budget-usd", String(opts.maxBudgetUsd));
+  // Not a session nested in another one (when Zeff itself was started from Claude Code).
+  const env = { ...process.env };
+  delete env.CLAUDECODE;
+  delete env.CLAUDE_CODE_ENTRYPOINT;
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(/*turbopackIgnore: true*/ cli, args, { cwd, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+    let stdout = "";
+    let stderr = "";
+    let done = false;
+    const finish = (fn: () => void) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      fn();
+    };
+    const timer = setTimeout(
+      () =>
+        finish(() => {
+          child.kill();
+          reject(new Error(`The Claude CLI took longer than ${Math.round((opts.timeoutMs ?? 600000) / 60000)} minutes — stopped.`));
+        }),
+      opts.timeoutMs ?? 600000,
+    );
+    child.stdout.on("data", (d) => (stdout += d));
+    child.stderr.on("data", (d) => (stderr += d));
+    child.on("error", (e) => finish(() => reject(new Error(`The Claude CLI couldn't start: ${e.message}`))));
+    child.on("close", (code) =>
+      finish(() => {
+        let j: {
+          is_error?: boolean;
+          subtype?: string;
+          result?: string;
+          structured_output?: T;
+          total_cost_usd?: number;
+          duration_ms?: number;
+          modelUsage?: Record<string, unknown>;
+        };
+        try {
+          j = JSON.parse(stdout);
+        } catch {
+          reject(new Error(`The Claude CLI answered with no JSON (exit ${code}): ${(stderr || stdout).trim().slice(0, 600)}`));
+          return;
+        }
+        if (j.is_error || !j.structured_output) {
+          reject(new Error(`The Claude CLI run failed (${j.subtype ?? `exit ${code}`}): ${String(j.result ?? stderr).trim().slice(0, 600)}`));
+          return;
+        }
+        resolve({
+          output: j.structured_output,
+          model: Object.keys(j.modelUsage ?? {})[0] ?? null,
+          costUsd: typeof j.total_cost_usd === "number" ? j.total_cost_usd : null,
+          durationMs: typeof j.duration_ms === "number" ? j.duration_ms : null,
+        });
+      }),
+    );
+    child.stdin.on("error", () => {}); // a CLI that quits early closes its stdin: its exit says why
+    child.stdin.end(prompt, "utf8");
+  });
+}

@@ -2,7 +2,7 @@
 
 import { Fragment, startTransition, useActionState, useState } from "react";
 import { saveTypeRulesAction, type ActionState } from "@/app/actions";
-import { ENTRY_TYPE_OPTIONS } from "@/lib/report-shared";
+import type { EntryTypeDef } from "@/lib/entry-types-shared";
 import type { TypeRule } from "@/lib/type-rules-shared";
 import type { EntryType } from "@/db/schema";
 import { SubmitButton } from "./SubmitButton";
@@ -10,7 +10,15 @@ import { SubmitButton } from "./SubmitButton";
 const newId = () => Math.random().toString(36).slice(2, 9);
 
 /** Rules that infer an entry's type from its job and description (first match wins). */
-export function TypeRulesForm({ initialRules, jobs }: { initialRules: TypeRule[]; jobs: { number: string; name: string }[] }) {
+export function TypeRulesForm({
+  initialRules,
+  jobs,
+  types,
+}: {
+  initialRules: TypeRule[];
+  jobs: { number: string; name: string }[];
+  types: EntryTypeDef[];
+}) {
   const [rules, setRules] = useState<TypeRule[]>(initialRules);
   const [state, action, pending] = useActionState<ActionState, FormData>(saveTypeRulesAction, null);
 
@@ -70,9 +78,9 @@ export function TypeRulesForm({ initialRules, jobs }: { initialRules: TypeRule[]
               aria-label={`Type rule ${i + 1}: type`}
               onChange={(e) => setRule(i, { type: e.target.value as EntryType })}
             >
-              {ENTRY_TYPE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
+              {types.map((t) => (
+                <option key={t.key} value={t.key}>
+                  {t.label}
                 </option>
               ))}
             </select>

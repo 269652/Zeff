@@ -18,6 +18,9 @@ export function TagInput({
   allTags,
   defaultDescription = "",
   defaultTags = [],
+  tags: controlledTags,
+  onTagsChange,
+  autoTags = [],
   placeholder = "What was done? Type # to tag",
   required,
 }: {
@@ -25,11 +28,23 @@ export function TagInput({
   allTags: string[];
   defaultDescription?: string;
   defaultTags?: string[];
+  /** Controlled tags (with onTagsChange); otherwise TagInput keeps its own, starting at defaultTags. */
+  tags?: string[];
+  onTagsChange?: (tags: string[]) => void;
+  /** Tags filled in from the job/project/ticket defaults — shown dashed. */
+  autoTags?: string[];
   placeholder?: string;
   required?: boolean;
 }) {
   const [description, setDescription] = useState(defaultDescription);
-  const [tags, setTags] = useState<string[]>(() => dedupeTags(defaultTags));
+  const [ownTags, setOwnTags] = useState<string[]>(() => dedupeTags(defaultTags));
+  const tags = controlledTags ?? ownTags;
+  const setTags = (update: (prev: string[]) => string[]) => {
+    const next = update(tags);
+    if (controlledTags === undefined) setOwnTags(next);
+    onTagsChange?.(next);
+  };
+  const auto = new Set(autoTags.map((t) => t.toLowerCase()));
   const [query, setQuery] = useState<{ text: string; start: number } | null>(null);
   const [active, setActive] = useState(0);
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -99,7 +114,11 @@ export function TagInput({
       {tags.length > 0 && (
         <div className="mb-1 flex flex-wrap gap-1">
           {tags.map((t) => (
-            <span key={t} className="badge badge-tag inline-flex items-center gap-1">
+            <span
+              key={t}
+              className={`badge badge-tag inline-flex items-center gap-1 ${auto.has(t.toLowerCase()) ? "border-dashed" : ""}`}
+              title={auto.has(t.toLowerCase()) ? "Default tag of the job, project or ticket — × removes it from this entry" : undefined}
+            >
               #{t}
               <button
                 type="button"

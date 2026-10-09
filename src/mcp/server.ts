@@ -2,33 +2,50 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { ConflictError, NotFoundError, ValidationError, errorMessage } from "@/lib/errors";
 import {
-  createEntry,
-  deleteEntry,
-  getJobHours,
   getJobNumberForTicket,
   getWeeklyReport,
   listEntries,
-  updateEntry,
   type EntryWithJob,
   type WeeklyReport,
 } from "@/lib/entries";
+import { attributed } from "@/lib/boards/activity";
+import { getTodo, listTodos, setTodoStatus } from "@/lib/boards/store";
+import { parseTodoRef, todoRef } from "@/lib/boards/shared";
 import { formatHours } from "@/lib/format";
 import { getTicketDefaultJob } from "@/lib/jira/store";
 import { createJob, listJobs } from "@/lib/jobs";
-import { formatDay, formatWeekRange, resolveWeek, todayIso, weekFromDate } from "@/lib/week";
+import { listProjects, requireProjectByTitle } from "@/lib/projects";
+import { NO_JOB_NUMBER } from "@/lib/projects-shared";
+import { formatDay, formatWeekRange, resolveWeek, todayIso } from "@/lib/week";
 
 export const SERVER_INFO = { name: "zeff", version: "0.1.0" };
 
 export const INSTRUCTIONS = `Zeff is a time-tracking (Zeiterfassung) server. Time is booked in hours against job numbers.
 
+Record the time you work — accurately, with ONE simple line. You never book directly: what you report becomes a SUGGESTION (S-<id>), a shadow row in the user's Weekly report that they take over (or skip). Its evidence is attached automatically: the todos you name, your runs on them (their logs, durations, reports) and what the todos came from.
 When you finish or pause work on a ticket:
-1. Pick the job with list_jobs (jobs are the booking target; the ticket is just a reference stored on the entry).
-2. Call report_time with jobNumber, hours (decimal, e.g. 1.5), a concise one-line description, the ticket key and your name as reportedBy.
-3. Book each piece of work once. Fix mistakes with update_time_entry / delete_time_entry — don't re-report.
+1. Pick the job with list_jobs (jobs are the booking target; the ticket is just a reference stored on the entry) — or leave it out when the ticket has a job already (Zeff uses it).
+2. Call report_time with hours (decimal, e.g. 1.5 — the time actually spent, honestly; no padding, no rounding to whole hours), a concise one-line description, the ticket key, your name as reportedBy and the todos the work was on (todos: ['T-12']).
+   Work that belongs to a project (see list_projects) can be suggested with project instead of jobNumber — the project's job is used.
+3. Report each piece of work once. Fix your suggestion with update_time_entry / delete_time_entry (S-<id>, while it's still open) — don't re-report.
 
 Descriptions are ONE short line (aim for <80 chars): what was done, not how. No commit logs, file/function lists, MR or commit numbers, test counts or multi-clause summaries. Good: "Hängender Einzug für mehrzeilige Footer-Links". Don't repeat the ticket key — the report prepends it. Put #tags in the description to tag the entry.
 
-Use get_weekly_report to review a week.`;
+Use get_weekly_report to review a week.
+
+Board todos: Zeff's Boards tab reads the user's Jira tickets and finds concrete todos on them (T-<id>). Before working on a ticket, list_todos with its key shows what's open.
+
+Working on a todo (you're an agent — VS Code Copilot, Claude Code, …):
+1. Call start_todo with the todo and your name as agent IMMEDIATELY — as your very first step, before you read code, research, plan or ask anything. Research and looking around already count as working on it. Zeff then shows the todo as being worked on and you as a worker on its Work tab.
+2. Code changes go on a FEATURE BRANCH, never on main: start_todo tells you the repo and the branch — the ticket's EXISTING feature branch if it has one (continue on it), otherwise a new one (feature/<TICKET>-<words>, fix/… for bugs) that you create from the default branch in a separate worktree (git worktree add -b <branch> <folder> origin/main after a fetch). Commit there. Don't push to main and don't merge — Zeff does the delivery from your branch.
+   Implement with STRICT TDD: first a test that fails for the right reason, then the smallest change that makes it pass, then tidy up — and run the affected suite at the end. What can only be checked by hand, name as open in your summary.
+   Then call todo_context for everything Zeff knows about it (the ticket, comments, the Teams messages and mails it comes from, the user's notes, earlier runs) — read it before you start.
+   Optionally call todo_progress with a short note now and then (what you're doing) — it's your log there.
+   Whenever you stop to ask the user something (a question, a decision, a confirmation, a review) — call todo_needs_input with the question FIRST, then ask. The todo then shows ❗ on Zeff's Boards and Work tabs so the user sees you're waiting. Once you have the answer and go on, call todo_progress (that clears the ❗) — finish_todo clears it too.
+3. When you're done — or stop — call finish_todo with: summary (it's shown on the todo as your comment — so ALWAYS a summary of what you did: first ONE sentence saying what is done now, then short bullets: what you changed, how you tested, what's still open and why, where it is — branch and commit), entry (ONE short line for the booking, same rules as report_time descriptions), minutes (how long the work took you, honestly), outcome (done / partial / blocked), branch (the feature branch you committed on — and repo, its folder, if Zeff doesn't know the ticket's repo) and followUps for what's left (replies, comments, ticket changes — with ready drafts).
+   With a branch, Zeff creates a todo for the user to TEST AND VERIFY your work by hand first; once they've ticked it off, the delivery follows (push → merge request to main, or merge straight into main — one click each). Don't create test or delivery todos yourself, and say in your summary what the user should test.
+   finish_todo records your time as such a suggestion itself (its minutes and its entry line, with the todo and your run as evidence) — so give honest minutes and a good one-line entry, and do NOT also call report_time for that work (it would be suggested twice).
+Use report_time (with todos: ['T-12'] — they're closed with it) for work you did without start_todo / finish_todo, and complete_todo to close a todo nobody needs to book time for.`;
 
 // ---------------------------------------------------------------------------
 // Result helpers
@@ -65,6 +82,7 @@ function describeEntry(e: EntryWithJob): string {
     `${e.job.number} (${e.job.name})`,
     `"${e.description}"`,
   ];
+  if (e.project) parts.splice(5, 0, `project "${e.project.title}"`);
   if (e.ticket) parts.push(`ticket ${e.ticket}`);
   if (e.tags.length) parts.push(`tags ${e.tags.map((t) => `#${t.name}`).join(" ")}`);
   parts.push(`by ${e.reportedBy}`);
@@ -90,8 +108,11 @@ function renderWeeklyReport(report: WeeklyReport): string {
   lines.push(`| Job | ${dayHeaders.join(" | ")} | Total |`);
   lines.push(`|---|${dayHeaders.map(() => "---:").join("|")}|---:|`);
   for (const row of report.rows) {
+    const label = row.project
+      ? `${row.project.title} (project, ${row.job.number === NO_JOB_NUMBER ? "no job yet" : row.job.number})`
+      : `${row.job.number} ${row.job.name}`;
     lines.push(
-      `| ${row.job.number} ${row.job.name} | ${row.hoursByDay.map(cell).join(" | ")} | **${formatHours(row.total)}** |`,
+      `| ${label} | ${row.hoursByDay.map(cell).join(" | ")} | **${formatHours(row.total)}** |`,
     );
   }
   lines.push(
@@ -113,14 +134,19 @@ export function registerZeffTools(server: McpServer): void {
     {
       title: "Report time",
       description:
-        "Book hours on a job (one entry) with a concise one-line description of what was done. " +
-        "jobNumber is optional if the ticket was booked before (its last job is reused); otherwise " +
-        "see list_jobs. #tags in the description become the entry's tags.",
+        "Suggest a booking of hours (one entry) with ONE concise line of what was done — it becomes a suggestion (S-<id>), " +
+        "a shadow row the user takes over in Zeff; nothing is booked directly. Name the todos the work was on: their runs, " +
+        "logs and sources become its evidence. jobNumber is optional if the ticket has a job (its board's, or the last booked); " +
+        "otherwise see list_jobs. #tags in the description become the entry's tags.",
       inputSchema: z.object({
         jobNumber: z
           .string()
           .optional()
           .describe("Job number to book on (see list_jobs). Optional if the ticket was booked before."),
+        project: z
+          .string()
+          .optional()
+          .describe("Project title to book on instead of a job (see list_projects); the project's job is used."),
         hours: z
           .number()
           .positive()
@@ -142,50 +168,267 @@ export function registerZeffTools(server: McpServer): void {
           .optional()
           .describe("Ticket / issue key the work belongs to, e.g. 'PROJ-337'."),
         type: z
-          .enum(["ticket", "meeting", "other", "absence", "internal"])
+          .string()
           .optional()
-          .describe("Kind of work. When omitted, the user's type rules decide (e.g. an absence job → 'absence'), else 'ticket' when a ticket is given, else 'other'."),
+          .describe(
+            "Kind of work, an entry type key: ticket, meeting, internal, training, other, absence — or one the user added in Zeff. " +
+              "When omitted, the user's type rules decide (e.g. an absence job → 'absence'), else 'ticket' when a ticket is given, else 'other'.",
+          ),
         tags: z.array(z.string()).optional().describe("Tag names to attach."),
         reportedBy: z
           .string()
           .optional()
           .describe("Name of the agent or person reporting, e.g. 'Claude Code'. Defaults to 'agent'."),
+        todos: z
+          .array(z.string())
+          .optional()
+          .describe("Board todos this work was on and finished, e.g. ['T-12'] (see list_todos) — the suggestion's evidence; they're closed with it."),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     },
     async (args) =>
-      run(() => {
+      run(async () => {
+        // A project books on its own job; otherwise the given job, else the ticket's last one.
+        const projectId = args.project ? requireProjectByTitle(args.project).id : undefined;
         const jobNumber =
-          args.jobNumber ??
-          (args.ticket ? (getTicketDefaultJob(args.ticket) ?? getJobNumberForTicket(args.ticket)) : undefined);
-        if (!jobNumber) {
+          projectId !== undefined
+            ? undefined
+            : (args.jobNumber ??
+              (args.ticket ? (getTicketDefaultJob(args.ticket) ?? getJobNumberForTicket(args.ticket)) : undefined));
+        if (!jobNumber && projectId === undefined) {
           return fail(
             args.ticket
-              ? `No job given and ticket "${args.ticket}" has not been booked before. Pass jobNumber (see list_jobs).`
-              : "No jobNumber given. Pass jobNumber (see list_jobs).",
+              ? `No job given and ticket "${args.ticket}" has no job yet. Pass jobNumber (see list_jobs) or project (see list_projects).`
+              : "No jobNumber given. Pass jobNumber (see list_jobs) or project (see list_projects).",
           );
         }
-        const entry = createEntry(
-          {
-            jobNumber,
-            hours: args.hours,
-            description: args.description,
-            date: args.date ?? todayIso(),
-            ticket: args.ticket,
-            type: args.type,
-            tags: args.tags,
-            reportedBy: args.reportedBy,
-          },
-          "mcp",
-        );
-        const week = weekFromDate(new Date(entry.date + "T00:00:00"));
-        const weekTotal = getJobHours(entry.jobId, week.startIso, week.endIso);
+        const known: number[] = [];
+        const unknown: string[] = [];
+        for (const ref of args.todos ?? []) {
+          const id = parseTodoRef(ref);
+          if (id === null || !getTodo(id)) unknown.push(ref);
+          else known.push(id);
+        }
+        // A suggestion, not a booking: the user takes it over in Zeff (with its evidence).
+        const { suggestEntry } = await import("@/lib/work/suggestions");
+        const s = suggestEntry({
+          jobNumber: projectId === undefined ? jobNumber : null,
+          projectId: projectId ?? null,
+          hours: args.hours,
+          description: args.description,
+          date: args.date ?? todayIso(),
+          ticket: args.ticket,
+          type: args.type,
+          tags: args.tags,
+          reportedBy: args.reportedBy ?? "agent",
+          todoIds: known,
+        });
+        // The todos this work finished: closed, with the suggestion as their note.
+        const closed: string[] = [];
+        for (const id of known) {
+          const t = getTodo(id);
+          if (t?.status !== "open") continue;
+          attributed(`agent:${s.reportedBy || "MCP"}`, () => setTodoStatus(id, "done", `Erledigt — Buchung vorgeschlagen ${s.ref} (${s.date}, ${formatHours(s.hours)} h): ${s.description}`));
+          closed.push(todoRef(id));
+        }
         return ok(
-          `Booked ${formatHours(entry.hours)}h on job ${entry.job.number} (${entry.job.name}) for ${entry.date}` +
-            (entry.ticket ? `, ticket ${entry.ticket}` : "") +
-            `. Entry id: ${entry.id}. ` +
-            `This job now has ${formatHours(weekTotal)}h in week ${week.key}.`,
+          `Suggested ${s.ref}: ${formatHours(s.hours)}h` +
+            (s.project ? ` on project "${s.project.title}"` : s.job ? ` on job ${s.job.number} (${s.job.name})` : "") +
+            ` for ${s.date}` +
+            (s.ticket ? `, ticket ${s.ticket}` : "") +
+            ` — "${s.description}". Not booked: the user takes it over in Zeff.` +
+            (s.todos.length || s.runs.length ? ` Evidence: ${[...s.todos.map((t) => t.ref), ...s.runs.map((r) => r.ref)].join(", ")}.` : "") +
+            (closed.length ? ` Closed ${closed.join(", ")}.` : "") +
+            (unknown.length ? ` Unknown todos (not linked): ${unknown.join(", ")}.` : ""),
         );
+      }),
+  );
+
+  server.registerTool(
+    "list_todos",
+    {
+      title: "List board todos",
+      description:
+        "Concrete todos the Boards tab found on the user's Jira tickets (from their comments, history and context), " +
+        "each referenced as T-<id>. owner 'me' is the user's to do, 'other' is someone else's move being waited for. " +
+        "Look here before working on a ticket; close what you finished with report_time (todos) or complete_todo.",
+      inputSchema: z.object({
+        ticket: z.string().optional().describe("Only this ticket's todos, e.g. 'PROJ-364'."),
+        status: z.enum(["open", "done", "dismissed", "all"]).optional().describe("Default 'open'."),
+      }),
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    async (args) =>
+      run(() => {
+        const list = listTodos({ ticket: args.ticket, status: args.status ?? "open" });
+        if (list.length === 0) return ok(`No ${args.status === "all" ? "" : `${args.status ?? "open"} `}todos${args.ticket ? ` on ${args.ticket}` : ""}.`);
+        const lines = list.map(
+          (t) =>
+            `- ${t.ref} · ${[t.ticket, ...t.alsoTickets].join(" + ")} · ${t.kind}${t.owner === "other" ? " · waiting for others" : ""}${t.status !== "open" ? ` · ${t.status}` : ""}: ${t.text}` +
+            (t.source ? ` (source: ${t.source})` : "") +
+            (t.note ? `\n  note: ${t.note}` : "") +
+            t.userNotes.map((n) => `\n  ${n.by ? `report by ${n.by}${n.url ? ` (${n.url})` : ""}` : "the user's note (context — it takes precedence)"}: ${n.text.replace(/\n+/g, " ")}`).join(""),
+        );
+        return ok(`${list.length} todo(s):\n${lines.join("\n")}`);
+      }),
+  );
+
+  server.registerTool(
+    "start_todo",
+    {
+      title: "Start working on a board todo",
+      description:
+        "Take a board todo (T-<id>, see list_todos) as your very FIRST step — before any research, reading or planning: Zeff shows it as being worked on and you as a worker (an extra one, next to its own) on its Work tab. " +
+        "Call finish_todo with your report and the time it took when you're through.",
+      inputSchema: z.object({
+        todo: z.string().min(1).describe("The todo, e.g. 'T-12'."),
+        agent: z.string().optional().describe("Who you are, as the Work tab shows it — e.g. 'VS Code Copilot' or 'Claude Code'."),
+        note: z.string().optional().describe("What you're about to do, one short line (optional)."),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    },
+    async (args) =>
+      run(async () => {
+        const { startAgentWork, workplaceOf } = await import("@/lib/work/agent");
+        const { run: r, resumed, todo } = startAgentWork(args);
+        const w = await workplaceOf(todo);
+        return ok(
+          `${resumed ? "Still yours" : "Started"}: W-${r.id} — ${todo.ref} (${todo.ticket}): ${todo.text}\n` +
+            (todo.userNotes.length ? `Notes on it (the user's — context, they take precedence — and earlier runs' reports):\n${todo.userNotes.map((n) => `- ${n.by ? `[${n.by}] ` : ""}${n.text}${n.url ? ` (${n.url})` : ""}`).join("\n")}\n` : "") +
+            (w.repo
+              ? w.existing
+                ? `Code: repo ${w.repo.name} (${w.repo.path}). ${todo.ticket} has a feature branch already: ${w.existing} — continue on it (git fetch origin && git switch ${w.existing}, or a worktree of it if your checkout is busy). Commit there, don't push to ${w.base}, don't merge. Strict TDD: a failing test first, then the change, then the suite.\n`
+                : `Code: repo ${w.repo.name} (${w.repo.path}). No feature branch for ${todo.ticket} yet — create one off ${w.base} in a separate worktree: ${w.branch} (git fetch origin && git worktree add -b ${w.branch} ../${w.repo.name}-${todo.ticket} origin/${w.base}). Commit there, don't push to ${w.base}, don't merge. Strict TDD: a failing test first, then the change, then the suite.\n`
+              : `Code: Zeff knows no repo for ${todo.ticket} — work on a feature branch (${w.branch}) and pass branch and repo (its folder) to finish_todo. Strict TDD: a failing test first, then the change, then the suite.\n`) +
+            "Its full context (ticket, comments, Teams, mails, notes, earlier runs): todo_context. Notes as you go: todo_progress. Asking the user something: todo_needs_input with the question first (todo_progress clears it when you go on). When you're through: finish_todo with summary, entry, minutes, outcome and branch (that's what gets booked and delivered — don't call report_time for it).",
+        );
+      }),
+  );
+
+  server.registerTool(
+    "todo_context",
+    {
+      title: "Everything Zeff knows about a todo",
+      description:
+        "The todo's brief, as Zeff's own workers get it (Markdown): the ticket (status, description, the Ticket-Lage's view), its comments, where the todo comes from in full (Jira comments, Teams messages with their chat, GitLab threads, mails), the mails naming the ticket, the user's notes and earlier runs' reports, the other open todos, what came before. Read it before you start.",
+      inputSchema: z.object({ todo: z.string().min(1).describe("The todo, e.g. 'T-12'.") }),
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    async (args) =>
+      run(async () => {
+        const id = parseTodoRef(args.todo);
+        const todo = id === null ? undefined : getTodo(id);
+        if (!todo) return fail(`"${args.todo}" isn't a todo — list_todos shows them (T-12).`);
+        const { briefFor } = await import("@/lib/work/brief");
+        return ok(briefFor(todo));
+      }),
+  );
+
+  server.registerTool(
+    "todo_progress",
+    {
+      title: "Note progress on a board todo",
+      description: "A short note on what you're doing on a todo you started (start_todo) — shown as its log on Zeff's Work tab.",
+      inputSchema: z.object({
+        todo: z.string().min(1).describe("The todo, e.g. 'T-12'."),
+        message: z.string().min(1).describe("What you're doing now, one or two lines."),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    },
+    async (args) =>
+      run(async () => {
+        const { agentProgress } = await import("@/lib/work/agent");
+        const r = agentProgress(args);
+        return ok(`Noted on W-${r.id}.`);
+      }),
+  );
+
+  server.registerTool(
+    "todo_needs_input",
+    {
+      title: "Mark a board todo as waiting for the user",
+      description:
+        "Call BEFORE you ask the user anything while working on a todo you started (start_todo): a question, a decision, a confirmation. The todo shows ❗ and your question on Zeff's Boards and Work tabs until you go on (todo_progress) or finish (finish_todo).",
+      inputSchema: z.object({
+        todo: z.string().min(1).describe("The todo, e.g. 'T-12'."),
+        question: z.string().min(1).describe("What you're asking the user, one or two lines."),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    },
+    async (args) =>
+      run(async () => {
+        const { agentNeedsInput } = await import("@/lib/work/agent");
+        const r = agentNeedsInput(args);
+        return ok(`Marked ❗ on W-${r.id} — now ask the user. Call todo_progress once you go on.`);
+      }),
+  );
+
+  server.registerTool(
+    "finish_todo",
+    {
+      title: "Finish working on a board todo",
+      description:
+        "Report on a todo you worked on (after start_todo): what you did, the line to book, how long it took. Zeff ends your run with it, ticks the todo off when it's done " +
+        "(and the comments it came from), keeps your follow-ups as new todos, and records the time as a booking suggestion (S-<id>, your minutes and entry line, the todo and your run as evidence) — the user takes it over. Don't also call report_time for this work.",
+      inputSchema: z.object({
+        todo: z.string().min(1).describe("The todo, e.g. 'T-12'."),
+        summary: z
+          .string()
+          .min(1)
+          .describe("Your comment on the todo — always a summary of what you did: ONE sentence on what is done now, then short bullets: changed, tested, still open (and why), where (branch, commit). Markdown."),
+        entry: z.string().min(1).describe("ONE short line for the time booking: what was done, not how (no commit/MR numbers, no file lists)."),
+        minutes: z.number().positive().describe("How long the work took, in minutes."),
+        outcome: z.enum(["done", "partial", "blocked"]).optional().describe("done (default): the todo is finished; partial: some of it; blocked: you couldn't go on."),
+        agent: z.string().optional().describe("Who you are (when you didn't call start_todo)."),
+        branch: z.string().optional().describe("The feature branch you committed the work on — Zeff then creates the delivery todo (push → merge request, or merge into main)."),
+        repo: z.string().optional().describe("The repo's folder, when Zeff doesn't know the ticket's repo (start_todo says so)."),
+        followUps: z
+          .array(
+            z.object({
+              text: z.string().min(1).describe("What's to do next, one sentence."),
+              kind: z.string().optional().describe("reply, comment, update, implement, fix, test, review, clarify, document, deploy, merge or other."),
+              channel: z.enum(["jira", "teams", "gitlab", "none"]).optional().describe("Where a message goes."),
+              target: z.string().optional().describe("The ticket key (jira), teams:<key> or gitlab:note:<id>."),
+              draft: z.string().optional().describe("The ready message, if it's one."),
+            }),
+          )
+          .optional()
+          .describe("What's left — they become todos on the ticket."),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    },
+    async (args) =>
+      run(async () => {
+        const { finishAgentWork } = await import("@/lib/work/agent");
+        const r = await finishAgentWork(args);
+        const mins = r.durationMs ? Math.round(r.durationMs / 60000) : args.minutes;
+        return ok(
+          `W-${r.run.id} finished (${r.run.outcome}) — ${mins} min recorded${r.suggestion ? ` as booking suggestion ${r.suggestion}` : ""} ("${r.run.entryLine ?? ""}"); the user takes it over in Zeff.` +
+            (r.closed.length ? ` Done: ${r.closed.map((id) => todoRef(id)).join(", ")}.` : "") +
+            (r.added.length ? ` Follow-ups: ${r.added.map((id) => todoRef(id)).join(", ")}.` : "") +
+            (r.delivery ? ` Delivery: ${r.delivery}.` : args.branch ? "" : " No branch given — if you changed code, tell the user which branch it's on."),
+        );
+      }),
+  );
+
+  server.registerTool(
+    "complete_todo",
+    {
+      title: "Complete a board todo",
+      description: "Mark a board todo (T-<id>, see list_todos) done — or dismissed, when it doesn't apply — with a short note of what settled it.",
+      inputSchema: z.object({
+        todo: z.string().min(1).describe("The todo, e.g. 'T-12'."),
+        note: z.string().optional().describe("What settled it, one short line."),
+        dismiss: z.boolean().optional().describe("Dismiss instead of done (it doesn't apply). Default false."),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    },
+    async (args) =>
+      run(() => {
+        const id = parseTodoRef(args.todo);
+        if (id === null) return fail(`"${args.todo}" isn't a todo reference like T-12.`);
+        const t = attributed("agent:MCP", () => setTodoStatus(id, args.dismiss ? "dismissed" : "done", args.note ?? null));
+        return ok(`${t.ref} (${t.ticket}) is ${t.status}: ${t.text}`);
       }),
   );
 
@@ -224,6 +467,34 @@ export function registerZeffTools(server: McpServer): void {
             (j.description ? `\n  ${j.description}` : ""),
         );
         return ok(`${jobs.length} job(s):\n${lines.join("\n")}`);
+      }),
+  );
+
+  server.registerTool(
+    "list_projects",
+    {
+      title: "List projects",
+      description:
+        "List projects time can be booked on (report_time with project). A project books its hours on its job; " +
+        "one without a job collects them under a placeholder until the user sets it.",
+      inputSchema: z.object({
+        includeInactive: z.boolean().optional().describe("Also list inactive projects. Default false."),
+      }),
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    async (args) =>
+      run(() => {
+        const projects = listProjects({ includeInactive: args.includeInactive });
+        if (projects.length === 0) return ok("No projects exist yet. They are created in the Zeff web UI (Projects).");
+        const lines = projects.map(
+          (p) =>
+            `- "${p.title}" → ` +
+            (p.job ? `job ${p.job.number} (${p.job.name})` : "no job yet") +
+            (p.active ? "" : " [inactive]") +
+            ` · ${formatHours(p.totalHours)}h in ${p.entryCount} entries` +
+            (p.description ? `\n  ${p.description}` : ""),
+        );
+        return ok(`${projects.length} project(s):\n${lines.join("\n")}`);
       }),
   );
 
@@ -304,34 +575,49 @@ export function registerZeffTools(server: McpServer): void {
   server.registerTool(
     "update_time_entry",
     {
-      title: "Update time entry",
-      description: "Correct an existing time entry. Only the given fields are changed.",
+      title: "Update time suggestion",
+      description: "Correct a booking you suggested (S-<id>, from report_time or finish_todo) while it's still open — booked entries are the user's. Only the given fields are changed.",
       inputSchema: z.object({
-        id: z.number().int().positive().describe("Entry id (from report_time or list_time_entries)."),
-        jobNumber: z.string().optional(),
+        id: z.union([z.number().int().positive(), z.string()]).describe("The suggestion: 'S-12' or 12."),
+        jobNumber: z.string().optional().describe("Book on this job directly (takes the entry out of its project)."),
+        project: z.string().nullable().optional().describe("Book on this project (by title); null takes the entry out of its project."),
         hours: z.number().positive().max(24).optional(),
         description: z.string().min(1).optional(),
         date: z.string().optional().describe("YYYY-MM-DD"),
         ticket: z.string().nullable().optional().describe("Ticket key; null clears it."),
-        type: z.enum(["ticket", "meeting", "other", "absence", "internal"]).optional(),
+        type: z.string().optional().describe("Entry type key, e.g. ticket, meeting, internal, training, other, absence."),
         tags: z.array(z.string()).optional().describe("Replaces the entry's tags."),
-        reportedBy: z.string().optional(),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     },
-    async ({ id, ...patch }) => run(() => ok(`Updated: ${describeEntry(updateEntry(id, patch))}`)),
+    async ({ id, project, ...patch }) =>
+      run(async () => {
+        const { parseSuggestionRef, updateSuggestion } = await import("@/lib/work/suggestions");
+        const n = parseSuggestionRef(id);
+        if (n === null) return fail(`"${id}" isn't a suggestion (S-<id>).`);
+        const projectId = project === undefined ? undefined : project === null ? null : requireProjectByTitle(project).id;
+        const s = updateSuggestion(n, { ...patch, ...(projectId !== undefined && { projectId }) });
+        return ok(`Updated ${s.ref}: ${formatHours(s.hours)}h for ${s.date}${s.ticket ? `, ${s.ticket}` : ""} — "${s.description}".`);
+      }),
   );
 
   server.registerTool(
     "delete_time_entry",
     {
-      title: "Delete time entry",
-      description: "Delete a time entry that was booked by mistake.",
+      title: "Withdraw time suggestion",
+      description: "Withdraw a booking you suggested by mistake (S-<id>) while it's still open — booked entries are the user's.",
       inputSchema: z.object({
-        id: z.number().int().positive().describe("Entry id to delete."),
+        id: z.union([z.number().int().positive(), z.string()]).describe("The suggestion: 'S-12' or 12."),
       }),
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     },
-    async ({ id }) => run(() => ok(`Deleted: ${describeEntry(deleteEntry(id))}`)),
+    async ({ id }) =>
+      run(async () => {
+        const { parseSuggestionRef, withdrawSuggestion } = await import("@/lib/work/suggestions");
+        const n = parseSuggestionRef(id);
+        if (n === null) return fail(`"${id}" isn't a suggestion (S-<id>).`);
+        const s = withdrawSuggestion(n);
+        return ok(`Withdrew ${s.ref} (${formatHours(s.hours)}h, "${s.description}").`);
+      }),
   );
 }

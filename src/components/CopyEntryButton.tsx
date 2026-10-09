@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { copyEntryAction } from "@/app/actions";
+import { CopyIcon } from "./icons";
 
 function nextDay(iso: string): string {
   const d = new Date(`${iso}T00:00:00`);
@@ -30,8 +31,14 @@ export function CopyEntryButton({ entryId, date }: { entryId: number; date: stri
 
   if (!open) {
     return (
-      <button type="button" className="btn btn-sm" onClick={() => setOpen(true)} title="Copy this entry to another day">
-        Copy
+      <button
+        type="button"
+        className="icon-btn"
+        onClick={() => setOpen(true)}
+        title="Copy this entry to another day"
+        aria-label="Copy this entry to another day"
+      >
+        <CopyIcon />
       </button>
     );
   }

@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import type { ActionState } from "@/app/actions";
+import { TagsField } from "./TagsField";
 
 export type JobFormDefaults = Partial<{
   number: string;
@@ -9,6 +10,8 @@ export type JobFormDefaults = Partial<{
   customer: string;
   description: string;
   active: boolean;
+  /** Default tags: added to every entry booked on the job. */
+  tags: string[];
 }>;
 
 export function JobForm({
@@ -16,15 +19,18 @@ export function JobForm({
   defaults = {},
   submitLabel = "Create job",
   mode = "create",
+  allTags = [],
 }: {
   action: (prev: ActionState, fd: FormData) => Promise<ActionState>;
   defaults?: JobFormDefaults;
+  allTags?: string[];
   submitLabel?: string;
   mode?: "create" | "edit";
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [state, setState] = useState<ActionState>(null);
   const [pending, startTransition] = useTransition();
+  const [resetKey, setResetKey] = useState(0);
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -32,7 +38,10 @@ export function JobForm({
     startTransition(async () => {
       const result = await action(null, fd);
       setState(result ?? null);
-      if (result?.ok && mode === "create") formRef.current?.reset();
+      if (result?.ok && mode === "create") {
+        formRef.current?.reset();
+        setResetKey((k) => k + 1);
+      }
     });
   }
 
@@ -50,9 +59,13 @@ export function JobForm({
         <label className="label" htmlFor="customer">Customer</label>
         <input id="customer" name="customer" type="text" placeholder="ACME GmbH" className="input" defaultValue={defaults.customer} />
       </div>
-      <div className="sm:col-span-5">
+      <div className="sm:col-span-3">
         <label className="label" htmlFor="description">Description</label>
         <input id="description" name="description" type="text" placeholder="Optional notes" className="input" defaultValue={defaults.description} />
+      </div>
+      <div className="sm:col-span-2">
+        <label className="label" htmlFor="job-default-tags" title="Added to every entry booked on this job">Default tags</label>
+        <TagsField key={resetKey} id="job-default-tags" allTags={allTags} defaultValue={defaults.tags ?? []} />
       </div>
       <div className="flex items-end gap-3">
         {mode === "edit" && (

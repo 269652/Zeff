@@ -3,6 +3,8 @@ import type { JiraStatusCategory } from "@/db/schema";
 export type NormalizedTicket = {
   key: string;
   summary: string;
+  /** Shortened description text; undefined when the sync didn't ask for it. */
+  description?: string | null;
   status: string;
   statusCategory: JiraStatusCategory;
   issueType?: string | null;
@@ -127,6 +129,7 @@ export function normalizeIssue(raw: unknown, baseUrl?: string): NormalizedTicket
   return {
     key: upperKey,
     summary: str(fields.summary) ?? str(o.summary) ?? "",
+    description: descriptionOf(fields.description ?? o.description),
     status: statusName,
     statusCategory: toStatusCategory(catKey, statusName),
     issueType: issueType ?? null,
@@ -138,6 +141,17 @@ export function normalizeIssue(raw: unknown, baseUrl?: string): NormalizedTicket
     resolvedAt: str(fields.resolutiondate) ?? str(o.resolutiondate) ?? str(o.resolved) ?? str(o.resolvedAt) ?? null,
     respondedAt: firstResponseAt(o),
   };
+}
+
+const DESCRIPTION_MAX = 2000;
+
+/** A description as text (Jira Server returns a string; anything else is left out), shortened. */
+function descriptionOf(v: unknown): string | null | undefined {
+  if (v === undefined) return undefined;
+  if (typeof v !== "string") return null;
+  const t = v.trim();
+  if (!t) return null;
+  return t.length > DESCRIPTION_MAX ? t.slice(0, DESCRIPTION_MAX - 1).trimEnd() + "…" : t;
 }
 
 /** Pull an array of issues out of the many container shapes tools return. */

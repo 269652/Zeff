@@ -1,0 +1,1 @@
+ALTER TABLE `todos` ADD `also_tickets` text DEFAULT '[]' NOT NULL;

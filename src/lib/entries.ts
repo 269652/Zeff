@@ -1,10 +1,15 @@
-import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { EntryType, Job, TimeEntry } from "@/db/schema";
 import { jobForMeeting, type BookedEntry, type MeetingJobRule } from "./calendar/meetings";
+import { defaultTagsFor } from "./default-tags";
+import { assertEntryType, isEntryType } from "./entry-types";
 import { NotFoundError, ValidationError } from "./errors";
 import { round2 } from "./format";
-import { requireJobByNumber } from "./jobs";
+import { isNoJobPlaceholder, requireJobByNumber } from "./jobs";
+import { projectBookingJob, requireProject } from "./projects";
+import { getStoredReportRules } from "./report-rules";
+import { ruleTags, type RuleEntry } from "./report-shared";
 import { getOrCreateTags, getTagsForEntries, setEntryTags } from "./tags";
 import { dedupeTags, extractHashtags, type TagLite } from "./tags-shared";
 import { getTypeRules } from "./type-rules";
@@ -18,15 +23,18 @@ import {
 } from "./validation";
 import { isoDate, type WeekInfo } from "./week";
 
-const { jobs, timeEntries } = schema;
+const { jobs, projects, timeEntries } = schema;
 
 export type JobRef = Pick<Job, "id" | "number" | "name" | "customer" | "active">;
 
-export type EntryWithJob = TimeEntry & { job: JobRef; tags: TagLite[] };
+export type ProjectRef = { id: number; title: string };
+
+export type EntryWithJob = TimeEntry & { job: JobRef; project: ProjectRef | null; tags: TagLite[] };
 
 export type ListEntriesOptions = {
   jobId?: number;
   jobNumber?: string;
+  projectId?: number;
   /** Inclusive ISO date bounds. */
   from?: string;
   to?: string;
@@ -45,13 +53,14 @@ const jobRefColumns = {
 
 function selectEntries() {
   return getDb()
-    .select({ entry: timeEntries, job: jobRefColumns })
+    .select({ entry: timeEntries, job: jobRefColumns, project: { id: projects.id, title: projects.title } })
     .from(timeEntries)
-    .innerJoin(jobs, eq(timeEntries.jobId, jobs.id));
+    .innerJoin(jobs, eq(timeEntries.jobId, jobs.id))
+    .leftJoin(projects, eq(timeEntries.projectId, projects.id));
 }
 
-function shape(row: { entry: TimeEntry; job: JobRef }): EntryWithJob {
-  return { ...row.entry, job: row.job, tags: [] };
+function shape(row: { entry: TimeEntry; job: JobRef; project: ProjectRef | null }): EntryWithJob {
+  return { ...row.entry, job: row.job, project: row.project, tags: [] };
 }
 
 /** Batch-load and attach each entry's tags. */
@@ -66,6 +75,7 @@ export function listEntries(opts: ListEntriesOptions = {}): EntryWithJob[] {
   let jobId = opts.jobId;
   if (opts.jobNumber) jobId = requireJobByNumber(opts.jobNumber).id;
   if (jobId !== undefined) conditions.push(eq(timeEntries.jobId, jobId));
+  if (opts.projectId !== undefined) conditions.push(eq(timeEntries.projectId, opts.projectId));
   if (opts.from) conditions.push(gte(timeEntries.date, opts.from));
   if (opts.to) conditions.push(lte(timeEntries.date, opts.to));
   if (opts.ticket) conditions.push(sql`lower(${timeEntries.ticket}) = lower(${opts.ticket})`);
@@ -91,27 +101,82 @@ export function requireEntry(id: number): EntryWithJob {
   return entry;
 }
 
+/**
+ * Where an entry is booked: on a project (its job, or the "No job yet" placeholder
+ * while it has none) or directly on a job.
+ */
+function resolveBooking(
+  jobNumber: string | undefined,
+  projectId: number | undefined,
+): { job: Job; projectId: number | null; projectTitle: string } {
+  if (projectId !== undefined) {
+    const project = requireProject(projectId);
+    return { job: projectBookingJob(project), projectId: project.id, projectTitle: project.title };
+  }
+  if (!jobNumber?.trim()) throw new ValidationError("Pick a job or a project to book on.");
+  const job = requireJobByNumber(jobNumber);
+  if (isNoJobPlaceholder(job)) {
+    throw new ValidationError(`"${job.name}" is only for project entries — pick a job or a project.`);
+  }
+  return { job, projectId: null, projectTitle: "" };
+}
+
+/** An entry in the shape report rules match on (Jira titles and type names only matter for templates). */
+function ruleEntryOf(e: {
+  type: EntryType;
+  description: string;
+  ticket: string | null;
+  tags: string[];
+  job: { number: string; name: string };
+  projectTitle: string;
+}): RuleEntry {
+  return {
+    type: e.type,
+    typeLabel: e.type,
+    ticket: e.ticket,
+    ticketName: "",
+    description: e.description,
+    tags: e.tags.map((name) => ({ name })),
+    jobNumber: e.job.number,
+    jobName: e.job.name,
+    project: e.projectTitle,
+  };
+}
+
 export function createEntry(
   raw: TimeEntryInput,
   source: TimeEntry["source"],
-  opts: { externalId?: string } = {},
+  /** defaultTags: false when the caller already chose the tags (the web form pre-fills the defaults). */
+  opts: { externalId?: string; defaultTags?: boolean } = {},
 ): EntryWithJob {
   const parsed = timeEntryInputSchema.safeParse(raw);
   if (!parsed.success) throw new ValidationError(formatZodError(parsed.error));
   const input = parsed.data;
-  const job = requireJobByNumber(input.jobNumber);
+  const { job, projectId, projectTitle } = resolveBooking(input.jobNumber, input.projectId);
 
   // Move any #tags in the description into the tag list, cleaning the text.
   const { text: description, tags: hashTags } = extractHashtags(input.description);
-  const tagNames = dedupeTags([...(input.tags ?? []), ...hashTags]);
+  const tagNames = dedupeTags([
+    ...(input.tags ?? []),
+    ...hashTags,
+    // The default tags of the job, project and ticket.
+    ...(opts.defaultTags === false ? [] : defaultTagsFor({ jobId: job.id, projectId, ticket: input.ticket })),
+  ]);
   // No explicit type (agents, imports): the type rules decide, else the source/ticket default.
-  const type: EntryType =
-    input.type ?? inferType(getTypeRules(), { jobNumber: job.number, description }) ?? defaultType(input.ticket, source);
+  if (input.type) assertEntryType(input.type);
+  const inferred = input.type ? undefined : inferType(getTypeRules(), { jobNumber: job.number, description });
+  const type: EntryType = input.type ?? (inferred && isEntryType(inferred) ? inferred : undefined) ?? defaultType(input.ticket, source);
+  // Plus the tags of the report rule the entry falls under (e.g. #mob on Mob Programming meetings).
+  const allTags = dedupeTags([
+    ...tagNames,
+    ...ruleTags(getStoredReportRules(), ruleEntryOf({ type, description, ticket: input.ticket || null, tags: tagNames, job, projectTitle })),
+  ]);
 
   const inserted = getDb()
     .insert(timeEntries)
     .values({
       jobId: job.id,
+      projectId,
       date: input.date,
       hours: round2(input.hours),
       description,
@@ -123,10 +188,29 @@ export function createEntry(
     })
     .returning()
     .get();
-  if (tagNames.length) {
-    setEntryTags(inserted.id, getOrCreateTags(tagNames).map((t) => t.id));
+  if (allTags.length) {
+    setEntryTags(inserted.id, getOrCreateTags(allTags).map((t) => t.id));
   }
   return requireEntry(inserted.id);
+}
+
+/**
+ * Give existing entries the tags of the report rule each falls under (see createEntry) —
+ * only adds missing tags, never removes any. Returns how many entries got new tags.
+ */
+export function applyReportRuleTagsToEntries(): number {
+  const rules = getStoredReportRules();
+  if (!rules.some((r) => r.tags?.length)) return 0;
+  let changed = 0;
+  for (const e of listEntries()) {
+    const names = e.tags.map((t) => t.name);
+    const add = ruleTags(rules, ruleEntryOf({ ...e, tags: names, projectTitle: e.project?.title ?? "" }));
+    const next = dedupeTags([...names, ...add]);
+    if (next.length === names.length) continue;
+    setEntryTags(e.id, getOrCreateTags(next).map((t) => t.id));
+    changed++;
+  }
+  return changed;
 }
 
 /**
@@ -143,7 +227,7 @@ export function reapplyMeetingJobRules(
     .select({ id: timeEntries.id, date: timeEntries.date, description: timeEntries.description, jobNumber: jobs.number })
     .from(timeEntries)
     .innerJoin(jobs, eq(jobs.id, timeEntries.jobId))
-    .where(eq(timeEntries.source, "calendar"))
+    .where(and(eq(timeEntries.source, "calendar"), isNull(timeEntries.projectId)))
     .all();
   const moves: { id: number; date: string; description: string; from: string; to: string }[] = [];
   for (const r of rows) {
@@ -169,7 +253,7 @@ export function applyTypeRulesToEntries(): number {
   let changed = 0;
   for (const r of rows) {
     const type = inferType(rules, r);
-    if (!type || type === r.type) continue;
+    if (!type || type === r.type || !isEntryType(type)) continue;
     db.update(timeEntries).set({ type, updatedAt: sql`(CURRENT_TIMESTAMP)` }).where(eq(timeEntries.id, r.id)).run();
     changed++;
   }
@@ -187,7 +271,20 @@ export function updateEntry(id: number, raw: TimeEntryPatch): EntryWithJob {
   if (!parsed.success) throw new ValidationError(formatZodError(parsed.error));
   const patch = parsed.data;
   const existing = requireEntry(id);
-  const jobId = patch.jobNumber !== undefined ? requireJobByNumber(patch.jobNumber).id : undefined;
+  if (patch.type !== undefined) assertEntryType(patch.type);
+
+  // Booking: a project books on its job; null detaches (keeping the given or current job);
+  // moving to another job directly takes the entry out of its project.
+  let booking: { jobId: number; projectId: number | null } | undefined;
+  if (patch.projectId != null) {
+    const b = resolveBooking(undefined, patch.projectId);
+    booking = { jobId: b.job.id, projectId: b.projectId };
+  } else if (patch.projectId === null) {
+    const keep = isNoJobPlaceholder(existing.job) ? undefined : existing.job.number;
+    booking = { jobId: resolveBooking(patch.jobNumber ?? keep, undefined).job.id, projectId: null };
+  } else if (patch.jobNumber !== undefined && requireJobByNumber(patch.jobNumber).id !== existing.jobId) {
+    booking = { jobId: resolveBooking(patch.jobNumber, undefined).job.id, projectId: null };
+  }
 
   // Extract #tags from a new description, if one was given.
   let description = patch.description;
@@ -201,7 +298,7 @@ export function updateEntry(id: number, raw: TimeEntryPatch): EntryWithJob {
   getDb()
     .update(timeEntries)
     .set({
-      ...(jobId !== undefined && { jobId }),
+      ...(booking && { jobId: booking.jobId, projectId: booking.projectId }),
       ...(patch.date !== undefined && { date: patch.date }),
       ...(patch.hours !== undefined && { hours: round2(patch.hours) }),
       ...(description !== undefined && { description }),
@@ -325,6 +422,8 @@ export function getJobHours(jobId: number, from?: string, to?: string): number {
 
 export type WeeklyReportRow = {
   job: JobRef;
+  /** Set on a project's row: the project's entries on this job, shown under its title. */
+  project: ProjectRef | null;
   /** Hours per weekday, index 0 = Monday … 6 = Sunday. */
   hoursByDay: number[];
   total: number;
@@ -354,17 +453,19 @@ export function getWeeklyReport(
   });
 
   const dayIndex = new Map(week.days.map((d, i) => [isoDate(d), i]));
-  const byJob = new Map<number, WeeklyReportRow>();
+  // One row per job, plus one per project (listed under the project's title).
+  const byRow = new Map<string, WeeklyReportRow>();
   const dayTotals = Array(7).fill(0) as number[];
   const reporters = new Set<string>();
 
   for (const e of entries) {
     const idx = dayIndex.get(e.date);
     if (idx === undefined) continue;
-    let row = byJob.get(e.jobId);
+    const key = `${e.jobId}:${e.projectId ?? ""}`;
+    let row = byRow.get(key);
     if (!row) {
-      row = { job: e.job, hoursByDay: Array(7).fill(0) as number[], total: 0 };
-      byJob.set(e.jobId, row);
+      row = { job: e.job, project: e.project, hoursByDay: Array(7).fill(0) as number[], total: 0 };
+      byRow.set(key, row);
     }
     row.hoursByDay[idx] = round2(row.hoursByDay[idx] + e.hours);
     row.total = round2(row.total + e.hours);
@@ -372,8 +473,14 @@ export function getWeeklyReport(
     reporters.add(e.reportedBy);
   }
 
-  const rows = [...byJob.values()].sort((a, b) =>
-    a.job.number.localeCompare(b.job.number, undefined, { numeric: true }),
+  // By job number, each job's own row before its projects; projects without a job last.
+  const placeholderLast = (r: WeeklyReportRow) => (isNoJobPlaceholder(r.job) ? 1 : 0);
+  const rows = [...byRow.values()].sort(
+    (a, b) =>
+      placeholderLast(a) - placeholderLast(b) ||
+      a.job.number.localeCompare(b.job.number, undefined, { numeric: true }) ||
+      (a.project ? 1 : 0) - (b.project ? 1 : 0) ||
+      (a.project?.title ?? "").localeCompare(b.project?.title ?? ""),
   );
   const total = round2(dayTotals.reduce((a, b) => a + b, 0));
 
@@ -386,6 +493,33 @@ export function getWeeklyReport(
     reporters: [...reporters].sort(),
     filter,
   };
+}
+
+/** Booked hours per day between two dates (inclusive), optionally one reporter's: YYYY-MM-DD → hours. */
+export function getDayTotals(fromIso: string, toIso: string, reportedBy?: string): Map<string, number> {
+  const conditions = [gte(timeEntries.date, fromIso), lte(timeEntries.date, toIso)];
+  if (reportedBy) conditions.push(sql`lower(${timeEntries.reportedBy}) = lower(${reportedBy})`);
+  const rows = getDb()
+    .select({ date: timeEntries.date, hours: sql<number>`sum(${timeEntries.hours})` })
+    .from(timeEntries)
+    .where(and(...conditions))
+    .groupBy(timeEntries.date)
+    .all();
+  return new Map(rows.map((r) => [r.date, round2(Number(r.hours))]));
+}
+
+/** Distinct meeting titles (the descriptions of meeting entries), most recently booked first. */
+export function listMeetingTitles(limit = 100): string[] {
+  return getDb()
+    .select({ title: timeEntries.description })
+    .from(timeEntries)
+    .where(eq(timeEntries.type, "meeting"))
+    .groupBy(timeEntries.description)
+    .orderBy(desc(sql`max(${timeEntries.date})`))
+    .limit(limit)
+    .all()
+    .map((r) => r.title)
+    .filter(Boolean);
 }
 
 /** Distinct reporter names across all entries (for filters / dropdowns). */

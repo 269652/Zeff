@@ -1,0 +1,2 @@
+ALTER TABLE `app_settings` ADD `agent_instruction_code` text DEFAULT 'Implement $todo.id using strict TDD in a separate worktree' NOT NULL;--> statement-breakpoint
+ALTER TABLE `app_settings` ADD `agent_instruction_other` text DEFAULT 'Do $todo.id' NOT NULL;

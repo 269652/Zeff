@@ -10,6 +10,10 @@ const nextConfig: NextConfig = {
     "/": ["data/**", "data/**/*"],
     "/**": ["data/**", "data/**/*"],
   },
+  experimental: {
+    // Context items upload files (screenshots, documents) with their form — up to 20 MB each.
+    serverActions: { bodySizeLimit: "50mb" },
+  },
 };
 
 export default nextConfig;
