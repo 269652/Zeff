@@ -524,6 +524,22 @@ export function addNoteTodo(v: { ticket: string; text: string; kind: string; own
 }
 
 /** A todo you add yourself (a Kanban card's checklist): yours, on that ticket. */
+/**
+ * A todo from a calendar appointment (its calendar set to "Todos"): the appointment's title, due on
+ * its day; `ref` ("event:<id>@<day>") says which — none twice for the same.
+ */
+export function addCalendarTodo(v: { text: string; due: string; ref: string; source: string }): TodoView | null {
+  if (getDb().select({ id: todos.id }).from(todos).where(sql`${todos.refs} like ${`%"${v.ref}"%`}`).get()) return null;
+  emitChange("todos");
+  const now = new Date().toISOString();
+  const row = getDb()
+    .insert(todos)
+    .values({ ticket: "", text: v.text.trim().slice(0, 500), kind: "other", owner: "me", status: "open", source: v.source.slice(0, 200), refs: JSON.stringify([v.ref]), runId: null, due: dueDay(v.due), createdAt: now, updatedAt: now })
+    .returning()
+    .get();
+  return toTodo(row);
+}
+
 export function addManualTodo(v: { ticket: string; text: string }): TodoView {
   emitChange("todos");
   const now = new Date().toISOString();

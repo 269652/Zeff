@@ -12,6 +12,12 @@ const run = async (fn: () => Promise<string> | string): Promise<ActionState> => 
     const no = await off();
     if (no) return { ok: false, error: no };
     const message = await fn();
+    // Today's and tomorrow's appointments as todos, right away (calendars set so) — not only every 15 minutes.
+    try {
+      (await import("@/lib/calendar/todos")).calendarTodos();
+    } catch {
+      // the next scheduled turn makes them
+    }
     revalidateAll();
     return { ok: true, message };
   } catch (e) {
@@ -20,7 +26,7 @@ const run = async (fn: () => Promise<string> | string): Promise<ActionState> => 
 };
 
 /** A calendar shown or hidden, recoloured, renamed (Zeff's own), counted as busy, offered for booking. */
-export async function updateCalendarAction(id: number, patch: { name?: string; color?: string; visible?: boolean; busy?: boolean; book?: boolean }): Promise<ActionState> {
+export async function updateCalendarAction(id: number, patch: { name?: string; color?: string; visible?: boolean; busy?: boolean; book?: boolean; todos?: boolean }): Promise<ActionState> {
   return run(async () => {
     const c = (await import("@/lib/calendar/ir")).updateCalendar(Number(id), {
       name: typeof patch.name === "string" ? patch.name : undefined,
@@ -28,6 +34,7 @@ export async function updateCalendarAction(id: number, patch: { name?: string; c
       visible: typeof patch.visible === "boolean" ? patch.visible : undefined,
       busy: typeof patch.busy === "boolean" ? patch.busy : undefined,
       book: typeof patch.book === "boolean" ? patch.book : undefined,
+      todos: typeof patch.todos === "boolean" ? patch.todos : undefined,
     });
     return `„${c.name}“ gespeichert.`;
   });
@@ -131,4 +138,26 @@ export async function syncCalendarsAction(): Promise<ActionState> {
   const r = await syncAndWait("gcalendar");
   revalidateAll();
   return r.lastOk ? { ok: true, message: `Google Calendar: ${r.lastMessage ?? ""}` } : { ok: false, error: r.lastMessage ?? "Fehlgeschlagen." };
+}
+
+/**
+ * A proposed appointment accepted in the calendar (Zeff's own calendar: entered now) — only that
+ * action of its todo; it leaves the todo, noted on it. `title`: the one shown (the todo's actions may
+ * have changed meanwhile).
+ */
+export async function acceptProposedEventAction(todoId: number, index: number, title: string): Promise<ActionState> {
+  return run(async () => {
+    const { getTodo, addTodoUserNote } = await import("@/lib/boards/store");
+    const t = getTodo(Number(todoId));
+    const op = t?.ops[Number(index)];
+    if (!t || !op || op.type !== "calendar-entry" || op.title !== String(title)) throw new Error("This proposal isn't on the todo any more — reload the calendar.");
+    const { runCalendarEntry } = await import("./run");
+    const r = await runCalendarEntry(op, { todo: t, note: () => {} });
+    // Taken off — the others stay as they were proposed (not as if you'd edited them).
+    const { getDb, schema } = await import("@/db");
+    const { eq } = await import("drizzle-orm");
+    getDb().update(schema.todos).set({ ops: JSON.stringify(t.ops.filter((_, i) => i !== Number(index))) }).where(eq(schema.todos.id, t.id)).run();
+    if (r.todoNote) addTodoUserNote(t.id, `✓ ${r.todoNote}`);
+    return r.what;
+  });
 }

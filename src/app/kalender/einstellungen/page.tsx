@@ -4,7 +4,7 @@ import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { listCalendars } from "@/lib/calendar/ir";
 import { CalendarSettings } from "@/plugins/calendar/CalendarSettings";
-import { googleCalendarSettings } from "@/plugins/google-calendar/sync";
+import { googleCalendarSettings, signedInGoogleAccounts } from "@/plugins/google-calendar/sync";
 import { isInstalled } from "@/plugins/state";
 
 export const metadata: Metadata = { title: "Kalender-Einstellungen" };
@@ -25,7 +25,12 @@ export default async function KalenderSettingsPage() {
           ← Zum Kalender
         </Link>
       </div>
-      <CalendarSettings calendars={listCalendars()} google={isInstalled("google-calendar") ? googleCalendarSettings() : null} outlook={isInstalled("outlook-calendar")} />
+      <CalendarSettings
+        calendars={listCalendars()}
+        google={isInstalled("google-calendar") ? googleCalendarSettings() : null}
+        signedIn={isInstalled("google-calendar") ? await signedInGoogleAccounts() : null}
+        outlook={isInstalled("outlook-calendar")}
+      />
     </div>
   );
 }

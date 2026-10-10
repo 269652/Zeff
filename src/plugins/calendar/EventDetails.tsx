@@ -5,7 +5,8 @@ import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "rea
 import { SOURCE_LABELS, type SeriesScope } from "@/lib/calendar/ir-shared";
 import { describeRecurrence } from "@/lib/calendar/recurrence";
 import { ScopeChoice } from "./EventEditor";
-import { deleteEventAction } from "./server-actions";
+import { doneBrowserOpAction, removeTodoOpAction } from "@/plugins/todos/server-actions";
+import { acceptProposedEventAction, deleteEventAction } from "./server-actions";
 import { whenText, type Item } from "./view-shared";
 
 type Result = { ok: boolean; message?: string; error?: string } | null;
@@ -54,6 +55,16 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
       window.removeEventListener("pointerdown", away);
     };
   }, [onClose]);
+
+  // A todo's proposed appointment: accepted (entered in Zeff's calendar — or Google's / Outlook's form
+  // opened, filled in, and noted on the todo) or dismissed; only that action of the todo.
+  const p = item.proposed;
+  const accept = () => {
+    if (!p) return;
+    if (p.href) window.open(p.href, "_blank", "noopener,noreferrer");
+    start(async () => onDone(p.href ? await doneBrowserOpAction(p.todoId, p.index) : await acceptProposedEventAction(p.todoId, p.index, p.title)));
+  };
+  const dismiss = () => p && start(async () => onDone(await removeTodoOpAction(p.todoId, p.index)));
 
   const remove = (scope?: SeriesScope) => start(async () => onDone(await deleteEventAction(e!.id, series && scope ? { occurrence: e!.occurrence!, scope } : undefined)));
 
@@ -110,10 +121,20 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
               <Link href={`/t/${item.proposed.todoId}`} className="text-indigo-600 hover:underline dark:text-indigo-400">
                 {item.proposed.todoRef}
               </Link>{" "}
-              “{item.proposed.todoText}” — in {item.proposed.target}. You add it from the todo.
+              “{item.proposed.todoText}” — in {item.proposed.target}.
             </p>
           )}
           <div className="flex flex-wrap gap-2 pt-1">
+            {p && (
+              <>
+                <button type="button" className="btn btn-primary btn-sm" disabled={pending} onClick={accept} title={p.href ? `Opens ${p.target}'s form, filled in — save it there; it's noted on ${p.todoRef}` : `Enters it in ${p.target} now`}>
+                  {pending ? "…" : p.href ? `Accept — open in ${p.target} ↗` : "Accept"}
+                </button>
+                <button type="button" className="btn btn-sm" disabled={pending} onClick={dismiss} title={`Takes the proposal off ${p.todoRef}`}>
+                  Dismiss
+                </button>
+              </>
+            )}
             {e?.todoId && (
               <Link href={`/t/${e.todoId}`} className="btn btn-sm">
                 Open todo

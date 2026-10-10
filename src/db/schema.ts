@@ -1156,6 +1156,8 @@ export const calendars = sqliteTable(
     busy: integer("busy", { mode: "boolean" }).notNull().default(true),
     /** Its meetings are offered for booking (Zeiterfassung's Kalender) — Outlook's by default. */
     book: integer("book", { mode: "boolean" }).notNull().default(false),
+    /** Its appointments become todos on their day (Zeff's own calendars by default). */
+    todos: integer("todos", { mode: "boolean" }).notNull().default(false),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },

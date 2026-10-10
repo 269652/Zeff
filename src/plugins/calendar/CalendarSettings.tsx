@@ -28,7 +28,18 @@ function Colors({ value, onChange, disabled }: { value: string; onChange: (c: st
 }
 
 /** The calendars' settings: each one's colour and switches, Zeff's own made and removed, Google's account. */
-export function CalendarSettings({ calendars, google, outlook }: { calendars: CalendarView[]; google: { account: string; weeks: number } | null; outlook: boolean }) {
+export function CalendarSettings({
+  calendars,
+  google,
+  signedIn,
+  outlook,
+}: {
+  calendars: CalendarView[];
+  google: { account: string; weeks: number } | null;
+  /** The Google accounts signed in in the automation Chrome (null: Chrome isn't running). */
+  signedIn: { email: string; name: string; number: number }[] | null;
+  outlook: boolean;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [fresh, setFresh] = useState({ name: "", color: CALENDAR_COLORS[0] });
@@ -75,6 +86,9 @@ export function CalendarSettings({ calendars, google, outlook }: { calendars: Ca
                   <label className="flex items-center gap-1" title="Seine Meetings erscheinen unter Termine buchen (Zeiterfassung)">
                     <input type="checkbox" checked={c.book} disabled={pending} onChange={(e) => save(c, { book: e.target.checked })} /> Buchen
                   </label>
+                  <label className="flex items-center gap-1" title="Its appointments become todos on their day (today's and tomorrow's), due then">
+                    <input type="checkbox" checked={c.todos} disabled={pending} onChange={(e) => save(c, { todos: e.target.checked })} /> Todos
+                  </label>
                   {src === "zeff" && (
                     <button
                       type="button"
@@ -114,10 +128,40 @@ export function CalendarSettings({ calendars, google, outlook }: { calendars: Ca
             )}
             {src === "google" && google && (
               <div className="card flex flex-wrap items-end gap-3 p-3 text-sm">
-                <label className="space-y-1">
-                  <span className="block text-xs text-zinc-500">Google-Konto (Nummer u/0, u/1 … oder Adresse)</span>
-                  <input className="input w-48" value={g.account} onChange={(e) => setG({ ...g, account: e.target.value })} />
-                </label>
+                {(() => {
+                  // The account set: by its address, or Google's number (u/0 …) — named as Google names it.
+                  const linked = signedIn?.find((a) => a.email === g.account.toLowerCase() || String(a.number) === g.account) ?? null;
+                  return (
+                    <>
+                      <p className="w-full text-sm">
+                        {linked ? (
+                          <>
+                            Linked: <span className="font-medium">{linked.name || linked.email}</span> <span className="text-zinc-500">&lt;{linked.email}&gt;</span>
+                          </>
+                        ) : signedIn ? (
+                          <span className="text-amber-700 dark:text-amber-400">Account „{g.account}“ isn&apos;t signed in in the automation Chrome.</span>
+                        ) : (
+                          <span className="text-zinc-500">The automation Chrome isn&apos;t running — which Google account is signed in shows once it is.</span>
+                        )}
+                      </p>
+                      <label className="space-y-1">
+                        <span className="block text-xs text-zinc-500">Google account</span>
+                        {signedIn?.length ? (
+                          <select className="input w-72" value={linked?.email ?? g.account} onChange={(e) => setG({ ...g, account: e.target.value })}>
+                            {!linked && <option value={g.account}>{g.account}</option>}
+                            {signedIn.map((a) => (
+                              <option key={a.email} value={a.email}>
+                                {a.name ? `${a.name} <${a.email}>` : a.email}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input className="input w-48" value={g.account} onChange={(e) => setG({ ...g, account: e.target.value })} placeholder="0 or an address" />
+                        )}
+                      </label>
+                    </>
+                  );
+                })()}
                 <label className="space-y-1">
                   <span className="block text-xs text-zinc-500">Wochen lesen</span>
                   <input type="number" min={1} max={12} className="input w-20" value={g.weeks} onChange={(e) => setG({ ...g, weeks: Number(e.target.value) })} />

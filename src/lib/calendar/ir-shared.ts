@@ -20,6 +20,8 @@ export type CalendarView = {
   busy: boolean;
   /** Its meetings are offered for booking (Zeiterfassung). */
   book: boolean;
+  /** Its appointments become todos on their day (today's and tomorrow's). */
+  todos: boolean;
 };
 
 export type CalendarEventView = {
@@ -54,7 +56,20 @@ export type CalendarEventView = {
 export type SeriesScope = "one" | "following" | "all";
 
 /** An appointment a todo proposes (its action, not in a calendar yet). */
-export type ProposedEvent = { todoId: number; todoRef: string; todoText: string; type: string; title: string; start: string; end: string; target: string };
+export type ProposedEvent = {
+  todoId: number;
+  todoRef: string;
+  todoText: string;
+  /** Which of the todo's actions it is (its place among them), and its type. */
+  index: number;
+  type: string;
+  title: string;
+  start: string;
+  end: string;
+  target: string;
+  /** Where it opens filled in (Google Calendar, Outlook) — null: Zeff enters it itself. */
+  href: string | null;
+};
 
 export const CALENDAR_COLORS = ["#4B99D2", "#C05476", "#55B080", "#DD7835", "#8E63CE", "#E4B429", "#3BA3A3", "#7A869A", "#0F6CBD"];
 

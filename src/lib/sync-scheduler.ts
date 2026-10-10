@@ -95,6 +95,12 @@ export function startSyncScheduler(): void {
         } catch (e) {
           console.error("[backup]", e);
         }
+        // Today's and tomorrow's appointments as todos (calendars set so) — at any hour.
+        try {
+          await (await import("@/lib/calendar/todos")).calendarTodosWhenDue();
+        } catch (e) {
+          console.error("[calendar todos]", e);
+        }
       });
     }
     // The syncs: the account you're in — for the whole turn, even if you switch meanwhile.

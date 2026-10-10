@@ -312,9 +312,11 @@ export async function doneBrowserOpAction(todoId: number, index: number): Promis
     const what =
       op.type === "calendar-event"
         ? `Termin „${op.subject}“ in Outlook angelegt (${when(op.start)}, ${op.minutes} min${op.attendees ? `, mit ${op.attendees.replace(/;/g, ", ")}` : ""}).`
-        : op.type === "mail-compose"
-          ? `Mail „${op.subject}“${op.to ? ` an ${op.to.replace(/;/g, ", ")}` : ""} gesendet.`
-          : "Im Browser erledigt.";
+        : op.type === "gcal-event"
+          ? `Termin „${op.title}“ in Google Calendar angelegt (${when(op.start)}, ${op.minutes} min).`
+          : op.type === "mail-compose"
+            ? `Mail „${op.subject}“${op.to ? ` an ${op.to.replace(/;/g, ", ")}` : ""} gesendet.`
+            : "Im Browser erledigt.";
     addTodoUserNote(t.id, `✓ ${what}`);
     // A mail that answers or asks — the todo itself, done with it.
     const settles = op.type === "mail-compose" && !left.length && t.owner === "me" && ["reply", "comment", "clarify", "update"].includes(t.kind);
