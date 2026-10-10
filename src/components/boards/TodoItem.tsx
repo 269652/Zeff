@@ -2,7 +2,7 @@
 
 import { actionHref } from "@/plugins/actions/catalog";
 import { Fragment, useState, useTransition } from "react";
-import { deferTodoAction, dispatchWorkAction, setTodoStatusAction } from "@/app/actions";
+import { deferTodoAction, runTodoOpsAction, setTodoStatusAction } from "@/app/actions";
 import {
   agentInstruction,
   opLabel,
@@ -372,13 +372,9 @@ export function TodoItem({
                 title={t.blockedBy ? `Wartet: ${t.blockedBy} — der GitLab-Sync merkt es, sobald es so weit ist` : `Zeff macht es selbst, ohne KI: ${zeffOps.map(opLabel).join(" · ")}`}
                 onClick={() =>
                   startDoing(async () => {
-                    const r = await dispatchWorkAction(t.id);
-                    toast(
-                      r?.ok
-                        ? `${t.ref}: läuft — im Work-Tab zu sehen.`
-                        : (r?.error ?? "Ging nicht."),
-                      { tone: r?.ok ? "ok" : "error" },
-                    );
+                    // Zeff runs them right now (no worker, no Work tab).
+                    const r = await runTodoOpsAction(t.id);
+                    toast(r?.ok ? `${t.ref}: ${r.message}` : `${t.ref}: ${r?.error ?? "Ging nicht."}`, { tone: r?.ok ? "ok" : "error" });
                   })
                 }
               >

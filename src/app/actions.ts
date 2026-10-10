@@ -1908,6 +1908,19 @@ export async function dispatchWorkAction(todoId: number, provider?: string): Pro
   }
 }
 
+/** A todo's operations, run now by Zeff itself (a WhatsApp message, a note, a comment) — not through Work. */
+export async function runTodoOpsAction(todoId: number): Promise<ActionState> {
+  try {
+    const { runTodoOpsNow } = await import("@/lib/ops");
+    const r = await runTodoOpsNow(Number(todoId));
+    revalidateAll();
+    return { ok: true, message: `${r.done.join(" · ")}${r.settled ? " — erledigt." : ""}` };
+  } catch (err) {
+    revalidateAll();
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
 /** Your instruction on a todo, done by the Copilot CLI — a run on the Work tab. */
 export async function instructTodoAction(todoId: number, instruction: string): Promise<ActionState> {
   try {
