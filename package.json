@@ -28,6 +28,7 @@
   "dependencies": {
     "@modelcontextprotocol/server": "^2.0.0",
     "better-sqlite3": "^13.0.3",
+    "d3-force": "^3.0.0",
     "date-fns": "^4.4.0",
     "drizzle-orm": "^0.45.2",
     "mcp-handler": "^2.2.0",
@@ -40,6 +41,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/better-sqlite3": "^9.6.0",
+    "@types/d3-force": "^3.0.10",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

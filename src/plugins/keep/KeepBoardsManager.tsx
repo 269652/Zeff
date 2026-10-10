@@ -8,7 +8,7 @@ import { boardDot } from "@/plugins/kanban/colors";
 import { BOARD_COLORS } from "@/plugins/kanban/shared";
 import { createKeepBoardAction, deleteKeepBoardAction, moveKeepBoardAction, updateKeepBoardAction } from "./actions";
 
-type Row = { id: number; name: string; description: string; color: string; archived: boolean; inLage: boolean; notes: number };
+type Row = { id: number; name: string; description: string; color: string; archived: boolean; inLage: boolean; inKnowledge: boolean; notes: number };
 type Result = { ok: boolean; error?: string; message?: string; id?: number };
 
 function Colors({ value, onPick }: { value: string; onPick: (c: string) => void }) {
@@ -76,6 +76,13 @@ function BoardRow({ b, first, last, run }: { b: Row; first: boolean; last: boole
         <span>
           In der Ticket-Lage
           <span className="block text-xs text-zinc-500">Die Notizen sind Kontext der Auswertung, die Notiz-Durchsicht macht Todos aus ihnen, die Notiz-Zuordnung hängt sie an passende Todos.</span>
+        </span>
+      </label>
+      <label className="flex items-start gap-2 text-sm">
+        <input type="checkbox" checked={b.inKnowledge} onChange={(e) => run(() => updateKeepBoardAction(b.id, { inKnowledge: e.target.checked }))} className="mt-0.5 size-4 accent-indigo-600" />
+        <span>
+          Im Wissen
+          <span className="block text-xs text-zinc-500">Die Notizen gehen ins Wissen (Knowledge-Plugin) — durchsuchbar, im Graphen, im Chat. Ein Board „Wissen“ ist so der schnellste Weg, etwas festzuhalten.</span>
         </span>
       </label>
     </li>

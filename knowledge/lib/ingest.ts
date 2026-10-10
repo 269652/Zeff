@@ -163,8 +163,8 @@ export function syncPages(): Promise<SyncResult> {
         }
       }
       if (!sources.length) throw new Error("Keine Quelle: das Confluence-Plugin (mit CONFLUENCE_URL + Token in Zeffs .env), das Zeff-Plugin, das Google-Keep-Plugin oder das Import-Ordner-Plugin (mit einem Ordner).");
-      // Gone from where they came from (read completely): removed.
-      const gone = [...before].filter((id) => !seen.has(id));
+      // Gone from where they came from (read completely): removed. Your own knowledge (own.ts, "own:…") comes from no source — it stays.
+      const gone = [...before].filter((id) => !seen.has(id) && !id.startsWith("own:"));
       d.prepare("insert into settings (key, value) values ('parserVersion', ?) on conflict(key) do update set value = excluded.value").run(String(PARSER_VERSION));
       gone.forEach(removePage);
       const message = `${read} Seiten gelesen (${sources.join(", ")}), ${changed} neu oder geändert, ${gone.length} entfernt.`;

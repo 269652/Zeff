@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { SidebarFrame } from "@/components/SidebarFrame";
 import { knowledgeStatus, knowledgeUrl } from "@/plugins/knowledge/client";
+import { KnowledgeAdd } from "@/plugins/knowledge/KnowledgeAdd";
 import { KnowledgeChat } from "@/plugins/knowledge/KnowledgeChat";
 import { KnowledgeSyncButton } from "@/plugins/knowledge/KnowledgeSyncButton";
 import { isInstalled } from "@/plugins/state";
@@ -61,10 +62,14 @@ export default async function KnowledgePage() {
           )}
           <div className="flex flex-wrap gap-2">
             {typeof status !== "string" && <KnowledgeSyncButton busy={busy} />}
+            <a href={`${knowledgeUrl()}/graph`} target="_blank" rel="noreferrer" className="btn btn-sm">
+              Graph ↗
+            </a>
             <a href={knowledgeUrl()} target="_blank" rel="noreferrer" className="btn btn-sm">
               Wissens-Server ↗
             </a>
           </div>
+          {typeof status !== "string" && <KnowledgeAdd />}
         </>
       }
     >

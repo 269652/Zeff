@@ -26,7 +26,7 @@ export async function createKeepBoardAction(v: { name: string; description?: str
   return act(() => boards.createKeepBoard({ name: String(v.name ?? ""), description: String(v.description ?? ""), color: String(v.color ?? "") }), "Board angelegt.");
 }
 
-export async function updateKeepBoardAction(id: number, patch: { name?: string; description?: string; color?: string; archived?: boolean; inLage?: boolean }): Promise<Result> {
+export async function updateKeepBoardAction(id: number, patch: { name?: string; description?: string; color?: string; archived?: boolean; inLage?: boolean; inKnowledge?: boolean }): Promise<Result> {
   return act(() => boards.updateKeepBoard(Number(id), patch), patch.archived ? "Board archiviert." : patch.archived === false ? "Board zurückgeholt." : "Gespeichert.");
 }
 

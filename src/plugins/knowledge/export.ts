@@ -1,6 +1,7 @@
 import { getSqlite } from "@/db";
 import { currentAccount } from "@/db/accounts";
 import { weekFromDate } from "@/lib/week";
+import { knowledgeOwnNotes } from "@/plugins/keep/boards";
 import { allKeepNotes } from "@/plugins/keep/store";
 import { isInstalled } from "@/plugins/state";
 
@@ -39,9 +40,31 @@ function doc(d: Omit<KnowledgeDoc, "version">): KnowledgeDoc {
   return { ...d, version: version(`${d.title}\n${d.body}`) };
 }
 
-/** Google Keep's notes (Google Keep plugin) as documents — a note each, in the space "Google Keep". */
+/** Your own Keep boards' notes (those set "Im Wissen") as documents — a note each, in the space "Keep · <board>". */
+function ownBoardDocs(): KnowledgeDoc[] {
+  return knowledgeOwnNotes()
+    .filter((n) => n.title || n.text)
+    .map((n) => {
+      const meta = [`Notiz im Board „${n.boardName}“`, n.labels.length ? `Labels: ${n.labels.join(", ")}` : "", n.pinned ? "angeheftet" : "", n.archived ? "archiviert" : ""].filter(Boolean).join(" · ");
+      return doc({
+        id: n.ref,
+        space: `Keep · ${n.boardName}`,
+        title: n.title || n.text.split("\n")[0].slice(0, 100) || "Notiz",
+        url: "",
+        updatedAt: n.updatedAt ?? n.createdAt,
+        author: null,
+        body: `${meta}\n\n${clean(n.text)}`,
+      });
+    });
+}
+
+/** Google Keep's notes (Google Keep plugin) as documents — a note each, in the space "Google Keep" — and your own boards' (those in the knowledge). */
 export function keepDocs(): KnowledgeDoc[] {
   if (!isInstalled("keep")) return [];
+  return [...ownBoardDocs(), ...googleKeepDocs()];
+}
+
+function googleKeepDocs(): KnowledgeDoc[] {
   return allKeepNotes()
     .filter((n) => n.title || n.text)
     .map((n) => {

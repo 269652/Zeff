@@ -28,3 +28,7 @@ export const knowledgeSearch = (q: string, limit = 8) => call<{ pages: Knowledge
 export const knowledgeRelated = (text: string, ticket: string | null, limit = 5) => call<{ pages: KnowledgePage[]; entities: KnowledgeEntity[] }>("/api/related", { method: "POST", body: { text, ticket, limit } });
 export const knowledgeAsk = (question: string, history: KnowledgeTurn[]) => call<KnowledgeAnswer>("/api/ask", { method: "POST", body: { question, history }, timeoutMs: 360000 });
 export const knowledgeSync = () => call<{ started: boolean }>("/api/sync?compile=1", { method: "POST" });
+
+/** Your own knowledge on the knowledge server: something to keep — a text, or a link (the page behind it read). Compiled right after. */
+export const knowledgeAddOwn = (v: { title?: string; text?: string; url?: string }) =>
+  call<{ id: string; entry: { id: string; title: string } | null }>("/api/own", { method: "POST", body: v, timeoutMs: 30000 });
