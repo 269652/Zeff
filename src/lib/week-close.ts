@@ -1,5 +1,5 @@
 import { isInstalled } from "@/plugins/state";
-import { formatHours } from "./format";
+import { formatAgo, formatHours } from "./format";
 import { isoDate, type WeekInfo } from "./week";
 
 /**
@@ -15,11 +15,8 @@ export type CloseState = "ok" | "open" | "unknown" | "later";
 export type CloseItem = { key: string; label: string; state: CloseState; detail: string; href: string };
 export type WeekClose = { items: CloseItem[]; /** Every step done. */ done: boolean; /** The week is over (its last working day passed, or it's that day). */ over: boolean };
 
-const DAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
-const ago = (iso: string, now: Date) => {
-  const h = Math.floor((now.getTime() - Date.parse(iso)) / 3600e3);
-  return h < 1 ? "gerade eben" : h < 24 ? `vor ${h} Std.` : `vor ${Math.floor(h / 24)} T.`;
-};
+const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const ago = (iso: string, now: Date) => formatAgo(iso, now.getTime());
 
 export async function weekClose(week: WeekInfo, now = new Date()): Promise<WeekClose> {
   const { getWeeklyReport, listEntries, listBookedOnDates } = await import("./entries");
@@ -40,9 +37,9 @@ export async function weekClose(week: WeekInfo, now = new Date()): Promise<WeekC
   const future = !over && week.days.some((d, i) => isoDate(d) >= today && (targets.targets[i] ?? 0) > 0);
   items.push({
     key: "hours",
-    label: "Jeder Tag gebucht",
+    label: "Every day booked",
     state: missing.length ? "open" : future ? "later" : "ok",
-    detail: missing.length ? `fehlt: ${missing.map((m) => `${m.day} ${formatHours(m.gap)} h`).join(", ")}` : `${formatHours(report.total)} von ${formatHours(targets.weekTarget)} h`,
+    detail: missing.length ? `missing: ${missing.map((m) => `${m.day} ${formatHours(m.gap)} h`).join(", ")}` : `${formatHours(report.total)} of ${formatHours(targets.weekTarget)} h`,
     href: `/?${q}`,
   });
 
@@ -61,9 +58,9 @@ export async function weekClose(week: WeekInfo, now = new Date()): Promise<WeekC
     const open = days.flatMap((d) => d.events).filter((e) => e.state === "importable" && `${e.date}T${e.endTime}` <= `${today}T${now.toTimeString().slice(0, 5)}`);
     items.push({
       key: "meetings",
-      label: "Meetings gebucht",
+      label: "Meetings booked",
       state: open.length ? "open" : "ok",
-      detail: open.length ? `${open.length} noch nicht gebucht: ${open.slice(0, 3).map((e) => e.subject).join(", ")}${open.length > 3 ? " …" : ""}` : "alle gebucht",
+      detail: open.length ? `${open.length} not booked yet: ${open.slice(0, 3).map((e) => e.subject).join(", ")}${open.length > 3 ? " …" : ""}` : "all booked",
       href: `/calendar?${q}`,
     });
   }
@@ -73,9 +70,9 @@ export async function weekClose(week: WeekInfo, now = new Date()): Promise<WeekC
   const suggestions = openSuggestionTotals(week.startIso, week.endIso);
   items.push({
     key: "suggestions",
-    label: "Vorschläge übernommen",
+    label: "Suggestions taken over",
     state: suggestions.count ? "open" : "ok",
-    detail: suggestions.count ? `${suggestions.count} offen (${formatHours(suggestions.hours)} h)` : "keine offen",
+    detail: suggestions.count ? `${suggestions.count} open (${formatHours(suggestions.hours)} h)` : "none open",
     href: `/?${q}`,
   });
 
@@ -84,9 +81,9 @@ export async function weekClose(week: WeekInfo, now = new Date()): Promise<WeekC
   const noJob = entries.filter((e) => e.job.number === NO_JOB_NUMBER);
   items.push({
     key: "jobs",
-    label: "Jede Buchung auf einem Job",
+    label: "Every entry on a job",
     state: noJob.length ? "open" : "ok",
-    detail: noJob.length ? `${noJob.length} ohne Job (${formatHours(noJob.reduce((a, e) => a + e.hours, 0))} h)` : "alle",
+    detail: noJob.length ? `${noJob.length} without a job (${formatHours(noJob.reduce((a, e) => a + e.hours, 0))} h)` : "all",
     href: `/?${q}`,
   });
 
@@ -96,29 +93,29 @@ export async function weekClose(week: WeekInfo, now = new Date()): Promise<WeekC
     const pulledAt = roarPulledAt(week);
     const booked = entries.filter((e) => e.job.number !== NO_JOB_NUMBER);
     if (!pulledAt) {
-      items.push({ key: "roar", label: "In Roar", state: "unknown", detail: "noch nicht aus Roar geholt", href: `/export/roar?${q}` });
-      items.push({ key: "approved", label: "In Roar freigegeben", state: "unknown", detail: "noch nicht aus Roar geholt", href: `/export/roar?${q}` });
+      items.push({ key: "roar", label: "In Roar", state: "unknown", detail: "not pulled from Roar yet", href: `/export/roar?${q}` });
+      items.push({ key: "approved", label: "Approved in Roar", state: "unknown", detail: "not pulled from Roar yet", href: `/export/roar?${q}` });
     } else {
       const statuses = roarStatusByEntry(week);
       const kinds = booked.map((e) => statuses[e.id]?.kind ?? "missing");
       const count = (k: string) => kinds.filter((x) => x === k).length;
-      const stand = `Stand ${ago(pulledAt, now)}`;
+      const stand = `pulled ${ago(pulledAt, now)}`;
       const notIn = count("missing");
       const rejected = count("rejected");
       items.push({
         key: "roar",
         label: "In Roar",
         state: !booked.length ? (over ? "ok" : "later") : notIn || rejected ? "open" : "ok",
-        detail: [notIn ? `${notIn} nicht in Roar` : "", rejected ? `${rejected} abgelehnt` : "", !notIn && !rejected ? "alles drin" : "", stand].filter(Boolean).join(" · "),
+        detail: [notIn ? `${notIn} not in Roar` : "", rejected ? `${rejected} rejected` : "", !notIn && !rejected ? "all in" : "", stand].filter(Boolean).join(" · "),
         href: `/export/roar?${q}`,
       });
       const draft = count("draft");
       const submitted = count("submitted");
       items.push({
         key: "approved",
-        label: "In Roar freigegeben",
+        label: "Approved in Roar",
         state: !booked.length ? (over ? "ok" : "later") : notIn || rejected || draft || submitted ? "open" : "ok",
-        detail: [draft ? `${draft} nicht eingereicht` : "", submitted ? `${submitted} warten auf Freigabe` : "", !draft && !submitted && !notIn && !rejected ? "alles freigegeben" : "", stand].filter(Boolean).join(" · "),
+        detail: [draft ? `${draft} not submitted` : "", submitted ? `${submitted} waiting for approval` : "", !draft && !submitted && !notIn && !rejected ? "all approved" : "", stand].filter(Boolean).join(" · "),
         href: `/export/roar?${q}`,
       });
     }
@@ -133,7 +130,7 @@ export async function weekClose(week: WeekInfo, now = new Date()): Promise<WeekC
       key: "timo",
       label: "In TimO",
       state: !timo.pulledAt ? "unknown" : timo.inSync ? "ok" : over ? "open" : "later",
-      detail: !timo.pulledAt ? "noch nicht aus TimO gelesen" : timo.inSync ? `alles drin · Stand ${ago(timo.pulledAt, now)}` : `${differs ? `${differs} Tage abweichend · ` : ""}nicht vollständig · Stand ${ago(timo.pulledAt, now)}`,
+      detail: !timo.pulledAt ? "not read from TimO yet" : timo.inSync ? `all in · read ${ago(timo.pulledAt, now)}` : `${differs ? `${differs} ${differs === 1 ? "day differs" : "days differ"} · ` : ""}not complete · read ${ago(timo.pulledAt, now)}`,
       href: `/export/timo?${q}`,
     });
   }

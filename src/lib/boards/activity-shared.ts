@@ -20,10 +20,10 @@ export type TodoEventView = {
 };
 
 export const TODO_EVENT_LABELS: Record<TodoEventKind, { icon: string; label: string; tone: string }> = {
-  created: { icon: "＋", label: "neu", tone: "text-sky-600 dark:text-sky-400" },
-  done: { icon: "✓", label: "erledigt", tone: "text-emerald-600 dark:text-emerald-400" },
-  dismissed: { icon: "✕", label: "verworfen", tone: "text-zinc-500" },
-  reopened: { icon: "↺", label: "wieder offen", tone: "text-amber-600 dark:text-amber-400" },
+  created: { icon: "＋", label: "new", tone: "text-sky-600 dark:text-sky-400" },
+  done: { icon: "✓", label: "done", tone: "text-emerald-600 dark:text-emerald-400" },
+  dismissed: { icon: "✕", label: "dismissed", tone: "text-zinc-500" },
+  reopened: { icon: "↺", label: "reopened", tone: "text-amber-600 dark:text-amber-400" },
 };
 
 /** Where the newest seen event's id is kept (this browser). */

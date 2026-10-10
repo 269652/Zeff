@@ -38,10 +38,10 @@ export function llmPreamble(): string {
  * installed.
  */
 export function llm<T>(task: LlmTaskId, prompt: string, schema: object, opts: { provider?: AiProvider; timeoutMs?: number; maxBudgetUsd?: number } = {}): Promise<AiAnswer<T>> {
-  if (!isInstalled("llm")) return Promise.reject(new ValidationError("Das LLM-Plugin ist nicht installiert (Menü → Plugins) — keine KI-Aufgaben."));
+  if (!isInstalled("llm")) return Promise.reject(new ValidationError("The LLM plugin is not installed (Menu → Plugins) — no AI tasks."));
   const choice = llmChoice(task);
   const provider = opts.provider ?? choice.provider;
-  if (!providerAvailable(provider)) return Promise.reject(new ValidationError(`${AI_PROVIDER_INFO[provider].label}: das Plugin ist nicht installiert (Menü → Plugins).`));
+  if (!providerAvailable(provider)) return Promise.reject(new ValidationError(`${AI_PROVIDER_INFO[provider].label}: the plugin is not installed (Menu → Plugins).`));
   const app = getAppSettings();
   const model = (opts.provider && opts.provider !== choice.provider ? (provider === "copilot" ? app.copilotModel : app.claudeModel) : choice.model) || undefined;
   const preamble = llmPreamble();

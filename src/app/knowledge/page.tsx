@@ -7,11 +7,10 @@ import { knowledgeBrowserUrl, knowledgeStatus } from "@/plugins/knowledge/client
 import { KnowledgeAdd } from "@/plugins/knowledge/KnowledgeAdd";
 import { KnowledgeChat } from "@/plugins/knowledge/KnowledgeChat";
 import { KnowledgeSyncButton } from "@/plugins/knowledge/KnowledgeSyncButton";
+import { formatDateTime } from "@/lib/format";
 import { isInstalled } from "@/plugins/state";
 
 export const metadata: Metadata = { title: "Chat" };
-
-const when = (iso: string) => new Date(iso).toLocaleString("de-DE", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
 
 /**
  * Knowledge (Knowledge plugin): ask the knowledge — the knowledge server answers from the pages
@@ -34,7 +33,7 @@ export default async function KnowledgePage() {
         <>
           <div>
             <h1 className="text-lg font-semibold">Chat</h1>
-            <p className="text-sm text-zinc-500">Fragen an das Wissen — Confluence und was Zeff synchronisiert hat; jede Antwort mit ihren Quellen.</p>
+            <p className="text-sm text-zinc-500">Questions to the knowledge — Confluence and what Zeff has synced; every answer with its sources.</p>
           </div>
           {typeof status === "string" ? (
             <p className="alert-error text-sm">{status}</p>
@@ -42,10 +41,10 @@ export default async function KnowledgePage() {
             <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
               {(
                 [
-                  ["Seiten", status.counts.pages],
-                  ["Bereiche", status.counts.spaces],
-                  ["Entitäten", status.counts.entities],
-                  ["Beziehungen", status.counts.relations],
+                  ["Pages", status.counts.pages],
+                  ["Spaces", status.counts.spaces],
+                  ["Entities", status.counts.entities],
+                  ["Relations", status.counts.relations],
                 ] as const
               ).map(([label, n]) => (
                 <div key={label}>
@@ -53,13 +52,13 @@ export default async function KnowledgePage() {
                   <dd className="text-lg font-semibold tabular-nums">{n}</dd>
                 </div>
               ))}
-              {status.counts.compiled < status.counts.pages && <p className="col-span-2 text-xs text-amber-700 dark:text-amber-400">{status.counts.pages - status.counts.compiled} noch nicht kompiliert</p>}
+              {status.counts.compiled < status.counts.pages && <p className="col-span-2 text-xs text-amber-700 dark:text-amber-400">{status.counts.pages - status.counts.compiled} not compiled yet</p>}
               {status.confluence && <p className="col-span-2 truncate text-xs text-zinc-500" title={status.confluence}>{status.confluence}</p>}
               {last && (
                 <p className="col-span-2 text-xs text-zinc-500">
-                  Zuletzt {last.kind === "sync" ? "gelesen" : "kompiliert"} {when(last.started_at)}
+                  Last {last.kind === "sync" ? "read" : "compiled"} {formatDateTime(last.started_at)}
                   {last.ok === 0 ? " ✗" : ""}
-                  {busy && " · läuft gerade"}
+                  {busy && " · running now"}
                 </p>
               )}
             </dl>
@@ -70,7 +69,7 @@ export default async function KnowledgePage() {
               Graph ↗
             </a>
             <a href={server} target="_blank" rel="noreferrer" className="btn btn-sm">
-              Wissens-Server ↗
+              Knowledge server ↗
             </a>
           </div>
           {typeof status !== "string" && <KnowledgeAdd />}

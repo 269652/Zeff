@@ -33,7 +33,7 @@ export function SetupDataRun({ next }: { next: string }) {
   const go = () =>
     start(async () => {
       const r = await runSyncAllAction();
-      if (!r?.ok) toast(r?.error ?? "Ging nicht.", { tone: "error" });
+      if (!r?.ok) toast(r?.error ?? "Didn't work.", { tone: "error" });
       else setStarted(true);
       setData(await syncOverviewAction());
     });
@@ -48,15 +48,15 @@ export function SetupDataRun({ next }: { next: string }) {
       <div className="flex flex-wrap items-center gap-3">
         {running ? (
           <button type="button" className="btn btn-sm text-red-600 dark:text-red-400" disabled={pending} onClick={() => start(async () => void (await stopSyncAllAction()))}>
-            Abbrechen
+            Cancel
           </button>
         ) : (
           <button type="button" className="btn btn-primary btn-sm" disabled={pending || !data} onClick={go}>
-            {finished ? "Noch einmal" : "Alles holen und auswerten"}
+            {finished ? "Once more" : "Fetch everything and run the AI steps"}
           </button>
         )}
         <span className="text-zinc-500">
-          {running ? "Läuft — das erste Mal dauert es (alles wird zum ersten Mal gelesen)." : finished ? (failed.length ? `Fertig — ${failed.length} mit Fehler.` : "Fertig.") : "Jeder Sync nacheinander, zuletzt die Ticket-Lage: die erste Auswertung."}
+          {running ? "Running — the first time takes a while (everything is read for the first time)." : finished ? (failed.length ? `Done — ${failed.length} with errors.` : "Done.") : "Every sync in turn, the briefing last: the first AI run."}
         </span>
       </div>
       <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
@@ -69,7 +69,7 @@ export function SetupDataRun({ next }: { next: string }) {
               </span>
               <span className="w-32 shrink-0">{s.label}</span>
               <span className={`min-w-0 flex-1 truncate text-xs ${s.lastOk === false ? "text-red-600 dark:text-red-400" : "text-zinc-500"}`} title={s.lastMessage ?? undefined}>
-                {now ? "läuft …" : (s.lastMessage ?? "noch nicht gelesen")}
+                {now ? "running…" : (s.lastMessage ?? "not read yet")}
               </span>
             </li>
           );
@@ -77,17 +77,17 @@ export function SetupDataRun({ next }: { next: string }) {
       </ul>
       {finished && failed.length > 0 && (
         <p className="text-xs text-zinc-500">
-          Fehlt eine Anmeldung?{" "}
+          A sign-in missing?{" "}
           <Link href="/setup?step=logins" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            Zurück zu den Anmeldungen
+            Back to the sign-ins
           </Link>
-          , dann noch einmal.
+          , then once more.
         </p>
       )}
       {finished && (
         <div className="flex justify-end">
           <Link href={next} className="btn btn-primary btn-sm">
-            Weiter: Fertig
+            Next: done
           </Link>
         </div>
       )}

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { branchOpAction } from "@/plugins/work/server-actions";
 import type { BranchItem, BranchOp, BranchState } from "@/lib/branches";
 import { toast } from "../Toaster";
+import { formatDate } from "@/lib/format";
 
 const STATE_STYLE: Record<BranchState, string> = {
   dirty: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
@@ -49,7 +50,7 @@ function Row({ b }: { b: BranchItem }) {
       )}
       <span className="min-w-0 text-xs text-zinc-500">
         {b.todo}
-        {b.lastCommit ? ` · ${new Date(b.lastCommit).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : ""}
+        {b.lastCommit ? ` · ${formatDate(b.lastCommit, { weekday: false })}` : ""}
       </span>
       <span className="ml-auto flex items-center gap-1.5">
         {act && !b.ignored && (

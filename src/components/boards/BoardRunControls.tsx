@@ -13,16 +13,16 @@ import { SyncStepRow } from "../SyncMenu";
 const AFTER_STEPS: SyncKey[] = ["boards", "mailtodos", "relations", "notetodos", "noterelations", "knowledgerel", "autoactions"];
 
 const PHASES: Record<string, string> = {
-  sync: "synct vorher",
-  jira: "liest Jira und Zeff",
-  ai: "wertet aus",
-  saving: "speichert",
-  mailtodos: "sucht Todos in Mails und WhatsApp",
-  mails: "ordnet Mails den Todos zu",
-  notetodos: "sucht Todos in Notizen",
-  knowledge: "ordnet den Todos Wissen zu",
-  notes: "ordnet Notizen den Todos zu",
-  autoactions: "macht Aktionen für die Todos",
+  sync: "syncing first",
+  jira: "reading Jira and Zeff",
+  ai: "analyzing",
+  saving: "saving",
+  mailtodos: "finding todos in mails and WhatsApp",
+  mails: "matching mails to the todos",
+  notetodos: "finding todos in notes",
+  knowledge: "matching knowledge to the todos",
+  notes: "matching notes to the todos",
+  autoactions: "taking actions for the todos",
 };
 
 /** Seconds since a moment, as m:ss (outside render: the clock isn't a render input). */
@@ -131,20 +131,20 @@ export function BoardRunControls({
           {since ? sinceText(since) : ""} ·{" "}
           {phase === "ai"
             ? `${provider} ${PHASES.ai}`
-            : (PHASES[phase ?? ""] ?? "läuft")}
+            : (PHASES[phase ?? ""] ?? "running")}
           <button
             type="button"
             className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
             onClick={() =>
               start(async () => {
                 const r = await stopBoardRunAction();
-                if (r && !r.ok) setError(r.error ?? "Ging nicht.");
+                if (r && !r.ok) setError(r.error ?? "Didn't work.");
                 router.refresh();
               })
             }
-            title="Die Auswertung abbrechen — der Schritt, an dem sie ist (Sync, KI), endet mit"
+            title="Cancel the run — the step it is on (sync, AI) ends with it"
           >
-            Abbrechen
+            Cancel
           </button>
         </span>
       )}
@@ -161,9 +161,9 @@ export function BoardRunControls({
               router.refresh();
             })
           }
-          title="Synct erst, was unter Auswerten → „Vorher synchronisieren“ steht, liest dann deine Tickets (mit Kommentaren und Historie) und was Zeff dazu weiß, lässt die KI aus den Einstellungen die Lage und die Todos daraus machen — und ordnet danach jedem Todo die Mails zu, um die es geht"
+          title="First syncs what AI steps → “Sync first” lists, then reads your tickets (with comments and history) and what Zeff knows about them, has the AI from the settings write the briefing and the todos — and then matches each todo with the mails it is about"
         >
-          {running || pending ? "Läuft…" : "Jetzt auswerten"}
+          {running || pending ? "Running…" : "Run now"}
         </button>
         <button
           type="button"
@@ -172,7 +172,7 @@ export function BoardRunControls({
           aria-expanded={open}
           aria-controls="board-run-steps"
           onClick={toggle}
-          title="Die Schritte der Auswertung — wie sie zuletzt liefen, jeder einzeln startbar"
+          title="The run's steps — how they last ran, each one startable on its own"
         >
           <ChevronIcon className={`size-4 ${open ? "-rotate-90" : "rotate-90"}`} />
         </button>
@@ -183,8 +183,8 @@ export function BoardRunControls({
             className="z-50 w-[22rem] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950"
           >
             <p className="border-b border-zinc-200 px-3 py-2.5 text-xs text-zinc-500 dark:border-zinc-800">
-              „Jetzt auswerten“ macht diese Schritte nacheinander — jeder geht
-              auch einzeln.
+              “Run now” does these steps one after another — each also
+              works on its own.
             </p>
             <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
               {RUN_STEPS.flatMap(
@@ -205,7 +205,7 @@ export function BoardRunControls({
                 />
               ))}
               {!steps && (
-                <li className="px-3 py-3 text-sm text-zinc-500">Lädt…</li>
+                <li className="px-3 py-3 text-sm text-zinc-500">Loading…</li>
               )}
             </ul>
           </div>

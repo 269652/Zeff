@@ -7,7 +7,7 @@ import { NewBoardForm } from "@/plugins/kanban/NewBoardForm";
 import { listBoards } from "@/plugins/kanban/store";
 import { isInstalled } from "@/plugins/state";
 
-export const metadata: Metadata = { title: "Kanban-Boards verwalten" };
+export const metadata: Metadata = { title: "Manage Kanban boards" };
 
 /** Kanban's settings: your boards — order, names, colours, the Lage, archived ones — and a new one. */
 export default async function KanbanSettingsPage() {
@@ -20,9 +20,9 @@ export default async function KanbanSettingsPage() {
         <Link href="/kanban" className="text-sm text-zinc-500 hover:underline">
           ← Kanban
         </Link>
-        <h1 className="text-lg font-semibold">Boards verwalten</h1>
+        <h1 className="text-lg font-semibold">Manage boards</h1>
         <p className="max-w-[75ch] text-sm text-zinc-500">
-          Deine Boards in der Reihenfolge, in der Kanban sie zeigt. Ein Board „in der Ticket-Lage“ bringt seine offenen Karten (KB-…) in den Lage-Lauf: Todos, die Lage je Karte, die Berichte{isInstalled("todos") ? "" : " — dafür braucht es das Todos-Plugin"}.
+          Your boards in the order Kanban shows them. A board “in the briefing” brings its open cards (KB-…) into the briefing run: todos, the briefing per card, the reports{isInstalled("todos") ? "" : " — that needs the Todos plugin"}.
         </p>
       </div>
       <BoardsManager boards={boards} />

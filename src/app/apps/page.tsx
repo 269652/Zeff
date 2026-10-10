@@ -15,7 +15,7 @@ export default async function AppsPage() {
       <div className="page-aside">
         <h1 className="text-lg font-semibold">Apps</h1>
         <p className="text-sm text-zinc-500">
-          Die Anwendungen der installierten Plugins. Welche in der Kopfzeile stehen, welche im Menü: Menü → „Anpassen“.
+          The applications of the installed plugins. Which ones sit in the header and which in the menu: Menu → “Customize”.
         </p>
       </div>
       <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

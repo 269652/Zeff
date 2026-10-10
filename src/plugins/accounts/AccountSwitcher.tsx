@@ -44,11 +44,11 @@ export function AccountSwitcher({ current, list }: { current: AccountChip; list:
     start(async () => {
       const r = await switchAccountAction(id);
       if (!r.ok) {
-        toast(r.error ?? "Ging nicht.", { tone: "error" });
+        toast(r.error ?? "That didn't work.", { tone: "error" });
         return;
       }
       setOpen(false);
-      toast(r.message ?? "Gewechselt.", { tone: "ok" });
+      toast(r.message ?? "Switched.", { tone: "ok" });
       router.push(r.href ?? "/");
       router.refresh();
     });
@@ -62,10 +62,10 @@ export function AccountSwitcher({ current, list }: { current: AccountChip; list:
         aria-haspopup="menu"
         aria-expanded={open}
         disabled={pending}
-        title={`Konto: ${current.name} — wechseln`}
+        title={`Account: ${current.name} — switch`}
       >
         <span className={`size-2 shrink-0 rounded-full ${dotOf(current.color)}`} aria-hidden />
-        <span className="truncate">{pending ? "wechselt…" : current.name}</span>
+        <span className="truncate">{pending ? "switching…" : current.name}</span>
       </button>
       {open && (
         <div role="menu" className="absolute top-full left-0 z-50 mt-1 w-56 rounded-md border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
@@ -81,12 +81,12 @@ export function AccountSwitcher({ current, list }: { current: AccountChip; list:
             >
               <span className={`size-2 shrink-0 rounded-full ${dotOf(a.color)}`} aria-hidden />
               <span className="min-w-0 flex-1 truncate">{a.name}</span>
-              {a.id === current.id && <span className="text-xs text-zinc-500">aktiv</span>}
+              {a.id === current.id && <span className="text-xs text-zinc-500">active</span>}
             </button>
           ))}
           <div className="my-1 border-t border-zinc-200 dark:border-zinc-700" />
           <Link href="/accounts" onClick={() => setOpen(false)} className="block rounded px-2 py-1.5 text-sm text-indigo-600 hover:bg-zinc-100 dark:text-indigo-400 dark:hover:bg-zinc-800" role="menuitem">
-            Konten verwalten…
+            Manage accounts…
           </Link>
         </div>
       )}

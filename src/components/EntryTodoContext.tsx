@@ -21,7 +21,7 @@ export function EntryTodoContextSection({ ctx }: { ctx: EntryTodoContext }) {
     <section className="card space-y-3 p-4">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className="text-sm font-semibold text-zinc-500 uppercase">
-          Aus den Todos <span className="font-normal normal-case text-zinc-400">({items.length})</span>
+          From the todos <span className="font-normal normal-case text-zinc-400">({items.length})</span>
         </h2>
         <span className="flex flex-wrap gap-x-2 gap-y-1 text-xs">
           {ctx.todos.map((t) => (
@@ -30,13 +30,13 @@ export function EntryTodoContextSection({ ctx }: { ctx: EntryTodoContext }) {
             </Link>
           ))}
           {ctx.runs.map((r) => (
-            <Link key={r} href="/work" className="font-mono text-violet-700 hover:underline dark:text-violet-300" title={`Work-Lauf W-${r}`}>
+            <Link key={r} href="/work" className="font-mono text-violet-700 hover:underline dark:text-violet-300" title={`Work run W-${r}`}>
               W-{r}
             </Link>
           ))}
         </span>
       </div>
-      {items.length ? <ContextList items={items} /> : <p className="text-sm text-zinc-500">Die Todos bringen keinen Kontext mit.</p>}
+      {items.length ? <ContextList items={items} /> : <p className="text-sm text-zinc-500">The todos bring no context.</p>}
     </section>
   );
 }

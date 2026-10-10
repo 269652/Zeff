@@ -49,7 +49,7 @@ async function editorBox(page, timeout = 15000) {
     if (ok) return page.locator("[data-zeff-editor]");
     await sleep(400);
   }
-  throw new Error("Keeps Notiz-Editor ging nicht auf.");
+  throw new Error("Keep's note editor didn't open.");
 }
 
 /** Keep re-renders the editor now and then (a list turned into text, …): then it's tagged anew. */
@@ -82,7 +82,7 @@ async function setField(page, field, text) {
   });
   await page.keyboard.press("Backspace");
   await sleep(300);
-  if (await keepItems(page)) throw new Error("Keep wollte Listeneinträge löschen — abgebrochen, nichts gelöscht.");
+  if (await keepItems(page)) throw new Error("Keep wanted to delete list items — stopped, nothing deleted.");
   const lines = String(text ?? "").split("\n");
   for (let i = 0; i < lines.length; i++) {
     if (lines[i]) await page.keyboard.insertText(lines[i]);
@@ -209,7 +209,7 @@ async function setColor(page, box, color) {
  */
 async function setLabels(page, box, wanted) {
   const want = new Set(wanted.map((l) => l.trim()).filter(Boolean));
-  if (!(await moreMenu(page, box, ["Label hinzufügen", "Labels ändern", "Add label", "Change labels"]))) throw new Error("Keep bietet „Label hinzufügen“ nicht an.");
+  if (!(await moreMenu(page, box, ["Label hinzufügen", "Labels ändern", "Add label", "Change labels"]))) throw new Error("Keep doesn't offer “Add label”.");
   // The picker (a role=menu): "Namen des Labels eingeben", under it a role=menuitemcheckbox per label —
   // its aria-label the name, aria-checked whether the note has it. Typing filters the rows, and while
   // no label has exactly that name Keep offers a button 'Label "…" erstellen'.
@@ -233,7 +233,7 @@ async function setLabels(page, box, wanted) {
       if (((await row.getAttribute("aria-checked")) === "true") !== want.has(name)) await row.click();
     } else if (want.has(name)) {
       const create = menu.getByRole("button", { name: new RegExp(`^(Label [„"]${quoted(name)}["“] erstellen|Create (label )?["“]${quoted(name)}["”])$`, "i") }).first();
-      if (!(await create.isVisible().catch(() => false))) throw new Error(`Keep bietet das Label „${name}“ nicht an.`);
+      if (!(await create.isVisible().catch(() => false))) throw new Error(`Keep doesn't offer the label “${name}”.`);
       await create.click();
     }
     await sleep(500);
@@ -327,7 +327,7 @@ async function openNote(page, v, current) {
     await sleep(500);
   }
   await page.keyboard.press("Escape").catch(() => {});
-  throw new Error("Keep hat nicht diese Notiz geöffnet — nichts geändert.");
+  throw new Error("Keep didn't open this note — nothing changed.");
 }
 
 export async function updateNote(page, v, current) {
@@ -356,5 +356,5 @@ export async function updateNote(page, v, current) {
 
 export async function trashNote(page, v, current) {
   const box = await openNote(page, v, current);
-  if (!(await moreMenu(page, box, ["Notiz löschen", "Delete note"]))) throw new Error("Keep bietet „Notiz löschen“ nicht an.");
+  if (!(await moreMenu(page, box, ["Notiz löschen", "Delete note"]))) throw new Error("Keep doesn't offer “Delete note”.");
 }

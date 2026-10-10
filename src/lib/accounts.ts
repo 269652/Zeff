@@ -19,9 +19,9 @@ export function accountBusy(): string | null {
   const busy: string[] = [];
   if (g.__zeffSyncs?.running.size || g.__zeffSyncs?.all) busy.push("a sync");
   if (g.__zeffTeamsSyncing || g.__zeffMailSyncing || g.__zeffGitlabSyncing || g.__zeffKeepSyncing) busy.push("a sync");
-  if (g.__zeffBoardRun) busy.push("the Ticket-Lage");
+  if (g.__zeffBoardRun) busy.push("the briefing");
   if (g.__zeffRecap) busy.push("a day recap");
-  if (g.__zeffMailTodos || g.__zeffMailRelations || g.__zeffAutoActions || g.__zeffBoardLage) busy.push("an evaluation");
+  if (g.__zeffMailTodos || g.__zeffMailRelations || g.__zeffAutoActions || g.__zeffBoardLage) busy.push("an AI step");
   if (g.__zeffBackups?.size) busy.push("a backup");
   if (g.__zeffWhatsappHistory) busy.push("a WhatsApp history");
   if (g.__zeffPeopleDates) busy.push("finding dates");
@@ -59,7 +59,7 @@ const CONFIG_PREF = /^(menu|layout|auswerten|plugin:.+)$/;
  */
 export async function createAccount(v: { name: string; color: string; copyFrom?: string; shareChrome?: boolean }): Promise<{ account: Account; copied: number }> {
   const from = v.copyFrom ? accountById(v.copyFrom) : undefined;
-  if (v.copyFrom && !from) throw new Error("Das Konto zum Übernehmen gibt es nicht.");
+  if (v.copyFrom && !from) throw new Error("The account to copy from doesn't exist.");
   const account = addAccount(v.name, v.color, from && v.shareChrome ? from.id : undefined);
   let copied = 0;
   if (from) {
@@ -99,7 +99,7 @@ export async function startSetup(id: string): Promise<void> {
 
 /** An account off the list (its folder set aside, not deleted). Where it went. */
 export function deleteAccount(id: string): string {
-  if (id === currentAccountId()) throw new Error("Erst in ein anderes Konto wechseln.");
+  if (id === currentAccountId()) throw new Error("Switch to another account first.");
   closeAccountDb(id);
   const to = removeAccount(id);
   writeKnowledgeInstances(); // its knowledge server stops (its data went along to the set-aside folder)

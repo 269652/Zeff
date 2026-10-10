@@ -3,6 +3,7 @@
  * plugin) or an appointment (the calendar plugin) filled in; you check it and send it yourself.
  * Client-safe.
  */
+import { formatDate, formatTime } from "@/lib/format";
 import { action, str } from "../actions/types";
 
 const OWA = "https://outlook.office.com";
@@ -31,7 +32,7 @@ export const OUTLOOK_MAIL_ACTIONS = [
   action({
     type: "mail-compose",
     plugin: "outlook-mail",
-    label: "Mail-Entwurf in Outlook",
+    label: "Mail draft in Outlook",
     verb: "Mail",
     comms: true,
     offer: {
@@ -44,8 +45,8 @@ export const OUTLOOK_MAIL_ACTIONS = [
       example: { type: "mail-compose", to: "anna.schmidt@example.org", subject: "AW: Freigabe Startseite", body: "Hallo Frau Schmidt,\n\ndie Änderung ist auf Test — können Sie sie bis Freitag freigeben?\n\nViele Grüße" },
     },
     clean: (o) => (str(o.subject) && str(o.body) ? { type: "mail-compose", to: addresses(str(o.to)), subject: str(o.subject).slice(0, 250), body: str(o.body).slice(0, 8000) } : null),
-    title: (op) => `Mail${op.to ? ` an ${op.to.split(";")[0]}` : ""}: ${op.subject}`,
-    note: (op) => ({ heading: `Mail-Entwurf${op.to ? ` an ${op.to.replace(/;/g, ", ")}` : ""}`, detail: `Betreff: ${op.subject}`, body: op.body }),
+    title: (op) => `Mail${op.to ? ` to ${op.to.split(";")[0]}` : ""}: ${op.subject}`,
+    note: (op) => ({ heading: `Mail draft${op.to ? ` to ${op.to.replace(/;/g, ", ")}` : ""}`, detail: `Subject: ${op.subject}`, body: op.body }),
     href: (op) => `${OWA}/mail/deeplink/compose?${q({ to: op.to, subject: op.subject, body: op.body })}`,
   }),
 ];
@@ -54,8 +55,8 @@ export const OUTLOOK_CALENDAR_ACTIONS = [
   action({
     type: "calendar-event",
     plugin: "outlook-calendar",
-    label: "Termin in Outlook",
-    verb: "Termin",
+    label: "Meeting in Outlook",
+    verb: "Meeting",
     offer: {
       when: "Ein Termin, der vereinbart oder vorgeschlagen werden soll (eine gemeinsame Prüfung, eine Abstimmung, ein Deployment-Fenster) oder den du dir selbst blockst. Outlook öffnet sich mit dem fertigen Termin; der Nutzer prüft und sendet ihn.",
       fields: {
@@ -78,10 +79,10 @@ export const OUTLOOK_CALENDAR_ACTIONS = [
             body: str(o.body).slice(0, 4000),
           }
         : null,
-    title: (op) => `Termin: ${op.subject}`,
+    title: (op) => `Meeting: ${op.subject}`,
     note: (op) => ({
-      heading: `Termin in Outlook${op.attendees ? ` mit ${op.attendees.replace(/;/g, ", ")}` : ""}`,
-      detail: `${new Date(op.start).toLocaleString("de-DE", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · ${op.minutes} min · „${op.subject}“`,
+      heading: `Meeting in Outlook${op.attendees ? ` with ${op.attendees.replace(/;/g, ", ")}` : ""}`,
+      detail: `${formatDate(op.start)}, ${formatTime(op.start)} · ${op.minutes} min · “${op.subject}”`,
       body: op.body || null,
     }),
     href: (op) => `${OWA}/calendar/deeplink/compose?${q({ subject: op.subject, body: op.body, startdt: localIso(op.start), enddt: localIso(op.start, op.minutes), to: op.attendees })}`,

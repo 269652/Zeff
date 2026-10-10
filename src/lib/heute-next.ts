@@ -6,6 +6,8 @@
  * Pure: the page gathers, this ranks (tests/heute-next.test.ts).
  */
 
+import { formatHours, formatTime, roundQuarter } from "./format";
+
 export type NextTone = "red" | "amber" | "indigo" | "zinc";
 /** href "": nothing to open (a fact). */
 export type NextItem = { key: string; title: string; detail: string; href: string; tone: NextTone };
@@ -37,10 +39,10 @@ const midnight = (t: number) => {
 };
 /** Whole days from today (at `now`) to a YYYY-MM-DD — negative: past. */
 const daysTo = (day: string, now: number) => Math.round((new Date(`${day}T00:00:00`).getTime() - midnight(now)) / DAY);
-const clock = (t: number) => new Date(t).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 const since = (iso: string, now: number) => {
   const h = Math.floor((now - Date.parse(iso)) / 3600e3);
-  return h < 24 ? `seit ${Math.max(1, h)} Std.` : `seit ${Math.floor(h / 24)} T.`;
+  const days = Math.floor(h / 24);
+  return h < 24 ? `for ${Math.max(1, h)} h` : `for ${days} ${days === 1 ? "day" : "days"}`;
 };
 
 /** Ranked: lower first; within a rank, the earlier (or longer waiting) first. */
@@ -54,27 +56,27 @@ export function nextUp(input: NextInput, limit = 6): NextItem[] {
   for (const m of input.meetings) {
     const start = Date.parse(m.start);
     const end = Date.parse(m.end);
-    if (now >= start && now < end) add(0, start, { key: `m:${m.start}`, title: m.subject, detail: `läuft · bis ${clock(end)}`, href: "/calendar", tone: "red" });
-    else if (start > now && start - now <= 15 * 60e3) add(0, start, { key: `m:${m.start}`, title: m.subject, detail: `in ${Math.ceil((start - now) / 60e3)} Min.`, href: "/calendar", tone: "red" });
-    else if (start > now && start - now <= 60 * 60e3) add(4, start, { key: `m:${m.start}`, title: m.subject, detail: `um ${clock(start)}`, href: "/calendar", tone: "amber" });
+    if (now >= start && now < end) add(0, start, { key: `m:${m.start}`, title: m.subject, detail: `now · until ${formatTime(end)}`, href: "/calendar", tone: "red" });
+    else if (start > now && start - now <= 15 * 60e3) add(0, start, { key: `m:${m.start}`, title: m.subject, detail: `in ${Math.ceil((start - now) / 60e3)} min`, href: "/calendar", tone: "red" });
+    else if (start > now && start - now <= 60 * 60e3) add(4, start, { key: `m:${m.start}`, title: m.subject, detail: `at ${formatTime(start)}`, href: "/calendar", tone: "amber" });
   }
-  for (const t of input.asking) add(1, 0, { key: `a:${t.id}`, title: t.text, detail: `${t.ref} · ein Agent fragt dich`, href: todoHref(t), tone: "red" });
+  for (const t of input.asking) add(1, 0, { key: `a:${t.id}`, title: t.text, detail: `${t.ref} · an agent asks you`, href: todoHref(t), tone: "red" });
   const asked = new Set(input.asking.map((t) => t.id));
   for (const t of input.mine) {
     if (asked.has(t.id)) continue;
     const d = t.due ? daysTo(t.due, now) : null;
-    if (d !== null && d < 0) add(2, d, { key: `t:${t.id}`, title: t.text, detail: `${t.ref} · überfällig (${-d} T.)`, href: todoHref(t), tone: "red" });
-    else if (d === 0) add(3, 0, { key: `t:${t.id}`, title: t.text, detail: `${t.ref} · heute fällig`, href: todoHref(t), tone: "red" });
-    else if (d === 1) add(7, 1, { key: `t:${t.id}`, title: t.text, detail: `${t.ref} · morgen fällig`, href: todoHref(t), tone: "amber" });
-    else if (t.flaggedAt) add(7, 2, { key: `t:${t.id}`, title: t.text, detail: `${t.ref} · wichtig`, href: todoHref(t), tone: "amber" });
+    if (d !== null && d < 0) add(2, d, { key: `t:${t.id}`, title: t.text, detail: `${t.ref} · overdue (${-d} ${d === -1 ? "day" : "days"})`, href: todoHref(t), tone: "red" });
+    else if (d === 0) add(3, 0, { key: `t:${t.id}`, title: t.text, detail: `${t.ref} · due today`, href: todoHref(t), tone: "red" });
+    else if (d === 1) add(7, 1, { key: `t:${t.id}`, title: t.text, detail: `${t.ref} · due tomorrow`, href: todoHref(t), tone: "amber" });
+    else if (t.flaggedAt) add(7, 2, { key: `t:${t.id}`, title: t.text, detail: `${t.ref} · important`, href: todoHref(t), tone: "amber" });
   }
   // People waiting for your answer for four hours or more — the longest first.
   for (const w of input.unanswered) {
     if (now - Date.parse(w.since) < 4 * 3600e3) continue;
     add(5, Date.parse(w.since), {
       key: `w:${w.key}`,
-      title: `${w.who} antworten`,
-      detail: `${w.source} · ${w.count > 1 ? `${w.count} Nachrichten · ` : ""}${since(w.since, now)}`,
+      title: `Reply to ${w.who}`,
+      detail: `${w.source} · ${w.count > 1 ? `${w.count} messages · ` : ""}${since(w.since, now)}`,
       href: w.href,
       tone: now - Date.parse(w.since) >= DAY ? "amber" : "zinc",
     });
@@ -82,14 +84,14 @@ export function nextUp(input: NextInput, limit = 6): NextItem[] {
   // A date coming up (a birthday …) in the next seven days.
   for (const x of input.dates) {
     if (x.inDays < 0 || x.inDays > 7) continue;
-    add(6, x.inDays, { key: `d:${x.key}`, title: x.title, detail: x.inDays === 0 ? "heute" : x.inDays === 1 ? "morgen" : `in ${x.inDays} Tagen`, href: x.href, tone: x.inDays <= 1 ? "red" : "indigo" });
+    add(6, x.inDays, { key: `d:${x.key}`, title: x.title, detail: x.inDays === 0 ? "today" : x.inDays === 1 ? "tomorrow" : `in ${x.inDays} days`, href: x.href, tone: x.inDays <= 1 ? "red" : "indigo" });
   }
   // Late in the day with hours missing: book it.
   const hour = new Date(now).getHours();
   if (input.hours && hour >= 16 && input.hours.target > 0 && input.hours.booked < input.hours.target - 0.25)
-    add(8, 0, { key: "book", title: "Tag buchen", detail: `${fmt(input.hours.booked)} von ${fmt(input.hours.target)} Std. gebucht`, href: "/feierabend", tone: "indigo" });
+    add(8, 0, { key: "book", title: "Book the day", detail: `${fmt(input.hours.booked)} of ${fmt(input.hours.target)} h booked`, href: "/feierabend", tone: "indigo" });
 
-  for (const w of input.weeks ?? []) if (w.open > 0) add(8, 1, { key: `wk:${w.key}`, title: w.title, detail: `${w.open} ${w.open === 1 ? "Schritt" : "Schritte"} offen`, href: w.href, tone: "indigo" });
+  for (const w of input.weeks ?? []) if (w.open > 0) add(8, 1, { key: `wk:${w.key}`, title: w.title, detail: `${w.open} ${w.open === 1 ? "step" : "steps"} open`, href: w.href, tone: "indigo" });
 
   return out
     .sort((a, b) => a.rank - b.rank || a.at - b.at)
@@ -97,4 +99,4 @@ export function nextUp(input: NextInput, limit = 6): NextItem[] {
     .map((x) => x.item);
 }
 
-const fmt = (h: number) => (Math.round(h * 4) / 4).toLocaleString("de-DE", { maximumFractionDigits: 2 });
+const fmt = (h: number) => formatHours(roundQuarter(h));

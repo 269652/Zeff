@@ -6,12 +6,12 @@ export const syncSettings: PluginSyncSettings = {
   intervals: [
     {
       key: "calendar",
-      label: "Kalender",
-      what: "Deine Outlook-Termine, letzter Monat bis nächste Woche (nur gelesen).",
+      label: "Calendar",
+      what: "Your Outlook meetings, last month to next week (read only).",
       get: () => stepMinutes("calendar"),
       set: (m) => setStepMinutes("calendar", m),
       choices: MINUTE_CHOICES,
-      window: "solange der Automations-Chrome läuft",
+      window: "while the automation Chrome is running",
     },
   ],
 };

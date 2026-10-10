@@ -5,9 +5,10 @@ import { useState, useTransition } from "react";
 import { bookDayAction } from "@/app/actions";
 import type { DayRow } from "@/lib/feierabend";
 import { toast } from "./Toaster";
+import { formatHours } from "@/lib/format";
 
-const KIND_LABELS: Record<DayRow["kind"], string> = { meeting: "Termin", suggestion: "Vorschlag", ticket: "Ticket" };
-const fmt = (h: number) => h.toLocaleString("de-DE", { maximumFractionDigits: 2 });
+const KIND_LABELS: Record<DayRow["kind"], string> = { meeting: "Meeting", suggestion: "Suggestion", ticket: "Ticket" };
+const fmt = formatHours;
 
 /**
  * The day's proposal to take over: each line ticked or not, its hours, job and words to change —
@@ -36,7 +37,7 @@ export function FeierabendForm({ date, target, booked, rows: initial, jobs }: { 
         date,
         chosen.map((x) => ({ kind: x.kind, hours: x.hours ?? 0, jobNumber: x.jobNumber, description: x.description, ticket: x.ticket, externalId: x.externalId, suggestionId: x.suggestionId })),
       );
-      toast(r?.ok ? (r.message ?? "Gebucht.") : (r?.error ?? "Ging nicht."), { tone: r?.ok ? "ok" : "error" });
+      toast(r?.ok ? (r.message ?? "Booked.") : (r?.error ?? "Didn't work."), { tone: r?.ok ? "ok" : "error" });
       router.refresh();
     });
 
@@ -44,20 +45,20 @@ export function FeierabendForm({ date, target, booked, rows: initial, jobs }: { 
     <div className="space-y-4">
       <div className="card flex flex-wrap items-center gap-x-6 gap-y-2 p-4 text-sm">
         <span>
-          Gebucht <b className="tabular-nums">{fmt(booked)}</b> h
+          Booked <b className="tabular-nums">{fmt(booked)}</b> h
         </span>
         <span>
-          + ausgewählt <b className="tabular-nums">{fmt(sum)}</b> h
+          + selected <b className="tabular-nums">{fmt(sum)}</b> h
         </span>
         <span className={booked + sum >= target ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}>
-          = <b className="tabular-nums">{fmt(booked + sum)}</b> von {fmt(target)} h{missing ? ` — es fehlen ${fmt(missing)} h` : ""}
+          = <b className="tabular-nums">{fmt(booked + sum)}</b> of {fmt(target)} h{missing ? ` — ${fmt(missing)} h missing` : ""}
         </span>
         <span className="ml-auto flex gap-2">
-          <button type="button" className="btn btn-sm" disabled={pending || !missing || !rows.some((r) => r.include && r.kind === "ticket")} onClick={spread} title="Die fehlenden Stunden auf die angehakten Ticket-Zeilen ohne Stunden verteilen (Viertelstunden)">
-            Rest verteilen
+          <button type="button" className="btn btn-sm" disabled={pending || !missing || !rows.some((r) => r.include && r.kind === "ticket")} onClick={spread} title="Spread the missing hours over the ticked ticket rows without hours (in quarter hours)">
+            Spread the rest
           </button>
           <button type="button" className="btn btn-primary btn-sm" disabled={pending || !chosen.length || chosen.some((r) => !r.hours || (r.kind !== "suggestion" && !r.jobNumber))} onClick={book}>
-            {pending ? "Bucht…" : `${chosen.length} Zeile${chosen.length === 1 ? "" : "n"} buchen`}
+            {pending ? "Booking…" : `Book ${chosen.length} row${chosen.length === 1 ? "" : "s"}`}
           </button>
         </span>
       </div>
@@ -66,7 +67,7 @@ export function FeierabendForm({ date, target, booked, rows: initial, jobs }: { 
         <ul className="card divide-y divide-zinc-100 dark:divide-zinc-800">
           {rows.map((r) => (
             <li key={r.id} className={`flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5 ${r.include ? "" : "opacity-60"}`}>
-              <input type="checkbox" className="size-4" checked={r.include} onChange={(e) => set(r.id, { include: e.target.checked })} aria-label={`${r.description} buchen`} />
+              <input type="checkbox" className="size-4" checked={r.include} onChange={(e) => set(r.id, { include: e.target.checked })} aria-label={`Book ${r.description}`} />
               <span className="w-20 shrink-0 text-xs text-zinc-500">{KIND_LABELS[r.kind]}</span>
               <input
                 type="number"
@@ -76,14 +77,14 @@ export function FeierabendForm({ date, target, booked, rows: initial, jobs }: { 
                 className="input num w-20"
                 value={r.hours ?? ""}
                 placeholder="h"
-                aria-label="Stunden"
+                aria-label="Hours"
                 onChange={(e) => set(r.id, { hours: e.target.value === "" ? null : Number(e.target.value) })}
               />
               {r.kind === "suggestion" ? (
-                <span className="w-44 shrink-0 truncate text-xs text-zinc-500">{r.jobNumber || "Job des Vorschlags"}</span>
+                <span className="w-44 shrink-0 truncate text-xs text-zinc-500">{r.jobNumber || "The suggestion's job"}</span>
               ) : (
                 <select className="input w-44" value={r.jobNumber} aria-label="Job" onChange={(e) => set(r.id, { jobNumber: e.target.value })}>
-                  <option value="">Job wählen…</option>
+                  <option value="">Pick a job…</option>
                   {jobs.map((j) => (
                     <option key={j.number} value={j.number}>
                       {j.number} · {j.name}
@@ -91,7 +92,7 @@ export function FeierabendForm({ date, target, booked, rows: initial, jobs }: { 
                   ))}
                 </select>
               )}
-              <input className="input min-w-0 flex-1 basis-60" value={r.description} aria-label="Beschreibung" onChange={(e) => set(r.id, { description: e.target.value })} />
+              <input className="input min-w-0 flex-1 basis-60" value={r.description} aria-label="Description" onChange={(e) => set(r.id, { description: e.target.value })} />
               <span className="w-full pl-[7.5rem] text-xs text-zinc-400">
                 {r.ticket && <span className="font-mono">{r.ticket} · </span>}
                 {r.from}
@@ -100,7 +101,7 @@ export function FeierabendForm({ date, target, booked, rows: initial, jobs }: { 
           ))}
         </ul>
       ) : (
-        <p className="py-6 text-center text-sm text-zinc-500">Nichts vorzuschlagen — keine offenen Termine, Vorschläge oder bearbeiteten Tickets von heute.</p>
+        <p className="py-6 text-center text-sm text-zinc-500">Nothing to suggest — no open meetings, suggestions or tickets worked on today.</p>
       )}
     </div>
   );

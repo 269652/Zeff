@@ -122,7 +122,7 @@ export function relateKnowledge(): Promise<KnowledgeRelationResult> {
       }
     }
     emitChange("todos");
-    return failed && failed === batches.length ? { ok: false, todos: due.length, assigned, error: "Die KI hat nicht geantwortet." } : { ok: true, todos: due.length, assigned };
+    return failed && failed === batches.length ? { ok: false, todos: due.length, assigned, error: "The AI didn't answer." } : { ok: true, todos: due.length, assigned };
   })();
   state.__zeffKnowledgeRelations = run;
   void run.finally(() => {

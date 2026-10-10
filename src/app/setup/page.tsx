@@ -12,15 +12,15 @@ import { SyncSettingsList } from "@/components/SyncSettingsList";
 import { PLUGIN_CATEGORY_LABELS, PLUGINS, type PluginCategory } from "@/plugins/catalog";
 import { chosenPlugins, installedPlugins } from "@/plugins/state";
 
-export const metadata: Metadata = { title: "Einrichtung" };
+export const metadata: Metadata = { title: "Setup" };
 
 const STEPS = [
   { id: "plugins", label: "Plugins" },
-  { id: "configure", label: "Einrichten" },
+  { id: "configure", label: "Configure" },
   { id: "sync", label: "Syncs" },
-  { id: "logins", label: "Anmeldungen" },
-  { id: "data", label: "Daten holen & auswerten" },
-  { id: "done", label: "Fertig" },
+  { id: "logins", label: "Sign-ins" },
+  { id: "data", label: "Fetch & evaluate data" },
+  { id: "done", label: "Done" },
 ] as const;
 type StepId = (typeof STEPS)[number]["id"];
 
@@ -42,7 +42,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   return (
     <div className="page">
       <div className="page-aside">
-        <h1 className="text-lg font-semibold">{from ? `„${currentAccount().name}“ einrichten` : "Zeff einrichten"}</h1>
+        <h1 className="text-lg font-semibold">{from ? `Set up “${currentAccount().name}”` : "Set up Zeff"}</h1>
         <ol className="space-y-1 text-sm">
           {STEPS.map((s, i) => (
             <li key={s.id}>
@@ -54,27 +54,27 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
         </ol>
         <form action={skipSetupAction}>
           <button type="submit" className="text-xs text-zinc-400 hover:text-zinc-600 hover:underline">
-            Überspringen — später unter Menü → Plugins, Sync-Einstellungen, Anmeldungen
+            Skip — later under Menu → Plugins, Sync settings, Sign-ins
           </button>
         </form>
       </div>
 
       {from && step === "plugins" && (
         <section className="card border-indigo-200 bg-indigo-50 p-4 text-sm dark:border-indigo-900 dark:bg-indigo-950/40">
-          <p className="font-medium">Eine Kopie von „{from.name}“.</p>
+          <p className="font-medium">A copy of “{from.name}”.</p>
           <p className="text-zinc-600 dark:text-zinc-300">
-            Plugins, Einstellungen, Menü und Sync-Intervalle sind übernommen{from.sharedChrome ? `, die Anmeldungen auch (der Automations-Chrome von „${from.name}“)` : ""} — nur die Daten fehlen noch. Schau
-            durch, was du ändern willst, oder spring direkt weiter.
+            Plugins, settings, menu and sync intervals are taken over{from.sharedChrome ? `, the sign-ins too (the automation Chrome of “${from.name}”)` : ""} — only the data is still missing. Look
+            through what you want to change, or skip straight ahead.
           </p>
           <Link href={`/setup?step=${from.sharedChrome ? "data" : "logins"}`} className="btn btn-primary btn-sm mt-2">
-            {from.sharedChrome ? "Direkt: Daten holen & auswerten" : "Direkt: zu den Anmeldungen"}
+            {from.sharedChrome ? "Straight to: fetch & evaluate data" : "Straight to: the sign-ins"}
           </Link>
         </section>
       )}
 
       {step === "plugins" && (
         <>
-          <p className="text-sm text-zinc-600 dark:text-zinc-300">Was soll Zeff können, womit verbunden sein? Installier, was du brauchst — das geht später jederzeit unter Menü → Plugins.</p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-300">What should Zeff do, and what should it connect to? Install what you need — you can change it any time later under Menu → Plugins.</p>
           {(Object.keys(PLUGIN_CATEGORY_LABELS) as PluginCategory[]).map((c) => {
             const list = PLUGINS.filter((p) => p.category === c);
             return list.length ? (
@@ -86,7 +86,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
                       <div className="min-w-0 flex-1">
                         <div className="font-medium">{p.name}</div>
                         <p className="text-sm text-zinc-500">{p.description}</p>
-                        {p.requires && <p className="text-xs text-zinc-400">Braucht: {p.requires}</p>}
+                        {p.requires && <p className="text-xs text-zinc-400">Needs: {p.requires}</p>}
                       </div>
                       <PluginInstallButton id={p.id} installed={set.has(p.id)} />
                     </li>
@@ -100,7 +100,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
 
       {step === "configure" && (
         <>
-          <p className="text-sm text-zinc-600 dark:text-zinc-300">Die installierten Plugins mit Einstellungen — geh sie durch (jede öffnet sich in einem neuen Tab), dann weiter.</p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-300">The installed plugins with settings — go through them (each opens in a new tab), then continue.</p>
           <ul className="card divide-y divide-zinc-100 dark:divide-zinc-800">
             {PLUGINS.filter((p) => on.has(p.id) && p.settings).map((p) => (
               <li key={p.id} className="flex items-center gap-4 px-4 py-3">
@@ -109,18 +109,18 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
                   <p className="text-sm text-zinc-500">{p.settings!.what}</p>
                 </div>
                 <a href={p.settings!.href} target="_blank" rel="noreferrer" className="btn btn-sm">
-                  Einstellungen
+                  Settings
                 </a>
               </li>
             ))}
-            {!PLUGINS.some((p) => on.has(p.id) && p.settings) && <li className="px-4 py-3 text-sm text-zinc-500">Keins der installierten Plugins braucht Einstellungen.</li>}
+            {!PLUGINS.some((p) => on.has(p.id) && p.settings) && <li className="px-4 py-3 text-sm text-zinc-500">None of the installed plugins needs settings.</li>}
           </ul>
         </>
       )}
 
       {step === "sync" && (
         <>
-          <p className="text-sm text-zinc-600 dark:text-zinc-300">Wie oft jeder Sync von selbst läuft — die Vorgaben passen meist; später unter Menü → Sync-Einstellungen.</p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-300">How often each sync runs by itself — the defaults usually fit; later under Menu → Sync settings.</p>
           <SyncSettingsList />
         </>
       )}
@@ -129,7 +129,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
         <>
           <section className="space-y-2 text-sm">
             <p className="text-zinc-600 dark:text-zinc-300">
-              Melde dich bei den Diensten an, die die Plugins lesen — im Automations-Chrome dieses Kontos{from?.sharedChrome ? ` (dem von „${from.name}“: dort ist schon angemeldet — „Alle prüfen“ zeigt es)` : ""}. „Anmelden“ holt die Seite dort nach vorne; anmelden tust du dich selbst, dann „Prüfen“.
+              Sign in to the services the plugins read — in this account&apos;s automation Chrome{from?.sharedChrome ? ` (the one of “${from.name}”: you're signed in there already — “Check all” shows it)` : ""}. “Sign in” brings the site to the front there; you sign in yourself, then “Check”.
             </p>
             <CheckAllLoginsButton />
           </section>
@@ -139,18 +139,18 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
 
       {step === "data" && (
         <>
-          <p className="text-sm text-zinc-600 dark:text-zinc-300">Jetzt holt Zeff alles, was die Plugins lesen — Tickets, Mails, Chats, Kalender, Buchungen … — und wertet es zum ersten Mal aus: die Ticket-Lage mit ihren Todos.</p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-300">Now Zeff fetches everything the plugins read — tickets, mails, chats, calendars, entries… — and evaluates it for the first time: the briefing with its todos.</p>
           <SetupDataRun next="/setup?step=done" />
         </>
       )}
 
       {step === "done" && (
         <section className="card space-y-3 p-4 text-sm">
-          <p className="font-medium">Fertig eingerichtet.</p>
-          <p className="text-zinc-600 dark:text-zinc-300">Die Syncs laufen ab jetzt von selbst (Menü → Sync-Einstellungen); „Jetzt auswerten“ unter Todos holt eine neue Lage. Ändern lässt sich alles später unter Menü → Plugins.</p>
+          <p className="font-medium">All set up.</p>
+          <p className="text-zinc-600 dark:text-zinc-300">From now on the syncs run by themselves (Menu → Sync settings); a new briefing can be run any time on the Todos tab. Everything can be changed later under Menu → Plugins.</p>
           <form action={finishSetupAction}>
             <button type="submit" className="btn btn-primary btn-sm">
-              Zu den Todos
+              To the todos
             </button>
           </form>
         </section>
@@ -159,7 +159,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
       {next && step !== "data" && step !== "done" && (
         <div className="flex justify-end">
           <Link href={`/setup?step=${next.id}`} className="btn btn-primary btn-sm">
-            Weiter: {next.label}
+            Next: {next.label}
           </Link>
         </div>
       )}

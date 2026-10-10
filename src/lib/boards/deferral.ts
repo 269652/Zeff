@@ -7,7 +7,7 @@ const DOWN_DAYS = 3;
 
 // When and from whom: the same for every kind of source (Jira, Teams, GitLab, mail).
 const sourceAt = (s: TodoSource) => entityWhoWhen(s).at ?? "";
-const sourceWho = (s: TodoSource) => entityWhoWhen(s).author ?? "jemandem";
+const sourceWho = (s: TodoSource) => entityWhoWhen(s).author ?? "someone";
 const time = (at: string) => Date.parse(at && !at.includes("T") ? `${at.replace(" ", "T")}Z` : at);
 
 /**
@@ -25,13 +25,13 @@ export function deferral(list: TodoView[]): Record<number, { deferred: boolean; 
       .filter((s) => time(sourceAt(s)) > since)
       .sort((a, b) => time(sourceAt(b)) - time(sourceAt(a)))[0];
     const why = t.needsInput
-      ? "ein Agent fragt dich"
+      ? "an agent asks you"
       : fresh
-        ? `neu von ${sourceWho(fresh)}`
+        ? `new from ${sourceWho(fresh)}`
         : t.userNotes.some((n) => time(n.at) > since)
-          ? `neue Notiz${t.userNotes.findLast((n) => time(n.at) > since)?.by ? ` von ${t.userNotes.findLast((n) => time(n.at) > since)!.by}` : ""}`
+          ? `new note${t.userNotes.findLast((n) => time(n.at) > since)?.by ? ` from ${t.userNotes.findLast((n) => time(n.at) > since)!.by}` : ""}`
           : Date.now() - since > DOWN_DAYS * 864e5
-            ? `seit ${DOWN_DAYS} Tagen zurückgestellt`
+            ? `put down ${DOWN_DAYS} days ago`
             : undefined;
     out[t.id] = why ? { deferred: false, bubbledUp: why } : { deferred: true };
   }

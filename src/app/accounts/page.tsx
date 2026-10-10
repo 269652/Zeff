@@ -6,7 +6,7 @@ import { accountBusy } from "@/lib/accounts";
 import { isInstalled } from "@/plugins/state";
 import { AccountsManager } from "@/plugins/accounts/AccountsManager";
 
-export const metadata: Metadata = { title: "Konten" };
+export const metadata: Metadata = { title: "Accounts" };
 
 /**
  * Accounts (Accounts plugin): business and private, say — each with its own data, settings, AI
@@ -21,9 +21,9 @@ export default async function AccountsPage() {
   return (
     <div className="page">
       <div className="page-aside">
-        <h1 className="text-lg font-semibold">Konten</h1>
+        <h1 className="text-lg font-semibold">Accounts</h1>
         <p className="max-w-[75ch] text-sm text-zinc-500">
-          Jedes Konto ist ein Zeff für sich: eigene Buchungen, Todos und Mails, eigene Einstellungen, KI-Backends, LLM-Anweisungen und installierte Plugins. Ein neues kann die Einstellungen und Konfiguration eines anderen übernehmen — die Daten nicht. Backups laufen je Konto nach dessen Einstellungen, auch wenn du gerade in einem anderen bist.
+          Each account is a Zeff of its own: its own entries, todos and mails, its own settings, AI backends, LLM instructions and installed plugins. A new one can take over another&apos;s settings and configuration — not its data. Backups run per account by its own settings, even while you&apos;re in another one.
         </p>
       </div>
       <AccountsManager accounts={accounts} busy={accountBusy()} />

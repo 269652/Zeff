@@ -60,9 +60,9 @@ export function AttentionBar({ items }: { items: Attention[] }) {
           type="button"
           className="text-xs text-indigo-600 hover:underline dark:text-indigo-400"
           onClick={() => void Notification.requestPermission().then(() => window.dispatchEvent(new Event(PERMISSION_EVENT)))}
-          title="Zeff meldet sich per Browser-Benachrichtigung, wenn es dich braucht (eine Anmeldung, die Frage eines Agenten) — solange ein Zeff-Tab offen ist"
+          title="Zeff sends a browser notification when it needs you (a sign-in, an agent's question) — as long as a Zeff tab is open"
         >
-          🔔 Benachrichtigungen aktivieren — Zeff meldet sich, wenn es dich braucht
+          🔔 Turn on notifications — Zeff lets you know when it needs you
         </button>
       )}
     </div>
@@ -74,7 +74,7 @@ function AttentionRow({ a }: { a: Attention }) {
   const act = (fn: () => Promise<{ ok: boolean; error?: string; message?: string } | null | undefined>) =>
     start(async () => {
       const r = await fn();
-      if (!r?.ok) toast(r?.error ?? "Ging nicht.", { tone: "error" });
+      if (!r?.ok) toast(r?.error ?? "Didn't work.", { tone: "error" });
       else if (r.message) toast(r.message);
     });
   return (
@@ -85,20 +85,20 @@ function AttentionRow({ a }: { a: Attention }) {
       </span>
       {a.kind === "login" && a.service && (
         <span className="flex shrink-0 gap-1.5">
-          <button type="button" className="btn btn-sm btn-primary" disabled={pending} onClick={() => act(() => openServiceLoginAction(a.service!))} title="Die Seite im Automation-Chrome nach vorne holen (oder öffnen) — dort meldest du dich selbst an">
-            Anmeldung öffnen
+          <button type="button" className="btn btn-sm btn-primary" disabled={pending} onClick={() => act(() => openServiceLoginAction(a.service!))} title="Bring the page to the front in the automation Chrome (or open it) — you sign in there yourself">
+            Open sign-in
           </button>
-          <button type="button" className="btn btn-sm" disabled={pending} onClick={() => act(() => retryServiceAction(a.service!))} title="Angemeldet? Dann jetzt noch einmal versuchen">
-            {pending ? "…" : "Erneut prüfen"}
+          <button type="button" className="btn btn-sm" disabled={pending} onClick={() => act(() => retryServiceAction(a.service!))} title="Signed in? Then try again now">
+            {pending ? "…" : "Check again"}
           </button>
-          <button type="button" className="btn btn-sm" disabled={pending} onClick={() => act(() => dismissAttentionAction(a.key))} title="Ausblenden, bis der Dienst wieder fragt">
-            Später
+          <button type="button" className="btn btn-sm" disabled={pending} onClick={() => act(() => dismissAttentionAction(a.key))} title="Hide until the service asks again">
+            Later
           </button>
         </span>
       )}
       {a.kind === "question" && a.href && (
         <Link href={a.href} className="btn btn-sm btn-primary shrink-0">
-          Ansehen
+          View
         </Link>
       )}
     </div>

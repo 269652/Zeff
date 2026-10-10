@@ -8,10 +8,11 @@ import { Markdown } from "./Markdown";
 import { ResolvedMark } from "./ResolvedMark";
 import { ResolveToggle } from "./ResolveToggle";
 import { useIsClient } from "./useIsClient";
+import { currentLocale, formatDate, formatDateTime, formatTime } from "@/lib/format";
 
-const when = (iso: string) => new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const when = (iso: string) => formatDateTime(iso);
 const full = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  `${formatDate(iso, { year: true })}, ${formatTime(iso)}`;
 
 /**
  * The synced Teams messages these links point at, by link — looked up once per link (links
@@ -91,7 +92,7 @@ export function TeamsMessageBadge({
         target="_blank"
         rel="noreferrer"
         className="flex shrink-0 items-center px-2 text-violet-700 transition hover:bg-violet-100 dark:text-violet-300 dark:hover:bg-violet-950"
-        title={`Open in Teams: ${m.senderName ?? "message"}${m.place ? ` in ${m.place}` : ""}, ${new Date(m.sentAt).toLocaleString()}`}
+        title={`Open in Teams: ${m.senderName ?? "message"}${m.place ? ` in ${m.place}` : ""}, ${new Date(m.sentAt).toLocaleString(currentLocale())}`}
         aria-label="Open in Teams"
       >
         ↗

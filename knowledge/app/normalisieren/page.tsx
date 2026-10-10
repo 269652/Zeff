@@ -3,15 +3,16 @@ import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
+import { formatDateTime } from "@/lib/format";
 import { compileRunning } from "@k/compile";
 import { counts, getSettings, saveSettings } from "@k/db";
 import { styleOf } from "@k/graph-style";
 import { applyAll, applyProposal, normalizeEntities, normalizeProgress, normalizeRunning, pendingProposals, recentMerges, rejectProposal, stopNormalize } from "@k/normalize";
 import { Refresh } from "./Refresh";
 
-export const metadata: Metadata = { title: "Normalisieren" };
+export const metadata: Metadata = { title: "Normalize" };
 
-const day = (iso: string) => new Date(iso).toLocaleString("de-DE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const day = (iso: string) => formatDateTime(iso);
 
 /**
  * Normalizing the entities: the AI finds the ones that are the same ("Moritz Roessler", "Moritz",
@@ -72,47 +73,47 @@ export default async function NormalizePage({ searchParams }: { searchParams: Pr
     <>
       <Refresh running={running} />
       <div>
-        <h1 className="text-lg font-semibold">Entitäten normalisieren</h1>
+        <h1 className="text-lg font-semibold">Normalize entities</h1>
         <p className="max-w-[75ch] text-sm text-zinc-500">
-          Beim Kompilieren entsteht pro Name eine Entität — dieselbe Person steht so oft mehrfach im{" "}
+          Compiling makes one entity per name — so the same person often shows up several times in the{" "}
           <Link href="/graph" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            Graphen
+            graph
           </Link>{" "}
-          („Moritz Roessler“, „Moritz“, „Verfasser“), dasselbe System in mehreren Schreibweisen. Die KI sucht unter den {c.entities} Entitäten, was wirklich dasselbe ist, und schlägt vor, es zusammenzuführen: Seiten und Beziehungen gehen auf die eine über, die
-          anderen Namen werden ihre Aliase — und neues Kompilieren findet sie unter ihnen wieder.
+          (“Moritz Roessler”, “Moritz”, “Verfasser”), the same system in several spellings. The AI looks through the {c.entities} entities for what really is the same and proposes merging it: pages and relations move to the one, the
+          other names become its aliases — and new compiling finds it under them again.
         </p>
       </div>
-      {done === "owner" && <p className="alert-ok">Gespeichert ✓</p>}
-      {done && /^\d+$/.test(done) && <p className="alert-ok">{done} Zusammenführungen übernommen ✓</p>}
+      {done === "owner" && <p className="alert-ok">Saved ✓</p>}
+      {done && /^\d+$/.test(done) && <p className="alert-ok">{done} merges applied ✓</p>}
 
       <section className="card space-y-3 p-4">
         <form action={owner} className="flex flex-wrap items-end gap-2">
           <label className="block min-w-64 flex-1 text-sm">
-            <span className="label">Wem gehört diese Wissensbasis?</span>
-            <input name="owner" defaultValue={s.owner} placeholder="Dein Name, z. B. Moritz Roessler — „Ich“, „Verfasser“, „Autor“ meinen dann dich" className="input" />
+            <span className="label">Whose knowledge base is this?</span>
+            <input name="owner" defaultValue={s.owner} placeholder="Your name, e.g. Moritz Roessler — “I”, “author” (or “Ich”, “Verfasser”) then mean you" className="input" />
           </label>
-          <button className="btn">Speichern</button>
+          <button className="btn">Save</button>
         </form>
         {running ? (
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm">
               <span className="mr-2 inline-block size-2 animate-pulse rounded-full bg-amber-500" />
-              Normalisiert … {normalizeProgress()}
+              Normalizing … {normalizeProgress()}
             </span>
             <form action={stop}>
-              <button className="btn btn-sm">Anhalten</button>
+              <button className="btn btn-sm">Stop</button>
             </form>
           </div>
         ) : (
           <form action={start} className="flex flex-wrap items-center gap-3">
             <button className="btn btn-primary" disabled={compileRunning()}>
-              Normalisierung starten
+              Start normalizing
             </button>
             <label className="flex items-center gap-1.5 text-sm text-zinc-600 dark:text-zinc-300">
               <input type="checkbox" name="apply" value="1" />
-              Vorschläge gleich übernehmen
+              Apply suggestions right away
             </label>
-            <span className="text-xs text-zinc-500">{compileRunning() ? "Es wird gerade kompiliert — danach." : "Einige KI-Aufrufe (Kompilier-Backend), je nach Größe ein paar Minuten."}</span>
+            <span className="text-xs text-zinc-500">{compileRunning() ? "Compiling right now — afterwards." : "A few AI calls (the compile backend), a few minutes depending on size."}</span>
           </form>
         )}
       </section>
@@ -120,12 +121,12 @@ export default async function NormalizePage({ searchParams }: { searchParams: Pr
       {proposals.length > 0 && (
         <section className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-sm font-semibold text-zinc-500 uppercase">{proposals.length} Vorschläge</h2>
+            <h2 className="text-sm font-semibold text-zinc-500 uppercase">{proposals.length} suggestions</h2>
             <form action={takeAll} className="ml-auto">
-              <button className="btn btn-primary btn-sm">Alle übernehmen</button>
+              <button className="btn btn-primary btn-sm">Apply all</button>
             </form>
             <form action={rejectAll}>
-              <button className="btn btn-sm">Alle verwerfen</button>
+              <button className="btn btn-sm">Dismiss all</button>
             </form>
           </div>
           <ul className="space-y-2">
@@ -136,7 +137,7 @@ export default async function NormalizePage({ searchParams }: { searchParams: Pr
                     <Link
                       key={m.id}
                       href={`/graph?e=${m.id}`}
-                      title={`${styleOf(m.type).label} · ${m.pages} Seiten${m.summary ? ` — ${m.summary}` : ""}`}
+                      title={`${styleOf(m.type).label} · ${m.pages} pages${m.summary ? ` — ${m.summary}` : ""}`}
                       className={`flex items-center gap-1 rounded-full border px-2 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 ${m.id === p.keepId ? "border-zinc-500 font-medium" : "border-zinc-200 dark:border-zinc-700"}`}
                     >
                       <span className="size-2 rounded-full" style={{ background: styleOf(m.type).color }} />
@@ -150,16 +151,16 @@ export default async function NormalizePage({ searchParams }: { searchParams: Pr
                   <form action={take} className="flex flex-1 flex-wrap items-center gap-2">
                     <input type="hidden" name="id" value={p.id} />
                     <span className="text-xs text-zinc-500">→</span>
-                    <input name="name" defaultValue={p.name} aria-label="Name der zusammengeführten Entität" className="input min-w-48 flex-1 py-1 text-sm" />
+                    <input name="name" defaultValue={p.name} aria-label="Name of the merged entity" className="input min-w-48 flex-1 py-1 text-sm" />
                     <span className="flex items-center gap-1 text-xs text-zinc-500">
                       <span className="size-2 rounded-full" style={{ background: styleOf(p.type).color }} />
                       {styleOf(p.type).label}
                     </span>
-                    <button className="btn btn-primary btn-sm">Übernehmen</button>
+                    <button className="btn btn-primary btn-sm">Apply</button>
                   </form>
                   <form action={reject}>
                     <input type="hidden" name="id" value={p.id} />
-                    <button className="btn btn-sm">Verwerfen</button>
+                    <button className="btn btn-sm">Dismiss</button>
                   </form>
                 </div>
               </li>
@@ -167,11 +168,11 @@ export default async function NormalizePage({ searchParams }: { searchParams: Pr
           </ul>
         </section>
       )}
-      {!running && !proposals.length && <p className="text-sm text-zinc-500">Keine Vorschläge offen{merges.length ? "" : " — starte eine Normalisierung"}.</p>}
+      {!running && !proposals.length && <p className="text-sm text-zinc-500">No open suggestions{merges.length ? "" : " — start normalizing"}.</p>}
 
       {merges.length > 0 && (
         <section className="card p-4">
-          <h2 className="mb-2 text-sm font-semibold text-zinc-500 uppercase">Zuletzt zusammengeführt</h2>
+          <h2 className="mb-2 text-sm font-semibold text-zinc-500 uppercase">Merged lately</h2>
           <ul className="space-y-1 text-sm">
             {merges.map((m, i) => (
               <li key={i} className="flex flex-wrap items-baseline gap-x-2">

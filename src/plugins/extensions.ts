@@ -44,4 +44,4 @@ export const extensionOfAction = (type: string) => EXTENSIONS.find((e) => e.acti
 export const extensionNeeds = (e: Extension): PluginId[] => [...new Set([e.by, e.for, ...(e.requires ?? [])])];
 
 /** "von Google Keep" — or "von Google Keep, braucht LLM" when it needs more. */
-export const extensionOrigin = (e: Extension) => `von ${pluginById(e.by).name}${e.requires?.length ? `, braucht ${e.requires.map((r) => pluginById(r).name).join(", ")}` : ""}`;
+export const extensionOrigin = (e: Extension) => `from ${pluginById(e.by).name}${e.requires?.length ? `, needs ${e.requires.map((r) => pluginById(r).name).join(", ")}` : ""}`;

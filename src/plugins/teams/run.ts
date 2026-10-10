@@ -1,5 +1,6 @@
 /** The Teams plugin's action, run: a 1:1 message through the Teams driver in the automation Chrome. Server only. */
 import type { TodoOp } from "@/lib/boards/shared";
+import { formatDateTime } from "@/lib/format";
 import { resultToPayload, runStdioSession } from "@/lib/jira/mcp-client";
 import { saveTeamsMessages, type TeamsMessageInput } from "@/lib/teams/store";
 import { automationEnv, driverPath } from "../drivers";
@@ -21,10 +22,10 @@ export async function runTeamsMessage(op: Extract<TodoOp, { type: "teams-message
       const r = await sendTeamsMessage(op.to, op.body);
       // The sent message kept (its link, a badge) and named on the todo — so it's known it went out.
       if (r.message) saveTeamsMessages([r.message]);
-      const at = new Date(r.message?.sentAt ?? Date.now()).toLocaleString("de-DE", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
+      const at = formatDateTime(r.message?.sentAt ?? Date.now());
       return {
-        what: `Teams-Nachricht an ${r.to} gesendet${r.newChat ? " (neuer Chat)" : ""}${r.message ? `: ${r.message.link}` : ""}${r.away ? ` — Hinweis: ${r.away}` : ""}`,
+        what: `Teams message sent to ${r.to}${r.newChat ? " (new chat)" : ""}${r.message ? `: ${r.message.link}` : ""}${r.away ? ` — note: ${r.away}` : ""}`,
         ref: r.message ? `teams:${r.message.key}` : undefined,
-        todoNote: `Teams-Nachricht an ${r.to} gesendet am ${at}${r.away ? ` (${r.away})` : ""}.`,
+        todoNote: `Teams message sent to ${r.to} on ${at}${r.away ? ` (${r.away})` : ""}.`,
       };
     }

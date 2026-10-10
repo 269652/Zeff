@@ -15,12 +15,12 @@ export function PluginExtensions({ rows }: { rows: ExtensionRow[] }) {
   const toggle = (r: ExtensionRow, on: boolean) =>
     start(async () => {
       const res = await setExtensionInstalledAction(r.id, on);
-      toast(res.ok ? (res.message ?? "") : (res.error ?? "Ging nicht."), { tone: res.ok ? "ok" : "error" });
+      toast(res.ok ? (res.message ?? "") : (res.error ?? "Didn't work."), { tone: res.ok ? "ok" : "error" });
       router.refresh();
     });
   return (
     <div className="space-y-1.5 border-t border-zinc-100 pt-2 dark:border-zinc-800">
-      <p className="text-xs font-medium text-zinc-500">Erweiterungen</p>
+      <p className="text-xs font-medium text-zinc-500">Extensions</p>
       <ul className="space-y-1.5">
         {rows.map((r) => (
           <li key={r.id} className={`flex items-start gap-2 text-sm ${r.available ? "" : "opacity-60"}`}>
@@ -35,7 +35,7 @@ export function PluginExtensions({ rows }: { rows: ExtensionRow[] }) {
             <span>
               <span className="font-medium">{r.name}</span> <span className="text-xs text-zinc-400">{r.origin}{r.defaultInstalled ? " · Standard" : ""}</span>
               <span className="block text-xs text-zinc-500">{r.description}</span>
-              {!r.available && <span className="block text-xs text-amber-700 dark:text-amber-400">Erscheint, sobald installiert: {r.missing.join(", ")}</span>}
+              {!r.available && <span className="block text-xs text-amber-700 dark:text-amber-400">Appears once installed: {r.missing.join(", ")}</span>}
             </span>
           </li>
         ))}

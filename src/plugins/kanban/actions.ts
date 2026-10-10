@@ -12,7 +12,7 @@ type Result = { ok: boolean; error?: string; message?: string; id?: number };
 
 async function act(fn: () => unknown, message?: string): Promise<Result> {
   try {
-    if (!isInstalled("kanban")) return { ok: false, error: "Kanban ist nicht installiert (Menü → Plugins)." };
+    if (!isInstalled("kanban")) return { ok: false, error: "Kanban is not installed (Menu → Plugins)." };
     const r = fn();
     revalidatePath("/kanban", "layout");
     return { ok: true, message, ...(typeof r === "number" ? { id: r } : {}) };
@@ -33,12 +33,12 @@ export async function createBoardAction(v: { name: string; description?: string;
           .map((c) => c.trim())
           .filter(Boolean),
       }),
-    "Board angelegt.",
+    "Board created.",
   );
 }
 
 export async function updateBoardAction(id: number, patch: { name?: string; description?: string; color?: string; archived?: boolean; inLage?: boolean }): Promise<Result> {
-  return act(() => store.updateBoard(Number(id), patch), patch.archived ? "Board archiviert." : patch.archived === false ? "Board zurückgeholt." : "Gespeichert.");
+  return act(() => store.updateBoard(Number(id), patch), patch.archived ? "Board archived." : patch.archived === false ? "Board restored." : "Saved.");
 }
 
 export async function moveBoardAction(id: number, dir: -1 | 1): Promise<Result> {
@@ -46,7 +46,7 @@ export async function moveBoardAction(id: number, dir: -1 | 1): Promise<Result> 
 }
 
 export async function deleteBoardAction(id: number): Promise<Result> {
-  return act(() => store.deleteBoard(Number(id)), "Board gelöscht.");
+  return act(() => store.deleteBoard(Number(id)), "Board deleted.");
 }
 
 export async function addColumnAction(boardId: number, name: string): Promise<Result> {
@@ -87,9 +87,9 @@ export async function moveCardAction(id: number, columnId: number, before: numbe
 }
 
 export async function archiveCardAction(id: number): Promise<Result> {
-  return act(() => store.archiveCard(Number(id)), "Karte archiviert.");
+  return act(() => store.archiveCard(Number(id)), "Card archived.");
 }
 
 export async function deleteCardAction(id: number): Promise<Result> {
-  return act(() => store.deleteCard(Number(id)), "Karte gelöscht.");
+  return act(() => store.deleteCard(Number(id)), "Card deleted.");
 }

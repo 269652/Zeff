@@ -1,15 +1,16 @@
 import Link from "next/link";
 import type { WorkRunBrief } from "@/lib/entities-shared";
 import { ChevronIcon, SparkIcon } from "./icons";
+import { formatDateTime, formatTime } from "@/lib/format";
 
-const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "?");
-const time = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "…");
+const when = (iso: string | null) => (iso ? formatDateTime(iso) : "?");
+const time = (iso: string | null) => (iso ? formatTime(iso) : "…");
 
 const CARD = "space-y-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-900";
 const INNER = "flex min-w-0 flex-1 items-center gap-2 py-1 pr-2 pl-1.5 text-left";
 const BADGE = "flex min-w-0 items-stretch overflow-hidden rounded-md border border-violet-200 bg-violet-50 text-xs text-violet-950 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-100";
 
-const OUTCOME: Record<string, string> = { done: "fertig", partial: "teilweise", blocked: "blockiert" };
+const OUTCOME: Record<string, string> = { done: "done", partial: "partly", blocked: "blocked" };
 
 /** A run (an agent's, a worker's) as a badge: who, when, how long, its line. With `onToggle` it unfolds. */
 export function WorkRunBadge({ r, className = "", expanded = false, onToggle }: { r: WorkRunBrief; className?: string; expanded?: boolean; onToggle?: () => void }) {
@@ -31,13 +32,13 @@ export function WorkRunBadge({ r, className = "", expanded = false, onToggle }: 
   return (
     <div className={`${BADGE} ${className}`}>
       {onToggle ? (
-        <button type="button" className={`${INNER} cursor-pointer transition hover:bg-violet-100 dark:hover:bg-violet-950`} onClick={onToggle} aria-expanded={expanded} title={expanded ? "Fold" : "Den Bericht zeigen"}>
+        <button type="button" className={`${INNER} cursor-pointer transition hover:bg-violet-100 dark:hover:bg-violet-950`} onClick={onToggle} aria-expanded={expanded} title={expanded ? "Fold" : "Show the report"}>
           {body}
         </button>
       ) : (
         <span className={INNER}>{body}</span>
       )}
-      <Link href={`/work#w-${r.id}`} className="flex shrink-0 items-center px-2 text-violet-700 transition hover:bg-violet-100 dark:text-violet-300 dark:hover:bg-violet-950" title="Den Lauf auf dem Work-Tab öffnen">
+      <Link href={`/work#w-${r.id}`} className="flex shrink-0 items-center px-2 text-violet-700 transition hover:bg-violet-100 dark:text-violet-300 dark:hover:bg-violet-950" title="Open the run on the Work tab">
         ↗
       </Link>
     </div>
@@ -54,7 +55,7 @@ export function WorkRunDetails({ r }: { r: WorkRunBrief }) {
           {r.todoId ? (
             <>
               {" "}
-              an{" "}
+              on{" "}
               <Link href={`/t/${r.todoId}`} className="font-mono text-indigo-600 hover:underline dark:text-indigo-400">
                 T-{r.todoId}
               </Link>

@@ -13,10 +13,10 @@ export function SetupGate({ pending, allowed, account, children }: { pending: bo
   return (
     <div className="flex min-h-full items-center justify-center p-6">
       <section className="max-w-md space-y-4 text-center">
-        <h1 className="text-2xl font-bold tracking-tight">{account ? `„${account}“ ist neu` : "Willkommen bei Zeff"}</h1>
-        <p className="text-sm text-zinc-500">Der Einrichtungs-Assistent führt durch Plugins, Einstellungen und Anmeldungen — und holt am Ende alle Daten und wertet sie zum ersten Mal aus.</p>
+        <h1 className="text-2xl font-bold tracking-tight">{account ? `“${account}” is new` : "Welcome to Zeff"}</h1>
+        <p className="text-sm text-zinc-500">The setup assistant walks you through plugins, settings and sign-ins — and at the end fetches all data and runs the AI steps on it for the first time.</p>
         <Link href="/setup" className="btn btn-primary">
-          Einrichtung starten
+          Start setup
         </Link>
       </section>
     </div>

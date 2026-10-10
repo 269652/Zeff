@@ -24,6 +24,7 @@ import { DragGrip, ExpandableSource, SourceBadge, SourceDetails } from "./Source
 import { PencilIcon, TrashIcon } from "./icons";
 import { TicketLink } from "./TicketLink";
 import { reorderClasses, type ReorderRow } from "./useReorder";
+import { formatDateTime } from "@/lib/format";
 
 const KIND_STYLE = CONTEXT_KIND_STYLE;
 
@@ -42,7 +43,7 @@ const TICKET_CHIP =
 function JiraState({ item, ticketUrl, short = false }: { item: ContextItem; ticketUrl?: string | null; short?: boolean }) {
   const state = jiraSyncState(item);
   if (state === "no-ticket") return null;
-  const at = item.jiraSyncedAt ? new Date(item.jiraSyncedAt).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+  const at = item.jiraSyncedAt ? formatDateTime(item.jiraSyncedAt) : "";
   if (state !== "synced") {
     return (
       <ContextSyncButton

@@ -7,11 +7,11 @@ export const syncSettings: PluginSyncSettings = {
     {
       key: "gcalendar",
       label: "Google Calendar",
-      what: "Deine Google-Kalender — die Wochenansicht wird in einem neuen Tab gelesen, Woche für Woche, der Tab wieder geschlossen. In Google ändert sich nichts.",
+      what: "Your Google calendars — the week view is read in a new tab, week by week, then the tab is closed again. Nothing changes in Google.",
       get: () => stepMinutes("gcalendar"),
       set: (m) => setStepMinutes("gcalendar", m),
       choices: MINUTE_CHOICES,
-      window: "solange der Automations-Chrome läuft",
+      window: "while the automation Chrome is running",
     },
   ],
 };

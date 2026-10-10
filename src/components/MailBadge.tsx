@@ -1,8 +1,9 @@
 import { mailSender, type MailView } from "@/lib/mail/shared";
 import { ChevronIcon } from "./icons";
 import { ResolvedMark } from "./ResolvedMark";
+import { formatDateTime } from "@/lib/format";
 
-const when = (iso: string) => new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const when = (iso: string) => formatDateTime(iso);
 
 /** "Mail", or "WhatsApp" for a chat's message (the mail sync reads those too). */
 const kindOf = (m: Pick<MailView, "folder">) => (m.folder === "WhatsApp" ? "WhatsApp" : "Mail");
@@ -62,12 +63,12 @@ export function MailDetails({ m }: { m: MailView }) {
   return (
     <div className={CARD}>
       <div className="flex items-center justify-between gap-2 text-xs text-zinc-500">
-        <span>{kindOf(m)} · {when(m.receivedAt)}{m.unread ? " · ungelesen" : ""}</span>
+        <span>{kindOf(m)} · {when(m.receivedAt)}{m.unread ? " · unread" : ""}</span>
         <span title={m.fromEmail ?? undefined}>{mailSender(m)}</span>
       </div>
       <p className="font-medium text-zinc-800 dark:text-zinc-100">{m.subject}</p>
-      <p className="leading-relaxed whitespace-pre-line text-zinc-700 dark:text-zinc-300">{m.preview || "(kein Text in der Vorschau)"}</p>
-      <p className="text-xs text-zinc-400">{m.folder === "WhatsApp" ? "Die letzte Nachricht des Chats, wie WhatsApps Chatliste sie zeigt — der Verlauf in WhatsApp." : "Die ersten Zeilen, wie die Liste sie zeigt — die ganze Mail im Postfach."}</p>
+      <p className="leading-relaxed whitespace-pre-line text-zinc-700 dark:text-zinc-300">{m.preview || "(no text in the preview)"}</p>
+      <p className="text-xs text-zinc-400">{m.folder === "WhatsApp" ? "The chat's last message, as WhatsApp's chat list shows it — the history is in WhatsApp." : "The first lines, as the list shows them — the whole mail is in the mailbox."}</p>
     </div>
   );
 }

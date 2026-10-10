@@ -34,8 +34,8 @@ test("calendar model: own and source calendars, ranges, busy times", async () =>
   assert.equal(ir.eventsBetween("2026-10-12", "2026-10-13", { visible: true }).length, 0);
   assert.equal(ir.busyBetween(new Date("2026-10-12T00:00:00"), new Date("2026-10-13T00:00:00")).length, 1);
 
-  assert.throws(() => ir.deleteCalendar(g.id), /Nur Zeffs eigene/);
-  assert.throws(() => ir.addEvent(g.id, { title: "x", start: "2026-10-12T10:00", end: "2026-10-12T11:00" }), /nur in Zeffs eigenen/);
+  assert.throws(() => ir.deleteCalendar(g.id), /Only Zeff's own calendars/);
+  assert.throws(() => ir.addEvent(g.id, { title: "x", start: "2026-10-12T10:00", end: "2026-10-12T11:00" }), /only be created in Zeff's own/);
 });
 
 /** Outlook's record goes into the model and comes back unchanged (booking reads it Outlook's way). */

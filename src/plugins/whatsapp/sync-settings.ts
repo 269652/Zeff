@@ -8,11 +8,11 @@ export const syncSettings: PluginSyncSettings = {
     {
       key: "whatsapp",
       label: "WhatsApp",
-      what: "Die letzte Nachricht jedes Chats — aus WhatsApp Webs Chatliste, kein Chat geöffnet. Je öfter, desto weniger Nachrichten gehen zwischen zwei Syncs unter.",
+      what: "The last message of every chat — from WhatsApp Web's chat list, no chat opened. The more often, the fewer messages get lost between two syncs.",
       get: () => stepMinutes("whatsapp"),
       set: (m) => setStepMinutes("whatsapp", m),
       choices: MINUTE_CHOICES,
-      window: "solange der Automations-Chrome läuft",
+      window: "while the automation Chrome is running",
     },
   ],
   follows: MAIL_FOLLOWERS,

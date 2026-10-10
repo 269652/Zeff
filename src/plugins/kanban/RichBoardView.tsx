@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CloseIcon } from "@/components/icons";
+import { formatAgo, formatDateTime } from "@/lib/format";
 import { BoardLageButton } from "@/plugins/jira-lage/BoardLageButton";
 import { BoardFrame, COLUMN } from "./BoardFrame";
 import { initials, NOBODY, PersonChips, peopleOf } from "./PersonChips";
@@ -33,8 +34,7 @@ const ago = (iso: string | null) => {
   // Jira's "+0200" as "+02:00" (what Date understands).
   const t = Date.parse(iso.replace(/([+-]\d{2})(\d{2})$/, "$1:$2"));
   if (Number.isNaN(t)) return "";
-  const d = (Date.now() - t) / 864e5;
-  return d < 1 ? "heute" : d < 2 ? "gestern" : d < 30 ? `vor ${Math.floor(d)} T.` : new Date(t).toLocaleDateString("de-DE", { day: "numeric", month: "short" });
+  return formatAgo(t);
 };
 
 /** A ticket's card: the Lage's headline, the newest happening, its todos and flags at a glance. */
@@ -73,9 +73,9 @@ function Card({ c, onOpen }: { c: RichCard; onOpen: () => void }) {
       {(c.todos.length > 0 || c.flags.length > 0 || c.actions.length > 0) && (
         <span className="mt-1.5 flex flex-wrap gap-1 text-[11px]">
           {c.todos.length > 0 && (
-            <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300" title="Offene Todos">
+            <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300" title="Open todos">
               ☐ {c.todos.length}
-              {mine && mine < c.todos.length ? ` (${mine} meins)` : ""}
+              {mine && mine < c.todos.length ? ` (${mine} mine)` : ""}
             </span>
           )}
           {c.actions.length > 0 && <span className="rounded bg-violet-50 px-1.5 py-0.5 text-violet-700 dark:bg-violet-950 dark:text-violet-300">⚡ {c.actions.length}</span>}
@@ -113,7 +113,7 @@ function Panel({ c, onClose }: { c: RichCard; onClose: () => void }) {
             )}
             {c.attentionLabel && <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${tone?.badge ?? ""}`}>{c.attentionLabel}</span>}
           </span>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Schließen" title="Schließen (Esc)">
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close" title="Close (Esc)">
             <CloseIcon />
           </button>
         </div>
@@ -121,15 +121,15 @@ function Panel({ c, onClose }: { c: RichCard; onClose: () => void }) {
           <div>
             <h2 className="text-base font-semibold">{c.title}</h2>
             <p className="text-xs text-zinc-500">
-              {[c.assignee && `Zuständig: ${c.assignee}`, c.updatedAt && `geändert ${ago(c.updatedAt)}`, ...c.badges.map((b) => b.text)].filter(Boolean).join(" · ")}
+              {[c.assignee && `Assignee: ${c.assignee}`, c.updatedAt && `changed ${ago(c.updatedAt)}`, ...c.badges.map((b) => b.text)].filter(Boolean).join(" · ")}
             </p>
           </div>
-          {c.noLage && <p className="rounded-md bg-zinc-100 px-3 py-2 text-xs text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">Nicht im Lage-Lauf — nur, was Jira sagt.</p>}
+          {c.noLage && <p className="rounded-md bg-zinc-100 px-3 py-2 text-xs text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">Not in the briefing run — only what Jira says.</p>}
           {c.lead && <p className="font-medium">{c.lead}</p>}
           {c.summary && <p className="whitespace-pre-line text-zinc-700 dark:text-zinc-300">{c.summary}</p>}
           {c.activity.length > 0 && (
             <section>
-              <h3 className="label">Was passiert ist</h3>
+              <h3 className="label">What happened</h3>
               <ol className="space-y-1">
                 {c.activity.map((a, i) => (
                   <li key={i} className="text-xs">
@@ -145,14 +145,14 @@ function Panel({ c, onClose }: { c: RichCard; onClose: () => void }) {
           )}
           {c.todos.length > 0 && (
             <section>
-              <h3 className="label">Offene Todos</h3>
+              <h3 className="label">Open todos</h3>
               <ul className="space-y-1">
                 {c.todos.map((t) => (
                   <li key={t.id} className="text-xs">
                     <Link href={`/t/${t.id}`} className="font-mono text-indigo-600 hover:underline dark:text-indigo-400">
                       T-{t.id}
                     </Link>{" "}
-                    {t.owner === "other" && <span className="text-zinc-500">(wartet auf andere) </span>}
+                    {t.owner === "other" && <span className="text-zinc-500">(waiting on others) </span>}
                     {t.text}
                   </li>
                 ))}
@@ -161,7 +161,7 @@ function Panel({ c, onClose }: { c: RichCard; onClose: () => void }) {
           )}
           {c.actions.length > 0 && (
             <section>
-              <h3 className="label">Vorgeschlagene Aktionen</h3>
+              <h3 className="label">Suggested actions</h3>
               <ul className="space-y-1">
                 {c.actions.map((a, i) => (
                   <li key={i} className="rounded border border-violet-200 bg-violet-50 px-2 py-1 text-xs dark:border-violet-900 dark:bg-violet-950/40">
@@ -169,7 +169,7 @@ function Panel({ c, onClose }: { c: RichCard; onClose: () => void }) {
                   </li>
                 ))}
               </ul>
-              <p className="mt-1 text-[11px] text-zinc-500">Ausführen im Todos-Tab.</p>
+              <p className="mt-1 text-[11px] text-zinc-500">Run them in the Todos tab.</p>
             </section>
           )}
           {c.flags.length > 0 && (
@@ -184,7 +184,7 @@ function Panel({ c, onClose }: { c: RichCard; onClose: () => void }) {
           )}
           {c.people.length > 0 && (
             <section>
-              <h3 className="label">Beteiligt</h3>
+              <h3 className="label">Involved</h3>
               <p className="text-xs text-zinc-600 dark:text-zinc-400">{c.people.join(", ")}</p>
             </section>
           )}
@@ -227,27 +227,27 @@ export function RichBoardView({ board }: { board: RichBoard }) {
               <p className="mt-1 text-sm text-zinc-500">{board.description}</p>
               {board.lageAt && (
                 <p className="text-xs text-zinc-500">
-                  Lage vom {new Date(board.lageAt.replace(" ", "T") + (board.lageAt.includes("Z") || board.lageAt.includes("+") ? "" : "Z")).toLocaleString("de-DE", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  Briefing of {formatDateTime(new Date(board.lageAt.replace(" ", "T") + (board.lageAt.includes("Z") || board.lageAt.includes("+") ? "" : "Z")))}
                 </p>
               )}
               {board.error && <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{board.error}</p>}
             </div>
             {board.boardLage && <BoardLageButton state={board.boardLage} />}
             <div className="space-y-2 text-sm">
-              <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Karten filtern …" aria-label="Karten filtern" />
+              <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter cards …" aria-label="Filter cards" />
               <label className="flex items-center gap-1.5">
-                <input type="checkbox" checked={onlyLage} onChange={(e) => setOnlyLage(e.target.checked)} className="accent-indigo-600" /> mit Lage
+                <input type="checkbox" checked={onlyLage} onChange={(e) => setOnlyLage(e.target.checked)} className="accent-indigo-600" /> with a briefing
               </label>
               <label className="flex items-center gap-1.5">
-                <input type="checkbox" checked={onlyTodos} onChange={(e) => setOnlyTodos(e.target.checked)} className="accent-indigo-600" /> mit Todos
+                <input type="checkbox" checked={onlyTodos} onChange={(e) => setOnlyTodos(e.target.checked)} className="accent-indigo-600" /> with todos
               </label>
               <label className="flex items-center gap-1.5">
-                <input type="checkbox" checked={hideEmpty} onChange={(e) => setHideEmpty(e.target.checked)} className="accent-indigo-600" /> leere Spalten ausblenden
+                <input type="checkbox" checked={hideEmpty} onChange={(e) => setHideEmpty(e.target.checked)} className="accent-indigo-600" /> hide empty columns
               </label>
-              <p className="text-xs text-zinc-500">{total} Karten</p>
+              <p className="text-xs text-zinc-500">{total} cards</p>
             </div>
             <div className="space-y-1.5">
-              <h2 className="label">Personen</h2>
+              <h2 className="label">People</h2>
               <PersonChips
                 people={peopleOf(board.columns.flatMap((c) => c.cards.map((x) => x.assignee)))}
                 selected={persons}
@@ -264,7 +264,7 @@ export function RichBoardView({ board }: { board: RichBoard }) {
             </div>
             {board.lede && (
               <details className="card p-3 text-sm">
-                <summary className="cursor-pointer font-medium">Die Lage insgesamt</summary>
+                <summary className="cursor-pointer font-medium">The briefing overall</summary>
                 <p className="mt-2 whitespace-pre-line text-zinc-700 dark:text-zinc-300">{board.lede}</p>
               </details>
             )}

@@ -5,7 +5,7 @@
 
 export const PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 export type Priority = (typeof PRIORITIES)[number];
-export const PRIORITY_LABELS: Record<Priority, string> = { low: "Niedrig", normal: "Normal", high: "Hoch", urgent: "Dringend" };
+export const PRIORITY_LABELS: Record<Priority, string> = { low: "Low", normal: "Normal", high: "High", urgent: "Urgent" };
 export const isPriority = (v: unknown): v is Priority => (PRIORITIES as readonly unknown[]).includes(v);
 
 export const BOARD_COLORS = ["indigo", "emerald", "amber", "rose", "sky", "violet", "zinc"] as const;

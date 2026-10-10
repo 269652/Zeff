@@ -12,7 +12,7 @@ export type DayRow = {
   jobNumber: string;
   description: string;
   ticket: string | null;
-  /** Where it comes from, for the line ("10:00–11:00 · Teams", "S-12 · Claude", "T-4 erledigt, Worker 45 min"). */
+  /** Where it comes from, for the line ("10:00–11:00 · Teams", "S-12 · Claude", "1 todo done, Worker 45 min"). */
   from: string;
   /** A meeting's id (no double import), a suggestion's id. */
   externalId?: string;
@@ -90,7 +90,7 @@ export async function proposeDay(now = new Date()): Promise<DayProposal> {
       if (bookedTickets.has(ticket) || suggested.has(ticket)) continue;
       const hours = g.ms ? quarter(g.ms / 3600000) : null;
       const description = (g.lines[0] ?? g.texts[0] ?? "").replace(/\s+/g, " ").slice(0, 120);
-      const from = [g.texts.length && `${g.texts.length} Todo${g.texts.length > 1 ? "s" : ""} erledigt`, g.ms && `Worker ${Math.round(g.ms / 60000)} min`].filter(Boolean).join(", ");
+      const from = [g.texts.length && `${g.texts.length} todo${g.texts.length > 1 ? "s" : ""} done`, g.ms && `Worker ${Math.round(g.ms / 60000)} min`].filter(Boolean).join(", ");
       rows.push({ id: `t:${ticket}`, kind: "ticket", include: !!hours, hours, jobNumber: getJobNumberForTicket(ticket) ?? "", description, ticket, from });
     }
   }
@@ -101,10 +101,10 @@ export async function proposeDay(now = new Date()): Promise<DayProposal> {
 /** A line to book, as you left it on the Feierabend page. */
 export type DayBooking = { kind: DayRow["kind"]; hours: number; jobNumber: string; description: string; ticket: string | null; externalId?: string; suggestionId?: number };
 
-/** Who books: as on your last booking by hand (else "Ich"). */
+/** Who books: as on your last booking by hand (else "Me"). */
 function reporter(): string {
   const r = getDb().select({ by: schema.timeEntries.reportedBy }).from(schema.timeEntries).where(eq(schema.timeEntries.source, "web")).orderBy(desc(schema.timeEntries.id)).limit(1).get();
-  return r?.by && r.by !== "unknown" ? r.by : "Ich";
+  return r?.by && r.by !== "unknown" ? r.by : "Me";
 }
 
 /**
@@ -118,15 +118,15 @@ export async function bookDay(date: string, rows: DayBooking[]): Promise<{ booke
   const by = reporter();
   const out = { booked: 0, hours: 0, skipped: 0, errors: [] as string[] };
   for (const r of rows) {
-    const what = r.description || r.ticket || "Zeile";
+    const what = r.description || r.ticket || "Line";
     try {
       const hours = Math.round(Number(r.hours) * 100) / 100;
-      if (!(hours > 0) || hours > 24) throw new Error("Stunden: mehr als 0, höchstens 24.");
+      if (!(hours > 0) || hours > 24) throw new Error("Hours: more than 0, at most 24.");
       if (r.kind === "suggestion" && r.suggestionId) acceptSuggestion(r.suggestionId, { hours, description: r.description });
       else {
-        if (!r.jobNumber) throw new Error("Kein Job gewählt.");
+        if (!r.jobNumber) throw new Error("No job chosen.");
         createEntry(
-          { jobNumber: r.jobNumber, date, hours, description: r.description || r.ticket || "Termin", ticket: r.ticket ?? undefined, reportedBy: by },
+          { jobNumber: r.jobNumber, date, hours, description: r.description || r.ticket || "Meeting", ticket: r.ticket ?? undefined, reportedBy: by },
           r.kind === "meeting" ? "calendar" : "web",
           r.kind === "meeting" && r.externalId ? { externalId: r.externalId } : {},
         );

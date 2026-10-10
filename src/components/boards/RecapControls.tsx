@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { startRecapAction } from "@/plugins/todos/server-actions";
 
-const PHASES: Record<string, string> = { gather: "sammelt den Tag", ai: "schreibt", saving: "speichert" };
+const PHASES: Record<string, string> = { gather: "gathering the day", ai: "writing", saving: "saving" };
 
 const sinceText = (since: number) => {
   const s = Math.max(0, Math.round((Date.now() - since) / 1000));
@@ -33,7 +33,7 @@ export function RecapControls({ day, running, phase, since, provider, again }: {
       {running && (
         <span className="inline-flex items-center gap-2 text-sm text-zinc-500" role="status">
           <span className="size-2 animate-pulse rounded-full bg-indigo-500" aria-hidden />
-          {since ? sinceText(since) : ""} · {phase === "ai" ? `${provider} ${PHASES.ai}` : (PHASES[phase ?? ""] ?? "läuft")}
+          {since ? sinceText(since) : ""} · {phase === "ai" ? `${provider} ${PHASES.ai}` : (PHASES[phase ?? ""] ?? "running")}
         </span>
       )}
       <button
@@ -44,13 +44,13 @@ export function RecapControls({ day, running, phase, since, provider, again }: {
           start(async () => {
             setError(null);
             const r = await startRecapAction(day);
-            if (r && !r.ok) setError(r.error ?? "Ging nicht.");
+            if (r && !r.ok) setError(r.error ?? "Didn't work.");
             router.refresh();
           })
         }
-        title="Sammelt, was du an dem Tag gemacht hast (Buchungen, Todos, Worker, Jira, Commits, GitLab), und lässt die KI aus den Einstellungen es zusammenfassen"
+        title="Gathers what you did that day (entries, todos, workers, Jira, commits, GitLab) and has the AI from the settings summarize it"
       >
-        {running || pending ? "Läuft…" : again ? "Neu zusammenfassen" : "Zusammenfassen"}
+        {running || pending ? "Running…" : again ? "Summarize again" : "Summarize"}
       </button>
       {error && <span className="text-sm text-red-600 dark:text-red-400">{error}</span>}
     </div>

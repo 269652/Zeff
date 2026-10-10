@@ -37,11 +37,11 @@ test("what's next is ranked by how pressing it is", () => {
   );
   assert.deepEqual(
     items.map((i) => i.title),
-    ["Daily", "Welche Datenbank nehmen?", "Angebot schicken", "Rechnung prüfen", "Abnahme", "Anna antworten", "Nadines Geburtstag", "Folien vorbereiten", "Tag buchen"],
+    ["Daily", "Welche Datenbank nehmen?", "Angebot schicken", "Rechnung prüfen", "Abnahme", "Reply to Anna", "Nadines Geburtstag", "Folien vorbereiten", "Book the day"],
   );
-  assert.equal(items[0].detail, "läuft · bis 16:45");
-  assert.equal(items.find((i) => i.title === "Anna antworten")?.detail, "WhatsApp · 2 Nachrichten · seit 8 Std.");
-  assert.equal(items.find((i) => i.title === "Tag buchen")?.detail, "5 von 8 Std. gebucht");
+  assert.equal(items[0].detail, "now · until 16:45");
+  assert.equal(items.find((i) => i.title === "Reply to Anna")?.detail, "WhatsApp · 2 messages · for 8 h");
+  assert.equal(items.find((i) => i.title === "Book the day")?.detail, "5 of 8 h booked");
 });
 
 test("a short list: the top ones; nothing pressing, nothing shown", () => {
@@ -52,9 +52,9 @@ test("a short list: the top ones; nothing pressing, nothing shown", () => {
 });
 
 test("a week with steps left is to close — after the day's booking", () => {
-  const items = nextUp({ ...base, hours: { booked: 5, target: 8 }, weeks: [{ key: "2026-W42", title: "Woche abschließen (KW 42)", open: 3, href: "/?week=2026-W42" }, { key: "2026-W41", title: "Letzte Woche abschließen (KW 41)", open: 0, href: "/?week=2026-W41" }] });
+  const items = nextUp({ ...base, hours: { booked: 5, target: 8 }, weeks: [{ key: "2026-W42", title: "Close the week (W42)", open: 3, href: "/?week=2026-W42" }, { key: "2026-W41", title: "Close last week (W41)", open: 0, href: "/?week=2026-W41" }] });
   assert.deepEqual(
     items.map((i) => `${i.title} · ${i.detail}`),
-    ["Tag buchen · 5 von 8 Std. gebucht", "Woche abschließen (KW 42) · 3 Schritte offen"],
+    ["Book the day · 5 of 8 h booked", "Close the week (W42) · 3 steps open"],
   );
 });

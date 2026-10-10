@@ -7,11 +7,11 @@ export const syncSettings: PluginSyncSettings = {
     {
       key: "teams",
       label: "Teams",
-      what: "Deine Erwähnungen, 1:1-Nachrichten und die letzten Tage deiner Chats — aus Teams Web im Automations-Chrome.",
+      what: "Your mentions, 1:1 messages and the last few days of your chats — from Teams Web in the automation Chrome.",
       get: () => getTeamsSettings().syncMinutes,
       set: (m) => updateTeamsSettings({ syncMinutes: m }),
       choices: MINUTE_CHOICES,
-      window: "solange der Automations-Chrome läuft",
+      window: "while the automation Chrome is running",
     },
   ],
 };

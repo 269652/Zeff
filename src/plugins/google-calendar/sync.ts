@@ -62,7 +62,7 @@ export async function syncGoogleCalendar({ background = false } = {}): Promise<{
       );
     }
     clearAttention("login:gcalendar");
-    return { ok: true, message: `${events} Termine in ${data.calendars.length} Kalendern${data.unparsed ? ` · ${data.unparsed} nicht lesbar` : ""}` };
+    return { ok: true, message: `${events} events in ${data.calendars.length} calendars${data.unparsed ? ` · ${data.unparsed} unreadable` : ""}` };
   } catch (e) {
     const message = errorMessage(e).slice(0, 300);
     if (needsSignIn(message) || /sign[- ]in|anmeld|not signed/i.test(message)) raiseLogin("gcalendar", message);

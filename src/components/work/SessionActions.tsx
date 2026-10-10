@@ -15,15 +15,15 @@ export function StopSessionButton({ runId }: { runId: number }) {
       className="btn btn-sm btn-danger"
       disabled={pending}
       onClick={() =>
-        confirm("Session abbrechen?") &&
+        confirm("Cancel the session?") &&
         start(async () => {
           const r = await cancelWorkAction(runId);
-          if (!r?.ok) toast(r?.error ?? "Ging nicht.", { tone: "error" });
+          if (!r?.ok) toast(r?.error ?? "Didn't work.", { tone: "error" });
           router.refresh();
         })
       }
     >
-      Abbrechen
+      Cancel
     </button>
   );
 }
@@ -44,9 +44,9 @@ export function TodoSessionButton({ todoId }: { todoId: number }) {
           router.push(`/work?run=${r.runId}`);
         })
       }
-      title="Ein Worker übernimmt dieses Todo (in einer eigenen Session)"
+      title="A worker takes over this todo (in a session of its own)"
     >
-      {pending ? "startet …" : "Session"}
+      {pending ? "starting…" : "Session"}
     </button>
   );
 }

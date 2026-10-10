@@ -14,14 +14,14 @@ import { pushTo } from "@/lib/collections";
 export type Origin = "lage" | "mail" | "notes" | "work" | "plan" | "agent" | "you" | "unknown";
 
 export const ORIGIN_LABELS: Record<Origin, string> = {
-  lage: "Ticket-Lage",
-  mail: "Mail- & Chat-Durchsicht",
-  notes: "Notiz-Durchsicht",
-  work: "Worker (Folgeschritte)",
-  plan: "Geplante Schritte",
-  agent: "Agenten (MCP)",
-  you: "Von dir",
-  unknown: "Unbekannt",
+  lage: "Briefing",
+  mail: "Mail & chat review",
+  notes: "Note review",
+  work: "Workers (follow-up steps)",
+  plan: "Planned steps",
+  agent: "Agents (MCP)",
+  you: "By you",
+  unknown: "Unknown",
 };
 
 /** The steps whose todos the AI proposes by itself (the others come from you, or follow from a todo you did). */
@@ -125,7 +125,7 @@ export function aiQuality(days: number | null, now = Date.now()): AiQuality {
   const out = order.filter((o) => byOrigin.has(o)).map((o) => tally(o, ORIGIN_LABELS[o], byOrigin.get(o)!));
   // Auto-Aktionen: the todos it put ready-made actions on (whoever made the todo).
   const auto = inWindow.filter((r) => r.auto_ops_why);
-  if (auto.length) out.push(tally("auto-actions", "Auto-Aktionen (Todos mit fertigen Aktionen)", auto));
+  if (auto.length) out.push(tally("auto-actions", "Auto actions (todos with ready-made actions)", auto));
 
   return { since, rows: out, repeats: repeats(rows, since) };
 }

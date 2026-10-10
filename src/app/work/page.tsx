@@ -28,12 +28,13 @@ import { NewSessionPane, SessionPane, TicketPane } from "@/components/work/Sessi
 import { sessionTickets } from "@/lib/work/sessions";
 import { getRun, toRunView } from "@/lib/work/store";
 import { listRepos } from "@/lib/repos";
+import { currentLocale } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Work" };
 
 const when = (iso: string | null) =>
   iso
-    ? new Date(iso).toLocaleString("en-GB", {
+    ? new Date(iso).toLocaleString(currentLocale(), {
         weekday: "short",
         day: "numeric",
         month: "short",
@@ -51,7 +52,7 @@ const when = (iso: string | null) =>
  */
 const TABS = [
   ["todos", "Todos"],
-  ["runs", "Läufe"],
+  ["runs", "Runs"],
   ["branches", "Branches"],
   ["settings", "Settings"],
 ] as const;
@@ -147,7 +148,7 @@ export default async function WorkPage({
                   .join("\n")}
               >
                 {" "}
-                · +{agents.length} extern (
+                · +{agents.length} external (
                 {[...new Set(agents.map((r) => r.model ?? "Agent"))].join(", ")}
                 )
               </span>
@@ -218,7 +219,7 @@ export default async function WorkPage({
 
           {!d.board && (
             <p className="card p-6 text-center text-sm text-zinc-500">
-              No Ticket-Lage yet — run it on the{" "}
+              No briefing yet — run it on the{" "}
               <Link
                 href="/todos"
                 className="text-indigo-600 hover:underline dark:text-indigo-400"
@@ -326,7 +327,7 @@ export default async function WorkPage({
                       <PersistedDetails
                         storageKey="work-waiting"
                         summaryClassName="text-xs font-semibold text-zinc-500 uppercase"
-                        summary={`Waiting for others (${waiting.length})`}
+                        summary={`Waiting on others (${waiting.length})`}
                       >
                         <ul className="mt-2 space-y-3">{waiting.map(item)}</ul>
                       </PersistedDetails>
@@ -336,7 +337,7 @@ export default async function WorkPage({
                         href="/todos?todos=done"
                         className="block text-xs text-zinc-400 hover:text-indigo-600 hover:underline dark:hover:text-indigo-400"
                       >
-                        {done.length} diese Woche erledigt →
+                        {done.length} done this week →
                       </Link>
                     )}
                   </div>
@@ -352,7 +353,7 @@ export default async function WorkPage({
             return keys.length > 0 ? (
               <details key="others" className="space-y-6">
                 <summary className="cursor-pointer text-sm font-semibold text-zinc-500 uppercase">
-                  Ohne Todos für dich ({keys.length})
+                  No todos for you ({keys.length})
                 </summary>
                 <div className="mt-3 space-y-6">{sections}</div>
               </details>
@@ -366,7 +367,7 @@ export default async function WorkPage({
         <>
           {d.history.length === 0 && (
             <p className="card p-6 text-center text-sm text-zinc-500">
-              Noch keine Läufe.
+              No runs yet.
             </p>
           )}
           {d.history.length > 0 && (

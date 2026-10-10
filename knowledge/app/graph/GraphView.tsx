@@ -55,7 +55,7 @@ export function GraphView({ data, initial, initialDetail, load }: { data: Compac
   const sizeRef = useRef({ w: 800, h: 600 });
   const frameRef = useRef(0);
   const fittedRef = useRef(false);
-  // The view moved by you (zoom, pan, a dot centred): no fitting by itself any more — until "Alles einpassen".
+  // The view moved by you (zoom, pan, a dot centred): no fitting by itself any more — until "Fit all".
   const touchedRef = useRef(false);
   const settlingRef = useRef(true);
   const detailRef = useRef<EntityDetail | null>(initialDetail);
@@ -372,7 +372,7 @@ export function GraphView({ data, initial, initialDetail, load }: { data: Compac
         const n = hit(p);
         const id = n?.id ?? null;
         canvas.style.cursor = n ? "pointer" : "grab";
-        canvas.title = n ? `${n.name} — ${styleOf(n.type).label}, ${n.degree} Beziehungen, ${n.pages} Seiten` : "";
+        canvas.title = n ? `${n.name} — ${styleOf(n.type).label}, ${n.degree} relations, ${n.pages} pages` : "";
         if (id !== hoverRef.current) {
           hoverRef.current = id;
           redraw();
@@ -465,7 +465,7 @@ export function GraphView({ data, initial, initialDetail, load }: { data: Compac
               find(query);
             }}
           >
-            <input list="graph-names" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Entität suchen …" className="input w-64" aria-label="Entität suchen" />
+            <input list="graph-names" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find an entity …" className="input w-64" aria-label="Find an entity" />
             <datalist id="graph-names">
               {all.nodes
                 .filter((n) => n.degree > 0)
@@ -475,25 +475,25 @@ export function GraphView({ data, initial, initialDetail, load }: { data: Compac
                   <option key={n.id} value={n.name} />
                 ))}
             </datalist>
-            <button className="btn">Finden</button>
+            <button className="btn">Find</button>
           </form>
           <button type="button" className="btn btn-sm" onClick={fit}>
-            Alles einpassen
+            Fit all
           </button>
           {focus && (
             <button type="button" className="btn btn-sm" onClick={() => setFocus(null)}>
-              Ganzen Graphen zeigen
+              Show the whole graph
             </button>
           )}
           <label className="flex items-center gap-1.5 text-xs text-zinc-500">
             <input type="checkbox" checked={isolated} onChange={(e) => setIsolated(e.target.checked)} />
-            Unverbundene ({all.nodes.filter((n) => n.degree === 0).length})
+            Unconnected ({all.nodes.filter((n) => n.degree === 0).length})
           </label>
           <span className="ml-auto text-xs text-zinc-500">
-            {visible.ids.size} Entitäten · {visible.links.length} Verbindungen{settling ? " · ordnet sich …" : ""}
+            {visible.ids.size} entities · {visible.links.length} links{settling ? " · settling …" : ""}
           </span>
         </div>
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Typen">
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Types">
           {all.types.map((t) => {
             const off = hidden.has(t);
             return (
@@ -503,7 +503,7 @@ export function GraphView({ data, initial, initialDetail, load }: { data: Compac
                 aria-pressed={!off}
                 onClick={() => setHidden((h) => (h.has(t) ? new Set([...h].filter((x) => x !== t)) : new Set([...h, t])))}
                 onDoubleClick={() => setHidden(new Set(all.types.filter((x) => x !== t)))}
-                title="Klick: ein-/ausblenden · Doppelklick: nur diesen Typ"
+                title="Click: show/hide · Double-click: only this type"
                 className={`flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs ${off ? "border-zinc-200 text-zinc-400 dark:border-zinc-800" : "border-zinc-300 dark:border-zinc-700"}`}
               >
                 <span className="size-2.5 rounded-full" style={{ background: styleOf(t).color, opacity: off ? 0.3 : 1 }} />
@@ -514,15 +514,15 @@ export function GraphView({ data, initial, initialDetail, load }: { data: Compac
         </div>
         <div ref={wrapRef} className="graph-canvas card relative h-[calc(100vh-15rem)] min-h-[420px] overflow-hidden p-0">
           <canvas ref={canvasRef} className="block touch-none text-zinc-900 dark:text-zinc-100" style={{ cursor: "grab" }} />
-          <p className="pointer-events-none absolute bottom-2 left-3 text-[11px] text-zinc-400">Mausrad: zoomen · Ziehen: verschieben · Klick: öffnen</p>
+          <p className="pointer-events-none absolute bottom-2 left-3 text-[11px] text-zinc-400">Mouse wheel: zoom · Drag: pan · Click: open</p>
         </div>
       </div>
 
       <aside className="w-full shrink-0 space-y-3 lg:w-96">
         {!sel ? (
           <div className="card space-y-2 p-4 text-sm text-zinc-500">
-            <p>Klick auf einen Punkt: was die Entität ist, mit wem sie wie verbunden ist, auf welchen Seiten sie steht.</p>
-            <p>Größere Punkte haben mehr Beziehungen. Die Farben sind die Typen — oben ein- und ausblendbar.</p>
+            <p>Click a dot: what the entity is, who it’s linked to and how, which pages it’s on.</p>
+            <p>Bigger dots have more relations. The colours are the types — shown and hidden at the top.</p>
           </div>
         ) : (
           <div className="card max-h-[calc(100vh-10rem)] space-y-3 overflow-x-hidden overflow-y-auto p-4 break-words">
@@ -531,31 +531,31 @@ export function GraphView({ data, initial, initialDetail, load }: { data: Compac
               <div className="min-w-0 flex-1">
                 <h2 className="font-semibold break-words">{sel.name}</h2>
                 <p className="text-xs text-zinc-500">
-                  {styleOf(sel.type).label} · {sel.degree} verbunden · {sel.pages} Seiten
+                  {styleOf(sel.type).label} · {sel.degree} linked · {sel.pages} pages
                 </p>
               </div>
-              <button type="button" className="icon-btn" aria-label="Schließen" onClick={() => select(null)}>
+              <button type="button" className="icon-btn" aria-label="Close" onClick={() => select(null)}>
                 ✕
               </button>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {[1, 2, 3].map((d) => (
                 <button key={d} type="button" className={`btn btn-sm ${focus?.id === sel.id && focus.depth === d ? "btn-primary" : ""}`} onClick={() => setFocus({ id: sel.id, depth: d })}>
-                  {d === 1 ? "Nur Nachbarn" : `${d} Schritte`}
+                  {d === 1 ? "Neighbours only" : `${d} steps`}
                 </button>
               ))}
               <button type="button" className="btn btn-sm" onClick={() => centerOn(sel.id)}>
-                Hinzoomen
+                Zoom in
               </button>
             </div>
-            {detail?.id !== sel.id && <p className="text-sm text-zinc-500">Lädt …</p>}
+            {detail?.id !== sel.id && <p className="text-sm text-zinc-500">Loading …</p>}
             {detail && detail.id === sel.id && (
               <>
                 {detail.summary && <p className="text-sm">{detail.summary}</p>}
-                {detail.aliases.length > 0 && <p className="text-xs text-zinc-500">Auch: {detail.aliases.join(", ")}</p>}
+                {detail.aliases.length > 0 && <p className="text-xs text-zinc-500">Also: {detail.aliases.join(", ")}</p>}
                 {grouped.length > 0 && (
                   <section className="space-y-1">
-                    <h3 className="text-xs font-semibold text-zinc-500 uppercase">Beziehungen ({detail.relations.length})</h3>
+                    <h3 className="text-xs font-semibold text-zinc-500 uppercase">Relations ({detail.relations.length})</h3>
                     <ul className="space-y-1 text-sm">
                       {grouped.map((g) => (
                         <li key={g.other.id}>
@@ -569,11 +569,11 @@ export function GraphView({ data, initial, initialDetail, load }: { data: Compac
                                 {r.dir === "out" ? `→ ${r.rel}` : `← ${r.rel}`}
                                 {r.fact ? ` — ${r.fact.length > 110 ? `${r.fact.slice(0, 109)}…` : r.fact}` : ""}{" "}
                                 <Link href={`/seite/${encodeURIComponent(r.pageId)}`} className="text-indigo-600 hover:underline dark:text-indigo-400">
-                                  Quelle
+                                  Source
                                 </Link>
                               </li>
                             ))}
-                            {g.items.length > 4 && <li>… und {g.items.length - 4} weitere</li>}
+                            {g.items.length > 4 && <li>… and {g.items.length - 4} more</li>}
                           </ul>
                         </li>
                       ))}
@@ -582,7 +582,7 @@ export function GraphView({ data, initial, initialDetail, load }: { data: Compac
                 )}
                 {detail.pages.length > 0 && (
                   <section className="space-y-1">
-                    <h3 className="text-xs font-semibold text-zinc-500 uppercase">Seiten ({detail.pages.length})</h3>
+                    <h3 className="text-xs font-semibold text-zinc-500 uppercase">Pages ({detail.pages.length})</h3>
                     <ul className="space-y-1.5 text-sm">
                       {detail.pages.map((p) => (
                         <li key={p.id}>

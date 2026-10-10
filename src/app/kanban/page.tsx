@@ -19,7 +19,7 @@ function BoardTile({ b }: { b: BoardSummary }) {
           <span className={`size-2.5 shrink-0 rounded-full ${boardDot(b.color)}`} aria-hidden />
           <span className="min-w-0 flex-1 truncate font-medium">{b.name}</span>
           <span className="text-xs text-zinc-500 tabular-nums">
-            {b.open} offen{b.cards !== b.open ? ` · ${b.cards}` : ""}
+            {b.open} open{b.cards !== b.open ? ` · ${b.cards}` : ""}
           </span>
         </span>
         {b.description && <span className="line-clamp-2 block text-sm text-zinc-500">{b.description}</span>}
@@ -40,13 +40,13 @@ export default async function KanbanPage() {
         <div className="flex items-baseline justify-between gap-3">
           <h1 className="text-lg font-semibold">Kanban</h1>
           <Link href="/kanban/settings" className="btn btn-sm">
-            Boards verwalten
+            Manage boards
           </Link>
         </div>
-        <p className="max-w-[75ch] text-sm text-zinc-500">Eigene Boards — für private Projekte oder eigene Arbeits-Boards —{others.length ? " und deine Jira-Boards mit der Lage je Ticket" : ""}.</p>
+        <p className="max-w-[75ch] text-sm text-zinc-500">Boards of your own — for private projects or your own work boards —{others.length ? " and your Jira boards with the briefing per ticket" : ""}.</p>
       </div>
       <section className="space-y-2">
-        <h2 className="text-sm font-semibold text-zinc-500 uppercase">Meine Boards</h2>
+        <h2 className="text-sm font-semibold text-zinc-500 uppercase">My boards</h2>
         {own.length ? (
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {own.map((b) => (
@@ -54,12 +54,12 @@ export default async function KanbanPage() {
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-zinc-500">Noch keins — leg unten eins an.</p>
+          <p className="text-sm text-zinc-500">None yet — create one below.</p>
         )}
       </section>
       {others.length > 0 && (
         <section className="space-y-2">
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Jira Lage</h2>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Jira briefing</h2>
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {others.map((b) => (
               <BoardTile key={b.id} b={b} />

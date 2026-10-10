@@ -3,12 +3,13 @@ import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
+import { formatDateTime } from "@/lib/format";
 import { listOwn, removeOwn, updateOwn } from "@k/own";
 import { AddKnowledgeForm, keepFromForm } from "../AddKnowledge";
 
-export const metadata: Metadata = { title: "Eigenes Wissen" };
+export const metadata: Metadata = { title: "Your knowledge" };
 
-const day = (iso: string | null) => (iso ? new Date(iso).toLocaleString("de-DE", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
+const day = (iso: string | null) => (iso ? formatDateTime(iso) : "");
 const back = (params: Record<string, string>) => `/eigenes?${new URLSearchParams(params)}`;
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e)).slice(0, 300);
 
@@ -47,18 +48,18 @@ export default async function OwnKnowledgePage({ searchParams }: { searchParams:
   return (
     <>
       <div>
-        <h1 className="text-lg font-semibold">Eigenes Wissen</h1>
+        <h1 className="text-lg font-semibold">Your knowledge</h1>
         <p className="max-w-[75ch] text-sm text-zinc-500">
-          Was du dir merken willst, ohne dass es aus einer Quelle kommt — ein Fakt, eine Notiz, wie etwas geht, oder ein Link (die Seite dahinter wird gelesen). Es wird kompiliert wie alles andere und steht dann in der Suche, im{" "}
+          What you want to keep without it coming from a source — a fact, a note, how something works, or a link (the page behind it is read). It’s compiled like everything else and then shows up in search, in the{" "}
           <Link href="/graph" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            Graphen
+            graph
           </Link>
-          , im Chat und für Agenten. Kein Lesen der Quellen löscht es.
+          , in the chat and for agents. No read of the sources deletes it.
         </p>
       </div>
       {sp.error && <p className="alert-error">{sp.error}</p>}
-      {sp.added && <p className="alert-ok">Gemerkt ✓ — wird kompiliert.</p>}
-      {sp.saved && <p className="alert-ok">Gespeichert ✓ — wird neu kompiliert.</p>}
+      {sp.added && <p className="alert-ok">Kept ✓ — compiling.</p>}
+      {sp.saved && <p className="alert-ok">Saved ✓ — recompiling.</p>}
 
       <section className="card p-4">
         <AddKnowledgeForm action={add} />
@@ -66,16 +67,16 @@ export default async function OwnKnowledgePage({ searchParams }: { searchParams:
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-zinc-500 uppercase">
-          {entries.length} {entries.length === 1 ? "Eintrag" : "Einträge"}
+          {entries.length} {entries.length === 1 ? "entry" : "entries"}
         </h2>
         {entries.map((e) => (
           <article key={e.id} id={e.id} className={`card space-y-2 p-4 ${sp.added === e.id || sp.saved === e.id ? "ring-2 ring-emerald-400/60" : ""}`}>
             <div className="flex flex-wrap items-baseline gap-2">
               <h3 className="font-medium">{e.title}</h3>
               <span className="text-xs text-zinc-400">{day(e.updatedAt)}</span>
-              <span className={`text-xs ${e.compiled ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>{e.compiled ? `kompiliert · ${e.entities} Entitäten` : "wird kompiliert …"}</span>
+              <span className={`text-xs ${e.compiled ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>{e.compiled ? `compiled · ${e.entities} entities` : "compiling …"}</span>
               <Link href={`/seite/${encodeURIComponent(e.id)}`} className="ml-auto text-xs text-indigo-600 hover:underline dark:text-indigo-400">
-                Ansehen →
+                View →
               </Link>
             </div>
             {e.summary && <p className="text-sm text-zinc-600 dark:text-zinc-300">{e.summary}</p>}
@@ -85,24 +86,24 @@ export default async function OwnKnowledgePage({ searchParams }: { searchParams:
               </a>
             )}
             <details open={sp.edit === e.id}>
-              <summary className="cursor-pointer text-xs text-zinc-500">Bearbeiten</summary>
+              <summary className="cursor-pointer text-xs text-zinc-500">Edit</summary>
               <form action={save} className="mt-2 space-y-2">
                 <input type="hidden" name="id" value={e.id} />
                 <input name="title" defaultValue={e.title} className="input" />
                 <textarea name="text" defaultValue={e.text} rows={Math.min(16, Math.max(4, e.text.split("\n").length + 1))} className="input resize-y font-mono text-xs" />
                 <input name="url" defaultValue={e.url} placeholder="Link (optional)" className="input text-xs" />
                 <div className="flex gap-2">
-                  <button className="btn btn-primary btn-sm">Speichern</button>
+                  <button className="btn btn-primary btn-sm">Save</button>
                 </div>
               </form>
               <form action={remove} className="mt-2">
                 <input type="hidden" name="id" value={e.id} />
-                <button className="btn btn-sm text-red-700 dark:text-red-400">Löschen</button>
+                <button className="btn btn-sm text-red-700 dark:text-red-400">Delete</button>
               </form>
             </details>
           </article>
         ))}
-        {!entries.length && <p className="text-sm text-zinc-500">Noch nichts — schreib oben, was du dir merken willst.</p>}
+        {!entries.length && <p className="text-sm text-zinc-500">Nothing yet — write above what you want to keep.</p>}
       </section>
     </>
   );

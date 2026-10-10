@@ -16,7 +16,7 @@ export async function GET() {
     __zeffPeopleDates?: { done: number; total: number } | null;
   };
   const busy: string[] = [];
-  if (g.__zeffBoardRun) busy.push(`Ticket-Lage run #${g.__zeffBoardRun.id} (${g.__zeffBoardRun.phase})`);
+  if (g.__zeffBoardRun) busy.push(`briefing run #${g.__zeffBoardRun.id} (${g.__zeffBoardRun.phase})`);
   for (const key of g.__zeffSyncs?.running ?? []) busy.push(`sync ${key}`);
   if (g.__zeffSyncs && g.__zeffSyncs.all !== undefined) busy.push("Sync all");
   if (g.__zeffBoardSync) busy.push(`Keep board sync (board ${g.__zeffBoardSync.boardId})`);

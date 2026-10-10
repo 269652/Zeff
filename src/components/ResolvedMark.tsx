@@ -3,7 +3,7 @@
  * its todo, or resolved in GitLab), a faint dashed circle while it's open.
  */
 export function ResolvedMark({ done, title }: { done: boolean; title?: string }) {
-  const label = title ?? (done ? "erledigt" : "offen");
+  const label = title ?? (done ? "done" : "open");
   return done ? (
     <svg viewBox="0 0 16 16" className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" role="img" aria-label={label}>
       <title>{label}</title>

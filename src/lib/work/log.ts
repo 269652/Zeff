@@ -205,7 +205,7 @@ export function runActions(runId: number): string[] {
   for (const line of raw.split(/\r?\n/)) {
     const tool = /^▸ (.+)$/.exec(line);
     if (tool) push(tool[1]);
-    else if (/^\s+✗ fehlgeschlagen/.test(line) && out.length) out[out.length - 1] = `${out[out.length - 1]} ✗`;
+    else if (/^\s+✗ (fehlgeschlagen|failed)/.test(line) && out.length) out[out.length - 1] = `${out[out.length - 1]} ✗`;
     else if (line.startsWith("[Du] ")) push(`Du: ${line.slice(5)}`);
     else if (line.startsWith("{")) {
       try {

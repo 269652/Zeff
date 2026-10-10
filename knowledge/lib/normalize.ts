@@ -258,7 +258,7 @@ export function normalizeEntities({ apply = false } = {}): Promise<NormalizeResu
     const runId = startRun("normalize");
     state.__knowledgeNormalizeStop = false;
     try {
-      if (compileRunning()) throw new Error("Es wird gerade kompiliert — danach normalisieren.");
+      if (compileRunning()) throw new Error("Compiling right now — normalize afterwards.");
       const all = entities();
       const byId = new Map(all.map((e) => [e.id, e]));
       const blocks = [...personBlocks(all), ...candidateBlocks(all)];
@@ -292,10 +292,10 @@ export function normalizeEntities({ apply = false } = {}): Promise<NormalizeResu
             console.warn(`[knowledge normalize] ${e instanceof Error ? e.message : String(e)}`);
           }
           done++;
-          state.__knowledgeNormalizeProgress = `${done} von ${work.length} Aufrufen · ${found.length} Zusammenführungen gefunden`;
+          state.__knowledgeNormalizeProgress = `${done} of ${work.length} calls · ${found.length} merges found`;
         }
       };
-      state.__knowledgeNormalizeProgress = `0 von ${work.length} Aufrufen (${blocks.reduce((n, b) => n + b.length, 0)} Kandidaten in ${blocks.length} Gruppen)`;
+      state.__knowledgeNormalizeProgress = `0 of ${work.length} calls (${blocks.reduce((n, b) => n + b.length, 0)} candidates in ${blocks.length} groups)`;
       await Promise.all(Array.from({ length: Math.min(PARALLEL, work.length) }, worker));
       const groups = consolidate(found, all).filter((g) => !rejected.some((x) => sameSet(x, g.ids) || g.ids.every((id) => x.includes(id))));
       // Proposals: those waiting replaced by these.
@@ -308,7 +308,7 @@ export function normalizeEntities({ apply = false } = {}): Promise<NormalizeResu
       if (apply) for (const id of newIds) applied += applyProposal(id) ? 1 : 0;
       const w = backendFor("compile");
       const stopped = !!state.__knowledgeNormalizeStop;
-      const message = `${stopped ? "Angehalten: " : ""}${groups.length} Zusammenführungen gefunden${apply ? `, ${applied} übernommen` : " — warten auf dich"} (${blocks.length} Kandidatengruppen, ${done} Aufrufe, ${w.backend === "claude" ? "Claude CLI" : "Copilot CLI"}${w.model ? ` · ${w.model}` : ""})${failed ? `, ${failed} Aufrufe fehlgeschlagen` : ""}.`;
+      const message = `${stopped ? "Stopped: " : ""}${groups.length} merges found${apply ? `, ${applied} applied` : " — waiting for you"} (${blocks.length} candidate groups, ${done} calls, ${w.backend === "claude" ? "Claude CLI" : "Copilot CLI"}${w.model ? ` · ${w.model}` : ""})${failed ? `, ${failed} calls failed` : ""}.`;
       endRun(runId, failed < done || done === 0, message);
       return { ok: true, message, proposals: groups.length, applied };
     } catch (e) {

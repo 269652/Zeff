@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { setTodoDueAction } from "@/plugins/todos/server-actions";
 import { dueText, dueTone } from "@/lib/boards/due-shared";
+import { formatDate } from "@/lib/format";
 import { toast } from "../Toaster";
 
 /**
@@ -17,7 +18,7 @@ export function DueBadge({ todoId, due, closed }: { todoId: number; due: string 
   const save = (v: string | null) =>
     start(async () => {
       const r = await setTodoDueAction(todoId, v);
-      if (!r?.ok) toast(r?.error ?? "Ging nicht.", { tone: "error" });
+      if (!r?.ok) toast(r?.error ?? "Didn't work.", { tone: "error" });
       setEditing(false);
       router.refresh();
     });
@@ -32,14 +33,14 @@ export function DueBadge({ todoId, due, closed }: { todoId: number; due: string 
           defaultValue={due ?? ""}
           autoFocus
           disabled={pending}
-          aria-label="Frist"
+          aria-label="Due date"
           onChange={(e) => e.target.value && save(e.target.value)}
           onKeyDown={(e) => e.key === "Escape" && setEditing(false)}
           onBlur={() => setEditing(false)}
         />
         {due && (
           <button type="button" className="hover:text-zinc-700 hover:underline" onMouseDown={(e) => e.preventDefault()} onClick={() => save(null)}>
-            keine Frist
+            no due date
           </button>
         )}
       </span>
@@ -47,13 +48,13 @@ export function DueBadge({ todoId, due, closed }: { todoId: number; due: string 
   return due ? (
     <>
       {" · "}
-      <button type="button" className={`hover:underline ${closed ? "text-zinc-400" : dueTone(due)}`} onClick={() => !closed && setEditing(true)} title={`Frist: ${new Date(`${due}T00:00:00`).toLocaleDateString("de-DE")} — ändern`}>
+      <button type="button" className={`hover:underline ${closed ? "text-zinc-400" : dueTone(due)}`} onClick={() => !closed && setEditing(true)} title={`Due: ${formatDate(due, { year: true })} — change`}>
         {dueText(due)}
       </button>
     </>
   ) : (
-    <button type="button" className="opacity-0 transition group-hover:opacity-100 hover:text-zinc-600 hover:underline focus:opacity-100" onClick={() => setEditing(true)} title="Eine Frist setzen">
-      {" · "}Frist
+    <button type="button" className="opacity-0 transition group-hover:opacity-100 hover:text-zinc-600 hover:underline focus:opacity-100" onClick={() => setEditing(true)} title="Set a due date">
+      {" · "}due date
     </button>
   );
 }

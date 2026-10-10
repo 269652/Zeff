@@ -88,7 +88,7 @@ async function gmailPage(browser, { openIfMissing, account }) {
   if (!context) throw new ChromeConnectError("The automation Chrome has no window open.");
   let page = context.pages().find((p) => isGmail(p.url())) ?? context.pages().find((p) => isLogin(p.url()) && /google/i.test(p.url()));
   if (!page) {
-    if (!openIfMissing) throw new Error(`Gmail isn't open in the automation Chrome — open ${inboxUrl(account)} there (or press Sync on Zeff's Nachrichten page).`);
+    if (!openIfMissing) throw new Error(`Gmail isn't open in the automation Chrome — open ${inboxUrl(account)} there (or press Sync on Zeff's Messages page).`);
     page = await context.newPage();
     await page.goto(inboxUrl(account), { waitUntil: "domcontentloaded", timeout: 60000 }).catch((e) => debug(`opening Gmail: ${e}`));
   }
@@ -278,7 +278,7 @@ async function gmailThread({ account = 0, thread = "", subject = "" } = {}) {
       await row.click({ timeout: 20000 });
     } catch {
       await page.goto(inboxUrl(n), { waitUntil: "domcontentloaded" }).catch(() => {});
-      throw new Error(`Die Unterhaltung ${id} ist in Gmail nicht zu finden${words ? ` („${words}“)` : ""}.`);
+      throw new Error(`The conversation ${id} can't be found in Gmail${words ? ` (“${words}”)` : ""}.`);
     }
     let ok = false;
     for (let i = 0; i < 40 && !ok; i++) {
@@ -286,7 +286,7 @@ async function gmailThread({ account = 0, thread = "", subject = "" } = {}) {
       ok = await page.evaluate(() => !!document.querySelector('div[role="main"] .a3s, div[role="main"] h2.hP')).catch(() => false);
       if (!ok) await new Promise((r) => setTimeout(r, 500));
     }
-    if (!ok) throw new Error("Gmail hat die Unterhaltung nicht gezeigt.");
+    if (!ok) throw new Error("Gmail didn't show the conversation.");
     // All its messages open (the older ones are folded).
     await page.locator('[aria-label*="maximieren" i], [aria-label*="Expand all" i]').first().click({ timeout: 3000 }).catch(() => {});
     await new Promise((r) => setTimeout(r, 800));

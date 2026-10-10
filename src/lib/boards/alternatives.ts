@@ -129,9 +129,9 @@ export function todoAlternatives(
       const name = branch.replace(/^origin\//, "");
       alts.push({
         label: `Merge into ${target}`,
-        title: `Statt eines Merge Requests: ${commit ? "committen, dann " : ""}${name} direkt in ${target} mergen (in einem eigenen Worktree) und pushen`,
+        title: `Instead of a merge request: ${commit ? "commit, then " : ""}merge ${name} straight into ${target} (in a worktree of its own) and push`,
         ops: [...(commit ? [commit] : []), { type: "git-merge-main", repo, branch, target }],
-        text: `${name} in ${target} mergen und pushen`,
+        text: `Merge ${name} into ${target} and push`,
       });
     } else if (merge && !push && !mr) {
       const project = listRepos().find((r) => r.path === merge.repo)?.gitlabProject;
@@ -140,13 +140,13 @@ export function todoAlternatives(
         const local = !!commit || !merge.branch.startsWith("origin/");
         alts.push({
           label: "Open MR",
-          title: `Statt direkt zu mergen: ${commit ? "committen, " : ""}${local ? "pushen, " : ""}Merge Request ${name} → ${merge.target} öffnen`,
+          title: `Instead of merging straight away: ${commit ? "commit, " : ""}${local ? "push, " : ""}open merge request ${name} → ${merge.target}`,
           ops: [
             ...(commit ? [commit] : []),
             ...(local ? [{ type: "git-push" as const, repo: merge.repo, branch: name, remote: name, target: merge.target, title: commit?.message ?? name, description: "" }] : []),
             { type: "gitlab-open-mr", repo: merge.repo, project, source: name, target: merge.target, title: commit?.message ?? name, description: "" },
           ],
-          text: `Merge Request ${name} → ${merge.target} öffnen`,
+          text: `Open merge request ${name} → ${merge.target}`,
         });
       }
     }
@@ -166,9 +166,9 @@ export function blockedBy(list: TodoView[]): Record<number, string> {
   const out: Record<number, string> = {};
   for (const m of merges) {
     const state = items.get(m.key)?.state ?? "";
-    if (/merged/.test(state)) out[m.t.id] = `!${m.iid} ist schon gemergt`;
-    else if (/closed/.test(state)) out[m.t.id] = `!${m.iid} ist geschlossen`;
-    else if (!/approved/.test(state)) out[m.t.id] = `!${m.iid} ist noch nicht approved${state ? "" : " (laut GitLab-Sync unbekannt)"}`;
+    if (/merged/.test(state)) out[m.t.id] = `!${m.iid} is merged already`;
+    else if (/closed/.test(state)) out[m.t.id] = `!${m.iid} is closed`;
+    else if (!/approved/.test(state)) out[m.t.id] = `!${m.iid} isn't approved yet${state ? "" : " (unknown to the GitLab sync)"}`;
   }
   return out;
 }

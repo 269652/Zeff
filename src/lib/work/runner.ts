@@ -119,7 +119,7 @@ export function dispatchTodo(
     continueRun?: number;
   } = {},
 ): WorkRunView {
-  if (!isInstalled("work")) throw new ValidationError("Work ist nicht installiert (Menü → Plugins) — ohne es arbeitet kein Worker an Todos.");
+  if (!isInstalled("work")) throw new ValidationError("Work is not installed (Menu → Plugins) — without it no worker works on todos.");
   const todo = getTodo(todoId);
   if (!todo) throw new NotFoundError(`Todo ${todoRef(todoId)} not found.`);
   // Your instruction: an AI run on the todo that does what you say (whatever the todo's own mode).
@@ -141,8 +141,8 @@ export function dispatchTodo(
   // (Going on with a session: its provider, unless you pick another.)
   const prevProvider = prev?.provider === "claude" || prev?.provider === "copilot" ? prev.provider : undefined;
   const provider: AiProvider | "zeff" = byZeff ? "zeff" : (opts.provider ?? prevProvider ?? llmChoice("worker").provider);
-  if (provider !== "zeff" && !isInstalled("llm")) throw new ValidationError("Das LLM-Plugin ist nicht installiert (Menü → Plugins) — keine Worker.");
-  if (provider !== "zeff" && !providerAvailable(provider)) throw new ValidationError(`${provider === "claude" ? "Claude CLI" : "Copilot CLI"}: das Plugin ist nicht installiert (Settings → Plugins).`);
+  if (provider !== "zeff" && !isInstalled("llm")) throw new ValidationError("The LLM plugin is not installed (Menu → Plugins) — no workers.");
+  if (provider !== "zeff" && !providerAvailable(provider)) throw new ValidationError(`${provider === "claude" ? "Claude CLI" : "Copilot CLI"}: not installed (Menu → Plugins).`);
   if (m.mode === "send" && provider === "copilot") throw new ValidationError("Only Claude can post to Jira (through Zeff's Jira connection) — install the Claude CLI plugin.");
   const repo = (opts.repoId ? listRepos().find((r) => r.id === opts.repoId) : undefined) ?? repoForTicket(todo.ticket)?.repo;
   if (m.mode === "code" && !repo) throw new ValidationError(`No repo for ${todo.ticket} — assign its board (or the ticket) to one on the Repos page.`);
@@ -350,20 +350,20 @@ async function postReply(r: WorkRun, todo: TodoView): Promise<void> {
       const repoProject = repoForTicket(todo.ticket)?.repo.gitlabProject;
       const mr = mrs.find((x) => x.project === repoProject) ?? mrs.find((x) => new RegExp(`(^|[^A-Za-z0-9])${todo.ticket}(?![0-9])`, "i").test(`${x.title} ${x.branch ?? ""}`)) ?? (mrs.length === 1 ? mrs[0] : undefined);
       if (!iid || !mr) throw new Error(`Which comment (or merge request) to answer isn't known (${todo.target ?? "no target"}) — sync GitLab, or post it yourself.`);
-      note(`[Zeff] Der Kommentar ist nicht bekannt — als neuer Kommentar in ${mr.ref} (${mr.project}).`);
+      note(`[Zeff] The comment isn't known — posting as a new comment in ${mr.ref} (${mr.project}).`);
       const c = await commentOnMr(mr.project, iid, todo.draft ?? "");
-      note(`[Zeff] Gepostet: ${c.url}`);
-      const result: WorkResult = { outcome: "done", summary: `Kommentar in ${mr.ref} gepostet: ${c.url}`, entry: `Kommentar in ${mr.ref} gepostet`, completedTodos: [todo.id], followUps: [] };
+      note(`[Zeff] Posted: ${c.url}`);
+      const result: WorkResult = { outcome: "done", summary: `Comment posted in ${mr.ref}: ${c.url}`, entry: `Kommentar in ${mr.ref} gepostet`, completedTodos: [todo.id], followUps: [] };
       note(`\n\`\`\`json\n${JSON.stringify(result)}\n\`\`\``);
       await finalize(r.id);
       return;
     }
-    note(`[Zeff] Antwort auf ${item.ref} (${item.author ?? "?"}) — über GitLabs API aus dem Automation-Chrome, sonst über die Seite.`);
+    note(`[Zeff] Reply to ${item.ref} (${item.author ?? "?"}) — through GitLab's API from the automation Chrome, else through the page.`);
     const res = await postGitlabReply(item.url, todo.draft ?? "");
-    note(res.via === "api" ? `[Zeff] Über die API gepostet: ${res.url}` : `[Zeff] API ging nicht (${res.apiFailed}) — über die Seite gepostet: ${res.url}`);
+    note(res.via === "api" ? `[Zeff] Posted through the API: ${res.url}` : `[Zeff] The API didn't work (${res.apiFailed}) — posted through the page: ${res.url}`);
     const result: WorkResult = {
       outcome: "done",
-      summary: `Antwort im Thread von ${item.ref} gepostet (${res.via === "api" ? "API" : "über die Seite"}): ${res.url}`,
+      summary: `Reply posted in the thread of ${item.ref} (${res.via === "api" ? "API" : "through the page"}): ${res.url}`,
       entry: `Antwort in ${item.ref} gepostet`,
       completedTodos: [todo.id],
       followUps: [],
@@ -382,14 +382,14 @@ async function runOps(r: WorkRun, todo: TodoView): Promise<void> {
     const { done, next } = await runTodoOps(todo, note);
     // What's next (the following delivery step) as a todo of its own.
     for (const n of next) {
-      const f = addFollowUp({ ticket: todo.ticket, text: n.text, kind: "merge", parentId: todo.id, workRunId: r.id, source: `Follow-up von ${workRef(r.id)}`, ops: n.ops, owner: n.owner });
+      const f = addFollowUp({ ticket: todo.ticket, text: n.text, kind: "merge", parentId: todo.id, workRunId: r.id, source: `Follow-up from ${workRef(r.id)}`, ops: n.ops, owner: n.owner });
       handOverPlan(todo.id, f.id, ["merge", "review"]);
-      note(`[Zeff] Als Nächstes: ${todoRef(f.id)} — ${n.text}${n.owner === "other" ? " (wartet aufs Approval)" : ""}`);
+      note(`[Zeff] Up next: ${todoRef(f.id)} — ${n.text}${n.owner === "other" ? " (waiting for the approval)" : ""}`);
     }
     // Ticked off only when the operations are the todo (a reply, a comment, a delivery …) — a side
     // step of other work (the ticket moved while it's implemented) leaves it open.
     const settles = opsSettle(todo);
-    if (!settles) note(`[Zeff] ${todoRef(todo.id)} bleibt offen — die Schritte waren nur ein Teil davon.`);
+    if (!settles) note(`[Zeff] ${todoRef(todo.id)} stays open — the steps were only part of it.`);
     // Threads resolved, the approval still to ask for: that's the next click — a reply in the thread.
     const resolved = todo.ops.find((o): o is Extract<TodoOp, { type: "gitlab-resolve" }> => o.type === "gitlab-resolve");
     if (!settles && resolved && asksForApproval(todo.text) && !getTodo(todo.id)?.ops.length) {
@@ -401,7 +401,7 @@ async function runOps(r: WorkRun, todo: TodoView): Promise<void> {
           body: `Die Review-Punkte sind umgesetzt${pushed ? ` und gepusht (${pushed})` : ""}, die Threads habe ich aufgelöst. Bitte noch einmal prüfen und den MR approven — danke!`,
         },
       ]);
-      note(`[Zeff] Als Nächstes an ${todoRef(todo.id)}: die Bitte ums Approval als Antwort im Thread — ein Klick.`);
+      note(`[Zeff] Up next on ${todoRef(todo.id)}: asking for the approval as a reply in the thread — one click.`);
     }
     const result: WorkResult = {
       outcome: settles ? "done" : "partial",
@@ -424,12 +424,12 @@ async function openMr(r: WorkRun, todo: TodoView): Promise<void> {
     const t = parseMrTarget(todo.target);
     if (!t) throw new Error("Which branch into which isn't known.");
     const [title, ...rest] = (todo.draft ?? todo.text).split("\n");
-    note(`[Zeff] Merge Request ${t.source} → ${t.target} in ${t.project} — über GitLabs API aus dem Automation-Chrome.`);
+    note(`[Zeff] Merge request ${t.source} → ${t.target} in ${t.project} — through GitLab's API from the automation Chrome.`);
     const mr = await openGitlabMr({ project: t.project, sourceBranch: t.source, targetBranch: t.target, title: title.trim(), description: rest.join("\n").trim() });
-    note(mr.existed ? `[Zeff] Es gab schon einen offenen: ${mr.url}` : `[Zeff] Geöffnet: ${mr.url}`);
+    note(mr.existed ? `[Zeff] There was an open one already: ${mr.url}` : `[Zeff] Opened: ${mr.url}`);
     const result: WorkResult = {
       outcome: "done",
-      summary: `Merge Request ${mr.existed ? "(bestand schon) " : ""}${t.source} → ${t.target}: ${mr.url}`,
+      summary: `Merge request ${mr.existed ? "(existed already) " : ""}${t.source} → ${t.target}: ${mr.url}`,
       entry: "Merge Request geöffnet",
       completedTodos: [todo.id],
       followUps: [],
@@ -488,10 +488,10 @@ async function proposeDelivery(r: WorkRun, res: WorkResult): Promise<string> {
         { type: "git-push", repo: r.repo, branch: r.branch, remote, target: base, title, description },
         { type: "gitlab-open-mr", repo: r.repo, project: repo!.gitlabProject!, source: remote, target: base, title, description },
       ];
-  const text = direct ? `${r.branch} in ${base} mergen und pushen` : `${r.branch} ausliefern: als ${remote} pushen, Merge Request nach ${base}`;
+  const text = direct ? `Merge ${r.branch} into ${base} and push` : `Deliver ${r.branch}: push as ${remote}, merge request into ${base}`;
   // First tested by hand — the delivery (its buttons) comes once that's ticked off.
-  const test = addTestedDelivery({ from: todo, workRunId: r.id, source: `Follow-up von ${workRef(r.id)}`, branch: direct ? r.branch : remote, delivery: { text, ops } });
-  return `\n\nErst testen: ${todoRef(test.id)} — danach die Auslieferung: ${text}`;
+  const test = addTestedDelivery({ from: todo, workRunId: r.id, source: `Follow-up from ${workRef(r.id)}`, branch: direct ? r.branch : remote, delivery: { text, ops } });
+  return `\n\nTest first: ${todoRef(test.id)} — then the delivery: ${text}`;
 }
 
 /** The JSON object at the end of a plain-text answer (Copilot's): the last ```json block, else the last object that parses. */
@@ -535,10 +535,10 @@ Gib diesen Bericht im verlangten Format zurück: outcome, summary (Markdown: Erl
   try {
     const app = getAppSettings();
     const answer = await runCopilot<unknown>(prompt, WORK_RESULT_SCHEMA, { model: r.model ?? (app.copilotModel || undefined), timeoutMs: 300000 });
-    fs.appendFileSync(/*turbopackIgnore: true*/ logPath(r.id), "\n[Zeff] Copilot gab kein strukturiertes Ergebnis aus — aus seinem Bericht nachträglich strukturiert.\n");
+    fs.appendFileSync(/*turbopackIgnore: true*/ logPath(r.id), "\n[Zeff] Copilot gave no structured result — structured afterwards from its report.\n");
     return normalizeResult(answer.output);
   } catch (e) {
-    fs.appendFileSync(/*turbopackIgnore: true*/ logPath(r.id), `\n[Zeff] Bericht ließ sich nicht strukturieren: ${errorMessage(e)}\n`);
+    fs.appendFileSync(/*turbopackIgnore: true*/ logPath(r.id), `\n[Zeff] Couldn't structure the report: ${errorMessage(e)}\n`);
     return null;
   }
 }
@@ -661,7 +661,7 @@ export function resumeWork(): void {
     // A live session was this server's: it's over with the old one — ended, to start again by hand.
     if (r.permissionMode?.startsWith("acp")) {
       if (r.pid && alive(r.pid)) killTree(r.pid);
-      fs.appendFileSync(/*turbopackIgnore: true*/ errPath(r.id), "Zeff wurde neu gestartet — die interaktive Sitzung ist damit beendet. „Nochmal“ startet sie neu.\n");
+      fs.appendFileSync(/*turbopackIgnore: true*/ errPath(r.id), "Zeff was restarted — that ended the interactive session. Run it again to start a new one.\n");
       void finalize(r.id, true);
       continue;
     }

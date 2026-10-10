@@ -241,8 +241,8 @@ async function findPerson({ name }) {
   const want = norm(name);
   const hits = profiles.filter((x) => x && x.displayName && x.mri && (norm(x.displayName) === want || norm(`${x.givenName || ""} ${x.surname || ""}`) === want));
   const p = hits[0];
-  if (!p) return { error: `Teams kennt niemanden namens „${name}“.` };
-  if (hits.length > 1 && new Set(hits.map((h) => h.mri)).size > 1) return { error: `„${name}“ ist in Teams nicht eindeutig.` };
+  if (!p) return { error: `Teams knows nobody called “${name}”.` };
+  if (hits.length > 1 && new Set(hits.map((h) => h.mri)).size > 1) return { error: `“${name}” isn't unique in Teams.` };
   const cm = await open(cName);
   const convs = (await req(cm.transaction("conversations", "readonly").objectStore("conversations").getAll())) || [];
   cm.close();
@@ -325,7 +325,7 @@ async function teamsSend({ to, text, dryRun = false }) {
       : who.upn
         ? `https://teams.microsoft.com/_#/l/chat/0/0?users=${encodeURIComponent(who.upn)}`
         : null;
-    if (!route) throw new Error(`Für ${who.displayName} gibt es keinen Chat und keine Adresse.`);
+    if (!route) throw new Error(`There's no chat and no address for ${who.displayName}.`);
     debug(`opening ${who.convId ? "the chat" : "a new chat"} with ${who.displayName}`);
     // Their chat open already (the window title names them): no reload — else to it.
     const open = (await page.title()).split("|").map((x) => x.trim()).includes(who.displayName) && (await page.locator(COMPOSE).first().isVisible().catch(() => false));
@@ -335,7 +335,7 @@ async function teamsSend({ to, text, dryRun = false }) {
       .waitForFunction((n) => document.title.split("|").map((x) => x.trim()).includes(n), who.displayName, { timeout: 60000 })
       .then(() => true)
       .catch(() => false);
-    if (!theirs) throw new Error(`Der Chat mit ${who.displayName} ging nicht auf (Fenster: „${(await page.title()).slice(0, 80)}“) — nichts gesendet.`);
+    if (!theirs) throw new Error(`The chat with ${who.displayName} didn't open (window: “${(await page.title()).slice(0, 80)}”) — nothing sent.`);
     const box = page.locator(COMPOSE).first();
     await box.waitFor({ state: "visible", timeout: 30000 });
     const away = await page.evaluate(() => {
@@ -347,7 +347,7 @@ async function teamsSend({ to, text, dryRun = false }) {
     // A draft in the box: this very message (a try that didn't get to send it) goes out as it is; another one stays — nothing sent.
     const draft = flat(await box.innerText());
     const lines = body.split("\n");
-    if (draft && draft !== flat(body)) throw new Error(`Im Chat mit ${who.displayName} steht schon ein anderer Entwurf — nichts gesendet.`);
+    if (draft && draft !== flat(body)) throw new Error(`The chat with ${who.displayName} already holds another draft — nothing sent.`);
     if (!draft) {
       await box.click();
       for (let i = 0; i < lines.length; i++) {
@@ -375,7 +375,7 @@ async function teamsSend({ to, text, dryRun = false }) {
       )
       .then(() => true)
       .catch(() => false);
-    if (!sent) throw new Error(`Die Nachricht an ${who.displayName} ist nicht sicher raus — schau im Chat nach.`);
+    if (!sent) throw new Error(`The message to ${who.displayName} may not have gone out — check the chat.`);
     // The message as Teams keeps it (its id, its link) — so what's sent can be found again.
     let message = null;
     for (let i = 0; i < 20 && !message; i++) {

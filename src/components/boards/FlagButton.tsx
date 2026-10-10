@@ -14,12 +14,12 @@ export function FlagButton({ todoId, todoRef, flagged, className = "icon-btn" }:
       className={`${className} ${flagged ? "text-red-600 opacity-100 dark:text-red-400" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"}`}
       disabled={pending}
       aria-pressed={flagged}
-      aria-label={flagged ? `${todoRef}: Markierung „wichtig“ entfernen` : `${todoRef} als wichtig markieren`}
-      title={flagged ? "Wichtig — nach oben, dringend für die Ticket-Lage. Klick: Markierung weg" : "Als wichtig markieren — nach oben, dringend für die Ticket-Lage"}
+      aria-label={flagged ? `${todoRef}: remove the “important” flag` : `Flag ${todoRef} as important`}
+      title={flagged ? "Important — moves to the top, urgent for the briefing. Click: remove the flag" : "Flag as important — moves to the top, urgent for the briefing"}
       onClick={() =>
         start(async () => {
           const r = await flagTodoAction(todoId, !flagged);
-          if (!r?.ok) toast(r?.error ?? "Ging nicht.", { tone: "error" });
+          if (!r?.ok) toast(r?.error ?? "Didn't work.", { tone: "error" });
         })
       }
     >

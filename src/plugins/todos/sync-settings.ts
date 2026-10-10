@@ -6,13 +6,13 @@ export const syncSettings: PluginSyncSettings = {
   intervals: [
     {
       key: "boards",
-      label: "Ticket-Lage (Auswertung)",
-      what: "Deine Tickets durch die KI: was passiert ist, was zu tun ist — danach die Mail- und WhatsApp-Durchsicht, die Mail-Zuordnung und die Auto-Aktionen.",
+      label: "Briefing",
+      what: "Your tickets read by the AI: what happened, what to do — then the mail and WhatsApp review, mail matching and the auto actions.",
       get: () => getBoardSettings().autoMinutes,
       set: (m) => updateBoardSettings({ autoMinutes: m }),
       choices: [0, 15, 30, 60, 120, 240, 480, 1440],
-      window: "an Werktagen, 8–19 Uhr",
+      window: "on weekdays, 8:00–19:00",
     },
   ],
-  follows: [{ key: "recap", label: "Recap", follows: "jeden Werktagmorgen — der Rückblick auf den letzten Werktag" }],
+  follows: [{ key: "recap", label: "Recap", follows: "every weekday morning — the look back at the last working day" }],
 };

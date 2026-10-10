@@ -5,7 +5,7 @@ export const TEAMS_ACTIONS = [
   action({
     type: "teams-message",
     plugin: "teams",
-    label: "Teams-Nachricht senden",
+    label: "Send Teams message",
     verb: "Send",
     comms: true,
     offer: {
@@ -21,7 +21,7 @@ export const TEAMS_ACTIONS = [
       },
     },
     clean: (o) => (str(o.to) && str(o.body) ? { type: "teams-message", to: str(o.to).slice(0, 120), body: str(o.body).slice(0, 4000) } : null),
-    title: (op) => `Teams-Nachricht an ${op.to}`,
-    note: (op) => ({ heading: `Teams-Nachricht an ${op.to}`, detail: null, body: op.body }),
+    title: (op) => `Teams message to ${op.to}`,
+    note: (op) => ({ heading: `Teams message to ${op.to}`, detail: null, body: op.body }),
   }),
 ];

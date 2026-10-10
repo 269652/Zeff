@@ -45,14 +45,14 @@ export function RunPanel({ initial, stop }: { initial: RunState; stop: () => Pro
       <div className="min-w-0 flex-1 space-y-1.5">
         <p className="text-sm font-medium">
           {s.sync ? (
-            "Liest die Quellen …"
+            "Reading the sources …"
           ) : (
             <>
-              Kompiliert mit {s.with?.backend === "claude" ? "Claude CLI" : "GitHub Copilot CLI"}
-              <span className="font-normal text-zinc-500"> · Modell {s.with?.model || "Standard der CLI"}</span>
+              Compiling with {s.with?.backend === "claude" ? "Claude CLI" : "GitHub Copilot CLI"}
+              <span className="font-normal text-zinc-500"> · model {s.with?.model || "the CLI's default"}</span>
             </>
           )}
-          {s.stopping && <span className="font-normal text-amber-700 dark:text-amber-400"> — hält an, sobald die laufenden Aufrufe fertig sind</span>}
+          {s.stopping && <span className="font-normal text-amber-700 dark:text-amber-400"> — stopping once the running calls are done</span>}
         </p>
         {!s.sync && (
           <div className="flex items-center gap-2 text-xs text-zinc-500">
@@ -60,7 +60,7 @@ export function RunPanel({ initial, stop }: { initial: RunState; stop: () => Pro
               <div className="h-full rounded-full bg-indigo-500 transition-[width]" style={{ width: `${pct}%` }} />
             </div>
             <span className="tabular-nums">
-              {s.compiled}/{s.pages} Seiten
+              {s.compiled}/{s.pages} pages
             </span>
           </div>
         )}
@@ -72,7 +72,7 @@ export function RunPanel({ initial, stop }: { initial: RunState; stop: () => Pro
         }}
       >
         <button className="btn btn-danger" disabled={s.stopping}>
-          {s.stopping ? "hält an …" : "Stopp"}
+          {s.stopping ? "stopping …" : "Stop"}
         </button>
       </form>
     </section>

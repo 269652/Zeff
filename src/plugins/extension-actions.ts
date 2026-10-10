@@ -10,7 +10,7 @@ export async function setExtensionInstalledAction(id: string, installed: boolean
     const ext = setExtensionInstalled(String(id), !!installed);
     // Knowledge, steps, menus: the whole app may change.
     revalidatePath("/", "layout");
-    return { ok: true, message: `${ext.name} ${installed ? "an" : "aus"}.` };
+    return { ok: true, message: `${ext.name} ${installed ? "on" : "off"}.` };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

@@ -11,8 +11,9 @@ import { todoLink, type Entity } from "@/lib/entities-shared";
 import { GITLAB_KIND_LABELS, gitlabDone, gitlabLinkKey, type GitlabKind } from "@/lib/gitlab/shared";
 import { teamsKindLabel, teamsLinkKey } from "@/lib/teams/shared";
 import { SearchIcon } from "./icons";
+import { formatDateTime } from "@/lib/format";
 
-const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
+const when = (iso: string | null) => (iso ? formatDateTime(iso) : "");
 
 /** A search hit: the message / item, and the link that points at it. */
 export type Picked = Exclude<Entity, { source: "jira" | "jira-comment" | "work" }> & { url: string };
@@ -32,9 +33,9 @@ function Hit({ p, linked }: { p: Picked; linked: boolean }) {
     p.source === "teams"
       ? [p.teams.senderName ?? "Someone", p.teams.place, when(p.teams.sentAt), teamsKindLabel(p.teams)]
       : p.source === "mail"
-        ? [p.mail.folder === "WhatsApp" ? "WhatsApp" : "Mail", mailSender(p.mail), when(p.mail.receivedAt), p.mail.unread ? "ungelesen" : ""]
+        ? [p.mail.folder === "WhatsApp" ? "WhatsApp" : "Mail", mailSender(p.mail), when(p.mail.receivedAt), p.mail.unread ? "unread" : ""]
         : p.source === "todo"
-        ? [`Todo ${p.todo.ref}`, p.todo.ticket, TODO_KIND_LABELS[p.todo.kind], p.todo.status === "done" ? when(p.todo.doneAt) : "offen"]
+        ? [`Todo ${p.todo.ref}`, p.todo.ticket, TODO_KIND_LABELS[p.todo.kind], p.todo.status === "done" ? when(p.todo.doneAt) : "open"]
         : [GITLAB_KIND_LABELS[p.gitlab.kind], p.gitlab.project.split("/").pop(), p.gitlab.author, when(p.gitlab.kind === "comment" ? p.gitlab.createdAt : p.gitlab.updatedAt), p.gitlab.state];
   const words =
     p.source === "teams"
@@ -51,7 +52,7 @@ function Hit({ p, linked }: { p: Picked; linked: boolean }) {
     <>
       <span className="flex items-center gap-1.5 text-xs text-zinc-500">
         <span className="truncate">{meta.filter(Boolean).join(" · ")}</span>
-        {done && <span className="shrink-0 rounded bg-emerald-100 px-1 text-[10px] font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">erledigt</span>}
+        {done && <span className="shrink-0 rounded bg-emerald-100 px-1 text-[10px] font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">done</span>}
         {linked && <span className="ml-auto shrink-0 font-medium text-emerald-600 dark:text-emerald-400">✓ added</span>}
       </span>
       <span className="line-clamp-2 text-sm">{words || "(no text)"}</span>

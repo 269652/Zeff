@@ -103,7 +103,7 @@ export async function syncMail({ background = false } = {}): Promise<{ ok: boole
     if (background && !(await chromeUp())) return { ok: true, message: "The automation Chrome isn't running — later." };
     const { isInstalled } = await import("@/plugins/state");
     const sources = (["outlook", "gmail"] as const).filter((s) => isInstalled(SOURCE_PLUGINS[s]));
-    if (!sources.length) return record(false, "Kein Mail-Plugin installiert (Outlook Mail oder Gmail).");
+    if (!sources.length) return record(false, "No mail plugin installed (Outlook Mail or Gmail).");
     const days = background && getMailSettings().lastOk ? DAYS : FULL_DAYS;
     const done = [];
     // Gmail: each account set on its settings page, into its own folder.

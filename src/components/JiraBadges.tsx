@@ -6,10 +6,10 @@ import type { JiraTicketBrief } from "@/lib/entities-shared";
 import { ChevronIcon } from "./icons";
 import { ResolvedMark } from "./ResolvedMark";
 import { ResolveToggle } from "./ResolveToggle";
+import { formatDate, formatDateTime, formatTime } from "@/lib/format";
 
-const when = (iso: string) => new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-const full = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+const when = (iso: string) => formatDateTime(iso);
+const full = (iso: string) => `${formatDate(iso, { year: true })}, ${formatTime(iso)}`;
 
 const CARD = "space-y-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-900";
 const BADGE = "flex min-w-0 items-stretch overflow-hidden rounded-md border border-jira-200 bg-jira-50 text-xs text-jira-950 dark:border-jira-900 dark:bg-jira-950/40 dark:text-jira-100";
@@ -37,7 +37,7 @@ export function JiraCommentBadge({ c, className = "", expanded = false, onToggle
           <path d="M4 4.5h12v8.5H9.5L6 16v-3H4z" />
         </svg>
         <ResolvedMark done={c.resolved} />
-        <span className="shrink-0 font-medium">{c.author || "Jira-Kommentar"}</span>
+        <span className="shrink-0 font-medium">{c.author || "Jira comment"}</span>
         <span className="shrink-0 text-jira-700/80 max-sm:min-w-0 max-sm:shrink max-sm:truncate dark:text-jira-300/80">
           {c.ticket}
           {c.at ? ` · ${when(c.at)}` : ""}
@@ -58,7 +58,7 @@ export function JiraCommentDetails({ c }: { c: JiraCommentView }) {
   return (
     <div className={CARD}>
       <div className="flex items-center justify-between gap-2 text-xs text-zinc-500">
-        <span>Jira · Kommentar auf {c.ticket}</span>
+        <span>Jira · comment on {c.ticket}</span>
         <span className="flex items-center gap-2">
           <ResolveToggle done={c.resolved} onChange={(next) => setJiraCommentResolvedAction(c.id, c.ticket, next)} />
           {c.url && (
@@ -71,19 +71,19 @@ export function JiraCommentDetails({ c }: { c: JiraCommentView }) {
       {c.text ? (
         <p className="leading-relaxed whitespace-pre-line text-zinc-700 dark:text-zinc-300">{c.text}</p>
       ) : (
-        <p className="text-zinc-400">Den Text hat Zeff nicht gelesen — öffne den Kommentar in Jira.</p>
+        <p className="text-zinc-400">Zeff hasn&apos;t read the text — open the comment in Jira.</p>
       )}
       {(c.author || c.at) && (
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
           {c.author && (
             <>
-              <dt className="text-zinc-500">Von</dt>
+              <dt className="text-zinc-500">By</dt>
               <dd>{c.author}</dd>
             </>
           )}
           {c.at && (
             <>
-              <dt className="text-zinc-500">Geschrieben</dt>
+              <dt className="text-zinc-500">Written</dt>
               <dd>{full(c.at)}</dd>
             </>
           )}
@@ -129,8 +129,8 @@ export function JiraTicketDetails({ t }: { t: JiraTicketBrief }) {
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
         <dt className="text-zinc-500">Status</dt>
         <dd>{t.status || "—"}</dd>
-        <dt className="text-zinc-500">Zugewiesen</dt>
-        <dd>{t.assignee || "niemand"}</dd>
+        <dt className="text-zinc-500">Assignee</dt>
+        <dd>{t.assignee || "nobody"}</dd>
       </dl>
     </div>
   );

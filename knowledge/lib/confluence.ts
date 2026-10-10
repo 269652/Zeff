@@ -45,7 +45,7 @@ export const confluenceWhere = () => env("CONFLUENCE_URL")?.replace(/\/+$/, "") 
 
 async function get<T>(url: string, headers: Record<string, string>): Promise<T> {
   const r = await fetch(url, { headers, signal: AbortSignal.timeout(60000) });
-  if (r.status === 401 || r.status === 403) throw new Error(`Confluence: nicht angemeldet (${r.status}) — Token in Zeffs .env prüfen.`);
+  if (r.status === 401 || r.status === 403) throw new Error(`Confluence: not signed in (${r.status}) — check the token in Zeff's .env.`);
   if (!r.ok) throw new Error(`Confluence ${r.status}: ${(await r.text()).slice(0, 200)}`);
   return (await r.json()) as T;
 }
@@ -112,7 +112,7 @@ async function spaceKeys(base: string, headers: Record<string, string>, wanted: 
  */
 export async function* confluencePages(spaces: string[], maxPages: number, known: Map<string, number>): AsyncGenerator<RawPage | { id: string; unchanged: true }> {
   const cfg = confluenceConfig();
-  if (!cfg) throw new Error("Confluence ist nicht eingerichtet: CONFLUENCE_URL und CONFLUENCE_PERSONAL_TOKEN (oder CONFLUENCE_USERNAME + CONFLUENCE_API_TOKEN) in Zeffs .env.");
+  if (!cfg) throw new Error("Confluence isn't set up: CONFLUENCE_URL and CONFLUENCE_PERSONAL_TOKEN (or CONFLUENCE_USERNAME + CONFLUENCE_API_TOKEN) in Zeff's .env.");
   for (const space of await spaceKeys(cfg.base, cfg.headers, spaces)) {
     let n = 0;
     for (let start = 0; n < maxPages; start += 50) {

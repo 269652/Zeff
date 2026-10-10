@@ -5,19 +5,19 @@
  */
 
 export const LLM_TASKS = [
-  { id: "ticket-lage", label: "Ticket-Lage", what: "Liest deine Tickets — Jira und deine Kanban-Karten (KB-…) — mit allem Kontext und macht die Lage und die Todos." },
-  { id: "board-lage", label: "Board-Lage", what: "Schätzt die Lage aller aktuellen Tickets deiner Jira-Boards ein (für die Kanban-Karten) — ohne Todos." },
-  { id: "recap", label: "Recap", what: "Fasst einen Tag zusammen: was du getan hast." },
-  { id: "mail-todos", label: "Mail-Durchsicht", what: "Findet in neuen Mails, was du zu tun hast." },
-  { id: "mail-relations", label: "Mail-Zuordnung", what: "Ordnet jedem Todo die Mails zu, um die es geht." },
-  { id: "note-todos", label: "Notiz-Durchsicht", what: "Findet in neuen und geänderten Notizen (Google Keep, deine Keep-Boards), was du zu tun hast." },
-  { id: "note-relations", label: "Notiz-Zuordnung", what: "Ordnet jedem Todo die Notizen zu, um die es geht." },
-  { id: "knowledge-relations", label: "Wissens-Zuordnung", what: "Wählt aus den Treffern der Wissensbasis, was zu jedem Todo wirklich passt." },
-  { id: "people-dates", label: "Personen-Daten", what: "Findet Geburtstage, Jahrestage und andere wichtige Daten deiner Personen im Wissen und in deinen Nachrichten (Personen-Plugin)." },
-  { id: "reply-draft", label: "Antwort-Entwurf", what: "Schreibt die Antwort auf eine Nachricht (WhatsApp, Mail, Teams), um die es in einem Todo geht — aus dem Verlauf." },
-  { id: "auto-actions", label: "Auto-Aktionen", what: "Macht aus Todos fertige Aktionen (Nachricht, Kommentar, Mail, Termin, Übergabe)." },
-  { id: "worker", label: "Worker", what: "Arbeitet an einem Todo (Work-Tab, ✨ An Copilot) — im Repo, mit Werkzeugen." },
-  { id: "general", label: "Sonstiges", what: "Alles andere (z. B. der Verbindungstest)." },
+  { id: "ticket-lage", label: "Briefing", what: "Reads your tickets — Jira and your Kanban cards (KB-…) — with all their context and makes the briefing and the todos." },
+  { id: "board-lage", label: "Board briefing", what: "Assesses where all current tickets of your Jira boards stand (for the Kanban cards) — without todos." },
+  { id: "recap", label: "Recap", what: "Sums up a day: what you did." },
+  { id: "mail-todos", label: "Mail review", what: "Finds what you have to do in new mails." },
+  { id: "mail-relations", label: "Mail matching", what: "Matches each todo with the mails it is about." },
+  { id: "note-todos", label: "Note review", what: "Finds what you have to do in new and changed notes (Google Keep, your Keep boards)." },
+  { id: "note-relations", label: "Note matching", what: "Matches each todo with the notes it is about." },
+  { id: "knowledge-relations", label: "Knowledge matching", what: "Picks from the knowledge base's hits what really fits each todo." },
+  { id: "people-dates", label: "People's dates", what: "Finds birthdays, anniversaries and other important dates of your people in the knowledge and in your messages (People plugin)." },
+  { id: "reply-draft", label: "Reply draft", what: "Writes the reply to a message (WhatsApp, mail, Teams) a todo is about — from the conversation." },
+  { id: "auto-actions", label: "Auto actions", what: "Turns todos into ready-made actions (message, comment, mail, meeting, hand-over)." },
+  { id: "worker", label: "Worker", what: "Works on a todo (Work tab, ✨ To Copilot) — in the repo, with tools." },
+  { id: "general", label: "Other", what: "Everything else (e.g. the connection test)." },
 ] as const;
 
 export type LlmTaskId = (typeof LLM_TASKS)[number]["id"];

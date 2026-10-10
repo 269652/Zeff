@@ -6,17 +6,17 @@ import { addOwn } from "@k/own";
 export function AddKnowledgeForm({ action, compact = false }: { action: (fd: FormData) => Promise<void>; compact?: boolean }) {
   return (
     <form action={action} className="space-y-2">
-      {!compact && <input name="title" placeholder="Titel (optional — sonst die erste Zeile)" className="input" />}
+      {!compact && <input name="title" placeholder="Title (optional — else the first line)" className="input" />}
       <textarea
         name="text"
         required
         rows={compact ? 2 : 6}
-        placeholder="Was du dir merken willst — ein Fakt, eine Notiz, wie etwas geht … oder nur ein Link (https://…): dann wird die Seite gelesen."
+        placeholder="What you want to keep — a fact, a note, how something works … or just a link (https://…): then the page is read."
         className="input min-h-16 resize-y"
       />
       <div className="flex flex-wrap items-center gap-2">
-        <button className="btn btn-primary">Merken</button>
-        <span className="text-xs text-zinc-500">Wird gleich kompiliert — Entitäten und Beziehungen gehen in den Graphen.</span>
+        <button className="btn btn-primary">Keep</button>
+        <span className="text-xs text-zinc-500">Compiled right away — entities and relations go into the graph.</span>
       </div>
     </form>
   );

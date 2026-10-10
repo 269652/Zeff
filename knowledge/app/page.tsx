@@ -3,6 +3,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { CLAUDE_MODELS, COPILOT_MODEL_SUGGESTIONS } from "@/lib/ai/shared";
+import { formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { copilotModels } from "@/plugins/copilot-cli/cli";
 import { compilePages, compileRunning, compileStopping, compilingWith, markForRecompile, recompileCalls, stopCompile } from "@k/compile";
 import { confluenceConfig, confluenceWhere } from "@k/confluence";
@@ -39,13 +41,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
     models:
       b.id === "claude"
         ? [
-            { value: "", label: "Standard der CLI" },
-            { value: "claude-sonnet-5-5", label: "Sonnet 5.5 — empfohlen" },
+            { value: "", label: "The CLI's default" },
+            { value: "claude-sonnet-5-5", label: "Sonnet 5.5 — recommended" },
             { value: "claude-haiku-5-5", label: "Haiku 5.5" },
-            { value: "claude-opus-5-5", label: "Opus 5.5 — gründlich, langsam" },
+            { value: "claude-opus-5-5", label: "Opus 5.5 — thorough, slow" },
             ...CLAUDE_MODELS.filter((m) => m.value).map((m) => ({ value: m.value, label: `${m.value} (Alias)` })),
           ]
-        : [{ value: "", label: "Standard der CLI" }, ...(copilotList.length ? copilotList : COPILOT_MODEL_SUGGESTIONS).map((m) => ({ value: m, label: m }))],
+        : [{ value: "", label: "The CLI's default" }, ...(copilotList.length ? copilotList : COPILOT_MODEL_SUGGESTIONS).map((m) => ({ value: m, label: m }))],
   }));
 
   async function save(fd: FormData) {
@@ -109,9 +111,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
       {done && DONE[done] && <p className="alert-ok">{DONE[done]}</p>}
       {added && (
         <p className="alert-ok">
-          Gemerkt ✓ — wird kompiliert.{" "}
+          Kept ✓ — compiling.{" "}
           <Link href={`/seite/${encodeURIComponent(added)}`} className="underline">
-            Ansehen
+            View
           </Link>
         </p>
       )}
@@ -119,13 +121,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold">Wissen</h1>
+          <h1 className="text-lg font-semibold">Knowledge</h1>
           <p className="max-w-[75ch] text-sm text-zinc-500">
-            Liest{" "}
+            Reads{" "}
             {sources.length
               ? sources.map((src, i) => (
                   <span key={i}>
-                    {i ? (i === sources.length - 1 ? " und " : ", ") : ""}
+                    {i ? (i === sources.length - 1 ? " and " : ", ") : ""}
                     {src.href ? (
                       <a href={src.href} className="text-indigo-600 hover:underline dark:text-indigo-400">
                         {src.label}
@@ -135,20 +137,20 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
                     )}
                   </span>
                 ))
-              : "noch keine Quelle"}
-            ,{" "}kompiliert die Seiten zu einem Wissensgraphen und beantwortet Fragen — in Zeff im Chat-Tab.
+              : "no source yet"}
+            ,{" "}compiles the pages into a knowledge graph and answers questions — in Zeff, on the Chat tab.
           </p>
         </div>
         {!busy && (
           <div className="flex flex-wrap items-center gap-2">
             <form action={refresh}>
-              <button className="btn btn-primary">Jetzt lesen & kompilieren</button>
+              <button className="btn btn-primary">Read & compile now</button>
             </form>
             <form action={compile}>
-              <button className="btn">Nur kompilieren</button>
+              <button className="btn">Compile only</button>
             </form>
-            <Link href="/normalisieren" className="btn" title="Gleiche Entitäten zusammenführen („Moritz“, „Verfasser“ → „Moritz Roessler“)">
-              Normalisieren
+            <Link href="/normalisieren" className="btn" title="Merge entities that are the same (“Moritz”, “author” → “Moritz Roessler”)">
+              Normalize
             </Link>
           </div>
         )}
@@ -166,7 +168,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
       )}
       {noSource && (
         <p className="alert-error">
-          Keine Quelle: das Confluence-Plugin (mit CONFLUENCE_URL und CONFLUENCE_PERSONAL_TOKEN in Zeffs .env), das Zeff-, das Google-Keep- oder das Import-Ordner-Plugin (
+          No source: the Confluence plugin (with CONFLUENCE_URL and CONFLUENCE_PERSONAL_TOKEN in Zeff’s .env), the Zeff, Google Keep or Import folder plugin (
           <Link href="/plugins" className="underline">
             Plugins
           </Link>
@@ -177,12 +179,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
       <section className="card grid grid-cols-3 gap-4 p-4 sm:grid-cols-6">
         {(
           [
-            ["Seiten", c.pages],
-            ["kompiliert", c.compiled],
-            ["Bereiche", c.spaces],
-            ["Abschnitte", c.chunks],
-            ["Entitäten", c.entities],
-            ["Beziehungen", c.relations],
+            ["Pages", c.pages],
+            ["compiled", c.compiled],
+            ["Spaces", c.spaces],
+            ["Chunks", c.chunks],
+            ["Entities", c.entities],
+            ["Relations", c.relations],
           ] as const
         ).map(([label, n]) => (
           <div key={label}>
@@ -194,36 +196,36 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
 
       {!busy && c.pages > 0 && (
         <details className="card p-4 text-sm">
-          <summary className="cursor-pointer font-medium">Alles neu kompilieren</summary>
+          <summary className="cursor-pointer font-medium">Recompile everything</summary>
           <form action={recompileAll} className="mt-3 space-y-2">
             <p className="text-zinc-600 dark:text-zinc-300">
-              Alle {c.pages} Seiten werden noch einmal von der KI ausgewertet — etwa {recompileCalls()} Aufrufe (ein Lauf macht höchstens 250, der Rest folgt mit dem nächsten Kompilieren). Sinnvoll nach einem Wechsel des Modells oder wenn die Auswertung besser geworden ist. Was
-              das Normalisieren zusammengeführt hat, bleibt zusammen. Einzelne Seiten: auf der Seite selbst „Neu kompilieren“.
+              All {c.pages} pages go through the AI once more — about {recompileCalls()} calls (a run makes 250 at most, the rest follows with the next compile). Worth it after switching the model, or when the compiling got better. What
+              normalizing merged stays merged. Single pages: “Recompile” on the page itself.
             </p>
             <label className="flex items-center gap-2">
               <input type="checkbox" name="sure" value="1" required />
-              Ja, alle Seiten neu kompilieren
+              Yes, recompile all pages
             </label>
-            <button className="btn">Neu kompilieren</button>
+            <button className="btn">Recompile</button>
           </form>
         </details>
       )}
 
       <section className="card space-y-2 p-4">
         <div className="flex items-baseline justify-between gap-2">
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Wissen hinzufügen</h2>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Add knowledge</h2>
           <Link href="/eigenes" className="text-xs text-indigo-600 hover:underline dark:text-indigo-400">
-            Eigenes Wissen →
+            Your own knowledge →
           </Link>
         </div>
         <AddKnowledgeForm action={keep} compact />
       </section>
 
       <section className="card space-y-3 p-4">
-        <h2 className="text-sm font-semibold text-zinc-500 uppercase">Ausprobieren</h2>
+        <h2 className="text-sm font-semibold text-zinc-500 uppercase">Try it</h2>
         <form className="flex gap-2">
-          <input name="q" defaultValue={q} placeholder="Suchen …" className="input" />
-          <button className="btn">Suchen</button>
+          <input name="q" defaultValue={q} placeholder="Search …" className="input" />
+          <button className="btn">Search</button>
         </form>
         {q && (
           <div className="space-y-2">
@@ -247,29 +249,29 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
                 </p>
               </div>
             ))}
-            {!pages.length && !entities.length && <p className="text-sm text-zinc-500">Nichts gefunden.</p>}
+            {!pages.length && !entities.length && <p className="text-sm text-zinc-500">Nothing found.</p>}
           </div>
         )}
       </section>
 
       <section className="card space-y-4 p-4">
-        <h2 className="text-sm font-semibold text-zinc-500 uppercase">Einstellungen</h2>
+        <h2 className="text-sm font-semibold text-zinc-500 uppercase">Settings</h2>
         <form action={save} className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm">
-              <span className="label">Bereiche</span>
-              <input name="spaces" defaultValue={s.spaces} placeholder="Space-Keys, z. B. SUPPORT, DEV — leer: alle sichtbaren" className="input" />
+              <span className="label">Spaces</span>
+              <input name="spaces" defaultValue={s.spaces} placeholder="Space keys, e.g. SUPPORT, DEV — empty: all visible ones" className="input" />
             </label>
             <label className="block text-sm">
-              <span className="label">Seiten je Bereich höchstens</span>
+              <span className="label">Pages per space, at most</span>
               <input name="maxPages" type="number" min={1} defaultValue={s.maxPages} className="input" />
             </label>
           </div>
-          <BackendPicker task="compile" label="Kompilieren (Seiten → Wissen)" backends={options} backend={s.compileBackend} model={s.compileModel} />
-          <BackendPicker task="ask" label="Antworten (Chat)" backends={options} backend={s.askBackend} model={s.askModel} />
+          <BackendPicker task="compile" label="Compiling (pages → knowledge)" backends={options} backend={s.compileBackend} model={s.compileModel} />
+          <BackendPicker task="ask" label="Answering (Chat)" backends={options} backend={s.askBackend} model={s.askModel} />
           {!options.length && (
             <p className="alert-error">
-              Keine CLI installiert —{" "}
+              No CLI installed —{" "}
               <Link href="/plugins" className="underline">
                 Plugins
               </Link>
@@ -278,29 +280,29 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
           )}
           {kInstalled("import-folder") && (
             <label className="block text-sm">
-              <span className="label">Import-Ordner</span>
-              <input name="importDir" defaultValue={s.importDir} placeholder="C:\…\confluence-export — .json, .md, .html; Unterordner sind Bereiche" className="input font-mono text-xs" />
+              <span className="label">Import folder</span>
+              <input name="importDir" defaultValue={s.importDir} placeholder="C:\…\confluence-export — .json, .md, .html; subfolders are spaces" className="input font-mono text-xs" />
             </label>
           )}
-          <button className="btn btn-primary">Speichern</button>
+          <button className="btn btn-primary">Save</button>
         </form>
       </section>
 
       <section className="card p-4">
-        <h2 className="mb-2 text-sm font-semibold text-zinc-500 uppercase">Letzte Läufe</h2>
+        <h2 className="mb-2 text-sm font-semibold text-zinc-500 uppercase">Last runs</h2>
         <table className="table">
           <tbody>
             {runs.map((r) => (
               <tr key={r.id}>
-                <td>{r.kind === "sync" ? "Lesen" : r.kind === "normalize" ? "Normalisieren" : "Kompilieren"}</td>
-                <td className="whitespace-nowrap text-zinc-500">{new Date(r.started_at).toLocaleString("de-DE")}</td>
-                <td>{r.finished_at ? (r.ok ? <span className="text-emerald-600 dark:text-emerald-400">✓</span> : <span className="text-red-600 dark:text-red-400">✗</span>) : "läuft"}</td>
+                <td>{r.kind === "sync" ? "Read" : r.kind === "normalize" ? "Normalize" : "Compile"}</td>
+                <td className="whitespace-nowrap text-zinc-500">{formatDateTime(r.started_at)}</td>
+                <td>{r.finished_at ? (r.ok ? <span className="text-emerald-600 dark:text-emerald-400">✓</span> : <span className="text-red-600 dark:text-red-400">✗</span>) : "running"}</td>
                 <td className="w-full">{r.message}</td>
               </tr>
             ))}
             {!runs.length && (
               <tr>
-                <td className="text-zinc-500">noch keine</td>
+                <td className="text-zinc-500">none yet</td>
               </tr>
             )}
           </tbody>
@@ -311,10 +313,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
 }
 
 const DONE: Record<string, string> = {
-  saved: "Gespeichert ✓ — gilt ab dem nächsten Lesen und der nächsten Frage.",
-  sync: "Liest die Quellen und kompiliert danach, was neu ist — die Zahlen wachsen mit (die Seite lädt sich neu, solange es läuft).",
-  compile: "Kompiliert die neuen und geänderten Seiten — die Zahlen wachsen mit.",
-  recompile: "Kompiliert alle Seiten neu — „kompiliert“ fällt erst auf 0 und wächst dann wieder.",
-  notsure: "Nicht neu kompiliert — erst das Häkchen setzen.",
-  stop: "Wird angehalten — die laufenden Aufrufe enden noch und werden behalten.",
+  saved: "Saved ✓ — applies from the next read and the next question.",
+  sync: "Reading the sources, then compiling what's new — the numbers grow along (the page reloads while it runs).",
+  compile: "Compiling the new and changed pages — the numbers grow along.",
+  recompile: "Recompiling all pages — “compiled” drops to 0 first, then grows again.",
+  notsure: "Not recompiled — tick the box first.",
+  stop: "Stopping — the running calls still finish and are kept.",
 };

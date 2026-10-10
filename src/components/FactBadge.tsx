@@ -1,5 +1,6 @@
 import type { FactView } from "@/lib/facts-shared";
 import { ChevronIcon } from "./icons";
+import { formatDate } from "@/lib/format";
 
 const BADGE = "flex min-w-0 items-stretch overflow-hidden rounded-md border border-amber-200 bg-amber-50 text-xs text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100";
 const INNER = "flex min-w-0 flex-1 items-center gap-2 py-1 pr-2 pl-1.5 text-left";
@@ -17,7 +18,7 @@ export function FactBadge({ f, className = "", expanded = false, onToggle }: { f
   return (
     <div className={`${BADGE} ${className}`}>
       {onToggle ? (
-        <button type="button" className={`${INNER} cursor-pointer transition hover:bg-amber-100 dark:hover:bg-amber-950`} onClick={onToggle} aria-expanded={expanded} title={expanded ? "Fold" : "Den Fakt zeigen"}>
+        <button type="button" className={`${INNER} cursor-pointer transition hover:bg-amber-100 dark:hover:bg-amber-950`} onClick={onToggle} aria-expanded={expanded} title={expanded ? "Fold" : "Show the fact"}>
           {body}
         </button>
       ) : (
@@ -31,11 +32,11 @@ export function FactBadge({ f, className = "", expanded = false, onToggle }: { f
 export function FactDetails({ f }: { f: FactView }) {
   return (
     <div className="space-y-1 rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-      <p className="text-xs text-zinc-500">Fakt · zuletzt {new Date(f.updatedAt).toLocaleDateString("de-DE")}</p>
+      <p className="text-xs text-zinc-500">Fact · last {formatDate(f.updatedAt, { weekday: false, year: true })}</p>
       <p>
         <span className="font-medium">{f.subject}:</span> {f.text}
       </p>
-      <p className="text-xs text-zinc-400">Gefunden in {f.refs.length} Nachricht{f.refs.length === 1 ? "" : "en"} — geht ins Wissen.</p>
+      <p className="text-xs text-zinc-400">Found in {f.refs.length} message{f.refs.length === 1 ? "" : "s"} — goes into Knowledge.</p>
     </div>
   );
 }

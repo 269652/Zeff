@@ -3,14 +3,15 @@ import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
+import { formatDateTime } from "@/lib/format";
 import { compileRunning, compileSoon, markForRecompile } from "@k/compile";
 import { pageDetail } from "@k/graph";
 import { isOwn } from "@k/own";
 import { styleOf } from "@k/graph-style";
 
-export const metadata: Metadata = { title: "Seite" };
+export const metadata: Metadata = { title: "Page" };
 
-const day = (iso: string | null) => (iso ? new Date(iso).toLocaleString("de-DE", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
+const day = (iso: string | null) => (iso ? formatDateTime(iso) : "");
 
 /** One page of the knowledge: its text as read, and what compiling made of it — the summary, the entities it names (each into the graph), the relations it states. */
 export default async function KnowledgePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ done?: string }> }) {
@@ -40,32 +41,32 @@ export default async function KnowledgePage({ params, searchParams }: { params: 
           <div className="flex flex-wrap gap-3 text-xs">
             {p.url && /^https?:/.test(p.url) && (
               <a href={p.url} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline dark:text-indigo-400">
-                Quelle öffnen ↗
+                Open source ↗
               </a>
             )}
             <form action={recompile}>
-              <button className="text-indigo-600 hover:underline dark:text-indigo-400" title="Die KI wertet die Seite noch einmal aus (Zusammenfassung, Entitäten, Beziehungen)">
-                Neu kompilieren
+              <button className="text-indigo-600 hover:underline dark:text-indigo-400" title="The AI goes through the page once more (summary, entities, relations)">
+                Recompile
               </button>
             </form>
             {own && (
               <Link href={`/eigenes#${encodeURIComponent(p.id)}`} className="text-indigo-600 hover:underline dark:text-indigo-400">
-                Eigenes Wissen — bearbeiten
+                Your knowledge — edit
               </Link>
             )}
           </div>
         </div>
-        {done === "recompile" && <p className="alert-ok">Wird neu kompiliert{compileRunning() ? " — nach dem laufenden Kompilieren" : ""}. Lade die Seite gleich neu.</p>}
+        {done === "recompile" && <p className="alert-ok">Recompiling{compileRunning() ? " — after the compile that's running" : ""}. Reload the page in a moment.</p>}
         {p.summary ? (
           <p className="rounded-md bg-zinc-50 p-3 text-sm dark:bg-zinc-900">{p.summary}</p>
         ) : (
-          !p.compiled && <p className="text-sm text-amber-600 dark:text-amber-400">Noch nicht kompiliert.</p>
+          !p.compiled && <p className="text-sm text-amber-600 dark:text-amber-400">Not compiled yet.</p>
         )}
         <pre className="font-sans text-sm leading-relaxed break-words whitespace-pre-wrap">{p.body}</pre>
       </article>
       <aside className="space-y-3">
         <section className="card space-y-2 p-4">
-          <h2 className="text-xs font-semibold text-zinc-500 uppercase">Entitäten ({p.entities.length})</h2>
+          <h2 className="text-xs font-semibold text-zinc-500 uppercase">Entities ({p.entities.length})</h2>
           <ul className="flex flex-wrap gap-1.5">
             {p.entities.map((e) => (
               <li key={e.id}>
@@ -75,12 +76,12 @@ export default async function KnowledgePage({ params, searchParams }: { params: 
                 </Link>
               </li>
             ))}
-            {!p.entities.length && <li className="text-xs text-zinc-500">keine</li>}
+            {!p.entities.length && <li className="text-xs text-zinc-500">none</li>}
           </ul>
         </section>
         {p.relations.length > 0 && (
           <section className="card space-y-2 p-4">
-            <h2 className="text-xs font-semibold text-zinc-500 uppercase">Beziehungen ({p.relations.length})</h2>
+            <h2 className="text-xs font-semibold text-zinc-500 uppercase">Relations ({p.relations.length})</h2>
             <ul className="space-y-1.5 text-xs">
               {p.relations.map((r, i) => (
                 <li key={i}>

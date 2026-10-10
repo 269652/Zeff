@@ -1,4 +1,4 @@
-import { formatHours } from "@/lib/format";
+import { formatHours, formatTime } from "@/lib/format";
 import type { TicketCard } from "@/lib/jira/ticket-card-shared";
 import type { RecapFact, RecapView as Recap } from "@/lib/boards/recap-shared";
 import type { Entity } from "@/lib/entities-shared";
@@ -6,7 +6,7 @@ import { TicketLink } from "../TicketLink";
 import { RecapSources } from "./RecapSources";
 
 const KIND: Record<RecapFact["kind"], { label: string; cls: string }> = {
-  entry: { label: "Buchung", cls: "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200" },
+  entry: { label: "Entry", cls: "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200" },
   todo: { label: "Todo", cls: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200" },
   work: { label: "Worker", cls: "bg-indigo-50 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-200" },
   "jira-comment": { label: "Jira", cls: "bg-jira-50 text-jira-800 dark:bg-jira-950/60 dark:text-jira-200" },
@@ -15,7 +15,7 @@ const KIND: Record<RecapFact["kind"], { label: string; cls: string }> = {
   gitlab: { label: "GitLab", cls: "bg-orange-50 text-orange-800 dark:bg-orange-950/60 dark:text-orange-200" },
 };
 
-const time = (at: string | null) => (at ? new Date(at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "");
+const time = (at: string | null) => (at ? formatTime(at) : "");
 const hoursOf = (facts: RecapFact[]) => facts.reduce((s, f) => s + (f.hours ?? 0), 0);
 
 /** Facts with no badge of their own (bookings, commits, workers' runs, Jira changes) — the rest are badges. */
@@ -30,7 +30,7 @@ function Facts({ facts, entities = [] }: { facts: RecapFact[]; entities?: Entity
   if (!lines.length && !entities.length) return null;
   return (
     <details className="text-sm">
-      <summary className="cursor-pointer text-xs text-zinc-500">Belege ({entities.length + lines.length})</summary>
+      <summary className="cursor-pointer text-xs text-zinc-500">Evidence ({entities.length + lines.length})</summary>
       <div className="mt-1.5">
         <RecapSources entities={entities} />
       </div>
@@ -63,7 +63,7 @@ export function RecapView({ recap, cards, entities = {} }: { recap: Recap; cards
       {r?.summary && (
         <section className="card space-y-2 p-4">
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">
-            Zusammenfassung {booked > 0 && <span className="font-normal normal-case text-zinc-400">· {formatHours(booked)} h gebucht</span>}
+            Summary {booked > 0 && <span className="font-normal normal-case text-zinc-400">· {formatHours(booked)} h booked</span>}
           </h2>
           <p className="max-w-[80ch] leading-relaxed whitespace-pre-line">{r.summary}</p>
         </section>
@@ -77,7 +77,7 @@ export function RecapView({ recap, cards, entities = {} }: { recap: Recap; cards
               <TicketLink ticket={t.key} card={cards[t.key]} className="font-mono text-sm font-semibold text-indigo-700 dark:text-indigo-300" />
               <span className="font-medium">{t.summary || cards[t.key]?.summary}</span>
               {t.status && <span className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wide text-zinc-600 uppercase dark:bg-zinc-800 dark:text-zinc-300">{t.status}</span>}
-              {hours > 0 && <span className="ml-auto text-xs text-zinc-500">{formatHours(hours)} h gebucht</span>}
+              {hours > 0 && <span className="ml-auto text-xs text-zinc-500">{formatHours(hours)} h booked</span>}
             </header>
             {w?.lead && <p className="font-medium">{w.lead}</p>}
             {!!w?.done.length && (
@@ -94,7 +94,7 @@ export function RecapView({ recap, cards, entities = {} }: { recap: Recap; cards
       {(!!r?.other.length || recap.facts.other.length > 0) && (
         <section className="card space-y-2 p-4">
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">
-            Ohne Ticket {hoursOf(recap.facts.other) > 0 && <span className="font-normal normal-case text-zinc-400">· {formatHours(hoursOf(recap.facts.other))} h gebucht</span>}
+            No ticket {hoursOf(recap.facts.other) > 0 && <span className="font-normal normal-case text-zinc-400">· {formatHours(hoursOf(recap.facts.other))} h booked</span>}
           </h2>
           {!!r?.other.length && (
             <ul className="list-disc space-y-0.5 pl-5 text-sm text-zinc-700 dark:text-zinc-300">

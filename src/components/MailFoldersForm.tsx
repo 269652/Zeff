@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { saveMailFoldersAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
 
-/** Which Outlook folders the mail sync reads — by name as Outlook's folder list shows them, comma-separated. */
+/** Which Outlook folders the mail sync reads — by name as Outlook&apos;s folder list shows them, comma-separated. */
 export function MailFoldersForm({ folders }: { folders: string[] }) {
   const [text, setText] = useState(folders.join(", "));
   const [state, setState] = useState<ActionState>(null);
@@ -19,14 +19,14 @@ export function MailFoldersForm({ folders }: { folders: string[] }) {
       }}
     >
       <label htmlFor="mail-folders" className="text-zinc-500">
-        Outlook-Ordner
+        Outlook folders
       </label>
       <input id="mail-folders" name="folders" className="input max-w-md flex-1" value={text} onChange={(e) => setText(e.target.value)} placeholder="Posteingang, Notifications" />
       <button type="submit" className="btn btn-sm" disabled={pending}>
-        Speichern
+        Save
       </button>
       {state && <span className={`text-xs ${state.ok ? "text-emerald-600" : "text-red-600"}`}>{state.ok ? state.message : state.error}</span>}
-      <span className="w-full text-xs text-zinc-400">Namen wie in Outlooks Ordnerliste, mit Komma getrennt — z. B. der Ordner, in den eine Regel Jira- und GitLab-Benachrichtigungen legt.</span>
+      <span className="w-full text-xs text-zinc-400">Names as in Outlook&apos;s folder list, separated by commas — e.g. the folder a rule moves Jira and GitLab notifications into.</span>
     </form>
   );
 }

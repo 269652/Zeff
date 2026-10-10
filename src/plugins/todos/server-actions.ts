@@ -18,18 +18,18 @@ export async function runBoardAction(): Promise<ActionState> {
 /** Which tickets on the chosen boards (a JQL filter) — how often a run goes by itself: the Sync settings page. */
 export async function saveBoardSettingsAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const jql = (str(fd, "jql") ?? "").trim();
-  if (jql.length < 5) return { ok: false, error: "Ein JQL-Filter, z. B.: assignee = currentUser() AND resolution = Unresolved" };
+  if (jql.length < 5) return { ok: false, error: "A JQL filter, e.g.: assignee = currentUser() AND resolution = Unresolved" };
   const { updateBoardSettings } = await import("@/lib/boards/store");
   updateBoardSettings({ jql: jql.slice(0, 1000) });
   revalidatePath("/todos");
-  return { ok: true, message: "Gespeichert." };
+  return { ok: true, message: "Saved." };
 }
 
-/** Stop the Ticket-Lage's run ("Jetzt auswerten"). */
+/** Stop the Ticket-Lage's run ("Analyse now"). */
 export async function stopBoardRunAction(): Promise<ActionState> {
   const { stopBoardRun } = await import("@/lib/boards/run");
   revalidatePath("/todos");
-  return stopBoardRun() ? { ok: true, message: "Die Auswertung wird abgebrochen." } : { ok: false, error: "Es läuft keine Auswertung." };
+  return stopBoardRun() ? { ok: true, message: "The analysis is being stopped." } : { ok: false, error: "No analysis is running." };
 }
 
 /** A todo done, dismissed, or open again. */
@@ -38,12 +38,12 @@ export async function addCardTodoAction(ticket: string, text: string): Promise<A
   try {
     const t = String(text ?? "").trim();
     const k = String(ticket ?? "").trim();
-    if (!t) return { ok: false, error: "Was ist zu tun?" };
-    if (!k) return { ok: false, error: "Keine Karte." };
+    if (!t) return { ok: false, error: "What's to be done?" };
+    if (!k) return { ok: false, error: "No card." };
     const { addManualTodo } = await import("@/lib/boards/store");
     const todo = addManualTodo({ ticket: k, text: t });
     revalidateAll();
-    return { ok: true, message: `${todo.ref} angelegt.` };
+    return { ok: true, message: `${todo.ref} created.` };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -51,7 +51,7 @@ export async function addCardTodoAction(ticket: string, text: string): Promise<A
 
 export async function setTodoStatusAction(id: number, status: "open" | "done" | "dismissed"): Promise<ActionState> {
   try {
-    if (!Number.isInteger(id) || !["open", "done", "dismissed"].includes(status)) return { ok: false, error: "Unbekanntes Todo." };
+    if (!Number.isInteger(id) || !["open", "done", "dismissed"].includes(status)) return { ok: false, error: "Unknown todo." };
     const { setTodoStatus } = await import("@/lib/boards/store");
     const { attributed } = await import("@/lib/boards/activity");
     attributed("you", () => setTodoStatus(id, status, status === "open" ? null : undefined));
@@ -74,7 +74,7 @@ export async function runTodoOpsAction(todoId: number): Promise<ActionState> {
     const { runTodoOpsNow } = await import("@/lib/ops");
     const r = await runTodoOpsNow(Number(todoId));
     revalidateAll();
-    return { ok: true, message: `${r.done.join(" · ")}${r.settled ? " — erledigt." : ""}` };
+    return { ok: true, message: `${r.done.join(" · ")}${r.settled ? " — done." : ""}` };
   } catch (err) {
     revalidateAll();
     return { ok: false, error: errorMessage(err) };
@@ -85,11 +85,11 @@ export async function runTodoOpsAction(todoId: number): Promise<ActionState> {
 export async function instructTodoAction(todoId: number, instruction: string): Promise<ActionState> {
   try {
     const text = String(instruction ?? "").trim();
-    if (!text) return { ok: false, error: "Was soll Copilot tun?" };
+    if (!text) return { ok: false, error: "What should Copilot do?" };
     const { dispatchTodo } = await import("@/lib/work/runner");
     const run = dispatchTodo(Number(todoId), { provider: "copilot", instruction: text.slice(0, 8000) });
     revalidateAll();
-    return { ok: true, message: `${run.ref} (Copilot) ${run.status === "running" ? "läuft" : "wartet auf einen freien Worker"}.` };
+    return { ok: true, message: `${run.ref} (Copilot) ${run.status === "running" ? "is running" : "is waiting for a free worker"}.` };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -120,10 +120,10 @@ export async function draftReplyAction(todoId: number): Promise<import("@/lib/bo
 export async function openReplyTargetAction(url: string): Promise<ActionState> {
   try {
     const { REPLY_HOSTS } = await import("@/lib/boards/reply-draft");
-    if (!REPLY_HOSTS.test(String(url))) return { ok: false, error: "Diese Adresse öffnet Zeff nicht." };
+    if (!REPLY_HOSTS.test(String(url))) return { ok: false, error: "Zeff doesn't open this address." };
     const { openInAutomationChrome } = await import("@/lib/attention");
     const r = await openInAutomationChrome(String(url), new URL(String(url)).host);
-    return r.ok ? { ok: true, message: "Im Automations-Chrome vorne — Entwurf einfügen und abschicken." } : { ok: false, error: r.message };
+    return r.ok ? { ok: true, message: "In front in the automation Chrome — paste the draft and send it." } : { ok: false, error: r.message };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -133,11 +133,11 @@ export async function openReplyTargetAction(url: string): Promise<ActionState> {
 export async function saveContextPrefsAction(step: string, patch: { sources?: Record<string, boolean>; numbers?: Record<string, number>; extra?: string }): Promise<ActionState> {
   try {
     const { CONTEXT_STEP_IDS } = await import("@/lib/boards/context-prefs-shared");
-    if (!(CONTEXT_STEP_IDS as readonly string[]).includes(step)) return { ok: false, error: "Unbekannter Schritt." };
+    if (!(CONTEXT_STEP_IDS as readonly string[]).includes(step)) return { ok: false, error: "Unknown step." };
     const { setStepPrefs } = await import("@/lib/boards/context-prefs");
     setStepPrefs(step as (typeof CONTEXT_STEP_IDS)[number], patch ?? {});
     revalidatePath("/auswerten");
-    return { ok: true, message: "Gespeichert — gilt ab dem nächsten Lauf." };
+    return { ok: true, message: "Saved — applies from the next run on." };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -170,7 +170,7 @@ export async function deferTodoAction(todoId: number, deferred: boolean): Promis
 /** Your note on a todo (context for whoever works on it) — added, or taken away by its time. */
 export async function addTodoNoteAction(todoId: number, text: string): Promise<ActionState> {
   try {
-    if (!String(text ?? "").trim()) return { ok: false, error: "Die Notiz ist leer." };
+    if (!String(text ?? "").trim()) return { ok: false, error: "The note is empty." };
     const { addTodoUserNote } = await import("@/lib/boards/store");
     const t = addTodoUserNote(Number(todoId), String(text));
     revalidateAll();
@@ -236,7 +236,7 @@ export async function runTodoAlternativeAction(todoId: number, label: string): P
       // On its own: a todo of its own (traceable, under this one), run at once — this one stays as it is.
       const { addFollowUp } = await import("@/lib/boards/store");
       const { attributed } = await import("@/lib/boards/activity");
-      const child = attributed("you", () => addFollowUp({ ticket: t.ticket, text: alt.title, kind: "update", parentId: t.id, workRunId: null, source: `Option zu ${t.ref}`, ops: alt.ops }));
+      const child = attributed("you", () => addFollowUp({ ticket: t.ticket, text: alt.title, kind: "update", parentId: t.id, workRunId: null, source: `Option for ${t.ref}`, ops: alt.ops }));
       const run = dispatchTodo(child.id);
       revalidateAll();
       return { ok: true, message: `${run.ref}: ${alt.title}.` };
@@ -286,7 +286,7 @@ export async function setTicketFollowAction(key: string, value: 1 | -1 | 0): Pro
     const { setFollowed } = await import("@/lib/boards/followed");
     setFollowed(String(key), value === 1 || value === -1 ? value : 0);
     revalidateAll();
-    return { ok: true, message: value === 1 ? `${key}: wird weiter verfolgt (ab dem nächsten Lauf).` : value === -1 ? `${key}: nicht mehr verfolgt.` : `${key}: wie es kommt.` };
+    return { ok: true, message: value === 1 ? `${key}: followed from now on (from the next run).` : value === -1 ? `${key}: no longer followed.` : `${key}: as it comes.` };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -305,27 +305,28 @@ export async function doneBrowserOpAction(todoId: number, index: number): Promis
     const { eq } = await import("drizzle-orm");
     const t = getTodo(Number(todoId));
     const op = t?.ops[Number(index)];
-    if (!t || !op || !actionHref(op)) return { ok: false, error: "Diese Aktion gibt es am Todo nicht (mehr)." };
+    if (!t || !op || !actionHref(op)) return { ok: false, error: "That action isn't on the todo (any more)." };
     const left = t.ops.filter((_, i) => i !== Number(index));
     getDb().update(schema.todos).set({ ops: JSON.stringify(left) }).where(eq(schema.todos.id, t.id)).run();
-    const when = (iso: string) => new Date(iso).toLocaleString("de-DE", { weekday: "short", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
+    const { formatDate, formatTime } = await import("@/lib/format");
+    const when = (iso: string) => `${formatDate(iso)}, ${formatTime(iso)}`;
     const what =
       op.type === "calendar-event"
-        ? `Termin „${op.subject}“ in Outlook angelegt (${when(op.start)}, ${op.minutes} min${op.attendees ? `, mit ${op.attendees.replace(/;/g, ", ")}` : ""}).`
+        ? `Meeting “${op.subject}” created in Outlook (${when(op.start)}, ${op.minutes} min${op.attendees ? `, with ${op.attendees.replace(/;/g, ", ")}` : ""}).`
         : op.type === "gcal-event"
-          ? `Termin „${op.title}“ in Google Calendar angelegt (${when(op.start)}, ${op.minutes} min).`
+          ? `Meeting “${op.title}” created in Google Calendar (${when(op.start)}, ${op.minutes} min).`
           : op.type === "mail-compose"
-            ? `Mail „${op.subject}“${op.to ? ` an ${op.to.replace(/;/g, ", ")}` : ""} gesendet.`
-            : "Im Browser erledigt.";
+            ? `Mail “${op.subject}”${op.to ? ` to ${op.to.replace(/;/g, ", ")}` : ""} sent.`
+            : "Done in the browser.";
     addTodoUserNote(t.id, `✓ ${what}`);
     // A mail that answers or asks — the todo itself, done with it.
     const settles = op.type === "mail-compose" && !left.length && t.owner === "me" && ["reply", "comment", "clarify", "update"].includes(t.kind);
     if (settles) {
       const { attributed } = await import("@/lib/boards/activity");
-      attributed("you", () => setTodoStatus(t.id, "done", `Erledigt: ${what}`));
+      attributed("you", () => setTodoStatus(t.id, "done", `Done: ${what}`));
     }
     revalidateAll();
-    return { ok: true, message: settles ? `${t.ref} erledigt — ${what}` : `Vermerkt an ${t.ref}: ${what}` };
+    return { ok: true, message: settles ? `${t.ref} done — ${what}` : `Noted on ${t.ref}: ${what}` };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -335,13 +336,13 @@ export async function doneBrowserOpAction(todoId: number, index: number): Promis
 export async function suggestTodoActionsAction(todoId: number): Promise<ActionState> {
   try {
     const { isInstalled } = await import("@/plugins/state");
-    if (!isInstalled("auto-actions")) return { ok: false, error: "Auto-Aktionen sind nicht installiert (Menü → Plugins)." };
+    if (!isInstalled("auto-actions")) return { ok: false, error: "Auto actions are not installed (Menu → Plugins)." };
     const { reviewTodosForActions } = await import("@/plugins/auto-actions/review");
     const r = await reviewTodosForActions({ ids: [Number(todoId)] });
     revalidateAll();
-    if (!r.ok) return { ok: false, error: r.error ?? "Die KI hat nicht geantwortet." };
-    if (!r.reviewed) return { ok: false, error: "Das Todo hat schon Aktionen (aus der Ticket-Lage) — die bleiben." };
-    return { ok: true, message: r.withActions ? "Aktionen vorgeschlagen — am Todo." : "Keine passende Aktion gefunden." };
+    if (!r.ok) return { ok: false, error: r.error ?? "The AI didn't answer." };
+    if (!r.reviewed) return { ok: false, error: "The todo already has actions (from the briefing) — they stay." };
+    return { ok: true, message: r.withActions ? "Actions suggested — on the todo." : "No fitting action found." };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -355,7 +356,7 @@ export async function removeTodoOpAction(todoId: number, index: number): Promise
     const { eq } = await import("drizzle-orm");
     const t = getTodo(Number(todoId));
     const op = t?.ops[Number(index)];
-    if (!t || !op) return { ok: false, error: "Diese Aktion gibt es am Todo nicht (mehr)." };
+    if (!t || !op) return { ok: false, error: "That action isn't on the todo (any more)." };
     const left = t.ops.filter((_, i) => i !== Number(index));
     getDb()
       .update(schema.todos)
@@ -363,7 +364,7 @@ export async function removeTodoOpAction(todoId: number, index: number): Promise
       .where(eq(schema.todos.id, t.id))
       .run();
     revalidateAll();
-    return { ok: true, message: "Aktion entfernt." };
+    return { ok: true, message: "Action removed." };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

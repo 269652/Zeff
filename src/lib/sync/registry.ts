@@ -227,7 +227,7 @@ const STEPS: Record<SyncKey, Step> = {
     schedule: () => ({ everyMinutes: stepMinutes("timo"), lastAt: lastSyncOf("timo"), window: "while the automation Chrome runs" }),
   },
   boards: {
-    label: "Ticket-Lage",
+    label: "Briefing",
     href: "/todos",
     what: "Your tickets through the AI: what happened, what's to do",
     ownRecord: true,
@@ -238,7 +238,7 @@ const STEPS: Record<SyncKey, Step> = {
       // It runs in the background: wait for it, so "Sync all" ends when it does.
       while (boardRunState()) await new Promise((res) => setTimeout(res, 2000));
       const run = latestRun();
-      return run?.status === "ok" ? { ok: true, message: "Ticket-Lage updated." } : { ok: false, message: run?.error ?? "The run failed." };
+      return run?.status === "ok" ? { ok: true, message: "Briefing updated." } : { ok: false, message: run?.error ?? "The run failed." };
     },
     stop: () => {
       void import("@/lib/boards/run").then((m) => m.stopBoardRun());
@@ -260,100 +260,100 @@ const STEPS: Record<SyncKey, Step> = {
     schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: iso(latestRun()?.startedAt), window: "workdays" }),
   },
   mailtodos: {
-    label: "Mail-Durchsicht",
+    label: "Mail review",
     href: "/todos",
-    what: "Todos from your mails — what they ask of you (trainings, deadlines, forms), by the AI (after each Ticket-Lage)",
+    what: "Todos from your mails — what they ask of you (trainings, deadlines, forms), by the AI (after each briefing)",
     run: async () => {
       const r = await (await import("@/lib/boards/mail-todos")).reviewMailsForTodos(
         (globalThis as { __zeffBoardRun?: { id: number } | null }).__zeffBoardRun?.id ?? null,
       );
       return r.ok
-        ? { ok: true, message: `${r.reviewed} Mails durchgesehen, ${r.added} neue Todos${r.updated ? `, ${r.updated} ergänzt` : ""}${r.error ? ` (${r.error})` : ""}` }
-        : { ok: false, message: r.error ?? "Fehlgeschlagen." };
+        ? { ok: true, message: `${r.reviewed} mails reviewed, ${r.added} new todos${r.updated ? `, ${r.updated} updated` : ""}${r.error ? ` (${r.error})` : ""}` }
+        : { ok: false, message: r.error ?? "Failed." };
     },
     busy: () => flag("__zeffMailTodos"),
     // It runs with the Ticket-Lage (after it, before the Mail-Zuordnung).
-    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("mailtodos").lastAt, window: "workdays, with the Ticket-Lage" }),
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("mailtodos").lastAt, window: "workdays, with the briefing" }),
   },
   autoactions: {
-    label: "Auto-Aktionen",
+    label: "Auto actions",
     href: "/todos",
-    what: "Ready actions for the todos without a button — by the AI, from what the installed plugins can do (after each Ticket-Lage)",
+    what: "Ready actions for the todos without a button — by the AI, from what the installed plugins can do (after each briefing)",
     run: async () => {
       const r = await (await import("@/plugins/auto-actions/review")).reviewTodosForActions();
       return r.ok
-        ? { ok: true, message: `${r.reviewed} Todos durchgesehen, ${r.withActions} mit Aktionen${r.error ? ` (${r.error})` : ""}` }
-        : { ok: false, message: r.error ?? "Fehlgeschlagen." };
+        ? { ok: true, message: `${r.reviewed} todos reviewed, ${r.withActions} with actions${r.error ? ` (${r.error})` : ""}` }
+        : { ok: false, message: r.error ?? "Failed." };
     },
     busy: () => flag("__zeffAutoActions"),
-    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("autoactions").lastAt, window: "workdays, with the Ticket-Lage" }),
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("autoactions").lastAt, window: "workdays, with the briefing" }),
   },
   boardlage: {
-    label: "Board-Lage",
+    label: "Board briefing",
     href: "/kanban",
-    what: "The Lage of every relevant ticket on your Jira boards (not only yours) — for the Kanban cards (by hand: a Jira board's Auswerten; only what changed)",
+    what: "The briefing on every relevant ticket on your Jira boards (not only yours) — for the Kanban cards (by hand, from a Jira board; only what changed)",
     run: async () => {
       const r = await (await import("@/plugins/jira-lage/board-lage")).runBoardLage();
       return r.ok
-        ? { ok: true, message: `${r.relevant} Tickets ${r.all ? "(alle)" : "(mit dir)"} · ${r.analyzed} neu eingeschätzt · ${r.unchanged} unverändert${r.failed ? ` · ${r.failed} fehlgeschlagen` : ""}` }
-        : { ok: false, message: r.error ?? "Fehlgeschlagen." };
+        ? { ok: true, message: `${r.relevant} tickets ${r.all ? "(all)" : "(with you)"} · ${r.analyzed} reassessed · ${r.unchanged} unchanged${r.failed ? ` · ${r.failed} failed` : ""}` }
+        : { ok: false, message: r.error ?? "Failed." };
     },
     busy: () => flag("__zeffBoardLage"),
-    schedule: () => ({ everyMinutes: 0, lastAt: recorded("boardlage").lastAt, window: "by hand — a Jira board's Auswerten" }),
+    schedule: () => ({ everyMinutes: 0, lastAt: recorded("boardlage").lastAt, window: "by hand, from a Jira board" }),
   },
   relations: {
-    label: "Mail-Zuordnung",
+    label: "Mail matching",
     href: "/todos",
-    what: "Which mails each open todo is about — the AI reads them by content (after each Ticket-Lage)",
+    what: "Which mails each open todo is about — the AI reads them by content (after each briefing)",
     run: async () => {
       const r = await (await import("@/lib/boards/mail-relations")).relateMails();
       return r.ok
-        ? { ok: true, message: `${r.todos} Todos, ${r.changed} geändert${r.error ? ` (${r.error})` : ""}` }
-        : { ok: false, message: r.error ?? "Fehlgeschlagen." };
+        ? { ok: true, message: `${r.todos} todos, ${r.changed} changed${r.error ? ` (${r.error})` : ""}` }
+        : { ok: false, message: r.error ?? "Failed." };
     },
     busy: () => flag("__zeffMailRelations"),
     // It runs with the Ticket-Lage (its last step).
-    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("relations").lastAt, window: "workdays, with the Ticket-Lage" }),
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("relations").lastAt, window: "workdays, with the briefing" }),
   },
   // Google Keep's extensions for Todos (there while they're on — see extensions.ts):
   notetodos: {
-    label: "Notiz-Durchsicht",
+    label: "Note review",
     href: "/keep",
-    what: "Todos from your notes — new and edited ones (Google Keep, your Keep boards in the Lage), by the AI (after each Ticket-Lage)",
+    what: "Todos from your notes — new and edited ones (Google Keep, your Keep boards in the briefing), by the AI (after each briefing)",
     run: async () => {
       const r = await (await import("@/plugins/keep/note-review")).reviewNotesForTodos(
         (globalThis as { __zeffBoardRun?: { id: number } | null }).__zeffBoardRun?.id ?? null,
       );
       return r.ok
-        ? { ok: true, message: `${r.reviewed} Notizen durchgesehen, ${r.added} neue Todos${r.error ? ` (${r.error})` : ""}` }
-        : { ok: false, message: r.error ?? "Fehlgeschlagen." };
+        ? { ok: true, message: `${r.reviewed} notes reviewed, ${r.added} new todos${r.error ? ` (${r.error})` : ""}` }
+        : { ok: false, message: r.error ?? "Failed." };
     },
     busy: () => flag("__zeffNoteTodos"),
-    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("notetodos").lastAt, window: "workdays, with the Ticket-Lage" }),
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("notetodos").lastAt, window: "workdays, with the briefing" }),
   },
   noterelations: {
-    label: "Notiz-Zuordnung",
+    label: "Note matching",
     href: "/todos",
-    what: "Which notes each open todo is about — the AI reads them by content (after each Ticket-Lage)",
+    what: "Which notes each open todo is about — the AI reads them by content (after each briefing)",
     run: async () => {
       const r = await (await import("@/plugins/keep/note-relations")).relateNotes();
       return r.ok
-        ? { ok: true, message: `${r.todos} Todos, ${r.changed} geändert${r.error ? ` (${r.error})` : ""}` }
-        : { ok: false, message: r.error ?? "Fehlgeschlagen." };
+        ? { ok: true, message: `${r.todos} todos, ${r.changed} changed${r.error ? ` (${r.error})` : ""}` }
+        : { ok: false, message: r.error ?? "Failed." };
     },
     busy: () => flag("__zeffNoteRelations"),
-    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("noterelations").lastAt, window: "workdays, with the Ticket-Lage" }),
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("noterelations").lastAt, window: "workdays, with the briefing" }),
   },
   knowledgerel: {
-    label: "Wissens-Zuordnung",
+    label: "Knowledge matching",
     href: "/todos",
-    what: "Which knowledge pages each open todo needs — the AI keeps only those that really fit (after each Ticket-Lage)",
+    what: "Which knowledge pages each open todo needs — the AI keeps only those that really fit (after each briefing)",
     run: async () => {
       const r = await (await import("@/plugins/knowledge/relations")).relateKnowledge();
-      return r.ok ? { ok: true, message: `${r.todos} Todos durchgesehen, ${r.assigned} mit Wissen` } : { ok: false, message: r.error ?? "Fehlgeschlagen." };
+      return r.ok ? { ok: true, message: `${r.todos} todos reviewed, ${r.assigned} with knowledge` } : { ok: false, message: r.error ?? "Failed." };
     },
     busy: () => flag("__zeffKnowledgeRelations"),
-    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("knowledgerel").lastAt, window: "workdays, with the Ticket-Lage" }),
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("knowledgerel").lastAt, window: "workdays, with the briefing" }),
   },
 };
 
@@ -445,7 +445,7 @@ export async function syncAndWait(key: SyncKey): Promise<Last> {
 export function startSync(key: SyncKey): { ok: boolean; message: string } {
   // Kept in the account it was started in — whichever is switched to while it runs.
   return inThisAccount(() => {
-    if (!stepAvailable(key)) return { ok: false, message: `${STEPS[key].label}: das Plugin ist nicht installiert (Settings → Plugins).` };
+    if (!stepAvailable(key)) return { ok: false, message: `${STEPS[key].label}: not installed (Menu → Plugins).` };
     if (live().running.has(key) || STEPS[key].busy?.()) return { ok: false, message: `${STEPS[key].label} is already syncing.` };
     void runStep(key);
     return { ok: true, message: `${STEPS[key].label} is syncing.` };

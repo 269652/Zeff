@@ -7,16 +7,16 @@ export const syncSettings: PluginSyncSettings = {
     {
       key: "keep",
       label: "Google Keep",
-      what: "Deine Notizen und Listen — Keep wird in einem neuen Tab geöffnet, was es lädt, wird übernommen, der Tab wieder geschlossen. In Keep ändert sich nichts.",
+      what: "Your notes and lists — Keep is opened in a new tab, what it loads is taken over, then the tab is closed again. Nothing changes in Keep.",
       get: () => stepMinutes("keep"),
       set: (m) => setStepMinutes("keep", m),
       choices: MINUTE_CHOICES,
-      window: "solange der Automations-Chrome läuft",
+      window: "while the automation Chrome is running",
     },
   ],
   // Its extensions' steps (shown while they're on): with each Ticket-Lage.
   follows: [
-    { key: "notetodos", label: "Notiz-Durchsicht", follows: "mit jeder Ticket-Lage (Auswertung) — Todos aus neuen und geänderten Notizen" },
-    { key: "noterelations", label: "Notiz-Zuordnung", follows: "mit jeder Ticket-Lage — welche Notizen zu welchem Todo gehören" },
+    { key: "notetodos", label: "Note review", follows: "with every briefing — todos from new and changed notes" },
+    { key: "noterelations", label: "Note matching", follows: "with every briefing — which notes belong to which todo" },
   ],
 };

@@ -16,10 +16,10 @@ async function call<T>(path: string, init: { method?: "GET" | "POST"; body?: unk
   try {
     r = await fetch(`${knowledgeUrl()}${path}`, { method: init.method ?? "GET", headers, body: init.body === undefined ? undefined : JSON.stringify(init.body), signal: AbortSignal.timeout(init.timeoutMs ?? 10000), cache: "no-store" });
   } catch {
-    throw new Error(`Der Wissens-Server dieses Kontos antwortet nicht (${knowledgeUrl()}) — läuft er? Der Launcher (Zeff.exe) startet ihn.`);
+    throw new Error(`This account's knowledge server isn't answering (${knowledgeUrl()}) — is it running? The launcher (Zeff.exe) starts it.`);
   }
   const data = (await r.json().catch(() => null)) as (T & { error?: string }) | null;
-  if (!r.ok || !data) throw new Error(data?.error ?? `Wissens-Server: ${r.status}`);
+  if (!r.ok || !data) throw new Error(data?.error ?? `Knowledge server: ${r.status}`);
   return data;
 }
 

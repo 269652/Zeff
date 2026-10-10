@@ -30,7 +30,7 @@ export function LlmSettingsForm({
   const save = () =>
     start(async () => {
       const r = await saveLlmSettingsAction({ instructions, context, tasks });
-      toast(r?.ok ? (r.message ?? "Gespeichert.") : (r?.error ?? "Ging nicht."), { tone: r?.ok ? "ok" : "error" });
+      toast(r?.ok ? (r.message ?? "Saved.") : (r?.error ?? "That didn't work."), { tone: r?.ok ? "ok" : "error" });
       router.refresh();
     });
   const used = instructions.length + context.length;
@@ -38,30 +38,30 @@ export function LlmSettingsForm({
     <div className="space-y-5">
       <div className="grid gap-4 md:grid-cols-2">
         <label className="space-y-1 text-sm">
-          <span className="font-medium">Anweisungen</span>
-          <span className="block text-xs text-zinc-500">Wie die KI arbeiten soll — für jede Aufgabe, jeden Worker, jeden Agenten über MCP (z. B. Sprache, Ton, was sie nie tun soll).</span>
-          <textarea className="input min-h-36 w-full text-sm" value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder={"z. B.\n- Antworte auf Deutsch, knapp und ohne Floskeln.\n- Nachrichten an Kunden immer per Sie.\n- Nie etwas an main pushen."} />
+          <span className="font-medium">Instructions</span>
+          <span className="block text-xs text-zinc-500">How the AI should work — for every task, every worker, every agent over MCP (e.g. language, tone, what it must never do).</span>
+          <textarea className="input min-h-36 w-full text-sm" value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder={"e.g.\n- Answer briefly, without filler.\n- Always address customers formally.\n- Never push anything to main."} />
         </label>
         <label className="space-y-1 text-sm">
-          <span className="font-medium">Kontext über dich</span>
-          <span className="block text-xs text-zinc-500">Wer du bist, woran du arbeitest, wer wer ist — der Hintergrund, den jede Aufgabe mitbekommt.</span>
-          <textarea className="input min-h-36 w-full text-sm" value={context} onChange={(e) => setContext(e.target.value)} placeholder={"z. B.\nIch bin Entwickler im PROJ-Projekt (TYPO3).\nChristopher Ressl testet, Rico Clemen ist PM."} />
+          <span className="font-medium">Context about you</span>
+          <span className="block text-xs text-zinc-500">Who you are, what you work on, who is who — the background every task gets.</span>
+          <textarea className="input min-h-36 w-full text-sm" value={context} onChange={(e) => setContext(e.target.value)} placeholder={"e.g.\nI'm a developer on the PROJ project (TYPO3).\nChristopher Ressl tests, Rico Clemen is the PM."} />
         </label>
       </div>
       <p className={`text-xs ${used > 2500 ? "text-amber-700 dark:text-amber-400" : "text-zinc-400"}`}>
-        {used} Zeichen{used > 2500 ? " — in einen Prompt gehen die ersten 2500 (die Copilot CLI nimmt ihn über die Kommandozeile)" : ""}
+        {used} characters{used > 2500 ? " — the first 2500 go into a prompt (the Copilot CLI takes it on the command line)" : ""}
       </p>
 
       <div>
-        <h3 className="mb-2 text-sm font-medium">Aufgaben</h3>
+        <h3 className="mb-2 text-sm font-medium">Tasks</h3>
         <div className="overflow-x-auto">
           <table className="table">
             <thead>
               <tr>
-                <th>Aufgabe</th>
+                <th>Task</th>
                 <th>Backend</th>
-                <th>Modell</th>
-                <th>Läuft jetzt mit</th>
+                <th>Model</th>
+                <th>Runs with now</th>
               </tr>
             </thead>
             <tbody>
@@ -73,7 +73,7 @@ export function LlmSettingsForm({
                   </td>
                   <td>
                     <select className="input py-1 text-sm" value={tasks[t.id]?.provider ?? ""} onChange={(e) => set(t.id, { provider: e.target.value as LlmTaskSetting["provider"] })}>
-                      <option value="">Standard</option>
+                      <option value="">Default</option>
                       {providers.map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.label}
@@ -86,9 +86,9 @@ export function LlmSettingsForm({
                       className="input w-40 py-1 font-mono text-xs"
                       value={tasks[t.id]?.model ?? ""}
                       onChange={(e) => set(t.id, { model: e.target.value })}
-                      placeholder={tasks[t.id]?.provider ? "das des Backends" : "—"}
+                      placeholder={tasks[t.id]?.provider ? "the backend's" : "—"}
                       disabled={!tasks[t.id]?.provider}
-                      title={tasks[t.id]?.provider ? "Leer: das Modell aus den Backend-Einstellungen oben" : "Erst ein eigenes Backend wählen"}
+                      title={tasks[t.id]?.provider ? "Empty: the model from the backend settings above" : "Choose a backend of its own first"}
                     />
                   </td>
                   <td className="text-xs text-zinc-500">
@@ -102,7 +102,7 @@ export function LlmSettingsForm({
         </div>
       </div>
       <button type="button" className="btn btn-primary btn-sm" disabled={pending} onClick={save}>
-        {pending ? "…" : "Speichern"}
+        {pending ? "…" : "Save"}
       </button>
     </div>
   );

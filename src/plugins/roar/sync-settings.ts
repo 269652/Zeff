@@ -7,11 +7,11 @@ export const syncSettings: PluginSyncSettings = {
     {
       key: "roar",
       label: "Roar",
-      what: "Die Freigaben deiner Roar-Einträge, letzter und dieser Monat (nur gelesen — übertragen wird nur auf deinen Klick).",
+      what: "The approvals of your Roar entries, last month and this one (read only — entries are only sent on your click).",
       get: () => stepMinutes("roar"),
       set: (m) => setStepMinutes("roar", m),
       choices: MINUTE_CHOICES,
-      window: "solange der Automations-Chrome läuft",
+      window: "while the automation Chrome is running",
     },
   ],
 };

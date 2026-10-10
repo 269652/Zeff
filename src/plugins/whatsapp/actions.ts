@@ -8,8 +8,8 @@ export const WHATSAPP_ACTIONS = [
   action({
     type: "whatsapp-message",
     plugin: "whatsapp",
-    label: "WhatsApp-Nachricht senden",
-    verb: "Senden",
+    label: "Send WhatsApp message",
+    verb: "Send",
     comms: true,
     offer: {
       when: "Eine Antwort oder Nachricht an eine Person oder Gruppe per WhatsApp — wenn das Todo aus einem WhatsApp-Chat kommt (Ordner WhatsApp) oder jemanden betrifft, mit dem ich per WhatsApp schreibe: zusagen, absagen, eine Uhrzeit vorschlagen, nachfragen, sich melden. Sprache, Anrede und Ton wie im Chat; kurz und natürlich, wie ich schreibe. Nur, wenn die Antwort nicht schon im Chat steht.",
@@ -20,7 +20,7 @@ export const WHATSAPP_ACTIONS = [
       example: { type: "whatsapp-message", chat: "Natha", body: "Hey, morgen um 15 Uhr passt mir gut für die Flaschen — ich bring die große Tüte mit 😊" },
     },
     clean: (o) => (str(o.chat) && str(o.body) ? { type: "whatsapp-message", chat: str(o.chat).slice(0, 120), body: str(o.body).slice(0, 4000) } : null),
-    title: (op) => `WhatsApp an ${op.chat}`,
-    note: (op) => ({ heading: `WhatsApp-Nachricht an ${op.chat}`, detail: null, body: op.body }),
+    title: (op) => `WhatsApp to ${op.chat}`,
+    note: (op) => ({ heading: `WhatsApp message to ${op.chat}`, detail: null, body: op.body }),
   }),
 ];

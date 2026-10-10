@@ -1,16 +1,16 @@
 import Link from "next/link";
 import { LoginButtons } from "@/components/LoginButtons";
 import { listLogins, type LoginState } from "@/lib/logins";
-import { agoText } from "@/lib/teams/time";
+import { formatAgo } from "@/lib/format";
 
 const BADGE: Record<LoginState, [string, string]> = {
-  ok: ["angemeldet", "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"],
-  login: ["Anmeldung nötig", "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200"],
-  closed: ["nicht offen", "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200"],
-  chrome: ["Chrome läuft nicht", "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"],
-  unknown: ["unbekannt", "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"],
+  ok: ["signed in", "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"],
+  login: ["Sign-in needed", "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200"],
+  closed: ["not open", "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200"],
+  chrome: ["Chrome isn't running", "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"],
+  unknown: ["unknown", "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"],
 };
-const SOURCE = { check: "geprüft", request: "Anmeldeaufforderung", sync: "letzter Sync" } as const;
+const SOURCE = { check: "checked", request: "sign-in prompt", sync: "last sync" } as const;
 
 /** Every service the installed plugins sign in to, with its state and its buttons (Anmelden, Prüfen). */
 export async function LoginsList() {
@@ -32,7 +32,7 @@ export async function LoginsList() {
                     <p className="line-clamp-2 text-sm text-zinc-500">{l.detail}</p>
                     {l.at && l.source && (
                       <p className="text-xs text-zinc-400">
-                        {SOURCE[l.source]} {agoText(l.at)}
+                        {SOURCE[l.source]} {formatAgo(l.at)}
                       </p>
                     )}
                   </div>
@@ -43,7 +43,7 @@ export async function LoginsList() {
           </ul>
         ) : (
           <p className="py-6 text-center text-sm text-zinc-500">
-            Keins der installierten Plugins braucht eine Anmeldung —{" "}
+            None of the installed plugins needs a sign-in —{" "}
             <Link href="/plugins" className="text-indigo-600 hover:underline dark:text-indigo-400">
               Plugins
             </Link>

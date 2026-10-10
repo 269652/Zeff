@@ -9,10 +9,11 @@ import { LiveControls } from "./LiveControls";
 import { SessionComposer } from "./SessionComposer";
 import { SessionThread, type SessionTurn } from "./SessionThread";
 import { StopSessionButton, TodoSessionButton } from "./SessionActions";
+import { formatDateTime } from "@/lib/format";
 
 type Options = { tickets: { key: string; summary: string | null }[]; repos: { id: number; name: string }[]; providers: { id: string; label: string }[] };
 
-const when = (iso: string | null) => (iso ? new Date(iso.includes("T") ? iso : `${iso.replace(" ", "T")}Z`).toLocaleString("de-DE", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
+const when = (iso: string | null) => (iso ? formatDateTime(iso.includes("T") ? iso : `${iso.replace(" ", "T")}Z`) : "");
 const STATUS: Record<string, string> = { queued: "queued", running: "working", done: "done", failed: "failed", cancelled: "stopped", interrupted: "interrupted" };
 const TONE: Record<string, string> = {
   running: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200",
@@ -102,10 +103,10 @@ export function TicketPane({ ticket, data, options }: { ticket: string; data: Se
     <div className="flex min-h-0 w-full flex-1 flex-col gap-4">
       <header>
         <h1 className="text-lg font-semibold">
-          <span className="font-mono">{ticket || "Ohne Ticket"}</span>
+          <span className="font-mono">{ticket || "No ticket"}</span>
           {card?.url && (
             <a href={card.url} target="_blank" rel="noreferrer" className="ml-2 text-sm font-normal text-indigo-600 hover:underline dark:text-indigo-400">
-              öffnen ↗
+              open ↗
             </a>
           )}
         </h1>
@@ -114,7 +115,7 @@ export function TicketPane({ ticket, data, options }: { ticket: string; data: Se
       </header>
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
         <section className="space-y-1.5">
-          <h2 className="label">Offene Todos ({todos.length})</h2>
+          <h2 className="label">Open todos ({todos.length})</h2>
           {todos.length ? (
             <ul className="space-y-1.5">
               {todos.map((t) => (
@@ -128,7 +129,7 @@ export function TicketPane({ ticket, data, options }: { ticket: string; data: Se
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-zinc-500">Keine.</p>
+            <p className="text-sm text-zinc-500">None.</p>
           )}
         </section>
         <section className="space-y-1.5">
@@ -139,7 +140,7 @@ export function TicketPane({ ticket, data, options }: { ticket: string; data: Se
                 <Link href={`/work?run=${s.id}`} className="card flex items-center gap-3 p-2.5 text-sm hover:border-indigo-300 dark:hover:border-indigo-700">
                   <span className="font-mono text-xs text-zinc-500">{s.ref}</span>
                   <span className="min-w-0 flex-1 truncate">{s.title}</span>
-                  <span className={`rounded px-1.5 py-0.5 text-xs ${TONE[s.status] ?? ""}`}>{s.waiting ? "wartet auf dich" : WORK_STATUS_LABELS[s.status]}</span>
+                  <span className={`rounded px-1.5 py-0.5 text-xs ${TONE[s.status] ?? ""}`}>{s.waiting ? "waiting for you" : WORK_STATUS_LABELS[s.status]}</span>
                   <span className="text-xs text-zinc-400">{when(s.at)}</span>
                 </Link>
               </li>

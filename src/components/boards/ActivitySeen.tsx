@@ -51,7 +51,7 @@ export function UnseenActivityBadge({ ids, className = "" }: { ids: number[]; cl
   return (
     <span
       className={`inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] leading-4 font-semibold text-white normal-case ${className}`}
-      title={`${n} Änderung${n === 1 ? "" : "en"} an Todos, die du noch nicht gesehen hast`}
+      title={`${n} change${n === 1 ? "" : "s"} to todos you haven't seen yet`}
     >
       {n > 99 ? "99+" : n}
     </span>

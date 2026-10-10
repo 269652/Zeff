@@ -54,7 +54,7 @@ export function startAgentWork(v: { todo: string; agent?: string; note?: string 
   const mode: WorkMode = workModeOf(t).mode ?? "code";
   const r = createRun({ ticket: t.ticket, todoId: t.id, mode, provider: "agent", model: agent, permissionMode: null, repo: repoForTicket(t.ticket)?.repo.path ?? null, prompt: v.note?.trim() ?? "" });
   updateRun(r.id, { status: "running", startedAt: now() });
-  note(r.id, `[${agent}] übernimmt ${t.ref}: ${t.text}`);
+  note(r.id, `[${agent}] takes over ${t.ref}: ${t.text}`);
   if (v.note?.trim()) note(r.id, `[${agent}] ${v.note.trim()}`);
   return { run: getRun(r.id)!, resumed: false, todo: t };
 }
@@ -149,7 +149,7 @@ async function repoAt(dir: string): Promise<RepoView | undefined> {
 export async function proposeAgentDelivery(t: TodoView, runId: number, v: { branch?: string; repo?: string; since: string | null; title: string; description: string }): Promise<string | null> {
   // The folder it names (the repo, a worktree of it, or a folder in it) — else the ticket's repo.
   const repo = (v.repo?.trim() ? await repoAt(v.repo.trim()) : undefined) ?? repoForTicket(t.ticket)?.repo ?? null;
-  if (!repo?.ok) return v.branch ? `Kein Repo für ${t.ticket} bekannt (Repos-Seite)${v.repo?.trim() ? ` und ${v.repo.trim()} gehört zu keinem` : ""} — ${v.branch} nicht als Auslieferung angelegt.` : null;
+  if (!repo?.ok) return v.branch ? `No repo known for ${t.ticket} (Repos page)${v.repo?.trim() ? ` and ${v.repo.trim()} belongs to none` : ""} — ${v.branch} not set up as a delivery.` : null;
   await tryGit(repo.path, ["fetch", "origin", "--quiet"], 60000);
   const base = ((await tryGit(repo.path, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])) || "origin/main").replace(/^origin\//, "");
   const current = await tryGit(repo.path, ["branch", "--show-current"]);
@@ -167,11 +167,11 @@ export async function proposeAgentDelivery(t: TodoView, runId: number, v: { bran
     name = (recent.find(([b]) => key.test(b)) ?? recent[0])?.[0] ?? "";
   }
   if (!name) return null;
-  if (name === base) return `Die Arbeit liegt direkt auf ${base} — kein Feature-Branch, nichts angelegt.`;
+  if (name === base) return `The work is straight on ${base} — no feature branch, nothing set up.`;
   // Already on its way: an open delivery for that branch.
   // (Now, or planned behind its test todo.)
   const open = listTodos({ ticket: t.ticket, status: "open" }).find((x) => deliversBranch(x, name));
-  if (open) return `${todoRef(open.id)} liefert ${name} schon aus.`;
+  if (open) return `${todoRef(open.id)} delivers ${name} already.`;
   // The uncommitted changes go along — from where the branch is checked out: a worktree of its own
   // (an agent's), else the repo's checkout when it's on that branch — or (no branch named) when the
   // work was left on the default branch (it comes along onto the new one). Never the checkout's
@@ -188,10 +188,10 @@ export async function proposeAgentDelivery(t: TodoView, runId: number, v: { bran
         : null;
   const local = !!commit || !!(await tryGit(repo.path, ["rev-parse", "--verify", "--quiet", `refs/heads/${name}`]));
   const remote = !!(await tryGit(repo.path, ["rev-parse", "--verify", "--quiet", `refs/remotes/origin/${name}`]));
-  if (!local && !remote) return `Branch ${name} gibt es in ${repo.name} nicht — nichts angelegt.`;
+  if (!local && !remote) return `There's no branch ${name} in ${repo.name} — nothing set up.`;
   if (!commit) {
     const ahead = Number((await tryGit(repo.path, ["rev-list", "--count", `origin/${base}..${local ? name : `origin/${name}`}`])) || 0);
-    if (!ahead) return `${name} hat nichts, was nicht schon auf ${base} ist — nichts angelegt.`;
+    if (!ahead) return `${name} has nothing that isn't on ${base} already — nothing set up.`;
   }
   const unpushed = !!commit || (local && (!remote || Number((await tryGit(repo.path, ["rev-list", "--count", `origin/${name}..${name}`])) || 0) > 0));
   const viaMr: TodoOp[] = [
@@ -202,10 +202,10 @@ export async function proposeAgentDelivery(t: TodoView, runId: number, v: { bran
   const direct: TodoOp[] = [...(commit ? [commit] : []), { type: "git-merge-main", repo: repo.path, branch: local ? name : `origin/${name}`, target: base }];
   const viaDirect = repo.delivery === "direct" || !repo.gitlabProject;
   const ops = viaDirect ? direct : viaMr;
-  const text = `${name} ausliefern: ${viaDirect ? `in ${base} mergen` : `Merge Request nach ${base}`}${commit?.type === "git-commit-branch" ? ` (${commit.files.length} Datei${commit.files.length === 1 ? "" : "en"} noch nicht committet)` : ""}`;
+  const text = `Deliver ${name}: ${viaDirect ? `merge into ${base}` : `merge request into ${base}`}${commit?.type === "git-commit-branch" ? ` (${commit.files.length} file${commit.files.length === 1 ? "" : "s"} not committed yet)` : ""}`;
   // First tested by hand — the delivery (its buttons) comes once that's ticked off.
-  const test = addTestedDelivery({ from: t, workRunId: runId, source: `Follow-up von ${workRef(runId)}`, branch: name, delivery: { text, ops } });
-  return `${todoRef(test.id)}: erst manuell testen und verifizieren — danach erscheint die Auslieferung (${text})`;
+  const test = addTestedDelivery({ from: t, workRunId: runId, source: `Follow-up from ${workRef(runId)}`, branch: name, delivery: { text, ops } });
+  return `${todoRef(test.id)}: test and verify by hand first — then the delivery shows up (${text})`;
 }
 
 /** A line in the agent's log (what it's doing now). */
@@ -225,7 +225,7 @@ export function agentNeedsInput(v: { todo: string; question: string }) {
   if (!r) throw new ValidationError(`No agent is working on ${t.ref} — call start_todo first.`);
   const question = v.question.trim();
   if (!question) throw new ValidationError("A question is needed.");
-  note(r.id, `[${r.model ?? "Agent"}] ❗ wartet auf dich: ${question.slice(0, 2000)}`);
+  note(r.id, `[${r.model ?? "Agent"}] ❗ waiting for your answer: ${question.slice(0, 2000)}`);
   setTodoNeedsInput(t.id, question);
   return r;
 }
@@ -265,7 +265,7 @@ export async function finishAgentWork(v: {
   if (!res) throw new ValidationError("A report (summary) is needed.");
   const finishedAt = now();
   const durationMs = minutes > 0 ? Math.round(minutes * 60000) : run.startedAt ? Date.parse(finishedAt) - Date.parse(run.startedAt) : null;
-  note(run.id, `[${run.model ?? "Agent"}] fertig (${res.outcome}): ${res.entry}`);
+  note(run.id, `[${run.model ?? "Agent"}] finished (${res.outcome}): ${res.entry}`);
   updateRun(run.id, {
     status: "done",
     outcome: res.outcome,
@@ -285,7 +285,7 @@ export async function finishAgentWork(v: {
     title: `${t.ticket}: ${res.entry || t.text}`,
     description: `${res.summary}\n\n${workRef(run.id)} (${run.model ?? "Agent"}) · ${t.ref}`,
   });
-  if (delivery) note(run.id, `[Zeff] Auslieferung: ${delivery}`);
+  if (delivery) note(run.id, `[Zeff] Delivery: ${delivery}`);
   // Its branch first: the report it leaves on the todo links to what it pushed.
   if (v.branch?.trim()) updateRun(run.id, { branch: v.branch.trim() });
   // Its time, as a booking to take over (a shadow row in the Weekly report): the minutes it took,
@@ -296,10 +296,10 @@ export async function finishAgentWork(v: {
     const ms = runs.length > 1 ? getDb().select({ ms: workRuns.durationMs }).from(workRuns).where(inArray(workRuns.id, runs)).all().reduce((a, r) => a + (r.ms ?? 0), 0) : durationMs;
     const s = suggestEntry({ hours: quarterHours(ms), description: res.entry || t.text, ticket: t.ticket, reportedBy: run.model ?? v.agent ?? "agent", todoIds: [t.id], runIds: runs });
     suggestion = `${s.ref} (${s.hours} h)`;
-    note(run.id, `[Zeff] Buchung vorgeschlagen: ${suggestion} — „${s.description}“`);
+    note(run.id, `[Zeff] Entry suggested: ${suggestion} — “${s.description}”`);
   }
   const { closed, marked, added, dupes } = applyOutcome(getRun(run.id)!, res);
-  if (dupes?.length) note(run.id, `[Zeff] Follow-ups weggelassen — sie wiederholen ${dupes.join(", ")}; der Bericht steht am Todo.`);
+  if (dupes?.length) note(run.id, `[Zeff] Follow-ups left out — they repeat ${dupes.join(", ")}; the report is on the todo.`);
   setImmediate(pump);
   return { run: done, closed, marked, added, durationMs, delivery, suggestion };
 }

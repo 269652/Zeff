@@ -5,7 +5,7 @@ import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { getJobNumberForTicket, createEntry, deleteEntry, updateEntry, requireEntry, applyReportRuleTagsToEntries, reapplyMeetingJobRules, applyTypeRulesToEntries } from "@/lib/entries";
 import { errorMessage } from "@/lib/errors";
-import { formatHours } from "@/lib/format";
+import { formatDate, formatHours } from "@/lib/format";
 import { setPauses } from "@/lib/pauses";
 import { setDefaultTags } from "@/lib/default-tags";
 import { createJob, updateJob, deleteJob } from "@/lib/jobs";
@@ -570,7 +570,7 @@ export async function saveMeetingJobRulesAction(_prev: ActionState, fd: FormData
     if (moves === null) return { ok: true, message: `${saved}.` };
     const shown = moves
       .slice(0, 5)
-      .map((m) => `${m.date.slice(8)}.${m.date.slice(5, 7)}. “${m.description}” → ${m.to}`)
+      .map((m) => `${formatDate(m.date, { weekday: false })} “${m.description}” → ${m.to}`)
       .join("; ");
     return {
       ok: true,
@@ -648,7 +648,7 @@ export async function saveMeetingExcludeRulesAction(_prev: ActionState, fd: Form
 export async function openServiceLoginAction(service: string): Promise<ActionState> {
   try {
     const { openServiceLogin, SERVICE_LABELS } = await import("@/lib/attention");
-    if (!(service in SERVICE_LABELS)) return { ok: false, error: "Unbekannter Dienst." };
+    if (!(service in SERVICE_LABELS)) return { ok: false, error: "Unknown service." };
     const r = await openServiceLogin(service as keyof typeof SERVICE_LABELS);
     return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
   } catch (err) {
@@ -669,14 +669,14 @@ export async function saveMenuAction(change: { href?: string; place?: string; hi
       // The section's entries last, in their new order (only their order among themselves counts).
       setMenuPrefs({ order: [...cur.order.filter((k) => !keys.includes(k)), ...keys] });
       revalidatePath("/", "layout");
-      return { ok: true, message: "Gespeichert." };
+      return { ok: true, message: "Saved." };
     }
     const href = String(change?.href ?? "");
-    if (!href.startsWith("/")) return { ok: false, error: "Kein Menüeintrag." };
+    if (!href.startsWith("/")) return { ok: false, error: "Not a menu entry." };
     if (change.place === "header" || change.place === "menu" || change.place === "hidden") setMenuPrefs({ place: { ...cur.place, [href]: change.place } });
     else if (typeof change.hidden === "boolean") setMenuPrefs({ hidden: change.hidden ? [...new Set([...cur.hidden, href])] : cur.hidden.filter((h) => h !== href) });
     revalidatePath("/", "layout");
-    return { ok: true, message: "Gespeichert." };
+    return { ok: true, message: "Saved." };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -710,7 +710,7 @@ export async function skipSetupAction(): Promise<void> {
 export async function checkLoginAction(service: string): Promise<ActionState> {
   try {
     const { SERVICE_LABELS } = await import("@/lib/attention");
-    if (!(service in SERVICE_LABELS)) return { ok: false, error: "Unbekannter Dienst." };
+    if (!(service in SERVICE_LABELS)) return { ok: false, error: "Unknown service." };
     const { checkLogin } = await import("@/lib/logins");
     const r = await checkLogin(service as keyof typeof SERVICE_LABELS);
     revalidatePath("/logins");
@@ -729,7 +729,7 @@ export async function checkAllLoginsAction(): Promise<ActionState> {
     const todo = logins.filter((l) => l.checkable);
     for (const l of todo) if ((await checkLogin(l.service)).state === "ok") ok++;
     revalidatePath("/logins");
-    return { ok: true, message: `${ok} von ${todo.length} angemeldet.` };
+    return { ok: true, message: `${ok} of ${todo.length} signed in.` };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -747,14 +747,14 @@ export async function retryServiceAction(service: string): Promise<ActionState> 
       const { syncFromJira } = await import("@/lib/jira/sync");
       await syncFromJira();
       revalidateAll();
-      return { ok: true, message: "Jira geht wieder." };
+      return { ok: true, message: "Jira works again." };
     }
     if (service === "roar" || service === "timo") {
       const msg = service === "roar" ? await callRoar("roar_status", {}) : await callTimo("timo_status", {});
       revalidateAll();
       return /not signed in/i.test(msg) ? { ok: false, error: msg } : { ok: true, message: msg };
     }
-    return { ok: false, error: "Unbekannter Dienst." };
+    return { ok: false, error: "Unknown service." };
   } catch (err) {
     revalidateAll();
     return { ok: false, error: errorMessage(err) };
@@ -840,27 +840,27 @@ export async function syncMailAction(): Promise<ActionState> {
   const { syncAndWait } = await import("@/lib/sync/registry");
   const r = await syncAndWait("mail");
   revalidateAll();
-  return r.lastOk ? { ok: true, message: r.lastMessage ?? "" } : { ok: false, error: r.lastMessage ?? "Fehlgeschlagen." };
+  return r.lastOk ? { ok: true, message: r.lastMessage ?? "" } : { ok: false, error: r.lastMessage ?? "Failed." };
 }
 
 /** Which Outlook folders the mail sync reads, by name as Outlook lists them ("Posteingang, Notifications"). */
 export async function saveMailFoldersAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const text = String(fd.get("folders") ?? "");
   const folders = [...new Set(text.split(",").map((f) => f.trim()).filter(Boolean))].slice(0, 12);
-  if (!folders.length) return { ok: false, error: "Mindestens ein Ordner (z. B. Posteingang)." };
+  if (!folders.length) return { ok: false, error: "At least one folder (e.g. Posteingang)." };
   const { updateMailSettings } = await import("@/lib/mail/store");
   updateMailSettings({ folders });
   revalidateAll();
-  return { ok: true, message: `Liest: ${folders.join(", ")}.` };
+  return { ok: true, message: `Reads: ${folders.join(", ")}.` };
 }
 
 /** The Sync settings page: how often one sync runs by itself (an installed plugin's — its settings module sets it). */
 export async function saveSyncIntervalAction(key: string, minutes: number): Promise<ActionState> {
   const { findSyncInterval } = await import("@/plugins/sync-settings-modules");
   const i = findSyncInterval(String(key));
-  if (!i) return { ok: false, error: "Diesen Sync gibt es nicht (Plugin nicht installiert?)." };
+  if (!i) return { ok: false, error: "There is no such sync (plugin not installed?)." };
   const m = Math.round(Number(minutes));
-  if (!Number.isFinite(m) || m < 0 || m > Math.max(...i.choices, i.get())) return { ok: false, error: "Kein gültiges Intervall." };
+  if (!Number.isFinite(m) || m < 0 || m > Math.max(...i.choices, i.get())) return { ok: false, error: "Not a valid interval." };
   i.set(m);
   revalidateAll();
   const { minutesText } = await import("@/plugins/sync-settings");
@@ -889,13 +889,13 @@ export async function runSyncAction(key: string): Promise<ActionState> {
 /** Stop a sync that's running (Sync menu, a page's button) — and what it started. */
 export async function stopSyncAction(key: string): Promise<ActionState> {
   const { stopSync } = await import("@/lib/sync/registry");
-  return stopSync(String(key)) ? { ok: true, message: "Wird abgebrochen." } : { ok: false, error: "Läuft nicht." };
+  return stopSync(String(key)) ? { ok: true, message: "Stopping." } : { ok: false, error: "Not running." };
 }
 
 /** Stop "Sync all" (the step it's on, and the rest). */
 export async function stopSyncAllAction(): Promise<ActionState> {
   const { stopSyncAll } = await import("@/lib/sync/registry");
-  return stopSyncAll() ? { ok: true, message: "Wird abgebrochen." } : { ok: false, error: "Läuft nicht." };
+  return stopSyncAll() ? { ok: true, message: "Stopping." } : { ok: false, error: "Not running." };
 }
 
 /** "Sync all": every step one after the other, in the background. */
@@ -1024,13 +1024,13 @@ export async function syncContextsToJiraAction(contextIds: number[]): Promise<Ac
 /** Feierabend: the day's lines booked as you took them over (meetings, suggestions, tickets). */
 export async function bookDayAction(date: string, rows: import("@/lib/feierabend").DayBooking[]): Promise<ActionState> {
   try {
-    if (!(await import("@/plugins/state")).isInstalled("zeiterfassung")) return { ok: false, error: "Zeiterfassung ist nicht installiert." };
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) return { ok: false, error: "Kein Tag." };
+    if (!(await import("@/plugins/state")).isInstalled("zeiterfassung")) return { ok: false, error: "Time tracking is not installed (Menu → Plugins)." };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) return { ok: false, error: "Not a day." };
     const { bookDay } = await import("@/lib/feierabend");
     const r = await bookDay(String(date), Array.isArray(rows) ? rows.slice(0, 60) : []);
     revalidateAll();
-    const said = `${r.booked} gebucht (${r.hours.toLocaleString("de-DE")} h)${r.skipped ? `, ${r.skipped} schon gebucht` : ""}`;
-    return r.errors.length ? { ok: false, error: `${said} — nicht gebucht: ${r.errors.join("; ")}` } : { ok: true, message: `${said}.` };
+    const said = `${r.booked} booked (${formatHours(r.hours)} h)${r.skipped ? `, ${r.skipped} already booked` : ""}`;
+    return r.errors.length ? { ok: false, error: `${said} — not booked: ${r.errors.join("; ")}` } : { ok: true, message: `${said}.` };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -1060,7 +1060,7 @@ export async function acceptSuggestionAction(id: number, edits: { hours?: number
     const r = acceptSuggestion(Number(id), { hours: edits?.hours === undefined ? undefined : Number(edits.hours), description: edits?.description === undefined ? undefined : String(edits.description) }, { context: false });
     after(() => attachContextLater(r.entryId, r.ticket, r.todoIds));
     revalidateAll();
-    return { ok: true, message: `${formatHours(r.hours)} h gebucht${r.ticket ? ` auf ${r.ticket}` : ""}.` };
+    return { ok: true, message: `Booked ${formatHours(r.hours)} h${r.ticket ? ` on ${r.ticket}` : ""}.` };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -1072,7 +1072,7 @@ export async function skipSuggestionAction(id: number): Promise<ActionState> {
     const { skipSuggestion } = await import("@/lib/work/suggestions");
     skipSuggestion(Number(id));
     revalidateAll();
-    return { ok: true, message: "Vorschlag verworfen." };
+    return { ok: true, message: "Suggestion dismissed." };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -1113,14 +1113,14 @@ export async function startSetupAction(id: string): Promise<ActionState> {
  * when cancelled. In front of the other windows; the server isn't held up while it's open.
  */
 export async function pickFolderAction(initial?: string): Promise<{ ok: boolean; path?: string | null; error?: string }> {
-  if (process.platform !== "win32") return { ok: false, error: "Der Ordner-Dialog gibt es nur unter Windows — den Pfad bitte eintippen." };
+  if (process.platform !== "win32") return { ok: false, error: "The folder dialog is only available on Windows — please type the path." };
   const { execFile } = await import("node:child_process");
   const script = [
     "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
     "Add-Type -AssemblyName System.Windows.Forms",
     "$owner = New-Object System.Windows.Forms.Form -Property @{ TopMost = $true; ShowInTaskbar = $false; WindowState = 'Minimized' }",
     "$d = New-Object System.Windows.Forms.FolderBrowserDialog",
-    "$d.Description = 'Ordner für Zeffs Backups'",
+    "$d.Description = 'Folder for Zeff backups'",
     "$d.ShowNewFolderButton = $true",
     "if ($env:ZEFF_PICK_INITIAL -and (Test-Path -LiteralPath $env:ZEFF_PICK_INITIAL)) { $d.SelectedPath = $env:ZEFF_PICK_INITIAL }",
     "if ($d.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.SelectedPath) }",
@@ -1130,7 +1130,7 @@ export async function pickFolderAction(initial?: string): Promise<{ ok: boolean;
       "powershell.exe",
       ["-NoProfile", "-STA", "-NonInteractive", "-Command", script],
       { encoding: "utf8", timeout: 5 * 60000, windowsHide: true, env: { ...process.env, ZEFF_PICK_INITIAL: initial ?? "" } },
-      (err, out) => (err ? resolve({ ok: false, error: `Der Dialog ging nicht auf: ${errorMessage(err)}` }) : resolve({ ok: true, path: String(out).trim() || null })),
+      (err, out) => (err ? resolve({ ok: false, error: `The dialog didn't open: ${errorMessage(err)}` }) : resolve({ ok: true, path: String(out).trim() || null })),
     ),
   );
 }
@@ -1143,7 +1143,7 @@ export async function pickFolderAction(initial?: string): Promise<{ ok: boolean;
 export async function setPluginInstalledAction(id: string, installed: boolean): Promise<ActionState> {
   try {
     const { isPluginId, pluginById } = await import("@/plugins/catalog");
-    if (!isPluginId(id)) return { ok: false, error: "Unbekanntes Plugin." };
+    if (!isPluginId(id)) return { ok: false, error: "Unknown plugin." };
     const { dependents, setInstalled } = await import("@/plugins/state");
     // Uninstalled: what builds on it goes too (it stays set, and is back once this is).
     const along = installed ? [] : dependents(id);
@@ -1155,11 +1155,23 @@ export async function setPluginInstalledAction(id: string, installed: boolean): 
     return {
       ok: true,
       message:
-        `${pluginById(id).name} ${installed ? "installiert" : "deinstalliert"}.` +
-        (ids.length > 1 ? ` Mit installiert: ${names(ids.slice(1))}.` : "") +
-        (along.length ? ` Ohne es nicht da: ${names(along)}.` : ""),
+        `${pluginById(id).name} ${installed ? "installed" : "uninstalled"}.` +
+        (ids.length > 1 ? ` Installed along with it: ${names(ids.slice(1))}.` : "") +
+        (along.length ? ` Not available without it: ${names(along)}.` : ""),
     };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** The language Zeff speaks in this account (Settings) — one of the installed language bundles. */
+export async function setLanguageAction(lang: string): Promise<ActionState> {
+  try {
+    const { setLanguage } = await import("@/lib/i18n/server");
+    setLanguage(String(lang));
+    revalidateAll();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: errorMessage(e) };
   }
 }

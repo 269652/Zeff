@@ -645,8 +645,8 @@ export async function collectBoard(
   if (!boards.length && !kanbanOn)
     throw new Error(
       jiraOn
-        ? "No boards chosen — enable the boards to read on the Jira tab (or put a Kanban board in the Lage)."
-        : "Nichts zum Auswerten: weder Jira (Plugin, eingerichtet, Boards gewählt) noch Kanban-Boards in der Lage.",
+        ? "No boards chosen — enable the boards to read on the Jira tab (or put a Kanban board in the briefing)."
+        : "Nothing to brief on: neither Jira (plugin, set up, boards chosen) nor Kanban boards in the briefing.",
     );
   const cutoff = Date.now() - STALE_DAYS * 864e5;
   // Tickets followed besides the filter (by hand, or while you're active on them).

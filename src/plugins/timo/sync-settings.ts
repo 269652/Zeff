@@ -7,11 +7,11 @@ export const syncSettings: PluginSyncSettings = {
     {
       key: "timo",
       label: "TimO",
-      what: "Was TimO für die Tage dieser und letzter Woche hat (nur gelesen — eingetragen wird nur auf deinen Klick).",
+      what: "What TimO has for the days of this week and last (read only — entries are only made on your click).",
       get: () => stepMinutes("timo"),
       set: (m) => setStepMinutes("timo", m),
       choices: MINUTE_CHOICES,
-      window: "solange der Automations-Chrome läuft",
+      window: "while the automation Chrome is running",
     },
   ],
 };

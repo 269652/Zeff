@@ -77,7 +77,7 @@ export function KnowledgeChat() {
   return (
     <div className="card flex min-h-0 w-full flex-1 flex-col gap-3 p-4 max-lg:min-h-[70vh]">
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
-        {!msgs.length && <p className="text-sm text-zinc-500">Frag etwas zur Dokumentation — z. B. „Wie kommt Code auf die Testumgebung?“ oder „Wer betreibt das Bestellsystem?“</p>}
+        {!msgs.length && <p className="text-sm text-zinc-500">Ask something about the documentation — e.g. “How does code get onto the test environment?” or “Who runs the ordering system?”</p>}
         {msgs.map((m, i) =>
           m.role === "user" ? (
             <div key={i} className="max-w-3xl self-end rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white">
@@ -115,7 +115,7 @@ export function KnowledgeChat() {
             </div>
           ),
         )}
-        {pending && <p className="text-sm text-zinc-500">Sucht und antwortet …</p>}
+        {pending && <p className="text-sm text-zinc-500">Searching and answering …</p>}
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <div ref={end} />
       </div>
@@ -126,13 +126,13 @@ export function KnowledgeChat() {
           send();
         }}
       >
-        <input className="input flex-1" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Frage stellen …" aria-label="Frage" />
+        <input className="input flex-1" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask a question …" aria-label="Question" />
         <button type="submit" className="btn btn-primary" disabled={pending || !q.trim()}>
-          Fragen
+          Ask
         </button>
         {msgs.length > 0 && (
-          <button type="button" className="btn" disabled={pending} onClick={() => setMsgs([])} title="Neues Gespräch">
-            Neu
+          <button type="button" className="btn" disabled={pending} onClick={() => setMsgs([])} title="New conversation">
+            New
           </button>
         )}
       </form>

@@ -68,14 +68,14 @@ export function TabSplit({ tab, current, pathname, className, active, children }
 
   return (
     <div ref={root} className="relative flex items-stretch">
-      <Link href={last} className={className} aria-current={active ? "page" : undefined} title={last !== tab.href ? `${tab.label} — zuletzt geöffnet` : undefined}>
+      <Link href={last} className={className} aria-current={active ? "page" : undefined} title={last !== tab.href ? `${tab.label} — last opened` : undefined}>
         {children}
       </Link>
       <button
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`${tab.label}: mehr`}
+        aria-label={`${tab.label}: more`}
         onClick={() => setOpen((o) => !o)}
         className={`rounded-md rounded-l-none border-l px-1.5 transition ${
           current
@@ -89,8 +89,8 @@ export function TabSplit({ tab, current, pathname, className, active, children }
       </button>
       {open && (
         <div role="menu" className="absolute top-full right-0 z-50 mt-2 max-h-[70vh] w-72 overflow-y-auto rounded-lg border border-zinc-200 bg-white py-1 shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
-          {!items && <p className="px-3 py-2 text-sm text-zinc-500">Lädt…</p>}
-          {items?.length === 0 && <p className="px-3 py-2 text-sm text-zinc-500">Nichts da.</p>}
+          {!items && <p className="px-3 py-2 text-sm text-zinc-500">Loading…</p>}
+          {items?.length === 0 && <p className="px-3 py-2 text-sm text-zinc-500">Nothing here.</p>}
           {items?.map((i) => (
             <Link
               key={i.href}

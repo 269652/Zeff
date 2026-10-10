@@ -19,10 +19,10 @@ function BoardRow({ b, first, last, run }: { b: Row; first: boolean; last: boole
     <li className={`card space-y-3 p-4 ${b.archived ? "opacity-70" : ""}`}>
       <div className="flex flex-wrap items-center gap-2">
         <span className="flex flex-col">
-          <button type="button" className="icon-btn h-4 text-xs" disabled={first} onClick={() => run(() => moveBoardAction(b.id, -1))} aria-label="Nach oben" title="Nach oben">
+          <button type="button" className="icon-btn h-4 text-xs" disabled={first} onClick={() => run(() => moveBoardAction(b.id, -1))} aria-label="Move up" title="Move up">
             ▲
           </button>
-          <button type="button" className="icon-btn h-4 text-xs" disabled={last} onClick={() => run(() => moveBoardAction(b.id, 1))} aria-label="Nach unten" title="Nach unten">
+          <button type="button" className="icon-btn h-4 text-xs" disabled={last} onClick={() => run(() => moveBoardAction(b.id, 1))} aria-label="Move down" title="Move down">
             ▼
           </button>
         </span>
@@ -33,7 +33,7 @@ function BoardRow({ b, first, last, run }: { b: Row; first: boolean; last: boole
           onBlur={() => name.trim() && name !== b.name && run(() => updateBoardAction(b.id, { name }))}
           aria-label="Name"
         />
-        <span className="flex items-center gap-1" role="radiogroup" aria-label="Farbe">
+        <span className="flex items-center gap-1" role="radiogroup" aria-label="Colour">
           {BOARD_COLORS.map((c) => (
             <button
               key={c}
@@ -47,19 +47,19 @@ function BoardRow({ b, first, last, run }: { b: Row; first: boolean; last: boole
           ))}
         </span>
         <span className="text-xs text-zinc-500">
-          {b.open} offen · {b.cards} Karten{b.archived ? " · archiviert" : ""}
+          {b.open} open · {b.cards} cards{b.archived ? " · archived" : ""}
         </span>
         <span className="ml-auto flex gap-2">
           {!b.archived && (
             <Link href={`/kanban/${b.id}`} className="btn btn-sm">
-              Öffnen
+              Open
             </Link>
           )}
           <button type="button" className="btn btn-sm" onClick={() => run(() => updateBoardAction(b.id, { archived: !b.archived }))}>
-            {b.archived ? "Zurückholen" : "Archivieren"}
+            {b.archived ? "Restore" : "Archive"}
           </button>
-          <button type="button" className="btn btn-sm btn-danger" onClick={() => confirm(`Board „${b.name}“ mit allen ${b.cards} Karten löschen?`) && run(() => deleteBoardAction(b.id))}>
-            Löschen
+          <button type="button" className="btn btn-sm btn-danger" onClick={() => confirm(`Delete the board “${b.name}” with all its ${b.cards} cards?`) && run(() => deleteBoardAction(b.id))}>
+            Delete
           </button>
         </span>
       </div>
@@ -68,14 +68,14 @@ function BoardRow({ b, first, last, run }: { b: Row; first: boolean; last: boole
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         onBlur={() => description !== b.description && run(() => updateBoardAction(b.id, { description }))}
-        placeholder="Beschreibung (optional)"
-        aria-label="Beschreibung"
+        placeholder="Description (optional)"
+        aria-label="Description"
       />
       <label className="flex items-start gap-2 text-sm">
         <input type="checkbox" checked={b.inLage} onChange={(e) => run(() => updateBoardAction(b.id, { inLage: e.target.checked }))} className="mt-0.5 size-4 accent-indigo-600" />
         <span>
-          In der Ticket-Lage
-          <span className="block text-xs text-zinc-500">Die offenen Karten gehen als KB-… in jeden Lage-Lauf: Todos dazu, die Lage je Karte, ein Platz in den Berichten — wie Jira-Tickets.</span>
+          In the briefing
+          <span className="block text-xs text-zinc-500">The open cards go into every briefing run as KB-…: todos for them, a briefing per card, a place in the reports — like Jira tickets.</span>
         </span>
       </label>
     </li>
@@ -89,11 +89,11 @@ export function BoardsManager({ boards }: { boards: Row[] }) {
   const run = (fn: () => Promise<Result>) =>
     start(async () => {
       const r = await fn();
-      if (!r.ok) toast(r.error ?? "Ging nicht.", { tone: "error" });
-      else if (r.message && r.message !== "Gespeichert.") toast(r.message, { tone: "ok" });
+      if (!r.ok) toast(r.error ?? "That didn't work.", { tone: "error" });
+      else if (r.message && r.message !== "Saved.") toast(r.message, { tone: "ok" });
       router.refresh();
     });
-  if (!boards.length) return <p className="text-sm text-zinc-500">Noch keine Boards.</p>;
+  if (!boards.length) return <p className="text-sm text-zinc-500">No boards yet.</p>;
   return (
     <ul className="space-y-3">
       {boards.map((b, i) => (

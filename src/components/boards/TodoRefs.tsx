@@ -8,7 +8,7 @@ export function TodoRefs({ text, rest = (s) => s, className = "font-mono text-in
   if (parts.length === 1) return <>{rest(text)}</>;
   return parts.map((p, i) =>
     i % 2 ? (
-      <a key={i} href={`/t/${p.slice(2)}`} className={className} title={`${p} zeigen`}>
+      <a key={i} href={`/t/${p.slice(2)}`} className={className} title={`Show ${p}`}>
         {p}
       </a>
     ) : (

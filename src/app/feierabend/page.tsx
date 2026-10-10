@@ -4,9 +4,10 @@ import { connection } from "next/server";
 import { FeierabendForm } from "@/components/FeierabendForm";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { proposeDay } from "@/lib/feierabend";
+import { currentLocale } from "@/lib/format";
 import { isInstalled } from "@/plugins/state";
 
-export const metadata: Metadata = { title: "Feierabend" };
+export const metadata: Metadata = { title: "End of day" };
 
 /**
  * Feierabend: the day drafted for booking — today's finished meetings not booked yet, the agents'
@@ -20,17 +21,17 @@ export default async function FeierabendPage() {
   return (
     <div className="page">
       <div className="page-aside">
-        <h1 className="text-lg font-semibold">Feierabend</h1>
+        <h1 className="text-lg font-semibold">End of day</h1>
         <p className="text-sm text-zinc-500">
-          {new Date(`${p.date}T12:00:00`).toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" })} — der Tag als Buchungsvorschlag: deine heutigen Termine, die
-          Vorschläge der Agenten und die Tickets, an denen du gearbeitet hast (erledigte Todos, Worker-Läufe mit ihrer Zeit). Prüfen, anpassen, mit einem Klick buchen — vorher wird nichts gebucht.
+          {new Date(`${p.date}T12:00:00`).toLocaleDateString(currentLocale(), { weekday: "long", day: "numeric", month: "long" })} — the day as a booking suggestion: today&apos;s meetings, the
+          agents&apos; suggestions and the tickets you worked on (todos done, worker runs with their time). Check, adjust, book with one click — nothing is booked before.
         </p>
         <p className="text-xs text-zinc-400">
-          Gebucht wird wie von Hand; danach steht alles im{" "}
+          It&apos;s booked just like by hand; then everything is in the{" "}
           <Link href="/" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            Wochenbericht
+            Weekly report
           </Link>{" "}
-          (und geht von dort nach Roar/TimO, wenn du exportierst).
+          (and goes from there to Roar/TimO when you export).
         </p>
       </div>
       <FeierabendForm date={p.date} target={p.target} booked={p.booked} rows={p.rows} jobs={p.jobs} />

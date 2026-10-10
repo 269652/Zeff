@@ -20,14 +20,15 @@ const pluginGroups = (): MenuGroup[] => {
   const on = installedPlugins();
   const appHrefs = new Set(allApps().map((a) => a.href));
   // Zeiterfassung's pages (Jobs, Projects …) first, then connectors and time-sheet systems, the applications' pages (Repos) after.
-  const rank = { connector: 1, timesheet: 2, ai: 3, app: 4, system: 5 } as const;
+  const rank = { connector: 1, timesheet: 2, ai: 3, app: 4, system: 5, language: 6 } as const;
   const seen = new Set<string>();
   const { order } = getMenuPrefs();
-  const groups = PLUGINS.filter((p) => on.has(p.id))
+  // Language bundles aren't menu entries: the language is chosen in Settings.
+  const groups = PLUGINS.filter((p) => on.has(p.id) && p.category !== "language")
     .sort((a, b) => (a.id === "zeiterfassung" ? 0 : rank[a.category]) - (b.id === "zeiterfassung" ? 0 : rank[b.category]))
     .map((p) => {
       const nav = (p.nav ?? []).filter((n) => !appHrefs.has(n.href));
-      const settings = p.settings && !nav.some((n) => n.href === p.settings!.href) ? [{ href: p.settings.href, label: "Einstellungen", hint: p.settings.what }] : [];
+      const settings = p.settings && !nav.some((n) => n.href === p.settings!.href) ? [{ href: p.settings.href, label: "Settings", hint: p.settings.what }] : [];
       const items = inOrder([...nav, ...settings].filter((n) => !seen.has(n.href)), (n) => n.href, order);
       for (const n of items) seen.add(n.href);
       return { id: p.id, name: p.name, items };
@@ -54,6 +55,8 @@ import { SetupGate } from "@/components/SetupGate";
 import { getAppSettings } from "@/lib/ai";
 import { MainArea } from "@/components/MainArea";
 import { PluginFlagsProvider } from "@/components/PluginFlags";
+import { I18nProvider } from "@/components/I18nProvider";
+import { applyLanguage } from "@/lib/i18n/server";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -67,36 +70,40 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Not set up yet (a new Zeff, a new account): a bare header, and the way into the setup assistant.
   const setupPending = !getAppSettings().setupDoneAt;
+  // The account's language (Settings): the page's, and the browser's for its own components.
+  const lang = applyLanguage();
   return (
     <html
-      lang="en"
+      lang={lang}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       {/* An app shell: the window is the page — the body never scrolls; the content does, in itself. */}
       <body className="flex h-screen flex-col overflow-hidden">
-        <SiteHeader
-          activityIds={activityNewsIds()}
-          apps={allApps().map((a) => ({ href: a.href, label: a.label, hint: a.hint, place: a.place }))}
-          pluginGroups={pluginGroups()}
-          hidden={getMenuPrefs().hidden}
-          order={getMenuPrefs().order}
-          tabs={headerTabs()}
-          account={headerAccount()}
-          bare={setupPending}
-        />
-        {!setupPending && <AttentionBar items={await listAttention()} />}
-        <MainArea>
-          <PluginFlagsProvider installed={[...installedPlugins()]}>
-            <AgentInstructionsProvider templates={getWorkSettings().agentInstructions}>
-              <SetupGate pending={setupPending} allowed={setupPages()} account={installedPlugins().has("accounts") ? currentAccount().name : undefined}>
-                {children}
-              </SetupGate>
-            </AgentInstructionsProvider>
-          </PluginFlagsProvider>
-        </MainArea>
-        <LiveRefresh />
-        <HashHighlight />
-        <Toaster />
+        <I18nProvider lang={lang}>
+          <SiteHeader
+            activityIds={activityNewsIds()}
+            apps={allApps().map((a) => ({ href: a.href, label: a.label, hint: a.hint, place: a.place }))}
+            pluginGroups={pluginGroups()}
+            hidden={getMenuPrefs().hidden}
+            order={getMenuPrefs().order}
+            tabs={headerTabs()}
+            account={headerAccount()}
+            bare={setupPending}
+          />
+          {!setupPending && <AttentionBar items={await listAttention()} />}
+          <MainArea>
+            <PluginFlagsProvider installed={[...installedPlugins()]}>
+              <AgentInstructionsProvider templates={getWorkSettings().agentInstructions}>
+                <SetupGate pending={setupPending} allowed={setupPages()} account={installedPlugins().has("accounts") ? currentAccount().name : undefined}>
+                  {children}
+                </SetupGate>
+              </AgentInstructionsProvider>
+            </PluginFlagsProvider>
+          </MainArea>
+          <LiveRefresh />
+          <HashHighlight />
+          <Toaster />
+        </I18nProvider>
       </body>
     </html>
   );

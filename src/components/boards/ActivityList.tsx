@@ -6,6 +6,7 @@ import { TODO_EVENT_LABELS, type TodoEventView } from "@/lib/boards/activity-sha
 import { todoRef } from "@/lib/boards/shared";
 import { markActivitySeen, readActivitySeen } from "./ActivitySeen";
 import { TodoRefs } from "./TodoRefs";
+import { currentLocale, formatTime } from "@/lib/format";
 
 // What was seen when the tab opened — what came after stays marked new while you look.
 let atOpen: number | null | undefined;
@@ -13,9 +14,9 @@ const seenAtOpen = () => (atOpen === undefined ? (atOpen = readActivitySeen()) :
 const noSubscribe = () => () => {};
 
 const FILTERS = [
-  ["all", "Alle"],
-  ["closed", "Geschlossen"],
-  ["created", "Neu"],
+  ["all", "All"],
+  ["closed", "Closed"],
+  ["created", "New"],
 ] as const;
 type Filter = (typeof FILTERS)[number][0];
 
@@ -23,9 +24,9 @@ const dayKey = (iso: string) => new Date(iso).toLocaleDateString("sv-SE");
 function dayLabel(key: string): string {
   const today = new Date().toLocaleDateString("sv-SE");
   const yesterday = new Date(Date.now() - 86400000).toLocaleDateString("sv-SE");
-  if (key === today) return "Heute";
-  if (key === yesterday) return "Gestern";
-  return new Date(`${key}T12:00:00`).toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" });
+  if (key === today) return "Today";
+  if (key === yesterday) return "Yesterday";
+  return new Date(`${key}T12:00:00`).toLocaleDateString(currentLocale(), { weekday: "long", day: "numeric", month: "long" });
 }
 
 /**
@@ -71,9 +72,9 @@ export function ActivityList({ events }: { events: TodoEventView[] }) {
             {label}
           </button>
         ))}
-        {unseen > 0 && <span className="ml-1 text-amber-700 dark:text-amber-300">{unseen} neu seit deinem letzten Blick</span>}
+        {unseen > 0 && <span className="ml-1 text-amber-700 dark:text-amber-300">{unseen} new since you last looked</span>}
       </div>
-      {days.length === 0 && <p className="text-sm text-zinc-500">In den letzten zwei Wochen nichts.</p>}
+      {days.length === 0 && <p className="text-sm text-zinc-500">Nothing in the last two weeks.</p>}
       {days.map(([k, list]) => (
         <section key={k} className="space-y-1">
           <h3 className="text-xs font-semibold text-zinc-500 uppercase">{dayLabel(k)}</h3>
@@ -84,14 +85,14 @@ export function ActivityList({ events }: { events: TodoEventView[] }) {
               return (
                 <li key={e.id} className={`flex items-start gap-2 py-1.5 text-sm ${isNew ? "-mx-2 rounded bg-amber-50 px-2 dark:bg-amber-950/30" : ""}`}>
                   <span className="w-11 shrink-0 pt-px font-mono text-xs text-zinc-400 tabular-nums">
-                    {new Date(e.at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}
+                    {formatTime(e.at)}
                   </span>
                   <span className={`w-24 shrink-0 text-xs font-semibold ${L.tone}`}>
                     {L.icon} {L.label}
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-1.5">
-                      {isNew && <span className="size-1.5 shrink-0 translate-y-[-1px] rounded-full bg-amber-500" aria-label="neu" />}
+                      {isNew && <span className="size-1.5 shrink-0 translate-y-[-1px] rounded-full bg-amber-500" aria-label="new" />}
                       <span className={`min-w-0 ${e.event === "done" || e.event === "dismissed" ? "text-zinc-600 dark:text-zinc-300" : ""}`}>
                         <TodoRefs text={e.text} />
                       </span>
@@ -102,7 +103,7 @@ export function ActivityList({ events }: { events: TodoEventView[] }) {
                       </Link>
                       {" · "}
                       {e.ticket}
-                      {" · von "}
+                      {" · by "}
                       {e.by.href ? (
                         <Link href={e.by.href} title={e.by.title} className="text-zinc-500 hover:underline dark:text-zinc-300">
                           {e.by.label}
@@ -112,9 +113,9 @@ export function ActivityList({ events }: { events: TodoEventView[] }) {
                           {e.by.label}
                         </span>
                       )}
-                      {e.event !== "created" && e.openNow && e.event !== "reopened" && <> · wieder offen</>}
+                      {e.event !== "created" && e.openNow && e.event !== "reopened" && <> · reopened</>}
                     </div>
-                    {e.note && <div className="mt-0.5 text-xs whitespace-pre-line text-zinc-500 dark:text-zinc-400"><TodoRefs text={e.event === "created" ? `Quelle: ${e.note}` : e.note} /></div>}
+                    {e.note && <div className="mt-0.5 text-xs whitespace-pre-line text-zinc-500 dark:text-zinc-400"><TodoRefs text={e.event === "created" ? `Source: ${e.note}` : e.note} /></div>}
                   </div>
                 </li>
               );

@@ -128,14 +128,14 @@ export async function branchWork(repo: RepoView): Promise<BranchItem[]> {
     const mrInfo = mr ? { iid: Number(mr.ref.replace("!", "")), url: mr.url } : null;
     let state: BranchState;
     let todo: string;
-    if (dirty) [state, todo] = ["dirty", `${dirty} Datei${dirty === 1 ? "" : "en"} nicht committet`];
-    else if (merged.has(branch) || mr?.state?.includes("merged")) [state, todo] = ["merged", `In ${def.name} gemergt — lokal löschen`];
-    else if (!upstream && ahead) [state, todo] = ["unpushed", `${ahead} Commit${ahead === 1 ? "" : "s"} nur lokal — pushen`];
+    if (dirty) [state, todo] = ["dirty", `${dirty} file${dirty === 1 ? "" : "s"} not committed`];
+    else if (merged.has(branch) || mr?.state?.includes("merged")) [state, todo] = ["merged", `Merged into ${def.name} — delete locally`];
+    else if (!upstream && ahead) [state, todo] = ["unpushed", `${ahead} commit${ahead === 1 ? "" : "s"} only local — push`];
     else if (!upstream) continue; // nothing of its own: nothing to do
-    else if (/gone/.test(track ?? "")) [state, todo] = ["gone", "Auf origin gelöscht — lokal löschen?"];
-    else if (ahead) [state, todo] = ["ahead", `${ahead} Commit${ahead === 1 ? "" : "s"} noch nicht gepusht`];
-    else if (mr?.state?.includes("opened")) [state, todo] = ["mr-open", `${mr.ref} offen — nach ${def.name} mergen`];
-    else [state, todo] = ["no-mr", `Gepusht, ohne Merge Request — MR nach ${def.name} öffnen`];
+    else if (/gone/.test(track ?? "")) [state, todo] = ["gone", "Deleted on origin — delete locally?"];
+    else if (ahead) [state, todo] = ["ahead", `${ahead} commit${ahead === 1 ? "" : "s"} not pushed yet`];
+    else if (mr?.state?.includes("opened")) [state, todo] = ["mr-open", `${mr.ref} open — merge into ${def.name}`];
+    else [state, todo] = ["no-mr", `Pushed, no merge request — open an MR into ${def.name}`];
     out.push({
       repoId: repo.id,
       repo: repo.name,
@@ -204,30 +204,30 @@ async function doBranchOp(repoId: number, branch: string, op: BranchOp): Promise
   if (op === "ignore-stale") {
     const stale = (await branchWork(repo)).filter((b) => b.stale && !b.ignored).map((b) => b.branch);
     save([...ignoredOf(repoId), ...stale]);
-    return `${stale.length} alte Branch${stale.length === 1 ? "" : "es"} ausgeblendet.`;
+    return `${stale.length} old branch${stale.length === 1 ? "" : "es"} hidden.`;
   }
   if (op === "ignore" || op === "unignore") {
     const list = ignoredOf(repoId).filter((b) => b !== branch);
     save(op === "ignore" ? [...list, branch] : list);
-    return op === "ignore" ? `${branch} ausgeblendet.` : `${branch} wieder eingeblendet.`;
+    return op === "ignore" ? `${branch} hidden.` : `${branch} shown again.`;
   }
   const item = (await branchWork(repo)).find((b) => b.branch === branch);
   if (!item) throw new ValidationError(`${branch} has nothing to do (any more).`);
   const def = await defaultOf(repo.path);
   if (op === "push") {
     await gitAsync(repo.path, ["push", "-u", "origin", `${branch}:${branch}`]);
-    return `${branch} gepusht.`;
+    return `${branch} pushed.`;
   }
   if (op === "delete") {
     if (item.checkedOutAt) throw new ValidationError(`${branch} is checked out (${item.checkedOutAt}) — switch away (or remove that worktree) first.`);
     await gitAsync(repo.path, ["branch", item.state === "merged" ? "-d" : "-D", branch]);
-    return `${branch} gelöscht (lokal).`;
+    return `${branch} deleted (locally).`;
   }
   if (!repo.gitlabProject) throw new ValidationError(`${repo.name} has no GitLab project — set it on the Repos page.`);
   if (op === "merge") {
     if (!item.mr) throw new ValidationError(`${branch} has no merge request.`);
     const r = await mergeGitlabMr(repo.gitlabProject, item.mr.iid);
-    return r.already ? `!${item.mr.iid} war schon gemergt.` : `!${item.mr.iid} gemergt: ${r.url}`;
+    return r.already ? `!${item.mr.iid} was merged already.` : `!${item.mr.iid} merged: ${r.url}`;
   }
   const summary = item.ticket ? getJiraTicket(item.ticket)?.summary : undefined;
   const log = run(repo.path, ["log", "--oneline", "--no-decorate", `${def.ref}..${branch}`]);
@@ -240,5 +240,5 @@ async function doBranchOp(repoId: number, branch: string, op: BranchOp): Promise
     title: item.ticket ? `${item.ticket}: ${summary ?? branch}` : branch,
     description: log ? `Commits:\n${log}` : "",
   });
-  return mr.existed ? `Es gibt schon einen offenen MR: ${mr.url}` : `MR geöffnet: ${mr.url}`;
+  return mr.existed ? `There's an open MR already: ${mr.url}` : `MR opened: ${mr.url}`;
 }

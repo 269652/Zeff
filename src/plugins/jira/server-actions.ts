@@ -93,7 +93,7 @@ export async function setBoardEnabledAction(fd: FormData): Promise<void> {
 
 /** A Jira comment marked done (or not): no new todos from it. */
 export async function setJiraCommentResolvedAction(commentId: string, ticket: string, resolved: boolean): Promise<ActionState> {
-  if (!/^\d+$/.test(String(commentId)) || !/^[A-Z][A-Z0-9]+-\d+$/i.test(String(ticket))) return { ok: false, error: "Unbekannter Kommentar." };
+  if (!/^\d+$/.test(String(commentId)) || !/^[A-Z][A-Z0-9]+-\d+$/i.test(String(ticket))) return { ok: false, error: "Unknown comment." };
   const { setJiraCommentResolved } = await import("@/lib/resolved");
   setJiraCommentResolved(String(commentId), String(ticket), !!resolved);
   revalidatePath("/todos");

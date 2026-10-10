@@ -58,11 +58,11 @@ function onUpdate(live: Live, u: Record<string, unknown>) {
     return;
   }
   if (kind === "tool_call") {
-    log(live.runId, `\n▸ ${String(u.title ?? u.kind ?? "Werkzeug")}\n`);
+    log(live.runId, `\n▸ ${String(u.title ?? u.kind ?? "Tool")}\n`);
     return;
   }
   if (kind === "tool_call_update" && (u.status === "failed" || u.status === "completed")) {
-    if (u.status === "failed") log(live.runId, `  ✗ fehlgeschlagen\n`);
+    if (u.status === "failed") log(live.runId, `  ✗ failed\n`);
     return;
   }
   if (kind === "plan") {
@@ -90,8 +90,8 @@ function onPermission(live: Live, rpcId: number | string, p: Record<string, unkn
   const raw = tool.rawInput && typeof tool.rawInput === "object" ? (tool.rawInput as Record<string, unknown>) : null;
   const detail = raw ? String(raw.command ?? raw.path ?? raw.url ?? JSON.stringify(raw)).slice(0, 600) : null;
   live.permissionRpcId = rpcId;
-  live.view.permission = { title: tool.title ?? tool.kind ?? "eine Aktion", detail, options };
-  log(live.runId, `\n[Zeff] Copilot fragt um Erlaubnis: ${live.view.permission.title}${detail ? ` — ${detail}` : ""}\n`);
+  live.view.permission = { title: tool.title ?? tool.kind ?? "an action", detail, options };
+  log(live.runId, `\n[Zeff] Copilot asks for permission: ${live.view.permission.title}${detail ? ` — ${detail}` : ""}\n`);
   emitChange("work");
   emitChange("attention");
 }
@@ -123,16 +123,16 @@ async function turn(live: Live, text: string) {
   emitChange("attention");
   try {
     const r = await call<{ stopReason?: string }>(live, "session/prompt", { sessionId: live.sessionId, prompt: [{ type: "text", text }] });
-    log(live.runId, `\n[Zeff] Zug beendet (${r?.stopReason ?? "?"})\n`);
+    log(live.runId, `\n[Zeff] Turn ended (${r?.stopReason ?? "?"})\n`);
   } catch (e) {
-    log(live.runId, `\n[Zeff] Fehler: ${e instanceof Error ? e.message : String(e)}\n`);
+    log(live.runId, `\n[Zeff] Error: ${e instanceof Error ? e.message : String(e)}\n`);
   }
   live.view.busy = false;
   if (resultIn(live.turnText)) {
     await end(live);
     return;
   }
-  live.view.waiting = live.turnText.trim().slice(-800) || "Copilot wartet auf dich.";
+  live.view.waiting = live.turnText.trim().slice(-800) || "Copilot is waiting for you.";
   emitChange("work");
   emitChange("attention");
 }
@@ -189,21 +189,21 @@ export async function startInteractive(v: { runId: number; command: string; args
   live.view.modes = (s.modes?.availableModes ?? []).map((m) => ({ id: m.id, name: m.name }));
   live.view.mode = s.modes?.currentModeId ?? "";
   if (v.autopilot && live.view.modes.some((m) => m.id === AUTOPILOT)) await setMode(v.runId, AUTOPILOT);
-  log(v.runId, `[Zeff] Interaktive Copilot-Sitzung (${live.view.modes.find((m) => m.id === live.view.mode)?.name ?? "Agent"}) — Fragen und Erlaubnisse auf dem Work-Tab.\n`);
+  log(v.runId, `[Zeff] Interactive Copilot session (${live.view.modes.find((m) => m.id === live.view.mode)?.name ?? "Agent"}) — questions and permissions on the Work tab.\n`);
   void turn(live, v.prompt);
   return child.pid ?? null;
 }
 
 const liveOf = (runId: number) => {
   const live = lives.get(runId);
-  if (!live) throw new Error("Die Sitzung läuft nicht (mehr).");
+  if (!live) throw new Error("The session isn't running (any more).");
   return live;
 };
 
 /** Your answer to what it asked (allow once, always, reject …). */
 export function answerPermission(runId: number, optionId: string) {
   const live = liveOf(runId);
-  if (live.permissionRpcId === null || !live.view.permission) throw new Error("Es wartet auf keine Erlaubnis.");
+  if (live.permissionRpcId === null || !live.view.permission) throw new Error("It isn't waiting for a permission.");
   // One of the options it offered — nothing else is passed on.
   const option = live.view.permission.options.find((o) => o.id === optionId);
   if (!option) throw new Error("Not one of the options offered.");
@@ -218,7 +218,7 @@ export function answerPermission(runId: number, optionId: string) {
 /** Your message to it (between turns). */
 export function sendToLive(runId: number, text: string) {
   const live = liveOf(runId);
-  if (live.view.busy) throw new Error("Copilot ist noch dabei — warte, bis es fertig ist (oder halte es an).");
+  if (live.view.busy) throw new Error("Copilot is still at it — wait until it's finished (or stop it).");
   log(runId, `\n[Du] ${text}\n`);
   void turn(live, text);
 }
@@ -228,7 +228,7 @@ export async function setMode(runId: number, modeId: string) {
   const live = liveOf(runId);
   await call(live, "session/set_mode", { sessionId: live.sessionId, modeId });
   live.view.mode = modeId;
-  log(runId, `[Zeff] Modus: ${live.view.modes.find((m) => m.id === modeId)?.name ?? shortMode(modeId)}\n`);
+  log(runId, `[Zeff] Mode: ${live.view.modes.find((m) => m.id === modeId)?.name ?? shortMode(modeId)}\n`);
   if (shortMode(modeId) === "autopilot" && live.view.permission) {
     const allow = live.view.permission.options.find((o) => o.kind === "allow_once") ?? live.view.permission.options.find((o) => o.kind.startsWith("allow"));
     if (allow) answerPermission(runId, allow.id);

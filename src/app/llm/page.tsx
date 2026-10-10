@@ -29,14 +29,14 @@ export default async function LlmPage() {
       <div className="page-aside">
         <h1 className="text-lg font-semibold">LLM</h1>
         <p className="max-w-[75ch] text-sm text-zinc-500">
-          Die KI-Schicht: Ticket-Lage, Recap, Mail-Schritte, Auto-Aktionen und die Worker laufen alle hierüber. Backends sind die installierten CLI-Plugins (Menü → Plugins).
+          The AI layer: the briefing, recap, mail steps, auto actions and the workers all run through it. Backends are the installed CLI plugins (Menu → Plugins).
         </p>
       </div>
       <section className="card space-y-3 p-4">
         <div>
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">Backends</h2>
           <p className="max-w-[75ch] text-sm text-zinc-500">
-            Der Standard für alle Aufgaben und das Modell je Backend. Die Analysen laufen headless und geschlossen: die Daten gehen mit dem Prompt, ohne eigene Werkzeuge, Dateien oder Server. Jedes mit seiner eigenen Anmeldung.
+            The default for all tasks and the model per backend. The analyses run headless and closed: the data goes with the prompt, without tools, files or servers of their own. Each with its own sign-in.
           </p>
         </div>
         <AiSettingsForm
@@ -50,8 +50,8 @@ export default async function LlmPage() {
       </section>
       <section className="card space-y-3 p-4">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Anweisungen, Kontext & Aufgaben</h2>
-          <p className="max-w-[75ch] text-sm text-zinc-500">Geht vor jeden Prompt, an jeden Worker und an jeden Agenten über MCP (start_todo) — und je Aufgabe ein eigenes Backend, wenn du willst.</p>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Instructions, context & tasks</h2>
+          <p className="max-w-[75ch] text-sm text-zinc-500">Goes before every prompt, to every worker and to every agent via MCP (start_todo) — and a backend of its own per task, if you want.</p>
         </div>
         <LlmSettingsForm
           initial={getLlmSettings()}

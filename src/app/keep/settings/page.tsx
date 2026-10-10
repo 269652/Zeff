@@ -8,7 +8,7 @@ import { KeepNav } from "@/plugins/keep/KeepNav";
 import { keepSettings } from "@/plugins/keep/store";
 import { isInstalled } from "@/plugins/state";
 
-export const metadata: Metadata = { title: "Keep verwalten" };
+export const metadata: Metadata = { title: "Manage Keep" };
 
 /** Keep's settings: your boards (order, names, colours, in the Lage, archived ones, a new one) and which Google account's Keep is read. */
 export default async function KeepSettingsPage() {
@@ -18,9 +18,9 @@ export default async function KeepSettingsPage() {
   return (
     <div className="page">
       <div className="page-aside">
-        <h1 className="text-lg font-semibold">Keep verwalten</h1>
+        <h1 className="text-lg font-semibold">Manage Keep</h1>
         <KeepNav current="settings" />
-        <p className="text-sm text-zinc-500">Deine eigenen Notiz-Boards — in der Reihenfolge, in der Keep sie zeigt. Ein Board „in der Ticket-Lage“ bringt seine Notizen in die Auswertung: als Kontext, als Todos, an Todos gehängt.</p>
+        <p className="text-sm text-zinc-500">Your own note boards — in the order Keep shows them. A board “in the briefing” brings its notes into the briefing: as context, as todos, attached to todos.</p>
         <KeepAccountForm account={keepSettings().account} />
       </div>
       <KeepBoardsManager boards={boards} />
