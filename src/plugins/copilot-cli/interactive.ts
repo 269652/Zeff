@@ -204,9 +204,11 @@ const liveOf = (runId: number) => {
 export function answerPermission(runId: number, optionId: string) {
   const live = liveOf(runId);
   if (live.permissionRpcId === null || !live.view.permission) throw new Error("Es wartet auf keine Erlaubnis.");
+  // One of the options it offered — nothing else is passed on.
   const option = live.view.permission.options.find((o) => o.id === optionId);
+  if (!option) throw new Error("Not one of the options offered.");
   send(live, { id: live.permissionRpcId, result: { outcome: { outcome: "selected", optionId } } });
-  log(runId, `[Du] ${option?.name ?? optionId}\n`);
+  log(runId, `[Du] ${option.name}\n`);
   live.permissionRpcId = null;
   live.view.permission = null;
   emitChange("work");
