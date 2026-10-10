@@ -1,10 +1,14 @@
+import { getSettings } from "./db";
+import { entityChunks, graphContext, linkEntities } from "./graphrag";
 import { ai } from "./llm";
 import { searchChunks, searchEntities, type EntityHit } from "./search";
 
 /**
- * Asking: the question (and the conversation so far) → the passages and entities the search finds
- * → Copilot answers from them only, citing them as [1], [2] … When the words alone find little,
- * Copilot first says what to look for (synonyms, German and English, the terms behind it).
+ * Asking: the question (and the conversation so far) → what the knowledge has for it → the AI
+ * answers from that only, citing it as [1], [2] …. What it has: the graph's part (GraphRAG — the
+ * entities the question names, all their relations with the sentences behind them, how they're
+ * connected, and the passages of their pages) and the search's (the words asked, and what the
+ * AI says to look for besides: synonyms, German and English, the terms behind it).
  */
 
 export type Turn = { role: "user" | "assistant"; text: string };
@@ -21,7 +25,7 @@ const ANSWER_SCHEMA = {
 async function expand(question: string): Promise<string[]> {
   const r = await ai<{ terms: string[] }>(
     "compile",
-    `Jemand sucht in der Confluence-Dokumentation eines Software-Projekts nach einer Antwort auf diese Frage. Nenne 8–20 Suchbegriffe, mit denen man die passenden Seiten findet: Fachbegriffe, Synonyme, deutsche UND englische Wörter, Systemnamen, Abkürzungen. Nur JSON: {"terms": [...]}\n\nFrage: ${question}`,
+    `Jemand sucht in seiner Wissensbasis (Projekt-Dokumentation, eigene Notizen, Chats, Mails, Todos) nach einer Antwort auf diese Frage. Nenne 8–20 Suchbegriffe, mit denen man die passenden Seiten findet: Fachbegriffe, Synonyme, deutsche UND englische Wörter, Systemnamen, Abkürzungen. Nur JSON: {"terms": [...]}\n\nFrage: ${question}`,
     EXPAND_SCHEMA,
     { timeoutMs: 120000 },
   );
@@ -35,6 +39,11 @@ export async function ask(question: string, history: Turn[] = []): Promise<Answe
   // The words asked, and what the AI says to look for besides (synonyms, the other language, the
   // terms behind it) — the best of both, alternately.
   const direct = searchChunks(context, 16);
+  // The graph: the entities the question names (else the conversation's), what's known of them, their pages' passages.
+  const named = linkEntities(question);
+  const seeds = named.length ? named : linkEntities(recent.filter((t) => t.role === "user").map((t) => t.text).join(" "));
+  const graph = graphContext(seeds);
+  const linked = entityChunks(seeds, 10);
   const terms = await expand(question).catch(() => [] as string[]);
   if (terms.length) searchedFor = `${question} · ${terms.join(", ")}`;
   const wider = terms.length ? searchChunks(`${question} ${terms.join(" ")}`, 16) : [];
@@ -42,26 +51,31 @@ export async function ask(question: string, history: Turn[] = []): Promise<Answe
   const chunks: typeof direct = [];
   let budget = 20000;
   for (let i = 0; i < 16 && budget > 0; i++)
-    for (const c of [wider[i], direct[i]]) {
+    for (const c of [linked[i], wider[i], direct[i]]) {
       if (!c || seen.has(String(c.id)) || budget <= 0) continue;
       seen.add(String(c.id));
       chunks.push(c);
       budget -= c.text.length;
     }
-  const entities = searchEntities(searchedFor, 6);
+  // The entities: those the question names — or, when it names none, what the search finds (its
+  // hits beside named ones are mostly the expanded terms' noise).
+  const entities = graph.entities.length ? graph.entities : searchEntities(searchedFor, 6);
   const sources: Source[] = chunks.map((c, i) => ({ n: i + 1, title: c.title, url: c.url, heading: c.heading, excerpt: c.text }));
   if (!sources.length && !entities.length) {
     return { answer: "Dazu habe ich in der Wissensbasis nichts gefunden.", sources: [], entities: [], searchedFor, model: null, durationMs: null };
   }
-  const graph = entities
+  const others = entities
+    .filter((e) => !graph.entities.some((g) => g.id === e.id))
     .map((e) => `- ${e.name} (${e.type}): ${e.summary}${e.related.length ? `\n  ${e.related.map((r) => (r.dir === "out" ? `→ ${r.rel} ${r.name}` : `← ${r.name} ${r.rel}`)).join("; ")}` : ""}`)
     .join("\n");
-  const prompt = `Du beantwortest Fragen zur Dokumentation (Confluence) eines Software-Projekts — nur aus den Quellen unten. Zitiere die Quellen im Text als [1], [2] …; was sich aus ihnen nicht ergibt, sag offen. Antworte in der Sprache der Frage, knapp und konkret (Markdown erlaubt). Gib in "used" die Nummern der Quellen an, die du benutzt hast. Nur JSON: {"answer": "...", "used": [1, 2]}
+  const owner = getSettings().owner.trim();
+  const prompt = `Du beantwortest Fragen aus einer Wissensbasis — Projekt-Dokumentation (Confluence), eigene Notizen, Chats, Mails, Todos${owner ? ` von ${owner} („ich“ in der Frage ist ${owner})` : ""} — nur aus dem, was unten steht: dem Wissensgraphen (Entitäten, ihre Beziehungen mit dem Satz, der sie belegt, und der Seite) und den Quellen (Textstellen). Zitiere die Quellen im Text als [1], [2] …; was du aus dem Graphen nimmst, belegt die Quelle derselben Seite, wenn sie dabei ist. Was sich aus beidem nicht ergibt, sag offen. Antworte in der Sprache der Frage, knapp und konkret (Markdown erlaubt). Gib in "used" die Nummern der Quellen an, die du benutzt hast. Nur JSON: {"answer": "...", "used": [1, 2]}
 
 ${recent.length ? `Bisheriges Gespräch:\n${recent.map((t) => `${t.role === "user" ? "Frage" : "Antwort"}: ${t.text.slice(0, 1500)}`).join("\n")}\n\n` : ""}Frage: ${question}
 
-Wissensgraph (Entitäten und Beziehungen):
-${graph || "(keine)"}
+Wissensgraph — was über die Entitäten der Frage bekannt ist:
+${graph.text || "(die Frage nennt keine bekannte Entität)"}
+${others ? `\nWeitere Entitäten, die die Suche fand:\n${others}\n` : ""}
 
 Quellen:
 ${sources.map((x) => `[${x.n}] „${x.title}“${x.heading ? ` › ${x.heading}` : ""}\n${x.excerpt}`).join("\n\n")}`;

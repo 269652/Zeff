@@ -7,7 +7,7 @@ import { db } from "./db";
  * what it's related to. (Vector search can join in here later, merged by rank.)
  */
 
-const STOP = new Set(
+export const STOP = new Set(
   "der die das und oder aber den dem des ein eine einer eines einem einen ist sind war wird werden wurde mit von vom zum zur für fur auf aus bei nach über uber unter vor im in an am als auch noch nur nicht kein keine wie was wer wo wann warum dass daß es er sie wir ihr ich du man sich so zu um bis durch ob wenn dann da hier dort mal schon mehr sehr soll sollen kann können muss müssen hat haben the and or of to in on for with from by at is are was be this that these those it as an a not no can could should would will what which who how when where why do does did have has had into about please bitte".split(
     " ",
   ),
