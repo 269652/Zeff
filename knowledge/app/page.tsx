@@ -10,6 +10,7 @@ import { ACCOUNT_NAME, counts, getSettings, lastRuns, saveSettings } from "@k/db
 import { stopSync, syncPages, syncRunning } from "@k/ingest";
 import { kInstalled, type AiBackend } from "@k/plugins";
 import { searchEntities, searchPages } from "@k/search";
+import { AddKnowledgeForm, keepFromForm } from "./AddKnowledge";
 import { BackendPicker, type BackendOption } from "./BackendPicker";
 import { RunPanel } from "./RunPanel";
 
@@ -23,9 +24,9 @@ const BACKENDS: { id: AiBackend; label: string; plugin: "copilot-cli" | "claude-
  * reads from, reading and compiling by hand, a search to try, its settings — which CLI compiles
  * and which answers —, the last runs. Asking (the chat) is in Zeff: the Chat tab.
  */
-export default async function Home({ searchParams }: { searchParams: Promise<{ q?: string; done?: string }> }) {
+export default async function Home({ searchParams }: { searchParams: Promise<{ q?: string; done?: string; added?: string; error?: string }> }) {
   await connection();
-  const { q = "", done } = await searchParams;
+  const { q = "", done, added, error } = await searchParams;
   const c = counts();
   const s = getSettings();
   const runs = lastRuns(8);
@@ -72,6 +73,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
     revalidatePath("/");
     redirect("/?done=sync");
   }
+  async function keep(fd: FormData) {
+    "use server";
+    await keepFromForm(fd, "/");
+  }
   async function compile() {
     "use server";
     void compilePages();
@@ -94,6 +99,15 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
   return (
     <>
       {done && DONE[done] && <p className="alert-ok">{DONE[done]}</p>}
+      {added && (
+        <p className="alert-ok">
+          Gemerkt ✓ — wird kompiliert.{" "}
+          <Link href={`/seite/${encodeURIComponent(added)}`} className="underline">
+            Ansehen
+          </Link>
+        </p>
+      )}
+      {error && <p className="alert-error">{error}</p>}
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -167,6 +181,16 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
         ))}
       </section>
 
+      <section className="card space-y-2 p-4">
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Wissen hinzufügen</h2>
+          <Link href="/eigenes" className="text-xs text-indigo-600 hover:underline dark:text-indigo-400">
+            Eigenes Wissen →
+          </Link>
+        </div>
+        <AddKnowledgeForm action={keep} compact />
+      </section>
+
       <section className="card space-y-3 p-4">
         <h2 className="text-sm font-semibold text-zinc-500 uppercase">Ausprobieren</h2>
         <form className="flex gap-2">
@@ -177,15 +201,18 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
           <div className="space-y-2">
             {entities.map((e) => (
               <div key={e.id} className="text-sm">
-                <span className="font-medium">{e.name}</span> <span className="text-xs text-zinc-400">{e.type}</span> — {e.summary}
+                <Link href={`/graph?e=${e.id}`} className="font-medium hover:underline">
+                  {e.name}
+                </Link>{" "}
+                <span className="text-xs text-zinc-400">{e.type}</span> — {e.summary}
                 {e.related.length > 0 && <div className="text-xs text-zinc-500">{e.related.map((r) => (r.dir === "out" ? `→ ${r.rel} ${r.name}` : `← ${r.name} ${r.rel}`)).join(" · ")}</div>}
               </div>
             ))}
             {pages.map((p) => (
               <div key={p.id} className="rounded-md border border-zinc-200 p-2 text-sm dark:border-zinc-800">
-                <a href={p.url || undefined} className="font-medium text-indigo-600 hover:underline dark:text-indigo-400">
+                <Link href={`/seite/${encodeURIComponent(p.id)}`} className="font-medium text-indigo-600 hover:underline dark:text-indigo-400">
                   {p.title}
-                </a>{" "}
+                </Link>{" "}
                 <span className="text-xs text-zinc-400">{p.space}</span>
                 <p className="text-xs text-zinc-600 dark:text-zinc-400">
                   {p.snippet.split(/(⟦[^⟧]*⟧)/g).map((x, i) => (x.startsWith("⟦") ? <mark key={i} className="rounded-sm bg-amber-200 px-0.5 dark:bg-amber-700/60">{x.slice(1, -1)}</mark> : <span key={i}>{x}</span>))}

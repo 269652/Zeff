@@ -14,12 +14,12 @@ import type { KeepNoteBrief } from "./shared";
  * for one of yours. Its own tables, made when first needed (the plugin may never be installed).
  */
 
-export type KeepBoard = { id: number; name: string; description: string; color: string; sort: number; archived: boolean; inLage: boolean; notes: number };
+export type KeepBoard = { id: number; name: string; description: string; color: string; sort: number; archived: boolean; inLage: boolean; inKnowledge: boolean; notes: number };
 
 /** A note wherever it lives — Google Keep's or one of your boards'. */
 export type NoteView = KeepNote & { ref: string; source: "google" | "own"; boardId: number | null; boardName: string | null };
 
-type BoardRow = { id: number; name: string; description: string; color: string; sort: number; archived: number; in_lage: number; notes?: number };
+type BoardRow = { id: number; name: string; description: string; color: string; sort: number; archived: number; in_lage: number; in_knowledge: number; notes?: number };
 type OwnRow = { id: number; board_id: number; title: string; text: string; labels: string; color: string | null; pinned: number; archived: number; created_at: string; updated_at: string };
 
 function db() {
@@ -29,6 +29,8 @@ function db() {
     create table if not exists keep_own_notes (id integer primary key autoincrement, board_id integer not null references keep_boards(id) on delete cascade, title text not null default '', text text not null default '', labels text not null default '[]', color text, pinned integer not null default 0, archived integer not null default 0, created_at text not null, updated_at text not null);
     create index if not exists keep_own_notes_board on keep_own_notes (board_id);
   `);
+  // Later columns: a board's notes in the knowledge (on unless you turn it off).
+  if (!(d.prepare("pragma table_info(keep_boards)").all() as { name: string }[]).some((c) => c.name === "in_knowledge")) d.exec("alter table keep_boards add column in_knowledge integer not null default 1");
   return d;
 }
 
@@ -40,7 +42,7 @@ const parseLabels = (s: string): string[] => {
     return [];
   }
 };
-const toBoard = (r: BoardRow): KeepBoard => ({ id: r.id, name: r.name, description: r.description, color: r.color, sort: r.sort, archived: !!r.archived, inLage: !!r.in_lage, notes: r.notes ?? 0 });
+const toBoard = (r: BoardRow): KeepBoard => ({ id: r.id, name: r.name, description: r.description, color: r.color, sort: r.sort, archived: !!r.archived, inLage: !!r.in_lage, inKnowledge: !!r.in_knowledge, notes: r.notes ?? 0 });
 const ownRef = (id: number) => `keep:n${id}`;
 const toOwn = (r: OwnRow, boardName: string | null): NoteView => ({
   id: `n${r.id}`,
@@ -87,7 +89,7 @@ export function createKeepBoard(v: { name: string; description?: string; color?:
   return Number(r.lastInsertRowid);
 }
 
-export function updateKeepBoard(id: number, patch: { name?: string; description?: string; color?: string; archived?: boolean; inLage?: boolean }): void {
+export function updateKeepBoard(id: number, patch: { name?: string; description?: string; color?: string; archived?: boolean; inLage?: boolean; inKnowledge?: boolean }): void {
   const sets: string[] = [];
   const args: unknown[] = [];
   const set = (col: string, v: unknown) => {
@@ -103,6 +105,7 @@ export function updateKeepBoard(id: number, patch: { name?: string; description?
   if (patch.color) set("color = ?", patch.color);
   if (patch.archived !== undefined) set("archived = ?", patch.archived ? 1 : 0);
   if (patch.inLage !== undefined) set("in_lage = ?", patch.inLage ? 1 : 0);
+  if (patch.inKnowledge !== undefined) set("in_knowledge = ?", patch.inKnowledge ? 1 : 0);
   if (!sets.length) return;
   db().prepare(`update keep_boards set ${sets.join(", ")} where id = ?`).run(...args, id);
   changed();
@@ -140,6 +143,14 @@ export function listOwnNotes(boardId: number, { q = "", archived = false }: { q?
     .prepare(`select * from keep_own_notes where board_id = ? and archived = ? ${q ? "and (title like ? escape '\\' or text like ? escape '\\' or labels like ? escape '\\')" : ""} order by pinned desc, updated_at desc`)
     .all(...[boardId, archived ? 1 : 0, ...(q ? [like, like, like] : [])]) as OwnRow[];
   return rows.map((r) => toOwn(r, board?.name ?? null));
+}
+
+/** Your notes on the boards that go into the knowledge (archived notes too — as Google Keep's do; not those of archived boards). */
+export function knowledgeOwnNotes(): NoteView[] {
+  const rows = db()
+    .prepare("select n.*, b.name board_name from keep_own_notes n join keep_boards b on b.id = n.board_id where b.archived = 0 and b.in_knowledge = 1 order by n.updated_at desc")
+    .all() as (OwnRow & { board_name: string })[];
+  return rows.map((r) => toOwn(r, r.board_name));
 }
 
 /** All your notes on the boards in the Lage (not archived) — the Lage's and the Durchsicht's. */

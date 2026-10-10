@@ -37,7 +37,7 @@ export const KPLUGINS: KPlugin[] = [
   {
     id: "google-keep",
     name: "Google Keep",
-    description: "Deine Google-Keep-Notizen und -Listen (mit Labels) — Zeffs Google-Keep-Plugin liest sie im Automations-Chrome, aus dem Zeff-Konto, dem dieser Wissens-Server gehört. Mit der Zeff-Quelle zusammen schon dabei.",
+    description: "Deine Google-Keep-Notizen und -Listen (mit Labels) — Zeffs Google-Keep-Plugin liest sie im Automations-Chrome, aus dem Zeff-Konto, dem dieser Wissens-Server gehört — und die Notizen deiner eigenen Keep-Boards, die „Im Wissen“ sind. Mit der Zeff-Quelle zusammen schon dabei.",
     category: "source",
     defaultInstalled: false,
     requires: "Zeff mit installiertem Google-Keep-Plugin (im Konto dieses Wissens-Servers)",

@@ -279,6 +279,28 @@ export function registerZeffTools(server: McpServer): void {
   );
 
   server.registerTool(
+    "add_knowledge",
+    {
+      title: "Add to the knowledge base",
+      description:
+        "Keep something in the user's knowledge base (their own knowledge, beside Confluence and what Zeff syncs): a fact, a note, how something works — or a link, whose page is read. " +
+        "It's compiled into the knowledge graph right after and found by search_knowledge and the Chat. Use it when the user asks you to remember or note something, " +
+        "or for a durable fact the user told you. Never for secrets (passwords, tokens, keys) and never for guesses.",
+      inputSchema: z.object({
+        text: z.string().min(1).describe("What to keep, in plain words (German or English) — or just a URL to read that page."),
+        title: z.string().optional().describe("A short title; without one, the first line."),
+      }),
+    },
+    async (args) =>
+      run(async () => {
+        if (!isInstalled("knowledge")) return fail("Knowledge is not installed in Zeff (Menu → Plugins) — this tool isn't available.");
+        const { knowledgeAddOwn } = await import("@/plugins/knowledge/client");
+        const r = await knowledgeAddOwn({ text: args.text, title: args.title });
+        return ok(`Kept in the knowledge base as "${r.entry?.title ?? args.title ?? args.text.slice(0, 60)}" (${r.id}) — it's being compiled.`);
+      }),
+  );
+
+  server.registerTool(
     "list_todos",
     {
       title: "List board todos",

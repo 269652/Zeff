@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: "Keep verwalten" };
 export default async function KeepSettingsPage() {
   await connection();
   if (!isInstalled("keep")) return <PluginNotInstalled id="keep" />;
-  const boards = listKeepBoards({ archived: true }).map((b) => ({ id: b.id, name: b.name, description: b.description, color: b.color, archived: b.archived, inLage: b.inLage, notes: b.notes }));
+  const boards = listKeepBoards({ archived: true }).map((b) => ({ id: b.id, name: b.name, description: b.description, color: b.color, archived: b.archived, inLage: b.inLage, inKnowledge: b.inKnowledge, notes: b.notes }));
   return (
     <div className="page">
       <div className="page-aside">
