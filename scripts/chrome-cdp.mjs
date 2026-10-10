@@ -148,7 +148,7 @@ async function waitForLaunch(cdp, urls) {
 export async function connectToChrome(cdp, { timeout = 20000, launchUrls = [] } = {}) {
   let targets;
   try {
-    targets = await listTargets(cdp);
+    targets = await listTargets(cdp).catch(async () => (await sleep(1500), listTargets(cdp)));
   } catch {
     const { hostname, port } = new URL(cdp);
     if (!launchUrls.length || !["127.0.0.1", "localhost"].includes(hostname)) {
@@ -162,7 +162,10 @@ export async function connectToChrome(cdp, { timeout = 20000, launchUrls = [] } 
   }
   const tabs = targets.filter((t) => t.type === "page" && t.webSocketDebuggerUrl);
   const answers = await Promise.all(tabs.map((t) => pingTab(t.webSocketDebuggerUrl, 3000)));
-  const stuck = tabs.filter((_, i) => !answers[i]);
+  // A busy machine can hold Chrome up for a few seconds: those asked once more, with more time.
+  const slow = tabs.filter((_, i) => !answers[i]);
+  const again = slow.length ? (await sleep(1500), await Promise.all(slow.map((t) => pingTab(t.webSocketDebuggerUrl, 8000)))) : [];
+  const stuck = slow.filter((_, i) => !again[i]);
   if (stuck.length) {
     const names = stuck.map((t) => `“${t.title || t.url}” (${t.url.slice(0, 60)})`).join(", ");
     throw new ChromeConnectError(
