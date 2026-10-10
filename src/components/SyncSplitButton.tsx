@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { stopSyncAction, type ActionState } from "@/app/actions";
+import { stopSyncAction } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 import { minutesText } from "@/plugins/sync-settings";
 import { SyncIcon } from "./icons";
 import { toast } from "./Toaster";

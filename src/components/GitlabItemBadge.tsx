@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { findGitlabItemsAction, setGitlabResolvedAction } from "@/app/actions";
+import { findGitlabItemsAction, setGitlabResolvedAction } from "@/plugins/gitlab/server-actions";
 import { GITLAB_KIND_LABELS, gitlabDone, gitlabLinkKey, gitlabMarkdown, resolvedInGitlab, type GitlabItemView, type GitlabKind } from "@/lib/gitlab/shared";
 import { ChevronIcon } from "./icons";
 import { Markdown } from "./Markdown";

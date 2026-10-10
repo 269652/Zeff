@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { todoKnowledgeAction } from "@/app/actions";
+import { todoKnowledgeAction } from "@/plugins/knowledge/server-actions";
 import { snippetParts, type KnowledgeEntity, type KnowledgePage } from "./shared";
 
 type Loaded = { pages: KnowledgePage[]; entities: KnowledgeEntity[] } | { error: string } | null;

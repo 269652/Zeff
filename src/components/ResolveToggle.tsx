@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { ActionState } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 
 /**
  * "Erledigt" for something a colleague wrote (a Jira comment, a Teams message): marked, the Ticket-Lage

@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { saveDefaultPausesAction, type ActionState } from "@/app/actions";
+import { saveDefaultPausesAction } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 import { formatHours } from "@/lib/format";
 import { parsePauses, totalPauseHours } from "@/lib/pauses-shared";
 import { useLockedBreakText } from "./useLockedBreakText";

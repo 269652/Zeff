@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { cancelWorkAction, startSessionAction } from "@/app/actions";
+import { cancelWorkAction, startSessionAction } from "@/plugins/work/server-actions";
 import { toast } from "@/components/Toaster";
 
 /** A session's stop button (queued or at work). */

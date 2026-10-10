@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { connection } from "next/server";
-import { clearInboxAction, disconnectCalendarAction } from "@/app/actions";
+import { clearInboxAction, disconnectCalendarAction } from "@/plugins/outlook-calendar/server-actions";
 import { BookmarkletButton } from "@/components/BookmarkletButton";
 import { DeviceCodeConnect } from "@/components/DeviceCodeConnect";
 import { HashIngest } from "@/components/HashIngest";

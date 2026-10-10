@@ -1,7 +1,8 @@
 "use client";
 
 import { Fragment, startTransition, useActionState, useState } from "react";
-import { saveTypeRulesAction, type ActionState } from "@/app/actions";
+import { saveTypeRulesAction } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 import type { EntryTypeDef } from "@/lib/entry-types-shared";
 import type { TypeRule } from "@/lib/type-rules-shared";
 import type { EntryType } from "@/db/schema";

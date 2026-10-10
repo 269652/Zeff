@@ -1,6 +1,6 @@
 "use client";
 
-import { setTodoStatusAction } from "@/app/actions";
+import { setTodoStatusAction } from "@/plugins/todos/server-actions";
 import { TODO_KIND_LABELS, type TodoSource, type TodoView } from "@/lib/boards/shared";
 import { ChevronIcon } from "./icons";
 import { TodoSources } from "./boards/TodoSources";

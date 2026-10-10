@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { findTeamsMessagesAction, setTeamsResolvedAction } from "@/app/actions";
+import { findTeamsMessagesAction, setTeamsResolvedAction } from "@/plugins/teams/server-actions";
 import { teamsKindLabel, teamsLinkKey, teamsMarkdown, type TeamsMessageView } from "@/lib/teams/shared";
 import { ChevronIcon } from "./icons";
 import { Markdown } from "./Markdown";

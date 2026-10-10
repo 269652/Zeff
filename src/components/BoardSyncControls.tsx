@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { syncBoardsAction, type ActionState } from "@/app/actions";
+import { syncBoardsAction } from "@/plugins/jira/server-actions";
+import type { ActionState } from "@/app/action-helpers";
 import { SubmitButton } from "./SubmitButton";
 
 export function BoardSyncControls() {

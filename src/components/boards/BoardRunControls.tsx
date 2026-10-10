@@ -2,13 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import {
-  runBoardAction,
-  runSyncAction,
-  stopBoardRunAction,
-  stopSyncAction,
-  syncOverviewAction,
-} from "@/app/actions";
+import { runBoardAction, stopBoardRunAction } from "@/plugins/todos/server-actions";
+import { runSyncAction, stopSyncAction, syncOverviewAction } from "@/app/actions";
 import type { SyncKey, SyncOverview } from "@/lib/sync/shared";
 import { ChevronIcon } from "../icons";
 import { SyncStepRow } from "../SyncMenu";

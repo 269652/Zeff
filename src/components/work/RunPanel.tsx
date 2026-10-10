@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
-import { cancelWorkAction } from "@/app/actions";
+import { cancelWorkAction } from "@/plugins/work/server-actions";
 import { todoRef } from "@/lib/boards/shared";
 import { duration, isActive, WORK_MODE_LABELS, WORK_STATUS_LABELS, type WorkRunView } from "@/lib/work/shared";
 import { CopyButton } from "../CopyButton";

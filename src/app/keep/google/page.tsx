@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
-import { syncKeepAction } from "@/app/actions";
+import { syncKeepAction } from "@/plugins/keep/server-actions";
 import { BetaBadge, BetaWarning } from "@/components/BetaBadge";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { SyncControls } from "@/components/SyncControls";

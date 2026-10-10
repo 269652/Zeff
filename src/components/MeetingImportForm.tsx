@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { importMeetingsAction, setMeetingExcludedAction, type ActionState } from "@/app/actions";
+import { importMeetingsAction } from "@/plugins/outlook-calendar/server-actions";
+import { setMeetingExcludedAction } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 import { isExcludedMeeting, jobForMeeting, type Meeting, type MeetingFlag, type MeetingJobRule } from "@/lib/calendar/meetings";
 import type { EntryFormJob } from "./EntryForm";
 

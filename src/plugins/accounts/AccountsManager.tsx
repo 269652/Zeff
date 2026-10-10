@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { createAccountAction, deleteAccountAction, startSetupAction, switchAccountAction, updateAccountAction } from "@/app/actions";
+import { createAccountAction, deleteAccountAction, switchAccountAction, updateAccountAction } from "@/plugins/accounts/server-actions";
+import { startSetupAction } from "@/app/actions";
 import { toast } from "@/components/Toaster";
 import { ACCOUNT_DOT, dotOf } from "./AccountSwitcher";
 

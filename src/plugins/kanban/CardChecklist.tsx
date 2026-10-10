@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { addCardTodoAction, setTodoStatusAction } from "@/app/actions";
+import { addCardTodoAction, setTodoStatusAction } from "@/plugins/todos/server-actions";
 import { toast } from "@/components/Toaster";
 import { dueText, dueTone } from "@/lib/boards/due-shared";
 import type { CardTodo } from "./shared";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { flagTodoAction } from "@/app/actions";
+import { flagTodoAction } from "@/plugins/todos/server-actions";
 import { FlagIcon } from "../icons";
 import { toast } from "../Toaster";
 

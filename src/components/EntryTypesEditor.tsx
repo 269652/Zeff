@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { createEntryTypeAction, deleteEntryTypeAction, saveEntryTypesAction, type ActionState } from "@/app/actions";
+import { createEntryTypeAction, deleteEntryTypeAction, saveEntryTypesAction } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 import { typeColorStyle, type EntryTypeDef } from "@/lib/entry-types-shared";
 
 /**

@@ -6,10 +6,8 @@ import { SourceBadge, SourceDetails } from "../SourceBadge";
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
-import {
-  runTicketActionAction,
-  setJiraCommentResolvedAction,
-} from "@/app/actions";
+import { runTicketActionAction } from "@/plugins/todos/server-actions";
+import { setJiraCommentResolvedAction } from "@/plugins/jira/server-actions";
 import type { ActionDone } from "@/lib/boards/actions";
 import {
   ATTENTION_LABELS,

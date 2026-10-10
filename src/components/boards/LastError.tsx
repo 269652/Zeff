@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { dismissRunErrorAction, retryRunAction } from "@/app/actions";
+import { dismissRunErrorAction, retryRunAction } from "@/plugins/work/server-actions";
 import { toast } from "../Toaster";
 
 /** Why the todo's last run failed — try it again (as it was asked for), or put the error away. */

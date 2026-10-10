@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { saveAiSettingsAction, testAiAction, type ActionState } from "@/app/actions";
+import { saveAiSettingsAction, testAiAction } from "@/plugins/llm/server-actions";
+import type { ActionState } from "@/app/action-helpers";
 import { AI_PROVIDER_INFO, CLAUDE_MODELS, COPILOT_MODEL_SUGGESTIONS, copilotModelFamily, copilotModelName, type AiProvider } from "@/lib/ai/shared";
 import { SubmitButton } from "./SubmitButton";
 

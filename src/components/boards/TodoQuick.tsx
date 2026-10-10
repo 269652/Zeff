@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { addTodoNoteAction, draftReplyAction, instructTodoAction, openReplyTargetAction, suggestTodoActionsAction } from "@/app/actions";
+import { addTodoNoteAction, draftReplyAction, instructTodoAction, openReplyTargetAction, suggestTodoActionsAction } from "@/plugins/todos/server-actions";
 import type { ReplyTarget } from "@/lib/boards/reply-draft";
 import { NoteIcon, SparkIcon } from "../icons";
 import { toast } from "../Toaster";

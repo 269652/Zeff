@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { setTicketJobAction } from "@/app/actions";
+import { setTicketJobAction } from "@/plugins/jira/server-actions";
 
 export function JiraJobSelect({
   ticketKey,

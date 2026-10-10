@@ -3,7 +3,7 @@ import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
-import { saveGitlabSyncAction, syncGitlabAction } from "@/app/actions";
+import { saveGitlabSyncAction, syncGitlabAction } from "@/plugins/gitlab/server-actions";
 import { GitlabItemList } from "@/components/GitlabItemList";
 import { SyncControls } from "@/components/SyncControls";
 import { getGitlabSettings, gitlabItemCounts, listGitlabItems } from "@/lib/gitlab/store";

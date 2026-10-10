@@ -2,11 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  pollDeviceCodeAction,
-  startDeviceCodeAction,
-  type DeviceCodeInfo,
-} from "@/app/actions";
+import { pollDeviceCodeAction, startDeviceCodeAction, type DeviceCodeInfo } from "@/plugins/outlook-calendar/server-actions";
 
 type Phase = "idle" | "starting" | "waiting" | "done" | "error";
 

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
-import { saveWorkSettingsAction, type ActionState } from "@/app/actions";
+import { saveWorkSettingsAction } from "@/plugins/work/server-actions";
+import type { ActionState } from "@/app/action-helpers";
 import { COPILOT_MODE_LABELS, COPILOT_MODES, PERMISSION_MODE_INFO, PERMISSION_MODES, type WorkSettingsView } from "@/lib/work/shared";
 import { SubmitButton } from "../SubmitButton";
 

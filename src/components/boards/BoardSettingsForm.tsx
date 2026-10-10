@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
-import { saveBoardSettingsAction, type ActionState } from "@/app/actions";
+import { saveBoardSettingsAction } from "@/plugins/todos/server-actions";
+import type { ActionState } from "@/app/action-helpers";
 import { minutesText } from "@/plugins/sync-settings";
 import { SubmitButton } from "../SubmitButton";
 

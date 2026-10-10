@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { syncContextsToJiraAction, type ActionState } from "@/app/actions";
+import { syncContextsToJiraAction } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 
 /**
  * Posts context items to their Jira tickets (a comment each, plus their files) — after a
