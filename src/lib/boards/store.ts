@@ -12,7 +12,11 @@ const { boardSettings, boardRuns, todos } = schema;
 
 export function getBoardSettings(): BoardSettings {
   const db = getDb();
-  return db.select().from(boardSettings).limit(1).get() ?? db.insert(boardSettings).values({ id: 1 }).returning().get();
+  const row = db.select().from(boardSettings).limit(1).get();
+  if (row) return row;
+  // Several processes may get here at once on a fresh database (next build's workers): one insert wins.
+  db.insert(boardSettings).values({ id: 1 }).onConflictDoNothing().run();
+  return db.select().from(boardSettings).limit(1).get()!;
 }
 
 export function updateBoardSettings(patch: Partial<Omit<BoardSettings, "id">>): BoardSettings {
