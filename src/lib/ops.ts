@@ -82,3 +82,32 @@ export async function runTodoOps(
 
 /** Whether all of a todo's operations open in your browser (nothing for Zeff to run). */
 export const onlyInBrowser = (ops: TodoOp[]) => ops.length > 0 && ops.every((o) => !!actionHref(o));
+
+/**
+ * A todo's operations, run now by Zeff itself — a WhatsApp message, a note, a Teams message, a
+ * Jira comment: no worker, no queue (only AI work goes through Work). Done when they are the todo
+ * (a reply, a message); what's next (a delivery step) as a todo of its own. One at a time per todo.
+ */
+export async function runTodoOpsNow(todoId: number): Promise<{ done: string[]; settled: boolean }> {
+  const store = await import("@/lib/boards/store");
+  const { opsSettle, todoRef } = await import("@/lib/boards/shared");
+  const todo = store.getTodo(todoId);
+  if (!todo) throw new Error(`${todoRef(todoId)} gibt es nicht.`);
+  if (todo.status !== "open") throw new Error(`${todo.ref} ist schon ${todo.status === "done" ? "erledigt" : "verworfen"}.`);
+  if (!todo.ops.length) throw new Error(`${todo.ref} hat keine Aktionen.`);
+  const running = (globalThis as { __zeffOpsNow?: Set<number> }).__zeffOpsNow ??= new Set();
+  if (running.has(todoId)) throw new Error(`${todo.ref} läuft schon.`);
+  running.add(todoId);
+  try {
+    const { done, next } = await runTodoOps(todo, (line) => console.log(`[ops ${todo.ref}] ${line}`));
+    for (const n of next) {
+      const f = store.addFollowUp({ ticket: todo.ticket, text: n.text, kind: "merge", parentId: todo.id, workRunId: null, source: `Folgeschritt von ${todo.ref}`, ops: n.ops, owner: n.owner });
+      store.handOverPlan(todo.id, f.id, ["merge", "review"]);
+    }
+    const settled = opsSettle(todo);
+    if (settled) store.setTodoStatus(todo.id, "done", done.join("; ").slice(0, 500));
+    return { done, settled };
+  } finally {
+    running.delete(todoId);
+  }
+}
