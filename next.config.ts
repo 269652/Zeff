@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // `npm run deploy` builds into a side folder (ZEFF_DIST_DIR=.next-build) while prod keeps
+  // serving .next, and swaps the two just before the restart (scripts/swap-dist.mjs). Everything
+  // else — next start, next dev (.next/dev), a plain next build — uses .next.
+  ...(process.env.ZEFF_DIST_DIR ? { distDir: process.env.ZEFF_DIST_DIR } : {}),
   // `data/` holds only local runtime state (the SQLite DB + WAL, and the Chrono
   // Chrome profile). None of it is a build dependency, and some files are held
   // open by another process (the dev server has the DB open; a running Chrono

@@ -5,9 +5,11 @@
  *   1. a lock (data/.deploy.lock): never two deploys at once
  *   2. no Ticket-Lage or work run active in any account (else: stop — or wait, with --wait)
  *   3. typecheck, lint (errors), tests (npm test)
- *   4. next build (+ the knowledge server's with --knowledge)
+ *   4. next build (+ the knowledge server's with --knowledge) — into .next-build, while the
+ *      server keeps serving .next undisturbed
  *   5. again: nothing running (a run started meanwhile: wait for it)
- *   6. restart through the launcher (it must be running: it brings the server back)
+ *   6. restart through the launcher (it must be running: it brings the server back), the new
+ *      build swapped into .next while the server is down (scripts/swap-dist.mjs)
  *   7. the server checked: running from this checkout, the main pages load
  * Flags: --wait (wait for runs instead of stopping), --knowledge (also build + restart the
  * knowledge servers), --skip-checks (no typecheck/lint/tests — only in an emergency).
@@ -16,6 +18,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { LIVE, OLD, STAGE, clearStage, swapDists } from "./swap-dist.mjs";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "..");
 const DATA = path.join(ROOT, "data");
@@ -103,11 +106,27 @@ async function waitIdle(what) {
   }
 }
 
-function run(label, cmd, cmdArgs) {
+function exec(label, cmd, cmdArgs, env = {}) {
   log(`${label} …`);
   // One command line (fixed words only, nothing from outside): the shell finds npx/npm on Windows.
-  const r = spawnSync([cmd, ...cmdArgs].join(" "), { cwd: ROOT, stdio: "inherit", shell: true });
-  if (r.status !== 0) fail(`${label} fehlgeschlagen (exit ${r.status}).`);
+  return spawnSync([cmd, ...cmdArgs].join(" "), { cwd: ROOT, stdio: "inherit", shell: true, env: { ...process.env, ...env } }).status;
+}
+function run(label, cmd, cmdArgs) {
+  const status = exec(label, cmd, cmdArgs);
+  if (status !== 0) fail(`${label} fehlgeschlagen (exit ${status}).`);
+}
+
+/**
+ * 4. next build into <app>/.next-build (ZEFF_DIST_DIR, next.config.ts). It points next-env.d.ts
+ * at .next-build/types — put back as it was, for tsc and next dev. tsconfig.json lists
+ * .next-build/types already, so the build leaves it alone.
+ */
+function build(label, app) {
+  const envFile = path.join(app, "next-env.d.ts");
+  const before = fs.existsSync(envFile) ? fs.readFileSync(envFile, "utf8") : null;
+  const status = exec(label, "npx", ["next", "build", ...(app === ROOT ? [] : [path.relative(ROOT, app)])], { ZEFF_DIST_DIR: STAGE });
+  if (before !== null && fs.readFileSync(envFile, "utf8") !== before) fs.writeFileSync(envFile, before);
+  if (status !== 0) fail(`${label} fehlgeschlagen (exit ${status}).`);
 }
 
 // 6. The processes (Windows): the launcher, the servers.
@@ -132,20 +151,29 @@ async function main() {
   lock();
   log(`Checkout: ${ROOT}`);
   await waitIdle("before");
+  const apps = [ROOT, ...(args.has("--knowledge") ? [path.join(ROOT, "knowledge")] : [])];
+  for (const app of apps) clearStage(app);
   if (!args.has("--skip-checks")) {
     run("Typecheck", "npx", ["tsc", "--noEmit", "-p", "."]);
     run("Lint (Fehler)", "npx", ["eslint", "src", "--quiet"]);
     run("Tests", "npm", ["test", "--silent"]);
   } else log("⚠ Ohne Typecheck, Lint und Tests (--skip-checks).");
-  run("Build", "npx", ["next", "build"]);
-  if (args.has("--knowledge")) run("Build (Wissens-Server)", "npx", ["next", "build", "knowledge"]);
+  build("Build", ROOT);
+  if (args.has("--knowledge")) build("Build (Wissens-Server)", apps[1]);
 
   await waitIdle("after");
   if (!processes().some((p) => p.Name === "Zeff.exe")) fail("Der Launcher (Zeff.exe) läuft nicht — ohne ihn käme der Server nach dem Neustart nicht wieder. Gebaut ist; starte den Launcher, dann `npm run deploy -- --skip-checks`.");
   const old = servers(new RegExp(`next.*start.*-p ${PORT}`));
   const knowledge = args.has("--knowledge") ? servers(/next.*start knowledge/) : [];
   log(`Neustart: ${[...old, ...knowledge].map((p) => p.ProcessId).join(", ") || "(kein Server lief)"}`);
-  for (const p of [...old, ...knowledge]) spawnSync("taskkill", ["/PID", String(p.ProcessId), "/T", "/F"], { stdio: "ignore" });
+  try {
+    await swapDists(apps, () => {
+      for (const p of [...old, ...knowledge]) spawnSync("taskkill", ["/PID", String(p.ProcessId), "/T", "/F"], { stdio: "ignore" });
+    });
+  } catch (e) {
+    fail(`${STAGE} → ${LIVE} ging nicht, alles ist zurück (der Launcher startet den alten Build wieder): ${e?.message ?? e}`);
+  }
+  log(`${STAGE} → ${LIVE} getauscht (der vorige Build liegt in ${OLD}).`);
 
   // 7. Back, from this checkout, the pages load.
   let up = false;

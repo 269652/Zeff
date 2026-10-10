@@ -10,6 +10,8 @@ import type { NextConfig } from "next";
 const root = path.join(__dirname, "..");
 
 const nextConfig: NextConfig = {
+  // `npm run deploy -- --knowledge` builds into a side folder and swaps it in (see ../next.config.ts).
+  ...(process.env.ZEFF_DIST_DIR ? { distDir: process.env.ZEFF_DIST_DIR } : {}),
   turbopack: { root },
   outputFileTracingRoot: root,
   outputFileTracingExcludes: {

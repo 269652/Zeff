@@ -14,8 +14,13 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Local data (SQLite DB, the Chrono Chrome profile's cached web assets, etc.).
     "data/**",
+    // npm run deploy's build before the swap and the build before that (scripts/swap-dist.mjs).
+    ".next-build/**",
+    ".next-old/**",
     // The knowledge server: its own app (knowledge/), linted with its own config.
     "knowledge/.next/**",
+    "knowledge/.next-build/**",
+    "knowledge/.next-old/**",
     "knowledge/data/**",
     // The bundle (scripts/dist.mjs) and the launcher's Electron.
     "dist/**",
