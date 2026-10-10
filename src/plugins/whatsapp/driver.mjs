@@ -194,7 +194,22 @@ async function readMessages({ since, maxLoads, maxMessages }) {
   const MEDIA = { image: "Bild", video: "Video", ptt: "Sprachnachricht", audio: "Audio", document: "Dokument", location: "Standort", vcard: "Kontakt", multi_vcard: "Kontakte", poll_creation: "Umfrage", album: "Album" };
   const nameOf = (c) => c?.formattedName || c?.name || c?.pushname || c?.verifiedName || c?.id?.user || "";
   const lastAt = (c) => Math.max(c.t || 0, ...(c.msgs?.getModelsArray?.() ?? []).map((m) => m.t || 0));
-  const chats = C.Chat.getModelsArray().filter((c) => lastAt(c) >= since && !c.archive && !/@(newsletter|broadcast)$/.test(c.id?._serialized ?? "") && c.id?.user !== "status");
+  // You (your number and your lid): a group message mentioning you or quoting yours is to you.
+  let Me = null;
+  try {
+    Me = req("WAWebUserPrefsMeUser");
+  } catch {
+    // not known: no message counts as to you
+  }
+  const isMe = (w) => {
+    try {
+      return !!w && !!Me?.isMeAccount?.(w);
+    } catch {
+      return false;
+    }
+  };
+  // WhatsApp's own account (0@c.us: its tips and offers) isn't a conversation.
+  const chats = C.Chat.getModelsArray().filter((c) => lastAt(c) >= since && !c.archive && !/@(newsletter|broadcast)$/.test(c.id?._serialized ?? "") && c.id?.user !== "status" && c.id?.user !== "0");
   const out = [];
   const seen = new Set();
   for (const chat of chats) {
@@ -235,6 +250,8 @@ async function readMessages({ since, maxLoads, maxMessages }) {
         t: m.t,
         text: text.slice(0, 2000),
         unread: !fromMe && chat.unreadCount > 0 && msgs().indexOf(m) >= msgs().length - chat.unreadCount,
+        group,
+        toMe: group && !fromMe && ((m.mentionedJidList || []).some(isMe) || isMe(m.quotedParticipant)),
       });
     }
   }
@@ -454,6 +471,8 @@ async function whatsappMessages({ days = 3, maxLoads = 4, maxMessages = 3000, op
         preview: m.text,
         receivedAt: new Date(m.t * 1000).toISOString(),
         unread: m.unread,
+        group: m.group,
+        toMe: m.toMe,
       })),
     });
   } finally {

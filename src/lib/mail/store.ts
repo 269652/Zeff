@@ -22,6 +22,10 @@ export type MailInput = {
   preview: string;
   receivedAt: string | null;
   unread: boolean;
+  /** WhatsApp: written in a group. */
+  group?: boolean;
+  /** WhatsApp, in a group: it mentions you or quotes your message. */
+  toMe?: boolean;
 };
 
 export type MailSettings = { syncMinutes: number; folders: string[]; lastSyncAt: string | null; lastResult: string | null; lastOk: boolean | null };
@@ -76,7 +80,7 @@ export function saveMails(list: MailInput[]): { added: number; total: number } {
       }
       if (known) {
         tx.update(emails)
-          .set({ unread: m.unread, syncedAt: now, ...(m.full ? { preview: m.preview.slice(0, 1000) } : {}) })
+          .set({ unread: m.unread, syncedAt: now, ...(m.full ? { preview: m.preview.slice(0, 1000) } : {}), ...(m.group !== undefined ? { isGroup: m.group, toMe: !!m.toMe } : {}) })
           .where(sql`${emails.key} = ${key}`)
           .run();
         continue;
@@ -93,6 +97,8 @@ export function saveMails(list: MailInput[]): { added: number; total: number } {
           receivedAt: m.receivedAt ?? now,
           unread: m.unread,
           syncedAt: now,
+          isGroup: m.group ?? null,
+          toMe: m.group === undefined ? null : !!m.toMe,
         })
         .run();
       added++;
@@ -168,4 +174,55 @@ export function mailsForTickets(keys: string[], days = MAIL_CONTEXT_DAYS, perTic
     if (list.length) out[k] = list.slice(0, perTicket);
   }
   return out;
+}
+
+/** WhatsApp's own lines in a chat — not something a person wrote you. */
+const WA_SYSTEM = /^\u202a?\s*(\+?[\d\s]+ wurde in \+?[\d\s]+ geändert|\+?[\d\s]+ changed (their phone number|to \+?[\d\s]+)|\d+ (ungelesene Nachricht(en)?|unread messages?)\b|.{0,80} hat (dich|die Gruppe|den Gruppennamen|das Gruppenbild)|.{0,80} (added you|created group|changed the group)|Nachrichten und Anrufe sind Ende-zu-Ende-verschlüsselt|Messages and calls are end-to-end encrypted|Deine Sicherheitsnummer|Your security code)/i;
+
+/** A WhatsApp chat waiting for your answer: who, what since your last word, since when. */
+export type WhatsappChatWaiting = { convId: string; key: string; who: string; text: string; count: number; since: string; lastAt: string; group: boolean };
+
+/**
+ * The WhatsApp chats waiting for your answer — one per chat: the last word isn't yours, and what came
+ * since yours (in the last `days`, not marked done). A group only with a message to you (it mentions
+ * you or quotes yours) — not its announcements, pictures and chatter. WhatsApp's own lines (a number
+ * changed, "5 ungelesene Nachrichten") and its own account don't count.
+ */
+export function whatsappChatsWaiting(days = 7, now = Date.now()): WhatsappChatWaiting[] {
+  const since = new Date(now - days * 864e5).toISOString();
+  const from = new Date(now - 60 * 864e5).toISOString();
+  const rows = getDb()
+    .select()
+    .from(emails)
+    .where(and(sql`${emails.folder} = 'WhatsApp'`, gte(emails.receivedAt, from)))
+    .orderBy(emails.receivedAt)
+    .all()
+    .filter((m) => !WA_SYSTEM.test(m.preview.trim()));
+  const byConv = new Map<string, typeof rows>();
+  for (const m of rows) byConv.set(m.convId, [...(byConv.get(m.convId) ?? []), m]);
+  const out: WhatsappChatWaiting[] = [];
+  for (const [convId, all] of byConv) {
+    const subject = all[all.length - 1].subject;
+    const mine = (m: (typeof all)[number]) => m.fromName === "Ich";
+    if (subject === "WhatsApp" && !all.some(mine)) continue;
+    const last = all[all.length - 1];
+    if (mine(last)) continue;
+    const lastMine = [...all].reverse().find(mine)?.receivedAt ?? "";
+    // A group: as the sync says — else (read before it said so) someone writing in it under another name than the chat's.
+    const group = all.some((m) => m.isGroup) || (all.every((m) => m.isGroup === null) && all.some((m) => !mine(m) && m.fromName !== subject));
+    const after = all.filter((m) => !mine(m) && m.receivedAt > lastMine && !m.resolvedAt && (!group || m.toMe));
+    const newest = after[after.length - 1];
+    if (!newest || newest.receivedAt < since) continue;
+    out.push({
+      convId,
+      key: newest.key,
+      who: subject,
+      text: group || (newest.fromName && newest.fromName !== subject) ? `${newest.fromName}: ${newest.preview}` : newest.preview,
+      count: after.length,
+      since: after[0].receivedAt,
+      lastAt: newest.receivedAt,
+      group,
+    });
+  }
+  return out.sort((a, b) => b.lastAt.localeCompare(a.lastAt));
 }
