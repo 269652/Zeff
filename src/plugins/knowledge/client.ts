@@ -32,3 +32,14 @@ export const knowledgeSync = () => call<{ started: boolean }>("/api/sync?compile
 /** Your own knowledge on the knowledge server: something to keep — a text, or a link (the page behind it read). Compiled right after. */
 export const knowledgeAddOwn = (v: { title?: string; text?: string; url?: string }) =>
   call<{ id: string; entry: { id: string; title: string } | null }>("/api/own", { method: "POST", body: v, timeoutMs: 30000 });
+
+/**
+ * The knowledge server as your browser reaches it: beside Zeff's own address — Zeff at
+ * https://zeff:1337 → https://knowledge.zeff:1337 (the launcher routes knowledge.<host> to the
+ * knowledge server of the account you're in); Zeff opened on 127.0.0.1 / localhost → its port.
+ */
+export function knowledgeBrowserUrl(host: string | null, proto: string | null): string {
+  const h = (host ?? "").trim().toLowerCase();
+  if (!h || /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/.test(h)) return knowledgeUrl();
+  return `${proto === "http" ? "http" : "https"}://knowledge.${h.replace(/^knowledge\./, "")}`;
+}

@@ -166,7 +166,7 @@ export const PLUGINS: PluginManifest[] = [
     defaultInstalled: false,
     requires: "den Wissens-Server — der Launcher (Zeff.exe) startet ihn; jedes weitere Konto mit diesem Plugin bekommt einen eigenen, mit eigener Datenbank",
     tabs: [{ href: "/knowledge", label: "Chat", short: "Chat" }],
-    routes: ["/knowledge"],
+    routes: ["/knowledge", "/graph"],
     extensions: [
       {
         key: "todo-knowledge",
