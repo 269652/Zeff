@@ -1,5 +1,5 @@
 import { AGENT_INSTRUCTION_DEFAULTS } from "@/lib/boards/shared";
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { emitChange } from "@/lib/events";
 import { liveView } from "@/plugins/copilot-cli/live-state";
@@ -127,18 +127,4 @@ export function runsForTodos(todoIds: number[]): Map<number, WorkRunView[]> {
 /** The newest runs (all of them, for the history). */
 export function recentRuns(limit = 50): WorkRunView[] {
   return getDb().select().from(workRuns).orderBy(desc(workRuns.id)).limit(limit).all().map(toRunView);
-}
-
-/** Finished runs not booked yet — the Weekly report's shadow rows. */
-export function unbookedRuns(): WorkRun[] {
-  return getDb()
-    .select()
-    .from(workRuns)
-    .where(and(eq(workRuns.status, "done"), isNull(workRuns.entryId)))
-    .orderBy(asc(workRuns.id))
-    .all();
-}
-
-export function markBooked(ids: number[], entryId: number): void {
-  if (ids.length) getDb().update(workRuns).set({ entryId }).where(inArray(workRuns.id, ids)).run();
 }

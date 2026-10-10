@@ -5,7 +5,7 @@ import { gitlabLinkKey, type GitlabItemView, type GitlabKind } from "./shared";
 
 const { gitlabItems, gitlabSettings, contexts } = schema;
 
-/** An item as the GitLab driver (scripts/gitlab-mcp.mjs) reads it. */
+/** An item as the GitLab driver (src/plugins/gitlab/driver.mjs) reads it. */
 export type GitlabItemInput = Omit<GitlabItemView, "inContext">;
 
 export function getGitlabSettings(): GitlabSettings {

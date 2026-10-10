@@ -21,9 +21,6 @@ export function withAbort<T>(controller: AbortController, fn: () => Promise<T>):
   return store.run(controller.signal, fn);
 }
 
-/** The signal of the sync this runs in (none: not stoppable). */
-export const currentAbort = () => store.getStore();
-
 /** Stopped: a step's loop ends here (between batches). */
 export function throwIfAborted(): void {
   if (store.getStore()?.aborted) throw new Error(ABORTED);

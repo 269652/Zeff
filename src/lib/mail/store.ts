@@ -8,7 +8,7 @@ export type { MailView } from "./shared";
 
 const { emails } = schema;
 
-/** A mail as the Outlook driver (scripts/outlook-mcp.mjs, outlook_mail) reads it from the list. */
+/** A mail as the Outlook driver (src/plugins/outlook/driver.mjs, outlook_mail) reads it from the list. */
 export type MailInput = {
   /** A message's own id (WhatsApp's, Gmail's) — its key then, whatever it says. */
   id?: string;

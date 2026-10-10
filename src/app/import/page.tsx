@@ -48,7 +48,7 @@ export default async function ImportPage({
   const status = getCalendarStatus();
 
   const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "127.0.0.1:9333";
   const proto = h.get("x-forwarded-proto") ?? (/^(localhost|127\.0\.0\.1)/.test(host) ? "http" : "https");
   const origin = `${proto}://${host}`;
   const ingestUrl = `${origin}/api/calendar/ingest`;

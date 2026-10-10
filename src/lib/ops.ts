@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
-import { opLabel, type TodoOp, type TodoView } from "@/lib/boards/shared";
+import { opLabel, type TodoView } from "@/lib/boards/shared";
 import { errorMessage } from "@/lib/errors";
 import { actionHref, actionOf } from "@/plugins/actions/catalog";
 import { RUNNERS } from "@/plugins/actions/run";
@@ -79,9 +79,6 @@ export async function runTodoOps(
     keep();
   }
 }
-
-/** Whether all of a todo's operations open in your browser (nothing for Zeff to run). */
-export const onlyInBrowser = (ops: TodoOp[]) => ops.length > 0 && ops.every((o) => !!actionHref(o));
 
 /**
  * A todo's operations, run now by Zeff itself — a WhatsApp message, a note, a Teams message, a

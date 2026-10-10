@@ -14,9 +14,6 @@ export const REPLY_HOSTS = /^https:\/\/(web\.whatsapp\.com|mail\.google\.com|out
 
 const SCHEMA = { type: "object", properties: { reply: { type: "string" } }, required: ["reply"] };
 
-/** Whether a todo is about a message one can answer (a mail, WhatsApp or Teams message it came from). */
-export const hasReplyRefs = (refs: string[]) => refs.some((r) => r.startsWith("mail:") || r.startsWith("teams:"));
-
 /**
  * A reply to the message a todo is about — written by the AI from the conversation (the WhatsApp
  * chat, the mail thread, the Teams message), in its language and tone. Never sent: you copy it

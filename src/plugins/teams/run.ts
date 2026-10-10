@@ -5,7 +5,7 @@ import { saveTeamsMessages, type TeamsMessageInput } from "@/lib/teams/store";
 import { automationEnv, driverPath } from "../drivers";
 import type { ActionResult } from "../actions/run-types";
 
-/** A 1:1 Teams message, through the Teams driver (scripts/teams-mcp.mjs) in the automation Chrome. */
+/** A 1:1 Teams message, through the Teams driver (src/plugins/teams/driver.mjs) in the automation Chrome. */
 type SentTeams = { to: string; newChat: boolean; away: string | null; message: (TeamsMessageInput & { link: string; sentAt: number }) | null };
 async function sendTeamsMessage(to: string, body: string): Promise<SentTeams> {
   const script = driverPath("teams");

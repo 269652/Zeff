@@ -1,6 +1,6 @@
 /**
  * Attaching Playwright to the user's debug Chrome (the one `npm run chrono:chrome` starts).
- * Shared by chrono-mcp and punch-mcp.
+ * Shared by every browser driver (src/plugins/<id>/driver.mjs) and scripts/chrono-mcp.mjs.
  *
  * connectOverCDP attaches to EVERY open tab, so a single tab that doesn't answer — a
  * frozen/hung tab or one stuck on a dialog (seen with an idle "New Tab" page) — makes the

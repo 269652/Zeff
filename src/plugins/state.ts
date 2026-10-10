@@ -2,7 +2,7 @@ import { getDb, schema } from "@/db";
 import { accountsInstalled, currentAccountId, setAccountsInstalled } from "@/db/accounts";
 import { emitChange } from "@/lib/events";
 import { stepExtensionOk } from "./extension-state";
-import { PLUGINS, STEP_NEEDS, isPluginId, pluginById, pluginOfProvider, pluginsOfRoute, pluginsOfStep, pluginsOfService, type PluginId } from "./catalog";
+import { PLUGINS, STEP_NEEDS, isPluginId, pluginById, pluginOfProvider, pluginsOfStep, pluginsOfService, type PluginId } from "./catalog";
 
 /** Each plugin as you set it (the plugins table), else its default — not yet looking at what it builds on. */
 function chosen(): Map<PluginId, boolean> {
@@ -102,10 +102,6 @@ export const stepAvailable = (key: string) => {
     // A step an extension brings: only while it's on (its plugins there).
     stepExtensionOk(key)
   );
-};
-export const routeAvailable = (path: string) => {
-  const ps = pluginsOfRoute(path);
-  return !ps.length || ps.some((p) => isInstalled(p));
 };
 export const serviceAvailable = (service: string) => {
   const ps = pluginsOfService(service);

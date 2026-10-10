@@ -100,52 +100,10 @@ function segmentsOf(text: string): string[] {
     .filter(Boolean);
 }
 
-/**
- * The breaks in the order typed, for the row editor — without sorting or the overlap
- * check, so rows stay put while you move one past another. null when there's nothing to
- * show as rows ("none", or a part that can't be read).
- */
-export function parsePauseRows(text: string, defaultStart = "12:00"): PauseRange[] | null {
-  if (NO_BREAK.test(text.trim())) return null;
-  const rows: PauseRange[] = [];
-  for (const seg of segmentsOf(text)) {
-    const p = parseSegment(seg, defaultStart);
-    if (!p || typeof p === "string") return null;
-    rows.push(p);
-  }
-  return rows;
-}
-
-/** Move a break by setting its start or its end — its length stays (kept within the day). */
-export function moveBreak(p: PauseRange, field: "start" | "end", time: string): PauseRange {
-  const length = pauseMinutes(p);
-  const t = toMinutes(time);
-  const start = field === "start" ? Math.min(t, DAY_END - length) : Math.max(0, t - length);
-  return { start: fromMinutes(Math.max(0, start)), end: fromMinutes(Math.max(0, start) + length) };
-}
-
 /** Give a break a new length, keeping its start (moved earlier only if it would pass midnight). */
 export function withLength(p: PauseRange, minutes: number): PauseRange {
   const start = Math.max(0, Math.min(toMinutes(p.start), DAY_END - minutes));
   return { start: fromMinutes(start), end: fromMinutes(start + minutes) };
-}
-
-/** Lengths offered for a break, in minutes. */
-export const BREAK_LENGTHS = [5, 10, 15, 20, 30, 45, 60, 75, 90, 120];
-
-/** 30 → "30 min", 60 → "1 h", 75 → "1 h 15". */
-export function formatLength(minutes: number): string {
-  if (minutes < 60) return `${minutes} min`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m ? `${h} h ${m}` : `${h} h`;
-}
-
-/** Another break after the last one (a short one two hours later), or at `defaultStart`. */
-export function nextBreak(rows: PauseRange[], defaultStart = "12:00"): PauseRange {
-  const last = rows[rows.length - 1];
-  const start = last ? toMinutes(last.end) + 120 : toMinutes(defaultStart);
-  return withLength({ start: fromMinutes(Math.min(start, DAY_END - 15)), end: "" }, last ? 15 : 30);
 }
 
 // ---------------------------------------------------------------------------

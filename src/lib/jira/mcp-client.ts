@@ -140,19 +140,6 @@ export function runStdioSession<T>(
   });
 }
 
-/**
- * Call a single tool on a stdio MCP server and return its result envelope. Thin
- * wrapper over {@link runStdioSession} for the common one-shot case.
- */
-export function callStdioTool(
-  config: McpStdioConfig,
-  toolName: string,
-  args: Record<string, unknown>,
-  timeoutMs = 45000,
-): Promise<unknown> {
-  return runStdioSession(config, (call) => call(toolName, args), timeoutMs);
-}
-
 /** Some servers wrap the payload as `{ result: "<json string>" }` — unwrap it. */
 function unwrap(v: unknown): unknown {
   if (v && typeof v === "object" && "result" in (v as Record<string, unknown>)) {

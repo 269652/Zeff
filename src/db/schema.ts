@@ -802,7 +802,7 @@ export const boardRuns = sqliteTable(
 );
 
 /**
- * The Recap on the Boards tab: what you did on a day, gathered (Zeff entries, todos done,
+ * The Recap on the Todos tab: what you did on a day, gathered (Zeff entries, todos done,
  * workers' runs, your Jira comments and changes, commits, GitLab) and written up by the AI —
  * a summary and, per ticket, what was done. `facts`: what it was given, by ticket.
  */
@@ -968,7 +968,7 @@ export const jiraComments = sqliteTable(
 );
 
 /**
- * A change to a ticket made with a click on the Boards tab, as a run suggested it (a transition,
+ * A change to a ticket made with a click on the Todos tab, as a run suggested it (a transition,
  * an assignee, a comment) — what, from which run, when, and how it went. `status`: done | failed.
  */
 export const ticketActions = sqliteTable(
