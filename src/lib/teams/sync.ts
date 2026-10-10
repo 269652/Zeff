@@ -33,7 +33,8 @@ export async function syncTeams({ background = false } = {}): Promise<{ ok: bool
   if (state.__zeffTeamsSyncing) return { ok: false, message: "A Teams sync is already running." };
   state.__zeffTeamsSyncing = true;
   try {
-    if (background && !(await chromeUp())) return record(false, "The automation Chrome isn't running. Not synced.");
+    // In the background without the automation Chrome: later, as for the other sources — not a failure.
+    if (background && !(await chromeUp())) return { ok: true, message: "The automation Chrome isn't running — later." };
     const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
     const script = driverPath("teams");
     const out = await runStdioSession(

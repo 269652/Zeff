@@ -9,6 +9,8 @@ import { getMailSettings } from "./mail/store";
 import { syncTeams } from "./teams/sync";
 import { jiraLastSyncAt, lastSyncOf, quietAt, runStoppable, startSync } from "./sync/registry";
 import { stepMinutes } from "./sync/intervals";
+import { noteSyncResult } from "./sync/health";
+import { ABORTED } from "./abort";
 
 /** The automation Chrome is running (its debug port answers) — the Roar, TimO and Outlook drivers would start it otherwise. */
 async function chromeUp(): Promise<boolean> {
@@ -102,6 +104,12 @@ export function startSyncScheduler(): void {
       setTimeout(tick, 60000).unref();
     }
   };
+  // Run here, not through the registry's step (which keeps how they go itself): how they go over
+  // time is kept for Heute's "syncs that keep failing" too.
+  const DIRECT = new Set(["teams", "mail", "gitlab"]);
+  const note = (name: string, ok: boolean, message: string) => {
+    if (DIRECT.has(name) && !message.includes(ABORTED)) noteSyncResult(name as "teams" | "mail" | "gitlab", ok, message);
+  };
   const syncTurn = async () => {
     // A plugin's job only while the plugin is installed.
     const { stepAvailable } = await import("@/plugins/state");
@@ -109,8 +117,10 @@ export function startSyncScheduler(): void {
       try {
         if (!due(job.settings())) continue;
         const r = await runStoppable(job.name, job.run);
+        note(job.name, r.ok, r.message);
         if (!r.ok) console.warn(`[${job.name} sync] ${r.message}`);
       } catch (e) {
+        note(job.name, false, e instanceof Error ? e.message : String(e));
         console.error(`[${job.name} sync]`, e);
       }
     }

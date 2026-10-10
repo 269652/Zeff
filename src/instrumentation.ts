@@ -16,7 +16,9 @@ export async function register() {
   }
   try {
     const { failInterruptedRuns } = await import("./lib/boards/store");
-    failInterruptedRuns(); // a board run can't outlive the server that ran it
+    const { listAccounts, withAccount } = await import("./db/accounts");
+    // A board run or recap can't outlive the server that ran it — in every account, not only the one you're in.
+    for (const a of listAccounts()) withAccount(a.id, failInterruptedRuns);
   } catch (e) {
     console.error("[boards] marking interrupted runs failed", e);
   }

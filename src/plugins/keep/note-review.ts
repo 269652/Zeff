@@ -10,6 +10,7 @@ import { emitChange } from "@/lib/events";
 import { getJiraTicket } from "@/lib/jira/store";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { lageNotes, type NoteView } from "./boards";
+import { isoDate } from "@/lib/week";
 
 /**
  * The Notiz-Durchsicht (Google Keep's extension for Todos, a step after the Ticket-Lage): the AI
@@ -114,7 +115,7 @@ export function reviewNotesForTodos(runId: number | null = null): Promise<NoteTo
       const prompt = [
         INSTRUCTIONS,
         "",
-        `Heute ist ${new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} (${new Date().toISOString().slice(0, 10)}).`,
+        `Heute ist ${new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} (${isoDate(new Date())}).`,
         "",
         "# Meine Tickets",
         ...(ticketLines.length ? ticketLines : ["(keine)"]),

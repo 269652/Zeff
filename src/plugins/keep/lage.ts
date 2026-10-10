@@ -1,4 +1,5 @@
 import { getSqlite } from "@/db";
+import { currentAccountId } from "@/db/accounts";
 import { extensionInstalled } from "@/plugins/extension-state";
 import { isInstalled } from "@/plugins/state";
 import { notesByRefs, lageNotes, type NoteView } from "./boards";
@@ -30,10 +31,11 @@ function todoNoteRefs(key: string): string[] {
 /** Whether notes go into the Lage: Keep and its extension on. */
 export const notesInLage = () => isInstalled("keep") && extensionInstalled("keep:lage-context");
 
-let cache: { at: number; notes: NoteView[] } | null = null;
-/** All notes the Lage may read — kept for a minute (one run reads them per ticket). */
+let cache: { account: string; at: number; notes: NoteView[] } | null = null;
+/** All notes the Lage may read — kept for a minute (one run reads them per ticket), per account. */
 const allNotes = () => {
-  if (!cache || Date.now() - cache.at > 60000) cache = { at: Date.now(), notes: lageNotes() };
+  const account = currentAccountId();
+  if (!cache || cache.account !== account || Date.now() - cache.at > 60000) cache = { account, at: Date.now(), notes: lageNotes() };
   return cache.notes;
 };
 

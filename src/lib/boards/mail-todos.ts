@@ -15,6 +15,7 @@ import { getPref, setPref } from "@/lib/prefs";
 import { duplicateTodo } from "./similar";
 import { addMailTodo, addTodoContext, droppedByYou, lastGoodRun, listTodos, setTodoDue, setTodoStatus } from "./store";
 import { isInstalled } from "@/plugins/state";
+import { isoDate } from "@/lib/week";
 
 const { emails } = schema;
 
@@ -221,7 +222,7 @@ export function mailReviewPrompt(v: {
   return [
     (v.instructions ?? INSTRUCTIONS) + extraBlock("mailtodos"),
     "",
-    `Heute ist ${new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} (${new Date().toISOString().slice(0, 10)}).`,
+    `Heute ist ${new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} (${isoDate(new Date())}).`,
     "",
     "# Meine Tickets",
     ...(v.tickets.length ? v.tickets : ["(keine)"]),

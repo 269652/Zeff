@@ -82,7 +82,8 @@ export function runClaude<T>(
     const timer = setTimeout(
       () =>
         finish(() => {
-          child.kill();
+          // The whole tree (its MCP servers, shells): on Windows a plain kill leaves them running.
+          killTree(child);
           reject(new Error(`The Claude CLI took longer than ${Math.round((opts.timeoutMs ?? 600000) / 60000)} minutes — stopped.`));
         }),
       opts.timeoutMs ?? 600000,

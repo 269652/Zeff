@@ -98,7 +98,9 @@ export async function syncMail({ background = false } = {}): Promise<{ ok: boole
   if (state.__zeffMailSyncing) return { ok: false, message: "A mail sync is already running." };
   state.__zeffMailSyncing = true;
   try {
-    if (background && !(await chromeUp())) return record(false, "The automation Chrome isn't running. Not synced.");
+    // In the background without the automation Chrome: later, as for the other sources — not a failure
+    // (that would also make the next sync read two months again).
+    if (background && !(await chromeUp())) return { ok: true, message: "The automation Chrome isn't running — later." };
     const { isInstalled } = await import("@/plugins/state");
     const sources = (["outlook", "gmail"] as const).filter((s) => isInstalled(SOURCE_PLUGINS[s]));
     if (!sources.length) return record(false, "Kein Mail-Plugin installiert (Outlook Mail oder Gmail).");

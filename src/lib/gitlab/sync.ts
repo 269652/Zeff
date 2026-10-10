@@ -34,7 +34,8 @@ export async function syncGitlab({ background = false } = {}): Promise<{ ok: boo
   try {
     const s = getGitlabSettings();
     const base = s.baseUrl.replace(/\/+$/, "");
-    if (background && !(await chromeUp())) return record(false, "The automation Chrome isn't running. Not synced.");
+    // In the background without the automation Chrome: later, as for the other sources — not a failure.
+    if (background && !(await chromeUp())) return { ok: true, message: "The automation Chrome isn't running — later." };
     const sinceIso = s.lastOk && s.lastSyncAt ? new Date(new Date(s.lastSyncAt).getTime() - 864e5).toISOString() : undefined;
     const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
     const script = driverPath("gitlab");

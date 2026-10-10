@@ -140,7 +140,7 @@ export function getJiraSyncConfig(): JiraSyncConfig {
   return { configured: false, source: "none", args: [], env: {}, tool, jql, fields, limit, baseUrl: process.env.JIRA_BASE_URL?.trim() || undefined };
 }
 
-export type SyncResult = UpsertResult & { fetched: number; titlesAdded: number; boardTickets: number; mine: number };
+export type SyncResult = UpsertResult & { fetched: number; titlesAdded: number; boardTickets: number; mine: number; /** Boards not read to the end (nothing deactivated then). */ unreadBoards?: number };
 
 /**
  * Sync tickets by calling the configured Jira MCP server directly (no LLM):
@@ -193,6 +193,9 @@ async function readFromJira(): Promise<SyncResult> {
       const members: { key: string; boardId: number }[] = [];
       const seen = new Set<string>();
       const boardTickets: NormalizedTicket[] = [];
+      // Boards not read to the end (a timeout, an error): their tickets aren't known — nothing is
+      // deactivated then (a tick of bad luck would otherwise drop a whole board's tickets).
+      const unread: number[] = [];
       for (const boardId of boardIds) {
         for (let startAt = 0; startAt < BOARD_MAX; startAt += BOARD_PAGE) {
           let payload: unknown;
@@ -201,6 +204,7 @@ async function readFromJira(): Promise<SyncResult> {
               await call("jira_get_board_issues", { board_id: String(boardId), jql: "ORDER BY updated DESC", fields: cfg.fields, limit: BOARD_PAGE, start_at: startAt }),
             );
           } catch {
+            unread.push(boardId);
             break; // can't read this board/page — stop paging it (its tickets just aren't refreshed)
           }
           const raw = extractIssues(payload);
@@ -223,7 +227,7 @@ async function readFromJira(): Promise<SyncResult> {
       for (const t of boardTickets) byKey.set(t.key, t);
       for (const t of myTickets) byKey.set(t.key, t);
       const all = [...byKey.values()];
-      const upserted = upsertTickets(all, { markMissingInactive: true });
+      const upserted = upsertTickets(all, { markMissingInactive: unread.length === 0 });
 
       // 4. Board membership + mine flags across everything we just synced.
       const unionKeys = all.map((t) => t.key);
@@ -242,7 +246,7 @@ async function readFromJira(): Promise<SyncResult> {
           // ignore title-fetch failures (e.g. tickets the user can't view)
         }
       }
-      return { ...upserted, fetched: myRaw.length + boardTickets.length, titlesAdded, boardTickets: boardTickets.length, mine: myKeys.length };
+      return { ...upserted, fetched: myRaw.length + boardTickets.length, titlesAdded, boardTickets: boardTickets.length, mine: myKeys.length, unreadBoards: unread.length };
     },
     180000,
   );

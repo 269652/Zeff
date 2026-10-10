@@ -107,6 +107,13 @@ export const currentAccount = (): Account => accountById(currentAccountId()) ?? 
 /** Run something for one account — its database, its folder — whichever is active meanwhile. */
 export const withAccount = <T>(id: string, fn: () => T): T => scope.run(id, fn);
 
+/**
+ * Work started now that goes on in the background (a click's sync, Lage, recap, a WhatsApp history):
+ * kept in the account it was started in — else each later database read follows whatever account
+ * is switched to meanwhile, and its results land in the other one.
+ */
+export const inThisAccount = <T>(fn: () => T): T => withAccount(currentAccountId(), fn);
+
 export const accountDbPath = (id: string) => (id === DEFAULT_ACCOUNT ? BASE_DB : path.join(ACCOUNTS_DIR, id, "zeff.db"));
 /** An account's data folder (its database, work logs, context files, backups by default). */
 export const accountDir = (id: string) => path.dirname(accountDbPath(id));
