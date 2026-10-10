@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { saveFlexTimeAction, type ActionState } from "@/app/actions";
+import { saveFlexTimeAction } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 import { DEFAULT_FLEX_COMMENT, type FlexTime } from "@/lib/schedule-shared";
 
 /** Schedule → Flex time: which job takes a day's missing hours (Gleitzeit), and what those bookings say. */

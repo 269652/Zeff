@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { setBoardEnabledAction } from "@/app/actions";
+import { setBoardEnabledAction } from "@/plugins/jira/server-actions";
 
 export function BoardEnableToggle({ boardId, enabled }: { boardId: number; enabled: boolean }) {
   const ref = useRef<HTMLFormElement>(null);

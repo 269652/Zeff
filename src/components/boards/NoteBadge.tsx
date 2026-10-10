@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { removeTodoNoteAction } from "@/app/actions";
+import { removeTodoNoteAction } from "@/plugins/todos/server-actions";
 import type { TodoUserNote } from "@/lib/boards/shared";
 import { NoteIcon, SparkIcon } from "../icons";
 import { toast } from "../Toaster";

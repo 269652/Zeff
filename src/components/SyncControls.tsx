@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import type { ActionState } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 import { minutesText } from "@/plugins/sync-settings";
 
 /**

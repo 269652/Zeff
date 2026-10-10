@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { pullRoarAction, pullRoarApprovalsAction, pullRoarMonthAction, type ActionState } from "@/app/actions";
+import { pullRoarAction, pullRoarApprovalsAction, pullRoarMonthAction } from "@/plugins/roar/server-actions";
+import type { ActionState } from "@/app/action-helpers";
 import { PulledAtIcon } from "./PulledAtIcon";
 
 /**

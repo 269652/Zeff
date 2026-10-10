@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { pasteEventsAction, type ActionState } from "@/app/actions";
+import { pasteEventsAction } from "@/plugins/outlook-calendar/server-actions";
+import type { ActionState } from "@/app/action-helpers";
 import { SubmitButton } from "./SubmitButton";
 
 export function PasteEventsForm() {

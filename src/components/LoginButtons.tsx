@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { checkAllLoginsAction, checkLoginAction, openServiceLoginAction, type ActionState } from "@/app/actions";
+import { checkAllLoginsAction, checkLoginAction, openServiceLoginAction } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 import { toast } from "./Toaster";
 
 function useAct() {

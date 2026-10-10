@@ -1,7 +1,8 @@
 "use client";
 
 import { startTransition, useActionState, useState } from "react";
-import { saveMeetingExcludeRulesAction, type ActionState } from "@/app/actions";
+import { saveMeetingExcludeRulesAction } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 import { SubmitButton } from "./SubmitButton";
 
 /** Title patterns whose imported meetings start unchecked (placeholders, reminders, blockers). */

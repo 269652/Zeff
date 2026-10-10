@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { saveScheduleAction, type ActionState } from "@/app/actions";
+import { saveScheduleAction } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 import { WEEKDAY_KEYS, WEEKDAY_LABELS } from "@/lib/schedule-shared";
 import { SubmitButton } from "./SubmitButton";
 

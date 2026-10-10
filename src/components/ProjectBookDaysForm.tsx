@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { ActionState } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 import type { EntryTypeDef } from "@/lib/entry-types-shared";
 
 /** Book one entry per working day of a date range on a project (e.g. a 3-day training). */

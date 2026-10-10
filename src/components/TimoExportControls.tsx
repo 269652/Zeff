@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { exportToTimoAction, timoStatusAction, type ActionState } from "@/app/actions";
+import { exportToTimoAction, timoStatusAction } from "@/plugins/timo/server-actions";
+import type { ActionState } from "@/app/action-helpers";
 import { SubmitButton } from "./SubmitButton";
 
 export function TimoExportControls({ week, by, fillGaps }: { week: string; by?: string; fillGaps: boolean }) {

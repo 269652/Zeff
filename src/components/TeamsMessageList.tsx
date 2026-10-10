@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { createContextAction, setTeamsResolvedAction } from "@/app/actions";
+import { createContextAction } from "@/app/actions";
+import { setTeamsResolvedAction } from "@/plugins/teams/server-actions";
 import { teamsDay, teamsKindLabel, teamsMarkdown, type TeamsMessageView } from "@/lib/teams/shared";
 import { CONTEXT_KIND_STYLE } from "./contextKindStyle";
 import { Markdown } from "./Markdown";

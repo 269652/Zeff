@@ -1,7 +1,8 @@
 "use client";
 
 import { Fragment, startTransition, useActionState, useState } from "react";
-import { saveMeetingJobRulesAction, type ActionState } from "@/app/actions";
+import { saveMeetingJobRulesAction } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 import type { MeetingJobRule } from "@/lib/calendar/meetings";
 import { SubmitButton } from "./SubmitButton";
 

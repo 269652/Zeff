@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { createTagAction, type ActionState } from "@/app/actions";
+import { createTagAction } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 import { SubmitButton } from "./SubmitButton";
 
 export function CreateTagForm() {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { switchRepoBranchAction } from "@/app/actions";
+import { switchRepoBranchAction } from "@/plugins/work/server-actions";
 import { toast } from "../Toaster";
 
 /**

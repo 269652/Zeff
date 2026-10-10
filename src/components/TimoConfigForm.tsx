@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { saveTimoConfigAction, type ActionState } from "@/app/actions";
+import { saveTimoConfigAction } from "@/plugins/timo/server-actions";
+import type { ActionState } from "@/app/action-helpers";
 import type { TimoConfig } from "@/lib/timo";
 import { SubmitButton } from "./SubmitButton";
 

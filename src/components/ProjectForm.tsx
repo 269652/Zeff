@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import type { ActionState } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 import { TagsField } from "./TagsField";
 
 export type ProjectFormDefaults = Partial<{

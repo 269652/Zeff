@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { saveLlmSettingsAction } from "@/app/actions";
+import { saveLlmSettingsAction } from "@/plugins/llm/server-actions";
 import { toast } from "@/components/Toaster";
 import { LLM_TASKS, type LlmSettings, type LlmTaskSetting } from "./tasks";
 

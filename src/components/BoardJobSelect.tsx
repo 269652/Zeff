@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { setBoardJobAction } from "@/app/actions";
+import { setBoardJobAction } from "@/plugins/jira/server-actions";
 
 export function BoardJobSelect({
   boardId,

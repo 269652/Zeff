@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { TeamsMessageList } from "@/components/TeamsMessageList";
-import { syncTeamsAction } from "@/app/actions";
+import { syncTeamsAction } from "@/plugins/teams/server-actions";
 import { SyncControls } from "@/components/SyncControls";
 import { getTeamsSettings, listTeamsMessages, teamsMessageCounts } from "@/lib/teams/store";
 import { agoText } from "@/lib/teams/time";

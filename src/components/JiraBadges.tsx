@@ -1,6 +1,6 @@
 "use client";
 
-import { setJiraCommentResolvedAction } from "@/app/actions";
+import { setJiraCommentResolvedAction } from "@/plugins/jira/server-actions";
 import type { JiraCommentView } from "@/lib/boards/shared";
 import type { JiraTicketBrief } from "@/lib/entities-shared";
 import { ChevronIcon } from "./icons";

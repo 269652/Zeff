@@ -1,7 +1,10 @@
 "use client";
 
 import { useId, useRef, useState, useTransition } from "react";
-import { searchGitlabItemsAction, searchMailsAction, searchTeamsMessagesAction, searchTodosAction } from "@/app/actions";
+import { searchGitlabItemsAction } from "@/plugins/gitlab/server-actions";
+import { searchMailsAction } from "@/app/actions";
+import { searchTeamsMessagesAction } from "@/plugins/teams/server-actions";
+import { searchTodosAction } from "@/plugins/todos/server-actions";
 import { mailLink, mailSender } from "@/lib/mail/shared";
 import { TODO_KIND_LABELS } from "@/lib/boards/shared";
 import { todoLink, type Entity } from "@/lib/entities-shared";

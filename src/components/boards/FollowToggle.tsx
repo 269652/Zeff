@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { setTicketFollowAction } from "@/app/actions";
+import { setTicketFollowAction } from "@/plugins/todos/server-actions";
 import { toast } from "../Toaster";
 
 /**

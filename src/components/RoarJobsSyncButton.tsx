@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { syncRoarJobsAction, type ActionState } from "@/app/actions";
+import { syncRoarJobsAction } from "@/plugins/roar/server-actions";
+import type { ActionState } from "@/app/action-helpers";
 
 /** Looks every job up in Roar's job search and refreshes the Roar column (nothing is added in Roar). */
 export function RoarJobsSyncButton({ count }: { count: number }) {

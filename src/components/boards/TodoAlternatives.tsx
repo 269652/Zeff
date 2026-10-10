@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { runTodoAlternativeAction } from "@/app/actions";
+import { runTodoAlternativeAction } from "@/plugins/todos/server-actions";
 import { opsButton, type TodoView } from "@/lib/boards/shared";
 import { toast } from "../Toaster";
 

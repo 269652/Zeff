@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { syncOutlookAction, type ActionState } from "@/app/actions";
+import { syncOutlookAction } from "@/plugins/outlook-calendar/server-actions";
+import type { ActionState } from "@/app/action-helpers";
 
 /** Reads the calendar from Outlook in the automation Chrome (read-only) into Zeff. */
 export function OutlookSyncButton({ week, syncedAt }: { week: string; syncedAt: string | null }) {

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { switchAccountAction } from "@/app/actions";
+import { switchAccountAction } from "@/plugins/accounts/server-actions";
 import { toast } from "@/components/Toaster";
 
 export type AccountChip = { id: string; name: string; color: string };

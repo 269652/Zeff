@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { startRecapAction } from "@/app/actions";
+import { startRecapAction } from "@/plugins/todos/server-actions";
 
 const PHASES: Record<string, string> = { gather: "sammelt den Tag", ai: "schreibt", saving: "speichert" };
 

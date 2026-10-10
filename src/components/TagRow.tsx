@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { deleteTagAction, renameTagAction, type ActionState } from "@/app/actions";
+import { deleteTagAction, renameTagAction } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 import { SubmitButton } from "./SubmitButton";
 
 export function TagRow({ id, name, count }: { id: number; name: string; count: number }) {

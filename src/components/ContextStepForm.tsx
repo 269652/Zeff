@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { saveContextPrefsAction } from "@/app/actions";
+import { saveContextPrefsAction } from "@/plugins/todos/server-actions";
 import { sourceShown, type ContextStep, type StepPrefs } from "@/lib/boards/context-prefs-shared";
 import { toast } from "./Toaster";
 

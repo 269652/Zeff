@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { setTodoDueAction } from "@/app/actions";
+import { setTodoDueAction } from "@/plugins/todos/server-actions";
 import { dueText, dueTone } from "@/lib/boards/due-shared";
 import { toast } from "../Toaster";
 

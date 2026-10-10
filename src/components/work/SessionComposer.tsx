@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { startSessionAction } from "@/app/actions";
+import { startSessionAction } from "@/plugins/work/server-actions";
 import { toast } from "@/components/Toaster";
 
 /**

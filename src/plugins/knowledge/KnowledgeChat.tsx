@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { askKnowledgeAction } from "@/app/actions";
+import { askKnowledgeAction } from "@/plugins/knowledge/server-actions";
 import type { KnowledgeAnswer, KnowledgeTurn } from "./shared";
 
 type Msg = { role: "user"; text: string } | { role: "assistant"; text: string; answer: KnowledgeAnswer };

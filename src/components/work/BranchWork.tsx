@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { branchOpAction } from "@/app/actions";
+import { branchOpAction } from "@/plugins/work/server-actions";
 import type { BranchItem, BranchOp, BranchState } from "@/lib/branches";
 import { toast } from "../Toaster";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import type { ActionState } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 import type { EntryType } from "@/db/schema";
 import { ENTRY_CONTEXT_PREFIX } from "@/lib/contexts-shared";
 import type { EntryTypeDef } from "@/lib/entry-types-shared";

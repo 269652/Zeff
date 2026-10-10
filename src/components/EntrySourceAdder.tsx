@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { addContextSourceAction, type ActionState } from "@/app/actions";
+import { addContextSourceAction } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 import { gitlabTicket } from "@/lib/gitlab/shared";
 import { useContextFormOptions } from "./ContextFormOptions";
 import { SourcePicker } from "./SourcePicker";

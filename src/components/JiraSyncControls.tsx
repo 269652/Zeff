@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { importJiraAction, syncJiraAction, type ActionState } from "@/app/actions";
+import { importJiraAction, syncJiraAction } from "@/plugins/jira/server-actions";
+import type { ActionState } from "@/app/action-helpers";
 import type { UiOpenState } from "@/lib/ui-state-shared";
 import { PersistentDetails } from "./PersistentDetails";
 import { SubmitButton } from "./SubmitButton";

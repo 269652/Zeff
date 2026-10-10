@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { openGmailAddAccountAction, saveGmailAccountsAction } from "@/app/actions";
+import { openGmailAddAccountAction, saveGmailAccountsAction } from "@/plugins/gmail/server-actions";
 import { toast } from "@/components/Toaster";
 import type { GmailAccount, SignedInGmail } from "./accounts";
 

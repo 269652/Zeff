@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { knowledgeSyncAction } from "@/app/actions";
+import { knowledgeSyncAction } from "@/plugins/knowledge/server-actions";
 import { toast } from "@/components/Toaster";
 
 /** Read the sources now (and compile what's new) — on the knowledge server, in the background. */

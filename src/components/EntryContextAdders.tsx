@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import type { ActionState } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 import { ContextForm, type ContextFormDefaults } from "./ContextForm";
 
 /**

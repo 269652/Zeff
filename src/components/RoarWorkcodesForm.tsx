@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { saveRoarWorkcodesAction, type ActionState } from "@/app/actions";
+import { saveRoarWorkcodesAction } from "@/plugins/roar/server-actions";
+import type { ActionState } from "@/app/action-helpers";
 import { SubmitButton } from "./SubmitButton";
 
 /** Configure a forced Roar WorkCode per job (used by the export where a job's WorkCode is empty). */

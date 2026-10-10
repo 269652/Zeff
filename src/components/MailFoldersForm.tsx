@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { saveMailFoldersAction, type ActionState } from "@/app/actions";
+import { saveMailFoldersAction } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 
 /** Which Outlook folders the mail sync reads — by name as Outlook's folder list shows them, comma-separated. */
 export function MailFoldersForm({ folders }: { folders: string[] }) {

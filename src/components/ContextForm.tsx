@@ -1,7 +1,8 @@
 "use client";
 
 import { startTransition, useId, useRef, useState, useTransition } from "react";
-import { deleteContextFileAction, fetchImagesAction, type ActionState } from "@/app/actions";
+import { deleteContextFileAction, fetchImagesAction } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 import {
   CONTEXT_KINDS,
   CONTEXT_KIND_LABELS,

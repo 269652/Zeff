@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { pullTimoAction, type ActionState } from "@/app/actions";
+import { pullTimoAction } from "@/plugins/timo/server-actions";
+import type { ActionState } from "@/app/action-helpers";
 import { PulledAtIcon } from "./PulledAtIcon";
 
 /** Reads what TimO has on the week's days (read-only) for the Booked row's TimO marks. */

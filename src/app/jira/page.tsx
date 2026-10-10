@@ -3,7 +3,7 @@ import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
-import { clearJiraAction } from "@/app/actions";
+import { clearJiraAction } from "@/plugins/jira/server-actions";
 import { BoardEnableToggle } from "@/components/BoardEnableToggle";
 import { BoardJobSelect } from "@/components/BoardJobSelect";
 import { BoardSyncControls } from "@/components/BoardSyncControls";

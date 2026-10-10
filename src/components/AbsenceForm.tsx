@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { createAbsenceAction, type ActionState } from "@/app/actions";
+import { createAbsenceAction } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 import { ABSENCE_TYPES, ABSENCE_LABELS } from "@/lib/schedule-shared";
 import { SubmitButton } from "./SubmitButton";
 

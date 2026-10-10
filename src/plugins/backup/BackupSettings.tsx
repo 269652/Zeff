@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
-import { importConfigAction, pickFolderAction, restoreBackupAction, runBackupAction, saveBackupSettingsAction, uploadBackupAction } from "@/app/actions";
+import { importConfigAction, restoreBackupAction, runBackupAction, saveBackupSettingsAction, uploadBackupAction } from "@/plugins/backup/server-actions";
+import { pickFolderAction } from "@/app/actions";
 import type { BackupFile, BackupSettingsView } from "./backup";
 import { toast } from "@/components/Toaster";
 

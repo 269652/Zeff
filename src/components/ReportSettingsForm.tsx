@@ -1,7 +1,8 @@
 "use client";
 
 import { startTransition, useActionState, useState } from "react";
-import { saveReportSettingsAction, type ActionState } from "@/app/actions";
+import { saveReportSettingsAction } from "@/app/actions";
+import type { ActionState } from "@/app/action-helpers";
 import {
   RULE_FIELDS,
   RULE_FIELD_LABELS,

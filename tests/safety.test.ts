@@ -37,8 +37,9 @@ const WRITES: Record<string, string[]> = {
   jira_create_issue_link: ["src/plugins/jira/run.ts"],
   jira_edit_comment: ["src/lib/jira/context-sync.ts"],
   jira_create_issue: ["src/plugins/jira/run.ts"],
-  roar_export: ["src/app/actions.ts"],
-  timo_export: ["src/app/actions.ts"],
+  // The driver call (call.ts) and the click that exports (server-actions.ts).
+  roar_export: ["src/plugins/roar/call.ts", "src/plugins/roar/server-actions.ts"],
+  timo_export: ["src/plugins/timo/call.ts", "src/plugins/timo/server-actions.ts"],
   keep_write: ["src/plugins/keep-write/write.ts"],
 };
 
@@ -48,7 +49,7 @@ for (const [tool, allowed] of Object.entries(WRITES))
   });
 
 test("a todo's actions are run only from a click (or a worker you started)", () => {
-  assert.deepEqual(using("runTodoOpsNow("), ["src/app/actions.ts", "src/lib/ops.ts"]);
+  assert.deepEqual(using("runTodoOpsNow("), ["src/lib/ops.ts", "src/plugins/todos/server-actions.ts"]);
   assert.deepEqual(using("runTodoOps("), ["src/lib/ops.ts", "src/lib/work/runner.ts"]);
   assert.deepEqual(using("RUNNERS"), ["src/lib/ops.ts", "src/plugins/actions/run.ts"]);
 });
@@ -65,9 +66,10 @@ test("the automatic steps don't import what runs actions", () => {
     "src/plugins/keep/note-review.ts",
     "src/plugins/keep/note-relations.ts",
   ];
-  // The action runners: the ops runner, the plugins' run modules (teams/run, whatsapp/run …), GitLab's writes.
+  // The action runners: the ops runner, the plugins' run modules (teams/run, whatsapp/run …), GitLab's writes —
+  // and the clicks themselves (the server actions: Zeff's and each plugin's).
   // (The Ticket-Lage's own run — boards/run — isn't one.)
-  const target = String.raw`(@\/lib\/ops|(@\/plugins|\.\.)\/(actions|teams|whatsapp|jira|keep|work|gitlab|gmail|outlook)\/run|@\/lib\/gitlab\/reply)`;
+  const target = String.raw`(@\/lib\/ops|(@\/plugins|\.\.)\/(actions|teams|whatsapp|jira|keep|work|gitlab|gmail|outlook)\/run|@\/lib\/gitlab\/reply|@\/app\/actions|(@\/plugins\/[\w-]+|\.)\/server-actions)`;
   const runners = new RegExp(String.raw`from\s+["']${target}["']|import\(["']${target}["']\)`);
   for (const f of automatic) {
     const s = SRC.find((x) => x.file === f);

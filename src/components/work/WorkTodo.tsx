@@ -4,14 +4,8 @@ import { actionHref } from "@/plugins/actions/catalog";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import {
-  dispatchWorkAction,
-  doneBrowserOpAction,
-  removeTodoOpAction,
-  saveTodoDraftAction,
-  saveTodoOpTextAction,
-  setTodoStatusAction,
-} from "@/app/actions";
+import { dispatchWorkAction } from "@/plugins/work/server-actions";
+import { doneBrowserOpAction, removeTodoOpAction, saveTodoDraftAction, saveTodoOpTextAction, setTodoStatusAction } from "@/plugins/todos/server-actions";
 import {
   agentInstruction,
   opLabel,
