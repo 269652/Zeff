@@ -2,11 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { syncKeepAction } from "@/app/actions";
+import { BetaBadge, BetaWarning } from "@/components/BetaBadge";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { SyncControls } from "@/components/SyncControls";
 import { syncOverview } from "@/lib/sync/registry";
 import { agoText } from "@/lib/teams/time";
+import { pluginById } from "@/plugins/catalog";
 import { keepNoteClass } from "@/plugins/keep/colors";
+import { KeepBoardView } from "@/plugins/keep/KeepBoardView";
 import { KeepNav } from "@/plugins/keep/KeepNav";
 import { keepLabels, listKeepNotes } from "@/plugins/keep/store";
 import { isInstalled } from "@/plugins/state";
@@ -17,9 +20,9 @@ const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("de-
 
 /**
  * Google Keep in Zeff: your Keep notes as Zeff has them (the Keep sync reads them in the account's
- * automation Chrome — nothing in Keep changes). Pinned first, then the latest edited; search,
- * labels, the archive. A view — editing stays in Keep (each note links there); your own boards are
- * Zeff's (the sidebar).
+ * automation Chrome). Pinned first, then the latest edited; search, labels, the archive. A view —
+ * editing stays in Keep (each note links there) — unless "Google Keep schreiben" (beta) is
+ * installed: then they're written here like your own boards, and saved in Keep itself.
  */
 export default async function GoogleKeepPage({ searchParams }: { searchParams: Promise<{ q?: string; label?: string; archived?: string }> }) {
   await connection();
@@ -29,6 +32,7 @@ export default async function GoogleKeepPage({ searchParams }: { searchParams: P
   const label = sp.label?.trim() ?? "";
   const archived = sp.archived === "1";
   const notes = listKeepNotes({ q, label, archived, limit: 600 });
+  const writable = isInstalled("keep-write");
   const labels = keepLabels();
   const step = syncOverview().steps.find((s) => s.key === "keep");
   const href = (p: { label?: string; archived?: boolean }) => {
@@ -45,7 +49,17 @@ export default async function GoogleKeepPage({ searchParams }: { searchParams: P
       <div className="page-aside">
         <h1 className="text-lg font-semibold">Keep</h1>
         <KeepNav current="google" />
-        <p className="text-sm text-zinc-500">Deine Google-Keep-Notizen — gelesen vom Keep-Sync im Automations-Chrome; in Keep ändert sich nichts. Bearbeiten in Keep (jede Notiz verlinkt dorthin).</p>
+        {writable ? (
+          <>
+            <p className="text-sm text-zinc-500">
+              Deine Google-Keep-Notizen — hier geschrieben und gleich in Google Keep gespeichert (über Keeps eigene Seite im Automations-Chrome).
+              <BetaBadge warning={pluginById("keep-write").beta} />
+            </p>
+            <BetaWarning warning={pluginById("keep-write").beta ?? ""} />
+          </>
+        ) : (
+          <p className="text-sm text-zinc-500">Deine Google-Keep-Notizen — gelesen vom Keep-Sync im Automations-Chrome; in Keep ändert sich nichts. Bearbeiten in Keep (jede Notiz verlinkt dorthin) — oder hier, mit dem Plugin „Google Keep schreiben“ (Beta).</p>
+        )}
         <SyncControls
           syncKey="keep"
           label="Keep"
@@ -74,7 +88,14 @@ export default async function GoogleKeepPage({ searchParams }: { searchParams: P
         </nav>
       </div>
 
-      {notes.length ? (
+      {writable ? (
+        <KeepBoardView
+          source={{ kind: "google", labelHref: `/keep/google?${q ? `q=${encodeURIComponent(q)}&` : ""}label=` }}
+          notes={notes.map((n) => ({ id: n.id, title: n.title, text: n.text, labels: n.labels, color: n.color, pinned: n.pinned, archived: n.archived, updatedAt: n.updatedAt, url: n.url }))}
+          archived={archived}
+          empty={q || label ? "Keine Notiz passt." : archived ? "Nichts im Archiv." : "Noch nichts synchronisiert — „Keep syncen“ liest deine Notizen."}
+        />
+      ) : notes.length ? (
         <section className="columns-1 gap-3 sm:columns-2 xl:columns-3">
           {notes.map((n) => (
             <article key={n.id} className={`card mb-3 break-inside-avoid space-y-1.5 p-3 ${keepNoteClass(n.color)}`}>

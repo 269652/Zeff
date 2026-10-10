@@ -39,6 +39,7 @@ const WRITES: Record<string, string[]> = {
   jira_create_issue: ["src/plugins/jira/run.ts"],
   roar_export: ["src/app/actions.ts"],
   timo_export: ["src/app/actions.ts"],
+  keep_write: ["src/plugins/keep-write/write.ts"],
 };
 
 for (const [tool, allowed] of Object.entries(WRITES))

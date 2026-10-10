@@ -6,8 +6,8 @@ import { setPluginInstalledAction } from "@/app/actions";
 import type { PluginId } from "@/plugins/catalog";
 import { toast } from "./Toaster";
 
-/** Install / uninstall a plugin — the page (and the menu) follow at once. */
-export function PluginInstallButton({ id, installed }: { id: PluginId; installed: boolean }) {
+/** Install / uninstall a plugin — the page (and the menu) follow at once. A beta one asks first, with its warning. */
+export function PluginInstallButton({ id, installed, beta }: { id: PluginId; installed: boolean; beta?: string }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   return (
@@ -16,6 +16,7 @@ export function PluginInstallButton({ id, installed }: { id: PluginId; installed
       className={`btn btn-sm ${installed ? "" : "btn-primary"}`}
       disabled={pending}
       onClick={() =>
+        (installed || !beta || confirm(`Beta: ${beta}\n\nTrotzdem installieren?`)) &&
         start(async () => {
           const r = await setPluginInstalledAction(id, !installed);
           toast(r?.ok ? (r.message ?? "Erledigt.") : (r?.error ?? "Ging nicht."), { tone: r?.ok ? "ok" : "error" });
