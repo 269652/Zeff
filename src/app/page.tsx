@@ -15,6 +15,7 @@ import { ChronoPullButton } from "@/components/ChronoPullButton";
 import { PunchPullButton } from "@/components/PunchPullButton";
 import { BookedStat, PastWeeksStat, SplitStat, type StatHalf } from "@/components/StatCard";
 import { WeekNav } from "@/components/WeekNav";
+import { WeekCloseCard } from "@/components/WeekCloseCard";
 import { WeekTable } from "@/components/WeekTable";
 import { listContextPeople } from "@/lib/contexts";
 import { dayShortfalls } from "@/lib/day-status";
@@ -33,6 +34,7 @@ import {
   type ChronoItem,
 } from "@/lib/chrono-status";
 import { punchDayStates } from "@/lib/punch-status";
+import { weekClose } from "@/lib/week-close";
 import { getWeeklyReport, listReporters } from "@/lib/entries";
 import { formatHours, round2 } from "@/lib/format";
 import { getJobByNumber, listJobs } from "@/lib/jobs";
@@ -170,6 +172,9 @@ export default async function WeekPage({
           />
         </ContextFormOptionsProvider>
       </section>
+
+      {/* Closing the week: every step in one list (not with a reporter filter — that's part of the bookings only). */}
+      {!by && <WeekCloseCard close={await weekClose(week)} week={week.week} />}
 
       <SuggestionsPanel items={openSuggestions()} />
 
