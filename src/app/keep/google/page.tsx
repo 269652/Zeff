@@ -11,7 +11,7 @@ import { pluginById } from "@/plugins/catalog";
 import { keepNoteClass } from "@/plugins/keep/colors";
 import { KeepBoardView } from "@/plugins/keep/KeepBoardView";
 import { KeepNav } from "@/plugins/keep/KeepNav";
-import { keepLabels, listKeepNotes } from "@/plugins/keep/store";
+import { keepLabels, linkedKeepCount, listKeepNotes } from "@/plugins/keep/store";
 import { isInstalled } from "@/plugins/state";
 
 export const metadata: Metadata = { title: "Google Keep" };
@@ -33,6 +33,7 @@ export default async function GoogleKeepPage({ searchParams }: { searchParams: P
   const archived = sp.archived === "1";
   const notes = listKeepNotes({ q, label, archived, limit: 600 });
   const writable = isInstalled("keep-write");
+  const linked = linkedKeepCount();
   const labels = keepLabels();
   const step = syncOverview().steps.find((s) => s.key === "keep");
   const href = (p: { label?: string; archived?: boolean }) => {
@@ -67,6 +68,7 @@ export default async function GoogleKeepPage({ searchParams }: { searchParams: P
           last={step?.lastAt ? { at: step.lastAt, ago: agoText(step.lastAt), ok: !!step.lastOk, result: step.lastMessage ?? "" } : null}
           sync={syncKeepAction}
         />
+        {linked > 0 && <p className="text-xs text-zinc-500">{linked} notes are synced with your boards and shown there — not here a second time.</p>}
         <form action="/keep/google">
           {label && <input type="hidden" name="label" value={label} />}
           {archived && <input type="hidden" name="archived" value="1" />}

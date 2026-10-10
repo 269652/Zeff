@@ -75,10 +75,32 @@ export function saveKeepNotes(notes: KeepNote[], full: boolean): { added: number
   return { added, changed, removed, total };
 }
 
-/** The notes — pinned first, then the latest edited; a search through title, text and labels. */
+/**
+ * The Google Keep notes synced with one of your boards' notes (Google Keep schreiben): they're
+ * shown there — as your note —, not here a second time.
+ */
+function linkedFilter(): string {
+  try {
+    const cols = (getSqlite().prepare("pragma table_info(keep_own_notes)").all() as { name: string }[]).map((c) => c.name);
+    return cols.includes("google_id") ? "id not in (select google_id from keep_own_notes where google_id is not null)" : "";
+  } catch {
+    return "";
+  }
+}
+
+/** How many Google Keep notes are synced with your boards (and so shown there). */
+export function linkedKeepCount(): number {
+  const f = linkedFilter();
+  if (!f) return 0;
+  return (db().prepare(`select count(*) n from keep_notes where not (${f})`).get() as { n: number }).n;
+}
+
+/** The notes — pinned first, then the latest edited; a search through title, text and labels. Those synced with your boards left out. */
 export function listKeepNotes({ q = "", label = "", archived = false, limit = 2000 }: { q?: string; label?: string; archived?: boolean; limit?: number } = {}): KeepNote[] {
   const like = (s: string) => `%${s.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
   const where = ["archived = ?"];
+  const linked = linkedFilter();
+  if (linked) where.push(linked);
   const args: unknown[] = [archived ? 1 : 0];
   if (q) {
     where.push("(title like ? escape '\\' or text like ? escape '\\' or labels like ? escape '\\')");
@@ -101,8 +123,11 @@ export function getKeepNote(id: string): KeepNote | null {
 /** A note gone from Keep (put in its trash from Zeff): out of Zeff's copy too. */
 export const removeKeepNote = (id: string): boolean => db().prepare("delete from keep_notes where id = ?").run(id).changes > 0;
 
-/** All notes, archived ones too (the knowledge export). */
-export const allKeepNotes = (): KeepNote[] => (db().prepare("select * from keep_notes order by coalesce(updated_at, created_at) desc").all() as Row[]).map(toNote);
+/** All notes, archived ones too (the knowledge export, the Lage) — those synced with your boards only with `linked`. */
+export function allKeepNotes({ linked = false }: { linked?: boolean } = {}): KeepNote[] {
+  const f = linked ? "" : linkedFilter();
+  return (db().prepare(`select * from keep_notes ${f ? `where ${f}` : ""} order by coalesce(updated_at, created_at) desc`).all() as Row[]).map(toNote);
+}
 
 /** The labels in use, most used first. */
 export function keepLabels(): { label: string; count: number }[] {

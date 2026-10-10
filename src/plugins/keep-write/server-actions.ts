@@ -42,3 +42,21 @@ export async function updateGoogleNoteAction(id: string, patch: KeepWrite): Prom
 export async function trashGoogleNoteAction(id: string): Promise<Result> {
   return act(() => trashGoogleNote(String(id)), "In Keeps Papierkorb.");
 }
+
+/** A board's sync with Google Keep started (in the background). */
+export async function startBoardSyncAction(boardId: number): Promise<Result> {
+  try {
+    if (!isInstalled("keep-write")) return { ok: false, error: "\"Google Keep schreiben\" isn't installed (Menu → Plugins)." };
+    const { startBoardSync } = await import("./board-sync");
+    return startBoardSync(Number(boardId)) ? { ok: true, message: "Syncing with Google Keep …" } : { ok: false, error: "A board sync is already running — try again after it." };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** How a board's sync with Google Keep stands. */
+export async function boardSyncStatusAction(boardId: number) {
+  const { boardSyncState } = await import("./board-sync");
+  const s = boardSyncState(Number(boardId));
+  return { running: s.running ? { step: s.running.step, done: s.running.done, total: s.running.total } : null, last: s.last };
+}
