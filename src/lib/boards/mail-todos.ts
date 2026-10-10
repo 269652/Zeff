@@ -1,4 +1,4 @@
-import { and, asc, gte, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, gte, inArray, isNull, sql } from "drizzle-orm";
 import { throwIfAborted } from "@/lib/abort";
 import { getDb, schema } from "@/db";
 import { aiChoice, runAi } from "@/lib/ai";
@@ -74,18 +74,58 @@ const INSTRUCTIONS = `Du gehst meine neuen E-Mails durch und findest, was ICH zu
 
 Lege für jede Aufgabe, die eine Mail an mich stellt, ein Todo an: ein Satz, Verb zuerst, prüfbar, mit Frist, wenn die Mail eine nennt (die Frist auch als Datum unter due, JJJJ-MM-TT) (z. B. „Compliance-Training ‚Datenschutz 2026‘ bis 31.10. absolvieren“, „Reisekostenabrechnung für September einreichen“, „Termin mit Anna für die Abnahme bestätigen“). Auch Erinnerungen und automatische Mails zählen, wenn sie von mir etwas verlangen (Pflichtschulungen, Fristen, Freigaben, Formulare, Zeiterfassung, Umfragen mit Frist). Zu jedem Todo unter refs die Kennungen der Mails, aus denen es folgt (mehrere Mails zur selben Sache → EIN Todo mit allen). Gehört es zu einem meiner Tickets, gib dessen Schlüssel unter ticket an, sonst lass ticket leer. owner = other nur, wenn ich auf jemand anderen warte.
 
-Einträge im Ordner „WhatsApp“ sind keine Mails, sondern WhatsApp-Chats: der Betreff ist der Chat (Person oder Gruppe), der Text eine Nachricht daraus, der Absender, wer sie schrieb („Ich“ = ich selbst). Die Nachrichten eines Chats stehen zusammen, der Reihe nach — ein Gespräch: eine spätere Antwort von mir kann eine Bitte schon erledigt haben. Auch dort zählt, worum man mich bittet, was ich zugesagt oder offen gelassen habe (z. B. „Eine Uhrzeit mit Natha ausmachen“, „Bei Nadine melden“, „Elmar antworten“ — wenn die letzte Nachricht im Chat eine Frage an mich ist, die ich nicht beantwortet habe) (z. B. „Anna die Fotos vom Samstag schicken“, „Bei Tom wegen Sonntag zurückmelden“) — nicht Smalltalk, Grüße oder Reaktionen.
+Einträge im Ordner „WhatsApp“ sind keine Mails, sondern WhatsApp-Chats: der Betreff ist der Chat (Person oder Gruppe), der Text eine Nachricht daraus, der Absender, wer sie schrieb („Ich“ = ich selbst). Die Nachrichten eines Chats stehen zusammen, der Reihe nach — ein Gespräch: eine spätere Antwort von mir kann eine Bitte schon erledigt haben. Auch dort zählt, worum man mich bittet, was ich zugesagt oder offen gelassen habe (z. B. „Mit Tom eine Uhrzeit ausmachen“, „Bei Lisa melden“, „Ben antworten“ — wenn die letzte Nachricht im Chat eine Frage an mich ist, die ich nicht beantwortet habe) (z. B. „Anna die Fotos vom Samstag schicken“, „Bei Tom wegen Sonntag zurückmelden“) — nicht Smalltalk, Grüße oder Reaktionen.
 
-Trägt eine neue Nachricht etwas zu einem SCHON OFFENEN Todo bei — eine Antwort auf meine Frage, ein Datum, eine Zusage, eine Info, die das Todo braucht (z. B. Karla schreibt „16.10.“ auf meine Frage nach Nadines Geburtstag) —, legst du KEIN neues Todo an, sondern nennst es unter updates: die Nummer des Todos (aus „Schon offene Todos“), die Kennungen der Nachrichten, die dazugehören (auch meine Frage davor), eine kurze Notiz, was neu ist („Karla: Nadines Geburtstag ist am 16.10.“), und done: true nur, wenn das Todo damit wirklich ganz erledigt ist (bleibt ein Teil offen — z. B. das Datum noch eintragen —, done: false). Hat das Todo geplante nächste Schritte („danach geplant: …“), schreib sie NICHT als followUps: ist das Todo selbst erledigt, setz done: true — Zeff legt den nächsten geplanten Schritt dann selbst an (mit der Nachricht und den Fakten als Kontext; eine passende Frist gibst du ihm über followUps mit genau seinem Text und due). Etwas „festhalten“, „notieren“ oder „eintragen“ (ein Datum, eine Info) ist erledigt, sobald du es unter facts angibst — dafür kein eigenes Todo. Folgt daraus darüber hinaus etwas Neues zu tun, gib es unter followUps an (ein Satz, Verb zuerst, mit Frist due JJJJ-MM-TT, wenn eine naheliegt — z. B. nach „Nadines Geburtstag ist am 16.10.“: „Nadine ein Geschenk besorgen“, due ein paar Tage vorher). Steht in der Nachricht etwas Dauerhaftes, das man sich merken sollte — ein Geburtstag, eine Adresse, eine Telefonnummer (keine Passwörter oder Zugangsdaten), eine Vorliebe, eine Abmachung —, gib es unter facts an: subject kurz und eindeutig („Nadines Geburtstag“), text die Tatsache („16.10.“).
+Trägt eine neue Nachricht etwas zu einem SCHON OFFENEN Todo bei — eine Antwort auf meine Frage, ein Datum, eine Zusage, eine Info, die das Todo braucht (z. B. Lisa schreibt „3.5.“ auf meine Frage nach Toms Geburtstag) —, legst du KEIN neues Todo an, sondern nennst es unter updates: die Nummer des Todos (aus „Schon offene Todos“), die Kennungen der Nachrichten, die dazugehören (auch meine Frage davor), eine kurze Notiz, was neu ist („Lisa: Toms Geburtstag ist am 3.5.“), und done: true nur, wenn das Todo damit wirklich ganz erledigt ist (bleibt ein Teil offen — z. B. das Datum noch eintragen —, done: false). Hat das Todo geplante nächste Schritte („danach geplant: …“), schreib sie NICHT als followUps: ist das Todo selbst erledigt, setz done: true — Zeff legt den nächsten geplanten Schritt dann selbst an (mit der Nachricht und den Fakten als Kontext; eine passende Frist gibst du ihm über followUps mit genau seinem Text und due). Etwas „festhalten“, „notieren“ oder „eintragen“ (ein Datum, eine Info) ist erledigt, sobald du es unter facts angibst — dafür kein eigenes Todo. Folgt daraus darüber hinaus etwas Neues zu tun, gib es unter followUps an (ein Satz, Verb zuerst, mit Frist due JJJJ-MM-TT, wenn eine naheliegt — z. B. nach „Toms Geburtstag ist am 3.5.“: „Tom ein Geschenk besorgen“, due ein paar Tage vorher). Steht in der Nachricht etwas Dauerhaftes, das man sich merken sollte — ein Geburtstag, eine Adresse, eine Telefonnummer (keine Passwörter oder Zugangsdaten), eine Vorliebe, eine Abmachung —, gib es unter facts an: subject kurz und eindeutig („Toms Geburtstag“), text die Tatsache („3.5.“).
 
 Auch ohne Todo: Steht in einer Nachricht so etwas Dauerhaftes, gib es oben unter facts an (subject, text, refs der Nachrichten).
 
-Unter „Ruhende Unterhaltungen“ stehen Gespräche, an denen ich beteiligt war und die seit Tagen still sind. Gibt es Neues, das die andere Seite wissen sollte (aus den neuen Nachrichten, meinen offenen Todos — z. B. ein Termin hat stattgefunden, ein Problem ist gelöst, es gibt einen Stand), oder wartet sie noch auf eine Rückmeldung von mir, leg ein Todo an, sie auf den Stand zu bringen („Wolfgang Peter über den Stand der Homepage informieren“) — mit der Kennung der Unterhaltung unter refs. Sonst nichts.
+Unter „Ruhende Unterhaltungen“ stehen Gespräche, an denen ich beteiligt war und die seit Tagen still sind — mit ihrem Verlauf und dem, was seitdem zum Thema passiert ist. Beurteile jede für sich, in zwei unabhängigen Fragen:
+1. Was ist darin offen geblieben? Ein gemeldetes Problem ohne Lösung, eine Frage ohne Antwort, eine Zusage von mir, ein vereinbarter nächster Schritt → je ein Todo (z. B. „Bei Anna nachfragen, ob der Drucker wieder läuft“).
+2. Gibt es Neues zum Thema, das die andere Seite wissen sollte? Such es selbst: in den „Aktuellen Unterhaltungen“, den neuen Nachrichten und meinen offenen Todos — dasselbe Thema auch unter anderen Worten oder mit anderen Leuten (z. B. „Vereinsfest“ mit Anna ↔ „Sommerfeier Planung“ mit Ben: dasselbe Fest). Ein Termin hat stattgefunden, jemand anderes arbeitet daran, ein Problem ist gelöst → ein eigenes Todo, sie auf den Stand zu bringen (z. B. „Anna Bescheid geben, dass Ben und ich die Sommerfeier planen“). Die „Stichwort-Treffer“ sind nur ein Hinweis, keine Grenze.
+Jeweils mit der Kennung der Unterhaltung (und der Nachrichten von „Seitdem zum Thema“, auf die es sich stützt) unter refs. Ist nichts offen und nichts neu, nichts.
 
 KEINE Todos für: Newsletter, Werbung, reine Info ohne Handlung, Benachrichtigungen über Jira-/GitLab-Kommentare und Statuswechsel (die kennt die Ticket-Lage schon), Lesebestätigungen, Termine, die nur informieren — und nichts, was ein schon offenes Todo abdeckt oder schon erledigt ist (z. B. eine spätere Mail bestätigt es). Gibt es nichts zu tun, ist die Liste leer.`;
 
 const state = globalThis as unknown as { __zeffMailTodos?: Promise<MailTodosResult> | null };
 export type MailTodosResult = { ok: boolean; reviewed: number; added: number; updated?: number; batches: number; error?: string };
+
+/** Words too common to tell a topic by (German, English, mail and chat filler). */
+const STOP = new Set(
+  "aber alle allem also auch auf aus bei beim bin bis bitte dann dass dein deine dem den denn der des dich dir doch dort du durch eine einem einen einer eines euch für gerade gibt habe haben hallo hast hatte heute hier ich ihr ihre immer ist jetzt kann kannst kein keine klar komme kommt können lieber liebe mach machen mal mehr mein meine mich mir mit morgen muss nach nachricht nicht noch nur oder schon sehr sein seine sich sie sind soll über uns unter viel viele vielen vom von vor wann war waren warum was weil wenn wer werde wie wieder wir wird woche wollte würde zum zur zwar gesendet outlook iphone android grüße gruß danke dank thanks hello regards sent from with this that have will your would about there their what when which aw re fwd wg antw gmail mail mails".split(" "),
+);
+const wordsOf = (text: string) =>
+  [...new Set((text.toLowerCase().match(/[a-zäöüß0-9][a-zäöüß0-9-]{3,}/g) ?? []).filter((w) => !STOP.has(w) && !/^\d+$/.test(w)))].slice(0, 25);
+
+/**
+ * A quiet conversation's last messages (both sides), and what happened on its topic since its last
+ * one — other conversations' messages and your todos that share its words (newest first).
+ */
+export function sinceOnTopic(m: typeof emails.$inferSelect): { thread: (typeof emails.$inferSelect)[]; since: string[] } {
+  const thread = getDb().select().from(emails).where(sql`${emails.convId} = ${m.convId}`).orderBy(desc(emails.receivedAt)).limit(10).all().reverse();
+  // Its topic: the words of its subject (weighed most) and its last lines.
+  const subjectWords = wordsOf(m.subject.replace(/^(re|aw|wg|fwd?|antw):\s*/gi, ""));
+  const words = [...new Set([...subjectWords, ...wordsOf(thread.map((x) => x.preview).join(" "))])].slice(0, 20);
+  if (!words.length) return { thread, since: [] };
+  const hits = (text: string) => words.filter((w) => text.toLowerCase().includes(w)).length;
+  const later = getDb()
+    .select()
+    .from(emails)
+    .where(and(gte(emails.receivedAt, m.receivedAt), sql`${emails.convId} <> ${m.convId}`))
+    .orderBy(desc(emails.receivedAt))
+    .limit(400)
+    .all()
+    .map((x) => ({ x, n: hits(`${x.subject} ${x.subject} ${x.preview}`) }))
+    .filter((h) => h.n >= 2 || (h.n >= 1 && subjectWords.some((w) => h.x.subject.toLowerCase().includes(w))))
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 4)
+    .map(({ x }) => `[mail:${x.key}] ${x.receivedAt.slice(0, 10)} ${x.fromName ?? x.fromEmail ?? "?"} „${plain(x.subject, 80)}“: ${plain(x.preview, 160)}`);
+  const todos = listTodos({ status: "all" })
+    .filter((t) => (t.status === "open" || (t.doneAt ?? "") >= m.receivedAt) && t.createdAt >= m.receivedAt.slice(0, 10) && hits(t.text) >= 1 && subjectWords.some((w) => t.text.toLowerCase().includes(w)))
+    .slice(0, 3)
+    .map((t) => `[${t.id}] Todo${t.status === "done" ? " (erledigt)" : ""}: ${plain(t.text, 160)}`);
+  return { thread, since: [...later, ...todos] };
+}
 
 /** A ticket key in a mail's subject or lines (one of the tickets the Lage reads — it has those mails). */
 const namesTicket = (keys: string[], text: string) => keys.some((k) => new RegExp(`(^|[^A-Za-z0-9])${k}(?![0-9])`, "i").test(text));
@@ -103,7 +143,7 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
     const cp = getContextPrefs().mailtodos;
     const since = new Date(Date.now() - cp.numbers.days * 864e5).toISOString();
     // A WhatsApp chat whose last message isn't yours waits for your answer — gone through further
-    // back (it may be weeks old: "Elmar antworten").
+    // back (it may be weeks old: an old question never answered).
     const chatSince = new Date(Date.now() - Math.max(cp.numbers.days, cp.numbers.chatDays) * 864e5).toISOString();
     // Each conversation's last message, and whether you wrote in it (WhatsApp; mail now that your sent
     // mail is read): one you were part of whose last word isn't yours waits for you.
@@ -146,7 +186,19 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
     const dormant = [...lastOf.values()]
       .filter((m) => mineIn.has(m.convId) && m.receivedAt >= quietFrom && m.receivedAt <= quietTo && shownDormant[m.convId] !== m.key && (m.folder === "WhatsApp" ? cp.sources.whatsapp : cp.sources.mail))
       .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
+      .slice(0, 40)
+      // What happened on its topic since (other conversations, your todos) — found by its words.
+      .map((m) => ({ m, ...sinceOnTopic(m) }))
       .slice(0, 15);
+    // To compare against: every current conversation (last 30 days, its last message) — the AI
+    // finds what belongs to a quiet one itself, under other words too.
+    const recentFrom = new Date(Date.now() - 30 * 864e5).toISOString();
+    const current = dormant.length
+      ? [...lastOf.values()]
+          .filter((x) => x.receivedAt >= recentFrom && !/no-?reply|newsletter|notification|mailer-daemon|news@|marketing/i.test(x.fromEmail ?? ""))
+          .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
+          .slice(0, 80)
+      : [];
     if (!mails.length && !dormant.length) return { ok: true, reviewed: theirs.length, added: 0, batches: 0 };
 
     const ticketLines = tickets.map((k) => `- ${k}${getJiraTicket(k)?.summary ? ` — ${plain(getJiraTicket(k)!.summary, 120)}` : ""}`);
@@ -192,7 +244,14 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
           ? [
               "",
               "# Ruhende Unterhaltungen (an denen ich beteiligt war, seit Tagen still)",
-              ...dormant.map((m) => `- [mail:${m.key}] zuletzt ${m.receivedAt.slice(0, 10)} (${m.folder}) „${plain(m.subject, 120)}“ — letzte Nachricht von ${m.fromName ?? m.fromEmail ?? "?"}: ${plain(m.preview, 300)}`),
+              ...dormant.flatMap(({ m, thread, since }) => [
+                `- [mail:${m.key}] Unterhaltung „${plain(m.subject, 120)}“ (${m.folder}), still seit ${m.receivedAt.slice(0, 10)}:`,
+                ...thread.map((x) => `    ${x.receivedAt.slice(0, 10)} ${x.fromName ?? x.fromEmail ?? "?"}: ${plain(x.preview, 600)}`),
+                ...(since.length ? ["  Stichwort-Treffer seitdem (nur ein Hinweis):", ...since.map((s) => `    ${s}`)] : []),
+              ]),
+              "",
+              "# Aktuelle Unterhaltungen (letzte 30 Tage, je die letzte Nachricht) — zum Abgleich mit den ruhenden",
+              ...current.map((x) => `- [mail:${x.key}] ${x.receivedAt.slice(0, 10)} (${x.folder}) ${x.fromName ?? x.fromEmail ?? "?"} „${plain(x.subject, 80)}“: ${plain(x.preview, 140)}`),
             ]
           : []),
       ].join("\n");
@@ -203,9 +262,9 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
       });
       // A batch that fails: its mails are gone through next time.
       if (!answer) continue;
-      const known = new Set([...batch, ...(batch === batches[0] ? dormant : [])].map((m) => `mail:${m.key}`));
+      const known = new Set([...batch, ...(batch === batches[0] ? dormant.map((d) => d.m) : [])].map((m) => `mail:${m.key}`));
       // The quiet conversations shown: not again until something new happens in them.
-      if (batch === batches[0] && dormant.length) setPref("mailtodos:dormant", { ...shownDormant, ...Object.fromEntries(dormant.map((m) => [m.convId, m.key])) });
+      if (batch === batches[0] && dormant.length) setPref("mailtodos:dormant", { ...shownDormant, ...Object.fromEntries(dormant.map((d) => [d.m.convId, d.m.key])) });
       // What new messages add to todos already open: their context, a note — done, if they settle it.
       for (const u of answer.output?.updates ?? []) {
         const todo = open.find((t) => t.id === Number(u.id));
