@@ -200,3 +200,65 @@ export function teamsMessageCounts(): { all: number; mention: number; pm: number
   const by = Object.fromEntries(rows.map((r) => [r.kind, Number(r.n)]));
   return { all: (by.mention ?? 0) + (by.pm ?? 0), mention: by.mention ?? 0, pm: by.pm ?? 0 };
 }
+
+/** A 1:1 chat waiting for your answer: who, their messages since your last word, since when. */
+export type TeamsChatWaiting = {
+  conversationId: string;
+  /** The other side (their names). */
+  who: string;
+  /** Their newest message. */
+  text: string;
+  key: string;
+  link: string;
+  /** Their messages since your last word. */
+  count: number;
+  /** ISO: the first of them — waiting since. */
+  since: string;
+  /** ISO: the newest. */
+  lastAt: string;
+};
+
+/**
+ * The 1:1 chats waiting for your answer — one per conversation (not one per message): the last word
+ * isn't yours, and what they wrote since yours (in the last `days`) isn't marked done or a context
+ * item already. Your messages are the chat's ones not from the other side (pm: theirs only).
+ */
+export function teamsChatsWaiting(days = 3, now = Date.now()): TeamsChatWaiting[] {
+  const db = getDb();
+  const since = new Date(now - days * 864e5).toISOString();
+  const recent = db
+    .select({ conversationId: teamsMessages.conversationId })
+    .from(teamsMessages)
+    .where(and(eq(teamsMessages.kind, "pm"), sql`${teamsMessages.sentAt} >= ${since}`))
+    .groupBy(teamsMessages.conversationId)
+    .all()
+    .map((r) => r.conversationId);
+  if (!recent.length) return [];
+  const linked = db.select({ links: contexts.links }).from(contexts).where(like(contexts.links, "%teams.microsoft.com/l/message/%")).all().map((r) => r.links).join("\n");
+  const out: TeamsChatWaiting[] = [];
+  for (const conv of recent) {
+    const all = db.select().from(teamsMessages).where(eq(teamsMessages.conversationId, conv)).orderBy(teamsMessages.sentAt).all();
+    const theirs = new Set(all.filter((m) => m.kind === "pm" && m.senderId).map((m) => m.senderId!));
+    const mine = (m: (typeof all)[number]) => m.kind !== "pm" && !!m.senderId && !theirs.has(m.senderId);
+    const last = all[all.length - 1];
+    if (!last || mine(last)) continue;
+    const lastMine = [...all].reverse().find(mine)?.sentAt ?? "";
+    const waiting = all.filter(
+      (m) => m.kind === "pm" && m.sentAt > lastMine && m.sentAt >= since && !m.resolvedAt && !linked.includes(`/l/message/${m.conversationId}/${m.messageId}`),
+    );
+    if (!waiting.length) continue;
+    const newest = waiting[waiting.length - 1];
+    const names = [...new Set(waiting.map((m) => m.senderName).filter((n): n is string => !!n))];
+    out.push({
+      conversationId: conv,
+      who: names.join(", ") || newest.place?.replace(/^Chat with /, "") || "Teams",
+      text: newest.text,
+      key: newest.key,
+      link: newest.link,
+      count: waiting.length,
+      since: waiting[0].sentAt,
+      lastAt: newest.sentAt,
+    });
+  }
+  return out.sort((a, b) => b.lastAt.localeCompare(a.lastAt));
+}
