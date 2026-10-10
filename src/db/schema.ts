@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, primaryKey, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 /**
  * Jobs (Aufträge) — every time entry is booked against a job number.
@@ -1134,4 +1134,64 @@ export const kanbanCards = sqliteTable(
     doneAt: text("done_at"),
   },
   (t) => [index("kanban_cards_column").on(t.columnId, t.sort)],
+);
+
+/**
+ * Calendars (the Kalender app) — Zeff's model of every calendar ("IR"): its own, and those of a
+ * source (Google Calendar, Outlook), each source's adapter writing into it; the app, free times and
+ * booking read only this. Each
+ * with its colour, shown or not, counted as busy or not. `key`: "zeff:<id>", "google:<calendar id>",
+ * "outlook".
+ */
+export const calendars = sqliteTable(
+  "calendars",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    key: text("key").notNull(),
+    source: text("source", { enum: ["zeff", "google", "outlook"] }).notNull(),
+    name: text("name").notNull(),
+    color: text("color").notNull(),
+    visible: integer("visible", { mode: "boolean" }).notNull().default(true),
+    /** Its appointments block time (free-time search, appointment proposals) — not birthdays, say. */
+    busy: integer("busy", { mode: "boolean" }).notNull().default(true),
+    /** Its meetings are offered for booking (Zeiterfassung's Kalender) — Outlook's by default. */
+    book: integer("book", { mode: "boolean" }).notNull().default(false),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [uniqueIndex("calendars_key").on(t.key)],
+);
+
+/** A calendar's appointments: local times "YYYY-MM-DDTHH:MM" (all-day: the days, end exclusive). `key`: the source's id. */
+export const calendarEvents = sqliteTable(
+  "calendar_events",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    calendarId: integer("calendar_id").notNull(),
+    key: text("key").notNull(),
+    title: text("title").notNull(),
+    start: text("start").notNull(),
+    end: text("end").notNull(),
+    allDay: integer("all_day", { mode: "boolean" }).notNull().default(false),
+    location: text("location").notNull().default(""),
+    description: text("description").notNull().default(""),
+    /** busy | free | tentative | oof | workingElsewhere (Outlook's words). */
+    showAs: text("show_as").notNull().default("busy"),
+    cancelled: integer("cancelled", { mode: "boolean" }).notNull().default(false),
+    /** Your answer to an invitation: accepted | declined | tentativelyAccepted | notResponded | organizer. */
+    response: text("response"),
+    private: integer("private", { mode: "boolean" }).notNull().default(false),
+    online: integer("online", { mode: "boolean" }).notNull().default(false),
+    organizer: text("organizer").notNull().default(""),
+    /** JSON: the attendees' names or addresses. */
+    attendees: text("attendees").notNull().default("[]"),
+    /** Where it opens in its source (Outlook's webLink …). */
+    url: text("url").notNull().default(""),
+    /** The source's own record (Outlook's event, JSON) — what its own features read, unchanged. */
+    raw: text("raw"),
+    /** The todo it was made for (an appointment proposed by the auto-actions). */
+    todoId: integer("todo_id"),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [uniqueIndex("calendar_events_key").on(t.calendarId, t.key), index("calendar_events_start").on(t.start)],
 );

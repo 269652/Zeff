@@ -22,7 +22,7 @@ async function chromeUp(): Promise<boolean> {
 }
 
 /** A step through the sync menu's registry — only while the automation Chrome runs (nothing is started for it). */
-const whileChromeRuns = (key: "calendar" | "roar" | "timo" | "whatsapp" | "keep") => async () =>
+const whileChromeRuns = (key: "calendar" | "roar" | "timo" | "whatsapp" | "keep" | "gcalendar") => async () =>
   (await chromeUp()) ? startSync(key) : { ok: true, message: "the automation Chrome isn't running — later" };
 
 const state = globalThis as { __zeffSyncScheduler?: boolean };
@@ -50,6 +50,7 @@ export function startSyncScheduler(): void {
     { name: "timo", settings: () => ({ syncMinutes: stepMinutes("timo"), lastSyncAt: lastSyncOf("timo") }), run: whileChromeRuns("timo") },
     { name: "whatsapp", settings: () => ({ syncMinutes: stepMinutes("whatsapp"), lastSyncAt: lastSyncOf("whatsapp") }), run: whileChromeRuns("whatsapp") },
     { name: "keep", settings: () => ({ syncMinutes: stepMinutes("keep"), lastSyncAt: lastSyncOf("keep") }), run: whileChromeRuns("keep") },
+    { name: "gcalendar", settings: () => ({ syncMinutes: stepMinutes("gcalendar"), lastSyncAt: lastSyncOf("gcalendar") }), run: whileChromeRuns("gcalendar") },
     { name: "teams", settings: getTeamsSettings, run: () => syncTeams({ background: true }) },
     { name: "mail", settings: getMailSettings, run: async () => (await import("@/lib/mail/sync")).syncMail({ background: true }) },
     { name: "gitlab", settings: getGitlabSettings, run: () => syncGitlab({ background: true }) },

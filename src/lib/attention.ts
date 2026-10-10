@@ -4,9 +4,9 @@ import path from "node:path";
 import { emitChange } from "@/lib/events";
 
 /** The systems Zeff reaches through the automation Chrome (or a login), each with where you sign in. */
-export type ServiceId = "teams" | "outlook" | "gmail" | "whatsapp" | "keep" | "gitlab" | "jira" | "roar" | "timo";
+export type ServiceId = "teams" | "outlook" | "gmail" | "whatsapp" | "keep" | "gcalendar" | "gitlab" | "jira" | "roar" | "timo";
 
-export const SERVICE_LABELS: Record<ServiceId, string> = { teams: "Teams", outlook: "Outlook", gmail: "Gmail", whatsapp: "WhatsApp", keep: "Google Keep", gitlab: "GitLab", jira: "Jira", roar: "Roar", timo: "TimO" };
+export const SERVICE_LABELS: Record<ServiceId, string> = { teams: "Teams", outlook: "Outlook", gmail: "Gmail", whatsapp: "WhatsApp", keep: "Google Keep", gcalendar: "Google Calendar", gitlab: "GitLab", jira: "Jira", roar: "Roar", timo: "TimO" };
 
 /** A sign-in page some service sends you to (Microsoft's, GitLab's, …): tabs on it count as that service's. */
 const SIGN_IN_PAGES = "accounts\\.google\\.com|login\\.microsoftonline\\.com|login\\.live\\.com|login\\.windows\\.net|/users/sign_in|/login";
@@ -17,6 +17,7 @@ async function serviceUrl(id: ServiceId): Promise<string | null> {
   if (id === "gmail") return "https://mail.google.com/mail/u/0/#inbox";
   if (id === "whatsapp") return "https://web.whatsapp.com/";
   if (id === "keep") return `https://keep.google.com/u/${(await import("@/plugins/keep/store")).keepSettings().account}/`;
+  if (id === "gcalendar") return `https://calendar.google.com/calendar/u/${(await import("@/plugins/google-calendar/sync")).googleCalendarSettings().account}/r`;
   if (id === "roar") return "https://roar.marcel.ai/app/timesheet";
   if (id === "timo") return "https://ac.timo24.de/timo/index.jsp";
   if (id === "gitlab") return `${(await import("@/lib/gitlab/store")).getGitlabSettings().baseUrl.replace(/\/+$/, "")}/`;

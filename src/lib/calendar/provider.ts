@@ -3,7 +3,8 @@ import path from "node:path";
 import { addDays } from "date-fns";
 import type { WeekInfo } from "@/lib/week";
 import { getCalendarFixturePath, getMicrosoftConfig, hasCustomApp, localTimeZone } from "./config";
-import { inboxCount, readInbox } from "./inbox";
+import { inboxCount } from "./inbox";
+import { bookableGraphEvents } from "./ir";
 import type { GraphEvent } from "./meetings";
 import { fetchCalendarView, getConnection, getValidAccessToken } from "./microsoft";
 
@@ -47,13 +48,15 @@ export function getCalendarStatus(): CalendarStatus {
 
 /**
  * Raw events overlapping the week (Monday 00:00 to next Monday 00:00, local time).
- * Precedence: an explicit dev fixture, then the bookmarklet inbox, then live Graph.
+ * Precedence: an explicit dev fixture, then Zeff's calendar model (the calendars set for booking —
+ * Outlook's inbox by default, Google's or Zeff's own when you set them so), then live Graph.
  */
 export async function getWeekEvents(week: WeekInfo): Promise<GraphEvent[]> {
   const fixture = getCalendarFixturePath();
   if (fixture) return readFixture(fixture);
 
-  if (inboxCount() > 0) return readInbox();
+  const booked = bookableGraphEvents();
+  if (booked.length) return booked;
 
   const token = await getValidAccessToken(getMicrosoftConfig());
   return fetchCalendarView(token, week.start, addDays(week.start, 7), localTimeZone());

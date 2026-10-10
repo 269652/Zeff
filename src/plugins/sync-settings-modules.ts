@@ -17,6 +17,7 @@ import { syncSettings as todos } from "./todos/sync-settings";
 import { syncSettings as whatsapp } from "./whatsapp/sync-settings";
 import { syncSettings as knowledge } from "./knowledge/sync-settings";
 import { syncSettings as keep } from "./keep/sync-settings";
+import { syncSettings as googleCalendar } from "./google-calendar/sync-settings";
 
 /** Each plugin's settings module for the Sync settings page — the plugins that bring a sync. */
 const MODULES: Partial<Record<PluginId, PluginSyncSettings>> = {
@@ -30,6 +31,7 @@ const MODULES: Partial<Record<PluginId, PluginSyncSettings>> = {
   gmail,
   whatsapp,
   keep,
+  "google-calendar": googleCalendar,
   "outlook-calendar": outlookCalendar,
   gitlab,
   roar,

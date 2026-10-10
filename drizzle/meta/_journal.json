@@ -561,6 +561,13 @@
       "when": 1791770000000,
       "tag": "0079_whatsapp_to_me",
       "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "6",
+      "when": 1791780000000,
+      "tag": "0080_calendars",
+      "breakpoints": true
     }
   ]
 }

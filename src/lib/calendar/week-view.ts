@@ -1,5 +1,5 @@
 import { isoDate, type WeekInfo } from "@/lib/week";
-import { readInbox } from "./inbox";
+import { bookableGraphEvents } from "./ir";
 import { isExcludedMeeting, jobForMeeting, planImport, type BookedEntry, type Meeting, type MeetingJobRule } from "./meetings";
 
 /**
@@ -28,7 +28,8 @@ export function getCalendarWeek(
   week: WeekInfo,
   opts: { now: Date; booked: BookedEntry[]; excludeRules: string[]; jobRules: MeetingJobRule[]; defaultJob: string },
 ): CalendarDay[] {
-  const events = readInbox().filter((e) => {
+  // The calendars set for booking, from Zeff's calendar model (Outlook's by default).
+  const events = bookableGraphEvents().filter((e) => {
     const day = e.start.dateTime.slice(0, 10);
     return day >= week.startIso && day <= week.endIso;
   });

@@ -95,6 +95,10 @@ export type TodoOp =
   | { type: "keep-note"; board: string; title: string; text: string }
   | { type: "whatsapp-message"; chat: string; body: string }
   | { type: "gmail-compose"; to: string; subject: string; body: string }
+  /** An appointment entered in one of Zeff's own calendars (by name; "": the first) — local start "YYYY-MM-DDTHH:MM". */
+  | { type: "calendar-entry"; calendar: string; title: string; start: string; minutes: number; body: string }
+  /** An appointment opened in Google Calendar, filled in (you save it) — local start "YYYY-MM-DDTHH:MM". */
+  | { type: "gcal-event"; title: string; start: string; minutes: number; body: string }
   // Delivery (Zeff makes these after an implementation; not in the AI's dictionary):
   | {
       type: "git-push";

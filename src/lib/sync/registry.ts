@@ -118,8 +118,8 @@ async function lastAndCurrentWeeks(): Promise<string[]> {
 export const jiraLastSyncAt = () => recordedOr("jira", jiraTickets.syncedAt).lastAt;
 
 /** When a step last ran, however it was started. */
-export const lastSyncOf = (key: "calendar" | "roar" | "timo" | "whatsapp" | "keep") =>
-  (key === "calendar" || key === "whatsapp" || key === "keep" ? recorded(key) : recordedOr(key, key === "roar" ? roarEntries.pulledAt : timoDays.pulledAt)).lastAt;
+export const lastSyncOf = (key: "calendar" | "roar" | "timo" | "whatsapp" | "keep" | "gcalendar") =>
+  (key === "calendar" || key === "whatsapp" || key === "keep" || key === "gcalendar" ? recorded(key) : recordedOr(key, key === "roar" ? roarEntries.pulledAt : timoDays.pulledAt)).lastAt;
 
 /** Each step: how it runs, what it last did, when it runs by itself. All only read from elsewhere. */
 const STEPS: Record<SyncKey, Step> = {
@@ -173,6 +173,14 @@ const STEPS: Record<SyncKey, Step> = {
     run: async () => (await import("@/plugins/keep/sync")).syncKeep(),
     busy: () => flag("__zeffKeepSyncing"),
     schedule: () => ({ everyMinutes: stepMinutes("keep"), lastAt: recorded("keep").lastAt, window: "while the automation Chrome runs" }),
+  },
+  gcalendar: {
+    label: "Google Calendar",
+    href: "/kalender",
+    what: "Your Google calendars (the week view read in a fresh tab, week by week — nothing in Google changes)",
+    run: async () => (await import("@/plugins/google-calendar/sync")).syncGoogleCalendar(),
+    busy: () => flag("__zeffGcalSyncing"),
+    schedule: () => ({ everyMinutes: stepMinutes("gcalendar"), lastAt: recorded("gcalendar").lastAt, window: "while the automation Chrome runs" }),
   },
   gitlab: {
     label: "GitLab",

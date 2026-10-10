@@ -13,6 +13,15 @@ const INBOX_PATH =
 
 const MAX_EVENTS = 2000;
 
+/** When the inbox was last written (ms; 0: never) — the calendar model reads it in again after that. */
+export function inboxWrittenAt(): number {
+  try {
+    return fs.statSync(INBOX_PATH).mtimeMs;
+  } catch {
+    return 0;
+  }
+}
+
 /** Keep only the fields the planner uses, and drop anything malformed. */
 function sanitize(raw: unknown): GraphEvent | null {
   if (!raw || typeof raw !== "object") return null;
