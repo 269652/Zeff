@@ -21,6 +21,7 @@ import { resolveLinks } from "@/lib/context-links";
 import type { Entity } from "@/lib/entities-shared";
 import { jiraCommentUrl, todoRef } from "./shared";
 import { listTodos } from "./store";
+import { pushTo } from "@/lib/collections";
 
 const { dayRecaps, workRuns, gitlabItems, jiraTickets } = schema;
 
@@ -100,7 +101,7 @@ export async function gather(day: string): Promise<{ facts: RecapFacts; notes: s
   const todoIds = new Map<string, number[]>();
   const add = (ticket: string | null | undefined, f: RecapFact) => {
     const k = ticket?.trim().toUpperCase();
-    if (k && /^[A-Z][A-Z0-9]+-\d+$/.test(k)) byTicket.set(k, [...(byTicket.get(k) ?? []), f]);
+    if (k && /^[A-Z][A-Z0-9]+-\d+$/.test(k)) pushTo(byTicket, k, f);
     else other.push(f);
   };
 
@@ -108,7 +109,7 @@ export async function gather(day: string): Promise<{ facts: RecapFacts; notes: s
   for (const e of listEntries({ from: day, to: day })) add(e.ticket, { kind: "entry", at: null, hours: e.hours, text: `${e.job.name}: ${e.description}` });
   for (const t of listTodos({ status: "done" }).filter((t) => inDay(t.doneAt))) {
     add(t.ticket, { kind: "todo", at: t.doneAt, text: `${todoRef(t.id)} erledigt: ${t.text}${t.note ? ` — ${t.note}` : ""}` });
-    todoIds.set(t.ticket.toUpperCase(), [...(todoIds.get(t.ticket.toUpperCase()) ?? []), t.id]);
+    pushTo(todoIds, t.ticket.toUpperCase(), t.id);
   }
   for (const r of getDb()
     .select()
@@ -117,7 +118,7 @@ export async function gather(day: string): Promise<{ facts: RecapFacts; notes: s
     .all()
     .filter((r) => r.status === "done")) {
     add(r.ticket, { kind: "work", at: r.finishedAt, text: `${workRef(r.id)} (${r.mode}): ${plain(r.summary ?? r.entryLine ?? "", 600)}` });
-    todoIds.set(r.ticket.toUpperCase(), [...(todoIds.get(r.ticket.toUpperCase()) ?? []), r.todoId]);
+    pushTo(todoIds, r.ticket.toUpperCase(), r.todoId);
   }
 
   // Jira: your comments and changes on the tickets updated since then.

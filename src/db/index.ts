@@ -45,6 +45,13 @@ function createDb(dbPath: string): { db: Db; sqlite: Database.Database } {
   const sqlite = new Database(dbPath);
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
+  // With WAL, NORMAL is safe against corruption (a power cut may lose only the last moments) and
+  // makes each write — syncs write thousands — far cheaper than FULL's fsync per commit.
+  sqlite.pragma("synchronous = NORMAL");
+  // Another process on the same file (a backup, a script) waits a little instead of failing at once.
+  sqlite.pragma("busy_timeout = 5000");
+  sqlite.pragma("temp_store = MEMORY");
+  sqlite.pragma("cache_size = -32000"); // 32 MB of pages
   const db = drizzle(sqlite, { schema });
   // Apply the SQL migrations in ./drizzle on first use so the app is
   // zero-setup: `npm run dev` creates data/zeff.db with the current schema.

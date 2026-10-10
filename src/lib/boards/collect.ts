@@ -21,6 +21,7 @@ import { commentsOfTickets, keepComments } from "@/lib/jira/comments";
 import { resolvedCommentIds } from "@/lib/resolved";
 import { listTodos } from "./store";
 import { planLine, type BoardRunView, type BoardTicket } from "./shared";
+import { pushTo } from "@/lib/collections";
 
 const { timeEntries, contexts, entryContexts, teamsMessages, gitlabItems } =
   schema;
@@ -482,7 +483,7 @@ function chatLines(limits: Limits): string {
     .orderBy(teamsMessages.sentAt)
     .all();
   const byConv = new Map<string, typeof rows>();
-  for (const r of rows) byConv.set(r.conv, [...(byConv.get(r.conv) ?? []), r]);
+  for (const r of rows) pushTo(byConv, r.conv, r);
   const per = Math.max(8, limits.comments * 2);
   // Whole messages — only extreme ones cut (tighter for a provider that takes shorter prompts).
   const chars = limits === LIMITS[0] ? 4000 : Math.max(600, limits.commentChars * 2);

@@ -27,7 +27,7 @@ import { runsByStatus } from "@/lib/work/store";
 import { WorkFollow } from "@/components/work/WorkFollow";
 import { withAlternatives } from "@/lib/boards/alternatives";
 import { activityNewsIds, todoActivity } from "@/lib/boards/activity";
-import { boardTodos, doneTodos, lastGoodRun, latestRun } from "@/lib/boards/store";
+import { boardTodos, doneTodos, doneTodoTickets, lastGoodRun, latestRun } from "@/lib/boards/store";
 import { gitlabCommentsByTicket } from "@/lib/gitlab/store";
 import { mailsForTickets } from "@/lib/mail/store";
 import { getTicketCards } from "@/lib/jira/store";
@@ -60,7 +60,9 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
   // With the todos on no ticket (from mails: a training, a form …).
   const todos = boardTodos([...keys, ""]);
   const busy = runsByStatus(["queued", "running"]).map((r) => r.todoId);
-  const done = doneTodos();
+  // The done ones whole only on their tab — the others count them (and their tickets for the cards).
+  const doneSummary = doneTodoTickets();
+  const done = tab === "done" ? doneTodos() : [];
   const ai = aiChoice();
   const aiLabel = `${AI_PROVIDER_INFO[ai.provider].label}${ai.model ? ` · ${ai.model}` : ""}`;
   // What "Jetzt auswerten" syncs first (Auswerten → Vorher synchronisieren), as installed.
@@ -106,12 +108,12 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
           run={shown}
           todos={withAlternatives(todos)}
           // The done ones (and what they came from) only on their tab — the others just count them.
-          done={tab === "done" ? done : []}
-          doneCount={done.length}
+          done={done}
+          doneCount={doneSummary.count}
           tab={tab}
           activity={tab === "activity" ? todoActivity() : []}
           activityIds={activityNewsIds()}
-          cards={getTicketCards([...keys, ...done.map((t) => t.ticket)])}
+          cards={getTicketCards([...keys, ...doneSummary.tickets])}
           doneComments={[...resolvedCommentIds(shown.tickets.flatMap((t) => (t.recent ?? []).map((c) => c.id)))]}
           mails={mailsForTickets(keys)}
           gitlab={Object.fromEntries(
@@ -120,7 +122,7 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
               list.map((c) => ({ ...c, body: c.body.slice(0, 600) })),
             ]),
           )}
-          sources={todoSources(tab === "done" ? [...todos, ...done] : todos, shown.tickets)}
+          sources={todoSources([...todos, ...done], shown.tickets)}
           actionsDone={actionsDone(shown.id)}
           runningTodos={busy}
           workOn={isInstalled("work")}
