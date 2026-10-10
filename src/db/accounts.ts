@@ -19,6 +19,8 @@ export type Account = {
   chromePort?: number;
   /** Its knowledge server's port (the first account: 9555, KNOWLEDGE_URL) — each account its own knowledge base. */
   knowledgePort?: number;
+  /** Another account whose automation Chrome (and so its sign-ins) it uses instead of its own — a copy of that account. */
+  chromeFrom?: string;
 };
 
 /** The first account's automation Chrome (as it always was); the others' from 9231 up. */
@@ -125,7 +127,7 @@ const slug = (name: string) =>
     .replace(/backup|config/g, (w) => w.slice(0, 3)) // backup files are named after it: zeff-konto-<id>-backup-…
     .slice(0, 32) || "konto";
 
-export function addAccount(name: string, color: string): Account {
+export function addAccount(name: string, color: string, chromeFrom?: string): Account {
   const r = read();
   const n = name.trim().slice(0, 60);
   if (!n) throw new Error("Ein Name, bitte.");
@@ -139,6 +141,7 @@ export function addAccount(name: string, color: string): Account {
     createdAt: new Date().toISOString(),
     chromePort: freePort(r.accounts.map((x) => x.chromePort)),
     knowledgePort: freePort(r.accounts.map((x) => x.knowledgePort), KNOWLEDGE_PORT_FROM),
+    ...(chromeFrom && r.accounts.some((x) => x.id === chromeFrom) ? { chromeFrom } : {}),
   };
   fs.mkdirSync(accountDir(id), { recursive: true });
   write({ ...r, accounts: [...r.accounts, a] });
@@ -181,7 +184,9 @@ export function removeAccount(id: string): string {
  * (null: the first account's, as it always was — %LOCALAPPDATA%\Zeff\chrono-chrome-profile).
  */
 export function accountChrome(id = currentAccountId()): { endpoint: string; profile: string | null; port: number } {
-  const a = accountById(id);
+  const own = accountById(id);
+  // A copy of another account: that one's Chrome, its sign-ins (one step — no chains).
+  const a = own?.chromeFrom && own.chromeFrom !== own.id ? (accountById(own.chromeFrom) ?? own) : own;
   if (!a || a.id === DEFAULT_ACCOUNT || !a.chromePort) return { endpoint: `http://127.0.0.1:${DEFAULT_CHROME_PORT}`, profile: null, port: DEFAULT_CHROME_PORT };
   return { endpoint: `http://127.0.0.1:${a.chromePort}`, profile: path.join(process.env.LOCALAPPDATA || BASE_DIR, "Zeff", `chrome-${a.id}`), port: a.chromePort };
 }
