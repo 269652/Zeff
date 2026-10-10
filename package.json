@@ -25,6 +25,7 @@
     "launcher:build": "node scripts/dist.mjs --launcher-only",
     "dist": "node scripts/dist.mjs",
     "release": "node scripts/dist.mjs --release",
+    "release:check": "node scripts/smoke-release.mjs",
     "launcher:start": "npm --prefix launcher start"
   },
   "dependencies": {

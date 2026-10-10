@@ -153,7 +153,7 @@ class Service extends EventEmitter {
 
 /**
  * Servers a previous launcher left behind (it was killed, not quit): their pids are in
- * pids.json. Only a node.exe running `next … start … -p <its port>` is killed.
+ * pids.json. Only a node[.exe] running `next … start … -p <its port>` is killed.
  */
 function killLeftovers(pidsFile) {
   let pids = {};
@@ -164,12 +164,31 @@ function killLeftovers(pidsFile) {
   }
   const entries = Object.values(pids).filter((p) => Number.isInteger(p?.pid) && Number.isInteger(p?.port));
   if (!entries.length) return Promise.resolve();
-  const filter = entries.map((p) => `ProcessId=${p.pid}`).join(" or ");
-  const ps = `Get-CimInstance Win32_Process -Filter "${filter}" | ForEach-Object { "$($_.ProcessId)\`t$($_.Name)\`t$($_.CommandLine)" }`;
+  // pid, name, command line — tab-separated (Windows), or as ps prints them (macOS, Linux).
+  const [file, args, parse] =
+    process.platform === "win32"
+      ? [
+          "powershell.exe",
+          [
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            `Get-CimInstance Win32_Process -Filter "${entries.map((p) => `ProcessId=${p.pid}`).join(" or ")}" | ForEach-Object { "$($_.ProcessId)\`t$($_.Name)\`t$($_.CommandLine)" }`,
+          ],
+          (line) => line.split("\t"),
+        ]
+      : [
+          "ps",
+          ["-o", "pid=,comm=,args=", "-p", entries.map((p) => p.pid).join(",")],
+          (line) => {
+            const m = /^\s*(\d+)\s+(\S+)\s+(.*)$/.exec(line);
+            return m ? [m[1], m[2].split("/").pop(), m[3]] : [];
+          },
+        ];
   return new Promise((resolve) => {
-    execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", ps], { windowsHide: true }, (_e, stdout) => {
+    execFile(file, args, { windowsHide: true }, (_e, stdout) => {
       for (const line of String(stdout ?? "").split(/\r?\n/)) {
-        const [pid, name, cmd = ""] = line.split("\t");
+        const [pid, name = "", cmd = ""] = parse(line);
         const entry = entries.find((p) => String(p.pid) === pid);
         if (entry && /^node(\.exe)?$/i.test(name) && /next/.test(cmd) && cmd.includes(` -p ${entry.port}`)) {
           log(`killing a server left behind: pid ${pid} (port ${entry.port})`);
