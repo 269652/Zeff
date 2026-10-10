@@ -139,6 +139,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
             <form action={compile}>
               <button className="btn">Nur kompilieren</button>
             </form>
+            <Link href="/normalisieren" className="btn" title="Gleiche Entitäten zusammenführen („Moritz“, „Verfasser“ → „Moritz Roessler“)">
+              Normalisieren
+            </Link>
           </div>
         )}
       </div>
@@ -264,7 +267,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
           <tbody>
             {runs.map((r) => (
               <tr key={r.id}>
-                <td>{r.kind === "sync" ? "Lesen" : "Kompilieren"}</td>
+                <td>{r.kind === "sync" ? "Lesen" : r.kind === "normalize" ? "Normalisieren" : "Kompilieren"}</td>
                 <td className="whitespace-nowrap text-zinc-500">{new Date(r.started_at).toLocaleString("de-DE")}</td>
                 <td>{r.finished_at ? (r.ok ? <span className="text-emerald-600 dark:text-emerald-400">✓</span> : <span className="text-red-600 dark:text-red-400">✗</span>) : "läuft"}</td>
                 <td className="w-full">{r.message}</td>
