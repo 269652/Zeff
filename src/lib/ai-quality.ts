@@ -2,6 +2,7 @@ import { getSqlite } from "@/db";
 import { listTodos } from "@/lib/boards/store";
 import { duplicateTodo } from "@/lib/boards/similar";
 import type { TodoView } from "@/lib/boards/shared";
+import { pushTo } from "@/lib/collections";
 
 /**
  * How well the AI steps did: per step that makes todos (the Ticket-Lage, the review of mails and
@@ -118,7 +119,7 @@ export function aiQuality(days: number | null, now = Date.now()): AiQuality {
   const byOrigin = new Map<Origin, Row[]>();
   for (const r of inWindow) {
     const o = originOf(r.source, r.made_by);
-    byOrigin.set(o, [...(byOrigin.get(o) ?? []), r]);
+    pushTo(byOrigin, o, r);
   }
   const order: Origin[] = ["lage", "mail", "notes", "work", "plan", "agent", "you", "unknown"];
   const out = order.filter((o) => byOrigin.has(o)).map((o) => tally(o, ORIGIN_LABELS[o], byOrigin.get(o)!));

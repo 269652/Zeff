@@ -143,7 +143,8 @@ export function listMails(opts: { q?: string; folder?: string; exceptFolder?: st
     .from(emails)
     .where(where)
     .orderBy(desc(emails.receivedAt))
-    .limit(Math.min(500, opts.limit ?? 200))
+    // At most 2000 (the Mail page asks for 1500 — it got 500, silently).
+    .limit(Math.min(2000, opts.limit ?? 200))
     .all()
     .map(toView);
 }
@@ -199,7 +200,11 @@ export function whatsappChatsWaiting(days = 7, now = Date.now()): WhatsappChatWa
     .all()
     .filter((m) => !WA_SYSTEM.test(m.preview.trim()));
   const byConv = new Map<string, typeof rows>();
-  for (const m of rows) byConv.set(m.convId, [...(byConv.get(m.convId) ?? []), m]);
+  for (const m of rows) {
+    const list = byConv.get(m.convId);
+    if (list) list.push(m);
+    else byConv.set(m.convId, [m]);
+  }
   const out: WhatsappChatWaiting[] = [];
   for (const [convId, all] of byConv) {
     const subject = all[all.length - 1].subject;

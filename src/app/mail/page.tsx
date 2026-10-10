@@ -12,6 +12,7 @@ import { getMailSettings, listMails, mailFolderCounts } from "@/lib/mail/store";
 import type { MailView } from "@/lib/mail/shared";
 import { agoText } from "@/lib/teams/time";
 import { syncOverview } from "@/lib/sync/registry";
+import { pushTo } from "@/lib/collections";
 
 export const metadata: Metadata = { title: "Nachrichten" };
 
@@ -43,7 +44,7 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
   const mails = listMails({ q, folder, limit: 1500 });
   // By conversation (a WhatsApp chat, a mail thread) — newest first, its messages in order.
   const convs = new Map<string, MailView[]>();
-  for (const m of mails) convs.set(m.convId, [...(convs.get(m.convId) ?? []), m]);
+  for (const m of mails) pushTo(convs, m.convId, m);
   const conversations = [...convs.values()].slice(0, 200);
   const href = (f?: string) => `/mail?${new URLSearchParams({ ...(f ? { folder: f } : {}), ...(q ? { q } : {}) })}`;
   const total = Object.values(counts).reduce((a, b) => a + b, 0);

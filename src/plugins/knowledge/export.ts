@@ -4,6 +4,7 @@ import { weekFromDate } from "@/lib/week";
 import { knowledgeOwnNotes } from "@/plugins/keep/boards";
 import { allKeepNotes } from "@/plugins/keep/store";
 import { isInstalled } from "@/plugins/state";
+import { pushTo } from "@/lib/collections";
 
 /**
  * Zeff's synced context as documents for the knowledge server (its "Zeff" source): Jira tickets
@@ -92,7 +93,7 @@ export function knowledgeDocs(zeffUrl: string, only?: "keep"): { account: string
   const comments = new Map<string, { author: string; at: string; body: string }[]>();
   for (const c of all<{ ticket: string; author: string; at: string; body: string }>("select ticket, author, at, body from jira_comments order by at")) {
     const k = c.ticket.toUpperCase();
-    comments.set(k, [...(comments.get(k) ?? []), c]);
+    pushTo(comments, k, c);
   }
   for (const t of all<{ key: string; summary: string; status: string; issue_type: string | null; priority: string | null; assignee: string | null; url: string | null; updated_at: string | null; description: string | null; job_number: string | null }>(
     "select key, summary, status, issue_type, priority, assignee, url, updated_at, description, job_number from jira_tickets",
@@ -145,7 +146,7 @@ export function knowledgeDocs(zeffUrl: string, only?: "keep"): { account: string
     const months = new Map<string, string[]>();
     for (const l of g.lines) {
       const month = /^- (\d{4}-\d{2})/.exec(l)?.[1] ?? "";
-      months.set(month, [...(months.get(month) ?? []), l]);
+      pushTo(months, month, l);
     }
     for (const [month, lines] of months)
       docs.push(
@@ -165,7 +166,7 @@ export function knowledgeDocs(zeffUrl: string, only?: "keep"): { account: string
   type G = { key: string; kind: string; project: string; ref: string | null; title: string | null; body: string | null; author: string | null; state: string | null; created_at: string | null; updated_at: string | null; url: string | null; branch: string | null; parent: string | null };
   const items = all<G>("select key, kind, project, ref, title, body, author, state, created_at, updated_at, url, branch, parent from gitlab_items order by created_at");
   const byParent = new Map<string, G[]>();
-  for (const g of items) if (g.kind === "comment" && g.parent) byParent.set(g.parent, [...(byParent.get(g.parent) ?? []), g]);
+  for (const g of items) if (g.kind === "comment" && g.parent) pushTo(byParent, g.parent, g);
   for (const g of items) {
     if (g.kind === "comment" && g.parent && items.some((x) => x.key === g.parent)) continue; // with its merge request
     const cs = byParent.get(g.key) ?? [];
@@ -182,7 +183,7 @@ export function knowledgeDocs(zeffUrl: string, only?: "keep"): { account: string
   // Todos: each with its note, your notes and the AI reports, what happened to it.
   const events = new Map<number, string[]>();
   for (const e of all<{ todo_id: number; event: string; text: string | null; note: string | null; actor: string | null; at: string }>("select todo_id, event, text, note, actor, at from todo_events order by at"))
-    events.set(e.todo_id, [...(events.get(e.todo_id) ?? []), `- ${day(e.at)} ${e.event}${e.actor ? ` (${e.actor})` : ""}${e.note ? `: ${clean(e.note)}` : ""}`]);
+    pushTo(events, e.todo_id, `- ${day(e.at)} ${e.event}${e.actor ? ` (${e.actor})` : ""}${e.note ? `: ${clean(e.note)}` : ""}`);
   for (const t of all<{ id: number; ticket: string; also_tickets: string | null; text: string; kind: string; owner: string; status: string; note: string | null; user_notes: string | null; created_at: string; updated_at: string | null; done_at: string | null }>(
     "select id, ticket, also_tickets, text, kind, owner, status, note, user_notes, created_at, updated_at, done_at from todos",
   )) {
@@ -208,7 +209,7 @@ export function knowledgeDocs(zeffUrl: string, only?: "keep"): { account: string
     const d = new Date(`${e.date}T00:00:00`);
     d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
     const monday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    weeks.set(monday, [...(weeks.get(monday) ?? []), `- ${e.date} · ${e.hours} h · ${e.number ?? "?"} ${e.name ?? ""}${e.ticket ? ` · ${e.ticket}` : ""}${e.type ? ` · ${e.type}` : ""}: ${clean(e.description)}`]);
+    pushTo(weeks, monday, `- ${e.date} · ${e.hours} h · ${e.number ?? "?"} ${e.name ?? ""}${e.ticket ? ` · ${e.ticket}` : ""}${e.type ? ` · ${e.type}` : ""}: ${clean(e.description)}`);
   }
   for (const [monday, lines] of weeks)
     docs.push(doc({ id: `zeff:week:${monday}`, space: "Zeff · Zeiterfassung", title: `Gebuchte Zeiten, Woche ab ${monday}`, url: `${zeffUrl}/?week=${weekFromDate(new Date(`${monday}T00:00:00`)).key}`, updatedAt: monday, author: null, body: `Gebuchte Arbeitszeiten der Woche ab ${monday}:\n${lines.join("\n")}` }));

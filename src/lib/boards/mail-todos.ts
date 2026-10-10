@@ -16,6 +16,7 @@ import { duplicateTodo } from "./similar";
 import { addMailTodo, addTodoContext, droppedByYou, lastGoodRun, listTodos, setTodoDue, setTodoStatus } from "./store";
 import { isInstalled } from "@/plugins/state";
 import { isoDate } from "@/lib/week";
+import { pushTo } from "@/lib/collections";
 
 const { emails } = schema;
 
@@ -192,7 +193,7 @@ export function mustDoLeftOut<M extends { key: string; fromName: string | null; 
   const groups = new Map<string, M[]>();
   for (const m of batch) {
     if (!mustDo(m) || answered.has(m.key) || had.has(sig(m))) continue;
-    groups.set(sig(m), [...(groups.get(sig(m)) ?? []), m]);
+    pushTo(groups, sig(m), m);
   }
   return [...groups.values()].map((mails) => {
     const m = mails[mails.length - 1];

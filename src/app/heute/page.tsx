@@ -83,11 +83,11 @@ async function heuteData() {
   if (isInstalled("zeiterfassung")) {
     const { listEntries } = await import("@/lib/entries");
     const { getDayTargets } = await import("@/lib/schedule");
-    const { openSuggestions } = await import("@/lib/work/suggestions");
+    const { openSuggestionTotals } = await import("@/lib/work/suggestions");
     hours = {
       booked: listEntries({ from: iso, to: iso }).reduce((s, e) => s + e.hours, 0),
       target: getDayTargets([today])[0]?.target ?? 0,
-      suggestions: openSuggestions().filter((s) => s.date === iso).length,
+      suggestions: openSuggestionTotals(iso, iso).count,
     };
   }
 

@@ -257,6 +257,18 @@ export function droppedByYou(days = 60): TodoView[] {
     .map(toTodo);
 }
 
+/** How many todos are done or dismissed (up to `limit`, the newest), and their tickets — without reading them whole. */
+export function doneTodoTickets(limit = 300): { count: number; tickets: string[] } {
+  const rows = getDb()
+    .select({ ticket: todos.ticket })
+    .from(todos)
+    .where(inArray(todos.status, ["done", "dismissed"]))
+    .orderBy(desc(todos.doneAt), desc(todos.id))
+    .limit(limit)
+    .all();
+  return { count: rows.length, tickets: [...new Set(rows.map((r) => r.ticket).filter(Boolean))] };
+}
+
 /** The todos with these ids, by id. */
 export function todosByIds(ids: number[]): Map<number, TodoView> {
   const wanted = [...new Set(ids)].slice(0, 200);

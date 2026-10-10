@@ -109,7 +109,8 @@ export function BoardRunControls({
   useEffect(() => {
     if (!running) return;
     const clock = setInterval(() => setTick((t) => t + 1), 1000);
-    const follow = setInterval(() => router.refresh(), 4000);
+    // The run's phase, now and then (its end refreshes at once, through LiveRefresh) — a refresh renders the whole Lage.
+    const follow = setInterval(() => router.refresh(), 10000);
     return () => {
       clearInterval(clock);
       clearInterval(follow);

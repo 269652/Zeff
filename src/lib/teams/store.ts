@@ -235,9 +235,34 @@ export function teamsChatsWaiting(days = 3, now = Date.now()): TeamsChatWaiting[
     .map((r) => r.conversationId);
   if (!recent.length) return [];
   const linked = db.select({ links: contexts.links }).from(contexts).where(like(contexts.links, "%teams.microsoft.com/l/message/%")).all().map((r) => r.links).join("\n");
+  // Those conversations' last month in one query, only what's needed (not the html).
+  const from = new Date(now - 30 * 864e5).toISOString();
+  const rows = db
+    .select({
+      key: teamsMessages.key,
+      kind: teamsMessages.kind,
+      conversationId: teamsMessages.conversationId,
+      messageId: teamsMessages.messageId,
+      senderId: teamsMessages.senderId,
+      senderName: teamsMessages.senderName,
+      place: teamsMessages.place,
+      sentAt: teamsMessages.sentAt,
+      text: teamsMessages.text,
+      link: teamsMessages.link,
+      resolvedAt: teamsMessages.resolvedAt,
+    })
+    .from(teamsMessages)
+    .where(and(inArray(teamsMessages.conversationId, recent), sql`${teamsMessages.sentAt} >= ${from}`))
+    .orderBy(teamsMessages.sentAt)
+    .all();
+  const byConv = new Map<string, typeof rows>();
+  for (const r of rows) {
+    const list = byConv.get(r.conversationId);
+    if (list) list.push(r);
+    else byConv.set(r.conversationId, [r]);
+  }
   const out: TeamsChatWaiting[] = [];
-  for (const conv of recent) {
-    const all = db.select().from(teamsMessages).where(eq(teamsMessages.conversationId, conv)).orderBy(teamsMessages.sentAt).all();
+  for (const [conv, all] of byConv) {
     const theirs = new Set(all.filter((m) => m.kind === "pm" && m.senderId).map((m) => m.senderId!));
     const mine = (m: (typeof all)[number]) => m.kind !== "pm" && !!m.senderId && !theirs.has(m.senderId);
     const last = all[all.length - 1];
