@@ -48,12 +48,12 @@ const SCHEMA = {
   },
 };
 
-const INSTRUCTIONS = `Du baust eine Wissensbasis aus Confluence-Seiten eines Software-Projekts. Lies jede Seite und gib je Seite (id wie angegeben) zurück:
+const INSTRUCTIONS = `Du baust die Wissensbasis eines Menschen aus seinen Seiten: Confluence-Seiten eines Projekts — und genauso seine persönlichen Notizen, Chats (WhatsApp, Teams), Mails, Todos und Buchungen. Verarbeite JEDE Seite, auch private, persönliche oder belastende (sachlich und respektvoll — es ist seine eigene Wissensbasis, nur er sieht sie). Bei persönlichen Seiten zählt, was man sich merken will: Personen und wie sie zu ihm stehen, Daten (Geburtstage, Termine, Fristen), Orte, Absprachen, Zusagen, Vorlieben. Lies jede Seite und gib je Seite (id wie angegeben) zurück:
 - summary: 2–4 Sätze, worum es geht und was man daraus wissen muss (Sprache der Seite).
 - concepts: 10–25 Begriffe, unter denen man die Seite suchen würde — Synonyme, Oberbegriffe, deutsche UND englische Wörter, Abkürzungen ausgeschrieben, Fachbegriffe (z. B. "Bestelllink", "order link", "Publikation", "publication", "TYPO3", "Fluid-Template").
 - entities: die wichtigen Dinge der Seite — Systeme, Komponenten, Services, Projekte, Personen, Teams, Kunden, Prozesse, Fachbegriffe, Tickets (z. B. PROJ-123), Dokumente, Umgebungen (Test, Live …). Name so, wie er üblich heißt; aliases für andere Schreibweisen; summary ein Satz, was es ist.
 - relations: wie die Entitäten zusammenhängen (from/to: Namen aus entities; rel kurz, z. B. "nutzt", "gehört zu", "verantwortet", "läuft auf", "ersetzt", "dokumentiert"); fact: der Satz der Seite, der es belegt.
-Nur, was auf der Seite steht — nichts erfinden. Antworte nur mit JSON nach diesem Schema:
+Nur, was auf der Seite steht — nichts erfinden. Willst oder kannst du eine Seite nicht auswerten, gib für sie summary "" und leere Listen zurück — antworte aber IMMER mit gültigem JSON, nur JSON, nach diesem Schema:
 ${JSON.stringify(SCHEMA)}`;
 
 const PAGE_TEXT = 5000;
@@ -165,18 +165,32 @@ export function compilePages(maxBatches = 250): Promise<CompileResult> {
     let failed = 0;
     state.__knowledgeCompileStop = false;
     state.__knowledgeCompileWith = backendFor("compile");
+    let skipped = 0;
+    const skip = (p: PageRow, why: string) => {
+      skipped++;
+      console.warn(`[knowledge compile] ${p.title}: ohne Auswertung übernommen (${why})`);
+      save(p, { id: p.id, summary: "", concepts: [], entities: [], relations: [] });
+    };
     const one = async (list: PageRow[]): Promise<void> => {
       if (state.__knowledgeCompileStop) return;
       try {
         const r = await ai<Extracted>("compile", promptOf(list), SCHEMA, { timeoutMs: 300000 });
         const byId = new Map((r.output?.pages ?? []).map((p) => [String(p.id), p]));
+        const missing: PageRow[] = [];
         for (const p of list) {
           const x = byId.get(p.id);
           if (x) {
             save(p, x);
             pages++;
-          }
+          } else missing.push(p);
         }
+        // Pages the answer left out (the AI skips some it won't take): asked again in smaller
+        // batches — a single one left out is kept as compiled, empty, not tried again each run.
+        if (missing.length && list.length > 1) {
+          const half = Math.ceil(missing.length / 2);
+          await one(missing.slice(0, half));
+          if (missing.length > half) await one(missing.slice(half));
+        } else if (missing.length) skip(missing[0], "nicht in der Antwort");
       } catch (e) {
         // Too much at once (or broken JSON): halves, once.
         if (list.length > 1) {
@@ -184,8 +198,14 @@ export function compilePages(maxBatches = 250): Promise<CompileResult> {
           await one(list.slice(0, half));
           await one(list.slice(half));
         } else {
-          failed++;
-          console.warn(`[knowledge compile] ${list[0]?.title}: ${e instanceof Error ? e.message : e}`);
+          const why = e instanceof Error ? e.message : String(e);
+          // A page the AI won't take (no JSON for it — e.g. too personal for it): kept as compiled,
+          // empty — searchable by its text, not tried again until it changes. Other errors: next run.
+          if (list[0] && /without valid JSON|no JSON/i.test(why)) skip(list[0], "keine JSON-Antwort");
+          else {
+            failed++;
+            console.warn(`[knowledge compile] ${list[0]?.title}: ${why}`);
+          }
         }
       }
     };
@@ -204,8 +224,8 @@ export function compilePages(maxBatches = 250): Promise<CompileResult> {
     const w = state.__knowledgeCompileWith;
     // Entities no page names any more: gone.
     db().exec("delete from entities_fts where entity_id not in (select entity_id from entity_pages); delete from entities where id not in (select entity_id from entity_pages);");
-    const left = todo.length - pages;
-    const message = `${stopped ? "Angehalten: " : ""}${pages} Seiten kompiliert in ${calls} Aufrufen (${w?.backend === "claude" ? "Claude CLI" : "Copilot CLI"}${w?.model ? ` · ${w.model}` : ""})${failed ? `, ${failed} fehlgeschlagen` : ""}${left > 0 ? `, ${left} noch offen` : ""}.`;
+    const left = todo.length - pages - skipped;
+    const message = `${stopped ? "Angehalten: " : ""}${pages} Seiten kompiliert in ${calls} Aufrufen (${w?.backend === "claude" ? "Claude CLI" : "Copilot CLI"}${w?.model ? ` · ${w.model}` : ""})${skipped ? `, ${skipped} von der KI nicht ausgewertet (nur im Volltext)` : ""}${failed ? `, ${failed} fehlgeschlagen` : ""}${left > 0 ? `, ${left} noch offen` : ""}.`;
     endRun(runId, failed === 0 || pages > 0, message);
     return { ok: failed === 0 || pages > 0, message, pages, batches: work.length, failed };
   })().finally(() => {
