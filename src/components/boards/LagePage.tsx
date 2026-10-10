@@ -1,4 +1,6 @@
-import { isInstalled } from "@/plugins/state";
+import { isInstalled, stepAvailable } from "@/plugins/state";
+import { getContextPrefs } from "@/lib/boards/context-prefs";
+import { PRESYNC_ORDER } from "@/lib/boards/context-prefs-shared";
 /**
  * The Ticket-Lage's pages, shared: the Todos tab (Todos plugin — your todos, and the recap) and
  * the Tickets tab (Tickets plugin — each ticket with its Lage). One base, two plugins: either tab
@@ -61,6 +63,9 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
   const done = doneTodos();
   const ai = aiChoice();
   const aiLabel = `${AI_PROVIDER_INFO[ai.provider].label}${ai.model ? ` · ${ai.model}` : ""}`;
+  // What "Jetzt auswerten" syncs first (Auswerten → Vorher synchronisieren), as installed.
+  const pre = getContextPrefs().presync.sources;
+  const presync = PRESYNC_ORDER.filter((k) => pre[k] && stepAvailable(k));
 
   return (
     <SidebarFrame
@@ -82,7 +87,7 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
             </p>
           )}
           </div>
-          <BoardRunControls running={running} phase={live?.phase ?? null} since={live?.since ?? null} provider={live?.provider ?? aiLabel} />
+          <BoardRunControls running={running} phase={live?.phase ?? null} since={live?.since ?? null} provider={live?.provider ?? aiLabel} presync={presync} />
           {/* The Lage's filter chips (from the tickets beside it) and its lede. */}
           {part === "tickets" && <div id="todos-filter-slot" />}
           {shown?.result?.lede && <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{shown.result.lede}</p>}

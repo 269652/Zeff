@@ -5,6 +5,7 @@
  * what the installed plugins offer (a comment, a message, a mail draft, an appointment, a hand-over
  * to a worker …). Complete and ready: one click runs them. Server only.
  */
+import { extraBlock } from "@/lib/boards/context-prefs";
 import { and, desc, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { aiChoice, runAi } from "@/lib/ai";
@@ -221,7 +222,7 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
       const text = batch.map((b) => b.text).join("\n\n");
       const book = addressBook(text);
       const prompt = [
-        INSTRUCTIONS(me, today),
+        INSTRUCTIONS(me, today) + extraBlock("autoactions"),
         "",
         dictionary,
         "",

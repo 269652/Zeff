@@ -2,6 +2,7 @@ import { runAi } from "@/lib/ai";
 import { errorMessage } from "@/lib/errors";
 import { conversationOf, mailsByKeys } from "@/lib/mail/store";
 import { teamsMessagesByKeys } from "@/lib/teams/store";
+import { extraBlock, getContextPrefs } from "./context-prefs";
 import { getTodo } from "./store";
 
 /** Where a reply goes, and where to open it. */
@@ -49,7 +50,7 @@ export async function draftReply(todoId: number): Promise<ReplyDraft> {
       to: chat ? mail.subject : (mail.fromName ?? mail.fromEmail ?? "?"),
       openUrl: chat ? "https://web.whatsapp.com/" : gmailThread ? `https://mail.google.com/mail/u/0/#all/${gmailThread}` : "https://outlook.office.com/mail/",
     };
-    history = conversationOf(mail.convId, chat ? 25 : 8).map(
+    history = conversationOf(mail.convId, chat ? getContextPrefs().replies.numbers.messages : 8).map(
       (m) => `${m.receivedAt.slice(0, 16).replace("T", " ")} ${m.fromName ?? m.fromEmail ?? "?"}${chat ? "" : ` — Betreff „${m.subject}“`}: ${m.preview.slice(0, 1500)}`,
     );
   }
@@ -57,7 +58,7 @@ export async function draftReply(todoId: number): Promise<ReplyDraft> {
   const notes = t.userNotes.map((n) => `- ${n.text}`).join("\n");
   const prompt = [
     `Schreib meine Antwort auf diese ${target.channel === "whatsapp" ? "WhatsApp-Unterhaltung" : target.channel === "teams" ? "Teams-Nachricht" : "Mail"} — ich schicke sie selbst ab.`,
-    "Die Antwort erledigt dieses Todo, so weit eine Nachricht das kann. Sprache, Anrede (du/Sie) und Ton wie im Verlauf; kurz und natürlich, so wie ich schreibe (meine Nachrichten stehen als „Ich“ im Verlauf). Keine Floskeln, keine Platzhalter in eckigen Klammern — wo etwas fehlt (eine Uhrzeit, ein Datum), schlag etwas Konkretes und Plausibles vor oder frag kurz zurück. Bei Mails ohne Betreffzeile, nur der Text mit Gruß.",
+    "Die Antwort erledigt dieses Todo, so weit eine Nachricht das kann. Sprache, Anrede (du/Sie) und Ton wie im Verlauf; kurz und natürlich, so wie ich schreibe (meine Nachrichten stehen als „Ich“ im Verlauf). Keine Floskeln, keine Platzhalter in eckigen Klammern — wo etwas fehlt (eine Uhrzeit, ein Datum), schlag etwas Konkretes und Plausibles vor oder frag kurz zurück. Bei Mails ohne Betreffzeile, nur der Text mit Gruß." + extraBlock("replies"),
     "",
     `# Todo\n${t.text}${t.due ? ` (Frist ${t.due})` : ""}`,
     notes && `# Meine Notizen dazu\n${notes}`,

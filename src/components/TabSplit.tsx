@@ -1,16 +1,35 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { tabMenuAction } from "@/app/actions";
 import type { TabMenuItem } from "@/plugins/tab-menus-shared";
 import type { HeaderTab } from "./SiteHeader";
+
+// Where you last were under a tab ("/kanban/3", or "/kanban" itself) — kept in this browser.
+const lastKey = (tab: string) => `zeff-tab-last:${tab}`;
+const LAST_EVENT = "zeff-tab-last";
+const subscribeLast = (cb: () => void) => {
+  window.addEventListener(LAST_EVENT, cb);
+  window.addEventListener("storage", cb);
+  return () => {
+    window.removeEventListener(LAST_EVENT, cb);
+    window.removeEventListener("storage", cb);
+  };
+};
+const readLast = (tab: string) => {
+  try {
+    return localStorage.getItem(lastKey(tab)) ?? tab;
+  } catch {
+    return tab;
+  }
+};
 
 /**
  * A header tab as a split button: the tab itself, and beside it a dropdown its plugin fills
  * (Kanban: every board — open one directly). The entries load when it opens.
  */
-export function TabSplit({ tab, current, link, pathname }: { tab: HeaderTab; current: boolean; link: ReactNode; pathname: string }) {
+export function TabSplit({ tab, current, pathname, className, active, children }: { tab: HeaderTab; current: boolean; pathname: string; className: string; active: boolean; children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<TabMenuItem[] | null>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -19,6 +38,18 @@ export function TabSplit({ tab, current, link, pathname }: { tab: HeaderTab; cur
     setShownFor(pathname);
     setOpen(false);
   }
+  // The tab opens the page you were on last under it (a board, or the overview) — its settings aside.
+  const last = useSyncExternalStore(subscribeLast, () => readLast(tab.href), () => tab.href);
+  useEffect(() => {
+    const under = pathname === tab.href || pathname.startsWith(`${tab.href}/`);
+    if (!under || /\/settings(\/|$)/.test(pathname)) return;
+    try {
+      localStorage.setItem(lastKey(tab.href), pathname);
+      window.dispatchEvent(new Event(LAST_EVENT));
+    } catch {
+      // not kept
+    }
+  }, [pathname, tab.href]);
 
   useEffect(() => {
     if (!open) return;
@@ -37,7 +68,9 @@ export function TabSplit({ tab, current, link, pathname }: { tab: HeaderTab; cur
 
   return (
     <div ref={root} className="relative flex items-stretch">
-      {link}
+      <Link href={last} className={className} aria-current={active ? "page" : undefined} title={last !== tab.href ? `${tab.label} — zuletzt geöffnet` : undefined}>
+        {children}
+      </Link>
       <button
         type="button"
         aria-haspopup="menu"
