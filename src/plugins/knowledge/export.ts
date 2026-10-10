@@ -112,12 +112,31 @@ export function knowledgeDocs(zeffUrl: string, only?: "keep"): { account: string
     g.last = m.received_at;
     mails.set(key, g);
   }
-  for (const [key, g] of mails)
-    docs.push(
-      key.startsWith("wa:")
-        ? doc({ id: `zeff:mail:${key}`, space: "Zeff · WhatsApp", title: `WhatsApp · ${g.subject}`, url: "", updatedAt: g.last, author: null, body: `WhatsApp-Chat „${g.subject}“ (die letzten Nachrichten, wie die Chatliste sie zeigte):\n${g.lines.join("\n")}` })
-        : doc({ id: `zeff:mail:${key}`, space: "Zeff · Mail", title: `Mail · ${g.subject}`, url: "", updatedAt: g.last, author: null, body: `Mail-Verlauf „${g.subject}“:\n${g.lines.join("\n")}` }),
-    );
+  for (const [key, g] of mails) {
+    if (!key.startsWith("wa:")) {
+      docs.push(doc({ id: `zeff:mail:${key}`, space: "Zeff · Mail", title: `Mail · ${g.subject}`, url: "", updatedAt: g.last, author: null, body: `Mail-Verlauf „${g.subject}“:\n${g.lines.join("\n")}` }));
+      continue;
+    }
+    // A WhatsApp chat: a page per month (a whole history loaded is long — and a new message then
+    // changes only its month's page, not all of it).
+    const months = new Map<string, string[]>();
+    for (const l of g.lines) {
+      const month = /^- (\d{4}-\d{2})/.exec(l)?.[1] ?? "";
+      months.set(month, [...(months.get(month) ?? []), l]);
+    }
+    for (const [month, lines] of months)
+      docs.push(
+        doc({
+          id: `zeff:mail:${key}${month ? `:${month}` : ""}`,
+          space: "Zeff · WhatsApp",
+          title: `WhatsApp · ${g.subject}${month ? ` · ${month}` : ""}`,
+          url: "",
+          updatedAt: lines.length ? /^- (\S+)/.exec(lines[lines.length - 1])?.[1] ?? g.last : g.last,
+          author: null,
+          body: `WhatsApp-Chat mit „${g.subject}“${month ? `, ${month}` : ""} („Ich“ bin ich):\n${lines.join("\n")}`,
+        }),
+      );
+  }
 
   // GitLab: a merge request (or issue, branch) with its comments.
   type G = { key: string; kind: string; project: string; ref: string | null; title: string | null; body: string | null; author: string | null; state: string | null; created_at: string | null; updated_at: string | null; url: string | null; branch: string | null; parent: string | null };

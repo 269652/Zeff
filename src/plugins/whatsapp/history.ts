@@ -1,0 +1,39 @@
+import { errorMessage } from "@/lib/errors";
+import { saveMails, type MailInput } from "@/lib/mail/store";
+import { automationEnv, driverPath } from "@/plugins/drivers";
+
+/**
+ * One WhatsApp chat's whole history (WhatsApp plugin), by hand: its earlier messages loaded until
+ * none are left — with `fromPhone` the chat is opened in the automation Chrome (its unread messages
+ * then count as read) and older ones fetched from your phone first. Kept with the other messages
+ * (folder "WhatsApp", each once by WhatsApp's id) — so the knowledge reads them too. Old ones aren't
+ * gone through for todos (the Mail-Durchsicht reads the last days only).
+ */
+export async function pullWhatsappHistory(chat: string, { fromPhone = true } = {}): Promise<{ ok: boolean; message: string; chat?: string; added?: number; total?: number }> {
+  const flag = globalThis as { __zeffWhatsappHistory?: string | null };
+  if (flag.__zeffWhatsappHistory) return { ok: false, message: `Es läuft schon ein Verlauf (${flag.__zeffWhatsappHistory}).` };
+  flag.__zeffWhatsappHistory = chat;
+  try {
+    const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
+    const out = await runStdioSession(
+      { command: process.execPath, args: [driverPath("whatsapp")], env: automationEnv(), label: "WhatsApp-Verlauf" },
+      async (call) => resultToPayload(await call("whatsapp_history", { chat, fromPhone, openIfMissing: true })),
+      45 * 60000, // a long chat from the phone: many rounds
+    );
+    const data = (typeof out === "string" ? (out.trim().startsWith("{") ? JSON.parse(out) : null) : out) as { chat?: string; complete?: boolean; messages?: MailInput[]; error?: string } | null;
+    if (!data || !Array.isArray(data.messages)) throw new Error(typeof out === "string" ? out.replace(/^Error:\s*/, "").slice(0, 300) : (data?.error ?? "WhatsApp hat nichts Lesbares geliefert."));
+    const { added } = saveMails(data.messages);
+    const first = data.messages[0]?.receivedAt?.slice(0, 10);
+    return {
+      ok: true,
+      chat: data.chat,
+      added,
+      total: data.messages.length,
+      message: `${data.chat}: ${data.messages.length} Nachrichten${first ? ` seit ${new Date(first).toLocaleDateString("de-DE")}` : ""}, ${added} neu${data.complete ? " — von Anfang an" : ""}.`,
+    };
+  } catch (e) {
+    return { ok: false, message: errorMessage(e).slice(0, 300) };
+  } finally {
+    flag.__zeffWhatsappHistory = null;
+  }
+}

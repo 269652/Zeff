@@ -7,6 +7,7 @@ import { listMails } from "@/lib/mail/store";
 import { syncOverview } from "@/lib/sync/registry";
 import { agoText } from "@/lib/teams/time";
 import { isInstalled } from "@/plugins/state";
+import { HistoryButton } from "@/plugins/whatsapp/HistoryButton";
 
 export const metadata: Metadata = { title: "WhatsApp" };
 
@@ -63,7 +64,10 @@ export default async function WhatsappAppPage({ searchParams }: { searchParams: 
 
       {open ? (
         <section className="card space-y-2 p-4">
-          <h2 className="font-medium">{open}</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-medium">{open}</h2>
+            <HistoryButton chat={open} />
+          </div>
           <ul className="space-y-1.5">
             {thread.map((m) => {
               const mine = m.fromName === "Ich";
