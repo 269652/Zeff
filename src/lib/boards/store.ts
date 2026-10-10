@@ -487,6 +487,18 @@ export function addNoteTodo(v: { ticket: string; text: string; kind: string; own
   return toTodo(row);
 }
 
+/** A todo you add yourself (a Kanban card's checklist): yours, on that ticket. */
+export function addManualTodo(v: { ticket: string; text: string }): TodoView {
+  emitChange("todos");
+  const now = new Date().toISOString();
+  const row = getDb()
+    .insert(todos)
+    .values({ ticket: v.ticket.trim().toUpperCase(), text: v.text.trim().slice(0, 500), kind: "other", owner: "me", status: "open", source: "Von dir", refs: "[]", runId: null, createdAt: now, updatedAt: now })
+    .returning()
+    .get();
+  return toTodo(row);
+}
+
 /** A todo for a work session (Work: a new session — on a ticket, or none): your instruction's first line. */
 export function addSessionTodo(v: { ticket: string; text: string }): TodoView {
   emitChange("todos");

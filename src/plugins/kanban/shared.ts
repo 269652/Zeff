@@ -35,7 +35,9 @@ export type CardView = {
 export type ColumnView = { id: number; name: string; sort: number; wipLimit: number | null; done: boolean; cards: CardView[] };
 export type BoardView = { id: number; name: string; description: string; color: string; inLage: boolean; columns: ColumnView[]; createdAt: string; updatedAt: string };
 /** What the Lage says about a card (its last run), and its open todos — shown on the card. */
-export type CardLage = { attention: string | null; attentionLabel: string | null; lead: string | null; summary: string | null; happened: { when: string; who?: string; what: string }[]; todos: { id: number; text: string; owner: "me" | "other" }[] };
+export type CardLage = { attention: string | null; attentionLabel: string | null; lead: string | null; summary: string | null; happened: { when: string; who?: string; what: string }[]; todos: CardTodo[] };
+/** A card's todo — a checklist item (open or done), with its deadline. */
+export type CardTodo = { id: number; text: string; owner: "me" | "other"; status?: "open" | "done"; due?: string | null };
 export type BoardSummary = { id: string; name: string; description: string; color: string; source: string; cards: number; open: number; href: string; updatedAt: string | null };
 
 /** A card on a board another plugin brings — shown, not edited here. */
