@@ -1,4 +1,5 @@
 import { mailsByKeys } from "@/lib/mail/store";
+import { factsByRefs, type FactView } from "@/lib/facts";
 import { noteBriefsByRefs } from "@/plugins/keep/boards";
 import type { KeepNoteBrief } from "@/plugins/keep/shared";
 import { isNotNull } from "drizzle-orm";
@@ -91,6 +92,8 @@ export function todoSources(
   const mails = mailsByKeys(of("mail:"));
   // Notes (Google Keep plugin): a note a todo came from or is related to.
   const notes = refs.some((r) => r.startsWith("keep:")) ? noteBriefsByRefs(refs) : new Map<string, KeepNoteBrief>();
+  // Facts of yours (found in your messages): what a todo needs to know.
+  const facts = refs.some((r) => r.startsWith("fact:")) ? factsByRefs(refs) : new Map<string, FactView>();
   const gitlab = gitlabItemsByKeys([
     ...of("gitlab:"),
     ...originals.filter((r) => r.startsWith("gitlab:")).map((r) => r.slice(7)),
@@ -134,6 +137,10 @@ export function todoSources(
     if (ref.startsWith("keep:")) {
       const n = notes.get(ref);
       return n ? { source: "keep", note: n } : null;
+    }
+    if (ref.startsWith("fact:")) {
+      const f = facts.get(ref);
+      return f ? { source: "fact", fact: f } : null;
     }
     if (ref.startsWith("teams:")) {
       const m = teams.get(ref.slice(6));

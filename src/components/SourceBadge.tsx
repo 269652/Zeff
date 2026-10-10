@@ -5,6 +5,7 @@ import type { Entity, Sourced } from "@/lib/entities-shared";
 import { GitlabItemBadge, GitlabItemDetails } from "./GitlabItemBadge";
 import { GripIcon } from "./icons";
 import { KeepNoteBadge, KeepNoteDetails } from "@/plugins/keep/KeepNoteBadge";
+import { FactBadge, FactDetails } from "./FactBadge";
 import { MailBadge, MailDetails } from "./MailBadge";
 import { JiraCommentBadge, JiraCommentDetails, JiraTicketBadge, JiraTicketDetails } from "./JiraBadges";
 import { TeamsMessageBadge, TeamsMessageDetails } from "./TeamsMessageBadge";
@@ -25,6 +26,7 @@ export function SourceBadge({ entity, resolved, ...rest }: { entity: Sourced; cl
   if (entity.source === "mail") return <MailBadge m={entity.mail} {...rest} />;
   if (entity.source === "work") return <WorkRunBadge r={entity.run} {...rest} />;
   if (entity.source === "keep") return <KeepNoteBadge n={entity.note} {...rest} />;
+  if (entity.source === "fact") return <FactBadge f={entity.fact} {...rest} />;
   return <GitlabItemBadge item={entity.gitlab} resolved={resolved} {...rest} />;
 }
 
@@ -37,6 +39,7 @@ export function SourceDetails({ entity }: { entity: Sourced }) {
   if (entity.source === "mail") return <MailDetails m={entity.mail} />;
   if (entity.source === "work") return <WorkRunDetails r={entity.run} />;
   if (entity.source === "keep") return <KeepNoteDetails n={entity.note} />;
+  if (entity.source === "fact") return <FactDetails f={entity.fact} />;
   return <GitlabItemDetails item={entity.gitlab} />;
 }
 

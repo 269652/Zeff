@@ -670,6 +670,20 @@ export const jiraBoards = sqliteTable("jira_boards", {
  * How the syncs without a record of their own last went (Jira, Calendar, Chrono, Punch) — for the
  * header's sync menu. Teams, GitLab and the Boards run keep theirs in their own tables.
  */
+/**
+ * Facts the AI found in your messages — "Nadines Geburtstag: 16.10." — with where they come from
+ * (the messages, "mail:<key>"): knowledge of your own, linked to the todos that need it, and
+ * exported to the knowledge server. One per subject (a newer one replaces its text).
+ */
+export const facts = sqliteTable("facts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  subject: text("subject").notNull(),
+  text: text("text").notNull(),
+  refs: text("refs").notNull().default("[]"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
 /** Preferences as JSON, by key — the layout ("layout"), plugins' own settings ("plugin:gmail"). Per account (its database). */
 export const prefs = sqliteTable("prefs", {
   key: text("key").primaryKey(),

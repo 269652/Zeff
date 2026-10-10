@@ -452,7 +452,7 @@ export function addMailTodo(v: { ticket: string; text: string; kind: string; own
       owner: v.owner === "other" ? "other" : "me",
       status: "open",
       source: "Mail-Durchsicht",
-      refs: JSON.stringify(v.refs.filter((r) => r.startsWith("mail:")).slice(0, 15)),
+      refs: JSON.stringify(v.refs.filter((r) => r.startsWith("mail:") || r.startsWith("fact:")).slice(0, 15)),
       runId: v.runId,
       due: dueDay(v.due),
       createdAt: now,
@@ -532,6 +532,27 @@ export function addTodoUserNote(id: number, text: string): TodoView {
   getDb().update(todos).set({ userNotes: JSON.stringify(notes), updatedAt: new Date().toISOString() }).where(eq(todos.id, id)).run();
   emitChange("todos");
   return getTodo(id)!;
+}
+
+/**
+ * What a new message adds to an open todo (the Mail-Durchsicht found it: an answer, a date, a
+ * piece it needs): the messages among its sources (its context), and a note saying what's new.
+ */
+export function addTodoContext(id: number, refs: string[], note: string, by: string): TodoView | undefined {
+  const t = getTodo(id);
+  if (!t) return undefined;
+  const row = getDb().select({ refs: todos.refs, userNotes: todos.userNotes }).from(todos).where(eq(todos.id, id)).get();
+  const had = JSON.parse(row?.refs ?? "[]") as string[];
+  const merged = [...new Set([...had, ...refs])].slice(-30);
+  const notes = JSON.parse(row?.userNotes ?? "[]") as { at: string; text: string; by?: string }[];
+  const text = note.trim().slice(0, 1000);
+  getDb()
+    .update(todos)
+    .set({ refs: JSON.stringify(merged), ...(text ? { userNotes: JSON.stringify([...notes, { at: new Date().toISOString(), text, by }]) } : {}), updatedAt: new Date().toISOString() })
+    .where(eq(todos.id, id))
+    .run();
+  emitChange("todos");
+  return getTodo(id);
 }
 
 /** A todo flagged important (to the top, urgent) — or the flag taken off. Flagged, it's no longer put down. */

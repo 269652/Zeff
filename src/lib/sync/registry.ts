@@ -257,7 +257,7 @@ const STEPS: Record<SyncKey, Step> = {
         (globalThis as { __zeffBoardRun?: { id: number } | null }).__zeffBoardRun?.id ?? null,
       );
       return r.ok
-        ? { ok: true, message: `${r.reviewed} Mails durchgesehen, ${r.added} neue Todos${r.error ? ` (${r.error})` : ""}` }
+        ? { ok: true, message: `${r.reviewed} Mails durchgesehen, ${r.added} neue Todos${r.updated ? `, ${r.updated} ergänzt` : ""}${r.error ? ` (${r.error})` : ""}` }
         : { ok: false, message: r.error ?? "Fehlgeschlagen." };
     },
     busy: () => flag("__zeffMailTodos"),
