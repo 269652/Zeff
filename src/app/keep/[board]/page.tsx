@@ -39,7 +39,7 @@ export default async function KeepBoardPage({ params, searchParams }: { params: 
           {archived ? "← Zurück zu den Notizen" : "Archiv"}
         </Link>
       </div>
-      <KeepBoardView boardId={board.id} notes={notes} archived={archived} empty={q ? "Keine Notiz passt." : archived ? "Nichts im Archiv." : "Noch keine Notizen — schreib die erste."} />
+      <KeepBoardView source={{ kind: "own", boardId: board.id }} notes={notes} archived={archived} empty={q ? "Keine Notiz passt." : archived ? "Nichts im Archiv." : "Noch keine Notizen — schreib die erste."} />
     </div>
   );
 }

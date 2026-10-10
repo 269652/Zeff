@@ -92,6 +92,15 @@ export function listKeepNotes({ q = "", label = "", archived = false, limit = 20
   return (db().prepare(sql).all(...args, limit) as Row[]).map(toNote);
 }
 
+/** One note, by Google's id. */
+export function getKeepNote(id: string): KeepNote | null {
+  const r = db().prepare("select * from keep_notes where id = ?").get(id) as Row | undefined;
+  return r ? toNote(r) : null;
+}
+
+/** A note gone from Keep (put in its trash from Zeff): out of Zeff's copy too. */
+export const removeKeepNote = (id: string): boolean => db().prepare("delete from keep_notes where id = ?").run(id).changes > 0;
+
 /** All notes, archived ones too (the knowledge export). */
 export const allKeepNotes = (): KeepNote[] => (db().prepare("select * from keep_notes order by coalesce(updated_at, created_at) desc").all() as Row[]).map(toNote);
 

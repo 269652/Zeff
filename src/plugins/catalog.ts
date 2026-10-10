@@ -7,7 +7,7 @@
  * say, the work ones go and the rest stays. Client-safe (data only).
  */
 
-export const PLUGIN_IDS = ["zeiterfassung", "weekly-report", "monthly-report", "todos", "tickets", "kanban", "jira-lage", "work", "auto-actions", "backup", "accounts", "knowledge", "jira", "llm", "copilot-cli", "claude-cli", "outlook-mail", "gmail", "whatsapp", "keep", "outlook-calendar", "teams", "gitlab", "chrono", "punch"] as const;
+export const PLUGIN_IDS = ["zeiterfassung", "weekly-report", "monthly-report", "todos", "tickets", "kanban", "jira-lage", "work", "auto-actions", "backup", "accounts", "knowledge", "jira", "llm", "copilot-cli", "claude-cli", "outlook-mail", "gmail", "whatsapp", "keep", "keep-write", "outlook-calendar", "teams", "gitlab", "chrono", "punch"] as const;
 export type PluginId = (typeof PLUGIN_IDS)[number];
 export const isPluginId = (v: unknown): v is PluginId => (PLUGIN_IDS as readonly unknown[]).includes(v);
 
@@ -43,6 +43,8 @@ export type PluginManifest = {
   aiProvider?: "copilot" | "claude";
   /** What it brings to other plugins — extensions (see extensions.ts), there while all their plugins are. */
   extensions?: import("./extensions").ExtensionDecl[];
+  /** Beta: works, but may break — the warning shown with it (Plugins page, before installing, where it acts). */
+  beta?: string;
 };
 
 export const PLUGINS: PluginManifest[] = [
@@ -341,6 +343,17 @@ export const PLUGINS: PluginManifest[] = [
         actions: ["keep-note"],
       },
     ],
+  },
+  {
+    id: "keep-write",
+    name: "Google Keep schreiben",
+    description:
+      "Macht deine Google-Keep-Notizen in Zeff bearbeitbar: neue Notizen und Listen, Titel und Text, Häkchen, Farben, Labels, Anheften, Archivieren, in den Papierkorb — jede Änderung gleich in Google Keep gespeichert, und Zeff zeigt die Notiz so, wie Keep sie bestätigt hat.",
+    category: "connector",
+    defaultInstalled: false,
+    dependsOn: ["keep"],
+    requires: "Die Automations-Chrome des Kontos, bei Google angemeldet (keep.google.com).",
+    beta: "Zeff schreibt über Keeps eigene Web-Oberfläche — wie von Hand, in einem Tab der Automations-Chrome. Ändert Google diese Oberfläche, kann ein Schreiben scheitern oder nur zum Teil gelingen. Jede Änderung dauert etwa eine halbe Minute. Für Wichtiges: in Keep nachsehen.",
   },
   {
     id: "outlook-calendar",

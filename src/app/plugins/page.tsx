@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
+import { BetaBadge, BetaWarning } from "@/components/BetaBadge";
 import { PluginExtensions, type ExtensionRow } from "@/components/PluginExtensions";
 import { PluginInstallButton } from "@/components/PluginInstallButton";
 import { findClaudeCli } from "@/plugins/claude-cli/cli";
@@ -65,11 +66,13 @@ export default async function PluginsPage() {
                           <span className="ml-1 rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">nicht installiert</span>
                         )}
                         {p.defaultInstalled && <span className="ml-1 text-[11px] text-zinc-400">Standard</span>}
+                        {p.beta && <BetaBadge warning={p.beta} />}
                       </h3>
                       <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">{p.description}</p>
                     </div>
-                    <PluginInstallButton id={p.id} installed={installed} />
+                    <PluginInstallButton id={p.id} installed={installed} beta={p.beta} />
                   </div>
+                  {p.beta && <BetaWarning warning={p.beta} />}
                   {p.dependsOn?.length ? (
                     <p className="text-xs text-zinc-500">
                       Baut auf: {p.dependsOn.map((d) => pluginById(d).name).join(", ")}
