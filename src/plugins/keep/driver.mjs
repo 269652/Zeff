@@ -53,6 +53,37 @@ function labelsFromHtml(html, into) {
   }
 }
 
+/** A JavaScript string literal's text ('…' as Keep writes it: \xNN, \uNNNN, \n, \\, \'). */
+const unescapeJs = (s) =>
+  s.replace(/\\(x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|[\s\S])/g, (_, e) =>
+    e[0] === "x" || (e[0] === "u" && e.length === 5) ? String.fromCharCode(parseInt(e.slice(1), 16)) : e === "n" ? "\n" : e === "t" ? "\t" : e === "r" ? "\r" : e,
+  );
+
+/**
+ * The notes Keep's page brings along itself: its latest ones come in the page as
+ * `loadChunk(JSON.parse('[…]'))`, not through the changes it loads afterwards — a note just
+ * made is only there. Each kept unless what came through the changes is newer.
+ */
+function nodesFromHtml(html, into) {
+  let n = 0;
+  for (const m of html.matchAll(/loadChunk\(\s*JSON\.parse\('((?:[^'\\]|\\.)*)'\)/g)) {
+    let list;
+    try {
+      list = JSON.parse(unescapeJs(m[1]));
+    } catch {
+      continue;
+    }
+    for (const node of Array.isArray(list) ? list : []) {
+      if (!node?.id) continue;
+      const had = into.get(node.id);
+      if (had && String(had.timestamps?.updated ?? "") > String(node.timestamps?.updated ?? "")) continue;
+      into.set(node.id, node);
+      n++;
+    }
+  }
+  return n;
+}
+
 /** A note (or list) from Keep's nodes, with its list items; null when it's trashed or deleted. */
 function toNote(n, items, labels, number) {
   const t = n.timestamps || {};
@@ -121,7 +152,10 @@ async function keepNotes({ account = 0, launch = false, timeoutMs = 120000 } = {
       if (pages && Date.now() - lastAt > 15000) break;
       await new Promise((r) => setTimeout(r, 500));
     }
-    if (!labels.size) labelsFromHtml(await page.content().catch(() => ""), labels);
+    const html = await page.content().catch(() => "");
+    if (!labels.size) labelsFromHtml(html, labels);
+    // The latest notes come in the page itself (not through the changes).
+    debug(`${nodesFromHtml(html, nodes)} nodes from the page`);
     const number = /\/u\/(\d+)\//.exec(page.url())?.[1] ?? (/^\d+$/.test(String(account)) ? String(account) : "0");
     const items = new Map();
     for (const n of nodes.values()) if (n.type === "LIST_ITEM") items.set(n.parentId, [...(items.get(n.parentId) || []), n]);
@@ -203,7 +237,10 @@ async function keepWrite({ op, account = 0, id, kind, title, text, list, color, 
       await new Promise((r) => setTimeout(r, 500));
     }
     if (!loaded) throw new Error("Keep didn't finish loading its notes.");
-    labelsFromHtml(await page.content().catch(() => ""), labelNames);
+    const html = await page.content().catch(() => "");
+    labelsFromHtml(html, labelNames);
+    // The latest notes come in the page itself — a note made a moment ago only there.
+    nodesFromHtml(html, nodes);
     const number = /\/u\/(\d+)\//.exec(page.url())?.[1] ?? "0";
     const items = (n) => [...nodes.values()].filter((x) => x.parentId === n.id && x.type === "LIST_ITEM");
     const asNote = (n) => toNote(n, new Map([[n.id, items(n)]]), labelNames, number);

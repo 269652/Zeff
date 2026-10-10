@@ -31,6 +31,12 @@ function db() {
   `);
   // Later columns: a board's notes in the knowledge (on unless you turn it off).
   if (!(d.prepare("pragma table_info(keep_boards)").all() as { name: string }[]).some((c) => c.name === "in_knowledge")) d.exec("alter table keep_boards add column in_knowledge integer not null default 1");
+  // A note synced to Google Keep (Google Keep schreiben): its note there, and both sides as they were at the last sync.
+  const noteCols = new Set((d.prepare("pragma table_info(keep_own_notes)").all() as { name: string }[]).map((c) => c.name));
+  if (!noteCols.has("google_id")) d.exec("alter table keep_own_notes add column google_id text");
+  if (!noteCols.has("google_sync")) d.exec("alter table keep_own_notes add column google_sync text");
+  // Synced notes deleted here: to Keep's trash with the next sync.
+  d.exec("create table if not exists keep_own_deleted (google_id text primary key, deleted_at text not null)");
   return d;
 }
 
@@ -211,8 +217,67 @@ export function updateOwnNote(id: number, patch: { title?: string; text?: string
 }
 
 export function deleteOwnNote(id: number): void {
-  db().prepare("delete from keep_own_notes where id = ?").run(id);
+  const d = db();
+  // Synced to Google Keep: there too, with the board's next sync (to Keep's trash).
+  const g = d.prepare("select google_id from keep_own_notes where id = ?").get(id) as { google_id: string | null } | undefined;
+  if (g?.google_id) d.prepare("insert or ignore into keep_own_deleted (google_id, deleted_at) values (?, ?)").run(g.google_id, new Date().toISOString());
+  d.prepare("delete from keep_own_notes where id = ?").run(id);
   changed();
+}
+
+// ---------------------------------------------------------------------------
+// Synced with Google Keep (the Google Keep schreiben plugin's board sync)
+// ---------------------------------------------------------------------------
+
+/** A board's note with its link to Google Keep. */
+export type SyncedNote = { id: number; title: string; text: string; labels: string[]; color: string | null; pinned: boolean; archived: boolean; updatedAt: string; googleId: string | null; sync: { local: string; google: string; at: string } | null };
+
+/** A board's notes (archived ones too), with their links to Google Keep. */
+export function boardNotesForSync(boardId: number): SyncedNote[] {
+  type R = OwnRow & { google_id: string | null; google_sync: string | null };
+  return (db().prepare("select * from keep_own_notes where board_id = ? order by id").all(boardId) as R[]).map((r) => ({
+    id: r.id,
+    title: r.title,
+    text: r.text,
+    labels: parseLabels(r.labels),
+    color: r.color,
+    pinned: !!r.pinned,
+    archived: !!r.archived,
+    updatedAt: r.updated_at,
+    googleId: r.google_id,
+    sync: (() => {
+      try {
+        return r.google_sync ? (JSON.parse(r.google_sync) as SyncedNote["sync"]) : null;
+      } catch {
+        return null;
+      }
+    })(),
+  }));
+}
+
+/** A note linked to its Google Keep note (null: unlinked), with both sides' state at this sync. */
+export function linkOwnNote(id: number, googleId: string | null, sync: { local: string; google: string } | null): void {
+  db()
+    .prepare("update keep_own_notes set google_id = ?, google_sync = ? where id = ?")
+    .run(googleId, sync ? JSON.stringify({ ...sync, at: new Date().toISOString() }) : null, id);
+}
+
+/** A note from Google Keep into a board (the board's label on a note there), linked to it. Its id. */
+export function importOwnNote(boardId: number, v: { title: string; text: string; labels: string[]; color: string | null; pinned: boolean; archived: boolean }, googleId: string): number {
+  const n = createOwnNote(boardId, { title: v.title || (v.text ? "" : "(ohne Titel)"), text: v.text, labels: v.labels, color: v.color });
+  const id = Number(n.id.slice(1));
+  if (v.pinned || v.archived) updateOwnNote(id, { pinned: v.pinned, archived: v.archived });
+  db().prepare("update keep_own_notes set google_id = ? where id = ?").run(googleId, id);
+  return id;
+}
+
+/** Synced notes deleted here, waiting to go to Keep's trash. */
+export const deletedForSync = (): string[] => (db().prepare("select google_id from keep_own_deleted").all() as { google_id: string }[]).map((r) => r.google_id);
+export const forgetDeleted = (googleId: string) => void db().prepare("delete from keep_own_deleted where google_id = ?").run(googleId);
+
+/** The Google Keep notes linked to one of your notes (by Google's id → your note) — shown there, not twice. */
+export function googleLinks(): Map<string, { id: number; boardId: number }> {
+  return new Map((db().prepare("select id, board_id, google_id from keep_own_notes where google_id is not null").all() as { id: number; board_id: number; google_id: string }[]).map((r) => [r.google_id, { id: r.id, boardId: r.board_id }]));
 }
 
 // ---------------------------------------------------------------------------
@@ -231,7 +296,7 @@ export function notesByRefs(refs: string[]): NoteView[] {
     const n = ownNote(id);
     if (n) out.set(n.ref, n);
   }
-  if (wanted.length > own.length) for (const n of allKeepNotes()) if (wanted.includes(`keep:${n.id}`)) out.set(`keep:${n.id}`, googleView(n));
+  if (wanted.length > own.length) for (const n of allKeepNotes({ linked: true })) if (wanted.includes(`keep:${n.id}`)) out.set(`keep:${n.id}`, googleView(n));
   return wanted.flatMap((r) => (out.has(r) ? [out.get(r)!] : []));
 }
 

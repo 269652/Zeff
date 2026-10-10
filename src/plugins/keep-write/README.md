@@ -11,6 +11,29 @@ While the plugin is installed, the Google Keep view (`/keep/google`) works like 
 
 Each change is made in Google Keep itself, then Zeff shows the note as Keep confirmed it.
 
+## Board sync ("Sync to Google Keep")
+
+Your own Keep boards get a "Sync to Google Keep" button (`board-sync.ts`, `BoardSyncButton.tsx`). The board's notes become notes in Keep labelled with the board's name, and the two sides stay the same:
+
+1. Keep is read anew (the Keep sync).
+2. Synced notes deleted in Zeff go to Keep's trash (`keep_own_deleted`).
+3. Each note of the board is handled like this:
+   - **Not linked:** it is created in Keep with the board's label, and its Google id is kept (`keep_own_notes.google_id`).
+   - **Linked:** both sides are compared with their fingerprints from the last sync (`google_sync`). If only Zeff's side changed, it goes to Keep. If only Keep's side changed, it is taken over. If both changed, the later change wins.
+   - **Gone from Keep:** it is archived in Zeff, not deleted, and unlinked.
+4. Notes in Keep with the board's label that aren't linked yet are brought into the board.
+
+Linked Google notes are left out of the Google Keep view, the knowledge export and the Lage (`linkedFilter` in `store.ts`). They show up there as the board's note, so nothing appears twice.
+
+**Verified (2026-10-10, against the real Keep, on a DB copy):** create, push a local change, pull a change made in Keep, delete locally (to Keep's trash). The user's note with the board's label was imported and never written.
+
+**Reader fix found along the way:** Keep's page brings its latest notes in the HTML itself (`loadChunk(JSON.parse('…'))`), not through the changes it loads afterwards. Both the reader (`keep_notes`) and `keep_write` used to miss them; `nodesFromHtml` in `driver.mjs` reads them now.
+
+**Still open:**
+- A conflict is decided per note (the later change wins), not per field.
+- A board renamed after syncing keeps the old label on the notes already in Keep.
+- Moving a note to another board keeps its old board's label in Keep until the next sync of the new board.
+
 ## How it works
 
 Zeff never calls Keep's sync API itself. It drives Keep's own web page the way you would by hand, in a fresh tab of the account's automation Chrome, and reads back what Keep's page sends to Google.

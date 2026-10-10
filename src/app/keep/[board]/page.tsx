@@ -3,9 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
-import { keepBoard, listOwnNotes } from "@/plugins/keep/boards";
+import { googleLinks, keepBoard, listOwnNotes } from "@/plugins/keep/boards";
 import { KeepBoardView } from "@/plugins/keep/KeepBoardView";
 import { KeepNav } from "@/plugins/keep/KeepNav";
+import { getKeepNote } from "@/plugins/keep/store";
+import { BoardSyncButton } from "@/plugins/keep-write/BoardSyncButton";
 import { isInstalled } from "@/plugins/state";
 
 export const metadata: Metadata = { title: "Keep" };
@@ -20,7 +22,20 @@ export default async function KeepBoardPage({ params, searchParams }: { params: 
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
   const archived = sp.archived === "1";
-  const notes = listOwnNotes(board.id, { q, archived }).map((n) => ({ id: Number(n.id.slice(1)), title: n.title, text: n.text, labels: n.labels, color: n.color, pinned: n.pinned, archived: n.archived, updatedAt: n.updatedAt }));
+  // Synced with Google Keep (Google Keep schreiben): its note there, linked.
+  const sync = isInstalled("keep-write");
+  const linkedTo = new Map(sync ? [...googleLinks()].filter(([, l]) => l.boardId === board.id).map(([gid, l]) => [l.id, gid]) : []);
+  const notes = listOwnNotes(board.id, { q, archived }).map((n) => {
+    const id = Number(n.id.slice(1));
+    const gid = linkedTo.get(id);
+    return { id, title: n.title, text: n.text, labels: n.labels, color: n.color, pinned: n.pinned, archived: n.archived, updatedAt: n.updatedAt, url: gid ? getKeepNote(gid)?.url : undefined };
+  });
+  let syncStatus = null;
+  if (sync) {
+    const { boardSyncState } = await import("@/plugins/keep-write/board-sync");
+    const s = boardSyncState(board.id);
+    syncStatus = { running: s.running ? { step: s.running.step, done: s.running.done, total: s.running.total } : null, last: s.last };
+  }
   return (
     <div className="page">
       <div className="page-aside">
@@ -38,6 +53,7 @@ export default async function KeepBoardPage({ params, searchParams }: { params: 
         <Link href={archived ? `/keep/${board.id}` : `/keep/${board.id}?archived=1`} className="text-sm text-zinc-500 hover:underline">
           {archived ? "← Zurück zu den Notizen" : "Archiv"}
         </Link>
+        {syncStatus && <BoardSyncButton boardId={board.id} boardName={board.name} initial={syncStatus} linked={linkedTo.size} />}
       </div>
       <KeepBoardView source={{ kind: "own", boardId: board.id }} notes={notes} archived={archived} empty={q ? "Keine Notiz passt." : archived ? "Nichts im Archiv." : "Noch keine Notizen — schreib die erste."} />
     </div>
