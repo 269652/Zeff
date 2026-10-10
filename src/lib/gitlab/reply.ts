@@ -4,7 +4,7 @@ import { getGitlabSettings } from "./store";
 /**
  * Reply in the thread of a merge request comment (noteUrl: …/-/merge_requests/<n>#note_<id>) —
  * through GitLab's API from a GitLab tab in the automation Chrome, else through the page itself
- * (scripts/gitlab-mcp.mjs, gitlab_reply). dryRun: find the thread, post nothing.
+ * (src/plugins/gitlab/driver.mjs, gitlab_reply). dryRun: find the thread, post nothing.
  */
 export async function postGitlabReply(noteUrl: string, body: string, opts: { dryRun?: boolean } = {}): Promise<{ via: "api" | "page"; url: string; apiFailed?: string }> {
   const base = getGitlabSettings().baseUrl.replace(/\/+$/, "");
@@ -56,7 +56,7 @@ export async function resolveGitlabThread(noteUrl: string, resolved: boolean, op
 
 /**
  * Open a merge request (source → target branch) in a project — through GitLab's API from a
- * GitLab tab in the automation Chrome (scripts/gitlab-mcp.mjs, gitlab_open_mr); the open one the
+ * GitLab tab in the automation Chrome (src/plugins/gitlab/driver.mjs, gitlab_open_mr); the open one the
  * branch already has is returned instead. dryRun: check, create nothing.
  */
 export async function openGitlabMr(

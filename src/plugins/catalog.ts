@@ -477,13 +477,9 @@ export const pluginById = (id: PluginId) => PLUGINS.find((p) => p.id === id)!;
  * Jira or your Kanban boards, or both; without either, Todos has mails, your own, Work).
  */
 export const STEP_NEEDS: Record<string, (PluginId | PluginId[])[]> = { boards: ["llm", ["jira", "kanban"]], recap: ["llm"], mailtodos: ["todos", "llm"], relations: ["todos", "llm"], boardlage: ["jira", "llm"] };
-
-/** The plugin that brings a sync step / owns a page / signs in to a service — none: it's Zeff's own. */
-export const pluginOfStep = (key: string) => PLUGINS.find((p) => p.syncSteps?.includes(key))?.id ?? null;
 /** All the plugins that bring a step (Mail: Outlook Mail and Gmail) — any of them installed makes it there. */
 export const pluginsOfStep = (key: string) => PLUGINS.filter((p) => p.syncSteps?.includes(key)).map((p) => p.id);
 /** All the plugins that own a page. */
 export const pluginsOfRoute = (path: string) => PLUGINS.filter((p) => p.routes?.some((r) => path === r || (r !== "/" && path.startsWith(`${r}/`)))).map((p) => p.id);
-export const pluginOfRoute = (path: string) => PLUGINS.find((p) => p.routes?.some((r) => path === r || (r !== "/" && path.startsWith(`${r}/`))))?.id ?? null;
 export const pluginsOfService = (service: string) => PLUGINS.filter((p) => p.services?.includes(service)).map((p) => p.id);
 export const pluginOfProvider = (provider: string) => PLUGINS.find((p) => p.aiProvider === provider)?.id ?? null;

@@ -10,7 +10,7 @@ import { runClaude } from "@/plugins/claude-cli/cli";
 import { runCopilot } from "@/plugins/copilot-cli/cli";
 import { isInstalled, providerAvailable } from "@/plugins/state";
 import { getLlmSettings } from "./settings";
-import { LLM_PREAMBLE_MAX, LLM_TASKS, type LlmTaskId } from "./tasks";
+import { LLM_PREAMBLE_MAX, type LlmTaskId } from "./tasks";
 
 /** Which backend and model a task runs with: its own (if that backend is installed), else the default. */
 export function llmChoice(task: LlmTaskId): { provider: AiProvider; model: string } {
@@ -51,6 +51,3 @@ export function llm<T>(task: LlmTaskId, prompt: string, schema: object, opts: { 
     ? runCopilot<T>(full, schema, { model, timeoutMs: opts.timeoutMs })
     : runClaude<T>(full, schema, { model, timeoutMs: opts.timeoutMs, maxBudgetUsd: opts.maxBudgetUsd });
 }
-
-/** A task's label (for logs and the settings). */
-export const llmTaskLabel = (task: LlmTaskId) => LLM_TASKS.find((t) => t.id === task)?.label ?? task;

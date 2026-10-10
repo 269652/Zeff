@@ -5,7 +5,7 @@ An Electron app (the unmodified `electron.exe`, shipped as `Zeff.exe`). It runs 
 | Address | Goes to |
 | --- | --- |
 | `https://zeff`, `https://zeff:1337` | Zeff, `127.0.0.1:9333` |
-| `https://knowledge.zeff` | the knowledge server, `127.0.0.1:9555` |
+| `https://knowledge.zeff` | the knowledge server of the account you're in — one per account: `127.0.0.1:9555` (the first), `:9556` … (the others) |
 | `http://zeff` | redirects to https |
 
 - `lib/supervisor.js` runs `node next start [knowledge] -H 127.0.0.1 -p <port>` and restarts it after a crash (2 s … 60 s backoff). A port that's already held, for example by the old `Zeff Server` scheduled task, is shown as "not started by the launcher" and proxied as is. Servers a killed launcher left behind are cleaned up on the next start (`data/launcher/pids.json`).

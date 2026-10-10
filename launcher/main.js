@@ -1,5 +1,5 @@
-// Zeff launcher (Electron): runs Zeff's Next server (127.0.0.1:9333) and the knowledge server
-// (127.0.0.1:9555) on the bundled node.exe, keeps them alive, and serves them over HTTPS —
+// Zeff launcher (Electron): runs Zeff's Next server (127.0.0.1:9333) and a knowledge server per
+// account (127.0.0.1:9555, :9556 …) on the bundled node.exe, keeps them alive, and serves them over HTTPS —
 // https://zeff and https://zeff:1337 (knowledge: https://knowledge.zeff). A tray icon and a
 // small status window manage it all.
 //

@@ -9,9 +9,6 @@ import { TODO_KINDS, TODO_OPS_SCHEMA, type TodoKind, type TodoView } from "@/lib
 /** …mr: open the merge request for a pushed branch; ops: run a todo's operations (both Zeff itself, no AI). */
 export type WorkMode = "code" | "draft" | "send" | "mr" | "ops" | "instruct";
 export const WORK_MODE_LABELS: Record<WorkMode, string> = { code: "implement", draft: "write the draft", send: "post to Jira", mr: "open the MR", ops: "run", instruct: "follow your instruction" };
-
-/** A merge request to open, as a follow-up keeps it in its target: "gitlab-mr:<project>|<source branch>|<target branch>". */
-export const mrTarget = (project: string, source: string, target: string) => `gitlab-mr:${project}|${source}|${target}`;
 export function parseMrTarget(target: string | null | undefined): { project: string; source: string; target: string } | null {
   const m = /^gitlab-mr:([^|]+)\|([^|]+)\|([^|]+)$/.exec(target ?? "");
   return m ? { project: m[1], source: m[2], target: m[3] } : null;

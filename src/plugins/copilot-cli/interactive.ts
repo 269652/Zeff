@@ -243,11 +243,3 @@ export function wrapUp(runId: number) {
     "Schließ jetzt ab: fasse zusammen, was du getan hast, und antworte mit dem JSON-Ergebnis im verlangten Format (```json-Block) — outcome, summary, entry, completedTodos, followUps.",
   );
 }
-
-/** Stop it now (its turn cancelled, the session closed) — the run ends with what it has. */
-export async function stopLive(runId: number) {
-  const live = lives.get(runId);
-  if (!live) return;
-  send(live, { method: "session/cancel", params: { sessionId: live.sessionId } });
-  await end(live);
-}

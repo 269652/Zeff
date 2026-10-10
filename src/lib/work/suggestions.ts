@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { EntrySuggestion } from "@/db/schema";
 import { todosByIds } from "@/lib/boards/store";
@@ -208,11 +208,6 @@ export function openSuggestionTotals(from: string, to: string): { count: number;
     .where(and(eq(entrySuggestions.status, "open"), gte(entrySuggestions.date, from), lte(entrySuggestions.date, to)))
     .get();
   return { count: Number(r?.count ?? 0), hours: Number(r?.hours ?? 0) };
-}
-
-/** The latest suggestions (any state), newest first — for an agent to look back. */
-export function recentSuggestions(limit = 20): SuggestionView[] {
-  return getDb().select().from(entrySuggestions).orderBy(desc(entrySuggestions.id)).limit(limit).all().map(toView);
 }
 
 function requireOpen(id: number): EntrySuggestion {

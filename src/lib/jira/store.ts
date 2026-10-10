@@ -43,11 +43,6 @@ export function myJiraName(): string | null {
   return getDb().select({ a: jiraTickets.assignee }).from(jiraTickets).where(eq(jiraTickets.mine, true)).limit(1).get()?.a ?? null;
 }
 
-/** The Zeff job a ticket is linked to in the Jira store (if any). */
-export function getJiraJobForTicket(key: string): string | undefined {
-  return getJiraTicket(key)?.jobNumber ?? undefined;
-}
-
 export function setTicketJob(key: string, jobNumber: string | null): void {
   getDb()
     .update(jiraTickets)
@@ -475,11 +470,6 @@ export function getTicketSummaries(): Map<string, string> {
   const m = new Map<string, string>();
   for (const r of rows) if (r.summary) m.set(r.key.toUpperCase(), r.summary);
   return m;
-}
-
-export function hasBoardData(): boolean {
-  const row = getDb().select({ n: sql<number>`count(*)` }).from(jiraBoards).get();
-  return Number(row?.n ?? 0) > 0;
 }
 
 

@@ -6,7 +6,7 @@ import { revalidateAll, str, type ActionState } from "@/app/action-helpers";
 
 /** Boards (your tickets gone through the Claude CLI: what happened, what's to do) — its server actions (each answers an ActionState unless it says otherwise). */
 
-/** "Run now": the run starts in the background — the Boards page follows it. */
+/** "Run now": the run starts in the background — the Todos page follows it. */
 export async function runBoardAction(): Promise<ActionState> {
   const { startBoardRun } = await import("@/lib/boards/run");
   // By hand: Jira synced first, then the analysis.

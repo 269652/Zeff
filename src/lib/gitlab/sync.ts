@@ -24,7 +24,7 @@ async function chromeUp(): Promise<boolean> {
 
 /**
  * Read your merge requests, their comments (yours too) and your branches from GitLab —
- * GET requests from a GitLab tab in the automation Chrome (scripts/gitlab-mcp.mjs) — and keep
+ * GET requests from a GitLab tab in the automation Chrome (src/plugins/gitlab/driver.mjs) — and keep
  * them. After a sync that worked, only what changed since (a day's overlap) is read again.
  * `background`: only when Chrome runs with GitLab open; by hand it may open GitLab.
  */

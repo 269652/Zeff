@@ -16,7 +16,7 @@ const TOOLS: [string, string][] = [
 
 export default async function McpPage() {
   const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "127.0.0.1:9333";
   const proto = h.get("x-forwarded-proto") ?? (/^(localhost|127\.0\.0\.1)/.test(host) ? "http" : "https");
   const url = `${proto}://${host}/api/mcp`;
   // Each account its own endpoint; /api/mcp is the first account's, never the one switched to.
