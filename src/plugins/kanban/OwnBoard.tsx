@@ -18,6 +18,7 @@ import {
   updateColumnAction,
 } from "./actions";
 import { BoardFrame, COLUMN } from "./BoardFrame";
+import { CardChecklist } from "./CardChecklist";
 import { initials, NOBODY, PersonChips, peopleOf } from "./PersonChips";
 import { PRIORITIES, PRIORITY_LABELS, type BoardView, type CardLage, type CardView, type ColumnView, type Priority } from "./shared";
 
@@ -83,11 +84,19 @@ function Card({ c, lage, onOpen, onDragStart, onDragEnd, dragging }: { c: CardVi
           {c.description && !c.due && <span className="ml-auto text-zinc-400" title="Hat eine Beschreibung">≡</span>}
         </span>
       )}
-      {lage && lage.todos.length > 0 && (
-        <span className="mt-1.5 inline-block rounded bg-indigo-50 px-1.5 py-0.5 text-[11px] text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300" title="Offene Todos aus der Lage">
-          ☐ {lage.todos.length}
-        </span>
-      )}
+      {lage && lage.todos.length > 0 && (() => {
+        // The checklist's progress: done of all (open ones first in the card's panel).
+        const done = lage.todos.filter((t) => t.status === "done").length;
+        const all = lage.todos.length;
+        return (
+          <span
+            className={`mt-1.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${done === all ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"}`}
+            title={`${all - done} offen, ${done} erledigt`}
+          >
+            ☑ {done}/{all}
+          </span>
+        );
+      })()}
     </button>
   );
 }
@@ -179,7 +188,8 @@ function CardPanel({ c, lage, people, columns, onClose, run }: { c: CardView; la
             <span className="label">Labels (durch Komma)</span>
             <input className="input" value={labels} onChange={(e) => setLabels(e.target.value)} placeholder="z. B. privat, Steuer, Garten" />
           </label>
-          {lage && (lage.lead || lage.summary || lage.todos.length > 0 || lage.happened.length > 0) && (
+          <CardChecklist cardRef={c.ref} todos={lage?.todos ?? []} />
+          {lage && (lage.lead || lage.summary || lage.happened.length > 0) && (
             <section className="space-y-2 rounded-lg border border-violet-200 bg-violet-50/50 p-3 text-sm dark:border-violet-900 dark:bg-violet-950/30">
               <h3 className="label">
                 Lage{lage.attentionLabel ? ` · ${lage.attentionLabel}` : ""}
@@ -198,18 +208,6 @@ function CardPanel({ c, lage, people, columns, onClose, run }: { c: CardView; la
                     </li>
                   ))}
                 </ol>
-              )}
-              {lage.todos.length > 0 && (
-                <ul className="space-y-0.5 text-xs">
-                  {lage.todos.map((t) => (
-                    <li key={t.id}>
-                      <Link href={`/t/${t.id}`} className="font-mono text-indigo-600 hover:underline dark:text-indigo-400">
-                        T-{t.id}
-                      </Link>{" "}
-                      {t.text}
-                    </li>
-                  ))}
-                </ul>
               )}
             </section>
           )}

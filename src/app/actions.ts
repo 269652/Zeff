@@ -1699,6 +1699,22 @@ export async function setGitlabResolvedAction(key: string, resolved: boolean): P
 }
 
 /** A todo done, dismissed, or open again. */
+/** A todo you add to a ticket yourself — a Kanban card's checklist. */
+export async function addCardTodoAction(ticket: string, text: string): Promise<ActionState> {
+  try {
+    const t = String(text ?? "").trim();
+    const k = String(ticket ?? "").trim();
+    if (!t) return { ok: false, error: "Was ist zu tun?" };
+    if (!k) return { ok: false, error: "Keine Karte." };
+    const { addManualTodo } = await import("@/lib/boards/store");
+    const todo = addManualTodo({ ticket: k, text: t });
+    revalidateAll();
+    return { ok: true, message: `${todo.ref} angelegt.` };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
 export async function setTodoStatusAction(id: number, status: "open" | "done" | "dismissed"): Promise<ActionState> {
   try {
     if (!Number.isInteger(id) || !["open", "done", "dismissed"].includes(status)) return { ok: false, error: "Unbekanntes Todo." };
