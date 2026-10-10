@@ -5,7 +5,7 @@ import { teamsLinkKey, type TeamsKind, type TeamsMessageView } from "./shared";
 
 const { teamsMessages, teamsSettings, contexts } = schema;
 
-/** A message as the Teams driver (scripts/teams-mcp.mjs) reads it. */
+/** A message as the Teams driver (src/plugins/teams/driver.mjs) reads it. */
 export type TeamsMessageInput = {
   key: string;
   kind: TeamsKind;
@@ -134,64 +134,6 @@ export function teamsMessagesByKeys(keys: string[]): Map<string, TeamsMessageVie
   if (!wanted.length) return new Map();
   const rows = getDb().select().from(teamsMessages).where(inArray(teamsMessages.key, wanted)).all();
   return new Map(rows.map((r) => [r.key, toView(r)]));
-}
-
-/**
- * A message's conversation, oldest first, itself among it: a channel reply's thread (its reply
- * chain) — else what was written in the chat around it (up to `days` before, a few after).
- */
-/** In a chat, a pause longer than this ends a stretch of talk. */
-const CHAT_GAP = 2 * 3600_000;
-
-export function teamsConversation(key: string, opts: { before?: number; after?: number; days?: number } = {}): TeamsMessageView[] {
-  const db = getDb();
-  const m = db.select().from(teamsMessages).where(eq(teamsMessages.key, key)).get();
-  if (!m) return [];
-  const chain =
-    m.replyChainId &&
-    db
-      .select({ n: sql<number>`count(*)` })
-      .from(teamsMessages)
-      .where(and(eq(teamsMessages.conversationId, m.conversationId), eq(teamsMessages.replyChainId, m.replyChainId), sql`${teamsMessages.messageId} <> ${m.messageId}`))
-      .get()!.n > 0;
-  const same = chain ? and(eq(teamsMessages.conversationId, m.conversationId), eq(teamsMessages.replyChainId, m.replyChainId!)) : eq(teamsMessages.conversationId, m.conversationId);
-  const at = Date.parse(m.sentAt);
-  const day = 86400000;
-  const from = new Date(at - (opts.days ?? 3) * day).toISOString();
-  const to = new Date(at + day).toISOString();
-  const before = db
-    .select()
-    .from(teamsMessages)
-    .where(and(same, sql`${teamsMessages.sentAt} <= ${m.sentAt}`, sql`${teamsMessages.sentAt} >= ${from}`))
-    .orderBy(desc(teamsMessages.sentAt))
-    .limit(opts.before ?? 12)
-    .all()
-    .reverse();
-  const after = db
-    .select()
-    .from(teamsMessages)
-    .where(and(same, sql`${teamsMessages.sentAt} > ${m.sentAt}`, sql`${teamsMessages.sentAt} <= ${to}`))
-    .orderBy(teamsMessages.sentAt)
-    .limit(opts.after ?? 6)
-    .all();
-  // A chat (no thread to go by): only the stretch of talk it's in — messages at most 2h apart,
-  // not what was said hours before or after about something else.
-  const near = (list: typeof before, from: Date) => {
-    const out: typeof before = [];
-    let last = from.getTime();
-    for (const r of list) {
-      const t = Date.parse(r.sentAt);
-      if (Math.abs(t - last) > CHAT_GAP) break;
-      out.push(r);
-      last = t;
-    }
-    return out;
-  };
-  const sent = new Date(at);
-  const all = chain
-    ? [...before, ...after]
-    : [...near(before.filter((r) => r.key !== m.key).reverse(), sent).reverse(), ...near(after, sent)];
-  return (all.some((r) => r.key === m.key) ? all : [...all, m].sort((a, b) => a.sentAt.localeCompare(b.sentAt))).map((r) => toView(r));
 }
 
 /** How many messages there are, by kind. */

@@ -43,7 +43,10 @@ npm run eval:mail # before/after of the Mail-Durchsicht prompt on your real mail
 ```
 
 The database is created and migrated on first start (`drizzle/`). After editing
-`src/db/schema.ts`, run `npm run db:generate`.
+`src/db/schema.ts`, **write the migration by hand** (`drizzle/00NN_name.sql`, statements separated
+by `--> statement-breakpoint`) and add it to `drizzle/meta/_journal.json` with a `"when"` greater
+than every earlier one — Drizzle skips a migration whose `when` is lower than the last applied.
+Don't run `npm run db:generate`: its snapshots stop at 0062, so it would recreate existing tables.
 
 ## Plugins
 
@@ -52,11 +55,14 @@ The database is created and migrated on first start (`drizzle/`). After editing
 | Zeiterfassung, Wochenbericht, Monatsbericht | Jobs and projects, working hours and absences, booking, the week and the month |
 | Todos, Tickets | The Ticket-Lage, todos with their context, activity and recap; the Lage per ticket |
 | Kanban, Jira Lage | Your own boards; your Jira boards with each card's Lage |
+| Kalender | One calendar for everything: your own calendars in Zeff and your sources' (Outlook, Google Calendar) |
+| Personen | A profile for each person who matters to you: your notes, their dates (birthdays …), reminders on Heute |
 | Work | Agents on your todos: runs, live sessions, repos, delivery |
 | Auto-Aktionen | Ready-made actions for every open todo, from what the installed plugins can do |
 | LLM, Copilot CLI, Claude CLI | The AI layer: a backend and model per task, your instructions |
 | Knowledge | The knowledge server's chat, and "Show knowledge" on todos |
-| Jira, Outlook Mail, Outlook Kalender, Gmail, Teams, WhatsApp, Google Keep, GitLab | Connectors that read, and write only on your click |
+| Jira, Outlook Mail, Outlook Kalender, Google Calendar, Gmail, Teams, WhatsApp, Google Keep, GitLab | Connectors that read, and write only on your click |
+| Google Keep schreiben (beta) | Your Keep notes editable in Zeff — written back through Keep's own editor, on your click |
 | Roar, TimO | The corporate timesheets: export and read back |
 | Backups, Konten | Encrypted backups (daily, weekly, monthly); more than one account |
 

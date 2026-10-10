@@ -39,8 +39,6 @@ export function allApps(): AppView[] {
 
 /** The header's tabs: the applications put there. */
 export const appTabs = () => allApps().filter((a) => a.place === "header");
-/** The menu's "Apps". */
-export const menuApps = () => allApps().filter((a) => a.place === "menu");
 
 /** Where home goes without the weekly report: the first application in the header (else in the menu) — else the plugins. */
 export const firstAppTab = () => allApps().find((t) => t.href !== "/" && t.place !== "hidden")?.href ?? "/plugins";

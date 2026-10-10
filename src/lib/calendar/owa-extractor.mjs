@@ -5,7 +5,7 @@
  * Zeff importer understands, in a variable `events`. It reads only calendar event labels:
  * no cookies, tokens or message content.
  *
- * Shared by the bookmarklet (bookmarklet.ts) and the Outlook driver (scripts/outlook-mcp.mjs),
+ * Shared by the bookmarklet (bookmarklet.ts) and the Outlook driver (src/plugins/outlook/driver.mjs),
  * so both produce the same ids ("owa:<date>T<HH:MM>:<title>") for already-booked matching.
  */
 export const OWA_EXTRACTOR = String.raw`

@@ -1,30 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { todoKnowledgeAction } from "@/plugins/knowledge/server-actions";
 import { snippetParts, type KnowledgeEntity, type KnowledgePage } from "./shared";
 
 type Loaded = { pages: KnowledgePage[]; entities: KnowledgeEntity[] } | { error: string } | null;
-
-const cache = new Map<number, Loaded>();
-
-/** A todo's knowledge (the Confluence pages and entities that fit it), read when first shown — kept while the page is open. */
-export function useTodoKnowledge(todoId: number, wanted: boolean): Loaded {
-  const [got, setGot] = useState<Loaded>(() => cache.get(todoId) ?? null);
-  useEffect(() => {
-    if (!wanted || got) return;
-    let live = true;
-    void todoKnowledgeAction(todoId).then((r) => {
-      const v: Loaded = r.ok ? { pages: r.pages, entities: r.entities } : { error: r.error };
-      cache.set(todoId, v);
-      if (live) setGot(v);
-    });
-    return () => {
-      live = false;
-    };
-  }, [todoId, wanted, got]);
-  return got;
-}
 
 /** The pages (title, space, the passage found) and the entities with their relations. */
 export function TodoKnowledgeList({ k }: { k: Loaded }) {

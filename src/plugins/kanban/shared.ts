@@ -12,10 +12,6 @@ export const BOARD_COLORS = ["indigo", "emerald", "amber", "rose", "sky", "viole
 
 /** A card's key: KB-<id> — shaped like a Jira key, so it flows into todos, the Lage, entries. */
 export const cardRef = (id: number) => `KB-${id}`;
-export const parseCardRef = (v: string) => {
-  const m = /^\s*KB?-?(\d+)\s*$/i.exec(v);
-  return m ? Number(m[1]) : null;
-};
 
 export type CardView = {
   id: number;

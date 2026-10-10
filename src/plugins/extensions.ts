@@ -36,8 +36,6 @@ export type Extension = ExtensionDecl & {
 export const EXTENSIONS: Extension[] = PLUGINS.flatMap((p) => (p.extensions ?? []).map((e): Extension => ({ ...e, id: `${p.id}:${e.key}`, by: p.id })));
 
 export const extensionById = (id: string) => EXTENSIONS.find((e) => e.id === id);
-/** The extensions a plugin gets (from whichever plugins bring them). */
-export const extensionsFor = (host: PluginId) => EXTENSIONS.filter((e) => e.for === host);
 /** The extension a sync step / an action belongs to (none: the plugin's own). */
 export const extensionOfStep = (step: string) => EXTENSIONS.find((e) => e.syncSteps?.includes(step));
 export const extensionOfAction = (type: string) => EXTENSIONS.find((e) => e.actions?.includes(type));

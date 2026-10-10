@@ -218,7 +218,7 @@ export function listTodos(opts: { ticket?: string; status?: TodoStatus | "all"; 
   return getDb().select().from(todos).where(where).orderBy(todos.id).all().map(toTodo);
 }
 
-/** These tickets' todos as the Boards page shows them: the open ones, and those closed in the last `days`. */
+/** These tickets' todos as the Todos page shows them: the open ones, and those closed in the last `days`. */
 export function boardTodos(tickets: string[], days = 7): TodoView[] {
   const since = new Date(Date.now() - days * 864e5).toISOString();
   return listTodos({ status: "all", tickets }).filter((t) => t.status === "open" || (t.doneAt ?? "") >= since);

@@ -10,7 +10,7 @@ const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 
 const full = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-/** Where a todo is shown: the Boards page (its "Erledigt" tab once it's closed) — brought into view there. */
+/** Where a todo is shown: the Todos page (its Done tab once it's closed) — brought into view there. */
 export const todoHref = (t: Pick<TodoView, "id" | "status">) => (t.status === "open" ? `/todos#todo-${t.id}` : `/todos?todos=done#todo-${t.id}`);
 
 const STATUS = { open: "offen", done: "erledigt", dismissed: "verworfen" } as const;
@@ -36,7 +36,7 @@ const TONE = {
 /**
  * A link to a board todo, shown as the todo: its reference, ticket, what kind and whether it's
  * done — and what it asks. With `onToggle` a click unfolds it (the chevron); ↗ shows it on the
- * Boards page.
+ * Todos page.
  */
 export function TodoBadge({ t, className = "", expanded = false, onToggle }: { t: TodoView; className?: string; expanded?: boolean; onToggle?: () => void }) {
   const closed = t.status !== "open";
@@ -71,8 +71,8 @@ export function TodoBadge({ t, className = "", expanded = false, onToggle }: { t
         target="_blank"
         rel="noreferrer"
         className={`flex shrink-0 items-center px-2 transition ${tone.accent} ${tone.hover}`}
-        title={`Show ${t.ref} on the Boards page`}
-        aria-label={`Show ${t.ref} on the Boards page`}
+        title={`Show ${t.ref} on the Todos page`}
+        aria-label={`Show ${t.ref} on the Todos page`}
       >
         ↗
       </a>

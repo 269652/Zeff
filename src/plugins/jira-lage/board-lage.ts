@@ -77,20 +77,6 @@ function ensureTable(): void {
   );
 }
 
-/** Each analyzed ticket's Board-Lage (by key). */
-export function boardLageByKey(): Map<string, BoardLage> {
-  ensureTable();
-  const out = new Map<string, BoardLage>();
-  for (const r of getSqlite().prepare("select key, result from ticket_lage").all() as { key: string; result: string }[]) {
-    try {
-      out.set(r.key.toUpperCase(), JSON.parse(r.result) as BoardLage);
-    } catch {
-      // unreadable: as if not analyzed
-    }
-  }
-  return out;
-}
-
 /**
  * The tickets relevant now on the enabled boards — open, moved lately or in progress — but those
  * the Ticket-Lage just read; of them the ones you're in (on you, followed, commented, your todos,

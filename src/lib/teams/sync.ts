@@ -26,7 +26,7 @@ async function chromeUp(): Promise<boolean> {
 
 /**
  * Read where you were @mentioned and what colleagues wrote you (1:1) from Teams in the
- * automation Chrome — its own cache, read-only (scripts/teams-mcp.mjs) — and keep them.
+ * automation Chrome — its own cache, read-only (src/plugins/teams/driver.mjs) — and keep them.
  * `background`: only when Chrome runs with Teams open; by hand it may open Teams.
  */
 export async function syncTeams({ background = false } = {}): Promise<{ ok: boolean; message: string }> {
