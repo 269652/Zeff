@@ -225,6 +225,8 @@ export function opsDictionary(available: (type: string) => boolean = () => true)
 export type TodoView = {
   id: number;
   ref: string;
+  /** When it's due (YYYY-MM-DD), if it has a deadline. */
+  due: string | null;
   ticket: string;
   text: string;
   kind: TodoKind;
@@ -502,6 +504,8 @@ export type BoardResult = {
       owner: "me" | "other";
       source?: string;
       refs?: string[];
+      /** A deadline (YYYY-MM-DD). */
+      due?: string;
       ops?: unknown[];
       /** What comes after it, planned (paths of steps). */
       then?: unknown[];
@@ -591,6 +595,10 @@ export const BOARD_RESULT_SCHEMA = {
                   type: "string",
                   description:
                     "Worauf es sich stützt, kurz: z. B. „Kommentar Julia Freidank 24.09.“",
+                },
+                due: {
+                  type: "string",
+                  description: "Die Frist als Datum JJJJ-MM-TT, wenn eine genannt ist (Kommentar, Mail, Nachricht, Ticket) — sonst weglassen.",
                 },
                 ops: TODO_OPS_SCHEMA,
                 then: {
@@ -710,3 +718,6 @@ export type BoardRunView = {
   startedAt: string;
   finishedAt: string | null;
 };
+
+/** A due day (YYYY-MM-DD) — or null for anything else. */
+export const dueDay = (v: unknown): string | null => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v.trim()) && !Number.isNaN(Date.parse(v.trim())) ? v.trim() : null);

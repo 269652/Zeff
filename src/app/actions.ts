@@ -1976,6 +1976,40 @@ export async function flagTodoAction(todoId: number, flagged: boolean): Promise<
   }
 }
 
+/** A reply to the message a todo is about, drafted by the AI from the conversation — never sent. */
+export async function draftReplyAction(todoId: number): Promise<import("@/lib/boards/reply-draft").ReplyDraft> {
+  try {
+    return await (await import("@/lib/boards/reply-draft")).draftReply(Number(todoId));
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** A reply's "Öffnen": WhatsApp Web, Gmail, Outlook or Teams at the front of the automation Chrome (signed in there). */
+export async function openReplyTargetAction(url: string): Promise<ActionState> {
+  try {
+    const { REPLY_HOSTS } = await import("@/lib/boards/reply-draft");
+    if (!REPLY_HOSTS.test(String(url))) return { ok: false, error: "Diese Adresse öffnet Zeff nicht." };
+    const { openInAutomationChrome } = await import("@/lib/attention");
+    const r = await openInAutomationChrome(String(url), new URL(String(url)).host);
+    return r.ok ? { ok: true, message: "Im Automations-Chrome vorne — Entwurf einfügen und abschicken." } : { ok: false, error: r.message };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** A todo's deadline (YYYY-MM-DD) — or none. */
+export async function setTodoDueAction(todoId: number, due: string | null): Promise<ActionState> {
+  try {
+    const { setTodoDue } = await import("@/lib/boards/store");
+    setTodoDue(Number(todoId), due ? String(due) : null);
+    revalidateAll();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
 /** A todo put to the bottom for now — it comes back up when something new happens on it — or taken back up. */
 export async function deferTodoAction(todoId: number, deferred: boolean): Promise<ActionState> {
   try {

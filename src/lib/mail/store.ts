@@ -122,6 +122,11 @@ export function listMails(opts: { q?: string; folder?: string; exceptFolder?: st
     .map(toView);
 }
 
+/** A conversation's messages (a WhatsApp chat, a mail thread), oldest first — its last `limit`. */
+export function conversationOf(convId: string, limit = 20): MailView[] {
+  return getDb().select().from(emails).where(sql`${emails.convId} = ${convId}`).orderBy(desc(emails.receivedAt)).limit(limit).all().map(toView).reverse();
+}
+
 /** How far back a ticket's mails count as its context (as far as the sync reads: two months) — one window for Boards, the Ticket-Lage and the workers. */
 export const MAIL_CONTEXT_DAYS = 60;
 

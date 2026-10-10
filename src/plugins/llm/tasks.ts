@@ -10,6 +10,7 @@ export const LLM_TASKS = [
   { id: "recap", label: "Recap", what: "Fasst einen Tag zusammen: was du getan hast." },
   { id: "mail-todos", label: "Mail-Durchsicht", what: "Findet in neuen Mails, was du zu tun hast." },
   { id: "mail-relations", label: "Mail-Zuordnung", what: "Ordnet jedem Todo die Mails zu, um die es geht." },
+  { id: "reply-draft", label: "Antwort-Entwurf", what: "Schreibt die Antwort auf eine Nachricht (WhatsApp, Mail, Teams), um die es in einem Todo geht — aus dem Verlauf." },
   { id: "auto-actions", label: "Auto-Aktionen", what: "Macht aus Todos fertige Aktionen (Nachricht, Kommentar, Mail, Termin, Übergabe)." },
   { id: "worker", label: "Worker", what: "Arbeitet an einem Todo (Work-Tab, ✨ An Copilot) — im Repo, mit Werkzeugen." },
   { id: "general", label: "Sonstiges", what: "Alles andere (z. B. der Verbindungstest)." },

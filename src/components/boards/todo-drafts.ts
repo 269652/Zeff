@@ -6,7 +6,7 @@ import { useSyncExternalStore } from "react";
 // browser across reloads: { "<todoId>:note" | "<todoId>:ai": text }.
 const KEY = "zeff-todo-drafts";
 const EVENT = "zeff-todo-drafts";
-export type DraftKind = "note" | "ai";
+export type DraftKind = "note" | "ai" | "reply";
 
 function readRaw(): string {
   try {
@@ -51,5 +51,5 @@ export function saveDraft(todoId: number, kind: DraftKind, text: string) {
 export function useTodoDrafts(todoId: number): Record<DraftKind, string> {
   const raw = useSyncExternalStore(subscribe, readRaw, () => "");
   const all = parse(raw);
-  return { note: all[`${todoId}:note`] ?? "", ai: all[`${todoId}:ai`] ?? "" };
+  return { note: all[`${todoId}:note`] ?? "", ai: all[`${todoId}:ai`] ?? "", reply: all[`${todoId}:reply`] ?? "" };
 }

@@ -5,7 +5,7 @@ import { emitChange } from "@/lib/events";
 import type { BoardRun, BoardSettings, Todo } from "@/db/schema";
 import { NotFoundError } from "@/lib/errors";
 import { resolveRefs, unresolveRefs } from "@/lib/resolved";
-import { cleanOps, cleanPlan, DELIVERY_OP_TYPES, isTodoKind, parseTodoRef, todoRef, type BoardResult, type BoardRunView, type BoardTicket, type TodoOp, type TodoPath, type TodoStatus, type TodoStep, type TodoView } from "./shared";
+import { cleanOps, cleanPlan, DELIVERY_OP_TYPES, dueDay, isTodoKind, parseTodoRef, todoRef, type BoardResult, type BoardRunView, type BoardTicket, type TodoOp, type TodoPath, type TodoStatus, type TodoStep, type TodoView } from "./shared";
 
 const { boardSettings, boardRuns, todos } = schema;
 
@@ -120,6 +120,7 @@ const mailRefsOf = (r: Todo) => parse<string[]>(r.mailRefs, []).filter((k) => ty
 const toTodo = (r: Todo): TodoView => ({
   id: r.id,
   ref: todoRef(r.id),
+  due: r.due ?? null,
   ticket: r.ticket,
   text: r.text,
   kind: isTodoKind(r.kind) ? r.kind : "other",
@@ -423,7 +424,7 @@ export function addFollowUp(v: {
  * A todo the Mail-Durchsicht found in a mail (a training to do, a form to fill in …): on a ticket
  * when it's about one, else on none (ticket "") — with the mails it came from.
  */
-export function addMailTodo(v: { ticket: string; text: string; kind: string; owner?: "me" | "other"; refs: string[]; runId: number | null }): TodoView {
+export function addMailTodo(v: { ticket: string; text: string; kind: string; owner?: "me" | "other"; refs: string[]; runId: number | null; due?: string | null }): TodoView {
   emitChange("todos");
   const now = new Date().toISOString();
   const row = getDb()
@@ -437,6 +438,7 @@ export function addMailTodo(v: { ticket: string; text: string; kind: string; own
       source: "Mail-Durchsicht",
       refs: JSON.stringify(v.refs.filter((r) => r.startsWith("mail:")).slice(0, 15)),
       runId: v.runId,
+      due: dueDay(v.due),
       createdAt: now,
       updatedAt: now,
     })
@@ -481,6 +483,12 @@ export function addTodoUserNote(id: number, text: string): TodoView {
 }
 
 /** A todo flagged important (to the top, urgent) — or the flag taken off. Flagged, it's no longer put down. */
+/** A todo's deadline (YYYY-MM-DD), set or taken away by hand. */
+export function setTodoDue(id: number, due: string | null): void {
+  getDb().update(todos).set({ due: dueDay(due), updatedAt: new Date().toISOString() }).where(eq(todos.id, id)).run();
+  emitChange("todos");
+}
+
 export function setTodoFlagged(id: number, flagged: boolean): void {
   getDb()
     .update(todos)
@@ -612,6 +620,8 @@ export function reconcileTodos(result: BoardResult, runId: number): { added: num
           ops: "[]",
           runId,
           updatedAt: now,
+          // A deadline it names; none named: the one it has stays (yours, set by hand).
+          ...(dueDay(td.due) ? { due: dueDay(td.due) } : {}),
         };
         const plan = cleanPlan(td.then, ticket);
         if (td.id && open.has(td.id)) {
