@@ -14,4 +14,9 @@ export const syncSettings: PluginSyncSettings = {
       window: "solange der Automations-Chrome läuft",
     },
   ],
+  // Its extensions' steps (shown while they're on): with each Ticket-Lage.
+  follows: [
+    { key: "notetodos", label: "Notiz-Durchsicht", follows: "mit jeder Ticket-Lage (Auswertung) — Todos aus neuen und geänderten Notizen" },
+    { key: "noterelations", label: "Notiz-Zuordnung", follows: "mit jeder Ticket-Lage — welche Notizen zu welchem Todo gehören" },
+  ],
 };

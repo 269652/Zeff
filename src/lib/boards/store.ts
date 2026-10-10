@@ -114,8 +114,13 @@ function opsOf(r: Todo): TodoView["ops"] {
   return [{ type: "jira-comment", ticket, body: r.draft.trim() }];
 }
 
+/**
+ * What a todo is related to, by the relation runs (its mail_refs column): the mails (Mail-Zuordnung,
+ * "mail:…") and the notes (Notiz-Zuordnung, Keep's extension, "keep:…").
+ */
+const relatedRefsOf = (r: Todo) => parse<string[]>(r.mailRefs, []).filter((k) => typeof k === "string" && (k.startsWith("mail:") || k.startsWith("keep:")));
 /** The mails related to a todo (by the mail relation run). */
-const mailRefsOf = (r: Todo) => parse<string[]>(r.mailRefs, []).filter((k) => typeof k === "string" && k.startsWith("mail:"));
+const mailRefsOf = (r: Todo) => relatedRefsOf(r).filter((k) => k.startsWith("mail:"));
 
 const toTodo = (r: Todo): TodoView => ({
   id: r.id,
@@ -127,8 +132,8 @@ const toTodo = (r: Todo): TodoView => ({
   owner: r.owner === "other" ? "other" : "me",
   status: r.status === "done" || r.status === "dismissed" ? r.status : "open",
   source: r.source,
-  // What it came from (the Ticket-Lage's pick), then the mails related to it.
-  refs: [...new Set([...parse<string[]>(r.refs, []), ...mailRefsOf(r)])],
+  // What it came from (the Ticket-Lage's pick), then the mails and notes related to it.
+  refs: [...new Set([...parse<string[]>(r.refs, []), ...relatedRefsOf(r)])],
   mailRefs: mailRefsOf(r),
   autoOpsWhy: r.autoOpsWhy ?? null,
   note: r.note,
@@ -152,15 +157,18 @@ const toTodo = (r: Todo): TodoView => ({
 
 /** Todos, oldest first: of a ticket, in a state ("all": any). */
 /**
- * The mail relation run's pick: per todo, the mails it's about (["mail:<key>"]). Todos not in
- * `picks` keep theirs.
+ * A relation run's pick: per todo, what it's about — its refs of one kind ("mail:" / "keep:")
+ * replaced, the other kind's kept. Todos not in `picks` keep theirs.
  */
-export function setTodoMailRefs(picks: Map<number, string[]>): number {
+function setRelatedRefs(prefix: "mail:" | "keep:", picks: Map<number, string[]>): number {
   if (!picks.size) return 0;
   let changed = 0;
   getDb().transaction((tx) => {
     for (const [id, refs] of picks) {
-      const json = JSON.stringify([...new Set(refs)].slice(0, 10));
+      const row = tx.select({ mailRefs: todos.mailRefs }).from(todos).where(eq(todos.id, id)).get();
+      if (!row) continue;
+      const others = parse<string[]>(row.mailRefs, []).filter((k) => typeof k === "string" && !k.startsWith(prefix));
+      const json = JSON.stringify([...others, ...[...new Set(refs.filter((r) => r.startsWith(prefix)))].slice(0, 10)]);
       const r = tx.update(todos).set({ mailRefs: json }).where(and(eq(todos.id, id), sql`${todos.mailRefs} <> ${json}`)).run();
       changed += r.changes;
     }
@@ -168,6 +176,12 @@ export function setTodoMailRefs(picks: Map<number, string[]>): number {
   if (changed) emitChange("todos");
   return changed;
 }
+
+/** The mail relation run's pick: per todo, the mails it's about (["mail:<key>"]); its notes stay. */
+export const setTodoMailRefs = (picks: Map<number, string[]>) => setRelatedRefs("mail:", picks);
+
+/** The Notiz-Zuordnung's pick (Keep's extension): per todo, the notes it's about (["keep:…"]); its mails stay. */
+export const setTodoNoteRefs = (picks: Map<number, string[]>) => setRelatedRefs("keep:", picks);
 
 /** A todo on this ticket: its main ticket, or one it's linked to. */
 const onTicket = (key: string) => or(eq(todos.ticket, key), sql`${todos.alsoTickets} like ${`%"${key}"%`}`);
@@ -447,6 +461,30 @@ export function addMailTodo(v: { ticket: string; text: string; kind: string; own
   return toTodo(row);
 }
 
+/** A todo from the Notiz-Durchsicht (Keep's extension): what a note asks of you, the notes as its source. */
+export function addNoteTodo(v: { ticket: string; text: string; kind: string; owner?: "me" | "other"; refs: string[]; runId: number | null; due?: string | null }): TodoView {
+  emitChange("todos");
+  const now = new Date().toISOString();
+  const row = getDb()
+    .insert(todos)
+    .values({
+      ticket: v.ticket.trim().toUpperCase(),
+      text: v.text.trim().slice(0, 500),
+      kind: isTodoKind(v.kind) ? v.kind : "other",
+      owner: v.owner === "other" ? "other" : "me",
+      status: "open",
+      source: "Notiz-Durchsicht",
+      refs: JSON.stringify(v.refs.filter((r) => r.startsWith("keep:")).slice(0, 15)),
+      runId: v.runId,
+      due: dueDay(v.due),
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning()
+    .get();
+  return toTodo(row);
+}
+
 /** A todo for a work session (Work: a new session — on a ticket, or none): your instruction's first line. */
 export function addSessionTodo(v: { ticket: string; text: string }): TodoView {
   emitChange("todos");
@@ -616,7 +654,7 @@ export function reconcileTodos(result: BoardResult, runId: number): { added: num
           kind: isTodoKind(td.kind) ? td.kind : "other",
           owner: td.owner === "other" ? "other" : "me",
           source: td.source?.trim().slice(0, 200) || null,
-          refs: JSON.stringify((td.refs ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).filter((r) => /^(jira-comment|teams|gitlab|mail):./.test(r)).slice(0, 15)),
+          refs: JSON.stringify((td.refs ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).filter((r) => /^(jira-comment|teams|gitlab|mail|keep):./.test(r)).slice(0, 15)),
           ops: "[]",
           runId,
           updatedAt: now,

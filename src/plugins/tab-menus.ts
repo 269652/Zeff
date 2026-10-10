@@ -8,6 +8,7 @@ import type { TabMenuItem } from "./tab-menus-shared";
  */
 const MENUS: Partial<Record<PluginId, { tab: string; items: () => Promise<TabMenuItem[]> }>> = {
   kanban: { tab: "/kanban", items: async () => (await import("./kanban/tab-menu")).tabMenu() },
+  keep: { tab: "/keep", items: async () => (await import("./keep/tab-menu")).tabMenu() },
 };
 
 /** The tabs (addresses) whose plugin gives a dropdown. */

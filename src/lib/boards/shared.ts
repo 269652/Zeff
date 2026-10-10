@@ -91,6 +91,8 @@ export type TodoOp =
   | { type: "calendar-event"; subject: string; start: string; minutes: number; attendees: string; body: string }
   /** The todo handed to a worker (Work tab) with this instruction. */
   | { type: "work-instruct"; instruction: string }
+  /** A note on one of your Keep boards (Google Keep's extension for Auto-Aktionen). */
+  | { type: "keep-note"; board: string; title: string; text: string }
   // Delivery (Zeff makes these after an implementation; not in the AI's dictionary):
   | {
       type: "git-push";
@@ -432,7 +434,9 @@ export type TodoSource =
       gitlab: GitlabItemView;
       synced?: SyncedComment;
       thread?: GitlabItemView[];
-    };
+    }
+  /** A note (Google Keep's or one of your Keep boards') it follows from or is about. */
+  | { source: "keep"; note: import("@/plugins/keep/shared").KeepNoteBrief };
 
 /** A source's identity: its message, whichever ref named it. */
 export const sourceKey = (s: TodoSource) =>
@@ -442,7 +446,9 @@ export const sourceKey = (s: TodoSource) =>
       ? `teams:${s.teams.key}`
       : s.source === "mail"
         ? `mail:${s.mail.key}`
-        : `gitlab:${s.gitlab.key}`;
+        : s.source === "keep"
+          ? s.note.ref
+          : `gitlab:${s.gitlab.key}`;
 
 /**
  * A todo's sources from its refs, each once (a message and its synced copy are one); a GitLab

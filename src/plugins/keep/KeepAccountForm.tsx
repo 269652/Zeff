@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { setKeepAccountAction, type ActionState } from "@/app/actions";
+import type { ActionState } from "@/app/actions";
+import { setKeepAccountAction } from "./actions";
 
 /** Which Google account's Keep the sync reads (its number in the automation Chrome, or its address). */
 export function KeepAccountForm({ account }: { account: string }) {

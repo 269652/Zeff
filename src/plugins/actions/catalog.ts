@@ -6,12 +6,13 @@
 import type { TodoOp } from "@/lib/boards/shared";
 import { GITLAB_ACTIONS } from "../gitlab/actions";
 import { JIRA_ACTIONS } from "../jira/actions";
+import { KEEP_ACTIONS } from "../keep/note-action";
 import { OUTLOOK_CALENDAR_ACTIONS, OUTLOOK_MAIL_ACTIONS } from "../outlook/actions";
 import { TEAMS_ACTIONS } from "../teams/actions";
 import { WORK_ACTIONS } from "../work/actions";
 import type { ActionSpec, ActionType, CleanContext } from "./types";
 
-export const ACTIONS: ActionSpec[] = [...JIRA_ACTIONS, ...GITLAB_ACTIONS, ...TEAMS_ACTIONS, ...OUTLOOK_MAIL_ACTIONS, ...OUTLOOK_CALENDAR_ACTIONS, ...WORK_ACTIONS] as unknown as ActionSpec[];
+export const ACTIONS: ActionSpec[] = [...JIRA_ACTIONS, ...GITLAB_ACTIONS, ...TEAMS_ACTIONS, ...OUTLOOK_MAIL_ACTIONS, ...OUTLOOK_CALENDAR_ACTIONS, ...WORK_ACTIONS, ...KEEP_ACTIONS] as unknown as ActionSpec[];
 
 const BY_TYPE = new Map(ACTIONS.map((a) => [a.type, a]));
 

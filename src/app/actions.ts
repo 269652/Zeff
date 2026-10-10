@@ -1522,16 +1522,6 @@ export async function syncKeepAction(): Promise<ActionState> {
   return r.lastOk ? { ok: true, message: r.lastMessage ?? "" } : { ok: false, error: r.lastMessage ?? "Fehlgeschlagen." };
 }
 
-/** Which Google account's Keep the sync reads: its number in the automation Chrome (0, 1 …) or its address. */
-export async function setKeepAccountAction(_prev: ActionState | null, fd: FormData): Promise<ActionState> {
-  const account = String(fd.get("account") ?? "").trim();
-  if (!/^\d{1,2}$/.test(account) && !/^[^\s@]+@[^\s@]+$/.test(account)) return { ok: false, error: "Eine Kontonummer (0, 1 …) oder eine Adresse." };
-  const { setKeepSettings } = await import("@/plugins/keep/store");
-  setKeepSettings({ account });
-  revalidatePath("/apps/keep");
-  return { ok: true, message: `Keep liest ab jetzt ${/^\d+$/.test(account) ? `Konto ${account}` : account}.` };
-}
-
 /** Which of these links point at a synced Teams message — that message, by link (null when none). */
 export async function findTeamsMessagesAction(urls: string[]): Promise<Record<string, import("@/lib/teams/shared").TeamsMessageView | null>> {
   if (!Array.isArray(urls)) return {};

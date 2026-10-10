@@ -128,7 +128,7 @@ const STEPS: Record<SyncKey, Step> = {
   },
   keep: {
     label: "Google Keep",
-    href: "/apps/keep",
+    href: "/keep/google",
     what: "Your Google Keep notes (Keep opened in a fresh tab, what it loads kept — nothing in Keep changes)",
     run: async () => (await import("@/plugins/keep/sync")).syncKeep(),
     busy: () => flag("__zeffKeepSyncing"),
@@ -193,7 +193,7 @@ const STEPS: Record<SyncKey, Step> = {
     // The Lage itself: not while its run syncs first or relates the mails (their own steps show that).
     busy: () => {
       const r = (globalThis as { __zeffBoardRun?: { phase: string } | null }).__zeffBoardRun;
-      return !!r && r.phase !== "sync" && r.phase !== "mailtodos" && r.phase !== "mails" && r.phase !== "autoactions";
+      return !!r && r.phase !== "sync" && r.phase !== "mailtodos" && r.phase !== "mails" && r.phase !== "notetodos" && r.phase !== "notes" && r.phase !== "autoactions";
     },
     last: () => {
       const run = latestRun();
@@ -261,6 +261,35 @@ const STEPS: Record<SyncKey, Step> = {
     busy: () => flag("__zeffMailRelations"),
     // It runs with the Ticket-Lage (its last step).
     schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("relations").lastAt, window: "workdays, with the Ticket-Lage" }),
+  },
+  // Google Keep's extensions for Todos (there while they're on — see extensions.ts):
+  notetodos: {
+    label: "Notiz-Durchsicht",
+    href: "/keep",
+    what: "Todos from your notes — new and edited ones (Google Keep, your Keep boards in the Lage), by the AI (after each Ticket-Lage)",
+    run: async () => {
+      const r = await (await import("@/plugins/keep/note-review")).reviewNotesForTodos(
+        (globalThis as { __zeffBoardRun?: { id: number } | null }).__zeffBoardRun?.id ?? null,
+      );
+      return r.ok
+        ? { ok: true, message: `${r.reviewed} Notizen durchgesehen, ${r.added} neue Todos${r.error ? ` (${r.error})` : ""}` }
+        : { ok: false, message: r.error ?? "Fehlgeschlagen." };
+    },
+    busy: () => flag("__zeffNoteTodos"),
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("notetodos").lastAt, window: "workdays, with the Ticket-Lage" }),
+  },
+  noterelations: {
+    label: "Notiz-Zuordnung",
+    href: "/todos",
+    what: "Which notes each open todo is about — the AI reads them by content (after each Ticket-Lage)",
+    run: async () => {
+      const r = await (await import("@/plugins/keep/note-relations")).relateNotes();
+      return r.ok
+        ? { ok: true, message: `${r.todos} Todos, ${r.changed} geändert${r.error ? ` (${r.error})` : ""}` }
+        : { ok: false, message: r.error ?? "Fehlgeschlagen." };
+    },
+    busy: () => flag("__zeffNoteRelations"),
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("noterelations").lastAt, window: "workdays, with the Ticket-Lage" }),
   },
 };
 

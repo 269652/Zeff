@@ -5,6 +5,7 @@
  */
 import type { TodoOp } from "@/lib/boards/shared";
 import { runGitlabMerge, runGitlabNote, runGitlabOpenMr } from "../gitlab/run";
+import { runKeepNote } from "../keep/run";
 import { runTeamsMessage } from "../teams/run";
 import { runGitCommit, runGitMergeMain, runGitPush, runWorkInstruct } from "../work/run";
 import type { ActionContext, ActionResult } from "./run-types";
@@ -22,4 +23,5 @@ export const RUNNERS: Partial<Record<TodoOp["type"], Runner>> = {
   "git-commit-branch": r<"git-commit-branch">(runGitCommit),
   "git-merge-main": r<"git-merge-main">(runGitMergeMain),
   "work-instruct": r<"work-instruct">(runWorkInstruct),
+  "keep-note": r<"keep-note">(runKeepNote),
 };

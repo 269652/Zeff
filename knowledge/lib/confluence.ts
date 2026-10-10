@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { ZEFF_DIR } from "./db";
+import { DATA_DIR, FIRST_ACCOUNT, ZEFF_DIR } from "./db";
 
 /**
  * Reading Confluence: its REST API (Server / Data Center with a personal token, or Cloud with
@@ -11,12 +11,16 @@ import { ZEFF_DIR } from "./db";
 
 export type RawPage = { id: string; space: string; title: string; url: string; version: number; updatedAt: string | null; author: string | null; body: string };
 
-/** Zeff's .env, read for the Confluence settings only (the server's own env wins). */
+/**
+ * The Confluence settings — the first account's knowledge server: the server's env, else Zeff's
+ * .env (as mcp-atlassian has them). Another account's (KNOWLEDGE_ACCOUNT) only its own: a .env in
+ * its data folder — never the first account's company Confluence.
+ */
 function env(name: string): string | undefined {
-  if (process.env[name]) return process.env[name];
+  if (FIRST_ACCOUNT && process.env[name]) return process.env[name];
   try {
     const line = fs
-      .readFileSync(path.join(ZEFF_DIR, ".env"), "utf8")
+      .readFileSync(path.join(FIRST_ACCOUNT ? ZEFF_DIR : DATA_DIR, ".env"), "utf8")
       .split(/\r?\n/)
       .find((l) => l.startsWith(`${name}=`));
     return line ? line.slice(name.length + 1).trim().replace(/^["']|["']$/g, "") : undefined;

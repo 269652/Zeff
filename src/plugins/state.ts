@@ -1,6 +1,7 @@
 import { getDb, schema } from "@/db";
 import { accountsInstalled, setAccountsInstalled } from "@/db/accounts";
 import { emitChange } from "@/lib/events";
+import { stepExtensionOk } from "./extension-state";
 import { PLUGINS, STEP_NEEDS, isPluginId, pluginById, pluginOfProvider, pluginsOfRoute, pluginsOfStep, pluginsOfService, type PluginId } from "./catalog";
 
 /** Each plugin as you set it (the plugins table), else its default — not yet looking at what it builds on. */
@@ -75,7 +76,12 @@ export function setInstalled(id: PluginId, installed: boolean): PluginId[] {
 export const stepAvailable = (key: string) => {
   const ps = pluginsOfStep(key);
   const on = installedPlugins();
-  return (!ps.length || ps.some((p) => on.has(p))) && (STEP_NEEDS[key] ?? []).every((n) => (Array.isArray(n) ? n.some((x) => on.has(x)) : on.has(n)));
+  return (
+    (!ps.length || ps.some((p) => on.has(p))) &&
+    (STEP_NEEDS[key] ?? []).every((n) => (Array.isArray(n) ? n.some((x) => on.has(x)) : on.has(n))) &&
+    // A step an extension brings: only while it's on (its plugins there).
+    stepExtensionOk(key)
+  );
 };
 export const routeAvailable = (path: string) => {
   const ps = pluginsOfRoute(path);
