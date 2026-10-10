@@ -76,9 +76,25 @@ function busyRuns() {
   }
   return busy;
 }
+/**
+ * What the running server does in its memory only (GET /api/busy): a Ticket-Lage run's own steps
+ * after the Lage — its row says "ok" by then —, syncs, a Keep board sync … A restart would cut
+ * them off. An older server without the route (or none running): nothing.
+ */
+async function serverBusy() {
+  try {
+    const r = await fetch(`http://127.0.0.1:${PORT}/api/busy`, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return [];
+    const j = await r.json();
+    return Array.isArray(j.busy) ? j.busy.map((b) => `Server: ${b}`) : [];
+  } catch {
+    return [];
+  }
+}
+
 async function waitIdle(what) {
   for (let i = 0; ; i++) {
-    const busy = busyRuns();
+    const busy = [...busyRuns(), ...(await serverBusy())];
     if (!busy.length) return;
     if (!args.has("--wait") && what === "before") fail(`Es läuft gerade etwas: ${busy.join(", ")}. Später noch einmal — oder mit --wait.`);
     if (i === 0) log(`Warte auf: ${busy.join(", ")} …`);
