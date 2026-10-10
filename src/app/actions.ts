@@ -1988,6 +1988,20 @@ export async function openReplyTargetAction(url: string): Promise<ActionState> {
   }
 }
 
+/** The Auswerten page: one step's context settings (sources, numbers, its own instructions). */
+export async function saveContextPrefsAction(step: string, patch: { sources?: Record<string, boolean>; numbers?: Record<string, number>; extra?: string }): Promise<ActionState> {
+  try {
+    const { CONTEXT_STEP_IDS } = await import("@/lib/boards/context-prefs-shared");
+    if (!(CONTEXT_STEP_IDS as readonly string[]).includes(step)) return { ok: false, error: "Unbekannter Schritt." };
+    const { setStepPrefs } = await import("@/lib/boards/context-prefs");
+    setStepPrefs(step as (typeof CONTEXT_STEP_IDS)[number], patch ?? {});
+    revalidatePath("/auswerten");
+    return { ok: true, message: "Gespeichert — gilt ab dem nächsten Lauf." };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
 /** A todo's deadline (YYYY-MM-DD) — or none. */
 export async function setTodoDueAction(todoId: number, due: string | null): Promise<ActionState> {
   try {

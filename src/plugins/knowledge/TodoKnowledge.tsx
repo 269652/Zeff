@@ -63,9 +63,8 @@ export function TodoKnowledgeList({ k }: { k: Loaded }) {
   );
 }
 
-/** The toggle's hovercard: the knowledge, looked up as it opens. */
-export function TodoKnowledgePreview({ todoId }: { todoId: number }) {
-  const k = useTodoKnowledge(todoId, true);
+/** The toggle's hovercard: the knowledge the Wissens-Zuordnung picked. */
+export function TodoKnowledgePreview({ k }: { k: Loaded }) {
   return (
     <div className="space-y-1.5 overflow-hidden rounded-lg border border-zinc-200 bg-white p-3 text-xs shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <p className="font-medium text-zinc-600 dark:text-zinc-300">Wissen (Confluence)</p>

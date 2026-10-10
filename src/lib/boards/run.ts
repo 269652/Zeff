@@ -6,7 +6,7 @@ import { BOARD_RESULT_SCHEMA, isAttention, TICKET_ACTION_TYPES, type BoardResult
 import { closeTodosOfDoneTickets, finishRun, getBoardSettings, lastGoodRun, reconcileTodos, startRun } from "./store";
 
 /** What a run is doing right now — one at a time across the server (actions and the scheduler are separate module copies). */
-const state = globalThis as { __zeffBoardRun?: { id: number; phase: "sync" | "jira" | "ai" | "saving" | "mailtodos" | "mails" | "notetodos" | "notes" | "autoactions"; since: number; provider: string } | null };
+const state = globalThis as { __zeffBoardRun?: { id: number; phase: "sync" | "jira" | "ai" | "saving" | "mailtodos" | "mails" | "notetodos" | "notes" | "knowledge" | "autoactions"; since: number; provider: string } | null };
 
 /** The run going on in this server, and its step — null when none is. */
 export const boardRunState = () => state.__zeffBoardRun ?? null;
@@ -67,15 +67,17 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
   state.__zeffBoardRun = { id, phase: opts.syncJira ? "sync" : "jira", since: t0, provider };
   void (async () => {
     try {
-      // By hand: Teams, Jira, the mails and WhatsApp synced first (the chats, tickets, statuses, the
-      // inbox's latest days) — a failed sync doesn't stop the run.
+      // By hand: what the Auswerten settings say is synced first (Jira, Teams, the mails …) — only
+      // when its last sync is older than set; a failed sync doesn't stop the run.
       if (opts.syncJira) {
-        const { syncAndWait } = await import("@/lib/sync/registry");
+        const { syncAndWait, syncOverview } = await import("@/lib/sync/registry");
         const { stepAvailable } = await import("@/plugins/state");
-        if (stepAvailable("teams")) await syncAndWait("teams").catch(() => null);
-        if (stepAvailable("jira")) await syncAndWait("jira").catch(() => null);
-        if (stepAvailable("mail")) await syncAndWait("mail").catch(() => null);
-        if (stepAvailable("whatsapp")) await syncAndWait("whatsapp").catch(() => null);
+        const { getContextPrefs } = await import("./context-prefs");
+        const { PRESYNC_ORDER } = await import("./context-prefs-shared");
+        const pre = getContextPrefs().presync;
+        const last = new Map(syncOverview().steps.map((s) => [s.key, s.lastAt]));
+        const stale = (key: string) => !pre.numbers.maxAge || !last.get(key as never) || Date.now() - new Date(last.get(key as never)!).getTime() > pre.numbers.maxAge * 60000;
+        for (const key of PRESYNC_ORDER) if (pre.sources[key] && stepAvailable(key) && stale(key)) await syncAndWait(key).catch(() => null);
         state.__zeffBoardRun = { id, phase: "jira", since: t0, provider };
       }
       const { tickets, prompt, doneLeft, fromCache } = await collectBoard(s.jql, lastGoodRun(id), { maxChars: ai.maxPrompt });
@@ -108,8 +110,6 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
       await syncAndWait("mailtodos");
       state.__zeffBoardRun = { id, phase: "mails", since: t0, provider };
       await syncAndWait("relations");
-      // Last: the todos without a button get ready actions (with the mails related to them in their context).
-      state.__zeffBoardRun = { id, phase: "autoactions", since: t0, provider };
       // Google Keep's extensions (while they're on): the notes gone through for todos, then which
       // notes each todo is about.
       const { stepAvailable } = await import("@/plugins/state");
@@ -121,6 +121,13 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
         state.__zeffBoardRun = { id, phase: "notes", since: t0, provider };
         await syncAndWait("noterelations");
       }
+      // The Knowledge plugin's extension: which knowledge pages each todo needs (only those that fit).
+      if (stepAvailable("knowledgerel")) {
+        state.__zeffBoardRun = { id, phase: "knowledge", since: t0, provider };
+        await syncAndWait("knowledgerel");
+      }
+      // Last: the todos without a button get ready actions (with the mails related to them in their context).
+      state.__zeffBoardRun = { id, phase: "autoactions", since: t0, provider };
       await syncAndWait("autoactions");
     } catch (e) {
       finishRun(id, { status: "error", error: errorMessage(e), durationMs: Date.now() - t0 });

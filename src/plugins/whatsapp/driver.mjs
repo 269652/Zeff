@@ -83,7 +83,7 @@ function readRows() {
     const unreadLabel = [...r.querySelectorAll("[aria-label]")].map((e) => e.getAttribute("aria-label") || "").find((l) => /ungelesen|unread/i.test(l)) || "";
     const unreadCount = +(/(\d+)/.exec(unreadLabel)?.[1] || 0);
     // The last message: the list shows it in one line (a group's with "Anna: " before it); its tooltip has it in full.
-    const line = lines.find((l) => l !== name && l !== when && !/^\d+$/.test(l) && !/^(ungelesen|unread)/i.test(l)) || "";
+    const line = lines.find((l) => l !== name && l !== when && !/^\d+$/.test(l) && !/(ungelesen|unread)/i.test(l)) || "";
     const full = titles.slice(1).sort((a, b) => b.length - a.length)[0] || "";
     const prefix = /^([^:\n]{1,40}):\s/.exec(line)?.[1] || "";
     const text = full && full.length >= line.length - prefix.length - 2 ? full : prefix ? line.slice(prefix.length + 1).trim() : line;

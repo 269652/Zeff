@@ -872,6 +872,8 @@ export const todos = sqliteTable(
     autoOpsWhy: text("auto_ops_why"),
     /** When it's due (YYYY-MM-DD) — a deadline the AI found, or set by you. */
     due: text("due"),
+    /** JSON: the knowledge the Wissens-Zuordnung picked for it ({ at, pages, entities }). */
+    knowledge: text("knowledge"),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(CURRENT_TIMESTAMP)`),

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
-import { daysUntil, dueText, dueTone } from "@/components/boards/DueBadge";
+import { daysUntil, dueText, dueTone } from "@/lib/boards/due-shared";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { formatHours } from "@/lib/format";
 import type { TodoView } from "@/lib/boards/shared";

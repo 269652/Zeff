@@ -12,6 +12,7 @@ export const LLM_TASKS = [
   { id: "mail-relations", label: "Mail-Zuordnung", what: "Ordnet jedem Todo die Mails zu, um die es geht." },
   { id: "note-todos", label: "Notiz-Durchsicht", what: "Findet in neuen und geänderten Notizen (Google Keep, deine Keep-Boards), was du zu tun hast." },
   { id: "note-relations", label: "Notiz-Zuordnung", what: "Ordnet jedem Todo die Notizen zu, um die es geht." },
+  { id: "knowledge-relations", label: "Wissens-Zuordnung", what: "Wählt aus den Treffern der Wissensbasis, was zu jedem Todo wirklich passt." },
   { id: "reply-draft", label: "Antwort-Entwurf", what: "Schreibt die Antwort auf eine Nachricht (WhatsApp, Mail, Teams), um die es in einem Todo geht — aus dem Verlauf." },
   { id: "auto-actions", label: "Auto-Aktionen", what: "Macht aus Todos fertige Aktionen (Nachricht, Kommentar, Mail, Termin, Übergabe)." },
   { id: "worker", label: "Worker", what: "Arbeitet an einem Todo (Work-Tab, ✨ An Copilot) — im Repo, mit Werkzeugen." },

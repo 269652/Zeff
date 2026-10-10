@@ -10,7 +10,7 @@ export type ContextSource = { key: string; label: string; what?: string; plugin?
 export type ContextNumber = { key: string; label: string; min: number; max: number; default: number; unit?: string };
 export type ContextStep = { id: ContextStepId; label: string; what: string; plugin?: PluginId; sources: ContextSource[]; numbers: ContextNumber[] };
 
-export const CONTEXT_STEP_IDS = ["presync", "lage", "mailtodos", "relations", "autoactions", "replies"] as const;
+export const CONTEXT_STEP_IDS = ["presync", "lage", "mailtodos", "relations", "knowledge", "autoactions", "replies"] as const;
 export type ContextStepId = (typeof CONTEXT_STEP_IDS)[number];
 
 export const CONTEXT_STEPS: ContextStep[] = [
@@ -61,7 +61,10 @@ export const CONTEXT_STEPS: ContextStep[] = [
       { key: "whatsapp", label: "WhatsApp", plugin: "whatsapp", default: true },
       { key: "keep", label: "Notizen (Keep)", plugin: "keep", default: true },
     ],
-    numbers: [{ key: "days", label: "Neue der letzten", min: 1, max: 60, default: 14, unit: "Tage" }],
+    numbers: [
+      { key: "days", label: "Neue der letzten", min: 1, max: 60, default: 14, unit: "Tage" },
+      { key: "chatDays", label: "Unbeantwortete WhatsApp-Chats der letzten", min: 7, max: 120, default: 45, unit: "Tage" },
+    ],
   },
   {
     id: "relations",
@@ -72,6 +75,17 @@ export const CONTEXT_STEPS: ContextStep[] = [
     numbers: [
       { key: "days", label: "Mails der letzten", min: 7, max: 120, default: 60, unit: "Tage" },
       { key: "perTicket", label: "Mails je Ticket höchstens", min: 5, max: 60, default: 30 },
+    ],
+  },
+  {
+    id: "knowledge",
+    label: "Wissens-Zuordnung",
+    what: "Prüft für jedes neue oder geänderte Todo die Treffer der Wissensbasis und behält nur, was wirklich passt.",
+    plugin: "knowledge",
+    sources: [],
+    numbers: [
+      { key: "candidates", label: "Treffer je Todo, die die KI prüft", min: 3, max: 20, default: 8 },
+      { key: "maxTodos", label: "Todos je Lauf höchstens", min: 5, max: 200, default: 40 },
     ],
   },
   {

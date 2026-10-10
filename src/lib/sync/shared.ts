@@ -1,6 +1,6 @@
 /** The header's sync menu — the steps, as the page sees them (client-safe). */
 
-export const SYNC_KEYS = ["jira", "teams", "mail", "whatsapp", "keep", "gitlab", "calendar", "roar", "timo", "boards", "mailtodos", "relations", "notetodos", "noterelations", "autoactions", "boardlage"] as const;
+export const SYNC_KEYS = ["jira", "teams", "mail", "whatsapp", "keep", "gitlab", "calendar", "roar", "timo", "boards", "mailtodos", "relations", "notetodos", "noterelations", "knowledgerel", "autoactions", "boardlage"] as const;
 export type SyncKey = (typeof SYNC_KEYS)[number];
 
 export const isSyncKey = (v: unknown): v is SyncKey => (SYNC_KEYS as readonly unknown[]).includes(v);

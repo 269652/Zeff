@@ -164,6 +164,17 @@ export const PLUGINS: PluginManifest[] = [
     requires: "den Wissens-Server — der Launcher (Zeff.exe) startet ihn; jedes weitere Konto mit diesem Plugin bekommt einen eigenen, mit eigener Datenbank",
     tabs: [{ href: "/knowledge", label: "Chat", short: "Chat" }],
     routes: ["/knowledge"],
+    extensions: [
+      {
+        key: "todo-knowledge",
+        for: "todos",
+        name: "Wissens-Zuordnung",
+        description: "Ein Schritt nach jeder Ticket-Lage: die KI prüft für jedes neue oder geänderte Todo die Treffer der Wissensbasis und behält nur, was wirklich passt — „Show knowledge“ zeigt dann genau das.",
+        requires: ["llm"],
+        defaultInstalled: true,
+        syncSteps: ["knowledgerel"],
+      },
+    ],
   },
   {
     id: "accounts",

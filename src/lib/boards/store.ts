@@ -1,3 +1,4 @@
+import { parseTodoKnowledge } from "@/plugins/knowledge/shared";
 import { duplicateTodo } from "./similar";
 import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
@@ -126,6 +127,7 @@ const toTodo = (r: Todo): TodoView => ({
   id: r.id,
   ref: todoRef(r.id),
   due: r.due ?? null,
+  knowledge: parseTodoKnowledge(r.knowledge),
   ticket: r.ticket,
   text: r.text,
   kind: isTodoKind(r.kind) ? r.kind : "other",
