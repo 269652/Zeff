@@ -32,14 +32,14 @@ const apiFor = (s: NoteSource): Api =>
         create: (v) => createNoteAction(s.boardId, v),
         update: (id, p) => updateNoteAction(Number(id), p),
         remove: (id) => deleteNoteAction(Number(id)),
-        removeQuestion: "Notiz löschen?",
+        removeQuestion: "Delete the note?",
         google: false,
       }
     : {
         create: (v) => createGoogleNoteAction(v),
         update: (id, p) => updateGoogleNoteAction(String(id), p),
         remove: (id) => trashGoogleNoteAction(String(id)),
-        removeQuestion: "Notiz in Google Keeps Papierkorb legen?",
+        removeQuestion: "Move the note to Google Keep's bin?",
         google: true,
       };
 
@@ -72,8 +72,8 @@ function NoteText({ text, onToggle }: { text: string; onToggle?: (line: number) 
 
 function ColorPicker({ value, onPick, disabled }: { value: string | null; onPick: (c: string | null) => void; disabled?: boolean }) {
   return (
-    <span className="flex flex-wrap items-center gap-1" role="radiogroup" aria-label="Farbe">
-      <button type="button" role="radio" aria-checked={!value} aria-label="Keine Farbe" disabled={disabled} onClick={() => onPick(null)} className={`size-4 rounded-full border border-zinc-300 bg-white dark:bg-zinc-900 ${!value ? "ring-2 ring-zinc-500" : ""}`} />
+    <span className="flex flex-wrap items-center gap-1" role="radiogroup" aria-label="Colour">
+      <button type="button" role="radio" aria-checked={!value} aria-label="No colour" disabled={disabled} onClick={() => onPick(null)} className={`size-4 rounded-full border border-zinc-300 bg-white dark:bg-zinc-900 ${!value ? "ring-2 ring-zinc-500" : ""}`} />
       {Object.entries(KEEP_SWATCH).map(([c, cls]) => (
         <button key={c} type="button" role="radio" aria-checked={value === c} aria-label={c} disabled={disabled} onClick={() => onPick(c)} className={`size-4 rounded-full ${cls} ${value === c ? "ring-2 ring-zinc-500" : "opacity-70 hover:opacity-100"}`} />
       ))}
@@ -81,7 +81,7 @@ function ColorPicker({ value, onPick, disabled }: { value: string | null; onPick
   );
 }
 
-/** "Notiz schreiben …": opens into title, text, labels and colour; saved with Enter in the title or the button. */
+/** "Write a note …": opens into title, text, labels and colour; saved with Enter in the title or the button. */
 function Composer({ api, run }: { api: Api; run: Run }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -101,24 +101,24 @@ function Composer({ api, run }: { api: Api; run: Run }) {
   if (!open)
     return (
       <button type="button" onClick={() => setOpen(true)} className="card mx-auto block w-full max-w-xl px-4 py-3 text-left text-sm text-zinc-500 hover:shadow">
-        {api.google ? "Notiz in Google Keep schreiben …" : "Notiz schreiben …"}
+        {api.google ? "Write a note in Google Keep …" : "Write a note …"}
       </button>
     );
   return (
     <div className={`card mx-auto max-w-xl space-y-2 p-3 ${keepNoteClass(color)} ${busy ? "opacity-70" : ""}`} aria-busy={busy}>
-      <input autoFocus disabled={busy} className="w-full bg-transparent font-medium outline-none" placeholder="Titel" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), void save())} />
-      <textarea disabled={busy} className="min-h-24 w-full resize-y bg-transparent text-sm outline-none" placeholder="Notiz … (eine Liste: Zeilen mit „- [ ] “)" value={text} onChange={(e) => setText(e.target.value)} />
-      <input disabled={busy} className="input text-xs" placeholder="Labels, durch Komma" value={labels} onChange={(e) => setLabels(e.target.value)} />
+      <input autoFocus disabled={busy} className="w-full bg-transparent font-medium outline-none" placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), void save())} />
+      <textarea disabled={busy} className="min-h-24 w-full resize-y bg-transparent text-sm outline-none" placeholder="Note … (a list: lines with “- [ ] ”)" value={text} onChange={(e) => setText(e.target.value)} />
+      <input disabled={busy} className="input text-xs" placeholder="Labels, comma-separated" value={labels} onChange={(e) => setLabels(e.target.value)} />
       <div className="flex flex-wrap items-center gap-2">
         <ColorPicker value={color} onPick={setColor} disabled={busy} />
         <button type="button" disabled={busy} className="btn btn-sm ml-auto" onClick={() => setText((t) => `${t}${t && !t.endsWith("\n") ? "\n" : ""}- [ ] `)}>
-          ☐ Liste
+          ☐ List
         </button>
         <button type="button" disabled={busy} className="btn btn-sm" onClick={reset}>
-          Verwerfen
+          Discard
         </button>
         <button type="button" disabled={busy} className="btn btn-primary btn-sm" onClick={() => void save()}>
-          {busy ? (api.google ? "Speichert in Keep …" : "…") : "Speichern"}
+          {busy ? (api.google ? "Saving in Keep …" : "…") : "Save"}
         </button>
       </div>
     </div>
@@ -160,15 +160,15 @@ function NoteCard({ n, api, run, labelHref }: { n: BoardNote; api: Api; run: Run
     <article id={`note-${n.id}`} aria-busy={busy} className={`card group mb-3 break-inside-avoid space-y-2 p-3 ${keepNoteClass(n.color)} ${busy ? "opacity-70" : ""}`}>
       {editing ? (
         <>
-          <input autoFocus disabled={busy} className="w-full bg-transparent font-medium outline-none" placeholder="Titel" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <input autoFocus disabled={busy} className="w-full bg-transparent font-medium outline-none" placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
           <textarea disabled={busy} className="min-h-32 w-full resize-y bg-transparent text-sm outline-none" value={text} onChange={(e) => setText(e.target.value)} />
-          <input disabled={busy} className="input text-xs" placeholder="Labels, durch Komma" value={labels} onChange={(e) => setLabels(e.target.value)} />
+          <input disabled={busy} className="input text-xs" placeholder="Labels, comma-separated" value={labels} onChange={(e) => setLabels(e.target.value)} />
           <div className="flex justify-end gap-2">
             <button type="button" disabled={busy} className="btn btn-sm" onClick={() => (setTitle(n.title), setText(n.text), setLabels(n.labels.join(", ")), setEditing(false))}>
-              Abbrechen
+              Cancel
             </button>
             <button type="button" disabled={busy} className="btn btn-primary btn-sm" onClick={() => void save()}>
-              {busy ? (api.google ? "Speichert in Keep …" : "…") : "Speichern"}
+              {busy ? (api.google ? "Saving in Keep …" : "…") : "Save"}
             </button>
           </div>
         </>
@@ -177,7 +177,7 @@ function NoteCard({ n, api, run, labelHref }: { n: BoardNote; api: Api; run: Run
           {(n.title || n.pinned) && (
             <h2 className="flex items-baseline gap-2 font-medium">
               <span className="min-w-0 flex-1 break-words">{n.title}</span>
-              {n.pinned && <span title="Angeheftet">📌</span>}
+              {n.pinned && <span title="Pinned">📌</span>}
             </h2>
           )}
           {shown && <NoteText text={shown} onToggle={toggle} />}
@@ -201,24 +201,24 @@ function NoteCard({ n, api, run, labelHref }: { n: BoardNote; api: Api; run: Run
       <div className="flex flex-wrap items-center gap-1.5 text-xs text-zinc-500 opacity-60 group-hover:opacity-100 focus-within:opacity-100">
         <ColorPicker value={n.color} disabled={busy} onPick={(c) => void go({ color: c })} />
         <span className="ml-auto flex items-center gap-1">
-          {busy && <span className="text-zinc-500">{api.google ? "speichert in Keep …" : "…"}</span>}
+          {busy && <span className="text-zinc-500">{api.google ? "saving in Keep …" : "…"}</span>}
           {n.url && (
             <a href={n.url} target="_blank" rel="noreferrer" className="px-1 text-indigo-600 hover:underline dark:text-indigo-400">
               Keep ↗
             </a>
           )}
-          <button type="button" disabled={busy} className="icon-btn" title={n.pinned ? "Lösen" : "Anheften"} aria-label={n.pinned ? "Lösen" : "Anheften"} onClick={() => void go({ pinned: !n.pinned })}>
+          <button type="button" disabled={busy} className="icon-btn" title={n.pinned ? "Unpin" : "Pin"} aria-label={n.pinned ? "Unpin" : "Pin"} onClick={() => void go({ pinned: !n.pinned })}>
             📌
           </button>
-          <button type="button" disabled={busy} className="icon-btn" title={n.archived ? "Zurückholen" : "Archivieren"} aria-label={n.archived ? "Zurückholen" : "Archivieren"} onClick={() => void go({ archived: !n.archived })}>
+          <button type="button" disabled={busy} className="icon-btn" title={n.archived ? "Restore" : "Archive"} aria-label={n.archived ? "Restore" : "Archive"} onClick={() => void go({ archived: !n.archived })}>
             {n.archived ? "↩" : "🗄"}
           </button>
           <button
             type="button"
             disabled={busy}
             className="icon-btn"
-            title="Löschen"
-            aria-label="Löschen"
+            title="Delete"
+            aria-label="Delete"
             onClick={() => {
               if (!confirm(api.removeQuestion)) return;
               setBusy(true);
@@ -241,10 +241,10 @@ export function KeepBoardView({ source, notes, archived, empty }: { source: Note
   const labelHref = source.kind === "google" ? source.labelHref : undefined;
   const run: Run = (fn) =>
     new Promise<boolean>((resolve) => {
-      if (api.google) toast("Wird in Google Keep geschrieben … (etwa eine halbe Minute)", { tone: "ok" });
+      if (api.google) toast("Writing to Google Keep … (about half a minute)", { tone: "ok" });
       start(async () => {
         const r: Result = await fn().catch((e: unknown) => ({ ok: false, error: String((e as Error)?.message ?? e) }));
-        if (!r.ok) toast(r.error ?? "Ging nicht.", { tone: "error" });
+        if (!r.ok) toast(r.error ?? "That didn't work.", { tone: "error" });
         else if (r.message) toast(r.message, { tone: "ok" });
         router.refresh();
         resolve(r.ok);
@@ -257,9 +257,9 @@ export function KeepBoardView({ source, notes, archived, empty }: { source: Note
     <section className="space-y-4">
       {!archived && <Composer api={api} run={run} />}
       {notes.length === 0 && <p className="py-6 text-center text-sm text-zinc-500">{empty}</p>}
-      {pinned.length > 0 && others.length > 0 && <h2 className="text-xs font-semibold text-zinc-500 uppercase">Angeheftet</h2>}
+      {pinned.length > 0 && others.length > 0 && <h2 className="text-xs font-semibold text-zinc-500 uppercase">Pinned</h2>}
       {pinned.length > 0 && <div className="columns-1 gap-3 sm:columns-2 xl:columns-3">{pinned.map(card)}</div>}
-      {pinned.length > 0 && others.length > 0 && <h2 className="text-xs font-semibold text-zinc-500 uppercase">Weitere</h2>}
+      {pinned.length > 0 && others.length > 0 && <h2 className="text-xs font-semibold text-zinc-500 uppercase">Others</h2>}
       {others.length > 0 && <div className="columns-1 gap-3 sm:columns-2 xl:columns-3">{others.map(card)}</div>}
     </section>
   );

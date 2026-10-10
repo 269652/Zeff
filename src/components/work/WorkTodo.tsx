@@ -99,9 +99,9 @@ function SendButton({
     return (
       <span
         className="max-w-48 shrink-0 text-right text-xs text-zinc-400"
-        title="The Ticket-Lage gives every todo its operations (status, assignee, comment …) — then “Run” runs them without AI"
+        title="The briefing gives every todo its operations (status, assignee, comment…) — then “Run” runs them without AI"
       >
-        Its operations come with the next Ticket-Lage
+        Its operations come with the next briefing
       </span>
     );
   if (
@@ -286,9 +286,9 @@ function OpChip({
             target="_blank"
             rel="noreferrer"
             className="shrink-0 rounded px-1.5 font-medium text-sky-700 hover:bg-sky-100 dark:text-sky-300 dark:hover:bg-sky-900"
-            title={`Öffnet sich ausgefüllt in ${openIn(href)} — prüfen und selbst senden`}
+            title={`Opens filled in in ${openIn(href)} — check it and send it yourself`}
           >
-            In {openIn(href)} öffnen ↗
+            Open in {openIn(href)} ↗
           </a>
         )}
         <span className="flex shrink-0 items-center gap-0.5">
@@ -300,8 +300,8 @@ function OpChip({
               setText(body);
               setEditing(true);
             }}
-            title="Text bearbeiten"
-            aria-label="Text bearbeiten"
+            title="Edit the text"
+            aria-label="Edit the text"
           >
             <PencilIcon className="size-3.5" />
           </button>
@@ -315,12 +315,12 @@ function OpChip({
             onClick={() =>
               start(async () => {
                 const r = await doneBrowserOpAction(todoId, index);
-                toast(r?.ok ? (r.message ?? "Vermerkt.") : (r?.error ?? "Ging nicht."), { tone: r?.ok ? "ok" : "error" });
+                toast(r?.ok ? (r.message ?? "Noted.") : (r?.error ?? "Didn't work."), { tone: r?.ok ? "ok" : "error" });
                 router.refresh();
               })
             }
-            title={op.type === "calendar-event" ? "Erledigt: den Termin in Outlook angelegt — am Todo vermerken" : "Erledigt: die Mail gesendet — am Todo vermerken"}
-            aria-label="Erledigt"
+            title={op.type === "calendar-event" ? "Done: the meeting is created in Outlook — note it on the todo" : "Done: the mail is sent — note it on the todo"}
+            aria-label="Done"
           >
             <CheckIcon className="size-3.5" />
           </button>
@@ -334,12 +334,12 @@ function OpChip({
             onClick={() =>
               start(async () => {
                 const r = await removeTodoOpAction(todoId, index);
-                if (!r?.ok) toast(r?.error ?? "Ging nicht.", { tone: "error" });
+                if (!r?.ok) toast(r?.error ?? "Didn't work.", { tone: "error" });
                 router.refresh();
               })
             }
-            title="Entfernen — ohne Vermerk"
-            aria-label="Aktion entfernen"
+            title="Remove — without a note"
+            aria-label="Remove the action"
           >
             <CloseIcon className="size-3.5" />
           </button>
@@ -352,9 +352,9 @@ function OpChip({
           target="_blank"
           rel="noreferrer"
           className="block text-xs break-words text-sky-950/80 hover:underline dark:text-sky-100/80"
-          title={`${"note" in op ? op.note : ""} — in GitLab öffnen`}
+          title={`${"note" in op ? op.note : ""} — open in GitLab`}
         >
-          {note.author ?? "Kommentar"}: „{note.excerpt}“{note.state === "resolved" ? " (schon aufgelöst)" : ""} ↗
+          {note.author ?? "Comment"}: “{note.excerpt}”{note.state === "resolved" ? " (already resolved)" : ""} ↗
         </a>
       ) : (
         detail && (
@@ -365,7 +365,7 @@ function OpChip({
       )}
       {!!files?.length && (
         <details className="mt-0.5 text-xs text-sky-950/80 dark:text-sky-100/80">
-          <summary className="cursor-pointer">Dateien zeigen</summary>
+          <summary className="cursor-pointer">Show files</summary>
           <ul className="mt-0.5 space-y-0.5 font-mono text-[11px]">
             {files.map((f) => (
               <li key={f} className="break-all" title={f}>
@@ -399,13 +399,13 @@ function OpChip({
                   start(async () => {
                     const r = await saveTodoOpTextAction(todoId!, index, text);
                     if (r && !r.ok)
-                      toast(r.error ?? "Ging nicht.", { tone: "error" });
+                      toast(r.error ?? "Didn't work.", { tone: "error" });
                     else setEditing(false);
                     router.refresh();
                   })
                 }
               >
-                {pending ? "…" : "Speichern"}
+                {pending ? "…" : "Save"}
               </button>
               <button
                 type="button"
@@ -413,7 +413,7 @@ function OpChip({
                 disabled={pending}
                 onClick={() => setEditing(false)}
               >
-                Abbrechen
+                Cancel
               </button>
             </span>
           </span>
@@ -422,7 +422,7 @@ function OpChip({
           (op.type === "jira-create" ? (
             // A new ticket's description is long: folded, its title above says what it is.
             <details className="mt-0.5 text-xs text-sky-950/80 dark:text-sky-100/80">
-              <summary className="cursor-pointer">Beschreibung zeigen</summary>
+              <summary className="cursor-pointer">Show description</summary>
               <span className="mt-0.5 block whitespace-pre-wrap">{body}</span>
             </details>
           ) : (
@@ -623,7 +623,7 @@ export function WorkTodo({
                 ❗
               </span>
             )}
-            {active && !closed && !t.needsInput && <RunningSpinner title={active.status === "queued" ? `${active.ref} wartet auf einen freien Worker` : `${active.ref} arbeitet daran`} />}
+            {active && !closed && !t.needsInput && <RunningSpinner title={active.status === "queued" ? `${active.ref} is waiting for a free worker` : `${active.ref} is working on it`} />}
             <Linked text={t.text} cards={cards} mrs={t.links?.mrs} />
           </div>
           {t.needsInput && !closed && (
@@ -635,14 +635,14 @@ export function WorkTodo({
             <CopyButton
               text={agentInstruction(t, instructions)}
               className="font-mono hover:text-indigo-600 hover:underline dark:hover:text-indigo-400"
-              title={`„${agentInstruction(t, instructions)}“ kopieren — für Copilot / Claude Code`}
+              title={`Copy “${agentInstruction(t, instructions)}” — for Copilot / Claude Code`}
             >
               {todoRef(t.id)}
             </CopyButton>{" "}
             <Link
               href={`/todos${closed ? "?todos=done" : ""}#todo-${t.id}`}
               className="hover:underline"
-              title={`${todoRef(t.id)} auf dem Todos-Tab zeigen`}
+              title={`Show ${todoRef(t.id)} on the Todos tab`}
             >
               ↗
             </Link>{" "}
@@ -679,10 +679,10 @@ export function WorkTodo({
                 · <TodoRefs text={t.note} />
               </>
             )}
-            {!closed && <TodoQuickButtons todoId={t.id} panel={quick} onToggle={setQuick} aiDisabled={active ? `${active.ref} arbeitet schon daran` : undefined} />}
+            {!closed && <TodoQuickButtons todoId={t.id} panel={quick} onToggle={setQuick} aiDisabled={active ? `${active.ref} is already working on it` : undefined} />}
             {!closed && <FlagButton todoId={t.id} todoRef={todoRef(t.id)} flagged={!!t.flaggedAt} className="ml-0.5 inline-flex size-5 items-center justify-center rounded align-middle hover:bg-zinc-100 dark:hover:bg-zinc-800 [&_svg]:size-3.5" />}
-            {t.flaggedAt && !closed && <span className="font-medium text-red-600 dark:text-red-400"> · wichtig</span>}
-            {reported && t.workerDone && <span className="font-medium text-emerald-700 dark:text-emerald-400" title={`${t.workerDone.by} reports this done${t.workerDone.note ? `: ${t.workerDone.note}` : ""} - tick it off to close it`}> · ✓ {t.workerDone.by.split(" · ")[0]}: erledigt gemeldet</span>}
+            {t.flaggedAt && !closed && <span className="font-medium text-red-600 dark:text-red-400"> · important</span>}
+            {reported && t.workerDone && <span className="font-medium text-emerald-700 dark:text-emerald-400" title={`${t.workerDone.by} reports this done${t.workerDone.note ? `: ${t.workerDone.note}` : ""} - tick it off to close it`}> · ✓ {t.workerDone.by.split(" · ")[0]}: reported done</span>}
           </div>
           <TodoQuickPanel todoId={t.id} todoRef={todoRef(t.id)} panel={closed ? null : quick} onClose={() => setQuick(null)} />
           <TodoContext t={t} cameFrom={cameFrom} />

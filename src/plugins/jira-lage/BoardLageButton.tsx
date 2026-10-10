@@ -3,10 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "@/components/Toaster";
+import { formatDateTime } from "@/lib/format";
 import type { RichBoard } from "@/plugins/kanban/shared";
 import { startBoardLageAction } from "./actions";
 
-const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString("de-DE", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
+const when = (iso: string | null) => (iso ? formatDateTime(iso) : "");
 
 /**
  * A Jira board's "Auswerten": the Lage of the relevant tickets on your boards that you're in — or,
@@ -35,18 +36,18 @@ export function BoardLageButton({ state }: { state: NonNullable<RichBoard["board
         onClick={() =>
           start(async () => {
             const r = await startBoardLageAction({ all });
-            toast(r.ok ? (r.message ?? "Läuft.") : (r.error ?? "Ging nicht."), { tone: r.ok ? "ok" : "error" });
+            toast(r.ok ? (r.message ?? "Running.") : (r.error ?? "That didn't work."), { tone: r.ok ? "ok" : "error" });
             router.refresh();
           })
         }
-        title={all ? "Alle aktuell relevanten Tickets der Jira-Boards durch die KI — nur, was sich geändert hat" : "Die aktuell relevanten Tickets, an denen du beteiligt bist (zugewiesen, verfolgt, kommentiert, deine Todos oder Buchungen) — nur, was sich geändert hat"}
+        title={all ? "All currently relevant tickets of the Jira boards through the AI — only what changed" : "The currently relevant tickets you're involved in (assigned, followed, commented, your todos or entries) — only what changed"}
       >
         {running ? (
           <>
-            <span className="size-2 animate-pulse rounded-full bg-white" aria-hidden /> Wertet aus …
+            <span className="size-2 animate-pulse rounded-full bg-white" aria-hidden /> Analysing …
           </>
         ) : (
-          `Auswerten — ${all ? "alle Tickets" : "mit mir"}`
+          `Analyse — ${all ? "all tickets" : "with me"}`
         )}
       </button>
       <label className="flex items-start gap-1.5 text-xs text-zinc-600 dark:text-zinc-400">
@@ -63,11 +64,11 @@ export function BoardLageButton({ state }: { state: NonNullable<RichBoard["board
           }}
           className="mt-0.5 accent-indigo-600"
         />
-        <span>Auch Tickets ohne mich — nur mit dem, was Jira über sie weiß</span>
+        <span>Tickets without me too — only with what Jira knows about them</span>
       </label>
       {state.lastAt && !state.running && (
         <p className={`text-xs ${state.lastOk === false ? "text-red-600 dark:text-red-400" : "text-zinc-500"}`}>
-          Zuletzt {when(state.lastAt)}: {state.lastMessage}
+          Last {when(state.lastAt)}: {state.lastMessage}
         </p>
       )}
     </div>

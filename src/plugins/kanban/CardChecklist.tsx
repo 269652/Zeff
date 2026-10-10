@@ -22,7 +22,7 @@ export function CardChecklist({ cardRef, todos }: { cardRef: string; todos: Card
   const act = (fn: () => Promise<{ ok: boolean; error?: string; message?: string } | null>, after?: () => void) =>
     start(async () => {
       const r = await fn();
-      if (!r?.ok) toast(r?.error ?? "Ging nicht.", { tone: "error" });
+      if (!r?.ok) toast(r?.error ?? "That didn't work.", { tone: "error" });
       else after?.();
       router.refresh();
     });
@@ -35,10 +35,10 @@ export function CardChecklist({ cardRef, todos }: { cardRef: string; todos: Card
         checked={t.status === "done"}
         disabled={pending}
         onChange={(e) => act(() => setTodoStatusAction(t.id, e.target.checked ? "done" : "open"))}
-        aria-label={`T-${t.id} ${t.status === "done" ? "wieder öffnen" : "erledigt"}`}
+        aria-label={`T-${t.id} ${t.status === "done" ? "reopen" : "done"}`}
       />
       <span className={`min-w-0 flex-1 ${t.status === "done" ? "text-zinc-400 line-through" : ""}`}>
-        {t.owner === "other" && t.status !== "done" && <span title="Wartet auf andere">⏳ </span>}
+        {t.owner === "other" && t.status !== "done" && <span title="Waiting on others">⏳ </span>}
         {t.text}
         {t.due && t.status !== "done" && <span className={`ml-1.5 text-xs ${dueTone(t.due)}`}>{dueText(t.due)}</span>}
       </span>
@@ -54,7 +54,7 @@ export function CardChecklist({ cardRef, todos }: { cardRef: string; todos: Card
         Todos
         {todos.length > 0 && (
           <span className="font-normal normal-case">
-            {done.length}/{todos.length} erledigt
+            {done.length}/{todos.length} done
           </span>
         )}
       </h3>
@@ -67,7 +67,7 @@ export function CardChecklist({ cardRef, todos }: { cardRef: string; todos: Card
       {done.length > 0 && (
         <div>
           <button type="button" className="text-xs text-zinc-500 hover:text-zinc-800 hover:underline dark:hover:text-zinc-200" onClick={() => setShowDone((v) => !v)} aria-expanded={showDone}>
-            {showDone ? "▾" : "▸"} Erledigt ({done.length})
+            {showDone ? "▾" : "▸"} Done ({done.length})
           </button>
           {showDone && <ul className="mt-1.5 space-y-1.5">{done.map(item)}</ul>}
         </div>
@@ -76,7 +76,7 @@ export function CardChecklist({ cardRef, todos }: { cardRef: string; todos: Card
         <input
           className="input"
           value={text}
-          placeholder="Neues Todo zur Karte …"
+          placeholder="New todo for the card …"
           disabled={pending}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
@@ -87,7 +87,7 @@ export function CardChecklist({ cardRef, todos }: { cardRef: string; todos: Card
           }}
         />
         <button type="button" className="btn btn-sm shrink-0" disabled={pending || !text.trim()} onClick={add}>
-          Hinzufügen
+          Add
         </button>
       </div>
     </section>

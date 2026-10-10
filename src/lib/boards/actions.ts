@@ -46,7 +46,7 @@ export async function runTicketAction(runId: number, ticket: string, idx: number
   const run = getBoardRun(runId);
   const action = run?.result?.tickets.find((t) => t.key === ticket)?.actions?.[idx];
   if (!run || !action) throw new NotFoundError("That suggestion isn't there (any more).");
-  if (actionsDone(runId)[`${ticket}#${idx}`]?.status === "done") throw new ValidationError(`„${action.label}“ ist schon erledigt.`);
+  if (actionsDone(runId)[`${ticket}#${idx}`]?.status === "done") throw new ValidationError(`“${action.label}” is done already.`);
   const keep = (status: "done" | "failed", detail: string) =>
     getDb()
       .insert(ticketActions)
@@ -75,16 +75,16 @@ export async function runTicketAction(runId: number, ticket: string, idx: number
           const list = transitionsOf(resultToPayload(await call("jira_get_transitions", { issue_key: ticket })));
           const want = norm(action.to);
           const hit = list.find((t) => norm(t.name) === want || norm(t.to) === want) ?? list.find((t) => !!want && (norm(t.name).includes(want) || norm(t.to).includes(want)));
-          if (!hit) throw new Error(`Kein Übergang „${action.to}“ von hier — möglich: ${list.map((t) => t.name).join(", ") || "keiner"}.`);
+          if (!hit) throw new Error(`No transition “${action.to}” from here — possible: ${list.map((t) => t.name).join(", ") || "none"}.`);
           await call("jira_transition_issue", { issue_key: ticket, transition_id: hit.id });
           return `→ ${hit.to ?? hit.name}`;
         }
         if (action.type === "assign") {
           await call("jira_update_issue", { issue_key: ticket, fields: JSON.stringify({ assignee: action.assignee }) });
-          return `zugewiesen: ${action.assignee}`;
+          return `assigned: ${action.assignee}`;
         }
         await call("jira_add_comment", { issue_key: ticket, body: action.comment });
-        return "Kommentar gepostet";
+        return "Comment posted";
       },
       90000,
     );

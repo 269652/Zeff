@@ -5,7 +5,7 @@ export const JIRA_ACTIONS = [
   action({
     type: "jira-transition",
     plugin: "jira",
-    label: "Jira-Status ändern",
+    label: "Change Jira status",
     verb: "Move",
     offer: {
       when: "Das Ticket soll in einen anderen Status (z. B. nach der Umsetzung auf Testing).",
@@ -14,12 +14,12 @@ export const JIRA_ACTIONS = [
     },
     clean: (o, c) => (str(o.to) ? { type: "jira-transition", ticket: ticketKey(o.ticket, c.ticket), to: str(o.to) } : null),
     title: (op) => `${op.ticket} → ${op.to}`,
-    note: (op) => ({ heading: "Jira-Status ändern", detail: `${op.ticket} → ${op.to}`, body: null }),
+    note: (op) => ({ heading: "Change Jira status", detail: `${op.ticket} → ${op.to}`, body: null }),
   }),
   action({
     type: "jira-assign",
     plugin: "jira",
-    label: "Jira-Ticket zuweisen",
+    label: "Assign Jira ticket",
     verb: "Assign",
     offer: {
       when: "Das Ticket soll jemand anderem gehören (z. B. dem Tester).",
@@ -27,13 +27,13 @@ export const JIRA_ACTIONS = [
       example: { type: "jira-assign", ticket: "PROJ-415", assignee: "clorenz" },
     },
     clean: (o, c) => (str(o.assignee) ? { type: "jira-assign", ticket: ticketKey(o.ticket, c.ticket), assignee: str(o.assignee) } : null),
-    title: (op) => `${op.ticket} zuweisen: ${op.assignee}`,
-    note: (op) => ({ heading: "Jira-Ticket zuweisen", detail: `${op.ticket} → ${op.assignee}`, body: null }),
+    title: (op) => `Assign ${op.ticket}: ${op.assignee}`,
+    note: (op) => ({ heading: "Assign Jira ticket", detail: `${op.ticket} → ${op.assignee}`, body: null }),
   }),
   action({
     type: "jira-comment",
     plugin: "jira",
-    label: "Jira-Kommentar posten",
+    label: "Post Jira comment",
     verb: "Comment",
     comms: true,
     offer: {
@@ -42,13 +42,13 @@ export const JIRA_ACTIONS = [
       example: { type: "jira-comment", ticket: "PROJ-415", body: "Der Fix ist auf feature/PROJ-415-… — bitte erneut testen." },
     },
     clean: (o, c) => (str(o.body) ? { type: "jira-comment", ticket: ticketKey(o.ticket, c.ticket), body: str(o.body).slice(0, 8000) } : null),
-    title: (op) => `Kommentar auf ${op.ticket}`,
-    note: (op) => ({ heading: `Kommentar auf ${op.ticket}`, detail: null, body: op.body }),
+    title: (op) => `Comment on ${op.ticket}`,
+    note: (op) => ({ heading: `Comment on ${op.ticket}`, detail: null, body: op.body }),
   }),
   action({
     type: "jira-create",
     plugin: "jira",
-    label: "Jira-Ticket anlegen",
+    label: "Create Jira ticket",
     verb: "Create",
     offer: {
       when: "Ein neues Ticket ist nötig (ein Thema wird ausgelagert, eine Folgearbeit, ein gefundenes Problem) — mit fertigem Titel und vollständiger Beschreibung, im Projekt des Tickets und mit ihm verknüpft.",
@@ -70,7 +70,7 @@ export const JIRA_ACTIONS = [
       str(o.summary) && str(o.body)
         ? { type: "jira-create", ticket: ticketKey(o.ticket, c.ticket), summary: str(o.summary).slice(0, 250), issueType: str(o.issueType) || str(o.issue_type) || "Task", body: str(o.body).slice(0, 20000) }
         : null,
-    title: (op) => `Ticket anlegen: ${op.summary}`,
-    note: (op) => ({ heading: `Jira-Ticket anlegen (${op.ticket.split("-")[0]}, ${op.issueType})`, detail: `„${op.summary}“ — verknüpft mit ${op.ticket}`, body: op.body }),
+    title: (op) => `Create ticket: ${op.summary}`,
+    note: (op) => ({ heading: `Create Jira ticket (${op.ticket.split("-")[0]}, ${op.issueType})`, detail: `“${op.summary}” — linked to ${op.ticket}`, body: op.body }),
   }),
 ];

@@ -40,7 +40,7 @@ export async function testAiAction(provider: string): Promise<ActionState> {
 /** The LLM plugin's settings: your instructions and context, each task's backend and model. */
 export async function saveLlmSettingsAction(v: { instructions: string; context: string; tasks: Record<string, { provider?: string; model?: string }> }): Promise<ActionState> {
   try {
-    if (!(await import("@/plugins/state")).isInstalled("llm")) return { ok: false, error: "Das LLM-Plugin ist nicht installiert (Menü → Plugins)." };
+    if (!(await import("@/plugins/state")).isInstalled("llm")) return { ok: false, error: "The LLM plugin is not installed (Menu → Plugins)." };
     const { saveLlmSettings } = await import("@/plugins/llm/settings");
     saveLlmSettings({
       instructions: String(v?.instructions ?? ""),
@@ -48,7 +48,7 @@ export async function saveLlmSettingsAction(v: { instructions: string; context: 
       tasks: Object.fromEntries(Object.entries(v?.tasks ?? {}).map(([k, t]) => [k, { provider: t?.provider === "copilot" || t?.provider === "claude" ? t.provider : "", model: String(t?.model ?? "") }])),
     });
     revalidatePath("/llm");
-    return { ok: true, message: "LLM-Einstellungen gespeichert — sie gelten ab der nächsten Aufgabe." };
+    return { ok: true, message: "LLM settings saved — they apply from the next task on." };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

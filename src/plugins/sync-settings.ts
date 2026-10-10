@@ -29,11 +29,11 @@ export const MINUTE_CHOICES = [0, 5, 10, 15, 30, 60, 120, 240, 480, 720, 1440] a
 
 /** "alle 15 min", "stündlich", "nur von Hand". */
 export function minutesText(m: number): string {
-  if (!m) return "nur von Hand";
-  if (m === 60) return "stündlich";
-  if (m === 1440) return "täglich";
-  if (m === 10080) return "wöchentlich";
-  if (m % 1440 === 0) return `alle ${m / 1440} Tage`;
-  if (m % 60 === 0) return `alle ${m / 60} h`;
-  return `alle ${m} min`;
+  if (!m) return "manual only";
+  if (m === 60) return "hourly";
+  if (m === 1440) return "daily";
+  if (m === 10080) return "weekly";
+  if (m % 1440 === 0) return `every ${m / 1440} days`;
+  if (m % 60 === 0) return `every ${m / 60} h`;
+  return `every ${m} min`;
 }

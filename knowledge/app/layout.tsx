@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: { default: "Zeff Knowledge", template
 export default async function RootLayout({ children }: { children: ReactNode }) {
   await connection(); // the account comes from the environment the server runs with, not the build
   return (
-    <html lang="de" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
         <header className="border-b border-zinc-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-3">
@@ -26,13 +26,13 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             </Link>
             <nav className="flex flex-wrap items-center gap-0.5 sm:gap-1">
               <Link href="/" className="rounded-md px-2 py-1.5 text-sm font-medium text-zinc-600 transition sm:px-3 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
-                Übersicht
+                Overview
               </Link>
               <Link href="/graph" className="rounded-md px-2 py-1.5 text-sm font-medium text-zinc-600 transition sm:px-3 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
                 Graph
               </Link>
               <Link href="/eigenes" className="rounded-md px-2 py-1.5 text-sm font-medium text-zinc-600 transition sm:px-3 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
-                Eigenes Wissen
+                Your knowledge
               </Link>
               <Link href="/plugins" className="rounded-md px-2 py-1.5 text-sm font-medium text-zinc-600 transition sm:px-3 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
                 Plugins

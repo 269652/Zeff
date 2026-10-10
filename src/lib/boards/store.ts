@@ -340,7 +340,7 @@ function afterDone(id: number): void {
     const now = new Date().toISOString();
     getDb()
       .update(todos)
-      .set({ status: "dismissed", note: `Anderer Weg gewählt (${t.path}, ${t.ref}).`, doneAt: now, updatedAt: now })
+      .set({ status: "dismissed", note: `Another path chosen (${t.path}, ${t.ref}).`, doneAt: now, updatedAt: now })
       .where(and(eq(todos.parentId, t.parentId), eq(todos.status, "open"), sql`${todos.path} is not null and ${todos.path} <> ${t.path}`))
       .run();
   }
@@ -357,7 +357,7 @@ function afterDone(id: number): void {
       ops: first.ops,
       parentId: t.id,
       workRunId: null,
-      source: `Geplant nach ${t.ref}`,
+      source: `Planned after ${t.ref}`,
       path: t.planned.length > 1 ? p.path : null,
       planned: rest.length ? [{ path: null, steps: rest }] : [],
     });
@@ -407,11 +407,11 @@ export function addTestedDelivery(v: { from: TodoView; workRunId: number | null;
   getDb().update(todos).set({ planned: "[]" }).where(eq(todos.id, v.from.id)).run();
   return addFollowUp({
     ticket: v.from.ticket,
-    text: `Manuell testen und verifizieren (${v.branch}): ${v.from.text}`.slice(0, 500),
+    text: `Test and verify by hand (${v.branch}): ${v.from.text}`.slice(0, 500),
     kind: "test",
     parentId: v.from.id,
     workRunId: v.workRunId,
-    source: `${v.source} — erst getestet, dann ausgeliefert`,
+    source: `${v.source} — tested first, then delivered`,
     planned,
   });
 }
@@ -547,7 +547,7 @@ export function addManualTodo(v: { ticket: string; text: string }): TodoView {
   const now = new Date().toISOString();
   const row = getDb()
     .insert(todos)
-    .values({ ticket: v.ticket.trim().toUpperCase(), text: v.text.trim().slice(0, 500), kind: "other", owner: "me", status: "open", source: "Von dir", refs: "[]", runId: null, createdAt: now, updatedAt: now })
+    .values({ ticket: v.ticket.trim().toUpperCase(), text: v.text.trim().slice(0, 500), kind: "other", owner: "me", status: "open", source: "From you", refs: "[]", runId: null, createdAt: now, updatedAt: now })
     .returning()
     .get();
   return toTodo(row);
@@ -741,7 +741,7 @@ export function reconcileTodos(result: BoardResult, runId: number): { added: num
         // Done: its plan goes on. Superseded (or not said): dropped, nothing follows from it.
         const done = r.done === true;
         tx.update(todos)
-          .set({ status: done ? "done" : "dismissed", note: `${done ? "Laut Lauf erledigt" : "Laut Lauf überholt"}: ${r.why}`.slice(0, 500), doneAt: now, updatedAt: now, runId })
+          .set({ status: done ? "done" : "dismissed", note: `${done ? "Done, per the briefing run" : "Outdated, per the briefing run"}: ${r.why}`.slice(0, 500), doneAt: now, updatedAt: now, runId })
           .where(eq(todos.id, r.id))
           .run();
         open.delete(r.id);
@@ -805,7 +805,7 @@ export function closeTodosOfDoneTickets(tickets: string[]): number {
   const now = new Date().toISOString();
   return getDb()
     .update(todos)
-    .set({ status: "done", note: "Ticket in Jira erledigt.", doneAt: now, updatedAt: now })
+    .set({ status: "done", note: "Ticket done in Jira.", doneAt: now, updatedAt: now })
     .where(and(eq(todos.status, "open"), inArray(todos.ticket, tickets)))
     .returning()
     .all().length;

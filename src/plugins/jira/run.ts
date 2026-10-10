@@ -56,7 +56,7 @@ async function jiraOp(call: Call, op: JiraOp): Promise<string> {
       );
     if (!hit)
       throw new Error(
-        `${op.ticket}: kein Übergang „${op.to}“ von hier — möglich: ${list.map((t) => t.name).join(", ") || "keiner"}.`,
+        `${op.ticket}: no transition “${op.to}” from here — possible: ${list.map((t) => t.name).join(", ") || "none"}.`,
       );
     await call("jira_transition_issue", {
       issue_key: op.ticket,
@@ -69,7 +69,7 @@ async function jiraOp(call: Call, op: JiraOp): Promise<string> {
       issue_key: op.ticket,
       fields: JSON.stringify({ assignee: op.assignee }),
     });
-    return `${op.ticket} zugewiesen: ${op.assignee}`;
+    return `${op.ticket} assigned: ${op.assignee}`;
   }
   if (op.type === "jira-create") {
     // The description goes as Markdown — the Jira connection writes it as Jira's markup.
@@ -101,21 +101,21 @@ async function jiraOp(call: Call, op: JiraOp): Promise<string> {
         if (!/vorgangstyp|issue ?type|issuetype/i.test(errorMessage(e))) throw e;
       }
     }
-    if (!created) throw lastError ?? new Error("Kein Vorgangstyp ging.");
+    if (!created) throw lastError ?? new Error("No issue type worked.");
     const key = createdKey(created);
-    if (!key) throw new Error(`Jira hat das Ticket angelegt, aber keinen Schlüssel genannt: ${JSON.stringify(created).slice(0, 200)}`);
+    if (!key) throw new Error(`Jira created the ticket but didn't return a key: ${JSON.stringify(created).slice(0, 200)}`);
     let linked = "";
     try {
       await call("jira_create_issue_link", { link_type: "Relates", inward_issue_key: key, outward_issue_key: op.ticket });
-      linked = ` (verknüpft mit ${op.ticket})`;
+      linked = ` (linked to ${op.ticket})`;
     } catch {
-      linked = ` (Verknüpfung mit ${op.ticket} ging nicht — bitte in Jira setzen)`;
+      linked = ` (linking to ${op.ticket} didn't work — please set it in Jira)`;
     }
     const url = getJiraTicket(op.ticket)?.url?.replace(/\/browse\/.*$/, `/browse/${key}`);
-    return `Ticket ${key} angelegt${labels.length ? ` (Labels: ${labels.join(", ")})` : ""}${linked}${url ? `: ${url}` : ""}`;
+    return `Ticket ${key} created${labels.length ? ` (labels: ${labels.join(", ")})` : ""}${linked}${url ? `: ${url}` : ""}`;
   }
   await call("jira_add_comment", { issue_key: op.ticket, body: op.body });
-  return `Kommentar auf ${op.ticket} gepostet`;
+  return `Comment posted on ${op.ticket}`;
 }
 
 /**
@@ -125,7 +125,7 @@ async function jiraOp(call: Call, op: JiraOp): Promise<string> {
  */
 export async function runJiraOps(run: JiraOp[], note: (line: string) => void): Promise<string[]> {
   const cfg = getJiraSyncConfig();
-  if (!cfg.configured || !cfg.command) throw new Error("Zeffs Jira-Verbindung ist nicht eingerichtet (Jira-Tab).");
+  if (!cfg.configured || !cfg.command) throw new Error("Zeff's Jira connection isn't set up (Jira tab).");
   const results: string[] = [];
   try {
     await runStdioSession(
@@ -143,9 +143,9 @@ export async function runJiraOps(run: JiraOp[], note: (line: string) => void): P
             .map((i) => normalizeIssue(i, cfg.baseUrl))
             .filter((t): t is NormalizedTicket => t !== null);
           if (fresh.length) upsertTickets(fresh);
-          note(`[Zeff] ${keys.join(", ")} aus Jira neu gelesen`);
+          note(`[Zeff] ${keys.join(", ")} re-read from Jira`);
         } catch {
-          note(`[Zeff] ${keys.join(", ")} ließ sich nicht neu lesen — der nächste Jira-Sync holt es`);
+          note(`[Zeff] ${keys.join(", ")} couldn't be re-read — the next Jira sync gets it`);
         }
       },
       120000,

@@ -130,7 +130,7 @@ export function db(): Database.Database {
   d.pragma("foreign_keys = ON");
   d.exec(SCHEMA);
   // Runs a restart cut off: over, not running.
-  d.prepare("update runs set finished_at = ?, ok = 0, message = coalesce(message, 'abgebrochen (Server neu gestartet)') where finished_at is null").run(new Date().toISOString());
+  d.prepare("update runs set finished_at = ?, ok = 0, message = coalesce(message, 'stopped (server restarted)') where finished_at is null").run(new Date().toISOString());
   return (state.__knowledgeDb = d);
 }
 

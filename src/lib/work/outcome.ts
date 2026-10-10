@@ -81,7 +81,7 @@ export function applyOutcome(run: WorkRun, res: WorkResult): { closed: number[];
   if (run.mode === "draft") done.delete(run.todoId); // open until it's sent
   for (const id of done) {
     if (!open.has(id)) continue;
-    const why = `Erledigt von ${ref}${res.entry ? `: ${res.entry}` : ""}`;
+    const why = `Done by ${ref}${res.entry ? `: ${res.entry}` : ""}`;
     if (run.provider === "zeff") {
       setTodoStatus(id, "done", why);
       closed.push(id);
@@ -119,7 +119,7 @@ export function applyOutcome(run: WorkRun, res: WorkResult): { closed: number[];
       target,
       parentId: run.todoId,
       workRunId: run.id,
-      source: `Follow-up von ${ref}`,
+      source: `Follow-up from ${ref}`,
       ops: f.ops,
     });
     added.push(t.id);
@@ -131,7 +131,7 @@ export function applyOutcome(run: WorkRun, res: WorkResult): { closed: number[];
     // What it did on the way (an interactive session's tool calls, your answers) — with its answer.
     const actions = runActions(run.id);
     addTodoAiNote(mine.id, {
-      text: [res.summary.trim(), ...folded.map((d) => `Vorgeschlagene Nachricht: ${d}`), ...(actions.length ? [`Aktionen:\n${actions.map((a) => `- ${a}`).join("\n")}`] : [])].join("\n\n"),
+      text: [res.summary.trim(), ...folded.map((d) => `Suggested message: ${d}`), ...(actions.length ? [`Actions:\n${actions.map((a) => `- ${a}`).join("\n")}`] : [])].join("\n\n"),
       by: `${ref}${run.model ? ` · ${run.model}` : ""}`,
       ...(link ? { url: link.url, urlLabel: link.label } : {}),
     });

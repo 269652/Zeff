@@ -29,9 +29,9 @@ const MENU = [
   { href: "/context", label: "Context", hint: "Colleagues' messages & links" },
   { href: "/mcp", label: "MCP", hint: "Connect an agent" },
   { href: "/preferences", label: "Settings", hint: "AI provider" },
-  { href: "/auswerten", label: "Auswerten", hint: "Was die KI bei jedem Schritt liest" },
-  { href: "/sync-settings", label: "Sync-Einstellungen", hint: "Wie oft jeder Sync läuft" },
-  { href: "/logins", label: "Anmeldungen", hint: "Logins im Automations-Chrome" },
+  { href: "/auswerten", label: "AI steps", hint: "What the AI reads at each step" },
+  { href: "/sync-settings", label: "Sync settings", hint: "How often each sync runs" },
+  { href: "/logins", label: "Sign-ins", hint: "Logins in the automation Chrome" },
   { href: "/plugins", label: "Plugins", hint: "Connectors & AI tools" },
 ];
 
@@ -155,8 +155,8 @@ export function SiteHeader({
       type="button"
       className="-ml-1.5 shrink-0 cursor-grab rounded px-0.5 text-zinc-400 hover:text-zinc-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:hover:text-zinc-200"
       disabled={saving}
-      title="Ziehen zum Sortieren (oder ↑/↓)"
-      aria-label={`${label} verschieben (Pfeiltasten)`}
+      title="Drag to reorder (or ↑/↓)"
+      aria-label={`Move ${label} (arrow keys)`}
       onKeyDown={(e) => {
         if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
         e.preventDefault();
@@ -198,8 +198,8 @@ export function SiteHeader({
         <li key={l.href} {...(keys ? dnd(keys.join("|"), keys, l.href) : {})} className={`flex items-center gap-2 rounded-md py-1.5 ${sub ? "pr-2 pl-7" : "px-3"} ${off ? "opacity-50" : ""} ${dropMark(l.href)}`}>
           {keys && arrows(l.label, keys, i)}
           <span className="min-w-0 flex-1 truncate text-sm font-medium">{l.label}</span>
-          <button type="button" className="icon-btn text-xs" disabled={saving} onClick={() => save({ href: l.href, hidden: !off })} title={off ? "Im Menü zeigen" : "Im Menü ausblenden"} aria-label={`${l.label} ${off ? "zeigen" : "ausblenden"}`}>
-            {off ? "Zeigen" : "Aus"}
+          <button type="button" className="icon-btn text-xs" disabled={saving} onClick={() => save({ href: l.href, hidden: !off })} title={off ? "Show in the menu" : "Hide from the menu"} aria-label={`${off ? "Show" : "Hide"} ${l.label}`}>
+            {off ? "Show" : "Off"}
           </button>
         </li>
       );
@@ -386,7 +386,7 @@ export function SiteHeader({
                           (k) => apps.find((x) => x.href === k)?.place === a.place,
                         )}
                         <span className="min-w-0 flex-1 truncate text-sm font-medium">{a.label}</span>
-                        <span className="flex overflow-hidden rounded-md border border-zinc-200 text-[11px] dark:border-zinc-700" role="group" aria-label={`${a.label}: wo`}>
+                        <span className="flex overflow-hidden rounded-md border border-zinc-200 text-[11px] dark:border-zinc-700" role="group" aria-label={`${a.label}: where`}>
                           {(["header", "menu", "hidden"] as const).map((p) => (
                             <button
                               key={p}
@@ -396,7 +396,7 @@ export function SiteHeader({
                               onClick={() => save({ href: a.href, place: p })}
                               className={`px-1.5 py-0.5 ${a.place === p ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
                             >
-                              {p === "header" ? "Kopfzeile" : p === "menu" ? "Menü" : "Aus"}
+                              {p === "header" ? "Header" : p === "menu" ? "Menu" : "Off"}
                             </button>
                           ))}
                         </span>
@@ -404,7 +404,7 @@ export function SiteHeader({
                     ))
                   : (() => {
                       const inMenuApps = apps.filter((a) => a.place === "menu");
-                      return inMenuApps.length ? inMenuApps.map((l) => item(l)) : <li className="px-3 py-1 text-xs text-zinc-400">Alle Apps in der Kopfzeile.</li>;
+                      return inMenuApps.length ? inMenuApps.map((l) => item(l)) : <li className="px-3 py-1 text-xs text-zinc-400">All apps are in the header.</li>;
                     })()}
                 {pluginGroups.length > 0 && heading("Plugins")}
                 {pluginGroups
@@ -412,7 +412,7 @@ export function SiteHeader({
                   .filter((g) => g.items.length)
                   .map((g) =>
                   g.items.length === 1 && !editing ? (
-                    item({ ...g.items[0], label: g.items[0].label === "Einstellungen" ? g.name : g.items[0].label })
+                    item({ ...g.items[0], label: g.items[0].label === "Settings" ? g.name : g.items[0].label })
                   ) : (
                     <li
                       key={g.id}
@@ -462,9 +462,9 @@ export function SiteHeader({
               </ul>
               <div className="mt-3 border-t border-zinc-200 px-3 pt-2 dark:border-zinc-800">
                 <button type="button" className="text-xs text-zinc-500 hover:text-zinc-800 hover:underline dark:hover:text-zinc-200" onClick={() => setEditing((e) => !e)} aria-pressed={editing}>
-                  {editing ? "Fertig" : "Menü anpassen"}
+                  {editing ? "Done" : "Customize menu"}
                 </button>
-                {editing && <p className="mt-1 text-[11px] text-zinc-400">Apps: in die Kopfzeile, ins Menü oder aus. Die anderen Einträge: ein- oder ausblenden. Am Griff ziehen (oder ihn fokussieren und ↑/↓): die Reihenfolge — bei den Apps auch die der Tabs oben; eine App auf eine andere in der Kopfzeile gezogen kommt in die Kopfzeile.</p>}
+                {editing && <p className="mt-1 text-[11px] text-zinc-400">Apps: into the header, into the menu or off. The other items: show or hide them. Drag the handle (or focus it and press ↑/↓) to reorder — for apps that is also the order of the tabs at the top; an app dragged onto one in the header moves into the header.</p>}
               </div>
             </nav>
           </div>

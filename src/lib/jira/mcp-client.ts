@@ -184,5 +184,5 @@ export function resultToPayload(result: unknown): unknown {
 export function jiraDown(message: string): string | null {
   if (!/<!DOCTYPE html|<html|Maintenance|Wartung|502 Bad Gateway|503 Service|504 Gateway/i.test(message)) return null;
   const maintenance = /Maintenance|Wartung/i.test(message);
-  return `Jira ist gerade nicht erreichbar${maintenance ? " (Wartungsseite)" : " (es antwortet mit einer Fehlerseite statt Daten)"} — später noch mal.`;
+  return `Jira can't be reached right now${maintenance ? " (maintenance page)" : " (it answers with an error page instead of data)"} — try again later.`;
 }

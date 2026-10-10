@@ -6,25 +6,21 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { runSyncAction, runSyncAllAction, stopSyncAction, stopSyncAllAction, syncOverviewAction } from "@/app/actions";
 import type { SyncOverview, SyncView } from "@/lib/sync/shared";
 import { SyncIcon } from "./icons";
+import { currentLocale, formatAgo, formatTime } from "@/lib/format";
 
 /** Now, outside render (the clock isn't a render input). */
 const now = () => Date.now();
 
 /** "just now", "4 min ago", "2 h ago", "yesterday", or the date. */
 function ago(isoTime: string): string {
-  const s = Math.max(0, (now() - new Date(isoTime).getTime()) / 1000);
-  if (s < 45) return "just now";
-  if (s < 3600) return `${Math.round(s / 60)} min ago`;
-  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
-  if (s < 172800) return "yesterday";
-  return new Date(isoTime).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  return formatAgo(isoTime, now());
 }
 
 /** "in 4 min (14:05)". */
 function until(isoTime: string): string {
   const m = Math.max(0, Math.round((new Date(isoTime).getTime() - now()) / 60000));
-  const at = new Date(isoTime).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-  return m < 1 ? `within a minute (${at})` : m < 120 ? `in ${m} min (${at})` : `at ${new Date(isoTime).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })}`;
+  const at = formatTime(isoTime);
+  return m < 1 ? `within a minute (${at})` : m < 120 ? `in ${m} min (${at})` : `at ${new Date(isoTime).toLocaleString(currentLocale(), { weekday: "short", hour: "2-digit", minute: "2-digit" })}`;
 }
 
 const every = (min: number) => (min % 60 === 0 ? `every ${min / 60} h` : `every ${min} min`);
@@ -82,13 +78,13 @@ export function SyncStepRow({ s, disabled, onRun, onStop, onNavigate, running = 
         </div>
       </div>
       {running && onStop ? (
-        <button type="button" className="icon-btn text-red-600 dark:text-red-400" onClick={onStop} title={`${s.label} abbrechen — was er gestartet hat, endet mit`} aria-label={`${s.label} abbrechen`}>
+        <button type="button" className="icon-btn text-red-600 dark:text-red-400" onClick={onStop} title={`Cancel ${s.label} — what it started ends with it`} aria-label={`Cancel ${s.label}`}>
           <svg viewBox="0 0 20 20" className="size-4" fill="currentColor" aria-hidden>
             <rect x="5" y="5" width="10" height="10" rx="1.5" />
           </svg>
         </button>
       ) : (
-        <button type="button" className="icon-btn" disabled={running || disabled} onClick={onRun} title={`${s.label} jetzt — ${s.what}`} aria-label={`${s.label} jetzt`}>
+        <button type="button" className="icon-btn" disabled={running || disabled} onClick={onRun} title={`${s.label} now — ${s.what}`} aria-label={`${s.label} now`}>
           <SyncIcon />
         </button>
       )}
@@ -185,8 +181,8 @@ export function SyncMenu() {
         <div id="sync-menu" className="absolute right-0 z-50 mt-2 w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
           <div className="flex items-center justify-between gap-3 border-b border-zinc-200 px-3 py-2.5 dark:border-zinc-800">
             {data?.all.running ? (
-              <button type="button" className="btn btn-sm text-red-600 dark:text-red-400" onClick={() => go(stopSyncAllAction)} title="Den laufenden Schritt abbrechen und keine weiteren starten">
-                <SyncIcon className="size-4 animate-spin" /> Stopp
+              <button type="button" className="btn btn-sm text-red-600 dark:text-red-400" onClick={() => go(stopSyncAllAction)} title="Cancel the running step and start no more">
+                <SyncIcon className="size-4 animate-spin" /> Stop
               </button>
             ) : (
               <button type="button" className="btn btn-primary btn-sm" disabled={!data} onClick={() => go(runSyncAllAction)}>
@@ -194,7 +190,7 @@ export function SyncMenu() {
               </button>
             )}
             <span className="truncate text-xs text-zinc-500">
-              {data?.all.running ? `Syncing all — ${data.steps.find((s) => s.key === data.all.step)?.label ?? "…"}` : "One after the other, Ticket-Lage last"}
+              {data?.all.running ? `Syncing all — ${data.steps.find((s) => s.key === data.all.step)?.label ?? "…"}` : "One after the other, the briefing last"}
             </span>
           </div>
           {error && <p className="border-b border-zinc-200 px-3 py-2 text-xs text-red-600 dark:border-zinc-800 dark:text-red-400">{error}</p>}
@@ -206,10 +202,10 @@ export function SyncMenu() {
           </ul>
           <div className="flex justify-between gap-3 border-t border-zinc-200 px-3 py-2 text-xs dark:border-zinc-800">
             <Link href="/sync-settings" className="text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setOpen(false)}>
-              Intervalle einstellen
+              Set intervals
             </Link>
             <Link href="/logins" className="text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setOpen(false)}>
-              Anmeldungen
+              Sign-ins
             </Link>
           </div>
         </div>

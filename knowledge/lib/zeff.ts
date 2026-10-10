@@ -16,7 +16,7 @@ export async function zeffPages(only?: "keep"): Promise<{ account: string; pages
   try {
     r = await fetch(`${zeffUrl()}/api/knowledge/export?account=${encodeURIComponent(ACCOUNT)}${only ? `&only=${only}` : ""}`, { headers, signal: AbortSignal.timeout(120000), cache: "no-store" });
   } catch {
-    throw new Error(`Zeff antwortet nicht (${zeffUrl()}).`);
+    throw new Error(`Zeff doesn't answer (${zeffUrl()}).`);
   }
   const data = (await r.json().catch(() => null)) as { account?: string; docs?: RawPage[]; error?: string } | null;
   if (!r.ok || !data?.docs) throw new Error(`Zeff: ${data?.error ?? r.status}`);

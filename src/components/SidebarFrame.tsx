@@ -29,7 +29,7 @@ export function SidebarFrame({ sidebar, children, back, storageKey, contentClass
   return (
     <div className="flex gap-6 max-lg:flex-col lg:h-full">
       {folded ? (
-        <button type="button" onClick={() => fold(false)} className="icon-btn shrink-0 self-start" title="Seitenleiste zeigen" aria-label="Seitenleiste zeigen">
+        <button type="button" onClick={() => fold(false)} className="icon-btn shrink-0 self-start" title="Show the sidebar" aria-label="Show the sidebar">
           »
         </button>
       ) : (
@@ -42,7 +42,7 @@ export function SidebarFrame({ sidebar, children, back, storageKey, contentClass
             ) : (
               <span />
             )}
-            <button type="button" onClick={() => fold(true)} className="icon-btn max-lg:hidden" title="Seitenleiste einklappen" aria-label="Seitenleiste einklappen">
+            <button type="button" onClick={() => fold(true)} className="icon-btn max-lg:hidden" title="Collapse the sidebar" aria-label="Collapse the sidebar">
               «
             </button>
           </div>

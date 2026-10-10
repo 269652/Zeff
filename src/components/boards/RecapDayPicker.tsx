@@ -22,8 +22,8 @@ export function RecapDayPicker({ day, max }: { day: string; max: string }) {
             el.focus();
           }
         }}
-        title="Zu einem Tag springen"
-        aria-label="Zu einem Tag springen"
+        title="Jump to a day"
+        aria-label="Jump to a day"
       >
         <CalendarIcon />
       </button>

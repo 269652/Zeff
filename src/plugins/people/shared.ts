@@ -1,3 +1,5 @@
+import { formatDate } from "@/lib/format";
+
 /**
  * People (the Personen plugin) — what pages and the server share: a profile, its dates and when
  * they come round, a reminder. Client-safe.
@@ -5,7 +7,7 @@
 
 export const DATE_KINDS = ["birthday", "anniversary", "other"] as const;
 export type DateKind = (typeof DATE_KINDS)[number];
-export const DATE_KIND_LABELS: Record<DateKind, string> = { birthday: "Geburtstag", anniversary: "Jahrestag", other: "Datum" };
+export const DATE_KIND_LABELS: Record<DateKind, string> = { birthday: "Birthday", anniversary: "Anniversary", other: "Date" };
 export const isDateKind = (v: unknown): v is DateKind => (DATE_KINDS as readonly unknown[]).includes(v);
 
 /** A person's date: a birthday or anniversary (every year), or one day (a year given, not yearly). */
@@ -70,8 +72,8 @@ function valid(day: number, month: number, year: number | null) {
   return { day, month, year };
 }
 
-/** The date written as people write it: "16.10." or "16.10.1996". */
-export const dateText = (d: Pick<PersonDate, "day" | "month" | "year">) => `${pad(d.day)}.${pad(d.month)}.${d.year ?? ""}`;
+/** The date as Zeff shows dates: "16 Oct" or "16 Oct 1996". */
+export const dateText = (d: Pick<PersonDate, "day" | "month" | "year">) => formatDate(new Date(d.year ?? 2000, d.month - 1, d.day), { weekday: false, year: !!d.year });
 
 /**
  * When it comes round next, from `today` on (today itself counts): a yearly one this year or
@@ -95,15 +97,18 @@ export function nextOccurrence(d: Pick<PersonDate, "day" | "month" | "year" | "y
 /** Days from `today` to `on` (0: today). */
 export const daysBetween = (today: Date, on: Date) => Math.round((on.getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 864e5);
 
-/** "heute", "morgen", "in 5 Tagen", "am 16.10." */
-export const inDaysText = (n: number, on?: string) => (n === 0 ? "heute" : n === 1 ? "morgen" : n < 14 || !on ? `in ${n} Tagen` : `am ${on.slice(8, 10)}.${on.slice(5, 7)}.`);
+/** "today", "tomorrow", "in 5 days", "on 16 Oct" */
+export const inDaysText = (n: number, on?: string) => (n === 0 ? "today" : n === 1 ? "tomorrow" : n < 14 || !on ? `in ${n} days` : `on ${formatDate(on, { weekday: false })}`);
 
-/** "Nadines", "Hans’" — a name's genitive. */
-export const genitive = (name: string) => (/[sßxz]$/i.test(name.trim()) ? `${name.trim()}’` : `${name.trim()}s`);
+/** "Nadine's", "James’" — a name's possessive. */
+export const genitive = (name: string) => (/s$/i.test(name.trim()) ? `${name.trim()}’` : `${name.trim()}’s`);
 
-/** A reminder's line: "Nadines Geburtstag (wird 30)". */
+/** 1st, 2nd, 3rd, 4th, 11th, 21st … */
+const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
+
+/** A reminder's line: "Nadine’s birthday (turns 30)". */
 export const upcomingTitle = (u: Upcoming) =>
-  u.date.kind === "birthday" ? `${genitive(u.person.name)} Geburtstag${u.turns ? ` (wird ${u.turns})` : ""}` : `${u.date.label || DATE_KIND_LABELS[u.date.kind]} — ${u.person.name}${u.turns && u.date.kind === "anniversary" ? ` (${u.turns}.)` : ""}`;
+  u.date.kind === "birthday" ? `${genitive(u.person.name)} birthday${u.turns ? ` (turns ${u.turns})` : ""}` : `${u.date.label || DATE_KIND_LABELS[u.date.kind]} — ${u.person.name}${u.turns && u.date.kind === "anniversary" ? ` (${ordinal(u.turns)})` : ""}`;
 
-/** The same without the person: "Geburtstag (wird 30)", "Hochzeitstag". */
-export const upcomingShort = (u: Upcoming) => `${u.date.kind === "other" ? u.date.label || DATE_KIND_LABELS.other : DATE_KIND_LABELS[u.date.kind]}${u.turns ? (u.date.kind === "birthday" ? ` (wird ${u.turns})` : ` (${u.turns}.)`) : ""}`;
+/** The same without the person: "Birthday (turns 30)", "Wedding anniversary". */
+export const upcomingShort = (u: Upcoming) => `${u.date.kind === "other" ? u.date.label || DATE_KIND_LABELS.other : DATE_KIND_LABELS[u.date.kind]}${u.turns ? (u.date.kind === "birthday" ? ` (turns ${u.turns})` : ` (${ordinal(u.turns)})`) : ""}`;

@@ -111,7 +111,7 @@ export function relateMails(): Promise<MailRelationResult> {
       }
     }
     const changed = setTodoMailRefs(picks);
-    return { ok: failed < batches.length || !batches.length, todos: picks.size, changed, batches: batches.length, ...(failed ? { error: `${failed} von ${batches.length} Teilen fehlgeschlagen` } : {}) };
+    return { ok: failed < batches.length || !batches.length, todos: picks.size, changed, batches: batches.length, ...(failed ? { error: `${failed} of ${batches.length} parts failed` } : {}) };
   })()
     .catch((e): MailRelationResult => {
       console.error("[mail-relations]", errorMessage(e));

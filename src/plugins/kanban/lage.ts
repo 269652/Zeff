@@ -12,6 +12,9 @@ import { cardRef, isPriority, PRIORITY_LABELS } from "./shared";
 
 const { kanbanBoards: boards, kanbanColumns: columns, kanbanCards: cards } = schema;
 
+/** A card's priority as the (German) Lage prompt reads it. */
+const PRIORITY_DE: Record<string, string> = { low: "Niedrig", normal: "Normal", high: "Hoch", urgent: "Dringend" };
+
 /** Done cards stay in the Lage this long (what got done is part of it). */
 const DONE_DAYS = 3;
 
@@ -58,7 +61,7 @@ export function kanbanLageTickets(): KanbanLageTicket[] {
         browse_url: `/kanban/${board.id}?card=${c.id}`,
         status: { name: col.name, category: col.done ? "done" : first ? "todo" : "inprogress" },
         issue_type: { name: "Kanban-Karte" },
-        priority: isPriority(c.priority) ? { name: PRIORITY_LABELS[c.priority] } : undefined,
+        priority: isPriority(c.priority) ? { name: PRIORITY_DE[c.priority] } : undefined,
         assignee: c.assignee ? { display_name: c.assignee } : undefined,
         created: iso(c.createdAt),
         updated: iso(c.updatedAt),

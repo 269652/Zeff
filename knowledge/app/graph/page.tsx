@@ -28,9 +28,9 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
       <div className="space-y-2">
         <h1 className="text-lg font-semibold">Graph</h1>
         <p className="text-sm text-zinc-500">
-          Noch keine Entitäten — sie entstehen beim Kompilieren der Seiten (
+          No entities yet — compiling the pages makes them (
           <Link href="/" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            Übersicht
+            Overview
           </Link>
           ).
         </p>

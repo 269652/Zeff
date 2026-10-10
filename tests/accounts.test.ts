@@ -30,7 +30,7 @@ test("an account made from another: settings over, Chrome shared, setup to come"
     assert.equal(getPref("gmail:full:0", null), null);
     assert.equal(getDb().select().from(syncState).all().find((s) => s.key === "mail")?.everyMinutes, 30);
     assert.equal(getAppSettings().setupDoneAt, null);
-    assert.deepEqual(getPref("setup:from", null), { id: DEFAULT_ACCOUNT, name: "Standard", sharedChrome: true });
+    assert.deepEqual(getPref("setup:from", null), { id: DEFAULT_ACCOUNT, name: "Default", sharedChrome: true });
   });
   assert.equal(accountChrome(shared.id).port, accountChrome(DEFAULT_ACCOUNT).port);
 

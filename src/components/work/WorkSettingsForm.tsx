@@ -73,7 +73,7 @@ export function WorkSettingsForm({
       </div>
 
       <fieldset>
-        <legend className="label">Copilot-Worker</legend>
+        <legend className="label">Copilot worker</legend>
         <div className="space-y-1.5">
           {COPILOT_MODES.map((m) => (
             <label key={m} className="flex items-start gap-2 text-sm">
@@ -81,7 +81,7 @@ export function WorkSettingsForm({
               <span>{COPILOT_MODE_LABELS[m]}</span>
             </label>
           ))}
-          <p className="text-xs text-zinc-500">Interaktiv und Autopilot laufen als Sitzung auf dem Work-Tab: Erlaubnisse und Rückfragen beantwortest du dort, den Modus wechselst du jederzeit. Ein Neustart von Zeff beendet eine laufende Sitzung.</p>
+          <p className="text-xs text-zinc-500">Interactive and Autopilot run as a session on the Work tab: you answer permissions and questions there and can switch the mode any time. Restarting Zeff ends a running session.</p>
         </div>
       </fieldset>
 

@@ -7,11 +7,11 @@ export const syncSettings: PluginSyncSettings = {
     {
       key: "gitlab",
       label: "GitLab",
-      what: "Merge Requests, ihre Kommentare und deine Branches — über einen GitLab-Tab im Automations-Chrome.",
+      what: "Merge requests, their comments and your branches — through a GitLab tab in the automation Chrome.",
       get: () => getGitlabSettings().syncMinutes,
       set: (m) => updateGitlabSettings({ syncMinutes: m }),
       choices: MINUTE_CHOICES,
-      window: "solange der Automations-Chrome läuft",
+      window: "while the automation Chrome is running",
     },
   ],
 };

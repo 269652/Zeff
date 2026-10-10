@@ -6,7 +6,7 @@ export default function Loading() {
         <circle cx="24" cy="24" r="20" fill="none" stroke="currentColor" strokeWidth="4" className="opacity-15" />
         <circle cx="24" cy="24" r="20" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeDasharray="40 126" />
       </svg>
-      <span className="text-xs font-medium tracking-wide text-zinc-400 uppercase">Lädt</span>
+      <span className="text-xs font-medium tracking-wide text-zinc-400 uppercase">Loading</span>
     </div>
   );
 }

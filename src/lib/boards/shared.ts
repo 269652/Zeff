@@ -21,13 +21,13 @@ export const ATTENTIONS = [
 export type Attention = (typeof ATTENTIONS)[number];
 
 export const ATTENTION_LABELS: Record<Attention, string> = {
-  feedback: "Rückfrage offen",
-  active: "In Arbeit",
+  feedback: "Open question",
+  active: "In progress",
   check: "Testing / Review",
-  spec: "Spezifikation",
-  blocked: "Wartet auf andere",
-  ready: "Bereit",
-  stale: "Liegt",
+  spec: "Spec",
+  blocked: "Waiting on others",
+  ready: "Ready",
+  stale: "Stalled",
 };
 
 export const isAttention = (v: unknown): v is Attention =>
@@ -346,7 +346,7 @@ export function cleanPlan(raw: unknown, ticket: string): TodoPath[] {
     return steps.length ? [{ path: name, steps: steps.slice(0, 6) }] : [];
   });
   // One path needs no name; several do (they're told apart by it).
-  return paths.length === 1 ? [{ ...paths[0], path: null }] : paths.slice(0, 3).map((p, i) => ({ ...p, path: p.path ?? `Weg ${i + 1}` }));
+  return paths.length === 1 ? [{ ...paths[0], path: null }] : paths.slice(0, 3).map((p, i) => ({ ...p, path: p.path ?? `Path ${i + 1}` }));
 }
 
 /** A plan in a line: "Review → Merge → Deploy" — per path when there are several ("Merge Request: …  |  Direkt: …"). */

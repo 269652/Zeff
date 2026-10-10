@@ -249,7 +249,7 @@ async function mailPage(browser, { openIfMissing }) {
   if (!context) throw new ChromeConnectError("The automation Chrome has no window open.");
   let page = context.pages().find((p) => isOutlookMail(p.url())) ?? context.pages().find((p) => isLoginUrl(p.url()) && /outlook/i.test(p.url()));
   if (!page) {
-    if (!openIfMissing) throw new Error(`Outlook's mail isn't open in the automation Chrome — open ${MAIL_URL} there (or press Sync on Zeff's Nachrichten page).`);
+    if (!openIfMissing) throw new Error(`Outlook's mail isn't open in the automation Chrome — open ${MAIL_URL} there (or press Sync on Zeff's Messages page).`);
     page = await context.newPage();
     await page.goto(MAIL_URL, { waitUntil: "domcontentloaded", timeout: 60000 }).catch((e) => debug(`opening mail: ${e}`));
   }

@@ -5,15 +5,15 @@ import { TODO_KIND_LABELS, type TodoSource, type TodoView } from "@/lib/boards/s
 import { ChevronIcon } from "./icons";
 import { TodoSources } from "./boards/TodoSources";
 import { ResolveToggle } from "./ResolveToggle";
+import { formatDate, formatTime } from "@/lib/format";
 
-const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
-const full = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+const day = (iso: string) => formatDate(iso, { weekday: false });
+const full = (iso: string) => `${formatDate(iso, { year: true })}, ${formatTime(iso)}`;
 
 /** Where a todo is shown: the Todos page (its Done tab once it's closed) — brought into view there. */
 export const todoHref = (t: Pick<TodoView, "id" | "status">) => (t.status === "open" ? `/todos#todo-${t.id}` : `/todos?todos=done#todo-${t.id}`);
 
-const STATUS = { open: "offen", done: "erledigt", dismissed: "verworfen" } as const;
+const STATUS = { open: "open", done: "done", dismissed: "dismissed" } as const;
 
 /** Green once it's done, blue while it's open. */
 const TONE = {
@@ -97,15 +97,15 @@ export function TodoDetails({ t, from = [] }: { t: TodoView; from?: TodoSource[]
       <div className="flex items-center justify-between gap-2 text-xs text-zinc-500">
         <span>
           Todo · {TODO_KIND_LABELS[t.kind]}
-          {t.owner === "other" ? " · wartet auf andere" : ""}
-          {t.status === "dismissed" ? " · verworfen" : ""}
+          {t.owner === "other" ? " · waiting on others" : ""}
+          {t.status === "dismissed" ? " · dismissed" : ""}
         </span>
         <span className="flex items-center gap-2">
           {t.status !== "dismissed" && (
             <ResolveToggle
               done={t.status === "done"}
               onChange={(next) => setTodoStatusAction(t.id, next ? "done" : "open")}
-              hint={{ done: `${t.ref} ist erledigt. Klick: wieder offen.`, open: `${t.ref} als erledigt markieren` }}
+              hint={{ done: `${t.ref} is done. Click: reopen.`, open: `Mark ${t.ref} as done` }}
             />
           )}
           <a href={todoHref(t)} target="_blank" rel="noreferrer" className="font-medium text-indigo-600 hover:underline dark:text-indigo-400">
@@ -120,9 +120,9 @@ export function TodoDetails({ t, from = [] }: { t: TodoView; from?: TodoSource[]
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
         {row("Todo", t.ref, true)}
         {row("Ticket", t.ticket, true)}
-        {row("Quelle", t.source)}
-        {row("Gefunden", full(t.createdAt))}
-        {t.doneAt && row(t.status === "dismissed" ? "Verworfen" : "Erledigt", full(t.doneAt))}
+        {row("Source", t.source)}
+        {row("Found", full(t.createdAt))}
+        {t.doneAt && row(t.status === "dismissed" ? "Dismissed" : "Done", full(t.doneAt))}
       </dl>
     </div>
   );

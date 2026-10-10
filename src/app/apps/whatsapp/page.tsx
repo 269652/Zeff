@@ -6,6 +6,7 @@ import type { MailView } from "@/lib/mail/shared";
 import { listMails } from "@/lib/mail/store";
 import { syncOverview } from "@/lib/sync/registry";
 import { agoText } from "@/lib/teams/time";
+import { formatDate, formatTime } from "@/lib/format";
 import { isInstalled } from "@/plugins/state";
 import { HistoryButton } from "@/plugins/whatsapp/HistoryButton";
 import { pushTo } from "@/lib/collections";
@@ -15,7 +16,7 @@ export const metadata: Metadata = { title: "WhatsApp" };
 const when = (iso: string) => {
   const d = new Date(iso);
   const today = new Date().toDateString() === d.toDateString();
-  return today ? d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : d.toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "short" });
+  return today ? formatTime(d) : formatDate(d);
 };
 
 /**
@@ -39,10 +40,10 @@ export default async function WhatsappAppPage({ searchParams }: { searchParams: 
     <div className="page">
       <div className="page-aside">
         <h1 className="text-lg font-semibold">WhatsApp</h1>
-        <p className="text-sm text-zinc-500">Deine Chats — gelesen vom WhatsApp-Sync (Sync-Menü), kein Chat geöffnet, nichts als gelesen markiert.</p>
-        {step?.lastAt && <p className="text-xs text-zinc-400">Zuletzt synchronisiert {agoText(step.lastAt)}.</p>}
+        <p className="text-sm text-zinc-500">Your chats — read by the WhatsApp sync (sync menu), no chat opened, nothing marked as read.</p>
+        {step?.lastAt && <p className="text-xs text-zinc-400">Last synced {agoText(step.lastAt)}.</p>}
         <form action="/apps/whatsapp">
-          <input name="q" defaultValue={q} className="input" placeholder="Chat, Absender, Text …" aria-label="Chats durchsuchen" />
+          <input name="q" defaultValue={q} className="input" placeholder="Chat, sender, text…" aria-label="Search chats" />
         </form>
         <nav className="flex flex-col gap-0.5 text-sm" aria-label="Chats">
           {[...chats].map(([chat, list]) => (
@@ -54,7 +55,7 @@ export default async function WhatsappAppPage({ searchParams }: { searchParams: 
             >
               <span className="flex items-baseline gap-2">
                 <span className={`truncate ${list[0].unread ? "font-semibold" : "font-medium"}`}>{chat}</span>
-                {list[0].unread && <span className="size-2 shrink-0 rounded-full bg-emerald-500" aria-label="ungelesen" />}
+                {list[0].unread && <span className="size-2 shrink-0 rounded-full bg-emerald-500" aria-label="unread" />}
                 <span className="ml-auto shrink-0 text-xs text-zinc-400">{when(list[0].receivedAt)}</span>
               </span>
               <span className="line-clamp-1 text-xs text-zinc-500">{list[0].preview}</span>
@@ -85,7 +86,7 @@ export default async function WhatsappAppPage({ searchParams }: { searchParams: 
           </ul>
         </section>
       ) : (
-        <p className="py-6 text-center text-sm text-zinc-500">{q ? "Keine Nachricht passt." : "Noch nichts synchronisiert — der WhatsApp-Sync (Sync-Menü) liest die Chats."}</p>
+        <p className="py-6 text-center text-sm text-zinc-500">{q ? "No message matches." : "Nothing synced yet — the WhatsApp sync (sync menu) reads the chats."}</p>
       )}
     </div>
   );

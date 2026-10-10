@@ -24,7 +24,7 @@ export function datesFromFacts(p: Person): number {
     const date = parseDayMonth(f.text) ?? parseDayMonth(f.subject);
     if (!date) continue;
     const kind = kindOf(text);
-    const id = addDate(p.id, { kind, label: kind === "other" ? f.subject : "", day: date.day, month: date.month, year: date.year, yearly: kind !== "other" || !date.year, source: "fact", sourceText: `Fakt: ${text}`.slice(0, 500), confirmed: false });
+    const id = addDate(p.id, { kind, label: kind === "other" ? f.subject : "", day: date.day, month: date.month, year: date.year, yearly: kind !== "other" || !date.year, source: "fact", sourceText: `Fact: ${text}`.slice(0, 500), confirmed: false });
     if (id) n++;
   }
   return n;
@@ -111,7 +111,7 @@ ${found.join("\n")}`;
     const month = Number(x.month);
     const year = x.year ? Number(x.year) : null;
     if (!(month >= 1 && month <= 12 && day >= 1 && day <= 31)) continue;
-    const id = addDate(p.id, { kind, label: kind === "other" ? String(x.label ?? "").trim() : "", day, month, year, yearly: x.yearly ?? kind !== "other", source: "ai", sourceText: `KI: „${String(x.quote ?? "").slice(0, 400)}“`, confirmed: false });
+    const id = addDate(p.id, { kind, label: kind === "other" ? String(x.label ?? "").trim() : "", day, month, year, yearly: x.yearly ?? kind !== "other", source: "ai", sourceText: `AI: “${String(x.quote ?? "").slice(0, 400)}”`, confirmed: false });
     if (id) n++;
   }
   return n;
@@ -120,7 +120,7 @@ ${found.join("\n")}`;
 /** Facts and AI for one person: how many dates proposed. */
 export async function findDates(personId: number, { ai = true } = {}): Promise<{ facts: number; ai: number }> {
   const p = getPerson(personId);
-  if (!p) throw new Error("Diese Person gibt es nicht (mehr).");
+  if (!p) throw new Error("That person doesn't exist (any more).");
   const facts = datesFromFacts(p);
   const found = ai && isInstalled("llm") ? await datesWithAi(p) : 0;
   return { facts, ai: found };

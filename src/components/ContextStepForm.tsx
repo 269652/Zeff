@@ -18,7 +18,7 @@ export function ContextStepForm({ step, prefs, installed }: { step: ContextStep;
   const save = (patch: Parameters<typeof saveContextPrefsAction>[1], quiet = false) =>
     start(async () => {
       const r = await saveContextPrefsAction(step.id, patch);
-      if (!r?.ok || !quiet) toast(r?.ok ? (r.message ?? "Gespeichert.") : (r?.error ?? "Ging nicht."), { tone: r?.ok ? "ok" : "error" });
+      if (!r?.ok || !quiet) toast(r?.ok ? (r.message ?? "Saved.") : (r?.error ?? "Didn't work."), { tone: r?.ok ? "ok" : "error" });
       router.refresh();
     });
   const sources = step.sources.filter((s) => sourceShown(s, installed));
@@ -28,7 +28,7 @@ export function ContextStepForm({ step, prefs, installed }: { step: ContextStep;
     <div className="space-y-3">
       {sources.length > 0 && (
         <div>
-          <div className="label">Quellen</div>
+          <div className="label">Sources</div>
           <ul className="grid gap-1.5 sm:grid-cols-2">
             {sources.map((s) => (
               <li key={s.key}>
@@ -71,20 +71,20 @@ export function ContextStepForm({ step, prefs, installed }: { step: ContextStep;
         </div>
       )}
       <label className="block text-sm">
-        <span className="label">Eigene Anweisungen für diesen Schritt</span>
+        <span className="label">Your own instructions for this step</span>
         <textarea
           className="input w-full resize-y"
           rows={2}
           value={extra}
-          placeholder="z. B. „Newsletter von X ignorieren“, „Antworten immer per du“, „Kundentermine haben Vorrang“"
+          placeholder="e.g. “ignore newsletters from X”, “always reply on first-name terms”, “customer meetings take priority”"
           onChange={(e) => setExtra(e.target.value)}
         />
       </label>
       <div className="flex items-center gap-2">
         <button type="button" className="btn btn-sm btn-primary" disabled={pending || !dirty} onClick={() => save({ numbers, extra })}>
-          {pending ? "Speichert…" : "Speichern"}
+          {pending ? "Saving…" : "Save"}
         </button>
-        {dirty && <span className="text-xs text-amber-600 dark:text-amber-400">Nicht gespeichert</span>}
+        {dirty && <span className="text-xs text-amber-600 dark:text-amber-400">Not saved</span>}
       </div>
     </div>
   );

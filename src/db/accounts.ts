@@ -43,7 +43,7 @@ export const BASE_DIR = path.dirname(BASE_DB);
 const FILE = path.join(BASE_DIR, "accounts.json");
 export const ACCOUNTS_DIR = path.join(BASE_DIR, "accounts");
 
-const first = (): Account => ({ id: DEFAULT_ACCOUNT, name: "Standard", color: "indigo", createdAt: new Date(0).toISOString() });
+const first = (): Account => ({ id: DEFAULT_ACCOUNT, name: "Default", color: "indigo", createdAt: new Date(0).toISOString() });
 
 const state = globalThis as unknown as { __zeffAccounts?: Registry; __zeffAccountScope?: AsyncLocalStorage<string> };
 const scope = (state.__zeffAccountScope ??= new AsyncLocalStorage<string>());
@@ -90,7 +90,7 @@ export const accountById = (id: string): Account | undefined => read().accounts.
 export const accountsInstalled = () => read().installed;
 export function setAccountsInstalled(installed: boolean): void {
   const r = read();
-  if (!installed && r.accounts.length > 1) throw new Error(`Erst die anderen Konten löschen (${r.accounts.filter((a) => a.id !== DEFAULT_ACCOUNT).map((a) => a.name).join(", ")}) — ohne das Plugin gäbe es nur noch „${r.accounts[0].name}“.`);
+  if (!installed && r.accounts.length > 1) throw new Error(`Delete the other accounts first (${r.accounts.filter((a) => a.id !== DEFAULT_ACCOUNT).map((a) => a.name).join(", ")}) — without the plugin there's only “${r.accounts[0].name}”.`);
   write({ ...r, installed, active: installed ? r.active : DEFAULT_ACCOUNT });
 }
 
@@ -120,7 +120,7 @@ export const accountDir = (id: string) => path.dirname(accountDbPath(id));
 
 export function setActiveAccount(id: string): void {
   const r = read();
-  if (!r.accounts.some((a) => a.id === id)) throw new Error("Unbekanntes Konto.");
+  if (!r.accounts.some((a) => a.id === id)) throw new Error("Unknown account.");
   write({ ...r, active: id });
 }
 
@@ -137,8 +137,8 @@ const slug = (name: string) =>
 export function addAccount(name: string, color: string, chromeFrom?: string): Account {
   const r = read();
   const n = name.trim().slice(0, 60);
-  if (!n) throw new Error("Ein Name, bitte.");
-  if (r.accounts.some((a) => a.name.toLowerCase() === n.toLowerCase())) throw new Error(`„${n}“ gibt es schon.`);
+  if (!n) throw new Error("A name, please.");
+  if (r.accounts.some((a) => a.name.toLowerCase() === n.toLowerCase())) throw new Error(`“${n}” already exists.`);
   let id = slug(n);
   for (let i = 2; id === DEFAULT_ACCOUNT || r.accounts.some((a) => a.id === id) || fs.existsSync(path.join(ACCOUNTS_DIR, id)); i++) id = `${slug(n)}-${i}`;
   const a: Account = {
@@ -158,10 +158,10 @@ export function addAccount(name: string, color: string, chromeFrom?: string): Ac
 export function updateAccount(id: string, patch: { name?: string; color?: string }): Account {
   const r = read();
   const a = r.accounts.find((x) => x.id === id);
-  if (!a) throw new Error("Unbekanntes Konto.");
+  if (!a) throw new Error("Unknown account.");
   const name = patch.name?.trim().slice(0, 60);
-  if (patch.name !== undefined && !name) throw new Error("Ein Name, bitte.");
-  if (name && r.accounts.some((x) => x.id !== id && x.name.toLowerCase() === name.toLowerCase())) throw new Error(`„${name}“ gibt es schon.`);
+  if (patch.name !== undefined && !name) throw new Error("A name, please.");
+  if (name && r.accounts.some((x) => x.id !== id && x.name.toLowerCase() === name.toLowerCase())) throw new Error(`“${name}” already exists.`);
   const next: Account = { ...a, ...(name ? { name } : {}), ...(patch.color && (ACCOUNT_COLORS as readonly string[]).includes(patch.color) ? { color: patch.color } : {}) };
   write({ ...r, accounts: r.accounts.map((x) => (x.id === id ? next : x)) });
   return next;
@@ -173,9 +173,9 @@ export function updateAccount(id: string, patch: { name?: string; color?: string
  */
 export function removeAccount(id: string): string {
   const r = read();
-  if (id === DEFAULT_ACCOUNT) throw new Error("Das erste Konto bleibt.");
-  if (id === r.active) throw new Error("Erst in ein anderes Konto wechseln.");
-  if (!r.accounts.some((a) => a.id === id)) throw new Error("Unbekanntes Konto.");
+  if (id === DEFAULT_ACCOUNT) throw new Error("The first account stays.");
+  if (id === r.active) throw new Error("Switch to another account first.");
+  if (!r.accounts.some((a) => a.id === id)) throw new Error("Unknown account.");
   const from = accountDir(id);
   const to = path.join(ACCOUNTS_DIR, ".deleted", `${id}-${new Date().toISOString().replace(/[:.]/g, "-")}`);
   if (fs.existsSync(from)) {

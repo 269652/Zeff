@@ -4,12 +4,11 @@ import Link from "next/link";
 import { useState } from "react";
 import type { SessionTicket } from "@/lib/work/sessions";
 import { WORK_STATUS_LABELS } from "@/lib/work/shared";
+import { formatAgo } from "@/lib/format";
 
 const ago = (iso: string) => {
   if (!iso) return "";
-  const t = Date.parse(iso.includes("T") ? iso : `${iso.replace(" ", "T")}Z`);
-  const m = (Date.now() - t) / 60000;
-  return m < 1 ? "jetzt" : m < 60 ? `${Math.floor(m)} min` : m < 1440 ? `${Math.floor(m / 60)} h` : `${Math.floor(m / 1440)} T`;
+  return formatAgo(Date.parse(iso.includes("T") ? iso : `${iso.replace(" ", "T")}Z`));
 };
 
 const DOT: Record<string, string> = {
@@ -35,9 +34,9 @@ export function SessionSidebar({ tickets, selected }: { tickets: SessionTicket[]
   return (
     <div className="space-y-3">
       <Link href="/work?new=1" className={`btn w-full justify-start ${selected.isNew ? "btn-primary" : ""}`}>
-        + Neue Session
+        + New session
       </Link>
-      <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tickets, Sessions suchen …" aria-label="Suchen" />
+      <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search tickets, sessions…" aria-label="Search" />
       <ul className="space-y-1">
         {shown.map((t) => {
           const open = openTicket === t.ticket || selectedTicket === t.ticket || (!!words && t.sessions.some((s) => s.title.toLowerCase().includes(words)));
@@ -46,20 +45,20 @@ export function SessionSidebar({ tickets, selected }: { tickets: SessionTicket[]
           return (
             <li key={t.ticket || "—"}>
               <div className={`flex items-start gap-1 rounded-md ${selectedTicket === t.ticket && !selected.run ? "bg-indigo-50 dark:bg-indigo-950/50" : ""}`}>
-                <button type="button" className="icon-btn mt-1 size-5 text-[10px]" onClick={() => setOpenTicket(open && openTicket === t.ticket ? "" : t.ticket)} aria-label={open ? "Zuklappen" : "Aufklappen"} disabled={!t.sessions.length}>
+                <button type="button" className="icon-btn mt-1 size-5 text-[10px]" onClick={() => setOpenTicket(open && openTicket === t.ticket ? "" : t.ticket)} aria-label={open ? "Collapse" : "Expand"} disabled={!t.sessions.length}>
                   {t.sessions.length ? (open ? "▾" : "▸") : "·"}
                 </button>
                 <Link href={`/work?ticket=${encodeURIComponent(t.ticket || "-")}`} className="min-w-0 flex-1 rounded-md px-1 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800">
                   <span className="flex items-center gap-1.5">
-                    <span className="font-mono text-xs font-semibold">{t.ticket || "Ohne Ticket"}</span>
-                    {live.length > 0 && <span className={`size-1.5 rounded-full ${waiting ? "bg-amber-500" : "animate-pulse bg-indigo-500"}`} title={waiting ? "Wartet auf dich" : "Arbeitet"} />}
+                    <span className="font-mono text-xs font-semibold">{t.ticket || "No ticket"}</span>
+                    {live.length > 0 && <span className={`size-1.5 rounded-full ${waiting ? "bg-amber-500" : "animate-pulse bg-indigo-500"}`} title={waiting ? "Waiting for you" : "Working"} />}
                     <span className="ml-auto text-[10px] text-zinc-400" suppressHydrationWarning>{ago(t.lastAt)}</span>
                   </span>
                   {t.summary && <span className="block truncate text-xs text-zinc-600 dark:text-zinc-400">{t.summary}</span>}
                   <span className="flex gap-2 text-[10px] text-zinc-500">
                     {t.status && <span>{t.status}</span>}
                     {t.openTodos > 0 && <span>☐ {t.openTodos}</span>}
-                    {t.sessions.length > 0 && <span>{t.sessions.length} Session{t.sessions.length === 1 ? "" : "s"}</span>}
+                    {t.sessions.length > 0 && <span>{t.sessions.length} session{t.sessions.length === 1 ? "" : "s"}</span>}
                   </span>
                 </Link>
               </div>
@@ -83,15 +82,15 @@ export function SessionSidebar({ tickets, selected }: { tickets: SessionTicket[]
             </li>
           );
         })}
-        {!shown.length && <li className="text-sm text-zinc-500">Nichts gefunden.</li>}
+        {!shown.length && <li className="text-sm text-zinc-500">Nothing found.</li>}
       </ul>
-      <nav className="flex flex-wrap gap-x-3 gap-y-1 border-t border-zinc-200 pt-3 text-xs dark:border-zinc-800" aria-label="Weitere Ansichten">
+      <nav className="flex flex-wrap gap-x-3 gap-y-1 border-t border-zinc-200 pt-3 text-xs dark:border-zinc-800" aria-label="More views">
         {(
           [
             ["todos", "Todos"],
-            ["runs", "Läufe"],
+            ["runs", "Runs"],
             ["branches", "Branches"],
-            ["settings", "Einstellungen"],
+            ["settings", "Settings"],
           ] as const
         ).map(([k, label]) => (
           <Link key={k} href={`/work?tab=${k}`} className="text-indigo-600 hover:underline dark:text-indigo-400">

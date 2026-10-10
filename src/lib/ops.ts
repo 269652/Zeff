@@ -36,7 +36,7 @@ export async function runTodoOps(
     while (left.length) {
       const op = left[0];
       // An action needs its plugin installed.
-      if (!opAvailable(op.type)) throw new Error(`${opLabel(op)}: das Plugin dafür ist nicht installiert — Menü → Plugins.`);
+      if (!opAvailable(op.type)) throw new Error(`${opLabel(op)}: not installed (Menu → Plugins).`);
       note(`[Zeff] ${opLabel(op)} …`);
       if (op.type.startsWith("jira-")) {
         // The Jira operations in a row go in one session.
@@ -53,7 +53,7 @@ export async function runTodoOps(
         continue;
       }
       const runner = RUNNERS[op.type];
-      if (!runner) throw new Error(`${opLabel(op)}: dafür gibt es keinen Ausführer.`);
+      if (!runner) throw new Error(`${opLabel(op)}: there's nothing to run it.`);
       const r = await runner(op, { todo, note });
       left.shift();
       done.push(r.what);
@@ -89,16 +89,16 @@ export async function runTodoOpsNow(todoId: number): Promise<{ done: string[]; s
   const store = await import("@/lib/boards/store");
   const { opsSettle, todoRef } = await import("@/lib/boards/shared");
   const todo = store.getTodo(todoId);
-  if (!todo) throw new Error(`${todoRef(todoId)} gibt es nicht.`);
-  if (todo.status !== "open") throw new Error(`${todo.ref} ist schon ${todo.status === "done" ? "erledigt" : "verworfen"}.`);
-  if (!todo.ops.length) throw new Error(`${todo.ref} hat keine Aktionen.`);
+  if (!todo) throw new Error(`${todoRef(todoId)} doesn't exist.`);
+  if (todo.status !== "open") throw new Error(`${todo.ref} is ${todo.status === "done" ? "done" : "dismissed"} already.`);
+  if (!todo.ops.length) throw new Error(`${todo.ref} has no actions.`);
   const running = (globalThis as { __zeffOpsNow?: Set<number> }).__zeffOpsNow ??= new Set();
-  if (running.has(todoId)) throw new Error(`${todo.ref} läuft schon.`);
+  if (running.has(todoId)) throw new Error(`${todo.ref} is running already.`);
   running.add(todoId);
   try {
     const { done, next } = await runTodoOps(todo, (line) => console.log(`[ops ${todo.ref}] ${line}`));
     for (const n of next) {
-      const f = store.addFollowUp({ ticket: todo.ticket, text: n.text, kind: "merge", parentId: todo.id, workRunId: null, source: `Folgeschritt von ${todo.ref}`, ops: n.ops, owner: n.owner });
+      const f = store.addFollowUp({ ticket: todo.ticket, text: n.text, kind: "merge", parentId: todo.id, workRunId: null, source: `Next step after ${todo.ref}`, ops: n.ops, owner: n.owner });
       store.handOverPlan(todo.id, f.id, ["merge", "review"]);
     }
     const settled = opsSettle(todo);

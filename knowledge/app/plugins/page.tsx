@@ -9,9 +9,9 @@ import { defaultInstalled, installedKPlugins, isKPluginId, KCATEGORY_LABELS, KPL
 
 /** Where a plugin stands on this machine: the CLI found, Confluence set up — in words. */
 function found(p: KPlugin): string | null {
-  if (p.id === "copilot-cli") return findCopilotCli()?.where ?? "nicht gefunden";
-  if (p.id === "claude-cli") return findClaudeCli() ?? "nicht gefunden";
-  if (p.id === "confluence") return confluenceWhere() ?? "nicht eingerichtet";
+  if (p.id === "copilot-cli") return findCopilotCli()?.where ?? "not found";
+  if (p.id === "claude-cli") return findClaudeCli() ?? "not found";
+  if (p.id === "confluence") return confluenceWhere() ?? "not set up";
   return null;
 }
 
@@ -35,7 +35,7 @@ export default async function PluginsPage({ searchParams }: { searchParams: Prom
       redirect(`/plugins?error=${encodeURIComponent(e instanceof Error ? e.message : String(e))}`);
     }
     revalidatePath("/", "layout");
-    redirect(`/plugins?done=${encodeURIComponent(`${kpluginById(id).name} ${install ? "installiert" : "deinstalliert"}.`)}`);
+    redirect(`/plugins?done=${encodeURIComponent(`${kpluginById(id).name} ${install ? "installed" : "uninstalled"}.`)}`);
   }
 
   return (
@@ -43,7 +43,7 @@ export default async function PluginsPage({ searchParams }: { searchParams: Prom
       <div>
         <h1 className="text-lg font-semibold">Plugins</h1>
         <p className="max-w-[75ch] text-sm text-zinc-500">
-          Woher das Wissen kommt, welche KI es kompiliert und beantwortet, und ob der Server von selbst liest. Ein deinstalliertes Plugin nimmt mit, was es tut — das Wissen, das es gebracht hat, bleibt. Welche CLI welche Aufgabe übernimmt: <Link href="/" className="text-indigo-600 hover:underline dark:text-indigo-400">Einstellungen</Link>.
+          Where the knowledge comes from, which AI compiles it and answers, and whether the server reads by itself. An uninstalled plugin takes what it does along — the knowledge it brought stays. Which CLI does which task: <Link href="/" className="text-indigo-600 hover:underline dark:text-indigo-400">Settings</Link>.
         </p>
       </div>
       {done && <p className="alert-ok">{done}</p>}
@@ -62,22 +62,22 @@ export default async function PluginsPage({ searchParams }: { searchParams: Prom
                       <h3 className="font-medium">
                         {p.name}{" "}
                         {installed ? (
-                          <span className="ml-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">installiert</span>
+                          <span className="ml-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">installed</span>
                         ) : (
-                          <span className="ml-1 rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">nicht installiert</span>
+                          <span className="ml-1 rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">not installed</span>
                         )}
-                        {defaultInstalled(p) && <span className="ml-1 text-[11px] text-zinc-400">Standard</span>}
+                        {defaultInstalled(p) && <span className="ml-1 text-[11px] text-zinc-400">Default</span>}
                       </h3>
                       <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">{p.description}</p>
                     </div>
                     <form action={toggle} className="shrink-0">
                       <input type="hidden" name="id" value={p.id} />
                       <input type="hidden" name="install" value={installed ? "0" : "1"} />
-                      <button className={installed ? "btn btn-sm" : "btn btn-sm btn-primary"}>{installed ? "Deinstallieren" : "Installieren"}</button>
+                      <button className={installed ? "btn btn-sm" : "btn btn-sm btn-primary"}>{installed ? "Uninstall" : "Install"}</button>
                     </form>
                   </div>
-                  {p.requires && <p className="text-xs text-zinc-500">Braucht: {p.requires}</p>}
-                  {where && <p className="text-xs text-zinc-500">Hier: {where}</p>}
+                  {p.requires && <p className="text-xs text-zinc-500">Needs: {p.requires}</p>}
+                  {where && <p className="text-xs text-zinc-500">Here: {where}</p>}
                 </li>
               );
             })}

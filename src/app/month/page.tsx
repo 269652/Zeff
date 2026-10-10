@@ -17,7 +17,7 @@ import { dayShortfalls } from "@/lib/day-status";
 import { listReporters, type EntryWithJob } from "@/lib/entries";
 import { listEntryTypes } from "@/lib/entry-types";
 import { FALLBACK_TYPE_COLOR, typeMapOf } from "@/lib/entry-types-shared";
-import { formatHours, round2 } from "@/lib/format";
+import { formatDate, formatHours, round2 } from "@/lib/format";
 import { getTicketCards } from "@/lib/jira/store";
 import { currentMonth, formatMonth, resolveMonth } from "@/lib/month";
 import { getMonthlyReport, getPastWeeksDue } from "@/lib/monthly";
@@ -144,7 +144,7 @@ export default async function MonthPage({
           workdays={workdays}
           absentDays={absentDays}
           filtered={filtered}
-          days={month.days.map((d, i) => ({ shortfall: shortfalls[i], label: `${d.getDate()}.${d.getMonth() + 1}.` }))}
+          days={month.days.map((d, i) => ({ shortfall: shortfalls[i], label: formatDate(d, { weekday: false }) }))}
           started={month.startIso <= today}
         />
         {/* Hours left unbooked in this month's weeks that are over. */}

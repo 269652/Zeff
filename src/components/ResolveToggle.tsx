@@ -46,11 +46,11 @@ export function ResolveToggle({
       } ${className}`}
       title={
         value
-          ? (hint?.done ?? "Erledigt — die Ticket-Lage macht keine neuen Todos daraus. Klick: wieder offen.")
-          : (hint?.open ?? "Als erledigt markieren — die Ticket-Lage macht dann keine neuen Todos daraus")
+          ? (hint?.done ?? "Done — the briefing makes no new todos from it. Click: reopen.")
+          : (hint?.open ?? "Mark as done — the briefing then makes no new todos from it")
       }
     >
-      {value ? "✓ erledigt" : "erledigt?"}
+      {value ? "✓ done" : "done?"}
     </button>
   );
 }

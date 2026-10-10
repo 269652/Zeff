@@ -6,8 +6,9 @@ import type { TodoUserNote } from "@/lib/boards/shared";
 import { NoteIcon, SparkIcon } from "../icons";
 import { toast } from "../Toaster";
 import { TodoRefs } from "./TodoRefs";
+import { formatDateTime } from "@/lib/format";
 
-const when = (iso: string) => new Date(iso).toLocaleString("de-DE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const when = (iso: string) => formatDateTime(iso);
 
 /** A note on a todo as a badge, like a comment: a run's report (✨, violet) or yours (💬); ↗ opens what it links to. */
 export function NoteBadge({ n, className = "" }: { n: TodoUserNote; className?: string }) {
@@ -19,15 +20,15 @@ export function NoteBadge({ n, className = "" }: { n: TodoUserNote; className?: 
     <div className={`flex min-w-0 items-stretch overflow-hidden rounded-md border text-xs ${tone} ${className}`}>
       <span className="flex min-w-0 flex-1 items-center gap-2 py-1 pr-2 pl-1.5">
         {ai || n.kind === "instruction" ? <SparkIcon className={`size-4 shrink-0 ${ai ? "text-violet-600 dark:text-violet-400" : "text-indigo-600 dark:text-indigo-400"}`} /> : <NoteIcon className="size-4 shrink-0 text-indigo-600 dark:text-indigo-400" />}
-        <span className="shrink-0 font-medium">{n.by ?? (n.kind === "instruction" ? `Deine Anweisung${n.run ? ` → W-${n.run}` : ""}` : "Deine Notiz")}</span>
-        {n.from && <span className="shrink-0 font-mono opacity-70">an T-{n.from}</span>}
+        <span className="shrink-0 font-medium">{n.by ?? (n.kind === "instruction" ? `Your instruction${n.run ? ` → W-${n.run}` : ""}` : "Your note")}</span>
+        {n.from && <span className="shrink-0 font-mono opacity-70">on T-{n.from}</span>}
         <span className="shrink-0 opacity-70">{when(n.at)}</span>
         <span className="min-w-0 truncate opacity-80">
           <TodoRefs text={n.text.replace(/\s+/g, " ")} />
         </span>
       </span>
       {n.url && (
-        <a href={n.url} target="_blank" rel="noreferrer" className="flex shrink-0 items-center px-2 hover:bg-violet-100 dark:hover:bg-violet-950" title={n.urlLabel ?? "Öffnen"} aria-label="Öffnen">
+        <a href={n.url} target="_blank" rel="noreferrer" className="flex shrink-0 items-center px-2 hover:bg-violet-100 dark:hover:bg-violet-950" title={n.urlLabel ?? "Open"} aria-label="Open">
           ↗
         </a>
       )}
@@ -42,10 +43,10 @@ export function NoteDetails({ n, todoId }: { n: TodoUserNote; todoId?: number })
     <div className="space-y-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex items-center justify-between gap-2 text-xs text-zinc-500">
         <span>
-          {n.by ? `Bericht von ${n.by}` : n.kind === "instruction" ? `Deine Anweisung${n.run ? ` an W-${n.run}` : ""}` : "Deine Notiz"} · {when(n.at)}
+          {n.by ? `Report by ${n.by}` : n.kind === "instruction" ? `Your instruction${n.run ? ` to W-${n.run}` : ""}` : "Your note"} · {when(n.at)}
           {n.from && (
             <>
-              {" · an "}
+              {" · on "}
               <TodoRefs text={`T-${n.from}`} />
             </>
           )}
@@ -58,11 +59,11 @@ export function NoteDetails({ n, todoId }: { n: TodoUserNote; todoId?: number })
             onClick={() =>
               start(async () => {
                 const r = await removeTodoNoteAction(todoId, n.at);
-                if (!r?.ok) toast(r?.error ?? "Ging nicht.", { tone: "error" });
+                if (!r?.ok) toast(r?.error ?? "Didn't work.", { tone: "error" });
               })
             }
           >
-            Entfernen
+            Remove
           </button>
         )}
       </div>

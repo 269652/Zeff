@@ -16,15 +16,15 @@ export function PluginInstallButton({ id, installed, beta }: { id: PluginId; ins
       className={`btn btn-sm ${installed ? "" : "btn-primary"}`}
       disabled={pending}
       onClick={() =>
-        (installed || !beta || confirm(`Beta: ${beta}\n\nTrotzdem installieren?`)) &&
+        (installed || !beta || confirm(`Beta: ${beta}\n\nInstall anyway?`)) &&
         start(async () => {
           const r = await setPluginInstalledAction(id, !installed);
-          toast(r?.ok ? (r.message ?? "Erledigt.") : (r?.error ?? "Ging nicht."), { tone: r?.ok ? "ok" : "error" });
+          toast(r?.ok ? (r.message ?? "Done.") : (r?.error ?? "Didn't work."), { tone: r?.ok ? "ok" : "error" });
           router.refresh();
         })
       }
     >
-      {pending ? "…" : installed ? "Deinstallieren" : "Installieren"}
+      {pending ? "…" : installed ? "Uninstall" : "Install"}
     </button>
   );
 }

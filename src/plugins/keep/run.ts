@@ -6,11 +6,11 @@ import { createKeepBoard, createOwnNote, keepBoard, listKeepBoards } from "./boa
 export async function runKeepNote(op: Extract<TodoOp, { type: "keep-note" }>): Promise<ActionResult> {
   const boards = listKeepBoards();
   const wanted = op.board.trim().toLowerCase();
-  const board = (wanted && boards.find((b) => b.name.toLowerCase() === wanted)) || boards[0] || keepBoard(createKeepBoard({ name: "Notizen" }))!;
+  const board = (wanted && boards.find((b) => b.name.toLowerCase() === wanted)) || boards[0] || keepBoard(createKeepBoard({ name: "Notes" }))!;
   const n = createOwnNote(board.id, { title: op.title, text: op.text });
   return {
-    what: `Notiz „${n.title || n.text.split("\n")[0].slice(0, 60)}“ in ${board.name} angelegt`,
+    what: `Note “${n.title || n.text.split("\n")[0].slice(0, 60)}” created in ${board.name}`,
     ref: n.ref,
-    todoNote: `Notiz in Keep (${board.name}) angelegt: „${n.title || n.text.split("\n")[0].slice(0, 60)}“.`,
+    todoNote: `Note created in Keep (${board.name}): “${n.title || n.text.split("\n")[0].slice(0, 60)}”.`,
   };
 }

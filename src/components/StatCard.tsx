@@ -1,7 +1,6 @@
-import { format, parseISO } from "date-fns";
 import Link from "next/link";
 import type { DayShortfall } from "@/lib/day-status";
-import { formatHours, round2 } from "@/lib/format";
+import { formatDate, formatHours, round2 } from "@/lib/format";
 import type { PastWeeksDue } from "@/lib/monthly";
 import { StatusIcon } from "./StatusIcon";
 
@@ -155,8 +154,8 @@ export function BookedStat({
  * day is booked — and a chip per week (red with its missing hours, else green) linking to it.
  */
 export function PastWeeksStat({ due }: { due: PastWeeksDue }) {
-  const since = format(parseISO(due.fromIso), "d MMM");
-  const day = (iso: string) => format(parseISO(iso), "EEE d.M.");
+  const since = formatDate(due.fromIso, { weekday: false });
+  const day = (iso: string) => formatDate(iso);
   const shortDays = due.weeks.reduce((a, w) => a + w.shortDays.length, 0);
   const view: StatView | undefined =
     due.filtered || due.weeks.length === 0

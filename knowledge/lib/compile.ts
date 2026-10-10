@@ -231,7 +231,7 @@ export function compilePages(maxBatches = 250): Promise<CompileResult> {
     // Entities no page names any more: gone.
     db().exec("delete from entities_fts where entity_id not in (select entity_id from entity_pages); delete from entities where id not in (select entity_id from entity_pages);");
     const left = todo.length - pages - skipped;
-    const message = `${stopped ? "Angehalten: " : ""}${pages} Seiten kompiliert in ${calls} Aufrufen (${w?.backend === "claude" ? "Claude CLI" : "Copilot CLI"}${w?.model ? ` · ${w.model}` : ""})${skipped ? `, ${skipped} von der KI nicht ausgewertet (nur im Volltext)` : ""}${failed ? `, ${failed} fehlgeschlagen` : ""}${left > 0 ? `, ${left} noch offen` : ""}.`;
+    const message = `${stopped ? "Stopped: " : ""}${pages} pages compiled in ${calls} calls (${w?.backend === "claude" ? "Claude CLI" : "Copilot CLI"}${w?.model ? ` · ${w.model}` : ""})${skipped ? `, ${skipped} not taken by the AI (full text only)` : ""}${failed ? `, ${failed} failed` : ""}${left > 0 ? `, ${left} still to do` : ""}.`;
     endRun(runId, failed === 0 || pages > 0, message);
     return { ok: failed === 0 || pages > 0, message, pages, batches: work.length, failed };
   })().finally(() => {

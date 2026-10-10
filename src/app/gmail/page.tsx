@@ -19,25 +19,25 @@ export default async function GmailSettingsPage() {
       <div className="page-aside">
         <h1 className="text-lg font-semibold">Gmail</h1>
         <p className="text-sm text-zinc-500">
-          Welche Gmail-Konten der Mail-Sync liest — die Google-Konten, die im Automations-Chrome dieses Kontos angemeldet sind. „Konto hinzufügen“ holt Googles Anmeldung dort nach vorne; du
-          meldest dich selbst an (Zeff gibt nichts ein), dann „Neu laden“.
+          Which Gmail accounts the mail sync reads — the Google accounts signed in to this account&apos;s automation Chrome. “Add account” brings Google&apos;s sign-in to the front there; you
+          sign in yourself (Zeff types nothing), then “Reload”.
         </p>
         <p className="text-sm text-zinc-500">
-          Die Mails jedes Kontos landen in einem eigenen Ordner — in der{" "}
+          Each account&apos;s mails land in a folder of their own — in the{" "}
           <Link href="/apps/gmail" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            Gmail-App
+            Gmail app
           </Link>{" "}
-          und unter{" "}
+          and under{" "}
           <Link href="/mail" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            Nachrichten
+            Messages
           </Link>{" "}
-          je ein Filter.
+          a filter each.
         </p>
       </div>
       <section className="card space-y-3 p-4">
-        <h2 className="font-medium">Konten</h2>
+        <h2 className="font-medium">Accounts</h2>
         <GmailAccountsForm signedIn={signedIn} configured={accounts} />
-        <p className="text-xs text-zinc-400">Gelesen in die Ordner: {accounts.map((a, i) => gmailFolder(a, i)).join(", ")}</p>
+        <p className="text-xs text-zinc-400">Read into the folders: {accounts.map((a, i) => gmailFolder(a, i)).join(", ")}</p>
       </section>
     </div>
   );

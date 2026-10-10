@@ -5,9 +5,8 @@ import { importMeetingsAction } from "@/plugins/outlook-calendar/server-actions"
 import type { ActionState } from "@/app/action-helpers";
 import type { MeetingFlag } from "@/lib/calendar/meetings";
 import type { CalendarDay, CalendarEvent, CalendarEventState } from "@/lib/calendar/week-view";
-import { formatHours, round2 } from "@/lib/format";
+import { formatDate, formatHours, round2 } from "@/lib/format";
 
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const STATE_LABEL: Partial<Record<CalendarEventState, string>> = {
   booked: "booked",
@@ -116,7 +115,7 @@ export function CalendarWeek({
               >
                 <div className="flex items-baseline justify-between px-1 pb-1.5 text-xs font-semibold">
                   <span className={isToday ? "text-indigo-600 dark:text-indigo-400" : i >= 5 ? "text-zinc-400" : ""}>
-                    {WEEKDAYS[i]} {Number(d.date.slice(8))}.{Number(d.date.slice(5, 7))}.
+                    {formatDate(d.date)}
                   </span>
                   {dayHours > 0 && <span className="font-normal tabular-nums text-zinc-500">{formatHours(dayHours)} h</span>}
                 </div>

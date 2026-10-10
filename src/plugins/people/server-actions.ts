@@ -15,7 +15,7 @@ const list = (s: string) => s.split(/[,;\n]/).map((x) => x.trim()).filter(Boolea
 const back = (to: string, params: Record<string, string>): never => redirect(`${to}${to.includes("?") ? "&" : "?"}${new URLSearchParams(params)}`);
 
 function guard(): void {
-  if (!isInstalled("people")) throw new Error("Das Personen-Plugin ist nicht installiert (Menü → Plugins).");
+  if (!isInstalled("people")) throw new Error("The People plugin is not installed (Menu → Plugins).");
 }
 
 /** A profile made (name; whatsapp, entity, aliases optional) — then its page. */
@@ -71,7 +71,7 @@ export async function addDateFormAction(fd: FormData): Promise<void> {
     const k = str(fd, "kind");
     const kind = isDateKind(k) ? k : "other";
     const date = parseDayMonth(str(fd, "date"));
-    if (!date) throw new Error("Ein Datum wie 16.10. oder 16.10.1996, bitte.");
+    if (!date) throw new Error("A date like 16.10. or 16.10.1996, please.");
     const yearly = kind !== "other" || fd.get("yearly") === "1" || !date.year;
     addDate(personId, { kind, label: str(fd, "label"), ...date, yearly, remindDays: Number(str(fd, "remindDays")) || (kind === "birthday" ? 7 : 3), source: "manual" });
   } catch (e) {

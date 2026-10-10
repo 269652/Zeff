@@ -6,18 +6,19 @@ import { importConfigAction, restoreBackupAction, runBackupAction, saveBackupSet
 import { pickFolderAction } from "@/app/actions";
 import type { BackupFile, BackupSettingsView } from "./backup";
 import { toast } from "@/components/Toaster";
+import { formatDate, formatTime } from "@/lib/format";
 
 const INTERVALS = [
-  [1, "stündlich"],
-  [6, "alle 6 Stunden"],
-  [12, "alle 12 Stunden"],
-  [24, "täglich"],
-  [168, "wöchentlich"],
+  [1, "hourly"],
+  [6, "every 6 hours"],
+  [12, "every 12 hours"],
+  [24, "daily"],
+  [168, "weekly"],
 ] as const;
 
-const when = (iso: string) => new Date(iso).toLocaleString("de-DE", { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+const when = (iso: string) => `${formatDate(iso, { year: true })}, ${formatTime(iso)}`;
 const mb = (n: number) => `${(n / 1048576).toFixed(1)} MB`;
-const TIER_LABELS = { daily: "täglich", weekly: "wöchentlich", monthly: "monatlich", manual: "von Hand" } as const;
+const TIER_LABELS = { daily: "daily", weekly: "weekly", monthly: "monthly", manual: "by hand" } as const;
 
 /** Once Zeff is back after the restart: the page anew. */
 async function reloadWhenBack() {
@@ -47,11 +48,11 @@ function BackupRow({ b, hasPassword }: { b: BackupFile; hasPassword: boolean }) 
     start(async () => {
       const r = await restoreBackupAction(b.name, password || undefined);
       if (!r?.ok) {
-        toast(r?.error ?? "Wiederherstellen ging nicht.", { tone: "error" });
+        toast(r?.error ?? "Restoring didn't work.", { tone: "error" });
         return;
       }
       setRestarting(true);
-      toast(r.message ?? "Wird wiederhergestellt …", { tone: "ok" });
+      toast(r.message ?? "Restoring …", { tone: "ok" });
       void reloadWhenBack();
     });
   const takeConfig = () =>
@@ -60,7 +61,7 @@ function BackupRow({ b, hasPassword }: { b: BackupFile; hasPassword: boolean }) 
       fd.set("backup", b.name);
       if (password) fd.set("password", password);
       const r = await importConfigAction(fd);
-      toast(r?.ok ? (r.message ?? "Übernommen.") : (r?.error ?? "Ging nicht."), { tone: r?.ok ? "ok" : "error" });
+      toast(r?.ok ? (r.message ?? "Taken over.") : (r?.error ?? "That didn't work."), { tone: r?.ok ? "ok" : "error" });
       if (r?.ok) {
         setOpen(null);
         router.refresh();
@@ -72,8 +73,8 @@ function BackupRow({ b, hasPassword }: { b: BackupFile; hasPassword: boolean }) 
         <span className="font-mono text-xs">{b.name}</span>
         <span className="text-xs text-zinc-500">{when(b.at)}</span>
         <span className="text-xs text-zinc-500">{mb(b.size)}</span>
-        <span className="text-xs" title={b.encrypted ? "AES-256-verschlüsselt" : "Nicht verschlüsselt"}>
-          {b.encrypted === null ? "?" : b.encrypted ? "🔒 verschlüsselt" : "offen"}
+        <span className="text-xs" title={b.encrypted ? "AES-256 encrypted" : "Not encrypted"}>
+          {b.encrypted === null ? "?" : b.encrypted ? "🔒 encrypted" : "open"}
         </span>
         <span className="flex gap-1">
           {b.tiers.map((t) => (
@@ -81,28 +82,28 @@ function BackupRow({ b, hasPassword }: { b: BackupFile; hasPassword: boolean }) 
               {TIER_LABELS[t]}
             </span>
           ))}
-          {!b.tiers.length && <span className="text-[11px] text-amber-700 dark:text-amber-400" title="Zählt in keine Stufe mehr — das nächste Backup löscht es">fällt weg</span>}
+          {!b.tiers.length && <span className="text-[11px] text-amber-700 dark:text-amber-400" title="No longer counts in any tier — the next backup deletes it">goes next</span>}
           {b.config && (
-            <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[11px] text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300" title="Mit Konfigurations-ZIP (Einstellungen, Plugins, Repos …)">
-              + Konfiguration
+            <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[11px] text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300" title="With a configuration ZIP (settings, plugins, repos …)">
+              + configuration
             </span>
           )}
         </span>
         <span className="ml-auto flex gap-2">
           {b.config && (
             <button type="button" className="btn btn-sm" onClick={() => setOpen(open === "config" ? null : "config")} disabled={restarting}>
-              Konfiguration übernehmen …
+              Take over configuration …
             </button>
           )}
           <button type="button" className="btn btn-sm" onClick={() => setOpen(open === "restore" ? null : "restore")} disabled={restarting}>
-            Wiederherstellen …
+            Restore …
           </button>
         </span>
       </div>
       {open === "config" && (
         <div className="mt-2 space-y-2 rounded-md border border-indigo-200 bg-indigo-50 p-3 text-sm dark:border-indigo-900 dark:bg-indigo-950/40">
           <p className="text-indigo-900 dark:text-indigo-100">
-            Übernimmt die Einstellungen und Konfiguration vom {when(b.at)} in dieses Konto — KI-Backends, LLM-Anweisungen, installierte Plugins, Repos, Boards, Bericht-Regeln, Arbeitszeiten. Die Daten bleiben, wie sie sind.
+            Takes the settings and configuration of {when(b.at)} into this account — AI backends, LLM instructions, installed plugins, repos, boards, report rules, working hours. The data stays as it is.
           </p>
           {b.encrypted && (
             <input
@@ -110,17 +111,17 @@ function BackupRow({ b, hasPassword }: { b: BackupFile; hasPassword: boolean }) 
               className="input max-w-xs text-sm"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder={hasPassword ? "Passwort (leer: das gespeicherte)" : "Passwort des Backups"}
+              placeholder={hasPassword ? "Password (empty: the saved one)" : "The backup's password"}
               autoComplete="off"
-              aria-label="Passwort der Konfiguration"
+              aria-label="The configuration's password"
             />
           )}
           <div className="flex gap-2">
             <button type="button" className="btn btn-sm btn-primary" disabled={pending} onClick={takeConfig}>
-              {pending ? "Übernimmt …" : "Ja, übernehmen"}
+              {pending ? "Taking over …" : "Yes, take over"}
             </button>
             <button type="button" className="btn btn-sm" disabled={pending} onClick={() => setOpen(null)}>
-              Abbrechen
+              Cancel
             </button>
           </div>
         </div>
@@ -128,7 +129,7 @@ function BackupRow({ b, hasPassword }: { b: BackupFile; hasPassword: boolean }) 
       {open === "restore" && (
         <div className="mt-2 space-y-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm dark:border-red-900 dark:bg-red-950/40">
           <p className="text-red-900 dark:text-red-100">
-            Ersetzt <strong>alle</strong> Daten dieses Kontos durch den Stand vom {when(b.at)}. Der aktuelle Stand wird vorher automatisch gesichert; Zeff startet dabei neu.
+            Replaces <strong>all</strong> data of this account with the state of {when(b.at)}. The current state is backed up automatically first; Zeff restarts in the process.
           </p>
           {b.encrypted && (
             <input
@@ -136,17 +137,17 @@ function BackupRow({ b, hasPassword }: { b: BackupFile; hasPassword: boolean }) 
               className="input max-w-xs text-sm"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder={hasPassword ? "Passwort (leer: das gespeicherte)" : "Passwort des Backups"}
+              placeholder={hasPassword ? "Password (empty: the saved one)" : "The backup's password"}
               autoComplete="off"
-              aria-label="Passwort des Backups"
+              aria-label="The backup's password"
             />
           )}
           <div className="flex gap-2">
             <button type="button" className="btn btn-sm bg-red-600 text-white hover:bg-red-700" disabled={pending || restarting} onClick={restore}>
-              {restarting ? "Zeff startet neu …" : pending ? "Prüft …" : "Ja, wiederherstellen"}
+              {restarting ? "Zeff is restarting …" : pending ? "Checking …" : "Yes, restore"}
             </button>
             <button type="button" className="btn btn-sm" disabled={pending || restarting} onClick={() => setOpen(null)}>
-              Abbrechen
+              Cancel
             </button>
           </div>
         </div>
@@ -176,10 +177,10 @@ export function BackupSettings({ s, backups }: { s: BackupSettingsView; backups:
   const [pending, start] = useTransition();
   const file = useRef<HTMLInputElement>(null);
   const done = (r: { ok: boolean; error?: string; message?: string } | null) => {
-    toast(r?.ok ? (r.message ?? "Erledigt.") : (r?.error ?? "Ging nicht."), { tone: r?.ok ? "ok" : "error" });
+    toast(r?.ok ? (r.message ?? "Done.") : (r?.error ?? "That didn't work."), { tone: r?.ok ? "ok" : "error" });
     router.refresh();
   };
-  // What's typed here, saved (the folder picked, too) — "Jetzt sichern" saves it first.
+  // What's typed here, saved (the folder picked, too) — "Back up now" saves it first.
   const dirty = enabled !== s.enabled || everyHours !== s.everyHours || keepDaily !== s.keepDaily || keepWeekly !== s.keepWeekly || keepMonthly !== s.keepMonthly || config !== s.config || dir !== s.dir || !!password || clearPassword;
   const persist = async (over: { dir?: string } = {}) => {
     const r = await saveBackupSettingsAction({ enabled, everyHours, keepDaily, keepWeekly, keepMonthly, config, dir: over.dir ?? dir, password: password || undefined, clearPassword });
@@ -206,13 +207,13 @@ export function BackupSettings({ s, backups }: { s: BackupSettingsView; backups:
       fd.set("file", f);
       const r = await uploadBackupAction(fd);
       if (file.current) file.current.value = "";
-      done(r?.ok ? { ok: true, message: `Hochgeladen: ${r.message} — unten wiederherstellen.` } : r);
+      done(r?.ok ? { ok: true, message: `Uploaded: ${r.message} — restore it below.` } : r);
     });
   const importConfig = () =>
     start(async () => {
       const f = configFile.current?.files?.[0];
       if (!f) return;
-      if (!confirm(`Einstellungen und Konfiguration aus ${f.name} in dieses Konto übernehmen? Die Daten bleiben.`)) return;
+      if (!confirm(`Take the settings and configuration from ${f.name} into this account? The data stays.`)) return;
       const fd = new FormData();
       fd.set("file", f);
       if (configPassword) fd.set("password", configPassword);
@@ -228,46 +229,46 @@ export function BackupSettings({ s, backups }: { s: BackupSettingsView; backups:
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="flex items-center gap-2 text-sm sm:col-span-2">
           <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="size-4 accent-indigo-600" />
-          Automatisch sichern
+          Back up automatically
         </label>
         <label className="flex items-start gap-2 text-sm sm:col-span-2">
           <input type="checkbox" checked={config} onChange={(e) => setConfig(e.target.checked)} className="mt-0.5 size-4 accent-indigo-600" />
           <span>
-            Einstellungen &amp; Konfiguration zusätzlich als eigene Config-ZIP
-            <span className="block text-xs text-zinc-400">Neben jedem Backup: KI-Backends, LLM-Anweisungen, installierte Plugins, Repos, Boards, Bericht-Regeln, Arbeitszeiten — in jedes Konto importierbar, ohne die Daten.</span>
+            Settings &amp; configuration also as a config ZIP of their own
+            <span className="block text-xs text-zinc-400">Beside every backup: AI backends, LLM instructions, installed plugins, repos, boards, report rules, working hours — importable into any account, without the data.</span>
           </span>
         </label>
         <label className="space-y-1 text-sm">
-          <span className="text-zinc-500">Wie oft</span>
+          <span className="text-zinc-500">How often</span>
           <select className="input" value={everyHours} onChange={(e) => setEveryHours(Number(e.target.value))} disabled={!enabled}>
             {INTERVALS.map(([h, label]) => (
               <option key={h} value={h}>
                 {label}
               </option>
             ))}
-            {!INTERVALS.some(([h]) => h === everyHours) && <option value={everyHours}>alle {everyHours} Stunden</option>}
+            {!INTERVALS.some(([h]) => h === everyHours) && <option value={everyHours}>every {everyHours} hours</option>}
           </select>
         </label>
         <fieldset className="space-y-1 text-sm">
-          <legend className="text-zinc-500">Aufbewahren — das neueste der letzten …</legend>
+          <legend className="text-zinc-500">Keep — the newest of the last …</legend>
           <div className="flex flex-wrap gap-2">
             {(
               [
-                ["Tage", keepDaily, setKeepDaily, 365],
-                ["Wochen", keepWeekly, setKeepWeekly, 260],
-                ["Monate", keepMonthly, setKeepMonthly, 240],
+                ["days", keepDaily, setKeepDaily, 365],
+                ["weeks", keepWeekly, setKeepWeekly, 260],
+                ["months", keepMonthly, setKeepMonthly, 240],
               ] as const
             ).map(([label, value, set, max]) => (
               <label key={label} className="flex items-center gap-1.5">
-                <input type="number" min={0} max={max} className="input w-20" value={value} onChange={(e) => set(Number(e.target.value))} aria-label={`Backups: letzte ${label}`} />
+                <input type="number" min={0} max={max} className="input w-20" value={value} onChange={(e) => set(Number(e.target.value))} aria-label={`Backups: last ${label}`} />
                 <span className="text-zinc-500">{label}</span>
               </label>
             ))}
           </div>
-          <span className="block text-xs text-zinc-400">Ein Backup kann täglich, wöchentlich und monatlich zugleich zählen; was keins davon ist, löscht das nächste Backup.</span>
+          <span className="block text-xs text-zinc-400">One backup can count as daily, weekly and monthly at once; the next backup deletes whatever is none of them.</span>
         </fieldset>
         <label className="space-y-1 text-sm sm:col-span-2">
-          <span className="text-zinc-500">Ordner (leer: im Datenordner)</span>
+          <span className="text-zinc-500">Folder (empty: in the data folder)</span>
           <span className="flex gap-2">
             <input className="input font-mono text-xs" value={dir} onChange={(e) => setDir(e.target.value)} placeholder={s.resolvedDir} />
             <button
@@ -278,65 +279,65 @@ export function BackupSettings({ s, backups }: { s: BackupSettingsView; backups:
                 setPicking(true);
                 const r = await pickFolderAction(dir || s.resolvedDir);
                 setPicking(false);
-                if (!r.ok) toast(r.error ?? "Der Dialog ging nicht auf.", { tone: "error" });
+                if (!r.ok) toast(r.error ?? "The dialog didn't open.", { tone: "error" });
                 else if (r.path) {
                   // Picked: saved at once (the backups there so far move along).
                   setDir(r.path);
                   start(async () => done(await persist({ dir: r.path! })));
                 }
               }}
-              title="Ordner im Windows-Dialog wählen (er öffnet sich auf diesem Rechner)"
+              title="Choose the folder in the Windows dialog (it opens on this computer)"
             >
-              {picking ? "Dialog offen …" : "Durchsuchen …"}
+              {picking ? "Dialog open …" : "Browse …"}
             </button>
             {dir && (
-              <button type="button" className="btn btn-sm shrink-0" onClick={() => setDir("")} title="Zurück zum Datenordner">
-                Standard
+              <button type="button" className="btn btn-sm shrink-0" onClick={() => setDir("")} title="Back to the data folder">
+                Default
               </button>
             )}
           </span>
-          <span className="block text-xs text-zinc-400">Z. B. ein OneDrive-Ordner, damit die Backups nicht nur auf diesem Rechner liegen. Jetzt: {s.resolvedDir}</span>
+          <span className="block text-xs text-zinc-400">E.g. a OneDrive folder, so the backups aren&apos;t only on this computer. Now: {s.resolvedDir}</span>
         </label>
         <label className="space-y-1 text-sm sm:col-span-2">
-          <span className="text-zinc-500">Passwort für die ZIP-Datei (AES-256)</span>
+          <span className="text-zinc-500">Password for the ZIP file (AES-256)</span>
           <input
             type="password"
             className="input max-w-sm"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder={s.hasPassword ? "gesetzt — leer lassen, um es zu behalten" : "keins — die Backups sind unverschlüsselt"}
+            placeholder={s.hasPassword ? "set — leave empty to keep it" : "none — the backups are not encrypted"}
             autoComplete="new-password"
             disabled={clearPassword}
           />
           <span className="block text-xs text-zinc-400">
-            Öffnen mit 7-Zip oder WinZip (der Windows-Explorer kann AES-ZIPs nicht). Für Windows&apos; <code className="code">tar</code> nur Zeichen ohne Umlaute. Es steht in Zeffs Datenbank — liegt der Ordner woanders, schützt es die Kopie dort.
+            Open with 7-Zip or WinZip (Windows Explorer can&apos;t open AES ZIPs). For Windows&apos; <code className="code">tar</code> use only characters without umlauts. It&apos;s stored in Zeff&apos;s database — if the folder is elsewhere, it protects the copy there.
           </span>
           {s.hasPassword && (
             <label className="flex items-center gap-2 text-xs text-zinc-500">
               <input type="checkbox" checked={clearPassword} onChange={(e) => setClearPassword(e.target.checked)} />
-              Passwort entfernen (künftige Backups unverschlüsselt)
+              Remove the password (future backups not encrypted)
             </label>
           )}
         </label>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" className="btn btn-primary btn-sm" disabled={pending} onClick={save}>
-          Speichern
+          Save
         </button>
-        <button type="button" className="btn btn-sm" disabled={pending} onClick={backupNow} title={dirty ? "Speichert die Änderungen und sichert dann" : undefined}>
-          {pending ? "…" : "Jetzt sichern"}
+        <button type="button" className="btn btn-sm" disabled={pending} onClick={backupNow} title={dirty ? "Saves the changes, then backs up" : undefined}>
+          {pending ? "…" : "Back up now"}
         </button>
-        {dirty && !pending && <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400">ungespeichert</span>}
-        {!s.hasPassword && <span className="text-xs font-medium text-amber-700 dark:text-amber-400">Kein Passwort gesetzt — Backups werden unverschlüsselt gespeichert.</span>}
+        {dirty && !pending && <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400">unsaved</span>}
+        {!s.hasPassword && <span className="text-xs font-medium text-amber-700 dark:text-amber-400">No password set — backups are saved unencrypted.</span>}
       </div>
       <p className="text-xs text-zinc-500">
-        Letztes Backup:{" "}
+        Last backup:{" "}
         {s.lastAt ? (
           <>
             {s.lastOk === false ? <span className="text-red-600 dark:text-red-400">✗</span> : <span className="text-emerald-600 dark:text-emerald-400">✓</span>} {when(s.lastAt)} — {s.lastResult}
           </>
         ) : (
-          "noch keins"
+          "none yet"
         )}
       </p>
       <div>
@@ -348,30 +349,30 @@ export function BackupSettings({ s, backups }: { s: BackupSettingsView; backups:
             ))}
           </ul>
         ) : (
-          <p className="py-2 text-sm text-zinc-500">Noch keine.</p>
+          <p className="py-2 text-sm text-zinc-500">None yet.</p>
         )}
         <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-          <input ref={file} type="file" accept=".zip,application/zip" className="text-xs" aria-label="Backup-Datei hochladen" />
+          <input ref={file} type="file" accept=".zip,application/zip" className="text-xs" aria-label="Upload a backup file" />
           <button type="button" className="btn btn-sm" disabled={pending} onClick={upload}>
-            Hochladen
+            Upload
           </button>
-          <span className="text-xs text-zinc-400">ein Backup von woanders (dann oben wiederherstellen)</span>
+          <span className="text-xs text-zinc-400">a backup from elsewhere (then restore it above)</span>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-          <input ref={configFile} type="file" accept=".zip,application/zip" className="text-xs" aria-label="Config-ZIP importieren" />
+          <input ref={configFile} type="file" accept=".zip,application/zip" className="text-xs" aria-label="Import a config ZIP" />
           <input
             type="password"
             className="input w-48 text-xs"
             value={configPassword}
             onChange={(e) => setConfigPassword(e.target.value)}
-            placeholder={s.hasPassword ? "Passwort (leer: das gespeicherte)" : "Passwort (falls verschlüsselt)"}
+            placeholder={s.hasPassword ? "Password (empty: the saved one)" : "Password (if encrypted)"}
             autoComplete="off"
-            aria-label="Passwort der Config-ZIP"
+            aria-label="The config ZIP's password"
           />
           <button type="button" className="btn btn-sm" disabled={pending} onClick={importConfig}>
-            Konfiguration importieren
+            Import configuration
           </button>
-          <span className="text-xs text-zinc-400">eine Config-ZIP (zeff-…config-….zip) — auch aus einem anderen Konto</span>
+          <span className="text-xs text-zinc-400">a config ZIP (zeff-…config-….zip) — from another account too</span>
         </div>
       </div>
     </div>

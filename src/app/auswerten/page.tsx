@@ -7,7 +7,7 @@ import { getContextPrefs } from "@/lib/boards/context-prefs";
 import { CONTEXT_STEPS } from "@/lib/boards/context-prefs-shared";
 import { installedPlugins } from "@/plugins/state";
 
-export const metadata: Metadata = { title: "Auswerten" };
+export const metadata: Metadata = { title: "AI steps" };
 
 /**
  * Auswerten: what each AI step of the evaluation reads — the Ticket-Lage, the review of mails and
@@ -24,25 +24,25 @@ export default async function AuswertenPage({ searchParams }: { searchParams: Pr
   return (
     <div className="page">
       <div className="page-aside">
-        <h1 className="text-lg font-semibold">Auswerten</h1>
+        <h1 className="text-lg font-semibold">AI steps</h1>
         <p className="text-sm text-zinc-500">
-          Was die KI bei jedem Schritt der Auswertung liest: welche Quellen, wie weit zurück, wie viel — und was du ihr für den Schritt mitgibst. Eine Quelle aus: sie geht nicht in die KI (bei der
-          Durchsicht bleiben ihre Nachrichten liegen, bis du sie wieder einschaltest).
+          What the AI reads at each step: which sources, how far back, how much — and what you give it for the step. A source turned off doesn&apos;t go into the AI (in the
+          reviews its messages wait until you turn it back on).
         </p>
         <p className="text-sm text-zinc-500">
-          Wer du bist und was immer gilt:{" "}
+          Who you are and what always applies:{" "}
           <Link href="/llm" className="text-indigo-600 hover:underline dark:text-indigo-400">
             LLM
           </Link>
-          . Wie oft es läuft:{" "}
+          . How often it runs:{" "}
           <Link href="/sync-settings" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            Sync-Einstellungen
+            Sync settings
           </Link>
           .
         </p>
-        <nav className="flex flex-col gap-0.5 text-sm" aria-label="Schritte">
+        <nav className="flex flex-col gap-0.5 text-sm" aria-label="Steps">
           <a href="#qualitaet" className="rounded px-2 py-1 text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
-            Wie gut es war
+            How well it did
           </a>
           {steps.map((s) => (
             <a key={s.id} href={`#${s.id}`} className="rounded px-2 py-1 text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
@@ -66,7 +66,7 @@ export default async function AuswertenPage({ searchParams }: { searchParams: Pr
 }
 
 const pct = (x: number | null) => (x === null ? "–" : `${Math.round(x * 100)} %`);
-const days = (x: number | null) => (x === null ? "–" : x < 1 ? "< 1 Tag" : `${x.toFixed(1).replace(".", ",")} Tage`);
+const days = (x: number | null) => (x === null ? "–" : x < 1 ? "< 1 day" : `${x.toFixed(1)} days`);
 
 /** How well the steps did: what became of the todos each made — and what was proposed again after you dropped it. */
 function Quality({ q, all }: { q: AiQuality; all: boolean }) {
@@ -75,18 +75,18 @@ function Quality({ q, all }: { q: AiQuality; all: boolean }) {
     <section id="qualitaet" className="card scroll-mt-4 space-y-3 p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <h2 className="font-medium">Wie gut es war</h2>
+          <h2 className="font-medium">How well it did</h2>
           <p className="text-sm text-zinc-500">
-            Was aus den Todos jedes Schritts wurde. Was du verwirfst, wolltest du nicht: die <em>Trefferquote</em> ist erledigt ÷ (erledigt + von dir verworfen). Von der KI selbst
-            zurückgenommene (überholt, anderer Weg) zählen nicht dagegen.
+            What became of each step&apos;s todos. What you dismiss, you didn&apos;t want: the <em>hit rate</em> is done ÷ (done + dismissed by you). Todos the AI
+            withdrew itself (outdated, another way) don&apos;t count against it.
           </p>
         </div>
         <div className="flex gap-1 text-sm">
           <a href="?zeit=30#qualitaet" className={tab(!all)}>
-            30 Tage
+            30 days
           </a>
           <a href="?zeit=alle#qualitaet" className={tab(all)}>
-            Alle
+            All
           </a>
         </div>
       </div>
@@ -95,15 +95,15 @@ function Quality({ q, all }: { q: AiQuality; all: boolean }) {
           <table className="table text-sm">
             <thead>
               <tr className="text-left text-xs text-zinc-500">
-                <th>Schritt</th>
-                <th className="text-right">Neu</th>
-                <th className="text-right">Erledigt</th>
-                <th className="text-right" title="Von dir verworfen">Verworfen</th>
-                <th className="text-right" title="Von der KI zurückgenommen (überholt) oder ein anderer Weg genommen">Zurückgenommen</th>
-                <th className="text-right" title="Von dir wieder geöffnet — zu früh geschlossen">Wieder offen</th>
-                <th className="text-right" title={`In Klammern: seit ${STALE_DAYS} Tagen unberührt`}>Offen</th>
-                <th className="text-right">Trefferquote</th>
-                <th className="text-right" title="Median: angelegt bis erledigt">Bis erledigt</th>
+                <th>Step</th>
+                <th className="text-right">New</th>
+                <th className="text-right">Done</th>
+                <th className="text-right" title="Dismissed by you">Dismissed</th>
+                <th className="text-right" title="Withdrawn by the AI (outdated) or done another way">Withdrawn</th>
+                <th className="text-right" title="Reopened by you — closed too early">Reopened</th>
+                <th className="text-right" title={`In brackets: untouched for ${STALE_DAYS} days`}>Open</th>
+                <th className="text-right">Hit rate</th>
+                <th className="text-right" title="Median: created to done">To done</th>
               </tr>
             </thead>
             <tbody>
@@ -127,11 +127,11 @@ function Quality({ q, all }: { q: AiQuality; all: boolean }) {
           </table>
         </div>
       ) : (
-        <p className="text-sm text-zinc-400">{all ? "Noch keine Todos." : "Keine neuen Todos in den letzten 30 Tagen."}</p>
+        <p className="text-sm text-zinc-400">{all ? "No todos yet." : "No new todos in the last 30 days."}</p>
       )}
       {q.repeats.length > 0 && (
         <div className="space-y-1">
-          <h3 className="text-sm font-medium">Erneut vorgeschlagen, nachdem du es verworfen hattest</h3>
+          <h3 className="text-sm font-medium">Suggested again after you dismissed it</h3>
           <ul className="space-y-1 text-sm">
             {q.repeats.slice(0, 10).map((r) => (
               <li key={r.id} className="flex flex-wrap items-baseline gap-x-2">
@@ -140,7 +140,7 @@ function Quality({ q, all }: { q: AiQuality; all: boolean }) {
                 </Link>
                 <span className="min-w-0 flex-1">{r.text}</span>
                 <span className="text-xs text-zinc-500">
-                  wie{" "}
+                  like{" "}
                   <Link href={`/t/${r.like.id}`} className="font-mono hover:underline">
                     {r.like.ref}
                   </Link>
@@ -148,7 +148,7 @@ function Quality({ q, all }: { q: AiQuality; all: boolean }) {
               </li>
             ))}
           </ul>
-          <p className="text-xs text-zinc-500">Die Mail- und die Notiz-Durchsicht legen so etwas nicht mehr an: was du in den letzten 60 Tagen verworfen hast, gilt für sie als schon da.</p>
+          <p className="text-xs text-zinc-500">The mail review and the note review no longer create these: what you dismissed in the last 60 days counts as already there for them.</p>
         </div>
       )}
     </section>

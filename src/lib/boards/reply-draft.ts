@@ -21,7 +21,7 @@ const SCHEMA = { type: "object", properties: { reply: { type: "string" } }, requ
  */
 export async function draftReply(todoId: number): Promise<ReplyDraft> {
   const t = getTodo(todoId);
-  if (!t) return { ok: false, error: "Das Todo gibt es nicht." };
+  if (!t) return { ok: false, error: "That todo doesn't exist." };
   const refs = [...t.refs, ...t.mailRefs];
   const mails = [...mailsByKeys(refs.filter((r) => r.startsWith("mail:")).map((r) => r.slice(5))).values()].sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
   const teams = [...teamsMessagesByKeys(refs.filter((r) => r.startsWith("teams:")).map((r) => r.slice(6))).values()].sort((a, b) => b.sentAt.localeCompare(a.sentAt));
@@ -29,7 +29,7 @@ export async function draftReply(todoId: number): Promise<ReplyDraft> {
   const tm = teams[0];
   // The newest message it's about: the one to answer.
   const useTeams = !!tm && (!mail || tm.sentAt > mail.receivedAt);
-  if (!mail && !tm) return { ok: false, error: "Das Todo nennt keine Nachricht, auf die man antworten könnte." };
+  if (!mail && !tm) return { ok: false, error: "The todo names no message to reply to." };
 
   let target: ReplyTarget;
   let history: string[];
@@ -67,7 +67,7 @@ export async function draftReply(todoId: number): Promise<ReplyDraft> {
   try {
     const answer = await runAi<{ reply?: string }>(prompt, SCHEMA, { task: "reply-draft", timeoutMs: 3 * 60000, maxBudgetUsd: 0.3 });
     const text = answer.output?.reply?.trim();
-    return text ? { ok: true, text, target } : { ok: false, error: "Die KI hat keinen Entwurf geliefert." };
+    return text ? { ok: true, text, target } : { ok: false, error: "The AI returned no draft." };
   } catch (e) {
     return { ok: false, error: errorMessage(e).slice(0, 300) };
   }

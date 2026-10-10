@@ -16,7 +16,7 @@ export function getLlmSettings(): LlmSettings {
 export function saveLlmSettings(v: { instructions: string; context: string; tasks: Record<string, LlmTaskSetting> }): LlmSettings {
   const instructions = String(v.instructions ?? "").trim();
   const context = String(v.context ?? "").trim();
-  if (instructions.length + context.length > 8000) throw new ValidationError("Anweisungen und Kontext: zusammen höchstens 8000 Zeichen.");
+  if (instructions.length + context.length > 8000) throw new ValidationError("Instructions and context: at most 8000 characters together.");
   const tasks: LlmSettings["tasks"] = {};
   for (const [id, t] of Object.entries(v.tasks ?? {})) {
     if (!isLlmTask(id)) continue;

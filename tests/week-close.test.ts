@@ -29,11 +29,11 @@ test("a week's closing steps say what's left", async () => {
   assert.equal(c.done, false);
   // Friday: 7 of 8 booked (6 + the 1 without job) — 1 h missing.
   assert.equal(by.hours.state, "open");
-  assert.match(by.hours.detail, /Fr 1 h/);
+  assert.match(by.hours.detail, /Fri 1 h/);
   assert.equal(by.suggestions.state, "open");
-  assert.match(by.suggestions.detail, /1 offen/);
+  assert.match(by.suggestions.detail, /1 open/);
   assert.equal(by.jobs.state, "open");
-  assert.match(by.jobs.detail, /1 ohne Job/);
+  assert.match(by.jobs.detail, /1 without a job/);
   // Chrono and Punch never pulled: not known — not done.
   assert.equal(by.chrono?.state, "unknown");
   assert.equal(by.approved?.state, "unknown");
@@ -48,6 +48,6 @@ test("the running week: what's ahead isn't due yet", async () => {
   assert.equal(c.over, false);
   // Monday is over and empty: open — the rest of the week isn't due.
   assert.equal(hours.state, "open");
-  assert.match(hours.detail, /Mo 8 h/);
-  assert.doesNotMatch(hours.detail, /Di|Mi/);
+  assert.match(hours.detail, /Mon 8 h/);
+  assert.doesNotMatch(hours.detail, /Tue|Wed/);
 });

@@ -357,11 +357,11 @@ async function pullFromPhone(page, name, { rounds = 300, idleRounds = 6 } = {}) 
     await page.locator(`#pane-side span[title="${quoted}"]`).first().click({ timeout: 10000 });
   } catch {
     await search.fill("").catch(() => {});
-    throw new Error(`Den Chat „${name}“ gibt es in WhatsApp nicht (genau so geschrieben).`);
+    throw new Error(`There's no WhatsApp chat “${name}” (written exactly like that).`);
   }
   await page.locator("#main").waitFor({ timeout: 15000 });
   const header = await page.evaluate(() => [...document.querySelectorAll("#main header span[title], #main header span[dir='auto']")].map((e) => e.getAttribute("title") || e.textContent || "").join(" | "));
-  if (!header.includes(name)) throw new Error(`Geöffnet wurde ein anderer Chat (${header.slice(0, 80)}).`);
+  if (!header.includes(name)) throw new Error(`Another chat was opened (${header.slice(0, 80)}).`);
   // The link itself, clicked like you would (a real mouse click — its handler sits on an inner element).
   const older = page.locator("#main").getByText(/(ältere|frühere) Nachrichten von deinem Telefon|older messages from your phone/i).last();
   let height = 0;
@@ -398,7 +398,7 @@ async function pullFromPhone(page, name, { rounds = 300, idleRounds = 6 } = {}) 
 
 async function whatsappHistory({ chat = "", maxLoads = 400, fromPhone = false, openIfMissing = false, launch = openIfMissing || fromPhone } = {}) {
   const name = String(chat).trim();
-  if (!name) throw new Error("Welcher Chat? (sein Name, wie in WhatsApp)");
+  if (!name) throw new Error("Which chat? (its name, as in WhatsApp)");
   const browser = await connectToChrome(CDP, { launchUrls: launch ? [HOME] : [] });
   try {
     let page = await whatsappPage(browser, { openIfMissing: !!openIfMissing || !!fromPhone });
@@ -406,8 +406,8 @@ async function whatsappHistory({ chat = "", maxLoads = 400, fromPhone = false, o
     if (fromPhone) {
       // Its exact name first (the search wants it so): what the store calls it.
       const exact = await page.evaluate(readHistory, { name, maxLoads: 1, settleMs: 0 });
-      if (exact.error === "not-found") throw new Error(`Einen Chat „${name}“ gibt es in WhatsApp nicht.`);
-      if (exact.error === "ambiguous") throw new Error(`Mehrere Chats passen zu „${name}“: ${exact.candidates.join(", ")} — bitte genau.`);
+      if (exact.error === "not-found") throw new Error(`There's no WhatsApp chat “${name}”.`);
+      if (exact.error === "ambiguous") throw new Error(`Several chats match “${name}”: ${exact.candidates.join(", ")} — please be exact.`);
       if (!exact.error) {
         phone = { fetched: 0 };
         // WhatsApp Web reloads itself now and then (an update, memory): the tab found again, the
@@ -426,8 +426,8 @@ async function whatsappHistory({ chat = "", maxLoads = 400, fromPhone = false, o
       }
     }
     const got = await page.evaluate(readHistory, { name, maxLoads: Math.min(2000, Math.max(1, Number(maxLoads) || 400)), settleMs: 1500 });
-    if (got.error === "not-found") throw new Error(`Einen Chat „${name}“ gibt es in WhatsApp nicht.`);
-    if (got.error === "ambiguous") throw new Error(`Mehrere Chats passen zu „${name}“: ${got.candidates.join(", ")} — bitte genau.`);
+    if (got.error === "not-found") throw new Error(`There's no WhatsApp chat “${name}”.`);
+    if (got.error === "ambiguous") throw new Error(`Several chats match “${name}”: ${got.candidates.join(", ")} — please be exact.`);
     if (got.error) return JSON.stringify({ error: got.error });
     debug(`${got.chat}: ${got.messages.length} messages after ${got.loads} loads${got.complete ? " (from the beginning)" : ""}`);
     return JSON.stringify({
@@ -488,7 +488,7 @@ async function whatsappMessages({ days = 3, maxLoads = 4, maxMessages = 3000, op
 async function whatsappSend({ chat = "", text = "", dryRun = false } = {}) {
   const name = String(chat).trim();
   const body = String(text).trim();
-  if (!name || (!body && !dryRun)) throw new Error("Chat und Text fehlen.");
+  if (!name || (!body && !dryRun)) throw new Error("Chat and text are missing.");
   const browser = await connectToChrome(CDP, { launchUrls: [HOME] });
   try {
     const page = await whatsappPage(browser, { openIfMissing: true });
@@ -506,13 +506,13 @@ async function whatsappSend({ chat = "", text = "", dryRun = false } = {}) {
       await result.click({ timeout: 10000 });
     } catch {
       await search.fill("").catch(() => {});
-      throw new Error(`Den Chat „${name}“ gibt es in WhatsApp nicht (genau so geschrieben) — nichts gesendet.`);
+      throw new Error(`There's no WhatsApp chat “${name}” (written exactly like that) — nothing sent.`);
     }
     const box = page.locator('footer [contenteditable="true"][role="textbox"], footer div[contenteditable="true"]').last();
     await box.waitFor({ timeout: 15000 });
     // That chat and no other: else nothing is typed.
     const header = await page.evaluate(() => [...document.querySelectorAll("#main header span[title], #main header span[dir='auto']")].map((e) => e.getAttribute("title") || e.textContent || "").join(" | "));
-    if (!header.includes(name)) throw new Error(`Geöffnet wurde ein anderer Chat (${header.slice(0, 80)}) — nichts gesendet.`);
+    if (!header.includes(name)) throw new Error(`Another chat was opened (${header.slice(0, 80)}) — nothing sent.`);
     // A check only: the chat found and open, nothing typed.
     if (dryRun) return JSON.stringify({ chat: name, dryRun: true, header: header.slice(0, 120) });
     await box.click();

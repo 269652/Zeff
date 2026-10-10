@@ -7,7 +7,7 @@ export const syncSettings: PluginSyncSettings = {
     {
       key: "jira",
       label: "Jira",
-      what: "Deine Tickets und die der gewählten Boards (Status, Kommentare, Historie).",
+      what: "Your tickets and those of the chosen boards (status, comments, history).",
       get: () => stepMinutes("jira"),
       set: (m) => setStepMinutes("jira", m),
       choices: MINUTE_CHOICES,

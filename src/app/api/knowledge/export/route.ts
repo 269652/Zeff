@@ -16,12 +16,12 @@ export function GET(req: Request) {
   if (token && req.headers.get("authorization") !== `Bearer ${token}`) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const url = new URL(req.url);
   const id = url.searchParams.get("account");
-  if (id && !accountById(id)) return NextResponse.json({ error: `Das Konto „${id}“ gibt es in Zeff nicht.` }, { status: 404 });
+  if (id && !accountById(id)) return NextResponse.json({ error: `There is no account “${id}” in Zeff.` }, { status: 404 });
   // ?only=keep: just the Google Keep notes (the knowledge server's Google Keep source) — that needs Keep, not Knowledge.
   const only = url.searchParams.get("only") === "keep" ? "keep" : undefined;
   const run = () => {
-    if (only && !isInstalled("keep")) return NextResponse.json({ error: "Google Keep ist in diesem Zeff-Konto nicht installiert (Menü → Plugins)." }, { status: 404 });
-    if (!only && !isInstalled("knowledge")) return NextResponse.json({ error: "Knowledge ist in diesem Zeff-Konto nicht installiert (Menü → Plugins)." }, { status: 404 });
+    if (only && !isInstalled("keep")) return NextResponse.json({ error: "Google Keep is not installed in this Zeff account (Menu → Plugins)." }, { status: 404 });
+    if (!only && !isInstalled("knowledge")) return NextResponse.json({ error: "Knowledge is not installed in this Zeff account (Menu → Plugins)." }, { status: 404 });
     return NextResponse.json(knowledgeDocs(url.origin, only));
   };
   return id ? withAccount(id, run) : run();

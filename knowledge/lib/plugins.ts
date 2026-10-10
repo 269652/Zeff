@@ -12,7 +12,7 @@ export type KPluginId = (typeof KPLUGIN_IDS)[number];
 export const isKPluginId = (v: unknown): v is KPluginId => (KPLUGIN_IDS as readonly unknown[]).includes(v);
 
 export type KCategory = "source" | "ai" | "system";
-export const KCATEGORY_LABELS: Record<KCategory, string> = { source: "Quellen", ai: "KI-Backends", system: "System" };
+export const KCATEGORY_LABELS: Record<KCategory, string> = { source: "Sources", ai: "AI backends", system: "System" };
 
 export type KPlugin = { id: KPluginId; name: string; description: string; category: KCategory; defaultInstalled: boolean; requires?: string; provider?: AiBackend };
 export type AiBackend = "copilot" | "claude";
@@ -21,56 +21,56 @@ export const KPLUGINS: KPlugin[] = [
   {
     id: "confluence",
     name: "Confluence",
-    description: "Liest die Seiten der eingestellten Bereiche über Confluences REST-API — nur geänderte neu (nach Version).",
+    description: "Reads the pages of the chosen spaces through Confluence's REST API — only changed ones again (by version).",
     category: "source",
     defaultInstalled: true,
-    requires: "CONFLUENCE_URL und CONFLUENCE_PERSONAL_TOKEN (Cloud: CONFLUENCE_USERNAME + CONFLUENCE_API_TOKEN) in Zeffs .env",
+    requires: "CONFLUENCE_URL and CONFLUENCE_PERSONAL_TOKEN (Cloud: CONFLUENCE_USERNAME + CONFLUENCE_API_TOKEN) in Zeff's .env",
   },
   {
     id: "zeff",
     name: "Zeff",
-    description: "Was Zeff synchronisiert hat: Jira-Tickets mit Kommentaren, Teams-Chats, Mails, GitLab-Merge-Requests, Todos mit Notizen und KI-Berichten, gebuchte Zeiten, Tagesrückblicke — aus dem Zeff-Konto, dem dieser Wissens-Server gehört.",
+    description: "What Zeff synced: Jira tickets with comments, Teams chats, mails, GitLab merge requests, todos with notes and AI reports, booked time, day recaps — from the Zeff account this knowledge server belongs to.",
     category: "source",
     defaultInstalled: false,
-    requires: "Zeff mit installiertem Knowledge-Plugin (ZEFF_URL, Standard http://127.0.0.1:9333)",
+    requires: "Zeff with the Knowledge plugin installed (ZEFF_URL, default http://127.0.0.1:9333)",
   },
   {
     id: "google-keep",
     name: "Google Keep",
-    description: "Deine Google-Keep-Notizen und -Listen (mit Labels) — Zeffs Google-Keep-Plugin liest sie im Automations-Chrome, aus dem Zeff-Konto, dem dieser Wissens-Server gehört — und die Notizen deiner eigenen Keep-Boards, die „Im Wissen“ sind. Mit der Zeff-Quelle zusammen schon dabei.",
+    description: "Your Google Keep notes and lists (with labels) — Zeff's Google Keep plugin reads them in the automation Chrome, from the Zeff account this knowledge server belongs to — and the notes of your own Keep boards that are shared with the knowledge. Included already with the Zeff source.",
     category: "source",
     defaultInstalled: false,
-    requires: "Zeff mit installiertem Google-Keep-Plugin (im Konto dieses Wissens-Servers)",
+    requires: "Zeff with the Google Keep plugin installed (in this knowledge server's account)",
   },
   {
     id: "import-folder",
-    name: "Import-Ordner",
-    description: "Liest exportierte Seiten aus einem Ordner: .json, .md, .txt, .html — Unterordner sind Bereiche.",
+    name: "Import folder",
+    description: "Reads exported pages from a folder: .json, .md, .txt, .html — subfolders are spaces.",
     category: "source",
     defaultInstalled: false,
   },
   {
     id: "copilot-cli",
     name: "GitHub Copilot CLI",
-    description: "Kompiliert und beantwortet mit Copilot — mit deinem Copilot-Abo, Modelle nach Wahl (Claude, GPT, Gemini …).",
+    description: "Compiles and answers with Copilot — on your Copilot subscription, models of your choice (Claude, GPT, Gemini …).",
     category: "ai",
     defaultInstalled: true,
-    requires: "die Copilot CLI (npm i -g @github/copilot), angemeldet",
+    requires: "the Copilot CLI (npm i -g @github/copilot), signed in",
     provider: "copilot",
   },
   {
     id: "claude-cli",
     name: "Claude CLI",
-    description: "Kompiliert und beantwortet mit Claude Code (claude -p) — mit deinem Claude-Login.",
+    description: "Compiles and answers with Claude Code (claude -p) — with your Claude login.",
     category: "ai",
     defaultInstalled: false,
-    requires: "Claude Code (claude.exe), angemeldet",
+    requires: "Claude Code (claude.exe), signed in",
     provider: "claude",
   },
   {
     id: "auto-refresh",
-    name: "Automatisch lesen",
-    description: "Liest die Quellen von selbst — einige Minuten nach dem Start, dann alle 12 Stunden (KNOWLEDGE_EVERY_HOURS) — und kompiliert, was sich geändert hat.",
+    name: "Read automatically",
+    description: "Reads the sources by itself — a few minutes after the start, then every 12 hours (KNOWLEDGE_EVERY_HOURS) — and compiles what changed.",
     category: "system",
     defaultInstalled: true,
   },
@@ -97,7 +97,7 @@ export function setKInstalled(id: KPluginId, installed: boolean): void {
   ensure();
   // At least one AI backend stays: without one nothing compiles or answers.
   if (!installed && kpluginById(id).category === "ai" && ![...installedKPlugins()].some((x) => x !== id && kpluginById(x).category === "ai")) {
-    throw new Error("Mindestens ein KI-Backend bleibt installiert.");
+    throw new Error("At least one AI backend stays installed.");
   }
   db().prepare("insert into plugins (id, installed, changed_at) values (?, ?, ?) on conflict(id) do update set installed = excluded.installed, changed_at = excluded.changed_at").run(id, installed ? 1 : 0, new Date().toISOString());
 }

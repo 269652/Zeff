@@ -1,5 +1,6 @@
 import { and, desc, gt, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
+import { currentLocale } from "@/lib/format";
 import type { TodoEventKind, TodoEventView } from "./activity-shared";
 
 const { todoEvents, todos, workRuns, boardRuns } = schema;
@@ -65,23 +66,23 @@ export function todoActivity(opts: { days?: number; limit?: number } = {}): Todo
       : [],
   );
   const by = (actor: string | null): TodoEventView["by"] => {
-    if (!actor) return { label: "unbekannt", title: "Von Zeff nicht zugeordnet (vor dem Aktivitätslog, oder ein Weg ohne Absender)" };
-    if (actor === "you") return { label: "Du" };
-    if (actor === "jira") return { label: "Jira-Sync", title: "Das Ticket ist in Jira erledigt" };
-    if (actor === "plan") return { label: "Plan", title: "Ein geplanter Schritt (nach dem vorigen Todo, oder ein anderer Weg wurde genommen)" };
+    if (!actor) return { label: "unknown", title: "Not attributed by Zeff (before the activity log, or a path without a sender)" };
+    if (actor === "you") return { label: "You" };
+    if (actor === "jira") return { label: "Jira sync", title: "The ticket is done in Jira" };
+    if (actor === "plan") return { label: "Plan", title: "A planned step (after the todo before it, or another path was taken)" };
     const agent = /^agent:(.*)$/.exec(actor);
-    if (agent) return { label: `Agent ${agent[1] || ""}`.trim(), title: "Über Zeffs MCP-Server" };
+    if (agent) return { label: `Agent ${agent[1] || ""}`.trim(), title: "Through Zeff's MCP server" };
     const w = /^work:(\d+)$/.exec(actor);
     if (w) {
       const r = work.get(Number(w[1]));
-      const who = r ? (r.provider === "agent" ? (r.model ?? "Agent") : r.provider === "zeff" ? "Zeff (Aktion)" : `Worker${r.model ? ` · ${r.model}` : ""}`) : "Worker";
-      return { label: `W-${w[1]} · ${who}`, href: `/work#w-${w[1]}`, title: "Der Lauf auf dem Work-Tab" };
+      const who = r ? (r.provider === "agent" ? (r.model ?? "Agent") : r.provider === "zeff" ? "Zeff (action)" : `Worker${r.model ? ` · ${r.model}` : ""}`) : "Worker";
+      return { label: `W-${w[1]} · ${who}`, href: `/work#w-${w[1]}`, title: "The run on the Work tab" };
     }
     const l = /^lage:(\d+)$/.exec(actor);
     if (l) {
       const started = lage.get(Number(l[1]));
-      const when = started ? new Date(`${started.replace(" ", "T")}${started.includes("T") ? "" : "Z"}`).toLocaleString("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "";
-      return { label: `Ticket-Lage${when ? ` (${when})` : ""}`, href: "/todos", title: `KI-Auswertung #${l[1]}` };
+      const when = started ? new Date(`${started.replace(" ", "T")}${started.includes("T") ? "" : "Z"}`).toLocaleString(currentLocale(), { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "";
+      return { label: `Briefing${when ? ` (${when})` : ""}`, href: "/todos", title: `Briefing run #${l[1]}` };
     }
     return { label: actor };
   };

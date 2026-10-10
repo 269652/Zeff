@@ -75,7 +75,7 @@ export function getPerson(id: number): Person | null {
 
 export function createPerson(v: { name: string; aliases?: string[]; whatsapp?: string; emails?: string[]; entityId?: number | null; note?: string }): number {
   const name = v.name.trim().slice(0, 120);
-  if (!name) throw new Error("Ein Name, bitte.");
+  if (!name) throw new Error("A name, please.");
   const had = db().prepare("select id from people where lower(name) = lower(?)").get(name) as { id: number } | undefined;
   if (had) return had.id;
   const t = now();
@@ -91,7 +91,7 @@ export function updatePerson(id: number, patch: { name?: string; aliases?: strin
   const args: unknown[] = [];
   const set = (col: string, v: unknown) => (sets.push(`${col} = ?`), args.push(v));
   if (patch.name !== undefined) {
-    if (!patch.name.trim()) throw new Error("Ein Name, bitte.");
+    if (!patch.name.trim()) throw new Error("A name, please.");
     set("name", patch.name.trim().slice(0, 120));
   }
   if (patch.aliases !== undefined) set("aliases", JSON.stringify(clean(patch.aliases)));

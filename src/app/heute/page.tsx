@@ -3,18 +3,17 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { daysUntil, dueText, dueTone } from "@/lib/boards/due-shared";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
-import { formatHours } from "@/lib/format";
+import { currentLocale, formatHours, formatTime } from "@/lib/format";
 import type { TodoView } from "@/lib/boards/shared";
 import { remindedFormAction } from "@/plugins/people/server-actions";
 import { inDaysText, upcomingTitle } from "@/plugins/people/shared";
 import { isInstalled } from "@/plugins/state";
 
-export const metadata: Metadata = { title: "Heute" };
+export const metadata: Metadata = { title: "Today" };
 
-const time = (iso: string) => new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 const ago = (iso: string, now: number) => {
   const d = Math.floor((now - new Date(iso).getTime()) / 864e5);
-  return d <= 0 ? "heute" : d === 1 ? "seit gestern" : `seit ${d} Tagen`;
+  return d <= 0 ? "today" : d === 1 ? "since yesterday" : `for ${d} days`;
 };
 
 function Card({ title, href, count, children }: { title: string; href?: string; count?: number; children: React.ReactNode }) {
@@ -27,7 +26,7 @@ function Card({ title, href, count, children }: { title: string; href?: string; 
         </span>
         {href && (
           <Link href={href} className="text-xs font-normal tracking-normal text-indigo-600 normal-case hover:underline dark:text-indigo-400">
-            alle →
+            all →
           </Link>
         )}
       </h2>
@@ -61,7 +60,7 @@ async function heuteData() {
     const { readInbox } = await import("@/lib/calendar/inbox");
     meetings = readInbox()
       .filter((e) => !e.isCancelled && !e.isAllDay && e.start.dateTime.slice(0, 10) === iso && e.showAs !== "free")
-      .map((e) => ({ subject: e.subject ?? "(ohne Titel)", start: e.start.dateTime, end: e.end.dateTime, online: !!e.isOnlineMeeting }))
+      .map((e) => ({ subject: e.subject ?? "(no title)", start: e.start.dateTime, end: e.end.dateTime, online: !!e.isOnlineMeeting }))
       .sort((a, b) => a.start.localeCompare(b.start));
   }
 
@@ -111,11 +110,11 @@ async function heuteData() {
     const { currentWeek, shiftWeek } = await import("@/lib/week");
     const { weekClose } = await import("@/lib/week-close");
     const thisWeek = currentWeek();
-    const candidates = today.getDay() >= 1 && today.getDay() <= 3 ? [{ w: shiftWeek(thisWeek, -1), title: "Letzte Woche abschließen" }] : [];
-    candidates.push({ w: thisWeek, title: "Woche abschließen" });
+    const candidates = today.getDay() >= 1 && today.getDay() <= 3 ? [{ w: shiftWeek(thisWeek, -1), title: "Close last week" }] : [];
+    candidates.push({ w: thisWeek, title: "Close the week" });
     for (const { w, title } of candidates) {
       const c = await weekClose(w, today);
-      if (c.over && !c.done) weeks.push({ key: w.key, title: `${title} (KW ${w.week})`, open: c.items.filter((i) => i.state !== "ok").length, href: `/?week=${w.key}` });
+      if (c.over && !c.done) weeks.push({ key: w.key, title: `${title} (W${w.week})`, open: c.items.filter((i) => i.state !== "ok").length, href: `/?week=${w.key}` });
     }
   }
 
@@ -144,9 +143,9 @@ const NEXT_TONE: Record<import("@/lib/heute-next").NextTone, string> = {
 };
 
 const PROBLEM: Record<"login" | "chrome" | "broken", string> = {
-  login: "Anmeldung nötig",
-  chrome: "Automations-Chrome läuft nicht",
-  broken: "schlägt fehl",
+  login: "Sign-in needed",
+  chrome: "automation Chrome isn't running",
+  broken: "failing",
 };
 
 /**
@@ -172,19 +171,19 @@ export default async function HeutePage() {
   return (
     <div className="page">
       <div className="page-aside">
-        <h1 className="text-lg font-semibold">Heute</h1>
-        <p className="text-sm text-zinc-500">{today.toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" })}</p>
+        <h1 className="text-lg font-semibold">Today</h1>
+        <p className="text-sm text-zinc-500">{today.toLocaleDateString(currentLocale(), { weekday: "long", day: "numeric", month: "long" })}</p>
         {run?.result?.lede && (
           <div className="space-y-1">
             <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{run.result.lede}</p>
             <Link href="/todos" className="text-xs text-indigo-600 hover:underline dark:text-indigo-400">
-              Zur Lage →
+              To the briefing →
             </Link>
           </div>
         )}
         {hours && (
           <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
-            <div className="text-xs text-zinc-500 uppercase">Stunden heute</div>
+            <div className="text-xs text-zinc-500 uppercase">Hours today</div>
             <div className="text-2xl font-semibold tabular-nums">
               {formatHours(hours.booked)} <span className="text-base font-normal text-zinc-400">/ {formatHours(hours.target)}</span>
             </div>
@@ -192,7 +191,7 @@ export default async function HeutePage() {
               <div className="h-full bg-indigo-500" style={{ width: `${Math.min(100, hours.target ? (hours.booked / hours.target) * 100 : 0)}%` }} />
             </div>
             <Link href="/feierabend" className="mt-1 block text-xs text-indigo-600 hover:underline dark:text-indigo-400">
-              {hours.suggestions ? `${hours.suggestions} Vorschläge von heute — Tag buchen →` : "Tag buchen (Feierabend) →"}
+              {hours.suggestions ? `${hours.suggestions} ${hours.suggestions === 1 ? "suggestion" : "suggestions"} from today — book the day →` : "Book the day (End of day) →"}
             </Link>
           </div>
         )}
@@ -201,7 +200,7 @@ export default async function HeutePage() {
       <div className="grid gap-4 xl:grid-cols-2">
         {next.length > 0 && (
           <section className="card p-4 xl:col-span-2">
-            <h2 className="mb-2 text-sm font-semibold text-zinc-500 uppercase">Als Nächstes</h2>
+            <h2 className="mb-2 text-sm font-semibold text-zinc-500 uppercase">Up next</h2>
             <ol className="space-y-1.5">
               {next.map((n, i) => {
                 const body = (
@@ -228,7 +227,7 @@ export default async function HeutePage() {
         )}
 
         {problems.length > 0 && (
-          <Card title="Syncs mit Problemen" count={problems.length}>
+          <Card title="Syncs with problems" count={problems.length}>
             <ul className="space-y-1.5">
               {problems.map((p) => (
                 <li key={p.key} className="text-sm">
@@ -254,13 +253,13 @@ export default async function HeutePage() {
           </Card>
         )}
         {asking.length > 0 && (
-          <Card title="Agenten fragen dich" count={asking.length}>
+          <Card title="Agents ask you" count={asking.length}>
             <ul className="space-y-1.5">{asking.map((t) => todo(t, <span className="shrink-0 text-xs text-amber-600 dark:text-amber-400">❗</span>))}</ul>
           </Card>
         )}
 
         {reminders.length > 0 && (
-          <Card title="Erinnerungen" count={reminders.length} href="/personen">
+          <Card title="Reminders" count={reminders.length} href="/personen">
             <ul className="space-y-1.5">
               {reminders.map((r) => (
                 <li key={`${r.date.id}:${r.on}`} className="flex items-baseline gap-2 text-sm">
@@ -272,8 +271,8 @@ export default async function HeutePage() {
                   <form action={remindedFormAction} className="shrink-0">
                     <input type="hidden" name="dateId" value={r.date.id} />
                     <input type="hidden" name="on" value={r.on} />
-                    <button className="text-xs text-zinc-400 hover:text-zinc-700 hover:underline dark:hover:text-zinc-200" title="Erledigt — bis zum nächsten Mal nicht mehr zeigen">
-                      erledigt
+                    <button className="text-xs text-zinc-400 hover:text-zinc-700 hover:underline dark:hover:text-zinc-200" title="Done — don't show again until next time">
+                      done
                     </button>
                   </form>
                 </li>
@@ -282,19 +281,19 @@ export default async function HeutePage() {
           </Card>
         )}
 
-        <Card title="Fällig" count={due.length + flagged.length} href="/todos">
+        <Card title="Due" count={due.length + flagged.length} href="/todos">
           {due.length || flagged.length ? (
             <ul className="space-y-1.5">
               {due.map((t) => todo(t, <span className={`shrink-0 text-xs ${dueTone(t.due!)}`}>{dueText(t.due!)}</span>))}
-              {flagged.map((t) => todo(t, <span className="shrink-0 text-xs text-red-600 dark:text-red-400">wichtig</span>))}
+              {flagged.map((t) => todo(t, <span className="shrink-0 text-xs text-red-600 dark:text-red-400">important</span>))}
             </ul>
           ) : (
-            <Empty>Nichts fällig in den nächsten drei Tagen. {mine.length} Todos offen.</Empty>
+            <Empty>Nothing due in the next three days. {mine.length} {mine.length === 1 ? "todo" : "todos"} open.</Empty>
           )}
         </Card>
 
         {isInstalled("outlook-calendar") && (
-          <Card title="Termine" count={meetings.length} href="/calendar">
+          <Card title="Meetings" count={meetings.length} href="/calendar">
             {meetings.length ? (
               <ul className="space-y-1.5">
                 {meetings.map((m, i) => {
@@ -302,22 +301,22 @@ export default async function HeutePage() {
                   return (
                     <li key={i} className={`flex items-baseline gap-2 text-sm ${new Date(m.end).getTime() < now ? "text-zinc-400" : ""}`}>
                       <span className="w-24 shrink-0 text-xs text-zinc-500 tabular-nums">
-                        {time(m.start)}–{time(m.end)}
+                        {formatTime(m.start)}–{formatTime(m.end)}
                       </span>
                       <span className={`min-w-0 flex-1 ${live ? "font-medium" : ""}`}>{m.subject}</span>
-                      {live && <span className="shrink-0 text-xs text-emerald-600 dark:text-emerald-400">läuft</span>}
+                      {live && <span className="shrink-0 text-xs text-emerald-600 dark:text-emerald-400">now</span>}
                     </li>
                   );
                 })}
               </ul>
             ) : (
-              <Empty>Heute keine Termine.</Empty>
+              <Empty>No meetings today.</Empty>
             )}
           </Card>
         )}
 
         {(isInstalled("whatsapp") || isInstalled("teams")) && (
-          <Card title="Wartet auf deine Antwort" count={unanswered.length} href="/mail">
+          <Card title="Waiting for your answer" count={unanswered.length} href="/mail">
             {unanswered.length ? (
               <ul className="space-y-1.5">
                 {unanswered.slice(0, 12).map((u) => (
@@ -326,7 +325,7 @@ export default async function HeutePage() {
                       <span className="shrink-0 font-medium">{u.who}</span>
                       <span className="min-w-0 flex-1 truncate text-zinc-500">{u.text}</span>
                       <span className="shrink-0 text-xs text-zinc-400">
-                        {u.count > 1 ? `${u.count} Nachrichten · ` : ""}
+                        {u.count > 1 ? `${u.count} messages · ` : ""}
                         {u.source} · {ago(u.since, now)}
                       </span>
                     </a>
@@ -334,16 +333,16 @@ export default async function HeutePage() {
                 ))}
               </ul>
             ) : (
-              <Empty>Niemand wartet auf dich.</Empty>
+              <Empty>Nobody is waiting for you.</Empty>
             )}
           </Card>
         )}
 
-        <Card title="Du wartest auf andere" count={waiting.length} href="/todos">
+        <Card title="Waiting on others" count={waiting.length} href="/todos">
           {waiting.length ? (
             <ul className="space-y-1.5">{waiting.slice(0, 10).map((t) => todo(t, <span className="shrink-0 text-xs text-zinc-400">⏳ {ago(t.createdAt, now)}</span>))}</ul>
           ) : (
-            <Empty>Nichts hängt länger als drei Tage.</Empty>
+            <Empty>Nothing has been waiting longer than three days.</Empty>
           )}
         </Card>
       </div>

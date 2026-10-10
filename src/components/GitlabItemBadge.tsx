@@ -7,10 +7,11 @@ import { ChevronIcon } from "./icons";
 import { Markdown } from "./Markdown";
 import { ResolvedMark } from "./ResolvedMark";
 import { ResolveToggle } from "./ResolveToggle";
+import { formatDate, formatDateTime, formatTime } from "@/lib/format";
 
-const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
+const when = (iso: string | null) => (iso ? formatDateTime(iso) : "");
 const full = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  `${formatDate(iso, { year: true })}, ${formatTime(iso)}`;
 
 /** What a kind is, spelled out. */
 const KIND_NAME: Record<GitlabKind, string> = { mr: "Merge request", comment: "Comment", branch: "Branch" };
@@ -40,7 +41,7 @@ export function GitlabResolve({ item, className = "" }: { item: Pick<GitlabItemV
       className={className}
       hint={
         thread
-          ? { done: "In GitLab aufgelöst — Klick: dort wieder öffnen (und hier offen)", open: "Erledigt — löst den Thread auch in GitLab auf" }
+          ? { done: "Resolved in GitLab — click: reopen it there (and here)", open: "Done — resolves the thread in GitLab too" }
           : undefined
       }
     />
@@ -110,7 +111,7 @@ export function GitlabItemBadge({
           </>
         )}
       </svg>
-      {item.kind === "comment" && <ResolvedMark done={resolved || gitlabDone(item)} title={resolvedInGitlab(item) ? "in GitLab gelöst" : undefined} />}
+      {item.kind === "comment" && <ResolvedMark done={resolved || gitlabDone(item)} title={resolvedInGitlab(item) ? "resolved in GitLab" : undefined} />}
       <span className="shrink-0 font-medium">{GITLAB_KIND_LABELS[item.kind]}</span>
       {item.kind === "branch" ? (
         <span className="min-w-0 truncate font-medium">{what}</span>

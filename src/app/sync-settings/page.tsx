@@ -3,7 +3,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { SyncSettingsList } from "@/components/SyncSettingsList";
 
-export const metadata: Metadata = { title: "Sync-Einstellungen" };
+export const metadata: Metadata = { title: "Sync settings" };
 
 /**
  * Sync settings: how often each sync runs by itself — all in one place. Each installed plugin
@@ -15,14 +15,14 @@ export default async function SyncSettingsPage() {
   return (
     <div className="page">
       <div className="page-aside">
-        <h1 className="text-lg font-semibold">Sync-Einstellungen</h1>
+        <h1 className="text-lg font-semibold">Sync settings</h1>
         <p className="text-sm text-zinc-500">
-          Wie oft jeder Sync von selbst läuft — jedes installierte Plugin bringt seinen Teil mit. Von selbst läuft nichts zwischen 19 und 8 Uhr; „Sync now“ und das Sync-Menü gehen immer.
+          How often each sync runs by itself — every installed plugin brings its part. Nothing runs by itself between 19:00 and 08:00; “Sync now” and the sync menu always work.
         </p>
         <p className="text-sm text-zinc-500">
-          Was ein Sync braucht, um zu lesen — die Anmeldung im Automations-Chrome —, steht unter{" "}
+          What a sync needs to read — the sign-in in the automation Chrome — is under{" "}
           <Link href="/logins" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            Anmeldungen
+            Sign-ins
           </Link>
           .
         </p>

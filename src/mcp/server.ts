@@ -235,7 +235,7 @@ export function registerZeffTools(server: McpServer): void {
         for (const id of known) {
           const t = getTodo(id);
           if (t?.status !== "open") continue;
-          attributed(`agent:${s.reportedBy || "MCP"}`, () => markWorkerDone(id, s.reportedBy || "MCP", `Buchung vorgeschlagen ${s.ref} (${s.date}, ${formatHours(s.hours)} h): ${s.description}`));
+          attributed(`agent:${s.reportedBy || "MCP"}`, () => markWorkerDone(id, s.reportedBy || "MCP", `Entry suggested ${s.ref} (${s.date}, ${formatHours(s.hours)} h): ${s.description}`));
           closed.push(todoRef(id));
         }
         return ok(

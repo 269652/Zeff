@@ -36,7 +36,7 @@ import {
 import { punchDayStates } from "@/lib/punch-status";
 import { weekClose } from "@/lib/week-close";
 import { getWeeklyReport, listReporters } from "@/lib/entries";
-import { formatHours, round2 } from "@/lib/format";
+import { formatDate, formatHours, round2 } from "@/lib/format";
 import { getJobByNumber, listJobs } from "@/lib/jobs";
 import { latestPausesBefore, listPausesByDate } from "@/lib/pauses";
 import { listProjectOptions } from "@/lib/projects";
@@ -240,7 +240,7 @@ function ApprovalsCard() {
   const today = todayIso();
   const a = getChronoApprovalSummary(last.startIso, current.endIso, today);
   const pulled = a.pulledAt !== null;
-  const day = (iso: string) => format(parseISO(iso), "EEE d.M.");
+  const day = (iso: string) => formatDate(iso);
   const item = (i: ChronoItem) => `${day(i.date)} · ${i.jobNumber} · ${formatHours(i.hours)} h “${i.comment}”`;
   const waitingHours = round2(a.awaiting.reduce((s, i) => s + i.hours, 0));
   const notSubmitted = a.unsubmitted.length ? `${a.unsubmitted.length} not submitted` : "";

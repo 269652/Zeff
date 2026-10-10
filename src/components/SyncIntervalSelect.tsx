@@ -15,7 +15,7 @@ export function SyncIntervalSelect({ syncKey, label, minutes, choices }: { syncK
   return (
     <select
       className="input w-44"
-      aria-label={`${label}: wie oft`}
+      aria-label={`${label}: how often`}
       value={value}
       disabled={pending}
       onChange={(e) => {
@@ -23,7 +23,7 @@ export function SyncIntervalSelect({ syncKey, label, minutes, choices }: { syncK
         setValue(m);
         start(async () => {
           const r = await saveSyncIntervalAction(syncKey, m);
-          toast(r?.ok ? `${label}: ${r.message}` : (r?.error ?? "Ging nicht."), { tone: r?.ok ? "ok" : "error" });
+          toast(r?.ok ? `${label}: ${r.message}` : (r?.error ?? "Didn't work."), { tone: r?.ok ? "ok" : "error" });
           if (!r?.ok) setValue(minutes);
           router.refresh();
         });

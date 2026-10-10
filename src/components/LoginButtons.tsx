@@ -12,7 +12,7 @@ function useAct() {
   const act = (fn: () => Promise<ActionState>) =>
     start(async () => {
       const r = await fn();
-      toast(r?.ok ? (r.message ?? "Erledigt.") : (r?.error ?? "Ging nicht."), { tone: r?.ok ? "ok" : "error" });
+      toast(r?.ok ? (r.message ?? "Done.") : (r?.error ?? "Didn't work."), { tone: r?.ok ? "ok" : "error" });
       router.refresh();
     });
   return [pending, act] as const;
@@ -24,8 +24,8 @@ export function LoginButtons({ service, label, checkable }: { service: string; l
   return (
     <div className="flex shrink-0 gap-2">
       {checkable && (
-        <button type="button" className="btn btn-sm" disabled={pending} onClick={() => act(() => checkLoginAction(service))} title={`Fragt ${label} im Automations-Chrome, ob du angemeldet bist — öffnet nichts`}>
-          {pending ? "…" : "Prüfen"}
+        <button type="button" className="btn btn-sm" disabled={pending} onClick={() => act(() => checkLoginAction(service))} title={`Asks ${label} in the automation Chrome whether you are signed in — opens nothing`}>
+          {pending ? "…" : "Check"}
         </button>
       )}
       <button
@@ -33,9 +33,9 @@ export function LoginButtons({ service, label, checkable }: { service: string; l
         className="btn btn-sm btn-primary"
         disabled={pending}
         onClick={() => act(() => openServiceLoginAction(service))}
-        title={`Holt ${label} im Automations-Chrome nach vorne (öffnet es, startet den Chrome wenn nötig) — anmelden tust du dich dort selbst`}
+        title={`Brings ${label} to the front in the automation Chrome (opens it, starts Chrome if needed) — you sign in there yourself`}
       >
-        Anmelden
+        Sign in
       </button>
     </div>
   );
@@ -46,7 +46,7 @@ export function CheckAllLoginsButton() {
   const [pending, act] = useAct();
   return (
     <button type="button" className="btn btn-sm" disabled={pending} onClick={() => act(checkAllLoginsAction)}>
-      {pending ? "Prüft…" : "Alle prüfen"}
+      {pending ? "Checking…" : "Check all"}
     </button>
   );
 }

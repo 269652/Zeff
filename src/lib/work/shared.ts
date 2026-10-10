@@ -181,9 +181,9 @@ export type WorkIsolation = "worktree" | "checkout";
 export const COPILOT_MODES = ["interactive", "autopilot", "headless"] as const;
 export type CopilotMode = (typeof COPILOT_MODES)[number];
 export const COPILOT_MODE_LABELS: Record<CopilotMode, string> = {
-  interactive: "Interaktiv — fragt dich um Erlaubnis",
-  autopilot: "Autopilot — erlaubt alles, läuft durch",
-  headless: "Ohne Rückfragen (bisher) — verweigert, was nicht erlaubt ist",
+  interactive: "Interactive — asks you for permission",
+  autopilot: "Autopilot — allows everything, runs through",
+  headless: "No questions (as before) — refuses what isn't allowed",
 };
 
 export type WorkSettingsView = {

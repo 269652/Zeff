@@ -5,15 +5,15 @@ import { getMailSettings, updateMailSettings } from "./store";
 export const MAIL_INTERVAL: SyncInterval = {
   key: "mail",
   label: "Mail",
-  what: "Die neuesten Mails deines Posteingangs (Outlook, Gmail) — aus der Liste gelesen, keine geöffnet.",
+  what: "Your inbox's latest mails (Outlook, Gmail) — read from the list, none opened.",
   get: () => getMailSettings().syncMinutes,
   set: (m) => updateMailSettings({ syncMinutes: m }),
   choices: MINUTE_CHOICES,
-  window: "solange der Automations-Chrome läuft",
+  window: "while the automation Chrome runs",
 };
 
 /** What the mails (and WhatsApp messages) go through: with each Ticket-Lage. */
 export const MAIL_FOLLOWERS: SyncFollower[] = [
-  { key: "mailtodos", label: "Mail-Durchsicht", follows: "mit jeder Ticket-Lage (Auswertung) — Todos aus neuen Mails und WhatsApp-Nachrichten" },
-  { key: "relations", label: "Mail-Zuordnung", follows: "mit jeder Ticket-Lage — welche Mails zu welchem Todo gehören" },
+  { key: "mailtodos", label: "Mail review", follows: "with each briefing — todos from new mails and WhatsApp messages" },
+  { key: "relations", label: "Mail matching", follows: "with each briefing — which mails belong to which todo" },
 ];

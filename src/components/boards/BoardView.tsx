@@ -32,6 +32,7 @@ import { LinkPending } from "../LinkPending";
 import { UnseenActivityBadge } from "./ActivitySeen";
 import { FollowToggle } from "./FollowToggle";
 import { TodoItem } from "./TodoItem";
+import { formatDate, formatDateTime } from "@/lib/format";
 
 /** Each attention's colours: its stripe, its chip, its share of the bar. */
 const ATT: Record<Attention, { stripe: string; chip: string }> = {
@@ -66,7 +67,7 @@ const ATT: Record<Attention, { stripe: string; chip: string }> = {
 };
 
 const day = (iso: string | null | undefined) =>
-  iso ? `${Number(iso.slice(8, 10))}.${Number(iso.slice(5, 7))}.` : "";
+  iso ? formatDate(iso.slice(0, 10), { weekday: false }) : "";
 const ACTION_ICON: Record<TicketAction["type"], string> = {
   transition: "→",
   assign: "👤",
@@ -98,12 +99,7 @@ function TicketActionButton({
         <div className="font-medium">✓ {action.label}</div>
         <div className="text-emerald-800/70 dark:text-emerald-200/70">
           {done.detail} ·{" "}
-          {new Date(done.at).toLocaleString("de-DE", {
-            day: "numeric",
-            month: "short",
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
+          {formatDateTime(done.at)}
         </div>
       </div>
     );
@@ -119,14 +115,14 @@ function TicketActionButton({
         onClick={() => {
           const ask =
             action.type === "comment"
-              ? `Diesen Kommentar auf ${ticket} posten?\n\n${action.comment}`
+              ? `Post this comment on ${ticket}?\n\n${action.comment}`
               : `${ticket}: ${action.label}?\n\n${action.why}`;
           if (!window.confirm(ask)) return;
           start(async () => {
             const r = await runTicketActionAction(runId, ticket, idx);
-            if (r?.ok) toast(r.message ?? `${ticket}: erledigt.`);
+            if (r?.ok) toast(r.message ?? `${ticket}: done.`);
             else
-              toast(r?.error ?? "Hat nicht geklappt.", {
+              toast(r?.error ?? "Didn't work.", {
                 tone: "error",
                 ms: 12000,
               });
@@ -143,7 +139,7 @@ function TicketActionButton({
       )}
       {done?.status === "failed" && (
         <p className="text-[11px] leading-snug text-red-600 dark:text-red-400">
-          Fehlgeschlagen: {done.detail}
+          Failed: {done.detail}
         </p>
       )}
     </div>
@@ -227,7 +223,7 @@ function TicketRow({
           </p>
         ) : (
           <p className="text-sm text-zinc-400">
-            Keine Auswertung in diesem Lauf.
+            Not analyzed in this run.
           </p>
         )}
         {a && a.flags.length > 0 && (
@@ -262,7 +258,7 @@ function TicketRow({
         {todos.some((t) => t.status !== "open") && (
           <details className="text-sm">
             <summary className="cursor-pointer text-xs text-zinc-500">
-              Erledigt ({todos.filter((t) => t.status !== "open").length})
+              Done ({todos.filter((t) => t.status !== "open").length})
             </summary>
             <ul className="mt-1.5 space-y-1 rounded-md bg-zinc-50 p-2 dark:bg-zinc-950/60">
               {todos
@@ -283,7 +279,7 @@ function TicketRow({
         {a && a.happened.length > 0 && (
           <details className="text-sm">
             <summary className="cursor-pointer text-xs text-zinc-500">
-              Was passiert ist ({a.happened.length})
+              What happened ({a.happened.length})
             </summary>
             <ul className="mt-1.5 space-y-0.5 text-zinc-600 dark:text-zinc-300">
               {a.happened.map((h, i) => (
@@ -302,16 +298,16 @@ function TicketRow({
         {(recent.length > 0 || gitlab.length > 0) && (
           <details className="text-sm">
             <summary className="cursor-pointer text-xs text-zinc-500">
-              Kommentare (
+              Comments (
               {[
                 recent.length
-                  ? `Jira ${recent.length}${facts.comments > recent.length ? ` von ${facts.comments}` : ""}`
+                  ? `Jira ${recent.length}${facts.comments > recent.length ? ` of ${facts.comments}` : ""}`
                   : "",
                 gitlab.length ? `GitLab ${gitlab.length}` : "",
               ]
                 .filter(Boolean)
                 .join(" · ")}
-              ) — erledigte fließen nicht in neue Todos
+              ) — done ones don&apos;t feed new todos
             </summary>
             {recent.length > 0 && (
               <ul className="mt-1.5 space-y-1">
@@ -353,7 +349,7 @@ function TicketRow({
                         target="_blank"
                         rel="noreferrer"
                         className="font-mono text-xs text-orange-700 hover:underline dark:text-orange-300"
-                        title={`Auf ${c.ref} ${c.title} — in GitLab öffnen`}
+                        title={`On ${c.ref} ${c.title} — open in GitLab`}
                       >
                         {c.ref}
                       </a>{" "}
@@ -369,7 +365,7 @@ function TicketRow({
         {mails.length > 0 && (
           <details className="text-sm">
             <summary className="cursor-pointer text-xs text-zinc-500">
-              Mails ({mails.length}{mails.some((m) => m.unread) ? `, ${mails.filter((m) => m.unread).length} ungelesen` : ""}) — die ersten Zeilen, wie Outlook sie listet
+              Mails ({mails.length}{mails.some((m) => m.unread) ? `, ${mails.filter((m) => m.unread).length} unread` : ""}) — the first lines, as Outlook lists them
             </summary>
             <div className="mt-1.5 flex flex-col items-start gap-1">
               {mails.map((m) => (
@@ -384,10 +380,10 @@ function TicketRow({
           {facts.issueType && <span>{facts.issueType}</span>}
           {facts.priority && <span>{facts.priority}</span>}
           <span>
-            {facts.comments} Kommentar{facts.comments === 1 ? "" : "e"}
+            {facts.comments} comment{facts.comments === 1 ? "" : "s"}
           </span>
           {facts.parent && <span>Parent {facts.parent}</span>}
-          {facts.updatedAt && <span>zuletzt {day(facts.updatedAt)}</span>}
+          {facts.updatedAt && <span>last {day(facts.updatedAt)}</span>}
         </div>
       </div>
       <div className="flex shrink-0 flex-col gap-2 border-zinc-200 p-3 md:w-60 md:border-l md:border-dashed max-md:border-t max-md:border-dashed dark:border-zinc-800">
@@ -398,13 +394,13 @@ function TicketRow({
             rel="noreferrer"
             className="font-mono text-xs text-zinc-500 hover:text-indigo-600 hover:underline"
           >
-            In Jira öffnen ↗
+            Open in Jira ↗
           </a>
         )}
         {a?.actions?.length ? (
           <div className="space-y-2">
             <div className="text-xs font-semibold text-zinc-500 uppercase">
-              Vorschläge
+              Suggestions
             </div>
             {a.actions.map((x, i) => (
               <TicketActionButton
@@ -420,15 +416,15 @@ function TicketRow({
         ) : (
           <p className="text-xs text-zinc-400">
             {a?.actions
-              ? "Keine Änderung am Ticket vorgeschlagen."
-              : "Vorschläge kommen mit der nächsten Auswertung."}
+              ? "No change to the ticket suggested."
+              : "Suggestions come with the next run."}
           </p>
         )}
         <Link
           href="/work"
           className="text-xs text-indigo-600 hover:underline dark:text-indigo-400"
         >
-          Todos im Work-Tab →
+          Todos on the Work tab →
         </Link>
       </div>
     </article>
@@ -559,7 +555,7 @@ export function BoardView({
   // (filterSlot: the element there), else above the list.
   const chips =
     order.length > 0 ? (
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Nach Lage filtern">
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by state">
         {[{ a: "all" as const, n: order.length }, ...counts].map((c) => {
           const on = filter === c.a;
           return (
@@ -575,7 +571,7 @@ export function BoardView({
               }`}
             >
               {c.a !== "all" && <span className={`size-2 shrink-0 rounded-full ${ATT[c.a].stripe}`} aria-hidden />}
-              <span>{c.a === "all" ? "Alle" : ATTENTION_LABELS[c.a]}</span>
+              <span>{c.a === "all" ? "All" : ATTENTION_LABELS[c.a]}</span>
               <span className={on ? "opacity-70" : "text-zinc-400"}>{c.n}</span>
             </button>
           );
@@ -602,9 +598,9 @@ export function BoardView({
         >
           {(
             [
-              ["open", "Deine Todos", mine.length, "/todos"],
-              ["done", "Erledigt", doneCount ?? doneList.length, "/todos?todos=done"],
-              ["activity", "Aktivität", null, "/todos?todos=activity"],
+              ["open", "Your todos", mine.length, "/todos"],
+              ["done", "Done", doneCount ?? doneList.length, "/todos?todos=done"],
+              ["activity", "Activity", null, "/todos?todos=activity"],
             ] as const
           ).map(([key, label, n, href]) => (
             <Link
@@ -645,7 +641,7 @@ export function BoardView({
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-zinc-500">Noch nichts erledigt.</p>
+            <p className="text-sm text-zinc-500">Nothing done yet.</p>
           )
         ) : (
           <>
@@ -665,14 +661,14 @@ export function BoardView({
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-zinc-500">Nichts offen bei dir.</p>
+              <p className="text-sm text-zinc-500">Nothing open for you.</p>
             )}
             {waiting.length > 0 && (
               <PersistedDetails
                 storageKey="boards-waiting"
                 className="pt-1"
                 summaryClassName="text-xs font-semibold text-zinc-500 uppercase"
-                summary={`Wartet auf andere (${waiting.length})`}
+                summary={`Waiting on others (${waiting.length})`}
               >
                 <ul className="mt-1.5 space-y-1">
                   {waiting.map((t) => (
@@ -718,7 +714,7 @@ export function BoardView({
         ))}
         {order.length === 0 && (
           <p className="card p-6 text-center text-sm text-zinc-500">
-            Keine offenen Tickets auf den gewählten Boards.
+            No open tickets on the chosen boards.
           </p>
         )}
       </section>
@@ -726,7 +722,7 @@ export function BoardView({
       {left.length > 0 && (
         <section className="space-y-2">
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">
-            Seit dem letzten Lauf nicht mehr auf der Liste
+            No longer on the list since the last run
           </h2>
           <ul className="space-y-1.5 text-sm">
             {left.map((t) => (
@@ -751,9 +747,9 @@ export function BoardView({
       {listed.length > 0 && (
         <details className="card p-4">
           <summary className="cursor-pointer text-sm font-semibold text-zinc-500 uppercase">
-            Nur gelistet{" "}
+            Only listed{" "}
             <span className="font-normal normal-case text-zinc-400">
-              — erledigt ohne Lösung oder seit Monaten unberührt (
+              — closed without a resolution or untouched for months (
               {listed.length})
             </span>
           </summary>

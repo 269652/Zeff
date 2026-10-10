@@ -57,7 +57,7 @@ export function FlexTimeRow({
         <Link href={`/jobs/${job.id}`} className="italic hover:underline" title="The flex-time job (Schedule → Flex time)">
           <span className="font-mono whitespace-nowrap">{job.number}</span> {job.name}
         </Link>
-        <div className="text-xs">Gleitzeit · “{comment}”</div>
+        <div className="text-xs">Flex time · “{comment}”</div>
         {error && (
           <div className="mt-0.5 text-xs text-red-600 dark:text-red-400" role="alert">
             {error}

@@ -5,7 +5,7 @@ export const GITLAB_ACTIONS = [
   action({
     type: "gitlab-reply",
     plugin: "gitlab",
-    label: "Auf GitLab-Kommentar antworten",
+    label: "Reply to GitLab comment",
     verb: "Reply",
     comms: true,
     offer: {
@@ -14,13 +14,13 @@ export const GITLAB_ACTIONS = [
       example: { type: "gitlab-reply", note: "note:461450", body: "Umgesetzt — die Klassen kommen jetzt per use-Statement." },
     },
     clean: (o) => (noteId(o.note) && str(o.body) ? { type: "gitlab-reply", note: noteId(o.note), body: str(o.body).slice(0, 8000) } : null),
-    title: (op) => `Antwort in GitLab (${op.note})`,
-    note: (op) => ({ heading: `Antwort in GitLab (${op.note})`, detail: null, body: op.body }),
+    title: (op) => `Reply in GitLab (${op.note})`,
+    note: (op) => ({ heading: `Reply in GitLab (${op.note})`, detail: null, body: op.body }),
   }),
   action({
     type: "gitlab-resolve",
     plugin: "gitlab",
-    label: "GitLab-Thread auflösen",
+    label: "Resolve GitLab thread",
     verb: "Resolve",
     comms: true,
     offer: {
@@ -29,30 +29,30 @@ export const GITLAB_ACTIONS = [
       example: { type: "gitlab-resolve", note: "note:461450" },
     },
     clean: (o) => (noteId(o.note) ? { type: "gitlab-resolve", note: noteId(o.note) } : null),
-    title: (op) => `GitLab-Thread auflösen (${op.note})`,
-    note: (op) => ({ heading: "GitLab-Thread auflösen", detail: op.note, body: null }),
+    title: (op) => `Resolve GitLab thread (${op.note})`,
+    note: (op) => ({ heading: "Resolve GitLab thread", detail: op.note, body: null }),
   }),
   action({
     type: "gitlab-open-mr",
     plugin: "gitlab",
-    label: "Merge Request öffnen",
+    label: "Open merge request",
     verb: "Open MR",
     delivery: true,
     clean: (o) =>
       str(o.project) && str(o.source) && str(o.target)
         ? { type: "gitlab-open-mr", repo: str(o.repo), project: str(o.project), source: str(o.source), target: str(o.target), title: str(o.title) || str(o.source), description: str(o.description) }
         : null,
-    title: (op) => `MR öffnen: ${op.source} → ${op.target}`,
-    note: (op) => ({ heading: "MR öffnen", detail: `${op.source} → ${op.target}${op.title ? ` · „${op.title}“` : ""}`, body: null }),
+    title: (op) => `Open MR: ${op.source} → ${op.target}`,
+    note: (op) => ({ heading: "Open MR", detail: `${op.source} → ${op.target}${op.title ? ` · “${op.title}”` : ""}`, body: null }),
   }),
   action({
     type: "gitlab-merge",
     plugin: "gitlab",
-    label: "Merge Request mergen",
+    label: "Merge merge request",
     verb: "Merge",
     delivery: true,
     clean: (o) => (str(o.project) && Number(o.iid) > 0 ? { type: "gitlab-merge", project: str(o.project), iid: Number(o.iid), source: str(o.source) } : null),
-    title: (op) => `!${op.iid} mergen`,
-    note: (op) => ({ heading: `!${op.iid} mergen`, detail: `${op.source} — sobald der MR approved ist`, body: null }),
+    title: (op) => `Merge !${op.iid}`,
+    note: (op) => ({ heading: `Merge !${op.iid}`, detail: `${op.source} — as soon as the MR is approved`, body: null }),
   }),
 ];

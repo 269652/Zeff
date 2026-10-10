@@ -119,7 +119,7 @@ export function syncPages(): Promise<SyncResult> {
         sources.push("Confluence");
         const spaces = s.spaces.split(/[\s,;]+/).filter(Boolean);
         for await (const p of confluencePages(spaces, s.maxPages, known)) {
-          if (state.__knowledgeSyncStop) throw new Error("Angehalten.");
+          if (state.__knowledgeSyncStop) throw new Error("Stopped.");
           read++;
           seen.add(p.id);
           if ("unchanged" in p) continue;
@@ -131,7 +131,7 @@ export function syncPages(): Promise<SyncResult> {
         const z = await zeffPages();
         sources.push(`Zeff${z.account ? ` (${z.account})` : ""}`);
         for (const p of z.pages) {
-          if (state.__knowledgeSyncStop) throw new Error("Angehalten.");
+          if (state.__knowledgeSyncStop) throw new Error("Stopped.");
           read++;
           seen.add(p.id);
           if (known.get(p.id) === p.version) continue;
@@ -144,7 +144,7 @@ export function syncPages(): Promise<SyncResult> {
         const k = await zeffPages("keep");
         sources.push(`Google Keep${k.account ? ` (${k.account})` : ""}`);
         for (const p of k.pages) {
-          if (state.__knowledgeSyncStop) throw new Error("Angehalten.");
+          if (state.__knowledgeSyncStop) throw new Error("Stopped.");
           read++;
           seen.add(p.id);
           if (known.get(p.id) === p.version) continue;
@@ -162,17 +162,17 @@ export function syncPages(): Promise<SyncResult> {
           changed++;
         }
       }
-      if (!sources.length) throw new Error("Keine Quelle: das Confluence-Plugin (mit CONFLUENCE_URL + Token in Zeffs .env), das Zeff-Plugin, das Google-Keep-Plugin oder das Import-Ordner-Plugin (mit einem Ordner).");
+      if (!sources.length) throw new Error("No source: the Confluence plugin (with CONFLUENCE_URL + token in Zeff's .env), the Zeff plugin, the Google Keep plugin or the Import folder plugin (with a folder).");
       // Gone from where they came from (read completely): removed. Your own knowledge (own.ts, "own:…") comes from no source — it stays.
       const gone = [...before].filter((id) => !seen.has(id) && !id.startsWith("own:"));
       d.prepare("insert into settings (key, value) values ('parserVersion', ?) on conflict(key) do update set value = excluded.value").run(String(PARSER_VERSION));
       gone.forEach(removePage);
-      const message = `${read} Seiten gelesen (${sources.join(", ")}), ${changed} neu oder geändert, ${gone.length} entfernt.`;
+      const message = `${read} pages read (${sources.join(", ")}), ${changed} new or changed, ${gone.length} removed.`;
       endRun(runId, true, message);
       return { ok: true, message, read, changed, removed: gone.length };
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      endRun(runId, false, `${message} (bis dahin ${read} gelesen, ${changed} gespeichert)`);
+      endRun(runId, false, `${message} (by then ${read} read, ${changed} saved)`);
       return { ok: false, message, read, changed, removed: 0 };
     }
   })().finally(() => {

@@ -13,7 +13,7 @@ export function BackendPicker({ task, label, backends, backend, model }: { task:
   const [chosen, setChosen] = useState(first?.id ?? "");
   const [m, setM] = useState(first?.id === backend ? model : "");
   const opt = backends.find((b) => b.id === chosen);
-  const models = opt ? (opt.models.some((x) => x.value === m) || !m ? opt.models : [...opt.models, { value: m, label: `${m} (gesetzt)` }]) : [];
+  const models = opt ? (opt.models.some((x) => x.value === m) || !m ? opt.models : [...opt.models, { value: m, label: `${m} (set)` }]) : [];
   if (!backends.length) return null;
   return (
     <fieldset className="grid gap-3 sm:grid-cols-2">
@@ -36,7 +36,7 @@ export function BackendPicker({ task, label, backends, backend, model }: { task:
         </select>
       </label>
       <label className="block text-sm">
-        <span className="label">Modell</span>
+        <span className="label">Model</span>
         <select name={`${task}Model`} value={m} onChange={(e) => setM(e.target.value)} className="input">
           {models.map((x) => (
             <option key={x.value} value={x.value}>

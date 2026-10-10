@@ -13,7 +13,7 @@ const COLORS = Object.keys(ACCOUNT_DOT);
 
 function ColorPicker({ value, onChange, disabled }: { value: string; onChange: (c: string) => void; disabled?: boolean }) {
   return (
-    <span className="flex items-center gap-1" role="radiogroup" aria-label="Farbe">
+    <span className="flex items-center gap-1" role="radiogroup" aria-label="Colour">
       {COLORS.map((c) => (
         <button
           key={c}
@@ -41,7 +41,7 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
   const [made, setMade] = useState<{ id: string; name: string } | null>(null);
 
   const done = (r: { ok: boolean; message?: string; error?: string } | null) => {
-    toast(r?.ok ? (r.message ?? "Erledigt.") : (r?.error ?? "Ging nicht."), { tone: r?.ok ? "ok" : "error" });
+    toast(r?.ok ? (r.message ?? "Done.") : (r?.error ?? "That didn't work."), { tone: r?.ok ? "ok" : "error" });
     if (r?.ok) router.refresh();
     return !!r?.ok;
   };
@@ -50,7 +50,7 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
     <div className="space-y-6">
       {busy && (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
-          Gerade läuft {busy} — wechseln geht, sobald es fertig ist.
+          {busy} is running right now — you can switch as soon as it&apos;s finished.
         </p>
       )}
       <ul className="grid gap-3 md:grid-cols-2">
@@ -71,10 +71,10 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
                   <ColorPicker value={draft.color} onChange={(color) => setDraft({ ...draft, color })} disabled={pending} />
                   <span className="flex gap-2">
                     <button type="button" className="btn btn-sm" onClick={() => setEditing(null)}>
-                      Abbrechen
+                      Cancel
                     </button>
                     <button type="submit" className="btn btn-sm btn-primary" disabled={pending}>
-                      Speichern
+                      Save
                     </button>
                   </span>
                 </div>
@@ -85,7 +85,7 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
                   <h2 className="flex min-w-0 items-center gap-2 font-medium">
                     <span className={`size-2.5 shrink-0 rounded-full ${dotOf(a.color)}`} aria-hidden />
                     <span className="truncate">{a.name}</span>
-                    {a.current && <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[11px] font-medium text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">aktiv</span>}
+                    {a.current && <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[11px] font-medium text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">active</span>}
                   </h2>
                   <span className="flex shrink-0 gap-2">
                     {!a.current && (
@@ -93,7 +93,7 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
                         type="button"
                         className="btn btn-sm btn-primary"
                         disabled={pending || !!busy}
-                        title={busy ? `Gerade läuft ${busy}` : `In „${a.name}“ wechseln`}
+                        title={busy ? `${busy} is running right now` : `Switch to “${a.name}”`}
                         onClick={() =>
                           start(async () => {
                             const r = await switchAccountAction(a.id);
@@ -101,7 +101,7 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
                           })
                         }
                       >
-                        Wechseln
+                        Switch
                       </button>
                     )}
                     <button
@@ -113,7 +113,7 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
                         setEditing(a.id);
                       }}
                     >
-                      Bearbeiten
+                      Edit
                     </button>
                     {!a.current && a.id !== "default" && (
                       <button
@@ -121,11 +121,11 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
                         className="btn btn-sm text-red-600 dark:text-red-400"
                         disabled={pending}
                         onClick={() => {
-                          if (!confirm(`Konto „${a.name}“ entfernen? Seine Daten werden beiseitegelegt (data\\accounts\\.deleted), nicht gelöscht.`)) return;
+                          if (!confirm(`Remove the account “${a.name}”? Its data is set aside (data\\accounts\\.deleted), not deleted.`)) return;
                           start(async () => void done(await deleteAccountAction(a.id)));
                         }}
                       >
-                        Entfernen
+                        Remove
                       </button>
                     )}
                   </span>
@@ -141,8 +141,8 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
 
       {made && (
         <section className="card max-w-xl space-y-2 border-indigo-200 bg-indigo-50 p-4 text-sm dark:border-indigo-900 dark:bg-indigo-950/40">
-          <p className="font-medium">„{made.name}“ ist angelegt.</p>
-          <p className="text-zinc-600 dark:text-zinc-300">Der Einrichtungs-Assistent führt durch Plugins, Einstellungen, Anmeldungen — und holt am Ende alle Daten und wertet sie zum ersten Mal aus.</p>
+          <p className="font-medium">“{made.name}” has been created.</p>
+          <p className="text-zinc-600 dark:text-zinc-300">The setup assistant walks you through plugins, settings, sign-ins — and at the end fetches all the data and analyses it for the first time.</p>
           <div className="flex gap-2">
             <button
               type="button"
@@ -155,10 +155,10 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
                 })
               }
             >
-              Einrichtung starten
+              Start setup
             </button>
             <button type="button" className="btn btn-sm" onClick={() => setMade(null)}>
-              Später
+              Later
             </button>
           </div>
         </section>
@@ -177,40 +177,40 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
           });
         }}
       >
-        <h2 className="font-medium">Neues Konto</h2>
+        <h2 className="font-medium">New account</h2>
         <label className="block space-y-1 text-sm">
           <span className="text-zinc-600 dark:text-zinc-300">Name</span>
-          <input className="input w-full" value={fresh.name} onChange={(e) => setFresh({ ...fresh, name: e.target.value })} placeholder="z. B. Privat" required />
+          <input className="input w-full" value={fresh.name} onChange={(e) => setFresh({ ...fresh, name: e.target.value })} placeholder="e.g. Private" required />
         </label>
         <div className="space-y-1 text-sm">
-          <span className="text-zinc-600 dark:text-zinc-300">Farbe</span>
+          <span className="text-zinc-600 dark:text-zinc-300">Colour</span>
           <ColorPicker value={fresh.color} onChange={(color) => setFresh({ ...fresh, color })} disabled={pending} />
         </div>
         <label className="block space-y-1 text-sm">
-          <span className="text-zinc-600 dark:text-zinc-300">Einstellungen übernehmen von</span>
+          <span className="text-zinc-600 dark:text-zinc-300">Take over settings from</span>
           <select className="input w-full" value={fresh.copyFrom} onChange={(e) => setFresh({ ...fresh, copyFrom: e.target.value })}>
-            <option value="">— keinem (leer, Standard-Plugins) —</option>
+            <option value="">— none (empty, default plugins) —</option>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name}
               </option>
             ))}
           </select>
-          <span className="block text-xs text-zinc-500">Einstellungen, KI-Backends, LLM-Anweisungen, installierte Plugins, Repos, Boards, Bericht-Regeln, Arbeitszeiten, Kalender-Verbindung, Menü, Sync-Intervalle — keine Buchungen, Todos oder Mails.</span>
+          <span className="block text-xs text-zinc-500">Settings, AI backends, LLM instructions, installed plugins, repos, boards, report rules, working hours, calendar connection, menu, sync intervals — no entries, todos or mails.</span>
         </label>
         {fresh.copyFrom && (
           <label className="flex items-start gap-2 text-sm">
             <input type="checkbox" className="mt-0.5" checked={fresh.shareChrome} onChange={(e) => setFresh({ ...fresh, shareChrome: e.target.checked })} />
             <span>
-              Anmeldungen mitbenutzen
+              Share the sign-ins
               <span className="block text-xs text-zinc-500">
-                Den Automations-Chrome von „{accounts.find((a) => a.id === fresh.copyFrom)?.name}“ — dort ist schon alles angemeldet. Ohne: ein eigener Chrome, in dem du dich neu anmeldest.
+                The automation Chrome of “{accounts.find((a) => a.id === fresh.copyFrom)?.name}” — everything is already signed in there. Without: a Chrome of its own, where you sign in again.
               </span>
             </span>
           </label>
         )}
         <button type="submit" className="btn btn-primary" disabled={pending || !fresh.name.trim()}>
-          Anlegen
+          Create
         </button>
       </form>
     </div>

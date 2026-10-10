@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { SyncIntervalSelect } from "@/components/SyncIntervalSelect";
 import { syncOverview } from "@/lib/sync/registry";
-import { agoText } from "@/lib/teams/time";
+import { formatAgo, formatDate, formatTime } from "@/lib/format";
 import { installedSyncSettings } from "@/plugins/sync-settings-modules";
 
-const at = (iso: string) => new Date(iso).toLocaleString("de-DE", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const at = (iso: string) => `${formatDate(iso)}, ${formatTime(iso)}`;
 
 /** Each installed plugin's syncs and how often they run by itself (its settings module) — the Sync settings page's and the setup's. */
 export function SyncSettingsList() {
@@ -26,8 +26,8 @@ export function SyncSettingsList() {
                     <p className="text-xs text-zinc-400">
                       {[
                         i.window,
-                        s?.lastAt && `zuletzt ${agoText(s.lastAt)}${s.lastOk === false ? " (fehlgeschlagen)" : ""}`,
-                        s?.nextAt && `nächster ${at(s.nextAt)}`,
+                        s?.lastAt && `last run ${formatAgo(s.lastAt)}${s.lastOk === false ? " (failed)" : ""}`,
+                        s?.nextAt && `next run ${at(s.nextAt)}`,
                       ]
                         .filter(Boolean)
                         .join(" · ")}
@@ -47,7 +47,7 @@ export function SyncSettingsList() {
         ))
       ) : (
         <p className="py-6 text-center text-sm text-zinc-500">
-          Keins der installierten Plugins bringt einen Sync —{" "}
+          None of the installed plugins brings a sync —{" "}
           <Link href="/plugins" className="text-indigo-600 hover:underline dark:text-indigo-400">
             Plugins
           </Link>

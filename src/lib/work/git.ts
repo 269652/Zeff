@@ -72,8 +72,8 @@ export function gitSummary(cwd: string, baseSha: string | null): string {
   const commits = baseSha ? tryGit(cwd, ["log", "--oneline", "--no-decorate", `${baseSha}..HEAD`]) : "";
   if (commits) parts.push(`Commits:\n${commits}`);
   const stat = baseSha ? tryGit(cwd, ["diff", "--stat", baseSha]) : "";
-  if (stat) parts.push(`Geändert seit Start:\n${stat}`);
+  if (stat) parts.push(`Changed since the start:\n${stat}`);
   const status = tryGit(cwd, ["status", "--short"]);
-  if (status) parts.push(`Nicht committet:\n${status}`);
+  if (status) parts.push(`Not committed:\n${status}`);
   return parts.join("\n\n").slice(0, 6000);
 }

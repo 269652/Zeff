@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import type { ActionState } from "@/app/action-helpers";
 import { minutesText } from "@/plugins/sync-settings";
+import { currentLocale } from "@/lib/format";
 
 /**
  * "Sync now", how the last sync went, and how often it runs in the background (set on the Sync
@@ -42,12 +43,12 @@ export function SyncControls({
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <button type="button" className="btn btn-primary btn-sm" disabled={syncing} onClick={() => startSync(async () => setState(await sync()))}>
-            {syncing ? "Syncing…" : label ? `${label} syncen` : "Sync now"}
+            {syncing ? "Syncing…" : label ? `Sync ${label}` : "Sync now"}
           </button>
           <span className="text-xs text-zinc-500">
-            Von selbst: {minutesText(syncMinutes)} ·{" "}
+            By itself: {minutesText(syncMinutes)} ·{" "}
             <Link href={`/sync-settings#${syncKey}`} className="text-indigo-600 hover:underline dark:text-indigo-400">
-              ändern
+              change
             </Link>
           </span>
         </div>
@@ -57,7 +58,7 @@ export function SyncControls({
           ) : state?.ok ? (
             <span className="text-emerald-600 dark:text-emerald-400">Synced: {state.message}</span>
           ) : last ? (
-            <span className={last.ok ? "text-zinc-500" : "text-amber-700 dark:text-amber-400"} title={new Date(last.at).toLocaleString()}>
+            <span className={last.ok ? "text-zinc-500" : "text-amber-700 dark:text-amber-400"} title={new Date(last.at).toLocaleString(currentLocale())}>
               Last sync {last.ago}: {last.result}
             </span>
           ) : (

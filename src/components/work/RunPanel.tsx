@@ -10,6 +10,7 @@ import { ChevronIcon } from "../icons";
 import { Markdown } from "../Markdown";
 import { RunLog } from "./RunLog";
 import { LiveControls } from "./LiveControls";
+import { formatDate, formatTime } from "@/lib/format";
 
 const STATUS_STYLE: Record<WorkRunView["status"], string> = {
   queued: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
@@ -25,7 +26,7 @@ const OUTCOME: Record<NonNullable<WorkRunView["outcome"]>, { text: string; cls: 
   blocked: { text: "blocked", cls: "text-red-700 dark:text-red-400" },
 };
 
-const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
+const when = (iso: string | null) => (iso ? `${formatDate(iso)}, ${formatTime(iso)}` : "");
 
 /** Time so far (a running run: ticking — the clock read in an effect, not in render). */
 function Elapsed({ run }: { run: WorkRunView }) {
@@ -180,7 +181,7 @@ export function RunPanel({ run, created = [] }: { run: WorkRunView; created?: { 
         {run.outcome && <span className={OUTCOME[run.outcome].cls}>{OUTCOME[run.outcome].text}</span>}
         <span className="text-zinc-500">
           {run.provider === "agent"
-            ? `${run.model ?? "Agent"} · extern (MCP)`
+            ? `${run.model ?? "Agent"} · external (MCP)`
             : run.provider === "zeff"
               ? run.mode === "mr"
                 ? "merge request · Zeff"

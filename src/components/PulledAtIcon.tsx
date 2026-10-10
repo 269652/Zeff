@@ -2,20 +2,10 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
-
-/** How long ago, roughly: "just now", "5 min ago", "2 h 5 min ago", "yesterday", "3 days ago". */
-function ago(ms: number): string {
-  const min = Math.round(ms / 60000);
-  if (min < 1) return "just now";
-  if (min < 60) return `${min} min ago`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `${h} h${min % 60 ? ` ${min % 60} min` : ""} ago`;
-  const d = Math.floor(h / 24);
-  return d === 1 ? "yesterday" : `${d} days ago`;
-}
+import { currentLocale, formatAgo } from "@/lib/format";
 
 /** How long ago `then` was, as of now — read when the tooltip opens (an event, never during render). */
-const ageOf = (then: Date) => ago(Date.now() - then.getTime());
+const ageOf = (then: Date) => formatAgo(then);
 
 type Tip = { top?: number; bottom?: number; right: number; age: string | null };
 
@@ -82,7 +72,7 @@ export function PulledAtIcon({
           >
             <span className="block font-medium">
               {pulled
-                ? `${source} status from ${pulled.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`
+                ? `${source} status from ${pulled.toLocaleString(currentLocale(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`
                 : `Not pulled from ${source} yet`}
               {tip.age && <span className="font-normal opacity-75"> · {tip.age}</span>}
             </span>

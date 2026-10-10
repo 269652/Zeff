@@ -9,7 +9,7 @@ import { execFile, type ChildProcess } from "node:child_process";
 const g = globalThis as { __zeffAbortStore?: AsyncLocalStorage<AbortSignal> };
 const store = (g.__zeffAbortStore ??= new AsyncLocalStorage<AbortSignal>());
 
-export const ABORTED = "Abgebrochen.";
+export const ABORTED = "Stopped.";
 
 /** Run with this signal — and, if there's one around already (a step of the Lage), stopped with that too. */
 export function withAbort<T>(controller: AbortController, fn: () => Promise<T>): Promise<T> {

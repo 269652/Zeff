@@ -150,7 +150,7 @@ export function reviewNotesForTodos(runId: number | null = null): Promise<NoteTo
       reviewed += batch.length;
     }
     if (added) emitChange("todos");
-    return { ok: failed < batches.length, reviewed, added, batches: batches.length, ...(failed ? { error: `${failed} von ${batches.length} Teilen fehlgeschlagen` } : {}) };
+    return { ok: failed < batches.length, reviewed, added, batches: batches.length, ...(failed ? { error: `${failed} of ${batches.length} parts failed` } : {}) };
   })()
     .catch((e): NoteTodosResult => {
       console.error("[note-todos]", errorMessage(e));

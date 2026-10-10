@@ -13,7 +13,7 @@ test("stopping a sync ends its driver at once", async () => {
   setTimeout(() => c.abort(), 300);
   await assert.rejects(
     withAbort(c, () => runStdioSession({ command: process.execPath, args: ["-e", "setInterval(()=>{},1000)"], label: "Test" }, () => new Promise(() => {}), 60000)),
-    /Abgebrochen/,
+    /Stopped/,
   );
   assert.ok(Date.now() - t0 < 5000);
 });
@@ -24,6 +24,6 @@ test("a step already stopped doesn't start", async () => {
   c.abort();
   await assert.rejects(
     withAbort(c, async () => throwIfAborted()),
-    /Abgebrochen/,
+    /Stopped/,
   );
 });

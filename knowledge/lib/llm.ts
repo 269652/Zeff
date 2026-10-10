@@ -15,7 +15,7 @@ export function backendFor(task: AiTask): { backend: AiBackend; model: string } 
   const s = getSettings();
   const want = task === "compile" ? s.compileBackend : s.askBackend;
   const there = installedBackends();
-  if (!there.length) throw new Error("Kein KI-Backend installiert (Plugins: Copilot CLI oder Claude CLI).");
+  if (!there.length) throw new Error("No AI backend installed (Plugins: Copilot CLI or Claude CLI).");
   const backend = there.includes(want) ? want : there[0];
   // The model set is for the backend set — another backend: its default.
   return { backend, model: backend === want ? (task === "compile" ? s.compileModel : s.askModel) : "" };

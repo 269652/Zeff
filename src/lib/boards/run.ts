@@ -1,5 +1,5 @@
 import { aiChoice, runAi } from "@/lib/ai";
-import { throwIfAborted, withAbort } from "@/lib/abort";
+import { ABORTED, throwIfAborted, withAbort } from "@/lib/abort";
 import { inThisAccount } from "@/db/accounts";
 import { AI_PROVIDER_INFO } from "@/lib/ai/shared";
 import { errorMessage } from "@/lib/errors";
@@ -62,7 +62,7 @@ function cleanResult(r: BoardResult, tickets: BoardTicket[]): BoardResult {
 export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean; message: string } {
   // Kept in the account it was started in — whichever is switched to while it runs.
   return inThisAccount(() => {
-    if (state.__zeffBoardRun) return { ok: false, message: "Es läuft schon eine Auswertung." };
+    if (state.__zeffBoardRun) return { ok: false, message: "A briefing run is already running." };
     const s = getBoardSettings();
     const ai = aiChoice();
     const provider = AI_PROVIDER_INFO[ai.provider].label;
@@ -92,14 +92,14 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
         const { tickets, prompt, doneLeft, fromCache } = await collectBoard(s.jql, lastGoodRun(id), { maxChars: ai.maxPrompt });
         if (!tickets.some((t) => t.analyzed)) {
           // No tickets: no Lage — the mails and WhatsApp messages are still gone through for todos (below).
-          finishRun(id, { status: "ok", tickets, result: { lede: "Keine offenen Tickets zum Auswerten.", tickets: [], left: [] }, durationMs: Date.now() - t0 });
+          finishRun(id, { status: "ok", tickets, result: { lede: "No open tickets to brief on.", tickets: [], left: [] }, durationMs: Date.now() - t0 });
           kept = true;
         } else {
           state.__zeffBoardRun = { id, phase: "ai", since: t0, provider };
           const answer = await runAi<BoardResult>(prompt, BOARD_RESULT_SCHEMA, { task: "ticket-lage", maxBudgetUsd: 5, timeoutMs: 15 * 60000 });
           state.__zeffBoardRun = { id, phase: "saving", since: t0, provider };
           const result = cleanResult(answer.output, tickets);
-          if (fromCache) result.lede = `⚠ Jira war nicht erreichbar (${fromCache}) — ausgewertet aus Zeffs letztem Stand. ${result.lede}`;
+          if (fromCache) result.lede = `⚠ Jira wasn't reachable (${fromCache}) — briefed from Zeff's last copy. ${result.lede}`;
           reconcileTodos(result, id);
           closeTodosOfDoneTickets(doneLeft);
           // Merge requests to open, asked for in words: their button (push → open MR), worked out from git.
@@ -142,14 +142,14 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
         state.__zeffBoardRun = { id, phase: "autoactions", since: t0, provider };
         await syncAndWait("autoactions");
       } catch (e) {
-        if (!kept) finishRun(id, { status: "error", error: stop.signal.aborted ? "Abgebrochen." : errorMessage(e), durationMs: Date.now() - t0 });
+        if (!kept) finishRun(id, { status: "error", error: stop.signal.aborted ? ABORTED : errorMessage(e), durationMs: Date.now() - t0 });
         else if (!stop.signal.aborted) console.error("[boards] a step after the Lage failed:", errorMessage(e));
       } finally {
         state.__zeffBoardRun = null;
         if (stopState.__zeffBoardRunStop === stop) stopState.__zeffBoardRunStop = null;
       }
     });
-    return { ok: true, message: "Auswertung gestartet." };
+    return { ok: true, message: "Briefing started." };
   });
 }
 

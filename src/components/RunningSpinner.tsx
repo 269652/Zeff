@@ -1,5 +1,5 @@
 /** A small turning ring before a todo that's being worked on (a worker, an agent, an action running). */
-export function RunningSpinner({ title = "Läuft gerade" }: { title?: string }) {
+export function RunningSpinner({ title = "Running" }: { title?: string }) {
   return (
     <span
       role="status"

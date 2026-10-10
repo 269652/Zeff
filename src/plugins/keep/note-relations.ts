@@ -97,7 +97,7 @@ export function relateNotes(): Promise<NoteRelationResult> {
       }
     }
     const changed = setTodoNoteRefs(picks);
-    return { ok: failed < batches.length || !batches.length, todos: picks.size, changed, batches: batches.length, ...(failed ? { error: `${failed} von ${batches.length} Teilen fehlgeschlagen` } : {}) };
+    return { ok: failed < batches.length || !batches.length, todos: picks.size, changed, batches: batches.length, ...(failed ? { error: `${failed} of ${batches.length} parts failed` } : {}) };
   })()
     .catch((e): NoteRelationResult => {
       console.error("[note-relations]", errorMessage(e));

@@ -1,4 +1,5 @@
 /** A todo's deadline in words and colour — for server pages (Heute) and client badges alike. Client-safe. */
+import { formatDate } from "@/lib/format";
 
 /** Days from today to a YYYY-MM-DD (negative: past). */
 export const daysUntil = (due: string) => {
@@ -7,13 +8,13 @@ export const daysUntil = (due: string) => {
   return Math.round((new Date(`${due}T00:00:00`).getTime() - today.getTime()) / 864e5);
 };
 
-/** "heute", "morgen", "überfällig (2 T.)", "Fr., 24.10." */
+/** "due today", "due tomorrow", "overdue (2 days)", "due Fri 24 Oct" */
 export const dueText = (due: string) => {
   const d = daysUntil(due);
-  if (d < 0) return `überfällig (${-d} T.)`;
-  if (d === 0) return "heute fällig";
-  if (d === 1) return "morgen fällig";
-  return `fällig ${new Date(`${due}T00:00:00`).toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "numeric" })}`;
+  if (d < 0) return `overdue (${-d === 1 ? "1 day" : `${-d} days`})`;
+  if (d === 0) return "due today";
+  if (d === 1) return "due tomorrow";
+  return `due ${formatDate(due)}`;
 };
 
 export const dueTone = (due: string) => {

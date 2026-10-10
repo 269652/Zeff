@@ -48,9 +48,9 @@ export function parseConfig(raw: string | Buffer): ConfigExport {
   try {
     v = JSON.parse(raw.toString()) as ConfigExport;
   } catch {
-    throw new ValidationError(`${CONFIG_FILE} ist kein JSON.`);
+    throw new ValidationError(`${CONFIG_FILE} isn't JSON.`);
   }
-  if (v?.zeff !== "config" || typeof v.tables !== "object" || !v.tables) throw new ValidationError("Keine Zeff-Konfiguration.");
+  if (v?.zeff !== "config" || typeof v.tables !== "object" || !v.tables) throw new ValidationError("Not a Zeff configuration.");
   return v;
 }
 

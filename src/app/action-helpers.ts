@@ -59,5 +59,5 @@ export async function watchSignIn(service: "chrono" | "punch", fn: () => Promise
 }
 
 export async function accountsOn(): Promise<string | null> {
-  return (await import("@/plugins/state")).isInstalled("accounts") ? null : "Konten sind nicht installiert (Menü → Plugins).";
+  return (await import("@/plugins/state")).isInstalled("accounts") ? null : "Accounts is not installed (Menu → Plugins).";
 }

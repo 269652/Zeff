@@ -51,7 +51,7 @@ export function TodoAlternatives({
               start(async () => {
                 const r = await runTodoAlternativeAction(t.id, a.label);
                 toast(
-                  r?.ok ? (r.message ?? "Läuft.") : (r?.error ?? "Ging nicht."),
+                  r?.ok ? (r.message ?? "Running.") : (r?.error ?? "Didn't work."),
                   { tone: r?.ok ? "ok" : "error" },
                 );
                 router.refresh();

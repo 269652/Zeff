@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { syncOutlookAction } from "@/plugins/outlook-calendar/server-actions";
+import { currentLocale, formatDateTime } from "@/lib/format";
 import type { ActionState } from "@/app/action-helpers";
 
 /** Reads the calendar from Outlook in the automation Chrome (read-only) into Zeff. */
@@ -14,8 +15,8 @@ export function OutlookSyncButton({ week, syncedAt }: { week: string; syncedAt: 
       {state?.error && <span className="text-red-600 dark:text-red-400">{state.error}</span>}
       {state?.ok && state.message && <span className="text-emerald-600 dark:text-emerald-400">{state.message}</span>}
       {!state && synced && (
-        <span className="text-zinc-400" title={synced.toLocaleString()}>
-          Synced {synced.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+        <span className="text-zinc-400" title={synced.toLocaleString(currentLocale())}>
+          Synced {formatDateTime(synced)}
         </span>
       )}
       <button

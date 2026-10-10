@@ -10,7 +10,7 @@ import { SidebarFrame } from "@/components/SidebarFrame";
  */
 export function BoardFrame({ sidebar, children }: { sidebar: ReactNode; children: ReactNode }) {
   return (
-    <SidebarFrame sidebar={sidebar} back={{ href: "/kanban", label: "Alle Boards" }} storageKey="zeff-kanban-sidebar" contentClassName="items-stretch gap-3 overflow-x-auto pb-2">
+    <SidebarFrame sidebar={sidebar} back={{ href: "/kanban", label: "All boards" }} storageKey="zeff-kanban-sidebar" contentClassName="items-stretch gap-3 overflow-x-auto pb-2">
       {children}
     </SidebarFrame>
   );

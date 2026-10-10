@@ -17,12 +17,12 @@ export function KnowledgeSyncButton({ busy }: { busy: boolean }) {
       onClick={() =>
         start(async () => {
           const r = await knowledgeSyncAction();
-          toast(r?.ok ? (r.message ?? "Läuft.") : (r?.error ?? "Ging nicht."), { tone: r?.ok ? "ok" : "error" });
+          toast(r?.ok ? (r.message ?? "Running.") : (r?.error ?? "That didn't work."), { tone: r?.ok ? "ok" : "error" });
           router.refresh();
         })
       }
     >
-      {busy ? "läuft …" : "Quellen jetzt lesen"}
+      {busy ? "running …" : "Read the sources now"}
     </button>
   );
 }

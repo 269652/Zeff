@@ -32,11 +32,12 @@ import { gitlabCommentsByTicket } from "@/lib/gitlab/store";
 import { mailsForTickets } from "@/lib/mail/store";
 import { getTicketCards } from "@/lib/jira/store";
 import { resolvedCommentIds } from "@/lib/resolved";
+import { currentLocale, formatDate, formatTime } from "@/lib/format";
 
 
 /** A run's time (stored as UTC "YYYY-MM-DD HH:MM:SS") in local words. */
 const when = (utc: string | null) =>
-  utc ? new Date(`${utc.replace(" ", "T")}Z`).toLocaleString("de-DE", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+  utc ? `${formatDate(`${utc.replace(" ", "T")}Z`)}, ${formatTime(`${utc.replace(" ", "T")}Z`)}` : "";
 const minutes = (ms: number | null) => (ms ? `${Math.floor(ms / 60000)}:${String(Math.round((ms % 60000) / 1000)).padStart(2, "0")} min` : "");
 
 /**
@@ -81,11 +82,11 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
           <h1 className="text-lg font-semibold">{part === "tickets" ? "Tickets" : "Todos"}</h1>
           {shown && (
             <p className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[11px] text-zinc-400">
-              <span>Stand: {when(shown.finishedAt ?? shown.startedAt)}</span>
+              <span>As of: {when(shown.finishedAt ?? shown.startedAt)}</span>
               {shown.model && <span>{shown.model}</span>}
               {shown.durationMs ? <span>{minutes(shown.durationMs)}</span> : null}
-              {shown.costUsd != null && <span>≈ {shown.costUsd.toLocaleString("de-DE", { style: "currency", currency: "USD" })}</span>}
-              <span>{shown.tickets.filter((t) => t.analyzed).length} Tickets ausgewertet</span>
+              {shown.costUsd != null && <span>≈ {shown.costUsd.toLocaleString(currentLocale(), { style: "currency", currency: "USD" })}</span>}
+              <span>{shown.tickets.filter((t) => t.analyzed).length} tickets analyzed</span>
             </p>
           )}
           </div>
@@ -95,8 +96,8 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
           {shown?.result?.lede && <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{shown.result.lede}</p>}
           {failed && (
             <div className="alert-error text-sm">
-              Der letzte Lauf ({when(failed.startedAt)}) ist fehlgeschlagen: {failed.error}
-              {shown ? " — hier steht der davor." : ""}
+              The last run ({when(failed.startedAt)}) failed: {failed.error}
+              {shown ? " — this is the one before." : ""}
             </div>
           )}
         </>
@@ -133,7 +134,7 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
       ) : (
         !running && (
           <p className="card p-6 text-center text-sm text-zinc-500">
-            Noch keine Auswertung — „Jetzt auswerten“ liest deine Tickets und lässt die KI ({aiLabel}) die Lage machen (dauert ein, zwei Minuten).
+            No briefing yet — “Run now” reads your tickets and has the AI ({aiLabel}) write the briefing (takes a minute or two).
           </p>
         )
       )}
@@ -147,7 +148,7 @@ function ViewTabs({ view }: { view: "lage" | "recap" }) {
     <nav className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800" aria-label="Todos">
       {(
         [
-          ["lage", "Lage", "/todos"],
+          ["lage", "Briefing", "/todos"],
           ["recap", "Recap", "/todos?view=recap"],
         ] as const
       ).map(([key, label, href]) => (
@@ -166,7 +167,7 @@ function ViewTabs({ view }: { view: "lage" | "recap" }) {
 
 const dayLabel = (day: string) => {
   const [y, m, d] = day.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" });
+  return new Date(y, m - 1, d).toLocaleDateString(currentLocale(), { weekday: "long", day: "numeric", month: "long" });
 };
 
 /**
@@ -194,12 +195,12 @@ function RecapPage({ day }: { day: string }) {
           <ViewTabs view="recap" />
           <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <Link href={`/todos?view=recap&day=${shiftWorkday(day, -1)}`} className="icon-btn" aria-label="Tag davor" title="Tag davor">
+            <Link href={`/todos?view=recap&day=${shiftWorkday(day, -1)}`} className="icon-btn" aria-label="Day before" title="Day before">
               ←
             </Link>
             <h1 className="text-lg font-semibold">{dayLabel(day)}</h1>
             {later <= today && (
-              <Link href={`/todos?view=recap&day=${later}`} className="icon-btn" aria-label="Tag danach" title="Tag danach">
+              <Link href={`/todos?view=recap&day=${later}`} className="icon-btn" aria-label="Day after" title="Day after">
                 →
               </Link>
             )}
@@ -207,18 +208,18 @@ function RecapPage({ day }: { day: string }) {
           </div>
           {shown && (
             <p className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[11px] text-zinc-400">
-              <span>Stand: {when(shown.finishedAt ?? shown.startedAt)}</span>
+              <span>As of: {when(shown.finishedAt ?? shown.startedAt)}</span>
               {shown.model && <span>{shown.model}</span>}
               {shown.durationMs ? <span>{minutes(shown.durationMs)}</span> : null}
-              {shown.costUsd != null && <span>≈ {shown.costUsd.toLocaleString("de-DE", { style: "currency", currency: "USD" })}</span>}
+              {shown.costUsd != null && <span>≈ {shown.costUsd.toLocaleString(currentLocale(), { style: "currency", currency: "USD" })}</span>}
             </p>
           )}
         </div>
           <RecapControls day={day} running={running} phase={running ? (live?.phase ?? null) : null} since={running ? (live?.since ?? null) : null} provider={live?.provider ?? aiLabel} again={!!shown} />
           {failed && (
             <div className="alert-error text-sm">
-              Das Zusammenfassen ({when(failed.startedAt)}) ist fehlgeschlagen: {failed.error}
-              {shown ? " — hier steht das davor." : ""}
+              Summarizing ({when(failed.startedAt)}) failed: {failed.error}
+              {shown ? " — this is the one before." : ""}
             </div>
           )}
         </>
@@ -227,7 +228,7 @@ function RecapPage({ day }: { day: string }) {
       {shown ? (
         <RecapView recap={shown} cards={getTicketCards(shown.facts.tickets.map((t) => t.key))} entities={recapEntities(shown)} />
       ) : (
-        !running && <p className="card p-6 text-center text-sm text-zinc-500">Für diesen Tag gibt es noch keine Zusammenfassung — „Zusammenfassen“ macht sie (dauert eine Minute).</p>
+        !running && <p className="card p-6 text-center text-sm text-zinc-500">No summary for this day yet — “Summarize” makes one (takes a minute).</p>
       )}
     </SidebarFrame>
   );

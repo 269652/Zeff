@@ -30,7 +30,7 @@ export async function startSessionAction(v: {
       revalidatePath("/work");
       return { ok: true, runId: run.id };
     }
-    if (!instruction) return { ok: false, error: "Was soll der Worker tun?" };
+    if (!instruction) return { ok: false, error: "What should the worker do?" };
     const { isAiProvider } = await import("@/lib/ai/shared");
     const { dispatchTodo } = await import("@/lib/work/runner");
     if (v.continueRunId) {
@@ -45,7 +45,7 @@ export async function startSessionAction(v: {
     // On its todo, while it's open; else a new todo (on the ticket, or none).
     const existing = v.todoId ? getTodo(Number(v.todoId)) : undefined;
     const ticket = String(v.ticket ?? existing?.ticket ?? "").trim();
-    if (ticket && !/^[A-Z][A-Z0-9]+-\d+$/i.test(ticket)) return { ok: false, error: `„${ticket}“ ist kein Ticket.` };
+    if (ticket && !/^[A-Z][A-Z0-9]+-\d+$/i.test(ticket)) return { ok: false, error: `“${ticket}” isn't a ticket.` };
     const todo = existing?.status === "open" ? existing : addSessionTodo({ ticket, text: instruction.split("\n")[0].slice(0, 200) });
     const run = dispatchTodo(todo.id, { instruction, provider: isAiProvider(v.provider) ? v.provider : undefined, repoId: v.repoId ? Number(v.repoId) : undefined });
     revalidatePath("/work");
@@ -74,14 +74,14 @@ export async function retryRunAction(runId: number): Promise<ActionState> {
     const { dispatchTodo } = await import("@/lib/work/runner");
     const { isAiProvider } = await import("@/lib/ai/shared");
     const r = getRun(Number(runId));
-    if (!r) return { ok: false, error: "Den Lauf gibt es nicht mehr." };
+    if (!r) return { ok: false, error: "That run doesn't exist any more." };
     const instruction = r.mode === "instruct" ? /## Deine Anweisung \(vom Nutzer — sie geht vor\)\n([\s\S]*?)(?:\n\n## Dein Auftrag|$)/.exec(r.prompt ?? "")?.[1]?.trim() : undefined;
-    if (r.mode === "instruct" && !instruction) return { ok: false, error: "Die Anweisung ist nicht mehr zu finden — gib sie über ✨ neu ein." };
+    if (r.mode === "instruct" && !instruction) return { ok: false, error: "The instruction can't be found any more — enter it again via ✨." };
     const run = dispatchTodo(r.todoId, { provider: isAiProvider(r.provider) ? r.provider : undefined, instruction });
     const { markRunErrorSeen } = await import("@/lib/work/store");
     markRunErrorSeen(r.id);
     revalidateAll();
-    return { ok: true, message: `${run.ref} ${run.status === "running" ? "läuft" : "wartet auf einen freien Worker"}.` };
+    return { ok: true, message: `${run.ref} ${run.status === "running" ? "is running" : "waits for a free worker"}.` };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
