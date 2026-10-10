@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { SidebarFrame } from "@/components/SidebarFrame";
-import { knowledgeStatus, knowledgeUrl } from "@/plugins/knowledge/client";
+import { knowledgeBrowserUrl, knowledgeStatus } from "@/plugins/knowledge/client";
 import { KnowledgeAdd } from "@/plugins/knowledge/KnowledgeAdd";
 import { KnowledgeChat } from "@/plugins/knowledge/KnowledgeChat";
 import { KnowledgeSyncButton } from "@/plugins/knowledge/KnowledgeSyncButton";
@@ -20,6 +21,9 @@ const when = (iso: string) => new Date(iso).toLocaleString("de-DE", { day: "nume
 export default async function KnowledgePage() {
   await connection();
   if (!isInstalled("knowledge")) return <PluginNotInstalled id="knowledge" />;
+  // Where your browser reaches the knowledge server (https://knowledge.zeff:1337 beside https://zeff:1337).
+  const h = await headers();
+  const server = knowledgeBrowserUrl(h.get("x-forwarded-host") ?? h.get("host"), h.get("x-forwarded-proto"));
   const status = await knowledgeStatus().catch((e: unknown) => (e instanceof Error ? e.message : String(e)));
   const last = typeof status === "string" ? null : status.runs[0];
   const busy = typeof status !== "string" && (status.running.sync || status.running.compile);
@@ -62,10 +66,10 @@ export default async function KnowledgePage() {
           )}
           <div className="flex flex-wrap gap-2">
             {typeof status !== "string" && <KnowledgeSyncButton busy={busy} />}
-            <a href={`${knowledgeUrl()}/graph`} target="_blank" rel="noreferrer" className="btn btn-sm">
+            <a href={`${server}/graph`} target="_blank" rel="noreferrer" className="btn btn-sm">
               Graph ↗
             </a>
-            <a href={knowledgeUrl()} target="_blank" rel="noreferrer" className="btn btn-sm">
+            <a href={server} target="_blank" rel="noreferrer" className="btn btn-sm">
               Wissens-Server ↗
             </a>
           </div>
