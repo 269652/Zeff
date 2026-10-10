@@ -103,8 +103,43 @@ async function heuteData() {
     reminders = upcoming({ withinReminder: true });
   }
 
-  return { run, open, mine, asking, due, flagged, waiting, meetings, unanswered, hours, problems, reminders, today, now };
+  // Weeks to close: this one on its last working day, last week until Wednesday — while steps are left.
+  const weeks: { key: string; title: string; open: number; href: string }[] = [];
+  if (isInstalled("zeiterfassung")) {
+    const { currentWeek, shiftWeek } = await import("@/lib/week");
+    const { weekClose } = await import("@/lib/week-close");
+    const thisWeek = currentWeek();
+    const candidates = today.getDay() >= 1 && today.getDay() <= 3 ? [{ w: shiftWeek(thisWeek, -1), title: "Letzte Woche abschließen" }] : [];
+    candidates.push({ w: thisWeek, title: "Woche abschließen" });
+    for (const { w, title } of candidates) {
+      const c = await weekClose(w, today);
+      if (c.over && !c.done) weeks.push({ key: w.key, title: `${title} (KW ${w.week})`, open: c.items.filter((i) => i.state !== "ok").length, href: `/?week=${w.key}` });
+    }
+  }
+
+  // What's next, across all of it — ranked.
+  const { nextUp } = await import("@/lib/heute-next");
+  const { upcomingTitle } = await import("@/plugins/people/shared");
+  const next = nextUp({
+    now,
+    asking,
+    mine,
+    meetings,
+    unanswered,
+    dates: reminders.map((r) => ({ key: `${r.date.id}:${r.on}`, title: upcomingTitle(r), inDays: r.inDays, href: `/personen/${r.person.id}` })),
+    hours,
+    weeks,
+  });
+
+  return { run, open, mine, asking, due, flagged, waiting, meetings, unanswered, hours, problems, reminders, next, today, now };
 }
+
+const NEXT_TONE: Record<import("@/lib/heute-next").NextTone, string> = {
+  red: "font-medium text-red-600 dark:text-red-400",
+  amber: "text-amber-600 dark:text-amber-400",
+  indigo: "text-indigo-600 dark:text-indigo-400",
+  zinc: "text-zinc-500",
+};
 
 const PROBLEM: Record<"login" | "chrome" | "broken", string> = {
   login: "Anmeldung nötig",
@@ -120,7 +155,7 @@ const PROBLEM: Record<"login" | "chrome" | "broken", string> = {
 export default async function HeutePage() {
   await connection();
   if (!isInstalled("todos")) return <PluginNotInstalled id="todos" />;
-  const { run, mine, asking, due, flagged, waiting, meetings, unanswered, hours, problems, reminders, today, now } = await heuteData();
+  const { run, mine, asking, due, flagged, waiting, meetings, unanswered, hours, problems, reminders, next, today, now } = await heuteData();
 
   const todo = (t: TodoView, extra?: React.ReactNode) => (
     <li key={t.id} className="flex items-baseline gap-2 text-sm">
@@ -162,6 +197,34 @@ export default async function HeutePage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
+        {next.length > 0 && (
+          <section className="card p-4 xl:col-span-2">
+            <h2 className="mb-2 text-sm font-semibold text-zinc-500 uppercase">Als Nächstes</h2>
+            <ol className="space-y-1.5">
+              {next.map((n, i) => {
+                const body = (
+                  <>
+                    <span className="w-4 shrink-0 text-right text-xs text-zinc-400 tabular-nums">{i + 1}</span>
+                    <span className="min-w-0 flex-1 truncate">{n.title}</span>
+                    <span className={`shrink-0 text-xs ${NEXT_TONE[n.tone]}`}>{n.detail}</span>
+                  </>
+                );
+                return (
+                  <li key={n.key} className="text-sm">
+                    {n.href ? (
+                      <a href={n.href} className="flex items-baseline gap-2 hover:underline" {...(n.href.startsWith("http") ? { target: "_blank", rel: "noreferrer" } : {})}>
+                        {body}
+                      </a>
+                    ) : (
+                      <div className="flex items-baseline gap-2">{body}</div>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+          </section>
+        )}
+
         {problems.length > 0 && (
           <Card title="Syncs mit Problemen" count={problems.length}>
             <ul className="space-y-1.5">
