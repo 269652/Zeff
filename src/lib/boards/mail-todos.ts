@@ -73,7 +73,7 @@ type Answer = {
 
 const INSTRUCTIONS = `Du gehst meine neuen E-Mails durch und findest, was ICH zu tun habe. Unten stehen Mails aus meinem Posteingang (Kennung in eckigen Klammern, z. B. [mail:…], dann Datum, Ordner, Absender, Betreff und die ersten Zeilen, wie Outlooks Liste sie zeigt), meine Tickets und die Todos, die schon offen sind.
 
-Lege für jede Aufgabe, die eine Mail an mich stellt, ein Todo an: ein Satz, Verb zuerst, prüfbar, mit Frist, wenn die Mail eine nennt (die Frist auch als Datum unter due, JJJJ-MM-TT) (z. B. „Compliance-Training ‚Datenschutz 2026‘ bis 31.10. absolvieren“, „Reisekostenabrechnung für September einreichen“, „Termin mit Anna für die Abnahme bestätigen“). Auch Erinnerungen und automatische Mails zählen, wenn sie von mir etwas verlangen, das ich tun MUSS (Pflichtschulungen, Fristen, Freigaben, Signaturen, Formulare, Zeiterfassung, verpflichtende Umfragen mit Frist). Zu jedem Todo unter refs die Kennungen der Mails, aus denen es folgt (mehrere Mails zur selben Sache → EIN Todo mit allen). Gehört es zu einem meiner Tickets, gib dessen Schlüssel unter ticket an, sonst lass ticket leer. owner = other nur, wenn ich auf jemand anderen warte.
+Lege für jede Aufgabe, die eine Mail an mich stellt, ein Todo an: ein Satz, Verb zuerst, prüfbar, mit Frist, wenn die Mail eine nennt (die Frist auch als Datum unter due, JJJJ-MM-TT) (z. B. „Compliance-Training ‚Datenschutz 2026‘ bis 31.10. absolvieren“, „Reisekostenabrechnung für September einreichen“, „Termin mit Anna für die Abnahme bestätigen“). Auch Erinnerungen und automatische Mails zählen, wenn sie von mir etwas verlangen (Pflichtschulungen, Fristen, Freigaben, Signaturen, Formulare, Zeiterfassung, Umfragen mit Frist). Zu jedem Todo unter refs die Kennungen der Mails, aus denen es folgt (mehrere Mails zur selben Sache → EIN Todo mit allen). Gehört es zu einem meiner Tickets, gib dessen Schlüssel unter ticket an, sonst lass ticket leer. owner = other nur, wenn ich auf jemand anderen warte.
 
 Einträge im Ordner „WhatsApp“ sind keine Mails, sondern WhatsApp-Chats: der Betreff ist der Chat (Person oder Gruppe), der Text eine Nachricht daraus, der Absender, wer sie schrieb („Ich“ = ich selbst). Die Nachrichten eines Chats stehen zusammen, der Reihe nach — ein Gespräch: eine spätere Antwort von mir kann eine Bitte schon erledigt haben. Auch dort zählt, worum man mich bittet, was ich zugesagt oder offen gelassen habe (z. B. „Mit Tom eine Uhrzeit ausmachen“, „Bei Lisa melden“, „Ben antworten“ — wenn die letzte Nachricht im Chat eine Frage an mich ist, die ich nicht beantwortet habe) (z. B. „Anna die Fotos vom Samstag schicken“, „Bei Tom wegen Sonntag zurückmelden“) — nicht Smalltalk, Grüße oder Reaktionen.
 
@@ -86,10 +86,12 @@ Unter „Ruhende Unterhaltungen“ stehen Gespräche, an denen ich beteiligt war
 2. Gibt es Neues zum Thema, das die andere Seite wissen sollte? Such es selbst: in den „Aktuellen Unterhaltungen“, den neuen Nachrichten und meinen offenen Todos — dasselbe Thema auch unter anderen Worten oder mit anderen Leuten (z. B. „Vereinsfest“ mit Anna ↔ „Sommerfeier Planung“ mit Ben: dasselbe Fest). Ein Termin hat stattgefunden, jemand anderes arbeitet daran, ein Problem ist gelöst → ein eigenes Todo, sie auf den Stand zu bringen (z. B. „Anna Bescheid geben, dass Ben und ich die Sommerfeier planen“). Die „Stichwort-Treffer“ sind nur ein Hinweis, keine Grenze.
 Jeweils mit der Kennung der Unterhaltung (und der Nachrichten von „Seitdem zum Thema“, auf die es sich stützt) unter refs. Ist nichts offen und nichts neu, nichts.
 
-KEINE Todos für: Newsletter, Werbung, reine Info ohne Handlung, Benachrichtigungen über Jira-/GitLab-Kommentare, Merge Requests und Statuswechsel (die kennt die Ticket-Lage schon — auch wenn darin jemand etwas von mir will), Lesebestätigungen, Abwesenheitsnotizen und andere automatische Antworten, Termine, die nur informieren — und nichts, was ein schon offenes Todo abdeckt oder schon erledigt ist (z. B. eine spätere Mail bestätigt es).
-Auch KEINE Todos für: freiwillige Umfragen, Befragungen und Aufrufe zur Teilnahme (auch wenn sie dringlich klingen oder erinnern — nur, was verpflichtend ist), Einladungen zu freiwilligen Veranstaltungen, und Hinweise von Firmen und Diensten zu ihrem eigenen Angebot (eine Karte wird ersetzt, ein Konto wird wegen Inaktivität gelöscht, neue Bedingungen oder Funktionen, „bitte handeln“) — außer es droht mir mit Frist ein echter Nachteil bei etwas, das ich erkennbar nutze (z. B. meine Versicherung kündigt den Vertrag, wenn ich bis Monatsende keine Unterlagen schicke).
+Mit „⚠ PFLICHT“ markierte Mails (Zeff erkennt sie: Pflichtschulungen, Compliance-Trainings, Signaturen) ergeben IMMER ein Todo — je Schulung bzw. Dokument ein eigenes, auch wenn die Frist schon abgelaufen ist (dann erst recht, „überfällig“ im Text), auch bei der x-ten Erinnerung, und auch, wenn Ähnliches unter „Was ich verworfen habe“ steht. Erkennst du selbst eine Pflichtschulung oder eine andere Pflicht ohne Markierung: ebenso.
 
-Unter „Was ich verworfen habe“ stehen Vorschläge, die ich nicht wollte (mit der Mail, aus der sie kamen): schlage nichts Ähnliches vor — dieselbe Art Mail vom selben Absender ist wieder kein Todo, und dieselbe Art Hinweis von einem anderen Absender in der Regel auch nicht. Unter „Was ich erledigt habe“ stehen Vorschläge, die richtig waren: solche will ich. Diese Regeln gelten für automatische Mails und Mails von Firmen und Diensten — NICHT für Menschen: fragt mich jemand persönlich etwas, bittet mich um etwas oder wartet auf meine Antwort (in einer Mail oder einem Chat), ist das fast immer ein Todo, und das sind die wichtigsten. Gibt es nichts zu tun, ist die Liste leer.`;
+KEINE Todos für: Newsletter, Werbung, reine Info ohne Handlung, Benachrichtigungen über Jira-/GitLab-Kommentare, Merge Requests und Statuswechsel (die kennt die Ticket-Lage schon — auch wenn darin jemand etwas von mir will), Lesebestätigungen, Abwesenheitsnotizen und andere automatische Antworten, Termine, die nur informieren — und nichts, was ein schon offenes Todo abdeckt oder schon erledigt ist (z. B. eine spätere Mail bestätigt es).
+Auch KEINE Todos für: ausdrücklich freiwillige Umfragen und Aufrufe zur Teilnahme (ohne Pflicht und ohne Frist) und Werbung von Firmen und Diensten für ihr Angebot (neue Funktionen, Angebote). Verlangt ein Dienst dagegen etwas mit Frist oder droht ein Nachteil (ein Konto wird gesperrt oder gelöscht, eine Karte wird ersetzt, Angaben fehlen), ist das ein Todo — ob ich den Dienst noch nutze, entscheide ich.
+
+Unter „Was ich verworfen habe“ stehen Vorschläge, die ich nicht wollte (mit der Mail, aus der sie kamen): dieselbe Art Mail vom SELBEN Absender ist wieder kein Todo. Mehr schließt du daraus nicht — andere Absender, Pflicht-Mails (⚠) und Menschen beurteilst du wie immer. Unter „Was ich erledigt habe“ stehen Vorschläge, die richtig waren: solche will ich. Fragt mich ein Mensch persönlich etwas, bittet mich um etwas oder wartet auf meine Antwort (in einer Mail oder einem Chat), ist das fast immer ein Todo — das sind die wichtigsten. Im Zweifel legst du das Todo an: ein überflüssiger Vorschlag ist schnell verworfen, eine vergessene Pflicht oder Antwort nicht. Gibt es nichts zu tun, ist die Liste leer.`;
 
 const state = globalThis as unknown as { __zeffMailTodos?: Promise<MailTodosResult> | null };
 export type MailTodosResult = { ok: boolean; reviewed: number; added: number; updated?: number; batches: number; error?: string };
@@ -143,6 +145,56 @@ export function notForReview(m: { fromEmail: string | null; subject: string; pre
   if (AUTO_REPLY.test(m.subject)) return true;
   // A merge request or issue (its link in the mail) — not GitLab's other mails (a token running out, a failed pipeline).
   return gitlab && /\/-\/(merge_requests|issues)\/\d+/.test(m.preview);
+}
+
+/** A training or course (in German or English). */
+const TRAINING = /(pflicht|compliance|mandatory|required|obligatory|verpflichtend)[\s\S]{0,80}(schulung|training|kurs|course|e-?learning|modul|module)|(schulung|training|kurs|course|e-?learning)[\s\S]{0,80}(pflicht|mandatory|required|obligatory|verpflichtend)|course pending|kurs ausstehend|not yet completed the (mandatory )?(course|training)/i;
+/** …asked of you: a reminder, a deadline, overdue, still to do. */
+const DUE = /(reminder|erinnerung|frist|deadline|due|overdue|überfällig|fällig|pending|ausstehend|not yet completed|noch nicht (abgeschlossen|absolviert|erledigt)|please complete|bitte (absolvieren|abschließen))/i;
+/** A document waiting for your signature. */
+const SIGNATURE = /(warten auf (deine|ihre) (signatur|unterschrift)|waiting for (your )?signature|bitte (signiere|unterschreibe|unterzeichne)|please (sign|review and sign)|signatur(anfrage)? (angefordert|erforderlich)|signature (requested|required)|docusign|acrobat sign|adobe ?sign)/i;
+
+/**
+ * A mail you must act on — a mandatory training or course with a reminder or deadline, a document
+ * waiting for your signature: never left without a todo (the AI is told so, and Zeff makes one when
+ * it doesn't). Recognized by its words, not by the AI.
+ */
+export function mustDo(m: { fromName: string | null; fromEmail: string | null; subject: string; preview: string; folder: string }): boolean {
+  if (m.folder === "WhatsApp") return false;
+  const text = `${m.subject}\n${m.preview}`;
+  if (TRAINING.test(text) && DUE.test(text)) return true;
+  return SIGNATURE.test(`${m.fromName ?? ""} ${m.fromEmail ?? ""}\n${text}`) && /(sign|signatur|unterschr|unterzeichn)/i.test(text);
+}
+
+/** A mail as the review's prompt lists it — a must-do one marked. */
+export function mailLine(m: { key: string; receivedAt: string; folder: string; fromName: string | null; fromEmail: string | null; subject: string; preview: string }): string {
+  return `- ${mustDo(m) ? "⚠ PFLICHT " : ""}[mail:${m.key}] ${m.receivedAt.slice(0, 16).replace("T", " ")} (${m.folder}) ${m.fromName ?? m.fromEmail ?? "?"}: „${plain(m.subject, 200)}“ — ${plain(m.preview, 400)}`;
+}
+
+/**
+ * The must-do mails the AI left without a todo (none of its todos or updates names them, no todo
+ * cites them yet): a todo each from Zeff itself — the subject and the mail's first words, so two
+ * courses with the same reminder subject stay two. A mail like one an open todo already has (the
+ * same subject and opening — the next reminder) adds nothing.
+ */
+export function mustDoLeftOut<M extends { key: string; fromName: string | null; fromEmail: string | null; subject: string; preview: string; folder: string }>(
+  batch: M[],
+  answered: Set<string>,
+  open: TodoView[],
+  mailOf: (key: string) => M | undefined,
+): { mails: M[]; text: string }[] {
+  const sig = (m: { subject: string; preview: string }) => `${plain(m.subject, 200)}|${plain(m.preview, 160)}`.toLowerCase();
+  const had = new Set(open.flatMap((t) => t.refs.filter((r) => r.startsWith("mail:")).map((r) => mailOf(r.slice(5)))).filter((m): m is M => !!m).map(sig));
+  const groups = new Map<string, M[]>();
+  for (const m of batch) {
+    if (!mustDo(m) || answered.has(m.key) || had.has(sig(m))) continue;
+    groups.set(sig(m), [...(groups.get(sig(m)) ?? []), m]);
+  }
+  return [...groups.values()].map((mails) => {
+    const m = mails[mails.length - 1];
+    const what = plain(m.preview, 140).replace(/^(external to the groupe[^.]*\.?|acme groupe)\s*/i, "");
+    return { mails, text: `Pflicht aus Mail erledigen: „${plain(m.subject, 100)}“ — ${what}`.slice(0, 300) };
+  });
 }
 
 /** A ticket key in a mail's subject or lines (one of the tickets the Lage reads — it has those mails). */
@@ -241,8 +293,7 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
     if (!mails.length && !dormant.length) return { ok: true, reviewed: theirs.length, added: 0, batches: 0 };
 
     const ticketLines = tickets.map((k) => `- ${k}${getJiraTicket(k)?.summary ? ` — ${plain(getJiraTicket(k)!.summary, 120)}` : ""}`);
-    const line = (m: (typeof mails)[number]) =>
-      `- [mail:${m.key}] ${m.receivedAt.slice(0, 16).replace("T", " ")} (${m.folder}) ${m.fromName ?? m.fromEmail ?? "?"}: „${plain(m.subject, 200)}“ — ${plain(m.preview, 400)}`;
+    const line = mailLine;
     const limit = aiChoice().provider === "copilot" ? BATCH_CHARS : 3 * BATCH_CHARS;
     const batches: (typeof mails)[] = mails.length ? [] : [[]];
     let size = 0;
@@ -354,15 +405,27 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
         const refs = (f.refs ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).map((r) => (r.startsWith("mail:") ? r : `mail:${r}`)).filter((r) => known.has(r));
         if (refs.length) addFact({ subject: f.subject ?? "", text: f.text ?? "", refs });
       }
+      // A must-do mail (a mandatory training, a signature) is never held back by what you dropped.
+      const must = new Set(batch.filter(mustDo).map((m) => `mail:${m.key}`));
       for (const td of answer.output?.todos ?? []) {
         const text = td.text?.trim();
         const refs = (td.refs ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).map((r) => (r.startsWith("mail:") ? r : `mail:${r}`)).filter((r) => known.has(r));
         if (!text || !refs.length) continue;
         const ticket = td.ticket?.trim().toUpperCase() ?? "";
-        if (duplicateTodo({ text, ops: [] }, open) || duplicateTodo({ text, ops: [] }, dropped)) continue;
+        if (duplicateTodo({ text, ops: [] }, open) || (!refs.some((r) => must.has(r)) && duplicateTodo({ text, ops: [] }, dropped))) continue;
         const t = attributed(runId ? `lage:${runId}` : "mail", () =>
           addMailTodo({ ticket: tickets.includes(ticket) ? ticket : "", text, kind: isTodoKind(td.kind) ? td.kind : "other", owner: td.owner === "other" ? "other" : "me", refs, runId, due: td.due ?? null }),
         );
+        open.push(t);
+        added++;
+      }
+      // The must-do mails the AI left without a todo: one from Zeff itself — none is missed.
+      const answered = new Set(
+        [...(answer.output?.todos ?? []), ...(answer.output?.updates ?? [])].flatMap((x) => (x.refs ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "").replace(/^mail:/, ""))),
+      );
+      const mailOf = (key: string) => batch.find((m) => m.key === key) ?? getDb().select().from(emails).where(sql`${emails.key} = ${key}`).get();
+      for (const left of mustDoLeftOut(batch, answered, open, mailOf)) {
+        const t = attributed(runId ? `lage:${runId}` : "mail", () => addMailTodo({ ticket: "", text: left.text, kind: "other", owner: "me", refs: left.mails.map((m) => `mail:${m.key}`), runId }));
         open.push(t);
         added++;
       }

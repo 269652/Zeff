@@ -45,3 +45,42 @@ test("the review sees its todos you dropped and did, with their mails", async ()
   assert.equal(v.done.length, 1);
   assert.match(v.done[0], /Anna die Fotos.*aus: Mail von Anna/);
 });
+
+/** Mandatory trainings and signatures are recognized by their words — none left to the AI alone. */
+test("mandatory trainings and signatures are must-do mails", async () => {
+  const { mustDo } = await import("@/lib/boards/mail-todos");
+  const mail = (fromName: string, subject: string, preview: string, folder = "Posteingang") => ({ fromName, fromEmail: null, subject, preview, folder });
+  // Must-do: a course reminder (also overdue), a compliance training, a signature.
+  assert.ok(mustDo(mail("Lernplattform", "Reminder: Course Pending", "You have not yet completed the mandatory 2026: Data Protection training. The deadline was 01.06.2026.")));
+  assert.ok(mustDo(mail("Lernplattform", "Reminder: Course Pending", "This is a reminder that you have not yet completed the course Sustainability 2025. The deadline for course completion was 30.11.2025.")));
+  assert.ok(mustDo(mail("HR", "Erinnerung: Pflichtschulung Arbeitsschutz", "Bitte absolviere die Pflichtschulung bis zum 31.10.")));
+  assert.ok(mustDo(mail("Compliance", "Reminder - Global Compliance Trainings", "Please complete your compliance trainings by Friday.")));
+  assert.ok(mustDo(mail("Ben über Adobe Acrobat Sign", "Erinnerung: Warten auf deine Signatur von Vertrag", "Bitte signiere Vertrag. Hier klicken, um Vertrag zu prüfen und zu signieren.")));
+  // Not: an enrollment, a voluntary offer, a newsletter, a chat.
+  assert.ok(!mustDo(mail("Lernplattform", "Course Enrollment: AI Coffee Talk", "You have been enrolled in the session AI Coffee Talk.")));
+  assert.ok(!mustDo(mail("Anbieter", "Neue Termine für die Ersthelferausbildung", "Melden Sie sich jetzt für einen der neuen Termine an.")));
+  assert.ok(!mustDo(mail("Fitness", "Fit in den Herbst: Noch mehr Vielfalt für Dein Training", "Jetzt neue Kurse entdecken.")));
+  assert.ok(!mustDo(mail("Anna", "Pflichtschulung", "Hast du die Pflichtschulung schon gemacht? Erinnerung an morgen", "WhatsApp")));
+});
+
+/** The must-do mails the AI left out get a todo from Zeff; one it answered, or an open todo has, doesn't. */
+test("a must-do mail the AI left out gets a todo, once per course", async () => {
+  const { mustDoLeftOut } = await import("@/lib/boards/mail-todos");
+  const m = (key: string, preview: string) => ({ key, fromName: "Lernplattform", fromEmail: null, subject: "Reminder: Course Pending", preview, folder: "Posteingang" });
+  const a1 = m("a1", "You have not yet completed the mandatory course Data Protection 2026. The deadline was 01.06.2026.");
+  const a2 = m("a2", "You have not yet completed the mandatory course Data Protection 2026. The deadline was 01.06.2026.");
+  const b = m("b", "You have not yet completed the mandatory course Anti Bribery 2026. The deadline was 01.06.2026.");
+  const c = m("c", "You have not yet completed the mandatory course Security Basics. The deadline is 31.10.2026.");
+  const other = { key: "x", fromName: "Anna", fromEmail: null, subject: "Fotos?", preview: "Schickst du mir die Fotos?", folder: "Posteingang" };
+  const all = [a1, a2, b, c, other];
+  const mailOf = (k: string) => all.find((x) => x.key === k);
+
+  // The AI answered c; an open todo has an earlier reminder of b.
+  const open = [{ refs: ["mail:b"] }] as unknown as import("@/lib/boards/shared").TodoView[];
+  const left = mustDoLeftOut([a1, a2, c, other], new Set(["c"]), open, mailOf);
+  assert.equal(left.length, 1, "a1 and a2 are the same course: one todo");
+  assert.deepEqual(left[0].mails.map((x) => x.key), ["a1", "a2"]);
+  assert.match(left[0].text, /^Pflicht aus Mail erledigen: „Reminder: Course Pending“ — .*Data Protection 2026/);
+  // The next reminder of b (same subject and words as the open todo's mail): nothing new.
+  assert.equal(mustDoLeftOut([{ ...b, key: "b2" }], new Set(), open, mailOf).length, 0);
+});
