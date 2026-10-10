@@ -41,6 +41,8 @@ export type PluginManifest = {
   services?: string[];
   /** The AI provider it is. */
   aiProvider?: "copilot" | "claude";
+  /** What it brings to other plugins — extensions (see extensions.ts), there while all their plugins are. */
+  extensions?: import("./extensions").ExtensionDecl[];
 };
 
 export const PLUGINS: PluginManifest[] = [
@@ -86,8 +88,11 @@ export const PLUGINS: PluginManifest[] = [
     description: "Die Ticket-Lage: deine Tickets durch die KI — was passiert ist, was zu tun ist —, die Todos mit ihrem Kontext, Aktivität und Recap.",
     category: "app",
     defaultInstalled: true,
-    tabs: [{ href: "/todos", label: "Todos", short: "Todos" }],
-    routes: ["/todos", "/t", "/api/boards"],
+    tabs: [
+      { href: "/heute", label: "Heute", short: "Heute" },
+      { href: "/todos", label: "Todos", short: "Todos" },
+    ],
+    routes: ["/heute", "/todos", "/t", "/api/boards"],
     syncSteps: ["boards", "recap"],
   },
   {
@@ -260,14 +265,50 @@ export const PLUGINS: PluginManifest[] = [
   {
     id: "keep",
     name: "Google Keep",
-    description: "Liest deine Notizen und Listen aus Google Keep im Automations-Chrome des Kontos — Keep wird in einem neuen Tab geöffnet, Zeff übernimmt, was Keep dort lädt (Titel, Text, Listen, Labels, angeheftet, archiviert), und schließt den Tab. In Keep ändert sich nichts. Die Notizen stehen in der Keep-App, im Wissen (auch als eigene Quelle des Wissens-Servers) und für Agenten.",
+    description: "Notizen wie in Google Keep: eigene Notiz-Boards in Zeff (Privat, Ideen, Einkauf …) mit Notizen, Listen, Farben, Labels — und deine Google-Keep-Notizen, gelesen im Automations-Chrome des Kontos (Keep in einem neuen Tab geöffnet, übernommen, was Keep lädt, Tab zu; in Keep ändert sich nichts). Alles steht in der Keep-App, im Wissen (auch als eigene Quelle des Wissens-Servers), für Agenten — und mit seinen Erweiterungen in der Ticket-Lage und den Todos.",
     category: "connector",
     defaultInstalled: false,
-    requires: "Die Automations-Chrome des Kontos, bei Google angemeldet (keep.google.com).",
-    apps: [{ href: "/apps/keep", label: "Keep", short: "Keep", hint: "Deine Google-Keep-Notizen" }],
-    routes: ["/apps/keep"],
+    requires: "Für Google Keep: die Automations-Chrome des Kontos, bei Google angemeldet (keep.google.com). Die eigenen Boards brauchen nichts.",
+    tabs: [{ href: "/keep", label: "Keep", short: "Keep" }],
+    settings: { href: "/keep/settings", what: "Eigene Notiz-Boards, das Google-Konto" },
+    routes: ["/keep", "/apps/keep"],
     syncSteps: ["keep"],
     services: ["keep"],
+    extensions: [
+      {
+        key: "note-review",
+        for: "todos",
+        name: "Notiz-Durchsicht",
+        description: "Ein Schritt nach jeder Ticket-Lage: die KI liest neue und geänderte Notizen (deine Boards in der Lage, Google Keep) und macht Todos aus dem, was sie dir aufgeben — mit der Notiz als Quelle.",
+        requires: ["llm"],
+        defaultInstalled: true,
+        syncSteps: ["notetodos"],
+      },
+      {
+        key: "note-relations",
+        for: "todos",
+        name: "Notiz-Zuordnung",
+        description: "Ein Schritt nach jeder Ticket-Lage: die KI hängt jedem offenen Todo die Notizen an, um die es geht — nach Inhalt. Sie stehen dann am Todo, in seinem Kontext und dem der Agenten.",
+        requires: ["llm"],
+        defaultInstalled: true,
+        syncSteps: ["noterelations"],
+      },
+      {
+        key: "lage-context",
+        for: "todos",
+        name: "Notizen in der Ticket-Lage",
+        description: "Die Notizen, die an den Todos eines Tickets hängen oder es nennen, gehen mit in die Auswertung des Tickets.",
+        defaultInstalled: true,
+      },
+      {
+        key: "note-action",
+        for: "auto-actions",
+        name: "Notiz anlegen",
+        description: "Auto-Aktionen schlagen auch vor, etwas als Notiz in einem deiner Keep-Boards festzuhalten (eine Einkaufsliste, Ideen, Zugangsdaten-freie Infos zum Nachschlagen) — ein Klick legt sie an.",
+        defaultInstalled: false,
+        actions: ["keep-note"],
+      },
+    ],
   },
   {
     id: "outlook-calendar",

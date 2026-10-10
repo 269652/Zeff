@@ -6,7 +6,7 @@ import { CLAUDE_MODELS, COPILOT_MODEL_SUGGESTIONS } from "@/lib/ai/shared";
 import { copilotModels } from "@/plugins/copilot-cli/cli";
 import { compilePages, compileRunning, compileStopping, compilingWith, stopCompile } from "@k/compile";
 import { confluenceConfig, confluenceWhere } from "@k/confluence";
-import { counts, getSettings, lastRuns, saveSettings } from "@k/db";
+import { ACCOUNT_NAME, counts, getSettings, lastRuns, saveSettings } from "@k/db";
 import { stopSync, syncPages, syncRunning } from "@k/ingest";
 import { kInstalled, type AiBackend } from "@k/plugins";
 import { searchEntities, searchPages } from "@k/search";
@@ -81,6 +81,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
 
   const pages = q ? searchPages(q, 10) : [];
   const entities = q ? searchEntities(q, 6) : [];
+  // What it reads — the installed sources (Confluence only with its plugin: another account's knowledge server has none).
+  const where = confluenceWhere();
+  const sources: { label: string; href?: string }[] = [
+    ...(kInstalled("confluence") && confluenceConfig() && where ? [{ label: where, href: where }] : []),
+    ...(kInstalled("zeff") ? [{ label: `Zeff${ACCOUNT_NAME ? ` (${ACCOUNT_NAME})` : ""}` }] : []),
+    ...(kInstalled("google-keep") && !kInstalled("zeff") ? [{ label: "Google Keep" }] : []),
+    ...(kInstalled("import-folder") && s.importDir ? [{ label: s.importDir }] : []),
+  ];
   const noSource = !(kInstalled("confluence") && confluenceConfig()) && !kInstalled("zeff") && !kInstalled("google-keep") && !(kInstalled("import-folder") && s.importDir);
 
   return (
@@ -92,14 +100,21 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
           <h1 className="text-lg font-semibold">Wissen</h1>
           <p className="max-w-[75ch] text-sm text-zinc-500">
             Liest{" "}
-            {confluenceWhere() ? (
-              <a href={confluenceWhere()!} className="text-indigo-600 hover:underline dark:text-indigo-400">
-                {confluenceWhere()}
-              </a>
-            ) : (
-              "Confluence (noch nicht eingerichtet)"
-            )}
-            {s.importDir && kInstalled("import-folder") ? ` und ${s.importDir}` : ""}, kompiliert die Seiten zu einem Wissensgraphen und beantwortet Fragen — in Zeff im Chat-Tab.
+            {sources.length
+              ? sources.map((src, i) => (
+                  <span key={i}>
+                    {i ? (i === sources.length - 1 ? " und " : ", ") : ""}
+                    {src.href ? (
+                      <a href={src.href} className="text-indigo-600 hover:underline dark:text-indigo-400">
+                        {src.label}
+                      </a>
+                    ) : (
+                      src.label
+                    )}
+                  </span>
+                ))
+              : "noch keine Quelle"}
+            ,{" "}kompiliert die Seiten zu einem Wissensgraphen und beantwortet Fragen — in Zeff im Chat-Tab.
           </p>
         </div>
         {!busy && (
@@ -126,7 +141,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
       )}
       {noSource && (
         <p className="alert-error">
-          Keine Quelle: das Confluence-Plugin mit CONFLUENCE_URL und CONFLUENCE_PERSONAL_TOKEN in Zeffs .env — oder das Import-Ordner-Plugin (
+          Keine Quelle: das Confluence-Plugin (mit CONFLUENCE_URL und CONFLUENCE_PERSONAL_TOKEN in Zeffs .env), das Zeff-, das Google-Keep- oder das Import-Ordner-Plugin (
           <Link href="/plugins" className="underline">
             Plugins
           </Link>
@@ -242,7 +257,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
 
 const DONE: Record<string, string> = {
   saved: "Gespeichert ✓ — gilt ab dem nächsten Lesen und der nächsten Frage.",
-  sync: "Liest Confluence und kompiliert danach, was neu ist — die Zahlen wachsen mit (die Seite lädt sich neu, solange es läuft).",
+  sync: "Liest die Quellen und kompiliert danach, was neu ist — die Zahlen wachsen mit (die Seite lädt sich neu, solange es läuft).",
   compile: "Kompiliert die neuen und geänderten Seiten — die Zahlen wachsen mit.",
   stop: "Wird angehalten — die laufenden Aufrufe enden noch und werden behalten.",
 };

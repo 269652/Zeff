@@ -1,4 +1,5 @@
 import { PLUGINS, type PluginId, type PluginManifest } from "./catalog";
+import { stepExtensionOk } from "./extension-state";
 import { installedPlugins } from "./state";
 import type { PluginSyncSettings, SyncInterval } from "./sync-settings";
 import { syncSettings as autoActions } from "./auto-actions/sync-settings";
@@ -46,7 +47,8 @@ export function installedSyncSettings(): { plugin: PluginManifest; settings: Req
     const m = on.has(plugin.id) ? MODULES[plugin.id] : undefined;
     if (!m) continue;
     const intervals = (m.intervals ?? []).filter((i) => !seen.has(i.key));
-    const follows = (m.follows ?? []).filter((f) => !seen.has(f.key));
+    // A step an extension brings (Keep's Notiz-Durchsicht) only while it's on.
+    const follows = (m.follows ?? []).filter((f) => !seen.has(f.key) && stepExtensionOk(f.key));
     for (const x of [...intervals, ...follows]) seen.add(x.key);
     if (intervals.length || follows.length) out.push({ plugin, settings: { intervals, follows } });
   }

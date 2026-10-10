@@ -4,6 +4,7 @@ import { opsDictionary, sourcesOf, TODO_KIND_LABELS, todoRef, type TodoSource, t
 import { getTodo, lastGoodRun, listTodos } from "@/lib/boards/store";
 import { getJiraTicket } from "@/lib/jira/store";
 import { mailSender } from "@/lib/mail/shared";
+import { noteHeadline } from "@/plugins/keep/shared";
 import { resolvedCommentIds } from "@/lib/resolved";
 import { runsForTodos } from "./store";
 import { CHANNEL_LABELS, workRef, type WorkIsolation, type WorkMode } from "./shared";
@@ -29,6 +30,10 @@ function sourceText(s: TodoSource): string {
   if (s.source === "mail") {
     const m = s.mail;
     return `- [mail:${m.key}] Mail von ${mailSender(m)}${m.fromEmail ? ` <${m.fromEmail}>` : ""}, ${day(m.receivedAt)}${m.resolvedAt ? " [erledigt]" : ""} — „${m.subject}“ (nur die ersten Zeilen, wie Outlooks Liste sie zeigt):\n${indent(cut(m.preview, 2500))}`;
+  }
+  if (s.source === "keep") {
+    const n = s.note;
+    return `- [${n.ref}] Notiz „${noteHeadline(n)}“ (${n.where}${n.labels.length ? `, Labels: ${n.labels.join(", ")}` : ""}), ${day(n.updatedAt)}${n.archived ? " [archiviert]" : ""}:\n${indent(cut(n.text, 2500))}`;
   }
   const g = s.gitlab;
   return `- [gitlab:${g.key}] GitLab-${g.kind === "comment" ? "Kommentar" : "Eintrag"} auf ${g.ref} „${g.title}“ von ${g.author ?? "?"}, ${day(g.createdAt)}${g.state ? ` (${g.state})` : ""}${g.resolvedAt ? " [erledigt]" : ""} — ${g.url}:\n${indent(cut(g.body, 2500))}`;

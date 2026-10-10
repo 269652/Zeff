@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import type { Entity, Sourced } from "@/lib/entities-shared";
 import { GitlabItemBadge, GitlabItemDetails } from "./GitlabItemBadge";
 import { GripIcon } from "./icons";
+import { KeepNoteBadge, KeepNoteDetails } from "@/plugins/keep/KeepNoteBadge";
 import { MailBadge, MailDetails } from "./MailBadge";
 import { JiraCommentBadge, JiraCommentDetails, JiraTicketBadge, JiraTicketDetails } from "./JiraBadges";
 import { TeamsMessageBadge, TeamsMessageDetails } from "./TeamsMessageBadge";
@@ -23,6 +24,7 @@ export function SourceBadge({ entity, resolved, ...rest }: { entity: Sourced; cl
   if (entity.source === "jira") return <JiraTicketBadge t={entity.ticket} {...rest} />;
   if (entity.source === "mail") return <MailBadge m={entity.mail} {...rest} />;
   if (entity.source === "work") return <WorkRunBadge r={entity.run} {...rest} />;
+  if (entity.source === "keep") return <KeepNoteBadge n={entity.note} {...rest} />;
   return <GitlabItemBadge item={entity.gitlab} resolved={resolved} {...rest} />;
 }
 
@@ -34,6 +36,7 @@ export function SourceDetails({ entity }: { entity: Sourced }) {
   if (entity.source === "jira") return <JiraTicketDetails t={entity.ticket} />;
   if (entity.source === "mail") return <MailDetails m={entity.mail} />;
   if (entity.source === "work") return <WorkRunDetails r={entity.run} />;
+  if (entity.source === "keep") return <KeepNoteDetails n={entity.note} />;
   return <GitlabItemDetails item={entity.gitlab} />;
 }
 

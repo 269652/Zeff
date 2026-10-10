@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
+import { PluginExtensions, type ExtensionRow } from "@/components/PluginExtensions";
 import { PluginInstallButton } from "@/components/PluginInstallButton";
 import { findClaudeCli } from "@/plugins/claude-cli/cli";
 import { PLUGIN_CATEGORY_LABELS, PLUGINS, pluginById, type PluginCategory, type PluginManifest } from "@/plugins/catalog";
 import { findCopilotCli } from "@/plugins/copilot-cli/cli";
+import { extensionStates } from "@/plugins/extension-state";
+import { extensionOrigin } from "@/plugins/extensions";
 import { chosenPlugins, installedPlugins } from "@/plugins/state";
 
 export const metadata: Metadata = { title: "Plugins" };
@@ -25,6 +28,13 @@ export default async function PluginsPage() {
   await connection();
   const on = installedPlugins();
   const set = chosenPlugins();
+  // Extensions: under the plugin they extend; the plugin bringing them names where they go.
+  const exts = extensionStates();
+  const extRows = (host: string): ExtensionRow[] =>
+    exts
+      .filter((s) => s.ext.for === host)
+      .map((s) => ({ id: s.ext.id, name: s.ext.name, description: s.ext.description, origin: extensionOrigin(s.ext), available: s.available, missing: s.missing.map((m) => pluginById(m).name), chosen: s.chosen, installed: s.installed, defaultInstalled: s.ext.defaultInstalled }));
+  const brings = (by: string) => [...new Set(exts.filter((s) => s.ext.by === by).map((s) => pluginById(s.ext.for).name))];
   const groups = (Object.keys(PLUGIN_CATEGORY_LABELS) as PluginCategory[]).map((c) => [c, PLUGINS.filter((p) => p.category === c)] as const);
   return (
     <div className="page">
@@ -72,6 +82,7 @@ export default async function PluginsPage() {
                       {found !== undefined && (found ? <span className="text-emerald-700 dark:text-emerald-400"> · gefunden ({found})</span> : <span className="text-amber-700 dark:text-amber-400"> · auf diesem Rechner nicht gefunden</span>)}
                     </p>
                   )}
+                  {brings(p.id).length > 0 && <p className="text-xs text-zinc-500">Bringt Erweiterungen für: {brings(p.id).join(", ")}</p>}
                   {(p.nav?.length || p.routes?.length || p.syncSteps?.length) && (
                     <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500">
                       {p.nav?.map((n) =>
@@ -86,6 +97,7 @@ export default async function PluginsPage() {
                       {p.syncSteps?.length ? <span>Sync: {p.syncSteps.join(", ")}</span> : null}
                     </p>
                   )}
+                  <PluginExtensions rows={extRows(p.id)} />
                 </li>
               );
             })}

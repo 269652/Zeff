@@ -6,7 +6,7 @@ import { BOARD_RESULT_SCHEMA, isAttention, TICKET_ACTION_TYPES, type BoardResult
 import { closeTodosOfDoneTickets, finishRun, getBoardSettings, lastGoodRun, reconcileTodos, startRun } from "./store";
 
 /** What a run is doing right now — one at a time across the server (actions and the scheduler are separate module copies). */
-const state = globalThis as { __zeffBoardRun?: { id: number; phase: "sync" | "jira" | "ai" | "saving" | "mailtodos" | "mails" | "autoactions"; since: number; provider: string } | null };
+const state = globalThis as { __zeffBoardRun?: { id: number; phase: "sync" | "jira" | "ai" | "saving" | "mailtodos" | "mails" | "notetodos" | "notes" | "autoactions"; since: number; provider: string } | null };
 
 /** The run going on in this server, and its step — null when none is. */
 export const boardRunState = () => state.__zeffBoardRun ?? null;
@@ -110,6 +110,17 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
       await syncAndWait("relations");
       // Last: the todos without a button get ready actions (with the mails related to them in their context).
       state.__zeffBoardRun = { id, phase: "autoactions", since: t0, provider };
+      // Google Keep's extensions (while they're on): the notes gone through for todos, then which
+      // notes each todo is about.
+      const { stepAvailable } = await import("@/plugins/state");
+      if (stepAvailable("notetodos")) {
+        state.__zeffBoardRun = { id, phase: "notetodos", since: t0, provider };
+        await syncAndWait("notetodos");
+      }
+      if (stepAvailable("noterelations")) {
+        state.__zeffBoardRun = { id, phase: "notes", since: t0, provider };
+        await syncAndWait("noterelations");
+      }
       await syncAndWait("autoactions");
     } catch (e) {
       finishRun(id, { status: "error", error: errorMessage(e), durationMs: Date.now() - t0 });

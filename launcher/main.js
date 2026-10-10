@@ -17,6 +17,7 @@ const proxy = require("./lib/proxy");
 const tlsCert = require("./lib/tls");
 const setup = require("./lib/setup");
 const autostart = require("./lib/autostart");
+const { startNotifications } = require("./lib/notifications");
 
 const argv = process.argv.slice(app.isPackaged ? 1 : 2);
 const flag = (f) => argv.includes(f);
@@ -356,6 +357,16 @@ async function start() {
   if (!flag("--no-setup")) await machineSetup(false);
   else state.trusted = await setup.caTrusted(state.cert.caThumbprint);
   refresh();
+  // Zeff's notifications as Windows toasts.
+  startNotifications({
+    appId: "Zeff.Launcher",
+    exe: process.execPath,
+    args: app.isPackaged ? "" : `"${app.getAppPath()}"`,
+    zeffPort: cfg.zeffPort,
+    url: () => state.url,
+    stateDir: paths.state,
+    icon: path.join(__dirname, "icon.ico"),
+  });
   if (!flag("--background")) shell.openExternal(state.url);
 }
 
