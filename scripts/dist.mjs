@@ -14,16 +14,42 @@
  *   node scripts/dist.mjs --zip            … and dist/Zeff.zip
  *   node scripts/dist.mjs --skip-build     reuse the current .next and knowledge/.next instead of building
  *   node scripts/dist.mjs --launcher-only  refresh just the launcher in an existing dist/Zeff
+ *
+ * A release — what goes out to others (npm run release):
+ *
+ *   node scripts/dist.mjs --release [--ref <commit|tag>]
+ *
+ * builds from a commit (default HEAD) — exactly what's committed there, nothing uncommitted, no tests
+ * or fixtures — in %TEMP%\zeff-release\Zeff (outside the checkout: never dist/Zeff, which the running
+ * launcher may use, and Next doesn't take the checkout for the project), and zips it as
+ * dist/release/Zeff-<version>.zip (version: the tag, else the commit). Nothing of this machine goes
+ * in: no zeff-launcher.json, no data, no .env.
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
-const args = new Set(process.argv.slice(2));
-const out = path.join(root, "dist", "Zeff");
+const argv = process.argv.slice(2);
+const args = new Set(argv);
+const release = args.has("--release");
+const ref = release ? (argv.includes("--ref") ? argv[argv.indexOf("--ref") + 1] : "HEAD") : null;
+if (release && (!ref || ref.startsWith("--"))) throw new Error("--ref needs a commit or a tag.");
+if (release && (args.has("--launcher-only") || args.has("--skip-build"))) throw new Error("--release builds everything from the commit — without --launcher-only / --skip-build.");
+const releaseDir = path.join(os.tmpdir(), "zeff-release");
+const out = release ? path.join(releaseDir, "Zeff") : path.join(root, "dist", "Zeff");
 const app = path.join(out, "app");
-const launcher = path.join(root, "launcher");
+/** A release's sources: the commit, unpacked (its launcher/ too). */
+const staging = path.join(releaseDir, ".src");
+/** A release's build opens a database (pages rendered at build time): this one, made once beforehand. */
+const buildDb = path.join(releaseDir, ".build-data", "zeff.db");
+const launcher = release ? path.join(staging, "launcher") : path.join(root, "launcher");
+/** Electron itself (not in git): from the checkout's launcher/node_modules. */
+const electronFrom = path.join(root, "launcher");
+const tarExe = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe");
+const git = (gitArgs) => execFileSync("git", gitArgs, { cwd: root, encoding: "utf8" }).trim();
+const version = release ? git(["describe", "--tags", "--always", ref]) : null;
 
 const step = (msg) => console.log(`\n▶ ${msg}`);
 const run = (cmd, argv, opts = {}) => {
@@ -42,17 +68,35 @@ function buildApp() {
   fs.rmSync(out, { recursive: true, force: true });
   fs.mkdirSync(app, { recursive: true });
 
-  step("Copying the sources (git: tracked + untracked, minus ignored)");
-  const files = execFileSync("git", ["ls-files", "-co", "--exclude-standard", "-z"], { cwd: root, encoding: "utf8" })
-    .split("\0")
-    .filter((f) => f && !/^(launcher|dist)\//.test(f));
   let n = 0;
-  for (const f of files) {
-    const src = path.join(root, f);
-    if (!fs.existsSync(src) || fs.statSync(src).isDirectory()) continue;
-    fs.mkdirSync(path.dirname(path.join(app, f)), { recursive: true });
-    fs.copyFileSync(src, path.join(app, f));
-    n++;
+  if (release) {
+    step(`Sources of ${ref} (${version}) — what's committed, minus launcher/, tests/, fixtures/`);
+    if (git(["status", "--porcelain"])) console.log("(The working tree has uncommitted changes — they're not in the release.)");
+    // node_modules come from the checkout: its dependencies should be the commit's.
+    if (spawnSync("git", ["diff", "--quiet", ref, "--", "package-lock.json"], { cwd: root }).status !== 0) console.log(`(package-lock.json differs from ${ref} — node_modules are the checkout's; run npm ci at ${ref} for an exact match.)`);
+    fs.rmSync(staging, { recursive: true, force: true });
+    fs.mkdirSync(staging, { recursive: true });
+    const tarFile = path.join(releaseDir, "src.tar");
+    execFileSync("git", ["archive", "--format=tar", "-o", tarFile, ref], { cwd: root });
+    run(tarExe, ["-x", "-f", tarFile, "-C", staging]);
+    fs.rmSync(tarFile, { force: true });
+    for (const e of fs.readdirSync(staging)) {
+      if (["launcher", "dist", "tests", "fixtures"].includes(e)) continue;
+      fs.cpSync(path.join(staging, e), path.join(app, e), { recursive: true });
+    }
+    n = fs.readdirSync(app, { recursive: true, withFileTypes: true }).filter((e) => e.isFile()).length;
+  } else {
+    step("Copying the sources (git: tracked + untracked, minus ignored)");
+    const files = execFileSync("git", ["ls-files", "-co", "--exclude-standard", "-z"], { cwd: root, encoding: "utf8" })
+      .split("\0")
+      .filter((f) => f && !/^(launcher|dist)\//.test(f));
+    for (const f of files) {
+      const src = path.join(root, f);
+      if (!fs.existsSync(src) || fs.statSync(src).isDirectory()) continue;
+      fs.mkdirSync(path.dirname(path.join(app, f)), { recursive: true });
+      fs.copyFileSync(src, path.join(app, f));
+      n++;
+    }
   }
   console.log(`${n} files`);
 
@@ -67,11 +111,19 @@ function buildApp() {
   } else {
     const next = path.join(app, "node_modules", "next", "dist", "bin", "next");
     const env = { ...process.env, NEXT_TELEMETRY_DISABLED: "1" };
+    if (release) {
+      // The build's workers would each create and migrate a fresh database at once ("database is locked"):
+      // one made and migrated first, outside the bundle.
+      fs.rmSync(path.dirname(buildDb), { recursive: true, force: true });
+      env.DATABASE_PATH = buildDb;
+      run(process.execPath, ["--import", "tsx", "--input-type=module", "-e", 'const { getDb } = await import("@/db"); getDb();'], { cwd: app, env });
+    }
     step("Building Zeff (next build)");
     run(process.execPath, [next, "build"], { cwd: app, env });
     step("Building the knowledge server (next build knowledge)");
     run(process.execPath, [next, "build", "knowledge"], { cwd: app, env });
     for (const d of [".next", path.join("knowledge", ".next")]) fs.rmSync(path.join(app, d, "cache"), { recursive: true, force: true });
+    if (release) fs.rmSync(path.dirname(buildDb), { recursive: true, force: true });
   }
   // A build may open the databases; the bundle starts empty.
   for (const d of ["data", path.join("knowledge", "data")]) fs.rmSync(path.join(app, d), { recursive: true, force: true });
@@ -88,11 +140,11 @@ function buildApp() {
 /** Zeff.exe + Electron's files, the launcher code in resources/app, README.txt. */
 function packLauncher() {
   step("Launcher (Electron)");
-  const electronDir = path.join(launcher, "node_modules", "electron");
-  if (!fs.existsSync(electronDir)) npm(["ci", "--no-audit", "--no-fund"], launcher);
+  const electronDir = path.join(electronFrom, "node_modules", "electron");
+  if (!fs.existsSync(electronDir)) npm(["ci", "--no-audit", "--no-fund"], electronFrom);
   const dist = path.join(electronDir, "dist");
   if (!fs.existsSync(path.join(dist, "electron.exe"))) run(process.execPath, [path.join(electronDir, "install.js")], { cwd: electronDir });
-  const version = JSON.parse(fs.readFileSync(path.join(electronDir, "package.json"), "utf8")).version;
+  const electronVersion = JSON.parse(fs.readFileSync(path.join(electronDir, "package.json"), "utf8")).version;
 
   // Electron's files go next to app/ and runtime/ — replaced only for another Electron version
   // (a running Zeff.exe holds them; the launcher's code below can be swapped under it).
@@ -111,11 +163,11 @@ function packLauncher() {
   for (const f of ["package.json", "main.js", "preload.js", "status.html", "status.js", "icon.ico", "lib", "ps"]) {
     fs.cpSync(path.join(launcher, f), path.join(code, f), { recursive: true });
   }
-  console.log(`Electron ${version} → Zeff.exe, launcher → resources/app`);
+  console.log(`Electron ${electronVersion} → Zeff.exe, launcher → resources/app`);
 
   fs.writeFileSync(
     path.join(out, "README.txt"),
-    `Zeff
+    `Zeff${version ? ` ${version}` : ""}
 ====
 
 Start Zeff.exe. It runs Zeff and its knowledge server and opens https://zeff in your browser.
@@ -148,13 +200,21 @@ if (args.has("--launcher-only")) {
 }
 packLauncher();
 
-if (args.has("--zip")) {
+if (release) {
+  // Nothing of this machine: no launcher options (they'd point at this checkout), no data, no secrets.
+  fs.rmSync(staging, { recursive: true, force: true });
+  const mine = ["zeff-launcher.json", path.join("app", "data"), path.join("app", "knowledge", "data"), path.join("app", ".env"), path.join("app", ".env.local")].filter((f) => fs.existsSync(path.join(out, f)));
+  if (mine.length) throw new Error(`Not for a release: ${mine.join(", ")} in ${out}.`);
+}
+
+if (args.has("--zip") || release) {
   step("Zipping");
-  const zip = path.join(root, "dist", "Zeff.zip");
+  const name = release ? `Zeff-${version}.zip` : "Zeff.zip";
+  const zip = release ? path.join(root, "dist", "release", name) : path.join(root, "dist", name);
+  fs.mkdirSync(path.dirname(zip), { recursive: true });
   fs.rmSync(zip, { force: true });
   // Windows' own bsdtar (zips by extension) — not Git's GNU tar, which may come first on PATH.
-  const tar = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe");
-  run(tar, ["-a", "-c", "-f", "Zeff.zip", "Zeff"], { cwd: path.join(root, "dist") });
+  run(tarExe, ["-a", "-c", "-f", zip, "Zeff"], { cwd: path.dirname(out) });
   console.log(`${zip} (${(fs.statSync(zip).size / 1048576).toFixed(0)} MB)`);
 }
 

@@ -23,6 +23,7 @@
     "knowledge:start": "next start knowledge -H 127.0.0.1 -p 9555",
     "launcher:build": "node scripts/dist.mjs --launcher-only",
     "dist": "node scripts/dist.mjs",
+    "release": "node scripts/dist.mjs --release",
     "launcher:start": "npm --prefix launcher start"
   },
   "dependencies": {
