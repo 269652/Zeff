@@ -12,7 +12,11 @@ const { appSettings } = schema;
 
 export function getAppSettings(): AppSettings {
   const db = getDb();
-  return db.select().from(appSettings).limit(1).get() ?? db.insert(appSettings).values({ id: 1 }).returning().get();
+  const row = db.select().from(appSettings).limit(1).get();
+  if (row) return row;
+  // Several processes may get here at once on a fresh database (next build's workers): one insert wins.
+  db.insert(appSettings).values({ id: 1 }).onConflictDoNothing().run();
+  return db.select().from(appSettings).limit(1).get()!;
 }
 
 export function updateAppSettings(patch: Partial<Omit<AppSettings, "id">>): AppSettings {

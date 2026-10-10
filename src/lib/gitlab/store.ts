@@ -10,7 +10,11 @@ export type GitlabItemInput = Omit<GitlabItemView, "inContext">;
 
 export function getGitlabSettings(): GitlabSettings {
   const db = getDb();
-  return db.select().from(gitlabSettings).limit(1).get() ?? db.insert(gitlabSettings).values({ id: 1 }).returning().get();
+  const row = db.select().from(gitlabSettings).limit(1).get();
+  if (row) return row;
+  // Several processes may get here at once on a fresh database (next build's workers): one insert wins.
+  db.insert(gitlabSettings).values({ id: 1 }).onConflictDoNothing().run();
+  return db.select().from(gitlabSettings).limit(1).get()!;
 }
 
 export function updateGitlabSettings(patch: Partial<Omit<GitlabSettings, "id">>): GitlabSettings {

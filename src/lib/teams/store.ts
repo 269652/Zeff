@@ -27,7 +27,11 @@ export type TeamsMessageInput = {
 
 export function getTeamsSettings(): TeamsSettings {
   const db = getDb();
-  return db.select().from(teamsSettings).limit(1).get() ?? db.insert(teamsSettings).values({ id: 1 }).returning().get();
+  const row = db.select().from(teamsSettings).limit(1).get();
+  if (row) return row;
+  // Several processes may get here at once on a fresh database (next build's workers): one insert wins.
+  db.insert(teamsSettings).values({ id: 1 }).onConflictDoNothing().run();
+  return db.select().from(teamsSettings).limit(1).get()!;
 }
 
 export function updateTeamsSettings(patch: Partial<Omit<TeamsSettings, "id">>): TeamsSettings {
