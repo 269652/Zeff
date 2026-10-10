@@ -1,5 +1,6 @@
 "use client";
 
+import { ChatIcon } from "@/components/MailBadge";
 import { sourceKey, type SyncedComment, type TodoSource, type TodoUserNote, type TodoView } from "@/lib/boards/shared";
 import { NoteBadge, NoteDetails } from "./NoteBadge";
 import { SourceBadge, SourceDetails } from "../SourceBadge";
@@ -225,6 +226,7 @@ const iconProps = { viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", 
 const CONTEXT_GROUPS: { group: string; label: string; icon: React.ReactNode }[] = [
   { group: "teams", label: "Teams", icon: <svg {...iconProps} className="size-3.5 text-violet-600 dark:text-violet-400"><path d="M3.5 4.75A1.75 1.75 0 0 1 5.25 3h9.5a1.75 1.75 0 0 1 1.75 1.75v7.5A1.75 1.75 0 0 1 14.75 14H9l-3.5 3v-3h-.25A1.75 1.75 0 0 1 3.5 12.25z" /></svg> },
   { group: "mail", label: "Mail", icon: <svg {...iconProps} className="size-3.5 text-sky-600 dark:text-sky-400"><rect x="2.5" y="4.5" width="15" height="11" rx="1.5" /><path d="m3 5.5 7 5.25 7-5.25" /></svg> },
+  { group: "whatsapp", label: "WhatsApp", icon: <ChatIcon className="size-3.5 text-emerald-600 dark:text-emerald-400" /> },
   { group: "jira", label: "Jira", icon: <svg {...iconProps} className="size-3.5 text-jira-500 dark:text-jira-400"><path d="M4 4.5h12v8.5H9.5L6 16v-3H4z" /></svg> },
   { group: "gitlab", label: "GitLab", icon: <svg {...iconProps} className="size-3.5 text-orange-600 dark:text-orange-400"><circle cx="6" cy="4.5" r="1.75" /><circle cx="6" cy="15.5" r="1.75" /><circle cx="14" cy="7" r="1.75" /><path d="M6 6.25v7.5M14 8.75c0 3-8 2.5-8 5" /></svg> },
   { group: "note", label: "Notizen", icon: <NoteIcon className="size-3.5 text-indigo-600 dark:text-indigo-400" /> },
@@ -257,5 +259,7 @@ const itemKind = (it: Item) => ("n" in it ? { kind: it.n.by ? "report" : "note",
 
 /** A source's kind (Teams, Jira comment, mail, GitLab comment, MR, branch) and when it was written. */
 function sourceKind(s: TodoSource): { kind: string; at: string } {
-  return { kind: s.source === "gitlab" ? `gitlab-${s.gitlab.kind}` : s.source, at: entityWhoWhen(s).at ?? "" };
+  // A chat's message counts as WhatsApp, not as mail (the mail sync reads both).
+  const kind = s.source === "gitlab" ? `gitlab-${s.gitlab.kind}` : s.source === "mail" && s.mail.folder === "WhatsApp" ? "whatsapp" : s.source;
+  return { kind, at: entityWhoWhen(s).at ?? "" };
 }

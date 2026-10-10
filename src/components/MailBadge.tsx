@@ -10,6 +10,8 @@ const kindOf = (m: Pick<MailView, "folder">) => (m.folder === "WhatsApp" ? "What
 const CARD = "space-y-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-900";
 const INNER = "flex min-w-0 flex-1 items-center gap-2 py-1 pr-2 pl-1.5 text-left";
 const BADGE = "flex min-w-0 items-stretch overflow-hidden rounded-md border border-sky-200 bg-sky-50 text-xs text-sky-950 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100";
+/** A chat's message: WhatsApp's green, not the mail's blue. */
+const CHAT_BADGE = "flex min-w-0 items-stretch overflow-hidden rounded-md border border-emerald-200 bg-emerald-50 text-xs text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100";
 
 function MailIcon({ className = "" }: { className?: string }) {
   return (
@@ -20,22 +22,32 @@ function MailIcon({ className = "" }: { className?: string }) {
   );
 }
 
+/** A chat bubble — a WhatsApp message (not a mail). */
+export function ChatIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinejoin="round" className={className} aria-hidden>
+      <path d="M10 3.25c3.9 0 7 2.7 7 6.1s-3.1 6.1-7 6.1c-.9 0-1.8-.15-2.6-.42L3.5 16.5l1.1-3.3C3.6 12.1 3 10.8 3 9.35c0-3.4 3.1-6.1 7-6.1Z" />
+    </svg>
+  );
+}
+
 /** A mail as a badge: who wrote it, when, its subject — like a comment's. With `onToggle` it unfolds. */
 export function MailBadge({ m, className = "", expanded = false, onToggle }: { m: MailView; className?: string; expanded?: boolean; onToggle?: () => void }) {
+  const chat = m.folder === "WhatsApp";
   const body = (
     <>
-      {onToggle && <ChevronIcon open={expanded} className="size-3.5 shrink-0 text-sky-500 dark:text-sky-400" />}
-      <MailIcon className="size-4 shrink-0 text-sky-600 dark:text-sky-400" />
+      {onToggle && <ChevronIcon open={expanded} className={`size-3.5 shrink-0 ${chat ? "text-emerald-500 dark:text-emerald-400" : "text-sky-500 dark:text-sky-400"}`} />}
+      {chat ? <ChatIcon className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" /> : <MailIcon className="size-4 shrink-0 text-sky-600 dark:text-sky-400" />}
       <ResolvedMark done={!!m.resolvedAt} />
       <span className="shrink-0 font-medium">{mailSender(m)}</span>
-      <span className="shrink-0 text-sky-700/80 dark:text-sky-300/80">{kindOf(m)} · {when(m.receivedAt)}</span>
-      <span className="min-w-0 truncate text-sky-900/70 dark:text-sky-100/70">{m.subject}</span>
+      <span className={`shrink-0 ${chat ? "text-emerald-700/80 dark:text-emerald-300/80" : "text-sky-700/80 dark:text-sky-300/80"}`}>{kindOf(m)} · {when(m.receivedAt)}</span>
+      <span className={`min-w-0 truncate ${chat ? "text-emerald-900/70 dark:text-emerald-100/70" : "text-sky-900/70 dark:text-sky-100/70"}`}>{m.subject}</span>
     </>
   );
   return (
-    <div className={`${BADGE} ${className}`}>
+    <div className={`${chat ? CHAT_BADGE : BADGE} ${className}`}>
       {onToggle ? (
-        <button type="button" className={`${INNER} cursor-pointer transition hover:bg-sky-100 dark:hover:bg-sky-950`} onClick={onToggle} aria-expanded={expanded} title={expanded ? "Fold" : "Show the mail"}>
+        <button type="button" className={`${INNER} cursor-pointer transition ${chat ? "hover:bg-emerald-100 dark:hover:bg-emerald-950" : "hover:bg-sky-100 dark:hover:bg-sky-950"}`} onClick={onToggle} aria-expanded={expanded} title={expanded ? "Fold" : chat ? "Show the message" : "Show the mail"}>
           {body}
         </button>
       ) : (
