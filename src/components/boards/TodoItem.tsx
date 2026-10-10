@@ -2,7 +2,7 @@
 
 import { actionHref } from "@/plugins/actions/catalog";
 import { Fragment, useState, useTransition } from "react";
-import { deferTodoAction, runTodoOpsAction, setTodoStatusAction } from "@/plugins/todos/server-actions";
+import { deferTodoAction, runTodoOpsAction, setTodoStatusAction, suggestTodoActionsAction } from "@/plugins/todos/server-actions";
 import {
   agentInstruction,
   opLabel,
@@ -359,6 +359,7 @@ export function TodoItem({
               >
                 <SparkIcon className="mt-px size-3.5 shrink-0" />
                 <span>Vorgeschlagen: {t.autoOpsWhy}</span>
+                <ProposeAgain todoId={t.id} />
               </span>
             )}
             <span className="flex items-center gap-2 max-sm:flex-col max-sm:items-start">
@@ -419,5 +420,26 @@ export function TodoItem({
         </button>
       )}
     </li>
+  );
+}
+
+/** "Neu vorschlagen": the auto-actions look at this todo again (what it knows now — a chat's language, a new message) — no Work needed. */
+function ProposeAgain({ todoId }: { todoId: number }) {
+  const [pending, start] = useTransition();
+  return (
+    <button
+      type="button"
+      className="ml-1 shrink-0 font-medium hover:underline disabled:opacity-50"
+      disabled={pending}
+      title="Die KI schlägt die Aktionen für dieses Todo neu vor — mit allem, was sie jetzt weiß"
+      onClick={() =>
+        start(async () => {
+          const r = await suggestTodoActionsAction(todoId);
+          toast(r?.ok ? (r.message ?? "Erledigt.") : (r?.error ?? "Ging nicht."), { tone: r?.ok ? "ok" : "error" });
+        })
+      }
+    >
+      {pending ? "schlägt vor …" : "↻ Neu vorschlagen"}
+    </button>
   );
 }

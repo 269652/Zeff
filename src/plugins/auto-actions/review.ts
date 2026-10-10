@@ -19,6 +19,8 @@ import { lastGoodRun, listTodos } from "@/lib/boards/store";
 import { entityHeadline, entitySourceLabel, entityText, entityWhoWhen } from "@/lib/entities-shared";
 import { myJiraName, getJiraTicket } from "@/lib/jira/store";
 import { busyBetween } from "@/lib/calendar/ir";
+import { listFacts } from "@/lib/facts";
+import { conversationOf } from "@/lib/mail/store";
 import { parseLocalDateTime } from "@/lib/calendar/meetings";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { opAvailable } from "@/plugins/ops";
@@ -70,7 +72,8 @@ Für JEDES Todo: welche Aktionen erledigen es oder bringen es den nächsten echt
 - Mehrere Aktionen, wenn sie zusammengehören (z. B. Kommentar + Übergang + Zuweisung an den Tester), in der Reihenfolge, in der sie laufen.
 
 Regeln:
-- Alles fertig formuliert, kurz, freundlich, mit Ticket-Key — auf Deutsch (oder in der Sprache der Person), sofern die allgemeinen Anweisungen des Nutzers nichts anderes sagen — kein Platzhalter, nichts „[…]“.
+- Alles fertig formuliert, kurz, freundlich, mit Ticket-Key — kein Platzhalter, nichts „[…]“.
+- Eine Nachricht an eine Person in der Sprache, in der wir miteinander schreiben: der Verlauf ihres Chats / ihrer Mails und die Fakten zeigen es (z. B. „Sprache: Vinka — Spanisch“); sonst Deutsch — sofern die allgemeinen Anweisungen des Nutzers nichts anderes sagen.
 - Nur Aktionen aus dem Wörterbuch, genau in seiner Form. Nur Personen, Adressen, Benutzernamen und Kennungen, die unten stehen — nichts erfinden.
 - Keine Nachricht an mich selbst. Nichts, was schon erledigt ist oder eine frühere Notiz als bereits getan nennt.
 - Fast jedes Todo bekommt mindestens eine Aktion. Nur wenn wirklich keine passt (z. B. ein Termin dafür steht schon) → ops leer, und why sagt kurz, warum.
@@ -161,8 +164,35 @@ function todoBlock(t: TodoView, sources: ReturnType<typeof todoSources>, run: Re
       const { author } = entityWhoWhen(s);
       return `- [${sourceRef(s)}] ${entitySourceLabel(s)} ${at.slice(0, 16).replace("T", " ")} ${author ?? ""}: ${plain(entityHeadline(s), 120)} — ${plain(entityText(s), 450)}`;
     }),
+    ...historyOf(from.map((f) => f.s)),
+    ...factsFor(t, from.map((f) => f.s)),
   ];
   return lines.join("\n");
+}
+
+/**
+ * The conversations a todo's messages are from (a WhatsApp chat, a mail thread): their last messages,
+ * both sides — what was said before, and in which language (a voice message says nothing of it).
+ */
+function historyOf(from: Parameters<typeof entityText>[0][]): string[] {
+  const convs = [...new Set(from.flatMap((s) => (s.source === "mail" ? [s.mail.convId] : [])))].slice(0, 2);
+  return convs.flatMap((c) => {
+    const msgs = conversationOf(c, 8);
+    if (msgs.length < 2) return [];
+    return [
+      `Verlauf ${msgs[0].folder === "WhatsApp" ? "des Chats" : "der Unterhaltung"} „${plain(msgs[msgs.length - 1].subject, 60)}“ (älteste zuerst):`,
+      ...msgs.map((m) => `  ${m.receivedAt.slice(0, 10)} ${m.fromName ?? m.fromEmail ?? "?"}: ${plain(m.preview, 220)}`),
+    ];
+  });
+}
+
+/** What Zeff knows about a todo's people and things (facts — a birthday, the language someone writes in): those whose subject names them. */
+function factsFor(t: TodoView, from: Parameters<typeof entityText>[0][]): string[] {
+  const about = [t.text, ...from.map((s) => entityWhoWhen(s).author ?? ""), ...from.map((s) => (s.source === "mail" ? s.mail.subject : ""))].join(" ").toLowerCase();
+  return listFacts()
+    .filter((f) => f.subject.split(/[\s:,–-]+/).some((w) => w.length > 3 && about.includes(w.toLowerCase())))
+    .slice(0, 6)
+    .map((f) => `Bekannt: ${plain(f.subject, 80)} — ${plain(f.text, 200)}`);
 }
 
 /** A source's ref, as the todo's refs name it. */
@@ -197,13 +227,27 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
         .all()
         .map((r) => r.id),
     );
+    const board = lastGoodRun();
+    const open = listTodos({ status: "open" });
+    // What a todo learned since its actions were proposed here (and not run or edited — those aren't
+    // ours any more): a note of yours or a review's, a newer message — then they're proposed again.
+    const reviewedAt = new Map(getDb().select({ id: todos.id, at: todos.actionsReviewedAt }).from(todos).where(eq(todos.status, "open")).all().map((r) => [r.id, r.at ?? ""]));
+    const ours = open.filter((t) => t.ops.length && !!t.autoOpsWhy && due.has(t.id));
+    const oursSources = todoSources(ours, board?.tickets ?? []);
+    const learned = new Set(
+      ours
+        .filter((t) => {
+          const at = reviewedAt.get(t.id) ?? "";
+          return t.userNotes.some((n) => n.at > at) || sourcesOf(t.refs, oursSources).some((x) => (entityWhoWhen(x).at ?? "") > at);
+        })
+        .map((t) => t.id),
+    );
     // Asked for on given todos: those (unless they have actions not proposed here — the Lage's, a delivery's).
     const list = opts.ids
-      ? listTodos({ status: "open" }).filter((t) => opts.ids!.includes(t.id) && (!t.ops.length || !!t.autoOpsWhy))
-      : listTodos({ status: "open" }).filter((t) => due.has(t.id) && (!t.ops.length || (all && !!t.autoOpsWhy)));
+      ? open.filter((t) => opts.ids!.includes(t.id) && (!t.ops.length || !!t.autoOpsWhy))
+      : open.filter((t) => due.has(t.id) && (!t.ops.length || (!!t.autoOpsWhy && (all || learned.has(t.id)))));
     if (!opts.ids) setPref("autoactions:offered", offered);
     if (!list.length) return { ok: true, reviewed: 0, withActions: 0, batches: 0 };
-    const board = lastGoodRun();
     const sources = todoSources(list, board?.tickets ?? []);
     const blocks = list.map((t) => ({ t, text: todoBlock(t, sources, board) }));
     const me = myJiraName() ?? "";
@@ -278,7 +322,7 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
         // Only onto a todo that still has none (the Lage or you may have given it some meanwhile) — or
         // whose actions this review proposed itself, looked at again (on request, or new kinds came).
         const still = getDb().select({ ops: todos.ops }).from(todos).where(eq(todos.id, t.id)).get();
-        if (ops.length && still && ((JSON.parse(still.ops) as unknown[]).length === 0 || ((opts.ids || all) && t.autoOpsWhy))) {
+        if (ops.length && still && ((JSON.parse(still.ops) as unknown[]).length === 0 || ((opts.ids || all || learned.has(t.id)) && t.autoOpsWhy))) {
           set.ops = JSON.stringify(ops);
           set.autoOpsWhy = (a?.why ?? "").trim().slice(0, 500) || "Vorgeschlagen aus dem Kontext.";
           withActions++;

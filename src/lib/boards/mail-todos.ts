@@ -85,6 +85,8 @@ Trägt eine neue Nachricht etwas zu einem SCHON OFFENEN Todo bei — eine Antwor
 
 Auch ohne Todo: Steht in einer Nachricht so etwas Dauerhaftes, gib es oben unter facts an (subject, text, refs der Nachrichten).
 
+Schreibt jemand (oder schreibe ich jemandem) nicht auf Deutsch, halte die Sprache als Fakt fest: subject „Sprache: <Name>“, text die Sprache („Spanisch“) — damit Antworten an die Person in ihrer Sprache kommen.
+
 Unter „Ruhende Unterhaltungen“ stehen Gespräche, an denen ich beteiligt war und die seit Tagen still sind — mit ihrem Verlauf und dem, was seitdem zum Thema passiert ist. Beurteile jede für sich, in zwei unabhängigen Fragen:
 1. Was ist darin offen geblieben? Ein gemeldetes Problem ohne Lösung, eine Frage ohne Antwort, eine Zusage von mir, ein vereinbarter nächster Schritt → je ein Todo (z. B. „Bei Anna nachfragen, ob der Drucker wieder läuft“).
 2. Gibt es Neues zum Thema, das die andere Seite wissen sollte? Such es selbst: in den „Aktuellen Unterhaltungen“, den neuen Nachrichten und meinen offenen Todos — dasselbe Thema auch unter anderen Worten oder mit anderen Leuten (z. B. „Vereinsfest“ mit Anna ↔ „Sommerfeier Planung“ mit Ben: dasselbe Fest). Ein Termin hat stattgefunden, jemand anderes arbeitet daran, ein Problem ist gelöst → ein eigenes Todo, sie auf den Stand zu bringen (z. B. „Anna Bescheid geben, dass Ben und ich die Sommerfeier planen“). Die „Stichwort-Treffer“ sind nur ein Hinweis, keine Grenze.
