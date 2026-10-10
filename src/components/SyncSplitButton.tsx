@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import type { ActionState } from "@/app/actions";
+import { stopSyncAction, type ActionState } from "@/app/actions";
 import { minutesText } from "@/plugins/sync-settings";
 import { SyncIcon } from "./icons";
 import { toast } from "./Toaster";
@@ -41,9 +41,12 @@ export function SyncSplitButton({ sources }: { sources: SyncSource[] }) {
     };
   }, [open]);
 
+  const stopped = useRef(false);
   const run = (list: SyncSource[]) =>
     start(async () => {
+      stopped.current = false;
       for (const s of list) {
+        if (stopped.current) break;
         setRunning(s.key);
         const r = await s.sync();
         toast(`${s.label}: ${r?.ok ? (r.message ?? "synchronisiert") : (r?.error ?? "fehlgeschlagen")}`, { tone: r?.ok ? "ok" : "error" });
@@ -57,13 +60,20 @@ export function SyncSplitButton({ sources }: { sources: SyncSource[] }) {
     <div ref={root} className="relative flex">
       <button
         type="button"
-        className="btn rounded-r-none"
-        disabled={pending}
-        onClick={() => run(sources)}
-        title={`Synct ${sources.map((s) => s.label).join(", ")} — jetzt`}
+        className={`btn rounded-r-none ${pending ? "text-red-600 dark:text-red-400" : ""}`}
+        onClick={() => {
+          // Running: the button stops it (and the rest of the list).
+          if (pending) {
+            stopped.current = true;
+            if (running) void stopSyncAction(running);
+            return;
+          }
+          run(sources);
+        }}
+        title={pending ? "Abbrechen — der laufende Sync endet, die übrigen starten nicht" : `Synct ${sources.map((s) => s.label).join(", ")} — jetzt`}
       >
         <SyncIcon className={`size-4 ${pending ? "animate-spin" : ""}`} />
-        {pending ? `${sources.find((s) => s.key === running)?.label ?? "Sync"}…` : "Sync"}
+        {pending ? `${sources.find((s) => s.key === running)?.label ?? "Sync"}… Stopp` : "Sync"}
         {failed && !pending && <span className="size-1.5 rounded-full bg-amber-500" aria-label="Ein Sync ist zuletzt fehlgeschlagen" />}
       </button>
       <button type="button" className="btn rounded-l-none border-l-0 px-2" aria-haspopup="dialog" aria-expanded={open} aria-label="Syncs: einzeln, Stand, Intervall" onClick={() => setOpen((o) => !o)}>

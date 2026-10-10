@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { ABORTED, onAbort } from "@/lib/abort";
 
 export type McpStdioConfig = {
   command: string;
@@ -55,6 +56,7 @@ export function runStdioSession<T>(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      stopListening();
       try {
         child.kill();
       } catch {
@@ -63,6 +65,8 @@ export function runStdioSession<T>(
       fn();
     };
     const fail = (msg: string) => finish(() => reject(new Error(msg)));
+    // The sync it's part of stopped: the driver with it.
+    const stopListening = onAbort(() => fail(ABORTED));
     const timer = setTimeout(
       () => fail(`${label} timed out after ${timeoutMs}ms.${stderr ? ` stderr: ${stderr.slice(0, 400)}` : ""}`),
       timeoutMs,

@@ -1487,10 +1487,11 @@ export async function searchMailsAction(q: string): Promise<import("@/lib/mail/s
 
 /** "Sync now" on the Nachrichten page: read the inbox's latest mails in the automation Chrome (read-only: none opened; opens Outlook's mail there if needed). */
 export async function syncMailAction(): Promise<ActionState> {
-  const { syncMail } = await import("@/lib/mail/sync");
-  const r = await syncMail();
+  // Through the Sync menu's step: stoppable from there (and from the page's button).
+  const { syncAndWait } = await import("@/lib/sync/registry");
+  const r = await syncAndWait("mail");
   revalidateAll();
-  return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
+  return r.lastOk ? { ok: true, message: r.lastMessage ?? "" } : { ok: false, error: r.lastMessage ?? "Fehlgeschlagen." };
 }
 
 /** Which Outlook folders the mail sync reads, by name as Outlook lists them ("Posteingang, Notifications"). */
@@ -1613,6 +1614,25 @@ export async function runSyncAction(key: string): Promise<ActionState> {
   const { startSync } = await import("@/lib/sync/registry");
   const r = startSync(key);
   return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
+}
+
+/** Stop a sync that's running (Sync menu, a page's button) — and what it started. */
+export async function stopSyncAction(key: string): Promise<ActionState> {
+  const { stopSync } = await import("@/lib/sync/registry");
+  return stopSync(String(key)) ? { ok: true, message: "Wird abgebrochen." } : { ok: false, error: "Läuft nicht." };
+}
+
+/** Stop "Sync all" (the step it's on, and the rest). */
+export async function stopSyncAllAction(): Promise<ActionState> {
+  const { stopSyncAll } = await import("@/lib/sync/registry");
+  return stopSyncAll() ? { ok: true, message: "Wird abgebrochen." } : { ok: false, error: "Läuft nicht." };
+}
+
+/** Stop the Ticket-Lage's run ("Jetzt auswerten"). */
+export async function stopBoardRunAction(): Promise<ActionState> {
+  const { stopBoardRun } = await import("@/lib/boards/run");
+  revalidatePath("/todos");
+  return stopBoardRun() ? { ok: true, message: "Die Auswertung wird abgebrochen." } : { ok: false, error: "Es läuft keine Auswertung." };
 }
 
 /** "Sync all": every step one after the other, in the background. */

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { runSyncAction, runSyncAllAction, syncOverviewAction } from "@/app/actions";
+import { runSyncAction, runSyncAllAction, stopSyncAction, stopSyncAllAction, syncOverviewAction } from "@/app/actions";
 import type { SyncOverview, SyncView } from "@/lib/sync/shared";
 import { SyncIcon } from "./icons";
 
@@ -58,7 +58,7 @@ function StepMark({ s }: { s: SyncView }) {
 }
 
 /** One step in a sync list: its mark, name (to its page), how it last went, a button to run it now. */
-export function SyncStepRow({ s, disabled, onRun, onNavigate, running = s.running }: { s: SyncView; disabled?: boolean; onRun: () => void; onNavigate?: () => void; running?: boolean }) {
+export function SyncStepRow({ s, disabled, onRun, onStop, onNavigate, running = s.running }: { s: SyncView; disabled?: boolean; onRun: () => void; onStop?: () => void; onNavigate?: () => void; running?: boolean }) {
   return (
     <li className="flex items-center gap-2.5 px-3 py-2">
       <span className="shrink-0">
@@ -81,9 +81,17 @@ export function SyncStepRow({ s, disabled, onRun, onNavigate, running = s.runnin
           )}
         </div>
       </div>
-      <button type="button" className="icon-btn" disabled={running || disabled} onClick={onRun} title={`${s.label} jetzt — ${s.what}`} aria-label={`${s.label} jetzt`}>
-        <SyncIcon />
-      </button>
+      {running && onStop ? (
+        <button type="button" className="icon-btn text-red-600 dark:text-red-400" onClick={onStop} title={`${s.label} abbrechen — was er gestartet hat, endet mit`} aria-label={`${s.label} abbrechen`}>
+          <svg viewBox="0 0 20 20" className="size-4" fill="currentColor" aria-hidden>
+            <rect x="5" y="5" width="10" height="10" rx="1.5" />
+          </svg>
+        </button>
+      ) : (
+        <button type="button" className="icon-btn" disabled={running || disabled} onClick={onRun} title={`${s.label} jetzt — ${s.what}`} aria-label={`${s.label} jetzt`}>
+          <SyncIcon />
+        </button>
+      )}
     </li>
   );
 }
@@ -176,9 +184,15 @@ export function SyncMenu() {
       {open && (
         <div id="sync-menu" className="absolute right-0 z-50 mt-2 w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
           <div className="flex items-center justify-between gap-3 border-b border-zinc-200 px-3 py-2.5 dark:border-zinc-800">
-            <button type="button" className="btn btn-primary btn-sm" disabled={!data || data.all.running} onClick={() => go(runSyncAllAction)}>
-              <SyncIcon className={`size-4 ${data?.all.running ? "animate-spin" : ""}`} /> Sync all
-            </button>
+            {data?.all.running ? (
+              <button type="button" className="btn btn-sm text-red-600 dark:text-red-400" onClick={() => go(stopSyncAllAction)} title="Den laufenden Schritt abbrechen und keine weiteren starten">
+                <SyncIcon className="size-4 animate-spin" /> Stopp
+              </button>
+            ) : (
+              <button type="button" className="btn btn-primary btn-sm" disabled={!data} onClick={() => go(runSyncAllAction)}>
+                <SyncIcon className="size-4" /> Sync all
+              </button>
+            )}
             <span className="truncate text-xs text-zinc-500">
               {data?.all.running ? `Syncing all — ${data.steps.find((s) => s.key === data.all.step)?.label ?? "…"}` : "One after the other, Ticket-Lage last"}
             </span>
@@ -186,7 +200,7 @@ export function SyncMenu() {
           {error && <p className="border-b border-zinc-200 px-3 py-2 text-xs text-red-600 dark:border-zinc-800 dark:text-red-400">{error}</p>}
           <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
             {(data?.steps ?? []).map((s) => (
-              <SyncStepRow key={s.key} s={s} disabled={!!data?.all.running} onRun={() => go(() => runSyncAction(s.key))} onNavigate={() => setOpen(false)} />
+              <SyncStepRow key={s.key} s={s} disabled={!!data?.all.running} onRun={() => go(() => runSyncAction(s.key))} onStop={() => go(() => stopSyncAction(s.key))} onNavigate={() => setOpen(false)} />
             ))}
             {!data && <li className="px-3 py-3 text-sm text-zinc-500">Loading…</li>}
           </ul>

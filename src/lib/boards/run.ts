@@ -1,4 +1,5 @@
 import { aiChoice, runAi } from "@/lib/ai";
+import { throwIfAborted, withAbort } from "@/lib/abort";
 import { AI_PROVIDER_INFO } from "@/lib/ai/shared";
 import { errorMessage } from "@/lib/errors";
 import { collectBoard } from "./collect";
@@ -65,7 +66,10 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
   const id = startRun(s.jql, `${provider}${ai.model ? ` · ${ai.model}` : ""}`);
   const t0 = Date.now();
   state.__zeffBoardRun = { id, phase: opts.syncJira ? "sync" : "jira", since: t0, provider };
-  void (async () => {
+  // Stoppable (its button, the Sync menu): the sync, the AI, the step it's on — ended.
+  const stop = new AbortController();
+  stopState.__zeffBoardRunStop = stop;
+  void withAbort(stop, async () => {
     try {
       // By hand: what the Auswerten settings say is synced first (Jira, Teams, the mails …) — only
       // when its last sync is older than set; a failed sync doesn't stop the run.
@@ -126,14 +130,26 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
         state.__zeffBoardRun = { id, phase: "knowledge", since: t0, provider };
         await syncAndWait("knowledgerel");
       }
+      throwIfAborted();
       // Last: the todos without a button get ready actions (with the mails related to them in their context).
       state.__zeffBoardRun = { id, phase: "autoactions", since: t0, provider };
       await syncAndWait("autoactions");
     } catch (e) {
-      finishRun(id, { status: "error", error: errorMessage(e), durationMs: Date.now() - t0 });
+      finishRun(id, { status: "error", error: stop.signal.aborted ? "Abgebrochen." : errorMessage(e), durationMs: Date.now() - t0 });
     } finally {
       state.__zeffBoardRun = null;
+      if (stopState.__zeffBoardRunStop === stop) stopState.__zeffBoardRunStop = null;
     }
-  })();
+  });
   return { ok: true, message: "Auswertung gestartet." };
+}
+
+const stopState = globalThis as { __zeffBoardRunStop?: AbortController | null };
+
+/** Stop the Ticket-Lage's run (and the step it's on). Whether one was running. */
+export function stopBoardRun(): boolean {
+  const c = stopState.__zeffBoardRunStop;
+  if (!c) return false;
+  c.abort();
+  return true;
 }

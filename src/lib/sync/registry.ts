@@ -7,6 +7,7 @@ import { getTeamsSettings } from "@/lib/teams/store";
 import { getMailSettings } from "@/lib/mail/store";
 import { SYNC_KEYS, type SyncKey, type SyncOverview, type SyncView } from "./shared";
 import { stepAvailable } from "@/plugins/state";
+import { withAbort } from "@/lib/abort";
 import { stepMinutes } from "./intervals";
 
 /** Quiet hours: from 19:00 to 08:00 nothing syncs by itself (by hand it still does). */
@@ -16,8 +17,44 @@ export const quietAt = (at = new Date()) => at.getHours() >= QUIET.from || at.ge
 const { syncState, jiraTickets, chronoEntries, punchDays } = schema;
 
 /** What's running from the menu, and "Sync all" (the step it's on) — across the server's module copies. */
-const state = globalThis as { __zeffSyncs?: { running: Set<SyncKey>; all: SyncKey | null | undefined } };
+const state = globalThis as {
+  __zeffSyncs?: { running: Set<SyncKey>; all: SyncKey | null | undefined; stops?: Map<string, AbortController>; allStopped?: boolean };
+};
 const live = () => (state.__zeffSyncs ??= { running: new Set(), all: undefined });
+/** The running syncs' stop handles, by step (the menu's, the scheduler's, a page's button). */
+const stops = () => (live().stops ??= new Map());
+
+/**
+ * Run something as a step that can be stopped (Sync menu → Stopp): whatever it starts — a driver,
+ * an AI CLI — ends with it. The scheduler's syncs and the pages' buttons run through here too.
+ */
+export async function runStoppable<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const c = new AbortController();
+  stops().set(key, c);
+  try {
+    return await withAbort(c, fn);
+  } finally {
+    if (stops().get(key) === c) stops().delete(key);
+  }
+}
+
+/** Stop a step that's running (and what it started). Whether there was one. */
+export function stopSync(key: string): boolean {
+  const c = stops().get(key);
+  STEPS[key as SyncKey]?.stop?.();
+  if (!c) return !!STEPS[key as SyncKey]?.stop;
+  c.abort();
+  return true;
+}
+
+/** Stop "Sync all": the step it's on, and no further ones. */
+export function stopSyncAll(): boolean {
+  const l = live();
+  if (l.all === undefined) return false;
+  l.allStopped = true;
+  if (l.all) stopSync(l.all);
+  return true;
+}
 
 /** A flag another module keeps on globalThis while its sync runs (the scheduler, a page's button). */
 const flag = (name: string) => !!(globalThis as Record<string, unknown>)[name];
@@ -64,6 +101,8 @@ type Step = {
   busy?: () => boolean;
   last?: () => Last;
   schedule?: () => { everyMinutes: number; lastAt: string | null; window?: string };
+  /** Stop it, when it doesn't run through runStoppable (the Ticket-Lage's own run). */
+  stop?: () => void;
 };
 
 /** The Monday ISO dates of the last and the current month's weeks. */
@@ -189,6 +228,9 @@ const STEPS: Record<SyncKey, Step> = {
       while (boardRunState()) await new Promise((res) => setTimeout(res, 2000));
       const run = latestRun();
       return run?.status === "ok" ? { ok: true, message: "Ticket-Lage updated." } : { ok: false, message: run?.error ?? "The run failed." };
+    },
+    stop: () => {
+      void import("@/lib/boards/run").then((m) => m.stopBoardRun());
     },
     // The Lage itself: not while its run syncs first or relates the mails (their own steps show that).
     busy: () => {
@@ -355,7 +397,7 @@ async function runStep(key: SyncKey): Promise<void> {
   if (l.running.has(key) || STEPS[key].busy?.()) return;
   l.running.add(key);
   try {
-    const r = await STEPS[key].run();
+    const r = await runStoppable(key, () => STEPS[key].run());
     if (!STEPS[key].ownRecord) record(key, r.ok, r.message);
   } catch (e) {
     if (!STEPS[key].ownRecord) record(key, false, errorMessage(e));
@@ -389,10 +431,12 @@ export function startSyncAll(): { ok: boolean; message: string } {
   const l = live();
   if (l.all !== undefined) return { ok: false, message: "Already syncing all." };
   l.all = null;
+  l.allStopped = false;
   void (async () => {
     try {
       // The Mail-Durchsicht and -Zuordnung come with the Ticket-Lage (its last steps) — not twice.
       for (const key of SYNC_KEYS.filter((k) => k !== "relations" && k !== "mailtodos" && k !== "autoactions" && k !== "boardlage" && k !== "knowledgerel" && k !== "notetodos" && k !== "noterelations" && stepAvailable(k))) {
+        if (l.allStopped) break;
         l.all = key;
         await runStep(key);
       }

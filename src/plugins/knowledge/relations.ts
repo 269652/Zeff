@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { throwIfAborted } from "@/lib/abort";
 import { getDb, schema } from "@/db";
 import { aiChoice, runAi } from "@/lib/ai";
 import { extraBlock, getContextPrefs } from "@/lib/boards/context-prefs";
@@ -102,6 +103,7 @@ export function relateKnowledge(): Promise<KnowledgeRelationResult> {
     let assigned = 0;
     let failed = 0;
     for (const batch of batches) {
+      throwIfAborted();
       const prompt = `${INSTRUCTIONS}${extraBlock("knowledge")}\n\n${batch.map(block).join("\n\n")}`;
       const answer = await runAi<Answer>(prompt, SCHEMA, { task: "knowledge-relations", timeoutMs: 6 * 60000, maxBudgetUsd: 0.5 }).catch((e) => {
         console.error("[knowledge-relations]", errorMessage(e));
