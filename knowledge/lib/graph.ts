@@ -111,3 +111,37 @@ export function pageDetail(id: string): PageDetail | null {
   ).map((r) => ({ src: { id: r.sid, name: r.sname }, dst: { id: r.did, name: r.dname }, rel: r.rel, fact: r.fact }));
   return { id: p.id, title: p.title, space: p.space, url: p.url, updatedAt: p.updated_at, author: p.author, body: p.body, summary: p.summary, compiled: p.compiled_version === p.version, entities, relations };
 }
+
+export type PersonRow = { id: number; key: string; name: string; aliases: string[]; summary: string; pages: number; degree: number };
+
+/** Every person the knowledge knows — the most named first (for Zeff's people profiles). */
+export function persons(): PersonRow[] {
+  type R = Omit<PersonRow, "aliases"> & { aliases: string };
+  return (
+    db()
+      .prepare(
+        `select e.id, e.key, e.name, e.aliases, e.summary,
+           (select count(*) from entity_pages ep where ep.entity_id = e.id) pages,
+           (select count(*) from relations r where r.src = e.id or r.dst = e.id) degree
+         from entities e where e.type = 'person' order by pages desc, degree desc`,
+      )
+      .all() as R[]
+  ).map((r) => {
+    let aliases: string[] = [];
+    try {
+      aliases = JSON.parse(r.aliases) as string[];
+    } catch {
+      // none
+    }
+    return { ...r, aliases };
+  });
+}
+
+/** An entity by its key — or by a key normalizing merged into it (entity_keys). */
+export function entityIdByKey(key: string): number | null {
+  const d = db();
+  const own = d.prepare("select id from entities where key = ?").get(key) as { id: number } | undefined;
+  if (own) return own.id;
+  const merged = d.prepare("select entity_id id from entity_keys where key = ?").get(key) as { id: number } | undefined;
+  return merged?.id ?? null;
+}

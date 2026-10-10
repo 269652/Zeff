@@ -19,5 +19,19 @@ export async function GET() {
       if (t.owner === "me" && t.due && t.due <= today)
         items.push({ id: `due:${t.id}:${today}`, title: t.due < today ? `${t.ref} ist überfällig` : `${t.ref} ist heute fällig`, body: t.text.slice(0, 200), href: `/t/${t.id}`, at: now.toISOString() });
   }
+  // Your people's dates (Personen plugin): once when the reminder starts, once on the day.
+  if (isInstalled("people")) {
+    const { upcoming } = await import("@/plugins/people/store");
+    const { inDaysText, upcomingTitle } = await import("@/plugins/people/shared");
+    const now = new Date();
+    for (const u of upcoming({ withinReminder: true }))
+      items.push({
+        id: `person-date:${u.date.id}:${u.on}:${u.inDays === 0 ? "today" : "soon"}`,
+        title: u.inDays === 0 ? `Heute: ${upcomingTitle(u)}` : `${upcomingTitle(u)} ${inDaysText(u.inDays, u.on)}`,
+        body: u.date.kind === "birthday" ? "Gratulieren nicht vergessen." : u.date.label || "",
+        href: `/personen/${u.person.id}`,
+        at: now.toISOString(),
+      });
+  }
   return Response.json({ items });
 }
