@@ -179,12 +179,18 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
   if (state.__zeffAutoActions && !opts.ids) return state.__zeffAutoActions;
   const run = (async (): Promise<AutoActionsResult> => {
     if (opts.ids && state.__zeffAutoActions) await state.__zeffAutoActions;
+    // What can be done changed (a plugin or an extension came — WhatsApp, Gmail, Keep): every open
+    // todo without actions is looked at again, once.
+    const { TODO_OP_TYPES } = await import("@/lib/boards/shared");
+    const { getPref, setPref } = await import("@/lib/prefs");
+    const offered = TODO_OP_TYPES.filter((t) => opAvailable(t)).sort().join(",");
+    const all = opts.all || getPref("autoactions:offered", "") !== offered;
     // Not looked at yet, or changed since (a new note, a new source).
     const due = new Set(
       getDb()
         .select({ id: todos.id })
         .from(todos)
-        .where(and(eq(todos.status, "open"), opts.all ? sql`1` : or(isNull(todos.actionsReviewedAt), sql`${todos.updatedAt} > ${todos.actionsReviewedAt}`)))
+        .where(and(eq(todos.status, "open"), all ? sql`1` : or(isNull(todos.actionsReviewedAt), sql`${todos.updatedAt} > ${todos.actionsReviewedAt}`)))
         .all()
         .map((r) => r.id),
     );
@@ -192,6 +198,7 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
     const list = opts.ids
       ? listTodos({ status: "open" }).filter((t) => opts.ids!.includes(t.id) && (!t.ops.length || !!t.autoOpsWhy))
       : listTodos({ status: "open" }).filter((t) => due.has(t.id) && !t.ops.length);
+    if (!opts.ids) setPref("autoactions:offered", offered);
     if (!list.length) return { ok: true, reviewed: 0, withActions: 0, batches: 0 };
     const board = lastGoodRun();
     const sources = todoSources(list, board?.tickets ?? []);

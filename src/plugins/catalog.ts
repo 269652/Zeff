@@ -257,6 +257,16 @@ export const PLUGINS: PluginManifest[] = [
     routes: ["/mail", "/apps/gmail", "/gmail", "/api/boards/mail-relations"],
     syncSteps: ["mail", "mailtodos", "relations"],
     services: ["gmail"],
+    extensions: [
+      {
+        key: "compose-action",
+        for: "auto-actions",
+        name: "Mail schreiben",
+        description: "Auto-Aktionen schlagen auch Mails vor (antworten, anfragen, einreichen) — ein Klick öffnet Gmails Entwurf, ausgefüllt; senden tust du selbst.",
+        defaultInstalled: true,
+        actions: ["gmail-compose"],
+      },
+    ],
   },
   {
     id: "whatsapp",
@@ -272,6 +282,16 @@ export const PLUGINS: PluginManifest[] = [
     routes: ["/mail", "/apps/whatsapp", "/api/boards/mail-relations"],
     syncSteps: ["whatsapp", "mailtodos", "relations"],
     services: ["whatsapp"],
+    extensions: [
+      {
+        key: "send-action",
+        for: "auto-actions",
+        name: "Nachricht senden",
+        description: "Auto-Aktionen schlagen auch WhatsApp-Nachrichten vor (antworten, zusagen, eine Uhrzeit vorschlagen) — fertig formuliert; gesendet wird erst auf deinen Klick, über WhatsApp Web im Automations-Chrome.",
+        defaultInstalled: true,
+        actions: ["whatsapp-message"],
+      },
+    ],
   },
   {
     id: "keep",
@@ -316,7 +336,7 @@ export const PLUGINS: PluginManifest[] = [
         for: "auto-actions",
         name: "Notiz anlegen",
         description: "Auto-Aktionen schlagen auch vor, etwas als Notiz in einem deiner Keep-Boards festzuhalten (eine Einkaufsliste, Ideen, Zugangsdaten-freie Infos zum Nachschlagen) — ein Klick legt sie an.",
-        defaultInstalled: false,
+        defaultInstalled: true,
         actions: ["keep-note"],
       },
     ],
