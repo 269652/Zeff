@@ -286,9 +286,9 @@ function OpChip({
             target="_blank"
             rel="noreferrer"
             className="shrink-0 rounded px-1.5 font-medium text-sky-700 hover:bg-sky-100 dark:text-sky-300 dark:hover:bg-sky-900"
-            title="Öffnet sich ausgefüllt in Outlook — prüfen und selbst senden"
+            title={`Öffnet sich ausgefüllt in ${openIn(href)} — prüfen und selbst senden`}
           >
-            In Outlook öffnen ↗
+            In {openIn(href)} öffnen ↗
           </a>
         )}
         <span className="flex shrink-0 items-center gap-0.5">
@@ -749,4 +749,12 @@ export function WorkTodo({
       )}
     </li>
   );
+}
+
+/** Where an action's pre-filled window opens, by its address: Gmail, Google Calendar, Outlook. */
+function openIn(href: string): string {
+  if (href.startsWith("https://mail.google.com")) return "Gmail";
+  if (href.startsWith("https://calendar.google.com")) return "Google Calendar";
+  if (/outlook\.(office|live)\.com|office365/.test(href)) return "Outlook";
+  return "neuem Fenster";
 }
