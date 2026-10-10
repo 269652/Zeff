@@ -1,4 +1,5 @@
 import { and, asc, eq, gte, inArray, isNull } from "drizzle-orm";
+import { throwIfAborted } from "@/lib/abort";
 import { getDb, schema } from "@/db";
 import { aiChoice, runAi } from "@/lib/ai";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
@@ -122,6 +123,7 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
     let failed = 0;
     let reviewed = theirs.length;
     for (const batch of batches) {
+      throwIfAborted();
       const open = listTodos({ status: "open" });
       const prompt = [
         INSTRUCTIONS + extraBlock("mailtodos"),

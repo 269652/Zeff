@@ -5,6 +5,7 @@
  * what the installed plugins offer (a comment, a message, a mail draft, an appointment, a hand-over
  * to a worker …). Complete and ready: one click runs them. Server only.
  */
+import { throwIfAborted } from "@/lib/abort";
 import { extraBlock } from "@/lib/boards/context-prefs";
 import { and, desc, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
@@ -226,6 +227,7 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
     let failed = 0;
     const now = new Date().toISOString();
     const ask = async (batch: typeof blocks): Promise<{ batch: typeof blocks; answer: Answer }[]> => {
+      throwIfAborted();
       const text = batch.map((b) => b.text).join("\n\n");
       const book = addressBook(text);
       const prompt = [

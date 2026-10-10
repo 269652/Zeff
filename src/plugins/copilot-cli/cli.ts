@@ -1,4 +1,5 @@
 import { execFile, spawn } from "node:child_process";
+import { ABORTED, killTree, onAbort } from "@/lib/abort";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -142,8 +143,16 @@ ${JSON.stringify(schema)}`;
       if (done) return;
       done = true;
       clearTimeout(timer);
+      stopListening();
       fn();
     };
+    // The sync it's part of stopped: the CLI (and what it started) ended.
+    const stopListening = onAbort(() =>
+      finish(() => {
+        killTree(child);
+        reject(new Error(ABORTED));
+      }),
+    );
     const timer = setTimeout(
       () =>
         finish(() => {

@@ -5,6 +5,8 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import {
   runBoardAction,
   runSyncAction,
+  stopBoardRunAction,
+  stopSyncAction,
   syncOverviewAction,
 } from "@/app/actions";
 import type { SyncKey, SyncOverview } from "@/lib/sync/shared";
@@ -134,6 +136,20 @@ export function BoardRunControls({
           {phase === "ai"
             ? `${provider} ${PHASES.ai}`
             : (PHASES[phase ?? ""] ?? "läuft")}
+          <button
+            type="button"
+            className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+            onClick={() =>
+              start(async () => {
+                const r = await stopBoardRunAction();
+                if (r && !r.ok) setError(r.error ?? "Ging nicht.");
+                router.refresh();
+              })
+            }
+            title="Die Auswertung abbrechen — der Schritt, an dem sie ist (Sync, KI), endet mit"
+          >
+            Abbrechen
+          </button>
         </span>
       )}
       <div ref={root} className="relative flex">
@@ -183,6 +199,12 @@ export function BoardRunControls({
                   s={s}
                   disabled={pending || (running && s.key === "boards")}
                   onRun={() => runStep(s.key)}
+                  onStop={() =>
+                    start(async () => {
+                      await (s.key === "boards" ? stopBoardRunAction() : stopSyncAction(s.key));
+                      router.refresh();
+                    })
+                  }
                   onNavigate={() => setOpen(false)}
                 />
               ))}

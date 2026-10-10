@@ -7,7 +7,7 @@ import { syncGitlab } from "./gitlab/sync";
 import { getTeamsSettings } from "./teams/store";
 import { getMailSettings } from "./mail/store";
 import { syncTeams } from "./teams/sync";
-import { jiraLastSyncAt, lastSyncOf, quietAt, startSync } from "./sync/registry";
+import { jiraLastSyncAt, lastSyncOf, quietAt, runStoppable, startSync } from "./sync/registry";
 import { stepMinutes } from "./sync/intervals";
 
 /** The automation Chrome is running (its debug port answers) — the Roar, TimO and Outlook drivers would start it otherwise. */
@@ -107,7 +107,7 @@ export function startSyncScheduler(): void {
     for (const job of quietAt() ? [] : jobs.filter((j) => stepAvailable(j.name))) {
       try {
         if (!due(job.settings())) continue;
-        const r = await job.run();
+        const r = await runStoppable(job.name, job.run);
         if (!r.ok) console.warn(`[${job.name} sync] ${r.message}`);
       } catch (e) {
         console.error(`[${job.name} sync]`, e);
