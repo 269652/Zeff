@@ -8,6 +8,7 @@ import { syncOverview } from "@/lib/sync/registry";
 import { agoText } from "@/lib/teams/time";
 import { isInstalled } from "@/plugins/state";
 import { HistoryButton } from "@/plugins/whatsapp/HistoryButton";
+import { pushTo } from "@/lib/collections";
 
 export const metadata: Metadata = { title: "WhatsApp" };
 
@@ -28,7 +29,7 @@ export default async function WhatsappAppPage({ searchParams }: { searchParams: 
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
   const chats = new Map<string, MailView[]>();
-  for (const m of listMails({ q, folder: "WhatsApp", limit: 1500 })) chats.set(m.subject, [...(chats.get(m.subject) ?? []), m]);
+  for (const m of listMails({ q, folder: "WhatsApp", limit: 1500 })) pushTo(chats, m.subject, m);
   const open = sp.chat && chats.has(sp.chat) ? sp.chat : [...chats.keys()][0];
   const thread = [...(open ? (chats.get(open) ?? []) : [])].reverse();
   const step = syncOverview().steps.find((s) => s.key === "whatsapp");

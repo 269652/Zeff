@@ -69,13 +69,13 @@ export async function weekClose(week: WeekInfo, now = new Date()): Promise<WeekC
   }
 
   // 3. The agents' suggestions for the week taken over or skipped.
-  const { openSuggestions } = await import("./work/suggestions");
-  const suggestions = openSuggestions().filter((s) => s.date >= week.startIso && s.date <= week.endIso);
+  const { openSuggestionTotals } = await import("./work/suggestions");
+  const suggestions = openSuggestionTotals(week.startIso, week.endIso);
   items.push({
     key: "suggestions",
     label: "Vorschläge übernommen",
-    state: suggestions.length ? "open" : "ok",
-    detail: suggestions.length ? `${suggestions.length} offen (${formatHours(suggestions.reduce((a, s) => a + s.hours, 0))} h)` : "keine offen",
+    state: suggestions.count ? "open" : "ok",
+    detail: suggestions.count ? `${suggestions.count} offen (${formatHours(suggestions.hours)} h)` : "keine offen",
     href: `/?${q}`,
   });
 

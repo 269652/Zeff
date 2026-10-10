@@ -1,5 +1,5 @@
 import { getDb, schema } from "@/db";
-import { accountsInstalled, setAccountsInstalled } from "@/db/accounts";
+import { accountsInstalled, currentAccountId, setAccountsInstalled } from "@/db/accounts";
 import { emitChange } from "@/lib/events";
 import { stepExtensionOk } from "./extension-state";
 import { PLUGINS, STEP_NEEDS, isPluginId, pluginById, pluginOfProvider, pluginsOfRoute, pluginsOfStep, pluginsOfService, type PluginId } from "./catalog";
@@ -12,10 +12,28 @@ function chosen(): Map<PluginId, boolean> {
 }
 
 /**
+ * What's installed, per account, for a moment: a page asks isInstalled() a dozen times and more —
+ * once is enough. Dropped on every install/uninstall here, so a change still shows at once.
+ */
+const memo = globalThis as unknown as { __zeffInstalled?: Map<string, { at: number; set: Set<PluginId> }> };
+const installedMemo = (memo.__zeffInstalled ??= new Map());
+const MEMO_MS = 2000;
+const forgetInstalled = () => installedMemo.clear();
+
+/**
  * Which plugins are there: installed (as you set them, else their default) and so is everything
- * they build on (Work on Todos, Todos on Jira). Read fresh each time — a change shows at once.
+ * they build on (Work on Todos, Todos on Jira).
  */
 export function installedPlugins(): Set<PluginId> {
+  const account = currentAccountId();
+  const hit = installedMemo.get(account);
+  if (hit && Date.now() - hit.at < MEMO_MS) return new Set(hit.set);
+  const set = readInstalled();
+  installedMemo.set(account, { at: Date.now(), set });
+  return new Set(set);
+}
+
+function readInstalled(): Set<PluginId> {
   const on = chosen();
   const there = (id: PluginId, seen = new Set<PluginId>()): boolean => {
     if (!on.get(id) || seen.has(id)) return false;
@@ -62,12 +80,14 @@ export function setInstalled(id: PluginId, installed: boolean): PluginId[] {
     };
     need(id);
   }
+  forgetInstalled();
   if (id === "accounts") {
     setAccountsInstalled(installed);
     emitChange("attention");
     return ids;
   }
   for (const x of ids) getDb().insert(schema.plugins).values({ id: x, installed, changedAt }).onConflictDoUpdate({ target: schema.plugins.id, set: { installed, changedAt } }).run();
+  forgetInstalled();
   emitChange("attention");
   return ids;
 }

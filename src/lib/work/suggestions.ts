@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { EntrySuggestion } from "@/db/schema";
 import { todosByIds } from "@/lib/boards/store";
@@ -74,7 +74,14 @@ function toView(r: EntrySuggestion): SuggestionView {
   const todoIds = ids(r.todoIds);
   const runIds = ids(r.runIds);
   const ts = todosByIds(todoIds);
-  const runs = runIds.length ? getDb().select().from(workRuns).where(inArray(workRuns.id, runIds)).all() : [];
+  // Only what's shown — not a run's prompt, result and git summary (large).
+  const runs = runIds.length
+    ? getDb()
+        .select({ id: workRuns.id, model: workRuns.model, provider: workRuns.provider, durationMs: workRuns.durationMs, outcome: workRuns.outcome, entryLine: workRuns.entryLine, summary: workRuns.summary, startedAt: workRuns.startedAt, finishedAt: workRuns.finishedAt })
+        .from(workRuns)
+        .where(inArray(workRuns.id, runIds))
+        .all()
+    : [];
   const project = r.projectId ? getProject(r.projectId) : undefined;
   return {
     id: r.id,
@@ -191,6 +198,16 @@ export function openSuggestions(): SuggestionView[] {
     .orderBy(entrySuggestions.date, entrySuggestions.id)
     .all()
     .map(toView);
+}
+
+/** How many suggestions are open in a period (YYYY-MM-DD, inclusive) and their hours — counted, not built. */
+export function openSuggestionTotals(from: string, to: string): { count: number; hours: number } {
+  const r = getDb()
+    .select({ count: sql<number>`count(*)`, hours: sql<number>`coalesce(sum(${entrySuggestions.hours}), 0)` })
+    .from(entrySuggestions)
+    .where(and(eq(entrySuggestions.status, "open"), gte(entrySuggestions.date, from), lte(entrySuggestions.date, to)))
+    .get();
+  return { count: Number(r?.count ?? 0), hours: Number(r?.hours ?? 0) };
 }
 
 /** The latest suggestions (any state), newest first — for an agent to look back. */
