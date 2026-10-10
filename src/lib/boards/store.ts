@@ -93,12 +93,11 @@ export function lastGoodRun(before?: number): BoardRunView | null {
 
 /** Runs left "running" by a server that stopped mid-run: failed. How many. */
 export function failInterruptedRuns(): number {
-  return getDb()
-    .update(boardRuns)
-    .set({ status: "error", error: "Abgebrochen — der Server wurde während des Laufs neu gestartet.", finishedAt: sql`(CURRENT_TIMESTAMP)` })
-    .where(eq(boardRuns.status, "running"))
-    .returning()
-    .all().length;
+  const error = "Stopped — the server restarted during the run.";
+  const runs = getDb().update(boardRuns).set({ status: "error", error, finishedAt: sql`(CURRENT_TIMESTAMP)` }).where(eq(boardRuns.status, "running")).returning().all().length;
+  // A day's recap too: left "running", that day would never be recapped again.
+  const recaps = getDb().update(schema.dayRecaps).set({ status: "error", error, finishedAt: sql`(CURRENT_TIMESTAMP)` }).where(eq(schema.dayRecaps.status, "running")).returning().all().length;
+  return runs + recaps;
 }
 
 /** SQLite's CURRENT_TIMESTAMP ("2026-10-06 09:22:02", UTC) as ISO, like the ones written here. */

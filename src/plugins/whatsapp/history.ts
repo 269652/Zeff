@@ -1,3 +1,4 @@
+import { inThisAccount } from "@/db/accounts";
 import { errorMessage } from "@/lib/errors";
 import { saveMails, type MailInput } from "@/lib/mail/store";
 import { automationEnv, driverPath } from "@/plugins/drivers";
@@ -9,7 +10,12 @@ import { automationEnv, driverPath } from "@/plugins/drivers";
  * (folder "WhatsApp", each once by WhatsApp's id) — so the knowledge reads them too. Old ones aren't
  * gone through for todos (the Mail-Durchsicht reads the last days only).
  */
-export async function pullWhatsappHistory(chat: string, { fromPhone = true } = {}): Promise<{ ok: boolean; message: string; chat?: string; added?: number; total?: number }> {
+export function pullWhatsappHistory(chat: string, opts: { fromPhone?: boolean } = {}): Promise<{ ok: boolean; message: string; chat?: string; added?: number; total?: number }> {
+  // Kept in the account it was started in — whichever is switched to while it runs (up to 45 min).
+  return inThisAccount(() => pullHistory(chat, opts));
+}
+
+async function pullHistory(chat: string, { fromPhone = true }: { fromPhone?: boolean }): Promise<{ ok: boolean; message: string; chat?: string; added?: number; total?: number }> {
   const flag = globalThis as { __zeffWhatsappHistory?: string | null };
   if (flag.__zeffWhatsappHistory) return { ok: false, message: `Es läuft schon ein Verlauf (${flag.__zeffWhatsappHistory}).` };
   flag.__zeffWhatsappHistory = chat;

@@ -7,6 +7,7 @@ import { getTeamsSettings } from "@/lib/teams/store";
 import { getMailSettings } from "@/lib/mail/store";
 import { SYNC_KEYS, type SyncKey, type SyncOverview, type SyncView } from "./shared";
 import { stepAvailable } from "@/plugins/state";
+import { inThisAccount } from "@/db/accounts";
 import { ABORTED, withAbort } from "@/lib/abort";
 import { noteSyncResult } from "./health";
 import { stepMinutes } from "./intervals";
@@ -133,7 +134,8 @@ const STEPS: Record<SyncKey, Step> = {
       const r = await syncFromJira().catch((e) => {
         throw new Error(jiraDown(errorMessage(e)) ?? errorMessage(e));
       });
-      return { ok: true, message: `${r.total} tickets — ${r.mine} yours (${r.inserted} new, ${r.updated} updated).` };
+      const unread = r.unreadBoards ? ` ${r.unreadBoards} board(s) couldn't be read to the end — nothing deactivated, next sync tries again.` : "";
+      return { ok: !unread, message: `${r.total} tickets — ${r.mine} yours (${r.inserted} new, ${r.updated} updated).${unread}` };
     },
     last: () => recordedOr("jira", jiraTickets.syncedAt),
     schedule: () => ({ everyMinutes: stepMinutes("jira"), lastAt: recordedOr("jira", jiraTickets.syncedAt).lastAt }),
@@ -441,10 +443,13 @@ export async function syncAndWait(key: SyncKey): Promise<Last> {
 
 /** Start one step in the background. */
 export function startSync(key: SyncKey): { ok: boolean; message: string } {
-  if (!stepAvailable(key)) return { ok: false, message: `${STEPS[key].label}: das Plugin ist nicht installiert (Settings → Plugins).` };
-  if (live().running.has(key) || STEPS[key].busy?.()) return { ok: false, message: `${STEPS[key].label} is already syncing.` };
-  void runStep(key);
-  return { ok: true, message: `${STEPS[key].label} is syncing.` };
+  // Kept in the account it was started in — whichever is switched to while it runs.
+  return inThisAccount(() => {
+    if (!stepAvailable(key)) return { ok: false, message: `${STEPS[key].label}: das Plugin ist nicht installiert (Settings → Plugins).` };
+    if (live().running.has(key) || STEPS[key].busy?.()) return { ok: false, message: `${STEPS[key].label} is already syncing.` };
+    void runStep(key);
+    return { ok: true, message: `${STEPS[key].label} is syncing.` };
+  });
 }
 
 /**
@@ -452,21 +457,24 @@ export function startSync(key: SyncKey): { ok: boolean; message: string } {
  * last, as it reads what the others brought.
  */
 export function startSyncAll(): { ok: boolean; message: string } {
-  const l = live();
-  if (l.all !== undefined) return { ok: false, message: "Already syncing all." };
-  l.all = null;
-  l.allStopped = false;
-  void (async () => {
-    try {
-      // The Mail-Durchsicht and -Zuordnung come with the Ticket-Lage (its last steps) — not twice.
-      for (const key of SYNC_KEYS.filter((k) => k !== "relations" && k !== "mailtodos" && k !== "autoactions" && k !== "boardlage" && k !== "knowledgerel" && k !== "notetodos" && k !== "noterelations" && stepAvailable(k))) {
-        if (l.allStopped) break;
-        l.all = key;
-        await runStep(key);
+  // Kept in the account it was started in — whichever is switched to while it runs.
+  return inThisAccount(() => {
+    const l = live();
+    if (l.all !== undefined) return { ok: false, message: "Already syncing all." };
+    l.all = null;
+    l.allStopped = false;
+    void (async () => {
+      try {
+        // The Mail-Durchsicht and -Zuordnung come with the Ticket-Lage (its last steps) — not twice.
+        for (const key of SYNC_KEYS.filter((k) => k !== "relations" && k !== "mailtodos" && k !== "autoactions" && k !== "boardlage" && k !== "knowledgerel" && k !== "notetodos" && k !== "noterelations" && stepAvailable(k))) {
+          if (l.allStopped) break;
+          l.all = key;
+          await runStep(key);
+        }
+      } finally {
+        l.all = undefined;
       }
-    } finally {
-      l.all = undefined;
-    }
-  })();
-  return { ok: true, message: "Syncing all." };
+    })();
+    return { ok: true, message: "Syncing all." };
+  });
 }

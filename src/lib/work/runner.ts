@@ -509,6 +509,16 @@ export async function finalize(id: number, gone = false): Promise<void> {
   finishing.add(id);
   try {
     await finish(r, gone);
+  } catch (e) {
+    // Finishing failed (its log unreadable, delivery or the database throwing): the run ends as an
+    // error all the same — left "running", it would hold the queue (and account switching) forever.
+    console.error(`[work] finishing run ${id} failed:`, e);
+    try {
+      updateRun(id, { status: "failed", error: `Finishing the run failed: ${errorMessage(e)}`.slice(0, 2000), finishedAt: now() });
+    } catch {
+      // the database itself: nothing more to do here
+    }
+    setImmediate(pump);
   } finally {
     finishing.delete(id);
   }

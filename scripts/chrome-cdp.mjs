@@ -26,11 +26,13 @@ const isAlive = (pid) => {
 /**
  * Run `fn` holding the lock for one app's tab ("Chrono", "Outlook"), across processes: each
  * run reloads its tab and pages through weeks, so a second run waits for the first (up to
- * 2.5 min) rather than reloading the tab under it. A lock whose process is gone, or that is
- * older than the longest run, is stale.
+ * 2.5 min) rather than reloading the tab under it. A lock whose process is gone is stale — one whose
+ * process lives only past an hour (a hung driver: the longest run, a WhatsApp history, stops at 45
+ * minutes). Per account's Chrome (its debug port): two accounts' Chromes don't wait for each other.
  */
 export async function withTabLock(app, tool, fn, debug = () => {}) {
-  const file = path.join(os.tmpdir(), `zeff-${app.toLowerCase()}-mcp.lock`);
+  const port = /:(\d+)/.exec(process.env.CHRONO_CDP_ENDPOINT || "")?.[1] ?? "9222";
+  const file = path.join(os.tmpdir(), `zeff-${app.toLowerCase()}-${port}-mcp.lock`);
   const until = Date.now() + 150000;
   for (;;) {
     try {
@@ -42,7 +44,7 @@ export async function withTabLock(app, tool, fn, debug = () => {}) {
       try {
         holder = JSON.parse(readFileSync(file, "utf8"));
       } catch {}
-      if (!holder || !isAlive(holder.pid) || Date.now() - holder.at > 11 * 60000) {
+      if (!holder || !isAlive(holder.pid) || Date.now() - holder.at > 60 * 60000) {
         try {
           unlinkSync(file);
         } catch {}

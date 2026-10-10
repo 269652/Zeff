@@ -2,6 +2,7 @@ import { mailLink } from "@/lib/mail/shared";
 import { execFile } from "node:child_process";
 import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import { getDb, schema } from "@/db";
+import { inThisAccount } from "@/db/accounts";
 import { aiChoice, runAi } from "@/lib/ai";
 import { AI_PROVIDER_INFO } from "@/lib/ai/shared";
 import { listEntries } from "@/lib/entries";
@@ -274,37 +275,40 @@ function finish(id: number, patch: Partial<typeof dayRecaps.$inferInsert>) {
 
 /** Make a day's recap in the background: gather, have the AI write it up, keep it. Answers at once. */
 export function startRecap(day: string): { ok: boolean; message: string } {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { ok: false, message: "Welcher Tag?" };
-  if (state.__zeffRecap) return { ok: false, message: "Es wird schon ein Tag zusammengefasst." };
-  const ai = aiChoice();
-  const provider = AI_PROVIDER_INFO[ai.provider].label;
-  const id = getDb()
-    .insert(dayRecaps)
-    .values({ day, status: "running", model: `${provider}${ai.model ? ` · ${ai.model}` : ""}` })
-    .returning()
-    .get().id;
-  const t0 = Date.now();
-  state.__zeffRecap = { id, day, phase: "gather", since: t0, provider };
-  void (async () => {
-    try {
-      const { facts, notes } = await gather(day);
-      if (!facts.tickets.length && !facts.other.length) {
-        finish(id, { status: "ok", facts: JSON.stringify(facts), result: JSON.stringify({ summary: `Für diesen Tag hat Zeff nichts von dir gefunden.${notes.length ? ` (${notes.join(" ")})` : ""}`, tickets: [], other: [] }), durationMs: Date.now() - t0 });
-        return;
+  // Kept in the account it was started in — whichever is switched to while it runs.
+  return inThisAccount(() => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { ok: false, message: "Welcher Tag?" };
+    if (state.__zeffRecap) return { ok: false, message: "Es wird schon ein Tag zusammengefasst." };
+    const ai = aiChoice();
+    const provider = AI_PROVIDER_INFO[ai.provider].label;
+    const id = getDb()
+      .insert(dayRecaps)
+      .values({ day, status: "running", model: `${provider}${ai.model ? ` · ${ai.model}` : ""}` })
+      .returning()
+      .get().id;
+    const t0 = Date.now();
+    state.__zeffRecap = { id, day, phase: "gather", since: t0, provider };
+    void (async () => {
+      try {
+        const { facts, notes } = await gather(day);
+        if (!facts.tickets.length && !facts.other.length) {
+          finish(id, { status: "ok", facts: JSON.stringify(facts), result: JSON.stringify({ summary: `Für diesen Tag hat Zeff nichts von dir gefunden.${notes.length ? ` (${notes.join(" ")})` : ""}`, tickets: [], other: [] }), durationMs: Date.now() - t0 });
+          return;
+        }
+        state.__zeffRecap = { id, day, phase: "ai", since: t0, provider };
+        const answer = await runAi<RecapResult>(promptOf(day, facts, myJiraName()), RECAP_SCHEMA, { task: "recap", maxBudgetUsd: 2, timeoutMs: 10 * 60000 });
+        state.__zeffRecap = { id, day, phase: "saving", since: t0, provider };
+        const result = clean(answer.output, facts);
+        if (notes.length) result.summary = `${result.summary}\n\n(${notes.join(" ")})`;
+        finish(id, { status: "ok", facts: JSON.stringify(facts), result: JSON.stringify(result), model: answer.model ?? undefined, costUsd: answer.costUsd ?? null, durationMs: Date.now() - t0 });
+      } catch (e) {
+        finish(id, { status: "error", error: errorMessage(e).slice(0, 2000), durationMs: Date.now() - t0 });
+      } finally {
+        state.__zeffRecap = null;
       }
-      state.__zeffRecap = { id, day, phase: "ai", since: t0, provider };
-      const answer = await runAi<RecapResult>(promptOf(day, facts, myJiraName()), RECAP_SCHEMA, { task: "recap", maxBudgetUsd: 2, timeoutMs: 10 * 60000 });
-      state.__zeffRecap = { id, day, phase: "saving", since: t0, provider };
-      const result = clean(answer.output, facts);
-      if (notes.length) result.summary = `${result.summary}\n\n(${notes.join(" ")})`;
-      finish(id, { status: "ok", facts: JSON.stringify(facts), result: JSON.stringify(result), model: answer.model ?? undefined, costUsd: answer.costUsd ?? null, durationMs: Date.now() - t0 });
-    } catch (e) {
-      finish(id, { status: "error", error: errorMessage(e).slice(0, 2000), durationMs: Date.now() - t0 });
-    } finally {
-      state.__zeffRecap = null;
-    }
-  })();
-  return { ok: true, message: "Wird zusammengefasst." };
+    })();
+    return { ok: true, message: "Wird zusammengefasst." };
+  });
 }
 
 /**

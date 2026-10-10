@@ -14,26 +14,31 @@ export function accountBusy(): string | null {
   const g = globalThis as Record<string, unknown> & {
     __zeffSyncs?: { running: Set<string>; all: unknown };
     __zeffBackups?: Map<string, unknown>;
+    __zeffOpsNow?: Set<number>;
   };
   const busy: string[] = [];
-  if (g.__zeffSyncs?.running.size || g.__zeffSyncs?.all) busy.push("ein Sync");
-  if (g.__zeffTeamsSyncing || g.__zeffMailSyncing || g.__zeffGitlabSyncing) busy.push("ein Sync");
-  if (g.__zeffBoardRun) busy.push("die Ticket-Lage");
-  if (g.__zeffRecap) busy.push("ein Tagesrückblick");
-  if (g.__zeffMailTodos || g.__zeffMailRelations || g.__zeffAutoActions || g.__zeffBoardLage) busy.push("eine Auswertung");
-  if (g.__zeffBackups?.size) busy.push("ein Backup");
+  if (g.__zeffSyncs?.running.size || g.__zeffSyncs?.all) busy.push("a sync");
+  if (g.__zeffTeamsSyncing || g.__zeffMailSyncing || g.__zeffGitlabSyncing || g.__zeffKeepSyncing) busy.push("a sync");
+  if (g.__zeffBoardRun) busy.push("the Ticket-Lage");
+  if (g.__zeffRecap) busy.push("a day recap");
+  if (g.__zeffMailTodos || g.__zeffMailRelations || g.__zeffAutoActions || g.__zeffBoardLage) busy.push("an evaluation");
+  if (g.__zeffBackups?.size) busy.push("a backup");
+  if (g.__zeffWhatsappHistory) busy.push("a WhatsApp history");
+  if (g.__zeffPeopleDates) busy.push("finding dates");
+  if (g.__zeffBoardSync) busy.push("a Keep board sync");
+  if (g.__zeffOpsNow?.size) busy.push("a todo's actions");
   const runs = runsByStatus(["queued", "running"]).length;
-  if (runs) busy.push(runs === 1 ? "ein Work-Lauf" : `${runs} Work-Läufe`);
+  if (runs) busy.push(runs === 1 ? "a work run" : `${runs} work runs`);
   return busy.length ? [...new Set(busy)].join(", ") : null;
 }
 
 /** Into another account: its data, settings and plugins from now on. */
 export function switchAccount(id: string): Account {
   const a = accountById(id);
-  if (!a) throw new Error("Unbekanntes Konto.");
+  if (!a) throw new Error("Unknown account.");
   if (id === currentAccountId()) return a;
   const busy = accountBusy();
-  if (busy) throw new Error(`Gerade läuft ${busy} — wechseln, sobald es fertig ist.`);
+  if (busy) throw new Error(`Running now: ${busy} — switch once it's done.`);
   setActiveAccount(id);
   writeKnowledgeInstances(); // https://knowledge.zeff follows the account you're in
   // What's kept in memory belongs to the account before.

@@ -1,3 +1,4 @@
+import { inThisAccount } from "@/db/accounts";
 import { getSqlite } from "@/db";
 import { errorMessage } from "@/lib/errors";
 import { listFacts } from "@/lib/facts";
@@ -130,22 +131,25 @@ export const findAllProgress = () => state.__zeffPeopleDates ?? null;
 
 /** Everyone without a birthday yet: facts and AI, one after another, in the background. */
 export function findAllDates(): boolean {
-  if (state.__zeffPeopleDates) return false;
-  const people = listPeople().filter((p) => !(getSqlite().prepare("select 1 from people_dates where person_id = ? and kind = 'birthday'").get(p.id)));
-  const run = { done: 0, total: people.length, found: 0, error: null as string | null };
-  state.__zeffPeopleDates = run;
-  void (async () => {
-    for (const p of people) {
-      try {
-        const r = await findDates(p.id);
-        run.found += r.facts + r.ai;
-      } catch (e) {
-        run.error = errorMessage(e);
+  // Kept in the account it was started in — whichever is switched to while it runs.
+  return inThisAccount(() => {
+    if (state.__zeffPeopleDates) return false;
+    const people = listPeople().filter((p) => !(getSqlite().prepare("select 1 from people_dates where person_id = ? and kind = 'birthday'").get(p.id)));
+    const run = { done: 0, total: people.length, found: 0, error: null as string | null };
+    state.__zeffPeopleDates = run;
+    void (async () => {
+      for (const p of people) {
+        try {
+          const r = await findDates(p.id);
+          run.found += r.facts + r.ai;
+        } catch (e) {
+          run.error = errorMessage(e);
+        }
+        run.done++;
       }
-      run.done++;
-    }
-  })().finally(() => {
-    state.__zeffPeopleDates = null;
+    })().finally(() => {
+      state.__zeffPeopleDates = null;
+    });
+    return true;
   });
-  return true;
 }

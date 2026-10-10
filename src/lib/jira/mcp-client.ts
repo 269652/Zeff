@@ -73,6 +73,9 @@ export function runStdioSession<T>(
     );
 
     child.on("error", (e) => fail(`Cannot start the ${label} ("${config.command}"): ${e.message}`));
+    // The driver gone mid-session (crashed, not on PATH): writing to it fails here — not as an
+    // uncaught EPIPE that takes the server down.
+    child.stdin.on("error", (e) => fail(`${label}: its input closed (${e.message}).${stderr ? ` stderr: ${stderr.slice(0, 400)}` : ""}`));
     child.stderr.on("data", (d) => {
       stderr += d.toString();
     });

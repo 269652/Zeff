@@ -3,11 +3,13 @@
 import { useState, useTransition } from "react";
 import { copyEntryAction } from "@/app/actions";
 import { CopyIcon } from "./icons";
+import { isoDate } from "@/lib/week";
 
 function nextDay(iso: string): string {
   const d = new Date(`${iso}T00:00:00`);
   d.setDate(d.getDate() + 1);
-  return Number.isNaN(d.getTime()) ? iso : d.toISOString().slice(0, 10);
+  // The local day (toISOString is UTC: in Germany the day before).
+  return Number.isNaN(d.getTime()) ? iso : isoDate(d);
 }
 
 /** Copy an entry to another day: a "Copy" button that reveals a date + confirm. */

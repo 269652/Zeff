@@ -21,6 +21,7 @@ import { BoardFrame, COLUMN } from "./BoardFrame";
 import { CardChecklist } from "./CardChecklist";
 import { initials, NOBODY, PersonChips, peopleOf } from "./PersonChips";
 import { PRIORITIES, PRIORITY_LABELS, type BoardView, type CardLage, type CardView, type ColumnView, type Priority } from "./shared";
+import { isoDate } from "@/lib/week";
 
 type Result = { ok: boolean; error?: string; message?: string; id?: number };
 
@@ -31,7 +32,7 @@ const PRIORITY_TONE: Record<Priority, string> = {
   urgent: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200",
 };
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => isoDate(new Date()); // the local day, not UTC's
 const dueTone = (due: string) => (due < today() ? "text-red-600 dark:text-red-400" : due === today() ? "text-amber-700 dark:text-amber-400" : "text-zinc-500");
 const fmtDue = (due: string) => new Date(`${due}T00:00:00`).toLocaleDateString("de-DE", { day: "numeric", month: "short" });
 
