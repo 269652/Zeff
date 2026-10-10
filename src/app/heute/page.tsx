@@ -62,7 +62,7 @@ async function heuteData() {
   }
 
   // Messages waiting for your answer: a chat whose last message (this week) isn't yours.
-  const unanswered: { key: string; who: string; text: string; at: string; href: string; source: string }[] = [];
+  const unanswered: { key: string; who: string; text: string; at: string; since: string; count: number; href: string; source: string }[] = [];
   if (isInstalled("whatsapp")) {
     const { listMails } = await import("@/lib/mail/store");
     const seen = new Set<string>();
@@ -70,14 +70,13 @@ async function heuteData() {
       if (seen.has(m.convId)) continue;
       seen.add(m.convId);
       if (m.fromName !== "Ich" && now - new Date(m.receivedAt).getTime() < 7 * 864e5 && !m.resolvedAt)
-        unanswered.push({ key: m.key, who: m.subject, text: m.fromName && m.fromName !== m.subject ? `${m.fromName}: ${m.preview}` : m.preview, at: m.receivedAt, href: `/apps/whatsapp?chat=${encodeURIComponent(m.subject)}`, source: "WhatsApp" });
+        unanswered.push({ key: m.key, who: m.subject, text: m.fromName && m.fromName !== m.subject ? `${m.fromName}: ${m.preview}` : m.preview, at: m.receivedAt, since: m.receivedAt, count: 1, href: `/apps/whatsapp?chat=${encodeURIComponent(m.subject)}`, source: "WhatsApp" });
     }
   }
   if (isInstalled("teams")) {
-    const { listTeamsMessages } = await import("@/lib/teams/store");
-    for (const m of listTeamsMessages({ kind: "pm", limit: 40 }))
-      if (!m.resolvedAt && !m.inContext && now - new Date(m.sentAt).getTime() < 3 * 864e5)
-        unanswered.push({ key: m.key, who: m.senderName ?? "Teams", text: m.text, at: m.sentAt, href: m.link || "/teams", source: "Teams" });
+    // One line per chat (not per message), and only while the last word isn't yours.
+    const { teamsChatsWaiting } = await import("@/lib/teams/store");
+    for (const c of teamsChatsWaiting(3, now)) unanswered.push({ key: c.key, who: c.who, text: c.text, at: c.lastAt, since: c.since, count: c.count, href: c.link || "/teams", source: "Teams" });
   }
   unanswered.sort((a, b) => b.at.localeCompare(a.at));
 
@@ -229,7 +228,8 @@ export default async function HeutePage() {
                       <span className="shrink-0 font-medium">{u.who}</span>
                       <span className="min-w-0 flex-1 truncate text-zinc-500">{u.text}</span>
                       <span className="shrink-0 text-xs text-zinc-400">
-                        {u.source} · {ago(u.at, now)}
+                        {u.count > 1 ? `${u.count} Nachrichten · ` : ""}
+                        {u.source} · {ago(u.since, now)}
                       </span>
                     </a>
                   </li>
