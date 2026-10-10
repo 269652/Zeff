@@ -6,12 +6,13 @@
  * Server only.
  */
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, gt, gte, lt } from "drizzle-orm";
+import { and, asc, eq, gt, gte, isNotNull, isNull, lt, or } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { getPref, setPref } from "@/lib/prefs";
 import { isInstalled } from "@/plugins/state";
 import { inboxWrittenAt, readInbox } from "./inbox";
-import { CALENDAR_COLORS, type CalendarEventView, type CalendarSourceKind, type CalendarView } from "./ir-shared";
+import { CALENDAR_COLORS, type CalendarEventView, type CalendarSourceKind, type CalendarView, type SeriesScope } from "./ir-shared";
+import { addDays, expand, occurrenceDays, onDay, parseRecurrence, type Recurrence } from "./recurrence";
 import type { GraphEvent } from "./meetings";
 
 const { calendars, calendarEvents } = schema;
@@ -35,6 +36,10 @@ export type EventInput = {
   url?: string;
   raw?: string | null;
   todoId?: number | null;
+  /** A series (Zeff's own calendars): its rule. */
+  recurrence?: Recurrence | null;
+  exdates?: string[];
+  seriesId?: number | null;
 };
 
 const now = () => new Date().toISOString();
@@ -64,7 +69,17 @@ const eventView = (e: typeof calendarEvents.$inferSelect): CalendarEventView => 
   })(),
   url: e.url,
   todoId: e.todoId,
+  recurrence: parseRecurrence(e.recurrence),
+  occurrence: null,
+  seriesId: e.seriesId,
 });
+const exdatesOf = (e: typeof calendarEvents.$inferSelect): string[] => {
+  try {
+    return JSON.parse(e.exdates) as string[];
+  } catch {
+    return [];
+  }
+};
 
 /**
  * A source's calendar, made the first time it's seen — its name follows the source; colour, shown,
@@ -160,6 +175,9 @@ const row = (calendarId: number, e: EventInput): typeof calendarEvents.$inferIns
   url: (e.url ?? "").slice(0, 2000),
   raw: e.raw ?? null,
   todoId: e.todoId ?? null,
+  recurrence: e.recurrence ? JSON.stringify(e.recurrence) : null,
+  exdates: JSON.stringify([...new Set(e.exdates ?? [])].sort()),
+  seriesId: e.seriesId ?? null,
   updatedAt: now(),
 });
 
@@ -188,21 +206,26 @@ export function replaceEvents(calendarId: number, events: EventInput[], range?: 
 
 /**
  * The appointments between two local times (overlapping them), of the calendars asked for (shown,
- * busy, for booking) — each with its calendar.
+ * busy, for booking) — each with its calendar; a series' occurrences each on their own (its id,
+ * their day as `occurrence`).
  */
 export function eventsBetween(from: string, to: string, only: { visible?: boolean; busy?: boolean; book?: boolean } = {}): (CalendarEventView & { calendar: CalendarView })[] {
   const cals = new Map(listCalendars().map((c) => [c.id, c]));
   return getDb()
     .select()
     .from(calendarEvents)
-    .where(and(lt(calendarEvents.start, to), gt(calendarEvents.end, from)))
+    // Single ones overlapping the range; series begun before its end (expanded below).
+    .where(or(and(isNull(calendarEvents.recurrence), lt(calendarEvents.start, to), gt(calendarEvents.end, from)), and(isNotNull(calendarEvents.recurrence), lt(calendarEvents.start, to))))
     .orderBy(asc(calendarEvents.start))
     .all()
     .flatMap((e) => {
       const c = cals.get(e.calendarId);
       if (!c || (only.visible && !c.visible) || (only.busy && !c.busy) || (only.book && !c.book)) return [];
-      return [{ ...eventView(e), calendar: c }];
-    });
+      const view = eventView(e);
+      if (!view.recurrence) return [{ ...view, calendar: c }];
+      return expand(view, view.recurrence, exdatesOf(e), from, to).map((o) => ({ ...view, start: o.start, end: o.end, occurrence: o.occurrence, key: `${e.key}#${o.occurrence}`, calendar: c }));
+    })
+    .sort((a, b) => a.start.localeCompare(b.start));
 }
 
 /** An appointment in one of Zeff's own calendars. */
@@ -219,7 +242,8 @@ export function updateEvent(id: number, patch: Partial<Omit<EventInput, "key">>)
   const e = db.select().from(calendarEvents).where(eq(calendarEvents.id, id)).get();
   const c = e && db.select().from(calendars).where(eq(calendars.id, e.calendarId)).get();
   if (!e || !c || c.source !== "zeff") throw new Error("Nur Termine in Zeffs eigenen Kalendern lassen sich ändern.");
-  const next = row(e.calendarId, { ...eventView(e), ...patch, key: e.key, raw: e.raw, todoId: patch.todoId ?? e.todoId });
+  // A series keeps its left-out occurrences.
+  const next = row(e.calendarId, { ...eventView(e), exdates: exdatesOf(e), ...patch, key: e.key, raw: e.raw, todoId: patch.todoId ?? e.todoId });
   return eventView(db.update(calendarEvents).set(next).where(eq(calendarEvents.id, id)).returning().get());
 }
 
@@ -228,7 +252,99 @@ export function deleteEvent(id: number): void {
   const e = db.select().from(calendarEvents).where(eq(calendarEvents.id, id)).get();
   const c = e && db.select().from(calendars).where(eq(calendars.id, e.calendarId)).get();
   if (!e || !c || c.source !== "zeff") throw new Error("Nur Termine in Zeffs eigenen Kalendern lassen sich löschen.");
-  db.delete(calendarEvents).where(eq(calendarEvents.id, id)).run();
+  db.transaction((tx) => {
+    // A series: with the occurrences changed on their own.
+    tx.delete(calendarEvents).where(eq(calendarEvents.seriesId, id)).run();
+    tx.delete(calendarEvents).where(eq(calendarEvents.id, id)).run();
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Series (Zeff's own calendars): one occurrence, it and the following, or all
+// ---------------------------------------------------------------------------
+
+/** A series' first appointment (its row) — of Zeff's own calendars, else an error. */
+function seriesRow(id: number) {
+  const db = getDb();
+  const e = db.select().from(calendarEvents).where(eq(calendarEvents.id, id)).get();
+  const c = e && db.select().from(calendars).where(eq(calendars.id, e.calendarId)).get();
+  if (!e || !c || c.source !== "zeff") throw new Error("Only appointments in Zeff's own calendars can be changed.");
+  const rule = parseRecurrence(e.recurrence);
+  if (!rule) throw new Error("That appointment isn't a series.");
+  return { e, rule };
+}
+
+const minutesBetween = (a: string, b: string) => Math.round((new Date(`${b.length === 10 ? `${b}T00:00` : b.slice(0, 16)}:00`).getTime() - new Date(`${a.length === 10 ? `${a}T00:00` : a.slice(0, 16)}:00`).getTime()) / 60000);
+const plus = (s: string, minutes: number) => {
+  const d = new Date(`${s.length === 10 ? `${s}T00:00` : s.slice(0, 16)}:00`);
+  d.setMinutes(d.getMinutes() + minutes);
+  const two = (n: number) => String(n).padStart(2, "0");
+  const day = `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
+  return s.length === 10 ? day : `${day}T${two(d.getHours())}:${two(d.getMinutes())}`;
+};
+
+/** A rule ending before a day: until the day before — its count turned into that (the occurrences before it). */
+function endBefore(rule: Recurrence, day: string): Recurrence {
+  const { count: _count, ...rest } = rule;
+  return { ...rest, until: addDays(day, -1) };
+}
+
+/**
+ * A change to a series' occurrence (the day it falls on): `one` — it alone (left out of the series,
+ * an appointment of its own instead); `following` — it and the rest (the series ends before it, a
+ * new one begins with the change); `all` — the whole series (a moved time moves every occurrence).
+ */
+export function updateOccurrence(id: number, occurrence: string, patch: Partial<Omit<EventInput, "key">>, scope: SeriesScope): CalendarEventView {
+  const db = getDb();
+  const { e, rule } = seriesRow(id);
+  const base = eventView(e);
+  // This occurrence as it was.
+  const was = { start: onDay(base.start, occurrence), end: plus(onDay(base.start, occurrence), minutesBetween(base.start, base.end)) };
+  const next = { ...base, ...was, ...patch };
+  const firstDay = base.start.slice(0, 10);
+  if (scope === "all" || (scope === "following" && occurrence === firstDay)) {
+    // The whole series: moved by as much as this occurrence was, its length as now.
+    const shift = minutesBetween(was.start, next.start);
+    const start = plus(base.start, shift);
+    const end = plus(start, minutesBetween(next.start, next.end));
+    let r = patch.recurrence === undefined ? rule : patch.recurrence;
+    // Weekly on set weekdays, moved to another day: the weekdays move along.
+    const days = Math.round(shift / 1440);
+    if (r && r.freq === "weekly" && r.byDay?.length && patch.recurrence === undefined && days % 7 !== 0) r = { ...r, byDay: [...new Set(r.byDay.map((d) => (((d + days) % 7) + 7) % 7))].sort() };
+    const exdates = exdatesOf(e).map((x) => addDays(x, days));
+    const set = row(e.calendarId, { ...next, key: e.key, start, end, recurrence: r, exdates, raw: e.raw, todoId: e.todoId, seriesId: null });
+    return eventView(db.update(calendarEvents).set(set).where(eq(calendarEvents.id, id)).returning().get());
+  }
+  if (scope === "one") {
+    // Left out of the series; the changed one an appointment of its own (remembering its series).
+    return db.transaction((tx) => {
+      tx.update(calendarEvents).set({ exdates: JSON.stringify([...new Set([...exdatesOf(e), occurrence])].sort()), updatedAt: now() }).where(eq(calendarEvents.id, id)).run();
+      return eventView(tx.insert(calendarEvents).values(row(e.calendarId, { ...next, key: randomUUID(), recurrence: null, exdates: [], seriesId: id, todoId: e.todoId })).returning().get());
+    });
+  }
+  // It and the following: the series ends before it; a new one starts with the change (the rest of the count, its later exceptions).
+  return db.transaction((tx) => {
+    const before = occurrenceDays(base.start, rule, occurrence).length;
+    const r = patch.recurrence === undefined ? rule : patch.recurrence;
+    const rest = r && rule.count && patch.recurrence === undefined ? { ...r, count: Math.max(1, rule.count - before) } : r;
+    const later = exdatesOf(e).filter((x) => x > occurrence);
+    tx.update(calendarEvents)
+      .set({ recurrence: JSON.stringify(endBefore(rule, occurrence)), exdates: JSON.stringify(exdatesOf(e).filter((x) => x < occurrence)), updatedAt: now() })
+      .where(eq(calendarEvents.id, id))
+      .run();
+    return eventView(tx.insert(calendarEvents).values(row(e.calendarId, { ...next, key: randomUUID(), recurrence: rest, exdates: later, seriesId: null, todoId: e.todoId })).returning().get());
+  });
+}
+
+/** A series' occurrence deleted: it alone, it and the following, or the whole series. */
+export function deleteOccurrence(id: number, occurrence: string, scope: SeriesScope): void {
+  const { e, rule } = seriesRow(id);
+  if (scope === "all" || (scope === "following" && occurrence === e.start.slice(0, 10))) return deleteEvent(id);
+  const set =
+    scope === "one"
+      ? { exdates: JSON.stringify([...new Set([...exdatesOf(e), occurrence])].sort()) }
+      : { recurrence: JSON.stringify(endBefore(rule, occurrence)), exdates: JSON.stringify(exdatesOf(e).filter((x) => x < occurrence)) };
+  getDb().update(calendarEvents).set({ ...set, updatedAt: now() }).where(eq(calendarEvents.id, id)).run();
 }
 
 /** Zeff's own calendar by name (else the first of them — made when there is none). */

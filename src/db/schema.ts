@@ -1191,6 +1191,12 @@ export const calendarEvents = sqliteTable(
     raw: text("raw"),
     /** The todo it was made for (an appointment proposed by the auto-actions). */
     todoId: integer("todo_id"),
+    /** A series (Zeff's own calendars): its rule (JSON, recurrence.ts) on its first appointment — expanded when read. */
+    recurrence: text("recurrence"),
+    /** A series' occurrences left out (moved or deleted one by one): their days, JSON. */
+    exdates: text("exdates").notNull().default("[]"),
+    /** An occurrence changed on its own: the series it came from. */
+    seriesId: integer("series_id"),
     updatedAt: text("updated_at").notNull(),
   },
   (t) => [uniqueIndex("calendar_events_key").on(t.calendarId, t.key), index("calendar_events_start").on(t.start)],

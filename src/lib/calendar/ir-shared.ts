@@ -3,6 +3,8 @@
  * Outlook): what the Kalender app, free times and booking see. Client-safe.
  */
 
+import type { Recurrence } from "./recurrence";
+
 export type CalendarSourceKind = "zeff" | "google" | "outlook";
 
 export const SOURCE_LABELS: Record<CalendarSourceKind, string> = { zeff: "Zeff", google: "Google Calendar", outlook: "Outlook" };
@@ -40,7 +42,16 @@ export type CalendarEventView = {
   attendees: string[];
   url: string;
   todoId: number | null;
+  /** A series (Zeff's own calendars): its rule — this is one of its occurrences. */
+  recurrence: Recurrence | null;
+  /** An occurrence of a series: the day it falls on (null: not one). */
+  occurrence: string | null;
+  /** An occurrence changed on its own: its series. */
+  seriesId: number | null;
 };
+
+/** Which occurrences a change to a series means. */
+export type SeriesScope = "one" | "following" | "all";
 
 /** An appointment a todo proposes (its action, not in a calendar yet). */
 export type ProposedEvent = { todoId: number; todoRef: string; todoText: string; type: string; title: string; start: string; end: string; target: string };
