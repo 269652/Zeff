@@ -7,7 +7,8 @@ import { getTeamsSettings } from "@/lib/teams/store";
 import { getMailSettings } from "@/lib/mail/store";
 import { SYNC_KEYS, type SyncKey, type SyncOverview, type SyncView } from "./shared";
 import { stepAvailable } from "@/plugins/state";
-import { withAbort } from "@/lib/abort";
+import { ABORTED, withAbort } from "@/lib/abort";
+import { noteSyncResult } from "./health";
 import { stepMinutes } from "./intervals";
 
 /** Quiet hours: from 19:00 to 08:00 nothing syncs by itself (by hand it still does). */
@@ -396,13 +397,28 @@ async function runStep(key: SyncKey): Promise<void> {
   if (!stepAvailable(key)) return;
   if (l.running.has(key) || STEPS[key].busy?.()) return;
   l.running.add(key);
+  let outcome: { ok: boolean; message: string } | null = null;
   try {
     const r = await runStoppable(key, () => STEPS[key].run());
+    outcome = { ok: r.ok, message: r.message };
     if (!STEPS[key].ownRecord) record(key, r.ok, r.message);
   } catch (e) {
+    outcome = { ok: false, message: errorMessage(e) };
     if (!STEPS[key].ownRecord) record(key, false, errorMessage(e));
   } finally {
     l.running.delete(key);
+  }
+  // Over time (since when it fails): a stop isn't a failure. Steps with a record of their own: as they kept it.
+  if (STEPS[key].ownRecord && STEPS[key].last) {
+    const last = STEPS[key].last!();
+    if (last.lastOk !== null) outcome = { ok: last.lastOk, message: last.lastMessage ?? "" };
+  }
+  if (outcome && !outcome.message.includes(ABORTED)) {
+    try {
+      noteSyncResult(key, outcome.ok, outcome.message);
+    } catch {
+      // the record of how it went stands; only the history is missing a run
+    }
   }
 }
 
