@@ -14,6 +14,10 @@
  *   whatsapp_status          -> is Chrome reachable, is WhatsApp Web open and linked
  *   whatsapp_chats {days}    -> the chats with a message in the last days, newest first (the list
  *                               scrolled through) — { messages } in the mail sync's shape
+ *   whatsapp_history {chat}  -> ONE chat's whole history: its earlier messages loaded from WhatsApp's
+ *                               store until there are none — the chat not opened. With fromPhone the
+ *                               chat IS opened (its unread messages then count as read) and scrolled
+ *                               up, "older messages from your phone" fetched again and again first.
  */
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -238,6 +242,199 @@ async function readMessages({ since, maxLoads, maxMessages }) {
   return { messages: out.slice(0, maxMessages), chats: chats.length };
 }
 
+/**
+ * Runs IN the WhatsApp tab: one chat's messages from its very beginning — found by its name (exactly,
+ * else regardless of case, else the one name containing it), its earlier messages loaded again and
+ * again (what scrolling up to the top would load: WhatsApp's local store, then on demand from your
+ * phone) until no more come. The chat isn't opened: no read receipts.
+ */
+async function readHistory({ name, maxLoads, settleMs }) {
+  const req = window.require;
+  if (typeof req !== "function") return { error: "no-internals" };
+  let C, load;
+  try {
+    C = req("WAWebCollections");
+    load = req("WAWebChatLoadMessages");
+  } catch {
+    return { error: "no-internals" };
+  }
+  if (!C?.Chat?.getModelsArray) return { error: "no-internals" };
+  const MEDIA = { image: "Bild", video: "Video", ptt: "Sprachnachricht", audio: "Audio", document: "Dokument", location: "Standort", vcard: "Kontakt", multi_vcard: "Kontakte", poll_creation: "Umfrage", album: "Album", sticker: "Sticker" };
+  const nameOf = (c) => c?.formattedName || c?.name || c?.pushname || c?.verifiedName || c?.id?.user || "";
+  const titleOf = (c) => c.formattedTitle || c.name || nameOf(c.contact) || c.id?.user || "";
+  const all = C.Chat.getModelsArray().filter((c) => !/@(newsletter|broadcast)$/.test(c.id?._serialized ?? "") && c.id?.user !== "status");
+  const want = String(name).trim();
+  let found = all.filter((c) => titleOf(c) === want);
+  if (!found.length) found = all.filter((c) => titleOf(c).toLowerCase() === want.toLowerCase());
+  if (!found.length) found = all.filter((c) => titleOf(c).toLowerCase().includes(want.toLowerCase()));
+  if (found.length !== 1) return { error: found.length ? "ambiguous" : "not-found", candidates: found.slice(0, 12).map(titleOf) };
+  const chat = found[0];
+  const msgs = () => chat.msgs?.getModelsArray?.() ?? [];
+  if (!msgs().length && load.loadRecentMsgs) {
+    try {
+      await load.loadRecentMsgs({ chat, msgs: chat.msgs });
+    } catch {
+      // as it is
+    }
+  }
+  let loads = 0;
+  let stale = 0;
+  const done = () => !!chat.msgs?.msgLoadState?.noEarlierMsgs;
+  while (loads < maxLoads && !done()) {
+    const before = msgs().length;
+    try {
+      await load.loadEarlierMsgs({ chat, msgs: chat.msgs }).catch(() => load.loadEarlierMsgs(chat));
+    } catch {
+      break;
+    }
+    loads++;
+    if (msgs().length > before) {
+      stale = 0;
+      continue;
+    }
+    // Nothing new: the phone may still be sending older ones — wait a little, a few times.
+    if (++stale >= 4) break;
+    await new Promise((r) => setTimeout(r, settleMs));
+  }
+  const title = titleOf(chat);
+  const group = !!chat.isGroup || /@g\.us$/.test(chat.id?._serialized ?? "");
+  const out = [];
+  const seen = new Set();
+  for (const m of msgs()) {
+    const id = m.id?._serialized ?? `${chat.id?._serialized}|${m.t}`;
+    if (m.isNotification || m.revokeTimestamp || seen.has(id)) continue;
+    seen.add(id);
+    const media = MEDIA[m.type];
+    const text = m.type === "chat" ? m.body : media ? `[${media}]${m.caption ? ` ${m.caption}` : m.type === "poll_creation" && m.pollName ? ` ${m.pollName}` : ""}` : "";
+    if (!text?.trim()) continue;
+    const fromMe = !!m.id?.fromMe;
+    out.push({ id, chat: title, from: fromMe ? "Ich" : group ? nameOf(m.senderObj) || m.notifyName || "?" : title, t: m.t, text: text.slice(0, 4000) });
+  }
+  out.sort((a, b) => a.t - b.t);
+  return { chat: title, messages: out, loads, complete: done(), total: msgs().length };
+}
+
+/** The open chat's message list — the scrolling part of #main (the tallest). Runs IN the tab: to its top; its height. */
+function scrollChatTop() {
+  const els = [...document.querySelectorAll("#main *")].filter((e) => e.scrollHeight > e.clientHeight + 50 && /auto|scroll/.test(getComputedStyle(e).overflowY));
+  const el = els.sort((a, b) => b.scrollHeight - a.scrollHeight)[0];
+  if (!el) return null;
+  el.scrollTop = 0;
+  return el.scrollHeight;
+}
+
+/**
+ * The chat opened (found by its exact name through WhatsApp's search — that marks it read, as you'd
+ * do) and scrolled up to its beginning: each time WhatsApp offers older messages from your phone,
+ * they're fetched — until nothing more comes. What came in is then in WhatsApp's store.
+ */
+async function pullFromPhone(page, name, { rounds = 300, idleRounds = 6 } = {}) {
+  await page.bringToFront().catch(() => {});
+  const search = page.locator('#side input[data-tab="3"], #side [contenteditable="true"][data-tab="3"]').first();
+  await search.click({ timeout: 15000 });
+  await search.fill("");
+  await search.pressSequentially(name, { delay: 15 });
+  const quoted = name.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  await new Promise((r) => setTimeout(r, 800));
+  try {
+    await page.locator(`#pane-side span[title="${quoted}"]`).first().click({ timeout: 10000 });
+  } catch {
+    await search.fill("").catch(() => {});
+    throw new Error(`Den Chat „${name}“ gibt es in WhatsApp nicht (genau so geschrieben).`);
+  }
+  await page.locator("#main").waitFor({ timeout: 15000 });
+  const header = await page.evaluate(() => [...document.querySelectorAll("#main header span[title], #main header span[dir='auto']")].map((e) => e.getAttribute("title") || e.textContent || "").join(" | "));
+  if (!header.includes(name)) throw new Error(`Geöffnet wurde ein anderer Chat (${header.slice(0, 80)}).`);
+  // The link itself, clicked like you would (a real mouse click — its handler sits on an inner element).
+  const older = page.locator("#main").getByText(/(ältere|frühere) Nachrichten von deinem Telefon|older messages from your phone/i).last();
+  let height = 0;
+  let idle = 0;
+  let fetched = 0;
+  let stuck = 0;
+  for (let i = 0; i < rounds && idle < idleRounds; i++) {
+    const h = (await page.evaluate(scrollChatTop).catch(() => null)) ?? 0;
+    await new Promise((r) => setTimeout(r, 1200));
+    let clicked = false;
+    if (await older.isVisible().catch(() => false)) {
+      await older.click({ timeout: 5000 }).catch((e) => debug(`click: ${e.message.split("\n")[0]}`));
+      clicked = true;
+      fetched++;
+      // Until the older messages are in (the list grows) — the phone has to answer.
+      let grown = false;
+      for (let w = 0; w < 30 && !grown; w++) {
+        await new Promise((r) => setTimeout(r, 1000));
+        grown = ((await page.evaluate(scrollChatTop).catch(() => null)) ?? 0) > h;
+      }
+      debug(`round ${i}: fetched from the phone — ${grown ? "more came" : "nothing came (yet)"}`);
+      // The link stays but nothing comes (the phone offline, or nothing older): give up after a few.
+      stuck = grown ? 0 : stuck + 1;
+      if (stuck >= 3) break;
+    }
+    if (h > height || clicked) {
+      height = Math.max(height, h);
+      idle = 0;
+    } else idle++;
+  }
+  await search.fill("").catch(() => {});
+  return { fetched, stuck: stuck >= 3 };
+}
+
+async function whatsappHistory({ chat = "", maxLoads = 400, fromPhone = false, openIfMissing = false, launch = openIfMissing || fromPhone } = {}) {
+  const name = String(chat).trim();
+  if (!name) throw new Error("Welcher Chat? (sein Name, wie in WhatsApp)");
+  const browser = await connectToChrome(CDP, { launchUrls: launch ? [HOME] : [] });
+  try {
+    let page = await whatsappPage(browser, { openIfMissing: !!openIfMissing || !!fromPhone });
+    let phone = null;
+    if (fromPhone) {
+      // Its exact name first (the search wants it so): what the store calls it.
+      const exact = await page.evaluate(readHistory, { name, maxLoads: 1, settleMs: 0 });
+      if (exact.error === "not-found") throw new Error(`Einen Chat „${name}“ gibt es in WhatsApp nicht.`);
+      if (exact.error === "ambiguous") throw new Error(`Mehrere Chats passen zu „${name}“: ${exact.candidates.join(", ")} — bitte genau.`);
+      if (!exact.error) {
+        phone = { fetched: 0 };
+        // WhatsApp Web reloads itself now and then (an update, memory): the tab found again, the
+        // chat opened again — what came from the phone so far is kept in its store.
+        for (let attempt = 0; attempt < 5; attempt++) {
+          try {
+            phone.fetched += (await pullFromPhone(page, exact.chat)).fetched;
+            break;
+          } catch (e) {
+            if (!/closed|detached|crash|navigat|Target/i.test(String(e?.message || e))) throw e;
+            debug(`the WhatsApp tab went away (${String(e?.message || e).slice(0, 80)}) — again`);
+            await new Promise((r) => setTimeout(r, 5000));
+            page = await whatsappPage(browser, { openIfMissing: true });
+          }
+        }
+      }
+    }
+    const got = await page.evaluate(readHistory, { name, maxLoads: Math.min(2000, Math.max(1, Number(maxLoads) || 400)), settleMs: 1500 });
+    if (got.error === "not-found") throw new Error(`Einen Chat „${name}“ gibt es in WhatsApp nicht.`);
+    if (got.error === "ambiguous") throw new Error(`Mehrere Chats passen zu „${name}“: ${got.candidates.join(", ")} — bitte genau.`);
+    if (got.error) return JSON.stringify({ error: got.error });
+    debug(`${got.chat}: ${got.messages.length} messages after ${got.loads} loads${got.complete ? " (from the beginning)" : ""}`);
+    return JSON.stringify({
+      chat: got.chat,
+      complete: got.complete,
+      loads: got.loads,
+      fromPhone: phone ? phone.fetched : null,
+      messages: got.messages.map((m) => ({
+        id: m.id,
+        convId: `wa:${m.chat}`,
+        folder: "WhatsApp",
+        from: m.from,
+        fromEmail: null,
+        subject: m.chat,
+        preview: m.text,
+        receivedAt: new Date(m.t * 1000).toISOString(),
+        unread: false,
+      })),
+    });
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}
+
 async function whatsappMessages({ days = 3, maxLoads = 4, maxMessages = 3000, openIfMissing = false, launch = openIfMissing } = {}) {
   const span = Math.min(120, Math.max(1, Number(days) || 3));
   const browser = await connectToChrome(CDP, { launchUrls: launch ? [HOME] : [] });
@@ -360,6 +557,22 @@ const TOOLS = [
     },
   },
   {
+    name: "whatsapp_history",
+    description:
+      "ONE chat's whole history, read-only — its earlier messages loaded from WhatsApp Web's store (and on demand from the phone) until none are left; the chat is NOT opened (no read receipts). Returns JSON { chat, complete, loads, messages } in the mail sync's shape.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        chat: { type: "string", description: "The chat's name as WhatsApp shows it (exactly, else regardless of case, else the one name containing it)." },
+        maxLoads: { type: "number", description: "At most this many loads of earlier messages (default 400, at most 2000)." },
+        fromPhone: { type: "boolean", description: "Also fetch older messages from the phone: OPENS the chat (its unread messages count as read) and scrolls it up to its beginning, fetching each time WhatsApp offers older messages (default false)." },
+        openIfMissing: { type: "boolean", description: "Open WhatsApp Web in the automation Chrome when it isn't (default false)." },
+        launch: { type: "boolean", description: "Start the automation Chrome when it isn't running (default: as openIfMissing)." },
+      },
+      required: ["chat"],
+    },
+  },
+  {
     name: "whatsapp_send",
     description: "Send a message to a WhatsApp chat (found by its exact name) through WhatsApp Web — only on the user's click. Opens the chat (marks it read), types and sends. Returns JSON { chat, sentAt, seen }.",
     inputSchema: { type: "object", properties: { chat: { type: "string", description: "The chat's exact name." }, text: { type: "string", description: "The message." } }, required: ["chat", "text"] },
@@ -401,6 +614,7 @@ async function handle(msg) {
       if (name === "whatsapp_status") return ok(id, textResult(await whatsappStatus()));
       if (name === "whatsapp_chats") return ok(id, textResult(await withTabLock("WhatsApp", name, () => whatsappChats(args), debug)));
       if (name === "whatsapp_messages") return ok(id, textResult(await withTabLock("WhatsApp", name, () => whatsappMessages(args), debug)));
+      if (name === "whatsapp_history") return ok(id, textResult(await withTabLock("WhatsApp", name, () => whatsappHistory(args), debug)));
       if (name === "whatsapp_send") return ok(id, textResult(await withTabLock("WhatsApp", name, () => whatsappSend(args), debug)));
       return ok(id, textResult(`Unknown tool "${name}".`, true));
     } catch (e) {
