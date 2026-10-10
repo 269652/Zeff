@@ -1,230 +1,156 @@
-# Zeff — Zeiterfassung
+# Zeff
 
-Hourly time reports for job numbers, with a built-in **MCP server** so a coding agent
-(Claude Code, Cursor, Claude Desktop, …) can book the time it spent on a ticket by itself.
+Zeff started as a *Zeiterfassung*: hourly time reports on job numbers, with an MCP server so a
+coding agent can book the time it spent on a ticket. It has grown into a local work assistant
+around that core:
 
-- **Weekly report** — hours per job and weekday (Mon–Sun), totals, all entries of the week,
-  filter by reporter, CSV export.
-- **Jobs** — the job numbers time is booked on (create, edit, deactivate).
-- **Entry types, tags & report** — each entry is a Ticket / Meeting / Other; #tags in a description
-  autocomplete and become tags (managed on the Tags page); the weekly **Report** view groups per day
-  (meetings collapsed into one line, tickets as `KEY: description`), configurable by ticket / type / tag.
-- **Working hours & absences** — a weekly part-time pattern (e.g. free Fridays) and one-off vacation/
-  sick/holiday, so the weekly report shows booked hours against your target.
-- **Jira** — a local, syncable copy of your assigned tickets, pulled from your Jira MCP server with
-  no LLM. Populates the ticket autocomplete, links tickets to jobs, and tracks completion (tickets
-  closed per week) in Analysis.
-- **Import meetings** — pulls the finished meetings of a week from your Outlook / Teams calendar
-  (via a no-OAuth browser bookmarklet, or Microsoft Graph where allowed) into a preview where you
-  pick the job, then books them as time entries.
-- **MCP server** at `/api/mcp` — `report_time`, `list_jobs`, `create_job`,
-  `get_weekly_report`, `list_time_entries`, `update_time_entry`, `delete_time_entry`.
-- **Local SQLite** database (`data/zeff.db`), created and migrated automatically on first start.
+- **Time tracking.** Entries on jobs and projects, working hours, absences, flex time, a weekly
+  and a monthly report. Every agent booking arrives as a suggestion that you take over.
+  *Feierabend* books the whole day in one go. Exports go to **Chrono** and **Punch**.
+- **Todos and the Ticket-Lage.** An AI pass over your Jira tickets, mail, chats and merge requests
+  says what happened and what's to do. Its todos carry their context, due dates and ready-made
+  actions. **Heute** is the day on one page.
+- **Connectors.** Jira, Outlook mail and calendar, Gmail, Teams, WhatsApp, Google Keep and GitLab.
+  They are read through their web apps in an *automation Chrome*, so no OAuth is needed.
+- **Work.** Agents (Claude Code, Copilot CLI) run on your todos in your repos, with live sessions,
+  branches and delivery.
+- **Knowledge.** A second server compiles Confluence and Zeff's own data (tickets, chats, mail,
+  notes, facts) into a searchable wiki and graph. You can ask it in Zeff, and agents can search it
+  over MCP.
+- **Accounts.** Zeff can run more than once, for example work and private. Each account has its
+  own database, automation Chrome, knowledge server and plugins.
 
-Stack: Next.js 16 (App Router, Turbopack) · React 19 · Tailwind CSS 4 · Drizzle ORM + better-sqlite3 ·
-`mcp-handler` 2 / MCP SDK v2 (Streamable HTTP, stateless).
+Everything is a **plugin**: install what you use on the Plugins page (Menu → Plugins). Zeff runs
+only on this machine, and its data is local SQLite.
 
-## Getting started
+Stack: Next.js 16 (App Router, Turbopack), React 19, Tailwind CSS 4, Drizzle ORM + better-sqlite3,
+`mcp-handler` 2 / MCP SDK v2, and Playwright over CDP for the browser drivers. An Electron
+launcher supervises it.
+
+## Running it
+
+| | |
+| --- | --- |
+| **Everyday** | The **launcher** (`dist\Zeff\Zeff.exe`, see [launcher/README.md](launcher/README.md)) runs Zeff on `127.0.0.1:9333` and one knowledge server per account (`:9555`, `:9556` …). It serves them as `https://zeff` and `https://knowledge.zeff`, restarts them after a crash, and starts with Windows (tray → "Start with Windows"). |
+| **Deploy a change** | `npm run deploy` is the only way to update the running Zeff. It takes a lock, waits for no active run, then runs typecheck, lint, `npm test` and the build. It restarts through the launcher and probes the main pages. Use `-- --knowledge` to also build and restart the knowledge server, and `-- --wait` to wait for a running Lage or work run instead of refusing. |
+| **Develop** | `npm run dev` (any free port) on the same database. Test risky writes on a snapshot (`better-sqlite3` `backup()`) with `DATABASE_PATH` set, never on `data/zeff.db`. |
 
 ```bash
 npm install
-npm run db:seed   # creates the known job numbers (see scripts/seed.ts)
-npm run dev       # http://localhost:3000
+npm test          # each test file on its own temporary database
+npm run deploy    # typecheck, lint, tests, build, restart, page probes
 ```
 
-The database file and schema are created on first request — there is no separate migrate step.
-Copy `.env.example` to `.env.local` to change the database path or protect the MCP endpoint.
+The database is created and migrated on first start (`drizzle/`). After editing
+`src/db/schema.ts`, run `npm run db:generate`.
 
-## Connect an agent
+## Plugins
 
-Open **http://localhost:3000/mcp** in the app — it shows the endpoint URL and ready-to-paste
-config for your setup. For Claude Code:
+| Plugin | What it is |
+| --- | --- |
+| Zeiterfassung, Wochenbericht, Monatsbericht | Jobs and projects, working hours and absences, booking, the week and the month |
+| Todos, Tickets | The Ticket-Lage, todos with their context, activity and recap; the Lage per ticket |
+| Kanban, Jira Lage | Your own boards; your Jira boards with each card's Lage |
+| Work | Agents on your todos: runs, live sessions, repos, delivery |
+| Auto-Aktionen | Ready-made actions for every open todo, from what the installed plugins can do |
+| LLM, Copilot CLI, Claude CLI | The AI layer: a backend and model per task, your instructions |
+| Knowledge | The knowledge server's chat, and "Show knowledge" on todos |
+| Jira, Outlook Mail, Outlook Kalender, Gmail, Teams, WhatsApp, Google Keep, GitLab | Connectors that read, and write only on your click |
+| Chrono, Punch | The corporate timesheets: export and read back |
+| Backups, Konten | Encrypted backups (daily, weekly, monthly); more than one account |
+
+**Writes happen only on your click.** Sending a WhatsApp or Teams message, posting to Jira or
+GitLab, exporting to Chrono or Punch, writing a Keep note: each runs only from a button. The automatic
+steps (syncs, the Lage, reviews, Auto-Aktionen) only read and propose. `tests/safety.test.ts`
+enforces this. Every write tool has a fixed list of callers, and the automatic steps may not import
+an action runner or a server-actions file.
+
+## Connect an agent (MCP)
+
+Each account has its own endpoint. **`/api/mcp` is always the first account's**, whichever account
+the app is switched to. Other accounts are at `/api/mcp/<account id>`. The `/mcp` page lists them
+with ready-to-paste config.
 
 ```bash
-claude mcp add --transport http --scope user zeff http://localhost:3000/api/mcp
+claude mcp add --transport http --scope user zeff http://127.0.0.1:9333/api/mcp
 ```
 
-or per project in `.mcp.json`:
+Tools: `report_time`, `list_jobs`, `list_projects`, `create_job`, `get_weekly_report`,
+`list_time_entries`, `update_time_entry`, `delete_time_entry`. For todos: `list_todos`,
+`start_todo`, `todo_context`, `todo_progress`, `todo_needs_input`, `finish_todo`, `complete_todo`.
+For knowledge: `search_knowledge`. The server's instructions tell the agent how to book: one short
+line, honest hours, and a suggestion for you to take over.
 
-```json
-{
-  "mcpServers": {
-    "zeff": { "type": "http", "url": "http://localhost:3000/api/mcp" }
-  }
-}
-```
+Set `ZEFF_MCP_TOKEN` in `.env.local` to require `Authorization: Bearer <token>`. Without it the
+endpoint is open, which is fine on localhost.
 
-Stdio-only clients can bridge with `npx -y mcp-remote http://localhost:3000/api/mcp`.
+## The knowledge server (`knowledge/`)
 
-Then, when an agent has finished a ticket, it calls `report_time`:
+This is a Next app of its own, one per account (the launcher starts them). It reads Confluence
+spaces, a folder of exported pages, Google Keep, and Zeff's own data. Zeff's data covers tickets
+with their comments, Teams and WhatsApp chats, mail, merge requests, todos, time entries, notes and
+facts. It compiles each page once per version with the account's AI (summary, concepts, entities,
+relations) and answers searches and questions. Zeff reaches it through
+`src/plugins/knowledge/client.ts`. Its own Plugins page chooses the sources, the AI and reading by
+itself.
 
-```json
-{
-  "jobNumber": "2026-0815",
-  "hours": 1.5,
-  "description": "Implemented CSV export, added tests",
-  "ticket": "PROJ-337",
-  "reportedBy": "Claude Code"
-}
-```
+## The browser drivers
 
-`date` defaults to today. Unknown job numbers are rejected with suggestions, so the agent
-should call `list_jobs` first (the server's MCP instructions tell it to). To make reporting
-automatic, add a line like this to the project's `CLAUDE.md`:
-
-> After finishing a ticket, book the time spent with the Zeff `report_time` tool
-> (job 2026-0815, reportedBy "Claude Code", ticket = the JIRA key) using a concise
-> one-line description — no commit logs or file lists.
+Gmail, WhatsApp, Keep, Teams, Outlook, GitLab, Chrono and Punch are read (and, on a click, written)
+through their web apps. Each driver is a small MCP stdio server in `src/plugins/<id>/driver.mjs`.
+It runs from source and attaches over CDP to the account's automation Chrome (first account: port
+9222, others: 9231 and up). It holds a per-app tab lock and can be stopped mid-sync. Sign-ins are
+yours: Zeff asks for one (Logins page, notifications) and never signs in itself. A sync that keeps
+failing (twice in a row, or for 12 hours) shows on **Heute**, with the reason: sign-in needed, the
+automation Chrome not running, or the page changed.
 
 ## Import meetings from Outlook / Teams
 
-The `/import` page turns finished calendar meetings into time entries: subject -> description,
-duration rounded to quarter hours, a JIRA-style key in the subject (`PROJ-337`) -> ticket, one job
-for all (or per row). All-day, cancelled and declined meetings and anything still in the future are
-skipped; meetings imported before are marked and cannot be booked twice (the calendar event id is
-stored on the entry).
+Calendar access through OAuth is usually blocked by the tenant (admin consent), and New Outlook has
+no local API. So Zeff reads the calendar where you're already signed in:
 
-### Bookmarklet bridge (no OAuth, no admin — the primary method)
+- **Automation Chrome** (Outlook Kalender plugin): the sync reads the weeks around now into the
+  meeting inbox.
+- **Bookmarklet**: on `/import`, drag "📅 Zeff: import meetings" to the bookmarks bar. Click it in
+  Outlook's week view; the week's meetings open in Zeff (as a URL fragment, posted same-origin to
+  `/api/calendar/ingest`). There's a copy & paste fallback for blocked popups.
+- **Microsoft Graph** (device code, or `MS_CLIENT_ID` / `MS_TENANT_ID`) where the tenant allows it.
+  `ZEFF_CALENDAR_FIXTURE=./fixtures/calendar-example.json` works offline.
 
-Many tenants block app-based calendar access (OAuth / Microsoft Graph) at the admin-consent level,
-and "New Outlook" has no local API. So Zeff reads the calendar through the browser session you are
-already signed in to, with a one-click bookmarklet:
+Meetings become entries rounded to quarter hours. A ticket key in the subject becomes the ticket,
+and job and exclude rules apply. A meeting is never booked twice (its event id is stored).
 
-1. Open `/import` and drag **📅 Zeff: import meetings** to your bookmarks bar (once).
-2. Open [outlook.office.com](https://outlook.office.com/calendar/view/week) in **Week view**, pick a
-   week, and click the bookmark. It reads that week's meetings from the page and opens Zeff with them
-   (the data rides in the URL fragment; the server ingests it same-origin at `POST /api/calendar/ingest`).
-3. Review and book. Repeat per week. **Clear** empties the inbox.
+## Jira
 
-Nothing leaves your machine and no credentials are handled — the browser already has the session, and
-only calendar event labels (subject/time/organizer) are read.
-
-If your browser blocks the popup, use the **copy & paste** fallback on the same page: the copy
-bookmarklet puts the meetings on your clipboard and you paste them into Zeff's box.
-
-### Other sources
-
-- **Fixture:** `ZEFF_CALENDAR_FIXTURE=./fixtures/calendar-example.json` serves Graph-shaped events
-  from a file — the whole flow works offline against the sample week.
-- **Microsoft Graph (if your tenant allows it):** the `/import` page also offers device-code sign-in
-  via Microsoft's public Graph client, and browser-redirect sign-in when you set `MS_CLIENT_ID` /
-  `MS_TENANT_ID` for your own Entra app. Both need delegated `Calendars.Read`; where admin consent is
-  required they will say so, and the bookmarklet is the fallback.
-
-### Protecting the endpoint
-
-Set `ZEFF_MCP_TOKEN` in `.env.local`; clients must then send
-`Authorization: Bearer <token>` (Claude Code: `--header "Authorization: Bearer <token>"`).
-Without a token the endpoint is open, which is fine on localhost.
-
-## Scripts
-
-| Script                | What it does                                              |
-| --------------------- | --------------------------------------------------------- |
-| `npm run dev`         | Dev server with Turbopack                                 |
-| `npm run build/start` | Production build / server                                 |
-| `npm run typecheck`   | `tsc --noEmit`                                            |
-| `npm run lint`        | ESLint                                                    |
-| `npm run db:seed`     | Create the known job numbers from `scripts/seed.ts` (skips existing) |
-| `npm run db:generate` | Generate a new SQL migration after editing `src/db/schema.ts` (applied when the server next starts — restart `npm run dev`) |
-| `npm run db:studio`   | Browse the database with Drizzle Studio                   |
-| `npm run serve`       | Production server on 127.0.0.1:9333 (after `npm run build`) |
-| `npm run autostart:install` | Start Zeff automatically on Windows login (see below) |
-| `npm run autostart:uninstall` | Remove the login autostart                          |
-| `npm run autostart:status`  | Show autostart + server status                        |
+The Jira plugin syncs your tickets, and the chosen boards' tickets, **without an LLM**. It calls
+your Jira MCP stdio server directly: a `jira` or `mcp-atlassian` entry in `.mcp.json`, or
+`JIRA_MCP_COMMAND` and the related variables (see `.env.example`). A ticket can be linked to a job,
+and booking that ticket then uses that job. Analysis shows cycle time, throughput and tickets
+closed per week.
 
 ## Project layout
 
 ```
 src/
-  app/
-    page.tsx              weekly report (/?week=2026-W39&by=name)
-    jobs/                 job list, /jobs/[id] edit + entries
-    entries/[id]/         edit a single entry
-    settings/             working hours, absences & report rewriting
-    tags/                 tag management
-    jira/                 synced Jira tickets
-    analysis/             analytics dashboard
-    mcp/                  connection instructions
-    import/               meeting import preview (Outlook / Teams via Microsoft Graph)
-    api/calendar/         OAuth connect + callback + ingest (bookmarklet) routes
-    api/mcp/route.ts      MCP endpoint (Streamable HTTP)
-    api/report/route.ts   CSV export for a week
-    actions.ts            server actions used by the forms
-  mcp/server.ts           MCP tool definitions
-  lib/                    week math, validation, jobs + entries data access
-  lib/calendar/           Graph client, OAuth/PKCE, meeting → entry planning
-  lib/jira/               Jira MCP stdio client, sync, normalize, store
-fixtures/                 example calendar events for ZEFF_CALENDAR_FIXTURE
-  db/                     Drizzle schema + SQLite connection (auto-migrates ./drizzle)
-scripts/                  seed, and Windows autostart (autostart.ps1, zeff-serve.ps1)
-drizzle/                  generated SQL migrations
-data/zeff.db              the database (git-ignored)
+  app/                 pages (App Router), API routes, Zeff's own server actions (actions.ts)
+    action-helpers.ts  what the server actions share (forms, revalidation, ActionState)
+    api/mcp/           the MCP endpoints (/api/mcp, /api/mcp/<account>)
+  plugins/<id>/        a plugin: its manifest entry (catalog.ts), driver.mjs, server-actions.ts,
+                       the client-safe catalog of a todo's operations (actions.ts), run.ts, UI
+  lib/                 the core: entries, week math, schedule, boards (the Lage), work, sync, mail …
+  mcp/                 the MCP tools (server.ts) and the per-account HTTP handler (http.ts)
+  db/                  Drizzle schema, the connection, accounts (one database each)
+knowledge/             the knowledge server (its own Next app)
+launcher/              the Electron launcher (supervisor, HTTPS proxy, tray)
+scripts/               deploy, dist, seed, the Chrome/CDP helper, driver shims
+tests/                 npm test (node:test + tsx), each file on a temporary database
+drizzle/               SQL migrations
+data/                  the databases, backups, logs (git-ignored)
 ```
-
-## Working hours & absences
-
-Open **Schedule** (`/settings`) to set your weekly working pattern and record time off:
-
-- **Weekly hours** — expected hours per weekday. Set a day to 0 to make it non-working, e.g. free
-  Fridays for an 80% week. The total shows your weekly target.
-- **Absences** — vacation, sick, holiday or other, over a date range. A full-day absence zeroes that
-  day's target; set *Hours/day* for a partial day.
-
-The weekly report then shows **Booked / Target / Remaining** (Remaining turns to *Overtime* when you
-go over), a **Target** row per weekday, and marks non-working and absence days in the day headers.
-
-## Types, tags & the report
-
-- **Type** — every entry is `ticket`, `meeting` or `other`. Calendar imports are always meetings;
-  entries with a ticket key default to ticket. It drives report grouping.
-- **Ticket → job memory** — once a ticket is booked on a job, booking it again (including the MCP
-  `report_time` tool with no jobNumber) reuses that job. The ticket field autocompletes with the
-  week's tickets and auto-selects the job.
-- **Tags** — manage on **/tags**, or type `#tag` in a description: an autocomplete pops up, and on
-  confirm the `#tag` is removed from the text and added as a tag. Works via MCP too (`#tags` in the
-  description are extracted server-side).
-- **Report** (weekly page) — a per-day grouped, copy-ready view. Configure grouping on **Schedule →
-  Report rewriting**: by ticket/meeting (meetings → one “Meetings” line, tickets → `{ticket}: {description}`),
-  by type, or by tag. Grouped lines are expandable to the underlying entries.
-
-$anchor
-
-Make the server start on login (production build, http://127.0.0.1:9333), no admin needed:
-
-```bash
-npm run build            # once, and after code changes
-npm run autostart:install
-npm run autostart:status
-```
-
-`autostart:install` registers a per-user Scheduled Task **“Zeff Server”** that runs
-`scripts/zeff-serve.ps1` hidden; it launches `next start` and restarts it if it ever exits
-(log: `data/autostart.log`). The task fires on **log on, session unlock and console connect** — so it
-also starts after a Windows **Fast Startup** resume, where a plain Startup-folder shortcut does *not*
-re-run (that was the old, unreliable mechanism). It launches the watchdog detached (via Task
-Scheduler), so it survives closing your terminal. Start/stop it now without rebooting via
-`scripts\autostart.ps1 -Start` / `-Stop`, and remove it with `npm run autostart:uninstall`. Because it
-serves a production build, run `npm run build` again after changing code (then `-Stop` and `-Start`).
-
-## Jira
-
-The **Jira** tab keeps a local copy of your assigned tickets and drives ticket autocomplete,
-ticket→job memory, and the completion metrics in Analysis.
-
-- **Sync** calls your Jira MCP server **directly, without an LLM** (a plain MCP stdio client). Zeff
-  auto-reads a `jira` (or `mcp-atlassian`) stdio server from `.mcp.json` and loads its `envFile`, so
-  if that server works for your editor it works here — e.g. `uvx mcp-atlassian` with `JIRA_URL` +
-  `JIRA_PERSONAL_TOKEN` in `.env`. Override with `JIRA_MCP_COMMAND` / `JIRA_JQL` etc. (see `.env.example`).
-  First sync is slow (~30s) while `uvx` starts the server.
-- **Paste import** is a fallback that needs no server: paste an array of issues or `{"issues":[…]}`.
-- Each ticket can be linked to a **job**; selecting that ticket in the entry form then auto-fills the job.
-- Analysis uses ticket status + resolution date to report **tickets closed per week** and a done/open
-  breakdown (tickets resolved without a resolution date aren’t counted per week).
 
 ## Notes
 
-- Weeks are ISO weeks (Monday–Sunday); dates are stored as `YYYY-MM-DD` in the server's local time.
-- Hours are decimals (`0.25` = 15 min); one entry may not exceed 24 h.
-- Deleting a job is only possible while no time is booked on it — deactivate it instead.
-- The web UI has no login; run it on localhost or behind your own auth/reverse proxy.
+- Weeks are ISO weeks (Monday–Sunday). Dates are stored as `YYYY-MM-DD` in the server's local time.
+- Hours are decimals (`0.25` = 15 min), and one entry may not exceed 24 h.
+- A job can only be deleted while no time is booked on it. Deactivate it instead.
+- The web UI has no login. Run it on localhost (the launcher binds 127.0.0.1).
