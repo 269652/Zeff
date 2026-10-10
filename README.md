@@ -39,6 +39,7 @@ launcher supervises it.
 npm install
 npm test          # each test file on its own temporary database
 npm run deploy    # typecheck, lint, tests, build, restart, page probes
+npm run eval:mail # before/after of the Mail-Durchsicht prompt on your real mails — nothing may get lost
 ```
 
 The database is created and migrated on first start (`drizzle/`). After editing

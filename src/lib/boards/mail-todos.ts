@@ -65,6 +65,9 @@ const SCHEMA = {
   },
   required: ["todos"],
 };
+/** The answer the review asks the AI for (todos, updates to open ones, facts). */
+export const MAIL_REVIEW_SCHEMA = SCHEMA;
+
 type Answer = {
   todos?: { text?: string; kind?: string; owner?: string; ticket?: string; due?: string; refs?: string[] }[];
   updates?: { id?: number; refs?: string[]; note?: string; done?: boolean; followUps?: { text?: string; due?: string }[]; facts?: { subject?: string; text?: string }[] }[];
@@ -201,6 +204,56 @@ export function mustDoLeftOut<M extends { key: string; fromName: string | null; 
 const namesTicket = (keys: string[], text: string) => keys.some((k) => new RegExp(`(^|[^A-Za-z0-9])${k}(?![0-9])`, "i").test(text));
 
 /**
+ * The review's prompt for one batch — its instructions (or others: the eval's "before"), today, your
+ * tickets, the open todos (with what's planned after each), what you dropped and did, the mails
+ * (must-do ones marked) and, with the first batch, the quiet conversations to look at again.
+ */
+export function mailReviewPrompt(v: {
+  instructions?: string;
+  tickets: string[];
+  open: TodoView[];
+  verdicts: { dropped: string[]; done: string[] };
+  mails: Parameters<typeof mailLine>[0][];
+  dormant?: { m: typeof emails.$inferSelect; thread: (typeof emails.$inferSelect)[]; since: string[] }[];
+  current?: (typeof emails.$inferSelect)[];
+}): string {
+  const dormant = v.dormant ?? [];
+  return [
+    (v.instructions ?? INSTRUCTIONS) + extraBlock("mailtodos"),
+    "",
+    `Heute ist ${new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} (${new Date().toISOString().slice(0, 10)}).`,
+    "",
+    "# Meine Tickets",
+    ...(v.tickets.length ? v.tickets : ["(keine)"]),
+    "",
+    "# Schon offene Todos",
+    ...v.open.slice(0, 60).map((t) => {
+      const next = t.planned[0]?.steps.map((s) => `„${plain(s.text, 80)}“`).join(" → ");
+      return `- [${t.id}]${t.ticket ? ` ${t.ticket}` : ""}: ${plain(t.text, 160)}${next ? ` — danach geplant: ${next}` : ""}`;
+    }),
+    "",
+    ...(v.verdicts.dropped.length ? ["# Was ich verworfen habe (letzte 60 Tage)", ...v.verdicts.dropped, ""] : []),
+    ...(v.verdicts.done.length ? ["# Was ich erledigt habe (letzte 60 Tage)", ...v.verdicts.done, ""] : []),
+    "# Mails",
+    ...(v.mails.length ? v.mails.map(mailLine) : ["(keine neuen)"]),
+    ...(dormant.length
+      ? [
+          "",
+          "# Ruhende Unterhaltungen (an denen ich beteiligt war, seit Tagen still)",
+          ...dormant.flatMap(({ m, thread, since }) => [
+            `- [mail:${m.key}] Unterhaltung „${plain(m.subject, 120)}“ (${m.folder}), still seit ${m.receivedAt.slice(0, 10)}:`,
+            ...thread.map((x) => `    ${x.receivedAt.slice(0, 10)} ${x.fromName ?? x.fromEmail ?? "?"}: ${plain(x.preview, 600)}`),
+            ...(since.length ? ["  Stichwort-Treffer seitdem (nur ein Hinweis):", ...since.map((s) => `    ${s}`)] : []),
+          ]),
+          "",
+          "# Aktuelle Unterhaltungen (letzte 30 Tage, je die letzte Nachricht) — zum Abgleich mit den ruhenden",
+          ...(v.current ?? []).map((x) => `- [mail:${x.key}] ${x.receivedAt.slice(0, 10)} (${x.folder}) ${x.fromName ?? x.fromEmail ?? "?"} „${plain(x.subject, 80)}“: ${plain(x.preview, 140)}`),
+        ]
+      : []),
+  ].join("\n");
+}
+
+/**
  * The review's own todos you judged: dropped by you, and done (the last 60 days, the newest first) —
  * each with the mail it came from (sender, subject), so the AI learns which kind you want.
  */
@@ -317,39 +370,14 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
       // What you dropped isn't proposed again (a new message in the same conversation isn't reason enough).
       const dropped = droppedByYou();
       const verdicts = verdictLines(dropped);
-      const prompt = [
-        INSTRUCTIONS + extraBlock("mailtodos"),
-        "",
-        `Heute ist ${new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} (${new Date().toISOString().slice(0, 10)}).`,
-        "",
-        "# Meine Tickets",
-        ...(ticketLines.length ? ticketLines : ["(keine)"]),
-        "",
-        "# Schon offene Todos",
-        ...open.slice(0, 60).map((t) => {
-          const next = t.planned[0]?.steps.map((s) => `„${plain(s.text, 80)}“`).join(" → ");
-          return `- [${t.id}]${t.ticket ? ` ${t.ticket}` : ""}: ${plain(t.text, 160)}${next ? ` — danach geplant: ${next}` : ""}`;
-        }),
-        "",
-        ...(verdicts.dropped.length ? ["# Was ich verworfen habe (letzte 60 Tage)", ...verdicts.dropped, ""] : []),
-        ...(verdicts.done.length ? ["# Was ich erledigt habe (letzte 60 Tage)", ...verdicts.done, ""] : []),
-        "# Mails",
-        ...(batch.length ? batch.map(line) : ["(keine neuen)"]),
-        ...(batch === batches[0] && dormant.length
-          ? [
-              "",
-              "# Ruhende Unterhaltungen (an denen ich beteiligt war, seit Tagen still)",
-              ...dormant.flatMap(({ m, thread, since }) => [
-                `- [mail:${m.key}] Unterhaltung „${plain(m.subject, 120)}“ (${m.folder}), still seit ${m.receivedAt.slice(0, 10)}:`,
-                ...thread.map((x) => `    ${x.receivedAt.slice(0, 10)} ${x.fromName ?? x.fromEmail ?? "?"}: ${plain(x.preview, 600)}`),
-                ...(since.length ? ["  Stichwort-Treffer seitdem (nur ein Hinweis):", ...since.map((s) => `    ${s}`)] : []),
-              ]),
-              "",
-              "# Aktuelle Unterhaltungen (letzte 30 Tage, je die letzte Nachricht) — zum Abgleich mit den ruhenden",
-              ...current.map((x) => `- [mail:${x.key}] ${x.receivedAt.slice(0, 10)} (${x.folder}) ${x.fromName ?? x.fromEmail ?? "?"} „${plain(x.subject, 80)}“: ${plain(x.preview, 140)}`),
-            ]
-          : []),
-      ].join("\n");
+      const prompt = mailReviewPrompt({
+        tickets: ticketLines,
+        open,
+        verdicts,
+        mails: batch,
+        dormant: batch === batches[0] ? dormant : [],
+        current,
+      });
       const answer = await runAi<Answer>(prompt, SCHEMA, { task: "mail-todos", timeoutMs: 10 * 60000, maxBudgetUsd: 1 }).catch((e) => {
         console.error("[mail-todos]", errorMessage(e));
         failed++;
