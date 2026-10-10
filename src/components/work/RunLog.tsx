@@ -32,7 +32,7 @@ function Line({ l }: { l: WorkLogLine }) {
  * A run's log, as it happens: read from where it was every 1.5 s while the run goes (only the
  * new lines), kept scrolled to the end unless you scroll up. Then it stays as it ended.
  */
-export function RunLog({ id }: { id: number }) {
+export function RunLog({ id, fill = false }: { id: number; /** The whole height it's given (a session's page), not a box. */ fill?: boolean }) {
   const [lines, setLines] = useState<WorkLogLine[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -81,7 +81,7 @@ export function RunLog({ id }: { id: number }) {
         const el = e.currentTarget;
         stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
       }}
-      className="max-h-96 space-y-1 overflow-auto rounded-md bg-zinc-950 p-2.5 font-mono text-xs leading-snug break-words text-zinc-300"
+      className={`${fill ? "min-h-0 flex-1" : "max-h-96"} space-y-1 overflow-auto rounded-md bg-zinc-950 p-2.5 font-mono text-xs leading-snug break-words text-zinc-300`}
       role="log"
       aria-live="polite"
       aria-label="Worker log"

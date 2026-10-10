@@ -1,14 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
+import { accountDir, currentAccountId } from "@/db/accounts";
 import type { WorkLogLine } from "./shared";
 
 /**
  * Where workers keep their logs (and Zeff its worker files): work/ next to the database —
- * data/work/, git-ignored like the DB; a snapshot's next to the snapshot.
+ * data/work/, git-ignored like the DB; a snapshot's next to the snapshot, an account's in its folder.
  */
-export const WORK_DIR = path.join(process.env.DATABASE_PATH ? path.dirname(process.env.DATABASE_PATH) : path.join(process.cwd(), "data"), "work");
-export const logPath = (id: number) => path.join(WORK_DIR, "logs", `${id}.jsonl`);
-export const errPath = (id: number) => path.join(WORK_DIR, "logs", `${id}.err`);
+export const workDir = () => path.join(accountDir(currentAccountId()), "work");
+export const logPath = (id: number) => path.join(workDir(), "logs", `${id}.jsonl`);
+export const errPath = (id: number) => path.join(workDir(), "logs", `${id}.err`);
 
 /** Claude's last event: how the session ended. */
 export type StreamResult = {
@@ -183,4 +184,42 @@ export function readOutput(id: number): string {
 export function readErrors(id: number, max = 1500): string {
   const t = read(errPath(id)).trim();
   return t.length > max ? `…${t.slice(-max)}` : t;
+}
+
+/**
+ * What a run did on the way, in order — an interactive Copilot session's tool calls (✗ when one
+ * failed) and your answers in it, or Claude's tool uses (with the file or command) — at most 30.
+ */
+export function runActions(runId: number): string[] {
+  let raw = "";
+  try {
+    raw = fs.readFileSync(/*turbopackIgnore: true*/ logPath(runId), "utf8");
+  } catch {
+    return [];
+  }
+  const out: string[] = [];
+  const push = (a: string) => {
+    const s = a.replace(/\s+/g, " ").trim().slice(0, 200);
+    if (s && out[out.length - 1] !== s) out.push(s);
+  };
+  for (const line of raw.split(/\r?\n/)) {
+    const tool = /^▸ (.+)$/.exec(line);
+    if (tool) push(tool[1]);
+    else if (/^\s+✗ fehlgeschlagen/.test(line) && out.length) out[out.length - 1] = `${out[out.length - 1]} ✗`;
+    else if (line.startsWith("[Du] ")) push(`Du: ${line.slice(5)}`);
+    else if (line.startsWith("{")) {
+      try {
+        const e = JSON.parse(line) as Event;
+        for (const b of (e.message?.content as Block[] | undefined) ?? []) {
+          if (b.type !== "tool_use" || !b.name) continue;
+          const i = b.input ?? {};
+          const what = i.command ?? i.file_path ?? i.path ?? i.pattern ?? i.url ?? i.query ?? "";
+          push(`${b.name}${what ? `: ${String(what)}` : ""}`);
+        }
+      } catch {
+        // not an event
+      }
+    }
+  }
+  return out.slice(0, 30);
 }

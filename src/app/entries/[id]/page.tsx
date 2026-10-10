@@ -5,6 +5,8 @@ import { connection } from "next/server";
 import { createContextAction, deleteEntryAction, linkContextAction, updateEntryAction } from "@/app/actions";
 import { ContextCard } from "@/components/ContextCard";
 import { EntrySourceRows } from "@/components/EntrySourceRows";
+import { EntryTodoContextSection } from "@/components/EntryTodoContext";
+import { entryTodoContext } from "@/lib/entry-todo-context";
 import { ContextFormOptionsProvider } from "@/components/ContextFormOptions";
 import { ContextSyncButton } from "@/components/ContextSyncButton";
 import { EntryContextAdders } from "@/components/EntryContextAdders";
@@ -47,8 +49,8 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
   const ticketSuggestions = getEntryTicketSuggestions(week);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="page">
+      <div className="page-aside">
         <div>
           <Link href={`/?week=${week.key}`} className="text-sm text-zinc-500 hover:underline">
             ← Week {week.week}
@@ -98,6 +100,12 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
           }}
         />
       </section>
+
+      {/* The todos (and runs) that flowed into it, with their whole context — as the todos show it. */}
+      {(() => {
+        const ctx = entryTodoContext([entry.id])[entry.id];
+        return ctx ? <EntryTodoContextSection ctx={ctx} /> : null;
+      })()}
 
       <ContextSection entryId={entry.id} ticket={entry.ticket} date={entry.date} ticketOptions={ticketSuggestions} />
     </div>

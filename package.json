@@ -15,7 +15,13 @@
     "autostart:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/autostart.ps1 -Install",
     "autostart:uninstall": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/autostart.ps1 -Uninstall",
     "autostart:status": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/autostart.ps1 -Status",
-    "chrono:chrome": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/chrono-chrome.ps1"
+    "chrono:chrome": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/chrono-chrome.ps1",
+    "knowledge:dev": "next dev knowledge -H 127.0.0.1 -p 9555",
+    "knowledge:build": "next build knowledge",
+    "knowledge:start": "next start knowledge -H 127.0.0.1 -p 9555",
+    "launcher:build": "node scripts/dist.mjs --launcher-only",
+    "dist": "node scripts/dist.mjs",
+    "launcher:start": "npm --prefix launcher start"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "^2.0.0",

@@ -1,3 +1,5 @@
+import { PluginNotInstalled } from "@/components/PluginNotInstalled";
+import { isInstalled } from "@/plugins/state";
 import { PersistedDetails } from "@/components/PersistedDetails";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -17,9 +19,15 @@ import {
   WORK_MODE_LABELS,
   WORK_STATUS_LABELS,
 } from "@/lib/work/shared";
-import { aiChoice } from "@/lib/ai";
-import { copilotModels } from "@/lib/ai/copilot";
+import { aiChoice, aiProviders } from "@/lib/ai";
+import { copilotModels } from "@/plugins/copilot-cli/cli";
 import { workPageData } from "@/lib/work/view";
+import { SidebarFrame } from "@/components/SidebarFrame";
+import { SessionSidebar } from "@/components/work/SessionSidebar";
+import { NewSessionPane, SessionPane, TicketPane } from "@/components/work/SessionPanes";
+import { sessionTickets } from "@/lib/work/sessions";
+import { getRun, toRunView } from "@/lib/work/store";
+import { listRepos } from "@/lib/repos";
 
 export const metadata: Metadata = { title: "Work" };
 
@@ -51,12 +59,42 @@ const TABS = [
 export default async function WorkPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; run?: string; ticket?: string; new?: string }>;
 }) {
   await connection();
-  const tabParam = (await searchParams).tab;
-  const tab =
-    tabParam === "branches" || tabParam === "settings" || tabParam === "runs" ? tabParam : "todos";
+  // A plugin's page: there while it's installed.
+  if (!isInstalled("work")) return <PluginNotInstalled id="work" />;
+  const sp = await searchParams;
+  const tabParam = sp.tab;
+  const tickets = sessionTickets();
+  const sidebar = (selected: { ticket?: string; run?: number; isNew?: boolean }) => <SessionSidebar tickets={tickets} selected={selected} />;
+  // Sessions (like Claude Code) — the views from before (todos, runs, branches, settings) by their tab.
+  if (!tabParam) {
+    const runId = Number(sp.run) || null;
+    const run = runId ? getRun(runId) : undefined;
+    const ticket = sp.ticket === undefined ? undefined : sp.ticket === "-" ? "" : sp.ticket.toUpperCase();
+    const options = {
+      tickets: tickets.filter((t) => t.ticket).map((t) => ({ key: t.ticket, summary: t.summary })),
+      repos: listRepos().map((r) => ({ id: r.id, name: r.name })),
+      providers: aiProviders()
+        .filter((x) => x.found)
+        .map((x) => ({ id: x.id, label: x.label })),
+    };
+    const running = tickets.reduce((n, t) => n + t.sessions.filter((x) => x.status === "running").length, 0);
+    return (
+      <SidebarFrame storageKey="zeff-work-sidebar" sidebar={sidebar({ run: run?.id, ticket, isNew: !run && ticket === undefined })} contentClassName="flex-col">
+        <WorkFollow active={running > 0} />
+        {run ? (
+          <SessionPane run={toRunView(run)} options={options} />
+        ) : ticket !== undefined ? (
+          <TicketPane ticket={ticket} data={tickets.find((t) => t.ticket === ticket)} options={options} />
+        ) : (
+          <NewSessionPane options={options} running={running} />
+        )}
+      </SidebarFrame>
+    );
+  }
+  const tab = tabParam === "branches" || tabParam === "settings" || tabParam === "runs" ? tabParam : "todos";
   const d = workPageData(
     aiChoice().provider === "copilot" ? await copilotModels() : [],
   );
@@ -91,7 +129,8 @@ export default async function WorkPage({
   );
 
   return (
-    <div className="space-y-6">
+    <SidebarFrame storageKey="zeff-work-sidebar" sidebar={sidebar({})} contentClassName="flex-col overflow-y-auto pr-1">
+      <div className="space-y-6">
       <WorkFollow active={d.active.length > 0} />
       <div className="flex flex-wrap items-baseline justify-between gap-4">
         <h1 className="text-lg font-semibold">Work</h1>
@@ -125,7 +164,7 @@ export default async function WorkPage({
         {TABS.map(([key, label]) => (
           <Link
             key={key}
-            href={key === "todos" ? "/work" : `/work?tab=${key}`}
+            href={`/work?tab=${key}`}
             scroll={false}
             role="tab"
             aria-selected={tab === key}
@@ -181,10 +220,10 @@ export default async function WorkPage({
             <p className="card p-6 text-center text-sm text-zinc-500">
               No Ticket-Lage yet — run it on the{" "}
               <Link
-                href="/boards"
+                href="/todos"
                 className="text-indigo-600 hover:underline dark:text-indigo-400"
               >
-                Boards
+                Todos
               </Link>{" "}
               tab: its todos are the work here.
             </p>
@@ -294,7 +333,7 @@ export default async function WorkPage({
                     )}
                     {done.length > 0 && (
                       <Link
-                        href="/boards?todos=done"
+                        href="/todos?todos=done"
                         className="block text-xs text-zinc-400 hover:text-indigo-600 hover:underline dark:hover:text-indigo-400"
                       >
                         {done.length} diese Woche erledigt →
@@ -382,7 +421,8 @@ export default async function WorkPage({
           )}
         </>
       )}
-    </div>
+      </div>
+    </SidebarFrame>
   );
 }
 

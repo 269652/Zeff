@@ -1,10 +1,13 @@
 "use client";
 
+import { actionHref } from "@/plugins/actions/catalog";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
   dispatchWorkAction,
+  doneBrowserOpAction,
+  removeTodoOpAction,
   saveTodoDraftAction,
   saveTodoOpTextAction,
   setTodoStatusAction,
@@ -39,7 +42,7 @@ import { TodoPlan } from "../boards/TodoPlan";
 import { CopyButton } from "../CopyButton";
 import { toast } from "../Toaster";
 import { useAgentInstructions } from "../AgentInstructions";
-import { PencilIcon } from "../icons";
+import { CheckIcon, CloseIcon, PencilIcon } from "../icons";
 import { RunningSpinner } from "../RunningSpinner";
 import { RunPanel } from "./RunPanel";
 import { TodoQuickButtons, TodoQuickPanel, type QuickPanel } from "../boards/TodoQuick";
@@ -275,13 +278,26 @@ function OpChip({
 }) {
   const router = useRouter();
   const { heading, detail, body, files } = opNote(op);
+  const href = actionHref(op);
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(body ?? "");
   const [pending, start] = useTransition();
   return (
     <span className={`${OP_CHIP} max-w-full`}>
-      <span className="flex items-center gap-1.5">
+      <span className="flex items-start gap-1.5">
         <span className="min-w-0 flex-1">⚡ {heading}</span>
+        {href && (
+          <a
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className="shrink-0 rounded px-1.5 font-medium text-sky-700 hover:bg-sky-100 dark:text-sky-300 dark:hover:bg-sky-900"
+            title="Öffnet sich ausgefüllt in Outlook — prüfen und selbst senden"
+          >
+            In Outlook öffnen ↗
+          </a>
+        )}
+        <span className="flex shrink-0 items-center gap-0.5">
         {body !== null && todoId !== undefined && !editing && (
           <button
             type="button"
@@ -296,6 +312,45 @@ function OpChip({
             <PencilIcon className="size-3.5" />
           </button>
         )}
+        {/* Done in Outlook (saved, sent): Zeff can't see it — you say so (✓), and it's noted on the todo. */}
+        {href && todoId !== undefined && (
+          <button
+            type="button"
+            className="shrink-0 rounded px-1 text-sky-700 hover:bg-sky-100 hover:text-emerald-700 disabled:opacity-50 dark:text-sky-300 dark:hover:bg-sky-900 dark:hover:text-emerald-400"
+            disabled={pending}
+            onClick={() =>
+              start(async () => {
+                const r = await doneBrowserOpAction(todoId, index);
+                toast(r?.ok ? (r.message ?? "Vermerkt.") : (r?.error ?? "Ging nicht."), { tone: r?.ok ? "ok" : "error" });
+                router.refresh();
+              })
+            }
+            title={op.type === "calendar-event" ? "Erledigt: den Termin in Outlook angelegt — am Todo vermerken" : "Erledigt: die Mail gesendet — am Todo vermerken"}
+            aria-label="Erledigt"
+          >
+            <CheckIcon className="size-3.5" />
+          </button>
+        )}
+        {/* Not wanted: off the todo, no trace (×). */}
+        {todoId !== undefined && (
+          <button
+            type="button"
+            className="shrink-0 rounded px-1 text-sky-700 hover:bg-sky-100 hover:text-red-600 disabled:opacity-50 dark:text-sky-300 dark:hover:bg-sky-900 dark:hover:text-red-400"
+            disabled={pending}
+            onClick={() =>
+              start(async () => {
+                const r = await removeTodoOpAction(todoId, index);
+                if (!r?.ok) toast(r?.error ?? "Ging nicht.", { tone: "error" });
+                router.refresh();
+              })
+            }
+            title="Entfernen — ohne Vermerk"
+            aria-label="Aktion entfernen"
+          >
+            <CloseIcon className="size-3.5" />
+          </button>
+        )}
+        </span>
       </span>
       {note ? (
         <a
@@ -589,9 +644,9 @@ export function WorkTodo({
               {todoRef(t.id)}
             </CopyButton>{" "}
             <Link
-              href={`/boards${closed ? "?todos=done" : ""}#todo-${t.id}`}
+              href={`/todos${closed ? "?todos=done" : ""}#todo-${t.id}`}
               className="hover:underline"
-              title={`${todoRef(t.id)} auf dem Boards-Tab zeigen`}
+              title={`${todoRef(t.id)} auf dem Todos-Tab zeigen`}
             >
               ↗
             </Link>{" "}
@@ -628,7 +683,7 @@ export function WorkTodo({
                 · <TodoRefs text={t.note} />
               </>
             )}
-            {!closed && <TodoQuickButtons panel={quick} onToggle={setQuick} aiDisabled={active ? `${active.ref} arbeitet schon daran` : undefined} />}
+            {!closed && <TodoQuickButtons todoId={t.id} panel={quick} onToggle={setQuick} aiDisabled={active ? `${active.ref} arbeitet schon daran` : undefined} />}
             {!closed && <FlagButton todoId={t.id} todoRef={todoRef(t.id)} flagged={!!t.flaggedAt} className="ml-0.5 inline-flex size-5 items-center justify-center rounded align-middle hover:bg-zinc-100 dark:hover:bg-zinc-800 [&_svg]:size-3.5" />}
             {t.flaggedAt && !closed && <span className="font-medium text-red-600 dark:text-red-400"> · wichtig</span>}
           </div>

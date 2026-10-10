@@ -1,4 +1,7 @@
-/** The AI providers analyses (like the Boards tab's) can run through — client-safe. */
+/** The AI providers analyses (like the Todos tab's) can run through — client-safe. */
+
+/** An AI provider's answer: the output (JSON as asked for), the model, what it cost, how long it took. */
+export type AiAnswer<T> = { output: T; model: string | null; costUsd: number | null; durationMs: number | null };
 
 export const AI_PROVIDERS = ["claude", "copilot"] as const;
 export type AiProvider = (typeof AI_PROVIDERS)[number];

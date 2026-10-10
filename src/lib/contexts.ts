@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { and, asc, desc, eq, inArray, like, or, sql } from "drizzle-orm";
-import { getDb, schema } from "@/db";
+import { dataDir, getDb, schema } from "@/db";
 import type { Context } from "@/db/schema";
 import {
   cleanLinks,
@@ -30,10 +30,6 @@ const { contexts, contextFiles, entryContexts, timeEntries, jobs } = schema;
 /** Largest file accepted per upload. */
 export const MAX_CONTEXT_FILE_BYTES = 20 * 1024 * 1024;
 
-/** The data folder (where the database lives); context files go to its context-files/ folder. */
-function dataDir(): string {
-  return path.dirname(process.env.DATABASE_PATH ?? path.join(/*turbopackIgnore: true*/ process.cwd(), "data", "zeff.db"));
-}
 
 const LINK_SCHEMES = /^(https?:|mailto:|msteams:|zeff:todo:)/i;
 

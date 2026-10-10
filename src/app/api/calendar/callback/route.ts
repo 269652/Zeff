@@ -1,3 +1,4 @@
+import { isInstalled } from "@/plugins/state";
 import { NextResponse, type NextRequest } from "next/server";
 import { getMicrosoftConfig } from "@/lib/calendar/config";
 import { decodeIdToken, exchangeCode, saveConnection } from "@/lib/calendar/microsoft";
@@ -6,6 +7,7 @@ import { errorMessage } from "@/lib/errors";
 
 /** GET /api/calendar/callback?code=…&state=… — Microsoft redirects here after login. */
 export async function GET(req: NextRequest) {
+  if (!isInstalled("outlook-calendar")) return new Response("Plugin not installed", { status: 404 });
   const sp = req.nextUrl.searchParams;
   const cookie = parseOAuthCookie(req.cookies.get(OAUTH_COOKIE)?.value);
 

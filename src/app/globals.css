@@ -38,6 +38,28 @@ body {
 }
 
 @layer components {
+  /*
+   * A page: its header (.page-aside — title, what it is, its controls) as a sidebar on the left,
+   * sticky; the content beside it, the window's width. Every page alike (the boards, the chat,
+   * the todos have the same frame, foldable: SidebarFrame). On a phone: one under the other.
+   */
+  .page {
+    @apply grid items-start gap-x-6 lg:grid-cols-[18rem_minmax(0,1fr)];
+  }
+  .page > * {
+    @apply min-w-0 lg:col-start-2;
+    margin-block: 0;
+  }
+  .page > * + * {
+    margin-top: 1.5rem;
+  }
+  .page > .page-aside {
+    @apply space-y-3 self-start lg:sticky lg:top-0 lg:col-start-1 lg:row-start-1 lg:row-end-[span_99] lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pr-1 lg:pb-2;
+    scrollbar-width: thin;
+  }
+  .page > .page-aside + * {
+    @apply lg:mt-0;
+  }
   .card {
     @apply rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900;
   }

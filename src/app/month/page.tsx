@@ -1,3 +1,5 @@
+import { PluginNotInstalled } from "@/components/PluginNotInstalled";
+import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
@@ -34,6 +36,8 @@ export default async function MonthPage({
   searchParams: Promise<{ month?: string; by?: string }>;
 }) {
   await connection();
+  // A plugin's page: there while it's installed.
+  if (!isInstalled("monthly-report")) return <PluginNotInstalled id="monthly-report" />;
   const sp = await searchParams;
   const requested = resolveMonth(sp.month);
   const month = requested ?? currentMonth();
@@ -61,7 +65,9 @@ export default async function MonthPage({
   const weekMissing = perWeek((i) => (shortfalls[i].state === "missing" ? shortfalls[i].gap : 0));
 
   // Chrono approvals of the weeks pulled so far ("Pull Chrono"): each day's approved hours.
-  const pulledAt = month.weeks.map((w) => chronoPulledAt(w));
+  // (only with the Chrono plugin installed)
+  const chronoOn = isInstalled("chrono");
+  const pulledAt = month.weeks.map((w) => (chronoOn ? chronoPulledAt(w) : null));
   const statuses: Record<number, EntryChronoStatus> = {};
   month.weeks.forEach((w, i) => {
     if (pulledAt[i]) Object.assign(statuses, chronoStatusByEntry(w));
@@ -121,8 +127,10 @@ export default async function MonthPage({
   }
 
   return (
-    <div className="space-y-6">
-      <MonthNav month={month} by={by} reporters={listReporters()} />
+    <div className="page">
+      <div className="page-aside">
+        <MonthNav month={month} by={by} reporters={listReporters()} />
+      </div>
 
       {sp.month && !requested && (
         <p className="alert-error">Could not read month &quot;{sp.month}&quot; — showing the current month instead.</p>
@@ -152,14 +160,15 @@ export default async function MonthPage({
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-sm font-semibold text-zinc-500 uppercase">Days</h2>
-            <p className="text-xs text-zinc-400">booked hours and their Chrono approval · click a day to open its week</p>
+            <p className="text-xs text-zinc-400">booked hours{chronoOn ? " and their Chrono approval" : ""} · click a day to open its week</p>
           </div>
-          <ChronoPullButton month={month.key} pulledAt={oldestPull} synced={!!oldestPull && chronoInSync(report.entries, statuses)} />
+          {chronoOn && <ChronoPullButton month={month.key} pulledAt={oldestPull} synced={!!oldestPull && chronoInSync(report.entries, statuses)} />}
         </div>
         <MonthCalendar
           month={month}
           dayTotals={report.dayTotals}
           chrono={chrono}
+          chronoOn={chronoOn}
           targets={targets}
           shortfalls={shortfalls}
           today={today}

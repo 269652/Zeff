@@ -1,3 +1,5 @@
+import { PluginNotInstalled } from "@/components/PluginNotInstalled";
+import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
@@ -13,12 +15,14 @@ export const metadata: Metadata = { title: "Repos" };
  */
 export default async function ReposPage() {
   await connection();
+  // A plugin's page: there while it's installed.
+  if (!isInstalled("work")) return <PluginNotInstalled id="work" />;
   const repos = listRepos();
   const choices = repoChoices();
   const boardName = new Map(choices.boards.map((b) => [b.id, b.name]));
   return (
-    <div className="space-y-6">
-      <div className="space-y-1">
+    <div className="page">
+      <div className="page-aside">
         <h1 className="text-lg font-semibold">Repos</h1>
         <p className="max-w-[75ch] text-sm text-zinc-500">
           Where the{" "}

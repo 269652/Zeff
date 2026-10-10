@@ -2,7 +2,7 @@ import { AGENT_INSTRUCTION_DEFAULTS } from "@/lib/boards/shared";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { emitChange } from "@/lib/events";
-import { liveView } from "./live-state";
+import { liveView } from "@/plugins/copilot-cli/live-state";
 import type { WorkRun } from "@/db/schema";
 import { getAppSettings, updateAppSettings } from "@/lib/ai";
 import { COPILOT_MODES, PERMISSION_MODES, workRef, type CopilotMode, type PermissionMode, type WorkMode, type WorkResult, type WorkRunView, type WorkSettingsView, type WorkStatus } from "./shared";

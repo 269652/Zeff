@@ -1,3 +1,4 @@
+import { opAvailable } from "@/plugins/ops";
 import { todoSources } from "@/lib/boards/sources";
 import { opsDictionary, sourcesOf, TODO_KIND_LABELS, todoRef, type TodoSource, type TodoView } from "@/lib/boards/shared";
 import { getTodo, lastGoodRun, listTodos } from "@/lib/boards/store";
@@ -55,7 +56,7 @@ export function briefFor(todo: TodoView): string {
   out.push(`# ${todoRef(todo.id)} · ${todo.ticket} · ${TODO_KIND_LABELS[todo.kind]}`, "", todo.text);
   const reports = todo.userNotes.filter((n) => n.by);
   if (reports.length) out.push("", "Was Läufe daran schon getan haben (ihre Berichte):", ...reports.map((n) => `- ${day(n.at)} ${n.by}: ${cut(n.text.replace(/\s+/g, " "), 1500)}${n.url ? ` (${n.url})` : ""}`));
-  if (todo.userNotes.some((n) => !n.by)) out.push("", "Notizen des Nutzers dazu (sein Kontext — geht anderen Daten vor):", ...todo.userNotes.filter((n) => !n.by).map((n) => `- ${day(n.at)}: ${n.text.replace(/\n+/g, " ⏎ ")}`));
+  if (todo.userNotes.some((n) => !n.by)) out.push("", "Notizen des Nutzers dazu (sein Kontext — geht anderen Daten vor):", ...todo.userNotes.filter((n) => !n.by).map((n) => `- ${day(n.at)}${n.kind === "instruction" ? ` (Anweisung an W-${n.run ?? "?"})` : ""}: ${n.text.replace(/\n+/g, " ⏎ ")}`));
   if (todo.draft) out.push("", `Entwurf${todo.channel ? ` (${CHANNEL_LABELS[todo.channel]}${todo.target ? ` → ${todo.target}` : ""})` : ""}:`, indent(todo.draft));
 
   const summary = facts?.summary || jira?.summary || "";
@@ -112,7 +113,7 @@ export function workerRules(extra: string): string {
 - Am Ende antwortest du im verlangten Format (outcome, summary, entry, completedTodos, followUps …).
 - summary steht danach als dein Kommentar am Todo — fasse darin IMMER zusammen, was du getan hast: zuerst EIN Satz, was jetzt erledigt ist; dann kurze Stichpunkte: was geändert, wie geprüft, was offen bleibt (und warum), wo es liegt (Branch, Commit).
 
-${opsDictionary()}${extra.trim() ? `\n\nZusätzlich:\n${extra.trim()}` : ""}`;
+${opsDictionary(opAvailable)}${extra.trim() ? `\n\nZusätzlich:\n${extra.trim()}` : ""}`;
 }
 
 /** What the worker is to do, by mode — and where. */

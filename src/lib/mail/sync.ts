@@ -1,9 +1,10 @@
-import path from "node:path";
+import { automationCdp, automationEnv, driverPath } from "@/plugins/drivers";
 import { clearAttention, needsSignIn, raiseLogin } from "@/lib/attention";
+import { sql } from "drizzle-orm";
+import { getDb, schema } from "@/db";
 import { errorMessage } from "@/lib/errors";
 import { getMailSettings, saveMails, updateMailSettings, type MailInput } from "./store";
 
-const CDP = process.env.OUTLOOK_CDP_ENDPOINT || process.env.CHRONO_CDP_ENDPOINT || "http://127.0.0.1:9222";
 /** How far back a sync reads: in the background the last days; by hand (and the first time) two months. */
 const DAYS = 3;
 const FULL_DAYS = 60;
@@ -18,40 +19,104 @@ function record(ok: boolean, message: string): { ok: boolean; message: string } 
 
 /** Whether the automation Chrome runs — the background sync never starts it (it opens a mail tab there, though). */
 async function chromeUp(): Promise<boolean> {
-  return fetch(`${CDP}/json/version`, { signal: AbortSignal.timeout(3000) })
+  return fetch(`${automationCdp("outlook")}/json/version`, { signal: AbortSignal.timeout(3000) })
     .then((r) => r.ok)
     .catch(() => false);
 }
 
+type Source = "outlook" | "gmail" | "whatsapp";
+const SOURCE_LABELS: Record<Source, string> = { outlook: "Outlook", gmail: "Gmail", whatsapp: "WhatsApp" };
+const SOURCE_PLUGINS = { outlook: "outlook-mail", gmail: "gmail", whatsapp: "whatsapp" } as const;
+
+/** WhatsApp: the active chats' messages — else (WhatsApp Web doesn't offer them) each chat's last one from the list. */
+async function whatsappRead(call: (name: string, args: Record<string, unknown>) => Promise<unknown>, days: number, background: boolean): Promise<unknown> {
+  const { resultToPayload } = await import("@/lib/jira/mcp-client");
+  const r = await call("whatsapp_messages", { days, maxLoads: days > DAYS ? 8 : 3, openIfMissing: true, launch: !background });
+  const p = resultToPayload(r);
+  const data = typeof p === "string" ? (p.trim().startsWith("{") ? JSON.parse(p) : null) : p;
+  if (data && Array.isArray((data as { messages?: unknown }).messages)) return r;
+  return call("whatsapp_chats", { days, maxChats: days > DAYS ? 300 : 100, openIfMissing: true, launch: !background });
+}
+
+/** One source read (Outlook's or Gmail's list, WhatsApp's chat list) — as shown: no mail or chat opened, none marked read. */
+async function readMailbox(source: Source, days: number, background: boolean, gmail?: { account: string; folder: string }): Promise<{ messages: MailInput[]; missing?: string[] }> {
+  const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
+  const out = await runStdioSession(
+    { command: process.execPath, args: [driverPath(source)], env: automationEnv(), label: `${SOURCE_LABELS[source]} sync` },
+    async (call) =>
+      resultToPayload(
+        source === "gmail"
+          ? await call("gmail_mail", { days, maxPages: days > DAYS ? 20 : 3, account: gmail?.account ?? "0", folder: gmail?.folder ?? "Gmail", openIfMissing: true, launch: !background })
+          : source === "whatsapp"
+            ? await whatsappRead(call, days, background)
+            : await call("outlook_mail", { days, folders: getMailSettings().folders, openIfMissing: true, launch: !background }),
+      ),
+    600000, // two months of the list: scrolled (paged) through, row by row
+  );
+  const data = (typeof out === "string" ? JSON.parse(out) : out) as { messages?: MailInput[]; missing?: string[] };
+  if (!Array.isArray(data.messages)) throw new Error(typeof out === "string" ? out.slice(0, 300) : `${SOURCE_LABELS[source]} returned nothing readable.`);
+  return { messages: data.messages, missing: data.missing };
+}
+
+/** One source read and kept — "N new · M in all", or why not (a sign-in it wants: asked of you, never done by Zeff). */
+async function syncSource(source: Source, days: number, background: boolean, prefix: boolean, gmail?: { account: string; folder: string }): Promise<{ ok: boolean; part: string }> {
+  const label = gmail?.folder ?? SOURCE_LABELS[source];
+  try {
+    const r = await readMailbox(source, days, background, gmail);
+    const { added, total } = saveMails(r.messages);
+    clearAttention(`login:${source}`);
+    return { ok: true, part: `${prefix ? `${label}: ` : ""}${added} new · ${total} in all${r.missing?.length ? ` — not found in Outlook: ${r.missing.join(", ")}` : ""}` };
+  } catch (e) {
+    const message = errorMessage(e).slice(0, 300);
+    if (needsSignIn(message) || /sign[- ]in|anmeld|verknüpf/i.test(message)) raiseLogin(source, message);
+    return { ok: false, part: `${label}: ${message}` };
+  }
+}
+
 /**
- * Read your inbox's latest mails from Outlook in the automation Chrome (scripts/outlook-mcp.mjs —
- * the mail list as shown: no mail opened, none marked read) and keep them. `background`: only
- * while Chrome runs; by hand it may start it.
+ * Read your inbox's latest mails — from Outlook (Outlook Mail plugin) and/or Gmail (Gmail plugin) in
+ * the account's automation Chrome — and keep them. `background`: only while Chrome runs; by hand it
+ * may start it. A mailbox that fails doesn't stop the other.
  */
 export async function syncMail({ background = false } = {}): Promise<{ ok: boolean; message: string }> {
   if (state.__zeffMailSyncing) return { ok: false, message: "A mail sync is already running." };
   state.__zeffMailSyncing = true;
   try {
     if (background && !(await chromeUp())) return record(false, "The automation Chrome isn't running. Not synced.");
-    const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
-    const script = path.join(/*turbopackIgnore: true*/ process.cwd(), "scripts", "outlook-mcp.mjs");
+    const { isInstalled } = await import("@/plugins/state");
+    const sources = (["outlook", "gmail"] as const).filter((s) => isInstalled(SOURCE_PLUGINS[s]));
+    if (!sources.length) return record(false, "Kein Mail-Plugin installiert (Outlook Mail oder Gmail).");
     const days = background && getMailSettings().lastOk ? DAYS : FULL_DAYS;
-    const out = await runStdioSession(
-      { command: process.execPath, args: [script], env: {}, label: "Mail sync" },
-      async (call) => resultToPayload(await call("outlook_mail", { days, folders: getMailSettings().folders, openIfMissing: true, launch: !background })),
-      600000, // two months of the list: scrolled through, row by row
-    );
-    const data = (typeof out === "string" ? JSON.parse(out) : out) as { messages?: MailInput[]; missing?: string[] };
-    if (!Array.isArray(data.messages)) throw new Error(typeof out === "string" ? out.slice(0, 300) : "Outlook returned nothing readable.");
-    const { added, total } = saveMails(data.messages);
-    clearAttention("login:outlook");
-    return record(true, `${added} new · ${total} in all${data.missing?.length ? ` — not found in Outlook: ${data.missing.join(", ")}` : ""}`);
-  } catch (e) {
-    const message = errorMessage(e).slice(0, 300);
-    // Outlook wants you to sign in: asked of you (and pinged) — never done by Zeff.
-    if (needsSignIn(message)) raiseLogin("outlook", message);
-    return record(false, message);
+    const done = [];
+    // Gmail: each account set on its settings page, into its own folder.
+    const { gmailAccounts, gmailFolder } = await import("@/plugins/gmail/accounts");
+    const boxes = sources.flatMap((source): { source: Source; gmail?: { account: string; folder: string } }[] => (source === "gmail" ? gmailAccounts().map((a, i) => ({ source, gmail: { account: a.account, folder: gmailFolder(a, i) } })) : [{ source, gmail: undefined }]));
+    for (const b of boxes) done.push(await syncSource(b.source, days, background, boxes.length > 1, b.gmail));
+    return record(done.some((d) => d.ok), done.map((d) => d.part).join(" · "));
   } finally {
     state.__zeffMailSyncing = false;
+  }
+}
+
+/**
+ * Read your WhatsApp chats' latest messages (WhatsApp plugin) from WhatsApp Web's chat list in the
+ * automation Chrome — no chat opened — and keep them with the mails (folder "WhatsApp"), for the
+ * Durchsicht, the Zuordnung and the knowledge. Its own step (the Sync menu records how it went).
+ * The first time two months, then the last days.
+ */
+export async function syncWhatsapp({ background = false } = {}): Promise<{ ok: boolean; message: string }> {
+  const flag = globalThis as { __zeffWhatsappSyncing?: boolean };
+  if (flag.__zeffWhatsappSyncing) return { ok: false, message: "A WhatsApp sync is already running." };
+  flag.__zeffWhatsappSyncing = true;
+  try {
+    if (background && !(await chromeUp())) return { ok: false, message: "The automation Chrome isn't running. Not synced." };
+    // The first time (the messages read — not only the chat list's last ones): the whole window.
+    const { getPref, setPref } = await import("@/lib/prefs");
+    const known = getPref("whatsapp:messages-read", false) && (getDb().select({ n: sql<number>`count(*)` }).from(schema.emails).where(sql`${schema.emails.folder} = 'WhatsApp'`).get()?.n ?? 0) > 0;
+    const r = await syncSource("whatsapp", known ? DAYS : FULL_DAYS, background, false);
+    if (r.ok) setPref("whatsapp:messages-read", true);
+    return { ok: r.ok, message: r.part };
+  } finally {
+    flag.__zeffWhatsappSyncing = false;
   }
 }

@@ -26,7 +26,10 @@ export function MonthCalendar({
   targets,
   shortfalls,
   today,
+  chronoOn = true,
 }: {
+  /** The Chrono plugin installed — else no Chrono hints. */
+  chronoOn?: boolean;
   month: MonthInfo;
   /** Hours per day of the month (index 0 = the 1st). */
   dayTotals: number[];
@@ -72,6 +75,7 @@ export function MonthCalendar({
                   date={d}
                   hours={dayTotals[i]}
                   chrono={chrono[i]}
+                  chronoOn={chronoOn}
                   target={targets[i]}
                   shortfall={shortfalls[i]}
                   isToday={isoDate(d) === today}
@@ -99,7 +103,7 @@ export function MonthCalendar({
         <LegendDot className="bg-red-100 dark:bg-red-900/60" label="hours missing" />
         <LegendDot className="bg-amber-100 dark:bg-amber-900/60" label="due today" />
         <LegendDot className="bg-zinc-100 dark:bg-zinc-800" label="off / absent" />
-        {chrono.some((r, i) => r === null && dayTotals[i] > 0) && (
+        {chronoOn && chrono.some((r, i) => r === null && dayTotals[i] > 0) && (
           <span className="text-zinc-400">plain hours: week not pulled from Chrono</span>
         )}
       </div>
@@ -116,7 +120,9 @@ function DayCell({
   shortfall,
   isToday,
   future,
+  chronoOn,
 }: {
+  chronoOn: boolean;
   weekKey: string;
   date: Date;
   hours: number;
@@ -150,7 +156,7 @@ function DayCell({
     `${hours ? formatHours(hours) : 0} h booked`,
     target.target > 0 ? `target ${formatHours(target.target)} h` : "",
     shortfall.state !== "ok" ? `${formatHours(shortfall.gap)} h ${shortfall.state === "missing" ? "missing" : "still due"}` : "",
-    hours > 0
+    hours > 0 && chronoOn
       ? !chrono
         ? "week not pulled from Chrono"
         : allApproved

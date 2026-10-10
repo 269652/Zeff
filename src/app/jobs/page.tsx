@@ -1,3 +1,5 @@
+import { PluginNotInstalled } from "@/components/PluginNotInstalled";
+import { isInstalled } from "@/plugins/state";
 import { format } from "date-fns";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -16,13 +18,15 @@ export const metadata: Metadata = { title: "Jobs" };
 
 export default async function JobsPage() {
   await connection();
+  if (!isInstalled("zeiterfassung")) return <PluginNotInstalled id="zeiterfassung" />;
+  const chronoOn = isInstalled("chrono");
   const jobs = listJobs({ includeInactive: true });
   const allTags = listTags().map((t) => t.name);
   const defaultTags = listDefaultTagMaps().jobs;
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="page">
+      <div className="page-aside">
         <h1 className="text-lg font-semibold">Jobs</h1>
         <p className="text-sm text-zinc-500">
           Job numbers that time can be booked on — from the web UI or via the MCP{" "}
@@ -38,7 +42,7 @@ export default async function JobsPage() {
       <section className="card p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">All jobs ({jobs.length})</h2>
-          <ChronoJobsSyncButton count={jobs.length} />
+          {chronoOn && <ChronoJobsSyncButton count={jobs.length} />}
         </div>
         {jobs.length === 0 ? (
           <p className="py-4 text-center text-sm text-zinc-500">No jobs yet.</p>
@@ -52,7 +56,7 @@ export default async function JobsPage() {
                   <th>Customer</th>
                   <th className="num">Hours</th>
                   <th className="num">Entries</th>
-                  <th className="text-center">Chrono</th>
+                  {chronoOn && <th className="text-center">Chrono</th>}
                   <th>Status</th>
                   <th></th>
                 </tr>
@@ -77,9 +81,11 @@ export default async function JobsPage() {
                     <td>{j.customer ?? ""}</td>
                     <td className="num">{formatHours(j.totalHours)}</td>
                     <td className="num">{j.entryCount}</td>
-                    <td className="text-center">
-                      <ChronoMark job={j} />
-                    </td>
+                    {chronoOn && (
+                      <td className="text-center">
+                        <ChronoMark job={j} />
+                      </td>
+                    )}
                     <td>
                       <span className={`badge ${j.active ? "badge-mcp" : "badge-web"}`}>
                         {j.active ? "active" : "inactive"}

@@ -91,7 +91,6 @@ export function GitlabItemBadge({
   const content = (
     <>
       {onToggle && <ChevronIcon open={expanded} className="size-3.5 shrink-0 text-orange-500 dark:text-orange-400" />}
-      {item.kind === "comment" && <ResolvedMark done={resolved || gitlabDone(item)} title={resolvedInGitlab(item) ? "in GitLab gelöst" : undefined} />}
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="size-4 shrink-0 text-orange-600 dark:text-orange-400" aria-hidden>
         {item.kind === "branch" ? (
           <>
@@ -111,6 +110,7 @@ export function GitlabItemBadge({
           </>
         )}
       </svg>
+      {item.kind === "comment" && <ResolvedMark done={resolved || gitlabDone(item)} title={resolvedInGitlab(item) ? "in GitLab gelöst" : undefined} />}
       <span className="shrink-0 font-medium">{GITLAB_KIND_LABELS[item.kind]}</span>
       {item.kind === "branch" ? (
         <span className="min-w-0 truncate font-medium">{what}</span>

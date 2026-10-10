@@ -2,6 +2,7 @@
  * The Work tab — todos handed to workers (Claude Code or the Copilot CLI, unattended): the parts
  * pages and the server share (client-safe: no DB access here).
  */
+import { actionHref } from "@/plugins/actions/catalog";
 import { TODO_KINDS, TODO_OPS_SCHEMA, type TodoKind, type TodoView } from "@/lib/boards/shared";
 
 /** code: do the work in the ticket's repo · draft: write the message a todo asks for · send: post a drafted message. */
@@ -44,7 +45,9 @@ export const CHANNEL_LABELS: Record<Channel, string> = { jira: "Jira", teams: "T
 export function workModeOf(t: Pick<TodoView, "kind" | "owner" | "status" | "draft" | "channel" | "target" | "ops">): { mode: WorkMode; why?: undefined } | { mode: null; why: string } {
   if (t.status !== "open") return { mode: null, why: "Done already." };
   // Its operations Zeff can run while you wait (asking them, assigning it) — a merge only once approved.
-  if (t.ops.length && !(t.owner === "other" && t.ops.some((o) => o.type === "gitlab-merge"))) return { mode: "ops" };
+  // (Not the ones that open in your browser — a mail draft, an appointment: those are links.)
+  const zeff = t.ops.filter((o) => !actionHref(o));
+  if (zeff.length && !(t.owner === "other" && zeff.some((o) => o.type === "gitlab-merge"))) return { mode: "ops" };
   if (t.owner === "other") return { mode: null, why: "Waiting for someone else — nothing for a worker." };
   if (t.kind === "deploy") return { mode: null, why: "Deploys are yours to do." };
   if (t.kind === "merge") return parseMrTarget(t.target) ? { mode: "mr" } : { mode: null, why: "Which branch into which isn't known — open the merge request yourself." };
@@ -134,7 +137,7 @@ export type WorkLogLine =
 /** A run as the pages show it. */
 export type WorkRunView = {
   /** A live (interactive) session: its mode, whether it works, what it asks of you. */
-  live: import("./live-state").LiveView | null;
+  live: import("@/plugins/copilot-cli/live-state").LiveView | null;
   id: number;
   ref: string;
   ticket: string;

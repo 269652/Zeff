@@ -1,3 +1,5 @@
+import { PluginNotInstalled } from "@/components/PluginNotInstalled";
+import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
@@ -39,6 +41,8 @@ export default async function ImportPage({
   searchParams: Promise<{ week?: string; error?: string }>;
 }) {
   await connection();
+  // A plugin's page: there while it's installed.
+  if (!isInstalled("outlook-calendar")) return <PluginNotInstalled id="outlook-calendar" />;
   const sp = await searchParams;
   const week = resolveWeek(sp.week) ?? currentWeek();
   const status = getCalendarStatus();
@@ -56,8 +60,8 @@ export default async function ImportPage({
   const ui = await getUiOpen();
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="page">
+      <div className="page-aside">
         <div>
           <Link href={`/?week=${week.key}`} className="text-sm text-zinc-500 hover:underline">← Weekly report</Link>
           <h1 className="text-lg font-semibold">Import meetings</h1>

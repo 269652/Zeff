@@ -1,3 +1,5 @@
+import { PluginNotInstalled } from "@/components/PluginNotInstalled";
+import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
@@ -14,6 +16,8 @@ export const metadata: Metadata = { title: "GitLab" };
 
 export default async function GitlabPage({ searchParams }: { searchParams: Promise<{ q?: string; kind?: string }> }) {
   await connection();
+  // A plugin's page: there while it's installed.
+  if (!isInstalled("gitlab")) return <PluginNotInstalled id="gitlab" />;
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
   const kind: GitlabKind | undefined = sp.kind === "mr" || sp.kind === "comment" || sp.kind === "branch" ? sp.kind : undefined;
@@ -38,8 +42,8 @@ export default async function GitlabPage({ searchParams }: { searchParams: Promi
   })();
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="page">
+      <div className="page-aside">
         <h1 className="text-lg font-semibold">GitLab</h1>
         <p className="text-sm text-zinc-500">
           Merge requests you wrote, are assigned to or review, their comments (yours too), and your branches — read from{" "}
@@ -50,6 +54,7 @@ export default async function GitlabPage({ searchParams }: { searchParams: Promi
 
       <section className="card p-4">
         <SyncControls
+          syncKey="gitlab"
           sync={syncGitlabAction}
           save={saveGitlabSyncAction}
           baseUrl={settings.baseUrl}

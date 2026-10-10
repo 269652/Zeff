@@ -190,6 +190,14 @@ export function SyncMenu() {
             ))}
             {!data && <li className="px-3 py-3 text-sm text-zinc-500">Loading…</li>}
           </ul>
+          <div className="flex justify-between gap-3 border-t border-zinc-200 px-3 py-2 text-xs dark:border-zinc-800">
+            <Link href="/sync-settings" className="text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setOpen(false)}>
+              Intervalle einstellen
+            </Link>
+            <Link href="/logins" className="text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setOpen(false)}>
+              Anmeldungen
+            </Link>
+          </div>
         </div>
       )}
     </div>

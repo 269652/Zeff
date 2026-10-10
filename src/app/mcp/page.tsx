@@ -45,8 +45,8 @@ export default async function McpPage() {
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`;
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="page">
+      <div className="page-aside">
         <h1 className="text-lg font-semibold">Connect an agent</h1>
         <p className="text-sm text-zinc-500">
           Zeff exposes a Model Context Protocol server over Streamable HTTP. Any MCP client can

@@ -33,7 +33,7 @@ export function RecapDayPicker({ day, max }: { day: string; max: string }) {
         key={day}
         defaultValue={day}
         max={max}
-        onChange={(e) => e.target.value && router.push(`/boards?view=recap&day=${e.target.value}`)}
+        onChange={(e) => e.target.value && router.push(`/todos?view=recap&day=${e.target.value}`)}
         className="pointer-events-none absolute inset-0 opacity-0"
         tabIndex={-1}
         aria-hidden

@@ -1,5 +1,6 @@
 "use client";
 
+import { actionHref } from "@/plugins/actions/catalog";
 import { Fragment, useState, useTransition } from "react";
 import { deferTodoAction, dispatchWorkAction, setTodoStatusAction } from "@/app/actions";
 import {
@@ -16,12 +17,15 @@ import {
 import { OpChips } from "../work/WorkTodo";
 import type { TicketCard } from "@/lib/jira/ticket-card-shared";
 import { CopyButton } from "../CopyButton";
-import { ToBottomIcon, ToTopIcon } from "../icons";
+import { HoverCard } from "../HoverCard";
+import { BookIcon, SparkIcon, ToBottomIcon, ToTopIcon } from "../icons";
+import { usePluginOn } from "../PluginFlags";
+import { TodoKnowledgeList, TodoKnowledgePreview, useTodoKnowledge } from "@/plugins/knowledge/TodoKnowledge";
 import { FlagButton } from "./FlagButton";
 import { TicketLink } from "../TicketLink";
 import { toast } from "../Toaster";
 import { TodoAlternatives } from "./TodoAlternatives";
-import { TodoContext } from "./TodoSources";
+import { AreaToggle, ContextList, ContextToggle, useContextItems } from "./TodoSources";
 import { RunningSpinner } from "../RunningSpinner";
 import { useAgentInstructions } from "../AgentInstructions";
 import { TodoPlan } from "./TodoPlan";
@@ -120,7 +124,10 @@ export function TodoItem({
   sources = {},
   anchor = false,
   running = false,
+  workOn = true,
 }: {
+  /** The Work plugin installed — else no ✨ instruction (no worker to take it). */
+  workOn?: boolean;
   t: TodoView;
   showTicket?: boolean;
   cards?: Record<string, TicketCard>;
@@ -139,6 +146,11 @@ export function TodoItem({
   const [, start] = useTransition();
   const [doing, startDoing] = useTransition();
   const [quick, setQuick] = useState<QuickPanel>(null);
+  const [showActions, setShowActions] = useState(false);
+  const [showContext, setShowContext] = useState(false);
+  const [showKnowledge, setShowKnowledge] = useState(false);
+  const knowledgeOn = usePluginOn("knowledge");
+  const knowledge = useTodoKnowledge(t.id, knowledgeOn && showKnowledge);
   const [, startDefer] = useTransition();
   const instructions = useAgentInstructions();
   const set = (next: TodoStatus) => {
@@ -165,9 +177,14 @@ export function TodoItem({
     });
   };
   const closed = status !== "open";
+  // Proposed by the auto-actions review: folded behind "Show actions (n)" — they're suggestions.
+  const proposed = t.ops.length > 0 && !closed && !!t.autoOpsWhy;
   const cameFrom = sourcesOf(t.refs, sources);
+  const context = useContextItems(cameFrom, [...t.userNotes, ...(t.relatedNotes ?? [])], t.id);
   // An agent on it asks you something and waits.
   const asking = !closed && t.needsInput ? t.needsInput : null;
+  // What Zeff runs on a click — those that open in your browser (a mail draft, an appointment) are links of their own.
+  const zeffOps = t.ops.filter((o) => !actionHref(o));
   // New since you last looked: lightly highlighted till the mouse passes over it.
   const [fresh, markSeen] = useTodoNew(t.id, t.createdAt);
   const isFresh = fresh && !closed && !asking && !running && !doing;
@@ -187,7 +204,7 @@ export function TodoItem({
         onChange={() => set(closed ? "open" : "done")}
         aria-label={`${t.ref} ${closed ? "wieder öffnen" : "erledigt"}`}
       />
-      <div className="min-w-0 flex-1 text-sm">
+      <div className="min-w-0 flex-1 text-sm" data-hover-column>
         <span
           className={
             closed
@@ -234,7 +251,7 @@ export function TodoItem({
           {t.flaggedAt && !closed && <span className="font-medium text-red-600 dark:text-red-400"> · wichtig</span>}
           {t.deferred && !closed && <span className="text-zinc-400"> · zurückgestellt</span>}
           {t.bubbledUp && !closed && <span className="text-amber-600 dark:text-amber-400" title="Du hattest es nach unten gestellt — es ist wieder oben"> · wieder oben: {t.bubbledUp}</span>}
-          {!closed && <TodoQuickButtons panel={quick} onToggle={setQuick} aiDisabled={running || doing ? "Wird gerade bearbeitet — erst wenn der Lauf fertig ist" : undefined} />}
+          {!closed && <TodoQuickButtons todoId={t.id} panel={quick} onToggle={setQuick} aiDisabled={!workOn ? "Work ist nicht installiert (Menü → Plugins)" : running || doing ? "Wird gerade bearbeitet — erst wenn der Lauf fertig ist" : undefined} />}
         </span>
         <TodoQuickPanel todoId={t.id} todoRef={t.ref} panel={closed ? null : quick} onClose={() => setQuick(null)} />
         {t.note ? (
@@ -255,10 +272,89 @@ export function TodoItem({
           </span>
         )}
         {t.lastError && !closed && !running && !doing && <LastError text={t.lastError} run={t.lastErrorRun} />}
-        <TodoContext t={t} cameFrom={cameFrom} />
-        <TodoPlan t={{ planned: t.planned, status }} />
-        {t.ops.length > 0 && !closed && (
+        {/* Its toggles in one row — context, proposed actions; each unfolds its area below the row, stacked. */}
+        {(context.items.length > 0 || proposed || knowledgeOn) && (
+          <span className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+            <ContextToggle
+              items={context.items}
+              unread={context.unread}
+              open={showContext}
+              onToggle={() => {
+                if (!showContext) context.markSeen();
+                setShowContext(!showContext);
+              }}
+            />
+            {proposed &&
+              (() => {
+                const toggle = (
+                  <AreaToggle open={showActions} onToggle={() => setShowActions(!showActions)} label={`${showActions ? "Hide" : "Show"} actions (${t.ops.length})`} tone="violet">
+                    <SparkIcon className="size-3.5" />
+                  </AreaToggle>
+                );
+                // Closed: hover it for what they'd do, and why.
+                return showActions ? (
+                  toggle
+                ) : (
+                  <HoverCard
+                    card={
+                      <div className="space-y-1.5 rounded-lg border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 text-xs">
+                        <p className="flex items-start gap-1 text-violet-700 dark:text-violet-300">
+                          <SparkIcon className="mt-px size-3.5 shrink-0" />
+                          <span>Vorgeschlagen: {t.autoOpsWhy}</span>
+                        </p>
+                        <ul className="space-y-1">
+                          {t.ops.map((op, i) => (
+                            <li key={i} className="break-words rounded border border-sky-200 bg-sky-50 px-2 py-1 text-sky-900 dark:border-sky-900 dark:bg-sky-950/50 dark:text-sky-100">
+                              ⚡ {opLabel(op)}
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="text-zinc-500">Klicken: prüfen, anpassen, ausführen</p>
+                      </div>
+                    }
+                  >
+                    {toggle}
+                  </HoverCard>
+                );
+              })()}
+            {/* What the knowledge base (Confluence) has on it — looked up when first shown or hovered. */}
+            {knowledgeOn &&
+              (() => {
+                const toggle = (
+                  <AreaToggle open={showKnowledge} onToggle={() => setShowKnowledge(!showKnowledge)} label={`${showKnowledge ? "Hide" : "Show"} knowledge${knowledge && "pages" in knowledge ? ` (${knowledge.pages.length})` : ""}`} tone="emerald">
+                    <BookIcon className="size-3.5" />
+                  </AreaToggle>
+                );
+                return showKnowledge ? (
+                  toggle
+                ) : (
+                  <HoverCard card={<TodoKnowledgePreview todoId={t.id} />}>{toggle}</HoverCard>
+                );
+              })()}
+          </span>
+        )}
+        {showKnowledge && knowledgeOn && (
+          <div className="mt-1.5">
+            <TodoKnowledgeList k={knowledge} />
+          </div>
+        )}
+        {showContext && context.items.length > 0 && (
+          <span className="mt-1.5 block">
+            <ContextList items={context.items} todoId={t.id} />
+          </span>
+        )}
+        {t.ops.length > 0 && !closed && (!proposed || showActions) && (
           <span className="mt-1.5 flex flex-col gap-1.5">
+            {/* Proposed by the auto-actions review: said so, and why. */}
+            {proposed && (
+              <span
+                className="flex items-start gap-1 text-xs text-violet-700 dark:text-violet-300"
+                title="Vom Auto-Aktionen-Schritt vorgeschlagen — prüfen, anpassen (✎), dann ausführen"
+              >
+                <SparkIcon className="mt-px size-3.5 shrink-0" />
+                <span>Vorgeschlagen: {t.autoOpsWhy}</span>
+              </span>
+            )}
             <span className="flex items-center gap-2 max-sm:flex-col max-sm:items-start">
               <OpChips
                 ops={t.ops}
@@ -266,11 +362,11 @@ export function TodoItem({
                 todoId={doing || running ? undefined : t.id}
                 notes={t.links?.notes}
               />
-              <button
+              {zeffOps.length > 0 && <button
                 type="button"
                 className="btn btn-sm btn-primary shrink-0"
                 disabled={doing || running || !!t.blockedBy}
-                title={t.blockedBy ? `Wartet: ${t.blockedBy} — der GitLab-Sync merkt es, sobald es so weit ist` : `Zeff macht es selbst, ohne KI: ${t.ops.map(opLabel).join(" · ")}`}
+                title={t.blockedBy ? `Wartet: ${t.blockedBy} — der GitLab-Sync merkt es, sobald es so weit ist` : `Zeff macht es selbst, ohne KI: ${zeffOps.map(opLabel).join(" · ")}`}
                 onClick={() =>
                   startDoing(async () => {
                     const r = await dispatchWorkAction(t.id);
@@ -283,12 +379,14 @@ export function TodoItem({
                   })
                 }
               >
-                {doing || running ? "läuft…" : opsButton(t.ops)}
-              </button>
+                {doing || running ? "läuft…" : opsButton(zeffOps)}
+              </button>}
             </span>
             <TodoAlternatives t={t} disabled={doing || running} />
           </span>
         )}
+        {/* What comes after it — last, under its actions. */}
+        <TodoPlan t={{ planned: t.planned, status }} />
       </div>
       {!closed && <FlagButton todoId={t.id} todoRef={t.ref} flagged={!!t.flaggedAt} />}
       {!closed && (

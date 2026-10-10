@@ -48,3 +48,12 @@ next-env.d.ts
 CLAUDE.md
 /.claude/
 scripts/.probe-*.mjs
+
+# Knowledge server: its database and build
+/knowledge/data/
+/knowledge/.next/
+/knowledge/next-env.d.ts
+
+# Launcher (Electron) dependencies and the bundle
+/launcher/node_modules/
+/dist/

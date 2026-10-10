@@ -1,8 +1,10 @@
+import { PluginNotInstalled } from "@/components/PluginNotInstalled";
+import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { TeamsMessageList } from "@/components/TeamsMessageList";
-import { saveTeamsSyncAction, syncTeamsAction } from "@/app/actions";
+import { syncTeamsAction } from "@/app/actions";
 import { SyncControls } from "@/components/SyncControls";
 import { getTeamsSettings, listTeamsMessages, teamsMessageCounts } from "@/lib/teams/store";
 import { agoText } from "@/lib/teams/time";
@@ -12,6 +14,8 @@ export const metadata: Metadata = { title: "Teams" };
 
 export default async function TeamsPage({ searchParams }: { searchParams: Promise<{ q?: string; kind?: string }> }) {
   await connection();
+  // A plugin's page: there while it's installed.
+  if (!isInstalled("teams")) return <PluginNotInstalled id="teams" />;
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
   const kind: TeamsKind | undefined = sp.kind === "mention" || sp.kind === "pm" ? sp.kind : undefined;
@@ -26,8 +30,8 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
   ];
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="page">
+      <div className="page-aside">
         <h1 className="text-lg font-semibold">Teams</h1>
         <p className="text-sm text-zinc-500">
           Where you were @mentioned, and what colleagues wrote you in 1:1 chats — read from Teams in the automation Chrome
@@ -38,8 +42,8 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
 
       <section className="card p-4">
         <SyncControls
+          syncKey="teams"
           sync={syncTeamsAction}
-          save={saveTeamsSyncAction}
           syncMinutes={settings.syncMinutes}
           last={
             settings.lastSyncAt

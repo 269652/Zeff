@@ -6,6 +6,8 @@ import { getGitlabSettings } from "@/lib/gitlab/store";
 import { getTeamsSettings } from "@/lib/teams/store";
 import { getMailSettings } from "@/lib/mail/store";
 import { SYNC_KEYS, type SyncKey, type SyncOverview, type SyncView } from "./shared";
+import { stepAvailable } from "@/plugins/state";
+import { stepMinutes } from "./intervals";
 
 /** Quiet hours: from 19:00 to 08:00 nothing syncs by itself (by hand it still does). */
 export const QUIET = { from: 19, to: 8 };
@@ -71,16 +73,13 @@ async function lastAndCurrentWeeks(): Promise<string[]> {
   return [...last.weeks, ...current.weeks].map((w) => w.startIso);
 }
 
-/** How often the steps without settings of their own sync by themselves (the scheduler), in minutes. */
-export const EVERY_MINUTES = { jira: 15, calendar: 15, chrono: 240, punch: 1440 } as const;
-/** Kept for the scheduler's Jira job. */
-export const JIRA_EVERY_MINUTES = EVERY_MINUTES.jira;
 
 /** When Jira last synced — through the menu, its page, or by itself. */
 export const jiraLastSyncAt = () => recordedOr("jira", jiraTickets.syncedAt).lastAt;
 
 /** When a step last ran, however it was started. */
-export const lastSyncOf = (key: "calendar" | "chrono" | "punch") => (key === "calendar" ? recorded("calendar") : recordedOr(key, key === "chrono" ? chronoEntries.pulledAt : punchDays.pulledAt)).lastAt;
+export const lastSyncOf = (key: "calendar" | "chrono" | "punch" | "whatsapp" | "keep") =>
+  (key === "calendar" || key === "whatsapp" || key === "keep" ? recorded(key) : recordedOr(key, key === "chrono" ? chronoEntries.pulledAt : punchDays.pulledAt)).lastAt;
 
 /** Each step: how it runs, what it last did, when it runs by itself. All only read from elsewhere. */
 const STEPS: Record<SyncKey, Step> = {
@@ -97,7 +96,7 @@ const STEPS: Record<SyncKey, Step> = {
       return { ok: true, message: `${r.total} tickets — ${r.mine} yours (${r.inserted} new, ${r.updated} updated).` };
     },
     last: () => recordedOr("jira", jiraTickets.syncedAt),
-    schedule: () => ({ everyMinutes: JIRA_EVERY_MINUTES, lastAt: recordedOr("jira", jiraTickets.syncedAt).lastAt }),
+    schedule: () => ({ everyMinutes: stepMinutes("jira"), lastAt: recordedOr("jira", jiraTickets.syncedAt).lastAt }),
   },
   teams: {
     label: "Teams",
@@ -112,12 +111,28 @@ const STEPS: Record<SyncKey, Step> = {
   mail: {
     label: "Mail",
     href: "/mail",
-    what: "Your inbox's latest mails (read in Outlook, none opened)",
+    what: "Your inbox's latest mails (Outlook, Gmail — read from the list, none opened)",
     ownRecord: true,
     run: async () => (await import("@/lib/mail/sync")).syncMail(),
     busy: () => flag("__zeffMailSyncing"),
     last: () => lastOf("mail"),
     schedule: () => ({ everyMinutes: getMailSettings().syncMinutes, lastAt: iso(getMailSettings().lastSyncAt) }),
+  },
+  whatsapp: {
+    label: "WhatsApp",
+    href: "/mail?folder=WhatsApp",
+    what: "Your chats' latest messages (WhatsApp Web's chat list — no chat opened, nothing marked read)",
+    run: async () => (await import("@/lib/mail/sync")).syncWhatsapp(),
+    busy: () => flag("__zeffWhatsappSyncing"),
+    schedule: () => ({ everyMinutes: stepMinutes("whatsapp"), lastAt: recorded("whatsapp").lastAt, window: "while the automation Chrome runs" }),
+  },
+  keep: {
+    label: "Google Keep",
+    href: "/apps/keep",
+    what: "Your Google Keep notes (Keep opened in a fresh tab, what it loads kept — nothing in Keep changes)",
+    run: async () => (await import("@/plugins/keep/sync")).syncKeep(),
+    busy: () => flag("__zeffKeepSyncing"),
+    schedule: () => ({ everyMinutes: stepMinutes("keep"), lastAt: recorded("keep").lastAt, window: "while the automation Chrome runs" }),
   },
   gitlab: {
     label: "GitLab",
@@ -138,7 +153,7 @@ const STEPS: Record<SyncKey, Step> = {
       const r = await syncOutlookWeekStarts(await outlookWeeks());
       return { ok: true, message: `${r.weeks} weeks from Outlook — ${r.events} events.` };
     },
-    schedule: () => ({ everyMinutes: EVERY_MINUTES.calendar, lastAt: lastSyncOf("calendar"), window: "while the automation Chrome runs" }),
+    schedule: () => ({ everyMinutes: stepMinutes("calendar"), lastAt: lastSyncOf("calendar"), window: "while the automation Chrome runs" }),
   },
   chrono: {
     label: "Chrono",
@@ -146,7 +161,7 @@ const STEPS: Record<SyncKey, Step> = {
     what: "Your Chrono entries' approvals, last and this month (read-only)",
     run: async () => (await import("./pulls")).pullChronoWeekStarts(await lastAndCurrentWeeks()),
     last: () => recordedOr("chrono", chronoEntries.pulledAt),
-    schedule: () => ({ everyMinutes: EVERY_MINUTES.chrono, lastAt: lastSyncOf("chrono"), window: "while the automation Chrome runs" }),
+    schedule: () => ({ everyMinutes: stepMinutes("chrono"), lastAt: lastSyncOf("chrono"), window: "while the automation Chrome runs" }),
   },
   punch: {
     label: "Punch",
@@ -159,11 +174,11 @@ const STEPS: Record<SyncKey, Step> = {
       return { ok: true, message: `Read Punch for ${days.length} days.` };
     },
     last: () => recordedOr("punch", punchDays.pulledAt),
-    schedule: () => ({ everyMinutes: EVERY_MINUTES.punch, lastAt: lastSyncOf("punch"), window: "while the automation Chrome runs" }),
+    schedule: () => ({ everyMinutes: stepMinutes("punch"), lastAt: lastSyncOf("punch"), window: "while the automation Chrome runs" }),
   },
   boards: {
     label: "Ticket-Lage",
-    href: "/boards",
+    href: "/todos",
     what: "Your tickets through the AI: what happened, what's to do",
     ownRecord: true,
     run: async () => {
@@ -178,7 +193,7 @@ const STEPS: Record<SyncKey, Step> = {
     // The Lage itself: not while its run syncs first or relates the mails (their own steps show that).
     busy: () => {
       const r = (globalThis as { __zeffBoardRun?: { phase: string } | null }).__zeffBoardRun;
-      return !!r && r.phase !== "sync" && r.phase !== "mailtodos" && r.phase !== "mails";
+      return !!r && r.phase !== "sync" && r.phase !== "mailtodos" && r.phase !== "mails" && r.phase !== "autoactions";
     },
     last: () => {
       const run = latestRun();
@@ -193,7 +208,7 @@ const STEPS: Record<SyncKey, Step> = {
   },
   mailtodos: {
     label: "Mail-Durchsicht",
-    href: "/boards",
+    href: "/todos",
     what: "Todos from your mails — what they ask of you (trainings, deadlines, forms), by the AI (after each Ticket-Lage)",
     run: async () => {
       const r = await (await import("@/lib/boards/mail-todos")).reviewMailsForTodos(
@@ -207,9 +222,35 @@ const STEPS: Record<SyncKey, Step> = {
     // It runs with the Ticket-Lage (after it, before the Mail-Zuordnung).
     schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("mailtodos").lastAt, window: "workdays, with the Ticket-Lage" }),
   },
+  autoactions: {
+    label: "Auto-Aktionen",
+    href: "/todos",
+    what: "Ready actions for the todos without a button — by the AI, from what the installed plugins can do (after each Ticket-Lage)",
+    run: async () => {
+      const r = await (await import("@/plugins/auto-actions/review")).reviewTodosForActions();
+      return r.ok
+        ? { ok: true, message: `${r.reviewed} Todos durchgesehen, ${r.withActions} mit Aktionen${r.error ? ` (${r.error})` : ""}` }
+        : { ok: false, message: r.error ?? "Fehlgeschlagen." };
+    },
+    busy: () => flag("__zeffAutoActions"),
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("autoactions").lastAt, window: "workdays, with the Ticket-Lage" }),
+  },
+  boardlage: {
+    label: "Board-Lage",
+    href: "/kanban",
+    what: "The Lage of every relevant ticket on your Jira boards (not only yours) — for the Kanban cards (by hand: a Jira board's Auswerten; only what changed)",
+    run: async () => {
+      const r = await (await import("@/plugins/jira-lage/board-lage")).runBoardLage();
+      return r.ok
+        ? { ok: true, message: `${r.relevant} Tickets ${r.all ? "(alle)" : "(mit dir)"} · ${r.analyzed} neu eingeschätzt · ${r.unchanged} unverändert${r.failed ? ` · ${r.failed} fehlgeschlagen` : ""}` }
+        : { ok: false, message: r.error ?? "Fehlgeschlagen." };
+    },
+    busy: () => flag("__zeffBoardLage"),
+    schedule: () => ({ everyMinutes: 0, lastAt: recorded("boardlage").lastAt, window: "by hand — a Jira board's Auswerten" }),
+  },
   relations: {
     label: "Mail-Zuordnung",
-    href: "/boards",
+    href: "/todos",
     what: "Which mails each open todo is about — the AI reads them by content (after each Ticket-Lage)",
     run: async () => {
       const r = await (await import("@/lib/boards/mail-relations")).relateMails();
@@ -247,7 +288,8 @@ function nextRun(everyMinutes: number, lastAt: string | null, workdaysOnly = fal
 /** All steps as the menu shows them. */
 export function syncOverview(): SyncOverview {
   const l = live();
-  const steps: SyncView[] = SYNC_KEYS.map((key) => {
+  // Only the steps there are: Zeff's own and the installed plugins'.
+  const steps: SyncView[] = SYNC_KEYS.filter((key) => stepAvailable(key)).map((key) => {
     const s = STEPS[key];
     const sched = s.schedule?.();
     return {
@@ -268,6 +310,8 @@ export function syncOverview(): SyncOverview {
 /** Run one step to the end, keeping how it went. */
 async function runStep(key: SyncKey): Promise<void> {
   const l = live();
+  // A plugin's step while it isn't installed: nothing.
+  if (!stepAvailable(key)) return;
   if (l.running.has(key) || STEPS[key].busy?.()) return;
   l.running.add(key);
   try {
@@ -291,6 +335,7 @@ export async function syncAndWait(key: SyncKey): Promise<Last> {
 
 /** Start one step in the background. */
 export function startSync(key: SyncKey): { ok: boolean; message: string } {
+  if (!stepAvailable(key)) return { ok: false, message: `${STEPS[key].label}: das Plugin ist nicht installiert (Settings → Plugins).` };
   if (live().running.has(key) || STEPS[key].busy?.()) return { ok: false, message: `${STEPS[key].label} is already syncing.` };
   void runStep(key);
   return { ok: true, message: `${STEPS[key].label} is syncing.` };
@@ -307,7 +352,7 @@ export function startSyncAll(): { ok: boolean; message: string } {
   void (async () => {
     try {
       // The Mail-Durchsicht and -Zuordnung come with the Ticket-Lage (its last steps) — not twice.
-      for (const key of SYNC_KEYS.filter((k) => k !== "relations" && k !== "mailtodos")) {
+      for (const key of SYNC_KEYS.filter((k) => k !== "relations" && k !== "mailtodos" && k !== "autoactions" && k !== "boardlage" && stepAvailable(k))) {
         l.all = key;
         await runStep(key);
       }

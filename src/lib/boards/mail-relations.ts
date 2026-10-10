@@ -1,5 +1,5 @@
 import { aiChoice, runAi } from "@/lib/ai";
-import { COPILOT_MAX_PROMPT } from "@/lib/ai/copilot";
+import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { errorMessage } from "@/lib/errors";
 import { getJiraTicket } from "@/lib/jira/store";
 import { MAIL_CONTEXT_DAYS, mailsForTickets } from "@/lib/mail/store";
@@ -89,7 +89,7 @@ export function relateMails(): Promise<MailRelationResult> {
     for (const batch of batches) {
       const prompt = `${INSTRUCTIONS}\n\n${batch.map((g) => block(g.key, g.todos, g.mails)).join("\n\n")}`.slice(0, limit + INSTRUCTIONS.length + 200);
       // A batch that fails: its todos keep the mails they have.
-      const answer = await runAi<Answer>(prompt, SCHEMA, { timeoutMs: 10 * 60000, maxBudgetUsd: 1 }).catch((e) => {
+      const answer = await runAi<Answer>(prompt, SCHEMA, { task: "mail-relations", timeoutMs: 10 * 60000, maxBudgetUsd: 1 }).catch((e) => {
         console.error("[mail-relations]", errorMessage(e));
         failed++;
         return null;

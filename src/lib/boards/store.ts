@@ -1,4 +1,3 @@
-import { myJiraName } from "@/lib/jira/store";
 import { duplicateTodo } from "./similar";
 import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
@@ -130,6 +129,7 @@ const toTodo = (r: Todo): TodoView => ({
   // What it came from (the Ticket-Lage's pick), then the mails related to it.
   refs: [...new Set([...parse<string[]>(r.refs, []), ...mailRefsOf(r)])],
   mailRefs: mailRefsOf(r),
+  autoOpsWhy: r.autoOpsWhy ?? null,
   note: r.note,
   draft: r.draft,
   channel: r.channel === "jira" || r.channel === "teams" || r.channel === "gitlab" ? r.channel : null,
@@ -445,12 +445,24 @@ export function addMailTodo(v: { ticket: string; text: string; kind: string; own
   return toTodo(row);
 }
 
+/** A todo for a work session (Work: a new session — on a ticket, or none): your instruction's first line. */
+export function addSessionTodo(v: { ticket: string; text: string }): TodoView {
+  emitChange("todos");
+  const now = new Date().toISOString();
+  const row = getDb()
+    .insert(todos)
+    .values({ ticket: v.ticket.trim().toUpperCase(), text: v.text.trim().slice(0, 500), kind: "other", owner: "me", status: "open", source: "Work-Session", refs: "[]", runId: null, createdAt: now, updatedAt: now })
+    .returning()
+    .get();
+  return toTodo(row);
+}
+
 /** A todo's operations, replaced (e.g. merging straight into main instead of a merge request). */
 export function setTodoOps(id: number, ops: TodoView["ops"], text?: string): TodoView {
   emitChange("todos");
   getDb()
     .update(todos)
-    .set({ ops: JSON.stringify(ops), ...(text ? { text: text.slice(0, 500) } : {}), updatedAt: new Date().toISOString() })
+    .set({ ops: JSON.stringify(ops), autoOpsWhy: null, ...(text ? { text: text.slice(0, 500) } : {}), updatedAt: new Date().toISOString() })
     .where(eq(todos.id, id))
     .run();
   return getTodo(id)!;
@@ -490,6 +502,16 @@ export function addTodoAiNote(id: number, v: { text: string; by: string; url?: s
   if (!t || !v.text.trim()) return;
   const note = { at: new Date().toISOString(), text: v.text.trim().slice(0, 4000), by: v.by, ...(v.url ? { url: v.url, urlLabel: v.urlLabel ?? v.url } : {}) };
   getDb().update(todos).set({ userNotes: JSON.stringify([...t.userNotes, note]), updatedAt: new Date().toISOString() }).where(eq(todos.id, id)).run();
+  emitChange("todos");
+}
+
+/** Your instruction to a worker (✨), kept on the todo as your words — with the run doing it. */
+export function addTodoInstruction(id: number, text: string, runId: number): void {
+  const t = getTodo(id);
+  const note = text.trim().slice(0, 4000);
+  if (!t || !note) return;
+  const n: TodoView["userNotes"][number] = { at: new Date().toISOString(), text: note, kind: "instruction", run: runId };
+  getDb().update(todos).set({ userNotes: JSON.stringify([...t.userNotes, n]), updatedAt: new Date().toISOString() }).where(eq(todos.id, id)).run();
   emitChange("todos");
 }
 
@@ -547,23 +569,12 @@ export function setTodoDraft(id: number, v: { draft: string | null; channel?: st
  * (numbered), one it found done or overtaken closed with its reason. Open ones it didn't
  * mention stay as they are. How many of each.
  */
-/** "Moritz Rößler" → "moritz rossler": names compared without case and accents. */
-const plainName = (s: string) =>
-  s
-    .normalize("NFD")
-    .replace(/\p{M}/gu, "")
-    .replace(/ß/g, "ss")
-    .toLowerCase()
-    .trim();
-
 export function reconcileTodos(result: BoardResult, runId: number): { added: number; kept: number; closed: number } {
   emitChange("todos");
   const out = { added: 0, kept: 0, closed: 0 };
   const now = new Date().toISOString();
   const resolved: number[] = [];
-  // Its operations, minus messages to yourself (you're no colleague to write to).
-  const me = plainName(myJiraName() ?? "");
-  const opsOf = (raw: unknown, ticket: string) => cleanOps(raw, ticket).filter((o) => !(o.type === "teams-message" && me && plainName(o.to) === me));
+  // (The Lage's own operations aren't taken: a todo's actions are the auto-actions step's.)
   // What's open on any ticket: a new todo repeating one of them isn't made again.
   const openAll = listTodos({ status: "open" });
   getDb().transaction((tx) => {
@@ -598,19 +609,18 @@ export function reconcileTodos(result: BoardResult, runId: number): { added: num
           owner: td.owner === "other" ? "other" : "me",
           source: td.source?.trim().slice(0, 200) || null,
           refs: JSON.stringify((td.refs ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).filter((r) => /^(jira-comment|teams|gitlab|mail):./.test(r)).slice(0, 15)),
-          ops: JSON.stringify(opsOf(td.ops, ticket)),
+          ops: "[]",
           runId,
           updatedAt: now,
         };
         const plan = cleanPlan(td.then, ticket);
         if (td.id && open.has(td.id)) {
-          // Kept: Zeff's own delivery steps stay as they are (the AI doesn't know them); other
-          // operations are replaced only by new ones.
+          // Kept: its operations stay as they are (the auto-actions', a delivery's) — and with
+          // Zeff's own delivery steps, its kind and owner too (the AI doesn't know them).
           const before = tx.select({ ops: todos.ops, kind: todos.kind, owner: todos.owner }).from(todos).where(eq(todos.id, td.id)).get();
           const had = cleanOps(parse<unknown[]>(before?.ops ?? "[]", []), ticket);
           const delivery = had.some((o) => (DELIVERY_OP_TYPES as readonly string[]).includes(o.type));
-          const fresh = opsOf(td.ops, ticket);
-          const keep = delivery ? { ops: before!.ops, kind: before!.kind, owner: before!.owner } : fresh.length ? {} : { ops: JSON.stringify(had) };
+          const keep = delivery ? { ops: before!.ops, kind: before!.kind, owner: before!.owner } : { ops: before?.ops ?? "[]" };
           // Its plan: the new one, else the one it has.
           tx.update(todos).set({ ...values, ...keep, ...(plan.length ? { planned: JSON.stringify(plan) } : {}) }).where(eq(todos.id, td.id)).run();
           open.delete(td.id);

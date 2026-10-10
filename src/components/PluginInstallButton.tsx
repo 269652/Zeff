@@ -1,0 +1,29 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
+import { setPluginInstalledAction } from "@/app/actions";
+import type { PluginId } from "@/plugins/catalog";
+import { toast } from "./Toaster";
+
+/** Install / uninstall a plugin — the page (and the menu) follow at once. */
+export function PluginInstallButton({ id, installed }: { id: PluginId; installed: boolean }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  return (
+    <button
+      type="button"
+      className={`btn btn-sm ${installed ? "" : "btn-primary"}`}
+      disabled={pending}
+      onClick={() =>
+        start(async () => {
+          const r = await setPluginInstalledAction(id, !installed);
+          toast(r?.ok ? (r.message ?? "Erledigt.") : (r?.error ?? "Ging nicht."), { tone: r?.ok ? "ok" : "error" });
+          router.refresh();
+        })
+      }
+    >
+      {pending ? "…" : installed ? "Deinstallieren" : "Installieren"}
+    </button>
+  );
+}

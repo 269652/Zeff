@@ -11,7 +11,7 @@ const full = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
 /** Where a todo is shown: the Boards page (its "Erledigt" tab once it's closed) — brought into view there. */
-export const todoHref = (t: Pick<TodoView, "id" | "status">) => (t.status === "open" ? `/boards#todo-${t.id}` : `/boards?todos=done#todo-${t.id}`);
+export const todoHref = (t: Pick<TodoView, "id" | "status">) => (t.status === "open" ? `/todos#todo-${t.id}` : `/todos?todos=done#todo-${t.id}`);
 
 const STATUS = { open: "offen", done: "erledigt", dismissed: "verworfen" } as const;
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { deleteEntryAction } from "@/app/actions";
 import { contextBriefs } from "@/lib/contexts";
+import { entryTodoContext } from "@/lib/entry-todo-context";
 import type { EntryWithJob } from "@/lib/entries";
 import { entryTypeMap } from "@/lib/entry-types";
 import { getTicketCards } from "@/lib/jira/store";
@@ -14,6 +15,7 @@ import { ProjectWithJob } from "./ProjectWithJob";
 import { ChronoMark, CHRONO_APPROVED_TEXT } from "./ChronoMark";
 import { SubmitButton } from "./SubmitButton";
 import { ContextHoverIcon } from "./ContextHoverIcon";
+import { EntryTodoContextToggle } from "./EntryTodoContext";
 import { TrashIcon } from "./icons";
 import { TicketLink } from "./TicketLink";
 import { TypeBadge } from "./TypeBadge";
@@ -38,6 +40,8 @@ export function EntriesTable({
   const types = entryTypeMap();
   // Entries with context get an info icon leading to their edit page, with a hover card of the items.
   const briefs = contextBriefs(entries.map((e) => e.id));
+  // And the context of the todos that flowed into it, as the todos show it.
+  const fromTodos = entryTodoContext(entries.map((e) => e.id));
   const contextTickets = Object.values(briefs).flatMap((b) => b.items.map((i) => i.ticket));
   const ticketCards = getTicketCards([...entries.map((e) => e.ticket), ...contextTickets]);
   const ticketUrls = Object.fromEntries(Object.entries(ticketCards).map(([key, card]) => [key, card.url]));
@@ -95,6 +99,7 @@ export function EntriesTable({
                   </Link>
                   {briefs[e.id] && <ContextHoverIcon entryId={e.id} brief={briefs[e.id]} ticketUrls={ticketUrls} />}
                 </div>
+                {fromTodos[e.id] && <EntryTodoContextToggle ctx={fromTodos[e.id]} />}
               </td>
               <td className="whitespace-nowrap">
                 {e.ticket && <TicketLink ticket={e.ticket} card={ticketCards[e.ticket.toUpperCase()]} />}

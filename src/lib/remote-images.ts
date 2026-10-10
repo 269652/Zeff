@@ -1,3 +1,4 @@
+import { automationEnv } from "@/plugins/drivers";
 import path from "node:path";
 import { isRemoteImage, type FetchedImage } from "@/lib/contexts-shared";
 import { errorMessage } from "@/lib/errors";
@@ -45,7 +46,7 @@ async function fetchViaChrome(urls: string[]): Promise<FetchedImage[]> {
   const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
   const script = path.join(/*turbopackIgnore: true*/ process.cwd(), "scripts", "images-mcp.mjs");
   const out = await runStdioSession(
-    { command: process.execPath, args: [script], env: {}, label: "Picture download" },
+    { command: process.execPath, args: [script], env: automationEnv(), label: "Picture download" },
     async (call) => resultToPayload(await call("fetch_images", { urls })),
     150000, // may start the automation Chrome first
   );

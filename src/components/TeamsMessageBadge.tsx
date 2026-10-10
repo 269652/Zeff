@@ -55,10 +55,10 @@ export function TeamsMessageBadge({
   const what = (
     <>
       {onToggle && <ChevronIcon open={expanded} className="size-3.5 shrink-0 text-violet-500 dark:text-violet-400" />}
-      <ResolvedMark done={resolved ?? !!m.resolvedAt} />
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinejoin="round" className="size-4 shrink-0 text-violet-600 dark:text-violet-400" aria-hidden>
         <path d="M3.5 4.75A1.75 1.75 0 0 1 5.25 3h9.5a1.75 1.75 0 0 1 1.75 1.75v7.5A1.75 1.75 0 0 1 14.75 14H9l-3.5 3v-3h-.25A1.75 1.75 0 0 1 3.5 12.25z" />
       </svg>
+      <ResolvedMark done={resolved ?? !!m.resolvedAt} />
       <span className="shrink-0 font-medium">{m.senderName ?? "Teams"}</span>
       {/* Where and when — on a phone it gives way too (ellipsis). */}
       <span className="shrink-0 text-violet-700/80 max-sm:min-w-0 max-sm:shrink max-sm:truncate dark:text-violet-300/80">

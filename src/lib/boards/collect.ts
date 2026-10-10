@@ -1,3 +1,4 @@
+import { isJiraKey, isKanbanKey } from "@/lib/ticket-keys";
 import { and, desc, eq, gte, like, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { resolveLinks } from "@/lib/context-links";
@@ -17,7 +18,7 @@ import { getJiraSyncConfig } from "@/lib/jira/sync";
 import { commentsOfTickets, keepComments } from "@/lib/jira/comments";
 import { resolvedCommentIds } from "@/lib/resolved";
 import { listTodos } from "./store";
-import { opsDictionary, planLine, type BoardRunView, type BoardTicket } from "./shared";
+import { planLine, type BoardRunView, type BoardTicket } from "./shared";
 
 const { timeEntries, contexts, entryContexts, teamsMessages, gitlabItems } =
   schema;
@@ -289,7 +290,7 @@ function todoLines(key: string): string[] {
   const lines: string[] = [];
   for (const t of listTodos({ ticket: key, status: "open" }))
     lines.push(
-      `- [${t.id}] offen (${t.kind}, ${t.owner}): ${t.text}${t.draft ? ` — Entwurf${t.channel ? ` für ${t.channel}` : ""}: „${plain(t.draft, 600)}“` : ""}${t.ops.length ? ` — ops schon: ${JSON.stringify(t.ops)}` : ""}${t.path ? ` — auf dem Weg „${t.path}“` : ""}${t.note ? ` — Notiz: ${t.note}` : ""}${t.userNotes.some((n) => !n.by) ? ` — MEINE NOTIZEN dazu: ${t.userNotes.filter((n) => !n.by).map((n) => `„${plain(n.text, 800)}“`).join(" ")}` : ""}${t.userNotes.some((n) => n.by) ? ` — Berichte der Läufe daran: ${t.userNotes.filter((n) => n.by).map((n) => `${n.by}: „${plain(n.text, 600)}“${n.url ? ` (${n.url})` : ""}`).join(" ")}` : ""}${t.planned.length ? ` — geplant danach: ${planLine(t.planned)}` : ""}${t.flaggedAt ? " — WICHTIG (von mir markiert)" : ""}${linkedLine(t, key)}`,
+      `- [${t.id}] offen (${t.kind}, ${t.owner}): ${t.text}${t.draft ? ` — Entwurf${t.channel ? ` für ${t.channel}` : ""}: „${plain(t.draft, 600)}“` : ""}${t.ops.length ? ` — ops schon: ${JSON.stringify(t.ops)}` : ""}${t.path ? ` — auf dem Weg „${t.path}“` : ""}${t.note ? ` — Notiz: ${t.note}` : ""}${t.userNotes.some((n) => !n.by) ? ` — MEINE NOTIZEN dazu: ${t.userNotes.filter((n) => !n.by).map((n) => `${n.kind === "instruction" ? `(Anweisung an W-${n.run ?? "?"}) ` : ""}„${plain(n.text, 800)}“`).join(" ")}` : ""}${t.userNotes.some((n) => n.by) ? ` — Berichte der Läufe daran: ${t.userNotes.filter((n) => n.by).map((n) => `${n.by}: „${plain(n.text, 600)}“${n.url ? ` (${n.url})` : ""}`).join(" ")}` : ""}${t.planned.length ? ` — geplant danach: ${planLine(t.planned)}` : ""}${t.flaggedAt ? " — WICHTIG (von mir markiert)" : ""}${linkedLine(t, key)}`,
     );
   const recent = new Date(Date.now() - 21 * 864e5).toISOString();
   for (const t of listTodos({ ticket: key, status: "all" })) {
@@ -302,14 +303,14 @@ function todoLines(key: string): string[] {
 }
 
 /** How much of each ticket goes in — tighter steps for a provider that takes shorter prompts. */
-type Limits = {
+export type Limits = {
   description: number;
   comments: number;
   commentChars: number;
   changes: number;
   zeff: number;
 };
-const LIMITS: Limits[] = [
+export const LIMITS: Limits[] = [
   { description: 1500, comments: 12, commentChars: 800, changes: 15, zeff: 30 },
   { description: 800, comments: 8, commentChars: 500, changes: 10, zeff: 8 },
   { description: 400, comments: 5, commentChars: 300, changes: 6, zeff: 4 },
@@ -352,7 +353,7 @@ function people(issue: Issue): string[] {
 }
 
 /** One ticket for the prompt. */
-function ticketBlock(
+export function ticketBlock(
   issue: Issue,
   previous: BoardRunView | null,
   limits: Limits = LIMITS[0],
@@ -362,6 +363,9 @@ function ticketBlock(
 ): string {
   const lines = [
     `## ${issue.key} · ${issue.summary ?? ""}`,
+    ...(isKanbanKey(issue.key)
+      ? ["(Eigene Kanban-Karte in Zeff, kein Jira-Ticket: als Aktion nur ein Übergang in eine der Spalten unten — keine Zuweisung, keine Jira-Kommentare.)"]
+      : []),
     [
       `Status: ${issue.status?.name ?? "?"}`,
       `Typ: ${issue.issue_type?.name ?? "?"}`,
@@ -537,7 +541,7 @@ function factsOf(
 
 const INSTRUCTIONS = `Du erstellst meine Ticket-Lage. Sprich mich mit „du“ an, schreib auf Deutsch, nüchtern und konkret: Daten, Namen, was offen ist — keine Floskeln, nichts erfinden, was nicht in den Daten steht.
 
-Steht bei einem offenen Todo in der Notiz, dass eine Teams-Nachricht schon gesendet wurde, schlägst du dafür keine neue teams-message vor — höchstens ein kurzes Nachhaken, wenn seitdem mehr als ein Arbeitstag ohne Antwort vergangen ist.\n\nTodos, die ich als WICHTIG markiert habe, sind dringend: behalte sie (Text gern schärfen), stelle sie in lead und attention nach vorn und schließe sie nur, wenn sie belegt erledigt sind. Unter „E-Mails“ stehen Mails aus meinem Posteingang, die das Ticket nennen (Betreff und die ersten Zeilen, wie die Liste sie zeigt) — was darin erbeten, gemeldet oder vereinbart wurde, gehört in die Lage und wird zum Todo, mit der Kennung (mail:…) unter refs. Automatische Benachrichtigungen (Jira, GitLab, Systeme) wiederholen meist, was du schon aus Jira und GitLab weißt: nur, wenn sie etwas Neues sagen. Warte ich bei einem Todo auf jemanden („Antwort abwarten“, „auf die Freigabe warten“), ist es owner other. Mache ich etwas mit jemandem zusammen („mit X auf Test prüfen“, „mit X klären“), bekommt das Todo eine teams-message an X, die fragt, wann X Zeit dafür hat — außer ein Termin steht schon fest (Chat) oder die Frage ging schon raus.\n\nUnter „Teams-Chats“ stehen die Chats der letzten Tage (auch meine eigenen Nachrichten). Was dort vereinbart, zugesagt oder erbeten wurde (z. B. „das muss in der Migration auf ein anderes CE gemappt werden“), wird zu Todos beim Ticket, um das es geht — mit den Kennungen ALLER Nachrichten des Gesprächs, die dafür relevant sind (teams:…), unter refs: auch die vorherigen, die den Zusammenhang erklären (die Frage zur Antwort, die Absprache davor), und meine eigenen — nicht nur die letzte. Small Talk und Unbeteiligtes lässt du weg. Was schon erledigt ist oder kein Ticket betrifft, lässt du weg.\n\nUnter „Verwandtes Ticket“ stehen Tickets, die mit diesem zusammenhängen (hier erwähnt oder es erwähnen) — mit ihren neuen Kommentaren. Was dort passiert und dieses Ticket betrifft (z. B. die Umsetzung läuft über das andere Ticket), gehört in die Lage DIESES Tickets: in lead, happened und todos — mit den Kennungen dieser Kommentare unter refs.
+Steht bei einem offenen Todo in der Notiz, dass eine Teams-Nachricht schon gesendet wurde, schlägst du dafür keine neue teams-message vor — höchstens ein kurzes Nachhaken, wenn seitdem mehr als ein Arbeitstag ohne Antwort vergangen ist.\n\nTodos, die ich als WICHTIG markiert habe, sind dringend: behalte sie (Text gern schärfen), stelle sie in lead und attention nach vorn und schließe sie nur, wenn sie belegt erledigt sind. Unter „E-Mails“ stehen Mails aus meinem Posteingang, die das Ticket nennen (Betreff und die ersten Zeilen, wie die Liste sie zeigt) — was darin erbeten, gemeldet oder vereinbart wurde, gehört in die Lage und wird zum Todo, mit der Kennung (mail:…) unter refs. Automatische Benachrichtigungen (Jira, GitLab, Systeme) wiederholen meist, was du schon aus Jira und GitLab weißt: nur, wenn sie etwas Neues sagen. Warte ich bei einem Todo auf jemanden („Antwort abwarten“, „auf die Freigabe warten“), ist es owner other. \n\nUnter „Teams-Chats“ stehen die Chats der letzten Tage (auch meine eigenen Nachrichten). Was dort vereinbart, zugesagt oder erbeten wurde (z. B. „das muss in der Migration auf ein anderes CE gemappt werden“), wird zu Todos beim Ticket, um das es geht — mit den Kennungen ALLER Nachrichten des Gesprächs, die dafür relevant sind (teams:…), unter refs: auch die vorherigen, die den Zusammenhang erklären (die Frage zur Antwort, die Absprache davor), und meine eigenen — nicht nur die letzte. Small Talk und Unbeteiligtes lässt du weg. Was schon erledigt ist oder kein Ticket betrifft, lässt du weg.\n\nUnter „Verwandtes Ticket“ stehen Tickets, die mit diesem zusammenhängen (hier erwähnt oder es erwähnen) — mit ihren neuen Kommentaren. Was dort passiert und dieses Ticket betrifft (z. B. die Umsetzung läuft über das andere Ticket), gehört in die Lage DIESES Tickets: in lead, happened und todos — mit den Kennungen dieser Kommentare unter refs.
 
 Unter „Git“ steht, was im Repo des Tickets wirklich passiert ist (frisch abgerufen): Commits auf dem Standardbranch (also gemergt) und die Branches mit ihrem Stand — auch zu verwandten Tickets, denn oft wurde die Arbeit unter dem Schlüssel eines anderen Tickets committet. Das ist der Beleg dafür, ob etwas gemergt oder gepusht ist — steht ein Commit zum Ticket auf main oder ist sein Branch gemergt, ist die Änderung auf main; frag dann nicht danach und leg kein Todo dafür an. „MEINE NOTIZEN“ an einem Todo hat der Nutzer selbst geschrieben: sein Kontext dazu (was er weiß, was er will, was schon geklärt ist) — er geht anderen Daten vor; richte das Todo und seinen Text danach. Ist ein Merge Request zu öffnen, schreib das Todo als „Merge Request für <Branch> öffnen …“ mit dem VOLLEN Branchnamen wie unter „Git“ — Zeff hängt den Knopf (Push → MR öffnen) selbst an.
 
@@ -549,7 +553,7 @@ Gib zurück:
   - happened: die wichtigsten Ereignisse (Kommentare, Statuswechsel, Zuweisungen, Buchungen, Commits), neueste zuerst, höchstens 6.
   - todos: konkrete, umsetzbare Schritte, die aus den Daten folgen — ein Satz, Verb zuerst, prüfbar (z. B. „Julia antworten, ob der Bestell-Link ein Deployment braucht“). owner = me für meine, other für das, worauf ich bei anderen warte. Bestehende offene Todos (Nummer in eckigen Klammern) übernimmst du mit ihrer id, wenn sie noch gelten (Text gern schärfen); sind sie laut Daten erledigt oder überholt, gehören sie mit Begründung unter resolved — mit done: true nur, wenn sie wirklich erledigt sind (dann legt Zeff ihre geplanten Folgeschritte an), sonst done: false. Jedes bestehende offene Todo kommt genau einmal vor — in todos oder in resolved. Als erledigt oder verworfen markierte legst du nicht neu an, außer neue Aktivität verlangt es ausdrücklich. Gib bei jedem Todo unter refs die Kennungen der Kommentare (Jira, GitLab) und Teams-Nachrichten an, aus denen es folgt oder die man dafür kennen muss (alle relevanten, bis zu 15 — wählt sorgfältig nach Inhalt aus: sie sind der GANZE Kontext, den der Nutzer und die Worker am Todo sehen; Zeff ergänzt nichts drumherum, also nenne bei einer Antwort auch die Frage, bei einer Zusage auch die Bitte davor — und nichts, was um etwas anderes geht) (die Kennung aus den eckigen Klammern vor ihnen, z. B. jira-comment:12345 oder gitlab:note:678) — eine leere Liste nur, wenn es aus keinem davon folgt (etwa aus der Beschreibung).
     Plane bei jedem Todo unter then, was danach kommt, bis das Ticket durch ist — z. B. nach dem Umsetzen: Manuell testen und verifizieren (kind test, owner me) → Merge Request / Code Review → Deploy auf Test → Testen → Ticket auf Testing setzen. Nach dem Umsetzen kommt IMMER zuerst das manuelle Testen durch mich, vor Merge Request oder Merge — nie direkt ausliefern. Wo es echte Alternativen gibt, je ein benannter Weg: etwa „Merge Request“ (MR öffnen → Review abwarten → mergen → deployen → testen) und „Direkt auf main“ (direkt mergen → deployen → testen). Nur die nächsten absehbaren Schritte (höchstens 6 je Weg), jeder ein Satz wie ein Todo, mit ops, wo sie passen. Diese Schritte legst du NICHT als eigene Todos an — Zeff macht aus ihnen der Reihe nach Todos, sobald der Schritt davor erledigt ist.
-  - todos[].ops: was sich als feste Operation ausdrücken lässt, gib unter ops an — für neue UND für übernommene Todos (auch Follow-ups von Workern mit Entwurf: der Entwurf wird zum Kommentar) — dann macht Zeff es ohne KI auf Knopfdruck (Wörterbuch unten). Jira-Übergänge nur aus den möglichen Übergängen, Zuweisungen mit dem Benutzernamen, GitLab-Operationen mit note:<id> aus der Kennung des Kommentars.
+  - todos[].ops: immer leer lassen — die Aktionen zu den Todos (Nachrichten, Kommentare, Status, Termine …) macht ein eigener Schritt danach.
   - actions: Änderungen am Ticket, die jetzt anstehen und ich mit einem Klick mache — Status-Übergang (to: genau einer der möglichen Übergänge), Zuweisung (assignee: der Benutzername in Klammern bei den Beteiligten), Kommentar (comment: fertiger Text). Nur, wenn die Daten es klar nahelegen; höchstens 3, sonst leer. Was ich erst noch tun muss, gehört unter todos, nicht hierher.
   - flags: kurze Warnhinweise (offene Rückfrage seit …, ohne Beschreibung, seit N Tagen unbewegt, Status passt nicht zur Zuweisung …).
 - left: für jedes Ticket unter „Nicht mehr auf der Liste“ ein Satz, was aus ihm wurde.
@@ -620,22 +624,26 @@ export async function collectBoard(
   opts: { maxChars?: number | null } = {},
 ): Promise<Collected> {
   const cfg = getJiraSyncConfig();
-  if (!cfg.configured || !cfg.command)
+  const { isInstalled } = await import("@/plugins/state");
+  // The sources: Jira (its plugin, set up, with boards chosen) and your Kanban boards in the Lage —
+  // either is enough.
+  const jiraOn = isInstalled("jira") && cfg.configured && !!cfg.command;
+  const boards = jiraOn ? listJiraBoards().filter((b) => b.enabled) : [];
+  const kanbanOn = isInstalled("kanban");
+  if (!boards.length && !kanbanOn)
     throw new Error(
-      "Jira isn't set up — the Boards tab reads your tickets through the same Jira MCP server as the Jira tab.",
-    );
-  const boards = listJiraBoards().filter((b) => b.enabled);
-  if (!boards.length)
-    throw new Error(
-      "No boards chosen — enable the boards to read on the Jira tab.",
+      jiraOn
+        ? "No boards chosen — enable the boards to read on the Jira tab (or put a Kanban board in the Lage)."
+        : "Nichts zum Auswerten: weder Jira (Plugin, eingerichtet, Boards gewählt) noch Kanban-Boards in der Lage.",
     );
   const cutoff = Date.now() - STALE_DAYS * 864e5;
   // Tickets followed besides the filter (by hand, or while you're active on them).
   const followed = followedTickets();
   // Jira not there (maintenance, down): the run goes on from Zeff's own copy — said in the prompt.
   let fromCache: string | null = null;
-  const read = await runStdioSession(
-    { command: cfg.command, args: cfg.args, env: cfg.env, label: "Jira MCP" },
+  const noJira = { issues: [] as Issue[], leftIssues: [] as Issue[], transitions: {} as Record<string, string[]>, relatedIssues: [] as Issue[], onBoards: new Set<string>() };
+  const read = !boards.length ? noJira : await runStdioSession(
+    { command: cfg.command!, args: cfg.args, env: cfg.env, label: "Jira MCP" },
     async (call) => {
       // Which of your tickets are on the chosen boards (the filter within each)…
       const keys = new Set<string>();
@@ -779,6 +787,9 @@ export async function collectBoard(
   for (const issue of issues) {
     const facts = factsOf(issue, cfg.baseUrl, true);
     if (followed.has(issue.key) && !onBoards.has(issue.key)) facts.followed = followed.get(issue.key);
+    // Kept with the run: who's on it, where it can go — for the actions proposed later.
+    facts.people = people(issue);
+    if (transitions[issue.key]?.length) facts.transitions = transitions[issue.key];
     facts.analyzed =
       facts.statusCategory !== "done" &&
       (dateOf(issue.updated)?.getTime() ?? 0) >= cutoff;
@@ -787,6 +798,21 @@ export async function collectBoard(
   }
   const left = leftIssues.map((i) => factsOf(i, cfg.baseUrl, false, true));
   tickets.push(...left);
+
+  // Your own Kanban cards (KB-…, Kanban plugin): tickets of the Lage too — their column the
+  // status, the board's other columns where they can go (a suggested move moves the card).
+  const kanban = (await import("@/plugins/state")).isInstalled("kanban") ? (await import("@/plugins/kanban/lage")).kanbanLageTickets() : [];
+  const kanbanMoves: Record<string, string[]> = {};
+  for (const k of kanban) {
+    const facts = factsOf(k.issue, cfg.baseUrl, !k.done);
+    facts.url = k.url;
+    facts.statusCategory = k.issue.status?.category ?? "unknown";
+    tickets.push(facts);
+    if (!k.done) {
+      analyzed.push(k.issue);
+      kanbanMoves[k.issue.key] = k.columns.map((c) => `${c} (→ ${c})`);
+    }
+  }
 
   // What git says about each (merged into main? which branches?) — and about the tickets it's
   // related to (named in it, or naming it): work is often done under another ticket's key.
@@ -844,9 +870,7 @@ export async function collectBoard(
     [
       INSTRUCTIONS,
       "",
-      opsDictionary(),
-      "",
-      `Heute ist ${today}.${me ? ` Ich bin ${me}.` : ""} Boards: ${boards.map((b) => b.name).join(", ")} · Filter: ${jql}`,
+      `Heute ist ${today}.${me ? ` Ich bin ${me}.` : ""} ${boards.length ? `Jira-Boards: ${boards.map((b) => b.name).join(", ")} · Filter: ${jql}` : "Ohne Jira"}${kanban.length ? ` · eigene Kanban-Karten (KB-…): ${kanban.length}` : ""}`,
       ...(fromCache
         ? [
             `ACHTUNG: Jira war bei diesem Lauf nicht erreichbar (${fromCache}). Die Ticketdaten (Status, Zuweisung, Kommentare) stammen aus Zeffs letztem Stand und können veraltet sein; Änderungsverlauf und mögliche Übergänge fehlen — schlag keine Status-Übergänge vor. Teams, GitLab, Git und Zeff sind aktuell.`,
@@ -859,7 +883,7 @@ export async function collectBoard(
       `# Tickets (${analyzed.length})`,
       "",
       analyzed
-        .map((i) => ticketBlock(i, previous, limits, transitions[i.key], git[i.key], relatedBlocks[i.key]))
+        .map((i) => ticketBlock(i, previous, limits, transitions[i.key] ?? kanbanMoves[i.key], git[i.key], relatedBlocks[i.key]))
         .join("\n\n") || "(keine)",
       "",
       `# Teams-Chats der letzten ${CHAT_DAYS} Tage`,
@@ -892,7 +916,7 @@ export async function refreshTicketComments(keys: string[]): Promise<number> {
   const list = [
     ...new Set(
       keys
-        .filter((k) => /^[A-Z][A-Z0-9]+-\d+$/i.test(k))
+        .filter((k) => isJiraKey(k))
         .map((k) => k.toUpperCase()),
     ),
   ];

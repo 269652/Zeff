@@ -1,3 +1,5 @@
+import { PluginNotInstalled } from "@/components/PluginNotInstalled";
+import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { deleteAbsenceAction } from "@/app/actions";
@@ -32,6 +34,7 @@ export const metadata: Metadata = { title: "Working hours & absences" };
 
 export default async function SettingsPage() {
   await connection();
+  if (!isInstalled("zeiterfassung")) return <PluginNotInstalled id="zeiterfassung" />;
   const schedule = getWorkSchedule();
   const hours = scheduleHours(schedule);
   const weekTotal = hours.reduce((a, b) => a + b, 0);
@@ -47,8 +50,8 @@ export default async function SettingsPage() {
   const flexJobOptions = flexJob ? [{ number: flexJob.number, name: `${flexJob.name} (inactive)` }, ...jobOptions] : jobOptions;
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="page">
+      <div className="page-aside">
         <h1 className="text-lg font-semibold">Working hours &amp; absences</h1>
         <p className="text-sm text-zinc-500">
           Set your weekly working pattern (part-time) and record time off. The weekly report uses this
@@ -72,7 +75,7 @@ export default async function SettingsPage() {
             that day. Breaks you enter always go to Punch as Geht/Kommt.
           </p>
         </div>
-        <DefaultPausesForm text={schedule.defaultPauses ?? ""} exportToPunch={schedule.punchDefaultPauses} />
+        <DefaultPausesForm text={schedule.defaultPauses ?? ""} exportToPunch={schedule.punchDefaultPauses} punchOn={isInstalled("punch")} />
       </section>
 
       <section className="card space-y-3 p-4">
@@ -117,6 +120,9 @@ export default async function SettingsPage() {
         />
       </section>
 
+      {/* Meetings come from the Outlook calendar plugin: its rules only while it's installed. */}
+      {isInstalled("outlook-calendar") && (
+        <>
       <section className="card space-y-3 p-4">
         <div>
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">Meeting → job rules</h2>
@@ -143,6 +149,8 @@ export default async function SettingsPage() {
         </div>
         <MeetingExcludeRulesForm initialRules={getMeetingExcludeRules(settings)} />
       </section>
+        </>
+      )}
 
       <section className="card space-y-4 p-4">
         <h2 className="text-sm font-semibold text-zinc-500 uppercase">Absences &amp; time off</h2>

@@ -1,3 +1,6 @@
+import { redirect } from "next/navigation";
+import { firstAppTab } from "@/plugins/tabs";
+import { installedPlugins, isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
@@ -55,6 +58,10 @@ export default async function WeekPage({
   searchParams: Promise<{ week?: string; by?: string; imported?: string; skipped?: string }>;
 }) {
   await connection();
+  // The weekly report is a plugin too: without it, home is the first installed application.
+  // A new Zeff (or account): the setup assistant first.
+  if (!(await import("@/lib/ai")).getAppSettings().setupDoneAt) redirect("/setup");
+  if (!isInstalled("weekly-report")) redirect(firstAppTab());
   const sp = await searchParams;
   const requested = resolveWeek(sp.week);
   const week = requested ?? currentWeek();
@@ -71,11 +78,15 @@ export default async function WeekPage({
   const ticketSuggestions = getEntryTicketSuggestions(week);
   const ui = await getUiOpen();
   const types = listEntryTypes();
+  // The time-sheet plugins: what they show only while they're installed.
+  const plugins = installedPlugins();
+  const chronoOn = plugins.has("chrono");
+  const punchOn = plugins.has("punch");
   // Chrono approval statuses, once this week was pulled ("Pull Chrono").
-  const pulledAt = chronoPulledAt(week);
+  const pulledAt = chronoOn ? chronoPulledAt(week) : null;
   const chronoStatuses = pulledAt ? chronoStatusByEntry(week) : undefined;
   // What Punch has on the week's days, as last read ("Pull Punch", or after an export).
-  const punch = punchDayStates(week);
+  const punch = punchOn ? punchDayStates(week) : null;
 
   const today = todayIso();
   const defaultDate = today >= week.startIso && today <= week.endIso ? today : week.startIso;
@@ -87,8 +98,10 @@ export default async function WeekPage({
   const todayBooked = todayIndex >= 0 ? { booked: report.dayTotals[todayIndex], target: targets.targets[todayIndex] } : undefined;
 
   return (
-    <div className="space-y-6">
-      <WeekNav week={week} by={by} reporters={reporters} />
+    <div className="page">
+      <div className="page-aside">
+        <WeekNav week={week} by={by} reporters={reporters} />
+      </div>
 
       {sp.imported !== undefined && (
         <p className="alert-ok">
@@ -117,15 +130,15 @@ export default async function WeekPage({
         />
         {/* Hours left unbooked in the weeks before this one, since the start of last month. */}
         <PastWeeksStat due={getPastWeeksDue(lastAndCurrentMonth().last.startIso, today, today, { reportedBy: by })} />
-        <ApprovalsCard />
+        {chronoOn && <ApprovalsCard />}
       </div>
 
       <section className="card p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">Hours per job and day</h2>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <PunchPullButton week={week.key} pulledAt={punch.pulledAt} synced={punch.inSync} />
-            <ChronoPullButton week={week.key} pulledAt={pulledAt} synced={chronoInSync(report.entries, chronoStatuses)} />
+            {punch && <PunchPullButton week={week.key} pulledAt={punch.pulledAt} synced={punch.inSync} />}
+            {chronoOn && <ChronoPullButton week={week.key} pulledAt={pulledAt} synced={chronoInSync(report.entries, chronoStatuses)} />}
           </div>
         </div>
         <WeekTable
@@ -136,7 +149,7 @@ export default async function WeekPage({
           defaultPauses={getDefaultPauses()}
           chronoStatuses={chronoStatuses}
           flex={flexRow()}
-          punch={punch.states}
+          punch={punch?.states}
         />
       </section>
 
@@ -167,18 +180,22 @@ export default async function WeekPage({
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">Report · week {week.week}</h2>
           <div className="flex items-center gap-3">
             <span className="text-xs text-zinc-400">grouped per day · configure on Schedule</span>
-            <Link
-              href={`/export/chrono?week=${week.key}${by ? `&by=${encodeURIComponent(by)}` : ""}`}
-              className="btn btn-sm"
-            >
-              Export to Chrono →
-            </Link>
-            <Link
-              href={`/export/punch?week=${week.key}${by ? `&by=${encodeURIComponent(by)}` : ""}`}
-              className="btn btn-sm"
-            >
-              Export to Punch →
-            </Link>
+            {chronoOn && (
+              <Link
+                href={`/export/chrono?week=${week.key}${by ? `&by=${encodeURIComponent(by)}` : ""}`}
+                className="btn btn-sm"
+              >
+                Export to Chrono →
+              </Link>
+            )}
+            {punchOn && (
+              <Link
+                href={`/export/punch?week=${week.key}${by ? `&by=${encodeURIComponent(by)}` : ""}`}
+                className="btn btn-sm"
+              >
+                Export to Punch →
+              </Link>
+            )}
           </div>
         </div>
         <ReportView

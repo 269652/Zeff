@@ -29,9 +29,15 @@ export function HoverCard({ card, children, width = 420, className = "" }: { car
 
   const show = () =>
     later(() => {
-      const r = ref.current?.getBoundingClientRect();
+      // Anchored at the element hovered (its first child: the badge, the button — not the wrapper).
+      const r = (ref.current?.firstElementChild ?? ref.current)?.getBoundingClientRect();
       if (!r) return;
-      const w = Math.min(width, window.innerWidth - 16);
+      // As wide as the column it's in (a table cell, a todo's text) — else its own width —, at
+      // most 45% of the window, at least enough to read; starting under the element, shifted
+      // left only as far as the window needs.
+      const column = ref.current?.closest("td, [data-hover-column]")?.getBoundingClientRect();
+      const fit = Math.min(window.innerWidth - 16, 280);
+      const w = Math.max(fit, Math.min(column ? column.width : width, window.innerWidth * 0.45, window.innerWidth - 16));
       const left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8));
       const below = window.innerHeight - r.bottom - 14;
       const above = r.top - 14;

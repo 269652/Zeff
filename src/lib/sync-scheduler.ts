@@ -7,11 +7,12 @@ import { syncGitlab } from "./gitlab/sync";
 import { getTeamsSettings } from "./teams/store";
 import { getMailSettings } from "./mail/store";
 import { syncTeams } from "./teams/sync";
-import { EVERY_MINUTES, JIRA_EVERY_MINUTES, jiraLastSyncAt, lastSyncOf, quietAt, startSync } from "./sync/registry";
+import { jiraLastSyncAt, lastSyncOf, quietAt, startSync } from "./sync/registry";
+import { stepMinutes } from "./sync/intervals";
 
 /** The automation Chrome is running (its debug port answers) — the Chrono, Punch and Outlook drivers would start it otherwise. */
 async function chromeUp(): Promise<boolean> {
-  const cdp = process.env.CHRONO_CDP_ENDPOINT || "http://127.0.0.1:9222";
+  const cdp = (await import("@/plugins/drivers")).automationCdp();
   try {
     const r = await fetch(`${cdp.replace(/\/+$/, "")}/json/version`, { signal: AbortSignal.timeout(2000) });
     return r.ok;
@@ -21,7 +22,7 @@ async function chromeUp(): Promise<boolean> {
 }
 
 /** A step through the sync menu's registry — only while the automation Chrome runs (nothing is started for it). */
-const whileChromeRuns = (key: "calendar" | "chrono" | "punch") => async () =>
+const whileChromeRuns = (key: "calendar" | "chrono" | "punch" | "whatsapp" | "keep") => async () =>
   (await chromeUp()) ? startSync(key) : { ok: true, message: "the automation Chrome isn't running — later" };
 
 const state = globalThis as { __zeffSyncScheduler?: boolean };
@@ -32,7 +33,7 @@ const due = (s: { syncMinutes: number; lastSyncAt: string | null }) =>
   s.syncMinutes > 0 && (!s.lastSyncAt || Date.now() - new Date(s.lastSyncAt).getTime() >= s.syncMinutes * 60000);
 
 /**
- * The periodic syncs — Jira every 15 minutes, Teams and GitLab every N minutes as set on their pages: once a
+ * The periodic syncs — each every N minutes as set on the Sync settings page (Menu → Sync-Einstellungen): once a
  * minute it checks which is due and runs it in the background (only while the automation
  * Chrome runs with that site open) — not in the quiet hours (19:00–08:00). ZEFF_TEAMS_SYNC=off
  * turns them off for this server (test servers on a database copy).
@@ -42,11 +43,13 @@ export function startSyncScheduler(): void {
   state.__zeffSyncScheduler = true;
   const jobs: { name: string; settings: () => { syncMinutes: number; lastSyncAt: string | null }; run: () => Promise<{ ok: boolean; message: string }> }[] = [
     // Jira: every 15 minutes (through the sync menu's step, so the menu shows it and records how it went).
-    { name: "jira", settings: () => ({ syncMinutes: JIRA_EVERY_MINUTES, lastSyncAt: jiraLastSyncAt() }), run: async () => startSync("jira") },
-    // Outlook, Chrono, Punch (read only): every 15 minutes, 4 hours, a day — while the automation Chrome runs.
-    { name: "calendar", settings: () => ({ syncMinutes: EVERY_MINUTES.calendar, lastSyncAt: lastSyncOf("calendar") }), run: whileChromeRuns("calendar") },
-    { name: "chrono", settings: () => ({ syncMinutes: EVERY_MINUTES.chrono, lastSyncAt: lastSyncOf("chrono") }), run: whileChromeRuns("chrono") },
-    { name: "punch", settings: () => ({ syncMinutes: EVERY_MINUTES.punch, lastSyncAt: lastSyncOf("punch") }), run: whileChromeRuns("punch") },
+    { name: "jira", settings: () => ({ syncMinutes: stepMinutes("jira"), lastSyncAt: jiraLastSyncAt() }), run: async () => startSync("jira") },
+    // Outlook's calendar, Chrono, Punch, WhatsApp (read only): as set on the Sync settings page — while the automation Chrome runs.
+    { name: "calendar", settings: () => ({ syncMinutes: stepMinutes("calendar"), lastSyncAt: lastSyncOf("calendar") }), run: whileChromeRuns("calendar") },
+    { name: "chrono", settings: () => ({ syncMinutes: stepMinutes("chrono"), lastSyncAt: lastSyncOf("chrono") }), run: whileChromeRuns("chrono") },
+    { name: "punch", settings: () => ({ syncMinutes: stepMinutes("punch"), lastSyncAt: lastSyncOf("punch") }), run: whileChromeRuns("punch") },
+    { name: "whatsapp", settings: () => ({ syncMinutes: stepMinutes("whatsapp"), lastSyncAt: lastSyncOf("whatsapp") }), run: whileChromeRuns("whatsapp") },
+    { name: "keep", settings: () => ({ syncMinutes: stepMinutes("keep"), lastSyncAt: lastSyncOf("keep") }), run: whileChromeRuns("keep") },
     { name: "teams", settings: getTeamsSettings, run: () => syncTeams({ background: true }) },
     { name: "mail", settings: getMailSettings, run: async () => (await import("@/lib/mail/sync")).syncMail({ background: true }) },
     { name: "gitlab", settings: getGitlabSettings, run: () => syncGitlab({ background: true }) },
@@ -75,17 +78,33 @@ export function startSyncScheduler(): void {
     },
   ];
   const tick = async () => {
-    // A backup when it's due (Settings → Backups) — at any hour, quiet ones too.
-    try {
-      const { backupDue, runBackup } = await import("./backup");
-      if (backupDue()) {
-        const r = await runBackup();
-        if (!r.ok) console.warn(`[backup] ${r.message}`);
-      }
-    } catch (e) {
-      console.error("[backup]", e);
+    const { activeAccountId, listAccounts, withAccount, accountsInstalled } = await import("@/db/accounts");
+    // A backup when it's due (Settings → Backups) — at any hour, quiet ones too; each account's
+    // by its own settings, the one you're in or not.
+    for (const a of accountsInstalled() ? listAccounts() : [{ id: activeAccountId(), name: "" }]) {
+      await withAccount(a.id, async () => {
+        try {
+          const { backupDue, runBackup } = await import("@/plugins/backup/backup");
+          if ((await import("@/plugins/state")).isInstalled("backup") && backupDue()) {
+            const r = await runBackup();
+            if (!r.ok) console.warn(`[backup${a.name ? ` ${a.name}` : ""}] ${r.message}`);
+          }
+        } catch (e) {
+          console.error("[backup]", e);
+        }
+      });
     }
-    for (const job of quietAt() ? [] : jobs) {
+    // The syncs: the account you're in — for the whole turn, even if you switch meanwhile.
+    try {
+      await withAccount(activeAccountId(), syncTurn);
+    } finally {
+      setTimeout(tick, 60000).unref();
+    }
+  };
+  const syncTurn = async () => {
+    // A plugin's job only while the plugin is installed.
+    const { stepAvailable } = await import("@/plugins/state");
+    for (const job of quietAt() ? [] : jobs.filter((j) => stepAvailable(j.name))) {
       try {
         if (!due(job.settings())) continue;
         const r = await job.run();
@@ -94,7 +113,6 @@ export function startSyncScheduler(): void {
         console.error(`[${job.name} sync]`, e);
       }
     }
-    setTimeout(tick, 60000).unref();
   };
   setTimeout(tick, 60000).unref(); // a minute after the server starts
 }

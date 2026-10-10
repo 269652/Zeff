@@ -5,6 +5,7 @@ import { HoverCard } from "../HoverCard";
 import { SourceBadge, SourceDetails } from "../SourceBadge";
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import {
   runTicketActionAction,
   setJiraCommentResolvedAction,
@@ -172,6 +173,7 @@ function TicketRow({
   runningTodos,
   runId,
   actionsDone,
+  workOn = true,
 }: {
   /** The mails naming the ticket (inbox, notifications), newest first. */
   mails?: MailView[];
@@ -185,6 +187,7 @@ function TicketRow({
   runningTodos: number[];
   runId: number;
   actionsDone: Record<string, ActionDone>;
+  workOn?: boolean;
 }) {
   const card = cards[facts.key];
   const recent = facts.recent ?? [];
@@ -247,6 +250,7 @@ function TicketRow({
               .filter((t) => t.status === "open")
               .map((t) => (
                 <TodoItem
+                  workOn={workOn}
                   key={t.id}
                   t={t}
                   cards={cards}
@@ -267,6 +271,7 @@ function TicketRow({
                 .filter((t) => t.status !== "open")
                 .map((t) => (
                   <TodoItem
+                  workOn={workOn}
                     key={t.id}
                     t={t}
                     cards={cards}
@@ -451,7 +456,19 @@ export function BoardView({
   runningTodos = [],
   activity = [],
   activityIds = [],
+  workOn = true,
+  showLede = true,
+  filterSlot,
+  part = "all",
 }: {
+  /** What of it: your todos (the Todos tab), the tickets with their Lage (the Tickets tab), or both. */
+  part?: "todos" | "tickets" | "all";
+  /** The element (its id) on the page's sidebar the Lage's filter chips go to. */
+  filterSlot?: string;
+  /** The Work plugin installed (the todos' ✨ instructions go to its workers). */
+  workOn?: boolean;
+  /** The Lage's lede on top (the Todos page has it in its sidebar). */
+  showLede?: boolean;
   run: BoardRunView;
   todos: TodoView[];
   /** All done and dismissed todos (the "Erledigt" tab), latest first. */
@@ -493,6 +510,12 @@ export function BoardView({
     el.scrollIntoView({ block: "center" });
   }, []);
   const [filter, setFilter] = useState<Attention | "all">("all");
+  // Where the filter chips go (the page's sidebar), found once it's there.
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the slot exists only in the DOM
+    if (filterSlot) setSlot(document.getElementById(filterSlot));
+  }, [filterSlot]);
   const result = run.result;
   const facts = new Map(run.tickets.map((t) => [t.key, t]));
   const analysis = new Map((result?.tickets ?? []).map((t) => [t.key, t]));
@@ -534,48 +557,45 @@ export function BoardView({
   const listed = run.tickets.filter((t) => !t.analyzed && !t.left);
   const leftNote = new Map((result?.left ?? []).map((l) => [l.key, l.note]));
 
+  // The Lage's filter: its attentions as chips, each with how many — on the page's sidebar
+  // (filterSlot: the element there), else above the list.
+  const chips =
+    order.length > 0 ? (
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Nach Lage filtern">
+        {[{ a: "all" as const, n: order.length }, ...counts].map((c) => {
+          const on = filter === c.a;
+          return (
+            <button
+              key={c.a}
+              type="button"
+              aria-pressed={on}
+              onClick={() => setFilter(c.a === "all" || on ? "all" : c.a)}
+              className={`inline-flex items-center gap-1.5 rounded-full border py-0.5 pr-2 pl-2 text-xs transition ${
+                on
+                  ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                  : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+              }`}
+            >
+              {c.a !== "all" && <span className={`size-2 shrink-0 rounded-full ${ATT[c.a].stripe}`} aria-hidden />}
+              <span>{c.a === "all" ? "Alle" : ATTENTION_LABELS[c.a]}</span>
+              <span className={on ? "opacity-70" : "text-zinc-400"}>{c.n}</span>
+            </button>
+          );
+        })}
+      </div>
+    ) : null;
   return (
     <div className="space-y-8">
-      {result?.lede && (
+      {part !== "todos" && slot && chips && createPortal(chips, slot)}
+      {showLede && result?.lede && (
         <p className="max-w-[80ch] text-[15px] leading-relaxed text-zinc-700 dark:text-zinc-300">
           {result.lede}
         </p>
       )}
 
-      {order.length > 0 && (
-        <div className="space-y-2">
-          <div
-            className="flex flex-wrap gap-1.5"
-            role="group"
-            aria-label="Nach Lage filtern"
-          >
-            <button
-              type="button"
-              className={`rounded-full border px-3 py-1 text-xs ${filter === "all" ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900" : "border-zinc-300 dark:border-zinc-700"}`}
-              aria-pressed={filter === "all"}
-              onClick={() => setFilter("all")}
-            >
-              Alle {order.length}
-            </button>
-            {counts.map((c) => (
-              <button
-                key={c.a}
-                type="button"
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs ${filter === c.a ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900" : "border-zinc-300 dark:border-zinc-700"}`}
-                aria-pressed={filter === c.a}
-                onClick={() => setFilter(filter === c.a ? "all" : c.a)}
-              >
-                <span
-                  className={`size-2 rounded-sm ${ATT[c.a].stripe}`}
-                  aria-hidden
-                />{" "}
-                {ATTENTION_LABELS[c.a]} {c.n}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {part !== "todos" && !filterSlot && chips}
 
+      {part !== "tickets" && (
       <section className="card space-y-3 p-4">
         <div
           className="flex flex-wrap items-center gap-1"
@@ -584,9 +604,9 @@ export function BoardView({
         >
           {(
             [
-              ["open", "Deine Todos", mine.length, "/boards"],
-              ["done", "Erledigt", doneCount ?? doneList.length, "/boards?todos=done"],
-              ["activity", "Aktivität", null, "/boards?todos=activity"],
+              ["open", "Deine Todos", mine.length, "/todos"],
+              ["done", "Erledigt", doneCount ?? doneList.length, "/todos?todos=done"],
+              ["activity", "Aktivität", null, "/todos?todos=activity"],
             ] as const
           ).map(([key, label, n, href]) => (
             <Link
@@ -615,6 +635,7 @@ export function BoardView({
             <ul className="space-y-1">
               {doneList.map((t) => (
                 <TodoItem
+                  workOn={workOn}
                   key={t.id}
                   t={t}
                   showTicket
@@ -634,6 +655,7 @@ export function BoardView({
               <ul className="space-y-1">
                 {mine.map((t) => (
                   <TodoItem
+                  workOn={workOn}
                     key={t.id}
                     t={t}
                     showTicket
@@ -657,6 +679,7 @@ export function BoardView({
                 <ul className="mt-1.5 space-y-1">
                   {waiting.map((t) => (
                     <TodoItem
+                  workOn={workOn}
                       key={t.id}
                       t={t}
                       showTicket
@@ -673,6 +696,10 @@ export function BoardView({
         )}
       </section>
 
+      )}
+
+      {part !== "todos" && (
+        <>
       <section className="space-y-3">
         {shown.map((key) => (
           <TicketRow
@@ -686,6 +713,7 @@ export function BoardView({
             mails={mails[key] ?? []}
             sources={sources}
             runningTodos={runningTodos}
+            workOn={workOn}
             runId={run.id}
             actionsDone={actionsDone}
           />
@@ -755,6 +783,8 @@ export function BoardView({
             </tbody>
           </table>
         </details>
+      )}
+        </>
       )}
     </div>
   );

@@ -97,7 +97,7 @@ export function ActivityList({ events }: { events: TodoEventView[] }) {
                       </span>
                     </div>
                     <div className="text-xs text-zinc-400">
-                      <Link href={`/boards${e.openNow ? "" : "?todos=done"}#todo-${e.todoId}`} className="font-mono hover:text-indigo-600 hover:underline dark:hover:text-indigo-400">
+                      <Link href={`/todos${e.openNow ? "" : "?todos=done"}#todo-${e.todoId}`} className="font-mono hover:text-indigo-600 hover:underline dark:hover:text-indigo-400">
                         {todoRef(e.todoId)}
                       </Link>
                       {" · "}
