@@ -13,8 +13,12 @@
  *   keep_status          -> is Chrome reachable, is Keep (Google) signed in
  *   keep_notes {account} -> the notes (title, text, list items, labels, pinned, archived, colour,
  *                           created, edited) — trashed ones left out
+ *   keep_write {op, …}   -> a note written in Keep's own editor (create / update / trash — see
+ *                           write.mjs), returned as Keep then saved it. The only tool that changes Keep.
  */
 import { connectToChrome, ChromeConnectError, withTabLock } from "../../../scripts/chrome-cdp.mjs";
+import { decodeModel, itemsToText, textToItems } from "./model.mjs";
+import { createNote, trashNote, updateNote } from "./write.mjs";
 
 const CDP = process.env.KEEP_CDP_ENDPOINT || process.env.CHRONO_CDP_ENDPOINT || "http://127.0.0.1:9222";
 const log = (...a) => process.stderr.write(`[keep-mcp] ${a.join(" ")}\n`);
@@ -53,11 +57,15 @@ function labelsFromHtml(html, into) {
 function toNote(n, items, labels, number) {
   const t = n.timestamps || {};
   if (!never(t.trashed) || !never(t.deleted)) return null;
-  const list = (items.get(n.id) || [])
+  // The content: newer notes as commands (replayed — a checklist with its ticks), older ones as text and LIST_ITEM nodes.
+  const model = decodeModel(n);
+  const legacy = (items.get(n.id) || [])
     .filter((i) => never(i.timestamps?.deleted))
     .sort((a, b) => Number(b.sortValue || 0) - Number(a.sortValue || 0))
     .map((i) => ({ text: String(i.text ?? ""), checked: !!i.checked }));
-  const text = String(n.indexableText ?? n.text ?? "") || list.map((i) => `${i.checked ? "☑" : "☐"} ${i.text}`).join("\n");
+  const list = model?.list ? model.items : legacy;
+  // A checklist as "- [ ]" / "- [x]" lines (as Zeff writes its own); a note's text as it is.
+  const text = n.type === "LIST" || model?.list ? itemsToText(list) || String(n.indexableText ?? "") : String(model?.text || n.indexableText || n.text || "");
   const id = n.serverId || n.id;
   return {
     id,
@@ -65,7 +73,8 @@ function toNote(n, items, labels, number) {
     title: String(n.title ?? ""),
     text,
     items: list,
-    labels: (n.labelIds || []).map((l) => labels.get(l.labelId) || null).filter(Boolean),
+    // A label taken off stays listed, marked deleted.
+    labels: (n.labelIds || []).filter((l) => never(l.deleted)).map((l) => labels.get(l.labelId) || null).filter(Boolean),
     color: n.color && n.color !== "DEFAULT" ? String(n.color).toLowerCase() : null,
     pinned: !!n.isPinned,
     archived: !!n.isArchived,
@@ -127,6 +136,145 @@ async function keepNotes({ account = 0, launch = false, timeoutMs = 120000 } = {
   }
 }
 
+/**
+ * A change in Google Keep (only on your click in Zeff): Keep opened in a fresh tab (all notes
+ * loaded, so the note's current state is known), the change made in Keep's own editor, then what
+ * Keep's app sends back for it awaited — the note returned as Keep has it now.
+ */
+async function keepWrite({ op, account = 0, id, kind, title, text, list, color, labels, pinned, archived, current = null } = {}) {
+  if (!["create", "update", "trash"].includes(op)) throw new Error(`Unknown op "${op}".`);
+  if (op !== "create" && !id) throw new Error("Which note? (id)");
+  const browser = await connectToChrome(CDP, { launchUrls: [keepUrl(account)] });
+  const context = browser.contexts()[0];
+  if (!context) throw new ChromeConnectError("The automation Chrome has no window open.");
+  const page = await context.newPage();
+  const nodes = new Map();
+  const after = new Map();
+  const labelNames = new Map();
+  let loaded = false;
+  let t0 = Infinity;
+  // Keep's saves after the change: each request carrying notes, until Google answered it. Keep keeps
+  // nothing in the browser — a tab closed before they're through loses them.
+  const saving = new Set();
+  let saves = 0;
+  let lastSaved = 0;
+  // What Keep sent of each note (its latest fields): its own record of the note's state.
+  const sent = new Map();
+  page.on("request", (r) => {
+    if (!CHANGES.test(r.url()) || r.method() !== "POST" || Date.now() < t0) return;
+    try {
+      const sentNodes = JSON.parse(r.postData() || "{}").nodes || [];
+      if (sentNodes.length) {
+        saving.add(r);
+        saves++;
+        // Each save carries the whole note (a label taken off: no labelIds at all) — the latest one as it is.
+        for (const n of sentNodes) sent.set(n.id, n);
+      }
+    } catch {
+      // not a save
+    }
+  });
+  const settled = (r) => {
+    if (saving.delete(r)) lastSaved = Date.now();
+  };
+  page.on("requestfinished", settled);
+  page.on("requestfailed", (r) => {
+    if (saving.has(r)) debug(`a save failed: ${r.failure()?.errorText}`);
+    settled(r);
+  });
+  page.on("response", async (r) => {
+    if (!CHANGES.test(r.url()) || r.request().method() !== "POST") return;
+    try {
+      const j = await r.json();
+      for (const l of j.userInfo?.labels || []) if (l.mainId && l.name) labelNames.set(l.mainId, String(l.name));
+      for (const n of j.nodes || []) {
+        nodes.set(n.id, n);
+        if (Date.now() >= t0) after.set(n.id, n);
+      }
+      if (j.truncated !== true) loaded = true;
+    } catch {
+      // not ours
+    }
+  });
+  try {
+    await page.goto(keepUrl(account), { waitUntil: "domcontentloaded", timeout: 60000 });
+    for (let i = 0; i < 120 && !loaded; i++) {
+      if (isLogin(page.url())) throw new Error("Keep shows Google's sign-in — sign in in the automation Chrome, then try again.");
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    if (!loaded) throw new Error("Keep didn't finish loading its notes.");
+    labelsFromHtml(await page.content().catch(() => ""), labelNames);
+    const number = /\/u\/(\d+)\//.exec(page.url())?.[1] ?? "0";
+    const items = (n) => [...nodes.values()].filter((x) => x.parentId === n.id && x.type === "LIST_ITEM");
+    const asNote = (n) => toNote(n, new Map([[n.id, items(n)]]), labelNames, number);
+    // The note as Keep's sync has it — or (a note this browser wrote, not sent again) as Zeff has it.
+    const target = id ? [...nodes.values()].find((n) => n.serverId === id || n.id === id) : null;
+    const now = target ? asNote(target) : current;
+    const noteKind = kind ?? now?.kind ?? "note";
+    t0 = Date.now();
+    let seen = null;
+    if (op === "create") seen = await createNote(page, { title, text, list, color, labels, pinned, archived });
+    else if (op === "update") seen = await updateNote(page, { id: target?.serverId || id, kind: noteKind, title, text, list, color, labels, pinned, archived }, now ?? {});
+    else await trashNote(page, { id: target?.serverId || id, kind: noteKind }, now ?? {});
+    // The note as Keep's saves last sent it — and whether that is what was asked for. Keep sends some
+    // changes late (a trash only once its undo bar is gone), so only that state counts as done.
+    const sentNote = () => {
+      // (A note this tab didn't load — Keep may hand a fresh tab only what changed — by its serverId.)
+      if (op !== "create") return (target && sent.get(target.id)) || [...sent.values()].find((n) => n.serverId === id) || null;
+      const made = [...sent.values()].filter((n) => n.parentId === "root" && (n.type === "NOTE" || n.type === "LIST"));
+      return made.at(-1) ?? null;
+    };
+    const asAsked = (n) => {
+      if (!n) return false;
+      if (op === "trash") return !never(n.timestamps?.trashed);
+      if (pinned !== undefined && !!n.isPinned !== !!pinned) return false;
+      if (archived !== undefined && !!n.isArchived !== !!archived) return false;
+      return true;
+    };
+    // Until Keep's saves are through: at least one, none open, a few quiet seconds — and the asked state sent.
+    for (let i = 0; i < 180; i++) {
+      if (saves > 0 && saving.size === 0 && Date.now() - lastSaved > 4000 && asAsked(sentNote())) break;
+      // Nothing sent yet after a while: back to the notes (Keep saves when an editor closes, a trash when its undo bar goes).
+      if (i === 30 && !asAsked(sentNote())) await page.evaluate(() => (location.hash = "")).catch(() => {});
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    const confirmed = saves > 0 && saving.size === 0 && asAsked(sentNote());
+    debug(`${saves} save(s) sent, ${saving.size} unanswered`);
+    if (op === "trash") return JSON.stringify({ ok: confirmed, confirmed, trashed: confirmed });
+    // The note's id from what came back (a new note's serverId is Google's answer to the save).
+    // A new note: the one Keep's own saves made (a top-level NOTE / LIST it sent), by its client id.
+    const made = op === "create" ? [...sent.values()].filter((n) => n.parentId === "root" && (n.type === "NOTE" || n.type === "LIST")) : [];
+    if (made.length > 1) debug(`${made.length} new notes sent — taking the last`);
+    const back =
+      op === "create"
+        ? made.length && { ...(nodes.get(made.at(-1).id) ?? {}), ...(after.get(made.at(-1).id) ?? {}), id: made.at(-1).id, type: made.at(-1).type, parentId: "root" }
+        : [...after.values()].find((n) => n.id === target?.id || n.serverId === id);
+    const serverId = back?.serverId || (op === "create" ? null : id);
+    // As Keep has it: title and text as its editor showed them, colour / pin / archive / labels from its answer.
+    // Colour, pin, archive, labels: as Keep last sent them (over its answer, which may be a step behind).
+    const last = back ? sent.get(back.id) : null;
+    const answered = back ? asNote({ ...(last ?? back), serverId: back.serverId || last?.serverId, id: back.id }) : null;
+    const listNow = seen?.list ?? (list ?? noteKind === "list");
+    const wanted = {
+      id: serverId,
+      kind: listNow ? "list" : "note",
+      title: seen?.title ?? answered?.title ?? now?.title ?? "",
+      text: seen?.text ?? now?.text ?? "",
+      labels: answered ? answered.labels : (now?.labels ?? []),
+      color: answered ? answered.color : (now?.color ?? null),
+      pinned: answered ? answered.pinned : (now?.pinned ?? false),
+      archived: answered ? answered.archived : (now?.archived ?? false),
+      createdAt: answered?.createdAt ?? now?.createdAt ?? new Date().toISOString(),
+      updatedAt: answered?.updatedAt ?? new Date().toISOString(),
+      url: serverId ? `https://keep.google.com/u/${number}/#${listNow ? "LIST" : "NOTE"}/${encodeURIComponent(serverId)}` : "",
+    };
+    return JSON.stringify({ ok: confirmed && !!serverId, confirmed, note: serverId ? wanted : null });
+  } finally {
+    await page.close().catch(() => {});
+    await browser.close().catch(() => {});
+  }
+}
+
 async function keepStatus() {
   let browser;
   try {
@@ -155,6 +303,29 @@ async function keepStatus() {
 
 const TOOLS = [
   { name: "keep_status", description: "Check whether Chrome (with the debug port) is reachable and Google Keep is signed in.", inputSchema: { type: "object", properties: {} } },
+  {
+    name: "keep_write",
+    description:
+      "Write a note in Google Keep through Keep's own editor (a fresh tab of the automation Chrome): op create | update | trash. Fields: id (update/trash), kind (note|list), title, text (a checklist as '- [ ] …' / '- [x] …' lines with list: true), color (red, orange, yellow, green, teal, blue, cerulean, purple, pink, brown, gray, default), labels (the full set), pinned, archived. Returns JSON { ok, confirmed, note? } — the note as Keep saved it.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        op: { type: "string", enum: ["create", "update", "trash"] },
+        account: { type: ["number", "string"] },
+        id: { type: "string" },
+        kind: { type: "string", enum: ["note", "list"] },
+        title: { type: "string" },
+        text: { type: "string" },
+        list: { type: "boolean" },
+        color: { type: "string" },
+        labels: { type: "array", items: { type: "string" } },
+        pinned: { type: "boolean" },
+        archived: { type: "boolean" },
+        current: { type: "object", description: "The note as Zeff has it (update/trash) — used when Keep's sync doesn't send it again (a note this browser wrote)." },
+      },
+      required: ["op"],
+    },
+  },
   {
     name: "keep_notes",
     description:
@@ -189,6 +360,7 @@ async function handle(msg) {
     const args = params?.arguments || {};
     try {
       if (name === "keep_status") return ok(id, textResult(await keepStatus()));
+      if (name === "keep_write") return ok(id, textResult(await withTabLock("Keep", name, () => keepWrite(args), debug)));
       if (name === "keep_notes") return ok(id, textResult(await withTabLock("Keep", name, () => keepNotes(args), debug)));
       return ok(id, textResult(`Unknown tool "${name}".`, true));
     } catch (e) {
