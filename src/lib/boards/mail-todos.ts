@@ -14,6 +14,7 @@ import { addFact } from "@/lib/facts";
 import { getPref, setPref } from "@/lib/prefs";
 import { duplicateTodo } from "./similar";
 import { addMailTodo, addTodoContext, droppedByYou, lastGoodRun, listTodos, setTodoDue, setTodoStatus } from "./store";
+import { isInstalled } from "@/plugins/state";
 
 const { emails } = schema;
 
@@ -72,7 +73,7 @@ type Answer = {
 
 const INSTRUCTIONS = `Du gehst meine neuen E-Mails durch und findest, was ICH zu tun habe. Unten stehen Mails aus meinem Posteingang (Kennung in eckigen Klammern, z. B. [mail:…], dann Datum, Ordner, Absender, Betreff und die ersten Zeilen, wie Outlooks Liste sie zeigt), meine Tickets und die Todos, die schon offen sind.
 
-Lege für jede Aufgabe, die eine Mail an mich stellt, ein Todo an: ein Satz, Verb zuerst, prüfbar, mit Frist, wenn die Mail eine nennt (die Frist auch als Datum unter due, JJJJ-MM-TT) (z. B. „Compliance-Training ‚Datenschutz 2026‘ bis 31.10. absolvieren“, „Reisekostenabrechnung für September einreichen“, „Termin mit Anna für die Abnahme bestätigen“). Auch Erinnerungen und automatische Mails zählen, wenn sie von mir etwas verlangen (Pflichtschulungen, Fristen, Freigaben, Formulare, Zeiterfassung, Umfragen mit Frist). Zu jedem Todo unter refs die Kennungen der Mails, aus denen es folgt (mehrere Mails zur selben Sache → EIN Todo mit allen). Gehört es zu einem meiner Tickets, gib dessen Schlüssel unter ticket an, sonst lass ticket leer. owner = other nur, wenn ich auf jemand anderen warte.
+Lege für jede Aufgabe, die eine Mail an mich stellt, ein Todo an: ein Satz, Verb zuerst, prüfbar, mit Frist, wenn die Mail eine nennt (die Frist auch als Datum unter due, JJJJ-MM-TT) (z. B. „Compliance-Training ‚Datenschutz 2026‘ bis 31.10. absolvieren“, „Reisekostenabrechnung für September einreichen“, „Termin mit Anna für die Abnahme bestätigen“). Auch Erinnerungen und automatische Mails zählen, wenn sie von mir etwas verlangen, das ich tun MUSS (Pflichtschulungen, Fristen, Freigaben, Signaturen, Formulare, Zeiterfassung, verpflichtende Umfragen mit Frist). Zu jedem Todo unter refs die Kennungen der Mails, aus denen es folgt (mehrere Mails zur selben Sache → EIN Todo mit allen). Gehört es zu einem meiner Tickets, gib dessen Schlüssel unter ticket an, sonst lass ticket leer. owner = other nur, wenn ich auf jemand anderen warte.
 
 Einträge im Ordner „WhatsApp“ sind keine Mails, sondern WhatsApp-Chats: der Betreff ist der Chat (Person oder Gruppe), der Text eine Nachricht daraus, der Absender, wer sie schrieb („Ich“ = ich selbst). Die Nachrichten eines Chats stehen zusammen, der Reihe nach — ein Gespräch: eine spätere Antwort von mir kann eine Bitte schon erledigt haben. Auch dort zählt, worum man mich bittet, was ich zugesagt oder offen gelassen habe (z. B. „Mit Tom eine Uhrzeit ausmachen“, „Bei Lisa melden“, „Ben antworten“ — wenn die letzte Nachricht im Chat eine Frage an mich ist, die ich nicht beantwortet habe) (z. B. „Anna die Fotos vom Samstag schicken“, „Bei Tom wegen Sonntag zurückmelden“) — nicht Smalltalk, Grüße oder Reaktionen.
 
@@ -85,7 +86,10 @@ Unter „Ruhende Unterhaltungen“ stehen Gespräche, an denen ich beteiligt war
 2. Gibt es Neues zum Thema, das die andere Seite wissen sollte? Such es selbst: in den „Aktuellen Unterhaltungen“, den neuen Nachrichten und meinen offenen Todos — dasselbe Thema auch unter anderen Worten oder mit anderen Leuten (z. B. „Vereinsfest“ mit Anna ↔ „Sommerfeier Planung“ mit Ben: dasselbe Fest). Ein Termin hat stattgefunden, jemand anderes arbeitet daran, ein Problem ist gelöst → ein eigenes Todo, sie auf den Stand zu bringen (z. B. „Anna Bescheid geben, dass Ben und ich die Sommerfeier planen“). Die „Stichwort-Treffer“ sind nur ein Hinweis, keine Grenze.
 Jeweils mit der Kennung der Unterhaltung (und der Nachrichten von „Seitdem zum Thema“, auf die es sich stützt) unter refs. Ist nichts offen und nichts neu, nichts.
 
-KEINE Todos für: Newsletter, Werbung, reine Info ohne Handlung, Benachrichtigungen über Jira-/GitLab-Kommentare und Statuswechsel (die kennt die Ticket-Lage schon), Lesebestätigungen, Termine, die nur informieren — und nichts, was ein schon offenes Todo abdeckt oder schon erledigt ist (z. B. eine spätere Mail bestätigt es). Gibt es nichts zu tun, ist die Liste leer.`;
+KEINE Todos für: Newsletter, Werbung, reine Info ohne Handlung, Benachrichtigungen über Jira-/GitLab-Kommentare, Merge Requests und Statuswechsel (die kennt die Ticket-Lage schon — auch wenn darin jemand etwas von mir will), Lesebestätigungen, Abwesenheitsnotizen und andere automatische Antworten, Termine, die nur informieren — und nichts, was ein schon offenes Todo abdeckt oder schon erledigt ist (z. B. eine spätere Mail bestätigt es).
+Auch KEINE Todos für: freiwillige Umfragen, Befragungen und Aufrufe zur Teilnahme (auch wenn sie dringlich klingen oder erinnern — nur, was verpflichtend ist), Einladungen zu freiwilligen Veranstaltungen, und Hinweise von Firmen und Diensten zu ihrem eigenen Angebot (eine Karte wird ersetzt, ein Konto wird wegen Inaktivität gelöscht, neue Bedingungen oder Funktionen, „bitte handeln“) — außer es droht mir mit Frist ein echter Nachteil bei etwas, das ich erkennbar nutze (z. B. meine Versicherung kündigt den Vertrag, wenn ich bis Monatsende keine Unterlagen schicke).
+
+Unter „Was ich verworfen habe“ stehen Vorschläge, die ich nicht wollte (mit der Mail, aus der sie kamen): schlage nichts Ähnliches vor — dieselbe Art Mail vom selben Absender ist wieder kein Todo, und dieselbe Art Hinweis von einem anderen Absender in der Regel auch nicht. Unter „Was ich erledigt habe“ stehen Vorschläge, die richtig waren: solche will ich. Im Zweifel lieber kein Todo — ein verpasster Vorschlag kostet weniger als viele, die ich wegklicken muss. Gibt es nichts zu tun, ist die Liste leer.`;
 
 const state = globalThis as unknown as { __zeffMailTodos?: Promise<MailTodosResult> | null };
 export type MailTodosResult = { ok: boolean; reviewed: number; added: number; updated?: number; batches: number; error?: string };
@@ -127,8 +131,42 @@ export function sinceOnTopic(m: typeof emails.$inferSelect): { thread: (typeof e
   return { thread, since: [...later, ...todos] };
 }
 
+/** An automatic answer (out of office, absent): no todo in it — the subject says so. */
+const AUTO_REPLY = /^\s*(automatische antwort|automatic reply|auto[- ]?reply|abwesenheitsnotiz|abwesend|out of office|ooo)\b/i;
+
+/**
+ * A mail that isn't for the review at all: an automatic answer, or — with the GitLab plugin, whose
+ * merge requests and comments the Ticket-Lage reads itself — a notification about a merge request or issue.
+ */
+export function notForReview(m: { fromEmail: string | null; subject: string; preview: string; folder: string }, gitlab: boolean): boolean {
+  if (m.folder === "WhatsApp") return false;
+  if (AUTO_REPLY.test(m.subject)) return true;
+  // A merge request or issue (its link in the mail) — not GitLab's other mails (a token running out, a failed pipeline).
+  return gitlab && /\/-\/(merge_requests|issues)\/\d+/.test(m.preview);
+}
+
 /** A ticket key in a mail's subject or lines (one of the tickets the Lage reads — it has those mails). */
 const namesTicket = (keys: string[], text: string) => keys.some((k) => new RegExp(`(^|[^A-Za-z0-9])${k}(?![0-9])`, "i").test(text));
+
+/**
+ * The review's own todos you judged: dropped by you, and done (the last 60 days, the newest first) —
+ * each with the mail it came from (sender, subject), so the AI learns which kind you want.
+ */
+export function verdictLines(dropped: TodoView[]): { dropped: string[]; done: string[] } {
+  const since = new Date(Date.now() - 60 * 864e5).toISOString();
+  const mine = (t: TodoView) => t.source === "Mail-Durchsicht";
+  const from = (t: TodoView) => {
+    const key = t.refs.find((r) => r.startsWith("mail:"))?.slice(5);
+    const m = key ? getDb().select().from(emails).where(sql`${emails.key} = ${key}`).get() : undefined;
+    return m ? ` (aus: ${m.folder === "WhatsApp" ? "WhatsApp" : "Mail"} von ${m.fromName ?? m.fromEmail ?? "?"}, „${plain(m.subject, 80)}“)` : "";
+  };
+  const done = listTodos({ status: "done" }).filter((t) => mine(t) && (t.doneAt ?? "") >= since);
+  const newest = (a: TodoView, b: TodoView) => (b.doneAt ?? "").localeCompare(a.doneAt ?? "");
+  return {
+    dropped: dropped.filter(mine).sort(newest).slice(0, 20).map((t) => `- ${plain(t.text, 140)}${from(t)}`),
+    done: done.sort(newest).slice(0, 10).map((t) => `- ${plain(t.text, 140)}${from(t)}`),
+  };
+}
 
 /**
  * The Mail-Durchsicht (after the Ticket-Lage, before the Mail-Zuordnung): the AI goes through the
@@ -172,7 +210,8 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
     const tickets = lastGoodRun()?.tickets.map((t) => t.key) ?? [];
     const cited = new Set(listTodos({ status: "all" }).flatMap((t) => t.refs.filter((r) => r.startsWith("mail:")).map((r) => r.slice(5))));
     // The Lage's (they name its tickets) and those a todo has already: gone through.
-    const theirs = rows.filter((m) => cited.has(m.key) || namesTicket(tickets, `${m.subject} ${m.preview}`));
+    const gitlab = isInstalled("gitlab");
+    const theirs = rows.filter((m) => cited.has(m.key) || namesTicket(tickets, `${m.subject} ${m.preview}`) || notForReview(m, gitlab));
     markReviewed(theirs.map((m) => m.key));
     // A WhatsApp chat's messages together, in order (a conversation — your reply after a request
     // tells it's settled); the mails by time.
@@ -226,6 +265,7 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
       const open = listTodos({ status: "open" });
       // What you dropped isn't proposed again (a new message in the same conversation isn't reason enough).
       const dropped = droppedByYou();
+      const verdicts = verdictLines(dropped);
       const prompt = [
         INSTRUCTIONS + extraBlock("mailtodos"),
         "",
@@ -240,6 +280,8 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
           return `- [${t.id}]${t.ticket ? ` ${t.ticket}` : ""}: ${plain(t.text, 160)}${next ? ` — danach geplant: ${next}` : ""}`;
         }),
         "",
+        ...(verdicts.dropped.length ? ["# Was ich verworfen habe (letzte 60 Tage)", ...verdicts.dropped, ""] : []),
+        ...(verdicts.done.length ? ["# Was ich erledigt habe (letzte 60 Tage)", ...verdicts.done, ""] : []),
         "# Mails",
         ...(batch.length ? batch.map(line) : ["(keine neuen)"]),
         ...(batch === batches[0] && dormant.length
