@@ -269,10 +269,10 @@ async function whatsappMessages({ days = 3, maxLoads = 4, maxMessages = 3000, op
  * exact name through WhatsApp Web's search and opened (that marks it read, as you'd do), checked
  * that it's that chat, the text typed (line breaks as Shift+Enter) and sent; seen as sent.
  */
-async function whatsappSend({ chat = "", text = "" } = {}) {
+async function whatsappSend({ chat = "", text = "", dryRun = false } = {}) {
   const name = String(chat).trim();
   const body = String(text).trim();
-  if (!name || !body) throw new Error("Chat und Text fehlen.");
+  if (!name || (!body && !dryRun)) throw new Error("Chat und Text fehlen.");
   const browser = await connectToChrome(CDP, { launchUrls: [HOME] });
   try {
     const page = await whatsappPage(browser, { openIfMissing: true });
@@ -281,23 +281,24 @@ async function whatsappSend({ chat = "", text = "" } = {}) {
     await search.click({ timeout: 15000 });
     await search.fill("");
     await search.pressSequentially(name, { delay: 15 });
-    // The result with exactly that name.
-    let target = null;
-    for (let i = 0; i < 30 && !target; i++) {
-      const h = await page.evaluateHandle((n) => [...document.querySelectorAll("#pane-side span[title]")].find((s) => s.getAttribute("title") === n) ?? null, name);
-      target = h.asElement();
-      if (!target) await new Promise((r) => setTimeout(r, 300));
-    }
-    if (!target) {
+    // The result with exactly that name — as a locator (found again on each try: WhatsApp redraws
+    // the results while they come in), once they've settled.
+    const quoted = name.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    const result = page.locator(`#pane-side span[title="${quoted}"]`).first();
+    await new Promise((r) => setTimeout(r, 800));
+    try {
+      await result.click({ timeout: 10000 });
+    } catch {
       await search.fill("").catch(() => {});
       throw new Error(`Den Chat „${name}“ gibt es in WhatsApp nicht (genau so geschrieben) — nichts gesendet.`);
     }
-    await target.click();
     const box = page.locator('footer [contenteditable="true"][role="textbox"], footer div[contenteditable="true"]').last();
     await box.waitFor({ timeout: 15000 });
     // That chat and no other: else nothing is typed.
     const header = await page.evaluate(() => [...document.querySelectorAll("#main header span[title], #main header span[dir='auto']")].map((e) => e.getAttribute("title") || e.textContent || "").join(" | "));
     if (!header.includes(name)) throw new Error(`Geöffnet wurde ein anderer Chat (${header.slice(0, 80)}) — nichts gesendet.`);
+    // A check only: the chat found and open, nothing typed.
+    if (dryRun) return JSON.stringify({ chat: name, dryRun: true, header: header.slice(0, 120) });
     await box.click();
     const lines = body.split("\n");
     for (let i = 0; i < lines.length; i++) {
