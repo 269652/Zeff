@@ -870,6 +870,8 @@ export const todos = sqliteTable(
     actionsReviewedAt: text("actions_reviewed_at"),
     /** Its operations came from the auto-actions review: why they fit (null: from the Lage, a worker, you). */
     autoOpsWhy: text("auto_ops_why"),
+    /** When it's due (YYYY-MM-DD) — a deadline the AI found, or set by you. */
+    due: text("due"),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(CURRENT_TIMESTAMP)`),

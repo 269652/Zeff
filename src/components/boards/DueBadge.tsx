@@ -1,0 +1,79 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
+import { setTodoDueAction } from "@/app/actions";
+import { toast } from "../Toaster";
+
+/** Days from today to a YYYY-MM-DD (negative: past). */
+export const daysUntil = (due: string) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((new Date(`${due}T00:00:00`).getTime() - today.getTime()) / 864e5);
+};
+
+/** "heute", "morgen", "überfällig (2 T.)", "Fr., 24.10." */
+export const dueText = (due: string) => {
+  const d = daysUntil(due);
+  if (d < 0) return `überfällig (${-d} T.)`;
+  if (d === 0) return "heute fällig";
+  if (d === 1) return "morgen fällig";
+  return `fällig ${new Date(`${due}T00:00:00`).toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "numeric" })}`;
+};
+
+export const dueTone = (due: string) => {
+  const d = daysUntil(due);
+  return d <= 0 ? "text-red-600 dark:text-red-400 font-medium" : d <= 3 ? "text-amber-600 dark:text-amber-400" : "text-zinc-500";
+};
+
+/**
+ * A todo's deadline in its line: when it's due (red when today or past, amber within three days)
+ * — set, changed or taken away by a click (a date field). Without one, a quiet "Frist" on hover.
+ */
+export function DueBadge({ todoId, due, closed }: { todoId: number; due: string | null; closed: boolean }) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [pending, start] = useTransition();
+  const save = (v: string | null) =>
+    start(async () => {
+      const r = await setTodoDueAction(todoId, v);
+      if (!r?.ok) toast(r?.error ?? "Ging nicht.", { tone: "error" });
+      setEditing(false);
+      router.refresh();
+    });
+  if (closed && !due) return null;
+  if (editing)
+    return (
+      <span className="inline-flex items-center gap-1">
+        {" · "}
+        <input
+          type="date"
+          className="rounded border border-zinc-300 px-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+          defaultValue={due ?? ""}
+          autoFocus
+          disabled={pending}
+          aria-label="Frist"
+          onChange={(e) => e.target.value && save(e.target.value)}
+          onKeyDown={(e) => e.key === "Escape" && setEditing(false)}
+          onBlur={() => setEditing(false)}
+        />
+        {due && (
+          <button type="button" className="hover:text-zinc-700 hover:underline" onMouseDown={(e) => e.preventDefault()} onClick={() => save(null)}>
+            keine Frist
+          </button>
+        )}
+      </span>
+    );
+  return due ? (
+    <>
+      {" · "}
+      <button type="button" className={`hover:underline ${closed ? "text-zinc-400" : dueTone(due)}`} onClick={() => !closed && setEditing(true)} title={`Frist: ${new Date(`${due}T00:00:00`).toLocaleDateString("de-DE")} — ändern`}>
+        {dueText(due)}
+      </button>
+    </>
+  ) : (
+    <button type="button" className="opacity-0 transition group-hover:opacity-100 hover:text-zinc-600 hover:underline focus:opacity-100" onClick={() => setEditing(true)} title="Eine Frist setzen">
+      {" · "}Frist
+    </button>
+  );
+}

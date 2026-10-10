@@ -21,6 +21,7 @@ import { HoverCard } from "../HoverCard";
 import { BookIcon, SparkIcon, ToBottomIcon, ToTopIcon } from "../icons";
 import { usePluginOn } from "../PluginFlags";
 import { TodoKnowledgeList, TodoKnowledgePreview, useTodoKnowledge } from "@/plugins/knowledge/TodoKnowledge";
+import { DueBadge } from "./DueBadge";
 import { FlagButton } from "./FlagButton";
 import { TicketLink } from "../TicketLink";
 import { toast } from "../Toaster";
@@ -247,11 +248,12 @@ export function TodoItem({
           )}
           <TodoMrLinks mrs={t.links?.mrs} />
           {" "}· {TODO_KIND_LABELS[t.kind]}
+          <DueBadge todoId={t.id} due={t.due} closed={closed} />
           {t.path && <> · Weg „{t.path}“</>}
           {t.flaggedAt && !closed && <span className="font-medium text-red-600 dark:text-red-400"> · wichtig</span>}
           {t.deferred && !closed && <span className="text-zinc-400"> · zurückgestellt</span>}
           {t.bubbledUp && !closed && <span className="text-amber-600 dark:text-amber-400" title="Du hattest es nach unten gestellt — es ist wieder oben"> · wieder oben: {t.bubbledUp}</span>}
-          {!closed && <TodoQuickButtons todoId={t.id} panel={quick} onToggle={setQuick} aiDisabled={!workOn ? "Work ist nicht installiert (Menü → Plugins)" : running || doing ? "Wird gerade bearbeitet — erst wenn der Lauf fertig ist" : undefined} />}
+          {!closed && <TodoQuickButtons todoId={t.id} panel={quick} onToggle={setQuick} canReply={t.owner === "me" && [...t.refs, ...t.mailRefs].some((r) => r.startsWith("mail:") || r.startsWith("teams:"))} aiDisabled={!workOn ? "Work ist nicht installiert (Menü → Plugins)" : running || doing ? "Wird gerade bearbeitet — erst wenn der Lauf fertig ist" : undefined} />}
         </span>
         <TodoQuickPanel todoId={t.id} todoRef={t.ref} panel={closed ? null : quick} onClose={() => setQuick(null)} />
         {t.note ? (
