@@ -13,7 +13,7 @@ import { SyncStepRow } from "../SyncMenu";
 
 /** What "Jetzt auswerten" does, in order — each a step of its own, as in the Sync menu. */
 /** After the syncs it runs first (the Auswerten settings): the Lage and its steps. */
-const AFTER_STEPS: SyncKey[] = ["boards", "mailtodos", "relations", "notetodos", "noterelations", "autoactions"];
+const AFTER_STEPS: SyncKey[] = ["boards", "mailtodos", "relations", "notetodos", "noterelations", "knowledgerel", "autoactions"];
 
 const PHASES: Record<string, string> = {
   sync: "synct vorher",
@@ -23,6 +23,7 @@ const PHASES: Record<string, string> = {
   mailtodos: "sucht Todos in Mails und WhatsApp",
   mails: "ordnet Mails den Todos zu",
   notetodos: "sucht Todos in Notizen",
+  knowledge: "ordnet den Todos Wissen zu",
   notes: "ordnet Notizen den Todos zu",
   autoactions: "macht Aktionen für die Todos",
 };

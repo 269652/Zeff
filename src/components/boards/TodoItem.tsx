@@ -20,7 +20,7 @@ import { CopyButton } from "../CopyButton";
 import { HoverCard } from "../HoverCard";
 import { BookIcon, SparkIcon, ToBottomIcon, ToTopIcon } from "../icons";
 import { usePluginOn } from "../PluginFlags";
-import { TodoKnowledgeList, TodoKnowledgePreview, useTodoKnowledge } from "@/plugins/knowledge/TodoKnowledge";
+import { TodoKnowledgeList, TodoKnowledgePreview } from "@/plugins/knowledge/TodoKnowledge";
 import { DueBadge } from "./DueBadge";
 import { FlagButton } from "./FlagButton";
 import { TicketLink } from "../TicketLink";
@@ -151,7 +151,8 @@ export function TodoItem({
   const [showContext, setShowContext] = useState(false);
   const [showKnowledge, setShowKnowledge] = useState(false);
   const knowledgeOn = usePluginOn("knowledge");
-  const knowledge = useTodoKnowledge(t.id, knowledgeOn && showKnowledge);
+  // The knowledge the Wissens-Zuordnung picked for it (only what fits) — none: no toggle.
+  const knowledge = knowledgeOn && t.knowledge && (t.knowledge.pages.length || t.knowledge.entities.length) ? { pages: t.knowledge.pages, entities: t.knowledge.entities } : null;
   const [, startDefer] = useTransition();
   const instructions = useAgentInstructions();
   const set = (next: TodoStatus) => {
@@ -275,7 +276,7 @@ export function TodoItem({
         )}
         {t.lastError && !closed && !running && !doing && <LastError text={t.lastError} run={t.lastErrorRun} />}
         {/* Its toggles in one row — context, proposed actions; each unfolds its area below the row, stacked. */}
-        {(context.items.length > 0 || proposed || knowledgeOn) && (
+        {(context.items.length > 0 || proposed || knowledge) && (
           <span className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
             <ContextToggle
               items={context.items}
@@ -319,23 +320,23 @@ export function TodoItem({
                   </HoverCard>
                 );
               })()}
-            {/* What the knowledge base (Confluence) has on it — looked up when first shown or hovered. */}
-            {knowledgeOn &&
+            {/* What the knowledge base has on it — as the Wissens-Zuordnung picked it. */}
+            {knowledge &&
               (() => {
                 const toggle = (
-                  <AreaToggle open={showKnowledge} onToggle={() => setShowKnowledge(!showKnowledge)} label={`${showKnowledge ? "Hide" : "Show"} knowledge${knowledge && "pages" in knowledge ? ` (${knowledge.pages.length})` : ""}`} tone="emerald">
+                  <AreaToggle open={showKnowledge} onToggle={() => setShowKnowledge(!showKnowledge)} label={`${showKnowledge ? "Hide" : "Show"} knowledge (${knowledge.pages.length + knowledge.entities.length})`} tone="emerald">
                     <BookIcon className="size-3.5" />
                   </AreaToggle>
                 );
                 return showKnowledge ? (
                   toggle
                 ) : (
-                  <HoverCard card={<TodoKnowledgePreview todoId={t.id} />}>{toggle}</HoverCard>
+                  <HoverCard card={<TodoKnowledgePreview k={knowledge} />}>{toggle}</HoverCard>
                 );
               })()}
           </span>
         )}
-        {showKnowledge && knowledgeOn && (
+        {showKnowledge && knowledge && (
           <div className="mt-1.5">
             <TodoKnowledgeList k={knowledge} />
           </div>

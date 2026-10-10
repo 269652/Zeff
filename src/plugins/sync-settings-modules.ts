@@ -15,11 +15,13 @@ import { syncSettings as teams } from "./teams/sync-settings";
 import { syncSettings as punch } from "./punch/sync-settings";
 import { syncSettings as todos } from "./todos/sync-settings";
 import { syncSettings as whatsapp } from "./whatsapp/sync-settings";
+import { syncSettings as knowledge } from "./knowledge/sync-settings";
 import { syncSettings as keep } from "./keep/sync-settings";
 
 /** Each plugin's settings module for the Sync settings page — the plugins that bring a sync. */
 const MODULES: Partial<Record<PluginId, PluginSyncSettings>> = {
   todos,
+  knowledge,
   "auto-actions": autoActions,
   "jira-lage": jiraLage,
   jira,

@@ -229,6 +229,8 @@ export type TodoView = {
   ref: string;
   /** When it's due (YYYY-MM-DD), if it has a deadline. */
   due: string | null;
+  /** The knowledge the Wissens-Zuordnung picked for it (null: not gone through yet). */
+  knowledge: import("@/plugins/knowledge/shared").TodoKnowledge | null;
   ticket: string;
   text: string;
   kind: TodoKind;

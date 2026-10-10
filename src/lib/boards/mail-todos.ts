@@ -1,4 +1,4 @@
-import { and, asc, gte, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { aiChoice, runAi } from "@/lib/ai";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
@@ -66,13 +66,28 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
     // How far back, and which: the Auswerten settings (a source switched off: its messages wait, not gone through).
     const cp = getContextPrefs().mailtodos;
     const since = new Date(Date.now() - cp.numbers.days * 864e5).toISOString();
+    // A WhatsApp chat whose last message isn't yours waits for your answer — gone through further
+    // back (it may be weeks old: "Elmar antworten").
+    const chatSince = new Date(Date.now() - Math.max(cp.numbers.days, cp.numbers.chatDays) * 864e5).toISOString();
+    const lastOf = new Map<string, string | null>();
+    if (cp.sources.whatsapp)
+      for (const m of getDb()
+        .select({ convId: emails.convId, fromName: emails.fromName, receivedAt: emails.receivedAt })
+        .from(emails)
+        .where(and(eq(emails.folder, "WhatsApp"), gte(emails.receivedAt, chatSince)))
+        .orderBy(asc(emails.receivedAt))
+        .all())
+        lastOf.set(m.convId, m.fromName);
+    const unanswered = (convId: string) => lastOf.has(convId) && lastOf.get(convId) !== "Ich";
     const rows = getDb()
       .select()
       .from(emails)
-      .where(and(isNull(emails.reviewedAt), isNull(emails.resolvedAt), gte(emails.receivedAt, since)))
+      .where(and(isNull(emails.reviewedAt), isNull(emails.resolvedAt), gte(emails.receivedAt, chatSince)))
       .orderBy(asc(emails.receivedAt))
       .all()
-      .filter((m) => (m.folder === "WhatsApp" ? cp.sources.whatsapp : cp.sources.mail));
+      .filter((m) => (m.folder === "WhatsApp" ? cp.sources.whatsapp && (m.receivedAt >= since || unanswered(m.convId)) : cp.sources.mail && m.receivedAt >= since))
+      // The chat list's unread badge, read as a message once ("5 ungelesene Nachrichten"): not one.
+      .filter((m) => !(m.folder === "WhatsApp" && /^\d+ (ungelesene Nachricht|unread message)/i.test(m.preview)));
     const markReviewed = (keys: string[]) => {
       if (keys.length) getDb().update(emails).set({ reviewedAt: new Date().toISOString() }).where(inArray(emails.key, keys)).run();
     };

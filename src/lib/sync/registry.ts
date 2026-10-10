@@ -193,7 +193,7 @@ const STEPS: Record<SyncKey, Step> = {
     // The Lage itself: not while its run syncs first or relates the mails (their own steps show that).
     busy: () => {
       const r = (globalThis as { __zeffBoardRun?: { phase: string } | null }).__zeffBoardRun;
-      return !!r && r.phase !== "sync" && r.phase !== "mailtodos" && r.phase !== "mails" && r.phase !== "notetodos" && r.phase !== "notes" && r.phase !== "autoactions";
+      return !!r && r.phase !== "sync" && r.phase !== "mailtodos" && r.phase !== "mails" && r.phase !== "notetodos" && r.phase !== "notes" && r.phase !== "knowledge" && r.phase !== "autoactions";
     },
     last: () => {
       const run = latestRun();
@@ -291,6 +291,17 @@ const STEPS: Record<SyncKey, Step> = {
     busy: () => flag("__zeffNoteRelations"),
     schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("noterelations").lastAt, window: "workdays, with the Ticket-Lage" }),
   },
+  knowledgerel: {
+    label: "Wissens-Zuordnung",
+    href: "/todos",
+    what: "Which knowledge pages each open todo needs — the AI keeps only those that really fit (after each Ticket-Lage)",
+    run: async () => {
+      const r = await (await import("@/plugins/knowledge/relations")).relateKnowledge();
+      return r.ok ? { ok: true, message: `${r.todos} Todos durchgesehen, ${r.assigned} mit Wissen` } : { ok: false, message: r.error ?? "Fehlgeschlagen." };
+    },
+    busy: () => flag("__zeffKnowledgeRelations"),
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("knowledgerel").lastAt, window: "workdays, with the Ticket-Lage" }),
+  },
 };
 
 /** The next time a step runs by itself — within its window (workdays 7–20 h) when it has one. */
@@ -381,7 +392,7 @@ export function startSyncAll(): { ok: boolean; message: string } {
   void (async () => {
     try {
       // The Mail-Durchsicht and -Zuordnung come with the Ticket-Lage (its last steps) — not twice.
-      for (const key of SYNC_KEYS.filter((k) => k !== "relations" && k !== "mailtodos" && k !== "autoactions" && k !== "boardlage" && stepAvailable(k))) {
+      for (const key of SYNC_KEYS.filter((k) => k !== "relations" && k !== "mailtodos" && k !== "autoactions" && k !== "boardlage" && k !== "knowledgerel" && k !== "notetodos" && k !== "noterelations" && stepAvailable(k))) {
         l.all = key;
         await runStep(key);
       }
