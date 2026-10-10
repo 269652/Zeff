@@ -1,6 +1,6 @@
 /**
  * The knowledge server reads Confluence by itself — a few minutes after it starts, then every
- * KNOWLEDGE_EVERY_HOURS hours (default 12) — and compiles what changed. KNOWLEDGE_SCHEDULE=off: only by hand.
+ * KNOWLEDGE_EVERY_HOURS hours (default 1) — and compiles what changed. KNOWLEDGE_SCHEDULE=off: only by hand.
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs" || process.env.KNOWLEDGE_SCHEDULE === "off") return;
@@ -9,7 +9,8 @@ export async function register() {
   const { confluenceConfig } = await import("./lib/confluence");
   const { getSettings } = await import("./lib/db");
   const { kInstalled } = await import("./lib/plugins");
-  const every = (Number(process.env.KNOWLEDGE_EVERY_HOURS) || 12) * 3600000;
+  // Hourly: Zeff's data (messages, todos, facts) changes all day; only what changed is compiled.
+  const every = (Number(process.env.KNOWLEDGE_EVERY_HOURS) || 1) * 3600000;
   const turn = async () => {
     try {
       // Only with the plugin "Automatisch lesen" — and a source to read.
