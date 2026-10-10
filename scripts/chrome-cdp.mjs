@@ -112,7 +112,8 @@ function launchChrome(port, urls) {
     path.join(process.env.LOCALAPPDATA || "", "Google", "Chrome", "Application", "chrome.exe"),
   ].find((p) => existsSync(p));
   if (!chrome) throw new ChromeConnectError('The automation Chrome isn\'t running and Chrome wasn\'t found to start it — run "npm run roar:chrome".');
-  const profile = path.join(process.env.LOCALAPPDATA || ".", "Zeff", "roar-chrome-profile");
+  // An account of its own (Zeff's Accounts plugin): its own profile — its own sign-ins.
+  const profile = process.env.ZEFF_CHROME_PROFILE || path.join(process.env.LOCALAPPDATA || ".", "Zeff", "roar-chrome-profile");
   mkdirSync(profile, { recursive: true });
   const args = [`--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", ...urls];
   spawn(chrome, args, { detached: true, stdio: "ignore" }).unref();

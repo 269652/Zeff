@@ -302,6 +302,13 @@ export const emails = sqliteTable(
   (t) => [index("emails_received_idx").on(t.receivedAt), index("emails_conv_idx").on(t.convId)],
 );
 
+/** A plugin installed or not, as you set it (Settings → Plugins) — without a row: its default. */
+export const plugins = sqliteTable("plugins", {
+  id: text("id").primaryKey(),
+  installed: integer("installed", { mode: "boolean" }).notNull(),
+  changedAt: text("changed_at").notNull(),
+});
+
 /**
  * A booking an agent suggests (MCP report_time, finish_todo): a shadow row until you take it over
  * (then it's a real entry) or skip it. Its evidence: the todos and the work runs that went into it.
@@ -663,11 +670,19 @@ export const jiraBoards = sqliteTable("jira_boards", {
  * How the syncs without a record of their own last went (Jira, Calendar, Roar, TimO) — for the
  * header's sync menu. Teams, GitLab and the Boards run keep theirs in their own tables.
  */
+/** Preferences as JSON, by key — the layout ("layout"), plugins' own settings ("plugin:gmail"). Per account (its database). */
+export const prefs = sqliteTable("prefs", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+});
+
 export const syncState = sqliteTable("sync_state", {
   key: text("key").primaryKey(),
   lastAt: text("last_at"),
   lastOk: integer("last_ok", { mode: "boolean" }),
   lastMessage: text("last_message"),
+  /** How often it runs by itself (minutes, 0: only by hand) — for the steps without settings of their own; null: its default. */
+  everyMinutes: integer("every_minutes"),
 });
 
 /**
@@ -694,6 +709,8 @@ export const appSettings = sqliteTable("app_settings", {
   mailLastSyncAt: text("mail_last_sync_at"),
   mailLastResult: text("mail_last_result"),
   mailLastOk: integer("mail_last_ok", { mode: "boolean" }),
+  /** The setup assistant went through (ISO) — a new instance (or account) starts in it until then. */
+  setupDoneAt: text("setup_done_at"),
   /** Backups: on (by default), how often (hours), how many kept, where (""= data/backups), the zip's password (""= unencrypted). */
   backupEnabled: integer("backup_enabled", { mode: "boolean" }).notNull().default(true),
   backupEveryHours: integer("backup_every_hours").notNull().default(24),
@@ -703,11 +720,15 @@ export const appSettings = sqliteTable("app_settings", {
   backupKeepDaily: integer("backup_keep_daily").notNull().default(14),
   backupKeepWeekly: integer("backup_keep_weekly").notNull().default(8),
   backupKeepMonthly: integer("backup_keep_monthly").notNull().default(24),
+  /** Each backup also writes the settings and configuration as a config ZIP of their own (importable into any account). */
+  backupConfig: integer("backup_config", { mode: "boolean" }).notNull().default(false),
   backupDir: text("backup_dir").notNull().default(""),
   backupPassword: text("backup_password").notNull().default(""),
   backupLastAt: text("backup_last_at"),
   backupLastOk: integer("backup_last_ok", { mode: "boolean" }),
   backupLastResult: text("backup_last_result"),
+  /** The LLM plugin's settings (JSON): instructions and context for every prompt and agent, and each task's backend/model. */
+  llmSettings: text("llm_settings").notNull().default("{}"),
   /** Unused: repos are set on the Repos page (the repos table) since. */
   workRepos: text("work_repos").notNull().default("[]"),
   /** The workers' model ("" = the AI settings' model for the provider). */
@@ -845,6 +866,10 @@ export const todos = sqliteTable(
     alsoTickets: text("also_tickets").notNull().default("[]"),
     /** JSON ["mail:<key>"]: the mails it's about — picked by the mail relation run (after the Ticket-Lage), its own say. */
     mailRefs: text("mail_refs").notNull().default("[]"),
+    /** When the auto-actions review last went through it (it's looked at again once it changes). */
+    actionsReviewedAt: text("actions_reviewed_at"),
+    /** Its operations came from the auto-actions review: why they fit (null: from the Lage, a worker, you). */
+    autoOpsWhy: text("auto_ops_why"),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(CURRENT_TIMESTAMP)`),
@@ -1031,3 +1056,60 @@ export type Repo = typeof repos.$inferSelect;
 export type TicketActionRow = typeof ticketActions.$inferSelect;
 export type WorkRun = typeof workRuns.$inferSelect;
 export type EntrySuggestion = typeof entrySuggestions.$inferSelect;
+
+/** Kanban (Kanban plugin): your own boards — a Jira of your own for projects, private or work. */
+export const kanbanBoards = sqliteTable("kanban_boards", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  color: text("color").notNull().default("indigo"),
+  sort: integer("sort").notNull().default(0),
+  archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+  /** Its cards go into the Ticket-Lage (as KB-<id>): todos, the Lage per card, the reports. */
+  inLage: integer("in_lage", { mode: "boolean" }).notNull().default(true),
+  createdAt: text("created_at").notNull().default(sql`(CURRENT_TIMESTAMP)`),
+  updatedAt: text("updated_at").notNull().default(sql`(CURRENT_TIMESTAMP)`),
+});
+
+/** A board's columns, in order; `done`: a card there counts as done. */
+export const kanbanColumns = sqliteTable(
+  "kanban_columns",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    boardId: integer("board_id")
+      .notNull()
+      .references(() => kanbanBoards.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    sort: integer("sort").notNull().default(0),
+    wipLimit: integer("wip_limit"),
+    done: integer("done", { mode: "boolean" }).notNull().default(false),
+  },
+  (t) => [index("kanban_columns_board").on(t.boardId)],
+);
+
+/** A card (K-<id>): in a column, in order (`sort`), with labels, a priority, a due day. */
+export const kanbanCards = sqliteTable(
+  "kanban_cards",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    boardId: integer("board_id")
+      .notNull()
+      .references(() => kanbanBoards.id, { onDelete: "cascade" }),
+    columnId: integer("column_id")
+      .notNull()
+      .references(() => kanbanColumns.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    description: text("description").notNull().default(""),
+    labels: text("labels").notNull().default("[]"),
+    priority: text("priority"),
+    due: text("due"),
+    /** Who's on it (a name — the board's person filter). */
+    assignee: text("assignee"),
+    sort: real("sort").notNull().default(0),
+    archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+    createdAt: text("created_at").notNull().default(sql`(CURRENT_TIMESTAMP)`),
+    updatedAt: text("updated_at").notNull().default(sql`(CURRENT_TIMESTAMP)`),
+    doneAt: text("done_at"),
+  },
+  (t) => [index("kanban_cards_column").on(t.columnId, t.sort)],
+);

@@ -2,8 +2,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
+import { dataDir } from "@/db";
+import { ACCOUNTS_DIR, currentAccountId, DEFAULT_ACCOUNT } from "@/db/accounts";
 import { getAppSettings, updateAppSettings } from "@/lib/ai";
 import { errorMessage, ValidationError } from "@/lib/errors";
+import { CONFIG_FILE, exportConfig, importConfig, parseConfig } from "./config";
 import { createZip, readZip, type ZipEntry } from "./zip";
 
 /**
@@ -11,13 +14,17 @@ import { createZip, readZip, type ZipEntry } from "./zip";
  * (the calendar inbox, the work logs, context files) — as a ZIP, AES-256-encrypted with the
  * password from the settings. Every N hours by itself (the scheduler), the last N kept. A restore
  * is staged and put in place when the server starts next (the database is open while it runs).
+ * Each account (Accounts plugin) backs up its own folder, with its own settings — its files named
+ * after it, so two accounts can share a backup folder.
  */
 
-const DATA_DIR = path.dirname(process.env.DATABASE_PATH ?? path.join(process.cwd(), "data", "zeff.db"));
-const DB_FILE = path.basename(process.env.DATABASE_PATH ?? "zeff.db");
-const PREFIX = "zeff-backup-";
+const DB_FILE = "zeff.db";
+/** The account's backups: zeff-backup-… (the first account), zeff-konto-<account>-backup-… (the others). */
+const prefix = (kind: "backup" | "config" = "backup") => (currentAccountId() === DEFAULT_ACCOUNT ? `zeff-${kind}-` : `zeff-konto-${currentAccountId()}-${kind}-`);
+/** A backup's config ZIP (settings and configuration), beside it. */
+const configName = (backup: string) => prefix("config") + backup.slice(prefix().length);
 /** Where a restore waits for the next start. */
-export const RESTORE_DIR = path.join(DATA_DIR, "restore-pending");
+export const restoreDir = () => path.join(dataDir(), "restore-pending");
 
 export type BackupSettingsView = {
   enabled: boolean;
@@ -26,6 +33,8 @@ export type BackupSettingsView = {
   keepDaily: number;
   keepWeekly: number;
   keepMonthly: number;
+  /** Settings and configuration also as a config ZIP of their own. */
+  config: boolean;
   /** As set ("" = the default). */
   dir: string;
   /** Where they go. */
@@ -37,9 +46,9 @@ export type BackupSettingsView = {
 };
 /** Why a backup is kept: the newest of its day, week or month (among the last N of each) — or by hand (before a restore, uploaded). */
 export type BackupTier = "daily" | "weekly" | "monthly" | "manual";
-export type BackupFile = { name: string; size: number; at: string; encrypted: boolean | null; tiers: BackupTier[] };
+export type BackupFile = { name: string; size: number; at: string; encrypted: boolean | null; tiers: BackupTier[]; config: boolean };
 
-export const backupDir = (dir = getAppSettings().backupDir) => (dir.trim() ? path.resolve(dir.trim()) : path.join(DATA_DIR, "backups"));
+export const backupDir = (dir = getAppSettings().backupDir) => (dir.trim() ? path.resolve(dir.trim()) : path.join(dataDir(), "backups"));
 
 export function getBackupSettings(): BackupSettingsView {
   const s = getAppSettings();
@@ -49,6 +58,7 @@ export function getBackupSettings(): BackupSettingsView {
     keepDaily: s.backupKeepDaily,
     keepWeekly: s.backupKeepWeekly,
     keepMonthly: s.backupKeepMonthly,
+    config: s.backupConfig,
     dir: s.backupDir,
     resolvedDir: backupDir(s.backupDir),
     hasPassword: !!s.backupPassword,
@@ -59,7 +69,7 @@ export function getBackupSettings(): BackupSettingsView {
 }
 
 /** Change the settings — the password only when one is given (`clearPassword`: none any more). */
-export function saveBackupSettings(v: { enabled: boolean; everyHours: number; keepDaily: number; keepWeekly: number; keepMonthly: number; dir: string; password?: string; clearPassword?: boolean }): BackupSettingsView & { moved: number } {
+export function saveBackupSettings(v: { enabled: boolean; everyHours: number; keepDaily: number; keepWeekly: number; keepMonthly: number; config?: boolean; dir: string; password?: string; clearPassword?: boolean }): BackupSettingsView & { moved: number } {
   const everyHours = Math.round(Number(v.everyHours));
   if (!(everyHours >= 1 && everyHours <= 24 * 30)) throw new ValidationError("Intervall: 1 Stunde bis 30 Tage.");
   const count = (n: number, what: string, max: number) => {
@@ -83,6 +93,7 @@ export function saveBackupSettings(v: { enabled: boolean; everyHours: number; ke
     backupKeepDaily: keepDaily,
     backupKeepWeekly: keepWeekly,
     backupKeepMonthly: keepMonthly,
+    backupConfig: !!v.config,
     backupDir: dir,
     ...(v.clearPassword ? { backupPassword: "" } : v.password ? { backupPassword: v.password } : {}),
   });
@@ -100,9 +111,9 @@ function moveBackups(from: string, to: string): number {
     throw new ValidationError(`In ${to} kann Zeff nicht schreiben: ${errorMessage(e)}`);
   }
   let n = 0;
-  for (const b of listBackups(from)) {
-    const src = path.join(from, b.name);
-    const dst = path.join(to, b.name);
+  for (const name of listBackups(from).flatMap((b) => (b.config ? [b.name, configName(b.name)] : [b.name]))) {
+    const src = path.join(from, name);
+    const dst = path.join(to, name);
     if (fs.existsSync(dst)) continue;
     try {
       fs.renameSync(src, dst);
@@ -116,16 +127,17 @@ function moveBackups(from: string, to: string): number {
   return n;
 }
 
-/** The files that go in besides the database: everything in the data folder but databases, logs, backups and scratch. */
+/** The files that go in besides the database: everything in the account's folder but databases, logs, backups, scratch and the other accounts. */
 function dataFiles(): ZipEntry[] {
-  const skipDirs = new Set([path.resolve(backupDir()), path.resolve(RESTORE_DIR), path.join(DATA_DIR, "work", "scratch")].map((d) => d.toLowerCase()));
+  const DATA_DIR = dataDir();
+  const skipDirs = new Set([path.resolve(backupDir()), path.resolve(restoreDir()), path.join(DATA_DIR, "work", "scratch"), ACCOUNTS_DIR].map((d) => path.resolve(d).toLowerCase()));
   const out: ZipEntry[] = [];
   const walk = (dir: string) => {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, e.name);
       if (e.isDirectory()) {
         if (!skipDirs.has(path.resolve(full).toLowerCase())) walk(full);
-      } else if (e.isFile() && !/\.(db|db-wal|db-shm|log)$/i.test(e.name)) {
+      } else if (e.isFile() && !/\.(db|db-wal|db-shm|log)$/i.test(e.name) && !(dir === DATA_DIR && e.name === "accounts.json")) {
         const st = fs.statSync(full);
         out.push({ name: path.relative(DATA_DIR, full).replace(/\\/g, "/"), data: fs.readFileSync(full), modified: st.mtime });
       }
@@ -140,7 +152,8 @@ const stamp = (d = new Date()) => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 };
 
-const state = globalThis as unknown as { __zeffBackup?: Promise<{ ok: boolean; message: string; file?: string }> | null };
+const state = globalThis as unknown as { __zeffBackups?: Map<string, Promise<{ ok: boolean; message: string; file?: string }>> };
+const running = (state.__zeffBackups ??= new Map());
 
 /**
  * A backup now: the database snapshot and the data files in one ZIP (encrypted when there's a
@@ -148,7 +161,10 @@ const state = globalThis as unknown as { __zeffBackup?: Promise<{ ok: boolean; m
  * (e.g. "before-restore").
  */
 export function runBackup(label = ""): Promise<{ ok: boolean; message: string; file?: string }> {
-  if (state.__zeffBackup) return state.__zeffBackup;
+  const account = currentAccountId();
+  const going = running.get(account);
+  if (going) return going;
+  const DATA_DIR = dataDir();
   const run = (async () => {
     const s = getAppSettings();
     const dir = backupDir(s.backupDir);
@@ -164,15 +180,22 @@ export function runBackup(label = ""): Promise<{ ok: boolean; message: string; f
       }
       const entries: ZipEntry[] = [{ name: DB_FILE, data: fs.readFileSync(tmp), modified: new Date() }, ...dataFiles()];
       const zip = createZip(entries, s.backupPassword || undefined);
-      const name = `${PREFIX}${stamp()}${label ? `-${label}` : ""}.zip`;
+      const name = `${prefix()}${stamp()}${label ? `-${label}` : ""}.zip`;
       const file = path.join(dir, name);
       fs.writeFileSync(`${file}.part`, zip);
       fs.renameSync(`${file}.part`, file);
+      // Settings and configuration besides, as a ZIP of their own (to take into any account).
+      if (s.backupConfig) {
+        const cfg = createZip([{ name: CONFIG_FILE, data: Buffer.from(JSON.stringify(exportConfig(), null, 2)), modified: new Date() }], s.backupPassword || undefined);
+        const cfgFile = path.join(dir, configName(name));
+        fs.writeFileSync(`${cfgFile}.part`, cfg);
+        fs.renameSync(`${cfgFile}.part`, cfgFile);
+      }
       // Kept: what the rotation keeps (the newest of each of the last N days, weeks, months) and
-      // the ones made by hand around a restore — the others go.
+      // the ones made by hand around a restore — the others go (their config ZIPs with them).
       const old = listBackups(dir).filter((b) => !b.tiers.length);
-      for (const b of old) fs.rmSync(path.join(dir, b.name), { force: true });
-      const message = `${name} · ${(zip.length / 1048576).toFixed(1)} MB · ${entries.length} Dateien${s.backupPassword ? " · verschlüsselt" : " · UNVERSCHLÜSSELT (kein Passwort gesetzt)"}${old.length ? ` · ${old.length} alte entfernt` : ""}`;
+      for (const b of old) for (const n of [b.name, configName(b.name)]) fs.rmSync(path.join(dir, n), { force: true });
+      const message = `${name}${s.backupConfig ? " (+ Konfiguration)" : ""} · ${(zip.length / 1048576).toFixed(1)} MB · ${entries.length} Dateien${s.backupPassword ? " · verschlüsselt" : " · UNVERSCHLÜSSELT (kein Passwort gesetzt)"}${old.length ? ` · ${old.length} alte entfernt` : ""}`;
       updateAppSettings({ backupLastAt: new Date().toISOString(), backupLastOk: true, backupLastResult: message });
       return { ok: true, message, file };
     } catch (e) {
@@ -183,9 +206,9 @@ export function runBackup(label = ""): Promise<{ ok: boolean; message: string; f
       fs.rmSync(tmp, { force: true });
     }
   })().finally(() => {
-    state.__zeffBackup = null;
+    running.delete(account);
   });
-  state.__zeffBackup = run;
+  running.set(account, run);
   return run;
 }
 
@@ -211,7 +234,7 @@ function encryptedZip(file: string): boolean | null {
 
 /** When a backup was made: from its name (zeff-backup-YYYY-MM-DD_HHMMSS…), else the file's time. */
 function madeAt(name: string, mtime: Date): Date {
-  const m = /^zeff-backup-(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})(\d{2})/.exec(name);
+  const m = /^zeff-(?:[\w-]+-)?backup-(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})(\d{2})/.exec(name);
   return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : mtime;
 }
 
@@ -257,19 +280,19 @@ export function listBackups(dir = backupDir()): BackupFile[] {
   const s = getAppSettings();
   const files = fs
     .readdirSync(dir)
-    .filter((n) => n.startsWith(PREFIX) && n.endsWith(".zip"))
+    .filter((n) => n.startsWith(prefix()) && n.endsWith(".zip"))
     .map((name) => {
       const st = fs.statSync(path.join(dir, name));
       return { name, size: st.size, at: madeAt(name, st.mtime), encrypted: encryptedZip(path.join(dir, name)) };
     })
     .sort((a, b) => b.at.getTime() - a.at.getTime());
   const kept = rotation(files, { daily: s.backupKeepDaily, weekly: s.backupKeepWeekly, monthly: s.backupKeepMonthly });
-  return files.map((f) => ({ ...f, at: f.at.toISOString(), tiers: kept.get(f.name) ?? [] }));
+  return files.map((f) => ({ ...f, at: f.at.toISOString(), tiers: kept.get(f.name) ?? [], config: fs.existsSync(path.join(dir, configName(f.name))) }));
 }
 
 /** A backup's path in the folder — only names from the list (no paths). */
 export function backupPath(name: string): string {
-  if (!/^zeff-backup-[\w.-]+\.zip$/.test(name)) throw new ValidationError("Unbekanntes Backup.");
+  if (!name.startsWith(prefix()) || !/^zeff-[\w.-]+\.zip$/.test(name)) throw new ValidationError("Unbekanntes Backup.");
   const file = path.join(backupDir(), name);
   if (!fs.existsSync(file)) throw new ValidationError(`${name} gibt es nicht (mehr).`);
   return file;
@@ -279,7 +302,7 @@ export function backupPath(name: string): string {
 export function storeUploadedBackup(original: string, data: Buffer): string {
   if (data.readUInt32LE(0) !== 0x04034b50) throw new ValidationError("Das ist keine ZIP-Datei.");
   const base = path.basename(original).replace(/\.zip$/i, "").replace(/[^\w.-]+/g, "_").slice(0, 80);
-  const name = `${PREFIX}upload-${stamp()}-${base}.zip`;
+  const name = `${prefix()}upload-${stamp()}-${base}.zip`;
   fs.mkdirSync(backupDir(), { recursive: true });
   fs.writeFileSync(path.join(backupDir(), name), data);
   return name;
@@ -314,6 +337,7 @@ export async function stageRestore(name: string, password?: string): Promise<{ f
   // The state now, kept first.
   const safety = await runBackup("vor-wiederherstellung");
   if (!safety.ok) throw new Error(`Sicherung des aktuellen Stands fehlgeschlagen — nichts wiederhergestellt: ${safety.message}`);
+  const RESTORE_DIR = restoreDir();
   fs.rmSync(RESTORE_DIR, { recursive: true, force: true });
   for (const e of entries) {
     const target = path.resolve(RESTORE_DIR, e.name);
@@ -323,4 +347,23 @@ export async function stageRestore(name: string, password?: string): Promise<{ f
   }
   fs.writeFileSync(path.join(RESTORE_DIR, ".ready"), JSON.stringify({ from: name, at: new Date().toISOString() }));
   return { files: entries.length, safety: safety.file ? path.basename(safety.file) : "" };
+}
+
+/**
+ * Settings and configuration taken over from a config ZIP — one beside a backup (by its backup's
+ * name) or one uploaded — into the account you're in. Its password: the given one, else the settings'.
+ */
+export function importConfigZip(from: { backup: string } | { data: Buffer }, password?: string): { tables: number; rows: number; account: string } {
+  let data: Buffer;
+  if ("backup" in from) {
+    const file = path.join(backupDir(), configName(path.basename(backupPath(from.backup))));
+    if (!fs.existsSync(file)) throw new ValidationError("Zu diesem Backup gibt es keine Konfiguration.");
+    data = fs.readFileSync(file);
+  } else data = from.data;
+  if (data.length < 4 || data.readUInt32LE(0) !== 0x04034b50) throw new ValidationError("Das ist keine ZIP-Datei.");
+  const entries = readZip(data, password || getAppSettings().backupPassword || undefined);
+  const cfg = entries.find((e) => e.name === CONFIG_FILE);
+  if (!cfg) throw new ValidationError(`Kein ${CONFIG_FILE} in der ZIP — keine Zeff-Konfiguration?`);
+  const c = parseConfig(cfg.data);
+  return { ...importConfig(c), account: c.account };
 }

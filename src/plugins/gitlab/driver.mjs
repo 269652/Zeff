@@ -23,7 +23,7 @@
  *     -> JSON { url, iid } — a merge request through the API (an open one for the branch is
  *     reused). dryRun: check project and branches, create nothing.
  */
-import { connectToChrome, ChromeConnectError, withTabLock } from "./chrome-cdp.mjs";
+import { connectToChrome, ChromeConnectError, withTabLock } from "../../../scripts/chrome-cdp.mjs";
 
 const CDP = process.env.GITLAB_CDP_ENDPOINT || process.env.ROAR_CDP_ENDPOINT || "http://127.0.0.1:9222";
 const log = (...a) => process.stderr.write(`[gitlab-mcp] ${a.join(" ")}\n`);

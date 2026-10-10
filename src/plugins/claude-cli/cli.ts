@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import type { AiAnswer } from "@/lib/ai/shared";
 
 /**
  * Where the Claude CLI is: CLAUDE_CLI, else the native claude(.exe) that the npm shim on the
@@ -20,7 +21,6 @@ export function findClaudeCli(): string | null {
   return fs.existsSync(/*turbopackIgnore: true*/ local) ? local : null;
 }
 
-export type AiAnswer<T> = { output: T; model: string | null; costUsd: number | null; durationMs: number | null };
 
 /**
  * One headless Claude CLI run, closed and read-only: no tools, no MCP servers, no settings
@@ -104,7 +104,11 @@ export function runClaude<T>(
         }
         resolve({
           output: j.structured_output,
-          model: Object.keys(j.modelUsage ?? {})[0] ?? null,
+          // The model that did the work (Claude Code also asks a small one on the side): the one with the most output.
+          model:
+            Object.entries((j.modelUsage ?? {}) as Record<string, { outputTokens?: number; costUSD?: number }>).sort(
+              (a, b) => (b[1]?.outputTokens ?? 0) - (a[1]?.outputTokens ?? 0) || (b[1]?.costUSD ?? 0) - (a[1]?.costUSD ?? 0),
+            )[0]?.[0] ?? null,
           costUsd: typeof j.total_cost_usd === "number" ? j.total_cost_usd : null,
           durationMs: typeof j.duration_ms === "number" ? j.duration_ms : null,
         });

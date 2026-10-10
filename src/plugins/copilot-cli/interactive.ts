@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { emitChange } from "@/lib/events";
 import { lives, type Live } from "./live-state";
-import { errPath, logPath } from "./log";
+import { errPath, logPath } from "@/lib/work/log";
 
 /**
  * Interactive workers: Copilot as an Agent Client Protocol server (`copilot --acp`), driven by
@@ -139,7 +139,7 @@ async function turn(live: Live, text: string) {
 
 /** The run taken in (its result from the log), the session closed. */
 async function end(live: Live) {
-  const { finalize } = await import("./runner");
+  const { finalize } = await import("@/lib/work/runner");
   await finalize(live.runId);
   close(live);
 }

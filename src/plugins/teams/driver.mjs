@@ -18,7 +18,7 @@
  *                                           checks it's theirs, types the text and sends it. The
  *                                           ONLY writing tool — run on your click in Zeff.
  */
-import { connectToChrome, ChromeConnectError, withTabLock } from "./chrome-cdp.mjs";
+import { connectToChrome, ChromeConnectError, withTabLock } from "../../../scripts/chrome-cdp.mjs";
 
 const CDP = process.env.TEAMS_CDP_ENDPOINT || process.env.ROAR_CDP_ENDPOINT || "http://127.0.0.1:9222";
 const TEAMS_URL = "https://teams.microsoft.com/v2/";

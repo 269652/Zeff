@@ -1,0 +1,1 @@
+ALTER TABLE `app_settings` ADD `backup_config` integer DEFAULT false NOT NULL;

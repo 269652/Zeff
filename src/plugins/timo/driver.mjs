@@ -20,7 +20,7 @@
  * clock-ins from a terminal or the TimO app, which are never touched.
  * dryRun opens and fills each form, validates it and closes it without saving.
  */
-import { connectToChrome, ChromeConnectError } from "./chrome-cdp.mjs";
+import { connectToChrome, ChromeConnectError } from "../../../scripts/chrome-cdp.mjs";
 
 const CDP = process.env.ROAR_CDP_ENDPOINT || "http://127.0.0.1:9222";
 const TIMO_URL = "https://ac.timo24.de/timo/index.jsp";

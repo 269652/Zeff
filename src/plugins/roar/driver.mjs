@@ -14,7 +14,7 @@
  *
  * Start Chrome for it with:  npm run roar:chrome   (then sign in to Roar once)
  */
-import { connectToChrome, ChromeConnectError, withTabLock } from "./chrome-cdp.mjs";
+import { connectToChrome, ChromeConnectError, withTabLock } from "../../../scripts/chrome-cdp.mjs";
 
 const CDP = process.env.ROAR_CDP_ENDPOINT || "http://127.0.0.1:9222";
 const ROAR_URL = "https://roar.marcel.ai/app/timesheet";

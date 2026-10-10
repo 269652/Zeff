@@ -2,7 +2,7 @@ import { execFile, spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { AiAnswer } from "./claude";
+import type { AiAnswer } from "@/lib/ai/shared";
 
 /** How to start the Copilot CLI: a program and the arguments before ours. */
 export type CopilotCommand = { command: string; args: string[]; where: string };
