@@ -42,6 +42,24 @@ npm run deploy    # typecheck, lint, tests, build, restart, page probes
 npm run eval:mail # before/after of the Mail-Durchsicht prompt on your real mails — nothing may get lost
 ```
 
+### Releases (Windows, macOS, Linux)
+
+Others run Zeff from a release: one archive per system with the launcher, its own Node and Zeff
+built — no Node, npm or checkout needed. Download it from the repository's GitHub Releases:
+
+| System | Archive | Start |
+| --- | --- | --- |
+| Windows 10/11 x64 | `Zeff-<version>-windows-x64.zip` | `Zeff\Zeff.exe` |
+| macOS (Apple Silicon / Intel) | `Zeff-<version>-macos-arm64.zip` / `-macos-x64.zip` | `Zeff.app` (into Applications; unsigned: "Open Anyway" once) |
+| Ubuntu 22.04+ x64 | `Zeff-<version>-linux-x64.tar.gz` | `Zeff/zeff` |
+
+A tag starts the build: `git tag v0.2.0 && git push github v0.2.0`. The workflow
+(`.github/workflows/release.yml`) builds on each system (`npm run release`), unpacks and starts
+every archive (`npm run release:check -- <archive>`: servers up, https answers), and publishes the
+GitHub release only when all of them pass. "Run workflow" on the Actions tab builds and checks
+without publishing. Each archive's `README.txt` says where the data is (Windows: `app\data`;
+macOS: `~/Library/Application Support/Zeff`; Linux: `~/.local/share/zeff`).
+
 The database is created and migrated on first start (`drizzle/`). After editing
 `src/db/schema.ts`, **write the migration by hand** (`drizzle/00NN_name.sql`, statements separated
 by `--> statement-breakpoint`) and add it to `drizzle/meta/_journal.json` with a `"when"` greater

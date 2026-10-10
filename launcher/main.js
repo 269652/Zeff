@@ -1,14 +1,18 @@
 // Zeff launcher (Electron): runs Zeff's Next server (127.0.0.1:9333) and a knowledge server per
-// account (127.0.0.1:9555, :9556 …) on the bundled node.exe, keeps them alive, and serves them over HTTPS —
+// account (127.0.0.1:9555, :9556 …) on the bundled Node, keeps them alive, and serves them over HTTPS —
 // https://zeff and https://zeff:1337 (knowledge: https://knowledge.zeff). A tray icon and a
-// small status window manage it all.
+// small status window manage it all. Windows (Zeff.exe), macOS (Zeff.app) and Linux (./zeff).
 //
 //   Zeff.exe                  tray, opens https://zeff in the browser
-//   Zeff.exe --background     tray only (what "Start with Windows" runs)
+//   Zeff.exe --background     tray only (what "Start at log in" runs)
 //   Zeff.exe --no-setup       skip the hosts/certificate setup prompt
 //   Zeff.exe --config <file>  another zeff-launcher.json
-const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, shell } = require("electron");
+//   Zeff.exe --smoke-test     start everything, check it answers over https, quit (exit code 0 = ok)
+const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, shell } = require("electron");
+const { execFile } = require("node:child_process");
+const { X509Certificate } = require("node:crypto");
 const fs = require("node:fs");
+const https = require("node:https");
 const path = require("node:path");
 const config = require("./lib/config");
 const { log, init: initLog } = require("./lib/log");
@@ -22,10 +26,31 @@ const { startNotifications } = require("./lib/notifications");
 const argv = process.argv.slice(app.isPackaged ? 1 : 2);
 const flag = (f) => argv.includes(f);
 const configFile = argv.includes("--config") ? argv[argv.indexOf("--config") + 1] : undefined;
+const smokeTest = flag("--smoke-test");
+const PLATFORM = process.platform;
+/** What the launcher's texts call the system. */
+const SYSTEM = { win32: "Windows", darwin: "macOS" }[PLATFORM] ?? "Linux";
+/**
+ * The bundle's app/ and runtime/: next to Zeff.exe (Windows) and ./zeff (Linux); in Zeff.app,
+ * Contents/Resources/zeff. (In a checkout: the launcher's folder — the checkout is found from there.)
+ */
+const bundleDir = PLATFORM === "darwin" && app.isPackaged ? path.join(process.resourcesPath, "zeff") : path.dirname(process.execPath);
+/** What "Start at log in" and the Linux menu entry run: the ./zeff script when it started us. */
+const launcherExe = process.env.ZEFF_LAUNCHER || process.execPath;
+const trayIcon = () =>
+  PLATFORM === "win32"
+    ? path.join(__dirname, "icon.ico")
+    : nativeImage.createFromPath(path.join(__dirname, "icon.png")).resize({ width: PLATFORM === "darwin" ? 18 : 24 });
+const windowIcon = path.join(__dirname, PLATFORM === "win32" ? "icon.ico" : "icon.png");
 
 app.setName("Zeff");
 app.setAppUserModelId("Zeff.Launcher");
 app.disableHardwareAcceleration();
+// Lives in the menu bar, not the Dock.
+if (PLATFORM === "darwin") app.dock?.hide();
+
+// A smoke test runs beside a running Zeff: its own Electron profile, so its own single-instance lock.
+if (smokeTest) app.setPath("userData", fs.mkdtempSync(path.join(require("node:os").tmpdir(), "zeff-smoke-profile-")));
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -49,6 +74,7 @@ const state = {
 let tray = null;
 let win = null;
 let quitting = false;
+let exitCode = 0;
 
 const zeff = () => state.services.find((s) => s.name === "Zeff");
 /** The knowledge servers — one per Zeff account with the Knowledge plugin (`s.account`). */
@@ -129,8 +155,8 @@ function buildMenu() {
     serviceMenu(zeff()),
     ...knowledges().map((k) => serviceMenu(k, [{ label: "Open knowledge", click: () => shell.openExternal(knowledgeUrl(k)) }, { type: "separator" }])),
     { type: "separator" },
-    { label: "Open data folder", click: () => shell.openPath(path.join(state.paths.app, "data")) },
-    { label: "Start with Windows", type: "checkbox", checked: state.autostart, click: (item) => toggleAutostart(item.checked) },
+    { label: "Open data folder", click: () => shell.openPath(state.paths.data) },
+    { label: PLATFORM === "win32" ? "Start with Windows" : "Start at log in", type: "checkbox", checked: state.autostart, click: (item) => toggleAutostart(item.checked) },
     { label: `Set up https://${state.cfg.host}…`, click: () => machineSetup(true) },
     { type: "separator" },
     { label: "Quit Zeff", click: () => app.quit() },
@@ -151,7 +177,7 @@ function showWindow() {
     maximizable: false,
     autoHideMenuBar: true,
     title: "Zeff",
-    icon: path.join(__dirname, "icon.ico"),
+    icon: windowIcon,
     backgroundColor: "#fafafa",
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true },
   });
@@ -166,11 +192,14 @@ function showWindow() {
   win.webContents.on("will-navigate", (e) => e.preventDefault());
 }
 
+/** The launcher's arguments (in a checkout, electron's: the launcher folder first) — plus `extra`. */
+const launcherArgs = (...extra) => (app.isPackaged ? extra : [app.getAppPath(), ...extra]);
+
 async function toggleAutostart(on) {
-  const exe = process.execPath;
-  const args = app.isPackaged ? ["--background"] : [app.getAppPath(), "--background"];
-  const ok = on ? await autostart.enable({ exe, args, stateDir: state.paths.state }) : await autostart.disable();
-  if (!ok) dialog.showErrorBox("Zeff", 'Couldn\'t change the "Zeff Launcher" scheduled task.');
+  const ok = on
+    ? await autostart.enable({ exe: launcherExe, args: launcherArgs("--background"), stateDir: state.paths.state, icon: windowIcon })
+    : await autostart.disable();
+  if (!ok) dialog.showErrorBox("Zeff", "Couldn't change starting Zeff at log in.");
   state.autostart = await autostart.enabled();
   refresh();
 }
@@ -182,7 +211,7 @@ async function toggleAutostart(on) {
 async function machineSetup(forced) {
   const { cfg, paths, cert } = state;
   const declined = path.join(paths.state, "setup-declined");
-  state.trusted = await setup.caTrusted(cert.caThumbprint);
+  state.trusted = await setup.caTrusted(cert);
   refreshUrl();
   if (state.hosts && state.trusted) {
     if (forced) dialog.showMessageBox({ type: "info", title: "Zeff", message: `https://${cfg.host} is set up.`, detail: "The hosts entry is there and the certificate is trusted." });
@@ -199,22 +228,22 @@ async function machineSetup(forced) {
     message: `Set up https://${cfg.host} on this computer?`,
     detail:
       `• The hosts file gets "127.0.0.1 ${cfg.hostsNames.join(" ")}".\n` +
-      "• Windows trusts Zeff's own certificate. It was made on this computer and its signing key was deleted right away, so it can't vouch for anything else.\n\n" +
-      `Windows will ask for admin rights. Without them Zeff runs on https://127.0.0.1:1337.`,
+      `• ${SYSTEM} trusts Zeff's own certificate. It was made on this computer and its signing key was deleted right away, so it can't vouch for anything else.\n\n` +
+      `${SYSTEM} will ask for admin rights${PLATFORM === "darwin" ? ", then once more for your password to trust the certificate" : ""}. Without them Zeff runs on https://127.0.0.1:1337.`,
   });
   let result = "declined";
   if (response === 0) {
     result = await setup.runElevated({ caCer: cert.caCer, names: cfg.hostsNames, logFile: path.join(paths.logs, "launcher.log") });
-    if (result === "failed") dialog.showErrorBox("Zeff", "The setup didn't finish. Details are in data\\logs\\launcher.log.");
+    if (result === "failed") dialog.showErrorBox("Zeff", `The setup didn't finish. Details are in ${path.join(paths.logs, "launcher.log")}.`);
   }
   if (result === "done") fs.rmSync(declined, { force: true });
   else fs.writeFileSync(declined, "");
 
-  state.trusted = await setup.caTrusted(cert.caThumbprint);
+  state.trusted = await setup.caTrusted(cert);
   if (!state.trusted) {
-    // Trust it at least for this user (no admin; Windows asks once).
+    // Trust it at least for this user (no admin; the system asks once).
     await setup.trustForUser(cert.caCer);
-    state.trusted = await setup.caTrusted(cert.caThumbprint);
+    state.trusted = await setup.caTrusted(cert);
   }
   refreshUrl();
   log(`setup: hosts ${state.hosts ? "ok" : "missing"}, certificate ${state.trusted ? "trusted" : "NOT trusted"}; serving ${state.url}`);
@@ -230,14 +259,15 @@ function fail(message) {
 async function start() {
   let loaded;
   try {
-    loaded = config.load({ exeDir: path.dirname(process.execPath), codeDir: __dirname, configFile });
+    loaded = config.load({ bundleDir, codeDir: __dirname, configFile });
   } catch (e) {
     return fail(e.message);
   }
   const { cfg, paths } = loaded;
   Object.assign(state, { cfg, paths });
   initLog(path.join(paths.logs, "launcher.log"));
-  log(`launcher ${app.getVersion()} (Electron ${process.versions.electron}) — app ${paths.app}, node ${paths.node}`);
+  log(`launcher ${app.getVersion()} (Electron ${process.versions.electron}, ${PLATFORM}) — app ${paths.app}, data ${paths.data}, node ${paths.node}`);
+  if (PLATFORM === "darwin" && app.isPackaged) unquarantine();
 
   try {
     state.cert = await tlsCert.ensure(path.join(paths.state, "tls"), cfg.certNames);
@@ -250,6 +280,8 @@ async function start() {
   await killLeftovers(pidsFile);
 
   const next = path.join(paths.app, "node_modules", "next", "dist", "bin", "next");
+  // Data outside the app folder (the macOS and Linux bundles, "dataDir"): the servers are told where.
+  const ownData = path.resolve(paths.data) !== path.resolve(paths.app, "data");
   const env = {
     ...process.env,
     NODE_ENV: "production",
@@ -257,7 +289,8 @@ async function start() {
     ZEFF_URL: `http://127.0.0.1:${cfg.zeffPort}`,
     KNOWLEDGE_URL: `http://127.0.0.1:${cfg.knowledgePort}`,
     // The servers start node for their drivers (process.execPath) — and `node`/`npx` from PATH.
-    PATH: `${path.dirname(paths.node)};${process.env.PATH ?? ""}`,
+    PATH: `${path.dirname(paths.node)}${path.delimiter}${process.env.PATH ?? ""}`,
+    ...(ownData ? { DATABASE_PATH: path.join(paths.data, "zeff.db"), ZEFF_CALENDAR_INBOX: path.join(paths.data, "calendar-inbox.json") } : {}),
     ...cfg.env,
   };
   delete env.ELECTRON_RUN_AS_NODE;
@@ -289,8 +322,9 @@ async function start() {
   // Knowledge servers: one per Zeff account with the Knowledge plugin, as Zeff lists them in
   // data\knowledge-instances.json (each its port, its data folder); without the list (an older
   // Zeff, not started yet) just the first account's on knowledgePort.
-  const dataBase = cfg.env.DATABASE_PATH ? path.dirname(path.resolve(paths.app, cfg.env.DATABASE_PATH)) : path.join(paths.app, "data");
-  const instancesFile = path.join(dataBase, "knowledge-instances.json");
+  const instancesFile = path.join(paths.data, "knowledge-instances.json");
+  // The first account's knowledge data: knowledge/data in the app — or next to Zeff's own data.
+  const firstDataDir = ownData ? path.join(paths.data, "knowledge") : null;
   const knowledgeSpec = (k) => {
     const first = k.account === "default";
     const s = spec(first ? "Knowledge" : `Knowledge · ${k.name}`, "knowledge", first ? cfg.knowledgePort : k.port);
@@ -306,7 +340,9 @@ async function start() {
       if (Array.isArray(v.instances)) list = v;
     } catch {}
     state.activeAccount = list.active;
-    const wanted = list.instances.filter((k) => typeof k?.account === "string" && Number.isInteger(k.port));
+    const wanted = list.instances
+      .filter((k) => typeof k?.account === "string" && Number.isInteger(k.port))
+      .map((k) => (k.account === "default" && !k.dataDir && firstDataDir ? { ...k, dataDir: firstDataDir } : k));
     for (const s of knowledges()) {
       const k = wanted.find((x) => x.account === s.account);
       const next = k && knowledgeSpec(k);
@@ -349,15 +385,17 @@ async function start() {
 
   refreshUrl();
   state.autostart = await autostart.enabled();
-  tray = new Tray(path.join(__dirname, "icon.ico"));
+  tray = new Tray(trayIcon());
   tray.on("click", showWindow);
   refresh();
   log(`serving ${state.url} (zeff:${cfg.zeffPort} knowledge:${cfg.knowledgePort})`);
 
+  if (smokeTest) return runSmokeTest();
   if (!flag("--no-setup")) await machineSetup(false);
-  else state.trusted = await setup.caTrusted(state.cert.caThumbprint);
+  else state.trusted = await setup.caTrusted(state.cert);
   refresh();
-  // Zeff's notifications as Windows toasts.
+  autostart.ensureMenuEntry({ exe: launcherExe, args: launcherArgs(), icon: windowIcon });
+  // Zeff's notifications as desktop notifications.
   startNotifications({
     appId: "Zeff.Launcher",
     exe: process.execPath,
@@ -365,9 +403,73 @@ async function start() {
     zeffPort: cfg.zeffPort,
     url: () => state.url,
     stateDir: paths.state,
-    icon: path.join(__dirname, "icon.ico"),
+    icon: windowIcon,
   });
   if (!flag("--background")) shell.openExternal(state.url);
+}
+
+/**
+ * macOS: what the browser unzipped is quarantined — every file in Zeff.app. Once its user has
+ * opened Zeff.app (Gatekeeper asked them), the bundled Node and the native modules must be able
+ * to run too, so the quarantine flag comes off Zeff's own files.
+ */
+function unquarantine() {
+  execFile("xattr", ["-dr", "com.apple.quarantine", bundleDir], (e) => {
+    if (e && !/No such xattr/i.test(e.message)) log(`xattr: ${e.message.trim()}`);
+  });
+}
+
+/**
+ * --smoke-test: the bundle as its user gets it, checked end to end — the servers start on the
+ * bundled Node (native modules included), the certificate is made, and Zeff and the knowledge
+ * server answer over https through the proxy, verified against Zeff's own CA. Then quit.
+ */
+async function runSmokeTest() {
+  const deadline = Date.now() + 5 * 60 * 1000;
+  const wanted = () => [zeff(), ...(state.cfg.knowledge ? [activeKnowledge()] : [])];
+  const get = (host) =>
+    new Promise((resolve, reject) => {
+      const req = https.get(
+        {
+          host: "127.0.0.1",
+          port: state.httpsPorts.find((p) => p !== 443) ?? state.httpsPorts[0],
+          path: "/",
+          servername: host,
+          headers: { host },
+          ca: new X509Certificate(fs.readFileSync(state.cert.caCer)).toString(), // PEM (Windows exports DER)
+          timeout: 60000,
+        },
+        (res) => {
+          res.resume();
+          res.on("end", () => resolve(res.statusCode));
+        },
+      );
+      req.on("timeout", () => req.destroy(new Error("timeout")));
+      req.on("error", reject);
+    });
+  const failed = (why) => {
+    log(`smoke test FAILED: ${why}`);
+    exitCode = 1;
+    app.quit();
+  };
+  try {
+    if (!state.httpsPorts.length) return failed("no https port");
+    while (!wanted().every((s) => s?.status === "running")) {
+      const now = state.services.map((s) => `${s.name}: ${s.status}`).join(", ");
+      if (Date.now() > deadline) return failed(`not running after 5 minutes (${now})`);
+      if (state.services.some((s) => s.restarts >= 2)) return failed(`a server keeps crashing (${now}) — see ${state.paths.logs}`);
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    for (const host of [state.cfg.host, ...(state.cfg.knowledge ? [state.cfg.knowledgeHost] : [])]) {
+      const status = await get(host);
+      log(`smoke test: https://${host}/ → ${status}`);
+      if (!(status >= 200 && status < 400)) return failed(`https://${host}/ answered ${status}`);
+    }
+    log("smoke test passed");
+    app.quit();
+  } catch (e) {
+    failed(e.message);
+  }
 }
 
 ipcMain.handle("state", () => snapshot());
@@ -386,7 +488,7 @@ ipcMain.handle("do", async (_e, action, name) => {
       shell.openExternal(s?.account ? knowledgeUrl(s) : state.url);
       break;
     case "data":
-      shell.openPath(path.join(state.paths.app, "data"));
+      shell.openPath(state.paths.data);
       break;
     case "setup":
       await machineSetup(true);
@@ -419,8 +521,24 @@ app.on("before-quit", (e) => {
     .finally(() => {
       state.services.forEach((s) => s.dispose());
       log("bye");
-      app.exit(0);
+      app.exit(exitCode);
     });
 });
 
-app.whenReady().then(start);
+app.whenReady().then(async () => {
+  // macOS runs an app opened from Downloads from a read-only copy (App Translocation) — Next can't
+  // keep its cache there. From Applications it runs where it is.
+  if (PLATFORM === "darwin" && app.isPackaged && !smokeTest && process.execPath.includes("/AppTranslocation/")) {
+    const { response } = await dialog.showMessageBox({
+      type: "question",
+      title: "Zeff",
+      buttons: ["Move to Applications", "Not now"],
+      defaultId: 0,
+      cancelId: 1,
+      message: "Move Zeff to the Applications folder?",
+      detail: "macOS runs Zeff from a read-only copy until it's in Applications. Your data isn't in Zeff.app — it stays where it is.",
+    });
+    if (response === 0 && app.moveToApplicationsFolder()) return;
+  }
+  await start();
+});

@@ -1,21 +1,34 @@
-// Where things are and how they're wired: the optional zeff-launcher.json next to Zeff.exe, plus
-// the layout it runs in — the bundle (Zeff.exe, runtime\node.exe, app\) or a Zeff checkout
-// (`npm start` in launcher/, Node from PATH).
+// Where things are and how they're wired: the optional zeff-launcher.json, plus the layout it
+// runs in — the bundle (the launcher, runtime/node[.exe], app/) or a Zeff checkout (`npm start`
+// in launcher/, Node from PATH).
+//
+// Data: a checkout and the Windows bundle keep it in <app>/data, as always. The macOS and Linux
+// bundles can't — Zeff.app may run from a read-only place, and an update replaces the whole
+// folder — so theirs is in the user's profile:
+//   macOS  ~/Library/Application Support/Zeff
+//   Linux  $XDG_DATA_HOME/zeff (~/.local/share/zeff)
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
+const { parseEnv } = require("node:util");
+
+const WIN = process.platform === "win32";
+const NODE = WIN ? "node.exe" : "node";
 
 const DEFAULTS = {
-  /** Zeff's folder (package.json, .next, knowledge\). Relative to Zeff.exe. */
+  /** Zeff's folder (package.json, .next, knowledge/). Relative to the bundle folder. */
   appDir: null,
-  /** node.exe that runs the servers. */
+  /** The node binary that runs the servers. */
   node: null,
+  /** Zeff's data (databases, the launcher's state and logs). Default: see above. */
+  dataDir: null,
   /** The name the hosts file maps to 127.0.0.1 — https://zeff. */
   host: "zeff",
   zeffPort: 9333,
   knowledgePort: 9555,
   /** Manage the knowledge server too (and route https://knowledge.<host> to it). */
   knowledge: true,
-  /** HTTPS ports on 127.0.0.1. 443 is best effort — something else may hold it. */
+  /** HTTPS ports on 127.0.0.1. 443 is best effort — something else may hold it (Linux: root only). */
   httpsPorts: [443, 1337],
   /** Redirect http://<host> (port 80) to https. */
   httpRedirect: true,
@@ -24,6 +37,12 @@ const DEFAULTS = {
   /** Extra environment for both servers. */
   env: {},
 };
+
+/** The per-user data folder of the macOS and Linux bundles. */
+function userDataDir() {
+  if (process.platform === "darwin") return path.join(os.homedir(), "Library", "Application Support", "Zeff");
+  return path.join(process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share"), "zeff");
+}
 
 const isZeffApp = (dir) => {
   try {
@@ -53,27 +72,31 @@ function findApp(starts) {
 
 function findNode(dirs) {
   for (const d of dirs) {
-    const p = path.join(d, "runtime", "node.exe");
+    const p = path.join(d, "runtime", NODE);
     if (fs.existsSync(p)) return p;
   }
   for (const d of (process.env.PATH ?? "").split(path.delimiter)) {
-    const p = path.join(d, "node.exe");
+    const p = path.join(d, NODE);
     if (d && fs.existsSync(p)) return p;
   }
   return null;
 }
 
-/** { cfg, paths } — throws with a message meant for the user. */
-function load({ exeDir, codeDir, configFile }) {
-  const file = configFile ?? path.join(exeDir, "zeff-launcher.json");
-  let user = {};
-  if (fs.existsSync(file)) {
-    try {
-      user = JSON.parse(fs.readFileSync(file, "utf8").replace(/^﻿/, ""));
-    } catch (e) {
-      throw new Error(`${file}: ${e.message}`);
-    }
+const readJson = (file) => {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8").replace(/^﻿/, ""));
+  } catch (e) {
+    throw new Error(`${file}: ${e.message}`);
   }
+};
+
+/**
+ * { cfg, paths } — throws with a message meant for the user.
+ * bundleDir: where the bundle's app/ and runtime/ are (next to Zeff.exe; in Zeff.app, Contents/Resources/zeff).
+ */
+function load({ bundleDir, codeDir, configFile }) {
+  const file = configFile ?? [path.join(bundleDir, "zeff-launcher.json"), path.join(userDataDir(), "zeff-launcher.json")].find((f) => fs.existsSync(f));
+  const user = file && fs.existsSync(file) ? readJson(file) : {};
   const cfg = { ...DEFAULTS, ...user, env: { ...DEFAULTS.env, ...user.env } };
   cfg.knowledgeHost = `knowledge.${cfg.host}`;
   /** Names the hosts file maps to 127.0.0.1. */
@@ -81,20 +104,33 @@ function load({ exeDir, codeDir, configFile }) {
   /** Names the certificate covers: those, their .localhost twins (no hosts entry needed) and localhost. */
   cfg.certNames = [cfg.host, cfg.knowledgeHost].flatMap((h) => [h, `${h}.localhost`]).concat("localhost");
 
-  const app = cfg.appDir ? path.resolve(exeDir, cfg.appDir) : findApp([exeDir, codeDir]);
+  const app = cfg.appDir ? path.resolve(bundleDir, cfg.appDir) : findApp([bundleDir, codeDir]);
   if (!app)
     throw new Error(
-      "Zeff's app folder wasn't found: expected app\\ next to Zeff.exe, or the launcher inside a Zeff checkout. Set \"appDir\" in zeff-launcher.json.",
+      "Zeff's app folder wasn't found: expected app/ in the bundle, or the launcher inside a Zeff checkout. Set \"appDir\" in zeff-launcher.json.",
     );
   if (!isZeffApp(app)) throw new Error(`${app} is not a Zeff app folder (no package.json named "zeff").`);
 
-  const node = cfg.node ? path.resolve(exeDir, cfg.node) : findNode([exeDir, path.dirname(app)]);
-  if (!node || !fs.existsSync(node)) throw new Error("node.exe wasn't found: expected runtime\\node.exe next to Zeff.exe, or Node on PATH.");
+  const node = cfg.node ? path.resolve(bundleDir, cfg.node) : findNode([bundleDir, path.dirname(app)]);
+  if (!node || !fs.existsSync(node)) throw new Error(`${NODE} wasn't found: expected runtime/${NODE} in the bundle, or Node on PATH.`);
 
-  const paths = { exeDir, app, node, state: path.join(app, "data", "launcher"), logs: path.join(app, "data", "logs") };
+  const bundled = path.resolve(app) === path.resolve(bundleDir, "app");
+  const data = cfg.dataDir
+    ? path.resolve(bundleDir, cfg.dataDir)
+    : cfg.env.DATABASE_PATH
+      ? path.dirname(path.resolve(app, cfg.env.DATABASE_PATH))
+      : bundled && !WIN
+        ? userDataDir()
+        : path.join(app, "data");
+
+  // <data>/.env: settings like JIRA_URL where the app folder can't take them (Zeff.app).
+  const envFile = path.join(data, ".env");
+  if (fs.existsSync(envFile)) cfg.env = { ...parseEnv(fs.readFileSync(envFile, "utf8")), ...cfg.env };
+
+  const paths = { bundleDir, configFile: file ?? null, app, node, data, state: path.join(data, "launcher"), logs: path.join(data, "logs") };
   fs.mkdirSync(paths.state, { recursive: true });
   fs.mkdirSync(paths.logs, { recursive: true });
   return { cfg, paths };
 }
 
-module.exports = { load };
+module.exports = { load, userDataDir };

@@ -1,4 +1,4 @@
-// Running Windows PowerShell and Windows tools without a console window.
+// Running programs without a console window — and, on Windows, PowerShell (ps\*.ps1).
 const { execFile } = require("node:child_process");
 const path = require("node:path");
 

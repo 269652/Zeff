@@ -1,4 +1,4 @@
-// Zeff's notifications as Windows toasts: every 2 minutes the launcher asks Zeff what's there
+// Zeff's notifications as desktop notifications (Windows toasts, macOS / Linux notifications): every 2 minutes the launcher asks Zeff what's there
 // (GET /api/notifications → { items: [{ id, title, body, href, at }] }, ids stable) and shows each
 // id once; a click opens it in the browser. The ids shown are kept (data\launcher\notifications.json),
 // so a restart doesn't show them again — and the very first time, what's already there is only
@@ -18,6 +18,7 @@ const AT_ONCE = 5;
  * (Its target is this exe; with a checkout's electron.exe, the app folder as its argument.)
  */
 function ensureShortcut({ appId, exe, args }) {
+  if (process.platform !== "win32") return;
   const dir = path.join(process.env.APPDATA ?? "", "Microsoft", "Windows", "Start Menu", "Programs");
   const lnk = path.join(dir, "Zeff.lnk");
   try {
