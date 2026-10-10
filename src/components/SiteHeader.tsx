@@ -272,7 +272,7 @@ export function SiteHeader({
     <>
       <header className="relative z-30 border-b border-zinc-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             {!bare && (
               <button
                 ref={burger}
@@ -297,8 +297,9 @@ export function SiteHeader({
             {account && <AccountSwitcher current={account.current} list={account.list} />}
           </div>
           {!bare && (
-            <div className="flex items-center gap-1 sm:gap-2">
-              <nav className="flex items-center gap-1" aria-label="Reports">
+            <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+              {/* The tabs: on a narrow screen they scroll sideways — the page never gets wider than the window. */}
+              <nav className="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none]" aria-label="Reports">
                 {tabs.map((t) => {
                   const active = t.href === "/" ? pathname === "/" : pathname.startsWith(t.href);
                   const current = active || (t.also ?? []).some((p) => pathname.startsWith(p));
