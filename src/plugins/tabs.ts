@@ -1,4 +1,4 @@
-import { DEFAULT_MENU, type AppView, type MenuPrefs } from "@/lib/layout-shared";
+import { DEFAULT_MENU, inOrder, type AppView, type MenuPrefs } from "@/lib/layout-shared";
 import { getPref, setPref } from "@/lib/prefs";
 import { PLUGINS } from "./catalog";
 import { installedPlugins } from "./state";
@@ -9,7 +9,7 @@ const TAB_ORDER = ["work", "todos", "tickets", "kanban", "weekly-report", "month
 /** The menu's settings (Menu → Anpassen) — per account. */
 export const getMenuPrefs = (): MenuPrefs => {
   const p = getPref<Partial<MenuPrefs>>("menu", {});
-  return { place: p.place ?? {}, hidden: p.hidden ?? DEFAULT_MENU.hidden };
+  return { place: p.place ?? {}, hidden: p.hidden ?? DEFAULT_MENU.hidden, order: p.order ?? DEFAULT_MENU.order };
 };
 export const setMenuPrefs = (patch: Partial<MenuPrefs>) => setPref("menu", { ...getMenuPrefs(), ...patch });
 
@@ -34,7 +34,7 @@ export function allApps(): AppView[] {
       apps.push({ ...a, defaultPlace, place: prefs.place[a.href] ?? defaultPlace });
     }
   }
-  return apps;
+  return inOrder(apps, (a) => a.href, prefs.order);
 }
 
 /** The header's tabs: the applications put there. */

@@ -2,7 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { finishSetupAction, skipSetupAction } from "@/app/actions";
+import { CheckAllLoginsButton } from "@/components/LoginButtons";
+import { LoginsList } from "@/components/LoginsList";
 import { PluginInstallButton } from "@/components/PluginInstallButton";
+import { SetupDataRun } from "@/components/SetupDataRun";
+import { currentAccount } from "@/db/accounts";
+import { getPref } from "@/lib/prefs";
 import { SyncSettingsList } from "@/components/SyncSettingsList";
 import { PLUGIN_CATEGORY_LABELS, PLUGINS, type PluginCategory } from "@/plugins/catalog";
 import { chosenPlugins, installedPlugins } from "@/plugins/state";
@@ -14,12 +19,15 @@ const STEPS = [
   { id: "configure", label: "Einrichten" },
   { id: "sync", label: "Syncs" },
   { id: "logins", label: "Anmeldungen" },
+  { id: "data", label: "Daten holen & auswerten" },
+  { id: "done", label: "Fertig" },
 ] as const;
 type StepId = (typeof STEPS)[number]["id"];
 
 /**
  * The setup assistant — a new Zeff (or account) starts here: the plugins chosen, each set up on
- * its settings page, how often the syncs run, and last the sign-ins (the Logins page).
+ * its settings page, how often the syncs run, the sign-ins, then all data read and reviewed once.
+ * An account made from another has all that but the data already: it says so, and where to go on.
  */
 export default async function SetupPage({ searchParams }: { searchParams: Promise<{ step?: string }> }) {
   await connection();
@@ -29,11 +37,12 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   const next = STEPS[n + 1];
   const on = installedPlugins();
   const set = chosenPlugins();
+  const from = getPref<{ id: string; name: string; sharedChrome: boolean } | null>("setup:from", null);
 
   return (
     <div className="page">
       <div className="page-aside">
-        <h1 className="text-lg font-semibold">Zeff einrichten</h1>
+        <h1 className="text-lg font-semibold">{from ? `„${currentAccount().name}“ einrichten` : "Zeff einrichten"}</h1>
         <ol className="space-y-1 text-sm">
           {STEPS.map((s, i) => (
             <li key={s.id}>
@@ -49,6 +58,19 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
           </button>
         </form>
       </div>
+
+      {from && step === "plugins" && (
+        <section className="card border-indigo-200 bg-indigo-50 p-4 text-sm dark:border-indigo-900 dark:bg-indigo-950/40">
+          <p className="font-medium">Eine Kopie von „{from.name}“.</p>
+          <p className="text-zinc-600 dark:text-zinc-300">
+            Plugins, Einstellungen, Menü und Sync-Intervalle sind übernommen{from.sharedChrome ? `, die Anmeldungen auch (der Automations-Chrome von „${from.name}“)` : ""} — nur die Daten fehlen noch. Schau
+            durch, was du ändern willst, oder spring direkt weiter.
+          </p>
+          <Link href={`/setup?step=${from.sharedChrome ? "data" : "logins"}`} className="btn btn-primary btn-sm mt-2">
+            {from.sharedChrome ? "Direkt: Daten holen & auswerten" : "Direkt: zu den Anmeldungen"}
+          </Link>
+        </section>
+      )}
 
       {step === "plugins" && (
         <>
@@ -104,20 +126,37 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
       )}
 
       {step === "logins" && (
+        <>
+          <section className="space-y-2 text-sm">
+            <p className="text-zinc-600 dark:text-zinc-300">
+              Melde dich bei den Diensten an, die die Plugins lesen — im Automations-Chrome dieses Kontos{from?.sharedChrome ? ` (dem von „${from.name}“: dort ist schon angemeldet — „Alle prüfen“ zeigt es)` : ""}. „Anmelden“ holt die Seite dort nach vorne; anmelden tust du dich selbst, dann „Prüfen“.
+            </p>
+            <CheckAllLoginsButton />
+          </section>
+          <LoginsList />
+        </>
+      )}
+
+      {step === "data" && (
+        <>
+          <p className="text-sm text-zinc-600 dark:text-zinc-300">Jetzt holt Zeff alles, was die Plugins lesen — Tickets, Mails, Chats, Kalender, Buchungen … — und wertet es zum ersten Mal aus: die Ticket-Lage mit ihren Todos.</p>
+          <SetupDataRun next="/setup?step=done" />
+        </>
+      )}
+
+      {step === "done" && (
         <section className="card space-y-3 p-4 text-sm">
-          <p>
-            Fast fertig. Zuletzt meldest du dich bei den Diensten an, die die Plugins lesen — im Automations-Chrome dieses Kontos. Die Seite <span className="font-medium">Anmeldungen</span> zeigt jeden
-            mit seinem Stand und holt seine Seite auf Knopfdruck nach vorne.
-          </p>
+          <p className="font-medium">Fertig eingerichtet.</p>
+          <p className="text-zinc-600 dark:text-zinc-300">Die Syncs laufen ab jetzt von selbst (Menü → Sync-Einstellungen); „Jetzt auswerten“ unter Todos holt eine neue Lage. Ändern lässt sich alles später unter Menü → Plugins.</p>
           <form action={finishSetupAction}>
             <button type="submit" className="btn btn-primary btn-sm">
-              Einrichtung abschließen — zu den Anmeldungen
+              Zu den Todos
             </button>
           </form>
         </section>
       )}
 
-      {next && (
+      {next && step !== "data" && step !== "done" && (
         <div className="flex justify-end">
           <Link href={`/setup?step=${next.id}`} className="btn btn-primary btn-sm">
             Weiter: {next.label}

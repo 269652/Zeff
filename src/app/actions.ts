@@ -992,13 +992,23 @@ export async function openServiceLoginAction(service: string): Promise<ActionSta
   }
 }
 
-/** The menu's "Anpassen": an application's place (header, menu, hidden) — or another entry hidden or shown. */
-export async function saveMenuAction(change: { href: string; place?: string; hidden?: boolean }): Promise<ActionState> {
+/**
+ * The menu's "Anpassen": an application's place (header, menu, hidden) — or another entry hidden or
+ * shown — or a section's new order (`order`: its entries' addresses, "group:<plugin>" for plugins).
+ */
+export async function saveMenuAction(change: { href?: string; place?: string; hidden?: boolean; order?: string[] }): Promise<ActionState> {
   try {
-    const href = String(change?.href ?? "");
-    if (!href.startsWith("/")) return { ok: false, error: "Kein Menüeintrag." };
     const { getMenuPrefs, setMenuPrefs } = await import("@/plugins/tabs");
     const cur = getMenuPrefs();
+    if (Array.isArray(change?.order)) {
+      const keys = change.order.map(String).filter((k) => k.startsWith("/") || k.startsWith("group:"));
+      // The section's entries last, in their new order (only their order among themselves counts).
+      setMenuPrefs({ order: [...cur.order.filter((k) => !keys.includes(k)), ...keys] });
+      revalidatePath("/", "layout");
+      return { ok: true, message: "Gespeichert." };
+    }
+    const href = String(change?.href ?? "");
+    if (!href.startsWith("/")) return { ok: false, error: "Kein Menüeintrag." };
     if (change.place === "header" || change.place === "menu" || change.place === "hidden") setMenuPrefs({ place: { ...cur.place, [href]: change.place } });
     else if (typeof change.hidden === "boolean") setMenuPrefs({ hidden: change.hidden ? [...new Set([...cur.hidden, href])] : cur.hidden.filter((h) => h !== href) });
     revalidatePath("/", "layout");
@@ -1051,7 +1061,8 @@ export async function saveGmailAccountsAction(list: { account: string; label: st
 export async function finishSetupAction(): Promise<void> {
   const { updateAppSettings } = await import("@/lib/ai");
   updateAppSettings({ setupDoneAt: new Date().toISOString() });
-  redirect("/logins?setup=1");
+  revalidateAll();
+  redirect("/todos");
 }
 
 /** The setup skipped: done, home. */
@@ -2526,17 +2537,35 @@ export async function switchAccountAction(id: string): Promise<ActionState & { h
   }
 }
 
-/** A new account — empty, or with another's settings and configuration. */
-export async function createAccountAction(v: { name: string; color: string; copyFrom?: string }): Promise<ActionState> {
+/** A new account — empty, or with another's settings and configuration (and, `shareChrome`, its sign-ins). Its id. */
+export async function createAccountAction(v: { name: string; color: string; copyFrom?: string; shareChrome?: boolean }): Promise<ActionState & { id?: string }> {
   try {
     const off = await accountsOn();
     if (off) return { ok: false, error: off };
-    const { account, copied } = await (await import("@/lib/accounts")).createAccount({ name: String(v.name ?? ""), color: String(v.color ?? ""), copyFrom: v.copyFrom ? String(v.copyFrom) : undefined });
+    const { account, copied } = await (await import("@/lib/accounts")).createAccount({
+      name: String(v.name ?? ""),
+      color: String(v.color ?? ""),
+      copyFrom: v.copyFrom ? String(v.copyFrom) : undefined,
+      shareChrome: !!v.shareChrome,
+    });
     revalidatePath("/accounts");
-    return { ok: true, message: `Konto „${account.name}“ angelegt${copied ? ` — ${copied} Einstellungen übernommen` : ""}.` };
+    return { ok: true, id: account.id, message: `Konto „${account.name}“ angelegt${copied ? ` — ${copied} Einstellungen übernommen` : ""}.` };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
+}
+
+/** Into a new account and its setup assistant. */
+export async function startSetupAction(id: string): Promise<ActionState> {
+  try {
+    const off = await accountsOn();
+    if (off) return { ok: false, error: off };
+    await (await import("@/lib/accounts")).startSetup(String(id));
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+  revalidateAll();
+  redirect("/setup");
 }
 
 export async function updateAccountAction(id: string, v: { name?: string; color?: string }): Promise<ActionState> {

@@ -59,8 +59,8 @@ export default async function WeekPage({
 }) {
   await connection();
   // The weekly report is a plugin too: without it, home is the first installed application.
-  // A new Zeff (or account): the setup assistant first.
-  if (!(await import("@/lib/ai")).getAppSettings().setupDoneAt) redirect("/setup");
+  // A new Zeff (or account): nothing here — the layout shows the way into the setup assistant.
+  if (!(await import("@/lib/ai")).getAppSettings().setupDoneAt) return null;
   if (!isInstalled("weekly-report")) redirect(firstAppTab());
   const sp = await searchParams;
   const requested = resolveWeek(sp.week);

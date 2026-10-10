@@ -11,6 +11,7 @@ import { SiteHeader, type MenuGroup } from "@/components/SiteHeader";
 import { PLUGINS } from "@/plugins/catalog";
 import { installedPlugins } from "@/plugins/state";
 import { allApps, appTabs, getMenuPrefs } from "@/plugins/tabs";
+import { inOrder } from "@/lib/layout-shared";
 import { tabsWithMenu } from "@/plugins/tab-menus";
 import { currentAccount, listAccounts } from "@/db/accounts";
 
@@ -21,22 +22,27 @@ const pluginGroups = (): MenuGroup[] => {
   // Zeiterfassung's pages (Jobs, Projects …) first, then connectors and time-sheet systems, the applications' pages (Repos) after.
   const rank = { connector: 1, timesheet: 2, ai: 3, app: 4, system: 5 } as const;
   const seen = new Set<string>();
-  return PLUGINS.filter((p) => on.has(p.id))
+  const { order } = getMenuPrefs();
+  const groups = PLUGINS.filter((p) => on.has(p.id))
     .sort((a, b) => (a.id === "zeiterfassung" ? 0 : rank[a.category]) - (b.id === "zeiterfassung" ? 0 : rank[b.category]))
     .map((p) => {
       const nav = (p.nav ?? []).filter((n) => !appHrefs.has(n.href));
       const settings = p.settings && !nav.some((n) => n.href === p.settings!.href) ? [{ href: p.settings.href, label: "Einstellungen", hint: p.settings.what }] : [];
-      const items = [...nav, ...settings].filter((n) => !seen.has(n.href));
+      const items = inOrder([...nav, ...settings].filter((n) => !seen.has(n.href)), (n) => n.href, order);
       for (const n of items) seen.add(n.href);
       return { id: p.id, name: p.name, items };
     })
     .filter((g) => g.items.length);
+  // In the order you put them in (Menu → Anpassen).
+  return inOrder(groups, (g) => `group:${g.id}`, order);
 };
 /** The header's tabs — those whose plugin gives a dropdown (Kanban's boards) as split buttons. */
 const headerTabs = () => {
   const withMenu = tabsWithMenu();
   return appTabs().map((t) => ({ href: t.href, label: t.label, short: t.short, also: t.also, menu: withMenu.has(t.href) }));
 };
+/** The pages the setup assistant leads to: its steps, the plugins' settings, sign-ins, syncs, accounts. */
+const setupPages = () => ["/setup", "/logins", "/sync-settings", "/plugins", "/accounts", "/preferences", ...PLUGINS.flatMap((p) => (p.settings ? [p.settings.href.split(/[?#]/)[0]] : []))];
 /** The account you're in and the others — only with the Accounts plugin. */
 const headerAccount = () => {
   if (!installedPlugins().has("accounts")) return undefined;
@@ -44,6 +50,8 @@ const headerAccount = () => {
   return { current: chip(currentAccount()), list: listAccounts().map(chip) };
 };
 import { Toaster } from "@/components/Toaster";
+import { SetupGate } from "@/components/SetupGate";
+import { getAppSettings } from "@/lib/ai";
 import { MainArea } from "@/components/MainArea";
 import { PluginFlagsProvider } from "@/components/PluginFlags";
 import "./globals.css";
@@ -57,6 +65,8 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Not set up yet (a new Zeff, a new account): a bare header, and the way into the setup assistant.
+  const setupPending = !getAppSettings().setupDoneAt;
   return (
     <html
       lang="en"
@@ -64,11 +74,24 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     >
       {/* An app shell: the window is the page — the body never scrolls; the content does, in itself. */}
       <body className="flex h-screen flex-col overflow-hidden">
-        <SiteHeader activityIds={activityNewsIds()} apps={allApps().map((a) => ({ href: a.href, label: a.label, hint: a.hint, place: a.place }))} pluginGroups={pluginGroups()} hidden={getMenuPrefs().hidden} tabs={headerTabs()} account={headerAccount()} />
-        <AttentionBar items={await listAttention()} />
+        <SiteHeader
+          activityIds={activityNewsIds()}
+          apps={allApps().map((a) => ({ href: a.href, label: a.label, hint: a.hint, place: a.place }))}
+          pluginGroups={pluginGroups()}
+          hidden={getMenuPrefs().hidden}
+          order={getMenuPrefs().order}
+          tabs={headerTabs()}
+          account={headerAccount()}
+          bare={setupPending}
+        />
+        {!setupPending && <AttentionBar items={await listAttention()} />}
         <MainArea>
           <PluginFlagsProvider installed={[...installedPlugins()]}>
-            <AgentInstructionsProvider templates={getWorkSettings().agentInstructions}>{children}</AgentInstructionsProvider>
+            <AgentInstructionsProvider templates={getWorkSettings().agentInstructions}>
+              <SetupGate pending={setupPending} allowed={setupPages()} account={installedPlugins().has("accounts") ? currentAccount().name : undefined}>
+                {children}
+              </SetupGate>
+            </AgentInstructionsProvider>
           </PluginFlagsProvider>
         </MainArea>
         <LiveRefresh />
