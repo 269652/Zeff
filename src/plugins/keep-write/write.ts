@@ -7,6 +7,7 @@ import { getKeepNote, keepSettings, removeKeepNote, saveKeepNotes, type KeepNote
  * Writing to Google Keep (Google Keep schreiben, beta): the Keep driver's keep_write — Keep's own
  * editor in a fresh tab of the account's automation Chrome, driven like by hand — and what Keep
  * confirmed kept in Zeff's copy of your notes. Runs only on a click (the Google-Keep view).
+ * Parked as a beta — what's verified and what's still to do: README.md next to this file.
  */
 
 /** A note as Zeff writes it: a checklist as "- [ ] …" / "- [x] …" lines in `text`. */
