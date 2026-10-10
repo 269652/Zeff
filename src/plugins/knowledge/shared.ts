@@ -26,3 +26,17 @@ export const parseTodoKnowledge = (raw: string | null | undefined): TodoKnowledg
     return null;
   }
 };
+
+/** A person the knowledge knows (the knowledge server's /api/people). */
+export type KnowledgePerson = { id: number; key: string; name: string; aliases: string[]; summary: string; pages: number; degree: number };
+
+/** An entity in full (the knowledge server's /api/people/<id>): every relation with the entity on its other end and its page. */
+export type KnowledgeEntityDetail = {
+  id: number;
+  name: string;
+  type: string;
+  summary: string;
+  aliases: string[];
+  relations: { other: { id: number; name: string; type: string }; rel: string; fact: string; dir: "out" | "in"; pageId: string; pageTitle: string }[];
+  pages: { id: string; title: string; space: string; url: string; summary: string | null }[];
+};

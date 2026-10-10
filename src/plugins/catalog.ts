@@ -7,7 +7,7 @@
  * say, the work ones go and the rest stays. Client-safe (data only).
  */
 
-export const PLUGIN_IDS = ["zeiterfassung", "weekly-report", "monthly-report", "todos", "tickets", "kanban", "jira-lage", "work", "auto-actions", "backup", "accounts", "knowledge", "jira", "llm", "copilot-cli", "claude-cli", "outlook-mail", "gmail", "whatsapp", "keep", "keep-write", "outlook-calendar", "teams", "gitlab", "roar", "timo"] as const;
+export const PLUGIN_IDS = ["zeiterfassung", "weekly-report", "monthly-report", "todos", "tickets", "kanban", "jira-lage", "work", "auto-actions", "backup", "accounts", "knowledge", "people", "jira", "llm", "copilot-cli", "claude-cli", "outlook-mail", "gmail", "whatsapp", "keep", "keep-write", "outlook-calendar", "teams", "gitlab", "roar", "timo"] as const;
 export type PluginId = (typeof PLUGIN_IDS)[number];
 export const isPluginId = (v: unknown): v is PluginId => (PLUGIN_IDS as readonly unknown[]).includes(v);
 
@@ -178,6 +178,16 @@ export const PLUGINS: PluginManifest[] = [
         syncSteps: ["knowledgerel"],
       },
     ],
+  },
+  {
+    id: "people",
+    name: "Personen",
+    description:
+      "Ein Profil für jeden Menschen, der dir wichtig ist: deine Notizen, ihre Daten (Geburtstag, Jahrestage, was du dir merken willst) mit Erinnerung — auf der Heute-Seite und als Hinweis auf dem Desktop —, dazu, was Zeff von ihnen weiß: das Wissen (mit dem Knowledge-Plugin), ihre letzten Nachrichten (WhatsApp, Mail), die Todos, in denen sie vorkommen. Daten findet Zeff in deinen Fakten und — mit dem LLM-Plugin — die KI in Wissen und Nachrichten; du bestätigst sie.",
+    category: "app",
+    defaultInstalled: false,
+    apps: [{ href: "/personen", label: "Personen", short: "Personen", hint: "Profile, Geburtstage, Erinnerungen" }],
+    routes: ["/personen"],
   },
   {
     id: "accounts",

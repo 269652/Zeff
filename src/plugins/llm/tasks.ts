@@ -13,6 +13,7 @@ export const LLM_TASKS = [
   { id: "note-todos", label: "Notiz-Durchsicht", what: "Findet in neuen und geänderten Notizen (Google Keep, deine Keep-Boards), was du zu tun hast." },
   { id: "note-relations", label: "Notiz-Zuordnung", what: "Ordnet jedem Todo die Notizen zu, um die es geht." },
   { id: "knowledge-relations", label: "Wissens-Zuordnung", what: "Wählt aus den Treffern der Wissensbasis, was zu jedem Todo wirklich passt." },
+  { id: "people-dates", label: "Personen-Daten", what: "Findet Geburtstage, Jahrestage und andere wichtige Daten deiner Personen im Wissen und in deinen Nachrichten (Personen-Plugin)." },
   { id: "reply-draft", label: "Antwort-Entwurf", what: "Schreibt die Antwort auf eine Nachricht (WhatsApp, Mail, Teams), um die es in einem Todo geht — aus dem Verlauf." },
   { id: "auto-actions", label: "Auto-Aktionen", what: "Macht aus Todos fertige Aktionen (Nachricht, Kommentar, Mail, Termin, Übergabe)." },
   { id: "worker", label: "Worker", what: "Arbeitet an einem Todo (Work-Tab, ✨ An Copilot) — im Repo, mit Werkzeugen." },

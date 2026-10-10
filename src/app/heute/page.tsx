@@ -5,6 +5,8 @@ import { daysUntil, dueText, dueTone } from "@/lib/boards/due-shared";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { formatHours } from "@/lib/format";
 import type { TodoView } from "@/lib/boards/shared";
+import { remindedFormAction } from "@/plugins/people/server-actions";
+import { inDaysText, upcomingTitle } from "@/plugins/people/shared";
 import { isInstalled } from "@/plugins/state";
 
 export const metadata: Metadata = { title: "Heute" };
@@ -94,7 +96,14 @@ async function heuteData() {
   const { syncProblems } = await import("@/lib/sync/health");
   const problems = syncProblems(syncOverview().steps, now);
 
-  return { run, open, mine, asking, due, flagged, waiting, meetings, unanswered, hours, problems, today, now };
+  // Birthdays and other dates of your people, inside their reminder (Personen plugin).
+  let reminders: import("@/plugins/people/shared").Upcoming[] = [];
+  if (isInstalled("people")) {
+    const { upcoming } = await import("@/plugins/people/store");
+    reminders = upcoming({ withinReminder: true });
+  }
+
+  return { run, open, mine, asking, due, flagged, waiting, meetings, unanswered, hours, problems, reminders, today, now };
 }
 
 const PROBLEM: Record<"login" | "chrome" | "broken", string> = {
@@ -111,7 +120,7 @@ const PROBLEM: Record<"login" | "chrome" | "broken", string> = {
 export default async function HeutePage() {
   await connection();
   if (!isInstalled("todos")) return <PluginNotInstalled id="todos" />;
-  const { run, mine, asking, due, flagged, waiting, meetings, unanswered, hours, problems, today, now } = await heuteData();
+  const { run, mine, asking, due, flagged, waiting, meetings, unanswered, hours, problems, reminders, today, now } = await heuteData();
 
   const todo = (t: TodoView, extra?: React.ReactNode) => (
     <li key={t.id} className="flex items-baseline gap-2 text-sm">
@@ -177,6 +186,29 @@ export default async function HeutePage() {
         {asking.length > 0 && (
           <Card title="Agenten fragen dich" count={asking.length}>
             <ul className="space-y-1.5">{asking.map((t) => todo(t, <span className="shrink-0 text-xs text-amber-600 dark:text-amber-400">❗</span>))}</ul>
+          </Card>
+        )}
+
+        {reminders.length > 0 && (
+          <Card title="Erinnerungen" count={reminders.length} href="/personen">
+            <ul className="space-y-1.5">
+              {reminders.map((r) => (
+                <li key={`${r.date.id}:${r.on}`} className="flex items-baseline gap-2 text-sm">
+                  <span className="shrink-0">{r.date.kind === "birthday" ? "🎂" : "📅"}</span>
+                  <Link href={`/personen/${r.person.id}`} className="min-w-0 flex-1 hover:underline">
+                    {upcomingTitle(r)}
+                  </Link>
+                  <span className={`shrink-0 text-xs ${r.inDays === 0 ? "font-medium text-amber-700 dark:text-amber-400" : "text-zinc-500"}`}>{inDaysText(r.inDays, r.on)}</span>
+                  <form action={remindedFormAction} className="shrink-0">
+                    <input type="hidden" name="dateId" value={r.date.id} />
+                    <input type="hidden" name="on" value={r.on} />
+                    <button className="text-xs text-zinc-400 hover:text-zinc-700 hover:underline dark:hover:text-zinc-200" title="Erledigt — bis zum nächsten Mal nicht mehr zeigen">
+                      erledigt
+                    </button>
+                  </form>
+                </li>
+              ))}
+            </ul>
           </Card>
         )}
 

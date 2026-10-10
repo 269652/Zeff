@@ -1,5 +1,5 @@
 import { accountKnowledge } from "@/db/accounts";
-import type { KnowledgeAnswer, KnowledgeEntity, KnowledgePage, KnowledgeStatus, KnowledgeTurn } from "./shared";
+import type { KnowledgeAnswer, KnowledgeEntity, KnowledgeEntityDetail, KnowledgePage, KnowledgePerson, KnowledgeStatus, KnowledgeTurn } from "./shared";
 
 /**
  * The knowledge server (knowledge/, its own Next app) of the account this runs for — each account
@@ -42,4 +42,18 @@ export function knowledgeBrowserUrl(host: string | null, proto: string | null): 
   const h = (host ?? "").trim().toLowerCase();
   if (!h || /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/.test(h)) return knowledgeUrl();
   return `${proto === "http" ? "http" : "https"}://knowledge.${h.replace(/^knowledge\./, "")}`;
+}
+
+/** Every person the knowledge knows, the most named first. */
+export const knowledgePersons = () => call<{ persons: KnowledgePerson[] }>("/api/people", { timeoutMs: 8000 }).then((r) => r.persons);
+
+/** One person in full — by the entity's id, or by a name (one normalizing merged counts too); null when the knowledge doesn't know them. */
+export async function knowledgePerson(v: { id?: number | null; name?: string }): Promise<KnowledgeEntityDetail | null> {
+  const path = v.id ? `/api/people/${v.id}` : `/api/people/by-name?name=${encodeURIComponent(v.name ?? "")}`;
+  try {
+    return await call<KnowledgeEntityDetail>(path, { timeoutMs: 8000 });
+  } catch (e) {
+    if (/not found|404/i.test(e instanceof Error ? e.message : String(e))) return null;
+    throw e;
+  }
 }
