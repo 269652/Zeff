@@ -81,6 +81,35 @@ create table if not exists relations (
 );
 create index if not exists relations_src on relations(src);
 create index if not exists relations_dst on relations(dst);
+-- Normalizing (normalize.ts): entities found to be one merged — the keys of those merged away
+-- (and their aliases) point to the one that stays, so compiling finds it again instead of making
+-- them anew; what was merged; and what the AI proposed, waiting for you.
+create table if not exists entity_keys (
+  key text primary key,
+  entity_id integer not null references entities(id) on delete cascade,
+  created_at text not null
+);
+create index if not exists entity_keys_entity on entity_keys(entity_id);
+create table if not exists entity_merges (
+  id integer primary key,
+  into_id integer not null,
+  into_name text not null,
+  from_name text not null,
+  from_type text not null,
+  reason text not null default '',
+  at text not null
+);
+create table if not exists entity_merge_proposals (
+  id integer primary key,
+  run_id integer,
+  keep_id integer not null,
+  ids text not null,
+  name text not null,
+  type text not null,
+  reason text not null default '',
+  status text not null default 'pending',
+  created_at text not null
+);
 create table if not exists runs (
   id integer primary key,
   kind text not null,
@@ -117,9 +146,11 @@ export type Settings = {
   askModel: string;
   /** A folder of exported pages (JSON / Markdown / HTML) to read instead of (or besides) Confluence. */
   importDir: string;
+  /** Whose knowledge it is (a name): "Ich", "Verfasser", "Autor" … in it mean them — for normalizing. */
+  owner: string;
 };
 
-const DEFAULTS: Settings = { spaces: "", maxPages: 2000, compileBackend: "copilot", compileModel: "claude-haiku-5.5", askBackend: "copilot", askModel: "claude-sonnet-5.5", importDir: "" };
+const DEFAULTS: Settings = { spaces: "", maxPages: 2000, compileBackend: "copilot", compileModel: "claude-haiku-5.5", askBackend: "copilot", askModel: "claude-sonnet-5.5", importDir: "", owner: "" };
 const backend = (v: string | undefined, d: "copilot" | "claude") => (v === "copilot" || v === "claude" ? v : d);
 
 export function getSettings(): Settings {
@@ -133,6 +164,7 @@ export function getSettings(): Settings {
     askBackend: backend(v.askBackend, DEFAULTS.askBackend),
     askModel: v.askModel ?? DEFAULTS.askModel,
     importDir: v.importDir ?? DEFAULTS.importDir,
+    owner: v.owner ?? DEFAULTS.owner,
   };
 }
 

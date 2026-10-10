@@ -60,7 +60,8 @@ const PAGE_TEXT = 5000;
 const BATCH_TEXT = 20000;
 const PARALLEL = 3;
 
-const keyOf = (name: string) =>
+/** An entity's key: its name in lower case, without accents and punctuation — one entity per key. */
+export const keyOf = (name: string) =>
   name
     .toLowerCase()
     .normalize("NFKD")
@@ -110,9 +111,13 @@ function save(page: PageRow, x: Extracted["pages"][number]): void {
          summary = case when length(excluded.summary) > length(entities.summary) then excluded.summary else entities.summary end
        returning id, aliases`,
     );
+    // A name normalizing merged into another entity ("Moritz" → "Moritz Roessler"): that one, the name kept as an alias.
+    const merged = d.prepare("select e.key from entity_keys k join entities e on e.id = k.entity_id where k.key = ?");
     for (const e of x.entities ?? []) {
-      const key = keyOf(e.name ?? "");
-      if (!key || key.length > 80) continue;
+      const own = keyOf(e.name ?? "");
+      if (!own || own.length > 80) continue;
+      const into = merged.get(own) as { key: string } | undefined;
+      const key = into?.key ?? own;
       const type = (ENTITY_TYPES as readonly string[]).includes(e.type) ? e.type : "term";
       const row = upsert.get(key, e.name.trim(), type, JSON.stringify(e.aliases ?? []), e.summary ?? "", now) as { id: number; aliases: string };
       // Aliases: those it had and the new ones.
@@ -122,10 +127,11 @@ function save(page: PageRow, x: Extracted["pages"][number]): void {
       } catch {
         had = [];
       }
-      const aliases = [...new Set([...had, ...(e.aliases ?? [])].map((a) => a.trim()).filter((a) => a && keyOf(a) !== key))].slice(0, 20);
+      const aliases = [...new Set([...had, ...(e.aliases ?? []), ...(into ? [e.name] : [])].map((a) => a.trim()).filter((a) => a && keyOf(a) !== key))].slice(0, 30);
       d.prepare("update entities set aliases = ? where id = ?").run(JSON.stringify(aliases), row.id);
       d.prepare("insert or ignore into entity_pages (entity_id, page_id) values (?, ?)").run(row.id, page.id);
       ids.set(key, row.id);
+      ids.set(own, row.id);
       for (const a of aliases) ids.set(keyOf(a), row.id);
       d.prepare("delete from entities_fts where entity_id = ?").run(row.id);
       const ent = d.prepare("select name, aliases, summary from entities where id = ?").get(row.id) as { name: string; aliases: string; summary: string };
