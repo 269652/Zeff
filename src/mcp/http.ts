@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { createMcpHandler } from "mcp-handler";
 import { DEFAULT_ACCOUNT, accountById, withAccount } from "@/db/accounts";
 import { INSTRUCTIONS, SERVER_INFO, registerZeffTools } from "@/mcp/server";
+import { foreignRequest, refused } from "@/lib/request-guard";
 
 /**
  * The MCP endpoint, one per account: /api/mcp is the first account's (the one Zeff always had),
@@ -38,6 +39,9 @@ function tokenMatches(header: string | null, expected: string): boolean {
 
 /** A request to the MCP endpoint of an account (default: the first) — run inside that account. */
 export async function handleMcp(req: Request, accountId: string = DEFAULT_ACCOUNT): Promise<Response> {
+  // Agents and scripts — not another website open in your browser.
+  const why = foreignRequest(req);
+  if (why) return refused(why);
   const expected = process.env.ZEFF_MCP_TOKEN;
   if (expected && !tokenMatches(req.headers.get("authorization"), expected)) {
     return Response.json(
