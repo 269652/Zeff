@@ -1,0 +1,1 @@
+ALTER TABLE `app_settings` ADD `llm_settings` text DEFAULT '{}' NOT NULL;

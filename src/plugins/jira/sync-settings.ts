@@ -1,0 +1,16 @@
+import { setStepMinutes, stepMinutes } from "@/lib/sync/intervals";
+import { MINUTE_CHOICES, type PluginSyncSettings } from "../sync-settings";
+
+/** Jira's part of the Sync settings: your tickets and the chosen boards' tickets. */
+export const syncSettings: PluginSyncSettings = {
+  intervals: [
+    {
+      key: "jira",
+      label: "Jira",
+      what: "Deine Tickets und die der gewählten Boards (Status, Kommentare, Historie).",
+      get: () => stepMinutes("jira"),
+      set: (m) => setStepMinutes("jira", m),
+      choices: MINUTE_CHOICES,
+    },
+  ],
+};

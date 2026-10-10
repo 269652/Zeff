@@ -2,9 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
-import { pickFolderAction, restoreBackupAction, runBackupAction, saveBackupSettingsAction, uploadBackupAction } from "@/app/actions";
-import type { BackupFile, BackupSettingsView } from "@/lib/backup";
-import { toast } from "./Toaster";
+import { importConfigAction, pickFolderAction, restoreBackupAction, runBackupAction, saveBackupSettingsAction, uploadBackupAction } from "@/app/actions";
+import type { BackupFile, BackupSettingsView } from "./backup";
+import { toast } from "@/components/Toaster";
 
 const INTERVALS = [
   [1, "stündlich"],
@@ -37,7 +37,8 @@ async function reloadWhenBack() {
 
 /** One backup in the list: restored on a second, explicit click — with its password if it's another one. */
 function BackupRow({ b, hasPassword }: { b: BackupFile; hasPassword: boolean }) {
-  const [open, setOpen] = useState(false);
+  const router = useRouter();
+  const [open, setOpen] = useState<"restore" | "config" | null>(null);
   const [password, setPassword] = useState("");
   const [pending, start] = useTransition();
   const [restarting, setRestarting] = useState(false);
@@ -51,6 +52,18 @@ function BackupRow({ b, hasPassword }: { b: BackupFile; hasPassword: boolean }) 
       setRestarting(true);
       toast(r.message ?? "Wird wiederhergestellt …", { tone: "ok" });
       void reloadWhenBack();
+    });
+  const takeConfig = () =>
+    start(async () => {
+      const fd = new FormData();
+      fd.set("backup", b.name);
+      if (password) fd.set("password", password);
+      const r = await importConfigAction(fd);
+      toast(r?.ok ? (r.message ?? "Übernommen.") : (r?.error ?? "Ging nicht."), { tone: r?.ok ? "ok" : "error" });
+      if (r?.ok) {
+        setOpen(null);
+        router.refresh();
+      }
     });
   return (
     <li className="py-2">
@@ -68,15 +81,53 @@ function BackupRow({ b, hasPassword }: { b: BackupFile; hasPassword: boolean }) 
             </span>
           ))}
           {!b.tiers.length && <span className="text-[11px] text-amber-700 dark:text-amber-400" title="Zählt in keine Stufe mehr — das nächste Backup löscht es">fällt weg</span>}
+          {b.config && (
+            <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[11px] text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300" title="Mit Konfigurations-ZIP (Einstellungen, Plugins, Repos …)">
+              + Konfiguration
+            </span>
+          )}
         </span>
-        <button type="button" className="btn btn-sm ml-auto" onClick={() => setOpen(!open)} disabled={restarting}>
-          Wiederherstellen …
-        </button>
+        <span className="ml-auto flex gap-2">
+          {b.config && (
+            <button type="button" className="btn btn-sm" onClick={() => setOpen(open === "config" ? null : "config")} disabled={restarting}>
+              Konfiguration übernehmen …
+            </button>
+          )}
+          <button type="button" className="btn btn-sm" onClick={() => setOpen(open === "restore" ? null : "restore")} disabled={restarting}>
+            Wiederherstellen …
+          </button>
+        </span>
       </div>
-      {open && (
+      {open === "config" && (
+        <div className="mt-2 space-y-2 rounded-md border border-indigo-200 bg-indigo-50 p-3 text-sm dark:border-indigo-900 dark:bg-indigo-950/40">
+          <p className="text-indigo-900 dark:text-indigo-100">
+            Übernimmt die Einstellungen und Konfiguration vom {when(b.at)} in dieses Konto — KI-Backends, LLM-Anweisungen, installierte Plugins, Repos, Boards, Bericht-Regeln, Arbeitszeiten. Die Daten bleiben, wie sie sind.
+          </p>
+          {b.encrypted && (
+            <input
+              type="password"
+              className="input max-w-xs text-sm"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={hasPassword ? "Passwort (leer: das gespeicherte)" : "Passwort des Backups"}
+              autoComplete="off"
+              aria-label="Passwort der Konfiguration"
+            />
+          )}
+          <div className="flex gap-2">
+            <button type="button" className="btn btn-sm btn-primary" disabled={pending} onClick={takeConfig}>
+              {pending ? "Übernimmt …" : "Ja, übernehmen"}
+            </button>
+            <button type="button" className="btn btn-sm" disabled={pending} onClick={() => setOpen(null)}>
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
+      {open === "restore" && (
         <div className="mt-2 space-y-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm dark:border-red-900 dark:bg-red-950/40">
           <p className="text-red-900 dark:text-red-100">
-            Ersetzt <strong>alle</strong> Daten von Zeff durch den Stand vom {when(b.at)}. Der aktuelle Stand wird vorher automatisch gesichert; Zeff startet dabei neu.
+            Ersetzt <strong>alle</strong> Daten dieses Kontos durch den Stand vom {when(b.at)}. Der aktuelle Stand wird vorher automatisch gesichert; Zeff startet dabei neu.
           </p>
           {b.encrypted && (
             <input
@@ -93,7 +144,7 @@ function BackupRow({ b, hasPassword }: { b: BackupFile; hasPassword: boolean }) 
             <button type="button" className="btn btn-sm bg-red-600 text-white hover:bg-red-700" disabled={pending || restarting} onClick={restore}>
               {restarting ? "Zeff startet neu …" : pending ? "Prüft …" : "Ja, wiederherstellen"}
             </button>
-            <button type="button" className="btn btn-sm" disabled={pending || restarting} onClick={() => setOpen(false)}>
+            <button type="button" className="btn btn-sm" disabled={pending || restarting} onClick={() => setOpen(null)}>
               Abbrechen
             </button>
           </div>
@@ -114,6 +165,9 @@ export function BackupSettings({ s, backups }: { s: BackupSettingsView; backups:
   const [keepDaily, setKeepDaily] = useState(s.keepDaily);
   const [keepWeekly, setKeepWeekly] = useState(s.keepWeekly);
   const [keepMonthly, setKeepMonthly] = useState(s.keepMonthly);
+  const [config, setConfig] = useState(s.config);
+  const [configPassword, setConfigPassword] = useState("");
+  const configFile = useRef<HTMLInputElement>(null);
   const [dir, setDir] = useState(s.dir);
   const [password, setPassword] = useState("");
   const [clearPassword, setClearPassword] = useState(false);
@@ -125,9 +179,9 @@ export function BackupSettings({ s, backups }: { s: BackupSettingsView; backups:
     router.refresh();
   };
   // What's typed here, saved (the folder picked, too) — "Jetzt sichern" saves it first.
-  const dirty = enabled !== s.enabled || everyHours !== s.everyHours || keepDaily !== s.keepDaily || keepWeekly !== s.keepWeekly || keepMonthly !== s.keepMonthly || dir !== s.dir || !!password || clearPassword;
+  const dirty = enabled !== s.enabled || everyHours !== s.everyHours || keepDaily !== s.keepDaily || keepWeekly !== s.keepWeekly || keepMonthly !== s.keepMonthly || config !== s.config || dir !== s.dir || !!password || clearPassword;
   const persist = async (over: { dir?: string } = {}) => {
-    const r = await saveBackupSettingsAction({ enabled, everyHours, keepDaily, keepWeekly, keepMonthly, dir: over.dir ?? dir, password: password || undefined, clearPassword });
+    const r = await saveBackupSettingsAction({ enabled, everyHours, keepDaily, keepWeekly, keepMonthly, config, dir: over.dir ?? dir, password: password || undefined, clearPassword });
     if (r?.ok) {
       setPassword("");
       setClearPassword(false);
@@ -153,12 +207,34 @@ export function BackupSettings({ s, backups }: { s: BackupSettingsView; backups:
       if (file.current) file.current.value = "";
       done(r?.ok ? { ok: true, message: `Hochgeladen: ${r.message} — unten wiederherstellen.` } : r);
     });
+  const importConfig = () =>
+    start(async () => {
+      const f = configFile.current?.files?.[0];
+      if (!f) return;
+      if (!confirm(`Einstellungen und Konfiguration aus ${f.name} in dieses Konto übernehmen? Die Daten bleiben.`)) return;
+      const fd = new FormData();
+      fd.set("file", f);
+      if (configPassword) fd.set("password", configPassword);
+      const r = await importConfigAction(fd);
+      if (r?.ok) {
+        if (configFile.current) configFile.current.value = "";
+        setConfigPassword("");
+      }
+      done(r);
+    });
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="flex items-center gap-2 text-sm sm:col-span-2">
           <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="size-4 accent-indigo-600" />
           Automatisch sichern
+        </label>
+        <label className="flex items-start gap-2 text-sm sm:col-span-2">
+          <input type="checkbox" checked={config} onChange={(e) => setConfig(e.target.checked)} className="mt-0.5 size-4 accent-indigo-600" />
+          <span>
+            Einstellungen &amp; Konfiguration zusätzlich als eigene Config-ZIP
+            <span className="block text-xs text-zinc-400">Neben jedem Backup: KI-Backends, LLM-Anweisungen, installierte Plugins, Repos, Boards, Bericht-Regeln, Arbeitszeiten — in jedes Konto importierbar, ohne die Daten.</span>
+          </span>
         </label>
         <label className="space-y-1 text-sm">
           <span className="text-zinc-500">Wie oft</span>
@@ -279,6 +355,22 @@ export function BackupSettings({ s, backups }: { s: BackupSettingsView; backups:
             Hochladen
           </button>
           <span className="text-xs text-zinc-400">ein Backup von woanders (dann oben wiederherstellen)</span>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+          <input ref={configFile} type="file" accept=".zip,application/zip" className="text-xs" aria-label="Config-ZIP importieren" />
+          <input
+            type="password"
+            className="input w-48 text-xs"
+            value={configPassword}
+            onChange={(e) => setConfigPassword(e.target.value)}
+            placeholder={s.hasPassword ? "Passwort (leer: das gespeicherte)" : "Passwort (falls verschlüsselt)"}
+            autoComplete="off"
+            aria-label="Passwort der Config-ZIP"
+          />
+          <button type="button" className="btn btn-sm" disabled={pending} onClick={importConfig}>
+            Konfiguration importieren
+          </button>
+          <span className="text-xs text-zinc-400">eine Config-ZIP (zeff-…config-….zip) — auch aus einem anderen Konto</span>
         </div>
       </div>
     </div>

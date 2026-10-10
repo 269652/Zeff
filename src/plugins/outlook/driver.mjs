@@ -16,8 +16,8 @@
  * Events come out Graph-shaped by the same extractor as the bookmarklet
  * (src/lib/calendar/owa-extractor.mjs), so already-booked meetings match up.
  */
-import { OWA_EXTRACTOR } from "../src/lib/calendar/owa-extractor.mjs";
-import { connectToChrome, ChromeConnectError, withTabLock } from "./chrome-cdp.mjs";
+import { OWA_EXTRACTOR } from "../../lib/calendar/owa-extractor.mjs";
+import { connectToChrome, ChromeConnectError, withTabLock } from "../../../scripts/chrome-cdp.mjs";
 
 const CDP = process.env.OUTLOOK_CDP_ENDPOINT || process.env.CHRONO_CDP_ENDPOINT || "http://127.0.0.1:9222";
 const OUTLOOK_URL = "https://outlook.office.com/calendar/view/week";
@@ -249,7 +249,7 @@ async function mailPage(browser, { openIfMissing }) {
   if (!context) throw new ChromeConnectError("The automation Chrome has no window open.");
   let page = context.pages().find((p) => isOutlookMail(p.url())) ?? context.pages().find((p) => isLoginUrl(p.url()) && /outlook/i.test(p.url()));
   if (!page) {
-    if (!openIfMissing) throw new Error(`Outlook's mail isn't open in the automation Chrome — open ${MAIL_URL} there (or press Sync on Zeff's Mail page).`);
+    if (!openIfMissing) throw new Error(`Outlook's mail isn't open in the automation Chrome — open ${MAIL_URL} there (or press Sync on Zeff's Nachrichten page).`);
     page = await context.newPage();
     await page.goto(MAIL_URL, { waitUntil: "domcontentloaded", timeout: 60000 }).catch((e) => debug(`opening mail: ${e}`));
   }

@@ -1,0 +1,198 @@
+import { getSqlite } from "@/db";
+import { currentAccount } from "@/db/accounts";
+import { weekFromDate } from "@/lib/week";
+import { allKeepNotes } from "@/plugins/keep/store";
+import { isInstalled } from "@/plugins/state";
+
+/**
+ * Zeff's synced context as documents for the knowledge server (its "Zeff" source): Jira tickets
+ * with their comments, Teams chats by day, mail conversations, GitLab merge requests with their
+ * comments, todos with their notes and AI reports, the time entries by week, the day recaps, the
+ * notes, the Google Keep notes. Each with a version (a hash of its text — unchanged ones aren't compiled again) and,
+ * where there is one, a link (Jira, Teams, GitLab, or the page in Zeff).
+ */
+
+export type KnowledgeDoc = { id: string; space: string; title: string; url: string; version: number; updatedAt: string | null; author: string | null; body: string };
+
+/** A text's version: a 31-bit hash (FNV-1a). */
+function version(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 1) || 1;
+}
+
+const day = (t: string | null | undefined) => (t ? t.slice(0, 10) : "");
+const time = (t: string | null | undefined) => (t && t.length >= 16 ? t.slice(11, 16) : "");
+const clean = (t: string | null | undefined) => (t ?? "").replace(/\r/g, "").replace(/\n{3,}/g, "\n\n").trim();
+const json = <T>(t: string | null | undefined, d: T): T => {
+  try {
+    return t ? (JSON.parse(t) as T) : d;
+  } catch {
+    return d;
+  }
+};
+
+function doc(d: Omit<KnowledgeDoc, "version">): KnowledgeDoc {
+  return { ...d, version: version(`${d.title}\n${d.body}`) };
+}
+
+/** Google Keep's notes (Google Keep plugin) as documents — a note each, in the space "Google Keep". */
+export function keepDocs(): KnowledgeDoc[] {
+  if (!isInstalled("keep")) return [];
+  return allKeepNotes()
+    .filter((n) => n.title || n.text)
+    .map((n) => {
+      const meta = [n.kind === "list" ? "Liste" : "Notiz", n.labels.length ? `Labels: ${n.labels.join(", ")}` : "", n.pinned ? "angeheftet" : "", n.archived ? "archiviert" : ""].filter(Boolean).join(" · ");
+      return doc({
+        id: `keep:${n.id}`,
+        space: "Google Keep",
+        title: n.title || n.text.split("\n")[0].slice(0, 100) || "Notiz",
+        url: n.url,
+        updatedAt: n.updatedAt ?? n.createdAt,
+        author: null,
+        body: `${meta}\n\n${clean(n.text)}`,
+      });
+    });
+}
+
+/** `only: "keep"`: just Google Keep's notes (the knowledge server's own Google Keep source). */
+export function knowledgeDocs(zeffUrl: string, only?: "keep"): { account: string; docs: KnowledgeDoc[] } {
+  if (only === "keep") return { account: currentAccount().name, docs: keepDocs() };
+  const db = getSqlite();
+  const all = <T>(sql: string, ...args: unknown[]) => db.prepare(sql).all(...args) as T[];
+  const docs: KnowledgeDoc[] = [];
+
+  // Jira: each ticket with its description and comments.
+  const comments = new Map<string, { author: string; at: string; body: string }[]>();
+  for (const c of all<{ ticket: string; author: string; at: string; body: string }>("select ticket, author, at, body from jira_comments order by at")) {
+    const k = c.ticket.toUpperCase();
+    comments.set(k, [...(comments.get(k) ?? []), c]);
+  }
+  for (const t of all<{ key: string; summary: string; status: string; issue_type: string | null; priority: string | null; assignee: string | null; url: string | null; updated_at: string | null; description: string | null; job_number: string | null }>(
+    "select key, summary, status, issue_type, priority, assignee, url, updated_at, description, job_number from jira_tickets",
+  )) {
+    const cs = comments.get(t.key.toUpperCase()) ?? [];
+    if (!clean(t.description) && !cs.length && !t.summary) continue;
+    const body = [
+      `Ticket ${t.key}: ${t.summary}`,
+      `Status: ${t.status}${t.issue_type ? ` · Typ: ${t.issue_type}` : ""}${t.priority ? ` · Priorität: ${t.priority}` : ""}${t.assignee ? ` · Zuständig: ${t.assignee}` : ""}${t.job_number ? ` · Job: ${t.job_number}` : ""}`,
+      clean(t.description) && `## Beschreibung\n${clean(t.description)}`,
+      cs.length && `## Kommentare\n${cs.map((c) => `- ${c.author} (${day(c.at)}): ${clean(c.body)}`).join("\n")}`,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    docs.push(doc({ id: `zeff:jira:${t.key}`, space: "Zeff · Jira", title: `${t.key}: ${t.summary}`, url: t.url ?? "", updatedAt: t.updated_at, author: t.assignee, body }));
+  }
+
+  // Teams: a chat (or channel) by day.
+  const teams = new Map<string, { place: string; day: string; link: string; lines: string[]; last: string }>();
+  for (const m of all<{ conversation_id: string | null; place: string | null; sender_name: string | null; sent_at: string; subject: string | null; text: string | null; link: string | null }>(
+    "select conversation_id, place, sender_name, sent_at, subject, text, link from teams_messages order by sent_at",
+  )) {
+    const key = `${m.conversation_id ?? m.place ?? "teams"}:${day(m.sent_at)}`;
+    const g = teams.get(key) ?? { place: m.place ?? "Teams", day: day(m.sent_at), link: m.link ?? "", lines: [], last: m.sent_at };
+    g.lines.push(`- ${time(m.sent_at)} ${m.sender_name ?? "?"}: ${[m.subject, clean(m.text)].filter(Boolean).join(" — ")}`);
+    g.last = m.sent_at;
+    teams.set(key, g);
+  }
+  for (const [key, g] of teams)
+    docs.push(doc({ id: `zeff:teams:${key}`, space: "Zeff · Teams", title: `Teams · ${g.place} · ${g.day}`, url: g.link, updatedAt: g.last, author: null, body: `Teams-Nachrichten in „${g.place}“ am ${g.day}:\n${g.lines.join("\n")}` }));
+
+  // Mail: a conversation.
+  const mails = new Map<string, { subject: string; lines: string[]; last: string }>();
+  for (const m of all<{ key: string; conv_id: string | null; from_name: string | null; from_email: string | null; subject: string | null; preview: string | null; received_at: string; folder: string | null }>(
+    "select key, conv_id, from_name, from_email, subject, preview, received_at, folder from emails order by received_at",
+  )) {
+    const key = m.conv_id || m.key;
+    const g = mails.get(key) ?? { subject: m.subject ?? "(ohne Betreff)", lines: [], last: m.received_at };
+    g.lines.push(`- ${day(m.received_at)} ${time(m.received_at)} ${m.from_name ?? m.from_email ?? "?"}${m.folder ? ` [${m.folder}]` : ""}: ${clean(m.preview)}`);
+    g.last = m.received_at;
+    mails.set(key, g);
+  }
+  for (const [key, g] of mails)
+    docs.push(
+      key.startsWith("wa:")
+        ? doc({ id: `zeff:mail:${key}`, space: "Zeff · WhatsApp", title: `WhatsApp · ${g.subject}`, url: "", updatedAt: g.last, author: null, body: `WhatsApp-Chat „${g.subject}“ (die letzten Nachrichten, wie die Chatliste sie zeigte):\n${g.lines.join("\n")}` })
+        : doc({ id: `zeff:mail:${key}`, space: "Zeff · Mail", title: `Mail · ${g.subject}`, url: "", updatedAt: g.last, author: null, body: `Mail-Verlauf „${g.subject}“:\n${g.lines.join("\n")}` }),
+    );
+
+  // GitLab: a merge request (or issue, branch) with its comments.
+  type G = { key: string; kind: string; project: string; ref: string | null; title: string | null; body: string | null; author: string | null; state: string | null; created_at: string | null; updated_at: string | null; url: string | null; branch: string | null; parent: string | null };
+  const items = all<G>("select key, kind, project, ref, title, body, author, state, created_at, updated_at, url, branch, parent from gitlab_items order by created_at");
+  const byParent = new Map<string, G[]>();
+  for (const g of items) if (g.kind === "comment" && g.parent) byParent.set(g.parent, [...(byParent.get(g.parent) ?? []), g]);
+  for (const g of items) {
+    if (g.kind === "comment" && g.parent && items.some((x) => x.key === g.parent)) continue; // with its merge request
+    const cs = byParent.get(g.key) ?? [];
+    const body = [
+      `${g.kind === "comment" ? "Kommentar" : g.kind} ${g.ref ?? ""} ${g.title ?? ""} — ${g.project}${g.state ? ` (${g.state})` : ""}${g.branch ? ` · Branch ${g.branch}` : ""}${g.author ? ` · von ${g.author}` : ""}`,
+      clean(g.body),
+      cs.length && `## Kommentare\n${cs.map((c) => `- ${c.author ?? "?"} (${day(c.created_at)}): ${clean(c.body)}`).join("\n")}`,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    docs.push(doc({ id: `zeff:gitlab:${g.key}`, space: "Zeff · GitLab", title: `GitLab · ${g.ref ?? ""} ${g.title ?? g.kind}`.trim(), url: g.url ?? "", updatedAt: g.updated_at ?? g.created_at, author: g.author, body }));
+  }
+
+  // Todos: each with its note, your notes and the AI reports, what happened to it.
+  const events = new Map<number, string[]>();
+  for (const e of all<{ todo_id: number; event: string; text: string | null; note: string | null; actor: string | null; at: string }>("select todo_id, event, text, note, actor, at from todo_events order by at"))
+    events.set(e.todo_id, [...(events.get(e.todo_id) ?? []), `- ${day(e.at)} ${e.event}${e.actor ? ` (${e.actor})` : ""}${e.note ? `: ${clean(e.note)}` : ""}`]);
+  for (const t of all<{ id: number; ticket: string; also_tickets: string | null; text: string; kind: string; owner: string; status: string; note: string | null; user_notes: string | null; created_at: string; updated_at: string | null; done_at: string | null }>(
+    "select id, ticket, also_tickets, text, kind, owner, status, note, user_notes, created_at, updated_at, done_at from todos",
+  )) {
+    const notes = json<{ at: string; text: string; by?: string; kind?: string }[]>(t.user_notes, []);
+    const tickets = [t.ticket, ...json<string[]>(t.also_tickets, [])].filter(Boolean);
+    const body = [
+      `Todo T-${t.id}${tickets.length ? ` zu ${tickets.join(", ")}` : ""}: ${t.text}`,
+      `Art: ${t.kind} · ${t.owner === "other" ? "wartet auf andere" : "meins"} · Status: ${t.status}${t.done_at ? ` (erledigt ${day(t.done_at)})` : ""}`,
+      clean(t.note) && `Notiz: ${clean(t.note)}`,
+      notes.length && `## Notizen und KI-Berichte\n${notes.map((n) => `- ${day(n.at)} ${n.kind === "instruction" ? "Anweisung" : n.by ? `Bericht (${n.by})` : "Notiz"}: ${clean(n.text)}`).join("\n")}`,
+      events.get(t.id)?.length && `## Verlauf\n${events.get(t.id)!.join("\n")}`,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    docs.push(doc({ id: `zeff:todo:${t.id}`, space: "Zeff · Todos", title: `T-${t.id}${t.ticket ? ` · ${t.ticket}` : ""}: ${t.text.slice(0, 120)}`, url: `${zeffUrl}/t/${t.id}`, updatedAt: t.updated_at ?? t.created_at, author: null, body }));
+  }
+
+  // Time entries: a week each (Monday).
+  const weeks = new Map<string, string[]>();
+  for (const e of all<{ id: number; date: string; hours: number; description: string; ticket: string | null; type: string | null; number: string | null; name: string | null }>(
+    "select e.id, e.date, e.hours, e.description, e.ticket, e.type, j.number, j.name from time_entries e left join jobs j on j.id = e.job_id order by e.date",
+  )) {
+    const d = new Date(`${e.date}T00:00:00`);
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    const monday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    weeks.set(monday, [...(weeks.get(monday) ?? []), `- ${e.date} · ${e.hours} h · ${e.number ?? "?"} ${e.name ?? ""}${e.ticket ? ` · ${e.ticket}` : ""}${e.type ? ` · ${e.type}` : ""}: ${clean(e.description)}`]);
+  }
+  for (const [monday, lines] of weeks)
+    docs.push(doc({ id: `zeff:week:${monday}`, space: "Zeff · Zeiterfassung", title: `Gebuchte Zeiten, Woche ab ${monday}`, url: `${zeffUrl}/?week=${weekFromDate(new Date(`${monday}T00:00:00`)).key}`, updatedAt: monday, author: null, body: `Gebuchte Arbeitszeiten der Woche ab ${monday}:\n${lines.join("\n")}` }));
+
+  // Day recaps: what a workday held.
+  for (const r of all<{ day: string; result: string | null }>("select day, result from day_recaps where status = 'ok' and result is not null")) {
+    const v = json<Record<string, unknown>>(r.result, {});
+    // Its summary, and what it says per ticket and besides.
+    const text = [
+      typeof v.summary === "string" ? v.summary : "",
+      v.tickets ? `## Tickets\n${JSON.stringify(v.tickets, null, 1)}` : "",
+      v.other ? `## Sonstiges\n${JSON.stringify(v.other, null, 1)}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    docs.push(doc({ id: `zeff:recap:${r.day}`, space: "Zeff · Tagesrückblick", title: `Tagesrückblick ${r.day}`, url: "", updatedAt: r.day, author: null, body: clean(text) }));
+  }
+
+  // Notes and context items (your notes, the synced ones' text).
+  for (const c of all<{ id: number; kind: string; title: string | null; author: string | null; body: string | null; date: string | null; ticket: string | null; updated_at: string | null }>(
+    "select id, kind, title, author, body, date, ticket, updated_at from contexts where length(coalesce(body, '')) > 40",
+  ))
+    docs.push(doc({ id: `zeff:context:${c.id}`, space: "Zeff · Notizen", title: c.title || `${c.kind}${c.ticket ? ` zu ${c.ticket}` : ""} ${c.date ?? ""}`.trim(), url: "", updatedAt: c.updated_at ?? c.date, author: c.author, body: `${c.ticket ? `Zu ${c.ticket}. ` : ""}${clean(c.body)}` }));
+
+  // Google Keep's notes.
+  docs.push(...keepDocs());
+
+  return { account: currentAccount().name, docs };
+}
