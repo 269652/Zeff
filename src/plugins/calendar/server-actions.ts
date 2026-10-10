@@ -91,7 +91,9 @@ export async function saveEventAction(v: {
       ir.updateEvent(Number(v.id), e);
       return `"${e.title}" saved.`;
     }
-    ir.addEvent(Number(v.calendarId), e);
+    // No calendar of your own yet: the first one made for it.
+    const calendarId = Number(v.calendarId) || ir.zeffCalendar().id;
+    ir.addEvent(calendarId, e);
     return `"${e.title}" added.`;
   });
 }
