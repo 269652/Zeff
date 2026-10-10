@@ -298,6 +298,10 @@ export const emails = sqliteTable(
     resolvedAt: text("resolved_at"),
     /** Gone through by the Mail-Durchsicht (todos made from it, or nothing to do). */
     reviewedAt: text("reviewed_at"),
+    /** WhatsApp: written in a group (null: not known — read before Zeff kept it). */
+    isGroup: integer("is_group", { mode: "boolean" }),
+    /** WhatsApp, in a group: to you — it mentions you or quotes your message (null: not known). */
+    toMe: integer("to_me", { mode: "boolean" }),
   },
   (t) => [index("emails_received_idx").on(t.receivedAt), index("emails_conv_idx").on(t.convId)],
 );
