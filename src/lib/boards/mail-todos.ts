@@ -8,11 +8,11 @@ import { emitChange } from "@/lib/events";
 import { getJiraTicket } from "@/lib/jira/store";
 import { attributed } from "./activity";
 import { plain } from "./collect";
-import { isTodoKind, TODO_KINDS } from "./shared";
+import { dueDay, isTodoKind, TODO_KINDS, type TodoView } from "./shared";
 import { extraBlock, getContextPrefs } from "./context-prefs";
 import { addFact } from "@/lib/facts";
 import { duplicateTodo } from "./similar";
-import { addMailTodo, addTodoContext, lastGoodRun, listTodos, setTodoStatus } from "./store";
+import { addMailTodo, addTodoContext, lastGoodRun, listTodos, setTodoDue, setTodoStatus } from "./store";
 
 const { emails } = schema;
 
@@ -75,7 +75,7 @@ Lege für jede Aufgabe, die eine Mail an mich stellt, ein Todo an: ein Satz, Ver
 
 Einträge im Ordner „WhatsApp“ sind keine Mails, sondern WhatsApp-Chats: der Betreff ist der Chat (Person oder Gruppe), der Text eine Nachricht daraus, der Absender, wer sie schrieb („Ich“ = ich selbst). Die Nachrichten eines Chats stehen zusammen, der Reihe nach — ein Gespräch: eine spätere Antwort von mir kann eine Bitte schon erledigt haben. Auch dort zählt, worum man mich bittet, was ich zugesagt oder offen gelassen habe (z. B. „Eine Uhrzeit mit Natha ausmachen“, „Bei Nadine melden“, „Elmar antworten“ — wenn die letzte Nachricht im Chat eine Frage an mich ist, die ich nicht beantwortet habe) (z. B. „Anna die Fotos vom Samstag schicken“, „Bei Tom wegen Sonntag zurückmelden“) — nicht Smalltalk, Grüße oder Reaktionen.
 
-Trägt eine neue Nachricht etwas zu einem SCHON OFFENEN Todo bei — eine Antwort auf meine Frage, ein Datum, eine Zusage, eine Info, die das Todo braucht (z. B. Karla schreibt „16.10.“ auf meine Frage nach Nadines Geburtstag) —, legst du KEIN neues Todo an, sondern nennst es unter updates: die Nummer des Todos (aus „Schon offene Todos“), die Kennungen der Nachrichten, die dazugehören (auch meine Frage davor), eine kurze Notiz, was neu ist („Karla: Nadines Geburtstag ist am 16.10.“), und done: true nur, wenn das Todo damit wirklich ganz erledigt ist (bleibt ein Teil offen — z. B. das Datum noch eintragen —, done: false). Folgt daraus etwas Neues zu tun, gib es unter followUps an (ein Satz, Verb zuerst, mit Frist due JJJJ-MM-TT, wenn eine naheliegt — z. B. nach „Nadines Geburtstag ist am 16.10.“: „Nadine ein Geschenk besorgen“, due ein paar Tage vorher). Steht in der Nachricht etwas Dauerhaftes, das man sich merken sollte — ein Geburtstag, eine Adresse, eine Telefonnummer (keine Passwörter oder Zugangsdaten), eine Vorliebe, eine Abmachung —, gib es unter facts an: subject kurz und eindeutig („Nadines Geburtstag“), text die Tatsache („16.10.“).
+Trägt eine neue Nachricht etwas zu einem SCHON OFFENEN Todo bei — eine Antwort auf meine Frage, ein Datum, eine Zusage, eine Info, die das Todo braucht (z. B. Karla schreibt „16.10.“ auf meine Frage nach Nadines Geburtstag) —, legst du KEIN neues Todo an, sondern nennst es unter updates: die Nummer des Todos (aus „Schon offene Todos“), die Kennungen der Nachrichten, die dazugehören (auch meine Frage davor), eine kurze Notiz, was neu ist („Karla: Nadines Geburtstag ist am 16.10.“), und done: true nur, wenn das Todo damit wirklich ganz erledigt ist (bleibt ein Teil offen — z. B. das Datum noch eintragen —, done: false). Hat das Todo geplante nächste Schritte („danach geplant: …“), schreib sie NICHT als followUps: ist das Todo selbst erledigt, setz done: true — Zeff legt den nächsten geplanten Schritt dann selbst an (mit der Nachricht und den Fakten als Kontext; eine passende Frist gibst du ihm über followUps mit genau seinem Text und due). Etwas „festhalten“, „notieren“ oder „eintragen“ (ein Datum, eine Info) ist erledigt, sobald du es unter facts angibst — dafür kein eigenes Todo. Folgt daraus darüber hinaus etwas Neues zu tun, gib es unter followUps an (ein Satz, Verb zuerst, mit Frist due JJJJ-MM-TT, wenn eine naheliegt — z. B. nach „Nadines Geburtstag ist am 16.10.“: „Nadine ein Geschenk besorgen“, due ein paar Tage vorher). Steht in der Nachricht etwas Dauerhaftes, das man sich merken sollte — ein Geburtstag, eine Adresse, eine Telefonnummer (keine Passwörter oder Zugangsdaten), eine Vorliebe, eine Abmachung —, gib es unter facts an: subject kurz und eindeutig („Nadines Geburtstag“), text die Tatsache („16.10.“).
 
 Auch ohne Todo: Steht in einer Nachricht so etwas Dauerhaftes, gib es oben unter facts an (subject, text, refs der Nachrichten).
 
@@ -167,7 +167,10 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
         ...(ticketLines.length ? ticketLines : ["(keine)"]),
         "",
         "# Schon offene Todos",
-        ...open.slice(0, 60).map((t) => `- [${t.id}]${t.ticket ? ` ${t.ticket}` : ""}: ${plain(t.text, 160)}`),
+        ...open.slice(0, 60).map((t) => {
+          const next = t.planned[0]?.steps.map((s) => `„${plain(s.text, 80)}“`).join(" → ");
+          return `- [${t.id}]${t.ticket ? ` ${t.ticket}` : ""}: ${plain(t.text, 160)}${next ? ` — danach geplant: ${next}` : ""}`;
+        }),
         "",
         "# Mails",
         ...batch.map(line),
@@ -191,11 +194,27 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
           return x ? [x.ref] : [];
         });
         addTodoContext(todo.id, [...refs, ...factRefs], u.note ?? "", "Mail-Durchsicht");
-        if (u.done && todo.status === "open") setTodoStatus(todo.id, "done", (u.note ?? "").slice(0, 500) || "Laut neuer Nachricht erledigt.");
-        // What follows from it: todos of their own (on its ticket), with the facts they need.
+        // Done: its planned steps come next (afterDone) — with the messages and facts as their context.
+        let next: TodoView[] = [];
+        if (u.done && todo.status === "open") {
+          setTodoStatus(todo.id, "done", (u.note ?? "").slice(0, 500) || "Laut neuer Nachricht erledigt.");
+          next = listTodos({ status: "open" }).filter((t) => t.parentId === todo.id);
+          for (const n of next) {
+            addTodoContext(n.id, [...refs, ...factRefs], "", "Mail-Durchsicht");
+            open.push(n);
+          }
+        }
+        // What follows from it: todos of their own (on its ticket), with the facts they need — a
+        // planned step already there takes its deadline instead of a second todo.
         for (const f of u.followUps ?? []) {
           const text = f.text?.trim();
-          if (!text || duplicateTodo({ text, ops: [] }, open)) continue;
+          if (!text) continue;
+          const planned = duplicateTodo({ text, ops: [] }, next);
+          if (planned) {
+            if (dueDay(f.due)) setTodoDue(planned.id, f.due!);
+            continue;
+          }
+          if (duplicateTodo({ text, ops: [] }, open)) continue;
           const t = attributed(runId ? `lage:${runId}` : "mail", () =>
             addMailTodo({ ticket: todo.ticket, text, kind: "other", owner: "me", refs: [...refs, ...factRefs], runId, due: f.due ?? null }),
           );
