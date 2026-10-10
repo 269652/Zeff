@@ -8,13 +8,12 @@ import { getJiraTicket } from "@/lib/jira/store";
 import { attributed } from "./activity";
 import { plain } from "./collect";
 import { isTodoKind, TODO_KINDS } from "./shared";
+import { extraBlock, getContextPrefs } from "./context-prefs";
 import { duplicateTodo } from "./similar";
 import { addMailTodo, lastGoodRun, listTodos } from "./store";
 
 const { emails } = schema;
 
-/** How far back the Mail-Durchsicht reads (mails not gone through yet). */
-const DAYS = 14;
 /** A prompt's room for mails (Copilot takes it on the command line). */
 const BATCH_CHARS = COPILOT_MAX_PROMPT - 6000;
 
@@ -64,13 +63,16 @@ const namesTicket = (keys: string[], text: string) => keys.some((k) => new RegEx
 export function reviewMailsForTodos(runId: number | null = null): Promise<MailTodosResult> {
   if (state.__zeffMailTodos) return state.__zeffMailTodos;
   const run = (async (): Promise<MailTodosResult> => {
-    const since = new Date(Date.now() - DAYS * 864e5).toISOString();
+    // How far back, and which: the Auswerten settings (a source switched off: its messages wait, not gone through).
+    const cp = getContextPrefs().mailtodos;
+    const since = new Date(Date.now() - cp.numbers.days * 864e5).toISOString();
     const rows = getDb()
       .select()
       .from(emails)
       .where(and(isNull(emails.reviewedAt), isNull(emails.resolvedAt), gte(emails.receivedAt, since)))
       .orderBy(asc(emails.receivedAt))
-      .all();
+      .all()
+      .filter((m) => (m.folder === "WhatsApp" ? cp.sources.whatsapp : cp.sources.mail));
     const markReviewed = (keys: string[]) => {
       if (keys.length) getDb().update(emails).set({ reviewedAt: new Date().toISOString() }).where(inArray(emails.key, keys)).run();
     };
@@ -107,7 +109,7 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
     for (const batch of batches) {
       const open = listTodos({ status: "open" });
       const prompt = [
-        INSTRUCTIONS,
+        INSTRUCTIONS + extraBlock("mailtodos"),
         "",
         `Heute ist ${new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} (${new Date().toISOString().slice(0, 10)}).`,
         "",

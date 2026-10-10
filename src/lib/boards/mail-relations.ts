@@ -2,14 +2,14 @@ import { aiChoice, runAi } from "@/lib/ai";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { errorMessage } from "@/lib/errors";
 import { getJiraTicket } from "@/lib/jira/store";
-import { MAIL_CONTEXT_DAYS, mailsForTickets } from "@/lib/mail/store";
+import { mailsForTickets } from "@/lib/mail/store";
+import { extraBlock, getContextPrefs } from "./context-prefs";
 import type { MailView } from "@/lib/mail/shared";
 import { plain } from "./collect";
 import type { TodoView } from "./shared";
 import { listTodos, setTodoMailRefs } from "./store";
 
 /** How many of a ticket's mails the run weighs (the newest) — more than the Ticket-Lage sees. */
-const PER_TICKET = 30;
 /** A prompt's room for tickets, todos and mails (Copilot takes it on the command line). */
 const BATCH_CHARS = COPILOT_MAX_PROMPT - 4000;
 
@@ -59,14 +59,16 @@ export function relateMails(): Promise<MailRelationResult> {
     // Todos on a ticket (those from the Mail-Durchsicht, on none, have their mails already).
     const open = listTodos({ status: "open" }).filter((t) => t.ticket);
     const keys = [...new Set(open.flatMap((t) => [t.ticket, ...t.alsoTickets]))];
-    const byTicket = mailsForTickets(keys, MAIL_CONTEXT_DAYS, PER_TICKET);
+    // How far back and how many: the Auswerten settings.
+    const { days, perTicket } = getContextPrefs().relations.numbers;
+    const byTicket = mailsForTickets(keys, days, perTicket);
     // Per main ticket: its todos and the mails naming it or a ticket linked to it.
     const groups = [...new Set(open.map((t) => t.ticket))].flatMap((key) => {
       const todos = open.filter((t) => t.ticket === key);
       const linked = [...new Set([key, ...todos.flatMap((t) => t.alsoTickets)])];
       const mails = [...new Map(linked.flatMap((k) => byTicket[k] ?? []).map((m) => [m.key, m])).values()]
         .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
-        .slice(0, PER_TICKET);
+        .slice(0, perTicket);
       return [{ key, todos, mails }];
     });
     // Todos without mails to weigh: nothing related.
@@ -87,7 +89,8 @@ export function relateMails(): Promise<MailRelationResult> {
     }
     let failed = 0;
     for (const batch of batches) {
-      const prompt = `${INSTRUCTIONS}\n\n${batch.map((g) => block(g.key, g.todos, g.mails)).join("\n\n")}`.slice(0, limit + INSTRUCTIONS.length + 200);
+      const instructions = INSTRUCTIONS + extraBlock("relations");
+      const prompt = `${instructions}\n\n${batch.map((g) => block(g.key, g.todos, g.mails)).join("\n\n")}`.slice(0, limit + instructions.length + 200);
       // A batch that fails: its todos keep the mails they have.
       const answer = await runAi<Answer>(prompt, SCHEMA, { task: "mail-relations", timeoutMs: 10 * 60000, maxBudgetUsd: 1 }).catch((e) => {
         console.error("[mail-relations]", errorMessage(e));

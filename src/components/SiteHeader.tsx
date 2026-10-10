@@ -29,6 +29,7 @@ const MENU = [
   { href: "/context", label: "Context", hint: "Colleagues' messages & links" },
   { href: "/mcp", label: "MCP", hint: "Connect an agent" },
   { href: "/preferences", label: "Settings", hint: "AI provider" },
+  { href: "/auswerten", label: "Auswerten", hint: "Was die KI bei jedem Schritt liest" },
   { href: "/sync-settings", label: "Sync-Einstellungen", hint: "Wie oft jeder Sync läuft" },
   { href: "/logins", label: "Anmeldungen", hint: "Logins im Automations-Chrome" },
   { href: "/plugins", label: "Plugins", hint: "Connectors & AI tools" },
@@ -210,15 +211,24 @@ export function SiteHeader({
               {tabs.map((t) => {
                 const active = t.href === "/" ? pathname === "/" : pathname.startsWith(t.href);
                 const current = active || (t.also ?? []).some((p) => pathname.startsWith(p));
-                const link = (
-                  <Link key={t.href} href={t.href} className={`${pill(current)} ${t.menu ? "rounded-r-none pr-2" : ""}`} aria-current={active ? "page" : undefined}>
+                const inner = (
+                  <>
                     <span className="sm:hidden">{t.short}</span>
                     <span className="hidden sm:inline">{t.label}</span>
                     {t.href === "/todos" && <UnseenActivityBadge ids={activityIds} className="ml-1 align-[1px]" />}
                     <LinkPending />
+                  </>
+                );
+                // A tab with a dropdown (Kanban's boards) opens where you last were under it.
+                return t.menu ? (
+                  <TabSplit key={t.href} tab={t} current={current} pathname={pathname} className={`${pill(current)} rounded-r-none pr-2`} active={active}>
+                    {inner}
+                  </TabSplit>
+                ) : (
+                  <Link key={t.href} href={t.href} className={pill(current)} aria-current={active ? "page" : undefined}>
+                    {inner}
                   </Link>
                 );
-                return t.menu ? <TabSplit key={t.href} tab={t} current={current} link={link} pathname={pathname} /> : link;
               })}
             </nav>
             <SyncMenu />

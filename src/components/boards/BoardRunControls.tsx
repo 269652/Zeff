@@ -12,15 +12,18 @@ import { ChevronIcon } from "../icons";
 import { SyncStepRow } from "../SyncMenu";
 
 /** What "Jetzt auswerten" does, in order — each a step of its own, as in the Sync menu. */
-const RUN_STEPS: SyncKey[] = ["teams", "jira", "mail", "whatsapp", "boards", "mailtodos", "relations", "autoactions"];
+/** After the syncs it runs first (the Auswerten settings): the Lage and its steps. */
+const AFTER_STEPS: SyncKey[] = ["boards", "mailtodos", "relations", "notetodos", "noterelations", "autoactions"];
 
 const PHASES: Record<string, string> = {
-  sync: "synct Teams, Jira, Mails und WhatsApp",
+  sync: "synct vorher",
   jira: "liest Jira und Zeff",
   ai: "wertet aus",
   saving: "speichert",
   mailtodos: "sucht Todos in Mails und WhatsApp",
   mails: "ordnet Mails den Todos zu",
+  notetodos: "sucht Todos in Notizen",
+  notes: "ordnet Notizen den Todos zu",
   autoactions: "macht Aktionen für die Todos",
 };
 
@@ -39,12 +42,16 @@ export function BoardRunControls({
   phase,
   since,
   provider,
+  presync = ["teams", "jira", "mail", "whatsapp"],
 }: {
   running: boolean;
   phase: string | null;
   since: number | null;
   provider: string;
+  /** The syncs it runs first (Auswerten → Vorher synchronisieren). */
+  presync?: SyncKey[];
 }) {
+  const RUN_STEPS = [...presync, ...AFTER_STEPS];
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -141,7 +148,7 @@ export function BoardRunControls({
               router.refresh();
             })
           }
-          title="Synct erst Teams, Jira, die Mails und WhatsApp, liest dann deine Tickets (mit Kommentaren und Historie) und was Zeff dazu weiß, lässt die KI aus den Einstellungen die Lage und die Todos daraus machen — und ordnet danach jedem Todo die Mails zu, um die es geht"
+          title="Synct erst, was unter Auswerten → „Vorher synchronisieren“ steht, liest dann deine Tickets (mit Kommentaren und Historie) und was Zeff dazu weiß, lässt die KI aus den Einstellungen die Lage und die Todos daraus machen — und ordnet danach jedem Todo die Mails zu, um die es geht"
         >
           {running || pending ? "Läuft…" : "Jetzt auswerten"}
         </button>

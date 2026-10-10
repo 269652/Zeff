@@ -8,6 +8,7 @@ import { gitlabDone } from "@/lib/gitlab/shared";
 import { gitlabItemsByKeys } from "@/lib/gitlab/store";
 import { teamsMessagesByKeys } from "@/lib/teams/store";
 import { mailsForTickets } from "@/lib/mail/store";
+import { extraBlock, getContextPrefs } from "./context-prefs";
 import { followedTickets } from "./followed";
 import { commentCopies } from "./sources";
 import { gitFacts } from "./git-facts";
@@ -429,17 +430,23 @@ export function ticketBlock(
   const changes = changeLines(issue, limits.changes);
   if (changes.length)
     lines.push("Änderungen (die letzten, älteste zuerst):", ...changes);
-  const zeff = zeffLines(issue.key, cited).slice(0, limits.zeff);
+  // What goes in: the Auswerten settings (sources on or off, how far back).
+  const cp = getContextPrefs().lage;
+  const zeff = cp.sources.zeff
+    ? zeffLines(issue.key, cited)
+        .filter((l) => (cp.sources.teams || !l.startsWith("[teams:")) && (cp.sources.gitlab || !/^(\[gitlab:|GitLab)/.test(l)))
+        .slice(0, limits.zeff)
+    : [];
   if (zeff.length) lines.push("Aus Zeff:", ...zeff.map((l) => `- ${l}`));
-  if (git?.length) lines.push(...git);
-  // Mails in your inbox that name the ticket (as the list shows them: subject and first lines).
-  const mails = mailsForTickets([issue.key])[issue.key] ?? [];
+  if (cp.sources.git && git?.length) lines.push(...git);
+  // Mails in your inbox that name the ticket (as the list shows them: subject and first lines) — and WhatsApp messages.
+  const mails = (mailsForTickets([issue.key], cp.numbers.mailDays)[issue.key] ?? []).filter((m) => (m.folder === "WhatsApp" ? cp.sources.whatsapp : cp.sources.mail));
   if (mails.length)
     lines.push(
       `E-Mails, die ${issue.key} nennen (neueste zuerst):`,
       ...mails.map((m) => `- [mail:${m.key}] ${stamp(m.receivedAt)} ${m.fromName ?? m.fromEmail ?? "?"}: „${plain(m.subject, 200)}“ — ${plain(m.preview, limits.commentChars)}${m.resolvedAt ? " [erledigt]" : ""}`),
     );
-  if (relatedLines?.length) lines.push(...relatedLines);
+  if (cp.sources.related && relatedLines?.length) lines.push(...relatedLines);
   const todos = todoLines(issue.key);
   lines.push(
     todos.length
@@ -455,15 +462,16 @@ export function ticketBlock(
   return lines.join("\n");
 }
 
-/** How many days of chats the Ticket-Lage reads. */
-const CHAT_DAYS = 3;
+/** How many days of chats the Ticket-Lage reads (Auswerten settings). */
+const chatDays = () => getContextPrefs().lage.numbers.chatDays;
 
 /**
  * The Teams chats of the last days, by conversation, oldest first — yours too — each message
  * with its reference: what was agreed or asked there becomes todos on the ticket it's about.
  */
 function chatLines(limits: Limits): string {
-  const since = new Date(Date.now() - CHAT_DAYS * 864e5).toISOString();
+  if (!getContextPrefs().lage.sources.teams) return "";
+  const since = new Date(Date.now() - chatDays() * 864e5).toISOString();
   const rows = getDb()
     .select({ key: teamsMessages.key, conv: teamsMessages.conversationId, place: teamsMessages.place, sender: teamsMessages.senderName, sentAt: teamsMessages.sentAt, text: teamsMessages.text, resolvedAt: teamsMessages.resolvedAt })
     .from(teamsMessages)
@@ -866,9 +874,12 @@ export async function collectBoard(
     month: "long",
     year: "numeric",
   });
-  const promptWith = (limits: Limits) =>
-    [
-      INSTRUCTIONS,
+  // The comments per ticket: as set (the fullest prompt), never more when it has to shrink.
+  const comments = getContextPrefs().lage.numbers.comments;
+  const promptWith = (l: Limits) => {
+    const limits = { ...l, comments: l === LIMITS[0] ? comments : Math.min(l.comments, comments) };
+    return [
+      INSTRUCTIONS + extraBlock("lage"),
       "",
       `Heute ist ${today}.${me ? ` Ich bin ${me}.` : ""} ${boards.length ? `Jira-Boards: ${boards.map((b) => b.name).join(", ")} · Filter: ${jql}` : "Ohne Jira"}${kanban.length ? ` · eigene Kanban-Karten (KB-…): ${kanban.length}` : ""}`,
       ...(fromCache
@@ -886,7 +897,7 @@ export async function collectBoard(
         .map((i) => ticketBlock(i, previous, limits, transitions[i.key] ?? kanbanMoves[i.key], git[i.key], relatedBlocks[i.key]))
         .join("\n\n") || "(keine)",
       "",
-      `# Teams-Chats der letzten ${CHAT_DAYS} Tage`,
+      `# Teams-Chats der letzten ${chatDays()} Tage`,
       "",
       chatLines(limits) || "(keine)",
       "",
@@ -894,6 +905,7 @@ export async function collectBoard(
       "",
       leftIssues.map(leftBlock).join("\n\n") || "(keine)",
     ].join("\n");
+  };
   // As much as the provider takes: the fullest that fits, else the tightest.
   let prompt = promptWith(LIMITS[0]);
   for (const limits of LIMITS.slice(1)) {
