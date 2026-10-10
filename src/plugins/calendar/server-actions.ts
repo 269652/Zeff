@@ -2,6 +2,7 @@
 
 import { revalidateAll, type ActionState } from "@/app/action-helpers";
 import { errorMessage } from "@/lib/errors";
+import type { SeriesScope } from "@/lib/calendar/ir-shared";
 
 /** The Kalender app: its server actions (each answers an ActionState). */
 
@@ -45,26 +46,67 @@ export async function deleteCalendarAction(id: number): Promise<ActionState> {
   });
 }
 
-/** An appointment in one of Zeff's own calendars — new (no id) or changed. */
-export async function saveEventAction(v: { id?: number; calendarId: number; title: string; start: string; end: string; allDay?: boolean; location?: string; description?: string }): Promise<ActionState> {
+/**
+ * An appointment in one of Zeff's own calendars — new (no id) or changed; a series' occurrence
+ * (`occurrence`: its day) changed alone, with the following ones, or all (`scope`). Dragging and
+ * resizing in the app come here too (only the times change).
+ */
+export async function saveEventAction(v: {
+  id?: number;
+  calendarId: number;
+  title: string;
+  start: string;
+  end: string;
+  allDay?: boolean;
+  location?: string;
+  description?: string;
+  /** The series' rule — null: not (any more) a series; left out: as it was. */
+  recurrence?: unknown;
+  occurrence?: string | null;
+  scope?: SeriesScope;
+}): Promise<ActionState> {
   return run(async () => {
     const ir = await import("@/lib/calendar/ir");
+    const { parseRecurrence } = await import("@/lib/calendar/recurrence");
     const stamp = (s: unknown) => (typeof s === "string" && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(s.slice(0, 16)) ? s.slice(0, v.allDay ? 10 : 16) : "");
-    const e = { title: String(v.title ?? "").trim(), start: stamp(v.start), end: stamp(v.end), allDay: !!v.allDay, location: String(v.location ?? ""), description: String(v.description ?? "") };
-    if (!e.start || !e.end || e.end < e.start) throw new Error("Beginn und Ende, bitte (das Ende nach dem Beginn).");
+    const e = {
+      title: String(v.title ?? "").trim(),
+      start: stamp(v.start),
+      end: stamp(v.end),
+      allDay: !!v.allDay,
+      location: String(v.location ?? ""),
+      description: String(v.description ?? ""),
+      ...(v.recurrence === undefined ? {} : { recurrence: parseRecurrence(v.recurrence) }),
+    };
+    if (!e.title) throw new Error("A title, please.");
+    if (!e.start || !e.end || e.end < e.start || (!e.allDay && e.end === e.start)) throw new Error("A start and an end after it, please.");
+    if (e.allDay && e.end === e.start) e.end = (await import("@/lib/calendar/recurrence")).addDays(e.start, 1);
+    const occurrence = typeof v.occurrence === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v.occurrence) ? v.occurrence : null;
+    if (v.id && occurrence) {
+      const scope: SeriesScope = v.scope === "one" || v.scope === "following" ? v.scope : "all";
+      ir.updateOccurrence(Number(v.id), occurrence, e, scope);
+      return `"${e.title}" saved${scope === "one" ? " (this event)" : scope === "following" ? " (this and following events)" : " (all events)"}.`;
+    }
     if (v.id) {
       ir.updateEvent(Number(v.id), e);
-      return `„${e.title}“ gespeichert.`;
+      return `"${e.title}" saved.`;
     }
     ir.addEvent(Number(v.calendarId), e);
-    return `„${e.title}“ eingetragen.`;
+    return `"${e.title}" added.`;
   });
 }
 
-export async function deleteEventAction(id: number): Promise<ActionState> {
+/** An appointment of Zeff's own calendars deleted — a series' occurrence alone, with the following ones, or the whole series. */
+export async function deleteEventAction(id: number, series?: { occurrence: string; scope: SeriesScope }): Promise<ActionState> {
   return run(async () => {
-    (await import("@/lib/calendar/ir")).deleteEvent(Number(id));
-    return "Termin gelöscht.";
+    const ir = await import("@/lib/calendar/ir");
+    if (series && /^\d{4}-\d{2}-\d{2}$/.test(series.occurrence)) {
+      const scope: SeriesScope = series.scope === "one" || series.scope === "following" ? series.scope : "all";
+      ir.deleteOccurrence(Number(id), series.occurrence, scope);
+      return scope === "one" ? "Event deleted." : scope === "following" ? "This and following events deleted." : "Series deleted.";
+    }
+    ir.deleteEvent(Number(id));
+    return "Event deleted.";
   });
 }
 
