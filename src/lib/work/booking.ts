@@ -153,6 +153,7 @@ export function todoContextUrls(ticket: string | null, todoIds: number[]): strin
         if (s.source === "gitlab") return [s.gitlab.url];
         if (s.source === "mail") return [mailLink(s.mail.key)];
         if (s.source === "keep") return s.note.url.startsWith("http") ? [s.note.url] : [];
+        if (s.source === "fact") return [];
         const url =
           s.comment.url ??
           (ticketUrl(s.comment.ticket)

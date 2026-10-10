@@ -10,8 +10,9 @@ import { attributed } from "./activity";
 import { plain } from "./collect";
 import { isTodoKind, TODO_KINDS } from "./shared";
 import { extraBlock, getContextPrefs } from "./context-prefs";
+import { addFact } from "@/lib/facts";
 import { duplicateTodo } from "./similar";
-import { addMailTodo, lastGoodRun, listTodos } from "./store";
+import { addMailTodo, addTodoContext, lastGoodRun, listTodos, setTodoStatus } from "./store";
 
 const { emails } = schema;
 
@@ -21,6 +22,29 @@ const BATCH_CHARS = COPILOT_MAX_PROMPT - 6000;
 const SCHEMA = {
   type: "object",
   properties: {
+    updates: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          id: { type: "integer" },
+          refs: { type: "array", items: { type: "string" } },
+          note: { type: "string" },
+          done: { type: "boolean" },
+          followUps: { type: "array", items: { type: "object", properties: { text: { type: "string" }, due: { type: "string" } }, required: ["text"] } },
+          facts: { type: "array", items: { type: "object", properties: { subject: { type: "string" }, text: { type: "string" } }, required: ["subject", "text"] } },
+        },
+        required: ["id", "refs", "note"],
+      },
+    },
+    facts: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { subject: { type: "string" }, text: { type: "string" }, refs: { type: "array", items: { type: "string" } } },
+        required: ["subject", "text", "refs"],
+      },
+    },
     todos: {
       type: "array",
       items: {
@@ -39,7 +63,11 @@ const SCHEMA = {
   },
   required: ["todos"],
 };
-type Answer = { todos?: { text?: string; kind?: string; owner?: string; ticket?: string; due?: string; refs?: string[] }[] };
+type Answer = {
+  todos?: { text?: string; kind?: string; owner?: string; ticket?: string; due?: string; refs?: string[] }[];
+  updates?: { id?: number; refs?: string[]; note?: string; done?: boolean; followUps?: { text?: string; due?: string }[]; facts?: { subject?: string; text?: string }[] }[];
+  facts?: { subject?: string; text?: string; refs?: string[] }[];
+};
 
 const INSTRUCTIONS = `Du gehst meine neuen E-Mails durch und findest, was ICH zu tun habe. Unten stehen Mails aus meinem Posteingang (Kennung in eckigen Klammern, z. B. [mail:…], dann Datum, Ordner, Absender, Betreff und die ersten Zeilen, wie Outlooks Liste sie zeigt), meine Tickets und die Todos, die schon offen sind.
 
@@ -47,10 +75,14 @@ Lege für jede Aufgabe, die eine Mail an mich stellt, ein Todo an: ein Satz, Ver
 
 Einträge im Ordner „WhatsApp“ sind keine Mails, sondern WhatsApp-Chats: der Betreff ist der Chat (Person oder Gruppe), der Text eine Nachricht daraus, der Absender, wer sie schrieb („Ich“ = ich selbst). Die Nachrichten eines Chats stehen zusammen, der Reihe nach — ein Gespräch: eine spätere Antwort von mir kann eine Bitte schon erledigt haben. Auch dort zählt, worum man mich bittet, was ich zugesagt oder offen gelassen habe (z. B. „Eine Uhrzeit mit Natha ausmachen“, „Bei Nadine melden“, „Elmar antworten“ — wenn die letzte Nachricht im Chat eine Frage an mich ist, die ich nicht beantwortet habe) (z. B. „Anna die Fotos vom Samstag schicken“, „Bei Tom wegen Sonntag zurückmelden“) — nicht Smalltalk, Grüße oder Reaktionen.
 
+Trägt eine neue Nachricht etwas zu einem SCHON OFFENEN Todo bei — eine Antwort auf meine Frage, ein Datum, eine Zusage, eine Info, die das Todo braucht (z. B. Karla schreibt „16.10.“ auf meine Frage nach Nadines Geburtstag) —, legst du KEIN neues Todo an, sondern nennst es unter updates: die Nummer des Todos (aus „Schon offene Todos“), die Kennungen der Nachrichten, die dazugehören (auch meine Frage davor), eine kurze Notiz, was neu ist („Karla: Nadines Geburtstag ist am 16.10.“), und done: true nur, wenn das Todo damit wirklich ganz erledigt ist (bleibt ein Teil offen — z. B. das Datum noch eintragen —, done: false). Folgt daraus etwas Neues zu tun, gib es unter followUps an (ein Satz, Verb zuerst, mit Frist due JJJJ-MM-TT, wenn eine naheliegt — z. B. nach „Nadines Geburtstag ist am 16.10.“: „Nadine ein Geschenk besorgen“, due ein paar Tage vorher). Steht in der Nachricht etwas Dauerhaftes, das man sich merken sollte — ein Geburtstag, eine Adresse, eine Telefonnummer (keine Passwörter oder Zugangsdaten), eine Vorliebe, eine Abmachung —, gib es unter facts an: subject kurz und eindeutig („Nadines Geburtstag“), text die Tatsache („16.10.“).
+
+Auch ohne Todo: Steht in einer Nachricht so etwas Dauerhaftes, gib es oben unter facts an (subject, text, refs der Nachrichten).
+
 KEINE Todos für: Newsletter, Werbung, reine Info ohne Handlung, Benachrichtigungen über Jira-/GitLab-Kommentare und Statuswechsel (die kennt die Ticket-Lage schon), Lesebestätigungen, Termine, die nur informieren — und nichts, was ein schon offenes Todo abdeckt oder schon erledigt ist (z. B. eine spätere Mail bestätigt es). Gibt es nichts zu tun, ist die Liste leer.`;
 
 const state = globalThis as unknown as { __zeffMailTodos?: Promise<MailTodosResult> | null };
-export type MailTodosResult = { ok: boolean; reviewed: number; added: number; batches: number; error?: string };
+export type MailTodosResult = { ok: boolean; reviewed: number; added: number; updated?: number; batches: number; error?: string };
 
 /** A ticket key in a mail's subject or lines (one of the tickets the Lage reads — it has those mails). */
 const namesTicket = (keys: string[], text: string) => keys.some((k) => new RegExp(`(^|[^A-Za-z0-9])${k}(?![0-9])`, "i").test(text));
@@ -120,6 +152,7 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
     }
 
     let added = 0;
+    let updated = 0;
     let failed = 0;
     let reviewed = theirs.length;
     for (const batch of batches) {
@@ -147,6 +180,35 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
       // A batch that fails: its mails are gone through next time.
       if (!answer) continue;
       const known = new Set(batch.map((m) => `mail:${m.key}`));
+      // What new messages add to todos already open: their context, a note — done, if they settle it.
+      for (const u of answer.output?.updates ?? []) {
+        const todo = open.find((t) => t.id === Number(u.id));
+        const refs = (u.refs ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).map((r) => (r.startsWith("mail:") ? r : `mail:${r}`)).filter((r) => known.has(r));
+        if (!todo || !refs.length) continue;
+        // Facts it brings: kept as knowledge, linked to this todo and its follow-ups.
+        const factRefs = (u.facts ?? []).flatMap((f) => {
+          const x = addFact({ subject: f.subject ?? "", text: f.text ?? "", refs });
+          return x ? [x.ref] : [];
+        });
+        addTodoContext(todo.id, [...refs, ...factRefs], u.note ?? "", "Mail-Durchsicht");
+        if (u.done && todo.status === "open") setTodoStatus(todo.id, "done", (u.note ?? "").slice(0, 500) || "Laut neuer Nachricht erledigt.");
+        // What follows from it: todos of their own (on its ticket), with the facts they need.
+        for (const f of u.followUps ?? []) {
+          const text = f.text?.trim();
+          if (!text || duplicateTodo({ text, ops: [] }, open)) continue;
+          const t = attributed(runId ? `lage:${runId}` : "mail", () =>
+            addMailTodo({ ticket: todo.ticket, text, kind: "other", owner: "me", refs: [...refs, ...factRefs], runId, due: f.due ?? null }),
+          );
+          open.push(t);
+          added++;
+        }
+        updated++;
+      }
+      // Facts worth keeping, without a todo (a birthday, an address): knowledge of their own.
+      for (const f of answer.output?.facts ?? []) {
+        const refs = (f.refs ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).map((r) => (r.startsWith("mail:") ? r : `mail:${r}`)).filter((r) => known.has(r));
+        if (refs.length) addFact({ subject: f.subject ?? "", text: f.text ?? "", refs });
+      }
       for (const td of answer.output?.todos ?? []) {
         const text = td.text?.trim();
         const refs = (td.refs ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).map((r) => (r.startsWith("mail:") ? r : `mail:${r}`)).filter((r) => known.has(r));
@@ -162,11 +224,12 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
       markReviewed(batch.map((m) => m.key));
       reviewed += batch.length;
     }
-    if (added) emitChange("todos");
+    if (added || updated) emitChange("todos");
     return {
       ok: failed < batches.length,
       reviewed,
       added,
+      updated,
       batches: batches.length,
       ...(failed ? { error: `${failed} von ${batches.length} Teilen fehlgeschlagen` } : {}),
     };
