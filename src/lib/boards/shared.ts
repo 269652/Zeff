@@ -93,6 +93,8 @@ export type TodoOp =
   | { type: "work-instruct"; instruction: string }
   /** A note on one of your Keep boards (Google Keep's extension for Auto-Aktionen). */
   | { type: "keep-note"; board: string; title: string; text: string }
+  | { type: "whatsapp-message"; chat: string; body: string }
+  | { type: "gmail-compose"; to: string; subject: string; body: string }
   // Delivery (Zeff makes these after an implementation; not in the AI's dictionary):
   | {
       type: "git-push";

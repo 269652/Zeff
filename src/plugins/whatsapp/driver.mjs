@@ -264,6 +264,65 @@ async function whatsappMessages({ days = 3, maxLoads = 4, maxMessages = 3000, op
   }
 }
 
+/**
+ * Send a message to a chat — on your click (an Auto-Aktion), never by itself: the chat found by its
+ * exact name through WhatsApp Web's search and opened (that marks it read, as you'd do), checked
+ * that it's that chat, the text typed (line breaks as Shift+Enter) and sent; seen as sent.
+ */
+async function whatsappSend({ chat = "", text = "" } = {}) {
+  const name = String(chat).trim();
+  const body = String(text).trim();
+  if (!name || !body) throw new Error("Chat und Text fehlen.");
+  const browser = await connectToChrome(CDP, { launchUrls: [HOME] });
+  try {
+    const page = await whatsappPage(browser, { openIfMissing: true });
+    await page.bringToFront().catch(() => {});
+    const search = page.locator('#side input[data-tab="3"], #side [contenteditable="true"][data-tab="3"]').first();
+    await search.click({ timeout: 15000 });
+    await search.fill("");
+    await search.pressSequentially(name, { delay: 15 });
+    // The result with exactly that name.
+    let target = null;
+    for (let i = 0; i < 30 && !target; i++) {
+      const h = await page.evaluateHandle((n) => [...document.querySelectorAll("#pane-side span[title]")].find((s) => s.getAttribute("title") === n) ?? null, name);
+      target = h.asElement();
+      if (!target) await new Promise((r) => setTimeout(r, 300));
+    }
+    if (!target) {
+      await search.fill("").catch(() => {});
+      throw new Error(`Den Chat „${name}“ gibt es in WhatsApp nicht (genau so geschrieben) — nichts gesendet.`);
+    }
+    await target.click();
+    const box = page.locator('footer [contenteditable="true"][role="textbox"], footer div[contenteditable="true"]').last();
+    await box.waitFor({ timeout: 15000 });
+    // That chat and no other: else nothing is typed.
+    const header = await page.evaluate(() => [...document.querySelectorAll("#main header span[title], #main header span[dir='auto']")].map((e) => e.getAttribute("title") || e.textContent || "").join(" | "));
+    if (!header.includes(name)) throw new Error(`Geöffnet wurde ein anderer Chat (${header.slice(0, 80)}) — nichts gesendet.`);
+    await box.click();
+    const lines = body.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i]) await page.keyboard.insertText(lines[i]);
+      if (i < lines.length - 1) await page.keyboard.press("Shift+Enter");
+    }
+    await page.keyboard.press("Enter");
+    // Seen as sent: the chat's last outgoing message starts with it.
+    const start = lines.find(Boolean)?.slice(0, 40) ?? "";
+    let seen = false;
+    for (let i = 0; i < 20 && !seen; i++) {
+      seen = await page
+        .evaluate((s) => {
+          const outs = [...document.querySelectorAll("#main .message-out")];
+          return !!outs.length && (outs[outs.length - 1].textContent || "").includes(s);
+        }, start)
+        .catch(() => false);
+      if (!seen) await new Promise((r) => setTimeout(r, 500));
+    }
+    return JSON.stringify({ chat: name, sentAt: Date.now(), seen });
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}
+
 async function whatsappStatus() {
   let browser;
   try {
@@ -298,6 +357,11 @@ const TOOLS = [
         launch: { type: "boolean", description: "Start the automation Chrome when it isn't running (default: as openIfMissing)." },
       },
     },
+  },
+  {
+    name: "whatsapp_send",
+    description: "Send a message to a WhatsApp chat (found by its exact name) through WhatsApp Web — only on the user's click. Opens the chat (marks it read), types and sends. Returns JSON { chat, sentAt, seen }.",
+    inputSchema: { type: "object", properties: { chat: { type: "string", description: "The chat's exact name." }, text: { type: "string", description: "The message." } }, required: ["chat", "text"] },
   },
   {
     name: "whatsapp_messages",
@@ -336,6 +400,7 @@ async function handle(msg) {
       if (name === "whatsapp_status") return ok(id, textResult(await whatsappStatus()));
       if (name === "whatsapp_chats") return ok(id, textResult(await withTabLock("WhatsApp", name, () => whatsappChats(args), debug)));
       if (name === "whatsapp_messages") return ok(id, textResult(await withTabLock("WhatsApp", name, () => whatsappMessages(args), debug)));
+      if (name === "whatsapp_send") return ok(id, textResult(await withTabLock("WhatsApp", name, () => whatsappSend(args), debug)));
       return ok(id, textResult(`Unknown tool "${name}".`, true));
     } catch (e) {
       log("tool error:", String(e));
