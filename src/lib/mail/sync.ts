@@ -3,6 +3,7 @@ import { clearAttention, needsSignIn, raiseLogin } from "@/lib/attention";
 import { sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { errorMessage } from "@/lib/errors";
+import { getPref, setPref } from "@/lib/prefs";
 import { getMailSettings, saveMails, updateMailSettings, type MailInput } from "./store";
 
 /** How far back a sync reads: in the background the last days; by hand (and the first time) two months. */
@@ -46,7 +47,17 @@ async function readMailbox(source: Source, days: number, background: boolean, gm
     async (call) =>
       resultToPayload(
         source === "gmail"
-          ? await call("gmail_mail", { days, maxPages: days > DAYS ? 20 : 3, account: gmail?.account ?? "0", folder: gmail?.folder ?? "Gmail", openIfMissing: true, launch: !background })
+          ? await call("gmail_mail", {
+              days,
+              maxPages: days > DAYS ? 20 : 3,
+              account: gmail?.account ?? "0",
+              folder: gmail?.folder ?? "Gmail",
+              openIfMissing: true,
+              launch: !background,
+              // Every conversation you wrote in, whole — the messages' full text read once.
+              conversations: true,
+              fullKnown: getPref<string[]>(`gmail:full:${gmail?.account ?? "0"}`, []),
+            })
           : source === "whatsapp"
             ? await whatsappRead(call, days, background)
             : await call("outlook_mail", { days, folders: getMailSettings().folders, openIfMissing: true, launch: !background }),
@@ -64,6 +75,11 @@ async function syncSource(source: Source, days: number, background: boolean, pre
   try {
     const r = await readMailbox(source, days, background, gmail);
     const { added, total } = saveMails(r.messages);
+    if (source === "gmail") {
+      const k = `gmail:full:${gmail?.account ?? "0"}`;
+      const full = r.messages.filter((m) => m.full && m.id).map((m) => m.id!);
+      if (full.length) setPref(k, [...new Set([...getPref<string[]>(k, []), ...full])].slice(-5000));
+    }
     clearAttention(`login:${source}`);
     return { ok: true, part: `${prefix ? `${label}: ` : ""}${added} new · ${total} in all${r.missing?.length ? ` — not found in Outlook: ${r.missing.join(", ")}` : ""}` };
   } catch (e) {

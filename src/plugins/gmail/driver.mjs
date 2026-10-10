@@ -69,8 +69,10 @@ function readRows() {
       const snippet = (r.querySelector(".y2")?.textContent || "").replace(/^\s*[-–]\s*/, "").trim();
       const dateEl = r.querySelector("td.xW span[title], td.xW [title]") || r.querySelector("span[title]");
       const thread = r.querySelector("[data-legacy-thread-id]")?.getAttribute("data-legacy-thread-id") || r.querySelector("[data-thread-id]")?.getAttribute("data-thread-id")?.replace(/^#?thread-f:/, "") || "";
+      const msg = /\|(msg-[af]:[^|\s]+)/.exec(r.querySelector("[data-thread-id]")?.getAttribute("data-thread-id") || "")?.[1] || "";
       return {
         thread,
+        msg,
         from: who?.getAttribute("name") || who?.textContent?.trim() || "",
         fromEmail: who?.getAttribute("email") || null,
         subject,
@@ -128,7 +130,63 @@ async function accountNumber(page, account) {
   throw new Error(`Gmail didn't open ${account}'s mailbox.`);
 }
 
-async function gmailMail({ days = 3, maxPages = 10, account = 0, folder = "Gmail", openIfMissing = false, launch = openIfMissing } = {}) {
+/**
+ * One conversation, whole: found by its subject (all mail, any age), every row of its thread
+ * (with conversation view off a row is a message) — and the full text of those not known yet,
+ * each opened (they're read) and the list back.
+ */
+async function wholeThread(page, n, thread, subject, known, folder) {
+  const words = String(subject).replace(/^(re|aw|wg|fwd?|antw):\s*/gi, "").replace(/["()]/g, " ").trim();
+  const url = `https://mail.google.com/mail/u/${n}/#search/${encodeURIComponent(`in:anywhere ${words ? `subject:(${words})` : ""}`.trim())}`;
+  const rowsOf = async () => {
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => {});
+    for (let i = 0; i < 30; i++) {
+      const rows = (await page.evaluate(readRows).catch(() => [])).filter((r) => r.thread === thread);
+      if (rows.length) return rows;
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    return [];
+  };
+  const rows = (await rowsOf()).slice(0, 40);
+  const out = [];
+  for (const r of rows) {
+    const mine = r.msg.startsWith("msg-a:");
+    let preview = flat(r.preview);
+    let full = false;
+    if (r.msg && !known.has(r.msg) && !r.unread) {
+      // Its full text: the row opened, the message read, back to the results.
+      const row = page.locator(`tr.zA:has([data-thread-id$="|${r.msg}"])`).filter({ visible: true }).first();
+      try {
+        await row.click({ timeout: 10000 });
+        const body = await page
+          .waitForFunction(
+            () => {
+              const b = [...document.querySelectorAll('div[role="main"] .a3s')].filter((x) => x.offsetParent !== null).pop();
+              if (!b) return null;
+              const c = b.cloneNode(true);
+              c.querySelectorAll(".gmail_quote, .gmail_extra, blockquote").forEach((q) => q.remove());
+              return (c.textContent || "").replace(/\s+/g, " ").trim();
+            },
+            null,
+            { timeout: 15000 },
+          )
+          .then((h) => h.jsonValue());
+        if (body) {
+          preview = String(body).slice(0, 1000);
+          full = true;
+        }
+      } catch (e) {
+        debug(`message ${r.msg}: ${e?.message ?? e}`);
+      }
+      await page.goBack({ waitUntil: "domcontentloaded" }).catch(() => {});
+      await new Promise((res) => setTimeout(res, 600));
+    }
+    out.push({ id: r.msg || undefined, convId: `gmail:${thread}`, folder, from: mine ? "Ich" : r.from, fromEmail: mine ? null : r.fromEmail, subject: flat(r.subject), preview, receivedAt: parseTitle(r.title), unread: mine ? false : r.unread, full });
+  }
+  return out;
+}
+
+async function gmailMail({ days = 3, maxPages = 10, account = 0, folder = "Gmail", openIfMissing = false, launch = openIfMissing, conversations = false, fullKnown = [] } = {}) {
   const span = Math.min(120, Math.max(1, Math.round(Number(days) || 3)));
   const since = Date.now() - span * 864e5;
   const browser = await connectToChrome(CDP, { launchUrls: launch ? [inboxUrl(account)] : [] });
@@ -136,6 +194,7 @@ async function gmailMail({ days = 3, maxPages = 10, account = 0, folder = "Gmail
     const page = await gmailPage(browser, { openIfMissing: !!openIfMissing, account });
     const n = await accountNumber(page, account);
     const messages = [];
+    const sentThreads = new Map();
     // The inbox — and what you sent (your replies: a conversation's other half, as "Ich").
     for (const box of ["inbox", "sent"]) {
     const mine = box === "sent";
@@ -154,19 +213,100 @@ async function gmailMail({ days = 3, maxPages = 10, account = 0, folder = "Gmail
           continue;
         }
         const id = r.thread || `${r.from}|${r.subject}|${r.title}`;
-        if (seen.has(id) || !r.subject) continue;
-        seen.add(id);
+        const key = r.msg || id;
+        if (seen.has(key) || !r.subject) continue;
+        seen.add(key);
         fresh++;
-        messages.push({ convId: `gmail:${id}`, folder, from: mine ? "Ich" : r.from, fromEmail: mine ? null : r.fromEmail, subject: flat(r.subject), preview: flat(r.preview), receivedAt: at, unread: mine ? false : r.unread });
+        const me = mine || r.msg.startsWith("msg-a:");
+        if (mine) sentThreads.set(id, r.subject);
+        messages.push({ id: r.msg || undefined, convId: `gmail:${id}`, folder, from: me ? "Ich" : r.from, fromEmail: me ? null : r.fromEmail, subject: flat(r.subject), preview: flat(r.preview), receivedAt: at, unread: me ? false : r.unread });
       }
       debug(`${box} page ${p}: ${rows.length} rows, ${messages.length} kept`);
       // The list is newest first: once older ones show, the rest are older too; nothing new: its end.
       if (older || !fresh || rows.length < 20) break;
     }
     }
+    // Every conversation you wrote in (the sent box's): whole — all its messages, older ones too;
+    // the full text of those not known yet (opened one by one — they're read; known ones not again).
+    if (conversations) {
+      const known = new Set(fullKnown);
+      const have = new Set(messages.map((m) => m.id).filter(Boolean));
+      for (const [thread, subject] of [...sentThreads].slice(0, 25)) {
+        try {
+          for (const m of await wholeThread(page, n, thread, subject, known, folder)) {
+            if (m.id && have.has(m.id)) {
+              // Seen in the lists already: its full text, if read now.
+              const i = messages.findIndex((x) => x.id === m.id);
+              if (m.full) messages[i] = { ...messages[i], preview: m.preview, full: true };
+            } else {
+              messages.push(m);
+              if (m.id) have.add(m.id);
+            }
+          }
+        } catch (e) {
+          debug(`conversation ${thread}: ${e?.message ?? e}`);
+        }
+      }
+    }
     // Back to the inbox's first page, as you'd expect to find it.
     if (page.url() !== inboxUrl(n)) await page.goto(inboxUrl(n), { waitUntil: "domcontentloaded" }).catch(() => {});
     return JSON.stringify({ messages });
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}
+
+/**
+ * A whole conversation (thread) — every message, both sides, without the quoted parts — read by
+ * opening it in the Gmail tab (all messages expanded) and going back to the inbox. Opening it
+ * marks it read: Zeff asks for read threads only (a quiet conversation you were part of).
+ */
+async function gmailThread({ account = 0, thread = "", subject = "" } = {}) {
+  const id = String(thread).replace(/^gmail:/, "").trim();
+  if (!/^[0-9a-f]{8,}$/i.test(id)) throw new Error("Keine Thread-Kennung.");
+  const browser = await connectToChrome(CDP, {});
+  try {
+    const page = await gmailPage(browser, { openIfMissing: true, account });
+    const n = await accountNumber(page, account);
+    // Gmail opens a conversation from its row (an old thread address only shows the list): found by
+    // its subject, the row with its id clicked.
+    const words = String(subject).replace(/^(re|aw|wg|fwd?|antw):\s*/gi, "").replace(/["()]/g, " ").trim();
+    const query = `in:anywhere ${words ? `subject:(${words})` : ""}`.trim();
+    await page.goto(`https://mail.google.com/mail/u/${n}/#search/${encodeURIComponent(query)}`, { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => {});
+    const row = page.locator(`tr.zA:has([data-legacy-thread-id="${id}"])`).first();
+    try {
+      await row.click({ timeout: 20000 });
+    } catch {
+      await page.goto(inboxUrl(n), { waitUntil: "domcontentloaded" }).catch(() => {});
+      throw new Error(`Die Unterhaltung ${id} ist in Gmail nicht zu finden${words ? ` („${words}“)` : ""}.`);
+    }
+    let ok = false;
+    for (let i = 0; i < 40 && !ok; i++) {
+      if (isLogin(page.url())) throw new Error("Gmail shows Google's sign-in — sign in in the automation Chrome.");
+      ok = await page.evaluate(() => !!document.querySelector('div[role="main"] .a3s, div[role="main"] h2.hP')).catch(() => false);
+      if (!ok) await new Promise((r) => setTimeout(r, 500));
+    }
+    if (!ok) throw new Error("Gmail hat die Unterhaltung nicht gezeigt.");
+    // All its messages open (the older ones are folded).
+    await page.locator('[aria-label*="maximieren" i], [aria-label*="Expand all" i]').first().click({ timeout: 3000 }).catch(() => {});
+    await new Promise((r) => setTimeout(r, 800));
+    const messages = await page.evaluate(() =>
+      [...document.querySelectorAll('div[role="main"] div.adn')].map((m) => {
+        const who = m.querySelector(".gD");
+        const body = m.querySelector(".a3s")?.cloneNode(true);
+        // Without what it quotes (the earlier messages are there on their own).
+        body?.querySelectorAll(".gmail_quote, .gmail_extra, blockquote").forEach((q) => q.remove());
+        return {
+          from: who?.getAttribute("name") || who?.textContent?.trim() || "",
+          fromEmail: who?.getAttribute("email") || null,
+          at: m.querySelector(".g3")?.getAttribute("title") || "",
+          text: (body?.textContent || "").replace(/\s+/g, " ").trim().slice(0, 3000),
+        };
+      }),
+    );
+    const title = await page.evaluate(() => document.querySelector('div[role="main"] h2.hP')?.textContent?.trim() || "");
+    await page.goto(inboxUrl(n), { waitUntil: "domcontentloaded" }).catch(() => {});
+    return JSON.stringify({ thread: id, subject: title, messages: messages.map((m) => ({ ...m, receivedAt: parseTitle(m.at) })) });
   } finally {
     await browser.close().catch(() => {});
   }
@@ -220,6 +360,11 @@ async function gmailStatus() {
 
 const TOOLS = [
   { name: "gmail_status", description: "Check whether Chrome (with the debug port) is reachable and Gmail is signed in.", inputSchema: { type: "object", properties: {} } },
+  {
+    name: "gmail_thread",
+    description: "A whole Gmail conversation (thread): every message, both sides, without quoted parts — opened in the Gmail tab (marks it read; ask for read threads only). Returns JSON { thread, subject, messages }.",
+    inputSchema: { type: "object", properties: { thread: { type: "string", description: "The thread id (hex, as in gmail:<id>)." }, subject: { type: "string", description: "Its subject (to find it)." }, account: { type: ["number", "string"] } }, required: ["thread"] },
+  },
   { name: "gmail_accounts", description: "The Google accounts signed in in the automation Chrome (address, name, Gmail's account number) — read-only. Returns JSON { accounts }.", inputSchema: { type: "object", properties: {} } },
   {
     name: "gmail_mail",
@@ -231,6 +376,8 @@ const TOOLS = [
         maxPages: { type: "number", description: "At most this many list pages (default 10, at most 30)." },
         account: { type: ["number", "string"], description: "Gmail's account: its number (mail/u/<n>, default 0) or its address." },
         folder: { type: "string", description: "The folder Zeff keeps its mails in (default \"Gmail\")." },
+        conversations: { type: "boolean", description: "Also pull every conversation you wrote in (the sent box's) whole, with the full text of messages not in fullKnown." },
+        fullKnown: { type: "array", items: { type: "string" }, description: "Message ids whose full text is known already (not opened again)." },
         openIfMissing: { type: "boolean", description: "Open Gmail in the automation Chrome when it isn't (default false)." },
         launch: { type: "boolean", description: "Start the automation Chrome when it isn't running (default: as openIfMissing)." },
       },
@@ -259,6 +406,7 @@ async function handle(msg) {
     try {
       if (name === "gmail_status") return ok(id, textResult(await gmailStatus()));
       if (name === "gmail_accounts") return ok(id, textResult(await gmailAccounts()));
+      if (name === "gmail_thread") return ok(id, textResult(await withTabLock("Gmail", name, () => gmailThread(args), debug)));
       if (name === "gmail_mail") return ok(id, textResult(await withTabLock("Gmail", name, () => gmailMail(args), debug)));
       return ok(id, textResult(`Unknown tool "${name}".`, true));
     } catch (e) {

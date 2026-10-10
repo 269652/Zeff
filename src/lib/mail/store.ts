@@ -10,8 +10,10 @@ const { emails } = schema;
 
 /** A mail as the Outlook driver (scripts/outlook-mcp.mjs, outlook_mail) reads it from the list. */
 export type MailInput = {
-  /** A message's own id (WhatsApp's) — its key then, whatever it says. */
+  /** A message's own id (WhatsApp's, Gmail's) — its key then, whatever it says. */
   id?: string;
+  /** Its full text (not just the list's first line) — it replaces what's kept. */
+  full?: boolean;
   convId: string;
   folder?: string;
   from: string;
@@ -55,10 +57,28 @@ export function saveMails(list: MailInput[]): { added: number; total: number } {
   db.transaction((tx) => {
     for (const m of list) {
       if (!m.convId || !m.subject) continue;
-      const key = keyOf(m);
-      const known = tx.select({ key: emails.key }).from(emails).where(sql`${emails.key} = ${key}`).get();
+      let key = keyOf(m);
+      let known = tx.select({ key: emails.key }).from(emails).where(sql`${emails.key} = ${key}`).get();
+      // A message kept before it had its id (the same conversation, time and first words): that
+      // row it is — its key stays (todos cite it), its text may grow.
+      if (!known && m.id && m.receivedAt) {
+        const start = m.preview.replace(/\s+/g, " ").trim().slice(0, 40);
+        const same = tx
+          .select({ key: emails.key, preview: emails.preview })
+          .from(emails)
+          .where(and(sql`${emails.convId} = ${m.convId}`, sql`${emails.receivedAt} = ${m.receivedAt}`))
+          .all()
+          .find((r) => start && r.preview.replace(/\s+/g, " ").trim().slice(0, 40) === start);
+        if (same) {
+          known = same;
+          key = same.key;
+        }
+      }
       if (known) {
-        tx.update(emails).set({ unread: m.unread, syncedAt: now }).where(sql`${emails.key} = ${key}`).run();
+        tx.update(emails)
+          .set({ unread: m.unread, syncedAt: now, ...(m.full ? { preview: m.preview.slice(0, 1000) } : {}) })
+          .where(sql`${emails.key} = ${key}`)
+          .run();
         continue;
       }
       tx.insert(emails)
