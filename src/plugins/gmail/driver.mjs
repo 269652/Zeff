@@ -23,7 +23,9 @@ const inboxUrl = (account = 0) => `https://mail.google.com/mail/u/${encodeURICom
  * The inbox's mails of the last days as ONE flat list — a search (in:inbox newer_than:Nd), page n.
  * #inbox itself may be split into sections (priority inbox, multiple inboxes) that don't page as one.
  */
-const listUrl = (account, days, page) => `https://mail.google.com/mail/u/${account}/#search/in%3Ainbox+newer_than%3A${days}d${page > 1 ? `/p${page}` : ""}`;
+const listUrl = (account, days, page, box = "inbox") => `https://mail.google.com/mail/u/${account}/#search/in%3A${box}+newer_than%3A${days}d${page > 1 ? `/p${page}` : ""}`;
+/** A line of the list as one line: Gmail shows the same snippet with and without its breaks. */
+const flat = (s) => String(s ?? "").replace(/\s+/g, " ").trim();
 const isGmail = (u) => /^https:\/\/mail\.google\.com\/mail\//i.test(u);
 const isLogin = (u) => /accounts\.google\.com|ServiceLogin|signin/i.test(u);
 
@@ -134,10 +136,13 @@ async function gmailMail({ days = 3, maxPages = 10, account = 0, folder = "Gmail
     const page = await gmailPage(browser, { openIfMissing: !!openIfMissing, account });
     const n = await accountNumber(page, account);
     const messages = [];
+    // The inbox — and what you sent (your replies: a conversation's other half, as "Ich").
+    for (const box of ["inbox", "sent"]) {
+    const mine = box === "sent";
     const seen = new Set();
     let before = null;
     for (let p = 1; p <= Math.min(30, Math.max(1, Number(maxPages) || 10)); p++) {
-      const rows = await listPage(page, listUrl(n, span, p), before);
+      const rows = await listPage(page, listUrl(n, span, p, box), before);
       if (!rows.length) break;
       before = rows[0].thread;
       let older = false;
@@ -152,11 +157,12 @@ async function gmailMail({ days = 3, maxPages = 10, account = 0, folder = "Gmail
         if (seen.has(id) || !r.subject) continue;
         seen.add(id);
         fresh++;
-        messages.push({ convId: `gmail:${id}`, folder, from: r.from, fromEmail: r.fromEmail, subject: r.subject, preview: r.preview, receivedAt: at, unread: r.unread });
+        messages.push({ convId: `gmail:${id}`, folder, from: mine ? "Ich" : r.from, fromEmail: mine ? null : r.fromEmail, subject: flat(r.subject), preview: flat(r.preview), receivedAt: at, unread: mine ? false : r.unread });
       }
-      debug(`page ${p}: ${rows.length} rows, ${messages.length} kept`);
+      debug(`${box} page ${p}: ${rows.length} rows, ${messages.length} kept`);
       // The list is newest first: once older ones show, the rest are older too; nothing new: its end.
       if (older || !fresh || rows.length < 20) break;
+    }
     }
     // Back to the inbox's first page, as you'd expect to find it.
     if (page.url() !== inboxUrl(n)) await page.goto(inboxUrl(n), { waitUntil: "domcontentloaded" }).catch(() => {});

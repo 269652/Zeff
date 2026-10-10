@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, isNull } from "drizzle-orm";
+import { and, asc, gte, inArray, isNull } from "drizzle-orm";
 import { throwIfAborted } from "@/lib/abort";
 import { getDb, schema } from "@/db";
 import { aiChoice, runAi } from "@/lib/ai";
@@ -11,6 +11,7 @@ import { plain } from "./collect";
 import { dueDay, isTodoKind, TODO_KINDS, type TodoView } from "./shared";
 import { extraBlock, getContextPrefs } from "./context-prefs";
 import { addFact } from "@/lib/facts";
+import { getPref, setPref } from "@/lib/prefs";
 import { duplicateTodo } from "./similar";
 import { addMailTodo, addTodoContext, lastGoodRun, listTodos, setTodoDue, setTodoStatus } from "./store";
 
@@ -79,6 +80,8 @@ Trägt eine neue Nachricht etwas zu einem SCHON OFFENEN Todo bei — eine Antwor
 
 Auch ohne Todo: Steht in einer Nachricht so etwas Dauerhaftes, gib es oben unter facts an (subject, text, refs der Nachrichten).
 
+Unter „Ruhende Unterhaltungen“ stehen Gespräche, an denen ich beteiligt war und die seit Tagen still sind. Gibt es Neues, das die andere Seite wissen sollte (aus den neuen Nachrichten, meinen offenen Todos — z. B. ein Termin hat stattgefunden, ein Problem ist gelöst, es gibt einen Stand), oder wartet sie noch auf eine Rückmeldung von mir, leg ein Todo an, sie auf den Stand zu bringen („Wolfgang Peter über den Stand der Homepage informieren“) — mit der Kennung der Unterhaltung unter refs. Sonst nichts.
+
 KEINE Todos für: Newsletter, Werbung, reine Info ohne Handlung, Benachrichtigungen über Jira-/GitLab-Kommentare und Statuswechsel (die kennt die Ticket-Lage schon), Lesebestätigungen, Termine, die nur informieren — und nichts, was ein schon offenes Todo abdeckt oder schon erledigt ist (z. B. eine spätere Mail bestätigt es). Gibt es nichts zu tun, ist die Liste leer.`;
 
 const state = globalThis as unknown as { __zeffMailTodos?: Promise<MailTodosResult> | null };
@@ -102,23 +105,25 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
     // A WhatsApp chat whose last message isn't yours waits for your answer — gone through further
     // back (it may be weeks old: "Elmar antworten").
     const chatSince = new Date(Date.now() - Math.max(cp.numbers.days, cp.numbers.chatDays) * 864e5).toISOString();
-    const lastOf = new Map<string, string | null>();
-    if (cp.sources.whatsapp)
-      for (const m of getDb()
-        .select({ convId: emails.convId, fromName: emails.fromName, receivedAt: emails.receivedAt })
-        .from(emails)
-        .where(and(eq(emails.folder, "WhatsApp"), gte(emails.receivedAt, chatSince)))
-        .orderBy(asc(emails.receivedAt))
-        .all())
-        lastOf.set(m.convId, m.fromName);
-    const unanswered = (convId: string) => lastOf.has(convId) && lastOf.get(convId) !== "Ich";
+    // Each conversation's last message, and whether you wrote in it (WhatsApp; mail now that your sent
+    // mail is read): one you were part of whose last word isn't yours waits for you.
+    const lastOf = new Map<string, typeof emails.$inferSelect>();
+    const mineIn = new Set<string>();
+    for (const m of getDb().select().from(emails).where(gte(emails.receivedAt, new Date(Date.now() - 60 * 864e5).toISOString())).orderBy(asc(emails.receivedAt)).all()) {
+      lastOf.set(m.convId, m);
+      if (m.fromName === "Ich") mineIn.add(m.convId);
+    }
+    const unanswered = (convId: string) => {
+      const last = lastOf.get(convId);
+      return !!last && last.fromName !== "Ich" && last.receivedAt >= chatSince && (last.folder === "WhatsApp" || mineIn.has(convId));
+    };
     const rows = getDb()
       .select()
       .from(emails)
       .where(and(isNull(emails.reviewedAt), isNull(emails.resolvedAt), gte(emails.receivedAt, chatSince)))
       .orderBy(asc(emails.receivedAt))
       .all()
-      .filter((m) => (m.folder === "WhatsApp" ? cp.sources.whatsapp && (m.receivedAt >= since || unanswered(m.convId)) : cp.sources.mail && m.receivedAt >= since))
+      .filter((m) => (m.folder === "WhatsApp" ? cp.sources.whatsapp : cp.sources.mail) && (m.receivedAt >= since || unanswered(m.convId)))
       // The chat list's unread badge, read as a message once ("5 ungelesene Nachrichten"): not one.
       .filter((m) => !(m.folder === "WhatsApp" && /^\d+ (ungelesene Nachricht|unread message)/i.test(m.preview)));
     const markReviewed = (keys: string[]) => {
@@ -133,13 +138,22 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
     // tells it's settled); the mails by time.
     const chatOf = (m: (typeof rows)[number]) => (m.folder === "WhatsApp" ? m.convId : "");
     const mails = rows.filter((m) => !theirs.includes(m)).sort((a, b) => chatOf(a).localeCompare(chatOf(b)) || a.receivedAt.localeCompare(b.receivedAt));
-    if (!mails.length) return { ok: true, reviewed: theirs.length, added: 0, batches: 0 };
+    // Conversations you were part of that have gone quiet (5–60 days) — each once per its last
+    // message: is there news for the other side (from new messages, your todos), or do they still wait?
+    const shownDormant = getPref<Record<string, string>>("mailtodos:dormant", {});
+    const quietFrom = new Date(Date.now() - 60 * 864e5).toISOString();
+    const quietTo = new Date(Date.now() - 5 * 864e5).toISOString();
+    const dormant = [...lastOf.values()]
+      .filter((m) => mineIn.has(m.convId) && m.receivedAt >= quietFrom && m.receivedAt <= quietTo && shownDormant[m.convId] !== m.key && (m.folder === "WhatsApp" ? cp.sources.whatsapp : cp.sources.mail))
+      .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
+      .slice(0, 15);
+    if (!mails.length && !dormant.length) return { ok: true, reviewed: theirs.length, added: 0, batches: 0 };
 
     const ticketLines = tickets.map((k) => `- ${k}${getJiraTicket(k)?.summary ? ` — ${plain(getJiraTicket(k)!.summary, 120)}` : ""}`);
     const line = (m: (typeof mails)[number]) =>
       `- [mail:${m.key}] ${m.receivedAt.slice(0, 16).replace("T", " ")} (${m.folder}) ${m.fromName ?? m.fromEmail ?? "?"}: „${plain(m.subject, 200)}“ — ${plain(m.preview, 400)}`;
     const limit = aiChoice().provider === "copilot" ? BATCH_CHARS : 3 * BATCH_CHARS;
-    const batches: (typeof mails)[] = [];
+    const batches: (typeof mails)[] = mails.length ? [] : [[]];
     let size = 0;
     for (const m of mails) {
       const n = line(m).length + 1;
@@ -173,7 +187,14 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
         }),
         "",
         "# Mails",
-        ...batch.map(line),
+        ...(batch.length ? batch.map(line) : ["(keine neuen)"]),
+        ...(batch === batches[0] && dormant.length
+          ? [
+              "",
+              "# Ruhende Unterhaltungen (an denen ich beteiligt war, seit Tagen still)",
+              ...dormant.map((m) => `- [mail:${m.key}] zuletzt ${m.receivedAt.slice(0, 10)} (${m.folder}) „${plain(m.subject, 120)}“ — letzte Nachricht von ${m.fromName ?? m.fromEmail ?? "?"}: ${plain(m.preview, 300)}`),
+            ]
+          : []),
       ].join("\n");
       const answer = await runAi<Answer>(prompt, SCHEMA, { task: "mail-todos", timeoutMs: 10 * 60000, maxBudgetUsd: 1 }).catch((e) => {
         console.error("[mail-todos]", errorMessage(e));
@@ -182,7 +203,9 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
       });
       // A batch that fails: its mails are gone through next time.
       if (!answer) continue;
-      const known = new Set(batch.map((m) => `mail:${m.key}`));
+      const known = new Set([...batch, ...(batch === batches[0] ? dormant : [])].map((m) => `mail:${m.key}`));
+      // The quiet conversations shown: not again until something new happens in them.
+      if (batch === batches[0] && dormant.length) setPref("mailtodos:dormant", { ...shownDormant, ...Object.fromEntries(dormant.map((m) => [m.convId, m.key])) });
       // What new messages add to todos already open: their context, a note — done, if they settle it.
       for (const u of answer.output?.updates ?? []) {
         const todo = open.find((t) => t.id === Number(u.id));
