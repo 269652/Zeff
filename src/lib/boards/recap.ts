@@ -293,7 +293,7 @@ export function startRecap(day: string): { ok: boolean; message: string } {
         return;
       }
       state.__zeffRecap = { id, day, phase: "ai", since: t0, provider };
-      const answer = await runAi<RecapResult>(promptOf(day, facts, myJiraName()), RECAP_SCHEMA, { maxBudgetUsd: 2, timeoutMs: 10 * 60000 });
+      const answer = await runAi<RecapResult>(promptOf(day, facts, myJiraName()), RECAP_SCHEMA, { task: "recap", maxBudgetUsd: 2, timeoutMs: 10 * 60000 });
       state.__zeffRecap = { id, day, phase: "saving", since: t0, provider };
       const result = clean(answer.output, facts);
       if (notes.length) result.summary = `${result.summary}\n\n(${notes.join(" ")})`;

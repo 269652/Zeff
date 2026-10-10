@@ -188,7 +188,7 @@ async function readFromJira(): Promise<SyncResult> {
       // 2. All issues on each enabled board (any assignee). First enabled board wins per ticket.
       //    jira_get_board_issues caps `limit` at 50 and requires `jql`; page with `start_at`.
       const BOARD_PAGE = 50;
-      const BOARD_MAX = 300; // most-recently-updated per board, to bound huge boards
+      const BOARD_MAX = 500; // most-recently-updated per board, to bound huge boards
       const boardIds = enabledBoardIds();
       const members: { key: string; boardId: number }[] = [];
       const seen = new Set<string>();

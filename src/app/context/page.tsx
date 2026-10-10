@@ -28,8 +28,8 @@ export default async function ContextPage({ searchParams }: { searchParams: Prom
 
   return (
     <ContextFormOptionsProvider value={{ people, tickets: getEntryTicketSuggestions(currentWeek()) }}>
-      <div className="space-y-6">
-        <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="page">
+        <div className="page-aside">
           <div>
             <h1 className="text-lg font-semibold">Context</h1>
             <p className="text-sm text-zinc-500">

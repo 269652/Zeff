@@ -1,29 +1,38 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import type { ActionState } from "@/app/actions";
+import { minutesText } from "@/plugins/sync-settings";
 
 /**
- * "Sync now", how the last sync went, and how often it runs in the background — for the Teams
- * and GitLab pages. With `baseUrl`, the site's address is set here too.
+ * "Sync now", how the last sync went, and how often it runs in the background (set on the Sync
+ * settings page) — for the Teams, Mail and GitLab pages. With `baseUrl`, the site's address is
+ * set here too.
  */
 export function SyncControls({
+  syncKey,
+  label,
   syncMinutes,
   last,
   sync,
   save,
   baseUrl,
 }: {
+  /** The sync's key on the Sync settings page. */
+  syncKey: string;
+  /** Its name, when a page has more than one ("WhatsApp"). */
+  label?: string;
   syncMinutes: number;
   /** The last sync: when (and how long ago), whether it worked, what it said. */
   last: { at: string; ago: string; ok: boolean; result: string } | null;
   sync: () => Promise<ActionState>;
-  save: (prev: ActionState, fd: FormData) => Promise<ActionState>;
+  /** Saves the address (`baseUrl`). */
+  save?: (prev: ActionState, fd: FormData) => Promise<ActionState>;
   baseUrl?: string;
 }) {
   const [state, setState] = useState<ActionState>(null);
   const [saved, setSaved] = useState<ActionState>(null);
-  const [minutes, setMinutes] = useState(String(syncMinutes));
   const [base, setBase] = useState(baseUrl ?? "");
   const [syncing, startSync] = useTransition();
   const [saving, startSave] = useTransition();
@@ -31,9 +40,17 @@ export function SyncControls({
   return (
     <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
       <div className="space-y-1">
-        <button type="button" className="btn btn-primary btn-sm" disabled={syncing} onClick={() => startSync(async () => setState(await sync()))}>
-          {syncing ? "Syncing…" : "Sync now"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button type="button" className="btn btn-primary btn-sm" disabled={syncing} onClick={() => startSync(async () => setState(await sync()))}>
+            {syncing ? "Syncing…" : label ? `${label} syncen` : "Sync now"}
+          </button>
+          <span className="text-xs text-zinc-500">
+            Von selbst: {minutesText(syncMinutes)} ·{" "}
+            <Link href={`/sync-settings#${syncKey}`} className="text-indigo-600 hover:underline dark:text-indigo-400">
+              ändern
+            </Link>
+          </span>
+        </div>
         <p className="text-xs">
           {state?.error ? (
             <span className="text-red-600 dark:text-red-400">{state.error}</span>
@@ -48,16 +65,16 @@ export function SyncControls({
           )}
         </p>
       </div>
-      <form
-        // Submitted by hand, not via `action`: React resets a form after an action.
-        onSubmit={(e) => {
-          e.preventDefault();
-          const fd = new FormData(e.currentTarget);
-          startSave(async () => setSaved(await save(null, fd)));
-        }}
-        className="flex flex-wrap items-end gap-2"
-      >
-        {baseUrl !== undefined && (
+      {baseUrl !== undefined && save && (
+        <form
+          // Submitted by hand, not via `action`: React resets a form after an action.
+          onSubmit={(e) => {
+            e.preventDefault();
+            const fd = new FormData(e.currentTarget);
+            startSave(async () => setSaved(await save(null, fd)));
+          }}
+          className="flex flex-wrap items-end gap-2"
+        >
           <div>
             <label className="label" htmlFor="syncBaseUrl">Address</label>
             <input
@@ -72,30 +89,12 @@ export function SyncControls({
               }}
             />
           </div>
-        )}
-        <div>
-          <label className="label" htmlFor="syncMinutes">Sync every (min)</label>
-          <input
-            id="syncMinutes"
-            name="syncMinutes"
-            type="number"
-            min={0}
-            max={1440}
-            className="input num w-24"
-            value={minutes}
-            onChange={(e) => {
-              setMinutes(e.target.value);
-              setSaved(null);
-            }}
-          />
-        </div>
-        <button type="submit" className="btn btn-sm" disabled={saving}>
-          {saving ? "Saving…" : "Save"}
-        </button>
-        <span className="basis-full text-xs text-zinc-500">
-          {saved?.error ? <span className="text-red-600 dark:text-red-400">{saved.error}</span> : saved?.ok ? saved.message : "0 = only when you press Sync now."}
-        </span>
-      </form>
+          <button type="submit" className="btn btn-sm" disabled={saving}>
+            {saving ? "Saving…" : "Save"}
+          </button>
+          {saved && <span className="basis-full text-xs">{saved.error ? <span className="text-red-600 dark:text-red-400">{saved.error}</span> : <span className="text-zinc-500">{saved.message}</span>}</span>}
+        </form>
+      )}
     </div>
   );
 }

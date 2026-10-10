@@ -1,9 +1,8 @@
-import path from "node:path";
+import { automationCdp, automationEnv, driverPath } from "@/plugins/drivers";
 import { clearAttention, needsSignIn, raiseLogin } from "@/lib/attention";
 import { errorMessage } from "@/lib/errors";
 import { getGitlabSettings, saveGitlabItems, updateGitlabSettings, type GitlabItemInput } from "./store";
 
-const CDP = process.env.GITLAB_CDP_ENDPOINT || process.env.ROAR_CDP_ENDPOINT || "http://127.0.0.1:9222";
 /** How far back a full sync (and branches on every sync) goes. */
 const DAYS = 90;
 
@@ -18,7 +17,7 @@ function record(ok: boolean, message: string): { ok: boolean; message: string } 
 
 /** Whether the automation Chrome runs — the background sync never starts it (it opens a GitLab tab there, though). */
 async function chromeUp(): Promise<boolean> {
-  return fetch(`${CDP}/json/version`, { signal: AbortSignal.timeout(3000) })
+  return fetch(`${automationCdp("gitlab")}/json/version`, { signal: AbortSignal.timeout(3000) })
     .then((r) => r.ok)
     .catch(() => false);
 }
@@ -38,9 +37,9 @@ export async function syncGitlab({ background = false } = {}): Promise<{ ok: boo
     if (background && !(await chromeUp())) return record(false, "The automation Chrome isn't running. Not synced.");
     const sinceIso = s.lastOk && s.lastSyncAt ? new Date(new Date(s.lastSyncAt).getTime() - 864e5).toISOString() : undefined;
     const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
-    const script = path.join(/*turbopackIgnore: true*/ process.cwd(), "scripts", "gitlab-mcp.mjs");
+    const script = driverPath("gitlab");
     const out = await runStdioSession(
-      { command: process.execPath, args: [script], env: {}, label: "GitLab sync" },
+      { command: process.execPath, args: [script], env: automationEnv(), label: "GitLab sync" },
       // GitLab not open: a tab for it (Chrome itself started only by hand).
       async (call) => resultToPayload(await call("gitlab_items", { baseUrl: base, sinceIso, days: DAYS, openIfMissing: true, launch: !background })),
       240000,

@@ -21,7 +21,7 @@ function TestButton({ provider, disabled }: { provider: AiProvider; disabled: bo
 }
 
 /**
- * Which AI provider analyses run through (the Boards tab's): the Claude Code CLI or GitHub's
+ * Which AI provider analyses run through (the Todos tab's): the Claude Code CLI or GitHub's
  * Copilot CLI — each shown with where its CLI was found (or how to get it), its model, and a test.
  */
 export function AiSettingsForm({
@@ -30,14 +30,17 @@ export function AiSettingsForm({
   copilotModel,
   copilotModels = [],
   found,
+  installed,
 }: {
   provider: AiProvider;
+  /** The providers whose plugin is installed (Settings → Plugins) — only these are offered. */
+  installed: AiProvider[];
   claudeModel: string;
   copilotModel: string;
   /** The models the installed Copilot CLI takes (empty: unknown — then a text field). */
   copilotModels?: string[];
   /** Where each CLI is, as found on this machine (null: not installed). */
-  found: Record<AiProvider, string | null>;
+  found: Partial<Record<AiProvider, string | null>>;
 }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(saveAiSettingsAction, null);
   const [chosen, setChosen] = useState<AiProvider>(provider);
@@ -74,7 +77,7 @@ export function AiSettingsForm({
   return (
     <form action={action} className="space-y-4">
       <div className="grid gap-3 md:grid-cols-2">
-        {card(
+        {installed.includes("claude") && card(
           "claude",
           <span className="block min-w-48">
             <span className="label">Model</span>
@@ -87,7 +90,7 @@ export function AiSettingsForm({
             </select>
           </span>,
         )}
-        {card(
+        {installed.includes("copilot") && card(
           "copilot",
           <span className="block min-w-48">
             <span className="label">Model</span>

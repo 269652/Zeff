@@ -10,6 +10,8 @@ const { emails } = schema;
 
 /** A mail as the Outlook driver (scripts/outlook-mcp.mjs, outlook_mail) reads it from the list. */
 export type MailInput = {
+  /** A message's own id (WhatsApp's) — its key then, whatever it says. */
+  id?: string;
   convId: string;
   folder?: string;
   from: string;
@@ -41,7 +43,9 @@ export function updateMailSettings(patch: Partial<MailSettings>): void {
 }
 
 /** A mail's key: its conversation, and what it says (a new mail in it — another preview — is another row). */
-const keyOf = (m: MailInput) => `${m.convId}|${createHash("sha1").update(`${m.from}\n${m.subject}\n${m.preview}\n${m.receivedAt ?? ""}`).digest("hex").slice(0, 16)}`;
+const keyOf = (m: MailInput) =>
+  m.id ? `${m.convId}|${createHash("sha1").update(m.id).digest("hex").slice(0, 16)}` :
+  `${m.convId}|${createHash("sha1").update(`${m.from}\n${m.subject}\n${m.preview}${m.convId.startsWith("wa:") ? "" : `\n${m.receivedAt ?? ""}`}`).digest("hex").slice(0, 16)}`;
 
 /** Keep the mails read — new ones added, known ones updated (read since?). How many were new, how many there are. */
 export function saveMails(list: MailInput[]): { added: number; total: number } {
@@ -104,10 +108,10 @@ export function mailsByKeys(keys: string[]): Map<string, MailView> {
 }
 
 /** The mails, newest first — those matching `q` (sender, subject, text). */
-export function listMails(opts: { q?: string; folder?: string; limit?: number } = {}): MailView[] {
+export function listMails(opts: { q?: string; folder?: string; exceptFolder?: string; folderPrefix?: string; limit?: number } = {}): MailView[] {
   const q = opts.q?.trim();
   const words = q ? or(like(emails.subject, `%${q}%`), like(emails.preview, `%${q}%`), like(emails.fromName, `%${q}%`), like(emails.fromEmail, `%${q}%`)) : undefined;
-  const where = opts.folder ? and(words, sql`${emails.folder} = ${opts.folder}`) : words;
+  const where = and(words, opts.folder ? sql`${emails.folder} = ${opts.folder}` : undefined, opts.exceptFolder ? sql`${emails.folder} <> ${opts.exceptFolder}` : undefined, opts.folderPrefix ? like(emails.folder, `${opts.folderPrefix}%`) : undefined);
   return getDb()
     .select()
     .from(emails)

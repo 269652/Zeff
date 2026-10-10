@@ -1,5 +1,6 @@
 "use server";
 
+import { automationEnv, driverPath } from "@/plugins/drivers";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
@@ -967,12 +968,11 @@ export async function setBoardEnabledAction(fd: FormData): Promise<void> {
 // ---------------------------------------------------------------------------
 
 async function callRoar(tool: "roar_status" | "roar_export" | "roar_jobs" | "roar_pull", args: Record<string, unknown>): Promise<string> {
-  const path = await import("node:path");
   const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
-  const script = path.join(process.cwd(), "scripts", "roar-mcp.mjs");
+  const script = driverPath("roar");
   return watchSignIn("roar", async () => {
     const out = await runStdioSession(
-      { command: process.execPath, args: [script], env: {}, label: tool === "roar_jobs" ? "Roar job sync" : tool === "roar_pull" ? "Roar pull" : "Roar export" },
+      { command: process.execPath, args: [script], env: automationEnv(), label: tool === "roar_jobs" ? "Roar job sync" : tool === "roar_pull" ? "Roar pull" : "Roar export" },
       async (call) => resultToPayload(await call(tool, args)),
       tool === "roar_export" ? 600000 : 180000, // a full week's export can take minutes
     );
@@ -992,11 +992,111 @@ export async function openServiceLoginAction(service: string): Promise<ActionSta
   }
 }
 
+/** The menu's "Anpassen": an application's place (header, menu, hidden) — or another entry hidden or shown. */
+export async function saveMenuAction(change: { href: string; place?: string; hidden?: boolean }): Promise<ActionState> {
+  try {
+    const href = String(change?.href ?? "");
+    if (!href.startsWith("/")) return { ok: false, error: "Kein Menüeintrag." };
+    const { getMenuPrefs, setMenuPrefs } = await import("@/plugins/tabs");
+    const cur = getMenuPrefs();
+    if (change.place === "header" || change.place === "menu" || change.place === "hidden") setMenuPrefs({ place: { ...cur.place, [href]: change.place } });
+    else if (typeof change.hidden === "boolean") setMenuPrefs({ hidden: change.hidden ? [...new Set([...cur.hidden, href])] : cur.hidden.filter((h) => h !== href) });
+    revalidatePath("/", "layout");
+    return { ok: true, message: "Gespeichert." };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** A header tab's dropdown (its plugin's entries — Kanban: the boards), loaded when it opens. */
+export async function tabMenuAction(tab: string): Promise<import("@/plugins/tab-menus-shared").TabMenuItem[]> {
+  try {
+    return await (await import("@/plugins/tab-menus")).tabMenu(String(tab));
+  } catch {
+    return [];
+  }
+}
+
+/** Gmail's settings, "Konto hinzufügen": Google's add-account sign-in in the automation Chrome — you sign in there yourself. */
+export async function openGmailAddAccountAction(): Promise<ActionState> {
+  try {
+    const { openInAutomationChrome } = await import("@/lib/attention");
+    const r = await openInAutomationChrome("https://accounts.google.com/AddSession?continue=https%3A%2F%2Fmail.google.com%2Fmail%2F&service=mail", "Googles Anmeldung");
+    return r.ok ? { ok: true, message: "Googles Anmeldung ist im Automations-Chrome vorne — melde dich dort mit dem weiteren Konto an, dann hier „Neu laden“." } : { ok: false, error: r.message };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** Gmail's settings: the accounts its sync reads (address or Gmail's account number, and a name). */
+export async function saveGmailAccountsAction(list: { account: string; label: string }[]): Promise<ActionState> {
+  try {
+    if (!(await import("@/plugins/state")).isInstalled("gmail")) return { ok: false, error: "Gmail ist nicht installiert." };
+    const accounts = (Array.isArray(list) ? list : [])
+      .map((a) => ({ account: String(a?.account ?? "").trim().toLowerCase(), label: String(a?.label ?? "").trim().slice(0, 40) }))
+      .filter((a) => a.account);
+    const bad = accounts.find((a) => !/^\d{1,2}$/.test(a.account) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a.account));
+    if (bad) return { ok: false, error: `„${bad.account}“: eine Adresse (name@gmail.com) oder Gmails Kontonummer (0, 1 …).` };
+    if (new Set(accounts.map((a) => a.account)).size !== accounts.length) return { ok: false, error: "Ein Konto doppelt." };
+    const { setGmailAccounts } = await import("@/plugins/gmail/accounts");
+    setGmailAccounts(accounts.slice(0, 10));
+    revalidateAll();
+    return { ok: true, message: accounts.length ? `${accounts.length} Konto${accounts.length > 1 ? "en" : ""} — der nächste Sync liest sie.` : "Kein Konto — Gmail wird nicht gelesen." };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** The setup's end (or skipped): done — on to the sign-ins (Logins page). */
+export async function finishSetupAction(): Promise<void> {
+  const { updateAppSettings } = await import("@/lib/ai");
+  updateAppSettings({ setupDoneAt: new Date().toISOString() });
+  redirect("/logins?setup=1");
+}
+
+/** The setup skipped: done, home. */
+export async function skipSetupAction(): Promise<void> {
+  const { updateAppSettings } = await import("@/lib/ai");
+  updateAppSettings({ setupDoneAt: new Date().toISOString() });
+  redirect("/");
+}
+
+/** The Logins page: ask a service's driver whether it's signed in (read-only — nothing opened, Chrome not started). */
+export async function checkLoginAction(service: string): Promise<ActionState> {
+  try {
+    const { SERVICE_LABELS } = await import("@/lib/attention");
+    if (!(service in SERVICE_LABELS)) return { ok: false, error: "Unbekannter Dienst." };
+    const { checkLogin } = await import("@/lib/logins");
+    const r = await checkLogin(service as keyof typeof SERVICE_LABELS);
+    revalidatePath("/logins");
+    return r.state === "ok" ? { ok: true, message: r.detail } : { ok: false, error: r.detail };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** The Logins page's "Alle prüfen": each checkable service in turn (they share one Chrome). */
+export async function checkAllLoginsAction(): Promise<ActionState> {
+  try {
+    const { checkLogin, listLogins } = await import("@/lib/logins");
+    const { logins } = await listLogins();
+    let ok = 0;
+    const todo = logins.filter((l) => l.checkable);
+    for (const l of todo) if ((await checkLogin(l.service)).state === "ok") ok++;
+    revalidatePath("/logins");
+    return { ok: true, message: `${ok} von ${todo.length} angemeldet.` };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
 /** Signed in: try the service again (its sync, or its status) — the request goes once it works. */
 export async function retryServiceAction(service: string): Promise<ActionState> {
   try {
     if (service === "teams") return await syncTeamsAction();
-    if (service === "outlook") return await syncMailAction();
+    if (service === "outlook" || service === "gmail") return await syncMailAction();
+    if (service === "whatsapp") return await syncWhatsappAction();
+    if (service === "keep") return await syncKeepAction();
     if (service === "gitlab") return await syncGitlabAction();
     if (service === "jira") {
       const { syncFromJira } = await import("@/lib/jira/sync");
@@ -1216,12 +1316,11 @@ export async function syncOutlookAction(weekKey: string): Promise<ActionState> {
 // ---------------------------------------------------------------------------
 
 async function callTimo(tool: "timo_status" | "timo_days" | "timo_export", args: Record<string, unknown>): Promise<string> {
-  const path = await import("node:path");
   const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
-  const script = path.join(process.cwd(), "scripts", "timo-mcp.mjs");
+  const script = driverPath("timo");
   return watchSignIn("timo", async () => {
     const out = await runStdioSession(
-      { command: process.execPath, args: [script], env: {}, label: tool === "timo_days" ? "TimO pull" : "TimO export" },
+      { command: process.execPath, args: [script], env: automationEnv(), label: tool === "timo_days" ? "TimO pull" : "TimO export" },
       async (call) => resultToPayload(await call(tool, args)),
       240000,
     );
@@ -1386,7 +1485,7 @@ export async function searchMailsAction(q: string): Promise<import("@/lib/mail/s
   return listMails({ q: text, limit: 6 });
 }
 
-/** "Sync now" on the Mail page: read the inbox's latest mails in the automation Chrome (read-only: none opened; opens Outlook's mail there if needed). */
+/** "Sync now" on the Nachrichten page: read the inbox's latest mails in the automation Chrome (read-only: none opened; opens Outlook's mail there if needed). */
 export async function syncMailAction(): Promise<ActionState> {
   const { syncMail } = await import("@/lib/mail/sync");
   const r = await syncMail();
@@ -1405,24 +1504,32 @@ export async function saveMailFoldersAction(_prev: ActionState, fd: FormData): P
   return { ok: true, message: `Liest: ${folders.join(", ")}.` };
 }
 
-/** How often the mail sync runs in the background: every N minutes (0 = only by hand). */
-export async function saveMailSyncAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
-  const minutes = int(fd, "syncMinutes");
-  if (minutes === undefined || minutes < 0 || minutes > 1440) return { ok: false, error: "Minuten zwischen 0 (nur von Hand) und 1440." };
-  const { updateMailSettings } = await import("@/lib/mail/store");
-  updateMailSettings({ syncMinutes: minutes });
+/** "WhatsApp syncen" on the Nachrichten page: the chats' latest messages from WhatsApp Web's chat list (no chat opened) — through the Sync menu's step, so it records how it went. */
+export async function syncWhatsappAction(): Promise<ActionState> {
+  if (!(await import("@/plugins/state")).isInstalled("whatsapp")) return { ok: false, error: "WhatsApp ist nicht installiert (Menü → Plugins)." };
+  const { syncAndWait } = await import("@/lib/sync/registry");
+  const r = await syncAndWait("whatsapp");
   revalidateAll();
-  return { ok: true, message: minutes ? `Alle ${minutes} Minuten.` : "Nur von Hand." };
+  return r.lastOk ? { ok: true, message: r.lastMessage ?? "" } : { ok: false, error: r.lastMessage ?? "Fehlgeschlagen." };
 }
 
-/** How often the Teams sync runs in the background: every N minutes (0 = only by hand). */
-export async function saveTeamsSyncAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
-  const minutes = int(fd, "syncMinutes");
-  if (minutes === undefined || minutes < 0 || minutes > 1440) return { ok: false, error: "Minutes between 0 (only by hand) and 1440." };
-  const { updateTeamsSettings } = await import("@/lib/teams/store");
-  updateTeamsSettings({ syncMinutes: minutes });
+/** "Keep syncen" in the Keep app: your Google Keep notes — through the Sync menu's step, so it records how it went. */
+export async function syncKeepAction(): Promise<ActionState> {
+  if (!(await import("@/plugins/state")).isInstalled("keep")) return { ok: false, error: "Google Keep ist nicht installiert (Menü → Plugins)." };
+  const { syncAndWait } = await import("@/lib/sync/registry");
+  const r = await syncAndWait("keep");
   revalidateAll();
-  return { ok: true, message: minutes ? `Syncs every ${minutes} min while Teams is open in the automation Chrome.` : "Syncs only when you press Sync." };
+  return r.lastOk ? { ok: true, message: r.lastMessage ?? "" } : { ok: false, error: r.lastMessage ?? "Fehlgeschlagen." };
+}
+
+/** Which Google account's Keep the sync reads: its number in the automation Chrome (0, 1 …) or its address. */
+export async function setKeepAccountAction(_prev: ActionState | null, fd: FormData): Promise<ActionState> {
+  const account = String(fd.get("account") ?? "").trim();
+  if (!/^\d{1,2}$/.test(account) && !/^[^\s@]+@[^\s@]+$/.test(account)) return { ok: false, error: "Eine Kontonummer (0, 1 …) oder eine Adresse." };
+  const { setKeepSettings } = await import("@/plugins/keep/store");
+  setKeepSettings({ account });
+  revalidatePath("/apps/keep");
+  return { ok: true, message: `Keep liest ab jetzt ${/^\d+$/.test(account) ? `Konto ${account}` : account}.` };
 }
 
 /** Which of these links point at a synced Teams message — that message, by link (null when none). */
@@ -1453,16 +1560,14 @@ export async function syncGitlabAction(): Promise<ActionState> {
   return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
 }
 
-/** Your GitLab's address, and how often its sync runs in the background (0 = only by hand). */
+/** Your GitLab's address (how often it syncs: the Sync settings page). */
 export async function saveGitlabSyncAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
-  const minutes = int(fd, "syncMinutes");
-  if (minutes === undefined || minutes < 0 || minutes > 1440) return { ok: false, error: "Minutes between 0 (only by hand) and 1440." };
   const base = (str(fd, "baseUrl") ?? "").replace(/\/+$/, "");
   if (!/^https?:\/\/[^/\s]+$/.test(base)) return { ok: false, error: "Your GitLab's address, like https://git.example.com" };
   const { updateGitlabSettings } = await import("@/lib/gitlab/store");
-  updateGitlabSettings({ syncMinutes: minutes, baseUrl: base });
+  updateGitlabSettings({ baseUrl: base });
   revalidateAll();
-  return { ok: true, message: minutes ? `Syncs every ${minutes} min while ${new URL(base).host} is open in the automation Chrome.` : "Syncs only when you press Sync." };
+  return { ok: true, message: `Reads ${new URL(base).host}.` };
 }
 
 // ---------------------------------------------------------------------------
@@ -1474,20 +1579,31 @@ export async function runBoardAction(): Promise<ActionState> {
   const { startBoardRun } = await import("@/lib/boards/run");
   // By hand: Jira synced first, then the analysis.
   const r = startBoardRun({ syncJira: true });
-  revalidatePath("/boards");
+  revalidatePath("/todos");
   return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
 }
 
-/** Which tickets on the chosen boards (a JQL filter), and how often a run goes by itself. */
+/** Which tickets on the chosen boards (a JQL filter) — how often a run goes by itself: the Sync settings page. */
 export async function saveBoardSettingsAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const jql = (str(fd, "jql") ?? "").trim();
   if (jql.length < 5) return { ok: false, error: "Ein JQL-Filter, z. B.: assignee = currentUser() AND resolution = Unresolved" };
-  const autoMinutes = int(fd, "autoMinutes") ?? 0;
-  if (autoMinutes < 0 || autoMinutes > 1440) return { ok: false, error: "0 (nur auf Knopfdruck) bis 1440 Minuten." };
   const { updateBoardSettings } = await import("@/lib/boards/store");
-  updateBoardSettings({ jql: jql.slice(0, 1000), autoMinutes });
-  revalidatePath("/boards");
-  return { ok: true, message: autoMinutes ? `Läuft von selbst alle ${autoMinutes < 60 ? `${autoMinutes} min` : `${autoMinutes / 60} h`} an Werktagen (7–20 Uhr).` : "Läuft nur auf Knopfdruck." };
+  updateBoardSettings({ jql: jql.slice(0, 1000) });
+  revalidatePath("/todos");
+  return { ok: true, message: "Gespeichert." };
+}
+
+/** The Sync settings page: how often one sync runs by itself (an installed plugin's — its settings module sets it). */
+export async function saveSyncIntervalAction(key: string, minutes: number): Promise<ActionState> {
+  const { findSyncInterval } = await import("@/plugins/sync-settings-modules");
+  const i = findSyncInterval(String(key));
+  if (!i) return { ok: false, error: "Diesen Sync gibt es nicht (Plugin nicht installiert?)." };
+  const m = Math.round(Number(minutes));
+  if (!Number.isFinite(m) || m < 0 || m > Math.max(...i.choices, i.get())) return { ok: false, error: "Kein gültiges Intervall." };
+  i.set(m);
+  revalidateAll();
+  const { minutesText } = await import("@/plugins/sync-settings");
+  return { ok: true, message: minutesText(m) };
 }
 
 // ---------------------------------------------------------------------------
@@ -1556,7 +1672,7 @@ export async function setJiraCommentResolvedAction(commentId: string, ticket: st
   if (!/^\d+$/.test(String(commentId)) || !/^[A-Z][A-Z0-9]+-\d+$/i.test(String(ticket))) return { ok: false, error: "Unbekannter Kommentar." };
   const { setJiraCommentResolved } = await import("@/lib/resolved");
   setJiraCommentResolved(String(commentId), String(ticket), !!resolved);
-  revalidatePath("/boards");
+  revalidatePath("/todos");
   return { ok: true };
 }
 
@@ -1758,6 +1874,38 @@ export async function syncContextsToJiraAction(contextIds: number[]): Promise<Ac
 // ---------------------------------------------------------------------------
 
 /** Hand a todo to a worker (provider: the AI settings' unless given) — queued, started when one is free. */
+/**
+ * A work session (Work, like Claude Code): your instruction to a worker — on a todo (it goes on
+ * where that one is), or as a new todo on a ticket (or none) — in a repo you pick, else the
+ * ticket's. Interactive with the Copilot CLI (the Work settings): you talk to it on its page.
+ */
+export async function startSessionAction(v: { instruction: string; ticket?: string; todoId?: number; repoId?: number; provider?: string }): Promise<{ ok: true; runId: number } | { ok: false; error: string }> {
+  try {
+    const instruction = String(v.instruction ?? "").trim();
+    // A todo without words: it's worked on as it is (its brief).
+    if (!instruction && v.todoId) {
+      const { dispatchTodo } = await import("@/lib/work/runner");
+      const run = dispatchTodo(Number(v.todoId));
+      revalidatePath("/work");
+      return { ok: true, runId: run.id };
+    }
+    if (!instruction) return { ok: false, error: "Was soll der Worker tun?" };
+    const { isAiProvider } = await import("@/lib/ai/shared");
+    const { dispatchTodo } = await import("@/lib/work/runner");
+    const { addSessionTodo, getTodo } = await import("@/lib/boards/store");
+    // On its todo, while it's open; else a new todo (on the ticket, or none).
+    const existing = v.todoId ? getTodo(Number(v.todoId)) : undefined;
+    const ticket = String(v.ticket ?? existing?.ticket ?? "").trim();
+    if (ticket && !/^[A-Z][A-Z0-9]+-\d+$/i.test(ticket)) return { ok: false, error: `„${ticket}“ ist kein Ticket.` };
+    const todo = existing?.status === "open" ? existing : addSessionTodo({ ticket, text: instruction.split("\n")[0].slice(0, 200) });
+    const run = dispatchTodo(todo.id, { instruction, provider: isAiProvider(v.provider) ? v.provider : undefined, repoId: v.repoId ? Number(v.repoId) : undefined });
+    revalidatePath("/work");
+    return { ok: true, runId: run.id };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
 export async function dispatchWorkAction(todoId: number, provider?: string): Promise<ActionState> {
   try {
     const { isAiProvider } = await import("@/lib/ai/shared");
@@ -2130,10 +2278,11 @@ export async function setTicketFollowAction(key: string, value: 1 | -1 | 0): Pro
 // ---------------------------------------------------------------------------
 
 /** The backup settings — the password only when one is typed (or removed on purpose). */
-export async function saveBackupSettingsAction(v: { enabled: boolean; everyHours: number; keepDaily: number; keepWeekly: number; keepMonthly: number; dir: string; password?: string; clearPassword?: boolean }): Promise<ActionState> {
+export async function saveBackupSettingsAction(v: { enabled: boolean; everyHours: number; keepDaily: number; keepWeekly: number; keepMonthly: number; config?: boolean; dir: string; password?: string; clearPassword?: boolean }): Promise<ActionState> {
   try {
-    const { saveBackupSettings } = await import("@/lib/backup");
-    const s = saveBackupSettings({ enabled: !!v.enabled, everyHours: Number(v.everyHours), keepDaily: Number(v.keepDaily), keepWeekly: Number(v.keepWeekly), keepMonthly: Number(v.keepMonthly), dir: String(v.dir ?? ""), password: v.password ? String(v.password) : undefined, clearPassword: !!v.clearPassword });
+    if (!(await import("@/plugins/state")).isInstalled("backup")) return { ok: false, error: "Backups sind nicht installiert (Menü → Plugins)." };
+    const { saveBackupSettings } = await import("@/plugins/backup/backup");
+    const s = saveBackupSettings({ enabled: !!v.enabled, everyHours: Number(v.everyHours), keepDaily: Number(v.keepDaily), keepWeekly: Number(v.keepWeekly), keepMonthly: Number(v.keepMonthly), config: !!v.config, dir: String(v.dir ?? ""), password: v.password ? String(v.password) : undefined, clearPassword: !!v.clearPassword });
     revalidatePath("/preferences");
     return { ok: true, message: `Backup-Einstellungen gespeichert — Ziel: ${s.resolvedDir}${s.moved ? ` (${s.moved} Backup${s.moved === 1 ? "" : "s"} dorthin verschoben)` : ""}.` };
   } catch (err) {
@@ -2144,7 +2293,8 @@ export async function saveBackupSettingsAction(v: { enabled: boolean; everyHours
 /** A backup now. */
 export async function runBackupAction(): Promise<ActionState> {
   try {
-    const { runBackup } = await import("@/lib/backup");
+    if (!(await import("@/plugins/state")).isInstalled("backup")) return { ok: false, error: "Backups sind nicht installiert (Menü → Plugins)." };
+    const { runBackup } = await import("@/plugins/backup/backup");
     const r = await runBackup();
     revalidatePath("/preferences");
     return r.ok ? { ok: true, message: `Gesichert: ${r.message}` } : { ok: false, error: r.message };
@@ -2159,7 +2309,8 @@ export async function runBackupAction(): Promise<ActionState> {
  */
 export async function restoreBackupAction(name: string, password?: string): Promise<ActionState> {
   try {
-    const { stageRestore } = await import("@/lib/backup");
+    if (!(await import("@/plugins/state")).isInstalled("backup")) return { ok: false, error: "Backups sind nicht installiert (Menü → Plugins)." };
+    const { stageRestore } = await import("@/plugins/backup/backup");
     const r = await stageRestore(String(name), password ? String(password) : undefined);
     // The server restarts (its launcher starts it again) and puts the backup in place before it opens the database.
     setTimeout(() => process.exit(0), 800);
@@ -2172,12 +2323,141 @@ export async function restoreBackupAction(name: string, password?: string): Prom
 /** A backup file from elsewhere (another machine, a copy), put in the backup folder to restore from. */
 export async function uploadBackupAction(fd: FormData): Promise<ActionState> {
   try {
+    if (!(await import("@/plugins/state")).isInstalled("backup")) return { ok: false, error: "Backups sind nicht installiert (Menü → Plugins)." };
     const file = fd.get("file");
     if (!(file instanceof File) || !file.size) return { ok: false, error: "Keine Datei gewählt." };
-    const { storeUploadedBackup } = await import("@/lib/backup");
+    const { storeUploadedBackup } = await import("@/plugins/backup/backup");
     const name = storeUploadedBackup(file.name, Buffer.from(await file.arrayBuffer()));
     revalidatePath("/preferences");
     return { ok: true, message: name };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/**
+ * Settings and configuration taken over into the account you're in — from the config ZIP beside a
+ * backup (`backup`: its name) or an uploaded one (`file`); `password` when not the settings' one.
+ */
+export async function importConfigAction(fd: FormData): Promise<ActionState> {
+  try {
+    if (!(await import("@/plugins/state")).isInstalled("backup")) return { ok: false, error: "Backups sind nicht installiert (Menü → Plugins)." };
+    const { importConfigZip } = await import("@/plugins/backup/backup");
+    const backup = fd.get("backup");
+    const file = fd.get("file");
+    const password = String(fd.get("password") ?? "") || undefined;
+    const from = typeof backup === "string" && backup ? { backup } : file instanceof File && file.size ? { data: Buffer.from(await file.arrayBuffer()) } : null;
+    if (!from) return { ok: false, error: "Keine Konfiguration gewählt." };
+    const r = importConfigZip(from, password);
+    (await import("@/plugins/knowledge/instances")).writeKnowledgeInstances(); // the plugins may have changed
+    revalidateAll();
+    return { ok: true, message: `Konfiguration von „${r.account}“ übernommen — ${r.rows} Einträge in ${r.tables} Tabellen.` };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+async function knowledgeOn(): Promise<string | null> {
+  return (await import("@/plugins/state")).isInstalled("knowledge") ? null : "Knowledge ist nicht installiert (Menü → Plugins).";
+}
+
+/** A question to the knowledge server, with the conversation so far — its answer and sources. */
+export async function askKnowledgeAction(question: string, history: { role: "user" | "assistant"; text: string }[]): Promise<{ ok: true; answer: import("@/plugins/knowledge/shared").KnowledgeAnswer } | { ok: false; error: string }> {
+  try {
+    const off = await knowledgeOn();
+    if (off) return { ok: false, error: off };
+    const q = String(question ?? "").trim();
+    if (!q) return { ok: false, error: "Keine Frage." };
+    const turns = (Array.isArray(history) ? history : []).slice(-8).map((t) => ({ role: t.role === "assistant" ? ("assistant" as const) : ("user" as const), text: String(t.text ?? "").slice(0, 4000) }));
+    const { knowledgeAsk } = await import("@/plugins/knowledge/client");
+    return { ok: true, answer: await knowledgeAsk(q, turns) };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** The knowledge relevant to a todo (its words, its ticket and the ticket's summary) — pages and entities. */
+export async function todoKnowledgeAction(todoId: number): Promise<{ ok: true; pages: import("@/plugins/knowledge/shared").KnowledgePage[]; entities: import("@/plugins/knowledge/shared").KnowledgeEntity[] } | { ok: false; error: string }> {
+  try {
+    const off = await knowledgeOn();
+    if (off) return { ok: false, error: off };
+    const { getTodo } = await import("@/lib/boards/store");
+    const { getJiraTicket } = await import("@/lib/jira/store");
+    const t = getTodo(Number(todoId));
+    if (!t) return { ok: false, error: "Das Todo gibt es nicht." };
+    const summary = t.ticket ? (getJiraTicket(t.ticket)?.summary ?? "") : "";
+    const { knowledgeRelated } = await import("@/plugins/knowledge/client");
+    const r = await knowledgeRelated([t.text, summary].filter(Boolean).join(" — "), t.ticket || null, 5);
+    return { ok: true, pages: r.pages, entities: r.entities };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** The knowledge server: read Confluence now, and compile what's new. */
+export async function knowledgeSyncAction(): Promise<ActionState> {
+  try {
+    const off = await knowledgeOn();
+    if (off) return { ok: false, error: off };
+    await (await import("@/plugins/knowledge/client")).knowledgeSync();
+    return { ok: true, message: "Der Wissens-Server liest Confluence und kompiliert, was neu ist — das dauert." };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+async function accountsOn(): Promise<string | null> {
+  return (await import("@/plugins/state")).isInstalled("accounts") ? null : "Konten sind nicht installiert (Menü → Plugins).";
+}
+
+/** Into another account (Accounts plugin) — where to go there (its first tab: its plugins differ). */
+export async function switchAccountAction(id: string): Promise<ActionState & { href?: string }> {
+  try {
+    const off = await accountsOn();
+    if (off) return { ok: false, error: off };
+    const a = (await import("@/lib/accounts")).switchAccount(String(id));
+    revalidateAll();
+    const { appTabs } = await import("@/plugins/tabs");
+    return { ok: true, message: `Jetzt in „${a.name}“.`, href: appTabs()[0]?.href ?? "/plugins" };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** A new account — empty, or with another's settings and configuration. */
+export async function createAccountAction(v: { name: string; color: string; copyFrom?: string }): Promise<ActionState> {
+  try {
+    const off = await accountsOn();
+    if (off) return { ok: false, error: off };
+    const { account, copied } = await (await import("@/lib/accounts")).createAccount({ name: String(v.name ?? ""), color: String(v.color ?? ""), copyFrom: v.copyFrom ? String(v.copyFrom) : undefined });
+    revalidatePath("/accounts");
+    return { ok: true, message: `Konto „${account.name}“ angelegt${copied ? ` — ${copied} Einstellungen übernommen` : ""}.` };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+export async function updateAccountAction(id: string, v: { name?: string; color?: string }): Promise<ActionState> {
+  try {
+    const off = await accountsOn();
+    if (off) return { ok: false, error: off };
+    const { updateAccount } = await import("@/db/accounts");
+    const a = updateAccount(String(id), { name: v.name === undefined ? undefined : String(v.name), color: v.color === undefined ? undefined : String(v.color) });
+    revalidateAll();
+    return { ok: true, message: `„${a.name}“ gespeichert.` };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** An account off the list — its folder set aside (data/accounts/.deleted), not deleted. */
+export async function deleteAccountAction(id: string): Promise<ActionState> {
+  try {
+    const off = await accountsOn();
+    if (off) return { ok: false, error: off };
+    const to = (await import("@/lib/accounts")).deleteAccount(String(id));
+    revalidatePath("/accounts");
+    return { ok: true, message: `Konto entfernt — seine Daten liegen in ${to}.` };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -2208,4 +2488,125 @@ export async function pickFolderAction(initial?: string): Promise<{ ok: boolean;
       (err, out) => (err ? resolve({ ok: false, error: `Der Dialog ging nicht auf: ${errorMessage(err)}` }) : resolve({ ok: true, path: String(out).trim() || null })),
     ),
   );
+}
+
+// ---------------------------------------------------------------------------
+// Plugins (connectors and AI tools): installed or not
+// ---------------------------------------------------------------------------
+
+/** Install or uninstall a plugin — its data stays; what it does (menu, pages, syncs) comes or goes. */
+export async function setPluginInstalledAction(id: string, installed: boolean): Promise<ActionState> {
+  try {
+    const { isPluginId, pluginById } = await import("@/plugins/catalog");
+    if (!isPluginId(id)) return { ok: false, error: "Unbekanntes Plugin." };
+    const { dependents, setInstalled } = await import("@/plugins/state");
+    // Uninstalled: what builds on it goes too (it stays set, and is back once this is).
+    const along = installed ? [] : dependents(id);
+    const ids = setInstalled(id, !!installed);
+    // Knowledge in or out: the launcher starts or stops this account's knowledge server.
+    (await import("@/plugins/knowledge/instances")).writeKnowledgeInstances();
+    revalidateAll();
+    const names = (list: string[]) => list.map((x) => (isPluginId(x) ? pluginById(x).name : x)).join(", ");
+    return {
+      ok: true,
+      message:
+        `${pluginById(id).name} ${installed ? "installiert" : "deinstalliert"}.` +
+        (ids.length > 1 ? ` Mit installiert: ${names(ids.slice(1))}.` : "") +
+        (along.length ? ` Ohne es nicht da: ${names(along)}.` : ""),
+    };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/**
+ * An action you did in your browser (the appointment saved in Outlook, the mail draft sent):
+ * taken off the todo and noted on it — so the Lage and everyone know. A mail that is the todo
+ * (a reply, a question) ticks it off.
+ */
+export async function doneBrowserOpAction(todoId: number, index: number): Promise<ActionState> {
+  try {
+    const { getTodo, addTodoUserNote, setTodoStatus } = await import("@/lib/boards/store");
+    const { actionHref } = await import("@/plugins/actions/catalog");
+    const { getDb, schema } = await import("@/db");
+    const { eq } = await import("drizzle-orm");
+    const t = getTodo(Number(todoId));
+    const op = t?.ops[Number(index)];
+    if (!t || !op || !actionHref(op)) return { ok: false, error: "Diese Aktion gibt es am Todo nicht (mehr)." };
+    const left = t.ops.filter((_, i) => i !== Number(index));
+    getDb().update(schema.todos).set({ ops: JSON.stringify(left) }).where(eq(schema.todos.id, t.id)).run();
+    const when = (iso: string) => new Date(iso).toLocaleString("de-DE", { weekday: "short", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
+    const what =
+      op.type === "calendar-event"
+        ? `Termin „${op.subject}“ in Outlook angelegt (${when(op.start)}, ${op.minutes} min${op.attendees ? `, mit ${op.attendees.replace(/;/g, ", ")}` : ""}).`
+        : op.type === "mail-compose"
+          ? `Mail „${op.subject}“${op.to ? ` an ${op.to.replace(/;/g, ", ")}` : ""} gesendet.`
+          : "Im Browser erledigt.";
+    addTodoUserNote(t.id, `✓ ${what}`);
+    // A mail that answers or asks — the todo itself, done with it.
+    const settles = op.type === "mail-compose" && !left.length && t.owner === "me" && ["reply", "comment", "clarify", "update"].includes(t.kind);
+    if (settles) {
+      const { attributed } = await import("@/lib/boards/activity");
+      attributed("you", () => setTodoStatus(t.id, "done", `Erledigt: ${what}`));
+    }
+    revalidateAll();
+    return { ok: true, message: settles ? `${t.ref} erledigt — ${what}` : `Vermerkt an ${t.ref}: ${what}` };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** The LLM plugin's settings: your instructions and context, each task's backend and model. */
+export async function saveLlmSettingsAction(v: { instructions: string; context: string; tasks: Record<string, { provider?: string; model?: string }> }): Promise<ActionState> {
+  try {
+    if (!(await import("@/plugins/state")).isInstalled("llm")) return { ok: false, error: "Das LLM-Plugin ist nicht installiert (Menü → Plugins)." };
+    const { saveLlmSettings } = await import("@/plugins/llm/settings");
+    saveLlmSettings({
+      instructions: String(v?.instructions ?? ""),
+      context: String(v?.context ?? ""),
+      tasks: Object.fromEntries(Object.entries(v?.tasks ?? {}).map(([k, t]) => [k, { provider: t?.provider === "copilot" || t?.provider === "claude" ? t.provider : "", model: String(t?.model ?? "") }])),
+    });
+    revalidatePath("/llm");
+    return { ok: true, message: "LLM-Einstellungen gespeichert — sie gelten ab der nächsten Aufgabe." };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** Ready actions for one todo, now (the auto-actions review, asked for on it). */
+export async function suggestTodoActionsAction(todoId: number): Promise<ActionState> {
+  try {
+    const { isInstalled } = await import("@/plugins/state");
+    if (!isInstalled("auto-actions")) return { ok: false, error: "Auto-Aktionen sind nicht installiert (Menü → Plugins)." };
+    const { reviewTodosForActions } = await import("@/plugins/auto-actions/review");
+    const r = await reviewTodosForActions({ ids: [Number(todoId)] });
+    revalidateAll();
+    if (!r.ok) return { ok: false, error: r.error ?? "Die KI hat nicht geantwortet." };
+    if (!r.reviewed) return { ok: false, error: "Das Todo hat schon Aktionen (aus der Ticket-Lage) — die bleiben." };
+    return { ok: true, message: r.withActions ? "Aktionen vorgeschlagen — am Todo." : "Keine passende Aktion gefunden." };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** An action taken off a todo, without a trace (not wanted) — the auto-actions don't propose it again till the todo changes. */
+export async function removeTodoOpAction(todoId: number, index: number): Promise<ActionState> {
+  try {
+    const { getTodo } = await import("@/lib/boards/store");
+    const { getDb, schema } = await import("@/db");
+    const { eq } = await import("drizzle-orm");
+    const t = getTodo(Number(todoId));
+    const op = t?.ops[Number(index)];
+    if (!t || !op) return { ok: false, error: "Diese Aktion gibt es am Todo nicht (mehr)." };
+    const left = t.ops.filter((_, i) => i !== Number(index));
+    getDb()
+      .update(schema.todos)
+      .set({ ops: JSON.stringify(left), actionsReviewedAt: new Date().toISOString(), ...(left.length ? {} : { autoOpsWhy: null }) })
+      .where(eq(schema.todos.id, t.id))
+      .run();
+    revalidateAll();
+    return { ok: true, message: "Aktion entfernt." };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
 }

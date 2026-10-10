@@ -18,7 +18,7 @@ export function MailFoldersForm({ folders }: { folders: string[] }) {
       }}
     >
       <label htmlFor="mail-folders" className="text-zinc-500">
-        Ordner
+        Outlook-Ordner
       </label>
       <input id="mail-folders" name="folders" className="input max-w-md flex-1" value={text} onChange={(e) => setText(e.target.value)} placeholder="Posteingang, Notifications" />
       <button type="submit" className="btn btn-sm" disabled={pending}>

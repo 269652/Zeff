@@ -1,3 +1,5 @@
+import { PluginNotInstalled } from "@/components/PluginNotInstalled";
+import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
@@ -17,6 +19,8 @@ export default async function TimoExportPage({
   searchParams: Promise<{ week?: string; by?: string; gaps?: string }>;
 }) {
   await connection();
+  // A plugin's page: there while it's installed.
+  if (!isInstalled("timo")) return <PluginNotInstalled id="timo" />;
   const sp = await searchParams;
   const week = resolveWeek(sp.week) ?? currentWeek();
   const by = sp.by?.trim() || undefined;
@@ -28,8 +32,8 @@ export default async function TimoExportPage({
     new URLSearchParams({ week: week.key, ...(by ? { by } : {}), ...extra }).toString();
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="page">
+      <div className="page-aside">
         <div>
           <h1 className="text-lg font-semibold">Export to TimO</h1>
           <p className="text-sm text-zinc-500">

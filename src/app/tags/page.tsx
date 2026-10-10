@@ -14,8 +14,8 @@ export default async function TagsPage() {
   const types = listEntryTypes();
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="page">
+      <div className="page-aside">
         <h1 className="text-lg font-semibold">Tags &amp; types</h1>
         <p className="text-sm text-zinc-500">
           Tags label entries (typically tickets). Add them here, or just type{" "}

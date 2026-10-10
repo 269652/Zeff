@@ -6,7 +6,7 @@ import { BOARD_RESULT_SCHEMA, isAttention, TICKET_ACTION_TYPES, type BoardResult
 import { closeTodosOfDoneTickets, finishRun, getBoardSettings, lastGoodRun, reconcileTodos, startRun } from "./store";
 
 /** What a run is doing right now — one at a time across the server (actions and the scheduler are separate module copies). */
-const state = globalThis as { __zeffBoardRun?: { id: number; phase: "sync" | "jira" | "ai" | "saving" | "mailtodos" | "mails"; since: number; provider: string } | null };
+const state = globalThis as { __zeffBoardRun?: { id: number; phase: "sync" | "jira" | "ai" | "saving" | "mailtodos" | "mails" | "autoactions"; since: number; provider: string } | null };
 
 /** The run going on in this server, and its step — null when none is. */
 export const boardRunState = () => state.__zeffBoardRun ?? null;
@@ -67,44 +67,50 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
   state.__zeffBoardRun = { id, phase: opts.syncJira ? "sync" : "jira", since: t0, provider };
   void (async () => {
     try {
-      // By hand: Teams, Jira and the mails synced first (the chats, tickets, statuses, the inbox's
-      // latest days) — a failed sync doesn't stop the run.
+      // By hand: Teams, Jira, the mails and WhatsApp synced first (the chats, tickets, statuses, the
+      // inbox's latest days) — a failed sync doesn't stop the run.
       if (opts.syncJira) {
         const { syncAndWait } = await import("@/lib/sync/registry");
-        await syncAndWait("teams").catch(() => null);
-        await syncAndWait("jira").catch(() => null);
-        await (await import("@/lib/mail/sync")).syncMail({ background: true }).catch(() => null);
+        const { stepAvailable } = await import("@/plugins/state");
+        if (stepAvailable("teams")) await syncAndWait("teams").catch(() => null);
+        if (stepAvailable("jira")) await syncAndWait("jira").catch(() => null);
+        if (stepAvailable("mail")) await syncAndWait("mail").catch(() => null);
+        if (stepAvailable("whatsapp")) await syncAndWait("whatsapp").catch(() => null);
         state.__zeffBoardRun = { id, phase: "jira", since: t0, provider };
       }
       const { tickets, prompt, doneLeft, fromCache } = await collectBoard(s.jql, lastGoodRun(id), { maxChars: ai.maxPrompt });
       if (!tickets.some((t) => t.analyzed)) {
+        // No tickets: no Lage — the mails and WhatsApp messages are still gone through for todos (below).
         finishRun(id, { status: "ok", tickets, result: { lede: "Keine offenen Tickets zum Auswerten.", tickets: [], left: [] }, durationMs: Date.now() - t0 });
-        return;
+      } else {
+        state.__zeffBoardRun = { id, phase: "ai", since: t0, provider };
+        const answer = await runAi<BoardResult>(prompt, BOARD_RESULT_SCHEMA, { task: "ticket-lage", maxBudgetUsd: 5, timeoutMs: 15 * 60000 });
+        state.__zeffBoardRun = { id, phase: "saving", since: t0, provider };
+        const result = cleanResult(answer.output, tickets);
+        if (fromCache) result.lede = `⚠ Jira war nicht erreichbar (${fromCache}) — ausgewertet aus Zeffs letztem Stand. ${result.lede}`;
+        reconcileTodos(result, id);
+        closeTodosOfDoneTickets(doneLeft);
+        // Merge requests to open, asked for in words: their button (push → open MR), worked out from git.
+        try {
+          await (await import("./delivery-ops")).attachOpenMrOps();
+          // Waiting ones to "Wartet auf andere", joint ones with their "when do you have time?" message.
+          (await import("./todo-rules")).applyTodoRules();
+        } catch {
+          // without buttons, then
+        }
+        finishRun(id, { status: "ok", tickets, result, model: answer.model, costUsd: answer.costUsd, durationMs: Date.now() - t0 });
       }
-      state.__zeffBoardRun = { id, phase: "ai", since: t0, provider };
-      const answer = await runAi<BoardResult>(prompt, BOARD_RESULT_SCHEMA, { maxBudgetUsd: 5, timeoutMs: 15 * 60000 });
-      state.__zeffBoardRun = { id, phase: "saving", since: t0, provider };
-      const result = cleanResult(answer.output, tickets);
-      if (fromCache) result.lede = `⚠ Jira war nicht erreichbar (${fromCache}) — ausgewertet aus Zeffs letztem Stand. ${result.lede}`;
-      reconcileTodos(result, id);
-      closeTodosOfDoneTickets(doneLeft);
-      // Merge requests to open, asked for in words: their button (push → open MR), worked out from git.
-      try {
-        await (await import("./delivery-ops")).attachOpenMrOps();
-        // Waiting ones to "Wartet auf andere", joint ones with their "when do you have time?" message.
-        (await import("./todo-rules")).applyTodoRules();
-      } catch {
-        // without buttons, then
-      }
-      finishRun(id, { status: "ok", tickets, result, model: answer.model, costUsd: answer.costUsd, durationMs: Date.now() - t0 });
       // Then steps of their own (the Lage is there already; the run ends when they're done too):
-      // the new mails gone through for todos (a training, a deadline) — then which mails each
-      // todo is about (picked by content, with more room for mails).
+      // the new mails and WhatsApp messages gone through for todos (a training, a deadline) — then
+      // which mails each todo is about (picked by content, with more room for mails).
       const { syncAndWait } = await import("@/lib/sync/registry");
       state.__zeffBoardRun = { id, phase: "mailtodos", since: t0, provider };
       await syncAndWait("mailtodos");
       state.__zeffBoardRun = { id, phase: "mails", since: t0, provider };
       await syncAndWait("relations");
+      // Last: the todos without a button get ready actions (with the mails related to them in their context).
+      state.__zeffBoardRun = { id, phase: "autoactions", since: t0, provider };
+      await syncAndWait("autoactions");
     } catch (e) {
       finishRun(id, { status: "error", error: errorMessage(e), durationMs: Date.now() - t0 });
     } finally {

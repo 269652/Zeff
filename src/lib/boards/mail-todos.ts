@@ -1,7 +1,7 @@
 import { and, asc, gte, inArray, isNull } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { aiChoice, runAi } from "@/lib/ai";
-import { COPILOT_MAX_PROMPT } from "@/lib/ai/copilot";
+import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { errorMessage } from "@/lib/errors";
 import { emitChange } from "@/lib/events";
 import { getJiraTicket } from "@/lib/jira/store";
@@ -44,6 +44,8 @@ const INSTRUCTIONS = `Du gehst meine neuen E-Mails durch und findest, was ICH zu
 
 Lege für jede Aufgabe, die eine Mail an mich stellt, ein Todo an: ein Satz, Verb zuerst, prüfbar, mit Frist, wenn die Mail eine nennt (z. B. „Compliance-Training ‚Datenschutz 2026‘ bis 31.10. absolvieren“, „Reisekostenabrechnung für September einreichen“, „Termin mit Anna für die Abnahme bestätigen“). Auch Erinnerungen und automatische Mails zählen, wenn sie von mir etwas verlangen (Pflichtschulungen, Fristen, Freigaben, Formulare, Zeiterfassung, Umfragen mit Frist). Zu jedem Todo unter refs die Kennungen der Mails, aus denen es folgt (mehrere Mails zur selben Sache → EIN Todo mit allen). Gehört es zu einem meiner Tickets, gib dessen Schlüssel unter ticket an, sonst lass ticket leer. owner = other nur, wenn ich auf jemand anderen warte.
 
+Einträge im Ordner „WhatsApp“ sind keine Mails, sondern WhatsApp-Chats: der Betreff ist der Chat (Person oder Gruppe), der Text eine Nachricht daraus, der Absender, wer sie schrieb („Ich“ = ich selbst). Die Nachrichten eines Chats stehen zusammen, der Reihe nach — ein Gespräch: eine spätere Antwort von mir kann eine Bitte schon erledigt haben. Auch dort zählt, worum man mich bittet, was ich zugesagt oder offen gelassen habe (z. B. „Eine Uhrzeit mit Natha ausmachen“, „Bei Nadine melden“, „Elmar antworten“ — wenn die letzte Nachricht im Chat eine Frage an mich ist, die ich nicht beantwortet habe) (z. B. „Anna die Fotos vom Samstag schicken“, „Bei Tom wegen Sonntag zurückmelden“) — nicht Smalltalk, Grüße oder Reaktionen.
+
 KEINE Todos für: Newsletter, Werbung, reine Info ohne Handlung, Benachrichtigungen über Jira-/GitLab-Kommentare und Statuswechsel (die kennt die Ticket-Lage schon), Lesebestätigungen, Termine, die nur informieren — und nichts, was ein schon offenes Todo abdeckt oder schon erledigt ist (z. B. eine spätere Mail bestätigt es). Gibt es nichts zu tun, ist die Liste leer.`;
 
 const state = globalThis as unknown as { __zeffMailTodos?: Promise<MailTodosResult> | null };
@@ -76,7 +78,10 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
     // The Lage's (they name its tickets) and those a todo has already: gone through.
     const theirs = rows.filter((m) => cited.has(m.key) || namesTicket(tickets, `${m.subject} ${m.preview}`));
     markReviewed(theirs.map((m) => m.key));
-    const mails = rows.filter((m) => !theirs.includes(m));
+    // A WhatsApp chat's messages together, in order (a conversation — your reply after a request
+    // tells it's settled); the mails by time.
+    const chatOf = (m: (typeof rows)[number]) => (m.folder === "WhatsApp" ? m.convId : "");
+    const mails = rows.filter((m) => !theirs.includes(m)).sort((a, b) => chatOf(a).localeCompare(chatOf(b)) || a.receivedAt.localeCompare(b.receivedAt));
     if (!mails.length) return { ok: true, reviewed: theirs.length, added: 0, batches: 0 };
 
     const ticketLines = tickets.map((k) => `- ${k}${getJiraTicket(k)?.summary ? ` — ${plain(getJiraTicket(k)!.summary, 120)}` : ""}`);
@@ -112,7 +117,7 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
         "# Mails",
         ...batch.map(line),
       ].join("\n");
-      const answer = await runAi<Answer>(prompt, SCHEMA, { timeoutMs: 10 * 60000, maxBudgetUsd: 1 }).catch((e) => {
+      const answer = await runAi<Answer>(prompt, SCHEMA, { task: "mail-todos", timeoutMs: 10 * 60000, maxBudgetUsd: 1 }).catch((e) => {
         console.error("[mail-todos]", errorMessage(e));
         failed++;
         return null;

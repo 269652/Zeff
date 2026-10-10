@@ -10,6 +10,10 @@ const nextConfig: NextConfig = {
     "/": ["data/**", "data/**/*"],
     "/**": ["data/**", "data/**/*"],
   },
+  // The Boards tab is the Todos tab now — old links (bookmarks, notifications) land there.
+  redirects() {
+    return [{ source: "/boards", destination: "/todos", permanent: false }];
+  },
   experimental: {
     // Context items upload files (screenshots, documents) with their form — up to 20 MB each.
     serverActions: { bodySizeLimit: "50mb" },

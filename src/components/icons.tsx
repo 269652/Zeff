@@ -140,3 +140,48 @@ export function FlagIcon({ className = "size-4", filled = false }: { className?:
     </svg>
   );
 }
+
+/** A cross: close it, take it away (done). */
+export function CloseIcon({ className = "size-4" }: { className?: string }) {
+  return (
+    <svg {...iconProps} className={className}>
+      <path d="M5.5 5.5l9 9M14.5 5.5l-9 9" />
+    </svg>
+  );
+}
+
+/** A tick: done (and noted). */
+export function CheckIcon({ className = "size-4" }: { className?: string }) {
+  return (
+    <svg {...iconProps} className={className}>
+      <path d="M4.5 10.5l3.5 3.5 7.5-8" />
+    </svg>
+  );
+}
+
+/** Two arrows apart: unfold (show the area below). */
+export function ExpandIcon({ className = "size-4" }: { className?: string }) {
+  return (
+    <svg {...iconProps} className={className}>
+      <path d="M6.5 7 10 3.5 13.5 7M6.5 13 10 16.5 13.5 13" />
+    </svg>
+  );
+}
+
+/** Two arrows together: fold (hide the area below). */
+export function CollapseIcon({ className = "size-4" }: { className?: string }) {
+  return (
+    <svg {...iconProps} className={className}>
+      <path d="M6.5 3.5 10 7 13.5 3.5M6.5 16.5 10 13 13.5 16.5" />
+    </svg>
+  );
+}
+
+/** An open book: knowledge (Confluence). */
+export function BookIcon({ className = "size-4" }: { className?: string }) {
+  return (
+    <svg {...iconProps} className={className}>
+      <path d="M10 5.5C8.5 4.3 6.3 3.8 3.5 4v10.5c2.8-.2 5 .3 6.5 1.5 1.5-1.2 3.7-1.7 6.5-1.5V4c-2.8-.2-5 .3-6.5 1.5zM10 5.5V16" />
+    </svg>
+  );
+}

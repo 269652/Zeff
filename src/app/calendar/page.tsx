@@ -1,3 +1,5 @@
+import { PluginNotInstalled } from "@/components/PluginNotInstalled";
+import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
@@ -18,6 +20,8 @@ export default async function CalendarPage({
   searchParams: Promise<{ week?: string; imported?: string; skipped?: string }>;
 }) {
   await connection();
+  // A plugin's page: there while it's installed.
+  if (!isInstalled("outlook-calendar")) return <PluginNotInstalled id="outlook-calendar" />;
   const sp = await searchParams;
   const requested = resolveWeek(sp.week);
   const week = requested ?? currentWeek();
@@ -39,8 +43,8 @@ export default async function CalendarPage({
   const href = (w: string) => `/calendar?week=${w}`;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <div className="page">
+      <div className="page-aside">
         <div>
           <h1 className="text-lg font-semibold">Calendar</h1>
           <p className="text-sm text-zinc-500">

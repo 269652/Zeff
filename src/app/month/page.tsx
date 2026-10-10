@@ -1,3 +1,5 @@
+import { PluginNotInstalled } from "@/components/PluginNotInstalled";
+import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
@@ -34,6 +36,8 @@ export default async function MonthPage({
   searchParams: Promise<{ month?: string; by?: string }>;
 }) {
   await connection();
+  // A plugin's page: there while it's installed.
+  if (!isInstalled("monthly-report")) return <PluginNotInstalled id="monthly-report" />;
   const sp = await searchParams;
   const requested = resolveMonth(sp.month);
   const month = requested ?? currentMonth();
@@ -61,7 +65,9 @@ export default async function MonthPage({
   const weekMissing = perWeek((i) => (shortfalls[i].state === "missing" ? shortfalls[i].gap : 0));
 
   // Roar approvals of the weeks pulled so far ("Pull Roar"): each day's approved hours.
-  const pulledAt = month.weeks.map((w) => roarPulledAt(w));
+  // (only with the Roar plugin installed)
+  const roarOn = isInstalled("roar");
+  const pulledAt = month.weeks.map((w) => (roarOn ? roarPulledAt(w) : null));
   const statuses: Record<number, EntryRoarStatus> = {};
   month.weeks.forEach((w, i) => {
     if (pulledAt[i]) Object.assign(statuses, roarStatusByEntry(w));
@@ -121,8 +127,10 @@ export default async function MonthPage({
   }
 
   return (
-    <div className="space-y-6">
-      <MonthNav month={month} by={by} reporters={listReporters()} />
+    <div className="page">
+      <div className="page-aside">
+        <MonthNav month={month} by={by} reporters={listReporters()} />
+      </div>
 
       {sp.month && !requested && (
         <p className="alert-error">Could not read month &quot;{sp.month}&quot; — showing the current month instead.</p>
@@ -152,14 +160,15 @@ export default async function MonthPage({
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-sm font-semibold text-zinc-500 uppercase">Days</h2>
-            <p className="text-xs text-zinc-400">booked hours and their Roar approval · click a day to open its week</p>
+            <p className="text-xs text-zinc-400">booked hours{roarOn ? " and their Roar approval" : ""} · click a day to open its week</p>
           </div>
-          <RoarPullButton month={month.key} pulledAt={oldestPull} synced={!!oldestPull && roarInSync(report.entries, statuses)} />
+          {roarOn && <RoarPullButton month={month.key} pulledAt={oldestPull} synced={!!oldestPull && roarInSync(report.entries, statuses)} />}
         </div>
         <MonthCalendar
           month={month}
           dayTotals={report.dayTotals}
           roar={roar}
+          roarOn={roarOn}
           targets={targets}
           shortfalls={shortfalls}
           today={today}

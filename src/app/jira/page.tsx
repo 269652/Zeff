@@ -1,3 +1,5 @@
+import { PluginNotInstalled } from "@/components/PluginNotInstalled";
+import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
@@ -32,6 +34,8 @@ export default async function JiraPage({
   searchParams: Promise<{ mine?: string }>;
 }) {
   await connection();
+  // A plugin's page: there while it's installed.
+  if (!isInstalled("jira")) return <PluginNotInstalled id="jira" />;
   const sp = await searchParams;
   const mineOnly = sp.mine === "1";
   const cfg = getJiraSyncConfig();
@@ -49,8 +53,8 @@ export default async function JiraPage({
   const boardMap = new Map(boards.map((b) => [b.id, b]));
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="page">
+      <div className="page-aside">
         <div>
           <h1 className="text-lg font-semibold">Jira</h1>
           <p className="text-sm text-zinc-500">

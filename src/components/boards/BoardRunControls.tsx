@@ -12,15 +12,16 @@ import { ChevronIcon } from "../icons";
 import { SyncStepRow } from "../SyncMenu";
 
 /** What "Jetzt auswerten" does, in order — each a step of its own, as in the Sync menu. */
-const RUN_STEPS: SyncKey[] = ["teams", "jira", "mail", "boards", "mailtodos", "relations"];
+const RUN_STEPS: SyncKey[] = ["teams", "jira", "mail", "whatsapp", "boards", "mailtodos", "relations", "autoactions"];
 
 const PHASES: Record<string, string> = {
-  sync: "synct Teams, Jira und Mails",
+  sync: "synct Teams, Jira, Mails und WhatsApp",
   jira: "liest Jira und Zeff",
   ai: "wertet aus",
   saving: "speichert",
-  mailtodos: "sucht Todos in den Mails",
+  mailtodos: "sucht Todos in Mails und WhatsApp",
   mails: "ordnet Mails den Todos zu",
+  autoactions: "macht Aktionen für die Todos",
 };
 
 /** Seconds since a moment, as m:ss (outside render: the clock isn't a render input). */
@@ -50,6 +51,17 @@ export function BoardRunControls({
   const [, setTick] = useState(0);
   // Its steps, like the Sync menu: open beside the button.
   const [open, setOpen] = useState(false);
+  // The menu: fixed under the buttons, inside the window — a sidebar that scrolls can't cut it off.
+  const [place, setPlace] = useState<{ top: number; left: number; maxHeight: number } | null>(null);
+  const toggle = () => {
+    if (open) return setOpen(false);
+    const r = root.current?.getBoundingClientRect();
+    if (r) {
+      const width = Math.min(352, window.innerWidth - 16);
+      setPlace({ top: r.bottom + 8, left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)), maxHeight: window.innerHeight - r.bottom - 16 });
+    }
+    setOpen(true);
+  };
   const [steps, setSteps] = useState<SyncOverview | null>(null);
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -129,7 +141,7 @@ export function BoardRunControls({
               router.refresh();
             })
           }
-          title="Synct erst Teams, Jira und die Mails, liest dann deine Tickets (mit Kommentaren und Historie) und was Zeff dazu weiß, lässt die KI aus den Einstellungen die Lage und die Todos daraus machen — und ordnet danach jedem Todo die Mails zu, um die es geht"
+          title="Synct erst Teams, Jira, die Mails und WhatsApp, liest dann deine Tickets (mit Kommentaren und Historie) und was Zeff dazu weiß, lässt die KI aus den Einstellungen die Lage und die Todos daraus machen — und ordnet danach jedem Todo die Mails zu, um die es geht"
         >
           {running || pending ? "Läuft…" : "Jetzt auswerten"}
         </button>
@@ -139,7 +151,7 @@ export function BoardRunControls({
           aria-haspopup="true"
           aria-expanded={open}
           aria-controls="board-run-steps"
-          onClick={() => setOpen(!open)}
+          onClick={toggle}
           title="Die Schritte der Auswertung — wie sie zuletzt liefen, jeder einzeln startbar"
         >
           <ChevronIcon className={`size-4 ${open ? "-rotate-90" : "rotate-90"}`} />
@@ -147,7 +159,8 @@ export function BoardRunControls({
         {open && (
           <div
             id="board-run-steps"
-            className="absolute top-full right-0 z-50 mt-2 w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950"
+            style={place ? { position: "fixed", top: place.top, left: place.left, maxHeight: place.maxHeight } : undefined}
+            className="z-50 w-[22rem] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950"
           >
             <p className="border-b border-zinc-200 px-3 py-2.5 text-xs text-zinc-500 dark:border-zinc-800">
               „Jetzt auswerten“ macht diese Schritte nacheinander — jeder geht

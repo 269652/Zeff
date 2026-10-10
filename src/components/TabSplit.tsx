@@ -1,0 +1,78 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { tabMenuAction } from "@/app/actions";
+import type { TabMenuItem } from "@/plugins/tab-menus-shared";
+import type { HeaderTab } from "./SiteHeader";
+
+/**
+ * A header tab as a split button: the tab itself, and beside it a dropdown its plugin fills
+ * (Kanban: every board — open one directly). The entries load when it opens.
+ */
+export function TabSplit({ tab, current, link, pathname }: { tab: HeaderTab; current: boolean; link: ReactNode; pathname: string }) {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<TabMenuItem[] | null>(null);
+  const root = useRef<HTMLDivElement>(null);
+  const [shownFor, setShownFor] = useState(pathname);
+  if (shownFor !== pathname) {
+    setShownFor(pathname);
+    setOpen(false);
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    let live = true;
+    void tabMenuAction(tab.href).then((r) => live && setItems(r));
+    const away = (e: MouseEvent) => !root.current?.contains(e.target as Node) && setOpen(false);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => {
+      live = false;
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open, tab.href]);
+
+  return (
+    <div ref={root} className="relative flex items-stretch">
+      {link}
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`${tab.label}: mehr`}
+        onClick={() => setOpen((o) => !o)}
+        className={`rounded-md rounded-l-none border-l px-1.5 transition ${
+          current
+            ? "border-zinc-700 bg-zinc-900 text-white dark:border-zinc-300 dark:bg-zinc-100 dark:text-zinc-900"
+            : "border-zinc-200 text-zinc-500 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        }`}
+      >
+        <svg viewBox="0 0 20 20" className={`size-3.5 transition ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+          <path d="m6 8 4 4 4-4" />
+        </svg>
+      </button>
+      {open && (
+        <div role="menu" className="absolute top-full right-0 z-50 mt-2 max-h-[70vh] w-72 overflow-y-auto rounded-lg border border-zinc-200 bg-white py-1 shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
+          {!items && <p className="px-3 py-2 text-sm text-zinc-500">Lädt…</p>}
+          {items?.length === 0 && <p className="px-3 py-2 text-sm text-zinc-500">Nichts da.</p>}
+          {items?.map((i) => (
+            <Link
+              key={i.href}
+              href={i.href}
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className={`flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 ${pathname === i.href ? "font-medium" : ""}`}
+            >
+              {i.dot ? <span className={`size-2.5 shrink-0 rounded-full ${i.dot}`} aria-hidden /> : <span className="size-2.5 shrink-0" />}
+              <span className="min-w-0 flex-1 truncate">{i.label}</span>
+              {i.hint && <span className="shrink-0 text-xs text-zinc-400">{i.hint}</span>}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,8 +1,10 @@
+import { isInstalled } from "@/plugins/state";
 import { readLog } from "@/lib/work/log";
 import { getRun } from "@/lib/work/store";
 
 /** GET /api/work/:id/log?from=n — a work run's log lines from n on (condensed), and its state. */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!isInstalled("work")) return new Response("Plugin not installed", { status: 404 });
   const { id } = await params;
   const run = Number.isInteger(Number(id)) ? getRun(Number(id)) : undefined;
   if (!run) return Response.json({ error: "Not found" }, { status: 404 });

@@ -1,3 +1,4 @@
+import { isInstalled } from "@/plugins/state";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { ConflictError, NotFoundError, ValidationError, errorMessage } from "@/lib/errors";
@@ -33,7 +34,7 @@ Descriptions are ONE short line (aim for <80 chars): what was done, not how. No 
 
 Use get_weekly_report to review a week.
 
-Board todos: Zeff's Boards tab reads the user's Jira tickets and finds concrete todos on them (T-<id>). Before working on a ticket, list_todos with its key shows what's open.
+Todos: Zeff's Todos tab reads the user's Jira tickets and finds concrete todos on them (T-<id>). Before working on a ticket, list_todos with its key shows what's open.
 
 Working on a todo (you're an agent — VS Code Copilot, Claude Code, …):
 1. Call start_todo with the todo and your name as agent IMMEDIATELY — as your very first step, before you read code, research, plan or ask anything. Research and looking around already count as working on it. Zeff then shows the todo as being worked on and you as a worker on its Work tab.
@@ -41,7 +42,7 @@ Working on a todo (you're an agent — VS Code Copilot, Claude Code, …):
    Implement with STRICT TDD: first a test that fails for the right reason, then the smallest change that makes it pass, then tidy up — and run the affected suite at the end. What can only be checked by hand, name as open in your summary.
    Then call todo_context for everything Zeff knows about it (the ticket, comments, the Teams messages and mails it comes from, the user's notes, earlier runs) — read it before you start.
    Optionally call todo_progress with a short note now and then (what you're doing) — it's your log there.
-   Whenever you stop to ask the user something (a question, a decision, a confirmation, a review) — call todo_needs_input with the question FIRST, then ask. The todo then shows ❗ on Zeff's Boards and Work tabs so the user sees you're waiting. Once you have the answer and go on, call todo_progress (that clears the ❗) — finish_todo clears it too.
+   Whenever you stop to ask the user something (a question, a decision, a confirmation, a review) — call todo_needs_input with the question FIRST, then ask. The todo then shows ❗ on Zeff's Todos and Work tabs so the user sees you're waiting. Once you have the answer and go on, call todo_progress (that clears the ❗) — finish_todo clears it too.
 3. When you're done — or stop — call finish_todo with: summary (it's shown on the todo as your comment — so ALWAYS a summary of what you did: first ONE sentence saying what is done now, then short bullets: what you changed, how you tested, what's still open and why, where it is — branch and commit), entry (ONE short line for the booking, same rules as report_time descriptions), minutes (how long the work took you, honestly), outcome (done / partial / blocked), branch (the feature branch you committed on — and repo, its folder, if Zeff doesn't know the ticket's repo) and followUps for what's left (replies, comments, ticket changes — with ready drafts).
    With a branch, Zeff creates a todo for the user to TEST AND VERIFY your work by hand first; once they've ticked it off, the delivery follows (push → merge request to main, or merge straight into main — one click each). Don't create test or delivery todos yourself, and say in your summary what the user should test.
    finish_todo records your time as such a suggestion itself (its minutes and its entry line, with the todo and your run as evidence) — so give honest minutes and a good one-line entry, and do NOT also call report_time for that work (it would be suggested twice).
@@ -127,6 +128,12 @@ function renderWeeklyReport(report: WeeklyReport): string {
 // ---------------------------------------------------------------------------
 // Tools
 // ---------------------------------------------------------------------------
+
+/** A tool of a plugin that isn't installed: says so (else null). */
+function pluginOff(id: "todos" | "work") {
+  if (isInstalled(id)) return null;
+  return fail(`${id === "work" ? "Work" : "Todos"} is not installed in Zeff (Menu → Plugins) — this tool isn't available.`);
+}
 
 export function registerZeffTools(server: McpServer): void {
   server.registerTool(
@@ -245,11 +252,38 @@ export function registerZeffTools(server: McpServer): void {
   );
 
   server.registerTool(
+    "search_knowledge",
+    {
+      title: "Search the project knowledge (Confluence)",
+      description:
+        "The project's documentation (Confluence), compiled into a knowledge base: pages (title, space, link, the passage found, a summary) " +
+        "and entities (systems, components, people, terms) with their relations. Search it before guessing how something works, " +
+        "who is responsible or which environment does what. German and English words both find it.",
+      inputSchema: z.object({
+        query: z.string().describe("What to look for — words, a ticket key, a system name."),
+        limit: z.number().int().min(1).max(15).optional().describe("Pages, default 6."),
+      }),
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    async (args) =>
+      run(async () => {
+        if (!isInstalled("knowledge")) return fail("Knowledge is not installed in Zeff (Menu → Plugins) — this tool isn't available.");
+        const { knowledgeSearch } = await import("@/plugins/knowledge/client");
+        const r = await knowledgeSearch(args.query, args.limit ?? 6);
+        if (!r.pages.length && !r.entities.length) return ok(`Nothing in the knowledge base for "${args.query}".`);
+        const plain = (t: string) => t.replace(/[⟦⟧]/g, "").replace(/\s+/g, " ").trim();
+        const pages = r.pages.map((p) => `- ${p.title} (${p.space})${p.url ? ` ${p.url}` : ""}${p.summary ? `\n  summary: ${plain(p.summary)}` : ""}\n  found: ${plain(p.snippet)}`);
+        const entities = r.entities.map((e) => `- ${e.name} (${e.type}): ${e.summary}${e.related.length ? `\n  ${e.related.map((x) => (x.dir === "out" ? `→ ${x.rel} ${x.name}` : `← ${x.name} ${x.rel}`)).join("; ")}` : ""}`);
+        return ok([pages.length ? `Pages:\n${pages.join("\n")}` : "", entities.length ? `Entities:\n${entities.join("\n")}` : ""].filter(Boolean).join("\n\n"));
+      }),
+  );
+
+  server.registerTool(
     "list_todos",
     {
       title: "List board todos",
       description:
-        "Concrete todos the Boards tab found on the user's Jira tickets (from their comments, history and context), " +
+        "Concrete todos the Todos tab found on the user's Jira tickets (from their comments, history and context), " +
         "each referenced as T-<id>. owner 'me' is the user's to do, 'other' is someone else's move being waited for. " +
         "Look here before working on a ticket; close what you finished with report_time (todos) or complete_todo.",
       inputSchema: z.object({
@@ -260,6 +294,8 @@ export function registerZeffTools(server: McpServer): void {
     },
     async (args) =>
       run(() => {
+        const off = pluginOff("todos");
+        if (off) return off;
         const list = listTodos({ ticket: args.ticket, status: args.status ?? "open" });
         if (list.length === 0) return ok(`No ${args.status === "all" ? "" : `${args.status ?? "open"} `}todos${args.ticket ? ` on ${args.ticket}` : ""}.`);
         const lines = list.map(
@@ -289,9 +325,12 @@ export function registerZeffTools(server: McpServer): void {
     },
     async (args) =>
       run(async () => {
+        const off = pluginOff("work");
+        if (off) return off;
         const { startAgentWork, workplaceOf } = await import("@/lib/work/agent");
         const { run: r, resumed, todo } = startAgentWork(args);
         const w = await workplaceOf(todo);
+        const preamble = (await import("@/plugins/llm/run")).llmPreamble();
         return ok(
           `${resumed ? "Still yours" : "Started"}: W-${r.id} — ${todo.ref} (${todo.ticket}): ${todo.text}\n` +
             (todo.userNotes.length ? `Notes on it (the user's — context, they take precedence — and earlier runs' reports):\n${todo.userNotes.map((n) => `- ${n.by ? `[${n.by}] ` : ""}${n.text}${n.url ? ` (${n.url})` : ""}`).join("\n")}\n` : "") +
@@ -300,7 +339,9 @@ export function registerZeffTools(server: McpServer): void {
                 ? `Code: repo ${w.repo.name} (${w.repo.path}). ${todo.ticket} has a feature branch already: ${w.existing} — continue on it (git fetch origin && git switch ${w.existing}, or a worktree of it if your checkout is busy). Commit there, don't push to ${w.base}, don't merge. Strict TDD: a failing test first, then the change, then the suite.\n`
                 : `Code: repo ${w.repo.name} (${w.repo.path}). No feature branch for ${todo.ticket} yet — create one off ${w.base} in a separate worktree: ${w.branch} (git fetch origin && git worktree add -b ${w.branch} ../${w.repo.name}-${todo.ticket} origin/${w.base}). Commit there, don't push to ${w.base}, don't merge. Strict TDD: a failing test first, then the change, then the suite.\n`
               : `Code: Zeff knows no repo for ${todo.ticket} — work on a feature branch (${w.branch}) and pass branch and repo (its folder) to finish_todo. Strict TDD: a failing test first, then the change, then the suite.\n`) +
-            "Its full context (ticket, comments, Teams, mails, notes, earlier runs): todo_context. Notes as you go: todo_progress. Asking the user something: todo_needs_input with the question first (todo_progress clears it when you go on). When you're through: finish_todo with summary, entry, minutes, outcome and branch (that's what gets booked and delivered — don't call report_time for it).",
+            "Its full context (ticket, comments, Teams, mails, notes, earlier runs): todo_context. Notes as you go: todo_progress. Asking the user something: todo_needs_input with the question first (todo_progress clears it when you go on). When you're through: finish_todo with summary, entry, minutes, outcome and branch (that's what gets booked and delivered — don't call report_time for it)." +
+            // The user's instructions and context (the LLM plugin's) — for every agent too.
+            (preamble ? `\n\n${preamble}` : ""),
         );
       }),
   );
@@ -316,6 +357,8 @@ export function registerZeffTools(server: McpServer): void {
     },
     async (args) =>
       run(async () => {
+        const off = pluginOff("work");
+        if (off) return off;
         const id = parseTodoRef(args.todo);
         const todo = id === null ? undefined : getTodo(id);
         if (!todo) return fail(`"${args.todo}" isn't a todo — list_todos shows them (T-12).`);
@@ -337,6 +380,8 @@ export function registerZeffTools(server: McpServer): void {
     },
     async (args) =>
       run(async () => {
+        const off = pluginOff("work");
+        if (off) return off;
         const { agentProgress } = await import("@/lib/work/agent");
         const r = agentProgress(args);
         return ok(`Noted on W-${r.id}.`);
@@ -348,7 +393,7 @@ export function registerZeffTools(server: McpServer): void {
     {
       title: "Mark a board todo as waiting for the user",
       description:
-        "Call BEFORE you ask the user anything while working on a todo you started (start_todo): a question, a decision, a confirmation. The todo shows ❗ and your question on Zeff's Boards and Work tabs until you go on (todo_progress) or finish (finish_todo).",
+        "Call BEFORE you ask the user anything while working on a todo you started (start_todo): a question, a decision, a confirmation. The todo shows ❗ and your question on Zeff's Todos and Work tabs until you go on (todo_progress) or finish (finish_todo).",
       inputSchema: z.object({
         todo: z.string().min(1).describe("The todo, e.g. 'T-12'."),
         question: z.string().min(1).describe("What you're asking the user, one or two lines."),
@@ -357,6 +402,8 @@ export function registerZeffTools(server: McpServer): void {
     },
     async (args) =>
       run(async () => {
+        const off = pluginOff("work");
+        if (off) return off;
         const { agentNeedsInput } = await import("@/lib/work/agent");
         const r = agentNeedsInput(args);
         return ok(`Marked ❗ on W-${r.id} — now ask the user. Call todo_progress once you go on.`);
@@ -399,6 +446,8 @@ export function registerZeffTools(server: McpServer): void {
     },
     async (args) =>
       run(async () => {
+        const off = pluginOff("work");
+        if (off) return off;
         const { finishAgentWork } = await import("@/lib/work/agent");
         const r = await finishAgentWork(args);
         const mins = r.durationMs ? Math.round(r.durationMs / 60000) : args.minutes;
@@ -425,6 +474,8 @@ export function registerZeffTools(server: McpServer): void {
     },
     async (args) =>
       run(() => {
+        const off = pluginOff("todos");
+        if (off) return off;
         const id = parseTodoRef(args.todo);
         if (id === null) return fail(`"${args.todo}" isn't a todo reference like T-12.`);
         const t = attributed("agent:MCP", () => setTodoStatus(id, args.dismiss ? "dismissed" : "done", args.note ?? null));

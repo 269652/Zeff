@@ -1,0 +1,37 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { connection } from "next/server";
+import { PLACEMENT_LABELS } from "@/lib/layout-shared";
+import { allApps } from "@/plugins/tabs";
+
+export const metadata: Metadata = { title: "Apps" };
+
+/** Every installed plugin's application — wherever the layout puts it (header, menu, hidden). */
+export default async function AppsPage() {
+  await connection();
+  const apps = allApps();
+  return (
+    <div className="page">
+      <div className="page-aside">
+        <h1 className="text-lg font-semibold">Apps</h1>
+        <p className="text-sm text-zinc-500">
+          Die Anwendungen der installierten Plugins. Welche in der Kopfzeile stehen, welche im Menü: Menü → „Anpassen“.
+        </p>
+      </div>
+      <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {apps.map((a) => (
+          <li key={a.href}>
+            <Link href={a.href} className="card block h-full p-4 transition hover:border-indigo-300 hover:shadow-md dark:hover:border-indigo-700">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="font-medium">{a.label}</span>
+                <span className="text-[11px] text-zinc-400">{PLACEMENT_LABELS[a.place]}</span>
+              </div>
+              <p className="text-sm text-zinc-500">{a.hint}</p>
+              <p className="mt-1 text-xs text-zinc-400">{a.pluginName}</p>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}

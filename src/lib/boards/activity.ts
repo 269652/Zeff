@@ -81,7 +81,7 @@ export function todoActivity(opts: { days?: number; limit?: number } = {}): Todo
     if (l) {
       const started = lage.get(Number(l[1]));
       const when = started ? new Date(`${started.replace(" ", "T")}${started.includes("T") ? "" : "Z"}`).toLocaleString("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "";
-      return { label: `Ticket-Lage${when ? ` (${when})` : ""}`, href: "/boards", title: `KI-Auswertung #${l[1]}` };
+      return { label: `Ticket-Lage${when ? ` (${when})` : ""}`, href: "/todos", title: `KI-Auswertung #${l[1]}` };
     }
     return { label: actor };
   };

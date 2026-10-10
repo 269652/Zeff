@@ -1,4 +1,4 @@
-import path from "node:path";
+import { automationEnv, driverPath } from "@/plugins/drivers";
 import { resultToPayload, runStdioSession } from "@/lib/jira/mcp-client";
 import type { RoarPulledEntry } from "@/lib/roar-status";
 import type { TimoRecord } from "@/lib/timo-status";
@@ -8,8 +8,8 @@ import type { TimoRecord } from "@/lib/timo-status";
  * answer as text. The pulls here only read (Roar, TimO, Outlook): nothing changes there.
  */
 export async function callDriver(name: "roar" | "timo" | "outlook", tool: string, args: Record<string, unknown>, label: string, timeoutMs: number): Promise<string> {
-  const script = path.join(/*turbopackIgnore: true*/ process.cwd(), "scripts", `${name}-mcp.mjs`);
-  const out = await runStdioSession({ command: process.execPath, args: [script], env: {}, label }, async (call) => resultToPayload(await call(tool, args)), timeoutMs);
+  const script = driverPath(name);
+  const out = await runStdioSession({ command: process.execPath, args: [script], env: automationEnv(), label }, async (call) => resultToPayload(await call(tool, args)), timeoutMs);
   return typeof out === "string" ? out : JSON.stringify(out);
 }
 

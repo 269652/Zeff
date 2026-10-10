@@ -3,6 +3,7 @@
  * parts pages, the MCP server and the run share (client-safe: no DB access here).
  */
 
+import { OFFERED_ACTIONS, actionOf, cleanActions } from "@/plugins/actions/catalog";
 import type { MailView } from "@/lib/mail/shared";
 import type { GitlabItemView } from "@/lib/gitlab/shared";
 import type { TeamsMessageView } from "@/lib/teams/shared";
@@ -84,6 +85,12 @@ export type TodoOp =
   | { type: "gitlab-resolve"; note: string }
   /** A 1:1 Teams message to a colleague (by display name) — sent through the Teams tab of the automation Chrome. */
   | { type: "teams-message"; to: string; body: string }
+  /** A mail draft opened in Outlook Web (you send it) — addresses separated by ";". */
+  | { type: "mail-compose"; to: string; subject: string; body: string }
+  /** An appointment opened in Outlook Web (you send it): local start "YYYY-MM-DDTHH:MM", its minutes, addresses. */
+  | { type: "calendar-event"; subject: string; start: string; minutes: number; attendees: string; body: string }
+  /** The todo handed to a worker (Work tab) with this instruction. */
+  | { type: "work-instruct"; instruction: string }
   // Delivery (Zeff makes these after an implementation; not in the AI's dictionary):
   | {
       type: "git-push";
@@ -115,44 +122,12 @@ export const DELIVERY_OP_TYPES = [
   "git-merge-main",
   "git-commit-branch",
 ] as const;
-export const TODO_OP_TYPES = [
-  "jira-transition",
-  "jira-assign",
-  "jira-comment",
-  "jira-create",
-  "gitlab-reply",
-  "gitlab-resolve",
-  "teams-message",
-] as const;
+/** The operations an AI may propose: the offered actions of all plugins (which are installed is checked where they're offered). */
+export const TODO_OP_TYPES = OFFERED_ACTIONS.map((a) => a.type);
 
 /** An operation in a few words: "PROJ-415 → Testing", "PROJ-415 zuweisen: cressl", "Thread note:461450 auflösen". */
 export function opLabel(op: TodoOp): string {
-  switch (op.type) {
-    case "jira-transition":
-      return `${op.ticket} → ${op.to}`;
-    case "jira-assign":
-      return `${op.ticket} zuweisen: ${op.assignee}`;
-    case "jira-comment":
-      return `Kommentar auf ${op.ticket}`;
-    case "jira-create":
-      return `Ticket anlegen: ${op.summary}`;
-    case "gitlab-reply":
-      return `Antwort in GitLab (${op.note})`;
-    case "gitlab-resolve":
-      return `GitLab-Thread auflösen (${op.note})`;
-    case "teams-message":
-      return `Teams-Nachricht an ${op.to}`;
-    case "git-push":
-      return `${op.branch} pushen als ${op.remote}`;
-    case "gitlab-open-mr":
-      return `MR öffnen: ${op.source} → ${op.target}`;
-    case "gitlab-merge":
-      return `!${op.iid} mergen`;
-    case "git-merge-main":
-      return `${op.branch} in ${op.target} mergen und pushen`;
-    case "git-commit-branch":
-      return `${op.files.length} Datei${op.files.length === 1 ? "" : "en"} auf ${op.branch} committen`;
-  }
+  return (actionOf(op.type).title as (o: TodoOp) => string)(op);
 }
 
 /**
@@ -163,12 +138,12 @@ export function opLabel(op: TodoOp): string {
  * answer): those stay open.
  */
 export function opsSettle(t: Pick<TodoView, "kind" | "owner" | "ops" | "text">): boolean {
-  if (t.ops.length && t.ops.every((o) => (DELIVERY_OP_TYPES as readonly string[]).includes(o.type) || o.type === "jira-create")) return true;
+  if (t.ops.length && t.ops.every((o) => actionOf(o.type).delivery || o.type === "jira-create")) return true;
   // Talking in threads (replies, resolving, messages) is the work — unless the todo asks for
-  // something none of them says (an approval asked for, with only threads resolved).
-  const COMMS = ["gitlab-reply", "gitlab-resolve", "teams-message", "jira-comment"];
+  // something none of them says (an approval asked for, with only threads resolved). A draft
+  // opened in Outlook isn't sent yet: that's yours to tick off.
   const says = t.ops.some((o) => o.type !== "gitlab-resolve");
-  if (t.ops.length && t.ops.every((o) => COMMS.includes(o.type)) && (says || !asksForApproval(t.text))) return true;
+  if (t.ops.length && t.ops.every((o) => actionOf(o.type).comms && !actionOf(o.type).href) && (says || !asksForApproval(t.text))) return true;
   return t.owner === "me" && ["reply", "comment", "update", "clarify"].includes(t.kind);
 }
 
@@ -177,24 +152,11 @@ export const asksForApproval = (text: string) => /approv|freigabe|(erneut|nochma
 
 /** What a button running these operations says: the action ("Merge", "Comment & Assign"), else "Run". */
 export function opsButton(ops: TodoOp[]): string {
-  const VERB: Record<TodoOp["type"], string> = {
-    "jira-transition": "Move",
-    "jira-assign": "Assign",
-    "jira-comment": "Comment",
-    "jira-create": "Create",
-    "gitlab-reply": "Reply",
-    "gitlab-resolve": "Resolve",
-    "teams-message": "Send",
-    "git-push": "Push",
-    "gitlab-open-mr": "Open MR",
-    "gitlab-merge": "Merge",
-    "git-merge-main": "Merge",
-    "git-commit-branch": "Commit",
-  };
+  const verb = (o: TodoOp) => actionOf(o.type).verb;
   // A delivery (commit → push → MR, or → merge): its final step names it.
   const last = ops[ops.length - 1];
-  if (ops.length > 1 && last && ["gitlab-open-mr", "git-merge-main", "gitlab-merge"].includes(last.type) && ops.every((o) => (DELIVERY_OP_TYPES as readonly string[]).includes(o.type))) return VERB[last.type];
-  const verbs = [...new Set(ops.map((o) => VERB[o.type]))];
+  if (ops.length > 1 && last && ["gitlab-open-mr", "git-merge-main", "gitlab-merge"].includes(last.type) && ops.every((o) => actionOf(o.type).delivery)) return verb(last);
+  const verbs = [...new Set(ops.map(verb))];
   return verbs.length === 0 ? "Run" : verbs.length <= 2 ? verbs.join(" & ") : "Run";
 }
 
@@ -203,254 +165,22 @@ export function opsButton(ops: TodoOp[]): string {
  * (branches, ticket and status, …); for one with a text (comment, reply, message) that's `body`.
  */
 export function opNote(op: TodoOp): { heading: string; detail: string | null; body: string | null; files?: string[] } {
-  switch (op.type) {
-    case "jira-transition":
-      return { heading: "Jira-Status ändern", detail: `${op.ticket} → ${op.to}`, body: null };
-    case "jira-assign":
-      return { heading: "Jira-Ticket zuweisen", detail: `${op.ticket} → ${op.assignee}`, body: null };
-    case "jira-comment":
-      return { heading: `Kommentar auf ${op.ticket}`, detail: null, body: op.body };
-    case "jira-create":
-      return { heading: `Jira-Ticket anlegen (${op.ticket.split("-")[0]}, ${op.issueType})`, detail: `„${op.summary}“ — verknüpft mit ${op.ticket}`, body: op.body };
-    case "gitlab-reply":
-      return { heading: `Antwort in GitLab (${op.note})`, detail: null, body: op.body };
-    case "gitlab-resolve":
-      return { heading: "GitLab-Thread auflösen", detail: op.note, body: null };
-    case "teams-message":
-      return { heading: `Teams-Nachricht an ${op.to}`, detail: null, body: op.body };
-    case "git-push":
-      return { heading: "Branch pushen", detail: `${op.branch} → origin/${op.remote}`, body: null };
-    case "gitlab-open-mr":
-      return { heading: "MR öffnen", detail: `${op.source} → ${op.target}${op.title ? ` · „${op.title}“` : ""}`, body: null };
-    case "gitlab-merge":
-      return { heading: `!${op.iid} mergen`, detail: `${op.source} — sobald der MR approved ist`, body: null };
-    case "git-merge-main":
-      return { heading: `In ${op.target} mergen`, detail: `${op.branch.replace(/^origin\//, "")} → ${op.target}, dann pushen`, body: null };
-    case "git-commit-branch":
-      return {
-        heading: `${op.files.length} Datei${op.files.length === 1 ? "" : "en"} committen`,
-        detail: `auf ${op.branch}: „${op.message}“`,
-        body: null,
-        files: op.files,
-      };
-  }
+  return (actionOf(op.type).note as (o: TodoOp) => ReturnType<typeof opNote>)(op);
 }
 
-/** Operations as an AI hands them over, cleaned: the ones that are complete, in Zeff's shapes. */
+/** Operations as an AI hands them over, cleaned: the ones that are complete, in Zeff's shapes (each action's own rules). */
 export function cleanOps(raw: unknown, ticket: string): TodoOp[] {
-  if (!Array.isArray(raw)) return [];
-  const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
-  const key = (v: unknown) =>
-    /^[A-Z][A-Z0-9]+-\d+$/i.test(str(v)) ? str(v).toUpperCase() : ticket;
-  const note = (v: unknown) => {
-    const m = /(?:gitlab:)?(note:\d+)/.exec(str(v));
-    return m ? m[1] : "";
-  };
-  return raw
-    .flatMap((x): TodoOp[] => {
-      const o = (x ?? {}) as Record<string, unknown>;
-      if (o.type === "jira-transition" && str(o.to))
-        return [{ type: o.type, ticket: key(o.ticket), to: str(o.to) }];
-      if (o.type === "jira-assign" && str(o.assignee))
-        return [
-          { type: o.type, ticket: key(o.ticket), assignee: str(o.assignee) },
-        ];
-      if (o.type === "jira-create" && str(o.summary) && str(o.body))
-        return [
-          {
-            type: o.type,
-            ticket: key(o.ticket),
-            summary: str(o.summary).slice(0, 250),
-            issueType: str(o.issueType) || str(o.issue_type) || "Task",
-            body: str(o.body).slice(0, 20000),
-          },
-        ];
-      if (o.type === "jira-comment" && str(o.body))
-        return [
-          {
-            type: o.type,
-            ticket: key(o.ticket),
-            body: str(o.body).slice(0, 8000),
-          },
-        ];
-      if (o.type === "gitlab-reply" && note(o.note) && str(o.body))
-        return [
-          {
-            type: o.type,
-            note: note(o.note),
-            body: str(o.body).slice(0, 8000),
-          },
-        ];
-      if (o.type === "gitlab-resolve" && note(o.note))
-        return [{ type: o.type, note: note(o.note) }];
-      if (o.type === "teams-message" && str(o.to) && str(o.body))
-        return [{ type: o.type, to: str(o.to).slice(0, 120), body: str(o.body).slice(0, 4000) }];
-      if (
-        o.type === "git-push" &&
-        str(o.repo) &&
-        str(o.branch) &&
-        str(o.remote)
-      )
-        return [
-          {
-            type: o.type,
-            repo: str(o.repo),
-            branch: str(o.branch),
-            remote: str(o.remote),
-            target: str(o.target) || "main",
-            title: str(o.title) || undefined,
-            description: str(o.description) || undefined,
-          },
-        ];
-      if (
-        o.type === "gitlab-open-mr" &&
-        str(o.project) &&
-        str(o.source) &&
-        str(o.target)
-      )
-        return [
-          {
-            type: o.type,
-            repo: str(o.repo),
-            project: str(o.project),
-            source: str(o.source),
-            target: str(o.target),
-            title: str(o.title) || str(o.source),
-            description: str(o.description),
-          },
-        ];
-      if (o.type === "gitlab-merge" && str(o.project) && Number(o.iid) > 0)
-        return [
-          {
-            type: o.type,
-            project: str(o.project),
-            iid: Number(o.iid),
-            source: str(o.source),
-          },
-        ];
-      if (o.type === "git-merge-main" && str(o.repo) && str(o.branch))
-        return [
-          {
-            type: o.type,
-            repo: str(o.repo),
-            branch: str(o.branch),
-            target: str(o.target) || "main",
-          },
-        ];
-      if (o.type === "git-commit-branch" && str(o.repo) && str(o.branch) && Array.isArray(o.files) && o.files.length)
-        return [
-          {
-            type: o.type,
-            repo: str(o.repo),
-            branch: str(o.branch),
-            files: o.files.map(str).filter(Boolean).slice(0, 500),
-            message: str(o.message) || str(o.branch),
-            target: str(o.target) || "main",
-          },
-        ];
-      return [];
-    })
-    .slice(0, 6);
+  return cleanActions(raw, { ticket });
 }
 
 /**
- * The dictionary of operations Zeff runs by itself — one source for everything about them: what
- * each is for, its fields, an example. The AI's answers are held to it (the JSON schema built
- * from it), prompts explain it (opsDictionary), cleanOps keeps only what fits it.
+ * The dictionary of operations Zeff runs by itself — what each is for, its fields, an example —
+ * as the plugins offer them. The AI's answers are held to it (the JSON schema built from it),
+ * prompts explain it (opsDictionary), cleanOps keeps only what fits it.
  */
-export const OP_CATALOG: Record<
-  (typeof TODO_OP_TYPES)[number],
-  {
-    label: string;
-    when: string;
-    fields: Record<string, string>;
-    example: Record<string, string>;
-  }
-> = {
-  "jira-transition": {
-    label: "Jira-Status ändern",
-    when: "Das Ticket soll in einen anderen Status (z. B. nach der Umsetzung auf Testing).",
-    fields: {
-      ticket: "der Ticket-Key",
-      to: "der Name eines der möglichen Übergänge des Tickets, genau so geschrieben",
-    },
-    example: { type: "jira-transition", ticket: "PROJ-415", to: "Testing" },
-  },
-  "jira-assign": {
-    label: "Jira-Ticket zuweisen",
-    when: "Das Ticket soll jemand anderem gehören (z. B. dem Tester).",
-    fields: {
-      ticket: "der Ticket-Key",
-      assignee:
-        "der Jira-Benutzername (bei den Beteiligten in Klammern hinter dem Namen)",
-    },
-    example: { type: "jira-assign", ticket: "PROJ-415", assignee: "cressl" },
-  },
-  "jira-comment": {
-    label: "Jira-Kommentar posten",
-    when: "Ein Kommentar im Ticket — Stand, Antwort auf eine Rückfrage, Bitte um Test.",
-    fields: {
-      ticket: "der Ticket-Key",
-      body: "der fertige Kommentar (Jira-Wiki-Markup)",
-    },
-    example: {
-      type: "jira-comment",
-      ticket: "PROJ-415",
-      body: "Der Fix ist auf feature/PROJ-415-… — bitte erneut testen.",
-    },
-  },
-  "jira-create": {
-    label: "Jira-Ticket anlegen",
-    when: "Ein neues Ticket ist nötig (ein Thema wird ausgelagert, eine Folgearbeit, ein gefundenes Problem) — mit fertigem Titel und vollständiger Beschreibung, im Projekt des Tickets und mit ihm verknüpft.",
-    fields: {
-      ticket: "das Ticket, aus dem es kommt (damit wird es verknüpft; sein Projekt ist das des neuen)",
-      summary: "der Titel des neuen Tickets",
-      issueType: "Task, Bug oder Story",
-      body: "die Beschreibung in Markdown: Hintergrund (mit Verweis aufs Ticket), was genau zu tun ist, Akzeptanzkriterien als Liste",
-    },
-    example: {
-      type: "jira-create",
-      ticket: "PROJ-415",
-      summary: "Nicht unterstützte Video-URLs in der VideoHub-Migration behandeln",
-      issueType: "Task",
-      body: "Aus PROJ-415: Die VideoHub-Migration überspringt Video-URLs, die VideoHub nicht importieren kann.\n\n## Zu tun\n- Anzahl und Art der betroffenen URLs ermitteln\n- klären, ob die Seiten noch aktiv sind\n\n## Akzeptanzkriterien\n- Liste der URLs mit Seite und Status liegt vor",
-    },
-  },
-  "gitlab-reply": {
-    label: "Auf GitLab-Kommentar antworten",
-    when: "Eine Antwort im Thread eines Merge-Request-Kommentars.",
-    fields: {
-      note: "note:<id> des Kommentars (aus seiner Kennung gitlab:note:<id>)",
-      body: "die fertige Antwort (Markdown)",
-    },
-    example: {
-      type: "gitlab-reply",
-      note: "note:461450",
-      body: "Umgesetzt — die Klassen kommen jetzt per use-Statement.",
-    },
-  },
-  "gitlab-resolve": {
-    label: "GitLab-Thread auflösen",
-    when: "Der Thread eines Merge-Request-Kommentars ist erledigt.",
-    fields: {
-      note: "note:<id> des Kommentars (aus seiner Kennung gitlab:note:<id>)",
-    },
-    example: { type: "gitlab-resolve", note: "note:461450" },
-  },
-  "teams-message": {
-    label: "Teams-Nachricht senden",
-    when: "Eine Rückfrage oder Bitte an jemanden ist seit mehr als einem Arbeitstag unbeantwortet (oder es eilt, etwa vor einem Deployment): kurz und freundlich per Teams-Chat nachhaken — mit Bezug aufs Ticket und dem, was du brauchst. Nicht, wenn die Person laut Daten abwesend ist oder schon geantwortet hat.",
-    fields: {
-      to: "der volle Anzeigename der Person, wie bei den Beteiligten (ohne Benutzernamen), z. B. Christopher Ressl",
-      body: "die fertige Nachricht (Klartext, Du-Form, 1–3 Sätze, mit Ticket-Key)",
-    },
-    example: {
-      type: "teams-message",
-      to: "Christopher Ressl",
-      body: "Hi Christopher, kurze Nachfrage zu PROJ-321: soll die Navigation-Story ohne das Refinement gebaut werden oder in ein eigenes Ticket? Dann kann ich weitermachen.",
-    },
-  },
-};
+export const OP_CATALOG: Record<string, { label: string; when: string; fields: Record<string, string>; example: Record<string, string> }> = Object.fromEntries(
+  OFFERED_ACTIONS.map((a) => [a.type, { label: a.label, ...a.offer! }]),
+);
 
 /** The JSON schema of operations (for the AI's answers): exactly the dictionary's shapes. */
 export const TODO_OPS_SCHEMA = {
@@ -463,34 +193,31 @@ export const TODO_OPS_SCHEMA = {
       required: ["type", ...Object.keys(OP_CATALOG[type].fields)],
       additionalProperties: false,
       properties: {
-        type: {
-          type: "string",
-          const: type,
-          description: OP_CATALOG[type].label,
-        },
-        ...Object.fromEntries(
-          Object.entries(OP_CATALOG[type].fields).map(([k, d]) => [
-            k,
-            { type: "string", description: d },
-          ]),
-        ),
+        type: { type: "string", const: type, description: OP_CATALOG[type].label },
+        ...Object.fromEntries(Object.entries(OP_CATALOG[type].fields).map(([k, d]) => [k, { type: "string", description: d }])),
       },
     })),
   },
 };
 
-/** The dictionary as prompts give it: each operation, when, its fields — and an example to copy. */
-export function opsDictionary(): string {
+/** The plugin an operation needs (Teams, GitLab, Outlook, Work …) — null: Zeff's own. */
+export const opPlugin = (type: string) => actionOf(type as TodoOp["type"])?.plugin ?? null;
+
+/** The operations Zeff can do without AI, for a prompt — `available`: those whose plugin is installed. */
+export function opsDictionary(available: (type: string) => boolean = () => true): string {
+  const types = TODO_OP_TYPES.filter((t) => available(t));
   return [
     "Wörterbuch der Operationen, die Zeff ohne KI ausführt (Feld „ops“ eines Todos oder Follow-ups; jede Operation genau in dieser Form):",
-    ...TODO_OP_TYPES.map((t) => {
+    ...types.map((t) => {
       const c = OP_CATALOG[t];
       return `- ${t} — ${c.label}: ${c.when} Felder: ${Object.entries(c.fields)
         .map(([k, d]) => `${k} (${d})`)
         .join(", ")}. Beispiel: ${JSON.stringify(c.example)}`;
     }),
-    "Was sich so ausdrücken lässt (Status, Zuweisung, Kommentar, neues Ticket, GitLab-Antwort, Thread auflösen, Teams-Nachricht), gib IMMER als ops an — ein Todo „Ticket … anlegen“ bekommt eine jira-create mit fertigem Titel und vollständiger Beschreibung — zusätzlich zum Text. Mehrere Operationen in der Reihenfolge, in der sie laufen sollen.",
-    "Wartest du auf eine Antwort, die seit über einem Arbeitstag aussteht (ein Flag wie „Rückfrage … offen“), bekommt das wartende Todo eine teams-message an die Person — als Nachhaken, das ich mit einem Klick sende.",
+    "Was sich so ausdrücken lässt (Status, Zuweisung, Kommentar, neues Ticket, Antwort, Nachricht, Mail, Termin, Übergabe an einen Worker), gib IMMER als ops an — ein Todo „Ticket … anlegen“ bekommt eine jira-create mit fertigem Titel und vollständiger Beschreibung — zusätzlich zum Text. Mehrere Operationen in der Reihenfolge, in der sie laufen sollen.",
+    ...(types.includes("teams-message")
+      ? ["Wartest du auf eine Antwort, die seit über einem Arbeitstag aussteht (ein Flag wie „Rückfrage … offen“), bekommt das wartende Todo eine teams-message an die Person — als Nachhaken, das ich mit einem Klick sende."]
+      : []),
   ].join("\n");
 }
 
@@ -547,6 +274,8 @@ export type TodoView = {
   alsoTickets: string[];
   /** The mails the mail relation run related to it ("mail:<key>") — in `refs` too, as context like the rest. */
   mailRefs: string[];
+  /** Its operations were proposed by the auto-actions review — why they fit. */
+  autoOpsWhy?: string | null;
   /** Still at the bottom (filled in for the pages: false once it's due again — see `bubbledUp`). */
   deferred?: boolean;
   /** Put down, but back up again: why (new message, three days on, an agent asks). */
@@ -575,6 +304,9 @@ export type TodoUserNote = {
   urlLabel?: string;
   /** Shown on another todo: the one it's on (a step before it, one about the same comments). */
   from?: number;
+  /** Your instruction to a worker (✨) — not a plain note — and the run that carries it out. */
+  kind?: "instruction";
+  run?: number;
 };
 
 /** A todo's GitLab links: merge requests by ref, comments by key ("note:123"). */
@@ -647,6 +379,10 @@ export type BoardTicket = {
   comments: number;
   /** The comments the run read (newest last) — to mark done, and the todos' sources. */
   recent?: { id: string; author: string; at: string; text: string }[];
+  /** Everyone on it as "Name (username)" — whom an action can address, assign it to. */
+  people?: string[];
+  /** Its possible transitions ("Name (→ Status)"), as Jira listed them for the run. */
+  transitions?: string[];
   /** Gone through Claude — or only listed: done but never resolved, or untouched for months. */
   analyzed: boolean;
   /** On the last run's list, not on this one's (its state now). */

@@ -2,6 +2,7 @@ import type { WorkRun } from "@/db/schema";
 import { isTodoKind, todoRef, type TodoOp } from "@/lib/boards/shared";
 import { addFollowUp, addTodoAiNote, getTodo, listTodos, setTodoDraft, setTodoOps, setTodoStatus } from "@/lib/boards/store";
 import { pushedLink } from "./remote";
+import { runActions } from "./log";
 import { sameTodo } from "@/lib/boards/similar";
 
 export { sameTodo };
@@ -119,8 +120,10 @@ export function applyOutcome(run: WorkRun, res: WorkResult): { closed: number[];
   const mine = own ?? getTodo(run.todoId);
   if (mine && res.summary.trim()) {
     const link = run.branch && run.repo ? pushedLink(run.repo, run.branch) : null;
+    // What it did on the way (an interactive session's tool calls, your answers) — with its answer.
+    const actions = runActions(run.id);
     addTodoAiNote(mine.id, {
-      text: [res.summary.trim(), ...folded.map((d) => `Vorgeschlagene Nachricht: ${d}`)].join("\n\n"),
+      text: [res.summary.trim(), ...folded.map((d) => `Vorgeschlagene Nachricht: ${d}`), ...(actions.length ? [`Aktionen:\n${actions.map((a) => `- ${a}`).join("\n")}`] : [])].join("\n\n"),
       by: `${ref}${run.model ? ` · ${run.model}` : ""}`,
       ...(link ? { url: link.url, urlLabel: link.label } : {}),
     });

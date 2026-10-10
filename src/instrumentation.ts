@@ -32,6 +32,12 @@ export async function register() {
   } catch (e) {
     console.error("[work] resuming work runs failed", e);
   }
+  try {
+    const { writeKnowledgeInstances } = await import("./plugins/knowledge/instances");
+    writeKnowledgeInstances(); // the launcher runs a knowledge server per account with the plugin
+  } catch (e) {
+    console.error("[knowledge] listing the knowledge servers failed", e);
+  }
   const { startSyncScheduler } = await import("./lib/sync-scheduler");
   startSyncScheduler();
 }

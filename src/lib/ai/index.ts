@@ -1,8 +1,10 @@
 import { getDb, schema } from "@/db";
 import type { AppSettings } from "@/db/schema";
-import { findClaudeCli, runClaude, type AiAnswer } from "./claude";
-import { findCopilotCli, runCopilot } from "./copilot";
-import { AI_PROVIDER_INFO, AI_PROVIDERS, type AiProvider } from "./shared";
+import { findClaudeCli } from "@/plugins/claude-cli/cli";
+import { findCopilotCli } from "@/plugins/copilot-cli/cli";
+import type { LlmTaskId } from "@/plugins/llm/tasks";
+import { AI_PROVIDER_INFO, AI_PROVIDERS, type AiAnswer, type AiProvider } from "./shared";
+import { providerAvailable } from "@/plugins/state";
 
 export type { AiAnswer };
 
@@ -18,9 +20,9 @@ export function updateAppSettings(patch: Partial<Omit<AppSettings, "id">>): AppS
   return getDb().update(appSettings).set(patch).returning().get();
 }
 
-/** Each provider and where its CLI was found (null: not installed, as far as Zeff can see). */
+/** Each provider whose plugin is installed, and where its CLI was found (null: not on this machine, as far as Zeff can see). */
 export function aiProviders(): { id: AiProvider; label: string; found: string | null }[] {
-  return AI_PROVIDERS.map((id) => ({
+  return AI_PROVIDERS.filter((id) => providerAvailable(id)).map((id) => ({
     id,
     label: AI_PROVIDER_INFO[id].label,
     found: id === "claude" ? findClaudeCli() : (findCopilotCli()?.where ?? null),
@@ -30,17 +32,21 @@ export function aiProviders(): { id: AiProvider; label: string; found: string | 
 /** The chosen provider, its model ("" = the CLI's own), and the longest prompt it takes (null: no limit). */
 export function aiChoice(): { provider: AiProvider; model: string; maxPrompt: number | null } {
   const s = getAppSettings();
-  const provider: AiProvider = s.aiProvider === "copilot" ? "copilot" : "claude";
+  // The one chosen — while its plugin is installed; else the first installed (Copilot by default).
+  const chosen = AI_PROVIDERS.find((p) => p === s.aiProvider);
+  const provider: AiProvider = chosen && providerAvailable(chosen) ? chosen : (AI_PROVIDERS.find((p) => providerAvailable(p)) ?? "copilot");
   return { provider, model: provider === "copilot" ? s.copilotModel : s.claudeModel, maxPrompt: null };
 }
 
-/** A prompt answered as JSON matching `schema`, by the chosen provider (or the one given). */
-export function runAi<T>(prompt: string, schemaOut: object, opts: { provider?: AiProvider; timeoutMs?: number; maxBudgetUsd?: number } = {}): Promise<AiAnswer<T>> {
-  const choice = aiChoice();
-  const provider = opts.provider ?? choice.provider;
-  const s = getAppSettings();
-  const model = (provider === "copilot" ? s.copilotModel : s.claudeModel) || undefined;
-  return provider === "copilot"
-    ? runCopilot<T>(prompt, schemaOut, { model, timeoutMs: opts.timeoutMs })
-    : runClaude<T>(prompt, schemaOut, { model, timeoutMs: opts.timeoutMs, maxBudgetUsd: opts.maxBudgetUsd });
+/**
+ * A prompt answered as JSON matching `schema` — through the LLM plugin (its task's backend and
+ * model, your instructions and context in front). `task`: which of its tasks it is.
+ */
+export async function runAi<T>(
+  prompt: string,
+  schemaOut: object,
+  opts: { task?: LlmTaskId; provider?: AiProvider; timeoutMs?: number; maxBudgetUsd?: number } = {},
+): Promise<AiAnswer<T>> {
+  const { llm } = await import("@/plugins/llm/run");
+  return llm<T>(opts.task ?? "general", prompt, schemaOut, opts);
 }

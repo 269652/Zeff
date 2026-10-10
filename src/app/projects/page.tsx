@@ -1,3 +1,5 @@
+import { PluginNotInstalled } from "@/components/PluginNotInstalled";
+import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
@@ -14,14 +16,15 @@ export const metadata: Metadata = { title: "Projects" };
 
 export default async function ProjectsPage() {
   await connection();
+  if (!isInstalled("zeiterfassung")) return <PluginNotInstalled id="zeiterfassung" />;
   const projects = listProjects({ includeInactive: true });
   const jobs = listJobs().map((j) => ({ number: j.number, name: j.name }));
   const allTags = listTags().map((t) => t.name);
   const defaultTags = listDefaultTagMaps().projects;
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="page">
+      <div className="page-aside">
         <h1 className="text-lg font-semibold">Projects</h1>
         <p className="text-sm text-zinc-500">
           Book time on a project instead of a job — e.g. a training. The hours land on the project&apos;s job, and

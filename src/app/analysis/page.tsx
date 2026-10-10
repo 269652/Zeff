@@ -1,3 +1,5 @@
+import { PluginNotInstalled } from "@/components/PluginNotInstalled";
+import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
@@ -26,6 +28,7 @@ export default async function AnalysisPage({
   searchParams: Promise<{ weeks?: string; tickets?: string; split?: string }>;
 }) {
   await connection();
+  if (!isInstalled("zeiterfassung")) return <PluginNotInstalled id="zeiterfassung" />;
   const sp = await searchParams;
   const weeks = sp.weeks !== undefined && /^\d+$/.test(sp.weeks) ? Number(sp.weeks) : 8;
   const mine = sp.tickets === "mine";
@@ -109,8 +112,8 @@ export default async function AnalysisPage({
   const days = (v: number | null) => (v === null ? "—" : `${formatHours(v)} d`);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="page">
+      <div className="page-aside">
         <div>
           <h1 className="text-lg font-semibold">Analysis</h1>
           <p className="text-sm text-zinc-500">

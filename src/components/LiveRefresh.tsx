@@ -7,7 +7,9 @@ import { useEffect } from "react";
 const LIVE: [RegExp, string[]][] = [
   [/^\/$/, ["work", "todos", "attention"]],
   [/^\/work/, ["work", "todos", "branches", "attention"]],
-  [/^\/boards/, ["work", "todos", "attention"]],
+  [/^\/todos/, ["work", "todos", "attention"]],
+  [/^\/tickets/, ["work", "todos", "attention"]],
+  [/^\/kanban/, ["kanban", "todos"]],
 ];
 
 /**

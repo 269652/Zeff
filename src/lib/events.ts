@@ -6,7 +6,7 @@ import { EventEmitter } from "node:events";
  * the pages follow and refresh on. One bus for the whole server (route handlers, actions and
  * the MCP endpoint are separate module copies).
  */
-export type ChangeTopic = "work" | "todos" | "attention" | "branches";
+export type ChangeTopic = "work" | "todos" | "attention" | "branches" | "kanban";
 
 const state = globalThis as { __zeffEvents?: EventEmitter };
 const bus = (state.__zeffEvents ??= (() => {

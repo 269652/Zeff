@@ -1,3 +1,6 @@
+import { isKanbanKey } from "@/lib/ticket-keys";
+import { kanbanTicketCards } from "@/plugins/kanban/lage";
+import { isInstalled } from "@/plugins/state";
 import { and, asc, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { JiraBoard, JiraStatusCategory, JiraTicket } from "@/db/schema";
@@ -494,8 +497,13 @@ function jiraBrowseBase(): string | null {
 
 /** Hover-card data for ticket keys (by upper-case key); unsynced tickets get just a link. */
 export function getTicketCards(keys: (string | null | undefined)[]): Record<string, TicketCard> {
-  const wanted = [...new Set(keys.flatMap((k) => (k?.trim() ? [k.trim().toUpperCase()] : [])))];
-  if (wanted.length === 0) return {};
+  const all = [...new Set(keys.flatMap((k) => (k?.trim() ? [k.trim().toUpperCase()] : [])))];
+  if (all.length === 0) return {};
+  // Kanban cards (KB-…): their own card — title, column, a link to the board.
+  const kanban = all.filter((k) => isKanbanKey(k));
+  const kanbanCards = kanban.length && isInstalled("kanban") ? kanbanTicketCards(kanban) : {};
+  const wanted = all.filter((k) => !kanbanCards[k]);
+  if (wanted.length === 0) return kanbanCards;
   const rows = getDb().select().from(jiraTickets).where(inArray(jiraTickets.key, wanted)).all();
   const byKey = new Map(rows.map((r) => [r.key.toUpperCase(), r]));
   const base = jiraBrowseBase();
@@ -534,5 +542,5 @@ export function getTicketCards(keys: (string | null | undefined)[]): Record<stri
           jobNumber: null,
         };
   }
-  return cards;
+  return { ...cards, ...kanbanCards };
 }

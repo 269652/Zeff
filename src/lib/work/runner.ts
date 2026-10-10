@@ -1,14 +1,17 @@
+import { llmChoice, llmPreamble } from "@/plugins/llm/run";
+import { isInstalled } from "@/plugins/state";
+import { providerAvailable } from "@/plugins/state";
 import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { aiChoice, getAppSettings } from "@/lib/ai";
-import { findClaudeCli } from "@/lib/ai/claude";
-import { COPILOT_MAX_PROMPT, findCopilotCli, runCopilot } from "@/lib/ai/copilot";
+import { findClaudeCli } from "@/plugins/claude-cli/cli";
+import { COPILOT_MAX_PROMPT, findCopilotCli, runCopilot } from "@/plugins/copilot-cli/cli";
 import type { AiProvider } from "@/lib/ai/shared";
 import { asksForApproval, opsSettle, todoRef } from "@/lib/boards/shared";
 import type { TodoOp, TodoView } from "@/lib/boards/shared";
-import { addFollowUp, addTestedDelivery, getTodo, handOverPlan, setTodoOps } from "@/lib/boards/store";
+import { addFollowUp, addTestedDelivery, addTodoInstruction, getTodo, handOverPlan, setTodoOps } from "@/lib/boards/store";
 import { commentOnMr, openGitlabMr, postGitlabReply } from "@/lib/gitlab/reply";
 import { runTodoOps } from "@/lib/ops";
 import { gitlabItemsByKeys, listGitlabItems } from "@/lib/gitlab/store";
@@ -18,8 +21,8 @@ import { getJiraSyncConfig } from "@/lib/jira/sync";
 import { briefFor, taskFor, workerRules } from "./brief";
 import { listRepos, repoForTicket } from "@/lib/repos";
 import { addWorktree, baseFor, git, gitSummary } from "./git";
-import { startInteractive } from "./interactive";
-import { errPath, logPath, readErrors, readLog, readOutput, WORK_DIR } from "./log";
+import { startInteractive } from "@/plugins/copilot-cli/interactive";
+import { errPath, logPath, readErrors, readLog, readOutput, workDir } from "./log";
 import { applyOutcome, normalizeResult } from "./outcome";
 import { createRun, getRun, getWorkSettings, runsByStatus, toRunView, updateRun } from "./store";
 import { parseMrTarget, WORK_RESULT_SCHEMA, workModeOf, workRef, type WorkResult, type WorkRunView } from "./shared";
@@ -30,7 +33,7 @@ const ZEFF_TOOLS = ["report_time", "update_time_entry", "delete_time_entry", "co
 const JIRA_SEND_TOOLS = ["jira_add_comment", "jira_get_transitions", "jira_transition_issue", "jira_update_issue", "jira_get_issue"].map((t) => `mcp__zeff-jira__${t}`);
 
 const now = () => new Date().toISOString();
-const jiraConfigPath = (id: number) => path.join(WORK_DIR, `jira-mcp-${id}.json`);
+const jiraConfigPath = (id: number) => path.join(workDir(), `jira-mcp-${id}.json`);
 
 /**
  * The environment a worker gets: Zeff's, without what belongs to Zeff's own server — a nested
@@ -73,7 +76,8 @@ function killTree(pid: number): void {
  * send it — see workModeOf), with the provider given or the one from the AI settings. Queued;
  * it starts as soon as a worker is free.
  */
-export function dispatchTodo(todoId: number, opts: { provider?: AiProvider; instruction?: string } = {}): WorkRunView {
+export function dispatchTodo(todoId: number, opts: { provider?: AiProvider; instruction?: string; /** A session in this repo (Repos page), whatever the ticket says. */ repoId?: number } = {}): WorkRunView {
+  if (!isInstalled("work")) throw new ValidationError("Work ist nicht installiert (Menü → Plugins) — ohne es arbeitet kein Worker an Todos.");
   const todo = getTodo(todoId);
   if (!todo) throw new NotFoundError(`Todo ${todoRef(todoId)} not found.`);
   // Your instruction: an AI run on the todo that does what you say (whatever the todo's own mode).
@@ -81,19 +85,23 @@ export function dispatchTodo(todoId: number, opts: { provider?: AiProvider; inst
   if (instruction && todo.status !== "open") throw new ValidationError(`${todoRef(todoId)} is ${todo.status} already.`);
   const m: ReturnType<typeof workModeOf> = instruction ? { mode: "instruct" } : workModeOf(todo);
   if (!m.mode) throw new ValidationError(m.why);
-  const active = runsByStatus(["queued", "running"]).find((r) => r.todoId === todoId);
+  // (An instruction from the todo's own operations — Zeff running them right now — goes ahead.)
+  const active = runsByStatus(["queued", "running"]).find((r) => r.todoId === todoId && !(opts.instruction && r.provider === "zeff"));
   if (active) throw new ValidationError(`${todoRef(todoId)} is with ${workRef(active.id)} already.`);
   const s = getWorkSettings();
   // A GitLab reply Zeff posts itself; a Jira one goes through Claude (with Zeff's Jira connection).
   const byZeff = !instruction && ((m.mode === "send" && todo.channel === "gitlab") || m.mode === "mr" || m.mode === "ops");
-  const provider: AiProvider | "zeff" = byZeff ? "zeff" : (opts.provider ?? aiChoice().provider);
-  if (m.mode === "send" && provider === "copilot") throw new ValidationError("Only Claude can post to Jira (through Zeff's Jira connection).");
-  const repo = repoForTicket(todo.ticket)?.repo;
+  // A worker is the LLM plugin's "worker" task: its backend (or the default).
+  const provider: AiProvider | "zeff" = byZeff ? "zeff" : (opts.provider ?? llmChoice("worker").provider);
+  if (provider !== "zeff" && !isInstalled("llm")) throw new ValidationError("Das LLM-Plugin ist nicht installiert (Menü → Plugins) — keine Worker.");
+  if (provider !== "zeff" && !providerAvailable(provider)) throw new ValidationError(`${provider === "claude" ? "Claude CLI" : "Copilot CLI"}: das Plugin ist nicht installiert (Settings → Plugins).`);
+  if (m.mode === "send" && provider === "copilot") throw new ValidationError("Only Claude can post to Jira (through Zeff's Jira connection) — install the Claude CLI plugin.");
+  const repo = (opts.repoId ? listRepos().find((r) => r.id === opts.repoId) : undefined) ?? repoForTicket(todo.ticket)?.repo;
   if (m.mode === "code" && !repo) throw new ValidationError(`No repo for ${todo.ticket} — assign its board (or the ticket) to one on the Repos page.`);
   const app = getAppSettings();
   // The Work tab's model is one of the Settings provider's; another provider gets its own Settings model.
-  const own = provider === "zeff" ? "" : provider === "copilot" ? app.copilotModel : app.claudeModel;
-  const model = (provider === (app.aiProvider === "copilot" ? "copilot" : "claude") ? s.model || own : own) || null;
+  const own = provider === "zeff" ? "" : provider === llmChoice("worker").provider ? llmChoice("worker").model : provider === "copilot" ? app.copilotModel : app.claudeModel;
+  const model = (provider === aiChoice().provider ? s.model || own : own) || null;
   const run = createRun({
     ticket: todo.ticket,
     todoId,
@@ -104,6 +112,8 @@ export function dispatchTodo(todoId: number, opts: { provider?: AiProvider; inst
     repo: repo?.path ?? null,
     prompt: instruction ? `${briefFor(todo)}\n\n## Deine Anweisung (vom Nutzer — sie geht vor)\n${instruction}` : briefFor(todo),
   });
+  // Your instruction on the todo, as your words (context for the Lage, workers and agents too).
+  if (instruction) addTodoInstruction(todoId, instruction, run.id);
   pump();
   return toRunView(getRun(run.id)!);
 }
@@ -113,6 +123,7 @@ export function dispatchTodo(todoId: number, opts: { provider?: AiProvider; inst
  * the checkout (not in worktrees), one code run per repo at a time.
  */
 export function pump(): void {
+  if (!isInstalled("work")) return;
   const s = getWorkSettings();
   // Agents outside Zeff (through its MCP) work on top of its own workers.
   const running = runsByStatus(["running"]).filter((r) => r.provider !== "agent");
@@ -151,7 +162,7 @@ function start(id: number): void {
       return;
     }
     const mode = r.mode === "draft" || r.mode === "send" || r.mode === "instruct" ? r.mode : "code";
-    let cwd = path.join(WORK_DIR, "scratch");
+    let cwd = path.join(workDir(), "scratch");
     let branch: string | null = null;
     let base: string | null = null;
     let baseSha: string | null = null;
@@ -170,7 +181,8 @@ function start(id: number): void {
     fs.mkdirSync(/*turbopackIgnore: true*/ cwd, { recursive: true });
     // House rules: everyone's, then the repo's own.
     const repoRules = r.repo ? (listRepos().find((x) => x.path === r.repo)?.instructions ?? "") : "";
-    const rules = workerRules([s.instructions, repoRules].filter((x) => x.trim()).join("\n\n"));
+    // (Your instructions and context from the LLM plugin first — for every worker.)
+    const rules = workerRules([llmPreamble(), s.instructions, repoRules].filter((x) => x.trim()).join("\n\n"));
     const prompt = `${r.prompt}\n\n${taskFor(mode, { todo, runId: id, repo: r.repo, cwd, branch, base, isolation: s.isolation })}`;
     updateRun(id, { cwd, branch, base, baseSha, prompt });
 
@@ -586,6 +598,7 @@ export function cancelRun(id: number): void {
  * then the queue goes on.
  */
 export function resumeWork(): void {
+  if (!isInstalled("work")) return;
   for (const r of runsByStatus(["running"])) {
     if (r.provider === "agent") continue; // an agent outside Zeff: it ends its run through the MCP
     // A live session was this server's: it's over with the old one — ended, to start again by hand.

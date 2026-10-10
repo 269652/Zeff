@@ -1,6 +1,7 @@
 import { and, eq, gte, isNotNull, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { myJiraName } from "@/lib/jira/store";
+import { isJiraKey } from "@/lib/ticket-keys";
 
 const { jiraTickets, todos, timeEntries, jiraComments } = schema;
 
@@ -26,7 +27,8 @@ export function followedTickets(): Map<string, string> {
   );
   const add = (key: string | null | undefined, why: string) => {
     const k = key?.trim().toUpperCase();
-    if (k && /^[A-Z][A-Z0-9]+-\d+$/.test(k) && !off.has(k) && !out.has(k)) out.set(k, why);
+    // Jira's only (a Kanban card KB-… is read from Zeff, not Jira).
+    if (k && isJiraKey(k) && !off.has(k) && !out.has(k)) out.set(k, why);
   };
   for (const r of db.select({ key: jiraTickets.key }).from(jiraTickets).where(eq(jiraTickets.followed, 1)).all()) add(r.key, "von dir verfolgt");
   for (const r of db.selectDistinct({ key: todos.ticket }).from(todos).where(eq(todos.status, "open")).all()) add(r.key, "offene Todos");

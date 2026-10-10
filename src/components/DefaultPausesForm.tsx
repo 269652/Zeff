@@ -7,7 +7,7 @@ import { parsePauses, totalPauseHours } from "@/lib/pauses-shared";
 import { useLockedBreakText } from "./useLockedBreakText";
 
 /** The default break window(s) on workdays, and whether the TimO export records it. */
-export function DefaultPausesForm({ text, exportToTimo }: { text: string; exportToTimo: boolean }) {
+export function DefaultPausesForm({ text, exportToTimo, timoOn = true }: { text: string; exportToTimo: boolean; timoOn?: boolean }) {
   // Changing a start or end moves that break; its length stays.
   const draftRef = useRef<HTMLInputElement>(null);
   const draftField = useLockedBreakText(text, "12:00", draftRef);
@@ -52,7 +52,9 @@ export function DefaultPausesForm({ text, exportToTimo }: { text: string; export
               : "No default break"}
         </p>
       </div>
-      <label className="flex items-center gap-2 text-sm">
+      {/* Without the TimO plugin: not offered — what's set stays (sent along unseen). */}
+      {!timoOn && toTimo && <input type="hidden" name="timoDefaultPauses" value="on" />}
+      {timoOn && <label className="flex items-center gap-2 text-sm">
         <input
           type="checkbox"
           name="timoDefaultPauses"
@@ -64,7 +66,7 @@ export function DefaultPausesForm({ text, exportToTimo }: { text: string; export
           className="size-4 accent-indigo-600"
         />
         Record the default break in TimO on workdays without an entered break
-      </label>
+      </label>}
       <div className="flex items-center gap-3">
         <button type="submit" className="btn btn-primary" disabled={pending || !preview.ok}>
           {pending ? "Saving…" : "Save default break"}

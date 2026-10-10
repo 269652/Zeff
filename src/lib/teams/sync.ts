@@ -1,9 +1,8 @@
-import path from "node:path";
+import { automationCdp, automationEnv, driverPath } from "@/plugins/drivers";
 import { clearAttention, needsSignIn, raiseLogin } from "@/lib/attention";
 import { errorMessage } from "@/lib/errors";
 import { saveTeamsMessages, updateTeamsSettings, type TeamsMessageInput } from "./store";
 
-const CDP = process.env.TEAMS_CDP_ENDPOINT || process.env.ROAR_CDP_ENDPOINT || "http://127.0.0.1:9222";
 /** How far back 1:1 chats (PMs) are read on each sync. */
 const PM_DAYS = 90;
 /** Every chat's messages of the last days too (yours, group chats): what the Ticket-Lage reads for agreements. */
@@ -20,7 +19,7 @@ function record(ok: boolean, message: string): { ok: boolean; message: string } 
 
 /** Whether the automation Chrome runs — the background sync never starts it (it opens a Teams tab there, though). */
 async function chromeUp(): Promise<boolean> {
-  return fetch(`${CDP}/json/version`, { signal: AbortSignal.timeout(3000) })
+  return fetch(`${automationCdp("teams")}/json/version`, { signal: AbortSignal.timeout(3000) })
     .then((r) => r.ok)
     .catch(() => false);
 }
@@ -36,9 +35,9 @@ export async function syncTeams({ background = false } = {}): Promise<{ ok: bool
   try {
     if (background && !(await chromeUp())) return record(false, "The automation Chrome isn't running. Not synced.");
     const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
-    const script = path.join(/*turbopackIgnore: true*/ process.cwd(), "scripts", "teams-mcp.mjs");
+    const script = driverPath("teams");
     const out = await runStdioSession(
-      { command: process.execPath, args: [script], env: {}, label: "Teams sync" },
+      { command: process.execPath, args: [script], env: automationEnv(), label: "Teams sync" },
       // Teams not open: a tab for it (Chrome itself started only by hand).
       async (call) => resultToPayload(await call("teams_messages", { pmDays: PM_DAYS, chatDays: CHAT_DAYS, openIfMissing: true, launch: !background })),
       180000,

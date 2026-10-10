@@ -1,4 +1,5 @@
-import { answerPermission, sendToLive, setMode, wrapUp } from "@/lib/work/interactive";
+import { isInstalled } from "@/plugins/state";
+import { answerPermission, sendToLive, setMode, wrapUp } from "@/plugins/copilot-cli/interactive";
 
 /**
  * POST /api/work/:id/live — what you do in a live Copilot session: { do: "answer", option } /
@@ -6,6 +7,7 @@ import { answerPermission, sendToLive, setMode, wrapUp } from "@/lib/work/intera
  * action): the page refreshing meanwhile (the session keeps changing it) can't cancel it.
  */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!isInstalled("work")) return new Response("Plugin not installed", { status: 404 });
   const runId = Number((await params).id);
   const body = (await req.json().catch(() => ({}))) as { do?: string; option?: string; text?: string; mode?: string };
   try {

@@ -1,3 +1,5 @@
+import { PluginNotInstalled } from "@/components/PluginNotInstalled";
+import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -20,6 +22,7 @@ export const metadata: Metadata = { title: "Project" };
 
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   await connection();
+  if (!isInstalled("zeiterfassung")) return <PluginNotInstalled id="zeiterfassung" />;
   const { id } = await params;
   const projectId = Number(id);
   if (!Number.isInteger(projectId)) notFound();
@@ -34,8 +37,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="page">
+      <div className="page-aside">
         <div>
           <Link href="/projects" className="text-sm text-zinc-500 hover:underline">← All projects</Link>
           <h1 className="text-lg font-semibold">

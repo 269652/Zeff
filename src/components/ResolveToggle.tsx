@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import type { ActionState } from "@/app/actions";
 
 /**
- * "Erledigt" for something a colleague wrote (a Jira comment, a Teams message): marked, Boards
+ * "Erledigt" for something a colleague wrote (a Jira comment, a Teams message): marked, the Ticket-Lage
  * runs make no new todos from it. Shown at once; back as it was if saving fails.
  */
 export function ResolveToggle({
@@ -16,7 +16,7 @@ export function ResolveToggle({
   done: boolean;
   onChange: (next: boolean) => Promise<ActionState>;
   className?: string;
-  /** What hovering says, done and not (by default: about Boards runs). */
+  /** What hovering says, done and not (by default: about Ticket-Lage runs). */
   hint?: { done: string; open: string };
 }) {
   const [value, setValue] = useState(done);
@@ -46,8 +46,8 @@ export function ResolveToggle({
       } ${className}`}
       title={
         value
-          ? (hint?.done ?? "Erledigt — Boards macht keine neuen Todos daraus. Klick: wieder offen.")
-          : (hint?.open ?? "Als erledigt markieren — Boards macht dann keine neuen Todos daraus")
+          ? (hint?.done ?? "Erledigt — die Ticket-Lage macht keine neuen Todos daraus. Klick: wieder offen.")
+          : (hint?.open ?? "Als erledigt markieren — die Ticket-Lage macht dann keine neuen Todos daraus")
       }
     >
       {value ? "✓ erledigt" : "erledigt?"}

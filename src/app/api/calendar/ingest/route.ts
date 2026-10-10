@@ -1,3 +1,4 @@
+import { isInstalled } from "@/plugins/state";
 import { NextResponse, type NextRequest } from "next/server";
 import { clearInbox, inboxCount, mergeIntoInbox } from "@/lib/calendar/inbox";
 
@@ -25,10 +26,12 @@ export async function OPTIONS() {
 }
 
 export async function GET() {
+  if (!isInstalled("outlook-calendar")) return new Response("Plugin not installed", { status: 404 });
   return cors(NextResponse.json({ ok: true, count: inboxCount() }));
 }
 
 export async function POST(req: NextRequest) {
+  if (!isInstalled("outlook-calendar")) return new Response("Plugin not installed", { status: 404 });
   let body: unknown;
   try {
     body = await req.json();

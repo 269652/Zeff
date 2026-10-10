@@ -5,7 +5,7 @@ import { NoteBadge, NoteDetails } from "./NoteBadge";
 import { SourceBadge, SourceDetails } from "../SourceBadge";
 import { entityWhoWhen } from "@/lib/entities-shared";
 import { HoverCard } from "../HoverCard";
-import { ChevronIcon, NoteIcon, SparkIcon } from "../icons";
+import { CollapseIcon, ExpandIcon, NoteIcon, SparkIcon } from "../icons";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { latestPerKind, ShowMoreToggle } from "../ShowMore";
 
@@ -41,22 +41,15 @@ function SyncedNote({ s }: { s: SyncedComment }) {
   );
 }
 
-/**
- * What a todo came from — Jira comments, Teams messages, GitLab comments — as badges; hover (or
- * focus) one for all of it, and to mark it done.
- */
-export function TodoSources({ list, notes = [], todoId }: { list: TodoSource[]; notes?: TodoUserNote[]; todoId?: number }) {
-  // Folded at first ("Show context"); then of each kind the latest three — the rest behind "Show more".
-  const [open, setOpen] = useState(false);
-  const [all, setAll] = useState(false);
+/** A todo's context items (what it came from, the notes), newest first — and how many are new since you last opened them. */
+export function useContextItems(list: TodoSource[], notes: TodoUserNote[], todoId?: number) {
   // Its notes — yours and the runs' reports — among what it came from, as context like the rest.
   // Newest first, whatever kind.
   const items: Item[] = [...list.map((s): Item => ({ s })), ...notes.map((n): Item => ({ n }))]
     .map((it) => ({ it, t: Date.parse(normal(itemKind(it).at)) || 0 }))
     .sort((a, b) => b.t - a.t)
     .map((x) => x.it);
-  const { shown, hidden } = latestPerKind(items, itemKind, all);
-  // What came since you last opened them (in this browser): counted on the folded button.
+  // What came since you last opened them (in this browser): counted on the toggle.
   const seenRaw = useSyncExternalStore(subscribeSeen, readSeenRaw, () => null);
   useEffect(() => {
     if (readSeenRaw() === "") writeSeen({ since: new Date().toISOString(), todos: {} }); // from now on
@@ -64,42 +57,63 @@ export function TodoSources({ list, notes = [], todoId }: { list: TodoSource[]; 
   const seen = parseSeen(seenRaw);
   const since = todoId !== undefined && seen ? Date.parse(seen.todos[todoId] ?? seen.since) : NaN;
   const unread = Number.isNaN(since) ? 0 : items.filter((it) => Date.parse(normal(itemKind(it).at)) > since).length;
-  if (!items.length) return null;
-  if (!open)
-    return (
-      <button
-        type="button"
-        onClick={() => {
-          setOpen(true);
-          if (todoId !== undefined && seen) writeSeen({ ...seen, todos: { ...seen.todos, [todoId]: new Date().toISOString() } });
-        }}
-        className="mt-1 flex items-center gap-1 text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400"
-        aria-expanded={false}
-      >
-        <ChevronIcon className="size-3.5" />
-        {/* New since last opened: said in the link, quietly — no badge pulling the eye. One text
-            node, so the button's flex gap doesn't split it. */}
-        <span title={unread > 0 ? "Neu, seit du sie zuletzt geöffnet hast" : undefined}>
-          {`Show context (${items.length}${unread > 0 ? ` · ${unread} neu` : ""})`}
-        </span>
-        <ContextCounts items={items} />
-      </button>
-    );
+  const markSeen = () => {
+    if (todoId !== undefined && seen) writeSeen({ ...seen, todos: { ...seen.todos, [todoId]: new Date().toISOString() } });
+  };
+  return { items, unread, markSeen };
+}
+
+/** A toggle in a todo's row of toggles ("Show context", "Show actions"): it unfolds its area below the row. */
+export function AreaToggle({ open, onToggle, label, tone = "indigo", title, children }: { open: boolean; onToggle: () => void; label: string; tone?: "indigo" | "violet" | "emerald"; title?: string; children?: React.ReactNode }) {
+  const color = tone === "violet" ? "text-violet-700 dark:text-violet-300" : tone === "emerald" ? "text-emerald-700 dark:text-emerald-300" : "text-indigo-600 dark:text-indigo-400";
   return (
-    <span className="mt-1 flex flex-col items-start gap-1">
-      <button
-        type="button"
-        onClick={() => {
-          setOpen(false);
-          setAll(false);
-        }}
-        className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400"
-        aria-expanded
-      >
-        <ChevronIcon open className="size-3.5" />
-        Hide context
-        <ContextCounts items={items} />
-      </button>
+    <button type="button" onClick={onToggle} className={`flex items-center gap-1 text-xs font-medium hover:underline ${color}`} aria-expanded={open} title={title}>
+      {open ? <CollapseIcon className="size-3.5" /> : <ExpandIcon className="size-3.5" />}
+      <span>{label}</span>
+      {children}
+    </button>
+  );
+}
+
+/** What a closed context holds, at a glance (the toggle's hovercard): the newest few, the rest counted. */
+function ContextPreview({ items, unread }: { items: Item[]; unread: number }) {
+  const shown = items.slice(0, 6);
+  return (
+    <div className="space-y-1.5 overflow-hidden rounded-lg border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 text-xs">
+      <p className="font-medium text-zinc-600 dark:text-zinc-300">
+        Kontext — {items.length} {items.length === 1 ? "Eintrag" : "Einträge"}
+        {unread > 0 && `, ${unread} neu`}
+      </p>
+      <span className="flex min-w-0 flex-col items-stretch gap-1">
+        {shown.map((it) => ("n" in it ? <NoteBadge key={`note:${it.n.from ?? ""}:${it.n.at}`} n={it.n} className="max-w-full min-w-0" /> : <SourceBadge key={sourceKey(it.s)} entity={it.s} className="max-w-full min-w-0" />))}
+      </span>
+      {items.length > shown.length && <p className="text-zinc-500">… und {items.length - shown.length} weitere — klicken für alle</p>}
+    </div>
+  );
+}
+
+/** The context toggle: "Show context (12 · 3 neu)" and its kinds as small icons with numbers; hover it for the newest. */
+export function ContextToggle({ items, unread, open, onToggle }: { items: Item[]; unread: number; open: boolean; onToggle: () => void }) {
+  if (!items.length) return null;
+  const toggle = (
+    <AreaToggle
+      open={open}
+      onToggle={onToggle}
+      label={`${open ? "Hide" : "Show"} context (${items.length}${unread > 0 && !open ? ` · ${unread} neu` : ""})`}
+      title={unread > 0 && !open ? "Neu, seit du sie zuletzt geöffnet hast" : undefined}
+    >
+      <ContextCounts items={items} />
+    </AreaToggle>
+  );
+  return open ? toggle : <HoverCard card={<ContextPreview items={items} unread={unread} />}>{toggle}</HoverCard>;
+}
+
+/** The context itself: of each kind the latest three — the rest behind "Show more"; hover one for all of it. */
+export function ContextList({ items, todoId }: { items: Item[]; todoId?: number }) {
+  const [all, setAll] = useState(false);
+  const { shown, hidden } = latestPerKind(items, itemKind, all);
+  return (
+    <span className="flex flex-col items-start gap-1">
       {shown.map((it) => {
         if ("n" in it)
           return (
@@ -131,8 +145,32 @@ export function TodoSources({ list, notes = [], todoId }: { list: TodoSource[]; 
 }
 
 /**
+ * What a todo came from — Jira comments, Teams messages, GitLab comments, mails, the notes — as
+ * badges, folded behind its toggle; hover (or focus) one for all of it, and to mark it done.
+ */
+export function TodoSources({ list, notes = [], todoId }: { list: TodoSource[]; notes?: TodoUserNote[]; todoId?: number }) {
+  const [open, setOpen] = useState(false);
+  const { items, unread, markSeen } = useContextItems(list, notes, todoId);
+  if (!items.length) return null;
+  return (
+    <span className="mt-1 flex flex-col items-start gap-1">
+      <ContextToggle
+        items={items}
+        unread={unread}
+        open={open}
+        onToggle={() => {
+          if (!open) markSeen();
+          setOpen(!open);
+        }}
+      />
+      {open && <ContextList items={items} todoId={todoId} />}
+    </span>
+  );
+}
+
+/**
  * A todo's whole context, as one list: what it came from, the mails about its ticket since it came
- * up, your notes and the runs' reports (its own and related todos') — on Boards and Work alike.
+ * up, your notes and the runs' reports (its own and related todos') — on Todos and Work alike.
  */
 export function TodoContext({ t, cameFrom }: { t: Pick<TodoView, "id" | "userNotes" | "relatedNotes">; cameFrom: TodoSource[] }) {
   const list = cameFrom;
@@ -141,7 +179,7 @@ export function TodoContext({ t, cameFrom }: { t: Pick<TodoView, "id" | "userNot
   return <TodoSources list={list} notes={notes} todoId={t.id} />;
 }
 
-type Item = { s: TodoSource } | { n: TodoUserNote };
+export type Item = { s: TodoSource } | { n: TodoUserNote };
 
 // When you last opened each todo's comments (this browser): { since: first visit, todos: { id: when } }.
 const SEEN_KEY = "zeff-sources-seen";

@@ -29,7 +29,7 @@ function Hit({ p, linked }: { p: Picked; linked: boolean }) {
     p.source === "teams"
       ? [p.teams.senderName ?? "Someone", p.teams.place, when(p.teams.sentAt), teamsKindLabel(p.teams)]
       : p.source === "mail"
-        ? ["Mail", mailSender(p.mail), when(p.mail.receivedAt), p.mail.unread ? "ungelesen" : ""]
+        ? [p.mail.folder === "WhatsApp" ? "WhatsApp" : "Mail", mailSender(p.mail), when(p.mail.receivedAt), p.mail.unread ? "ungelesen" : ""]
         : p.source === "todo"
         ? [`Todo ${p.todo.ref}`, p.todo.ticket, TODO_KIND_LABELS[p.todo.kind], p.todo.status === "done" ? when(p.todo.doneAt) : "offen"]
         : [GITLAB_KIND_LABELS[p.gitlab.kind], p.gitlab.project.split("/").pop(), p.gitlab.author, when(p.gitlab.kind === "comment" ? p.gitlab.createdAt : p.gitlab.updatedAt), p.gitlab.state];
