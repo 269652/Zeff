@@ -139,8 +139,8 @@ export default async function HeutePage() {
             <div className="mt-1 h-1.5 overflow-hidden rounded bg-zinc-200 dark:bg-zinc-800">
               <div className="h-full bg-indigo-500" style={{ width: `${Math.min(100, hours.target ? (hours.booked / hours.target) * 100 : 0)}%` }} />
             </div>
-            <Link href="/" className="mt-1 block text-xs text-indigo-600 hover:underline dark:text-indigo-400">
-              {hours.suggestions ? `${hours.suggestions} Vorschläge von heute übernehmen →` : "Zum Wochenbericht →"}
+            <Link href="/feierabend" className="mt-1 block text-xs text-indigo-600 hover:underline dark:text-indigo-400">
+              {hours.suggestions ? `${hours.suggestions} Vorschläge von heute — Tag buchen →` : "Tag buchen (Feierabend) →"}
             </Link>
           </div>
         )}

@@ -21,7 +21,7 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace
 const DATA = path.join(ROOT, "data");
 const LOCK = path.join(DATA, ".deploy.lock");
 const PORT = 9333;
-const PAGES = ["/", "/heute", "/todos", "/mail", "/kanban", "/plugins", "/sync-settings", "/auswerten", "/logins"];
+const PAGES = ["/", "/heute", "/todos", "/mail", "/kanban", "/plugins", "/sync-settings", "/auswerten", "/logins", "/feierabend"];
 const args = new Set(process.argv.slice(2));
 const require = createRequire(path.join(ROOT, "package.json"));
 

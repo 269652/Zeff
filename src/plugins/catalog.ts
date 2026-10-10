@@ -58,8 +58,9 @@ export const PLUGINS: PluginManifest[] = [
       { href: "/projects", label: "Projects", hint: "Work grouped under a job" },
       { href: "/settings", label: "Schedule", hint: "Working hours & absences" },
       { href: "/analysis", label: "Analysis", hint: "Charts of your bookings" },
+      { href: "/feierabend", label: "Feierabend", hint: "Den Tag mit einem Klick buchen" },
     ],
-    routes: ["/jobs", "/projects", "/settings", "/analysis"],
+    routes: ["/jobs", "/projects", "/settings", "/analysis", "/feierabend"],
   },
   {
     id: "weekly-report",
