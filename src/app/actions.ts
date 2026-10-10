@@ -2051,6 +2051,21 @@ export async function saveContextPrefsAction(step: string, patch: { sources?: Re
   }
 }
 
+/** Feierabend: the day's lines booked as you took them over (meetings, suggestions, tickets). */
+export async function bookDayAction(date: string, rows: import("@/lib/feierabend").DayBooking[]): Promise<ActionState> {
+  try {
+    if (!(await import("@/plugins/state")).isInstalled("zeiterfassung")) return { ok: false, error: "Zeiterfassung ist nicht installiert." };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) return { ok: false, error: "Kein Tag." };
+    const { bookDay } = await import("@/lib/feierabend");
+    const r = await bookDay(String(date), Array.isArray(rows) ? rows.slice(0, 60) : []);
+    revalidateAll();
+    const said = `${r.booked} gebucht (${r.hours.toLocaleString("de-DE")} h)${r.skipped ? `, ${r.skipped} schon gebucht` : ""}`;
+    return r.errors.length ? { ok: false, error: `${said} — nicht gebucht: ${r.errors.join("; ")}` } : { ok: true, message: `${said}.` };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
 /** A todo's deadline (YYYY-MM-DD) — or none. */
 export async function setTodoDueAction(todoId: number, due: string | null): Promise<ActionState> {
   try {
