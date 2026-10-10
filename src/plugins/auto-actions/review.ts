@@ -18,7 +18,7 @@ import { todoSources } from "@/lib/boards/sources";
 import { lastGoodRun, listTodos } from "@/lib/boards/store";
 import { entityHeadline, entitySourceLabel, entityText, entityWhoWhen } from "@/lib/entities-shared";
 import { myJiraName, getJiraTicket } from "@/lib/jira/store";
-import { readInbox } from "@/lib/calendar/inbox";
+import { busyBetween } from "@/lib/calendar/ir";
 import { parseLocalDateTime } from "@/lib/calendar/meetings";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { opAvailable } from "@/plugins/ops";
@@ -61,7 +61,8 @@ Für JEDES Todo: welche Aktionen erledigen es oder bringen es den nächsten echt
 - Warten auf jemanden (wartet auf andere: ein Approval, eine Antwort, ein Test) → ein freundliches Nachhaken (teams-message) an genau die Person, auf die gewartet wird — mit dem, was du brauchst.
 - Steht im Todo ein späterer Zeitpunkt („ab 12.10.“, „nach dem Deployment am 13.10.“) → ein calendar-event an diesem Tag als Erinnerung (ohne Teilnehmer), mit dem, was dann zu tun ist.
 - Etwas, das nur ich selbst tun kann (selbst testen, ein Formular, eine Schulung, etwas vor Ort) → ein calendar-event als Zeitblock für mich (ohne Teilnehmer, realistische Dauer, nächster sinnvoller Werktag).
-- Termine: in eine freie Zeit (meine belegten Zeiten stehen unten), Werktag 9–17 Uhr; Teilnehmer nur mit Adresse aus dem Adressbuch — ohne Adresse lädst du die Person per teams-message ein.
+- Termine: in eine freie Zeit (meine belegten Zeiten stehen unten); Arbeitstermine (calendar-event) Werktag 9–17 Uhr; Teilnehmer nur mit Adresse aus dem Adressbuch — ohne Adresse lädst du die Person per teams-message ein.
+- Etwas Privates mit einem Zeitpunkt oder das Zeit braucht (etwas besorgen, erledigen, vorbereiten; ein Geburtstag, eine Verabredung, eine Frist) → calendar-entry (mein Zeff-Kalender) oder gcal-event (Google Calendar) — was das Wörterbuch hat, nicht beide; abends oder am Wochenende, außer es braucht Öffnungszeiten (Arzt, Amt, Geschäft); vor dem Datum, um das es geht (ein Geschenk vor dem Geburtstag).
 - Nach einer Übergabe an einen Worker (work-instruct) legt Zeff selbst ein Todo zum Testen an — dafür keinen eigenen Termin.
 - Ticket-Pflege (Status, Zuweisung, Kommentar, neues Ticket) → jira-transition / jira-assign / jira-comment / jira-create — Übergänge nur aus den möglichen, Zuweisungen mit dem Benutzernamen.
 - Antwort auf einen GitLab-Kommentar / Thread erledigt → gitlab-reply / gitlab-resolve mit note:<id>.
@@ -100,16 +101,16 @@ function addressBook(text: string): string[] {
   return [...seen].filter(([name]) => name.split(/\s+/).some((part) => part.length > 3 && t.includes(part.toLowerCase()))).map(([n, e]) => `${n} <${e}>`).slice(0, 40);
 }
 
-/** My appointments of the next days (Outlook, as Zeff read them): busy times. */
-function busyTimes(days = 7): { start: Date; end: Date; subject: string }[] {
-  const from = Date.now();
-  const to = from + days * 864e5;
-  return readInbox()
-    .filter((e) => !e.isCancelled && !e.isAllDay && (e.showAs ?? "busy") !== "free")
-    .map((e) => ({ start: parseLocalDateTime(e.start.dateTime), end: parseLocalDateTime(e.end.dateTime), subject: e.subject ?? "" }))
-    .filter((b) => b.end.getTime() > from && b.start.getTime() < to)
-    .sort((a, b) => a.start.getTime() - b.start.getTime());
+/** My appointments of the next days — every calendar that blocks time (Zeff's calendar model: Outlook, Google, Zeff's own). */
+function busyTimes(days = 14): { start: Date; end: Date; subject: string }[] {
+  const from = new Date();
+  return busyBetween(from, new Date(from.getTime() + days * 864e5)).map((b) => ({ start: b.start, end: b.end, subject: b.title }));
 }
+
+/** When an appointment may go: work ones on workdays 9–17, private ones (Zeff's calendar, Google) any day 8–21. */
+type Window = { workdays: boolean; from: number; to: number };
+const WORK: Window = { workdays: true, from: 9, to: 17 };
+const PRIVATE: Window = { workdays: false, from: 8, to: 21 };
 
 const two = (n: number) => String(n).padStart(2, "0");
 const localStamp = (d: Date) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}T${two(d.getHours())}:${two(d.getMinutes())}`;
@@ -118,7 +119,7 @@ const localStamp = (d: Date) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${t
  * An appointment's start, moved to the first free time from the one asked for: a workday, 9–17
  * o'clock, not before now, clear of my appointments and of those already placed (`taken`).
  */
-function placeAppointment(start: string, minutes: number, busy: { start: Date; end: Date }[], taken: { start: Date; end: Date }[]): string {
+function placeAppointment(start: string, minutes: number, busy: { start: Date; end: Date }[], taken: { start: Date; end: Date }[], window: Window = WORK): string {
   const wanted = parseLocalDateTime(start.length === 16 ? `${start}:00` : start);
   const now = new Date();
   now.setMinutes(Math.ceil(now.getMinutes() / 15) * 15, 0, 0);
@@ -126,9 +127,9 @@ function placeAppointment(start: string, minutes: number, busy: { start: Date; e
   for (let i = 0; i < 4 * 24 * 21; i++) {
     const end = new Date(t.getTime() + minutes * 60000);
     const day = t.getDay();
-    const inHours = t.getHours() >= 9 && (end.getHours() < 17 || (end.getHours() === 17 && end.getMinutes() === 0)) && end.getDate() === t.getDate();
+    const inHours = t.getHours() >= window.from && (end.getHours() < window.to || (end.getHours() === window.to && end.getMinutes() === 0)) && end.getDate() === t.getDate();
     const clash = [...busy, ...taken].some((b) => t < b.end && end > b.start);
-    if (day >= 1 && day <= 5 && inHours && !clash) {
+    if ((!window.workdays || (day >= 1 && day <= 5)) && inHours && !clash) {
       taken.push({ start: t, end });
       return localStamp(t);
     }
@@ -180,8 +181,9 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
   if (state.__zeffAutoActions && !opts.ids) return state.__zeffAutoActions;
   const run = (async (): Promise<AutoActionsResult> => {
     if (opts.ids && state.__zeffAutoActions) await state.__zeffAutoActions;
-    // What can be done changed (a plugin or an extension came — WhatsApp, Gmail, Keep): every open
-    // todo without actions is looked at again, once.
+    // What can be done changed (a plugin or an extension came — WhatsApp, Gmail, Keep, a calendar):
+    // every open todo without actions is looked at again, once — and those whose actions this review
+    // proposed itself (not run yet: what ran is gone from a todo), so they can get the new kind.
     const { TODO_OP_TYPES } = await import("@/lib/boards/shared");
     const { getPref, setPref } = await import("@/lib/prefs");
     const offered = TODO_OP_TYPES.filter((t) => opAvailable(t)).sort().join(",");
@@ -198,7 +200,7 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
     // Asked for on given todos: those (unless they have actions not proposed here — the Lage's, a delivery's).
     const list = opts.ids
       ? listTodos({ status: "open" }).filter((t) => opts.ids!.includes(t.id) && (!t.ops.length || !!t.autoOpsWhy))
-      : listTodos({ status: "open" }).filter((t) => due.has(t.id) && !t.ops.length);
+      : listTodos({ status: "open" }).filter((t) => due.has(t.id) && (!t.ops.length || (all && !!t.autoOpsWhy)));
     if (!opts.ids) setPref("autoactions:offered", offered);
     if (!list.length) return { ok: true, reviewed: 0, withActions: 0, batches: 0 };
     const board = lastGoodRun();
@@ -265,11 +267,18 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
         const ops: TodoOp[] = cleanOps(a?.ops ?? [], t.ticket || "")
           .filter((o) => opAvailable(o.type) && !(o.type === "teams-message" && me && o.to.toLowerCase() === me.toLowerCase()))
           // An appointment into a free time (mine, and the ones placed before it).
-          .map((o) => (o.type === "calendar-event" ? { ...o, start: placeAppointment(o.start, o.minutes, busy, taken) } : o));
+          .map((o) =>
+            o.type === "calendar-event"
+              ? { ...o, start: placeAppointment(o.start, o.minutes, busy, taken) }
+              : o.type === "calendar-entry" || o.type === "gcal-event"
+                ? { ...o, start: placeAppointment(o.start, o.minutes, busy, taken, PRIVATE) }
+                : o,
+          );
         const set: Partial<typeof todos.$inferInsert> = { actionsReviewedAt: now };
-        // Only onto a todo that still has none (the Lage or you may have given it some meanwhile).
+        // Only onto a todo that still has none (the Lage or you may have given it some meanwhile) — or
+        // whose actions this review proposed itself, looked at again (on request, or new kinds came).
         const still = getDb().select({ ops: todos.ops }).from(todos).where(eq(todos.id, t.id)).get();
-        if (ops.length && still && ((JSON.parse(still.ops) as unknown[]).length === 0 || (opts.ids && t.autoOpsWhy))) {
+        if (ops.length && still && ((JSON.parse(still.ops) as unknown[]).length === 0 || ((opts.ids || all) && t.autoOpsWhy))) {
           set.ops = JSON.stringify(ops);
           set.autoOpsWhy = (a?.why ?? "").trim().slice(0, 500) || "Vorgeschlagen aus dem Kontext.";
           withActions++;

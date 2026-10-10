@@ -7,7 +7,7 @@
  * say, the work ones go and the rest stays. Client-safe (data only).
  */
 
-export const PLUGIN_IDS = ["zeiterfassung", "weekly-report", "monthly-report", "todos", "tickets", "kanban", "jira-lage", "work", "auto-actions", "backup", "accounts", "knowledge", "people", "jira", "llm", "copilot-cli", "claude-cli", "outlook-mail", "gmail", "whatsapp", "keep", "keep-write", "outlook-calendar", "teams", "gitlab", "chrono", "punch"] as const;
+export const PLUGIN_IDS = ["zeiterfassung", "weekly-report", "monthly-report", "todos", "tickets", "kanban", "jira-lage", "work", "auto-actions", "backup", "accounts", "knowledge", "people", "jira", "llm", "copilot-cli", "claude-cli", "outlook-mail", "gmail", "whatsapp", "keep", "keep-write", "calendar", "google-calendar", "outlook-calendar", "teams", "gitlab", "chrono", "punch"] as const;
 export type PluginId = (typeof PLUGIN_IDS)[number];
 export const isPluginId = (v: unknown): v is PluginId => (PLUGIN_IDS as readonly unknown[]).includes(v);
 
@@ -366,13 +366,54 @@ export const PLUGINS: PluginManifest[] = [
     beta: "Zeff schreibt über Keeps eigene Web-Oberfläche — wie von Hand, in einem Tab der Automations-Chrome. Ändert Google diese Oberfläche, kann ein Schreiben scheitern oder nur zum Teil gelingen. Jede Änderung dauert etwa eine halbe Minute. Für Wichtiges: in Keep nachsehen.",
   },
   {
+    id: "calendar",
+    name: "Kalender",
+    description: "Ein Kalender für alles: deine eigenen Kalender in Zeff und die deiner Quellen (Outlook, Google Calendar) in einer Wochenansicht, jeder mit Farbe, ein- und ausblendbar. Zeff liest jede Quelle in sein eigenes Kalender-Modell — daraus kommen freie Zeiten für Terminvorschläge und die Meetings zum Buchen. Vorgeschlagene Termine deiner Todos stehen gestrichelt darin.",
+    category: "app",
+    defaultInstalled: false,
+    tabs: [{ href: "/kalender", label: "Kalender", short: "Kal." }],
+    settings: { href: "/kalender/einstellungen", what: "Deine Kalender, ihre Farben, welche belegt sind und gebucht werden" },
+    routes: ["/kalender"],
+    extensions: [
+      {
+        key: "entry-action",
+        for: "auto-actions",
+        name: "Termin im Zeff-Kalender",
+        description: "Auto-Aktionen schlagen für Todos Termine, Zeitblöcke und Erinnerungen vor — in eine freie Zeit; ein Klick trägt sie in deinen Zeff-Kalender ein.",
+        defaultInstalled: true,
+        actions: ["calendar-entry"],
+      },
+    ],
+  },
+  {
+    id: "google-calendar",
+    name: "Google Calendar",
+    description: "Liest deine Google-Kalender im Automations-Chrome des Kontos — die Wochenansicht in einem neuen Tab, Woche für Woche (die letzte, diese und drei kommende), dann wieder zu; in Google ändert sich nichts. Jeder Google-Kalender (deiner, Familie, Geburtstage …) steht in der Kalender-App, seine Termine zählen für freie Zeiten.",
+    category: "connector",
+    defaultInstalled: false,
+    requires: "Die Automations-Chrome des Kontos, bei Google angemeldet (calendar.google.com).",
+    dependsOn: ["calendar"],
+    syncSteps: ["gcalendar"],
+    services: ["gcalendar"],
+    extensions: [
+      {
+        key: "event-action",
+        for: "auto-actions",
+        name: "Termin in Google Calendar",
+        description: "Auto-Aktionen schlagen für Todos Termine in Google Calendar vor — in eine freie Zeit; ein Klick öffnet Googles Formular, ausgefüllt; speichern tust du selbst.",
+        defaultInstalled: true,
+        actions: ["gcal-event"],
+      },
+    ],
+  },
+  {
     id: "outlook-calendar",
     name: "Outlook Kalender",
     description: "Liest deine Termine aus Outlook (Automations-Chrome, Lesezeichen oder Microsoft-Anmeldung) — Meetings zum Buchen, mit Job- und Ausschlussregeln.",
     category: "connector",
     defaultInstalled: true,
     requires: "Die Automations-Chrome mit Outlook Web, angemeldet.",
-    apps: [{ href: "/calendar", label: "Kalender", short: "Kalender", hint: "Outlook-Termine, als Einträge übernehmen" }],
+    apps: [{ href: "/calendar", label: "Termine buchen", short: "Buchen", hint: "Meetings der Kalender, als Einträge übernehmen" }],
     routes: ["/calendar", "/import", "/api/calendar"],
     syncSteps: ["calendar"],
     services: ["outlook"],

@@ -32,6 +32,7 @@ const STATUS_TOOL: Partial<Record<ServiceId, [DriverId, string]>> = {
   gmail: ["gmail", "gmail_status"],
   whatsapp: ["whatsapp", "whatsapp_status"],
   keep: ["keep", "keep_status"],
+  gcalendar: ["google-calendar", "gcal_status"],
   chrono: ["chrono", "chrono_status"],
   punch: ["punch", "punch_status"],
 };

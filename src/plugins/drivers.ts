@@ -2,12 +2,12 @@ import path from "node:path";
 import { accountChrome } from "@/db/accounts";
 
 /** The plugins' browser drivers (MCP servers over stdio, run by Zeff) — Outlook Web serves the mail and the calendar plugin. */
-export type DriverId = "chrono" | "punch" | "teams" | "gitlab" | "outlook" | "gmail" | "whatsapp" | "keep";
+export type DriverId = "chrono" | "punch" | "teams" | "gitlab" | "outlook" | "gmail" | "whatsapp" | "keep" | "google-calendar";
 
 /** Where a plugin's driver is. */
 export const driverPath = (id: DriverId) => path.join(/*turbopackIgnore: true*/ process.cwd(), "src", "plugins", id, "driver.mjs");
 
-const ENDPOINTS = ["CHRONO_CDP_ENDPOINT", "TEAMS_CDP_ENDPOINT", "GITLAB_CDP_ENDPOINT", "OUTLOOK_CDP_ENDPOINT", "GMAIL_CDP_ENDPOINT", "WHATSAPP_CDP_ENDPOINT", "KEEP_CDP_ENDPOINT"] as const;
+const ENDPOINTS = ["CHRONO_CDP_ENDPOINT", "TEAMS_CDP_ENDPOINT", "GITLAB_CDP_ENDPOINT", "OUTLOOK_CDP_ENDPOINT", "GMAIL_CDP_ENDPOINT", "WHATSAPP_CDP_ENDPOINT", "KEEP_CDP_ENDPOINT", "GCAL_CDP_ENDPOINT"] as const;
 
 /**
  * The environment a driver runs in: the automation Chrome of the account it runs for (each
