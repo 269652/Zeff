@@ -13,7 +13,7 @@ import { extraBlock, getContextPrefs } from "./context-prefs";
 import { addFact } from "@/lib/facts";
 import { getPref, setPref } from "@/lib/prefs";
 import { duplicateTodo } from "./similar";
-import { addMailTodo, addTodoContext, lastGoodRun, listTodos, setTodoDue, setTodoStatus } from "./store";
+import { addMailTodo, addTodoContext, droppedByYou, lastGoodRun, listTodos, setTodoDue, setTodoStatus } from "./store";
 
 const { emails } = schema;
 
@@ -224,6 +224,8 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
     for (const batch of batches) {
       throwIfAborted();
       const open = listTodos({ status: "open" });
+      // What you dropped isn't proposed again (a new message in the same conversation isn't reason enough).
+      const dropped = droppedByYou();
       const prompt = [
         INSTRUCTIONS + extraBlock("mailtodos"),
         "",
@@ -296,7 +298,7 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
             if (dueDay(f.due)) setTodoDue(planned.id, f.due!);
             continue;
           }
-          if (duplicateTodo({ text, ops: [] }, open)) continue;
+          if (duplicateTodo({ text, ops: [] }, open) || duplicateTodo({ text, ops: [] }, dropped)) continue;
           const t = attributed(runId ? `lage:${runId}` : "mail", () =>
             addMailTodo({ ticket: todo.ticket, text, kind: "other", owner: "me", refs: [...refs, ...factRefs], runId, due: f.due ?? null }),
           );
@@ -315,7 +317,7 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
         const refs = (td.refs ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).map((r) => (r.startsWith("mail:") ? r : `mail:${r}`)).filter((r) => known.has(r));
         if (!text || !refs.length) continue;
         const ticket = td.ticket?.trim().toUpperCase() ?? "";
-        if (duplicateTodo({ text, ops: [] }, open)) continue;
+        if (duplicateTodo({ text, ops: [] }, open) || duplicateTodo({ text, ops: [] }, dropped)) continue;
         const t = attributed(runId ? `lage:${runId}` : "mail", () =>
           addMailTodo({ ticket: tickets.includes(ticket) ? ticket : "", text, kind: isTodoKind(td.kind) ? td.kind : "other", owner: td.owner === "other" ? "other" : "me", refs, runId, due: td.due ?? null }),
         );

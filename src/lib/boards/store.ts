@@ -237,6 +237,27 @@ export function doneTodos(limit = 300): TodoView[] {
     .map(toTodo);
 }
 
+/**
+ * The todos you dropped in the last `days` (dismissed by you, not by a run or another path taken):
+ * the reviews don't propose one like them again — a new message in the same conversation isn't
+ * reason enough.
+ */
+export function droppedByYou(days = 60): TodoView[] {
+  const since = new Date(Date.now() - days * 864e5).toISOString();
+  return getDb()
+    .select()
+    .from(todos)
+    .where(
+      and(
+        eq(todos.status, "dismissed"),
+        sql`${todos.doneAt} >= ${since}`,
+        sql`(select e.actor from todo_events e where e.todo_id = ${todos.id} and e.event = 'dismissed' order by e.id desc limit 1) = 'you'`,
+      ),
+    )
+    .all()
+    .map(toTodo);
+}
+
 /** The todos with these ids, by id. */
 export function todosByIds(ids: number[]): Map<number, TodoView> {
   const wanted = [...new Set(ids)].slice(0, 200);

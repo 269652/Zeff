@@ -4,7 +4,7 @@ import { attributed } from "@/lib/boards/activity";
 import { plain } from "@/lib/boards/collect";
 import { isTodoKind, TODO_KINDS } from "@/lib/boards/shared";
 import { duplicateTodo } from "@/lib/boards/similar";
-import { addNoteTodo, lastGoodRun, listTodos } from "@/lib/boards/store";
+import { addNoteTodo, droppedByYou, lastGoodRun, listTodos } from "@/lib/boards/store";
 import { errorMessage } from "@/lib/errors";
 import { emitChange } from "@/lib/events";
 import { getJiraTicket } from "@/lib/jira/store";
@@ -109,6 +109,8 @@ export function reviewNotesForTodos(runId: number | null = null): Promise<NoteTo
     let reviewed = theirs.length;
     for (const batch of batches) {
       const open = listTodos({ status: "open" });
+      // What you dropped isn't proposed again.
+      const dropped = droppedByYou();
       const prompt = [
         INSTRUCTIONS,
         "",
@@ -136,7 +138,7 @@ export function reviewNotesForTodos(runId: number | null = null): Promise<NoteTo
         const refs = (td.refs ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).map((r) => (r.startsWith("keep:") ? r : `keep:${r}`)).filter((r) => known.has(r));
         if (!text || !refs.length) continue;
         const ticket = td.ticket?.trim().toUpperCase() ?? "";
-        if (duplicateTodo({ text, ops: [] }, open)) continue;
+        if (duplicateTodo({ text, ops: [] }, open) || duplicateTodo({ text, ops: [] }, dropped)) continue;
         const t = attributed(runId ? `lage:${runId}` : "keep", () =>
           addNoteTodo({ ticket: tickets.includes(ticket) ? ticket : "", text, kind: isTodoKind(td.kind) ? td.kind : "other", owner: td.owner === "other" ? "other" : "me", refs, runId, due: td.due ?? null }),
         );
