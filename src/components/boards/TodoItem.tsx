@@ -182,6 +182,9 @@ export function TodoItem({
   // Proposed by the auto-actions review: folded behind "Show actions (n)" — they're suggestions.
   const proposed = t.ops.length > 0 && !closed && !!t.autoOpsWhy;
   const cameFrom = sourcesOf(t.refs, sources);
+  // Where a todo without a ticket came from: WhatsApp when its messages are all chats.
+  const msgs = cameFrom.filter((s) => s.source === "mail");
+  const origin = msgs.length && msgs.every((s) => s.source === "mail" && s.mail.folder === "WhatsApp") ? "WhatsApp" : "Mail";
   const context = useContextItems(cameFrom, [...t.userNotes, ...(t.relatedNotes ?? [])], t.id);
   // An agent on it asks you something and waits.
   const asking = !closed && t.needsInput ? t.needsInput : null;
@@ -234,7 +237,7 @@ export function TodoItem({
             {t.ref}
           </CopyButton>
           {/* Linked to more than one ticket (the same thing on both): all of them, the main one first. */}
-          {!t.ticket && <> · <span title="Aus einer Mail — zu keinem Ticket">aus Mail</span></>}
+          {!t.ticket && <> · <span title={`Aus ${origin === "WhatsApp" ? "WhatsApp" : "einer Mail"} — zu keinem Ticket`}>aus {origin}</span></>}
           {t.ticket && (showTicket || t.alsoTickets.length > 0) && (
             <>
               {" · "}
