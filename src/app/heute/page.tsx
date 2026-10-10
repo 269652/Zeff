@@ -94,8 +94,19 @@ async function heuteData() {
     };
   }
 
-  return { run, open, mine, asking, due, flagged, waiting, meetings, unanswered, hours, today, now };
+  // Syncs that keep failing — a driver whose page changed, a sign-in that ran out.
+  const { syncOverview } = await import("@/lib/sync/registry");
+  const { syncProblems } = await import("@/lib/sync/health");
+  const problems = syncProblems(syncOverview().steps, now);
+
+  return { run, open, mine, asking, due, flagged, waiting, meetings, unanswered, hours, problems, today, now };
 }
+
+const PROBLEM: Record<"login" | "chrome" | "broken", string> = {
+  login: "Anmeldung nötig",
+  chrome: "Automations-Chrome läuft nicht",
+  broken: "schlägt fehl",
+};
 
 /**
  * Heute: the day on one page — what the Lage says, what's due, what agents ask, today's meetings,
@@ -105,7 +116,7 @@ async function heuteData() {
 export default async function HeutePage() {
   await connection();
   if (!isInstalled("todos")) return <PluginNotInstalled id="todos" />;
-  const { run, mine, asking, due, flagged, waiting, meetings, unanswered, hours, today, now } = await heuteData();
+  const { run, mine, asking, due, flagged, waiting, meetings, unanswered, hours, problems, today, now } = await heuteData();
 
   const todo = (t: TodoView, extra?: React.ReactNode) => (
     <li key={t.id} className="flex items-baseline gap-2 text-sm">
@@ -147,6 +158,27 @@ export default async function HeutePage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
+        {problems.length > 0 && (
+          <Card title="Syncs mit Problemen" count={problems.length}>
+            <ul className="space-y-1.5">
+              {problems.map((p) => (
+                <li key={p.key} className="text-sm">
+                  <div className="flex items-baseline gap-2">
+                    <Link href={p.kind === "login" ? "/logins" : p.href} className="shrink-0 font-medium hover:underline">
+                      {p.label}
+                    </Link>
+                    <span className="min-w-0 flex-1 text-red-600 dark:text-red-400">{PROBLEM[p.kind]}</span>
+                    <span className="shrink-0 text-xs text-zinc-400">
+                      {p.failures}× · {ago(p.since, now)}
+                    </span>
+                  </div>
+                  {p.message && <p className="truncate text-xs text-zinc-500" title={p.message}>{p.message}</p>}
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
+
         {asking.length > 0 && (
           <Card title="Agenten fragen dich" count={asking.length}>
             <ul className="space-y-1.5">{asking.map((t) => todo(t, <span className="shrink-0 text-xs text-amber-600 dark:text-amber-400">❗</span>))}</ul>
