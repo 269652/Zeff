@@ -168,12 +168,36 @@ async function gcalEvents({ account = 0, weeks = 5, from = null, launch = false,
         const cut = c.calendar.slice(0, -1);
         const named = c.line.split(", ")[2];
         const cal = all.find((x) => x.id === c.calendar) ?? (cut.length > 3 ? all.find((x) => x.id.startsWith(cut)) : null) ?? all.find((x) => x.name === named) ?? null;
-        events.set(c.id, { key: c.id, calendarId: cal?.id ?? c.calendar ?? "", ...p });
+        // Where it opens to be changed: its id is Google's own event id (eid) — appointment schedules (appt_…) have none.
+        const url = c.id.startsWith("appt_") ? "" : `${base(account)}/r/eventedit/${c.id}${authuser(account)}`;
+        events.set(c.id, { key: c.id, calendarId: cal?.id ?? c.calendar ?? "", ...p, url });
       }
     }
     return JSON.stringify({ calendars: [...calendars.values()], events: [...events.values()], unparsed, from: start.toISOString().slice(0, 10) });
   } finally {
     await page.close().catch(() => {});
+    await browser.close().catch(() => {});
+  }
+}
+
+/** The Google accounts signed in in the automation Chrome (address, name, Google's account number) — Google's own list. */
+async function gcalAccounts() {
+  const browser = await connectToChrome(CDP, {});
+  try {
+    const ctx = browser.contexts()[0];
+    if (!ctx) return JSON.stringify({ accounts: [] });
+    const r = await ctx.request.get("https://accounts.google.com/ListAccounts?gpsia=1&source=ogb&mo=1&origin=https://calendar.google.com", { timeout: 20000 });
+    const text = await r.text();
+    // window.parent.postMessage('<the list, escaped>', …)
+    const raw = /postMessage\('(.*?)',\s*'/s.exec(text)?.[1];
+    if (!raw) return JSON.stringify({ accounts: [] });
+    const json = raw.replace(/\\x([0-9a-f]{2})/gi, (_, h) => String.fromCharCode(parseInt(h, 16))).replace(/\\\//g, "/");
+    const list = JSON.parse(json)?.[1] ?? [];
+    const accounts = list
+      .filter((a) => Array.isArray(a) && typeof a[3] === "string" && a[3].includes("@"))
+      .map((a, i) => ({ email: a[3].toLowerCase(), name: typeof a[2] === "string" ? a[2] : "", number: i }));
+    return JSON.stringify({ accounts });
+  } finally {
     await browser.close().catch(() => {});
   }
 }
@@ -202,10 +226,11 @@ async function gcalStatus() {
 
 const TOOLS = [
   { name: "gcal_status", description: "Check whether Chrome (with the debug port) is reachable and Google is signed in.", inputSchema: { type: "object", properties: {} } },
+  { name: "gcal_accounts", description: "The Google accounts signed in in the automation Chrome (address, name, account number) — read-only. Returns JSON { accounts }.", inputSchema: { type: "object", properties: {} } },
   {
     name: "gcal_events",
     description:
-      "Read Google Calendar — read-only: its week view in a fresh tab of the automation Chrome, week by week (from the week before), then the tab is closed. Returns JSON { calendars: [{id, name, color, shown}], events: [{key, calendarId, title, start, end, allDay, location}], unparsed, from } — local times.",
+      "Read Google Calendar — read-only: its week view in a fresh tab of the automation Chrome, week by week (from the week before), then the tab is closed. Returns JSON { calendars: [{id, name, color, shown}], events: [{key, calendarId, title, start, end, allDay, location, url}], unparsed, from } — local times; url opens the appointment in Google Calendar to change it.",
     inputSchema: {
       type: "object",
       properties: {
@@ -238,6 +263,7 @@ async function handle(msg) {
     const args = params?.arguments || {};
     try {
       if (name === "gcal_status") return ok(id, textResult(await gcalStatus()));
+      if (name === "gcal_accounts") return ok(id, textResult(await gcalAccounts()));
       if (name === "gcal_events") return ok(id, textResult(await withTabLock("Google Calendar", name, () => gcalEvents(args), debug)));
       return ok(id, textResult(`Unknown tool "${name}".`, true));
     } catch (e) {

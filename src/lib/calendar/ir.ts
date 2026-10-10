@@ -43,7 +43,7 @@ export type EventInput = {
 };
 
 const now = () => new Date().toISOString();
-const toView = (c: typeof calendars.$inferSelect): CalendarView => ({ id: c.id, key: c.key, source: c.source, name: c.name, color: c.color, visible: c.visible, busy: c.busy, book: c.book });
+const toView = (c: typeof calendars.$inferSelect): CalendarView => ({ id: c.id, key: c.key, source: c.source, name: c.name, color: c.color, visible: c.visible, busy: c.busy, book: c.book, todos: c.todos });
 const eventView = (e: typeof calendarEvents.$inferSelect): CalendarEventView => ({
   id: e.id,
   calendarId: e.calendarId,
@@ -85,7 +85,7 @@ const exdatesOf = (e: typeof calendarEvents.$inferSelect): string[] => {
  * A source's calendar, made the first time it's seen — its name follows the source; colour, shown,
  * busy and booking stay as you set them.
  */
-export function ensureCalendar(key: string, init: { source: CalendarSourceKind; name: string; color?: string; visible?: boolean; busy?: boolean; book?: boolean }): CalendarView {
+export function ensureCalendar(key: string, init: { source: CalendarSourceKind; name: string; color?: string; visible?: boolean; busy?: boolean; book?: boolean; todos?: boolean }): CalendarView {
   const db = getDb();
   const have = db.select().from(calendars).where(eq(calendars.key, key)).get();
   if (have) {
@@ -103,6 +103,8 @@ export function ensureCalendar(key: string, init: { source: CalendarSourceKind; 
       visible: init.visible ?? true,
       busy: init.busy ?? true,
       book: init.book ?? false,
+      // Zeff's own: what you put there is something you mean to do — a todo on its day.
+      todos: init.todos ?? init.source === "zeff",
       createdAt: now(),
       updatedAt: now(),
     })
@@ -124,7 +126,7 @@ export function listCalendars(): CalendarView[] {
     .sort((a, b) => order[a.source] - order[b.source]);
 }
 
-export function updateCalendar(id: number, patch: { name?: string; color?: string; visible?: boolean; busy?: boolean; book?: boolean }): CalendarView {
+export function updateCalendar(id: number, patch: { name?: string; color?: string; visible?: boolean; busy?: boolean; book?: boolean; todos?: boolean }): CalendarView {
   const db = getDb();
   const c = db.select().from(calendars).where(eq(calendars.id, id)).get();
   if (!c) throw new Error("Unbekannter Kalender.");
@@ -134,6 +136,7 @@ export function updateCalendar(id: number, patch: { name?: string; color?: strin
   if (typeof patch.visible === "boolean") set.visible = patch.visible;
   if (typeof patch.busy === "boolean") set.busy = patch.busy;
   if (typeof patch.book === "boolean") set.book = patch.book;
+  if (typeof patch.todos === "boolean") set.todos = patch.todos;
   return toView(db.update(calendars).set(set).where(eq(calendars.id, id)).returning().get());
 }
 

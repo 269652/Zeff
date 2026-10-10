@@ -71,3 +71,23 @@ export async function syncGoogleCalendar({ background = false } = {}): Promise<{
     flag.__zeffGcalSyncing = false;
   }
 }
+
+/** A Google account signed in in the automation Chrome (Google's account list). */
+export type SignedInGoogle = { email: string; name: string; number: number };
+
+/** The Google accounts signed in in the account's automation Chrome — null: Chrome isn't running (or didn't answer). */
+export async function signedInGoogleAccounts(): Promise<SignedInGoogle[] | null> {
+  if (!(await chromeUp())) return null;
+  try {
+    const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
+    const out = await runStdioSession(
+      { command: process.execPath, args: [driverPath("google-calendar")], env: automationEnv(), label: "Google accounts" },
+      async (call) => resultToPayload(await call("gcal_accounts", {})),
+      30000,
+    );
+    const data = (typeof out === "string" ? JSON.parse(out) : out) as { accounts?: SignedInGoogle[] };
+    return Array.isArray(data.accounts) ? data.accounts : null;
+  } catch {
+    return null;
+  }
+}
