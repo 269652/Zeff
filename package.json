@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"tests/**/*.test.ts\"",
     "deploy": "node scripts/deploy.mjs",
+    "eval:mail": "tsx scripts/eval-mail-review.mts",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx scripts/seed.ts",
