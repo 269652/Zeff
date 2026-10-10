@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { CLAUDE_MODELS, COPILOT_MODEL_SUGGESTIONS } from "@/lib/ai/shared";
 import { copilotModels } from "@/plugins/copilot-cli/cli";
-import { compilePages, compileRunning, compileStopping, compilingWith, stopCompile } from "@k/compile";
+import { compilePages, compileRunning, compileStopping, compilingWith, markForRecompile, recompileCalls, stopCompile } from "@k/compile";
 import { confluenceConfig, confluenceWhere } from "@k/confluence";
 import { ACCOUNT_NAME, counts, getSettings, lastRuns, saveSettings } from "@k/db";
 import { stopSync, syncPages, syncRunning } from "@k/ingest";
@@ -76,6 +76,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
   async function keep(fd: FormData) {
     "use server";
     await keepFromForm(fd, "/");
+  }
+  async function recompileAll(fd: FormData) {
+    "use server";
+    if (fd.get("sure") !== "1") redirect("/?done=notsure");
+    markForRecompile();
+    void compilePages();
+    revalidatePath("/");
+    redirect("/?done=recompile");
   }
   async function compile() {
     "use server";
@@ -184,6 +192,23 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
         ))}
       </section>
 
+      {!busy && c.pages > 0 && (
+        <details className="card p-4 text-sm">
+          <summary className="cursor-pointer font-medium">Alles neu kompilieren</summary>
+          <form action={recompileAll} className="mt-3 space-y-2">
+            <p className="text-zinc-600 dark:text-zinc-300">
+              Alle {c.pages} Seiten werden noch einmal von der KI ausgewertet — etwa {recompileCalls()} Aufrufe (ein Lauf macht höchstens 250, der Rest folgt mit dem nächsten Kompilieren). Sinnvoll nach einem Wechsel des Modells oder wenn die Auswertung besser geworden ist. Was
+              das Normalisieren zusammengeführt hat, bleibt zusammen. Einzelne Seiten: auf der Seite selbst „Neu kompilieren“.
+            </p>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" name="sure" value="1" required />
+              Ja, alle Seiten neu kompilieren
+            </label>
+            <button className="btn">Neu kompilieren</button>
+          </form>
+        </details>
+      )}
+
       <section className="card space-y-2 p-4">
         <div className="flex items-baseline justify-between gap-2">
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">Wissen hinzufügen</h2>
@@ -289,5 +314,7 @@ const DONE: Record<string, string> = {
   saved: "Gespeichert ✓ — gilt ab dem nächsten Lesen und der nächsten Frage.",
   sync: "Liest die Quellen und kompiliert danach, was neu ist — die Zahlen wachsen mit (die Seite lädt sich neu, solange es läuft).",
   compile: "Kompiliert die neuen und geänderten Seiten — die Zahlen wachsen mit.",
+  recompile: "Kompiliert alle Seiten neu — „kompiliert“ fällt erst auf 0 und wächst dann wieder.",
+  notsure: "Nicht neu kompiliert — erst das Häkchen setzen.",
   stop: "Wird angehalten — die laufenden Aufrufe enden noch und werden behalten.",
 };

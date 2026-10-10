@@ -1,4 +1,4 @@
-import { compilePages, compileRunning } from "./compile";
+import { compileSoon } from "./compile";
 import { htmlToText } from "./confluence";
 import { db } from "./db";
 import { removePage, storePage } from "./ingest";
@@ -59,12 +59,6 @@ async function prepare(v: OwnInput, keepTitle = ""): Promise<{ title: string; te
   if (!text && !title) throw new Error("Nichts zum Merken — ein Text oder ein Link.");
   title ||= keepTitle || text.split("\n").find((l) => l.trim())!.replace(/^#+\s*/, "").trim().slice(0, 90);
   return { title, text: text.slice(0, MAX_TEXT), url };
-}
-
-/** Compile what's new soon: now, or right after the run that's going (it chose its pages already). */
-function compileSoon(): void {
-  if (compileRunning()) void compilePages().then(() => void compilePages());
-  else void compilePages();
 }
 
 /** Something to keep: stored as a page of your own and compiled. Its id. */

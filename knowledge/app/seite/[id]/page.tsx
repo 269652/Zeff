@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
+import { compileRunning, compileSoon, markForRecompile } from "@k/compile";
 import { pageDetail } from "@k/graph";
 import { isOwn } from "@k/own";
 import { styleOf } from "@k/graph-style";
@@ -11,11 +13,19 @@ export const metadata: Metadata = { title: "Seite" };
 const day = (iso: string | null) => (iso ? new Date(iso).toLocaleString("de-DE", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
 
 /** One page of the knowledge: its text as read, and what compiling made of it — the summary, the entities it names (each into the graph), the relations it states. */
-export default async function KnowledgePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function KnowledgePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ done?: string }> }) {
   await connection();
   const id = decodeURIComponent((await params).id);
+  const { done } = await searchParams;
   const p = pageDetail(id);
   if (!p) notFound();
+  async function recompile() {
+    "use server";
+    markForRecompile([id]);
+    compileSoon();
+    revalidatePath(`/seite/${encodeURIComponent(id)}`);
+    redirect(`/seite/${encodeURIComponent(id)}?done=recompile`);
+  }
   const own = isOwn(p.id);
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
@@ -33,6 +43,11 @@ export default async function KnowledgePage({ params }: { params: Promise<{ id: 
                 Quelle öffnen ↗
               </a>
             )}
+            <form action={recompile}>
+              <button className="text-indigo-600 hover:underline dark:text-indigo-400" title="Die KI wertet die Seite noch einmal aus (Zusammenfassung, Entitäten, Beziehungen)">
+                Neu kompilieren
+              </button>
+            </form>
             {own && (
               <Link href={`/eigenes#${encodeURIComponent(p.id)}`} className="text-indigo-600 hover:underline dark:text-indigo-400">
                 Eigenes Wissen — bearbeiten
@@ -40,6 +55,7 @@ export default async function KnowledgePage({ params }: { params: Promise<{ id: 
             )}
           </div>
         </div>
+        {done === "recompile" && <p className="alert-ok">Wird neu kompiliert{compileRunning() ? " — nach dem laufenden Kompilieren" : ""}. Lade die Seite gleich neu.</p>}
         {p.summary ? (
           <p className="rounded-md bg-zinc-50 p-3 text-sm dark:bg-zinc-900">{p.summary}</p>
         ) : (
