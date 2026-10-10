@@ -242,3 +242,25 @@ export function compilePages(maxBatches = 250): Promise<CompileResult> {
   state.__knowledgeCompile = run;
   return run;
 }
+
+/**
+ * Compile again: the pages (all, or these) marked as not compiled — the next compile takes them.
+ * What normalizing merged stays merged (entity_keys). The pages marked.
+ */
+export function markForRecompile(ids?: string[]): number {
+  const d = db();
+  if (!ids) return d.prepare("update pages set compiled_version = null").run().changes;
+  const one = d.prepare("update pages set compiled_version = null where id = ?");
+  return d.transaction(() => ids.reduce((n, id) => n + one.run(id).changes, 0))();
+}
+
+/** How many AI calls compiling every page takes (one run makes at most 250; the rest the next). */
+export function recompileCalls(): number {
+  return batches(db().prepare("select id, title, space, body, version from pages").all() as PageRow[]).length;
+}
+
+/** Compile what's new soon: now, or right after the run that's going (it chose its pages already). */
+export function compileSoon(): void {
+  if (compileRunning()) void compilePages().then(() => void compilePages());
+  else void compilePages();
+}
