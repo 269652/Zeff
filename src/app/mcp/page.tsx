@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import { DEFAULT_ACCOUNT, accountsInstalled, listAccounts } from "@/db/accounts";
 
 export const metadata: Metadata = { title: "MCP setup" };
 
@@ -18,6 +19,8 @@ export default async function McpPage() {
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
   const proto = h.get("x-forwarded-proto") ?? (/^(localhost|127\.0\.0\.1)/.test(host) ? "http" : "https");
   const url = `${proto}://${host}/api/mcp`;
+  // Each account its own endpoint; /api/mcp is the first account's, never the one switched to.
+  const accounts = accountsInstalled() ? listAccounts() : [];
   const tokenSet = Boolean(process.env.ZEFF_MCP_TOKEN);
   const headerFlag = tokenSet ? ` --header "Authorization: Bearer <ZEFF_MCP_TOKEN>"` : "";
   const headersJson = tokenSet
@@ -57,6 +60,23 @@ export default async function McpPage() {
       <section className="card space-y-2 p-4">
         <h2 className="text-sm font-semibold text-zinc-500 uppercase">Endpoint</h2>
         <pre className="pre">{url}</pre>
+        {accounts.length > 1 && (
+          <>
+            <p className="text-sm">
+              One endpoint per account — an agent stays in its account, whichever one you switch to in Zeff:
+            </p>
+            <table className="table">
+              <tbody>
+                {accounts.map((a) => (
+                  <tr key={a.id}>
+                    <td className="whitespace-nowrap">{a.name}</td>
+                    <td className="font-mono">{a.id === DEFAULT_ACCOUNT ? url : `${url}/${a.id}`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
         <p className="text-sm text-zinc-500">
           {tokenSet ? (
             <>
