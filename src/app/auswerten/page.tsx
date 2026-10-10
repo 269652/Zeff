@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { ContextStepForm } from "@/components/ContextStepForm";
+import { aiQuality, STALE_DAYS, type AiQuality } from "@/lib/ai-quality";
 import { getContextPrefs } from "@/lib/boards/context-prefs";
 import { CONTEXT_STEPS } from "@/lib/boards/context-prefs-shared";
 import { installedPlugins } from "@/plugins/state";
@@ -13,11 +14,13 @@ export const metadata: Metadata = { title: "Auswerten" };
  * messages, the assignment, the auto-actions, the reply drafts: their sources, how far back, how
  * much, and instructions of your own. Steps and sources of plugins that aren't installed don't show.
  */
-export default async function AuswertenPage() {
+export default async function AuswertenPage({ searchParams }: { searchParams: Promise<{ zeit?: string }> }) {
   await connection();
   const on = installedPlugins();
   const prefs = getContextPrefs();
   const steps = CONTEXT_STEPS.filter((s) => !s.plugin || on.has(s.plugin));
+  const all = (await searchParams).zeit === "alle";
+  const quality = aiQuality(all ? null : 30);
   return (
     <div className="page">
       <div className="page-aside">
@@ -38,6 +41,9 @@ export default async function AuswertenPage() {
           .
         </p>
         <nav className="flex flex-col gap-0.5 text-sm" aria-label="Schritte">
+          <a href="#qualitaet" className="rounded px-2 py-1 text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
+            Wie gut es war
+          </a>
           {steps.map((s) => (
             <a key={s.id} href={`#${s.id}`} className="rounded px-2 py-1 text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
               {s.label}
@@ -45,6 +51,7 @@ export default async function AuswertenPage() {
           ))}
         </nav>
       </div>
+      <Quality q={quality} all={all} />
       {steps.map((s) => (
         <section key={s.id} id={s.id} className="card scroll-mt-4 space-y-3 p-4">
           <div>
@@ -55,5 +62,95 @@ export default async function AuswertenPage() {
         </section>
       ))}
     </div>
+  );
+}
+
+const pct = (x: number | null) => (x === null ? "–" : `${Math.round(x * 100)} %`);
+const days = (x: number | null) => (x === null ? "–" : x < 1 ? "< 1 Tag" : `${x.toFixed(1).replace(".", ",")} Tage`);
+
+/** How well the steps did: what became of the todos each made — and what was proposed again after you dropped it. */
+function Quality({ q, all }: { q: AiQuality; all: boolean }) {
+  const tab = (on: boolean) => `rounded px-2 py-0.5 ${on ? "bg-zinc-200 font-medium dark:bg-zinc-700" : "text-indigo-600 hover:underline dark:text-indigo-400"}`;
+  return (
+    <section id="qualitaet" className="card scroll-mt-4 space-y-3 p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <h2 className="font-medium">Wie gut es war</h2>
+          <p className="text-sm text-zinc-500">
+            Was aus den Todos jedes Schritts wurde. Was du verwirfst, wolltest du nicht: die <em>Trefferquote</em> ist erledigt ÷ (erledigt + von dir verworfen). Von der KI selbst
+            zurückgenommene (überholt, anderer Weg) zählen nicht dagegen.
+          </p>
+        </div>
+        <div className="flex gap-1 text-sm">
+          <a href="?zeit=30#qualitaet" className={tab(!all)}>
+            30 Tage
+          </a>
+          <a href="?zeit=alle#qualitaet" className={tab(all)}>
+            Alle
+          </a>
+        </div>
+      </div>
+      {q.rows.length ? (
+        <div className="overflow-x-auto">
+          <table className="table text-sm">
+            <thead>
+              <tr className="text-left text-xs text-zinc-500">
+                <th>Schritt</th>
+                <th className="text-right">Neu</th>
+                <th className="text-right">Erledigt</th>
+                <th className="text-right" title="Von dir verworfen">Verworfen</th>
+                <th className="text-right" title="Von der KI zurückgenommen (überholt) oder ein anderer Weg genommen">Zurückgenommen</th>
+                <th className="text-right" title="Von dir wieder geöffnet — zu früh geschlossen">Wieder offen</th>
+                <th className="text-right" title={`In Klammern: seit ${STALE_DAYS} Tagen unberührt`}>Offen</th>
+                <th className="text-right">Trefferquote</th>
+                <th className="text-right" title="Median: angelegt bis erledigt">Bis erledigt</th>
+              </tr>
+            </thead>
+            <tbody>
+              {q.rows.map((r) => (
+                <tr key={r.origin} className={r.origin === "auto-actions" ? "border-t border-zinc-200 dark:border-zinc-800" : ""}>
+                  <td className="whitespace-nowrap">{r.label}</td>
+                  <td className="text-right tabular-nums">{r.created}</td>
+                  <td className="text-right tabular-nums">{r.done}</td>
+                  <td className={`text-right tabular-nums ${r.dismissedByYou ? "text-red-600 dark:text-red-400" : ""}`}>{r.dismissedByYou}</td>
+                  <td className="text-right text-zinc-500 tabular-nums">{r.withdrawn}</td>
+                  <td className="text-right tabular-nums">{r.reopenedByYou}</td>
+                  <td className="text-right tabular-nums">
+                    {r.open}
+                    {r.stale ? <span className="text-amber-600 dark:text-amber-400"> ({r.stale})</span> : null}
+                  </td>
+                  <td className={`text-right font-medium tabular-nums ${r.hitRate !== null && r.hitRate < 0.5 ? "text-red-600 dark:text-red-400" : ""}`}>{pct(r.hitRate)}</td>
+                  <td className="text-right text-zinc-500 tabular-nums">{days(r.medianDaysToDone)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="text-sm text-zinc-400">{all ? "Noch keine Todos." : "Keine neuen Todos in den letzten 30 Tagen."}</p>
+      )}
+      {q.repeats.length > 0 && (
+        <div className="space-y-1">
+          <h3 className="text-sm font-medium">Erneut vorgeschlagen, nachdem du es verworfen hattest</h3>
+          <ul className="space-y-1 text-sm">
+            {q.repeats.slice(0, 10).map((r) => (
+              <li key={r.id} className="flex flex-wrap items-baseline gap-x-2">
+                <Link href={`/t/${r.id}`} className="font-mono text-xs text-zinc-400 hover:underline">
+                  {r.ref}
+                </Link>
+                <span className="min-w-0 flex-1">{r.text}</span>
+                <span className="text-xs text-zinc-500">
+                  wie{" "}
+                  <Link href={`/t/${r.like.id}`} className="font-mono hover:underline">
+                    {r.like.ref}
+                  </Link>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-zinc-500">Die Mail- und die Notiz-Durchsicht legen so etwas nicht mehr an: was du in den letzten 60 Tagen verworfen hast, gilt für sie als schon da.</p>
+        </div>
+      )}
+    </section>
   );
 }
