@@ -1,6 +1,5 @@
 /** The GitLab plugin's actions, run: through the automation Chrome (and GitLab's API where it can). Server only. */
 import type { TodoOp } from "@/lib/boards/shared";
-import { forgetBranchWork } from "@/lib/branches";
 import { mergeGitlabMr, openGitlabMr, postGitlabReply, resolveGitlabThread } from "@/lib/gitlab/reply";
 import { gitlabItemsByKeys, setGitlabState } from "@/lib/gitlab/store";
 import { setGitlabResolved } from "@/lib/resolved";
@@ -63,7 +62,6 @@ export async function runGitlabOpenMr(op: Extract<TodoOp, { type: "gitlab-open-m
 /** A merge request merged. */
 export async function runGitlabMerge(op: Extract<TodoOp, { type: "gitlab-merge" }>): Promise<ActionResult> {
       const r = await mergeGitlabMr(op.project, op.iid);
-      forgetBranchWork();
       return {
         what: r.already
           ? t("!{iid} was already merged", { iid: op.iid })

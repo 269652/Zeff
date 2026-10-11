@@ -1,4 +1,4 @@
-import { execFile, execFileSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -185,41 +185,4 @@ export function localBranches(dir: string): string[] {
   } catch {
     return [];
   }
-}
-
-const branchCache = globalThis as unknown as { __zeffLocalBranches?: Map<string, { at: number; list: string[]; reading?: boolean }> };
-
-/**
- * A repo's local branches for a page — as last read, never waited for: git is asked in the
- * background (at most once a minute), the Work tab refreshing once something changed.
- */
-export function cachedLocalBranches(dir: string): string[] {
-  const cache = (branchCache.__zeffLocalBranches ??= new Map());
-  const hit = cache.get(dir);
-  if ((!hit || Date.now() - hit.at >= 60000) && !hit?.reading) {
-    cache.set(dir, { at: hit?.at ?? 0, list: hit?.list ?? [], reading: true });
-    execFile("git", ["for-each-ref", "--sort=-committerdate", "--count=50", "--format=%(refname:short)", "refs/heads"], { cwd: dir, encoding: "utf8", timeout: 15000, windowsHide: true }, (err, out) => {
-      const list = err ? (hit?.list ?? []) : String(out).split("\n").map((b) => b.trim()).filter(Boolean);
-      cache.set(dir, { at: Date.now(), list });
-      if (JSON.stringify(list) !== JSON.stringify(hit?.list ?? [])) void import("@/lib/events").then((m) => m.emitChange("branches"));
-    });
-  }
-  return hit?.list ?? [];
-}
-
-/**
- * Switch a repo's checkout to one of its local branches (git switch — what's not committed
- * comes along, or git refuses and says why). The branch it's on afterwards.
- */
-export function switchBranch(id: number, branch: string): string {
-  const repo = listRepos().find((r) => r.id === id);
-  if (!repo?.ok) throw new NotFoundError(t("That repo isn't there (or its folder is missing)."));
-  if (!localBranches(repo.path).includes(branch)) throw new ValidationError(t("{branch} isn't a local branch of {repo}.", { branch, repo: repo.name }));
-  try {
-    execFileSync("git", ["switch", branch], { cwd: repo.path, encoding: "utf8", timeout: 60000, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
-  } catch (e) {
-    const err = e as { stderr?: string; message: string };
-    throw new ValidationError(`git switch ${branch}: ${String(err.stderr || err.message).trim().slice(0, 400)}`);
-  }
-  return branchOf(repo.path) ?? branch;
 }

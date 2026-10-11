@@ -161,20 +161,11 @@ export function SessionSidebar({
           {showArchived ? t("Hide archived") : t("Show archived ({n})", { n: archivedCount })}
         </Link>
       )}
-      <nav className="flex flex-wrap gap-x-3 gap-y-1 border-t border-zinc-200 pt-3 text-xs dark:border-zinc-800" aria-label="More views">
-        {(
-          [
-            ["todos", "Todos"],
-            ["runs", "Runs"],
-            ["branches", "Branches"],
-            ["settings", "Settings"],
-          ] as const
-        ).map(([k, label]) => (
-          <Link key={k} href={`/work?tab=${k}`} className="text-indigo-600 hover:underline dark:text-indigo-400">
-            {label}
-          </Link>
-        ))}
-      </nav>
+      <div className="border-t border-zinc-200 pt-3 text-xs dark:border-zinc-800">
+        <Link href="/settings#work" className="text-indigo-600 hover:underline dark:text-indigo-400">
+          {t("Work settings")}
+        </Link>
+      </div>
     </div>
   );
 }

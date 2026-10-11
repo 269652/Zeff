@@ -15,7 +15,7 @@ import {
   type TodoStatus,
   type TodoView,
 } from "@/lib/boards/shared";
-import { OpChips } from "../work/WorkTodo";
+import { OpChips } from "./OpChips";
 import type { TicketCard } from "@/lib/jira/ticket-card-shared";
 import { isChatFolder } from "@/lib/mail/shared";
 import { CopyButton } from "../CopyButton";

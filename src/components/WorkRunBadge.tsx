@@ -43,7 +43,7 @@ export function WorkRunBadge({ r, className = "", expanded = false, onToggle }: 
       ) : (
         <span className={INNER}>{body}</span>
       )}
-      <Link href={`/work#w-${r.id}`} className="flex shrink-0 items-center px-2 text-violet-700 transition hover:bg-violet-100 dark:text-violet-300 dark:hover:bg-violet-950" title={t("Open the run on the Work tab")}>
+      <Link href={`/work?run=${r.id}`} className="flex shrink-0 items-center px-2 text-violet-700 transition hover:bg-violet-100 dark:text-violet-300 dark:hover:bg-violet-950" title={t("Open the run on the Work tab")}>
         ↗
       </Link>
     </div>

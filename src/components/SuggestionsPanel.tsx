@@ -27,7 +27,7 @@ function Evidence({ s }: { s: SuggestionView }) {
       ))}
       {s.runs.map((r) => (
         <li key={`w${r.id}`} className="flex gap-1.5">
-          <Link href={`/work#w-${r.id}`} className="shrink-0 font-mono text-violet-600 hover:underline dark:text-violet-400">
+          <Link href={`/work?run=${r.id}`} className="shrink-0 font-mono text-violet-600 hover:underline dark:text-violet-400">
             {r.ref}
           </Link>
           <span className="min-w-0" title={r.summary ?? undefined}>
