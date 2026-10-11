@@ -65,7 +65,8 @@ async function launchWorker(id: number, w: { command: string; args: string[]; cw
   const out = fs.openSync(/*turbopackIgnore: true*/ logPath(id), "a");
   const err = fs.openSync(/*turbopackIgnore: true*/ errPath(id), "a");
   const account = currentAccountId();
-  const child = spawn(/*turbopackIgnore: true*/ w.command, w.args, { cwd: w.cwd, env: workerEnv(id) as NodeJS.ProcessEnv, stdio: ["pipe", out, err], windowsHide: true, detached: true });
+  // (Not detached on Windows — see scripts/work-host.mjs: no console means a window per console program the worker starts.)
+  const child = spawn(/*turbopackIgnore: true*/ w.command, w.args, { cwd: w.cwd, env: workerEnv(id) as NodeJS.ProcessEnv, stdio: ["pipe", out, err], windowsHide: true, detached: process.platform !== "win32" });
   fs.closeSync(out);
   fs.closeSync(err);
   child.on("error", (e) => {
