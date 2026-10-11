@@ -18,7 +18,7 @@ export function LlmSettingsForm({
 }: {
   initial: LlmSettings;
   /** The installed backends. */
-  providers: { id: "copilot" | "claude"; label: string }[];
+  providers: { id: "copilot" | "claude" | "codex"; label: string }[];
   /** What each task runs with now. */
   effective: Record<string, { provider: string; model: string }>;
 }) {
@@ -104,7 +104,7 @@ export function LlmSettingsForm({
                     />
                   </td>
                   <td className="text-xs text-zinc-500">
-                    {effective[task.id]?.provider === "claude" ? "Claude CLI" : "Copilot CLI"}
+                    {effective[task.id]?.provider === "claude" ? "Claude CLI" : effective[task.id]?.provider === "codex" ? "ChatGPT" : "Copilot CLI"}
                     {effective[task.id]?.model ? ` · ${effective[task.id].model}` : ""}
                   </td>
                 </tr>

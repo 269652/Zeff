@@ -84,7 +84,9 @@ export function workPageData(copilot: string[] = []): WorkPageData {
   for (const todo of todos) if (todo.workRunId && todo.parentId) (created[todo.workRunId] ??= []).push({ id: todo.id, text: todo.text, done: todo.status !== "open" });
 
   const app = getAppSettings();
-  const preferred = aiChoice().provider;
+  // (ChatGPT has no workers yet: then Claude, else Copilot.)
+  const chosen = aiChoice().provider;
+  const preferred: "claude" | "copilot" = chosen === "codex" ? (aiProviders().some((p) => p.id === "claude") ? "claude" : "copilot") : chosen;
   const repos = listRepos();
   const branchesOf = new Map(repos.filter((r) => r.ok).map((r) => [r.id, cachedLocalBranches(r.path)]));
   const repoOf = Object.fromEntries(
@@ -105,7 +107,7 @@ export function workPageData(copilot: string[] = []): WorkPageData {
     created,
     active: runsByStatus(["queued", "running"]).map(toRunView),
     history: recentRuns(30),
-    providers: aiProviders().map((p) => ({ id: p.id, label: p.id === "copilot" ? "Copilot" : "Claude", found: !!p.found })),
+    providers: aiProviders().flatMap((p) => (p.id === "codex" ? [] : [{ id: p.id, label: p.id === "copilot" ? "Copilot" : "Claude", found: !!p.found }])),
     preferred,
     repos: repos.map((r) => ({ name: r.name, ok: r.ok })),
     repoOf,

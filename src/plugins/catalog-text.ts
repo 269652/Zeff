@@ -81,6 +81,8 @@ export const catalogTexts = (t: T) => [
   t("The Copilot CLI (npm install -g @github/copilot), signed in once (copilot → /login)."),
   t("Claude Code as the AI for the briefing and the workers — with model choice, permission mode and sending to Jira."),
   t("The Claude CLI (claude), signed in."),
+  t("ChatGPT as the AI for the briefing, the mail steps and the other AI tasks — through OpenAI's Codex CLI, signed in with your ChatGPT account."),
+  t("The Codex CLI (npm install -g @openai/codex), signed in once (codex login)."),
   t("Reads your inbox in Outlook Web (only the list, nothing is opened) — mails as context for todos, the mail review and mail matching."),
   t("The automation Chrome with Outlook Web, signed in."),
   t("Which Outlook folders are read"),

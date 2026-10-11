@@ -7,7 +7,7 @@ import { revalidateAll, str, type ActionState } from "@/app/action-helpers";
 
 /** Settings (app-wide: the AI provider analyses run through) — its server actions (each answers an ActionState unless it says otherwise). */
 
-/** The AI provider (Claude Code or Copilot CLI) and each one's model. */
+/** The AI provider (Claude Code, Copilot or Codex CLI) and each one's model. */
 export async function saveAiSettingsAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const { isAiProvider, isClaudeModel, AI_PROVIDER_INFO } = await import("@/lib/ai/shared");
   const provider = str(fd, "aiProvider") ?? "";
@@ -16,8 +16,11 @@ export async function saveAiSettingsAction(_prev: ActionState, fd: FormData): Pr
   if (!isClaudeModel(claudeModel)) return { ok: false, error: t("Unknown Claude model.") };
   const copilotModel = (str(fd, "copilotModel") ?? "").trim();
   if (copilotModel && !/^[\w.:-]{2,60}$/.test(copilotModel)) return { ok: false, error: t("A Copilot model name, like gpt-5.4 or claude-haiku-4.5.") };
-  const { updateAppSettings } = await import("@/lib/ai");
-  updateAppSettings({ aiProvider: provider, claudeModel, copilotModel });
+  const { getAppSettings, updateAppSettings } = await import("@/lib/ai");
+  // ChatGPT's model: from its card (when the plugin is installed), else as it was.
+  const codexModel = fd.has("codexModel") ? (str(fd, "codexModel") ?? "").trim() : getAppSettings().codexModel;
+  if (codexModel && !/^[\w.:-]{2,60}$/.test(codexModel)) return { ok: false, error: t("A ChatGPT model name, like gpt-5.5.") };
+  updateAppSettings({ aiProvider: provider, claudeModel, copilotModel, codexModel });
   revalidateAll();
   return { ok: true, message: t("Analyses now run through the {provider}.", { provider: AI_PROVIDER_INFO[provider].label }) };
 }
@@ -46,7 +49,7 @@ export async function saveLlmSettingsAction(v: { instructions: string; context: 
     saveLlmSettings({
       instructions: String(v?.instructions ?? ""),
       context: String(v?.context ?? ""),
-      tasks: Object.fromEntries(Object.entries(v?.tasks ?? {}).map(([k, x]) => [k, { provider: x?.provider === "copilot" || x?.provider === "claude" ? x.provider : "", model: String(x?.model ?? "") }])),
+      tasks: Object.fromEntries(Object.entries(v?.tasks ?? {}).map(([k, x]) => [k, { provider: x?.provider === "copilot" || x?.provider === "claude" || x?.provider === "codex" ? x.provider : "", model: String(x?.model ?? "") }])),
     });
     revalidatePath("/llm");
     return { ok: true, message: t("LLM settings saved — they apply from the next task on.") };

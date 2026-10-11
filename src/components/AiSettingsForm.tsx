@@ -24,14 +24,16 @@ function TestButton({ provider, disabled }: { provider: AiProvider; disabled: bo
 }
 
 /**
- * Which AI provider analyses run through (the Todos tab's): the Claude Code CLI or GitHub's
- * Copilot CLI — each shown with where its CLI was found (or how to get it), its model, and a test.
+ * Which AI provider analyses run through (the Todos tab's): the Claude Code CLI, GitHub's
+ * Copilot CLI or OpenAI's Codex CLI (ChatGPT) — each shown with where its CLI was found (or how to get it), its model, and a test.
  */
 export function AiSettingsForm({
   provider,
   claudeModel,
   copilotModel,
   copilotModels = [],
+  codexModel = "",
+  codexModels = [],
   found,
   installed,
 }: {
@@ -42,6 +44,9 @@ export function AiSettingsForm({
   copilotModel: string;
   /** The models the installed Copilot CLI takes (empty: unknown — then a text field). */
   copilotModels?: string[];
+  codexModel?: string;
+  /** The models the Codex CLI offers your ChatGPT account (empty: unknown — then a text field). */
+  codexModels?: { id: string; label: string }[];
   /** Where each CLI is, as found on this machine (null: not installed). */
   found: Partial<Record<AiProvider, string | null>>;
 }) {
@@ -126,6 +131,25 @@ export function AiSettingsForm({
                   ))}
                 </datalist>
               </>
+            )}
+          </span>,
+        )}
+        {installed.includes("codex") && card(
+          "codex",
+          <span className="block min-w-48">
+            <span className="label">{t("Model")}</span>
+            {codexModels.length ? (
+              <select name="codexModel" className="input" defaultValue={codexModel} title={t("The models the Codex CLI offers your ChatGPT account")}>
+                <option value="">{t("ChatGPT's default")}</option>
+                {codexModel && !codexModels.some((m) => m.id === codexModel) && <option value={codexModel}>{t("{model} (not offered any more)", { model: codexModel })}</option>}
+                {codexModels.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input name="codexModel" className="input font-mono text-xs" defaultValue={codexModel} placeholder={t("empty: ChatGPT's default")} />
             )}
           </span>,
         )}

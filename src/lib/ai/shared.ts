@@ -6,7 +6,7 @@ const en = translator("en");
 /** An AI provider's answer: the output (JSON as asked for), the model, what it cost, how long it took. */
 export type AiAnswer<T> = { output: T; model: string | null; costUsd: number | null; durationMs: number | null };
 
-export const AI_PROVIDERS = ["claude", "copilot"] as const;
+export const AI_PROVIDERS = ["claude", "copilot", "codex"] as const;
 export type AiProvider = (typeof AI_PROVIDERS)[number];
 
 export const isAiProvider = (v: unknown): v is AiProvider => (AI_PROVIDERS as readonly unknown[]).includes(v);
@@ -22,6 +22,11 @@ export const aiProviderInfo = (t: Translate): Record<AiProvider, { label: string
     label: "GitHub Copilot CLI",
     signIn: t("Signed in through copilot → /login (or a GH_TOKEN)."),
     install: t("npm install -g @github/copilot — then start copilot once and run /login."),
+  },
+  codex: {
+    label: "ChatGPT (Codex CLI)",
+    signIn: t("Signed in with your ChatGPT account (codex login)."),
+    install: t("npm install -g @openai/codex — then run codex login once."),
   },
 });
 /** In English (the labels are names; use aiProviderInfo(t) for the texts). */

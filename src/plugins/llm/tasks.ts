@@ -28,7 +28,7 @@ export type LlmTaskId = (typeof LLM_TASKS)[number]["id"];
 export const isLlmTask = (v: unknown): v is LlmTaskId => LLM_TASKS.some((t) => t.id === v);
 
 /** A task's own backend and model ("" = the default). */
-export type LlmTaskSetting = { provider?: "" | "copilot" | "claude"; model?: string };
+export type LlmTaskSetting = { provider?: "" | "copilot" | "claude" | "codex"; model?: string };
 
 export type LlmSettings = {
   /** What goes with every prompt and to every agent: how to work, what never to do. */
