@@ -25,15 +25,24 @@
  *
  * A release — what goes out to others (npm run release):
  *
- *   node scripts/dist.mjs --release [--ref <commit|tag>]
+ *   node scripts/dist.mjs --release [--ref <commit|tag>] [--no-check] [--allow-dirty]
  *
  * builds from a commit (default HEAD) — exactly what's committed there, nothing uncommitted, no tests
  * or fixtures — in <temp>/zeff-release (outside the checkout: never dist/, which the running
  * launcher may use, and Next doesn't take the checkout for the project), and packs it as
  * dist/release/Zeff-<version>-<os>-<arch>.zip (Linux: .tar.gz; version: the tag, else the commit).
  * Nothing of this machine goes in: no zeff-launcher.json, no data, no .env.
+ *
+ *   - It refuses when the working tree has uncommitted changes that belong in the build (they would be
+ *     left out): commit them, or --allow-dirty to build the commit as it is. --ref <other commit> doesn't
+ *     look at the working tree.
+ *   - It ends by printing the archive, its size and sha256 (also written to <archive>.sha256) and the
+ *     version, then checks the archive it just built (scripts/smoke-release.mjs: unpack, start with a
+ *     bare PATH, open the pages, check the files). The exit code is 1 when the check fails; --no-check
+ *     skips it (the release workflow runs it as its own step).
  */
 import { execFileSync, spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -75,6 +84,40 @@ const electronFrom = path.join(root, "launcher");
 const tarExe = WIN ? path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe") : "tar";
 const git = (gitArgs) => execFileSync("git", gitArgs, { cwd: root, encoding: "utf8" }).trim();
 const version = release ? git(["describe", "--tags", "--always", ref]) : null;
+const commit = release ? git(["rev-parse", "--short=12", ref]) : null;
+/** The tag when the commit is exactly one (a clean release), else null. */
+const exactTag = release
+  ? (() => {
+      try {
+        return execFileSync("git", ["describe", "--tags", "--exact-match", ref], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+      } catch {
+        return null;
+      }
+    })()
+  : null;
+
+/**
+ * A release is built from a commit: uncommitted changes aren't in it. When that is HEAD and the working
+ * tree has changes that belong in the build, stop (they'd be left out unnoticed) — unless --allow-dirty.
+ * What isn't shipped anyway (tests/, fixtures/, .github/) doesn't count.
+ */
+function checkWorkingTree() {
+  if (ref !== "HEAD") return;
+  // not git(): its trim() would eat the first line's leading status column
+  const changed = execFileSync("git", ["status", "--porcelain", "--untracked-files=all"], { cwd: root, encoding: "utf8" })
+    .split("\n")
+    .map((l) => l.slice(3).trim().replace(/^"|"$/g, ""))
+    .filter(Boolean);
+  const relevant = changed.filter((f) => !/^(tests|fixtures|\.github)\//.test(f));
+  if (relevant.length && !args.has("--allow-dirty")) {
+    console.error(`\n✘ The working tree has ${relevant.length} uncommitted change(s) that belong in the release — a release is built from the commit, so they would be left out:`);
+    for (const f of relevant.slice(0, 15)) console.error(`    ${f}`);
+    if (relevant.length > 15) console.error(`    … and ${relevant.length - 15} more`);
+    console.error("  Commit them (and tag the release: git tag v1.2.3), build another commit with --ref <commit|tag>, or build this commit as it is with --allow-dirty.");
+    process.exit(1);
+  }
+  if (changed.length) console.log(`(Uncommitted changes are not in the release: ${changed.length} file(s)${relevant.length ? " — --allow-dirty" : ", none of which is shipped"}.)`);
+}
 
 const step = (msg) => console.log(`\n▶ ${msg}`);
 const run = (cmd, argv, opts = {}) => {
@@ -98,7 +141,6 @@ function buildApp() {
   let n = 0;
   if (release) {
     step(`Sources of ${ref} (${version}) — what's committed, minus launcher/, tests/, fixtures/`);
-    if (git(["status", "--porcelain"])) console.log("(The working tree has uncommitted changes — they're not in the release.)");
     // node_modules come from the checkout: its dependencies should be the commit's.
     if (spawnSync("git", ["diff", "--quiet", ref, "--", "package-lock.json"], { cwd: root }).status !== 0) console.log(`(package-lock.json differs from ${ref} — node_modules are the checkout's; run npm ci at ${ref} for an exact match.)`);
     fs.rmSync(staging, { recursive: true, force: true });
@@ -128,7 +170,9 @@ function buildApp() {
   console.log(`${n} files`);
 
   step("Copying node_modules");
-  copyDir(path.join(root, "node_modules"), path.join(app, "node_modules"), (rel) => rel.startsWith(".cache"));
+  // realpath: a node_modules that is a junction/symlink (a git worktree sharing the main checkout's) is copied as a
+  // folder — copied as a link, `npm prune` below would strip the dev dependencies of the folder it points to.
+  copyDir(fs.realpathSync(path.join(root, "node_modules")), path.join(app, "node_modules"), (rel) => rel.startsWith(".cache"));
 
   const skipCache = (rel) => rel === "cache" || rel.startsWith(`cache${path.sep}`);
   if (args.has("--skip-build")) {
@@ -340,6 +384,10 @@ function signMac() {
   run("codesign", ["--verify", "--strict", out]);
 }
 
+if (release) {
+  checkWorkingTree();
+  console.log(`Release ${version} (${exactTag ? `tag ${exactTag}, ` : "no tag on this commit, "}commit ${commit}) for ${target}`);
+}
 if (args.has("--launcher-only")) {
   if (!fs.existsSync(app)) throw new Error(`${app} doesn't exist yet — run without --launcher-only first.`);
 } else {
@@ -356,13 +404,28 @@ if (release) {
   if (mine.length) throw new Error(`Not for a release: ${mine.join(", ")} in ${bundle}.`);
 }
 
+/** sha256 of a file, streamed (an archive is hundreds of MB). */
+function sha256(file) {
+  const hash = crypto.createHash("sha256");
+  const fd = fs.openSync(file, "r");
+  const buf = Buffer.alloc(8 * 1024 * 1024);
+  try {
+    for (let n; (n = fs.readSync(fd, buf, 0, buf.length, null)) > 0; ) hash.update(buf.subarray(0, n));
+  } finally {
+    fs.closeSync(fd);
+  }
+  return hash.digest("hex");
+}
+
+let archive = null;
 if (args.has("--zip") || release) {
   step("Packing");
   const ext = PLATFORM === "linux" ? "tar.gz" : "zip";
   const name = release ? `Zeff-${version}-${target}.${ext}` : `Zeff.${ext}`;
-  const archive = path.join(root, "dist", ...(release ? ["release"] : []), name);
+  archive = path.join(root, "dist", ...(release ? ["release"] : []), name);
   fs.mkdirSync(path.dirname(archive), { recursive: true });
   fs.rmSync(archive, { force: true });
+  fs.rmSync(`${archive}.sha256`, { force: true });
   if (WIN) run(tarExe, ["-a", "-c", "-f", archive, "Zeff"], { cwd: path.dirname(top) });
   // ditto keeps Zeff.app's symlinks and signatures.
   else if (MAC) run("ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", top, archive]);
@@ -373,3 +436,29 @@ if (args.has("--zip") || release) {
 const size = (dir) =>
   fs.readdirSync(dir, { withFileTypes: true, recursive: true }).reduce((s, e) => (e.isFile() ? s + fs.statSync(path.join(e.parentPath, e.name)).size : s), 0);
 console.log(`\n✔ ${top} (${(size(top) / 1048576).toFixed(0)} MB)`);
+
+if (release && archive) {
+  // <archive>.sha256 in sha256sum's format: `sha256sum -c`, `shasum -a 256 -c`, or Get-FileHash to compare.
+  const hash = sha256(archive);
+  fs.writeFileSync(`${archive}.sha256`, `${hash}  ${path.basename(archive)}\n`);
+  console.log(`\nRelease ${version}${exactTag ? "" : "  (no tag on this commit — git tag v1.2.3 for a named release)"}
+  commit   ${commit}
+  system   ${target}
+  archive  ${archive}
+  size     ${(fs.statSync(archive).size / 1048576).toFixed(1)} MB (${fs.statSync(archive).size} bytes)
+  sha256   ${hash}
+           → ${archive}.sha256`);
+
+  // The build folder (about 1 GB of what was packed) isn't needed any more.
+  if (!args.has("--keep-build")) fs.rmSync(releaseDir, { recursive: true, force: true, maxRetries: 5 });
+
+  if (args.has("--no-check")) console.log("\n(--no-check: the archive was not tested — npm run release:check -- <archive> does.)");
+  else {
+    step("Checking the archive (scripts/smoke-release.mjs)");
+    const r = spawnSync(process.execPath, [path.join(root, "scripts", "smoke-release.mjs"), archive], { stdio: "inherit" });
+    if (r.status !== 0) {
+      console.error(`\n✘ The release check failed — do not publish ${path.basename(archive)}.`);
+      process.exit(r.status ?? 1);
+    }
+  }
+}

@@ -53,12 +53,50 @@ built — no Node, npm or checkout needed. Download it from the repository's Git
 | macOS (Apple Silicon / Intel) | `Zeff-<version>-macos-arm64.zip` / `-macos-x64.zip` | `Zeff.app` (into Applications; unsigned: "Open Anyway" once) |
 | Ubuntu 22.04+ x64 | `Zeff-<version>-linux-x64.tar.gz` | `Zeff/zeff` |
 
-A tag starts the build: `git tag v0.2.0 && git push github v0.2.0`. The workflow
-(`.github/workflows/release.yml`) builds on each system (`npm run release`), unpacks and starts
-every archive (`npm run release:check -- <archive>`: servers up, https answers), and publishes the
-GitHub release only when all of them pass. "Run workflow" on the Actions tab builds and checks
-without publishing. Each archive's `README.txt` says where the data is (Windows: `app\data`;
-macOS: `~/Library/Application Support/Zeff`; Linux: `~/.local/share/zeff`).
+**Using one:** unpack it anywhere (Windows: not into `Program Files` — Zeff keeps its data next to
+`Zeff.exe`), start `Zeff.exe` / `Zeff.app` / `./zeff`, say yes to the one-time setup of `https://zeff`
+(hosts entry + Zeff's own certificate, asks for admin rights; without it Zeff runs on
+`https://127.0.0.1:1337`), then follow **Setup** in the app (plugins, sign-ins, first data). An update
+replaces the program and keeps the data: Windows `app\data` and `app\knowledge\data`; macOS
+`~/Library/Application Support/Zeff`; Linux `~/.local/share/zeff`. Each archive has a `.sha256` next to
+it (`sha256sum -c`, or `Get-FileHash`), and a `README.txt` inside with the details for its system.
+
+**What is inside:** the launcher (Electron), `runtime/node` (the Node that built it), and `app/` — Zeff and
+the knowledge server, built, with production `node_modules` (better-sqlite3 and the other native modules
+are those of the machine that built it, hence one archive per system), `drizzle/`, `scripts/` (work hosts,
+browser helper), `src/plugins/*/driver.mjs` and `.mcp.json`. Not inside: tests, fixtures, `.github/`, data,
+`.env`, `zeff-launcher.json`.
+
+**What the PC still needs** — Zeff brings none of these; the **Plugins** and **Setup** pages list what the
+installed plugins need ("This PC": ✓ / ✗ with a one-line hint), and a plugin without it says what to install:
+
+| For | Needs | Get it |
+| --- | --- | --- |
+| Outlook, Teams, GitLab, Roar, TimO, Gmail, WhatsApp, Keep, Google Calendar (the *automation browser*) | a Chromium browser: Google Chrome, else Microsoft Edge (in every Windows 10/11), Brave, Chromium — or `CHROME_PATH` | install one; its profile is in `%LOCALAPPDATA%\Zeff`, `~/Library/Application Support/Zeff`, `~/.local/share/zeff` |
+| Work tab (worktrees, diffs), Repos | `git` | `winget install Git.Git`, `xcode-select --install`, `sudo apt install git` |
+| Jira sync | `uvx` (uv), which starts `mcp-atlassian`; or any Jira MCP server via `JIRA_MCP_COMMAND` | `winget install astral-sh.uv`, `brew install uv`, `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
+| Claude / ChatGPT / Copilot plugins | the Claude CLI, Codex CLI (`npm install -g @openai/codex`, needs Node), Copilot CLI (`npm install -g @github/copilot`), each signed in once | |
+| Scanned PDFs (Documents) | Poppler's `pdftoppm` — Zeff installs it with winget / scoop / Homebrew; on Linux `sudo apt install poppler-utils` | |
+| Audio (Documents) | a transcriber command (e.g. Whisper) set in Documents → Settings | |
+
+Everything else (the servers, the drivers, the work hosts, the database, the certificate) comes from the
+bundle and runs with the bundled Node only; `npm`/`npx` aren't there either.
+
+**Building one** (on the system it is for — native modules): `npm run release`. It builds the commit `HEAD`
+(`--ref <commit|tag>` for another) from `git archive` in `<temp>/zeff-release`, never in the checkout, and
+refuses when uncommitted changes would be left out (`--allow-dirty` builds the commit as it is). It packs
+`dist/release/Zeff-<version>-<system>.zip|.tar.gz` (version: the tag, else the commit) with `<archive>.sha256`,
+prints the version, size and sha256, and then **checks the archive** (`--no-check` skips it): it is unpacked
+into a temp folder and started on its own ports and data with a bare `PATH` (no Node, git, uv, Chrome), the
+pages open, and `app/scripts/bundle-check.mjs` runs on the bundled Node — files, dependencies, native module,
+every driver's MCP handshake, both work hosts, the database migrated to the last migration, nothing of the
+build machine in it. The exit code is 1 when the check fails. `npm run release:check -- <archive>` is that
+check alone (`--inherit-env` keeps your `PATH`, `--keep` leaves the unpacked folder).
+
+A tag starts the same on all systems: `git tag v0.2.0 && git push github v0.2.0`. The workflow
+(`.github/workflows/release.yml`) builds on each system (`dist.mjs --release --no-check`), checks every
+archive (`npm run release:check`), and publishes the GitHub release only when all of them pass. "Run
+workflow" on the Actions tab builds and checks without publishing.
 
 The database is created and migrated on first start (`drizzle/`). After editing
 `src/db/schema.ts`, **write the migration by hand** (`drizzle/00NN_name.sql`, statements separated
@@ -124,7 +162,9 @@ itself.
 Gmail, WhatsApp, Keep, Teams, Outlook, GitLab, Roar and TimO are read (and, on a click, written)
 through their web apps. Each driver is a small MCP stdio server in `src/plugins/<id>/driver.mjs`.
 It runs from source and attaches over CDP to the account's automation Chrome (first account: port
-9222, others: 9231 and up). It holds a per-app tab lock and can be stopped mid-sync. Sign-ins are
+9222, others: 9231 and up). "Chrome" is any Chromium browser: `scripts/browser-find.mjs` finds Google
+Chrome, else Microsoft Edge, Brave or Chromium on Windows, macOS and Linux (`CHROME_PATH` overrides) and
+starts it with its own profile (`ZEFF_CHROME_PROFILE`, else `roar-chrome-profile` in Zeff's user folder). It holds a per-app tab lock and can be stopped mid-sync. Sign-ins are
 yours: Zeff asks for one (Logins page, notifications) and never signs in itself. A sync that keeps
 failing (twice in a row, or for 12 hours) shows on **Heute**, with the reason: sign-in needed, the
 automation Chrome not running, or the page changed.

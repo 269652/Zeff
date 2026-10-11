@@ -17,9 +17,14 @@ $port = if ($env:ROAR_CDP_PORT) { $env:ROAR_CDP_PORT } else { 9222 }
 $chrome = @(
   "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
   "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
-  "$env:LocalAppData\Google\Chrome\Application\chrome.exe"
-) | Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $chrome) { throw "Chrome not found in the usual locations." }
+  "$env:LocalAppData\Google\Chrome\Application\chrome.exe",
+  # Edge (Chromium-based) is part of Windows 10/11: the fallback. CHROME_PATH names any other browser.
+  "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
+  "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe"
+)
+if ($env:CHROME_PATH) { $chrome = @($env:CHROME_PATH) + $chrome }
+$chrome = $chrome | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $chrome) { throw "No Chrome or Edge found in the usual locations - install one, or set CHROME_PATH to the browser's exe." }
 
 # Is the debug port already serving?
 try {

@@ -430,21 +430,24 @@ function unquarantine() {
   });
 }
 
+/** The pages a smoke test opens (https://zeff<path>) after the start page of each server. */
+const SMOKE_PAGES = ["/heute", "/todos", "/mail", "/kanban", "/plugins", "/sync-settings", "/auswerten", "/logins", "/feierabend", "/work", "/setup", "/jira", "/repos", "/documents"];
+
 /**
  * --smoke-test: the bundle as its user gets it, checked end to end — the servers start on the
  * bundled Node (native modules included), the certificate is made, and Zeff and the knowledge
- * server answer over https through the proxy, verified against Zeff's own CA. Then quit.
+ * server answer over https through the proxy, verified against Zeff's own CA, and the pages of SMOKE_PAGES render. Then quit.
  */
 async function runSmokeTest() {
   const deadline = Date.now() + 5 * 60 * 1000;
   const wanted = () => [zeff(), ...state.services.filter((s) => s.name === "Work"), ...(state.cfg.knowledge ? [activeKnowledge()] : [])];
-  const get = (host) =>
+  const get = (host, urlPath = "/") =>
     new Promise((resolve, reject) => {
       const req = https.get(
         {
           host: "127.0.0.1",
           port: state.httpsPorts.find((p) => p !== 443) ?? state.httpsPorts[0],
-          path: "/",
+          path: urlPath,
           servername: host,
           headers: { host },
           ca: new X509Certificate(fs.readFileSync(state.cert.caCer)).toString(), // PEM (Windows exports DER)
@@ -475,6 +478,13 @@ async function runSmokeTest() {
       const status = await get(host);
       log(`smoke test: https://${host}/ → ${status}`);
       if (!(status >= 200 && status < 400)) return failed(`https://${host}/ answered ${status}`);
+    }
+    // The pages Zeff's deploy script probes (scripts/deploy.mjs) and the ones a new bundle opens first: each renders — a missing file, a
+    // native module that doesn't load or a database that didn't migrate shows as a 500 here.
+    for (const page of SMOKE_PAGES) {
+      const status = await get(state.cfg.host, page);
+      log(`smoke test: https://${state.cfg.host}${page} → ${status}`);
+      if (!(status >= 200 && status < 400)) return failed(`https://${state.cfg.host}${page} answered ${status}`);
     }
     log("smoke test passed");
     app.quit();

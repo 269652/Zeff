@@ -20,6 +20,7 @@ import { runTodoOps } from "@/lib/ops";
 import { gitlabItemsByKeys, listGitlabItems } from "@/lib/gitlab/store";
 import type { WorkRun } from "@/db/schema";
 import { errorMessage, NotFoundError, ValidationError } from "@/lib/errors";
+import { gitFailure } from "@/lib/git";
 import { t } from "@/lib/i18n/server";
 import { getJiraSyncConfig } from "@/lib/jira/sync";
 import { endSideWork } from "./actions";
@@ -624,7 +625,7 @@ export const slug = (s: string) =>
 
 const gitAsync = (cwd: string, args: string[]) =>
   new Promise<string>((resolve, reject) =>
-    execFile("git", args, { cwd, timeout: 180000, windowsHide: true }, (err, stdout, stderr) => (err ? reject(new Error(String(stderr || err.message).trim().slice(0, 500))) : resolve(String(stdout).trim()))),
+    execFile("git", args, { cwd, timeout: 180000, windowsHide: true }, (err, stdout, stderr) => (err ? reject(gitFailure(err, String(stderr || err.message).trim().slice(0, 500))) : resolve(String(stdout).trim()))),
   );
 
 /**

@@ -200,7 +200,7 @@ async function outlookStatus() {
     browser = await connect();
   } catch (e) {
     if (e instanceof ChromeConnectError) return e.message;
-    return `Cannot reach Chrome on ${CDP}. Start it with "npm run roar:chrome" and sign in to Outlook. (${String(e).slice(0, 120)})`;
+    return `Cannot reach Chrome on ${CDP}. Zeff starts it from Menu → Sign-ins (checkout: npm run roar:chrome); sign in to Outlook. (${String(e).slice(0, 120)})`;
   }
   try {
     const page = await getCalendarPage(browser);

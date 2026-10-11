@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { BetaBadge, BetaWarning } from "@/components/BetaBadge";
 import { PluginExtensions, type ExtensionRow } from "@/components/PluginExtensions";
 import { PluginInstallButton } from "@/components/PluginInstallButton";
+import { ThisPc } from "@/components/ThisPc";
 import { findClaudeCli } from "@/plugins/claude-cli/cli";
 import { PLUGIN_CATEGORY_LABELS, PLUGINS, pluginById, type PluginCategory, type PluginManifest } from "@/plugins/catalog";
 import { findCopilotCli } from "@/plugins/copilot-cli/cli";
@@ -51,6 +52,7 @@ export default async function PluginsPage() {
           )}
         </p>
       </div>
+      <ThisPc />
       {groups.map(([category, list]) => (
         <section key={category} className="space-y-2">
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">{catalogText(t, PLUGIN_CATEGORY_LABELS[category])}</h2>
