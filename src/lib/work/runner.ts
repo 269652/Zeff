@@ -326,7 +326,7 @@ function start(id: number): void {
     // House rules: everyone's, then the repo's own.
     const repoRules = r.repo ? (listRepos().find((x) => x.path === r.repo)?.instructions ?? "") : "";
     // (Your instructions and context from the LLM plugin first — for every worker.)
-    const rules = workerRules([llmPreamble(), s.instructions, repoRules].filter((x) => x.trim()).join("\n\n"), { conversation: !!so?.conversation });
+    const rules = workerRules([llmPreamble(), s.instructions, repoRules].filter((x) => x.trim()).join("\n\n"), { conversation: !!so?.conversation, live: !!so && r.provider === "claude" });
     // A conversation going on: just your words. A task: the brief, what to do, and its result as JSON at the end (a live Claude task — without --json-schema).
     const tail = `\n\nAntworte am Ende mit dem Ergebnis als JSON in einem \`\`\`json-Block, nach diesem JSON-Schema:\n${JSON.stringify(WORK_RESULT_SCHEMA)}`;
     const isolation = r.workspace === "checkout" || (!r.workspace && s.isolation === "checkout") ? "checkout" : "worktree";
@@ -339,7 +339,8 @@ function start(id: number): void {
       if (!cli) throw new Error(t("The Claude CLI wasn't found — install Claude Code, or set CLAUDE_CLI."));
       const script = /\.(c|m)?js$/i.test(cli);
       const cs = claudeSessionSettings();
-      const disallowed = [...ZEFF_TOOLS, ...(codeLike(mode) ? [] : ["Edit", "Write", "MultiEdit", "NotebookEdit"])];
+      // (StructuredOutput: a conversation an older one-shot run began knows it — not here: its result is a json block.)
+      const disallowed = [...ZEFF_TOOLS, "StructuredOutput", ...(codeLike(mode) ? [] : ["Edit", "Write", "MultiEdit", "NotebookEdit"])];
       const sessionId = resume ? r.sessionId! : randomUUID();
       updateRun(id, { sessionId });
       void startClaudeSession(
