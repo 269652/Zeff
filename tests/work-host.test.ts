@@ -55,6 +55,29 @@ async function startHost(zeffPort: number, dir: string): Promise<{ proc: ChildPr
   return { proc, url, port };
 }
 
+/**
+ * The host stopped and its folder removed — waiting for it to exit first (on Windows a killed
+ * process lets go of its files a moment later, longer while the whole suite runs). A folder that
+ * still won't go is left in %TEMP%: cleaning up is no part of what's tested.
+ */
+async function cleanUp(proc: ChildProcess, dir: string) {
+  if (proc.exitCode === null && proc.signalCode === null) {
+    await new Promise<void>((resolve) => {
+      const done = setTimeout(resolve, 10000);
+      proc.once("exit", () => {
+        clearTimeout(done);
+        resolve();
+      });
+      proc.kill();
+    });
+  }
+  try {
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+  } catch {
+    // (left for the system's temp cleanup)
+  }
+}
+
 const post = (url: string, body: unknown, token = TOKEN) =>
   fetch(`${url}/spawn`, { method: "POST", headers: { "content-type": "application/json", "x-zeff-work-token": token }, body: JSON.stringify(body) });
 
@@ -96,9 +119,8 @@ test("the work host starts a worker, writes its output, and reports its end to Z
     assert.equal((await post(host.url, spec(3, "0"))).status, 400);
     zeff.state.down = false;
   } finally {
-    host.proc.kill();
     zeff.server.close();
-    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 }); // (a killed host lets go of it a moment later)
+    await cleanUp(host.proc, dir);
   }
 });
 
@@ -115,9 +137,8 @@ test("a host restarted meanwhile reports the end of a worker it started before",
     host = await startHost(zeffPort, dir);
     await until(() => zeff.calls.some((c) => c.runId === 7), 20000);
   } finally {
-    host.proc.kill();
     zeff.server.close();
-    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 }); // (a killed host lets go of it a moment later)
+    await cleanUp(host.proc, dir);
   }
 });
 
@@ -165,8 +186,7 @@ test("a live run takes messages while it works, and the host ends its stdin once
     assert.equal((await msg("late")).status, 409);
     assert.equal((await msg("x", 12345)).status, 409);
   } finally {
-    host.proc.kill();
     zeff.server.close();
-    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 }); // (a killed host lets go of it a moment later)
+    await cleanUp(host.proc, dir);
   }
 });
