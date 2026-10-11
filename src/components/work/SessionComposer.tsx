@@ -120,7 +120,7 @@ export function SessionComposer({
       setFiles([]);
       router.push(`/work?run=${r.runId}`);
     });
-  const select = "rounded-md border-0 bg-transparent py-0.5 pr-6 pl-1.5 text-xs text-zinc-500 hover:bg-zinc-100 focus:ring-1 focus:ring-indigo-400 dark:hover:bg-zinc-800";
+  const select = "field-sizing-content rounded-md border-0 bg-transparent py-0.5 pr-6 pl-1.5 text-xs text-zinc-500 hover:bg-zinc-100 focus:ring-1 focus:ring-indigo-400 dark:hover:bg-zinc-800";
   return (
     <div className="mx-auto w-full max-w-3xl">
       <div
@@ -237,10 +237,9 @@ export function SessionComposer({
               )}
             </>
           )}
-          <span className="ml-auto hidden text-[11px] text-zinc-400 sm:inline">{t("Enter to send · Shift+Enter for a new line")}</span>
           <button
             type="button"
-            className="ml-2 grid size-8 place-items-center rounded-full bg-zinc-900 text-white transition hover:bg-zinc-700 disabled:bg-zinc-200 disabled:text-zinc-400 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white dark:disabled:bg-zinc-800 dark:disabled:text-zinc-600"
+            className="ml-auto grid size-8 shrink-0 place-items-center rounded-full bg-zinc-900 text-white transition hover:bg-zinc-700 disabled:bg-zinc-200 disabled:text-zinc-400 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white dark:disabled:bg-zinc-800 dark:disabled:text-zinc-600"
             disabled={blocked || (!text.trim() && files.length === 0)}
             onClick={send}
             aria-label={t("Send")}

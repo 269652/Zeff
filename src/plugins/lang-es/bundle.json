@@ -253,7 +253,6 @@
   "{note} — open in GitLab": "{note} — abrir en GitLab",
   "{ok} of {n} signed in.": "{ok} de {n} con sesión iniciada.",
   "{open} open · {cards} cards": "{open} abiertas · {cards} tarjetas",
-  "{open} open, {done} done": "{open} abiertos, {done} hechos",
   "{path} isn't a git repo (no .git there).": "{path} no es un repo git (no hay .git).",
   "{path} isn't in a git repo.": "{path} no está en un repo de git.",
   "{provider} analyzing": "{provider} analizando",
@@ -1262,7 +1261,6 @@
   "Enter hours as a number, e.g. 1.5": "Introduce las horas como número, p. ej. 1.5",
   "Enter hours as a number, e.g. 1.5.": "Introduce las horas como número, p. ej. 1.5.",
   "Enter saves · Esc closes. Type 12-12:30, 12:15 45m, just 30 (minutes from {start}) or none; separate several breaks with “;”. Changing a start or end moves the break (its length stays) — use a preset or “12:00 45m” to change the length.": "Enter guarda · Esc cierra. Escribe 12-12:30, 12:15 45m, solo 30 (minutos desde {start}) o none; separa varias pausas con “;”. Cambiar un inicio o fin mueve la pausa (su duración se mantiene) — usa un preajuste o “12:00 45m” para cambiar la duración.",
-  "Enter to send · Shift+Enter for a new line": "Enter para enviar · Mayús+Enter para una línea nueva",
   "Enters it in {target} now": "Lo introduce ahora en {target}",
   "Entities": "Entidades",
   "Entries": "Registros",
@@ -2410,6 +2408,7 @@
   "Question": "Pregunta",
   "Questions to the knowledge — Confluence and what Zeff has synced; every answer with its sources.": "Preguntas al conocimiento — Confluence y lo que Zeff ha sincronizado; cada respuesta con sus fuentes.",
   "Queue": "En cola",
+  "Queue — it reads it after this step": "En cola — lo lee después de este paso",
   "queued": "en cola",
   "Queued…": "En cola…",
   "Ran": "Ejecutado",
@@ -3398,7 +3397,6 @@
   "workers busy": "workers ocupados",
   "Workers use the Settings model unless you pick another here (for this provider; the other one keeps its own).": "Los workers usan el modelo de Ajustes salvo que elijas otro aquí (para este proveedor; el otro mantiene el suyo).",
   "working": "trabajando",
-  "Working — you can reply once it has answered.": "Trabajando: puedes responder cuando haya contestado.",
   "working …": "trabajando …",
   "Working …": "Trabajando …",
   "Working days record Kommt at the start and Geht at the end, with Pause Start/Pause Ende around each break from the weekly Pause row — or the default break from <link>Schedule</link> when enabled there. Recorded breaks count toward Punch's automatic break; a day over 6 h without enough of them gets the missing minutes added to its end (e.g. no break: {start} + {hours}h + {minutes} min → <end>{end}</end>).": "Los días laborables registran Kommt al inicio y Geht al final, con Pause Start/Pause Ende alrededor de cada pausa de la fila semanal Pausa — o la pausa predeterminada de <link>Horario</link> si está activada allí. Las pausas registradas cuentan para la pausa automática de Punch; a un día de más de 6 h sin suficientes se le añaden al final los minutos que faltan (p. ej. sin pausa: {start} + {hours}h + {minutes} min → <end>{end}</end>).",
@@ -3512,6 +3510,5 @@
   "Zeff: your browser blocked the popup. Copied {n} meetings to the clipboard — paste them into Zeff → Import meetings.": "Zeff: tu navegador bloqueó la ventana emergente. Se copiaron {n} reuniones al portapapeles — pégalas en Zeff → Importar reuniones.",
   "Zeff's data — the database and the files beside it (calendar inbox, run logs) — as a ZIP, AES-256 encrypted with a password. Runs by itself; here also by hand at any time, and restore here.": "Los datos de Zeff — la base de datos y los archivos junto a ella (bandeja del calendario, logs de ejecuciones) — como ZIP, cifrado AES-256 con contraseña. Se ejecuta solo; aquí también a mano en cualquier momento, y se restaura aquí.",
   "Zeff's Jira connection isn't set up (Jira tab) — nothing can be posted without it.": "La conexión de Zeff con Jira no está configurada (pestaña Jira) — sin ella no se puede publicar nada.",
-  "Zeff's Jira connection isn't set up (Jira tab).": "La conexión de Zeff con Jira no está configurada (pestaña Jira).",
-  "Queue — it reads it after this step": "En cola — lo lee después de este paso"
+  "Zeff's Jira connection isn't set up (Jira tab).": "La conexión de Zeff con Jira no está configurada (pestaña Jira)."
 }
