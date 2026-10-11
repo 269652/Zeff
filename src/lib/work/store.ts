@@ -85,7 +85,7 @@ export function toRunView(r: WorkRun): WorkRunView {
     mode: (["code", "draft", "send", "mr", "ops", "instruct"].includes(r.mode) ? r.mode : "code") as WorkMode,
     live: liveView(r.id) ?? liveSessionView(r.id)?.live ?? null,
     session: liveSessionView(r.id)?.session ?? null,
-    provider: r.provider === "copilot" || r.provider === "zeff" || r.provider === "agent" ? r.provider : "claude",
+    provider: r.provider === "copilot" || r.provider === "codex" || r.provider === "zeff" || r.provider === "agent" ? r.provider : "claude",
     model: r.model,
     permissionMode: r.permissionMode,
     status: (STATUSES as string[]).includes(r.status) ? (r.status as WorkStatus) : "failed",

@@ -1028,6 +1028,7 @@ async function startFrom(s: LiveStart): Promise<void> {
 /** Claude Code as a live-session driver (see lib/work/live-driver.ts). */
 export const claudeLiveDriver: LiveDriver = {
   provider: "claude",
+  assignsSessionId: true,
   modes: ({ allowBypass }) => claudeModes(allowBypass),
   start: startFrom,
   reattach: reattachClaudeSessions,
