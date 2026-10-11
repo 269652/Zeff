@@ -98,7 +98,7 @@ test("the work host starts a worker, writes its output, and reports its end to Z
   } finally {
     host.proc.kill();
     zeff.server.close();
-    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 }); // (a killed host lets go of it a moment later)
   }
 });
 
@@ -117,7 +117,7 @@ test("a host restarted meanwhile reports the end of a worker it started before",
   } finally {
     host.proc.kill();
     zeff.server.close();
-    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 }); // (a killed host lets go of it a moment later)
   }
 });
 
@@ -167,6 +167,6 @@ test("a live run takes messages while it works, and the host ends its stdin once
   } finally {
     host.proc.kill();
     zeff.server.close();
-    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 }); // (a killed host lets go of it a moment later)
   }
 });
