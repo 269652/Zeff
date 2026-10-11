@@ -55,6 +55,7 @@ const pill = (active: boolean) =>
  */
 export function SiteHeader({
   activityIds = [],
+  waiting = [],
   apps = [],
   pluginGroups = [],
   hidden = [],
@@ -64,6 +65,8 @@ export function SiteHeader({
   bare = false,
 }: {
   activityIds?: number[];
+  /** What waits for you on a tab (a Work session's question or turn): a yellow dot on it. */
+  waiting?: { href: string; title: string }[];
   /** Every application, with its place (the menu's "Apps" shows those put there). */
   apps?: MenuApp[];
   /** The other entries hidden from the menu (Menu → Anpassen). */
@@ -312,6 +315,16 @@ export function SiteHeader({
                       <span className="sm:hidden">{tab.short}</span>
                       <span className="hidden sm:inline">{tab.label}</span>
                       {tab.href === "/todos" && <UnseenActivityBadge ids={activityIds} className="ml-1 align-[1px]" />}
+                      {waiting.some((w) => w.href.startsWith(tab.href)) && (
+                        <span
+                          className="ml-1 inline-block size-2 rounded-full bg-amber-500 align-[1px]"
+                          title={waiting
+                            .filter((w) => w.href.startsWith(tab.href))
+                            .map((w) => w.title)
+                            .join("\n")}
+                          aria-label={t("Waiting for you")}
+                        />
+                      )}
                       <LinkPending />
                     </>
                   );

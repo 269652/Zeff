@@ -75,6 +75,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const setupPending = !getAppSettings().setupDoneAt;
   // The account's language (Settings): the page's, and the browser's for its own components.
   const lang = applyLanguage();
+  // What needs you: sign-ins as a bar, a waiting Work session as a dot on its tab.
+  const attention = setupPending ? [] : await listAttention();
   return (
     <html
       lang={lang}
@@ -85,6 +87,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <I18nProvider lang={lang}>
           <SiteHeader
             activityIds={activityNewsIds()}
+            waiting={attention.flatMap((a) => (a.kind === "question" && a.href?.startsWith("/work") ? [{ href: "/work", title: a.title }] : []))}
             apps={allApps().map((a) => ({ href: a.href, label: a.label, hint: a.hint, place: a.place }))}
             pluginGroups={pluginGroups()}
             hidden={getMenuPrefs().hidden}
@@ -93,7 +96,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             account={headerAccount()}
             bare={setupPending}
           />
-          {!setupPending && <AttentionBar items={await listAttention()} />}
+          {!setupPending && <AttentionBar items={attention} />}
           <MainArea>
             <PluginFlagsProvider installed={[...installedPlugins()]}>
               <AgentInstructionsProvider templates={getWorkSettings().agentInstructions}>

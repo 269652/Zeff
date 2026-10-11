@@ -44,17 +44,19 @@ function notifyNew(items: Attention[]) {
 
 /**
  * What needs you, on every page: a service to sign in to (shown in the automation Chrome on a
- * click — you sign in, Zeff never does), a question an agent waits on. Each one also pinged as a
- * browser notification (once you allow them), so you needn't watch the page.
+ * click — you sign in, Zeff never does). A question an agent waits on gets no banner — it's a
+ * yellow dot on the Work tab and its session. Each one is also pinged as a browser notification
+ * (once you allow them), so you needn't watch the page.
  */
 export function AttentionBar({ items }: { items: Attention[] }) {
   const t = useT();
   const perm = useSyncExternalStore(subscribePermission, permission, () => "unsupported" as const);
   useEffect(() => notifyNew(items), [items, perm]);
-  if (!items.length && perm !== "default") return null;
+  const logins = items.filter((a) => a.kind === "login");
+  if (!logins.length) return null;
   return (
     <div className="mx-auto w-full max-w-6xl space-y-2 px-4 pt-3">
-      {items.map((a) => (
+      {logins.map((a) => (
         <AttentionRow key={a.key} a={a} />
       ))}
       {perm === "default" && (
