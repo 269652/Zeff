@@ -26,6 +26,9 @@ const DEFAULTS = {
   host: "zeff",
   zeffPort: 9333,
   knowledgePort: 9555,
+  /** Run the work host (scripts/work-host.mjs): Zeff's workers live there, so restarting Zeff's server (a deploy) doesn't cut them off. */
+  workHost: true,
+  workPort: 9334,
   /** Manage the knowledge server too (and route https://knowledge.<host> to it). */
   knowledge: true,
   /** HTTPS ports on 127.0.0.1. 443 is best effort — something else may hold it (Linux: root only). */

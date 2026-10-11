@@ -10,6 +10,9 @@
  *   5. again: nothing running (a run started meanwhile: wait for it)
  *   6. restart through the launcher (it must be running: it brings the server back), the new
  *      build swapped into .next while the server is down (scripts/swap-dist.mjs)
+ *      A work session may deploy: its own run (ZEFF_WORK_RUN) isn't waited for, and its worker lives
+ *      on the launcher's work host, not under the server that is restarted. A session started
+ *      by the server itself (no host) would be killed with it: refused.
  *   7. the server checked: running from this checkout, the main pages load
  * Flags: --wait (wait for runs instead of stopping), --knowledge (also build + restart the
  * knowledge servers), --skip-checks (no typecheck/lint/tests — only in an emergency).
@@ -26,6 +29,8 @@ const LOCK = path.join(DATA, ".deploy.lock");
 const PORT = 9333;
 const PAGES = ["/", "/heute", "/todos", "/mail", "/kanban", "/plugins", "/sync-settings", "/auswerten", "/logins", "/feierabend"];
 const args = new Set(process.argv.slice(2));
+/** The work run this deploy is part of (a session's worker passes it down in its environment), if any. */
+const OWN_RUN = process.env.ZEFF_WORK_RUN ? { id: Number(process.env.ZEFF_WORK_RUN), account: process.env.ZEFF_WORK_ACCOUNT || "default" } : null;
 const require = createRequire(path.join(ROOT, "package.json"));
 
 const log = (...a) => console.log("[deploy]", ...a);
@@ -61,18 +66,18 @@ function lock() {
 // 2./5. Runs active in any account.
 function busyRuns() {
   const Database = require("better-sqlite3");
-  const dbs = [path.join(DATA, "zeff.db")];
+  const dbs = [{ id: "default", file: path.join(DATA, "zeff.db") }];
   try {
-    for (const a of JSON.parse(fs.readFileSync(path.join(DATA, "accounts.json"), "utf8")).accounts ?? []) if (a.id !== "default") dbs.push(path.join(DATA, "accounts", a.id, "zeff.db"));
+    for (const a of JSON.parse(fs.readFileSync(path.join(DATA, "accounts.json"), "utf8")).accounts ?? []) if (a.id !== "default") dbs.push({ id: a.id, file: path.join(DATA, "accounts", a.id, "zeff.db") });
   } catch {
     // one account
   }
   const busy = [];
-  for (const f of dbs) {
+  for (const { id: account, file: f } of dbs) {
     if (!fs.existsSync(f)) continue;
     const db = new Database(f, { readonly: true });
     try {
-      for (const t of ["board_runs", "work_runs"]) for (const r of db.prepare(`select id from ${t} where status in ('running','queued')`).all()) busy.push(`${path.relative(DATA, f)} ${t} #${r.id}`);
+      for (const t of ["board_runs", "work_runs"]) for (const r of db.prepare(`select id from ${t} where status in ('running','queued')`).all()) if (!(OWN_RUN && t === "work_runs" && r.id === OWN_RUN.id && account === OWN_RUN.account)) busy.push(`${path.relative(DATA, f)} ${t} #${r.id}`);
     } finally {
       db.close();
     }
@@ -148,6 +153,8 @@ async function probe(url) {
 }
 
 async function main() {
+  // A session whose worker is a child of Zeff's server would be killed by the restart it asks for.
+  if (OWN_RUN && !process.env.ZEFF_WORK_VIA_HOST) fail("Diese Work-Session läuft unter dem Zeff-Server selbst und würde mit dem Neustart beendet. Der Work-Host des Launchers (Tray → Work) muss laufen; starte die Session dann neu.");
   lock();
   log(`Checkout: ${ROOT}`);
   await waitIdle("before");
