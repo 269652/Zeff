@@ -10,7 +10,8 @@
  * <ZEFF_URL>/api/work/exit — retrying until Zeff is up (it is restarting during a deploy).
  * Plain Node, no dependencies. Loopback only; every request carries ZEFF_WORK_TOKEN.
  *
- *   GET  /health            → { ok, children }
+ *   GET  /health            → { ok, children, features } — `features`: what this host's code can do
+ *        (Zeff asks before it relies on it: an older host still running is used for what it knows)
  *   POST /spawn { runId, account, command, args, cwd, env, stdin, outFile, errFile, live? } → { pid }
  *   POST /message { runId, text } → { ok } — into a live run, or 409 when it is closing / not live
  *   POST /write { runId, line } → { ok } — one stream-json line as it is (a live Claude session's
@@ -35,6 +36,8 @@ import http from "node:http";
 import path from "node:path";
 
 const PORT = Number(process.env.ZEFF_WORK_PORT) || 9334;
+/** What this host can do — Zeff checks it (a host started before an update keeps its old code till it restarts). */
+const FEATURES = ["spawn", "message", "write", "keep", "close", "kill"];
 const ZEFF_URL = (process.env.ZEFF_URL || "http://127.0.0.1:9333").replace(/\/$/, "");
 const TOKEN = process.env.ZEFF_WORK_TOKEN || "";
 const STATE = process.env.ZEFF_WORK_STATE || path.join(process.cwd(), "data", "launcher", "work-host.json");
@@ -205,7 +208,7 @@ const server = http.createServer((req, res) => {
   };
   // Another website's request (a browser sends Origin) or without the token: refused.
   if (req.headers.origin || (TOKEN && req.headers["x-zeff-work-token"] !== TOKEN)) return send(403, { error: "forbidden" });
-  if (req.method === "GET" && req.url === "/health") return send(200, { ok: true, children: children.size });
+  if (req.method === "GET" && req.url === "/health") return send(200, { ok: true, children: children.size, features: FEATURES });
   if (req.method === "POST" && req.url === "/spawn") {
     let body = "";
     req.on("data", (d) => {
@@ -281,3 +284,30 @@ try {
   // no state yet
 }
 server.listen(PORT, "127.0.0.1", () => log(`listening on 127.0.0.1:${PORT}, reporting to ${ZEFF_URL}`));
+
+// Its own code updated (a deploy, a pull): once nothing runs on it any more, it ends — the launcher
+// starts it again (with the new code). Workers running meanwhile keep it until they're done.
+const SELF = process.argv[1];
+let stale = false;
+const selfAt = (() => {
+  try {
+    return fs.statSync(SELF).mtimeMs;
+  } catch {
+    return 0;
+  }
+})();
+const checkSelf = () => {
+  try {
+    if (!stale && fs.statSync(SELF).mtimeMs !== selfAt) {
+      stale = true;
+      log("its code changed - restarting once no worker runs on it");
+    }
+  } catch {
+    // moved: leave it
+  }
+  if (stale && ![...children.values()].some((c) => !c.ended)) {
+    log("restarting for the new code");
+    process.exit(0);
+  }
+};
+setInterval(checkSelf, 5000).unref();

@@ -39,6 +39,19 @@ export async function workHostUp(): Promise<boolean> {
   }
 }
 
+/** What the running work host can do (its /health): null when it's down. An older host (started before an update) lacks the newer features. */
+export async function workHostFeatures(): Promise<string[] | null> {
+  if (!hostUrl()) return null;
+  try {
+    const r = await fetch(`${hostUrl()}/health`, { headers: headers(), signal: AbortSignal.timeout(1500) });
+    if (!r.ok) return null;
+    const j = (await r.json().catch(() => ({}))) as { features?: unknown };
+    return Array.isArray(j.features) ? j.features.filter((f): f is string => typeof f === "string") : [];
+  } catch {
+    return null;
+  }
+}
+
 /** Start a worker on the host — its pid. */
 export async function spawnOnHost(spec: HostSpawn): Promise<number> {
   const r = await fetch(`${hostUrl()}/spawn`, { method: "POST", headers: headers(), body: JSON.stringify(spec), signal: AbortSignal.timeout(15000) });
