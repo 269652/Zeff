@@ -1,8 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import type { SessionTicket } from "@/lib/work/sessions";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState, useTransition } from "react";
+import type { SessionItem, SessionTicket } from "@/lib/work/sessions";
+import { archiveSessionAction, deleteSessionAction } from "@/plugins/work/server-actions";
+import { useT } from "../I18nProvider";
+import { toast } from "../Toaster";
 import { WORK_STATUS_LABELS } from "@/lib/work/shared";
 import { formatAgo } from "@/lib/format";
 
@@ -25,7 +29,67 @@ const DOT: Record<string, string> = {
  * it is, how many open todos and sessions, a live dot — the ones at work first. A ticket opened
  * shows its sessions; one picked, its conversation on the right.
  */
-export function SessionSidebar({ tickets, selected }: { tickets: SessionTicket[]; selected: { ticket?: string; run?: number; isNew?: boolean } }) {
+/** A session's ⋯: archive it (out of the list) or back, or delete it (its runs and logs; its todo stays). */
+function SessionMenu({ s, active }: { s: SessionItem; active: boolean }) {
+  const t = useT();
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [pending, start] = useTransition();
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", away);
+    return () => document.removeEventListener("mousedown", away);
+  }, [open]);
+  const act = (fn: () => Promise<{ ok: boolean; error?: string } | null>) =>
+    start(async () => {
+      const r = await fn();
+      setOpen(false);
+      if (r && !r.ok) toast(r.error ?? t("Didn't work."), { tone: "error" });
+      router.refresh();
+    });
+  return (
+    <div ref={ref} className="relative shrink-0">
+      <button type="button" className="icon-btn size-6 text-sm opacity-60 group-hover:opacity-100" onClick={() => setOpen(!open)} aria-label={t("Session menu")} aria-expanded={open} disabled={pending}>
+        ⋯
+      </button>
+      {open && (
+        <div role="menu" className="absolute top-full right-0 z-30 mt-1 w-44 rounded-md border border-zinc-200 bg-white py-1 text-sm shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+          <button type="button" role="menuitem" className="block w-full px-3 py-1.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800" onClick={() => act(() => archiveSessionAction(s.todoId, !s.archived))}>
+            {s.archived ? t("Unarchive") : t("Archive")}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="block w-full px-3 py-1.5 text-left text-red-700 hover:bg-red-50 disabled:opacity-50 dark:text-red-300 dark:hover:bg-red-950/40"
+            disabled={active}
+            title={active ? t("It's working — stop it first.") : undefined}
+            onClick={() => confirm(t("Delete this session? Its conversation and logs are gone; its todo stays.")) && act(() => deleteSessionAction(s.todoId))}
+          >
+            {t("Delete …")}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function SessionSidebar({
+  tickets,
+  selected,
+  showArchived = false,
+  archivedCount = 0,
+}: {
+  tickets: SessionTicket[];
+  selected: { ticket?: string; run?: number; isNew?: boolean };
+  /** Your archived sessions shown too (marked), and how many there are. */
+  showArchived?: boolean;
+  archivedCount?: number;
+}) {
+  const t = useT();
   const [q, setQ] = useState("");
   const [openTicket, setOpenTicket] = useState<string | null>(null);
   const words = q.trim().toLowerCase();
@@ -65,16 +129,24 @@ export function SessionSidebar({ tickets, selected }: { tickets: SessionTicket[]
               {open && t.sessions.length > 0 && (
                 <ul className="mt-0.5 ml-6 space-y-0.5 border-l border-zinc-200 pl-2 dark:border-zinc-800">
                   {t.sessions.slice(0, 12).map((s) => (
-                    <li key={s.id}>
+                    <li key={s.id} className="group flex items-center gap-0.5">
                       <Link
                         href={`/work?run=${s.id}`}
-                        className={`flex items-center gap-1.5 rounded px-1.5 py-1 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 ${selected.run === s.id ? "bg-indigo-50 font-medium dark:bg-indigo-950/50" : ""}`}
+                        className={`flex min-w-0 flex-1 items-center gap-1.5 rounded px-1.5 py-1 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 ${selected.run === s.id ? "bg-indigo-50 font-medium dark:bg-indigo-950/50" : ""} ${s.archived ? "opacity-60" : ""}`}
                         title={`${s.ref} · ${WORK_STATUS_LABELS[s.status]}`}
                       >
                         <span className={`size-1.5 shrink-0 rounded-full ${s.waiting ? "bg-amber-500" : (DOT[s.status] ?? "bg-zinc-300")}`} />
-                        <span className="min-w-0 flex-1 truncate">{s.title}</span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate">{s.title}</span>
+                          {s.branch && (
+                            <span className="block truncate font-mono text-[10px] text-zinc-400" title={s.branch}>
+                              ⎇ {s.branch}
+                            </span>
+                          )}
+                        </span>
                         <span className="shrink-0 text-[10px] text-zinc-400" suppressHydrationWarning>{ago(s.at)}</span>
                       </Link>
+                      <SessionMenu s={s} active={s.status === "running" || s.status === "queued"} />
                     </li>
                   ))}
                 </ul>
@@ -84,6 +156,11 @@ export function SessionSidebar({ tickets, selected }: { tickets: SessionTicket[]
         })}
         {!shown.length && <li className="text-sm text-zinc-500">Nothing found.</li>}
       </ul>
+      {(archivedCount > 0 || showArchived) && (
+        <Link href={showArchived ? "/work" : "/work?archived=1"} className="block text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200">
+          {showArchived ? t("Hide archived") : t("Show archived ({n})", { n: archivedCount })}
+        </Link>
+      )}
       <nav className="flex flex-wrap gap-x-3 gap-y-1 border-t border-zinc-200 pt-3 text-xs dark:border-zinc-800" aria-label="More views">
         {(
           [
