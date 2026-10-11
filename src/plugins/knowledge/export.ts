@@ -3,6 +3,7 @@ import { currentAccount } from "@/db/accounts";
 import { weekFromDate } from "@/lib/week";
 import { knowledgeOwnNotes } from "@/plugins/keep/boards";
 import { allKeepNotes } from "@/plugins/keep/store";
+import { documentDocs } from "@/plugins/documents/export";
 import { isInstalled } from "@/plugins/state";
 import { pushTo } from "@/lib/collections";
 
@@ -241,6 +242,9 @@ export function knowledgeDocs(zeffUrl: string, only?: "keep"): { account: string
   // Facts the Mail-Durchsicht found in your messages ("Nadines Geburtstag: 16.10.") — each its own page.
   for (const f of all<{ id: number; subject: string; text: string; updated_at: string }>("select id, subject, text, updated_at from facts"))
     docs.push(doc({ id: `zeff:fact:${f.id}`, space: "Zeff · Fakten", title: f.subject, url: "", updatedAt: f.updated_at, author: null, body: `${f.subject}: ${clean(f.text)}` }));
+
+  // The Documents plugin's files (their text read) — compiled to abstracts, searchable, context for todos.
+  if (isInstalled("documents")) docs.push(...documentDocs(zeffUrl));
 
   return { account: currentAccount().name, docs };
 }

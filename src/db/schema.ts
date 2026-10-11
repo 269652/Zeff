@@ -1214,3 +1214,34 @@ export const calendarEvents = sqliteTable(
   },
   (t) => [uniqueIndex("calendar_events_key").on(t.calendarId, t.key), index("calendar_events_start").on(t.start)],
 );
+
+/**
+ * Documents (the Documents plugin): files you dropped — text, office files, PDFs, pictures, audio —
+ * kept on disk (`file`, in the account's documents folder), their text extracted (`text`) and, once
+ * the knowledge server compiled them, their abstract (`summary`). One per content (`sha256`).
+ */
+export const documents = sqliteTable(
+  "documents",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    name: text("name").notNull(),
+    mime: text("mime").notNull().default(""),
+    size: integer("size").notNull().default(0),
+    sha256: text("sha256").notNull(),
+    /** text | office | pdf | image | audio | other */
+    kind: text("kind").notNull().default("other"),
+    /** queued | extracting | ready | failed | unsupported */
+    status: text("status").notNull().default("queued"),
+    error: text("error").notNull().default(""),
+    /** The stored file's name inside the documents folder. */
+    file: text("file").notNull(),
+    text: text("text").notNull().default(""),
+    summary: text("summary").notNull().default(""),
+    concepts: text("concepts").notNull().default(""),
+    /** The knowledge server compiled it (its abstract is `summary`). */
+    compiled: integer("compiled", { mode: "boolean" }).notNull().default(false),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [uniqueIndex("documents_sha256").on(t.sha256)],
+);

@@ -28,6 +28,9 @@ export const knowledgeStatus = () => call<KnowledgeStatus>("/api/status", { time
 export const knowledgeSearch = (q: string, limit = 8) => call<{ pages: KnowledgePage[]; entities: KnowledgeEntity[] }>(`/api/search?q=${encodeURIComponent(q)}&limit=${limit}`);
 export const knowledgeRelated = (text: string, ticket: string | null, limit = 5) => call<{ pages: KnowledgePage[]; entities: KnowledgeEntity[] }>("/api/related", { method: "POST", body: { text, ticket, limit } });
 export const knowledgeAsk = (question: string, history: KnowledgeTurn[]) => call<KnowledgeAnswer>("/api/ask", { method: "POST", body: { question, history }, timeoutMs: 360000 });
+/** Pages by id: compiled in their current version, their abstract and concepts (the Documents plugin's hover cards). */
+export const knowledgePages = (ids: string[]) =>
+  call<{ pages: { id: string; title: string; summary: string; concepts: string; compiled: boolean }[] }>(`/api/page?ids=${encodeURIComponent(ids.join(","))}`, { timeoutMs: 5000 }).then((r) => r.pages);
 export const knowledgeSync = () => call<{ started: boolean }>("/api/sync?compile=1", { method: "POST" });
 
 /** Your own knowledge on the knowledge server: something to keep — a text, or a link (the page behind it read). Compiled right after. */

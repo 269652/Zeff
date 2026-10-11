@@ -141,7 +141,7 @@ export function ContextList({ items, todoId }: { items: Item[]; todoId?: number 
             </HoverCard>
           );
         const s = it.s;
-        const synced = s.source === "jira-comment" || s.source === "keep" || s.source === "fact" ? undefined : s.synced;
+        const synced = s.source === "jira-comment" || s.source === "keep" || s.source === "fact" || s.source === "document" ? undefined : s.synced;
         return (
           <HoverCard
             key={sourceKey(s)}
