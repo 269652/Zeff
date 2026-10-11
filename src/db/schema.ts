@@ -710,9 +710,11 @@ export const syncState = sqliteTable("sync_state", {
 export const appSettings = sqliteTable("app_settings", {
   id: integer("id").primaryKey(),
   aiProvider: text("ai_provider").notNull().default("claude"),
-  claudeModel: text("claude_model").notNull().default(""),
+  /** Sonnet by default (quick; "" = the CLI's own). */
+  claudeModel: text("claude_model").notNull().default("sonnet"),
   copilotModel: text("copilot_model").notNull().default(""),
-  codexModel: text("codex_model").notNull().default(""),
+  /** Luna by default (fast and affordable; "" = the CLI's own). */
+  codexModel: text("codex_model").notNull().default("gpt-6-luna"),
   /** Work tab: how many workers run at once. */
   workParallel: integer("work_parallel").notNull().default(2),
   /** Claude Code's permission mode for workers (auto: its classifier decides each action). */
