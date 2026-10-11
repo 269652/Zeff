@@ -9,6 +9,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { currentAccountId } from "@/db/accounts";
 import { automationEnv, driverPath } from "@/plugins/drivers";
 import { throwIfAborted } from "@/lib/abort";
 import { errorMessage } from "@/lib/errors";
@@ -148,7 +149,30 @@ async function gmailFolderMap(): Promise<Map<string, string>> {
   return new Map(gmailAccounts().map((a, i) => [gmailFolder(a, i), a.account]));
 }
 
-const flag = globalThis as { __zeffMailAttachments?: boolean };
+const flag = globalThis as { __zeffMailAttachments?: boolean; __zeffAttachProgress?: Map<string, AttachmentProgress> };
+
+/**
+ * Where a run is, for the page (polled by the button): the mail sync it waits for, then the mails
+ * it goes through — and how the last one ended. Per account; in memory, like the run itself.
+ */
+export type AttachmentProgress = {
+  running: boolean;
+  /** The button's run holds it (a step inside it ending doesn't make it idle). */
+  held: boolean;
+  phase: "" | "mail" | "attachments";
+  mailsDone: number;
+  mailsTotal: number;
+  documents: number;
+  failed: number;
+  last: { at: string; ok: boolean; message: string } | null;
+};
+const emptyProgress = (): AttachmentProgress => ({ running: false, held: false, phase: "", mailsDone: 0, mailsTotal: 0, documents: 0, failed: 0, last: null });
+const progresses = () => (flag.__zeffAttachProgress ??= new Map<string, AttachmentProgress>());
+export const attachmentProgress = (): AttachmentProgress => ({ ...(progresses().get(currentAccountId()) ?? emptyProgress()) });
+/** Change this account's progress (and keep what it had: the last result stays until the next run ends). */
+export function setAttachmentProgress(patch: Partial<AttachmentProgress>): void {
+  progresses().set(currentAccountId(), { ...(progresses().get(currentAccountId()) ?? emptyProgress()), ...patch });
+}
 
 /**
  * One run of the step. `manual`: from the “Fetch attachments now” button (runs also when the setting
@@ -161,6 +185,7 @@ export async function fetchMailAttachments({ manual = false, now = Date.now() }:
   if (!isInstalled("documents")) return none({ message: manual ? t("The Documents plugin is not installed (Menu → Plugins).") : "" });
   if (flag.__zeffMailAttachments) return none({ message: manual ? t("Attachments are already being fetched.") : "" });
   flag.__zeffMailAttachments = true;
+  setAttachmentProgress({ running: true, phase: "attachments", mailsDone: 0, mailsTotal: 0, documents: 0, failed: 0 });
   const run = none({ ran: true });
   let tmp = "";
   try {
@@ -175,6 +200,7 @@ export async function fetchMailAttachments({ manual = false, now = Date.now() }:
     run.unreadLeft = all.length - todo.length;
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), "zeff-attach-"));
     let budget = limits.mails;
+    setAttachmentProgress({ mailsTotal: Math.min(todo.length, limits.mails) });
     for (const source of on) {
       const mails = todo.filter((m) => m.source === source);
       if (!mails.length) continue;
@@ -190,6 +216,7 @@ export async function fetchMailAttachments({ manual = false, now = Date.now() }:
               run.mails++;
               try {
                 await processMail(call, mail, s, tmp, run);
+                setAttachmentProgress({ mailsDone: run.mails, documents: run.documents, failed: run.failed });
               } catch (e) {
                 const message = errorMessage(e).slice(0, 300);
                 run.failed++;
@@ -218,6 +245,7 @@ export async function fetchMailAttachments({ manual = false, now = Date.now() }:
   } finally {
     if (tmp) fs.rmSync(tmp, { recursive: true, force: true });
     flag.__zeffMailAttachments = false;
+    if (!progresses().get(currentAccountId())?.held) setAttachmentProgress({ running: false, phase: "" });
   }
   const parts = [
     run.documents ? t("{n} attachments → documents", { n: run.documents }) : "",
@@ -228,5 +256,6 @@ export async function fetchMailAttachments({ manual = false, now = Date.now() }:
     run.error ? t("attachments: {error}", { error: run.error }) : "",
   ].filter(Boolean);
   run.message = parts.join(", ");
+  setAttachmentProgress({ last: { at: new Date().toISOString(), ok: !run.error || run.documents > 0, message: run.message || t("No new attachments.") } });
   return run;
 }

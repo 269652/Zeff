@@ -3564,5 +3564,10 @@
   "installed, but pdftoppm wasn't found": "installiert, aber pdftoppm wurde nicht gefunden",
   "Install Poppler by itself when a scanned or complex PDF needs it": "Poppler von selbst installieren, wenn ein gescanntes oder komplexes PDF es braucht",
   "Poppler (pdftoppm) is what lets the Claude CLI read such PDFs. Zeff installs it once, with your package manager (winget or scoop on Windows, Homebrew on a Mac); if that fails it says so and tries again only when you click “Read again”.": "Poppler (pdftoppm) ermöglicht der Claude-CLI, solche PDFs zu lesen. Zeff installiert es einmal mit deinem Paketmanager (winget oder scoop unter Windows, Homebrew auf dem Mac); schlägt das fehl, sagt es das und versucht es erst wieder, wenn du auf „Neu lesen“ klickst.",
-  "Meant to work in its folder on its own — but Codex's Windows sandbox isn't set up here, so it asks before every command, like Ask.": "Soll im Ordner selbstständig arbeiten — aber Codex’ Windows-Sandbox ist hier nicht eingerichtet, deshalb fragt es vor jedem Befehl, wie Ask."
+  "Meant to work in its folder on its own — but Codex's Windows sandbox isn't set up here, so it asks before every command, like Ask.": "Soll im Ordner selbstständig arbeiten — aber Codex’ Windows-Sandbox ist hier nicht eingerichtet, deshalb fragt es vor jedem Befehl, wie Ask.",
+  "Get attachments": "Anhänge holen",
+  "Attachments {done} / {total}": "Anhänge {done} / {total}",
+  "Reading mails …": "Mails werden gelesen …",
+  "{n} attachments taken into Documents so far": "Bisher {n} Anhänge in die Dokumente übernommen",
+  "Started — it goes on in the background.": "Gestartet — läuft im Hintergrund weiter."
 }

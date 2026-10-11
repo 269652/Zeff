@@ -451,3 +451,33 @@ test("mail attachments: the one-time notice shows until answered", async () => {
   assert.equal(store.attachmentOfferOpen(), false, "already on");
   assert.equal(store.attachmentSettings().enabled, true);
 });
+
+test("mail attachments: the progress follows a run — running while it goes, the result when it ends", async () => {
+  const { sync, store, mail } = await setup();
+  store.saveAttachmentSettings({ enabled: true, sources: { outlook: true, gmail: true } });
+  const refs = [mail({ n: "700", source: "gmail" }), mail({ n: "701", source: "gmail" }), mail({ n: "702", source: "gmail" })];
+  const d = standIn(Object.fromEntries(refs.map((ref, i) => [ref, [{ name: `p${i}.txt`, content: `progress ${i}` }]])));
+  const seen: { running: boolean; done: number; total: number }[] = [];
+  // Look at the progress each time the driver is asked (a mail is being fetched then).
+  sync.setAttachmentSessionOpener((source, body, ms) =>
+    d.opener(source, (call) => body(async (tool, args) => {
+      const p = sync.attachmentProgress();
+      seen.push({ running: p.running, done: p.mailsDone, total: p.mailsTotal });
+      return call(tool, args);
+    }), ms),
+  );
+  try {
+    assert.equal(sync.attachmentProgress().running, false, "idle before");
+    const r = await sync.fetchMailAttachments({ manual: true });
+    assert.equal(r.documents, 3);
+    assert.ok(seen.length > 0 && seen.every((s) => s.running && s.total === 3), "running, with the number of mails known, whenever a mail was fetched");
+    assert.ok(seen.some((s) => s.done >= 1), "it counts the mails done");
+    const p = sync.attachmentProgress();
+    assert.equal(p.running, false, "idle after");
+    assert.equal(p.documents, 3);
+    assert.equal(p.last?.ok, true);
+    assert.match(p.last?.message ?? "", /3 attachments → documents/);
+  } finally {
+    sync.setAttachmentSessionOpener(null);
+  }
+});
