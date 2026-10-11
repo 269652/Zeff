@@ -5,6 +5,7 @@ import { saveRoarWorkcodesAction } from "@/plugins/roar/server-actions";
 import type { ActionState } from "@/app/action-helpers";
 import { SubmitButton } from "./SubmitButton";
 import { useT } from "./I18nProvider";
+import { rich } from "@/lib/i18n/rich";
 
 /** Configure a forced Roar WorkCode per job (used by the export where a job's WorkCode is empty). */
 export function RoarWorkcodesForm({
@@ -45,10 +46,12 @@ export function RoarWorkcodesForm({
         {state?.error && <span className="alert-error">{state.error}</span>}
       </div>
       <p className="text-xs text-zinc-400">
-        {t("Leave blank to auto-pick (your role code, else an “Absence” code). Otherwise enter a Roar WorkCode — the code (e.g.")}{" "}
-        <code className="code">L04090</code>
-        {t(") or a keyword (e.g.")} <code className="code">ABSENCE</code>
-        {t("); it's matched against that job's own WorkCode list in Roar.")}
+        {rich(
+          t(
+            "Leave blank to auto-pick (your role code, else an “Absence” code). Otherwise enter a Roar WorkCode — the code (e.g. <code>L04090</code>) or a keyword (e.g. <code>ABSENCE</code>); it's matched against that job's own WorkCode list in Roar.",
+          ),
+          { code: (s) => <code className="code">{s}</code> },
+        )}
       </p>
     </form>
   );

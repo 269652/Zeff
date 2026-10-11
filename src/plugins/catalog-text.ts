@@ -173,6 +173,8 @@ export const catalogTexts = (t: T) => [
   t("Send WhatsApp message"),
   t("Write mail (Gmail)"),
   t("Open in Gmail"),
+  t("Add"),
+  t("Open in Google"),
 ];
 
 /**

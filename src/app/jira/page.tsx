@@ -3,6 +3,7 @@ import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { t } from "@/lib/i18n/server";
+import { rich } from "@/lib/i18n/rich";
 import { connection } from "next/server";
 import { clearJiraAction } from "@/plugins/jira/server-actions";
 import { BoardEnableToggle } from "@/components/BoardEnableToggle";
@@ -89,8 +90,10 @@ export default async function JiraPage({
         {cfg.configured && (
           <p className="text-xs text-zinc-400">
             JQL: <code className="code">{cfg.jql}</code>
-            {cfg.baseUrl ? ` · ${cfg.baseUrl}` : ""}. {t("Runs the Jira MCP server directly (no LLM); first run is slow while")}{" "}
-            <code className="code">uvx</code> {t("starts it.")}
+            {cfg.baseUrl ? ` · ${cfg.baseUrl}` : ""}.{" "}
+            {rich(t("Runs the Jira MCP server directly (no LLM); first run is slow while <code>uvx</code> starts it."), {
+              code: (s) => <code className="code">{s}</code>,
+            })}
           </p>
         )}
       </section>
@@ -109,8 +112,12 @@ export default async function JiraPage({
           <BoardSyncControls />
         </div>
         <p className="text-xs text-zinc-400">
-          {t("Only")} <strong>{t("enabled")}</strong>{" "}
-          {t("boards are synced and feed the ticket dropdown — uncheck stale boards to declutter. Map a board to a job and every ticket on it defaults to that job (override per ticket below). Re-syncing only re-reads enabled and newly-found boards.")}
+          {rich(
+            t(
+              "Only <b>enabled</b> boards are synced and feed the ticket dropdown — uncheck stale boards to declutter. Map a board to a job and every ticket on it defaults to that job (override per ticket below). Re-syncing only re-reads enabled and newly-found boards.",
+            ),
+            { b: (s) => <strong>{s}</strong> },
+          )}
         </p>
         {boards.length === 0 ? (
           <p className="py-2 text-sm text-zinc-500">{t("No boards yet — click “Sync boards”.")}</p>

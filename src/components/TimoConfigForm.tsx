@@ -6,6 +6,7 @@ import type { ActionState } from "@/app/action-helpers";
 import type { TimoConfig } from "@/lib/timo";
 import { SubmitButton } from "./SubmitButton";
 import { useT } from "@/components/I18nProvider";
+import { rich } from "@/lib/i18n/rich";
 
 /** Configure the default TimO work day and which Zeff job counts as an absence. */
 export function TimoConfigForm({ config, jobs }: { config: TimoConfig; jobs: { number: string; name: string }[] }) {
@@ -50,10 +51,12 @@ export function TimoConfigForm({ config, jobs }: { config: TimoConfig; jobs: { n
         {state?.error && <span className="alert-error">{state.error}</span>}
       </div>
       <p className="text-xs text-zinc-400">
-        {t("Entries on the")} <strong>{t("absence job")}</strong> {t("(or of type")} <strong>{t("Absence")}</strong>
-        {t(") are booked in TimO's absence form as the")} <strong>{t("type")}</strong> {t("above (e.g.")}{" "}
-        <code className="code">Urlaub</code>
-        {t(", not Krank); everything else is recorded as working time (Kommen/Gehen).")}
+        {rich(
+          t(
+            "Entries on the <b>absence job</b> (or of type <b>Absence</b>) are booked in TimO's absence form as the <b>type</b> above (e.g. <code>Urlaub</code>, not Krank); everything else is recorded as working time (Kommen/Gehen).",
+          ),
+          { b: (s) => <strong>{s}</strong>, code: (s) => <code className="code">{s}</code> },
+        )}
       </p>
     </form>
   );

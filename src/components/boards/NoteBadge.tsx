@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { rich } from "@/lib/i18n/rich";
 import { removeTodoNoteAction } from "@/plugins/todos/server-actions";
 import type { TodoUserNote } from "@/lib/boards/shared";
 import { NoteIcon, SparkIcon } from "../icons";
@@ -61,8 +62,8 @@ export function NoteDetails({ n, todoId }: { n: TodoUserNote; todoId?: number })
           · {when(n.at)}
           {n.from && (
             <>
-              {` · ${t("on")} `}
-              <TodoRefs text={`T-${n.from}`} />
+              {" · "}
+              {rich(t("on <ref>T-{id}</ref>", { id: n.from }), { ref: (s) => <TodoRefs text={s} /> })}
             </>
           )}
         </span>

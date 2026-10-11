@@ -3,6 +3,7 @@ import { LoginButtons } from "@/components/LoginButtons";
 import { listLogins, type LoginState } from "@/lib/logins";
 import { formatAgo } from "@/lib/format";
 import { t } from "@/lib/i18n/server";
+import { rich } from "@/lib/i18n/rich";
 
 const badges = (): Record<LoginState, [string, string]> => ({
   ok: [t("signed in"), "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"],
@@ -46,11 +47,13 @@ export async function LoginsList() {
           </ul>
         ) : (
           <p className="py-6 text-center text-sm text-zinc-500">
-            {t("None of the installed plugins needs a sign-in —")}{" "}
-            <Link href="/plugins" className="text-indigo-600 hover:underline dark:text-indigo-400">
-              {t("Plugins")}
-            </Link>
-            .
+            {rich(t("None of the installed plugins needs a sign-in — <link>Plugins</link>."), {
+              link: (s) => (
+                <Link href="/plugins" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                  {s}
+                </Link>
+              ),
+            })}
           </p>
         )}
     </>

@@ -17,6 +17,7 @@ import type { EntryTypeDef } from "@/lib/entry-types-shared";
 import { SubmitButton } from "./SubmitButton";
 import { TagsField } from "./TagsField";
 import { useT } from "@/components/I18nProvider";
+import { rich } from "@/lib/i18n/rich";
 
 export function ReportSettingsForm({
   initialRules,
@@ -139,9 +140,10 @@ export function ReportSettingsForm({
         <code className="code">{"{ticket-name}"}</code> <code className="code">{"{desc}"}</code>{" "}
         <code className="code">{"{type}"}</code> <code className="code">{"{tags}"}</code>{" "}
         <code className="code">{"{job}"}</code> <code className="code">{"{jobName}"}</code>{" "}
-        <code className="code">{"{project}"}</code> (
-        <code className="code">{"{ticket-nr}"}</code> {t("is the key,")} <code className="code">{"{ticket-name}"}</code>{" "}
-        {t("the Jira title")}).
+        <code className="code">{"{project}"}</code>{" "}
+        {rich(t("(<code>{ticket-nr}</code> is the key, <code>{ticket-name}</code> the Jira title)."), {
+          code: (s) => <code className="code">{s}</code>,
+        })}
       </p>
 
       <datalist id="rule-tags">
@@ -238,14 +240,18 @@ export function ReportSettingsForm({
       </div>
 
       <p className="text-xs text-zinc-400">
-        {t("Example:")} <code className="code">{t("Job is · Interne Meetings · and · Type is · Meeting → Internal")}</code>{" "}
-        {t("above")} <code className="code">{t("Type is · Meeting → Meetings")}</code>{" "}
-        {t("labels only that job's meetings differently;")}{" "}
-        <code className="code">{t("Meeting title contains · Mob Programming → Mob Programming")}</code>{" "}
-        {t("above it gives one meeting its own line. A rule's tags (e.g.")} <code className="code">#mob</code>
-        {t(") are added to the entries it applies to when they're booked or imported;")}{" "}
-        <strong>{t("Save & tag existing entries")}</strong>{" "}
-        {t("adds them to entries you already have (it never removes tags).")}
+        {rich(
+          t(
+            "Example: <code>Job is · Interne Meetings · and · Type is · Meeting → Internal</code> above <code>Type is · Meeting → Meetings</code> labels only that job's meetings differently; <code>Meeting title contains · Mob Programming → Mob Programming</code> above it gives one meeting its own line.",
+          ),
+          { code: (s) => <code className="code">{s}</code> },
+        )}{" "}
+        {rich(
+          t(
+            "A rule's tags (e.g. <code>#mob</code>) are added to the entries it applies to when they're booked or imported; <b>Save & tag existing entries</b> adds them to entries you already have (it never removes tags).",
+          ),
+          { code: (s) => <code className="code">{s}</code>, b: (s) => <strong>{s}</strong> },
+        )}
       </p>
     </form>
   );

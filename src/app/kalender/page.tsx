@@ -6,10 +6,13 @@ import { eventsBetween, listCalendars } from "@/lib/calendar/ir";
 import { dayOf, plusMinutes, stampOf, type ProposedEvent } from "@/lib/calendar/ir-shared";
 import { CalendarApp } from "@/plugins/calendar/CalendarApp";
 import { isView, viewRange, type ViewKind } from "@/plugins/calendar/view-shared";
+import { t } from "@/lib/i18n/server";
 import { actionHref } from "@/plugins/actions/catalog";
 import { isInstalled } from "@/plugins/state";
 
-export const metadata: Metadata = { title: "Calendar" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: t("Calendar") };
+}
 
 /**
  * Kalender: every calendar — Zeff's own, Google's, Outlook's (Zeff's calendar model) — by day,
@@ -27,12 +30,12 @@ export default async function KalenderPage({ searchParams }: { searchParams: Pro
   const calendars = listCalendars();
   const events = eventsBetween(from, to).map(({ calendar: _c, ...e }) => e);
   // The appointments todos propose (their actions — not entered yet).
-  const proposed: ProposedEvent[] = listTodos({ status: "open" }).flatMap((t) =>
-    t.ops.flatMap((op, index): ProposedEvent[] => {
-      const base = { todoId: t.id, todoRef: t.ref, todoText: t.text.slice(0, 120), index, href: actionHref(op) };
+  const proposed: ProposedEvent[] = listTodos({ status: "open" }).flatMap((todo) =>
+    todo.ops.flatMap((op, index): ProposedEvent[] => {
+      const base = { todoId: todo.id, todoRef: todo.ref, todoText: todo.text.slice(0, 120), index, href: actionHref(op) };
       if (op.type === "calendar-event") return [{ ...base, type: op.type, title: op.subject, start: op.start, end: plusMinutes(op.start, op.minutes), target: "Outlook" }];
       if (op.type === "gcal-event") return [{ ...base, type: op.type, title: op.title, start: op.start, end: plusMinutes(op.start, op.minutes), target: "Google Calendar" }];
-      if (op.type === "calendar-entry") return [{ ...base, type: op.type, title: op.title, start: op.start, end: plusMinutes(op.start, op.minutes), target: op.calendar || "your Zeff calendar" }];
+      if (op.type === "calendar-entry") return [{ ...base, type: op.type, title: op.title, start: op.start, end: plusMinutes(op.start, op.minutes), target: op.calendar || t("your Zeff calendar") }];
       return [];
     }),
   ).filter((p) => p.start < to && p.end > from);

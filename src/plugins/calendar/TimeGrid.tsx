@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useLang, useT } from "@/components/I18nProvider";
 import { addDays, weekdayOf } from "@/lib/calendar/recurrence";
+import { LANGUAGES } from "@/lib/i18n/shared";
 import { durationText, isoWeek, itemOn, lanes, local, minutesBetween, minutesOf, plus, snap, stampAt, timeText, type Item } from "./view-shared";
 
 const HOUR = 48;
@@ -41,6 +43,8 @@ export function TimeGrid({
   onMove: (item: Item, start: string, end: string) => void;
   onPickDay: (day: string) => void;
 }) {
+  const t = useT();
+  const locale = LANGUAGES[useLang()].locale;
   const scroller = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const dragRef = useRef<Drag | null>(null);
@@ -189,23 +193,23 @@ export function TimeGrid({
     <div className={`flex h-full min-h-0 flex-col ${drag ? "select-none" : ""}`} data-grid onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={() => update(null)}>
       {/* The days, and their all-day appointments. */}
       <div className="grid border-b border-zinc-200 dark:border-zinc-800" style={{ gridTemplateColumns: cols }}>
-        <div className="flex items-end justify-center pb-1 text-[10px] text-zinc-400" title="Calendar week">
-          W{isoWeek(days[0])}
+        <div className="flex items-end justify-center pb-1 text-[10px] text-zinc-400" title={t("Calendar week")}>
+          {t("W{n}", { n: isoWeek(days[0]) })}
         </div>
         {days.map((d) => {
           const isToday = d === today;
           const weekend = weekdayOf(local(d)) >= 5;
           return (
             <div key={d} className="min-w-0 border-l border-zinc-100 dark:border-zinc-800">
-              <button type="button" onClick={() => onPickDay(d)} className="flex w-full flex-col items-center py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/60" title="Show this day">
-                <span className={`text-[11px] font-medium uppercase ${isToday ? "text-indigo-600 dark:text-indigo-400" : weekend ? "text-zinc-400" : "text-zinc-500"}`}>{local(d).toLocaleDateString("en-GB", { weekday: "short" })}</span>
+              <button type="button" onClick={() => onPickDay(d)} className="flex w-full flex-col items-center py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/60" title={t("Show this day")}>
+                <span className={`text-[11px] font-medium uppercase ${isToday ? "text-indigo-600 dark:text-indigo-400" : weekend ? "text-zinc-400" : "text-zinc-500"}`}>{local(d).toLocaleDateString(locale, { weekday: "short" })}</span>
                 <span className={`flex size-8 items-center justify-center rounded-full text-lg leading-none tabular-nums ${isToday ? "bg-indigo-600 font-semibold text-white" : ""}`}>{Number(d.slice(8))}</span>
               </button>
               <div
                 data-day={d}
                 className="min-h-6 cursor-copy space-y-0.5 px-0.5 pb-1"
                 onClick={(e) => e.target === e.currentTarget && onCreate({ start: d, end: addDays(d, 1), allDay: true })}
-                title="Click: an all-day event"
+                title={t("Click: an all-day event")}
               >
                 {allDay
                   .filter((it) => itemOn(it, d))
@@ -309,11 +313,11 @@ export function TimeGrid({
                           <>
                             <span className="block truncate font-semibold">
                               {it.event?.recurrence ? "↻ " : ""}
-                              {it.proposed ? `Proposed: ${it.title}` : it.title}
+                              {it.proposed ? t("Proposed: {title}", { title: it.title }) : it.title}
                             </span>
                             <span className="block truncate text-zinc-600 dark:text-zinc-400">
                               {timeText(it.start)} – {timeText(it.end)}
-                              {isDragged ? ` · ${durationText(minutesBetween(it.start, it.end))}` : it.event?.location ? ` · ${it.event.location}` : ""}
+                              {isDragged ? ` · ${durationText(minutesBetween(it.start, it.end), t)}` : it.event?.location ? ` · ${it.event.location}` : ""}
                             </span>
                           </>
                         )}
@@ -333,7 +337,7 @@ export function TimeGrid({
                 {ghost && (
                   <div className="pointer-events-none absolute inset-x-1 z-30 rounded-md border-2 border-indigo-500 bg-indigo-500/15 px-1.5 py-0.5 text-[11px] font-medium text-indigo-700 dark:text-indigo-300" style={{ top: (ghost.a / 60) * HOUR, height: ((ghost.b - ghost.a) / 60) * HOUR }}>
                     {hhmm(ghost.a)} – {hhmm(Math.min(24 * 60, ghost.b))}
-                    <span className="block font-normal opacity-80">{durationText(ghost.b - ghost.a)}</span>
+                    <span className="block font-normal opacity-80">{durationText(ghost.b - ghost.a, t)}</span>
                   </div>
                 )}
               </div>

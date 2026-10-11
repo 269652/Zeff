@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
+import { rich } from "@/lib/i18n/rich";
 import Link from "next/link";
 import { connection } from "next/server";
 import { CheckAllLoginsButton } from "@/components/LoginButtons";
@@ -40,11 +41,13 @@ export default async function LoginsPage({ searchParams }: { searchParams: Promi
         <section className="card border-indigo-200 bg-indigo-50 p-4 text-sm dark:border-indigo-900 dark:bg-indigo-950/40">
           <p className="font-medium">{t("Last step of the setup: sign in to each service.")}</p>
           <p className="text-zinc-600 dark:text-zinc-300">
-            {t("For each entry “Sign in”, sign in in the automation Chrome, then “Check”. Then")}{" "}
-            <Link href="/" className="text-indigo-600 hover:underline dark:text-indigo-400">
-              {t("off you go")}
-            </Link>
-            .
+            {rich(t("For each entry “Sign in”, sign in in the automation Chrome, then “Check”. Then <link>off you go</link>."), {
+              link: (s) => (
+                <Link href="/" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                  {s}
+                </Link>
+              ),
+            })}
           </p>
         </section>
       )}

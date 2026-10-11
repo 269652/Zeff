@@ -2,6 +2,7 @@ import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
+import { rich } from "@/lib/i18n/rich";
 import { connection } from "next/server";
 import { deleteAbsenceAction } from "@/app/actions";
 import { AbsenceForm } from "@/components/AbsenceForm";
@@ -70,8 +71,12 @@ export default async function SettingsPage() {
         <div>
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Default break")}</h2>
           <p className="mt-1 text-sm text-zinc-500">
-            {t("Your usual break window on workdays, e.g.")} <span className="font-mono">12:00-13:00</span>{" "}
-            {t("(several with “;”). The weekly table shows it greyed out on days without an entered break — click its + to take it for that day. Breaks you enter always go to TimO as Geht/Kommt.")}
+            {rich(
+              t(
+                "Your usual break window on workdays, e.g. <mono>12:00-13:00</mono> (several with “;”). The weekly table shows it greyed out on days without an entered break — click its + to take it for that day. Breaks you enter always go to TimO as Geht/Kommt.",
+              ),
+              { mono: (s) => <span className="font-mono">{s}</span> },
+            )}
           </p>
         </div>
         <DefaultPausesForm text={schedule.defaultPauses ?? ""} exportToTimo={schedule.timoDefaultPauses} timoOn={isInstalled("timo")} />
@@ -81,9 +86,12 @@ export default async function SettingsPage() {
         <div>
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Flex time (Gleitzeit)")}</h2>
           <p className="mt-1 text-sm text-zinc-500">
-            {t("The job for hours you take off your overtime. In the weekly table, days that aren't fully booked get a greyed-out row for it under the booked jobs — click a day's")}{" "}
-            <span className="font-mono">+</span>{" "}
-            {t("to book its missing hours there with this comment. TimO doesn't get these hours as working time, so its own flex-time balance goes down.")}
+            {rich(
+              t(
+                "The job for hours you take off your overtime. In the weekly table, days that aren't fully booked get a greyed-out row for it under the booked jobs — click a day's <mono>+</mono> to book its missing hours there with this comment. TimO doesn't get these hours as working time, so its own flex-time balance goes down.",
+              ),
+              { mono: (s) => <span className="font-mono">{s}</span> },
+            )}
           </p>
         </div>
         <FlexTimeForm flex={flex} jobs={flexJobOptions} />
@@ -138,7 +146,9 @@ export default async function SettingsPage() {
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Meeting exclude rules")}</h2>
           <p className="mt-1 text-sm text-zinc-500">
             {t("Imported meetings whose title contains one of these start unticked — for placeholders and reminders like “Zeiten in Roar Erfassen”.")}{" "}
-            <strong>{t("Exclude")}</strong> / <strong>{t("Include")}</strong> {t("next to a meeting on the import page adds or removes it here.")}
+            {rich(t("<b>Exclude</b> / <b>Include</b> next to a meeting on the import page adds or removes it here."), {
+              b: (s) => <strong>{s}</strong>,
+            })}
           </p>
         </div>
         <MeetingExcludeRulesForm initialRules={getMeetingExcludeRules(settings)} />

@@ -8,6 +8,10 @@ import { toast } from "./Toaster";
 import { formatHours } from "@/lib/format";
 import { useT } from "@/components/I18nProvider";
 import type { T } from "@/lib/i18n/shared";
+import { rich } from "@/lib/i18n/rich";
+
+/** The hour figures in the sums line, bold. */
+const b = (s: string) => <b className="tabular-nums">{s}</b>;
 
 const kindLabels = (t: T): Record<DayRow["kind"], string> => ({ meeting: t("Meeting"), suggestion: t("Suggestion"), ticket: t("Ticket") });
 const fmt = formatHours;
@@ -48,16 +52,15 @@ export function FeierabendForm({ date, target, booked, rows: initial, jobs }: { 
     <div className="space-y-4">
       <div className="card flex flex-wrap items-center gap-x-6 gap-y-2 p-4 text-sm">
         <span>
-          {t("Booked")} <b className="tabular-nums">{fmt(booked)}</b> h
+          {rich(t("Booked <b>{hours}</b> h", { hours: fmt(booked) }), { b })}
         </span>
         <span>
-          {t("+ selected")} <b className="tabular-nums">{fmt(sum)}</b> h
+          {rich(t("+ selected <b>{hours}</b> h", { hours: fmt(sum) }), { b })}
         </span>
         <span className={booked + sum >= target ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}>
-          = <b className="tabular-nums">{fmt(booked + sum)}</b>{" "}
           {missing
-            ? t("of {target} h — {missing} h missing", { target: fmt(target), missing: fmt(missing) })
-            : t("of {target} h", { target: fmt(target) })}
+            ? rich(t("= <b>{hours}</b> of {target} h — {missing} h missing", { hours: fmt(booked + sum), target: fmt(target), missing: fmt(missing) }), { b })
+            : rich(t("= <b>{hours}</b> of {target} h", { hours: fmt(booked + sum), target: fmt(target) }), { b })}
         </span>
         <span className="ml-auto flex gap-2">
           <button type="button" className="btn btn-sm" disabled={pending || !missing || !rows.some((r) => r.include && r.kind === "ticket")} onClick={spread} title={t("Spread the missing hours over the ticked ticket rows without hours (in quarter hours)")}>

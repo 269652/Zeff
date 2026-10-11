@@ -8,6 +8,7 @@ import { markActivitySeen, readActivitySeen } from "./ActivitySeen";
 import { TodoRefs } from "./TodoRefs";
 import { currentLocale, formatTime } from "@/lib/format";
 import { useT } from "@/components/I18nProvider";
+import { rich } from "@/lib/i18n/rich";
 import type { T } from "@/lib/i18n/shared";
 
 // What was seen when the tab opened — what came after stays marked new while you look.
@@ -105,16 +106,19 @@ export function ActivityList({ events }: { events: TodoEventView[] }) {
                       </Link>
                       {" · "}
                       {e.ticket}
-                      {` · ${t("by")} `}
-                      {e.by.href ? (
-                        <Link href={e.by.href} title={e.by.title} className="text-zinc-500 hover:underline dark:text-zinc-300">
-                          {e.by.label}
-                        </Link>
-                      ) : (
-                        <span title={e.by.title} className="text-zinc-500 dark:text-zinc-300">
-                          {e.by.label}
-                        </span>
-                      )}
+                      {" · "}
+                      {rich(t("by <who>{name}</who>", { name: e.by.label }), {
+                        who: (s) =>
+                          e.by.href ? (
+                            <Link href={e.by.href} title={e.by.title} className="text-zinc-500 hover:underline dark:text-zinc-300">
+                              {s}
+                            </Link>
+                          ) : (
+                            <span title={e.by.title} className="text-zinc-500 dark:text-zinc-300">
+                              {s}
+                            </span>
+                          ),
+                      })}
                       {e.event !== "created" && e.openNow && e.event !== "reopened" && <> · {t("reopened")}</>}
                     </div>
                     {e.note && <div className="mt-0.5 text-xs whitespace-pre-line text-zinc-500 dark:text-zinc-400"><TodoRefs text={e.event === "created" ? t("Source: {note}", { note: e.note }) : e.note} /></div>}

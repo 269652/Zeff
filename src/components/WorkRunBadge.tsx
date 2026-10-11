@@ -3,6 +3,7 @@ import type { WorkRunBrief } from "@/lib/entities-shared";
 import { ChevronIcon, SparkIcon } from "./icons";
 import { formatDateTime, formatTime } from "@/lib/format";
 import { useT } from "@/components/I18nProvider";
+import { rich } from "@/lib/i18n/rich";
 import type { T } from "@/lib/i18n/shared";
 
 const when = (iso: string | null) => (iso ? formatDateTime(iso) : "?");
@@ -61,10 +62,13 @@ export function WorkRunDetails({ r }: { r: WorkRunBrief }) {
           {r.todoId ? (
             <>
               {" "}
-              {t("on")}{" "}
-              <Link href={`/t/${r.todoId}`} className="font-mono text-indigo-600 hover:underline dark:text-indigo-400">
-                T-{r.todoId}
-              </Link>
+              {rich(t("on <link>T-{id}</link>", { id: r.todoId }), {
+                link: (s) => (
+                  <Link href={`/t/${r.todoId}`} className="font-mono text-indigo-600 hover:underline dark:text-indigo-400">
+                    {s}
+                  </Link>
+                ),
+              })}
             </>
           ) : null}{" "}
           · {r.ticket}

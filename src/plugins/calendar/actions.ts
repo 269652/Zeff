@@ -3,7 +3,9 @@
  * calendars (Kalender's extension: entered on your click) or in Google Calendar (its extension: the
  * click opens Google's form, filled in; you save it). Client-safe.
  */
-import { action, str } from "../actions/types";
+import { formatDate, formatTime } from "@/lib/format";
+import type { T } from "@/lib/i18n/shared";
+import { action, EN, str } from "../actions/types";
 
 const two = (n: number) => String(n).padStart(2, "0");
 /** "2026-10-13 10:00" / "2026-10-13T10:00" → local "2026-10-13T10:00" (null: not a time); plus minutes. */
@@ -14,8 +16,7 @@ export const localStamp = (v: string, plus = 0): string | null => {
   return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}T${two(d.getHours())}:${two(d.getMinutes())}`;
 };
 const minutesOf = (v: unknown) => Math.min(600, Math.max(15, Math.round(Number(str(v)) || 30)));
-const when = (start: string, minutes: number) =>
-  `${new Date(`${start}:00`).toLocaleString("de-DE", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · ${minutes} min`;
+const when = (start: string, minutes: number, t: T) => `${formatDate(start)}, ${formatTime(start)} · ${t("{n} min", { n: minutes })}`;
 /** Google's form takes times as "20261013T100000" (local, in the time zone given). */
 const gdate = (stamp: string) => stamp.replace(/[-:]/g, "") + "00";
 
@@ -30,8 +31,8 @@ export const CALENDAR_ACTIONS = [
   action({
     type: "calendar-entry",
     plugin: "calendar",
-    label: "Termin im Zeff-Kalender",
-    verb: "Eintragen",
+    label: "Event in the Zeff calendar",
+    verb: "Add",
     offer: {
       when: "Ein Zeitblock, eine Erinnerung oder ein Termin für mich selbst (etwas erledigen, besorgen, vorbereiten; ein Datum, an dem es weitergeht) — eingetragen in meinen Zeff-Kalender (calendar: sein Name, leer: der erste).",
       fields: { calendar: "der Name des Zeff-Kalenders (leer: der erste)", ...FIELDS },
@@ -41,14 +42,18 @@ export const CALENDAR_ACTIONS = [
       const start = localStamp(str(o.start));
       return str(o.title) && start ? { type: "calendar-entry", calendar: str(o.calendar).slice(0, 80), title: str(o.title).slice(0, 250), start, minutes: minutesOf(o.minutes), body: str(o.body).slice(0, 4000) } : null;
     },
-    title: (op) => `Termin: ${op.title}`,
-    note: (op) => ({ heading: `Termin im Zeff-Kalender${op.calendar ? ` „${op.calendar}“` : ""}`, detail: `${when(op.start, op.minutes)} · „${op.title}“`, body: op.body || null }),
+    title: (op, t = EN) => t("Event: {title}", { title: op.title }),
+    note: (op, t = EN) => ({
+      heading: op.calendar ? t("Event in the Zeff calendar “{calendar}”", { calendar: op.calendar }) : t("Event in the Zeff calendar"),
+      detail: `${when(op.start, op.minutes, t)} · “${op.title}”`,
+      body: op.body || null,
+    }),
   }),
   action({
     type: "gcal-event",
     plugin: "google-calendar",
-    label: "Termin in Google Calendar",
-    verb: "In Google öffnen",
+    label: "Event in Google Calendar",
+    verb: "Open in Google",
     offer: {
       when: "Ein Termin, Zeitblock oder eine Erinnerung in meinem Google-Kalender (Privates, Verabredungen, Besorgungen, Fristen) — Google Calendar öffnet sich mit dem fertigen Termin; ich speichere ihn selbst.",
       fields: FIELDS,
@@ -58,8 +63,8 @@ export const CALENDAR_ACTIONS = [
       const start = localStamp(str(o.start));
       return str(o.title) && start ? { type: "gcal-event", title: str(o.title).slice(0, 250), start, minutes: minutesOf(o.minutes), body: str(o.body).slice(0, 4000) } : null;
     },
-    title: (op) => `Termin: ${op.title}`,
-    note: (op) => ({ heading: "Termin in Google Calendar", detail: `${when(op.start, op.minutes)} · „${op.title}“`, body: op.body || null }),
+    title: (op, t = EN) => t("Event: {title}", { title: op.title }),
+    note: (op, t = EN) => ({ heading: t("Event in Google Calendar"), detail: `${when(op.start, op.minutes, t)} · “${op.title}”`, body: op.body || null }),
     // Google Calendar's "new appointment" form, filled in (times local, in this time zone) — saved by you.
     href: (op) =>
       `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(op.title)}&dates=${gdate(op.start)}/${gdate(localStamp(op.start, op.minutes) ?? op.start)}&details=${encodeURIComponent(op.body)}&ctz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`,

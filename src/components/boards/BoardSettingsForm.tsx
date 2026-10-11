@@ -7,6 +7,7 @@ import type { ActionState } from "@/app/action-helpers";
 import { minutesText } from "@/plugins/sync-settings";
 import { SubmitButton } from "../SubmitButton";
 import { useT } from "@/components/I18nProvider";
+import { rich } from "@/lib/i18n/rich";
 
 /** Which tickets on the chosen boards (a JQL filter); how often a run goes by itself: the Sync settings page; the AI: the Settings page. */
 export function BoardSettingsForm({ jql, autoMinutes, boards, ai }: { jql: string; autoMinutes: number; boards: string[]; ai: string }) {
@@ -15,16 +16,22 @@ export function BoardSettingsForm({ jql, autoMinutes, boards, ai }: { jql: strin
   return (
     <form action={action} className="space-y-3">
       <p className="text-sm text-zinc-500">
-        {t("Boards:")}{" "}
-        <span className="font-medium text-zinc-700 dark:text-zinc-200">{boards.length ? boards.join(", ") : t("none")}</span> — {t("chosen on the")}{" "}
-        <Link href="/jira" className="text-indigo-600 hover:underline dark:text-indigo-400">
-          {t("Jira tab")}
-        </Link>
-        . {t("AI:")} <span className="font-medium text-zinc-700 dark:text-zinc-200">{ai}</span> — {t("chosen in")}{" "}
-        <Link href="/preferences" className="text-indigo-600 hover:underline dark:text-indigo-400">
-          {t("Settings")}
-        </Link>
-        .
+        {rich(t("Boards: <b>{boards}</b> — chosen on the <link>Jira tab</link>.", { boards: boards.length ? boards.join(", ") : t("none") }), {
+          b: (s) => <span className="font-medium text-zinc-700 dark:text-zinc-200">{s}</span>,
+          link: (s) => (
+            <Link href="/jira" className="text-indigo-600 hover:underline dark:text-indigo-400">
+              {s}
+            </Link>
+          ),
+        })}{" "}
+        {rich(t("AI: <b>{ai}</b> — chosen in <link>Settings</link>.", { ai }), {
+          b: (s) => <span className="font-medium text-zinc-700 dark:text-zinc-200">{s}</span>,
+          link: (s) => (
+            <Link href="/preferences" className="text-indigo-600 hover:underline dark:text-indigo-400">
+              {s}
+            </Link>
+          ),
+        })}
       </p>
       <div className="grid gap-3 sm:grid-cols-[1fr_14rem]">
         <div>

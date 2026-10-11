@@ -5,6 +5,7 @@ import { saveMeetingExcludeRulesAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
 import { SubmitButton } from "./SubmitButton";
 import { useT } from "@/components/I18nProvider";
+import { rich } from "@/lib/i18n/rich";
 
 /** Title patterns whose imported meetings start unchecked (placeholders, reminders, blockers). */
 export function MeetingExcludeRulesForm({ initialRules }: { initialRules: string[] }) {
@@ -32,8 +33,9 @@ export function MeetingExcludeRulesForm({ initialRules }: { initialRules: string
         <span />
         {rules.length === 0 && (
           <p className="col-span-2 text-sm text-zinc-500">
-            {t("No exclude rules yet — add one here, or press")} <strong>{t("Exclude")}</strong>{" "}
-            {t("next to a meeting on the import page.")}
+            {rich(t("No exclude rules yet — add one here, or press <b>Exclude</b> next to a meeting on the import page."), {
+              b: (s) => <strong>{s}</strong>,
+            })}
           </p>
         )}
         {rules.map((r, i) => (

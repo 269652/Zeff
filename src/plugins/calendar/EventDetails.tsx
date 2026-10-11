@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
+import { useT } from "@/components/I18nProvider";
 import { SOURCE_LABELS, type SeriesScope } from "@/lib/calendar/ir-shared";
 import { describeRecurrence } from "@/lib/calendar/recurrence";
+import type { T } from "@/lib/i18n/shared";
 import { ScopeChoice } from "./EventEditor";
 import { doneBrowserOpAction, removeTodoOpAction } from "@/plugins/todos/server-actions";
 import { acceptProposedEventAction, deleteEventAction } from "./server-actions";
@@ -11,7 +13,17 @@ import { whenText, type Item } from "./view-shared";
 
 type Result = { ok: boolean; message?: string; error?: string } | null;
 
-const RESPONSE: Record<string, string> = { accepted: "Accepted", declined: "Declined", tentativelyAccepted: "Tentative", notResponded: "Not responded", organizer: "Organizer" };
+/** Your answer to an invitation, in the language of `t`. */
+const responses = (t: T): Record<string, string> => ({
+  accepted: t("Accepted"),
+  declined: t("Declined"),
+  tentativelyAccepted: t("Tentative"),
+  notResponded: t("Not responded"),
+  organizer: t("Organizer"),
+});
+/** How an appointment shows your time (other than busy), in the language of `t` — unknown ones as they come. */
+const showAsText = (t: T, v: string): string =>
+  ({ free: t("free"), tentative: t("tentative"), oof: t("away"), workingElsewhere: t("working elsewhere") })[v] ?? v;
 
 /**
  * An appointment opened (a click): beside it, what it is — when, how it repeats, its calendar,
@@ -19,6 +31,7 @@ const RESPONSE: Record<string, string> = { accepted: "Accepted", declined: "Decl
  * Outlook, go to the todo it's for.
  */
 export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: Item; anchor: DOMRect | null; onClose: () => void; onEdit: () => void; onDone: (r: Result) => void }) {
+  const t = useT();
   const box = useRef<HTMLDivElement>(null);
   const [asking, setAsking] = useState(false);
   const [pending, start] = useTransition();
@@ -48,9 +61,9 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
     const key = (ev: KeyboardEvent) => ev.key === "Escape" && onClose();
     const away = (ev: PointerEvent) => box.current && !box.current.contains(ev.target as Node) && onClose();
     window.addEventListener("keydown", key);
-    const t = setTimeout(() => window.addEventListener("pointerdown", away), 0);
+    const timer = setTimeout(() => window.addEventListener("pointerdown", away), 0);
     return () => {
-      clearTimeout(t);
+      clearTimeout(timer);
       window.removeEventListener("keydown", key);
       window.removeEventListener("pointerdown", away);
     };
@@ -76,28 +89,28 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
       className="card fixed right-2 bottom-2 left-2 z-40 w-auto space-y-2 p-4 text-sm shadow-xl sm:left-auto sm:w-[22rem]"
     >
       {asking ? (
-        <ScopeChoice verb="Delete" pending={pending} onCancel={() => setAsking(false)} onPick={remove} />
+        <ScopeChoice title={t("Delete recurring event")} pending={pending} onCancel={() => setAsking(false)} onPick={remove} />
       ) : (
         <>
           <div className="flex items-start gap-2">
             <span className={`mt-1.5 size-3 shrink-0 rounded ${item.proposed ? "border-2 border-dashed" : ""}`} style={item.proposed ? { borderColor: item.color } : { background: item.color }} />
             <div className="min-w-0 flex-1">
-              <p className="text-base leading-snug font-semibold break-words">{item.proposed ? `Proposed: ${item.title}` : item.title}</p>
-              <p className="text-zinc-600 dark:text-zinc-300">{whenText(item)}</p>
-              {e?.recurrence && <p className="text-xs text-zinc-500">↻ {describeRecurrence(e.recurrence, e.start)}</p>}
+              <p className="text-base leading-snug font-semibold break-words">{item.proposed ? t("Proposed: {title}", { title: item.title }) : item.title}</p>
+              <p className="text-zinc-600 dark:text-zinc-300">{whenText(item, t)}</p>
+              {e?.recurrence && <p className="text-xs text-zinc-500">↻ {describeRecurrence(e.recurrence, e.start, t)}</p>}
             </div>
             <div className="flex shrink-0 gap-0.5">
               {item.editable && (
-                <button type="button" className="icon-btn" onClick={onEdit} aria-label="Edit" title="Edit (E)">
+                <button type="button" className="icon-btn" onClick={onEdit} aria-label={t("Edit")} title={t("Edit (E)")}>
                   ✎
                 </button>
               )}
               {item.editable && (
-                <button type="button" className="icon-btn" disabled={pending} onClick={() => (series ? setAsking(true) : remove())} aria-label="Delete" title="Delete">
+                <button type="button" className="icon-btn" disabled={pending} onClick={() => (series ? setAsking(true) : remove())} aria-label={t("Delete")} title={t("Delete")}>
                   🗑
                 </button>
               )}
-              <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+              <button type="button" className="icon-btn" onClick={onClose} aria-label={t("Close")}>
                 ×
               </button>
             </div>
@@ -106,46 +119,46 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
             <p className="flex items-center gap-2 text-xs text-zinc-500">
               <span className="size-2 rounded-full" style={{ background: item.calendar.color }} />
               {item.calendar.name} · {SOURCE_LABELS[item.calendar.source]}
-              {e?.showAs && e.showAs !== "busy" ? ` · ${e.showAs}` : ""}
-              {e?.response && RESPONSE[e.response] ? ` · ${RESPONSE[e.response]}` : ""}
+              {e?.showAs && e.showAs !== "busy" ? ` · ${showAsText(t, e.showAs)}` : ""}
+              {e?.response && responses(t)[e.response] ? ` · ${responses(t)[e.response]}` : ""}
             </p>
           )}
           {e?.location && <p>📍 {e.location}</p>}
-          {e?.online && <p className="text-xs text-zinc-500">Online meeting</p>}
-          {e?.organizer && <p className="text-xs text-zinc-500">Organiser: {e.organizer}</p>}
-          {e && e.attendees.length > 0 && <p className="text-xs text-zinc-500">Guests: {e.attendees.slice(0, 8).join(", ")}{e.attendees.length > 8 ? ` +${e.attendees.length - 8}` : ""}</p>}
+          {e?.online && <p className="text-xs text-zinc-500">{t("Online meeting")}</p>}
+          {e?.organizer && <p className="text-xs text-zinc-500">{t("Organiser: {name}", { name: e.organizer })}</p>}
+          {e && e.attendees.length > 0 && <p className="text-xs text-zinc-500">{t("Guests: {names}", { names: `${e.attendees.slice(0, 8).join(", ")}${e.attendees.length > 8 ? ` +${e.attendees.length - 8}` : ""}` })}</p>}
           {e?.description && <p className="max-h-40 overflow-y-auto whitespace-pre-line text-zinc-600 dark:text-zinc-300">{e.description}</p>}
           {item.proposed && (
             <p className="text-xs text-zinc-500">
-              Proposed for{" "}
+              {t("Proposed for")}{" "}
               <Link href={`/t/${item.proposed.todoId}`} className="text-indigo-600 hover:underline dark:text-indigo-400">
                 {item.proposed.todoRef}
               </Link>{" "}
-              “{item.proposed.todoText}” — in {item.proposed.target}.
+              {t("“{text}” — in {target}.", { text: item.proposed.todoText, target: item.proposed.target })}
             </p>
           )}
           <div className="flex flex-wrap gap-2 pt-1">
             {p && (
               <>
-                <button type="button" className="btn btn-primary btn-sm" disabled={pending} onClick={accept} title={p.href ? `Opens ${p.target}'s form, filled in — save it there; it's noted on ${p.todoRef}` : `Enters it in ${p.target} now`}>
-                  {pending ? "…" : p.href ? `Accept — open in ${p.target} ↗` : "Accept"}
+                <button type="button" className="btn btn-primary btn-sm" disabled={pending} onClick={accept} title={p.href ? t("Opens {target}'s form, filled in — save it there; it's noted on {ref}", { target: p.target, ref: p.todoRef }) : t("Enters it in {target} now", { target: p.target })}>
+                  {pending ? "…" : p.href ? t("Accept — open in {target} ↗", { target: p.target }) : t("Accept")}
                 </button>
-                <button type="button" className="btn btn-sm" disabled={pending} onClick={dismiss} title={`Takes the proposal off ${p.todoRef}`}>
-                  Dismiss
+                <button type="button" className="btn btn-sm" disabled={pending} onClick={dismiss} title={t("Takes the proposal off {ref}", { ref: p.todoRef })}>
+                  {t("Dismiss")}
                 </button>
               </>
             )}
             {e?.todoId && (
               <Link href={`/t/${e.todoId}`} className="btn btn-sm">
-                Open todo
+                {t("Open todo")}
               </Link>
             )}
             {e?.url && (
               <a href={e.url} target="_blank" rel="noreferrer" className="btn btn-sm">
-                Open in {item.calendar ? SOURCE_LABELS[item.calendar.source] : "source"} ↗
+                {item.calendar ? t("Open in {source} ↗", { source: SOURCE_LABELS[item.calendar.source] }) : t("Open in source ↗")}
               </a>
             )}
-            {!item.editable && !item.proposed && item.calendar && <p className="text-xs text-zinc-400">Read-only here — change it in {SOURCE_LABELS[item.calendar.source]}.</p>}
+            {!item.editable && !item.proposed && item.calendar && <p className="text-xs text-zinc-400">{t("Read-only here — change it in {source}.", { source: SOURCE_LABELS[item.calendar.source] })}</p>}
           </div>
         </>
       )}

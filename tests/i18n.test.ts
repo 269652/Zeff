@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { collectKeys } from "../src/lib/i18n/collect";
+import { rich } from "../src/lib/i18n/rich";
 import { bundleOf, translate } from "../src/lib/i18n/shared";
 
 /** A text in a language: its bundle's, else English; {placeholders} filled in either. */
@@ -12,6 +13,13 @@ test("texts are translated, English when a bundle lacks them, placeholders fille
   assert.equal(translate("es", "{n} days ago"), bundleOf("es")["{n} days ago"] || "{n} days ago");
 });
 
+/** A sentence with a link inside: the tag rendered where the language puts it; a tag without a renderer, plain. */
+test("rich() puts markup where the translation has its tag", () => {
+  const parts = rich("Die <link>Arbeitszeiten</link>-Seite, <b>fett</b>.", { link: (s) => `[${s}]` }) as unknown[];
+  const flat = parts.map((p) => (typeof p === "string" ? p : (p as { props: { children: string } }).props.children)).join("");
+  assert.equal(flat, "Die [Arbeitszeiten]-Seite, fett.");
+});
+
 /** Every text in the code has its German and Spanish — a new one without them fails here (npm run i18n -- --write, then translate). */
 test("every UI text is in the German and the Spanish bundle", () => {
   const keys = [...collectKeys().keys()];
@@ -20,11 +28,8 @@ test("every UI text is in the German and the Spanish bundle", () => {
     const b = bundleOf(lang);
     const missing = keys.filter((k) => !b[k]);
     assert.deepEqual(missing.slice(0, 20), [], `${lang}: ${missing.length} text(s) without a translation`);
-    // A translation keeps the placeholders of its English text.
-    for (const k of keys) {
-      const want = [...k.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
-      const got = [...(b[k] ?? "").matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
-      assert.deepEqual(got, want, `${lang}: "${k}" → "${b[k]}" loses or adds a placeholder`);
-    }
+    // A translation keeps the placeholders and the <tags> (rich()) of its English text.
+    const marks = (s: string) => [...s.matchAll(/\{(\w+)\}|<(\w+)>.*?<\/\2>/g)].map((m) => m[1] ?? `<${m[2]}>`).sort();
+    for (const k of keys) assert.deepEqual(marks(b[k] ?? ""), marks(k), `${lang}: "${k}" → "${b[k]}" loses or adds a placeholder or tag`);
   }
 });

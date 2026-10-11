@@ -204,7 +204,10 @@ export default async function MonthPage({
               {t("What each job's time went to, named by your report rules")}
               {by ? ` · ${by}` : ""}
               {report.entries.length > 0 &&
-                ` · ${report.entries.length === 1 ? t("1 entry") : t("{n} entries", { n: report.entries.length })} ${reportLines === 1 ? t("in 1 line") : t("in {n} lines", { n: reportLines })}`}
+                ` · ${t("{entries} in {lines}", {
+                  entries: report.entries.length === 1 ? t("1 entry") : t("{n} entries", { n: report.entries.length }),
+                  lines: reportLines === 1 ? t("1 line") : t("{n} lines", { n: reportLines }),
+                })}`}
             </p>
           </div>
           {jobs.length > 0 && <CopyButton text={summaryText} label={t("Copy report")} />}

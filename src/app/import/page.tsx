@@ -2,6 +2,7 @@ import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
+import { rich } from "@/lib/i18n/rich";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { connection } from "next/server";
@@ -167,12 +168,19 @@ function LoadFromOutlook({
           <BookmarkletButton href={bookmarklet} label={t("📅 Zeff: import meetings")} className="btn btn-primary btn-sm align-middle" />
         </li>
         <li>
-          {t("Open")}{" "}
-          <a className="underline" href="https://outlook.office.com/calendar/view/week" target="_blank" rel="noreferrer">
-            outlook.office.com
-          </a>{" "}
-          {t("in")} <strong>{t("Week view")}</strong>
-          {t(", go to the week you want, and click the bookmark. It sends that week's meetings to Zeff.")}
+          {rich(
+            t(
+              "Open <link>outlook.office.com</link> in <b>Week view</b>, go to the week you want, and click the bookmark. It sends that week's meetings to Zeff.",
+            ),
+            {
+              link: (s) => (
+                <a className="underline" href="https://outlook.office.com/calendar/view/week" target="_blank" rel="noreferrer">
+                  {s}
+                </a>
+              ),
+              b: (s) => <strong>{s}</strong>,
+            },
+          )}
         </li>
         <li>{t("Come back here — the meetings show up below to review and book. Repeat per week.")}</li>
       </ol>
@@ -186,7 +194,9 @@ function LoadFromOutlook({
           </p>
           <PasteEventsForm />
           <p className="text-xs text-zinc-400">
-            {t("The bookmarklet posts to")} <code className="code">{ingestUrl}</code>.
+            {rich(t("The bookmarklet posts to <code>{url}</code>.", { url: ingestUrl }), {
+              code: (s) => <code className="code">{s}</code>,
+            })}
           </p>
         </div>
       </PersistentDetails>

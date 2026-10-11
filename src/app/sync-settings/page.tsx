@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
+import { rich } from "@/lib/i18n/rich";
 import Link from "next/link";
 import { connection } from "next/server";
 import { SyncSettingsList } from "@/components/SyncSettingsList";
@@ -23,11 +24,13 @@ export default async function SyncSettingsPage() {
           {t("How often each sync runs by itself — every installed plugin brings its part. Nothing runs by itself between 19:00 and 08:00; “Sync now” and the sync menu always work.")}
         </p>
         <p className="text-sm text-zinc-500">
-          {t("What a sync needs to read — the sign-in in the automation Chrome — is under")}{" "}
-          <Link href="/logins" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            {t("Sign-ins")}
-          </Link>
-          .
+          {rich(t("What a sync needs to read — the sign-in in the automation Chrome — is under <link>Sign-ins</link>."), {
+            link: (s) => (
+              <Link href="/logins" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                {s}
+              </Link>
+            ),
+          })}
         </p>
       </div>
 

@@ -2,6 +2,7 @@ import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
+import { rich } from "@/lib/i18n/rich";
 import Link from "next/link";
 import { connection } from "next/server";
 import { PersistentDetails } from "@/components/PersistentDetails";
@@ -41,10 +42,14 @@ export default async function RoarExportPage({
           <h1 className="text-lg font-semibold">{t("Export to Roar")}</h1>
           <p className="text-sm text-zinc-500">
             {week.key} · {formatWeekRange(week)}
-            {by ? ` · ${by}` : ""} {t("— pushed to")}{" "}
-            <a href="https://roar.marcel.ai/app/timesheet" target="_blank" rel="noreferrer" className="hover:underline">
-              roar.marcel.ai
-            </a>
+            {by ? ` · ${by}` : ""}{" "}
+            {rich(t("— pushed to <link>roar.marcel.ai</link>"), {
+              link: (s) => (
+                <a href="https://roar.marcel.ai/app/timesheet" target="_blank" rel="noreferrer" className="hover:underline">
+                  {s}
+                </a>
+              ),
+            })}
           </p>
         </div>
         <Link href={`/?week=${week.key}${by ? `&by=${encodeURIComponent(by)}` : ""}`} className="btn btn-sm">
@@ -54,10 +59,16 @@ export default async function RoarExportPage({
 
       {plan.unassignedHours > 0 && (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
-          {t("{hours} h this week are booked on projects without a job and are", { hours: formatHours(plan.unassignedHours) })}{" "}
-          <strong>{t("not pushed")}</strong>
-          {t(". Set the job on")}{" "}
-          <Link href="/projects" className="font-medium underline">{t("Projects")}</Link> {t("first.")}
+          {rich(
+            t(
+              "{hours} h this week are booked on projects without a job and are <b>not pushed</b>. Set the job on <link>Projects</link> first.",
+              { hours: formatHours(plan.unassignedHours) },
+            ),
+            {
+              b: (s) => <strong>{s}</strong>,
+              link: (s) => <Link href="/projects" className="font-medium underline">{s}</Link>,
+            },
+          )}
         </p>
       )}
 
@@ -116,15 +127,29 @@ export default async function RoarExportPage({
           </div>
         )}
         <p className="mt-3 text-xs text-zinc-400">
-          {t("Each line of the rewritten weekly report becomes its own Roar entry per job: the line's label is the comment (e.g.")}{" "}
-          <em>{t("Meetings")}</em> {t("— set in")} <Link href="/settings" className="underline">{t("Report rewriting")}</Link>
-          {t("), and its hours are rounded")} <strong>{t("up")}</strong> {t("to Roar's 0.1-hour increments.")} {t("This pushes")}{" "}
-          <span className="tabular-nums font-medium">{plan.entryCount}</span>{" "}
-          {plan.entryCount === 1 ? t("entry") : t("entries")} {t("across")} {plan.rows.length}{" "}
-          {plan.rows.length === 1 ? t("job") : t("jobs")}
-          {t("; a cell shows the day total, with")} <span className="text-zinc-500">×n</span>{" "}
-          {t("when it holds several entries. Future days are locked by Roar and skipped. Jobs are matched by number (e.g.")}{" "}
-          <code className="code">AB123-000001-00</code>).
+          {rich(
+            t(
+              "Each line of the rewritten weekly report becomes its own Roar entry per job: the line's label is the comment (e.g. <em>Meetings</em> — set in <link>Report rewriting</link>), and its hours are rounded <b>up</b> to Roar's 0.1-hour increments.",
+            ),
+            {
+              em: (s) => <em>{s}</em>,
+              link: (s) => <Link href="/settings" className="underline">{s}</Link>,
+              b: (s) => <strong>{s}</strong>,
+            },
+          )}{" "}
+          {rich(
+            t("This pushes {entries} across {jobs}; a cell shows the day total, with <x>×n</x> when it holds several entries.", {
+              entries: plan.entryCount === 1 ? t("<n>1</n> entry") : t("<n>{n}</n> entries", { n: plan.entryCount }),
+              jobs: plan.rows.length === 1 ? t("1 job") : t("{n} jobs", { n: plan.rows.length }),
+            }),
+            {
+              n: (s) => <span className="tabular-nums font-medium">{s}</span>,
+              x: (s) => <span className="text-zinc-500">{s}</span>,
+            },
+          )}{" "}
+          {rich(t("Future days are locked by Roar and skipped. Jobs are matched by number (e.g. <code>AB123-000001-00</code>)."), {
+            code: (s) => <code className="code">{s}</code>,
+          })}
         </p>
       </section>
 
@@ -132,26 +157,35 @@ export default async function RoarExportPage({
         <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Transfer")}</h2>
         <ol className="list-decimal space-y-1 pl-5 text-sm text-zinc-600 dark:text-zinc-300">
           <li>
-            {t("The buttons below open Zeff's own Chrome window if it isn't running (same as")}{" "}
-            <code className="code">npm run roar:chrome</code>
-            {t("). Sign in to Roar there once — the session is saved.")}
+            {rich(
+              t(
+                "The buttons below open Zeff's own Chrome window if it isn't running (same as <code>npm run roar:chrome</code>). Sign in to Roar there once — the session is saved.",
+              ),
+              { code: (s) => <code className="code">{s}</code> },
+            )}
           </li>
           <li>
-            <strong>{t("Check Roar connection")}</strong> {t("to confirm the automation can attach.")}
+            {rich(t("<b>Check Roar connection</b> to confirm the automation can attach."), { b: (s) => <strong>{s}</strong> })}
           </li>
           <li>
-            <strong>{t("Dry run")}</strong> {t("reads Roar and lists every change a fill would make, without saving. Then")}{" "}
-            <strong>{t("Fill in Roar")}</strong> {t("applies them — you review and Submit in the Roar window (it never submits for you).")}
+            {rich(
+              t(
+                "<b>Dry run</b> reads Roar and lists every change a fill would make, without saving. Then <b>Fill in Roar</b> applies them — you review and Submit in the Roar window (it never submits for you).",
+              ),
+              { b: (s) => <strong>{s}</strong> },
+            )}
           </li>
           <li>
-            <strong>{t("Safe to rerun — Roar follows Zeff entry by entry:")}</strong>{" "}
-            {by
-              ? t(
-                  "matching entries stay, a changed duration is updated, a missing booking is added, and an entry Zeff no longer has (e.g. a meeting moved to another job) is set to 0 h. That clean-up only touches jobs that exist in Zeff, on days you tracked in Zeff — and not on this reporter-filtered export, which only adds.",
-                )
-              : t(
-                  "matching entries stay, a changed duration is updated, a missing booking is added, and an entry Zeff no longer has (e.g. a meeting moved to another job) is set to 0 h. That clean-up only touches jobs that exist in Zeff, on days you tracked in Zeff.",
-                )}
+            {rich(
+              by
+                ? t(
+                    "<b>Safe to rerun — Roar follows Zeff entry by entry:</b> matching entries stay, a changed duration is updated, a missing booking is added, and an entry Zeff no longer has (e.g. a meeting moved to another job) is set to 0 h. That clean-up only touches jobs that exist in Zeff, on days you tracked in Zeff — and not on this reporter-filtered export, which only adds.",
+                  )
+                : t(
+                    "<b>Safe to rerun — Roar follows Zeff entry by entry:</b> matching entries stay, a changed duration is updated, a missing booking is added, and an entry Zeff no longer has (e.g. a meeting moved to another job) is set to 0 h. That clean-up only touches jobs that exist in Zeff, on days you tracked in Zeff.",
+                  ),
+              { b: (s) => <strong>{s}</strong> },
+            )}
           </li>
         </ol>
         {plan.rows.length > 0 && <RoarExportControls week={week.key} by={by} />}
@@ -166,8 +200,12 @@ export default async function RoarExportPage({
           </summary>
           <div className="mt-3 space-y-3">
             <p className="text-sm text-zinc-500">
-              {t("Most jobs pre-fill a WorkCode from your role. Some (e.g.")} <strong>Abwesenheit</strong>
-              {t(") start empty and need a specific code before Roar will save — set it here so the export picks it automatically.")}
+              {rich(
+                t(
+                  "Most jobs pre-fill a WorkCode from your role. Some (e.g. <b>Abwesenheit</b>) start empty and need a specific code before Roar will save — set it here so the export picks it automatically.",
+                ),
+                { b: (s) => <strong>{s}</strong> },
+              )}
             </p>
             <RoarWorkcodesForm jobs={jobOptions} current={roarWorkcodes} />
           </div>

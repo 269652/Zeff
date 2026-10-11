@@ -5,6 +5,7 @@ import { importJiraAction, syncJiraAction } from "@/plugins/jira/server-actions"
 import type { ActionState } from "@/app/action-helpers";
 import type { UiOpenState } from "@/lib/ui-state-shared";
 import { useT } from "@/components/I18nProvider";
+import { rich } from "@/lib/i18n/rich";
 import { PersistentDetails } from "./PersistentDetails";
 import { SubmitButton } from "./SubmitButton";
 
@@ -20,7 +21,9 @@ export function JiraSyncControls({ configured, ui }: { configured: boolean; ui: 
         </form>
         {!configured && (
           <span className="text-sm text-zinc-500">
-            {t("Set")} <code className="code">JIRA_MCP_COMMAND</code> {t("to enable, or use paste import below.")}
+            {rich(t("Set <code>JIRA_MCP_COMMAND</code> to enable, or use paste import below."), {
+              code: (s) => <code className="code">{s}</code>,
+            })}
           </span>
         )}
         {syncState?.error && <span className="text-sm text-red-600 dark:text-red-400">{syncState.error}</span>}

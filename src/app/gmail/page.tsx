@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { t } from "@/lib/i18n/server";
+import { rich } from "@/lib/i18n/rich";
 import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { GmailAccountsForm } from "@/plugins/gmail/GmailAccountsForm";
@@ -25,15 +26,21 @@ export default async function GmailSettingsPage() {
           )}
         </p>
         <p className="text-sm text-zinc-500">
-          {t("Each account's mails land in a folder of their own — in the")}{" "}
-          <Link href="/apps/gmail" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            {t("Gmail app")}
-          </Link>{" "}
-          {t("and under")}{" "}
-          <Link href="/mail" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            {t("Messages")}
-          </Link>{" "}
-          {t("a filter each.")}
+          {rich(
+            t("Each account's mails land in a folder of their own — in the <app>Gmail app</app> and under <mail>Messages</mail> a filter each."),
+            {
+              app: (s) => (
+                <Link href="/apps/gmail" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                  {s}
+                </Link>
+              ),
+              mail: (s) => (
+                <Link href="/mail" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                  {s}
+                </Link>
+              ),
+            },
+          )}
         </p>
       </div>
       <section className="card space-y-3 p-4">

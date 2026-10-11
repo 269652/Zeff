@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
+import { rich } from "@/lib/i18n/rich";
 import { runSyncAllAction, stopSyncAllAction, syncOverviewAction } from "@/app/actions";
 import type { SyncOverview } from "@/lib/sync/shared";
 import { useT } from "@/components/I18nProvider";
@@ -85,11 +86,13 @@ export function SetupDataRun({ next }: { next: string }) {
       </ul>
       {finished && failed.length > 0 && (
         <p className="text-xs text-zinc-500">
-          {t("A sign-in missing?")}{" "}
-          <Link href="/setup?step=logins" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            {t("Back to the sign-ins")}
-          </Link>
-          {t(", then once more.")}
+          {rich(t("A sign-in missing? <link>Back to the sign-ins</link>, then once more."), {
+            link: (s) => (
+              <Link href="/setup?step=logins" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                {s}
+              </Link>
+            ),
+          })}
         </p>
       )}
       {finished && (

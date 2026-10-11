@@ -1,10 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useLang, useT } from "@/components/I18nProvider";
 import { addDays } from "@/lib/calendar/recurrence";
-import { isoWeek, itemOn, local, minutesBetween, timeText, type Item } from "./view-shared";
+import { LANGUAGES } from "@/lib/i18n/shared";
+import { isoWeek, itemOn, local, minutesBetween, timeText, weekdayHeads, type Item } from "./view-shared";
 
-const HEAD = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MAX = 3;
 
 type Drag = { item: Item; from: string; day: string; x0: number; y0: number; moved: boolean };
@@ -34,6 +35,8 @@ export function MonthGrid({
   onMove: (item: Item, start: string, end: string) => void;
   onPickDay: (day: string) => void;
 }) {
+  const t = useT();
+  const locale = LANGUAGES[useLang()].locale;
   const [drag, setDrag] = useState<Drag | null>(null);
   const ref = useRef<Drag | null>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -71,8 +74,8 @@ export function MonthGrid({
     >
       <div className="grid grid-cols-[2rem_repeat(7,minmax(0,1fr))] border-b border-zinc-200 text-center text-[11px] font-medium text-zinc-500 uppercase dark:border-zinc-800">
         <div />
-        {HEAD.map((h) => (
-          <div key={h} className="py-1.5">
+        {weekdayHeads("short", locale).map((h, i) => (
+          <div key={i} className="py-1.5">
             {h}
           </div>
         ))}
@@ -80,7 +83,7 @@ export function MonthGrid({
       <div className="grid min-h-0 flex-1" style={{ gridTemplateRows: `repeat(${weeks.length}, minmax(5.5rem, 1fr))` }}>
         {weeks.map((w) => (
           <div key={w[0]} className="grid grid-cols-[2rem_repeat(7,minmax(0,1fr))] border-b border-zinc-100 last:border-b-0 dark:border-zinc-800">
-            <button type="button" onClick={() => onPickDay(w[0])} className="pt-1.5 text-[10px] text-zinc-300 hover:text-indigo-500 dark:text-zinc-600" title="Show this week">
+            <button type="button" onClick={() => onPickDay(w[0])} className="pt-1.5 text-[10px] text-zinc-300 hover:text-indigo-500 dark:text-zinc-600" title={t("Show this week")}>
               {isoWeek(w[0])}
             </button>
             {w.map((d) => {
@@ -99,9 +102,9 @@ export function MonthGrid({
                     type="button"
                     onClick={() => onPickDay(d)}
                     className={`self-start rounded-full px-1.5 text-xs tabular-nums ${isToday ? "bg-indigo-600 font-semibold text-white" : other ? "text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
-                    aria-label={local(d).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
+                    aria-label={local(d).toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" })}
                   >
-                    {Number(d.slice(8)) === 1 ? local(d).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : Number(d.slice(8))}
+                    {Number(d.slice(8)) === 1 ? local(d).toLocaleDateString(locale, { day: "numeric", month: "short" }) : Number(d.slice(8))}
                   </button>
                   {list.slice(0, MAX).map((it) => (
                     <button
@@ -126,7 +129,7 @@ export function MonthGrid({
                   ))}
                   {list.length > MAX && (
                     <button type="button" onClick={() => onPickDay(d)} className="self-start rounded px-1 text-[11px] font-medium text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-                      +{list.length - MAX} more
+                      {t("+{n} more", { n: list.length - MAX })}
                     </button>
                   )}
                   <div data-free="1" className="min-h-2 flex-1" />

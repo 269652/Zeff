@@ -2,6 +2,7 @@ import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
+import { rich } from "@/lib/i18n/rich";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
@@ -51,12 +52,13 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           <p className="text-sm text-zinc-500">
             {t("{hours}h booked in {n} entries", { hours: formatHours(project.totalHours), n: project.entryCount })} ·{" "}
             {project.job ? (
-              <>
-                {t("on")}{" "}
-                <Link href={`/jobs/${project.job.id}`} className="hover:underline">
-                  <span className="font-mono">{project.job.number}</span> {project.job.name}
-                </Link>
-              </>
+              rich(t("on <link>{job}</link>", { job: `${project.job.number} ${project.job.name}` }), {
+                link: () => (
+                  <Link href={`/jobs/${project.job!.id}`} className="hover:underline">
+                    <span className="font-mono">{project.job!.number}</span> {project.job!.name}
+                  </Link>
+                ),
+              })
             ) : (
               <span className="badge badge-nojob">{t("No job yet")}</span>
             )}
