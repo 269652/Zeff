@@ -3452,5 +3452,9 @@
   "Zeff: your browser blocked the popup. Copied {n} meetings to the clipboard — paste them into Zeff → Import meetings.": "Zeff: tu navegador bloqueó la ventana emergente. Se copiaron {n} reuniones al portapapeles — pégalas en Zeff → Importar reuniones.",
   "Zeff's data — the database and the files beside it (calendar inbox, run logs) — as a ZIP, AES-256 encrypted with a password. Runs by itself; here also by hand at any time, and restore here.": "Los datos de Zeff — la base de datos y los archivos junto a ella (bandeja del calendario, logs de ejecuciones) — como ZIP, cifrado AES-256 con contraseña. Se ejecuta solo; aquí también a mano en cualquier momento, y se restaura aquí.",
   "Zeff's Jira connection isn't set up (Jira tab) — nothing can be posted without it.": "La conexión de Zeff con Jira no está configurada (pestaña Jira) — sin ella no se puede publicar nada.",
-  "Zeff's Jira connection isn't set up (Jira tab).": "La conexión de Zeff con Jira no está configurada (pestaña Jira)."
+  "Zeff's Jira connection isn't set up (Jira tab).": "La conexión de Zeff con Jira no está configurada (pestaña Jira).",
+  "Attach an image or document": "Adjuntar una imagen o un documento",
+  "Attach an image or document (or paste / drop it)": "Adjuntar una imagen o un documento (o pegarlo / arrastrarlo)",
+  "Attachments": "Adjuntos",
+  "uploading …": "subiendo …"
 }

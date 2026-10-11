@@ -9,7 +9,7 @@ import { EditDiff } from "./Diff";
 /** One message of yours and the run that answered it. `ask`: your words (null: the todo's own work, `label` says what). */
 export type SessionTurn = { run: WorkRunView; ask: string | null; label: string };
 
-const BACKEND: Record<string, string> = { claude: "Claude CLI", copilot: "Copilot CLI", zeff: "Zeff", agent: "Agent (MCP)" };
+const BACKEND: Record<string, string> = { claude: "Claude CLI", copilot: "Copilot CLI", codex: "ChatGPT", zeff: "Zeff", agent: "Agent (MCP)" };
 
 /**
  * A run's log lines as they come: polled while it runs, read once when it's over. A live session's

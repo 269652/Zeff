@@ -5,7 +5,7 @@ import { t } from "@/lib/i18n/server";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { WorkFollow } from "@/components/work/WorkFollow";
-import { aiProviders } from "@/lib/ai";
+import { composerOptions } from "@/lib/work/composer-options";
 import { SidebarFrame } from "@/components/SidebarFrame";
 import { SessionSidebar } from "@/components/work/SessionSidebar";
 import { NewSessionPane, SessionPane, TicketPane } from "@/components/work/SessionPanes";
@@ -45,6 +45,7 @@ export default async function WorkPage({
   const runId = Number(sp.run) || null;
   const run = runId ? getRun(runId) : undefined;
   const ticket = sp.ticket === undefined ? undefined : sp.ticket === "-" ? "" : sp.ticket.toUpperCase();
+  const composer = await composerOptions();
   const options = {
     tickets: tickets.filter((x) => x.ticket).map((x) => ({ key: x.ticket, summary: x.summary })),
     repos: listRepos().map((r) => ({ id: r.id, name: r.name, path: r.path })),
@@ -55,21 +56,8 @@ export default async function WorkPage({
         return m ? [[k.toUpperCase(), m.repo.path]] : [];
       }),
     ),
-    providers: aiProviders()
-      .filter((x) => x.found)
-      .map((x) => ({ id: x.id, label: x.label })),
-    claude: (() => {
-      const cs = claudeSessionSettings();
-      return {
-        live: cs.live && isInstalled("claude-cli"),
-        defaultProvider: llmChoice("worker").provider,
-        mode: cs.mode,
-        effort: cs.effort,
-        allowBypass: cs.allowBypass,
-        models: CLAUDE_MODELS.map((m) => ({ value: m.value, label: m.label })),
-        admin: elevationAvailable(),
-      };
-    })(),
+    providers: composer.providers.map((x) => ({ id: x.id, label: x.label })),
+    composer,
   };
   const running = tickets.reduce((n, x) => n + x.sessions.filter((x) => x.status === "running").length, 0);
   const selected = { run: run?.id, ticket, isNew: !run && ticket === undefined };
