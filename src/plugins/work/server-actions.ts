@@ -12,7 +12,15 @@ import { num, revalidateAll, str, type ActionState } from "@/app/action-helpers"
  * where that one is), or as a new todo on a ticket (or none) — in a repo you pick, else the
  * ticket's. Interactive with the Copilot CLI (the Work settings): you talk to it on its page.
  */
-export async function startSessionAction(v: { instruction: string; ticket?: string; todoId?: number; repoId?: number; provider?: string }): Promise<{ ok: true; runId: number } | { ok: false; error: string }> {
+/** A new session — or, with continueRunId, your next message in that session's conversation. */
+export async function startSessionAction(v: {
+  instruction: string;
+  ticket?: string;
+  todoId?: number;
+  repoId?: number;
+  provider?: string;
+  continueRunId?: number;
+}): Promise<{ ok: true; runId: number } | { ok: false; error: string }> {
   try {
     const instruction = String(v.instruction ?? "").trim();
     // A todo without words: it's worked on as it is (its brief).
@@ -25,6 +33,14 @@ export async function startSessionAction(v: { instruction: string; ticket?: stri
     if (!instruction) return { ok: false, error: "Was soll der Worker tun?" };
     const { isAiProvider } = await import("@/lib/ai/shared");
     const { dispatchTodo } = await import("@/lib/work/runner");
+    if (v.continueRunId) {
+      const { getRun } = await import("@/lib/work/store");
+      const prev = getRun(Number(v.continueRunId));
+      if (!prev) return { ok: false, error: "Diese Session gibt es nicht mehr." };
+      const run = dispatchTodo(prev.todoId, { instruction, continueRun: prev.id, provider: isAiProvider(v.provider) ? v.provider : undefined });
+      revalidatePath("/work");
+      return { ok: true, runId: run.id };
+    }
     const { addSessionTodo, getTodo } = await import("@/lib/boards/store");
     // On its todo, while it's open; else a new todo (on the ticket, or none).
     const existing = v.todoId ? getTodo(Number(v.todoId)) : undefined;

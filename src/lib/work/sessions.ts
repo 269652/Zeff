@@ -38,7 +38,10 @@ export function sessionTickets(): SessionTicket[] {
     }
     return t;
   };
-  for (const r of runs) {
+  // A session is a conversation: all runs on one todo (each message a run) — shown once, as its newest run.
+  const newest = new Map<number, WorkRunView>();
+  for (const r of runs) if ((newest.get(r.todoId)?.id ?? 0) < r.id) newest.set(r.todoId, r);
+  for (const r of newest.values()) {
     const t = of(r.ticket);
     const live = !!r.live;
     const active = r.status === "queued" || r.status === "running";

@@ -76,13 +76,26 @@ function killTree(pid: number): void {
  * send it — see workModeOf), with the provider given or the one from the AI settings. Queued;
  * it starts as soon as a worker is free.
  */
-export function dispatchTodo(todoId: number, opts: { provider?: AiProvider; instruction?: string; /** A session in this repo (Repos page), whatever the ticket says. */ repoId?: number } = {}): WorkRunView {
+export function dispatchTodo(
+  todoId: number,
+  opts: {
+    provider?: AiProvider;
+    instruction?: string;
+    /** A session in this repo (Repos page), whatever the ticket says. */ repoId?: number;
+    /** Your next message in this run's conversation: Claude goes on with its session (where it worked), like Claude Code. */
+    continueRun?: number;
+  } = {},
+): WorkRunView {
   if (!isInstalled("work")) throw new ValidationError("Work ist nicht installiert (Menü → Plugins) — ohne es arbeitet kein Worker an Todos.");
   const todo = getTodo(todoId);
   if (!todo) throw new NotFoundError(`Todo ${todoRef(todoId)} not found.`);
   // Your instruction: an AI run on the todo that does what you say (whatever the todo's own mode).
   const instruction = opts.instruction?.trim();
-  if (instruction && todo.status !== "open") throw new ValidationError(`${todoRef(todoId)} is ${todo.status} already.`);
+  const prev = opts.continueRun ? getRun(opts.continueRun) : undefined;
+  if (opts.continueRun && (!prev || prev.todoId !== todoId)) throw new ValidationError(`${workRef(opts.continueRun)} isn't a session on ${todoRef(todoId)}.`);
+  if (prev && !instruction) throw new ValidationError("What's your next message?");
+  // A conversation goes on whatever became of its todo; a new instruction needs an open one.
+  if (instruction && !prev && todo.status !== "open") throw new ValidationError(`${todoRef(todoId)} is ${todo.status} already.`);
   const m: ReturnType<typeof workModeOf> = instruction ? { mode: "instruct" } : workModeOf(todo);
   if (!m.mode) throw new ValidationError(m.why);
   // (An instruction from the todo's own operations — Zeff running them right now — goes ahead.)
@@ -92,7 +105,9 @@ export function dispatchTodo(todoId: number, opts: { provider?: AiProvider; inst
   // A GitLab reply Zeff posts itself; a Jira one goes through Claude (with Zeff's Jira connection).
   const byZeff = !instruction && ((m.mode === "send" && todo.channel === "gitlab") || m.mode === "mr" || m.mode === "ops");
   // A worker is the LLM plugin's "worker" task: its backend (or the default).
-  const provider: AiProvider | "zeff" = byZeff ? "zeff" : (opts.provider ?? llmChoice("worker").provider);
+  // (Going on with a session: its provider, unless you pick another.)
+  const prevProvider = prev?.provider === "claude" || prev?.provider === "copilot" ? prev.provider : undefined;
+  const provider: AiProvider | "zeff" = byZeff ? "zeff" : (opts.provider ?? prevProvider ?? llmChoice("worker").provider);
   if (provider !== "zeff" && !isInstalled("llm")) throw new ValidationError("Das LLM-Plugin ist nicht installiert (Menü → Plugins) — keine Worker.");
   if (provider !== "zeff" && !providerAvailable(provider)) throw new ValidationError(`${provider === "claude" ? "Claude CLI" : "Copilot CLI"}: das Plugin ist nicht installiert (Settings → Plugins).`);
   if (m.mode === "send" && provider === "copilot") throw new ValidationError("Only Claude can post to Jira (through Zeff's Jira connection) — install the Claude CLI plugin.");
@@ -102,15 +117,22 @@ export function dispatchTodo(todoId: number, opts: { provider?: AiProvider; inst
   // The Work tab's model is one of the Settings provider's; another provider gets its own Settings model.
   const own = provider === "zeff" ? "" : provider === llmChoice("worker").provider ? llmChoice("worker").model : provider === "copilot" ? app.copilotModel : app.claudeModel;
   const model = (provider === aiChoice().provider ? s.model || own : own) || null;
+  // Claude resumes its session — in the folder it ran in (Claude keeps sessions by folder), so it knows everything said and done.
+  const resume = prev && provider === "claude" && prev.provider === "claude" && prev.sessionId && prev.cwd && fs.existsSync(/*turbopackIgnore: true*/ prev.cwd) ? prev : undefined;
   const run = createRun({
     ticket: todo.ticket,
     todoId,
     mode: m.mode,
     provider,
-    model,
+    model: resume ? (opts.provider ? model : (prev!.model ?? model)) : model,
     permissionMode: provider === "claude" ? s.permissionMode : provider === "copilot" ? "allow-all-tools" : null,
-    repo: repo?.path ?? null,
-    prompt: instruction ? `${briefFor(todo)}\n\n## Deine Anweisung (vom Nutzer — sie geht vor)\n${instruction}` : briefFor(todo),
+    repo: resume ? resume.repo : (repo?.path ?? null),
+    prompt: resume
+      ? `## Deine Anweisung (vom Nutzer — sie geht vor)\n${instruction}`
+      : instruction
+        ? `${briefFor(todo)}\n\n## Deine Anweisung (vom Nutzer — sie geht vor)\n${instruction}`
+        : briefFor(todo),
+    ...(resume ? { sessionId: resume.sessionId, cwd: resume.cwd, branch: resume.branch, base: resume.base, baseSha: resume.baseSha } : {}),
   });
   // Your instruction on the todo, as your words (context for the Lage, workers and agents too).
   if (instruction) addTodoInstruction(todoId, instruction, run.id);
@@ -162,11 +184,15 @@ function start(id: number): void {
       return;
     }
     const mode = r.mode === "draft" || r.mode === "send" || r.mode === "instruct" ? r.mode : "code";
+    // Queued with a session: the next message in a conversation — Claude resumes it where it worked.
+    const resume = r.provider === "claude" && !!r.sessionId && !!r.cwd;
     let cwd = path.join(workDir(), "scratch");
     let branch: string | null = null;
     let base: string | null = null;
     let baseSha: string | null = null;
-    if (codeLike(mode) && r.repo) {
+    if (resume) {
+      ({ cwd, branch, base, baseSha } = { cwd: r.cwd!, branch: r.branch, base: r.base, baseSha: r.baseSha });
+    } else if (codeLike(mode) && r.repo) {
       if (s.isolation === "worktree") {
         base = baseFor(r.repo, r.ticket);
         ({ cwd, branch, baseSha } = addWorktree(r.repo, r.ticket, id, base));
@@ -226,7 +252,7 @@ function start(id: number): void {
     } else {
       const cli = findClaudeCli();
       if (!cli) throw new Error("The Claude CLI wasn't found — install Claude Code, or set CLAUDE_CLI.");
-      sessionId = randomUUID();
+      sessionId = resume ? r.sessionId! : randomUUID();
       // CLAUDE_CLI may be a script (a stand-in): run with node.
       const script = /\.(c|m)?js$/i.test(cli);
       const disallowed = [...ZEFF_TOOLS, ...(codeLike(mode) ? [] : ["Edit", "Write", "MultiEdit", "NotebookEdit"]), ...(mode === "send" ? ["Bash", "PowerShell"] : [])];
@@ -239,10 +265,7 @@ function start(id: number): void {
         "--verbose",
         "--json-schema",
         JSON.stringify(WORK_RESULT_SCHEMA),
-        "--session-id",
-        sessionId,
-        "--name",
-        `Zeff ${workRef(id)} · ${r.ticket}`,
+        ...(resume ? ["--resume", sessionId] : ["--session-id", sessionId, "--name", `Zeff ${workRef(id)} · ${r.ticket}`]),
         "--permission-mode",
         r.permissionMode || "auto",
         "--permission-prompts",

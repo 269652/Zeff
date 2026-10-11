@@ -84,7 +84,11 @@ export function toRunView(r: WorkRun): WorkRunView {
   };
 }
 
-export function createRun(values: Pick<WorkRun, "ticket" | "todoId" | "mode" | "provider" | "model" | "permissionMode" | "repo" | "prompt">): WorkRun {
+/** A new run, queued. With sessionId and cwd it goes on with an earlier run's session, where that one worked. */
+export function createRun(
+  values: Pick<WorkRun, "ticket" | "todoId" | "mode" | "provider" | "model" | "permissionMode" | "repo" | "prompt"> &
+    Partial<Pick<WorkRun, "sessionId" | "cwd" | "branch" | "base" | "baseSha">>,
+): WorkRun {
   emitChange("work");
   return getDb()
     .insert(workRuns)
