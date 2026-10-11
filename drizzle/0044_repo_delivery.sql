@@ -1,0 +1,1 @@
+ALTER TABLE `repos` ADD `delivery` text DEFAULT 'mr' NOT NULL;

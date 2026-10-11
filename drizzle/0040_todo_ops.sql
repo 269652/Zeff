@@ -1,0 +1,1 @@
+ALTER TABLE `todos` ADD `ops` text DEFAULT '[]' NOT NULL;

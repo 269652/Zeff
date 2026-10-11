@@ -1,0 +1,44 @@
+import { connection } from "next/server";
+import { t } from "@/lib/i18n/server";
+
+/**
+ * What's worth a desktop notification right now (the launcher polls it and shows each id once):
+ * sign-ins Zeff needs, agents asking you, and your todos due today or overdue — the account
+ * you're in. Ids are stable (a due todo's per day), so a poller can remember what it showed.
+ */
+export async function GET() {
+  await connection();
+  const items: { id: string; title: string; body: string; href: string; at: string }[] = [];
+  const { listAttention } = await import("@/lib/attention");
+  for (const a of await listAttention()) items.push({ id: a.key, title: a.title, body: a.body.slice(0, 200), href: a.href ?? (a.kind === "login" ? "/logins" : "/heute"), at: a.at });
+  const { isInstalled } = await import("@/plugins/state");
+  if (isInstalled("todos")) {
+    const { listTodos } = await import("@/lib/boards/store");
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    for (const todo of listTodos({ status: "open" }))
+      if (todo.owner === "me" && todo.due && todo.due <= today)
+        items.push({
+          id: `due:${todo.id}:${today}`,
+          title: todo.due < today ? t("{ref} is overdue", { ref: todo.ref }) : t("{ref} is due today", { ref: todo.ref }),
+          body: todo.text.slice(0, 200),
+          href: `/t/${todo.id}`,
+          at: now.toISOString(),
+        });
+  }
+  // Your people's dates (Personen plugin): once when the reminder starts, once on the day.
+  if (isInstalled("people")) {
+    const { upcoming } = await import("@/plugins/people/store");
+    const { inDaysText, upcomingTitle } = await import("@/plugins/people/shared");
+    const now = new Date();
+    for (const u of upcoming({ withinReminder: true }))
+      items.push({
+        id: `person-date:${u.date.id}:${u.on}:${u.inDays === 0 ? "today" : "soon"}`,
+        title: u.inDays === 0 ? t("Today: {what}", { what: upcomingTitle(u, t) }) : `${upcomingTitle(u, t)} ${inDaysText(u.inDays, u.on, t)}`,
+        body: u.date.kind === "birthday" ? t("Don't forget to congratulate.") : u.date.label || "",
+        href: `/personen/${u.person.id}`,
+        at: now.toISOString(),
+      });
+  }
+  return Response.json({ items });
+}

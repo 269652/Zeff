@@ -1,0 +1,1 @@
+ALTER TABLE `todos` ADD `deferred_at` text;

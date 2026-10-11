@@ -1,0 +1,1 @@
+ALTER TABLE `todos` ADD `user_notes` text DEFAULT '[]' NOT NULL;

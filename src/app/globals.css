@@ -1,0 +1,176 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fafafa;
+  --foreground: #18181b;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  /* Jira — our Jira colour (#BA9765) as a scale, for its badges and icons. */
+  --color-jira-50: #faf6f0;
+  --color-jira-100: #f3eadc;
+  --color-jira-200: #e7d4b9;
+  --color-jira-300: #d8bb93;
+  --color-jira-400: #c9a77a;
+  --color-jira-500: #ba9765;
+  --color-jira-600: #a07c4b;
+  --color-jira-700: #85653d;
+  --color-jira-800: #6b5133;
+  --color-jira-900: #58432b;
+  --color-jira-950: #2f2316;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #09090b;
+    --foreground: #e4e4e7;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+@layer components {
+  /*
+   * A page: its header (.page-aside — title, what it is, its controls) as a sidebar on the left,
+   * sticky; the content beside it, the window's width. Every page alike (the boards, the chat,
+   * the todos have the same frame, foldable: SidebarFrame). On a phone: one under the other.
+   */
+  .page {
+    @apply grid items-start gap-x-6 lg:grid-cols-[18rem_minmax(0,1fr)];
+  }
+  .page > * {
+    @apply min-w-0 lg:col-start-2;
+    margin-block: 0;
+  }
+  .page > * + * {
+    margin-top: 1.5rem;
+  }
+  .page > .page-aside {
+    @apply space-y-3 self-start lg:sticky lg:top-0 lg:col-start-1 lg:row-start-1 lg:row-end-[span_99] lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pr-1 lg:pb-2;
+    scrollbar-width: thin;
+  }
+  .page > .page-aside + * {
+    @apply lg:mt-0;
+  }
+  .card {
+    @apply rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900;
+  }
+  .label {
+    @apply mb-1 block text-xs font-medium tracking-wide text-zinc-500 uppercase dark:text-zinc-400;
+  }
+  .input {
+    @apply w-full rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 shadow-xs outline-none placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100;
+  }
+  .btn {
+    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-800 shadow-xs transition hover:bg-zinc-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800;
+  }
+  .btn-primary {
+    @apply border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-500 dark:border-indigo-500 dark:bg-indigo-600 dark:hover:bg-indigo-500;
+  }
+  .btn-danger {
+    @apply border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950;
+  }
+  .btn-sm {
+    @apply px-2 py-1 text-xs;
+  }
+  /* A borderless square button showing just an icon (give it a title and an aria-label). */
+  .icon-btn {
+    @apply inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100;
+  }
+  .icon-btn-danger {
+    @apply hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50 dark:hover:text-red-400;
+  }
+  .table {
+    @apply w-full border-collapse text-sm;
+  }
+  .table th {
+    @apply border-b border-zinc-200 px-3 py-2 text-left text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:border-zinc-800 dark:text-zinc-400;
+  }
+  .table td {
+    @apply border-b border-zinc-100 px-3 py-2 align-top dark:border-zinc-800/60;
+  }
+  .num {
+    @apply text-right font-mono tabular-nums;
+  }
+  .badge {
+    @apply inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium;
+  }
+  .badge-mcp {
+    @apply border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-300;
+  }
+  .badge-jdone {
+    @apply border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300;
+  }
+  .badge-jprogress {
+    @apply border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300;
+  }
+  .badge-jtodo {
+    @apply border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-300;
+  }
+  .badge-junknown {
+    @apply border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300;
+  }
+  .badge-tag {
+    @apply border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-900 dark:bg-teal-950 dark:text-teal-300;
+  }
+  .badge-calendar {
+    @apply border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-300;
+  }
+  .badge-web {
+    @apply border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300;
+  }
+  /* Entry types: tinted from the type's configured color (--type-color, set inline). */
+  .badge-type {
+    border-color: color-mix(in oklab, var(--type-color) 35%, transparent);
+    background-color: color-mix(in oklab, var(--type-color) 12%, transparent);
+    color: color-mix(in oklab, var(--type-color) 75%, black);
+  }
+  @media (prefers-color-scheme: dark) {
+    .badge-type {
+      border-color: color-mix(in oklab, var(--type-color) 45%, transparent);
+      background-color: color-mix(in oklab, var(--type-color) 22%, transparent);
+      color: color-mix(in oklab, var(--type-color) 55%, white);
+    }
+  }
+  .badge-project {
+    @apply border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 dark:border-fuchsia-900 dark:bg-fuchsia-950 dark:text-fuchsia-300;
+  }
+  .badge-nojob {
+    @apply border-dashed border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300;
+  }
+  .alert-error {
+    @apply rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300;
+  }
+  .alert-ok {
+    @apply rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300;
+  }
+  .code {
+    @apply rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[13px] text-zinc-800 dark:bg-zinc-800 dark:text-zinc-100;
+  }
+  .pre {
+    @apply overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-50 p-3 font-mono text-[13px] leading-relaxed text-zinc-800 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100;
+  }
+}
+
+/* The element the address points at (#todo-75): outlined — see HashHighlight. */
+[data-highlight] {
+  outline: 2px solid var(--color-amber-400);
+  outline-offset: 3px;
+  border-radius: 0.375rem;
+  background-color: color-mix(in oklab, var(--color-amber-100) 55%, transparent);
+  scroll-margin-top: 6rem;
+}
+@media (prefers-color-scheme: dark) {
+  [data-highlight] {
+    outline-color: var(--color-amber-600);
+    background-color: color-mix(in oklab, var(--color-amber-900) 35%, transparent);
+  }
+}

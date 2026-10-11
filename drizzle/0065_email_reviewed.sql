@@ -1,0 +1,1 @@
+ALTER TABLE `emails` ADD `reviewed_at` text;

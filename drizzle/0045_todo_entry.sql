@@ -1,0 +1,1 @@
+ALTER TABLE `todos` ADD `entry_id` integer;
