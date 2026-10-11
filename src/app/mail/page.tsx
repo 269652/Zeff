@@ -6,11 +6,12 @@ import { connection } from "next/server";
 import Link from "next/link";
 import { syncMailAction } from "@/app/actions";
 import { syncWhatsappAction } from "@/plugins/whatsapp/server-actions";
+import { syncSignalAction } from "@/plugins/signal/server-actions";
 import { MailFoldersForm } from "@/components/MailFoldersForm";
 import { SyncSplitButton } from "@/components/SyncSplitButton";
 import { TodoRefs } from "@/components/boards/TodoRefs";
 import { getMailSettings, listMails, mailFolderCounts } from "@/lib/mail/store";
-import type { MailView } from "@/lib/mail/shared";
+import { isChatFolder, type MailView } from "@/lib/mail/shared";
 import { agoText } from "@/lib/teams/time";
 import { syncOverview } from "@/lib/sync/registry";
 import { pushTo } from "@/lib/collections";
@@ -33,20 +34,22 @@ const when = (iso: string) => {
  */
 export default async function MailPage({ searchParams }: { searchParams: Promise<{ q?: string; folder?: string }> }) {
   await connection();
-  // A plugin's page: there while Outlook Mail, Gmail or WhatsApp is installed.
+  // A plugin's page: there while Outlook Mail, Gmail, WhatsApp or Signal is installed.
   const outlook = isInstalled("outlook-mail");
   const gmail = isInstalled("gmail");
   const whatsapp = isInstalled("whatsapp");
-  if (!outlook && !gmail && !whatsapp) return <PluginNotInstalled id="outlook-mail" />;
-  const source = [outlook && "Outlook", gmail && "Gmail", whatsapp && "WhatsApp"].filter(Boolean).join(", ").replace(/, ([^,]*)$/, ` ${t("and")} $1`);
+  const signal = isInstalled("signal");
+  if (!outlook && !gmail && !whatsapp && !signal) return <PluginNotInstalled id="outlook-mail" />;
+  const source = [outlook && "Outlook", gmail && "Gmail", whatsapp && "WhatsApp", signal && "Signal Desktop"].filter(Boolean).join(", ").replace(/, ([^,]*)$/, ` ${t("and")} $1`);
   const wa = whatsapp ? syncOverview().steps.find((s) => s.key === "whatsapp") : undefined;
+  const sg = signal ? syncOverview().steps.find((s) => s.key === "signal") : undefined;
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
   const counts = mailFolderCounts();
   const folder = sp.folder && sp.folder in counts ? sp.folder : undefined;
   const settings = getMailSettings();
   const mails = listMails({ q, folder, limit: 1500 });
-  // By conversation (a WhatsApp chat, a mail thread) — newest first, its messages in order.
+  // By conversation (a chat, a mail thread) — newest first, its messages in order.
   const convs = new Map<string, MailView[]>();
   for (const m of mails) pushTo(convs, m.convId, m);
   const conversations = [...convs.values()].slice(0, 200);
@@ -90,6 +93,7 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
               ? [{ key: "mail", label: t("Mails"), minutes: settings.syncMinutes, sync: syncMailAction, last: settings.lastSyncAt ? { at: settings.lastSyncAt, ago: agoText(settings.lastSyncAt), ok: !!settings.lastOk, result: settings.lastResult ?? "" } : null }]
               : []),
             ...(wa ? [{ key: "whatsapp", label: "WhatsApp", minutes: wa.everyMinutes, sync: syncWhatsappAction, last: wa.lastAt ? { at: wa.lastAt, ago: agoText(wa.lastAt), ok: !!wa.lastOk, result: wa.lastMessage ?? "" } : null }] : []),
+            ...(sg ? [{ key: "signal", label: "Signal", minutes: sg.everyMinutes, sync: syncSignalAction, last: sg.lastAt ? { at: sg.lastAt, ago: agoText(sg.lastAt), ok: !!sg.lastOk, result: sg.lastMessage ?? "" } : null }] : []),
           ]}
         />
       </form>
@@ -99,7 +103,7 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
         <ul className="card divide-y divide-zinc-100 dark:divide-zinc-800">
           {conversations.map((list) => {
             const latest = list[0];
-            const chat = latest.folder === "WhatsApp";
+            const chat = isChatFolder(latest.folder);
             const unread = list.some((m) => m.unread);
             // Who's in it: the others first (each once), you last.
             const names = [...new Set(list.map((m) => m.fromName ?? m.fromEmail ?? "?"))];

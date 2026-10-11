@@ -1,8 +1,11 @@
 import path from "node:path";
 import { accountChrome } from "@/db/accounts";
 
-/** The plugins' browser drivers (MCP servers over stdio, run by Zeff) — Outlook Web serves the mail and the calendar plugin. */
-export type DriverId = "roar" | "timo" | "teams" | "gitlab" | "outlook" | "gmail" | "whatsapp" | "keep" | "google-calendar";
+/**
+ * The plugins' browser drivers (MCP servers over stdio, run by Zeff) — Outlook Web serves the mail and
+ * the calendar plugin. Signal's attaches to Signal Desktop instead (its own debug port, see signal/endpoint.ts).
+ */
+export type DriverId = "roar" | "timo" | "teams" | "gitlab" | "outlook" | "gmail" | "whatsapp" | "signal" | "keep" | "google-calendar";
 
 /** Where a plugin's driver is. */
 export const driverPath = (id: DriverId) => path.join(/*turbopackIgnore: true*/ process.cwd(), "src", "plugins", id, "driver.mjs");

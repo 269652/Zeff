@@ -10,7 +10,7 @@ around that core:
 - **Todos and the Ticket-Lage.** An AI pass over your Jira tickets, mail, chats and merge requests
   says what happened and what's to do. Its todos carry their context, due dates and ready-made
   actions. **Heute** is the day on one page.
-- **Connectors.** Jira, Outlook mail and calendar, Gmail, Teams, WhatsApp, Google Keep and GitLab.
+- **Connectors.** Jira, Outlook mail and calendar, Gmail, Teams, WhatsApp, Signal, Google Keep and GitLab.
   They are read through their web apps in an *automation Chrome*, so no OAuth is needed.
 - **Work.** Agents (Claude Code, Copilot CLI) run on your todos in your repos, with live sessions,
   branches and delivery.
@@ -79,12 +79,12 @@ Don't run `npm run db:generate`: its snapshots stop at 0062, so it would recreat
 | Auto-Aktionen | Ready-made actions for every open todo, from what the installed plugins can do |
 | LLM, Copilot CLI, Claude CLI | The AI layer: a backend and model per task, your instructions |
 | Knowledge | The knowledge server's chat, and "Show knowledge" on todos |
-| Jira, Outlook Mail, Outlook Kalender, Google Calendar, Gmail, Teams, WhatsApp, Google Keep, GitLab | Connectors that read, and write only on your click |
+| Jira, Outlook Mail, Outlook Kalender, Google Calendar, Gmail, Teams, WhatsApp, Signal, Google Keep, GitLab | Connectors that read, and write only on your click |
 | Google Keep schreiben (beta) | Your Keep notes editable in Zeff — written back through Keep's own editor, on your click |
 | Roar, TimO | The corporate timesheets: export and read back |
 | Backups, Konten | Encrypted backups (daily, weekly, monthly); more than one account |
 
-**Writes happen only on your click.** Sending a WhatsApp or Teams message, posting to Jira or
+**Writes happen only on your click.** Sending a WhatsApp, Signal or Teams message, posting to Jira or
 GitLab, exporting to Roar or TimO, writing a Keep note: each runs only from a button. The automatic
 steps (syncs, the Lage, reviews, Auto-Aktionen) only read and propose. `tests/safety.test.ts`
 enforces this. Every write tool has a fixed list of callers, and the automatic steps may not import
@@ -128,6 +128,12 @@ It runs from source and attaches over CDP to the account's automation Chrome (fi
 yours: Zeff asks for one (Logins page, notifications) and never signs in itself. A sync that keeps
 failing (twice in a row, or for 12 hours) shows on **Heute**, with the reason: sign-in needed, the
 automation Chrome not running, or the page changed.
+
+Signal has no web app: its driver (`src/plugins/signal/driver.mjs`, beta) attaches over CDP to
+Signal Desktop itself, started with `--remote-debugging-port=9339` (Zeff starts it so, and the
+Signal page can add the port to Signal's autostart entry). It reads through Signal's own chat
+objects in its window's isolated world — no chat opened, nothing marked read — and never touches
+Signal's encrypted database.
 
 ## Import meetings from Outlook / Teams
 

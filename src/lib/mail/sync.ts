@@ -26,8 +26,8 @@ async function chromeUp(): Promise<boolean> {
     .catch(() => false);
 }
 
-type Source = "outlook" | "gmail" | "whatsapp";
-const SOURCE_LABELS: Record<Source, string> = { outlook: "Outlook", gmail: "Gmail", whatsapp: "WhatsApp" };
+type Source = "outlook" | "gmail" | "whatsapp" | "signal";
+const SOURCE_LABELS: Record<Source, string> = { outlook: "Outlook", gmail: "Gmail", whatsapp: "WhatsApp", signal: "Signal" };
 const SOURCE_PLUGINS = { outlook: "outlook-mail", gmail: "gmail", whatsapp: "whatsapp" } as const;
 
 /** WhatsApp: the active chats' messages — else (WhatsApp Web doesn't offer them) each chat's last one from the list. */
@@ -61,7 +61,9 @@ async function readMailbox(source: Source, days: number, background: boolean, gm
             })
           : source === "whatsapp"
             ? await whatsappRead(call, days, background)
-            : await call("outlook_mail", { days, folders: getMailSettings().folders, openIfMissing: true, launch: !background }),
+            : source === "signal"
+              ? await call("signal_messages", { days, maxLoads: days > DAYS ? 8 : 3, launch: !background })
+              : await call("outlook_mail", { days, folders: getMailSettings().folders, openIfMissing: true, launch: !background }),
       ),
     600000, // two months of the list: scrolled (paged) through, row by row
   );
@@ -139,5 +141,24 @@ export async function syncWhatsapp({ background = false } = {}): Promise<{ ok: b
     return { ok: r.ok, message: r.part };
   } finally {
     flag.__zeffWhatsappSyncing = false;
+  }
+}
+
+/**
+ * Read your Signal chats' messages (Signal plugin) from Signal Desktop over its debug port — no chat
+ * opened, nothing marked read — and keep them with the mails (folder "Signal"), for the Durchsicht,
+ * the Zuordnung and the knowledge. Signal is started (in the tray, with the port) if it isn't running
+ * — the scheduler only runs it while Signal runs. The first time two months, then the last days.
+ */
+export async function syncSignal(): Promise<{ ok: boolean; message: string }> {
+  const flag = globalThis as { __zeffSignalSyncing?: boolean };
+  if (flag.__zeffSignalSyncing) return { ok: false, message: t("A Signal sync is already running.") };
+  flag.__zeffSignalSyncing = true;
+  try {
+    const known = (getDb().select({ n: sql<number>`count(*)` }).from(schema.emails).where(sql`${schema.emails.folder} = 'Signal'`).get()?.n ?? 0) > 0;
+    const r = await syncSource("signal", known ? DAYS : FULL_DAYS, false, false);
+    return { ok: r.ok, message: r.part };
+  } finally {
+    flag.__zeffSignalSyncing = false;
   }
 }

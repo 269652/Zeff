@@ -3,11 +3,12 @@ import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { conversationOf, mailsByKeys } from "@/lib/mail/store";
 import { teamsMessagesByKeys } from "@/lib/teams/store";
+import { isChatFolder } from "@/lib/mail/shared";
 import { extraBlock, getContextPrefs } from "./context-prefs";
 import { getTodo } from "./store";
 
-/** Where a reply goes, and where to open it. */
-export type ReplyTarget = { channel: "whatsapp" | "mail" | "teams"; to: string; openUrl: string };
+/** Where a reply goes, and where to open it ("": nowhere to open — Signal Desktop). */
+export type ReplyTarget = { channel: "whatsapp" | "signal" | "mail" | "teams"; to: string; openUrl: string };
 export type ReplyDraft = { ok: true; text: string; target: ReplyTarget } | { ok: false; error: string };
 
 /** The pages a reply's "Öffnen" may bring up (in the automation Chrome, where they're signed in). */
@@ -41,12 +42,12 @@ export async function draftReply(todoId: number): Promise<ReplyDraft> {
       .reverse()
       .map((m) => `${m.sentAt.slice(0, 16).replace("T", " ")} ${m.senderName ?? "?"}${m.place ? ` (${m.place})` : ""}: ${m.text.slice(0, 1500)}`);
   } else {
-    const chat = mail.folder === "WhatsApp";
+    const chat = isChatFolder(mail.folder);
     const gmailThread = /^gmail:(?:[^:]+:)?([0-9a-f]+)$/i.exec(mail.convId)?.[1];
     target = {
-      channel: chat ? "whatsapp" : "mail",
+      channel: mail.folder === "WhatsApp" ? "whatsapp" : mail.folder === "Signal" ? "signal" : "mail",
       to: chat ? mail.subject : (mail.fromName ?? mail.fromEmail ?? "?"),
-      openUrl: chat ? "https://web.whatsapp.com/" : gmailThread ? `https://mail.google.com/mail/u/0/#all/${gmailThread}` : "https://outlook.office.com/mail/",
+      openUrl: mail.folder === "WhatsApp" ? "https://web.whatsapp.com/" : chat ? "" : gmailThread ? `https://mail.google.com/mail/u/0/#all/${gmailThread}` : "https://outlook.office.com/mail/",
     };
     history = conversationOf(mail.convId, chat ? getContextPrefs().replies.numbers.messages : 8).map(
       (m) => `${m.receivedAt.slice(0, 16).replace("T", " ")} ${m.fromName ?? m.fromEmail ?? "?"}${chat ? "" : ` — Betreff „${m.subject}“`}: ${m.preview.slice(0, 1500)}`,
@@ -55,7 +56,7 @@ export async function draftReply(todoId: number): Promise<ReplyDraft> {
 
   const notes = todo.userNotes.map((n) => `- ${n.text}`).join("\n");
   const prompt = [
-    `Schreib meine Antwort auf diese ${target.channel === "whatsapp" ? "WhatsApp-Unterhaltung" : target.channel === "teams" ? "Teams-Nachricht" : "Mail"} — ich schicke sie selbst ab.`,
+    `Schreib meine Antwort auf diese ${target.channel === "whatsapp" ? "WhatsApp-Unterhaltung" : target.channel === "signal" ? "Signal-Unterhaltung" : target.channel === "teams" ? "Teams-Nachricht" : "Mail"} — ich schicke sie selbst ab.`,
     "Die Antwort erledigt dieses Todo, so weit eine Nachricht das kann. Sprache, Anrede (du/Sie) und Ton wie im Verlauf; kurz und natürlich, so wie ich schreibe (meine Nachrichten stehen als „Ich“ im Verlauf). Keine Floskeln, keine Platzhalter in eckigen Klammern — wo etwas fehlt (eine Uhrzeit, ein Datum), schlag etwas Konkretes und Plausibles vor oder frag kurz zurück. Bei Mails ohne Betreffzeile, nur der Text mit Gruß." + extraBlock("replies"),
     "",
     `# Todo\n${todo.text}${todo.due ? ` (Frist ${todo.due})` : ""}`,

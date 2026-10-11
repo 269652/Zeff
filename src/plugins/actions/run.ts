@@ -8,6 +8,7 @@ import { runGitlabMerge, runGitlabNote, runGitlabOpenMr } from "../gitlab/run";
 import { runKeepNote } from "../keep/run";
 import { runCalendarEntry } from "../calendar/run";
 import { runWhatsappMessage } from "../whatsapp/run";
+import { runSignalMessage } from "../signal/run";
 import { runTeamsMessage } from "../teams/run";
 import { runGitCommit, runGitMergeMain, runGitPush, runWorkInstruct } from "../work/run";
 import type { ActionContext, ActionResult } from "./run-types";
@@ -27,5 +28,6 @@ export const RUNNERS: Partial<Record<TodoOp["type"], Runner>> = {
   "work-instruct": r<"work-instruct">(runWorkInstruct),
   "keep-note": r<"keep-note">(runKeepNote),
   "whatsapp-message": r<"whatsapp-message">(runWhatsappMessage),
+  "signal-message": r<"signal-message">(runSignalMessage),
   "calendar-entry": r<"calendar-entry">(runCalendarEntry),
 };

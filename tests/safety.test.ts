@@ -25,6 +25,7 @@ const using = (needle: string) =>
 
 const WRITES: Record<string, string[]> = {
   whatsapp_send: ["src/plugins/whatsapp/run.ts"],
+  signal_send: ["src/plugins/signal/run.ts"],
   teams_send: ["src/plugins/teams/run.ts"],
   gitlab_reply: ["src/lib/gitlab/reply.ts"],
   gitlab_resolve: ["src/lib/gitlab/reply.ts"],
@@ -66,10 +67,10 @@ test("the automatic steps don't import what runs actions", () => {
     "src/plugins/keep/note-review.ts",
     "src/plugins/keep/note-relations.ts",
   ];
-  // The action runners: the ops runner, the plugins' run modules (teams/run, whatsapp/run …), GitLab's writes —
+  // The action runners: the ops runner, the plugins' run modules (teams/run, whatsapp/run, signal/run …), GitLab's writes —
   // and the clicks themselves (the server actions: Zeff's and each plugin's).
   // (The Ticket-Lage's own run — boards/run — isn't one.)
-  const target = String.raw`(@\/lib\/ops|(@\/plugins|\.\.)\/(actions|teams|whatsapp|jira|keep|work|gitlab|gmail|outlook)\/run|@\/lib\/gitlab\/reply|@\/app\/actions|(@\/plugins\/[\w-]+|\.)\/server-actions)`;
+  const target = String.raw`(@\/lib\/ops|(@\/plugins|\.\.)\/(actions|teams|whatsapp|signal|jira|keep|work|gitlab|gmail|outlook)\/run|@\/lib\/gitlab\/reply|@\/app\/actions|(@\/plugins\/[\w-]+|\.)\/server-actions)`;
   const runners = new RegExp(String.raw`from\s+["']${target}["']|import\(["']${target}["']\)`);
   for (const f of automatic) {
     const s = SRC.find((x) => x.file === f);

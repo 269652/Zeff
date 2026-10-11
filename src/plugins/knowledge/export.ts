@@ -137,11 +137,12 @@ export function knowledgeDocs(zeffUrl: string, only?: "keep"): { account: string
     mails.set(key, g);
   }
   for (const [key, g] of mails) {
-    if (!key.startsWith("wa:")) {
+    const app = key.startsWith("wa:") ? "WhatsApp" : key.startsWith("sg:") ? "Signal" : null;
+    if (!app) {
       docs.push(doc({ id: `zeff:mail:${key}`, space: "Zeff · Mail", title: `Mail · ${g.subject}`, url: "", updatedAt: g.last, author: null, body: `Mail-Verlauf „${g.subject}“:\n${g.lines.join("\n")}` }));
       continue;
     }
-    // A WhatsApp chat: a page per month (a whole history loaded is long — and a new message then
+    // A chat (WhatsApp, Signal): a page per month (a whole history loaded is long — and a new message then
     // changes only its month's page, not all of it).
     const months = new Map<string, string[]>();
     for (const l of g.lines) {
@@ -152,12 +153,12 @@ export function knowledgeDocs(zeffUrl: string, only?: "keep"): { account: string
       docs.push(
         doc({
           id: `zeff:mail:${key}${month ? `:${month}` : ""}`,
-          space: "Zeff · WhatsApp",
-          title: `WhatsApp · ${g.subject}${month ? ` · ${month}` : ""}`,
+          space: `Zeff · ${app}`,
+          title: `${app} · ${g.subject}${month ? ` · ${month}` : ""}`,
           url: "",
           updatedAt: lines.length ? /^- (\S+)/.exec(lines[lines.length - 1])?.[1] ?? g.last : g.last,
           author: null,
-          body: `WhatsApp-Chat mit „${g.subject}“${month ? `, ${month}` : ""} („Ich“ bin ich):\n${lines.join("\n")}`,
+          body: `${app}-Chat mit „${g.subject}“${month ? `, ${month}` : ""} („Ich“ bin ich):\n${lines.join("\n")}`,
         }),
       );
   }

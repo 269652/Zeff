@@ -4,7 +4,7 @@ import { getDb, schema } from "@/db";
 const { syncState } = schema;
 
 /** The steps without settings of their own: how often they run by itself unless set otherwise (minutes). */
-export const DEFAULT_MINUTES = { jira: 15, calendar: 15, roar: 240, timo: 1440, whatsapp: 15, keep: 60, gcalendar: 60 } as const;
+export const DEFAULT_MINUTES = { jira: 15, calendar: 15, roar: 240, timo: 1440, whatsapp: 15, signal: 15, keep: 60, gcalendar: 60 } as const;
 export type OwnIntervalKey = keyof typeof DEFAULT_MINUTES;
 
 /** How often a step runs by itself (minutes, 0: only by hand) — as set on the Sync settings page, else its default. */

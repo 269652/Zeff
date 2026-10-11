@@ -22,6 +22,7 @@ import { myJiraName, getJiraTicket } from "@/lib/jira/store";
 import { busyBetween } from "@/lib/calendar/ir";
 import { listFacts } from "@/lib/facts";
 import { conversationOf } from "@/lib/mail/store";
+import { isChatFolder } from "@/lib/mail/shared";
 import { parseLocalDateTime } from "@/lib/calendar/meetings";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { opAvailable } from "@/plugins/ops";
@@ -181,7 +182,7 @@ function historyOf(from: Parameters<typeof entityText>[0][]): string[] {
     const msgs = conversationOf(c, 8);
     if (msgs.length < 2) return [];
     return [
-      `Verlauf ${msgs[0].folder === "WhatsApp" ? "des Chats" : "der Unterhaltung"} „${plain(msgs[msgs.length - 1].subject, 60)}“ (älteste zuerst):`,
+      `Verlauf ${isChatFolder(msgs[0].folder) ? "des Chats" : "der Unterhaltung"} „${plain(msgs[msgs.length - 1].subject, 60)}“ (älteste zuerst):`,
       ...msgs.map((m) => `  ${m.receivedAt.slice(0, 10)} ${m.fromName ?? m.fromEmail ?? "?"}: ${plain(m.preview, 220)}`),
     ];
   });

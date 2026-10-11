@@ -124,6 +124,7 @@ export type TodoOp =
   /** A note on one of your Keep boards (Google Keep's extension for Auto-Aktionen). */
   | { type: "keep-note"; board: string; title: string; text: string }
   | { type: "whatsapp-message"; chat: string; body: string }
+  | { type: "signal-message"; chat: string; body: string }
   | { type: "gmail-compose"; to: string; subject: string; body: string }
   /** An appointment entered in one of Zeff's own calendars (by name; "": the first) — local start "YYYY-MM-DDTHH:MM". */
   | { type: "calendar-entry"; calendar: string; title: string; start: string; minutes: number; body: string }

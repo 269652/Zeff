@@ -17,6 +17,7 @@ import { addMailTodo, addTodoContext, droppedByYou, lastGoodRun, listTodos, setT
 import { isInstalled } from "@/plugins/state";
 import { isoDate } from "@/lib/week";
 import { pushTo } from "@/lib/collections";
+import { isChatFolder, sourceOn } from "@/lib/mail/shared";
 
 const { emails } = schema;
 
@@ -100,6 +101,9 @@ Auch KEINE Todos für: ausdrücklich freiwillige Umfragen und Aufrufe zur Teilna
 
 Unter „Was ich verworfen habe“ stehen Vorschläge, die ich nicht wollte (mit der Mail, aus der sie kamen): dieselbe Art Mail vom SELBEN Absender ist wieder kein Todo. Mehr schließt du daraus nicht — andere Absender, Pflicht-Mails (⚠) und Menschen beurteilst du wie immer. Unter „Was ich erledigt habe“ stehen Vorschläge, die richtig waren: solche will ich. Fragt mich ein Mensch persönlich etwas, bittet mich um etwas oder wartet auf meine Antwort (in einer Mail oder einem Chat), ist das fast immer ein Todo — das sind die wichtigsten. Im Zweifel legst du das Todo an: ein überflüssiger Vorschlag ist schnell verworfen, eine vergessene Pflicht oder Antwort nicht. Gibt es nichts zu tun, ist die Liste leer.`;
 
+/** Signal's chats (Signal plugin) — told only when its messages are there (the instructions stay as they were). */
+const SIGNAL_NOTE = "Einträge im Ordner „Signal“ sind ebenfalls keine Mails, sondern Signal-Chats — genauso zu lesen wie die WhatsApp-Chats (Betreff = Chat, Absender = wer schrieb, „Ich“ = ich selbst).";
+
 const state = globalThis as unknown as { __zeffMailTodos?: Promise<MailTodosResult> | null };
 export type MailTodosResult = { ok: boolean; reviewed: number; added: number; updated?: number; batches: number; error?: string };
 
@@ -148,7 +152,7 @@ const AUTO_REPLY = /^\s*(automatische antwort|automatic reply|auto[- ]?reply|abw
  * merge requests and comments the Ticket-Lage reads itself — a notification about a merge request or issue.
  */
 export function notForReview(m: { fromEmail: string | null; subject: string; preview: string; folder: string }, gitlab: boolean): boolean {
-  if (m.folder === "WhatsApp") return false;
+  if (isChatFolder(m.folder)) return false;
   if (AUTO_REPLY.test(m.subject)) return true;
   // A merge request or issue (its link in the mail) — not GitLab's other mails (a token running out, a failed pipeline).
   return gitlab && /\/-\/(merge_requests|issues)\/\d+/.test(m.preview);
@@ -167,7 +171,7 @@ const SIGNATURE = /(warten auf (deine|ihre) (signatur|unterschrift)|waiting for 
  * it doesn't). Recognized by its words, not by the AI.
  */
 export function mustDo(m: { fromName: string | null; fromEmail: string | null; subject: string; preview: string; folder: string }): boolean {
-  if (m.folder === "WhatsApp") return false;
+  if (isChatFolder(m.folder)) return false;
   const text = `${m.subject}\n${m.preview}`;
   if (TRAINING.test(text) && DUE.test(text)) return true;
   return SIGNATURE.test(`${m.fromName ?? ""} ${m.fromEmail ?? ""}\n${text}`) && /(sign|signatur|unterschr|unterzeichn)/i.test(text);
@@ -228,7 +232,9 @@ export function mailReviewPrompt(v: {
 }): string {
   const dormant = v.dormant ?? [];
   return [
-    (v.instructions ?? INSTRUCTIONS) + extraBlock("mailtodos"),
+    (v.instructions ?? INSTRUCTIONS) + (v.mails.some((m) => m.folder === "Signal") ? `
+
+${SIGNAL_NOTE}` : "") + extraBlock("mailtodos"),
     "",
     `Heute ist ${new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} (${isoDate(new Date())}).`,
     "",
@@ -273,7 +279,7 @@ export function verdictLines(dropped: TodoView[]): { dropped: string[]; done: st
   const from = (t: TodoView) => {
     const key = t.refs.find((r) => r.startsWith("mail:"))?.slice(5);
     const m = key ? getDb().select().from(emails).where(sql`${emails.key} = ${key}`).get() : undefined;
-    return m ? ` (aus: ${m.folder === "WhatsApp" ? "WhatsApp" : "Mail"} von ${m.fromName ?? m.fromEmail ?? "?"}, „${plain(m.subject, 80)}“)` : "";
+    return m ? ` (aus: ${isChatFolder(m.folder) ? m.folder : "Mail"} von ${m.fromName ?? m.fromEmail ?? "?"}, „${plain(m.subject, 80)}“)` : "";
   };
   const done = listTodos({ status: "done" }).filter((t) => mine(t) && (t.doneAt ?? "") >= since);
   const newest = (a: TodoView, b: TodoView) => (b.doneAt ?? "").localeCompare(a.doneAt ?? "");
@@ -308,7 +314,7 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
     }
     const unanswered = (convId: string) => {
       const last = lastOf.get(convId);
-      return !!last && last.fromName !== "Ich" && last.receivedAt >= chatSince && (last.folder === "WhatsApp" || mineIn.has(convId));
+      return !!last && last.fromName !== "Ich" && last.receivedAt >= chatSince && (isChatFolder(last.folder) || mineIn.has(convId));
     };
     const rows = getDb()
       .select()
@@ -316,7 +322,7 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
       .where(and(isNull(emails.reviewedAt), isNull(emails.resolvedAt), gte(emails.receivedAt, chatSince)))
       .orderBy(asc(emails.receivedAt))
       .all()
-      .filter((m) => (m.folder === "WhatsApp" ? cp.sources.whatsapp : cp.sources.mail) && (m.receivedAt >= since || unanswered(m.convId)))
+      .filter((m) => sourceOn(cp.sources, m.folder) && (m.receivedAt >= since || unanswered(m.convId)))
       // The chat list's unread badge, read as a message once ("5 ungelesene Nachrichten"): not one.
       .filter((m) => !(m.folder === "WhatsApp" && /^\d+ (ungelesene Nachricht|unread message)/i.test(m.preview)));
     const markReviewed = (keys: string[]) => {
@@ -328,9 +334,9 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
     const gitlab = isInstalled("gitlab");
     const theirs = rows.filter((m) => cited.has(m.key) || namesTicket(tickets, `${m.subject} ${m.preview}`) || notForReview(m, gitlab));
     markReviewed(theirs.map((m) => m.key));
-    // A WhatsApp chat's messages together, in order (a conversation — your reply after a request
-    // tells it's settled); the mails by time.
-    const chatOf = (m: (typeof rows)[number]) => (m.folder === "WhatsApp" ? m.convId : "");
+    // A chat's messages (WhatsApp, Signal) together, in order (a conversation — your reply after a
+    // request tells it's settled); the mails by time.
+    const chatOf = (m: (typeof rows)[number]) => (isChatFolder(m.folder) ? m.convId : "");
     const mails = rows.filter((m) => !theirs.includes(m)).sort((a, b) => chatOf(a).localeCompare(chatOf(b)) || a.receivedAt.localeCompare(b.receivedAt));
     // Conversations you were part of that have gone quiet (5–60 days) — each once per its last
     // message: is there news for the other side (from new messages, your todos), or do they still wait?
@@ -338,7 +344,7 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
     const quietFrom = new Date(Date.now() - 60 * 864e5).toISOString();
     const quietTo = new Date(Date.now() - 5 * 864e5).toISOString();
     const dormant = [...lastOf.values()]
-      .filter((m) => mineIn.has(m.convId) && m.receivedAt >= quietFrom && m.receivedAt <= quietTo && shownDormant[m.convId] !== m.key && (m.folder === "WhatsApp" ? cp.sources.whatsapp : cp.sources.mail))
+      .filter((m) => mineIn.has(m.convId) && m.receivedAt >= quietFrom && m.receivedAt <= quietTo && shownDormant[m.convId] !== m.key && sourceOn(cp.sources, m.folder))
       .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
       .slice(0, 40)
       // What happened on its topic since (other conversations, your todos) — found by its words.

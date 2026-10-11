@@ -164,12 +164,12 @@ export function TodoQuickPanel({ todoId, todoRef, panel, onClose }: { todoId: nu
   );
 }
 
-const channelLabels = (t: T): Record<ReplyTarget["channel"], string> => ({ whatsapp: "WhatsApp", mail: t("Mail"), teams: "Teams" });
+const channelLabels = (t: T): Record<ReplyTarget["channel"], string> => ({ whatsapp: "WhatsApp", signal: "Signal", mail: t("Mail"), teams: "Teams" });
 
 /**
  * A reply to the message the todo is about: drafted by the AI from the conversation (when there's
  * no draft yet, at once), editable, kept as a draft in this browser — copied and sent by you
- * (WhatsApp, Gmail, Outlook or Teams brought up in the automation Chrome).
+ * (WhatsApp, Gmail, Outlook or Teams brought up in the automation Chrome, Signal Desktop).
  */
 function ReplyPanel({ todoId, onClose }: { todoId: number; onClose: () => void }) {
   const t = useT();
@@ -219,7 +219,8 @@ function ReplyPanel({ todoId, onClose }: { todoId: number; onClose: () => void }
           <button type="button" className="btn btn-sm" onClick={draft} disabled={pending} title={t("Draft again (the current text is replaced)")}>
             {pending ? "…" : t("Redraft")}
           </button>
-          {target && (
+          {/* Signal has no web page to bring up: you send from Signal Desktop. */}
+          {target?.openUrl && (
             <button
               type="button"
               className="btn btn-sm"

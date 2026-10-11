@@ -1,5 +1,6 @@
 import { getSqlite } from "@/db";
 import { emitChange } from "@/lib/events";
+import { isChatFolder } from "@/lib/mail/shared";
 import { t } from "@/lib/i18n/server";
 import { daysBetween, isDateKind, isoDay, nextOccurrence, type DateKind, type Person, type PersonDate, type Upcoming } from "./shared";
 
@@ -227,20 +228,23 @@ export function namesThem(p: Person, text: string): boolean {
 
 export type Contact = { key: string; folder: string; who: string; text: string; at: string; convId: string };
 
-/** Their latest messages: their WhatsApp chat, mails from their addresses (or with their name as sender). */
+/** Their latest messages: their WhatsApp chat, their Signal chat, mails from their addresses (or with their name as sender). */
 export function contactsOf(p: Person, limit = 12): Contact[] {
   const d = getSqlite();
   const out: Contact[] = [];
   type R = { key: string; folder: string; from_name: string | null; from_email: string | null; subject: string; preview: string; received_at: string; conv_id: string };
   const push = (rows: R[]) => {
-    for (const r of rows) if (!out.some((o) => o.key === r.key)) out.push({ key: r.key, folder: r.folder, who: r.from_name ?? r.from_email ?? "", text: r.folder === "WhatsApp" ? r.preview : `${r.subject} — ${r.preview}`, at: r.received_at, convId: r.conv_id });
+    for (const r of rows) if (!out.some((o) => o.key === r.key)) out.push({ key: r.key, folder: r.folder, who: r.from_name ?? r.from_email ?? "", text: isChatFolder(r.folder) ? r.preview : `${r.subject} — ${r.preview}`, at: r.received_at, convId: r.conv_id });
   };
   try {
     // Their WhatsApp chat: the one set — else one named like them (their name or an alias).
     const chat = p.whatsapp || namesOf(p).find((n) => d.prepare("select 1 from emails where conv_id = ? limit 1").get(`wa:${n}`));
     if (chat) push(d.prepare("select * from emails where conv_id = ? order by received_at desc limit ?").all(`wa:${chat}`, limit) as R[]);
+    // Their Signal chat: one named like them (their name, an alias or their WhatsApp chat's name).
+    const signal = namesOf(p).find((n) => d.prepare("select 1 from emails where conv_id = ? limit 1").get(`sg:${n}`));
+    if (signal) push(d.prepare("select * from emails where conv_id = ? order by received_at desc limit ?").all(`sg:${signal}`, limit) as R[]);
     for (const mail of p.emails) push(d.prepare("select * from emails where lower(from_email) = lower(?) order by received_at desc limit ?").all(mail, limit) as R[]);
-    if (!p.whatsapp && !p.emails.length) push(d.prepare("select * from emails where folder <> 'WhatsApp' and lower(from_name) = lower(?) order by received_at desc limit ?").all(p.name, limit) as R[]);
+    if (!p.whatsapp && !p.emails.length) push(d.prepare("select * from emails where folder not in ('WhatsApp', 'Signal') and lower(from_name) = lower(?) order by received_at desc limit ?").all(p.name, limit) as R[]);
   } catch {
     // no messages kept (the plugins never ran)
   }
