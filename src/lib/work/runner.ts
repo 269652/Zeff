@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { currentAccountId, withAccount } from "@/db/accounts";
-import { spawnOnHost, workHostUp } from "./host";
+import { sendToHost, spawnOnHost, workHostUp } from "./host";
 import { workerMcpServers } from "./mcp";
 import { aiChoice, getAppSettings } from "@/lib/ai";
 import { findClaudeCli } from "@/plugins/claude-cli/cli";
@@ -59,10 +59,13 @@ function workerEnv(runId: number, viaHost = false): Record<string, string | unde
 }
 
 /** A worker's process: on the work host if it's up, else a child of this server. Resolves with its pid. */
-async function launchWorker(id: number, w: { command: string; args: string[]; cwd: string; stdin: string }): Promise<number> {
+async function launchWorker(id: number, w: { command: string; args: string[]; cwd: string; stdin: string; /** A Claude run that takes more messages while it works (needs the host). */ live?: boolean }): Promise<number> {
   fs.mkdirSync(/*turbopackIgnore: true*/ path.dirname(logPath(id)), { recursive: true });
+  const { live, ...proc } = w;
   if (await workHostUp()) {
-    return spawnOnHost({ runId: id, account: currentAccountId(), ...w, env: workerEnv(id, true), outFile: logPath(id), errFile: errPath(id) });
+    // Live: the prompt and later messages as stream-json lines on stdin, which the host keeps open while the CLI works.
+    const args = live ? [...proc.args, "--input-format", "stream-json", "--replay-user-messages"] : proc.args;
+    return spawnOnHost({ runId: id, account: currentAccountId(), ...proc, args, live, env: workerEnv(id, true), outFile: logPath(id), errFile: errPath(id) });
   }
   const out = fs.openSync(/*turbopackIgnore: true*/ logPath(id), "a");
   const err = fs.openSync(/*turbopackIgnore: true*/ errPath(id), "a");
@@ -319,7 +322,7 @@ function start(id: number): void {
 
     // Detached, its output straight into files: a run outlives a restart of Zeff's server — on the
     // work host (the launcher's, outside this server's process tree), else started here.
-    void launchWorker(id, { command, args, cwd, stdin: stdin ?? "" })
+    void launchWorker(id, { command, args, cwd, stdin: stdin ?? "", live: r.provider === "claude" })
       .then((pid) => updateRun(id, { pid, sessionId }))
       .catch((e) => {
         fs.appendFileSync(/*turbopackIgnore: true*/ errPath(id), `${errorMessage(e)}
@@ -330,6 +333,21 @@ function start(id: number): void {
     updateRun(id, { status: "failed", error: errorMessage(e).slice(0, 2000), finishedAt: now(), durationMs: Date.now() - Date.parse(startedAt) });
     setImmediate(pump);
   }
+}
+
+/**
+ * Your message to a Claude session that is still working (like Claude Code): it goes to the CLI
+ * through the work host and is taken in when the CLI is idle (or at its next step) - no new run.
+ * Throws with the reason when it can't (not running, no host, the CLI is just finishing).
+ */
+export async function messageRunningSession(runId: number, text: string): Promise<void> {
+  const r = getRun(runId);
+  if (!r) throw new NotFoundError(`${workRef(runId)} not found.`);
+  const message = text.trim();
+  if (!message) throw new ValidationError("What's your message?");
+  if (r.status !== "running" || r.provider !== "claude") throw new ValidationError(`${workRef(runId)} isn't a working Claude session.`);
+  if (!(await sendToHost(runId, message))) throw new ValidationError(`${workRef(runId)} can't take a message right now - it is just finishing (or the work host isn't running). Send it again in a moment.`);
+  addTodoInstruction(r.todoId, message, runId);
 }
 
 /**

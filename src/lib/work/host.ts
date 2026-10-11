@@ -20,6 +20,8 @@ export type HostSpawn = {
   stdin: string;
   outFile: string;
   errFile: string;
+  /** Keep stdin open for more messages (Claude, stream-json input). */
+  live?: boolean;
 };
 
 /** The work host answers? (Asked right before each start: it may be restarting.) */
@@ -39,6 +41,17 @@ export async function spawnOnHost(spec: HostSpawn): Promise<number> {
   const j = (await r.json().catch(() => ({}))) as { pid?: number; error?: string };
   if (!r.ok || !j.pid) throw new Error(`The work host refused the start: ${j.error ?? r.status}`);
   return j.pid;
+}
+
+/** A message into a live run on the host. False: it can't take it (closing, not live, host down). */
+export async function sendToHost(runId: number, text: string): Promise<boolean> {
+  if (!hostUrl()) return false;
+  try {
+    const r = await fetch(`${hostUrl()}/message`, { method: "POST", headers: headers(), body: JSON.stringify({ runId, text }), signal: AbortSignal.timeout(5000) });
+    return r.ok;
+  } catch {
+    return false;
+  }
 }
 
 /** The request comes from the work host (its token)? */

@@ -32,6 +32,7 @@ type Event = {
   model?: string;
   cwd?: string;
   permissionMode?: string;
+  isReplay?: boolean;
   mcp_servers?: { name: string; status: string }[];
   message?: { content?: Block[] | string };
 } & StreamResult;
@@ -124,6 +125,8 @@ export function readLog(id: number): { lines: WorkLogLine[]; errors: string[]; r
   let result: StreamResult | null = null;
   let sessionId: string | null = null;
   let cwd: string | null = null;
+  let promptSeen = false;
+  let structured: unknown;
   for (const line of whole.split("\n")) {
     if (!line.trim()) continue;
     let e: Event;
@@ -146,6 +149,12 @@ export function readLog(id: number): { lines: WorkLogLine[]; errors: string[]; r
           lines.push({ k: "tool", tool: b.name.replace(/^mcp__/, ""), text: callText(b.name, b.input) });
         }
       }
+    } else if (e.type === "user" && e.isReplay) {
+      // Your message into a running session (--replay-user-messages): the first is the prompt itself.
+      const c = e.message?.content as unknown;
+      const text = typeof c === "string" ? c : Array.isArray(c) ? c.map((b: { type?: string; text?: string }) => (b.type === "text" ? b.text : "")).join("") : "";
+      if (promptSeen && text.trim()) lines.push({ k: "you", text: text.trim() });
+      promptSeen = true;
     } else if (e.type === "user" && Array.isArray(e.message?.content)) {
       for (const b of e.message.content) {
         if (b.type !== "tool_result") continue;
@@ -155,7 +164,9 @@ export function readLog(id: number): { lines: WorkLogLine[]; errors: string[]; r
         else if ((tool === "Bash" || tool === "PowerShell") && text.trim()) lines.push({ k: "out", text: tail(text, 3, 300) });
       }
     } else if (e.type === "result") {
-      result = e;
+      // Several answers when you wrote while it worked: the last one with a structured result counts.
+      if (e.structured_output !== undefined) structured = e.structured_output;
+      result = structured !== undefined && e.structured_output === undefined ? { ...e, structured_output: structured } : e;
       sessionId = e.session_id ?? sessionId;
       for (const d of e.permission_denials ?? []) lines.push({ k: "deny", text: `${d.tool_name ?? "?"}: ${callText(d.tool_name ?? "", (d.tool_input ?? {}) as Record<string, unknown>)}` });
       const cost = typeof e.total_cost_usd === "number" ? ` · $${e.total_cost_usd.toFixed(2)}` : "";
