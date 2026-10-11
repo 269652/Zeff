@@ -459,12 +459,12 @@ test("mail attachments: the progress follows a run — running while it goes, th
   const d = standIn(Object.fromEntries(refs.map((ref, i) => [ref, [{ name: `p${i}.txt`, content: `progress ${i}` }]])));
   const seen: { running: boolean; done: number; total: number }[] = [];
   // Look at the progress each time the driver is asked (a mail is being fetched then).
-  sync.setAttachmentSessionOpener((source, body, ms) =>
+  sync.setAttachmentSessionOpener((source, body) =>
     d.opener(source, (call) => body(async (tool, args) => {
       const p = sync.attachmentProgress();
       seen.push({ running: p.running, done: p.mailsDone, total: p.mailsTotal });
       return call(tool, args);
-    }), ms),
+    })),
   );
   try {
     assert.equal(sync.attachmentProgress().running, false, "idle before");
