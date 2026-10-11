@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
+import { rich } from "@/lib/i18n/rich";
 import { importConfigAction, restoreBackupAction, runBackupAction, saveBackupSettingsAction, uploadBackupAction } from "@/plugins/backup/server-actions";
 import { pickFolderAction } from "@/app/actions";
 import type { BackupFile, BackupSettingsView } from "./backup";
@@ -137,8 +138,13 @@ function BackupRow({ b, hasPassword }: { b: BackupFile; hasPassword: boolean }) 
       {open === "restore" && (
         <div className="mt-2 space-y-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm dark:border-red-900 dark:bg-red-950/40">
           <p className="text-red-900 dark:text-red-100">
-            {t("Replaces")} <strong>{t("all")}</strong>{" "}
-            {t("data of this account with the state of {when}. The current state is backed up automatically first; Zeff restarts in the process.", { when: when(b.at) })}
+            {rich(
+              t(
+                "Replaces <b>all</b> data of this account with the state of {when}. The current state is backed up automatically first; Zeff restarts in the process.",
+                { when: when(b.at) },
+              ),
+              { b: (s) => <strong>{s}</strong> },
+            )}
           </p>
           {b.encrypted && (
             <input
@@ -322,8 +328,12 @@ export function BackupSettings({ s, backups }: { s: BackupSettingsView; backups:
             disabled={clearPassword}
           />
           <span className="block text-xs text-zinc-400">
-            {t("Open with 7-Zip or WinZip (Windows Explorer can't open AES ZIPs). For Windows'")} <code className="code">tar</code>{" "}
-            {t("use only characters without umlauts. It's stored in Zeff's database — if the folder is elsewhere, it protects the copy there.")}
+            {rich(
+              t(
+                "Open with 7-Zip or WinZip (Windows Explorer can't open AES ZIPs). For Windows' <code>tar</code> use only characters without umlauts. It's stored in Zeff's database — if the folder is elsewhere, it protects the copy there.",
+              ),
+              { code: (s) => <code className="code">{s}</code> },
+            )}
           </span>
           {s.hasPassword && (
             <label className="flex items-center gap-2 text-xs text-zinc-500">

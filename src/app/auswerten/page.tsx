@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
+import { rich } from "@/lib/i18n/rich";
 import Link from "next/link";
 import { connection } from "next/server";
 import { ContextStepForm } from "@/components/ContextStepForm";
@@ -34,15 +35,18 @@ export default async function AuswertenPage({ searchParams }: { searchParams: Pr
           )}
         </p>
         <p className="text-sm text-zinc-500">
-          {t("Who you are and what always applies:")}{" "}
-          <Link href="/llm" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            LLM
-          </Link>
-          {t(". How often it runs:")}{" "}
-          <Link href="/sync-settings" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            {t("Sync settings")}
-          </Link>
-          .
+          {rich(t("Who you are and what always applies: <llm>LLM</llm>. How often it runs: <sync>Sync settings</sync>."), {
+            llm: (s) => (
+              <Link href="/llm" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                {s}
+              </Link>
+            ),
+            sync: (s) => (
+              <Link href="/sync-settings" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                {s}
+              </Link>
+            ),
+          })}
         </p>
         <nav className="flex flex-col gap-0.5 text-sm" aria-label={t("Steps")}>
           <a href="#qualitaet" className="rounded px-2 py-1 text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
@@ -81,8 +85,12 @@ function Quality({ q, all }: { q: AiQuality; all: boolean }) {
         <div>
           <h2 className="font-medium">{t("How well it did")}</h2>
           <p className="text-sm text-zinc-500">
-            {t("What became of each step's todos. What you dismiss, you didn't want: the")} <em>{t("hit rate")}</em>{" "}
-            {t("is done ÷ (done + dismissed by you). Todos the AI withdrew itself (outdated, another way) don't count against it.")}
+            {rich(
+              t(
+                "What became of each step's todos. What you dismiss, you didn't want: the <em>hit rate</em> is done ÷ (done + dismissed by you). Todos the AI withdrew itself (outdated, another way) don't count against it.",
+              ),
+              { em: (s) => <em>{s}</em> },
+            )}
           </p>
         </div>
         <div className="flex gap-1 text-sm">
@@ -154,10 +162,13 @@ function Quality({ q, all }: { q: AiQuality; all: boolean }) {
                 </Link>
                 <span className="min-w-0 flex-1">{r.text}</span>
                 <span className="text-xs text-zinc-500">
-                  {t("like")}{" "}
-                  <Link href={`/t/${r.like.id}`} className="font-mono hover:underline">
-                    {r.like.ref}
-                  </Link>
+                  {rich(t("like <link>{ref}</link>", { ref: r.like.ref }), {
+                    link: (s) => (
+                      <Link href={`/t/${r.like.id}`} className="font-mono hover:underline">
+                        {s}
+                      </Link>
+                    ),
+                  })}
                 </span>
               </li>
             ))}

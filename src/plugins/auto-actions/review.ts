@@ -12,6 +12,7 @@ import { getDb, schema } from "@/db";
 import { aiChoice, runAi } from "@/lib/ai";
 import { emitChange } from "@/lib/events";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { cleanOps, opsDictionary, sourcesOf, TODO_KIND_LABELS, type TodoOp, type TodoView } from "@/lib/boards/shared";
 import { plain } from "@/lib/boards/collect";
 import { todoSources } from "@/lib/boards/sources";
@@ -336,7 +337,7 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
       reviewed: list.length,
       withActions,
       batches: batches.length,
-      ...(failed ? { error: `${failed} Todo${failed === 1 ? "" : "s"} ohne gültige Antwort` } : {}),
+      ...(failed ? { error: failed === 1 ? t("1 todo without a valid answer") : t("{n} todos without a valid answer", { n: failed }) } : {}),
     };
   })()
     .catch((e): AutoActionsResult => {

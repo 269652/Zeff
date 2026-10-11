@@ -2,11 +2,16 @@
 import type { TodoOp } from "@/lib/boards/shared";
 import { addEvent, zeffCalendar } from "@/lib/calendar/ir";
 import { plusMinutes } from "@/lib/calendar/ir-shared";
+import { formatDate, formatTime } from "@/lib/format";
+import { t } from "@/lib/i18n/server";
 import type { ActionContext, ActionResult } from "../actions/run-types";
 
 export async function runCalendarEntry(op: Extract<TodoOp, { type: "calendar-entry" }>, ctx: ActionContext): Promise<ActionResult> {
   const cal = zeffCalendar(op.calendar);
   const e = addEvent(cal.id, { title: op.title, start: op.start, end: plusMinutes(op.start, op.minutes), description: op.body, todoId: ctx.todo.id });
-  const at = new Date(`${e.start}:00`).toLocaleString("de-DE", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-  return { what: `Termin „${e.title}“ am ${at} in ${cal.name} eingetragen`, todoNote: `Termin im Kalender (${cal.name}): ${at} — „${e.title}“.` };
+  const at = `${formatDate(e.start)}, ${formatTime(e.start)}`;
+  return {
+    what: t("Event “{title}” on {at} added to {calendar}", { title: e.title, at, calendar: cal.name }),
+    todoNote: `Event in the calendar (${cal.name}): ${at} — “${e.title}”.`,
+  };
 }

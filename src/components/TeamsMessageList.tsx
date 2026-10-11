@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
+import { rich } from "@/lib/i18n/rich";
 import { createContextAction } from "@/app/actions";
 import { setTeamsResolvedAction } from "@/plugins/teams/server-actions";
 import { teamsDay, teamsKindLabel, teamsMarkdown, type TeamsMessageView } from "@/lib/teams/shared";
@@ -72,7 +73,9 @@ function TeamsMessageCard({ m }: { m: TeamsMessageView }) {
       <footer className="mt-2 flex flex-wrap items-center gap-2">
         {added === "ok" ? (
           <span className="text-xs text-emerald-600 dark:text-emerald-400">
-            {t("Added — find it in")} <Link href="/context" className="underline">{t("Context")}</Link> {t("to link it to entries.")}
+            {rich(t("Added — find it in <link>Context</link> to link it to entries."), {
+              link: (s) => <Link href="/context" className="underline">{s}</Link>,
+            })}
           </span>
         ) : (
           <>

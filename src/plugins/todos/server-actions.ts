@@ -173,13 +173,13 @@ export async function addTodoNoteAction(todoId: number, text: string): Promise<A
   try {
     if (!String(text ?? "").trim()) return { ok: false, error: t("The note is empty.") };
     const { addTodoUserNote } = await import("@/lib/boards/store");
-    const t = addTodoUserNote(Number(todoId), String(text));
+    const todo = addTodoUserNote(Number(todoId), String(text));
     revalidateAll();
     // Its actions proposed by the auto-actions (not run, not edited): proposed again with the note — in the background.
-    if (t?.autoOpsWhy && t.ops.length && (await import("@/plugins/state")).isInstalled("auto-actions")) {
+    if (todo?.autoOpsWhy && todo.ops.length && (await import("@/plugins/state")).isInstalled("auto-actions")) {
       const { reviewTodosForActions } = await import("@/plugins/auto-actions/review");
-      void reviewTodosForActions({ ids: [t.id] }).catch(() => {});
-      return { ok: true, message: "Notiz gespeichert — die Aktionen werden damit neu vorgeschlagen." };
+      void reviewTodosForActions({ ids: [todo.id] }).catch(() => {});
+      return { ok: true, message: t("Note saved — the actions are proposed again with it.") };
     }
     return { ok: true };
   } catch (err) {

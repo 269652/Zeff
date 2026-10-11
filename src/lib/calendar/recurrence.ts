@@ -233,6 +233,15 @@ export function presets(firstStart: string, t: T = translator("en")): { key: str
   ];
 }
 
+/** A monthly rule's two kinds for a first start: "On day 12", "On the second Monday" (in the language of `t`). */
+export function monthlyChoices(firstStart: string, t: T = translator("en")): { by: "day" | "weekday"; label: string }[] {
+  const first = local(firstStart.slice(0, 10));
+  return [
+    { by: "day", label: t("On day {day}", { day: first.getDate() }) },
+    { by: "weekday", label: t("On the {nth} {weekday}", { nth: ordinals(t)[nthOf(first)], weekday: weekdayNames(t)[weekdayOf(first)] }) },
+  ];
+}
+
 /** The weekdays, short (Mon … Sun), in English — weekdayShort(t) in the language of `t`. */
 export const WEEKDAY_SHORT = SHORT;
 export const weekdayShort = (t: T) => [t("Mon"), t("Tue"), t("Wed"), t("Thu"), t("Fri"), t("Sat"), t("Sun")];

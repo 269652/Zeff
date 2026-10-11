@@ -2,6 +2,7 @@ import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
+import { rich } from "@/lib/i18n/rich";
 import Link from "next/link";
 import { connection } from "next/server";
 import { RepoForm } from "@/components/RepoForm";
@@ -28,12 +29,17 @@ export default async function ReposPage() {
       <div className="page-aside">
         <h1 className="text-lg font-semibold">{t("Repos")}</h1>
         <p className="max-w-[75ch] text-sm text-zinc-500">
-          {t("Where the")}{" "}
-          <Link href="/work" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            {t("Work")}
-          </Link>{" "}
-          {t(
-            "tab's workers implement. A ticket's work goes to the repo that names the ticket, else to the one its Jira board is assigned to, else to the one whose GitLab project its merge requests are in. The projects come from the GitLab sync, the boards from the Jira tab.",
+          {rich(
+            t(
+              "Where the <link>Work</link> tab's workers implement. A ticket's work goes to the repo that names the ticket, else to the one its Jira board is assigned to, else to the one whose GitLab project its merge requests are in. The projects come from the GitLab sync, the boards from the Jira tab.",
+            ),
+            {
+              link: (s) => (
+                <Link href="/work" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                  {s}
+                </Link>
+              ),
+            },
           )}
         </p>
       </div>

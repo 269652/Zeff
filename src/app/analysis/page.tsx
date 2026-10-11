@@ -2,6 +2,7 @@ import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
+import { rich } from "@/lib/i18n/rich";
 import Link from "next/link";
 import { connection } from "next/server";
 import { BarList, Donut, Legend, LineChart, WeeklyBars, type BarItem, type LinePoint } from "@/components/charts";
@@ -260,7 +261,9 @@ export default async function AnalysisPage({
 
           {a.jira && !a.hasTicketDates && (
             <p className="card p-4 text-sm text-zinc-500">
-              {t("Reaction time and parallelism need ticket")} <em>{t("opened")}</em> {t("dates. Re-sync on the Jira tab to backfill them.")}
+              {rich(t("Reaction time and parallelism need ticket <em>opened</em> dates. Re-sync on the Jira tab to backfill them."), {
+                em: (s) => <em>{s}</em>,
+              })}
             </p>
           )}
 

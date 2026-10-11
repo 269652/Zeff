@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
+import { rich } from "@/lib/i18n/rich";
 import { createContextAction, fetchImagesAction } from "@/app/actions";
 import { isRemoteImage } from "@/lib/contexts-shared";
 import { gitlabHeadline, gitlabKindLabels, gitlabMarkdown, gitlabTicket, type GitlabItemView } from "@/lib/gitlab/shared";
@@ -94,11 +95,13 @@ function GitlabItemCard({ item, prefixes }: { item: GitlabItemView; prefixes: Se
       <footer className="mt-2 flex flex-wrap items-center gap-2">
         {added === "ok" ? (
           <span className="text-xs text-emerald-600 dark:text-emerald-400">
-            {t("Added — find it in")}{" "}
-            <Link href="/context" className="underline">
-              {t("Context")}
-            </Link>{" "}
-            {t("to link it to entries.")}
+            {rich(t("Added — find it in <link>Context</link> to link it to entries."), {
+              link: (s) => (
+                <Link href="/context" className="underline">
+                  {s}
+                </Link>
+              ),
+            })}
           </span>
         ) : (
           <>

@@ -689,7 +689,7 @@ export async function collectBoard(
       if (failed.length === boards.length)
         throw new Error(
           jiraDown(lastError) ??
-            `Couldn't read the boards ${failed.join(", ")} — is the filter valid JQL? (${lastError.slice(0, 200)})`,
+            t("Couldn't read the boards {boards} — is the filter valid JQL? ({error})", { boards: failed.join(", "), error: lastError.slice(0, 200) }),
         );
       // …and the ones you still follow (handed on, but you're on them), then all, with comments and history.
       const onBoards = new Set(keys);

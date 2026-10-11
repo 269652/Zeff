@@ -8,6 +8,7 @@ import type { TypeRule } from "@/lib/type-rules-shared";
 import type { EntryType } from "@/db/schema";
 import { SubmitButton } from "./SubmitButton";
 import { useT } from "./I18nProvider";
+import { rich } from "@/lib/i18n/rich";
 
 const newId = () => Math.random().toString(36).slice(2, 9);
 
@@ -49,8 +50,10 @@ export function TypeRulesForm({
         <span />
         {rules.length === 0 && (
           <p className="col-span-4 text-sm text-zinc-500">
-            {t("No type rules yet — e.g. job")} <em>Abwesenheit</em> {t("+ description contains")}{" "}
-            <code className="code">Urlaub</code> → {t("Absence.")}
+            {rich(t("No type rules yet — e.g. job <em>Abwesenheit</em> + description contains <code>Urlaub</code> → Absence."), {
+              em: (s) => <em>{s}</em>,
+              code: (s) => <code className="code">{s}</code>,
+            })}
           </p>
         )}
         {rules.map((r, i) => (

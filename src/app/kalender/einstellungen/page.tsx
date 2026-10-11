@@ -3,11 +3,14 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { listCalendars } from "@/lib/calendar/ir";
+import { t } from "@/lib/i18n/server";
 import { CalendarSettings } from "@/plugins/calendar/CalendarSettings";
 import { googleCalendarSettings, signedInGoogleAccounts } from "@/plugins/google-calendar/sync";
 import { isInstalled } from "@/plugins/state";
 
-export const metadata: Metadata = { title: "Kalender-Einstellungen" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: t("Calendar settings") };
+}
 
 /** The calendars: Zeff's own (new, renamed, deleted), the sources' — colour, shown, busy, booked — and Google's account. */
 export default async function KalenderSettingsPage() {
@@ -16,13 +19,14 @@ export default async function KalenderSettingsPage() {
   return (
     <div className="page">
       <div className="page-aside">
-        <h1 className="text-lg font-semibold">Kalender</h1>
+        <h1 className="text-lg font-semibold">{t("Calendar")}</h1>
         <p className="text-sm text-zinc-500">
-          Zeff liest jede Quelle in sein eigenes Kalender-Modell: Outlook (über seinen Kalender-Sync), Google Calendar (Plugin), dazu deine eigenen Kalender. „Belegt“: seine Termine zählen
-          für freie Zeiten und Terminvorschläge. „Buchen“: seine Meetings erscheinen unter Termine buchen.
+          {t(
+            "Zeff reads every source into its own calendar model: Outlook (through its calendar sync), Google Calendar (plugin), and your own calendars. “Busy”: its events count for free slots and meeting suggestions. “Book”: its meetings show under Book meetings.",
+          )}
         </p>
         <Link href="/kalender" className="text-sm text-indigo-600 hover:underline dark:text-indigo-400">
-          ← Zum Kalender
+          ← {t("Back to the calendar")}
         </Link>
       </div>
       <CalendarSettings

@@ -2,6 +2,7 @@ import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
+import { rich } from "@/lib/i18n/rich";
 import Link from "next/link";
 import { connection } from "next/server";
 import { createJobAction, toggleJobActiveAction } from "@/app/actions";
@@ -31,8 +32,7 @@ export default async function JobsPage() {
       <div className="page-aside">
         <h1 className="text-lg font-semibold">{t("Jobs")}</h1>
         <p className="text-sm text-zinc-500">
-          {t("Job numbers that time can be booked on — from the web UI or via the MCP")}{" "}
-          <code className="code">report_time</code> {t("tool.")}
+          {rich(t("Job numbers that time can be booked on — from the web UI or via the MCP <code>report_time</code> tool."), { code: (s) => <code className="code">{s}</code> })}
         </p>
       </div>
 

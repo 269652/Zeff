@@ -2,6 +2,7 @@ import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
+import { rich } from "@/lib/i18n/rich";
 import Link from "next/link";
 import { connection } from "next/server";
 import { CalendarWeek } from "@/components/CalendarWeek";
@@ -104,17 +105,23 @@ export default async function CalendarPage({
       </section>
 
       <p className="text-xs text-zinc-400">
-        {t(
-          "Sync reads Outlook on the web in the automation Chrome (sign in there once) — from the start of last month to next week, plus the week shown; nothing is changed in Outlook. Jobs come from your",
-        )}{" "}
-        <Link href="/settings" className="underline">
-          {t("meeting → job rules")}
-        </Link>
-        {t(". Other ways to load meetings (bookmarklet, paste):")}{" "}
-        <Link href={`/import?week=${week.key}`} className="underline">
-          {t("Import meetings")}
-        </Link>
-        .
+        {rich(
+          t(
+            "Sync reads Outlook on the web in the automation Chrome (sign in there once) — from the start of last month to next week, plus the week shown; nothing is changed in Outlook. Jobs come from your <rules>meeting → job rules</rules>. Other ways to load meetings (bookmarklet, paste): <import>Import meetings</import>.",
+          ),
+          {
+            rules: (s) => (
+              <Link href="/settings" className="underline">
+                {s}
+              </Link>
+            ),
+            import: (s) => (
+              <Link href={`/import?week=${week.key}`} className="underline">
+                {s}
+              </Link>
+            ),
+          },
+        )}
       </p>
     </div>
   );

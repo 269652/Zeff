@@ -4,6 +4,7 @@ import { syncOverview } from "@/lib/sync/registry";
 import { formatAgo, formatDate, formatTime } from "@/lib/format";
 import { installedSyncSettings } from "@/plugins/sync-settings-modules";
 import { t } from "@/lib/i18n/server";
+import { rich } from "@/lib/i18n/rich";
 import { catalogText } from "@/plugins/catalog-text";
 
 const at = (iso: string) => `${formatDate(iso)}, ${formatTime(iso)}`;
@@ -52,11 +53,13 @@ export function SyncSettingsList() {
         ))
       ) : (
         <p className="py-6 text-center text-sm text-zinc-500">
-          {t("None of the installed plugins brings a sync —")}{" "}
-          <Link href="/plugins" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            {t("Plugins")}
-          </Link>
-          .
+          {rich(t("None of the installed plugins brings a sync — <link>Plugins</link>."), {
+            link: (s) => (
+              <Link href="/plugins" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                {s}
+              </Link>
+            ),
+          })}
         </p>
       )}
     </>

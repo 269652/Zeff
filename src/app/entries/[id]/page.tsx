@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
+import { rich } from "@/lib/i18n/rich";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
@@ -59,8 +60,14 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
             {t("← Week {n}", { n: week.week })}
           </Link>
           <h1 className="text-lg font-semibold">
-            {t("Entry #{id} · {hours}h on", { id: entry.id, hours: formatHours(entry.hours) })}{" "}
-            {entry.project ? entry.project.title : <span className="font-mono">{entry.job.number}</span>}
+            {rich(
+              t("Entry #{id} · {hours}h on <target>{target}</target>", {
+                id: entry.id,
+                hours: formatHours(entry.hours),
+                target: entry.project ? entry.project.title : entry.job.number,
+              }),
+              { target: (s) => (entry.project ? s : <span className="font-mono">{s}</span>) },
+            )}
           </h1>
           <p className="text-sm text-zinc-500">
             {t("Reported by {who} via {source} · created {at} UTC", { who: entry.reportedBy, source: entry.source, at: entry.createdAt })}

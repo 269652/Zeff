@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
+import { rich } from "@/lib/i18n/rich";
 import Link from "next/link";
 import { connection } from "next/server";
 import { FeierabendForm } from "@/components/FeierabendForm";
@@ -32,11 +33,13 @@ export default async function FeierabendPage() {
           )}
         </p>
         <p className="text-xs text-zinc-400">
-          {t("It's booked just like by hand; then everything is in the")}{" "}
-          <Link href="/" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            {t("Weekly report")}
-          </Link>{" "}
-          {t("(and goes from there to Chrono/Punch when you export).")}
+          {rich(t("It's booked just like by hand; then everything is in the <link>Weekly report</link> (and goes from there to Chrono/Punch when you export)."), {
+            link: (s) => (
+              <Link href="/" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                {s}
+              </Link>
+            ),
+          })}
         </p>
       </div>
       <FeierabendForm date={p.date} target={p.target} booked={p.booked} rows={p.rows} jobs={p.jobs} />

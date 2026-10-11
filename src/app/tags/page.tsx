@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
+import { rich } from "@/lib/i18n/rich";
 import { connection } from "next/server";
 import { CreateTagForm } from "@/components/CreateTagForm";
 import { EntryTypesEditor } from "@/components/EntryTypesEditor";
@@ -21,8 +22,12 @@ export default async function TagsPage() {
       <div className="page-aside">
         <h1 className="text-lg font-semibold">{t("Tags & types")}</h1>
         <p className="text-sm text-zinc-500">
-          {t("Tags label entries (typically tickets). Add them here, or just type")}{" "}
-          <code className="code">#tag</code> {t("in an entry description — an autocomplete pops up and the hashtag becomes a tag.")}
+          {rich(
+            t(
+              "Tags label entries (typically tickets). Add them here, or just type <code>#tag</code> in an entry description — an autocomplete pops up and the hashtag becomes a tag.",
+            ),
+            { code: (s) => <code className="code">{s}</code> },
+          )}
         </p>
       </div>
 

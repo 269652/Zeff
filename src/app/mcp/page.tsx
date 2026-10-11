@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
+import { rich } from "@/lib/i18n/rich";
 import { headers } from "next/headers";
 import { DEFAULT_ACCOUNT, accountsInstalled, listAccounts } from "@/db/accounts";
 
@@ -55,8 +56,12 @@ export default async function McpPage() {
       <div className="page-aside">
         <h1 className="text-lg font-semibold">{t("Connect an agent")}</h1>
         <p className="text-sm text-zinc-500">
-          {t("Zeff exposes a Model Context Protocol server over Streamable HTTP. Any MCP client can book time on jobs with the")}{" "}
-          <code className="code">report_time</code> {t("tool.")}
+          {rich(
+            t(
+              "Zeff exposes a Model Context Protocol server over Streamable HTTP. Any MCP client can book time on jobs with the <code>report_time</code> tool.",
+            ),
+            { code: (s) => <code className="code">{s}</code> },
+          )}
         </p>
       </div>
 
@@ -81,12 +86,14 @@ export default async function McpPage() {
         <p className="text-sm text-zinc-500">
           {tokenSet ? (
             <>
-              {t("Protected: requests must send")} <code className="code">Authorization: Bearer &lt;ZEFF_MCP_TOKEN&gt;</code>.
+              {rich(t("Protected: requests must send <code>{header}</code>.", { header: "Authorization: Bearer <ZEFF_MCP_TOKEN>" }), { code: (s) => <code className="code">{s}</code> })}
             </>
           ) : (
             <>
-              {t("Currently unprotected (fine on localhost). Set")} <code className="code">ZEFF_MCP_TOKEN</code> {t("in")}{" "}
-              <code className="code">.env.local</code> {t("to require a bearer token.")}
+              {rich(
+                t("Currently unprotected (fine on localhost). Set <code>ZEFF_MCP_TOKEN</code> in <code>.env.local</code> to require a bearer token."),
+                { code: (s) => <code className="code">{s}</code> },
+              )}
             </>
           )}
         </p>
@@ -95,21 +102,29 @@ export default async function McpPage() {
       <section className="card space-y-3 p-4">
         <h2 className="text-sm font-semibold text-zinc-500 uppercase">Claude Code</h2>
         <p className="text-sm">
-          {t("Add it for the current user (or drop the JSON below into a project's")} <code className="code">.mcp.json</code>):
+          {rich(t("Add it for the current user (or drop the JSON below into a project's <code>.mcp.json</code>):"), { code: (s) => <code className="code">{s}</code> })}
         </p>
         <pre className="pre">{claudeCli}</pre>
         <pre className="pre">{mcpJson}</pre>
         <p className="text-sm">
-          {t("Then, after finishing a ticket, tell the agent something like")}{" "}
-          <em>&quot;{t("Report 1.5h for PROJ-337 on job 2026-0815 in Zeff.")}&quot;</em> {t("— or add that rule to your")}{" "}
-          <code className="code">CLAUDE.md</code> {t("so it happens automatically.")}
+          {rich(
+            t(
+              'Then, after finishing a ticket, tell the agent something like <em>"Report 1.5h for PROJ-337 on job 2026-0815 in Zeff."</em> — or add that rule to your <code>CLAUDE.md</code> so it happens automatically.',
+            ),
+            { em: (s) => <em>{s}</em>, code: (s) => <code className="code">{s}</code> },
+          )}
         </p>
       </section>
 
       <section className="card space-y-3 p-4">
         <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Claude Desktop, Cursor & other clients")}</h2>
         <p className="text-sm">
-          {t("Clients that support remote (HTTP) servers can use the JSON above. Clients that only speak stdio can bridge with")} <code className="code">mcp-remote</code>:
+          {rich(
+            t(
+              "Clients that support remote (HTTP) servers can use the JSON above. Clients that only speak stdio can bridge with <code>mcp-remote</code>:",
+            ),
+            { code: (s) => <code className="code">{s}</code> },
+          )}
         </p>
         <pre className="pre">{stdioJson}</pre>
       </section>

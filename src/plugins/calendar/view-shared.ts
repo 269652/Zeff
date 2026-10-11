@@ -5,11 +5,18 @@
  */
 import type { CalendarEventView, CalendarView, ProposedEvent } from "@/lib/calendar/ir-shared";
 import { addDays, weekdayOf } from "@/lib/calendar/recurrence";
+import { currentLocale, formatDate } from "@/lib/format";
+import type { T } from "@/lib/i18n/shared";
 
 export const VIEWS = ["day", "week", "month", "agenda"] as const;
 export type ViewKind = (typeof VIEWS)[number];
 export const isView = (v: unknown): v is ViewKind => (VIEWS as readonly unknown[]).includes(v);
-export const VIEW_LABELS: Record<ViewKind, string> = { day: "Day", week: "Week", month: "Month", agenda: "Agenda" };
+/** The views' names in the language of `t`. */
+export const viewLabels = (t: T): Record<ViewKind, string> => ({ day: t("Day"), week: t("Week"), month: t("Month"), agenda: t("Agenda") });
+
+/** The weekdays' names, Monday first, in the locale dates are shown in ("Mon", "M" …). */
+export const weekdayHeads = (weekday: "long" | "short" | "narrow", locale = currentLocale()) =>
+  Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(locale, { weekday }));
 
 /** An appointment as a view shows it: a calendar's (one occurrence of a series is one item), or one a todo proposes. */
 export type Item = {
@@ -78,31 +85,33 @@ export function stepDay(view: ViewKind, day: string, n: number): string {
 /** The heading of what's shown: "12 – 18 Oct 2026", "October 2026", "Monday, 12 October 2026". */
 export function viewTitle(view: ViewKind, day: string): string {
   const d = local(day);
-  if (view === "day") return d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  if (view === "month") return d.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  const locale = currentLocale();
+  if (view === "day") return d.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  if (view === "month") return d.toLocaleDateString(locale, { month: "long", year: "numeric" });
   const { days } = viewRange(view, day);
   const a = local(days[0]);
   const b = local(days[days.length - 1]);
   const sameMonth = a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear();
-  return `${a.toLocaleDateString("en-GB", sameMonth ? { day: "numeric" } : { day: "numeric", month: "short", ...(a.getFullYear() !== b.getFullYear() ? { year: "numeric" } : {}) })} – ${b.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`;
+  return `${a.toLocaleDateString(locale, sameMonth ? { day: "numeric" } : { day: "numeric", month: "short", ...(a.getFullYear() !== b.getFullYear() ? { year: "numeric" } : {}) })} – ${b.toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" })}`;
 }
 
 export const timeText = (s: string) => (s.length === 10 ? "" : s.slice(11, 16));
 
-/** "Mon 12 Oct, 09:00 – 10:30", "Mon 12 – Wed 14 Oct · all day". */
-export function whenText(it: Pick<Item, "start" | "end" | "allDay">): string {
-  const day = (s: string) => local(s).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+/** "Mon 12 Oct, 09:00 – 10:30", "Mon 12 Oct – Wed 14 Oct · all day" — in the language of `t`. */
+export function whenText(it: Pick<Item, "start" | "end" | "allDay">, t: T): string {
+  const day = (s: string) => formatDate(local(s));
   if (it.allDay) {
     const last = addDays(it.end, -1);
-    return last > it.start ? `${day(it.start)} – ${day(last)} · all day` : `${day(it.start)} · all day`;
+    return last > it.start ? t("{from} – {to} · all day", { from: day(it.start), to: day(last) }) : t("{day} · all day", { day: day(it.start) });
   }
   return it.start.slice(0, 10) === it.end.slice(0, 10) || (it.end.slice(11) === "00:00" && addDays(it.start.slice(0, 10), 1) === it.end.slice(0, 10))
     ? `${day(it.start)}, ${timeText(it.start)} – ${timeText(it.end)}`
     : `${day(it.start)} ${timeText(it.start)} – ${day(it.end)} ${timeText(it.end)}`;
 }
 
-/** "45 min", "1 h", "1 h 30 min". */
-export const durationText = (minutes: number) => (minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h${minutes % 60 ? ` ${minutes % 60} min` : ""}`);
+/** "45 min", "1 h", "1 h 30 min" — in the language of `t`. */
+export const durationText = (minutes: number, t: T) =>
+  minutes < 60 ? t("{n} min", { n: minutes }) : minutes % 60 ? t("{h} h {m} min", { h: Math.floor(minutes / 60), m: minutes % 60 }) : t("{n} h", { n: minutes / 60 });
 
 /** A day's timed appointments side by side where they overlap: each its lane and how many lanes its group has. */
 export function lanes<T extends { start: string; end: string }>(items: T[]): (T & { lane: number; of: number })[] {

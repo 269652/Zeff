@@ -1,6 +1,7 @@
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import { availableLanguages, t } from "@/lib/i18n/server";
+import { rich } from "@/lib/i18n/rich";
 import Link from "next/link";
 import { connection } from "next/server";
 import { BoardSettingsForm } from "@/components/boards/BoardSettingsForm";
@@ -26,38 +27,51 @@ export default async function PreferencesPage() {
       <div className="page-aside">
         <h1 className="text-lg font-semibold">{t("Settings")}</h1>
         <p className="text-sm text-zinc-500">
-          {t("Working hours and absences are on the")}{" "}
-          <Link href="/settings" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            {t("Schedule")}
-          </Link>{" "}
-          {t("page.")}
+          {rich(t("Working hours and absences are on the <link>Schedule</link> page."), {
+            link: (s) => (
+              <Link href="/settings" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                {s}
+              </Link>
+            ),
+          })}
         </p>
       </div>
       <section id="language" className="card scroll-mt-4 space-y-2 p-4">
         <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Language")}</h2>
         <p className="text-sm text-zinc-500">
-          {t("The language Zeff speaks in this account — from the installed language bundles (")}
-          <Link href="/plugins" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            {t("Plugins")}
-          </Link>
-          {t("). Dates and numbers follow it.")}
+          {rich(t("The language Zeff speaks in this account — from the installed language bundles (<link>Plugins</link>). Dates and numbers follow it."), {
+            link: (s) => (
+              <Link href="/plugins" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                {s}
+              </Link>
+            ),
+          })}
         </p>
         <LanguagePicker available={availableLanguages()} />
       </section>
       <section className="card space-y-1 p-4">
         <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("AI")}</h2>
         <p className="text-sm text-zinc-500">
-          {t("Backends, models, your instructions and the context for all AI tasks and agents are set in the")}{" "}
-          {isInstalled("llm") ? (
-            <Link href="/llm" className="text-indigo-600 hover:underline dark:text-indigo-400">
-              {t("LLM plugin")}
-            </Link>
-          ) : (
-            <Link href="/plugins" className="text-indigo-600 hover:underline dark:text-indigo-400">
-              {t("LLM plugin (not installed)")}
-            </Link>
-          )}
-          .
+          {isInstalled("llm")
+            ? rich(t("Backends, models, your instructions and the context for all AI tasks and agents are set in the <link>LLM plugin</link>."), {
+                link: (s) => (
+                  <Link href="/llm" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                    {s}
+                  </Link>
+                ),
+              })
+            : rich(
+                t(
+                  "Backends, models, your instructions and the context for all AI tasks and agents are set in the <link>LLM plugin (not installed)</link>.",
+                ),
+                {
+                  link: (s) => (
+                    <Link href="/plugins" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                      {s}
+                    </Link>
+                  ),
+                },
+              )}
         </p>
       </section>
       <section id="boards" className="card scroll-mt-4 space-y-3 p-4">

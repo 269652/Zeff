@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useLang, useT } from "@/components/I18nProvider";
 import { SidebarFrame } from "@/components/SidebarFrame";
 import { toast } from "@/components/Toaster";
 import { SOURCE_LABELS, type CalendarEventView, type CalendarView, type ProposedEvent, type SeriesScope } from "@/lib/calendar/ir-shared";
+import { LANGUAGES, type T } from "@/lib/i18n/shared";
 import { AgendaList } from "./AgendaList";
 import { EventDetails } from "./EventDetails";
 import { EventEditor, ScopeChoice, type EditorInit } from "./EventEditor";
@@ -13,16 +15,16 @@ import { MiniMonth } from "./MiniMonth";
 import { MonthGrid } from "./MonthGrid";
 import { saveEventAction, syncCalendarsAction, updateCalendarAction } from "./server-actions";
 import { TimeGrid } from "./TimeGrid";
-import { itemOn, local, minutesOf, plus, stepDay, VIEW_LABELS, VIEWS, viewRange, viewTitle, ymd, type Item, type ViewKind } from "./view-shared";
+import { itemOn, local, minutesOf, plus, stepDay, viewLabels, VIEWS, viewRange, viewTitle, ymd, type Item, type ViewKind } from "./view-shared";
 
 type Result = { ok: boolean; message?: string; error?: string } | null;
 
-const SHORTCUTS: [string, string][] = [
-  ["T", "Today"],
-  ["← / →", "Previous / next"],
-  ["D W M A", "Day, week, month, agenda"],
-  ["N", "New event"],
-  ["Esc", "Close"],
+const shortcuts = (t: T): [string, string][] => [
+  ["T", t("Today")],
+  ["← / →", t("Previous / next")],
+  ["D W M A", t("Day, week, month, agenda")],
+  ["N", t("New event")],
+  ["Esc", t("Close")],
 ];
 
 const two = (n: number) => String(n).padStart(2, "0");
@@ -58,6 +60,8 @@ export function CalendarApp({
   now: string;
   canSync: boolean;
 }) {
+  const t = useT();
+  const locale = LANGUAGES[useLang()].locale;
   const router = useRouter();
   const [pending, start] = useTransition();
   const [now, setNow] = useState(serverNow);
@@ -82,9 +86,9 @@ export function CalendarApp({
 
   // The clock (the now line) once a minute; a narrow screen opens on the day view.
   useEffect(() => {
-    const t = setInterval(() => setNow(clock()), 60000);
+    const timer = setInterval(() => setNow(clock()), 60000);
     if (!explicitView && window.innerWidth < 640 && view !== "day") router.replace(`/kalender?v=day&d=${day}`);
-    return () => clearInterval(t);
+    return () => clearInterval(timer);
   }, [explicitView, view, day, router]);
 
   const items: Item[] = useMemo(
@@ -103,11 +107,11 @@ export function CalendarApp({
 
   const done = useCallback(
     (r: Result) => {
-      toast(r?.ok ? (r.message ?? "Done.") : (r?.error ?? "That didn't work."), { tone: r?.ok ? "ok" : "error" });
+      toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("That didn't work.")), { tone: r?.ok ? "ok" : "error" });
       router.refresh();
       return !!r?.ok;
     },
-    [router],
+    [router, t],
   );
 
   const create = useCallback(
@@ -150,8 +154,8 @@ export function CalendarApp({
   // The keyboard: today, back, forward, the views, a new appointment.
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement;
-      if (editor || moving || e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable) return;
+      const el = e.target as HTMLElement;
+      if (editor || moving || e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable) return;
       const k = e.key.toLowerCase();
       if (k === "t") go(view, ymd(new Date()));
       else if (e.key === "ArrowLeft" || k === "j") go(view, stepDay(view, day, -1));
@@ -183,32 +187,34 @@ export function CalendarApp({
         const list = calendars.filter((c) => c.source === src);
         return list.length ? (
           <div key={src} className="space-y-1">
-            <p className="text-[11px] font-semibold tracking-wide text-zinc-400 uppercase">{src === "zeff" ? "My calendars" : SOURCE_LABELS[src]}</p>
+            <p className="text-[11px] font-semibold tracking-wide text-zinc-400 uppercase">{src === "zeff" ? t("My calendars") : SOURCE_LABELS[src]}</p>
             {list.map((c) => (
               <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800">
                 <input type="checkbox" className="size-4 rounded" style={{ accentColor: c.color }} checked={!!shown[c.id]} onChange={() => toggle(c)} />
                 <span className="min-w-0 flex-1 truncate">{c.name}</span>
-                {!c.busy && <span className="text-[10px] text-zinc-400" title="Doesn't block time">free</span>}
+                {!c.busy && <span className="text-[10px] text-zinc-400" title={t("Doesn't block time")}>
+                    {t("free")}
+                  </span>}
               </label>
             ))}
           </div>
         ) : null;
       })}
       <div className="space-y-1">
-        <p className="text-[11px] font-semibold tracking-wide text-zinc-400 uppercase">Todos</p>
+        <p className="text-[11px] font-semibold tracking-wide text-zinc-400 uppercase">{t("Todos")}</p>
         <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800">
           <input type="checkbox" className="size-4 rounded" style={{ accentColor: "#6366F1" }} checked={showProposed} onChange={() => setShowProposed(!showProposed)} />
-          <span className="min-w-0 flex-1 truncate">Proposed by todos</span>
+          <span className="min-w-0 flex-1 truncate">{t("Proposed by todos")}</span>
           <span className="text-xs text-zinc-400">{proposed.length}</span>
         </label>
       </div>
       <Link href="/kalender/einstellungen" className="block text-xs text-zinc-500 hover:underline">
-        Manage calendars …
+        {t("Manage calendars …")}
       </Link>
       <details className="text-xs text-zinc-500">
-        <summary className="cursor-pointer">Keyboard shortcuts</summary>
+        <summary className="cursor-pointer">{t("Keyboard shortcuts")}</summary>
         <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
-          {SHORTCUTS.map(([k, what]) => (
+          {shortcuts(t).map(([k, what]) => (
             <div key={k} className="contents">
               <dt>
                 <kbd className="rounded border border-zinc-300 px-1 font-mono text-[10px] dark:border-zinc-600">{k}</kbd>
@@ -222,12 +228,12 @@ export function CalendarApp({
   );
   const sidebar = (
     <>
-      <button type="button" onClick={newNow} className="btn btn-primary w-full justify-center" title="New event (N)">
-        + New event
+      <button type="button" onClick={newNow} className="btn btn-primary w-full justify-center" title={t("New event (N)")}>
+        + {t("New event")}
       </button>
       {/* A phone: folded (the calendar first); wider: always there. */}
       <details className="space-y-3 lg:hidden">
-        <summary className="cursor-pointer text-sm text-zinc-600 dark:text-zinc-300">Calendars & date</summary>
+        <summary className="cursor-pointer text-sm text-zinc-600 dark:text-zinc-300">{t("Calendars & date")}</summary>
         <div className="mt-3 space-y-4">{panels}</div>
       </details>
       <div className="space-y-4 max-lg:hidden">{panels}</div>
@@ -239,20 +245,20 @@ export function CalendarApp({
       <div className="flex h-[calc(100dvh-7rem)] min-h-[32rem] min-w-0 flex-1 flex-col gap-2">
         {/* The toolbar: where you are, how you look at it. */}
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className="btn btn-sm" onClick={() => go(view, ymd(new Date()))} title="Today (T)">
-            Today
+          <button type="button" className="btn btn-sm" onClick={() => go(view, ymd(new Date()))} title={t("Today (T)")}>
+            {t("Today")}
           </button>
           <div className="flex">
-            <button type="button" className="icon-btn" onClick={() => go(view, stepDay(view, day, -1))} aria-label="Previous" title="Previous (←)">
+            <button type="button" className="icon-btn" onClick={() => go(view, stepDay(view, day, -1))} aria-label={t("Previous")} title={t("Previous (←)")}>
               ‹
             </button>
-            <button type="button" className="icon-btn" onClick={() => go(view, stepDay(view, day, 1))} aria-label="Next" title="Next (→)">
+            <button type="button" className="icon-btn" onClick={() => go(view, stepDay(view, day, 1))} aria-label={t("Next")} title={t("Next (→)")}>
               ›
             </button>
           </div>
           <h1 className="min-w-0 flex-1 truncate text-lg font-semibold">{viewTitle(view, day)}</h1>
-          {pending && <span className="text-xs text-zinc-400">Saving…</span>}
-          <div className="flex rounded-lg border border-zinc-200 p-0.5 dark:border-zinc-700" role="tablist" aria-label="View">
+          {pending && <span className="text-xs text-zinc-400">{t("Saving…")}</span>}
+          <div className="flex rounded-lg border border-zinc-200 p-0.5 dark:border-zinc-700" role="tablist" aria-label={t("View")}>
             {VIEWS.map((v) => (
               <button
                 key={v}
@@ -260,16 +266,16 @@ export function CalendarApp({
                 role="tab"
                 aria-selected={v === view}
                 onClick={() => go(v, day)}
-                title={`${VIEW_LABELS[v]} (${v[0].toUpperCase()})`}
+                title={`${viewLabels(t)[v]} (${v[0].toUpperCase()})`}
                 className={`rounded-md px-2.5 py-1 text-xs font-medium ${v === view ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"}`}
               >
-                {VIEW_LABELS[v]}
+                {viewLabels(t)[v]}
               </button>
             ))}
           </div>
           {canSync && (
-            <button type="button" className="btn btn-sm" disabled={pending} onClick={() => start(async () => void done(await syncCalendarsAction()))} title="Read Google Calendar now">
-              ⟳ Sync
+            <button type="button" className="btn btn-sm" disabled={pending} onClick={() => start(async () => void done(await syncCalendarsAction()))} title={t("Read Google Calendar now")}>
+              ⟳ {t("Sync")}
             </button>
           )}
         </div>
@@ -295,10 +301,10 @@ export function CalendarApp({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4">
           <div role="dialog" aria-modal="true" className="card w-full max-w-sm p-4 shadow-2xl">
             <p className="mb-2 text-xs text-zinc-500">
-              “{moving.item.title}” → {local(moving.start).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+              “{moving.item.title}” → {local(moving.start).toLocaleString(locale, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
             </p>
             <ScopeChoice
-              verb="Move"
+              title={t("Move recurring event")}
               pending={pending}
               onCancel={() => setMoving(null)}
               onPick={(scope) => {

@@ -5,6 +5,7 @@ import { saveMeetingJobRulesAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
 import type { MeetingJobRule } from "@/lib/calendar/meetings";
 import { useT } from "@/components/I18nProvider";
+import { rich } from "@/lib/i18n/rich";
 import { SubmitButton } from "./SubmitButton";
 
 /** Meeting title → job rules (one row each) plus the job for every other meeting. */
@@ -59,7 +60,9 @@ export function MeetingJobRulesForm({
 
         {rules.length === 0 && (
           <p className="col-span-3 text-sm text-zinc-500">
-            {t("No rules yet — e.g. title contains")} <code className="code">Mob Programming</code> {t("→ your Relaunch job.")}
+            {rich(t("No rules yet — e.g. title contains <code>Mob Programming</code> → your Relaunch job."), {
+              code: (s) => <code className="code">{s}</code>,
+            })}
           </p>
         )}
         {rules.map((r, i) => (
@@ -119,8 +122,9 @@ export function MeetingJobRulesForm({
         {t(
           "Matching is case-insensitive; the first matching rule wins, and any other meeting gets the “All other meetings” job. This pre-selects the Job column on the import page — you can still change any meeting before booking.",
         )}{" "}
-        <strong>{t("Save & reapply")}</strong>{" "}
-        {t("also moves already imported meetings that match a rule onto its job (meetings no rule matches keep theirs).")}
+        {rich(t("<b>Save & reapply</b> also moves already imported meetings that match a rule onto its job (meetings no rule matches keep theirs)."), {
+          b: (s) => <strong>{s}</strong>,
+        })}
       </p>
     </form>
   );
