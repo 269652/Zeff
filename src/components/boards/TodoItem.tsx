@@ -188,6 +188,8 @@ export function TodoItem({
   const context = useContextItems(cameFrom, [...t.userNotes, ...(t.relatedNotes ?? [])], t.id);
   // An agent on it asks you something and waits.
   const asking = !closed && t.needsInput ? t.needsInput : null;
+  // A worker or agent says it's done: highlighted, still open - closing it is yours.
+  const reported = !closed && !asking && !!t.workerDone;
   // What Zeff runs on a click — those that open in your browser (a mail draft, an appointment) are links of their own.
   const zeffOps = t.ops.filter((o) => !actionHref(o));
   // New since you last looked: lightly highlighted till the mouse passes over it.
@@ -196,7 +198,7 @@ export function TodoItem({
   return (
     <li
       id={anchor ? `todo-${t.id}` : undefined}
-      className={`group flex scroll-mt-24 items-start gap-2 rounded target:bg-amber-50 dark:target:bg-amber-950/40 ${asking ? "-mx-2 bg-amber-50 px-2 py-1.5 ring-1 ring-amber-300 dark:bg-amber-950/40 dark:ring-amber-800" : running || doing ? "-mx-2 bg-indigo-50 px-2 py-1.5 ring-1 ring-indigo-200 dark:bg-indigo-950/40 dark:ring-indigo-900" : isFresh ? "-mx-2 bg-sky-50/80 px-2 py-1.5 ring-1 ring-sky-100 dark:bg-sky-950/30 dark:ring-sky-900/60" : t.deferred && !closed ? "opacity-60 hover:opacity-100" : ""}`}
+      className={`group flex scroll-mt-24 items-start gap-2 rounded target:bg-amber-50 dark:target:bg-amber-950/40 ${asking ? "-mx-2 bg-amber-50 px-2 py-1.5 ring-1 ring-amber-300 dark:bg-amber-950/40 dark:ring-amber-800" : reported ? "-mx-2 bg-emerald-50 px-2 py-1.5 ring-1 ring-emerald-300 dark:bg-emerald-950/30 dark:ring-emerald-800" : running || doing ? "-mx-2 bg-indigo-50 px-2 py-1.5 ring-1 ring-indigo-200 dark:bg-indigo-950/40 dark:ring-indigo-900" : isFresh ? "-mx-2 bg-sky-50/80 px-2 py-1.5 ring-1 ring-sky-100 dark:bg-sky-950/30 dark:ring-sky-900/60" : t.deferred && !closed ? "opacity-60 hover:opacity-100" : ""}`}
       onMouseEnter={fresh ? markSeen : undefined}
       title={asking ? `Der Agent wartet auf dich: ${asking}` : running ? "Wird gerade bearbeitet (Worker oder Agent)" : undefined}
     >
@@ -255,6 +257,7 @@ export function TodoItem({
           <DueBadge todoId={t.id} due={t.due} closed={closed} />
           {t.path && <> · Weg „{t.path}“</>}
           {t.flaggedAt && !closed && <span className="font-medium text-red-600 dark:text-red-400"> · wichtig</span>}
+          {reported && t.workerDone && <span className="font-medium text-emerald-700 dark:text-emerald-400" title={`${t.workerDone.by} reports this done${t.workerDone.note ? `: ${t.workerDone.note}` : ""} - tick it off to close it`}> · ✓ {t.workerDone.by.split(" · ")[0]}: erledigt gemeldet</span>}
           {t.deferred && !closed && <span className="text-zinc-400"> · zurückgestellt</span>}
           {t.bubbledUp && !closed && <span className="text-amber-600 dark:text-amber-400" title="Du hattest es nach unten gestellt — es ist wieder oben"> · wieder oben: {t.bubbledUp}</span>}
           {!closed && <TodoQuickButtons todoId={t.id} panel={quick} onToggle={setQuick} canReply={t.owner === "me" && [...t.refs, ...t.mailRefs].some((r) => r.startsWith("mail:") || r.startsWith("teams:"))} aiDisabled={!workOn ? "Work ist nicht installiert (Menü → Plugins)" : running || doing ? "Wird gerade bearbeitet — erst wenn der Lauf fertig ist" : undefined} />}

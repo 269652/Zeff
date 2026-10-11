@@ -1,6 +1,6 @@
 import type { WorkRun } from "@/db/schema";
 import { isTodoKind, todoRef, type TodoOp } from "@/lib/boards/shared";
-import { addFollowUp, addTodoAiNote, getTodo, listTodos, setTodoDraft, setTodoOps, setTodoStatus } from "@/lib/boards/store";
+import { addFollowUp, addTodoAiNote, getTodo, listTodos, markWorkerDone, setTodoDraft, setTodoOps, setTodoStatus } from "@/lib/boards/store";
 import { pushedLink } from "./remote";
 import { runActions } from "./log";
 import { sameTodo } from "@/lib/boards/similar";
@@ -59,12 +59,14 @@ export function messageOp(f: { channel?: string; target?: string | null; draft?:
 
 /**
  * What a finished run's answer means for the todos: a drafted message goes onto its todo (which
- * stays open until it's sent); the todos it finished — open ones on its ticket only — are done
- * (and with them the comments and messages they came from); what's next becomes follow-up todos
+ * stays open until it's sent); the todos it finished — open ones on its ticket only — are marked
+ * "done by the worker" (highlighted, still open: closing them is yours — with them the comments
+ * and messages they came from) — except for Zeff's own runs (a click of yours), which close them; what's next becomes follow-up todos
  * (mine, with their drafts), traceable to the run.
  */
-export function applyOutcome(run: WorkRun, res: WorkResult): { closed: number[]; added: number[]; dupes?: string[] } {
+export function applyOutcome(run: WorkRun, res: WorkResult): { closed: number[]; marked: number[]; added: number[]; dupes?: string[] } {
   const closed: number[] = [];
+  const marked: number[] = [];
   const added: number[] = [];
   const ref = workRef(run.id);
 
@@ -79,8 +81,14 @@ export function applyOutcome(run: WorkRun, res: WorkResult): { closed: number[];
   if (run.mode === "draft") done.delete(run.todoId); // open until it's sent
   for (const id of done) {
     if (!open.has(id)) continue;
-    setTodoStatus(id, "done", `Erledigt von ${ref}${res.entry ? `: ${res.entry}` : ""}`);
-    closed.push(id);
+    const why = `Erledigt von ${ref}${res.entry ? `: ${res.entry}` : ""}`;
+    if (run.provider === "zeff") {
+      setTodoStatus(id, "done", why);
+      closed.push(id);
+    } else {
+      markWorkerDone(id, `${ref}${run.model ? ` · ${run.model}` : ""}`, res.entry || res.summary.trim().split(String.fromCharCode(10))[0]);
+      marked.push(id);
+    }
   }
 
   // Follow-ups that only repeat an open todo are left out (their message becomes its operation).
@@ -130,5 +138,5 @@ export function applyOutcome(run: WorkRun, res: WorkResult): { closed: number[];
   }
   // Its follow-ups by the same rules as the Ticket-Lage's: waiting ones to "Wartet auf andere", joint ones asking for a time.
   if (added.length) applyTodoRules();
-  return { closed, added, ...(dupes.length ? { dupes } : {}) };
+  return { closed, marked, added, ...(dupes.length ? { dupes } : {}) };
 }

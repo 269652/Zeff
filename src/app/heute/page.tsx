@@ -46,6 +46,8 @@ async function heuteData() {
   const open = listTodos({ status: "open" });
   const mine = open.filter((t) => t.owner === "me");
   const asking = open.filter((t) => t.needsInput);
+  // Workers and agents report these done: yours to look at and close.
+  const reportedDone = open.filter((t) => t.workerDone && !t.needsInput);
   const due = mine.filter((t) => t.due && daysUntil(t.due) <= 3).sort((a, b) => a.due!.localeCompare(b.due!));
   const flagged = mine.filter((t) => t.flaggedAt && !(t.due && daysUntil(t.due) <= 3));
   // Waiting on others for three days or more: time to ask again.
@@ -131,7 +133,7 @@ async function heuteData() {
     weeks,
   });
 
-  return { run, open, mine, asking, due, flagged, waiting, meetings, unanswered, hours, problems, reminders, next, today, now };
+  return { run, open, mine, asking, reportedDone, due, flagged, waiting, meetings, unanswered, hours, problems, reminders, next, today, now };
 }
 
 const NEXT_TONE: Record<import("@/lib/heute-next").NextTone, string> = {
@@ -155,7 +157,7 @@ const PROBLEM: Record<"login" | "chrome" | "broken", string> = {
 export default async function HeutePage() {
   await connection();
   if (!isInstalled("todos")) return <PluginNotInstalled id="todos" />;
-  const { run, mine, asking, due, flagged, waiting, meetings, unanswered, hours, problems, reminders, next, today, now } = await heuteData();
+  const { run, mine, asking, reportedDone, due, flagged, waiting, meetings, unanswered, hours, problems, reminders, next, today, now } = await heuteData();
 
   const todo = (t: TodoView, extra?: React.ReactNode) => (
     <li key={t.id} className="flex items-baseline gap-2 text-sm">
@@ -246,6 +248,11 @@ export default async function HeutePage() {
           </Card>
         )}
 
+        {reportedDone.length > 0 && (
+          <Card title="Von Workern erledigt gemeldet" count={reportedDone.length} href="/todos">
+            <ul className="space-y-1.5">{reportedDone.map((t) => todo(t, <span className="shrink-0 text-xs text-emerald-600 dark:text-emerald-400">✓</span>))}</ul>
+          </Card>
+        )}
         {asking.length > 0 && (
           <Card title="Agenten fragen dich" count={asking.length}>
             <ul className="space-y-1.5">{asking.map((t) => todo(t, <span className="shrink-0 text-xs text-amber-600 dark:text-amber-400">❗</span>))}</ul>

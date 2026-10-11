@@ -880,6 +880,8 @@ export const todos = sqliteTable(
     deferredAt: text("deferred_at"),
     /** Flagged important by you: at the top of its list, urgent for the Ticket-Lage — till you take the flag off. */
     flaggedAt: text("flagged_at"),
+    /** JSON { at, by, note }: a worker (or agent) says it's done — the todo stays open and is highlighted, until you close it. */
+    workerDone: text("worker_done"),
     /** JSON [ticket key]: other tickets it's about too (the same thing on two tickets) — `ticket` is the main one, the original. */
     alsoTickets: text("also_tickets").notNull().default("[]"),
     /** JSON ["mail:<key>"]: the mails it's about — picked by the mail relation run (after the Ticket-Lage), its own say. */

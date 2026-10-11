@@ -50,8 +50,8 @@ export function workPageData(copilot: string[] = []): WorkPageData {
   const since = new Date(Date.now() - 7 * 864e5).toISOString();
   const recent = listTodos({ status: "all" }).filter((t) => t.status === "open" || (t.doneAt ?? "") >= since);
   const runMap = runsForTodos(recent.map((t) => t.id));
-  // Flagged by you first, put down by you last (a stable sort — otherwise as they were).
-  const rank = (t: TodoView) => (t.flaggedAt ? -1 : t.deferred ? 1 : 0);
+  // Flagged by you first, then those a worker reports done, put down by you last (a stable sort — otherwise as they were).
+  const rank = (t: TodoView) => (t.flaggedAt ? -2 : t.workerDone && t.status === "open" ? -1 : t.deferred ? 1 : 0);
   const todos = withAlternatives(recent).sort((a, b) => rank(a) - rank(b));
 
   const order = [...(board?.result?.tickets ?? []).map((t) => t.key), ...(board?.tickets ?? []).filter((t) => t.analyzed).map((t) => t.key)];

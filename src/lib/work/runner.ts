@@ -30,8 +30,8 @@ import { applyOutcome, normalizeResult } from "./outcome";
 import { createRun, getRun, getWorkSettings, runsByStatus, toRunView, updateRun } from "./store";
 import { parseMrTarget, WORK_RESULT_SCHEMA, workModeOf, workRef, type WorkResult, type WorkRunView } from "./shared";
 
-/** Zeff's own booking tools — a worker never books: Zeff books its runs (Weekly report). */
-const ZEFF_TOOLS = ["report_time", "update_time_entry", "delete_time_entry", "complete_todo", "create_job"].map((t) => `mcp__zeff__${t}`);
+/** Zeff's own booking tools — a worker never books: Zeff books its runs (Weekly report). (complete_todo is allowed: it only marks a todo "done by the worker".) */
+const ZEFF_TOOLS = ["report_time", "update_time_entry", "delete_time_entry", "create_job"].map((t) => `mcp__zeff__${t}`);
 /** The Jira tools a send run may use, from Zeff's own Jira connection (server "zeff-jira"). */
 const JIRA_SEND_TOOLS = ["jira_add_comment", "jira_get_transitions", "jira_transition_issue", "jira_update_issue", "jira_get_issue"].map((t) => `mcp__zeff-jira__${t}`);
 

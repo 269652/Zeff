@@ -154,6 +154,7 @@ const toTodo = (r: Todo): TodoView => ({
   userNotes: parse<TodoView["userNotes"]>(r.userNotes, []).filter((n) => n && typeof n.text === "string"),
   deferredAt: r.deferredAt ?? null,
   flaggedAt: r.flaggedAt ?? null,
+  workerDone: parse<TodoView["workerDone"]>(r.workerDone ?? "null", null),
   alsoTickets: parse<string[]>(r.alsoTickets, []).filter((k) => typeof k === "string"),
   createdAt: iso(r.createdAt),
   updatedAt: iso(r.updatedAt),
@@ -319,6 +320,7 @@ export function setTodoStatus(id: number, status: TodoStatus, note?: string | nu
       status,
       updatedAt: now,
       doneAt: status === "open" ? null : now,
+      workerDone: null, // closed or opened again by whoever decides: the worker's say is settled
       ...(note !== undefined ? { note: note?.trim().slice(0, 500) || null } : {}),
     })
     .where(eq(todos.id, id))
@@ -652,6 +654,19 @@ export function removeTodoUserNote(id: number, at: string): TodoView {
   const t = getTodo(id);
   if (!t) throw new NotFoundError(`Todo ${todoRef(id)} not found.`);
   getDb().update(todos).set({ userNotes: JSON.stringify(t.userNotes.filter((n) => n.at !== at)) }).where(eq(todos.id, id)).run();
+  emitChange("todos");
+  return getTodo(id)!;
+}
+
+/**
+ * A worker or agent reports the todo done. It stays open (closing is yours) and is highlighted
+ * until you close it; a later report replaces the earlier.
+ */
+export function markWorkerDone(id: number, by: string, note?: string | null): TodoView {
+  const t = getTodo(id);
+  if (!t) throw new NotFoundError(`Todo ${todoRef(id)} not found.`);
+  const v: NonNullable<TodoView["workerDone"]> = { at: new Date().toISOString(), by: by.slice(0, 100), note: note?.trim().slice(0, 500) || null };
+  getDb().update(todos).set({ workerDone: JSON.stringify(v), updatedAt: v.at }).where(eq(todos.id, id)).run();
   emitChange("todos");
   return getTodo(id)!;
 }
