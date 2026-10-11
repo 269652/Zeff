@@ -125,3 +125,58 @@ export async function remindedFormAction(fd: FormData): Promise<void> {
   revalidatePath("/personen", "layout");
   redirect(str(fd, "to") || "/heute");
 }
+
+/** What a person's hover card shows (a name in a todo): who they are, their next dates, facts, latest messages, open todos. */
+export type PersonCardData = {
+  id: number;
+  name: string;
+  aliases: string[];
+  note: string;
+  dates: { label: string; when: string }[];
+  facts: { subject: string; text: string }[];
+  messages: { who: string; text: string; at: string; folder: string }[];
+  todos: { id: number; ref: string; text: string }[];
+};
+
+/** A person's hover card's contents — loaded when it opens. Null: no such person (or the plugin is off). */
+export async function personCardAction(id: number): Promise<PersonCardData | null> {
+  if (!isInstalled("people")) return null;
+  const p = getPerson(Number(id));
+  if (!p) return null;
+  const { contactsOf, datesOf, peopleIndex } = await import("./store");
+  const { mentionMatcher, splitMentions } = await import("./mentions");
+  // Named in a text the way todos show it (aliases, "Herr Kruger", "Nadines").
+  const matcher = mentionMatcher(await peopleIndex());
+  const names = (text: string) => splitMentions(text, matcher).some((m) => m.person?.id === p.id);
+  const { dateText, daysBetween, inDaysText, isoDay, nextOccurrence, upcomingShort } = await import("./shared");
+  const { listFacts } = await import("@/lib/facts");
+  const { listTodos } = await import("@/lib/boards/store");
+  const today = new Date();
+  const dates = datesOf(p.id)
+    .filter((d) => d.confirmed)
+    .flatMap((d) => {
+      const on = nextOccurrence(d, today);
+      if (!on) return [];
+      const inDays = daysBetween(today, on);
+      const turns = d.year && d.yearly ? on.getFullYear() - d.year : null;
+      return [{ inDays, label: upcomingShort({ date: d, person: p, on: isoDay(on), inDays, turns: turns && turns > 0 ? turns : null }, t), when: `${dateText(d)} · ${inDaysText(inDays, isoDay(on), t)}` }];
+    })
+    .sort((a, b) => a.inDays - b.inDays)
+    .map(({ label, when }) => ({ label, when }));
+  return {
+    id: p.id,
+    name: p.name,
+    aliases: p.aliases,
+    note: p.note.slice(0, 400),
+    dates,
+    facts: listFacts()
+      .filter((f) => names(`${f.subject} ${f.text}`))
+      .slice(0, 6)
+      .map((f) => ({ subject: f.subject, text: f.text.slice(0, 200) })),
+    messages: contactsOf(p, 3).map((c) => ({ who: c.who, text: c.text.slice(0, 220), at: c.at, folder: c.folder })),
+    todos: listTodos({ status: "open" })
+      .filter((x) => names(x.text))
+      .slice(0, 4)
+      .map((x) => ({ id: x.id, ref: x.ref, text: x.text.slice(0, 140) })),
+  };
+}

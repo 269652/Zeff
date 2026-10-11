@@ -56,6 +56,7 @@ import { SetupGate } from "@/components/SetupGate";
 import { getAppSettings } from "@/lib/ai";
 import { MainArea } from "@/components/MainArea";
 import { PluginFlagsProvider } from "@/components/PluginFlags";
+import { PeopleProvider } from "@/plugins/people/PersonMention";
 import { I18nProvider } from "@/components/I18nProvider";
 import { applyLanguage, t } from "@/lib/i18n/server";
 import "./globals.css";
@@ -101,7 +102,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             <PluginFlagsProvider installed={[...installedPlugins()]}>
               <AgentInstructionsProvider templates={getWorkSettings().agentInstructions}>
                 <SetupGate pending={setupPending} allowed={setupPages()} account={installedPlugins().has("accounts") ? currentAccount().name : undefined}>
-                  {children}
+                  {/* People named in texts (todos) as links with hover cards — with the People plugin. */}
+                  <PeopleProvider index={installedPlugins().has("people") ? await (await import("@/plugins/people/store")).peopleIndex() : []}>{children}</PeopleProvider>
                 </SetupGate>
               </AgentInstructionsProvider>
             </PluginFlagsProvider>
