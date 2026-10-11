@@ -3,7 +3,8 @@
  * npm run deploy — Zeff's prod (9333) updated safely, the same way every time (whichever session
  * or person runs it):
  *   1. a lock (data/.deploy.lock): never two deploys at once
- *   2. no Ticket-Lage or work run active in any account (else: stop — or wait, with --wait)
+ *   2. no Ticket-Lage or work run active in any account (else: stop — or wait, with --wait);
+ *      work runs on the launcher's work host don't count: they outlive the restart
  *   3. typecheck, lint (errors), tests (npm test)
  *   4. next build (+ the knowledge server's with --knowledge) — into .next-build, while the
  *      server keeps serving .next undisturbed
@@ -63,8 +64,32 @@ function lock() {
   process.on("SIGINT", () => process.exit(130));
 }
 
-// 2./5. Runs active in any account.
+/**
+ * The work runs whose worker lives on the launcher's work host ("account:id"): a restart of the
+ * server doesn't touch them — the host tells the server when they end, retrying until it is up.
+ * Only those still running (the host's list, and their process alive).
+ */
+function hostedRuns() {
+  const hosted = new Set();
+  try {
+    for (const c of JSON.parse(fs.readFileSync(path.join(DATA, "launcher", "work-host.json"), "utf8"))) {
+      if (c.ended) continue;
+      try {
+        process.kill(c.pid, 0);
+        hosted.add(`${c.account}:${c.runId}`);
+      } catch {
+        // the process is gone: not hosted any more
+      }
+    }
+  } catch {
+    // no host, no state
+  }
+  return hosted;
+}
+
+// 2./5. Runs active in any account. A work run on the work host doesn't count: it outlives the restart.
 function busyRuns() {
+  const hosted = hostedRuns();
   const Database = require("better-sqlite3");
   const dbs = [{ id: "default", file: path.join(DATA, "zeff.db") }];
   try {
@@ -77,7 +102,7 @@ function busyRuns() {
     if (!fs.existsSync(f)) continue;
     const db = new Database(f, { readonly: true });
     try {
-      for (const t of ["board_runs", "work_runs"]) for (const r of db.prepare(`select id from ${t} where status in ('running','queued')`).all()) if (!(OWN_RUN && t === "work_runs" && r.id === OWN_RUN.id && account === OWN_RUN.account)) busy.push(`${path.relative(DATA, f)} ${t} #${r.id}`);
+      for (const t of ["board_runs", "work_runs"]) for (const r of db.prepare(`select id, status from ${t} where status in ('running','queued')`).all()) if (!(OWN_RUN && t === "work_runs" && r.id === OWN_RUN.id && account === OWN_RUN.account) && !(t === "work_runs" && r.status === "running" && hosted.has(`${account}:${r.id}`))) busy.push(`${path.relative(DATA, f)} ${t} #${r.id}`);
     } finally {
       db.close();
     }
