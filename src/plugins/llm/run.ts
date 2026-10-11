@@ -9,6 +9,8 @@ import { ValidationError } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { runClaude } from "@/plugins/claude-cli/cli";
 import { runCodex } from "@/plugins/codex-cli/cli";
+import { liveDriverFor } from "@/lib/work/live-driver";
+import { claudeSessionSettings } from "@/lib/work/store";
 import { runCopilot } from "@/plugins/copilot-cli/cli";
 import { isInstalled, providerAvailable } from "@/plugins/state";
 import { getLlmSettings } from "./settings";
@@ -18,10 +20,13 @@ import { LLM_PREAMBLE_MAX, type LlmTaskId } from "./tasks";
 export function llmChoice(task: LlmTaskId): { provider: AiProvider; model: string } {
   const own = getLlmSettings().tasks[task];
   let provider: AiProvider = own?.provider && providerAvailable(own.provider) ? own.provider : aiChoice().provider;
-  // Workers on the Work tab run on Claude or Copilot (ChatGPT's workers aren't there yet): the first of those installed.
-  if (task === "worker" && provider === "codex") provider = (["claude", "copilot"] as const).find((p) => providerAvailable(p)) ?? "copilot";
+  // ChatGPT's workers are live sessions only: without those (Work settings → Live sessions) the first other backend installed.
+  if (task === "worker" && provider === "codex" && !liveWorkersOn("codex")) provider = (["claude", "copilot"] as const).find((p) => providerAvailable(p)) ?? "copilot";
   return { provider, model: (own?.model && own.provider === provider ? own.model : "") || defaultModelOf(provider) };
 }
+
+/** Workers of a backend that only runs as live sessions (ChatGPT's): possible while Work's Live sessions are on and its plugin is installed. */
+export const liveWorkersOn = (provider: AiProvider): boolean => providerAvailable(provider) && claudeSessionSettings().live && !!liveDriverFor(provider);
 
 /** Your instructions and context, as they go in front of a prompt (or to a worker / agent) — "" when there are none. */
 export function llmPreamble(): string {

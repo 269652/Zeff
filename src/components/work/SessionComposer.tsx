@@ -5,27 +5,16 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { startSessionAction } from "@/plugins/work/server-actions";
 import { toast } from "@/components/Toaster";
 import { NO_WORKSPACE, WorkspacePicker, type Workspace } from "./WorkspacePicker";
-import { CLAUDE_MODES, EFFORTS, type ClaudeMode, type Effort } from "@/lib/work/shared";
+import type { Effort } from "@/lib/work/shared";
+import { effortsOf, type ComposerOptions } from "@/lib/work/composer-shared";
 import { useT } from "../I18nProvider";
 import { modeText } from "./mode-text";
-
-/** What a new live Claude session can be started with (from the Work settings and plugins). */
-export type ClaudeComposerOptions = {
-  /** Claude workers run as live sessions (else the choices don't apply). */
-  live: boolean;
-  defaultProvider: string;
-  mode: ClaudeMode;
-  effort: Effort;
-  allowBypass: boolean;
-  models: { value: string; label: string }[];
-  /** Admin sessions can be had (Windows, the plugin). */
-  admin: boolean;
-};
+import { isClaudeMode } from "@/lib/work/shared";
 
 /**
  * The message box, like Claude Code's: it grows with what you write, Enter sends, Shift+Enter is a
- * new line. A new session also picks its ticket, repo and CLI — and, for a live Claude session, its
- * mode, model, effort, as administrator; in a session (`continueRunId`) your message goes on with its
+ * new line. A new session also picks its ticket, repo and backend — and, for a live session, its
+ * mode, model, effort (each backend's own), as administrator (Claude); in a session (`continueRunId`) your message goes on with its
  * conversation — also while the worker still answers: it follows when that run has ended. `busy`:
  * something else keeps you from sending.
  */
@@ -38,7 +27,7 @@ export function SessionComposer({
   tickets = [],
   repos = [],
   providers = [],
-  claude,
+  options,
   busy = null,
   placeholder,
   autoFocus = false,
@@ -48,13 +37,14 @@ export function SessionComposer({
   ticketRepos?: Record<string, string>;
   todoId?: number;
   continueRunId?: number;
-  /** The backend of the session it goes on with (its choices shown for Claude). */
+  /** The backend of the session it goes on with (its choices shown). */
   continueProvider?: string;
   /** For a new session: the tickets to pick from (none: the given one, or none). */
   tickets?: { key: string; summary: string | null }[];
   repos?: { id: number; name: string; path: string }[];
+  /** What each backend lets you choose (live backends: mode, model, effort) and the default backend. */
+  options?: ComposerOptions;
   providers?: { id: string; label: string }[];
-  claude?: ClaudeComposerOptions;
   /** Why you can't send right now (the worker is answering), or null. */
   busy?: string | null;
   placeholder?: string;
@@ -71,9 +61,8 @@ export function SessionComposer({
   const inferred = ticketRepos?.[(pick || ticket || "").toUpperCase()] ?? "";
   const ws: Workspace = ownFolder ? picked : { ...picked, path: inferred };
   const [provider, setProvider] = useState("");
-  const [mode, setMode] = useState<ClaudeMode>(claude?.mode ?? "default");
-  const [model, setModel] = useState("");
-  const [effort, setEffort] = useState<Effort>(claude?.effort ?? "");
+  // What you chose per backend (a model of one is nothing to another): each starts from its own defaults.
+  const [picks, setPicks] = useState<Record<string, { mode?: string; model?: string; effort?: Effort }>>({});
   const [admin, setAdmin] = useState(false);
   const area = useRef<HTMLTextAreaElement>(null);
   const picker = useRef<HTMLInputElement>(null);
@@ -86,12 +75,12 @@ export function SessionComposer({
     setUploading((n) => n + 1);
     try {
       const body = new FormData();
-      for (const f of list) body.append("files", f, f.name || "bild.png");
+      for (const f of list) body.append("files", f, f.name || "image.png");
       const r = (await fetch("/api/work/attach", { method: "POST", body }).then((x) => x.json())) as { ok: boolean; error?: string; files?: { ref: string; name: string; size: number }[] };
-      if (!r.ok) toast(r.error ?? "Ging nicht.", { tone: "error" });
+      if (!r.ok) toast(r.error ?? t("Didn't work."), { tone: "error" });
       else setFiles((f) => [...f, ...(r.files ?? [])]);
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Ging nicht.", { tone: "error" });
+      toast(e instanceof Error ? e.message : t("Didn't work."), { tone: "error" });
     } finally {
       setUploading((n) => n - 1);
     }
@@ -103,8 +92,15 @@ export function SessionComposer({
     el.style.height = `${Math.min(el.scrollHeight, 320)}px`;
   }, [text]);
   // The backend it'll be: picked here, else the session's (going on), else the default.
-  const backend = provider || (continueRunId ? continueProvider : undefined) || claude?.defaultProvider;
-  const isClaude = !!claude?.live && backend === "claude";
+  const backend = provider || (continueRunId ? continueProvider : undefined) || options?.defaultProvider;
+  const choices = backend ? options?.choices[backend] : undefined;
+  const mine = (backend && picks[backend]) || {};
+  const mode = mine.mode && choices?.modes.some((m) => m.id === mine.mode) ? mine.mode : (choices?.defaultMode ?? "");
+  const model = mine.model && choices?.models.some((m) => m.value === mine.model) ? mine.model : "";
+  const efforts = effortsOf(choices?.models.find((m) => m.value === model));
+  const effort = mine.effort && efforts.includes(mine.effort) ? mine.effort : efforts.includes(choices?.defaultEffort ?? "") ? (choices?.defaultEffort ?? "") : "";
+  const pickFor = (patch: { mode?: string; model?: string; effort?: Effort }) => backend && setPicks((p) => ({ ...p, [backend]: { ...p[backend], ...patch } }));
+  const modeName = (m: { id: string; label: string; hint: string }) => (isClaudeMode(m.id) ? modeText(t, m.id) : { label: t(m.label), hint: t(m.hint) });
   const blocked = pending || !!busy || uploading > 0;
   const send = () =>
     (text.trim() || files.length > 0) &&
@@ -120,7 +116,7 @@ export function SessionComposer({
         branch: ws.branch || undefined,
         workspace: ws.mode || undefined,
         provider: provider || undefined,
-        session: isClaude ? { permissionMode: mode, model: model || undefined, effort, elevated: admin || undefined } : undefined,
+        session: choices ? { permissionMode: mode, model: model || undefined, effort: choices.effort ? effort : undefined, elevated: (choices.admin && admin) || undefined } : undefined,
       });
       if (!r.ok) return void toast(r.error, { tone: "error" });
       setText("");
@@ -170,17 +166,17 @@ export function SessionComposer({
           autoFocus={autoFocus}
         />
         {(files.length > 0 || uploading > 0) && (
-          <ul className="flex flex-wrap gap-1.5 px-3 pb-1" aria-label="Anhänge">
+          <ul className="flex flex-wrap gap-1.5 px-3 pb-1" aria-label={t("Attachments")}>
             {files.map((f) => (
               <li key={f.ref} className="inline-flex max-w-56 items-center gap-1 rounded-md bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200" title={`${f.name} · ${Math.max(1, Math.round(f.size / 1024))} KB`}>
                 <span aria-hidden>📎</span>
                 <span className="truncate">{f.name}</span>
-                <button type="button" className="text-zinc-400 hover:text-red-600" aria-label={`${f.name} entfernen`} onClick={() => setFiles((l) => l.filter((x) => x.ref !== f.ref))}>
+                <button type="button" className="text-zinc-400 hover:text-red-600" aria-label={t("Remove {name}", { name: f.name })} onClick={() => setFiles((l) => l.filter((x) => x.ref !== f.ref))}>
                   ×
                 </button>
               </li>
             ))}
-            {uploading > 0 && <li className="text-xs text-zinc-500">lädt hoch …</li>}
+            {uploading > 0 && <li className="text-xs text-zinc-500">{t("uploading …")}</li>}
           </ul>
         )}
         <div className="flex flex-wrap items-center gap-1 px-2.5 pb-2">
@@ -188,7 +184,7 @@ export function SessionComposer({
             void attach([...(e.target.files ?? [])]);
             e.target.value = "";
           }} />
-          <button type="button" className="grid size-7 place-items-center rounded-md text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => picker.current?.click()} aria-label="Bild oder Dokument anhängen" title="Bild oder Dokument anhängen (oder einfügen / hineinziehen)">
+          <button type="button" className="grid size-7 place-items-center rounded-md text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => picker.current?.click()} aria-label={t("Attach an image or document")} title={t("Attach an image or document (or paste / drop it)")}>
             📎
           </button>
           {tickets.length > 0 && (
@@ -213,30 +209,32 @@ export function SessionComposer({
               ))}
             </select>
           )}
-          {isClaude && claude && (
+          {choices && (
             <>
-              <select className={select} value={mode} onChange={(e) => setMode(e.target.value as ClaudeMode)} aria-label={t("Permission mode")} title={modeText(t, mode).hint}>
-                {CLAUDE_MODES.filter((m) => m !== "bypassPermissions" || claude.allowBypass).map((m) => (
-                  <option key={m} value={m}>
-                    {t("Mode: {m}", { m: modeText(t, m).label })}
+              <select className={select} value={mode} onChange={(e) => pickFor({ mode: e.target.value })} aria-label={t("Permission mode")} title={modeName(choices.modes.find((m) => m.id === mode) ?? choices.modes[0]).hint}>
+                {choices.modes.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {t("Mode: {m}", { m: modeName(m).label })}
                   </option>
                 ))}
               </select>
-              <select className={select} value={model} onChange={(e) => setModel(e.target.value)} aria-label={t("Model")}>
-                {claude.models.map((m) => (
+              <select className={select} value={model} onChange={(e) => pickFor({ model: e.target.value })} aria-label={t("Model")}>
+                {choices.models.map((m) => (
                   <option key={m.value} value={m.value}>
                     {m.value ? m.label : continueRunId ? t("Same model") : t("Model: default")}
                   </option>
                 ))}
               </select>
-              <select className={select} value={effort} onChange={(e) => setEffort(e.target.value as Effort)} aria-label={t("Effort")}>
-                {EFFORTS.map((e) => (
-                  <option key={e} value={e}>
-                    {e ? t("Effort: {e}", { e }) : t("Effort: default")}
-                  </option>
-                ))}
-              </select>
-              {claude.admin && (
+              {choices.effort && (
+                <select className={select} value={effort} onChange={(e) => pickFor({ effort: e.target.value as Effort })} aria-label={t("Effort")}>
+                  {efforts.map((e) => (
+                    <option key={e} value={e}>
+                      {e ? t("Effort: {e}", { e }) : t("Effort: default")}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {choices.admin && (
                 <label className="flex items-center gap-1 px-1.5 text-xs text-red-700 dark:text-red-300" title={t("Runs as administrator (Windows asks you, or the Admin sessions task starts it)")}>
                   <input type="checkbox" checked={admin} onChange={(e) => setAdmin(e.target.checked)} />
                   {t("As administrator")}

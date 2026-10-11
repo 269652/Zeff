@@ -10,13 +10,14 @@ import { sideTodos } from "@/lib/work/actions";
 import { runsForTodos } from "@/lib/work/store";
 import { ClaudeSession } from "./ClaudeSession";
 import { LiveControls } from "./LiveControls";
-import { SessionComposer, type ClaudeComposerOptions } from "./SessionComposer";
+import { SessionComposer } from "./SessionComposer";
+import type { ComposerOptions } from "@/lib/work/composer-shared";
 import { SessionThread, type SessionTurn } from "./SessionThread";
 import { SessionTabs } from "./SessionWorkspace";
 import { StopSessionButton, TodoSessionButton } from "./SessionActions";
 import { SessionBranch } from "./SessionBranch";
 
-type Options = { tickets: { key: string; summary: string | null }[]; repos: { id: number; name: string; path: string }[]; providers: { id: string; label: string }[]; claude?: ClaudeComposerOptions; ticketRepos?: Record<string, string> };
+type Options = { tickets: { key: string; summary: string | null }[]; repos: { id: number; name: string; path: string }[]; providers: { id: string; label: string }[]; composer?: ComposerOptions; ticketRepos?: Record<string, string> };
 
 const when = (iso: string | null) => (iso ? formatDateTime(iso.includes("T") ? iso : `${iso.replace(" ", "T")}Z`) : "");
 const statusText = (s: WorkStatus) =>
@@ -134,7 +135,7 @@ export function SessionPane({ run, options }: { run: WorkRunView; options: Optio
               continueRunId={last.id}
               continueProvider={last.provider}
               providers={options.providers}
-              claude={options.claude}
+              options={options.composer}
               placeholder={active ? (last.status === "queued" ? "Waiting for a free worker … — your reply is sent after it" : "Working … — your reply is sent as soon as it has answered") : t("Reply …")}
               autoFocus
             />
@@ -203,7 +204,7 @@ export function TicketPane({ ticket, data, options }: { ticket: string; data: Se
         repos={options.repos}
         ticketRepos={options.ticketRepos}
         providers={options.providers}
-        claude={options.claude}
+        options={options.composer}
         placeholder={ticket ? t("New session on {ticket} — what should we work on?", { ticket }) : t("New session — what should we work on?")}
       />
     </div>
@@ -223,7 +224,7 @@ export function NewSessionPane({ options, running }: { options: Options; running
         </p>
       </div>
       <SessionComposer tickets={options.tickets} repos={options.repos}
-        ticketRepos={options.ticketRepos} providers={options.providers} claude={options.claude} autoFocus />
+        ticketRepos={options.ticketRepos} providers={options.providers} options={options.composer} autoFocus />
     </div>
   );
 }
