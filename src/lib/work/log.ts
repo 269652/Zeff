@@ -137,7 +137,7 @@ export function readLog(id: number): { lines: WorkLogLine[]; errors: string[]; r
       sessionId = e.session_id ?? sessionId;
       cwd = e.cwd ?? cwd;
       const mcp = (e.mcp_servers ?? []).map((m) => `${m.name}${m.status === "connected" ? "" : ` (${m.status})`}`).join(", ");
-      lines.push({ k: "start", text: [e.model, e.cwd, e.permissionMode && `permissions: ${e.permissionMode}`, mcp && `MCP: ${mcp}`].filter(Boolean).join(" · ") });
+      lines.push({ k: "start", model: e.model, text: [e.model, e.cwd, e.permissionMode && `permissions: ${e.permissionMode}`, mcp && `MCP: ${mcp}`].filter(Boolean).join(" · ") });
     } else if (e.type === "assistant" && Array.isArray(e.message?.content)) {
       for (const b of e.message.content) {
         if (b.type === "text" && b.text?.trim()) lines.push({ k: "say", text: b.text.trim() });

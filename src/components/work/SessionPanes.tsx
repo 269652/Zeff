@@ -3,16 +3,17 @@ import { getTodo, listTodos } from "@/lib/boards/store";
 import { todoRef } from "@/lib/boards/shared";
 import { getTicketCards } from "@/lib/jira/store";
 import type { SessionTicket } from "@/lib/work/sessions";
-import { duration, isActive, WORK_MODE_LABELS, WORK_STATUS_LABELS, type WorkRunView } from "@/lib/work/shared";
+import { isActive, WORK_MODE_LABELS, WORK_STATUS_LABELS, type WorkRunView } from "@/lib/work/shared";
+import { runsForTodos } from "@/lib/work/store";
 import { LiveControls } from "./LiveControls";
-import { RunLog } from "./RunLog";
 import { SessionComposer } from "./SessionComposer";
+import { SessionThread, type SessionTurn } from "./SessionThread";
 import { StopSessionButton, TodoSessionButton } from "./SessionActions";
 
 type Options = { tickets: { key: string; summary: string | null }[]; repos: { id: number; name: string }[]; providers: { id: string; label: string }[] };
 
 const when = (iso: string | null) => (iso ? new Date(iso.includes("T") ? iso : `${iso.replace(" ", "T")}Z`).toLocaleString("de-DE", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
-const PROVIDER: Record<string, string> = { copilot: "Copilot CLI", claude: "Claude CLI", zeff: "Zeff", agent: "Agent" };
+const STATUS: Record<string, string> = { queued: "queued", running: "working", done: "done", failed: "failed", cancelled: "stopped", interrupted: "interrupted" };
 const TONE: Record<string, string> = {
   running: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200",
   queued: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
@@ -23,70 +24,72 @@ const TONE: Record<string, string> = {
 };
 
 /**
- * A session, like a conversation in Claude Code: what it's about on top; what the worker says
- * and does, the whole height (live while it works); at the bottom the bar to talk to it — its
- * mode, its questions, your next message — or, once it's over, to go on in a new session.
+ * A session, like a conversation in Claude Code: what it's about on top; the conversation the whole
+ * height — each message of yours (a run each) and its answer, live while it works; at the bottom
+ * the box for your next message, which goes on with the same conversation.
  */
 export function SessionPane({ run, options }: { run: WorkRunView; options: Options }) {
   const todo = getTodo(run.todoId);
   const card = run.ticket ? getTicketCards([run.ticket])[run.ticket.toUpperCase()] : undefined;
-  const active = isActive(run.status);
+  // The conversation: every run on this todo, oldest first; your words for each from the todo's notes.
+  const runs = [...(runsForTodos([run.todoId]).get(run.todoId) ?? [run])].reverse();
+  const turns: SessionTurn[] = runs.map((r) => ({
+    run: r,
+    ask: todo?.userNotes.find((n) => n.kind === "instruction" && n.run === r.id)?.text ?? null,
+    label: `${WORK_MODE_LABELS[r.mode]}${todo ? ` · ${todoRef(todo.id)} ${todo.text}` : ""}`,
+  }));
+  const last = runs[runs.length - 1] ?? run;
+  const active = isActive(last.status);
+  const meta = [last.repo && last.repo.split(/[\\/]/).pop(), last.branch, todo && todoRef(todo.id)].filter(Boolean) as string[];
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col gap-3 max-lg:min-h-[80vh]">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="font-mono font-semibold">{run.ref}</span>
-            <span className={`rounded px-1.5 py-0.5 font-medium ${TONE[run.status] ?? ""}`}>{run.live ? (run.live.permission ? "fragt nach Erlaubnis" : run.live.busy ? "arbeitet" : "wartet auf dich") : WORK_STATUS_LABELS[run.status]}</span>
-            {run.ticket ? (
-              <Link href={`/work?ticket=${encodeURIComponent(run.ticket)}`} className="font-mono text-indigo-600 hover:underline dark:text-indigo-400">
-                {run.ticket}
+    <div className="flex min-h-0 w-full flex-1 flex-col max-lg:min-h-[80vh]">
+      <header className="flex items-center gap-3 border-b border-zinc-200 pb-2.5 dark:border-zinc-800">
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-[15px] font-semibold" title={todo?.text ?? undefined}>
+            {todo?.text ?? last.summary ?? last.ref}
+          </h1>
+          <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-zinc-500">
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-px font-medium ${TONE[last.status] ?? ""}`}>
+              {active && <span className="size-1.5 animate-pulse rounded-full bg-current" aria-hidden />}
+              {last.live ? (last.live.permission ? "asks for permission" : last.live.busy ? "working" : "waiting for you") : STATUS[last.status]}
+            </span>
+            {last.ticket ? (
+              <Link href={`/work?ticket=${encodeURIComponent(last.ticket)}`} className="font-mono text-indigo-600 hover:underline dark:text-indigo-400">
+                {last.ticket}
               </Link>
             ) : (
-              <span className="text-zinc-500">ohne Ticket</span>
+              <span>no ticket</span>
             )}
-            {card?.summary && <span className="truncate text-zinc-500">{card.summary}</span>}
+            {card?.summary && <span className="max-w-72 truncate">{card.summary}</span>}
+            {meta.map((m) => (
+              <span key={m} className="font-mono">
+                {m}
+              </span>
+            ))}
           </div>
-          <h1 className="mt-1 text-base font-semibold">{todo?.text ?? run.summary ?? run.ref}</h1>
-          <p className="text-xs text-zinc-500">
-            {[
-              `${PROVIDER[run.provider] ?? run.provider}${run.model ? ` · ${run.model}` : ""}`,
-              WORK_MODE_LABELS[run.mode],
-              run.repo && `Repo ${run.repo.split(/[\\/]/).pop()}`,
-              run.branch && `Branch ${run.branch}`,
-              run.startedAt && `seit ${when(run.startedAt)}`,
-              run.durationMs ? duration(run.durationMs) : null,
-              todo && todoRef(todo.id),
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
         </div>
-        <div className="flex shrink-0 gap-2">
-          <a href={`/api/work/${run.id}/prompt`} target="_blank" rel="noreferrer" className="btn btn-sm" title="Was der Worker bekommen hat">
-            Auftrag
+        <div className="flex shrink-0 items-center gap-2">
+          <a href={`/api/work/${last.id}/prompt`} target="_blank" rel="noreferrer" className="btn btn-sm" title="What the worker was told">
+            Prompt
           </a>
-          {active && <StopSessionButton runId={run.id} />}
+          {active && <StopSessionButton runId={last.id} />}
         </div>
       </header>
-      <RunLog id={run.id} fill />
-      {run.live ? (
-        <LiveControls run={run} />
-      ) : active ? (
-        <p className="rounded-lg bg-zinc-100 px-3 py-2 text-sm text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
-          {run.status === "queued" ? "Wartet auf einen freien Worker …" : "Arbeitet — ohne Rückfragen (nicht interaktiv; interaktiv: Copilot CLI, Work-Einstellungen „interaktiv“)."}
-        </p>
-      ) : (
-        <div className="space-y-2">
-          {(run.summary || run.error) && (
-            <div className={`rounded-lg px-3 py-2 text-sm ${run.error ? "bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200" : "bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100"}`}>
-              {run.error ?? run.summary}
-              {run.gitSummary && <span className="mt-1 block text-xs opacity-80">{run.gitSummary}</span>}
-            </div>
-          )}
-          <SessionComposer ticket={run.ticket} todoId={todo?.status === "open" ? todo.id : undefined} repos={options.repos} providers={options.providers} label="Weiter" placeholder="Weitermachen — was als Nächstes? (eine neue Session mit allem bisher)" />
-        </div>
-      )}
+      <SessionThread turns={turns} />
+      <div className="pt-2">
+        {last.live && last.status === "running" ? (
+          <LiveControls run={last} />
+        ) : (
+          <SessionComposer
+            ticket={last.ticket}
+            continueRunId={last.id}
+            providers={options.providers}
+            busy={active ? (last.status === "queued" ? "Waiting for a free worker …" : "Working — you can reply once it has answered.") : null}
+            placeholder="Reply …"
+            autoFocus
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -144,25 +147,22 @@ export function TicketPane({ ticket, data, options }: { ticket: string; data: Se
           </ul>
         </section>
       </div>
-      <SessionComposer ticket={ticket} repos={options.repos} providers={options.providers} placeholder={`Neue Session${ticket ? ` zu ${ticket}` : ""} — was soll der Worker tun?`} />
+      <SessionComposer ticket={ticket} repos={options.repos} providers={options.providers} placeholder={`New session${ticket ? ` on ${ticket}` : ""} — what should we work on?`} />
     </div>
   );
 }
 
-/** A new session: your instruction — on a ticket or none, in a repo you pick — and off it goes. */
+/** A new session: your message — on a ticket or none, in a repo you pick — and off it goes. */
 export function NewSessionPane({ options, running }: { options: Options; running: number }) {
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col justify-end gap-4">
-      <div className="mx-auto w-full max-w-3xl space-y-4">
-        <div className="text-center">
-          <h1 className="text-xl font-semibold">Neue Session</h1>
-          <p className="text-sm text-zinc-500">
-            Ein Worker (Copilot CLI, interaktiv) arbeitet an deiner Anweisung — im Repo des Tickets oder dem gewählten. Du redest mit ihm auf seiner Seite, mehrere Sessions laufen nebeneinander
-            {running ? ` (gerade ${running})` : ""}.
-          </p>
-        </div>
-        <SessionComposer tickets={options.tickets} repos={options.repos} providers={options.providers} />
+    <div className="flex min-h-0 w-full flex-1 flex-col justify-center gap-6 pb-[12vh]">
+      <div className="text-center">
+        <h1 className="text-2xl font-semibold tracking-tight">What should we work on?</h1>
+        <p className="mt-1 text-sm text-zinc-500">
+          Ask a question or give a task — on a ticket, in its repo or one you pick. Sessions run side by side{running ? ` (${running} working now)` : ""}.
+        </p>
       </div>
+      <SessionComposer tickets={options.tickets} repos={options.repos} providers={options.providers} autoFocus />
     </div>
   );
 }

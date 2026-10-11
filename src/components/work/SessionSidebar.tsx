@@ -53,7 +53,7 @@ export function SessionSidebar({ tickets, selected }: { tickets: SessionTicket[]
                   <span className="flex items-center gap-1.5">
                     <span className="font-mono text-xs font-semibold">{t.ticket || "Ohne Ticket"}</span>
                     {live.length > 0 && <span className={`size-1.5 rounded-full ${waiting ? "bg-amber-500" : "animate-pulse bg-indigo-500"}`} title={waiting ? "Wartet auf dich" : "Arbeitet"} />}
-                    <span className="ml-auto text-[10px] text-zinc-400">{ago(t.lastAt)}</span>
+                    <span className="ml-auto text-[10px] text-zinc-400" suppressHydrationWarning>{ago(t.lastAt)}</span>
                   </span>
                   {t.summary && <span className="block truncate text-xs text-zinc-600 dark:text-zinc-400">{t.summary}</span>}
                   <span className="flex gap-2 text-[10px] text-zinc-500">
@@ -74,7 +74,7 @@ export function SessionSidebar({ tickets, selected }: { tickets: SessionTicket[]
                       >
                         <span className={`size-1.5 shrink-0 rounded-full ${s.waiting ? "bg-amber-500" : (DOT[s.status] ?? "bg-zinc-300")}`} />
                         <span className="min-w-0 flex-1 truncate">{s.title}</span>
-                        <span className="shrink-0 text-[10px] text-zinc-400">{ago(s.at)}</span>
+                        <span className="shrink-0 text-[10px] text-zinc-400" suppressHydrationWarning>{ago(s.at)}</span>
                       </Link>
                     </li>
                   ))}

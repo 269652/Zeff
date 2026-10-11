@@ -118,7 +118,7 @@ export const WORK_RESULT_SCHEMA = {
 /** One line of a run's log, as the Work tab shows it. */
 export type WorkLogLine =
   /** Session, model, folder, permission mode. */
-  | { k: "start"; text: string }
+  | { k: "start"; text: string; /** The model that answers, as the CLI reports it. */ model?: string }
   /** The worker's own words. */
   | { k: "say"; text: string }
   /** A tool call, in short ("Bash", "npm test"). */
