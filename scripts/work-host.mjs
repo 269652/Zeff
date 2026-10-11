@@ -90,7 +90,9 @@ function start(spec) {
   const err = fs.openSync(errFile, "a");
   let child;
   try {
-    child = spawn(command, args, { cwd, env, stdio: ["pipe", out, err], windowsHide: true, detached: true });
+    // Not detached on Windows: a detached process has no console, and every console program it starts (git, a shell, tests) would open a window of its own.
+    // The host's console is hidden (the launcher starts it windowsHide), and the workers share it. Elsewhere detached gives the run its own process group (killed as one).
+    child = spawn(command, args, { cwd, env, stdio: ["pipe", out, err], windowsHide: true, detached: process.platform !== "win32" });
   } finally {
     fs.closeSync(out);
     fs.closeSync(err);
