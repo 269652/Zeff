@@ -51,7 +51,7 @@ export function ClaudeSession({ run }: { run: WorkRunView }) {
             : t("waiting for you");
 
   // The same quiet dropdowns as a new message's box (SessionComposer).
-  const select = "rounded-md border-0 bg-transparent py-0.5 pr-6 pl-1.5 text-xs hover:bg-zinc-100 focus:ring-1 focus:ring-indigo-400 disabled:opacity-60 dark:hover:bg-zinc-800";
+  const select = "field-sizing-content rounded-md border-0 bg-transparent py-0.5 pr-6 pl-1.5 text-xs hover:bg-zinc-100 focus:ring-1 focus:ring-indigo-400 disabled:opacity-60 dark:hover:bg-zinc-800";
   const quiet = "rounded-md px-1.5 py-0.5 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 disabled:opacity-50 dark:hover:bg-zinc-800 dark:hover:text-zinc-200";
   return (
     <div className="mx-auto w-full max-w-3xl space-y-2">
