@@ -1,7 +1,8 @@
 # Zeff's releases: the self-contained bundle (launcher + Node + Zeff, built) for Windows, macOS
 # (Apple Silicon and Intel) and Linux, each built on its own platform (native modules), each
-# checked by starting it (scripts/smoke-release.mjs). A tag v* publishes them as a GitHub release;
-# "Run workflow" builds and checks without publishing (the archives are the run's artifacts).
+# checked by starting it on a bare PATH (scripts/smoke-release.mjs, the same as `npm run release` ends
+# with). A tag v* publishes them as a GitHub release, each archive with its .sha256; "Run workflow"
+# builds and checks without publishing (the archives are the run's artifacts).
 name: Release
 
 on:
@@ -48,12 +49,16 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y xvfb
 
-      - name: Build the bundle
-        run: node scripts/dist.mjs --release
+      # --no-check: the check is its own step below (its log stays readable); locally `npm run release` does both.
+      - name: Build the bundle (archive + sha256)
+        run: node scripts/dist.mjs --release --no-check
 
-      - name: Smoke test (unpack, start, https)
+      - name: Check the archive (unpack, bare PATH, start, pages, bundle checks)
         shell: bash
-        run: node scripts/smoke-release.mjs dist/release/Zeff-*
+        run: |
+          archive=$(ls dist/release/Zeff-*.zip dist/release/Zeff-*.tar.gz 2>/dev/null | head -n 1)
+          test -n "$archive"
+          npm run release:check -- "$archive"
 
       - uses: actions/upload-artifact@v5
         with:
@@ -87,7 +92,13 @@ jobs:
           | Ubuntu 22.04+ (x64) | `Zeff-*-linux-x64.tar.gz` | `tar -xzf Zeff-*.tar.gz && Zeff/zeff` |
 
           No Node or npm needed. The first start offers to set up https://zeff (hosts entry and Zeff's own
-          certificate, admin rights). Details for each system: `README.txt` in the archive.
+          certificate, admin rights). Details for each system: `README.txt` in the archive. Each archive has a
+          `.sha256` next to it (`sha256sum -c Zeff-*.sha256`, or `Get-FileHash` on Windows).
+
+          **What your PC still needs, per feature** (Zeff shows what is missing under Menu → Plugins):
+          Chrome or Edge for the plugins that read websites (Outlook, Teams, GitLab, Chrono, Punch, Gmail,
+          WhatsApp, Keep; Edge is in every Windows 10/11), Git for the Work tab, uv (`uvx`) for the Jira sync,
+          and the Claude / Codex / Copilot CLI for the AI plugins you use.
 
           **macOS:** Zeff.app isn't signed by an Apple developer account. On the first start macOS refuses:
           System Settings → Privacy & Security → "Open Anyway" — or once in Terminal:

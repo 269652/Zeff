@@ -9,10 +9,11 @@
  * When Chrome isn't running at all, start it (with the page the tool needs) instead.
  */
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { chromium } from "playwright-core";
+import { NO_BROWSER_MESSAGE, chromeProfileDir, findBrowser } from "./browser-find.mjs";
 
 const isAlive = (pid) => {
   try {
@@ -103,22 +104,21 @@ async function listTargets(cdp) {
 }
 
 /**
- * Start the automation Chrome exactly like `npm run chrono:chrome` (scripts/chrono-chrome.ps1):
- * debug port + its own profile under %LOCALAPPDATA%\Zeff\chrono-chrome-profile, detached so
- * it outlives this MCP process, opening `urls`.
+ * Start the automation browser like `npm run chrono:chrome` (scripts/chrono-chrome.ps1): debug port + its
+ * own profile (browser-find.mjs: %LOCALAPPDATA%\Zeff, ~/Library/Application Support/Zeff, ~/.local/share/zeff),
+ * detached so it outlives this MCP process, opening `urls`. Chrome, else Edge (on every Windows 10/11),
+ * Brave, Chromium — or the browser CHROME_PATH names.
  */
 function launchChrome(port, urls) {
-  const chrome = [
-    path.join(process.env.ProgramFiles || "C:\\Program Files", "Google", "Chrome", "Application", "chrome.exe"),
-    path.join(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "Google", "Chrome", "Application", "chrome.exe"),
-    path.join(process.env.LOCALAPPDATA || "", "Google", "Chrome", "Application", "chrome.exe"),
-  ].find((p) => existsSync(p));
-  if (!chrome) throw new ChromeConnectError('The automation Chrome isn\'t running and Chrome wasn\'t found to start it — run "npm run chrono:chrome".');
+  const browser = findBrowser();
+  if (!browser) throw new ChromeConnectError(`The automation browser isn't running. ${NO_BROWSER_MESSAGE}`);
   // An account of its own (Zeff's Accounts plugin): its own profile — its own sign-ins.
-  const profile = process.env.ZEFF_CHROME_PROFILE || path.join(process.env.LOCALAPPDATA || ".", "Zeff", "chrono-chrome-profile");
+  const profile = chromeProfileDir();
   mkdirSync(profile, { recursive: true });
   const args = [`--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check", ...urls];
-  spawn(chrome, args, { detached: true, stdio: "ignore" }).unref();
+  const child = spawn(browser.path, args, { detached: true, stdio: "ignore" });
+  child.on("error", () => {}); // not startable: the debug port never comes up, waitForLaunch says so
+  child.unref();
 }
 
 /** After a launch: wait for the debug port, then (best effort) for each start page to arrive back from SSO. */
@@ -139,7 +139,7 @@ async function waitForLaunch(cdp, urls) {
     }
     await sleep(500);
   }
-  if (!up) throw new ChromeConnectError('Started Chrome, but its debug port never came up — close that window and run "npm run chrono:chrome".');
+  if (!up) throw new ChromeConnectError("Started the automation browser, but its debug port never came up — close its window (an already running Chrome / Edge with this profile can block it) and try again.");
   // Still on a sign-in page: carry on — the tool reports "not signed in" so you can sign in there.
 }
 
@@ -155,7 +155,7 @@ export async function connectToChrome(cdp, { timeout = 20000, launchUrls = [] } 
     const { hostname, port } = new URL(cdp);
     if (!launchUrls.length || !["127.0.0.1", "localhost"].includes(hostname)) {
       throw new ChromeConnectError(
-        `The automation Chrome isn't running (nothing answers on ${cdp}). Start it with "npm run chrono:chrome", sign in to Chrono/Punch there if asked, and try again.`,
+        `The automation browser isn't running (nothing answers on ${cdp}). Open Menu → Sign-ins in Zeff and use "Sign in" (that starts it), sign in to Chrono/Punch there if asked, and try again.`,
       );
     }
     launchChrome(port || "9222", launchUrls);

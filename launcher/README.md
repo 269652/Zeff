@@ -21,10 +21,14 @@ The launcher finds Zeff in `app/` of the bundle (next to `Zeff.exe` and `./zeff`
 npm run launcher:start      # from the checkout (Node from PATH): npm --prefix launcher start
 npm run dist -- --zip       # the bundle for this system in dist/Zeff (+ Zeff.zip / .tar.gz)
 npm run launcher:build      # refresh only the launcher in an existing bundle
-npm run release             # a release from HEAD: dist/release/Zeff-<version>-<os>-<arch>.zip|.tar.gz
-npm run release:check -- <archive>   # unpack it, start it with --smoke-test
+npm run release             # a release from HEAD: dist/release/Zeff-<version>-<os>-<arch>.zip|.tar.gz (+ .sha256), then the check below
+npm run release:check -- <archive>   # unpack it, start it with --smoke-test on a bare PATH, run app/scripts/bundle-check.mjs
 ```
 
 Flags: `--background` (tray only, no browser), `--no-setup` (no hosts/certificate prompt), `--config <file>`, `--smoke-test` (start everything on its own Electron profile, check Zeff and the knowledge server answer over https against Zeff's CA, quit; exit code 0 = ok).
+
+**`npm run release`** (`scripts/dist.mjs --release [--ref <commit|tag>] [--no-check] [--allow-dirty] [--keep-build]`) builds a commit with `git archive` in `<temp>/zeff-release` (the checkout and `dist/` stay untouched), packs it, writes `<archive>.sha256`, prints the version (tag, else commit), size and sha256, and checks the archive it made. It refuses when uncommitted changes that belong in the build would be left out (`--allow-dirty`: build the commit as it is). **`npm run release:check -- <archive>`** (`scripts/smoke-release.mjs`) is the check: it unpacks into a fresh temp folder and starts the launcher with `--smoke-test` under a PATH holding only the system's folders (no Node, npm, git, uv, Chrome; `--inherit-env` keeps yours), on free ports and its own data folder — so a Zeff running on the machine is left alone. The servers start on the bundled Node, Zeff and the knowledge server answer over https against Zeff's CA, and the pages `/heute /todos /mail /kanban /plugins /sync-settings /auswerten /logins /feierabend /work /setup /jira /repos /documents` render. Then the bundled Node runs `app/scripts/bundle-check.mjs`: the files the app reads at run time are there, the production dependencies resolve, better-sqlite3 loads, each `src/plugins/<id>/driver.mjs` and the MCP scripts answer `initialize` + `tools/list`, `work-host.mjs` and `work-session-host.mjs` start and stop, the database is migrated to the last migration of `drizzle/meta/_journal.json`, and nothing of the build machine is inside (no data, `.env`, `zeff-launcher.json`, home folder, tokens). Exit code 0 only when all of it passed.
+
+What the PC itself must bring (the automation browser, git, uv, the AI CLIs, Poppler) is in the main README ("Releases") and listed live on Zeff's Plugins and Setup pages (`src/lib/prerequisites.ts`). The launcher puts `runtime/` first on the servers' PATH, so the bundled `node` is the one worker sessions find; `npm`/`npx` are not in the bundle.
 
 Releases for all three systems come from `.github/workflows/release.yml` (a tag `v*`): native modules (better-sqlite3) and the macOS bundle can only be built on their own system.

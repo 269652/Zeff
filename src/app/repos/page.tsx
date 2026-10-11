@@ -5,6 +5,7 @@ import { t } from "@/lib/i18n/server";
 import { rich } from "@/lib/i18n/rich";
 import Link from "next/link";
 import { connection } from "next/server";
+import { GitMissingNotice } from "@/components/GitMissingNotice";
 import { RepoForm } from "@/components/RepoForm";
 import { listRepos, repoChoices } from "@/lib/repos";
 
@@ -44,6 +45,7 @@ export default async function ReposPage() {
         </p>
       </div>
 
+      <GitMissingNotice />
       {repos.map((r) => (
         <section key={r.id} className="card space-y-3 p-4">
           <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">

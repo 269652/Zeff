@@ -15,6 +15,7 @@ import { CLAUDE_MODELS } from "@/lib/ai/shared";
 import { llmChoice } from "@/plugins/llm/run";
 import { elevationAvailable } from "@/plugins/work-elevated/elevate";
 import { listRepos, repoForTicket } from "@/lib/repos";
+import { GitMissingNotice } from "@/components/GitMissingNotice";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("Work") };
@@ -67,6 +68,7 @@ export default async function WorkPage({
       sidebar={<SessionSidebar tickets={tickets.filter((x) => x.sessions.length > 0)} selected={selected} showArchived={showArchived} archivedCount={archivedCount} />}
       contentClassName="flex-col"
     >
+      <GitMissingNotice />
       <WorkFollow active={running > 0} />
       {run ? (
         <SessionPane run={toRunView(run)} options={options} />
