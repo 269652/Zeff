@@ -9,6 +9,7 @@ import { inOrder, type Placement } from "@/lib/layout-shared";
 import { UnseenActivityBadge } from "./boards/ActivitySeen";
 import { SyncMenu } from "./SyncMenu";
 import { TabSplit } from "./TabSplit";
+import { LastTabLink } from "./LastTabLink";
 import { LinkPending } from "./LinkPending";
 import { AccountSwitcher, type AccountChip } from "@/plugins/accounts/AccountSwitcher";
 import { useT } from "@/components/I18nProvider";
@@ -319,6 +320,11 @@ export function SiteHeader({
                     <TabSplit key={tab.href} tab={tab} current={current} pathname={pathname} className={`${pill(current)} rounded-r-none pr-2`} active={active}>
                       {inner}
                     </TabSplit>
+                  ) : tab.href === "/work" ? (
+                    // Work opens the session you had open last.
+                    <LastTabLink key={tab.href} href={tab.href} label={tab.label} className={pill(current)} active={active}>
+                      {inner}
+                    </LastTabLink>
                   ) : (
                     <Link key={tab.href} href={tab.href} className={pill(current)} aria-current={active ? "page" : undefined}>
                       {inner}

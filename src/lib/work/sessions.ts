@@ -24,7 +24,7 @@ export type SessionTicket = { ticket: string; summary: string | null; status: st
 export function sessionTickets(): SessionTicket[] {
   const runs = [...new Map([...runsByStatus(["queued", "running"]).map(toRunView), ...recentRuns(200)].map((r) => [r.id, r])).values()];
   const todos = todosByIds(runs.map((r) => r.todoId));
-  const open = listTodos({ status: "open" });
+  const open = listTodos({ status: "open" }).filter((t) => !t.byWorker); // (a worker's own todos are quiet)
   const keys = [...new Set([...runs.map((r) => r.ticket), ...open.map((t) => t.ticket)])];
   const cards = getTicketCards(keys.filter(Boolean));
   const out = new Map<string, SessionTicket>();

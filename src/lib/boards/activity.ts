@@ -24,13 +24,16 @@ export function attributed<T>(actor: string, fn: () => T): T {
 
 const DAY = 86400000;
 
+/** The workers' own todos are quiet: what happens to them is no activity and no news. */
+const notWorkers = sql`${todoEvents.todoId} not in (select id from todos where by_worker = 1)`;
+
 /** What happened to the todos in the last days, newest first. */
 export function todoActivity(opts: { days?: number; limit?: number } = {}): TodoEventView[] {
   const since = new Date(Date.now() - (opts.days ?? 14) * DAY).toISOString();
   const rows = getDb()
     .select()
     .from(todoEvents)
-    .where(gte(todoEvents.at, since))
+    .where(and(gte(todoEvents.at, since), notWorkers))
     .orderBy(desc(todoEvents.at), desc(todoEvents.id))
     .limit(opts.limit ?? 400)
     .all();
@@ -107,7 +110,7 @@ export function activityNewsIds(days = 14): number[] {
   return getDb()
     .select({ id: todoEvents.id })
     .from(todoEvents)
-    .where(and(gte(todoEvents.at, since), or(isNull(todoEvents.actor), ne(todoEvents.actor, "you"))))
+    .where(and(gte(todoEvents.at, since), notWorkers, or(isNull(todoEvents.actor), ne(todoEvents.actor, "you"))))
     .orderBy(desc(todoEvents.id))
     .limit(300)
     .all()

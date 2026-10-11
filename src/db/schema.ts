@@ -894,6 +894,8 @@ export const todos = sqliteTable(
     due: text("due"),
     /** JSON: the knowledge the Wissens-Zuordnung picked for it ({ at, pages, entities }). */
     knowledge: text("knowledge"),
+    /** A worker made it (a run's follow-up): it lives on the Todos page's "Worker" tab, not in your list — and a worker may close it. */
+    byWorker: integer("by_worker", { mode: "boolean" }).notNull().default(false),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(CURRENT_TIMESTAMP)`),
@@ -1021,6 +1023,8 @@ export const workRuns = sqliteTable(
     base: text("base"),
     baseSha: text("base_sha"),
     sessionId: text("session_id"),
+    /** Your message sent while the run before it (in the same session) still worked: it starts when that run has ended, and goes on with its conversation. */
+    afterRun: integer("after_run"),
     pid: integer("pid"),
     prompt: text("prompt").notNull(),
     /** Its answer (JSON: outcome, summary, entry, completedTodos, followUps, changes, checks, draft). */
@@ -1133,6 +1137,8 @@ export const kanbanCards = sqliteTable(
     assignee: text("assignee"),
     sort: real("sort").notNull().default(0),
     archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+    /** The card it is a subtask of (same board; one level): it sits in a column of its own, linked to its parent. */
+    parentId: integer("parent_id"),
     createdAt: text("created_at").notNull().default(sql`(CURRENT_TIMESTAMP)`),
     updatedAt: text("updated_at").notNull().default(sql`(CURRENT_TIMESTAMP)`),
     doneAt: text("done_at"),

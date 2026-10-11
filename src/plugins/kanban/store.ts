@@ -33,6 +33,7 @@ function toCard(r: typeof cards.$inferSelect): CardView {
     due: r.due,
     assignee: r.assignee,
     sort: r.sort,
+    parentId: r.parentId ?? null,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
     doneAt: r.doneAt,
@@ -165,6 +166,26 @@ export function createCard(columnId: number, title: string): CardView {
   return toCard(r);
 }
 
+/**
+ * A subtask of a card: a card of its own on the same board — in the parent's column to begin with,
+ * moved to any other column after — linked to the parent (one level: a subtask has no subtasks).
+ */
+export function createSubtask(parentId: number, title: string): CardView {
+  const db = getDb();
+  const parent = db.select().from(cards).where(eq(cards.id, parentId)).get();
+  if (!parent) throw new NotFoundError("Die Karte gibt es nicht.");
+  if (parent.parentId) throw new ValidationError("Eine Unteraufgabe kann keine eigenen Unteraufgaben haben.");
+  const card = createCard(parent.columnId, title);
+  db.update(cards).set({ parentId }).where(eq(cards.id, card.id)).run();
+  return { ...card, parentId };
+}
+
+/** A subtask made a card of its own again. */
+export function detachSubtask(id: number): void {
+  getDb().update(cards).set({ parentId: null, updatedAt: now() }).where(eq(cards.id, id)).run();
+  changed();
+}
+
 export function updateCard(id: number, patch: { title?: string; description?: string; labels?: string[]; priority?: Priority | null; due?: string | null; assignee?: string | null }): CardView {
   const set: Partial<typeof cards.$inferInsert> = { updatedAt: now() };
   if (patch.title !== undefined) set.title = name(patch.title, t("Card"), 300);
@@ -202,12 +223,35 @@ export function moveCard(id: number, columnId: number, before: number | null): v
   changed();
 }
 
+/** A card to another board of yours — into its first column, at the end. It keeps its ref (KB-…), so its todos and Lage go with it. */
+export function moveCardToBoard(id: number, boardId: number): void {
+  const db = getDb();
+  const card = db.select().from(cards).where(eq(cards.id, id)).get();
+  if (!card) throw new NotFoundError("Die Karte gibt es nicht.");
+  if (card.boardId === boardId) return;
+  const target = db.select().from(boards).where(eq(boards.id, boardId)).get();
+  if (!target || target.archived) throw new NotFoundError("Das Board gibt es nicht.");
+  const col = db.select().from(columns).where(eq(columns.boardId, boardId)).orderBy(asc(columns.sort), asc(columns.id)).get();
+  if (!col) throw new ValidationError(`„${target.name}“ hat keine Spalte.`);
+  const sort = (db.select({ n: sql<number>`coalesce(max(sort), 0)` }).from(cards).where(eq(cards.columnId, col.id)).get()?.n ?? 0) + 1;
+  // Links stay within a board: a subtask leaves its parent, a parent's subtasks stay behind as cards of their own.
+  db.update(cards).set({ parentId: null }).where(eq(cards.parentId, id)).run();
+  db.update(cards)
+    .set({ boardId, columnId: col.id, sort, parentId: null, updatedAt: now(), doneAt: col.done ? (card.doneAt ?? now()) : null })
+    .where(eq(cards.id, id))
+    .run();
+  db.update(boards).set({ updatedAt: now() }).where(sql`${boards.id} in (${boardId}, ${card.boardId})`).run();
+  changed();
+}
+
 export function archiveCard(id: number): void {
   getDb().update(cards).set({ archived: true, updatedAt: now() }).where(eq(cards.id, id)).run();
   changed();
 }
 
 export function deleteCard(id: number): void {
+  // Its subtasks become cards of their own.
+  getDb().update(cards).set({ parentId: null }).where(eq(cards.parentId, id)).run();
   getDb().delete(cards).where(eq(cards.id, id)).run();
   changed();
 }

@@ -121,6 +121,7 @@ export function applyOutcome(run: WorkRun, res: WorkResult): { closed: number[];
       workRunId: run.id,
       source: `Follow-up from ${ref}`,
       ops: f.ops,
+      byWorker: true,
     });
     added.push(t.id);
   }

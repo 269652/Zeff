@@ -598,6 +598,27 @@
       "breakpoints": true
     },
     {
+      "idx": 85,
+      "version": "6",
+      "when": 1791910000000,
+      "tag": "0085_todo_by_worker",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "6",
+      "when": 1791920000000,
+      "tag": "0086_work_after_run",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "6",
+      "when": 1791930000000,
+      "tag": "0087_kanban_subtasks",
+      "breakpoints": true
+    },
+    {
       "idx": 88,
       "version": "6",
       "when": 1791940000000,

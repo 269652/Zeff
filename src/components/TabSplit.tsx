@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { tabMenuAction } from "@/app/actions";
 import type { TabMenuItem } from "@/plugins/tab-menus-shared";
@@ -35,6 +36,8 @@ export function TabSplit({ tab, current, pathname, className, active, children }
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<TabMenuItem[] | null>(null);
   const root = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
   const [shownFor, setShownFor] = useState(pathname);
   if (shownFor !== pathname) {
     setShownFor(pathname);
@@ -57,7 +60,7 @@ export function TabSplit({ tab, current, pathname, className, active, children }
     if (!open) return;
     let live = true;
     void tabMenuAction(tab.href).then((r) => live && setItems(r));
-    const away = (e: MouseEvent) => !root.current?.contains(e.target as Node) && setOpen(false);
+    const away = (e: MouseEvent) => !root.current?.contains(e.target as Node) && !menu.current?.contains(e.target as Node) && setOpen(false);
     const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     document.addEventListener("mousedown", away);
     document.addEventListener("keydown", esc);
@@ -78,7 +81,13 @@ export function TabSplit({ tab, current, pathname, className, active, children }
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={t("{tab}: more", { tab: tab.label })}
-        onClick={() => setOpen((o) => !o)}
+        onClick={(e) => {
+          // The tabs sit in a scrolling strip (overflow clips absolute children): the menu is fixed, placed under the button.
+          const r = e.currentTarget.getBoundingClientRect();
+          const width = Math.min(288, window.innerWidth - 16);
+          setPos({ top: r.bottom + 8, left: Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8)) });
+          setOpen((o) => !o);
+        }}
         className={`rounded-md rounded-l-none border-l px-1.5 transition ${
           current
             ? "border-zinc-700 bg-zinc-900 text-white dark:border-zinc-300 dark:bg-zinc-100 dark:text-zinc-900"
@@ -89,8 +98,9 @@ export function TabSplit({ tab, current, pathname, className, active, children }
           <path d="m6 8 4 4 4-4" />
         </svg>
       </button>
-      {open && (
-        <div role="menu" className="absolute top-full right-0 z-50 mt-2 max-h-[70vh] w-72 overflow-y-auto rounded-lg border border-zinc-200 bg-white py-1 shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
+      {open &&
+        createPortal(
+        <div ref={menu} role="menu" style={pos} className="fixed z-50 max-h-[70vh] w-72 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-lg border border-zinc-200 bg-white py-1 shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
           {!items && <p className="px-3 py-2 text-sm text-zinc-500">{t("Loading…")}</p>}
           {items?.length === 0 && <p className="px-3 py-2 text-sm text-zinc-500">{t("Nothing here.")}</p>}
           {items?.map((i) => (
@@ -106,7 +116,8 @@ export function TabSplit({ tab, current, pathname, className, active, children }
               {i.hint && <span className="shrink-0 text-xs text-zinc-400">{i.hint}</span>}
             </Link>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

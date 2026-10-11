@@ -202,7 +202,8 @@ export function TodoItem({
   const zeffOps = todo.ops.filter((o) => !actionHref(o));
   // New since you last looked: lightly highlighted till the mouse passes over it.
   const [fresh, markSeen] = useTodoNew(todo.id, todo.createdAt);
-  const isFresh = fresh && !closed && !asking && !running && !doing;
+  // (A worker's own todo is quiet: never "new".)
+  const isFresh = fresh && !todo.byWorker && !closed && !asking && !running && !doing;
   return (
     <li
       id={anchor ? `todo-${todo.id}` : undefined}

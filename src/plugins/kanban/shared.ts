@@ -28,6 +28,8 @@ export type CardView = {
   due: string | null;
   assignee: string | null;
   sort: number;
+  /** The card it's a subtask of (null: a card of its own). */
+  parentId: number | null;
   createdAt: string;
   updatedAt: string;
   doneAt: string | null;

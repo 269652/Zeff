@@ -49,7 +49,7 @@ export function workPageData(copilot: string[] = []): WorkPageData {
   const settings = getWorkSettings();
   const board = lastGoodRun();
   const since = new Date(Date.now() - 7 * 864e5).toISOString();
-  const recent = listTodos({ status: "all" }).filter((todo) => todo.status === "open" || (todo.doneAt ?? "") >= since);
+  const recent = listTodos({ status: "all" }).filter((todo) => !todo.byWorker && (todo.status === "open" || (todo.doneAt ?? "") >= since));
   const runMap = runsForTodos(recent.map((todo) => todo.id));
   // Flagged by you first, then those a worker reports done, put down by you last (a stable sort — otherwise as they were).
   const rank = (todo: TodoView) => (todo.flaggedAt ? -2 : todo.workerDone && todo.status === "open" ? -1 : todo.deferred ? 1 : 0);

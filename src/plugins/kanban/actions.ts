@@ -87,6 +87,18 @@ export async function moveCardAction(id: number, columnId: number, before: numbe
   return act(() => store.moveCard(Number(id), Number(columnId), before === null ? null : Number(before)));
 }
 
+export async function moveCardToBoardAction(id: number, boardId: number): Promise<Result> {
+  return act(() => store.moveCardToBoard(Number(id), Number(boardId)), "Karte verschoben.");
+}
+
+export async function createSubtaskAction(parentId: number, title: string): Promise<Result> {
+  return act(() => store.createSubtask(Number(parentId), String(title ?? "")).id);
+}
+
+export async function detachSubtaskAction(id: number): Promise<Result> {
+  return act(() => store.detachSubtask(Number(id)), "Keine Unteraufgabe mehr.");
+}
+
 export async function archiveCardAction(id: number): Promise<Result> {
   return act(() => store.archiveCard(Number(id)), t("Card archived."));
 }
