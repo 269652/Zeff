@@ -32,7 +32,7 @@ import { claudeSessionSettings, getRun, getWorkSettings, toRunView } from "@/lib
 import { CLAUDE_MODELS } from "@/lib/ai/shared";
 import { llmChoice } from "@/plugins/llm/run";
 import { elevationAvailable } from "@/plugins/work-elevated/elevate";
-import { listRepos } from "@/lib/repos";
+import { listRepos, repoForTicket } from "@/lib/repos";
 import { currentLocale } from "@/lib/format";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -68,15 +68,19 @@ const tabs = () =>
 export default async function WorkPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; run?: string; ticket?: string; new?: string }>;
+  searchParams: Promise<{ tab?: string; run?: string; ticket?: string; new?: string; archived?: string }>;
 }) {
   await connection();
   // A plugin's page: there while it's installed.
   if (!isInstalled("work")) return <PluginNotInstalled id="work" />;
   const sp = await searchParams;
   const tabParam = sp.tab;
-  const tickets = sessionTickets();
-  const sidebar = (selected: { ticket?: string; run?: number; isNew?: boolean }) => <SessionSidebar tickets={tickets} selected={selected} />;
+  // The sidebar: tickets with sessions (archived ones on asking); a new session's tickets: all with work.
+  const showArchived = sp.archived === "1";
+  const tickets = sessionTickets({ archived: showArchived });
+  const { archivedSessions } = await import("@/lib/work/session-admin");
+  const archivedCount = archivedSessions().size;
+  const sidebar = (selected: { ticket?: string; run?: number; isNew?: boolean }) => <SessionSidebar tickets={tickets.filter((x) => x.sessions.length > 0)} selected={selected} showArchived={showArchived} archivedCount={archivedCount} />;
   // Sessions (like Claude Code) — the views from before (todos, runs, branches, settings) by their tab.
   if (!tabParam) {
     const runId = Number(sp.run) || null;
@@ -85,6 +89,13 @@ export default async function WorkPage({
     const options = {
       tickets: tickets.filter((x) => x.ticket).map((x) => ({ key: x.ticket, summary: x.summary })),
       repos: listRepos().map((r) => ({ id: r.id, name: r.name, path: r.path })),
+      // Each ticket's repo as Zeff infers it (board, ticket, Repos page): the composer starts there.
+      ticketRepos: Object.fromEntries(
+        [...new Set([...tickets.map((x) => x.ticket), ticket ?? ""].filter(Boolean))].flatMap((k) => {
+          const m = repoForTicket(k);
+          return m ? [[k.toUpperCase(), m.repo.path]] : [];
+        }),
+      ),
       providers: aiProviders()
         .filter((x) => x.found)
         .map((x) => ({ id: x.id, label: x.label })),

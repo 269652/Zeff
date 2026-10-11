@@ -31,6 +31,7 @@ export type ClaudeComposerOptions = {
  */
 export function SessionComposer({
   ticket,
+  ticketRepos,
   todoId,
   continueRunId,
   continueProvider,
@@ -43,6 +44,8 @@ export function SessionComposer({
   autoFocus = false,
 }: {
   ticket?: string;
+  /** The repo Zeff infers for each ticket (Repos page): preselected until you pick a folder yourself. */
+  ticketRepos?: Record<string, string>;
   todoId?: number;
   continueRunId?: number;
   /** The backend of the session it goes on with (its choices shown for Claude). */
@@ -62,7 +65,11 @@ export function SessionComposer({
   const [pending, start] = useTransition();
   const [text, setText] = useState("");
   const [pick, setPick] = useState(ticket ?? "");
-  const [ws, setWs] = useState<Workspace>(NO_WORKSPACE);
+  const [picked, setWs] = useState<Workspace>(NO_WORKSPACE);
+  const [ownFolder, setOwnFolder] = useState(false);
+  // The ticket's repo, as Zeff infers it — shown (and used) until you pick a folder yourself.
+  const inferred = ticketRepos?.[(pick || ticket || "").toUpperCase()] ?? "";
+  const ws: Workspace = ownFolder ? picked : { ...picked, path: inferred };
   const [provider, setProvider] = useState("");
   const [mode, setMode] = useState<ClaudeMode>(claude?.mode ?? "default");
   const [model, setModel] = useState("");
@@ -195,7 +202,7 @@ export function SessionComposer({
               ))}
             </select>
           )}
-          {!continueRunId && <WorkspacePicker repos={repos} value={ws} onChange={setWs} selectClass={select} />}
+          {!continueRunId && <WorkspacePicker repos={repos} value={ws} onChange={(w) => { setOwnFolder(w.path !== inferred || ownFolder); setWs(w); }} selectClass={select} />}
           {providers.length > 1 && (
             <select className={select} value={provider} onChange={(e) => setProvider(e.target.value)} aria-label={t("Backend")}>
               <option value="">{continueRunId ? t("Same backend") : t("Default backend")}</option>

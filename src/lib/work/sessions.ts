@@ -2,6 +2,7 @@ import { listTodos, todosByIds } from "@/lib/boards/store";
 import { getTicketCards } from "@/lib/jira/store";
 import type { WorkRunView } from "./shared";
 import { recentRuns, runsByStatus, toRunView } from "./store";
+import { archivedSessions } from "./session-admin";
 
 /**
  * Work as sessions (like Claude Code): every ticket with work on it — its sessions (the workers'
@@ -18,10 +19,16 @@ export type SessionItem = {
   provider: WorkRunView["provider"];
   title: string;
   at: string;
+  /** Its todo (the conversation's), its branch, and whether you archived it. */
+  todoId: number;
+  branch: string | null;
+  archived: boolean;
 };
 export type SessionTicket = { ticket: string; summary: string | null; status: string | null; url: string | null; openTodos: number; sessions: SessionItem[]; active: boolean; lastAt: string };
 
-export function sessionTickets(): SessionTicket[] {
+/** `archived`: your archived sessions too (marked so) — else they're left out. */
+export function sessionTickets(opts: { archived?: boolean } = {}): SessionTicket[] {
+  const put = archivedSessions();
   const runs = [...new Map([...runsByStatus(["queued", "running"]).map(toRunView), ...recentRuns(200)].map((r) => [r.id, r])).values()];
   const todos = todosByIds(runs.map((r) => r.todoId));
   const open = listTodos({ status: "open" }).filter((t) => !t.byWorker); // (a worker's own todos are quiet)
@@ -42,11 +49,13 @@ export function sessionTickets(): SessionTicket[] {
   const newest = new Map<number, WorkRunView>();
   for (const r of runs) if ((newest.get(r.todoId)?.id ?? 0) < r.id) newest.set(r.todoId, r);
   for (const r of newest.values()) {
+    const archived = put.has(r.todoId);
+    if (archived && !opts.archived) continue;
     const t = of(r.ticket);
     const live = !!r.live;
     const active = r.status === "queued" || r.status === "running";
     const at = r.startedAt ?? r.queuedAt;
-    t.sessions.push({ id: r.id, ref: r.ref, status: r.status, live, waiting: live && (!r.live!.busy || !!r.live!.permission), provider: r.provider, title: todos.get(r.todoId)?.text ?? r.summary ?? r.ref, at });
+    t.sessions.push({ id: r.id, ref: r.ref, status: r.status, live, waiting: live && (!r.live!.busy || !!r.live!.permission), provider: r.provider, title: todos.get(r.todoId)?.text ?? r.summary ?? r.ref, at, todoId: r.todoId, branch: r.branch, archived });
     t.active ||= active;
     if (at > t.lastAt) t.lastAt = at;
   }

@@ -16,7 +16,7 @@ import { SessionTabs } from "./SessionWorkspace";
 import { StopSessionButton, TodoSessionButton } from "./SessionActions";
 import { SessionBranch } from "./SessionBranch";
 
-type Options = { tickets: { key: string; summary: string | null }[]; repos: { id: number; name: string; path: string }[]; providers: { id: string; label: string }[]; claude?: ClaudeComposerOptions };
+type Options = { tickets: { key: string; summary: string | null }[]; repos: { id: number; name: string; path: string }[]; providers: { id: string; label: string }[]; claude?: ClaudeComposerOptions; ticketRepos?: Record<string, string> };
 
 const when = (iso: string | null) => (iso ? formatDateTime(iso.includes("T") ? iso : `${iso.replace(" ", "T")}Z`) : "");
 const statusText = (s: WorkStatus) =>
@@ -201,6 +201,7 @@ export function TicketPane({ ticket, data, options }: { ticket: string; data: Se
       <SessionComposer
         ticket={ticket}
         repos={options.repos}
+        ticketRepos={options.ticketRepos}
         providers={options.providers}
         claude={options.claude}
         placeholder={ticket ? t("New session on {ticket} — what should we work on?", { ticket }) : t("New session — what should we work on?")}
@@ -221,7 +222,8 @@ export function NewSessionPane({ options, running }: { options: Options; running
             : t("Ask a question or give a task — on a ticket, in its repo or one you pick. Sessions run side by side.")}
         </p>
       </div>
-      <SessionComposer tickets={options.tickets} repos={options.repos} providers={options.providers} claude={options.claude} autoFocus />
+      <SessionComposer tickets={options.tickets} repos={options.repos}
+        ticketRepos={options.ticketRepos} providers={options.providers} claude={options.claude} autoFocus />
     </div>
   );
 }
