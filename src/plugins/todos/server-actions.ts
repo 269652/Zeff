@@ -205,18 +205,6 @@ export async function removeTodoNoteAction(todoId: number, at: string): Promise<
   }
 }
 
-/** A todo's drafted message, as you changed it (empty: none — a worker writes one again). */
-export async function saveTodoDraftAction(todoId: number, draft: string): Promise<ActionState> {
-  try {
-    const { setTodoDraft } = await import("@/lib/boards/store");
-    setTodoDraft(Number(todoId), { draft: String(draft ?? "") });
-    revalidateAll();
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: errorMessage(err) };
-  }
-}
-
 /** One of a Boards run's suggested ticket changes (transition, assignee, comment), done in Jira — on your click. */
 export async function runTicketActionAction(runId: number, ticket: string, idx: number): Promise<ActionState> {
   try {

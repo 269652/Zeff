@@ -6,7 +6,7 @@ import { useEffect } from "react";
 /** The pages that show runs and todos — they follow the changes they show (not the others'). */
 const LIVE: [RegExp, string[]][] = [
   [/^\/$/, ["work", "todos", "attention"]],
-  [/^\/work/, ["work", "todos", "branches", "attention"]],
+  [/^\/work/, ["work", "todos", "attention"]],
   [/^\/todos/, ["work", "todos", "attention"]],
   [/^\/tickets/, ["work", "todos", "attention"]],
   [/^\/kanban/, ["kanban", "todos"]],

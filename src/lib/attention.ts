@@ -118,9 +118,9 @@ export async function listAttention(): Promise<Attention[]> {
   const { workRef } = await import("@/lib/work/shared");
   const live = [...lives.values()].flatMap((l): Attention[] =>
     l.view.permission
-      ? [{ key: `permission:${l.runId}:${l.view.permission.title}`, kind: "question", title: t("{ref} asks for permission", { ref: workRef(l.runId) }), body: `${l.view.permission.title}${l.view.permission.detail ? ` — ${l.view.permission.detail}` : ""}`, at: new Date().toISOString(), href: `/work#w-${l.runId}` }]
+      ? [{ key: `permission:${l.runId}:${l.view.permission.title}`, kind: "question", title: t("{ref} asks for permission", { ref: workRef(l.runId) }), body: `${l.view.permission.title}${l.view.permission.detail ? ` — ${l.view.permission.detail}` : ""}`, at: new Date().toISOString(), href: `/work?run=${l.runId}` }]
       : l.view.waiting
-        ? [{ key: `waiting:${l.runId}`, kind: "question", title: t("{ref} is waiting for your answer", { ref: workRef(l.runId) }), body: l.view.waiting.slice(-300), at: new Date().toISOString(), href: `/work#w-${l.runId}` }]
+        ? [{ key: `waiting:${l.runId}`, kind: "question", title: t("{ref} is waiting for your answer", { ref: workRef(l.runId) }), body: l.view.waiting.slice(-300), at: new Date().toISOString(), href: `/work?run=${l.runId}` }]
         : [],
   );
   // Live Claude sessions: what they ask (a permission, a plan, a question), and a finished turn waiting for your next message.

@@ -3,7 +3,6 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import type { TodoOp } from "@/lib/boards/shared";
-import { forgetBranchWork } from "@/lib/branches";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { listRepos } from "@/lib/repos";
@@ -36,7 +35,6 @@ export async function runGitPush(op: Extract<TodoOp, { type: "git-push" }>): Pro
         "origin",
         `${op.branch}:refs/heads/${op.remote}`,
       ]);
-      forgetBranchWork();
       const project = listRepos().find(
         (r) => r.path === op.repo,
       )?.gitlabProject;
@@ -76,7 +74,6 @@ export async function runGitCommit(op: Extract<TodoOp, { type: "git-commit-branc
       // Only these files (what the work changed) — anything else stays as it is.
       await gitAsync(op.repo, ["add", "--", ...op.files]);
       await gitAsync(op.repo, ["commit", "-m", op.message, "--", ...op.files]);
-      forgetBranchWork();
       return {
         what: op.files.length === 1 ? t("1 file committed on {branch}", { branch: op.branch }) : t("{n} files committed on {branch}", { n: op.files.length, branch: op.branch }),
         next: {
@@ -130,7 +127,6 @@ export async function runGitMergeMain(op: Extract<TodoOp, { type: "git-merge-mai
             }),
         );
       }
-      forgetBranchWork();
       return { what: t("{branch} merged into {target} and pushed", { branch: op.branch, target: op.target }) };
 }
 

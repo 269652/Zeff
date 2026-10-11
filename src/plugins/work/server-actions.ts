@@ -163,18 +163,6 @@ async function checkSession(raw: unknown): Promise<import("@/lib/work/shared").S
   return out;
 }
 
-export async function dispatchWorkAction(todoId: number, provider?: string): Promise<ActionState> {
-  try {
-    const { isAiProvider } = await import("@/lib/ai/shared");
-    const { dispatchTodo } = await import("@/lib/work/runner");
-    const run = dispatchTodo(Number(todoId), { provider: provider && isAiProvider(provider) ? provider : undefined });
-    revalidateAll();
-    return { ok: true, message: run.status === "running" ? t("{run} is running.", { run: run.ref }) : t("{run} waits for a free worker.", { run: run.ref }) };
-  } catch (err) {
-    return { ok: false, error: errorMessage(err) };
-  }
-}
-
 /** A failed run once more, as it was asked for: the same provider, your instruction again (an ✨ run). */
 export async function retryRunAction(runId: number): Promise<ActionState> {
   try {
@@ -281,33 +269,6 @@ export async function deleteRepoAction(id: number): Promise<ActionState> {
     deleteRepo(Number(id));
     revalidateAll();
     return { ok: true };
-  } catch (err) {
-    return { ok: false, error: errorMessage(err) };
-  }
-}
-
-/** Switch a repo's checkout to another local branch (Work tab). */
-export async function switchRepoBranchAction(repoId: number, branch: string): Promise<ActionState> {
-  try {
-    const { switchBranch } = await import("@/lib/repos");
-    const now = switchBranch(Number(repoId), String(branch));
-    (await import("@/lib/branches")).forgetBranchWork();
-    revalidateAll();
-    return { ok: true, message: t("Now on {branch}.", { branch: now }) };
-  } catch (err) {
-    return { ok: false, error: errorMessage(err) };
-  }
-}
-
-/** What a local branch needs, done on your click (push, open or merge its MR, delete) — or (not) listing it any more. */
-export async function branchOpAction(repoId: number, branch: string, op: string): Promise<ActionState> {
-  try {
-    const ops = ["push", "open-mr", "merge", "delete", "ignore", "unignore", "ignore-stale"] as const;
-    if (!(ops as readonly string[]).includes(op)) return { ok: false, error: t("Unknown operation.") };
-    const { branchOp } = await import("@/lib/branches");
-    const message = await branchOp(Number(repoId), String(branch), op as (typeof ops)[number]);
-    revalidateAll();
-    return { ok: true, message };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

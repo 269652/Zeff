@@ -14,6 +14,7 @@ import { ReportSettingsForm } from "@/components/ReportSettingsForm";
 import { ScheduleForm } from "@/components/ScheduleForm";
 import { SubmitButton } from "@/components/SubmitButton";
 import { TypeRulesForm } from "@/components/TypeRulesForm";
+import { WorkSettingsSection } from "@/components/work/WorkSettingsSection";
 import { getTypeRules } from "@/lib/type-rules";
 import { getMeetingDefaultJob, getMeetingExcludeRules, getMeetingJobRules, getReportRules, getReportSettings } from "@/lib/report";
 import { getJobByNumber, listJobs } from "@/lib/jobs";
@@ -38,7 +39,16 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function SettingsPage() {
   await connection();
-  if (!isInstalled("zeiterfassung")) return <PluginNotInstalled id="zeiterfassung" />;
+  // Without time tracking: only the Work section (when that plugin's there).
+  if (!isInstalled("zeiterfassung")) {
+    return isInstalled("work") ? (
+      <div className="page">
+        <WorkSettingsSection />
+      </div>
+    ) : (
+      <PluginNotInstalled id="zeiterfassung" />
+    );
+  }
   const schedule = getWorkSchedule();
   const hours = scheduleHours(schedule);
   const weekTotal = hours.reduce((a, b) => a + b, 0);
@@ -200,6 +210,8 @@ export default async function SettingsPage() {
           </div>
         )}
       </section>
+
+      {isInstalled("work") && <WorkSettingsSection />}
     </div>
   );
 }

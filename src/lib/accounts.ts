@@ -2,7 +2,6 @@ import { closeAccountDb } from "@/db";
 import { accountById, addAccount, currentAccountId, removeAccount, setActiveAccount, withAccount, type Account } from "@/db/accounts";
 import { writeKnowledgeInstances } from "@/plugins/knowledge/instances";
 import { t } from "@/lib/i18n/server";
-import { forgetBranchWork } from "./branches";
 import { emitChange } from "./events";
 import { runsByStatus } from "./work/store";
 
@@ -44,7 +43,6 @@ export function switchAccount(id: string): Account {
   setActiveAccount(id);
   writeKnowledgeInstances(); // https://knowledge.zeff follows the account you're in
   // What's kept in memory belongs to the account before.
-  forgetBranchWork();
   (globalThis as { __zeffAttention?: Map<string, unknown> }).__zeffAttention?.clear();
   emitChange("attention");
   return a;

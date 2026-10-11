@@ -80,7 +80,7 @@ export function todoActivity(opts: { days?: number; limit?: number } = {}): Todo
     if (w) {
       const r = work.get(Number(w[1]));
       const who = r ? (r.provider === "agent" ? (r.model ?? t("Agent")) : r.provider === "zeff" ? t("Zeff (action)") : `${t("Worker")}${r.model ? ` · ${r.model}` : ""}`) : t("Worker");
-      return { label: `W-${w[1]} · ${who}`, href: `/work#w-${w[1]}`, title: t("The run on the Work tab") };
+      return { label: `W-${w[1]} · ${who}`, href: `/work?run=${w[1]}`, title: t("The run on the Work tab") };
     }
     const l = /^lage:(\d+)$/.exec(actor);
     if (l) {
