@@ -1,5 +1,6 @@
 import { currentAccountId, accountChrome } from "@/db/accounts";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { automationCdp, automationEnv, driverPath, type DriverId } from "@/plugins/drivers";
 import { PLUGINS } from "@/plugins/catalog";
 import { installedPlugins, stepAvailable } from "@/plugins/state";
@@ -48,10 +49,10 @@ const checks = () => (store.__zeffLoginChecks ??= new Map());
 function classify(out: unknown): { state: LoginState; detail: string } {
   if (out && typeof out === "object") {
     const o = out as { chrome?: boolean; open?: boolean; signedIn?: boolean; linked?: boolean; state?: string; message?: string };
-    if (o.chrome === false) return { state: "chrome", detail: o.message ?? "The automation Chrome isn't running." };
-    if (o.signedIn || o.linked) return { state: "ok", detail: "Signed in." };
-    if (o.open === false) return { state: "closed", detail: "Not open in the automation Chrome — “Sign in” opens the page." };
-    return { state: "login", detail: o.state === "link" ? "Not linked — scan the QR code with your phone." : "Not signed in." };
+    if (o.chrome === false) return { state: "chrome", detail: o.message ?? t("The automation Chrome isn't running.") };
+    if (o.signedIn || o.linked) return { state: "ok", detail: t("Signed in.") };
+    if (o.open === false) return { state: "closed", detail: t("Not open in the automation Chrome — “Sign in” opens the page.") };
+    return { state: "login", detail: o.state === "link" ? t("Not linked — scan the QR code with your phone.") : t("Not signed in.") };
   }
   const text = String(out ?? "");
   if (text.trim().startsWith("{")) {
@@ -77,9 +78,9 @@ async function chromeUp(): Promise<boolean> {
 /** Ask a service's driver whether it's signed in — read-only: no tab opened, Chrome not started. */
 export async function checkLogin(service: ServiceId): Promise<{ state: LoginState; detail: string }> {
   const tool = STATUS_TOOL[service];
-  if (!tool) return { state: "unknown", detail: "No check of its own — the last sync tells." };
+  if (!tool) return { state: "unknown", detail: t("No check of its own — the last sync tells.") };
   let r: { state: LoginState; detail: string };
-  if (!(await chromeUp())) r = { state: "chrome", detail: "The automation Chrome isn't running — “Sign in” starts it." };
+  if (!(await chromeUp())) r = { state: "chrome", detail: t("The automation Chrome isn't running — “Sign in” starts it.") };
   else {
     try {
       const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
@@ -114,13 +115,19 @@ export async function listLogins(): Promise<{ chrome: { endpoint: string; runnin
     const known = [
       check && { state: check.state, detail: check.detail, source: "check" as const, at: check.at },
       request && { state: "login" as const, detail: request.body, source: "request" as const, at: request.at },
-      step?.lastAt && step.lastOk !== null && { state: step.lastOk ? ("ok" as const) : ("unknown" as const), detail: `Last sync: ${step.lastMessage ?? (step.lastOk ? "ok" : "failed")}`, source: "sync" as const, at: step.lastAt },
+      step?.lastAt &&
+        step.lastOk !== null && {
+          state: step.lastOk ? ("ok" as const) : ("unknown" as const),
+          detail: t("Last sync: {result}", { result: step.lastMessage ?? (step.lastOk ? t("ok") : t("failed")) }),
+          source: "sync" as const,
+          at: step.lastAt,
+        },
     ]
       .filter((x): x is NonNullable<typeof x> => !!x)
       .sort((a, b) => b.at.localeCompare(a.at));
     // A sign-in request stands until a sync or check after it went through.
     const pick = request && !known.some((k) => k.source !== "request" && k.state === "ok" && k.at > request.at) ? known.find((k) => k.source === "request")! : known[0];
-    return pick ? { ...base, ...pick } : { ...base, state: "unknown", detail: "Not checked yet.", source: null, at: null };
+    return pick ? { ...base, ...pick } : { ...base, state: "unknown", detail: t("Not checked yet."), source: null, at: null };
   });
   return { chrome: { endpoint: accountChrome().endpoint, running: await chromeUp() }, logins };
 }

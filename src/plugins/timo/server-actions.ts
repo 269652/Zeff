@@ -1,6 +1,7 @@
 "use server";
 
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { num, revalidateAll, str, type ActionState } from "@/app/action-helpers";
 import { callTimo } from "@/plugins/timo/call";
 
@@ -20,15 +21,16 @@ export async function pullTimoAction(weekKey: string): Promise<ActionState> {
   try {
     const { isoDate, resolveWeek } = await import("@/lib/week");
     const week = resolveWeek(weekKey);
-    if (!week) return { ok: false, error: "Could not read the week." };
+    if (!week) return { ok: false, error: t("Could not read the week.") };
     await pullTimoDays(week.days.map(isoDate));
     revalidateAll();
     const { timoDayStates } = await import("@/lib/timo-status");
     const { states } = timoDayStates(week);
     const synced = states.filter((s) => s?.state === "synced").length;
     const differs = states.filter((s) => s?.state === "differs").length;
-    if (!synced && !differs) return { ok: true, message: "TimO has nothing in this week yet." };
-    return { ok: true, message: `TimO: ${synced} day${synced === 1 ? "" : "s"} as in Zeff${differs ? `, ${differs} different` : ""}.` };
+    if (!synced && !differs) return { ok: true, message: t("TimO has nothing in this week yet.") };
+    const same = synced === 1 ? t("TimO: 1 day as in Zeff") : t("TimO: {n} days as in Zeff", { n: synced });
+    return { ok: true, message: `${same}${differs ? `, ${t("{n} different", { n: differs })}` : ""}.` };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -56,7 +58,7 @@ export async function saveTimoConfigAction(_prev: ActionState, fd: FormData): Pr
       },
     });
     revalidateAll();
-    return { ok: true, message: "TimO work day saved." };
+    return { ok: true, message: t("TimO work day saved.") };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -65,13 +67,13 @@ export async function saveTimoConfigAction(_prev: ActionState, fd: FormData): Pr
 export async function exportToTimoAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const { resolveWeek } = await import("@/lib/week");
   const week = resolveWeek(str(fd, "week"));
-  if (!week) return { ok: false, error: "Could not read the week." };
+  if (!week) return { ok: false, error: t("Could not read the week.") };
   const dryRun = fd.get("dryRun") === "on";
   const fillGaps = fd.get("fillGaps") === "on";
   const { getTimoExportPlan, toTimoPayload } = await import("@/lib/timo");
   const { getReportSettings, getTimoConfig } = await import("@/lib/report");
   const plan = getTimoExportPlan(week, getTimoConfig(getReportSettings()), { reportedBy: str(fd, "by"), fillGaps });
-  if (plan.days.length === 0) return { ok: false, error: "Nothing to record (no bookings; turn on gap-fill for default days)." };
+  if (plan.days.length === 0) return { ok: false, error: t("Nothing to record (no bookings; turn on gap-fill for default days).") };
   try {
     const msg = await callTimo("timo_export", { ...toTimoPayload(plan), dryRun });
     if (!dryRun) {

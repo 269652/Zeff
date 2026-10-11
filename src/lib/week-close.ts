@@ -1,5 +1,6 @@
 import { isInstalled } from "@/plugins/state";
-import { formatAgo, formatHours } from "./format";
+import { currentLocale, formatAgo, formatHours } from "./format";
+import { t } from "./i18n/server";
 import { isoDate, type WeekInfo } from "./week";
 
 /**
@@ -15,7 +16,6 @@ export type CloseState = "ok" | "open" | "unknown" | "later";
 export type CloseItem = { key: string; label: string; state: CloseState; detail: string; href: string };
 export type WeekClose = { items: CloseItem[]; /** Every step done. */ done: boolean; /** The week is over (its last working day passed, or it's that day). */ over: boolean };
 
-const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const ago = (iso: string, now: Date) => formatAgo(iso, now.getTime());
 
 export async function weekClose(week: WeekInfo, now = new Date()): Promise<WeekClose> {
@@ -33,13 +33,16 @@ export async function weekClose(week: WeekInfo, now = new Date()): Promise<WeekC
 
   // 1. Every day booked up to its target (today counts once it's the week's last working day).
   const shortfall = dayShortfalls(week, report.dayTotals, targets.targets, { today: over ? isoDate(new Date(Date.parse(week.endIso) + 864e5)) : today });
-  const missing = shortfall.map((s, i) => ({ ...s, day: DAY_NAMES[i] })).filter((s) => s.state === "missing" || (over && s.state === "short"));
+  const dayName = (i: number) => week.days[i].toLocaleDateString(currentLocale(), { weekday: "short" });
+  const missing = shortfall.map((s, i) => ({ ...s, day: dayName(i) })).filter((s) => s.state === "missing" || (over && s.state === "short"));
   const future = !over && week.days.some((d, i) => isoDate(d) >= today && (targets.targets[i] ?? 0) > 0);
   items.push({
     key: "hours",
-    label: "Every day booked",
+    label: t("Every day booked"),
     state: missing.length ? "open" : future ? "later" : "ok",
-    detail: missing.length ? `missing: ${missing.map((m) => `${m.day} ${formatHours(m.gap)} h`).join(", ")}` : `${formatHours(report.total)} of ${formatHours(targets.weekTarget)} h`,
+    detail: missing.length
+      ? t("missing: {days}", { days: missing.map((m) => `${m.day} ${formatHours(m.gap)} h`).join(", ") })
+      : t("{booked} of {target} h", { booked: formatHours(report.total), target: formatHours(targets.weekTarget) }),
     href: `/?${q}`,
   });
 
@@ -58,9 +61,11 @@ export async function weekClose(week: WeekInfo, now = new Date()): Promise<WeekC
     const open = days.flatMap((d) => d.events).filter((e) => e.state === "importable" && `${e.date}T${e.endTime}` <= `${today}T${now.toTimeString().slice(0, 5)}`);
     items.push({
       key: "meetings",
-      label: "Meetings booked",
+      label: t("Meetings booked"),
       state: open.length ? "open" : "ok",
-      detail: open.length ? `${open.length} not booked yet: ${open.slice(0, 3).map((e) => e.subject).join(", ")}${open.length > 3 ? " …" : ""}` : "all booked",
+      detail: open.length
+        ? t("{n} not booked yet: {meetings}", { n: open.length, meetings: `${open.slice(0, 3).map((e) => e.subject).join(", ")}${open.length > 3 ? " …" : ""}` })
+        : t("all booked"),
       href: `/calendar?${q}`,
     });
   }
@@ -70,9 +75,9 @@ export async function weekClose(week: WeekInfo, now = new Date()): Promise<WeekC
   const suggestions = openSuggestionTotals(week.startIso, week.endIso);
   items.push({
     key: "suggestions",
-    label: "Suggestions taken over",
+    label: t("Suggestions taken over"),
     state: suggestions.count ? "open" : "ok",
-    detail: suggestions.count ? `${suggestions.count} open (${formatHours(suggestions.hours)} h)` : "none open",
+    detail: suggestions.count ? t("{n} open ({hours} h)", { n: suggestions.count, hours: formatHours(suggestions.hours) }) : t("none open"),
     href: `/?${q}`,
   });
 
@@ -81,9 +86,9 @@ export async function weekClose(week: WeekInfo, now = new Date()): Promise<WeekC
   const noJob = entries.filter((e) => e.job.number === NO_JOB_NUMBER);
   items.push({
     key: "jobs",
-    label: "Every entry on a job",
+    label: t("Every entry on a job"),
     state: noJob.length ? "open" : "ok",
-    detail: noJob.length ? `${noJob.length} without a job (${formatHours(noJob.reduce((a, e) => a + e.hours, 0))} h)` : "all",
+    detail: noJob.length ? t("{n} without a job ({hours} h)", { n: noJob.length, hours: formatHours(noJob.reduce((a, e) => a + e.hours, 0)) }) : t("all"),
     href: `/?${q}`,
   });
 
@@ -93,29 +98,36 @@ export async function weekClose(week: WeekInfo, now = new Date()): Promise<WeekC
     const pulledAt = roarPulledAt(week);
     const booked = entries.filter((e) => e.job.number !== NO_JOB_NUMBER);
     if (!pulledAt) {
-      items.push({ key: "roar", label: "In Roar", state: "unknown", detail: "not pulled from Roar yet", href: `/export/roar?${q}` });
-      items.push({ key: "approved", label: "Approved in Roar", state: "unknown", detail: "not pulled from Roar yet", href: `/export/roar?${q}` });
+      items.push({ key: "roar", label: t("In Roar"), state: "unknown", detail: t("not pulled from Roar yet"), href: `/export/roar?${q}` });
+      items.push({ key: "approved", label: t("Approved in Roar"), state: "unknown", detail: t("not pulled from Roar yet"), href: `/export/roar?${q}` });
     } else {
       const statuses = roarStatusByEntry(week);
       const kinds = booked.map((e) => statuses[e.id]?.kind ?? "missing");
       const count = (k: string) => kinds.filter((x) => x === k).length;
-      const stand = `pulled ${ago(pulledAt, now)}`;
+      const stand = t("pulled {ago}", { ago: ago(pulledAt, now) });
       const notIn = count("missing");
       const rejected = count("rejected");
       items.push({
         key: "roar",
-        label: "In Roar",
+        label: t("In Roar"),
         state: !booked.length ? (over ? "ok" : "later") : notIn || rejected ? "open" : "ok",
-        detail: [notIn ? `${notIn} not in Roar` : "", rejected ? `${rejected} rejected` : "", !notIn && !rejected ? "all in" : "", stand].filter(Boolean).join(" · "),
+        detail: [notIn ? t("{n} not in Roar", { n: notIn }) : "", rejected ? t("{n} rejected", { n: rejected }) : "", !notIn && !rejected ? t("all in") : "", stand].filter(Boolean).join(" · "),
         href: `/export/roar?${q}`,
       });
       const draft = count("draft");
       const submitted = count("submitted");
       items.push({
         key: "approved",
-        label: "Approved in Roar",
+        label: t("Approved in Roar"),
         state: !booked.length ? (over ? "ok" : "later") : notIn || rejected || draft || submitted ? "open" : "ok",
-        detail: [draft ? `${draft} not submitted` : "", submitted ? `${submitted} waiting for approval` : "", !draft && !submitted && !notIn && !rejected ? "all approved" : "", stand].filter(Boolean).join(" · "),
+        detail: [
+          draft ? t("{n} not submitted", { n: draft }) : "",
+          submitted ? t("{n} waiting for approval", { n: submitted }) : "",
+          !draft && !submitted && !notIn && !rejected ? t("all approved") : "",
+          stand,
+        ]
+          .filter(Boolean)
+          .join(" · "),
         href: `/export/roar?${q}`,
       });
     }
@@ -128,9 +140,13 @@ export async function weekClose(week: WeekInfo, now = new Date()): Promise<WeekC
     const differs = timo.states.filter((s) => s?.state === "differs").length;
     items.push({
       key: "timo",
-      label: "In TimO",
+      label: t("In TimO"),
       state: !timo.pulledAt ? "unknown" : timo.inSync ? "ok" : over ? "open" : "later",
-      detail: !timo.pulledAt ? "not read from TimO yet" : timo.inSync ? `all in · read ${ago(timo.pulledAt, now)}` : `${differs ? `${differs} ${differs === 1 ? "day differs" : "days differ"} · ` : ""}not complete · read ${ago(timo.pulledAt, now)}`,
+      detail: !timo.pulledAt
+        ? t("not read from TimO yet")
+        : timo.inSync
+          ? t("all in · read {ago}", { ago: ago(timo.pulledAt, now) })
+          : `${differs ? `${differs === 1 ? t("1 day differs") : t("{n} days differ", { n: differs })} · ` : ""}${t("not complete · read {ago}", { ago: ago(timo.pulledAt, now) })}`,
       href: `/export/timo?${q}`,
     });
   }

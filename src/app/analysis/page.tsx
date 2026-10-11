@@ -1,6 +1,7 @@
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
+import { t } from "@/lib/i18n/server";
 import Link from "next/link";
 import { connection } from "next/server";
 import { BarList, Donut, Legend, LineChart, WeeklyBars, type BarItem, type LinePoint } from "@/components/charts";
@@ -12,14 +13,16 @@ import { getTicketCards } from "@/lib/jira/store";
 import { FALLBACK_TYPE_COLOR } from "@/lib/entry-types-shared";
 import { formatHours } from "@/lib/format";
 
-export const metadata: Metadata = { title: "Analysis" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: t("Analysis") };
+}
 
-const RANGES = [
-  { weeks: 4, label: "4 weeks" },
-  { weeks: 8, label: "8 weeks" },
-  { weeks: 12, label: "12 weeks" },
-  { weeks: 26, label: "26 weeks" },
-  { weeks: 0, label: "All time" },
+const ranges = () => [
+  { weeks: 4, label: t("4 weeks") },
+  { weeks: 8, label: t("8 weeks") },
+  { weeks: 12, label: t("12 weeks") },
+  { weeks: 26, label: t("26 weeks") },
+  { weeks: 0, label: t("All time") },
 ];
 
 export default async function AnalysisPage({
@@ -40,48 +43,48 @@ export default async function AnalysisPage({
 
   // Entry types in their configured order and colors; keys with hours but no type (deleted) go last, in grey.
   const configured = listEntryTypes();
-  const known = new Set(configured.map((t) => t.key));
+  const known = new Set(configured.map((x) => x.key));
   const types = [
     ...configured,
     ...Object.keys(a.byType)
       .filter((k) => !known.has(k))
       .map((k) => ({ key: k, label: k, color: FALLBACK_TYPE_COLOR, builtin: false })),
   ];
-  const typesWithHours = types.filter((t) => (a.byType[t.key] ?? 0) > 0);
+  const typesWithHours = types.filter((x) => (a.byType[x.key] ?? 0) > 0);
   const typeItems: BarItem[] = [...typesWithHours]
     .sort((x, y) => (a.byType[y.key] ?? 0) - (a.byType[x.key] ?? 0))
-    .map((t) => ({
-      key: t.key,
-      label: t.label,
-      value: a.byType[t.key] ?? 0,
-      valueLabel: `${formatHours(a.byType[t.key] ?? 0)} h`,
-      color: t.color,
+    .map((x) => ({
+      key: x.key,
+      label: x.label,
+      value: a.byType[x.key] ?? 0,
+      valueLabel: `${formatHours(a.byType[x.key] ?? 0)} h`,
+      color: x.color,
     }));
   const pct = (h: number) => (a.totalHours > 0 ? Math.round((h / a.totalHours) * 100) : 0);
 
-  const tagItems: BarItem[] = a.byTag.slice(0, 12).map((t) => ({
-    key: String(t.tag.id),
-    label: `#${t.tag.name}`,
-    value: t.hours,
-    valueLabel: `${formatHours(t.hours)} h`,
+  const tagItems: BarItem[] = a.byTag.slice(0, 12).map((x) => ({
+    key: String(x.tag.id),
+    label: `#${x.tag.name}`,
+    value: x.hours,
+    valueLabel: `${formatHours(x.hours)} h`,
     barClass: "bg-teal-500",
   }));
   if (a.untaggedHours > 0) {
     tagItems.push({
       key: "untagged",
-      label: "untagged",
+      label: t("untagged"),
       value: a.untaggedHours,
       valueLabel: `${formatHours(a.untaggedHours)} h`,
       barClass: "bg-zinc-300 dark:bg-zinc-600",
     });
   }
 
-  const ticketCards = getTicketCards(a.topTickets.map((t) => t.ticket));
-  const ticketItems: BarItem[] = a.topTickets.map((t) => ({
-    key: t.ticket,
-    label: <TicketLink ticket={t.ticket} card={ticketCards[t.ticket.toUpperCase()]} />,
-    value: t.hours,
-    valueLabel: `${formatHours(t.hours)} h`,
+  const ticketCards = getTicketCards(a.topTickets.map((x) => x.ticket));
+  const ticketItems: BarItem[] = a.topTickets.map((x) => ({
+    key: x.ticket,
+    label: <TicketLink ticket={x.ticket} card={ticketCards[x.ticket.toUpperCase()]} />,
+    value: x.hours,
+    valueLabel: `${formatHours(x.hours)} h`,
     barClass: "bg-indigo-500",
   }));
 
@@ -97,7 +100,7 @@ export default async function AnalysisPage({
     key: w.weekKey,
     label: `W${w.label}`,
     total: w.total,
-    segments: typesWithHours.map((t) => ({ key: t.key, label: t.label, value: w.byType[t.key] ?? 0, color: t.color })),
+    segments: typesWithHours.map((x) => ({ key: x.key, label: x.label, value: w.byType[x.key] ?? 0, color: x.color })),
     badge: a.jira
       ? w.closed
         ? `${w.closed}✓`
@@ -115,28 +118,30 @@ export default async function AnalysisPage({
     <div className="page">
       <div className="page-aside">
         <div>
-          <h1 className="text-lg font-semibold">Analysis</h1>
+          <h1 className="text-lg font-semibold">{t("Analysis")}</h1>
           <p className="text-sm text-zinc-500">
-            {a.range.allTime ? "All recorded time" : `Last ${a.range.weeks} weeks`} · {a.range.fromIso} → {a.range.toIso}
+            {a.range.allTime ? t("All recorded time") : t("Last {n} weeks", { n: a.range.weeks })} · {a.range.fromIso} → {a.range.toIso}
             {a.jira &&
               (a.myTickets
-                ? ` · Jira metrics: ${a.myTickets.worked} ticket${a.myTickets.worked === 1 ? "" : "s"} you worked on${
-                    a.myTickets.inJira < a.myTickets.worked ? ` (${a.myTickets.inJira} in Jira)` : ""
-                  }`
-                : " · Jira metrics: all tickets")}
+                ? ` · ${
+                    a.myTickets.worked === 1
+                      ? t("Jira metrics: 1 ticket you worked on")
+                      : t("Jira metrics: {n} tickets you worked on", { n: a.myTickets.worked })
+                  }${a.myTickets.inJira < a.myTickets.worked ? ` ${t("({n} in Jira)", { n: a.myTickets.inJira })}` : ""}`
+                : ` · ${t("Jira metrics: all tickets")}`)}
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
-          <div className="flex gap-1" title="Jira metrics for everyone's tickets, or only the tickets you booked time on in this range">
+          <div className="flex gap-1" title={t("Jira metrics for everyone's tickets, or only the tickets you booked time on in this range")}>
             <Link href={href(weeks, false)} className={`btn btn-sm ${mine ? "" : "btn-primary"}`}>
-              Everyone
+              {t("Everyone")}
             </Link>
             <Link href={href(weeks, true)} className={`btn btn-sm ${mine ? "btn-primary" : ""}`}>
-              Mine
+              {t("Mine")}
             </Link>
           </div>
           <div className="flex gap-1">
-            {RANGES.map((r) => (
+            {ranges().map((r) => (
               <Link key={r.weeks} href={href(r.weeks)} className={`btn btn-sm ${weeks === r.weeks ? "btn-primary" : ""}`}>
                 {r.label}
               </Link>
@@ -146,65 +151,65 @@ export default async function AnalysisPage({
       </div>
 
       {!a.hasData ? (
-        <p className="card p-6 text-center text-sm text-zinc-500">No time booked in this range.</p>
+        <p className="card p-6 text-center text-sm text-zinc-500">{t("No time booked in this range.")}</p>
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            <Stat label="Total booked" value={`${formatHours(a.totalHours)} h`} />
-            <Stat label="Meetings" value={`${a.meetingPercent}%`} tone="violet" />
-            <Stat label="Avg meetings / day" value={`${formatHours(a.avgMeetingHoursPerActiveDay)} h`} tone="violet" />
-            <Stat label="Distinct tickets" value={String(a.distinctTickets)} />
-            <Stat label="Avg / active week" value={`${formatHours(a.avgHoursPerActiveWeek)} h`} />
+            <Stat label={t("Total booked")} value={`${formatHours(a.totalHours)} h`} />
+            <Stat label={t("Meetings")} value={`${a.meetingPercent}%`} tone="violet" />
+            <Stat label={t("Avg meetings / day")} value={`${formatHours(a.avgMeetingHoursPerActiveDay)} h`} tone="violet" />
+            <Stat label={t("Distinct tickets")} value={String(a.distinctTickets)} />
+            <Stat label={t("Avg / active week")} value={`${formatHours(a.avgHoursPerActiveWeek)} h`} />
           </div>
 
           {a.jira && (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Stat
-                label={a.myTickets ? "Worked on" : "Jira tickets"}
+                label={a.myTickets ? t("Worked on") : t("Jira tickets")}
                 value={String(a.jira.total)}
-                hint={a.myTickets ? "Synced Jira tickets you booked time on in this range." : "All synced tickets on enabled boards, plus yours."}
+                hint={a.myTickets ? t("Synced Jira tickets you booked time on in this range.") : t("All synced tickets on enabled boards, plus yours.")}
               />
-              <Stat label="Open" value={String(a.jira.byCategory.todo + a.jira.byCategory.inprogress)} />
-              <Stat label="Done" value={String(a.jira.byCategory.done)} tone="violet" />
-              <Stat label="Closed in range" value={String(a.ticketsClosed)} tone="violet" />
+              <Stat label={t("Open")} value={String(a.jira.byCategory.todo + a.jira.byCategory.inprogress)} />
+              <Stat label={t("Done")} value={String(a.jira.byCategory.done)} tone="violet" />
+              <Stat label={t("Closed in range")} value={String(a.ticketsClosed)} tone="violet" />
             </div>
           )}
 
           {a.jira && a.hasTicketDates && (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Stat
-                label="Avg reaction time"
+                label={t("Avg reaction time")}
                 value={a.hasReactionData ? days(a.avgReactionDays) : "—"}
                 tone="sky"
-                hint="Time to respond: ticket opened → first status change (Jira changelog)."
+                hint={t("Time to respond: ticket opened → first status change (Jira changelog).")}
               />
               <Stat
-                label="Avg resolution time"
+                label={t("Avg resolution time")}
                 value={days(a.avgResolutionDays)}
                 tone="indigo"
-                hint="Ticket opened → resolved, averaged over tickets resolved in range."
+                hint={t("Ticket opened → resolved, averaged over tickets resolved in range.")}
               />
-              <Stat label="Avg closed / week" value={formatHours(a.avgClosedPerWeek)} tone="indigo" />
-              <Stat label="Avg parallel tickets" value={formatHours(a.avgParallelPerWeek)} tone="amber" />
+              <Stat label={t("Avg closed / week")} value={formatHours(a.avgClosedPerWeek)} tone="indigo" />
+              <Stat label={t("Avg parallel tickets")} value={formatHours(a.avgParallelPerWeek)} tone="amber" />
             </div>
           )}
 
           <div className="grid gap-4 lg:grid-cols-2">
             <section className="card p-4">
-              <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">Time split by type</h2>
+              <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">{t("Time split by type")}</h2>
               <div className="flex items-center gap-6">
                 <Donut
                   centerValue={`${a.meetingPercent}%`}
-                  centerLabel="Meetings"
-                  segments={typesWithHours.map((t) => ({ key: t.key, value: a.byType[t.key] ?? 0, color: t.color }))}
+                  centerLabel={t("Meetings")}
+                  segments={typesWithHours.map((x) => ({ key: x.key, value: a.byType[x.key] ?? 0, color: x.color }))}
                 />
                 <div className="space-y-2">
-                  {typesWithHours.map((t) => (
-                    <div key={t.key} className="flex items-center gap-2 text-sm">
-                      <span className="inline-block size-2.5 rounded-sm" style={{ backgroundColor: t.color }} />
-                      <span className="w-20 truncate" title={t.label}>{t.label}</span>
-                      <span className="font-medium tabular-nums">{formatHours(a.byType[t.key] ?? 0)} h</span>
-                      <span className="text-zinc-500 tabular-nums">{pct(a.byType[t.key] ?? 0)}%</span>
+                  {typesWithHours.map((x) => (
+                    <div key={x.key} className="flex items-center gap-2 text-sm">
+                      <span className="inline-block size-2.5 rounded-sm" style={{ backgroundColor: x.color }} />
+                      <span className="w-20 truncate" title={x.label}>{x.label}</span>
+                      <span className="font-medium tabular-nums">{formatHours(a.byType[x.key] ?? 0)} h</span>
+                      <span className="text-zinc-500 tabular-nums">{pct(a.byType[x.key] ?? 0)}%</span>
                     </div>
                   ))}
                 </div>
@@ -212,20 +217,20 @@ export default async function AnalysisPage({
             </section>
 
             <section className="card p-4">
-              <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">Hours by job</h2>
+              <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">{t("Hours by job")}</h2>
               <BarList items={jobItems} />
             </section>
           </div>
 
           <section className="card p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-zinc-500 uppercase">Weekly hours &amp; tickets</h2>
+              <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Weekly hours & tickets")}</h2>
               <Legend
                 items={[
-                  ...typesWithHours.map((t) => ({ color: t.color, label: t.label })),
+                  ...typesWithHours.map((x) => ({ color: x.color, label: x.label })),
                   a.jira
-                    ? { dot: "bg-emerald-400", label: "✓ tickets closed" }
-                    : { dot: "bg-sky-400", label: "🎫 tickets worked" },
+                    ? { dot: "bg-emerald-400", label: t("✓ tickets closed") }
+                    : { dot: "bg-sky-400", label: t("🎫 tickets worked") },
                 ]}
               />
             </div>
@@ -236,58 +241,58 @@ export default async function AnalysisPage({
             <div className="grid gap-4 lg:grid-cols-2">
               <section className="card p-4">
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <h2 className="text-sm font-semibold text-zinc-500 uppercase">Performance</h2>
-                  <span className="text-xs text-zinc-500">resolution time · lower is better</span>
+                  <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Performance")}</h2>
+                  <span className="text-xs text-zinc-500">{t("resolution time · lower is better")}</span>
                 </div>
-                <LineChart points={performancePoints} colorClass="text-indigo-500" unit=" d" empty="No tickets closed in range." />
-                <p className="mt-2 text-xs text-zinc-400">Avg days from a ticket opening to its resolution, by the week it was resolved.</p>
+                <LineChart points={performancePoints} colorClass="text-indigo-500" unit=" d" empty={t("No tickets closed in range.")} />
+                <p className="mt-2 text-xs text-zinc-400">{t("Avg days from a ticket opening to its resolution, by the week it was resolved.")}</p>
               </section>
               <section className="card p-4">
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <h2 className="text-sm font-semibold text-zinc-500 uppercase">Parallelism</h2>
-                  <span className="text-xs text-zinc-500">tickets open at once</span>
+                  <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Parallelism")}</h2>
+                  <span className="text-xs text-zinc-500">{t("tickets open at once")}</span>
                 </div>
-                <LineChart points={parallelPoints} colorClass="text-amber-500" empty="No open tickets." />
-                <p className="mt-2 text-xs text-zinc-400">Number of tickets in flight (opened but not yet resolved) during each week.</p>
+                <LineChart points={parallelPoints} colorClass="text-amber-500" empty={t("No open tickets.")} />
+                <p className="mt-2 text-xs text-zinc-400">{t("Number of tickets in flight (opened but not yet resolved) during each week.")}</p>
               </section>
             </div>
           )}
 
           {a.jira && !a.hasTicketDates && (
             <p className="card p-4 text-sm text-zinc-500">
-              Reaction time and parallelism need ticket <em>opened</em> dates. Re-sync on the Jira tab to backfill them.
+              {t("Reaction time and parallelism need ticket")} <em>{t("opened")}</em> {t("dates. Re-sync on the Jira tab to backfill them.")}
             </p>
           )}
 
           <div className="grid gap-4 lg:grid-cols-2">
             <section className="card p-4">
               <div className="mb-3 flex items-center gap-2">
-                <h2 className="text-sm font-semibold text-zinc-500 uppercase">Hours by</h2>
+                <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Hours by")}</h2>
                 <LinkSelect
-                  label="Hours by"
+                  label={t("Hours by")}
                   value={split}
                   options={[
-                    { value: "tag", label: "Tag", href: href(weeks, mine, "tag") },
-                    { value: "type", label: "Type", href: href(weeks, mine, "type") },
+                    { value: "tag", label: t("Tag"), href: href(weeks, mine, "tag") },
+                    { value: "type", label: t("Type"), href: href(weeks, mine, "type") },
                   ]}
                 />
               </div>
               {split === "type" ? (
-                <BarList items={typeItems} empty="No entries." />
+                <BarList items={typeItems} empty={t("No entries.")} />
               ) : (
-                <BarList items={tagItems} empty="No tagged entries." />
+                <BarList items={tagItems} empty={t("No tagged entries.")} />
               )}
             </section>
             <section className="card p-4">
-              <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">Top tickets by hours</h2>
-              <BarList items={ticketItems} empty="No tickets." />
+              <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">{t("Top tickets by hours")}</h2>
+              <BarList items={ticketItems} empty={t("No tickets.")} />
             </section>
           </div>
 
           <p className="text-xs text-zinc-400">
             {a.jira
-              ? "“Tickets closed” buckets synced Jira tickets by their resolution date; some done tickets have no resolution date and aren't counted per week. Sync tickets on the Jira tab."
-              : "“Tickets worked” counts distinct ticket keys booked in a week (activity, not closures). Sync Jira on the Jira tab to track actual closures."}
+              ? t("“Tickets closed” buckets synced Jira tickets by their resolution date; some done tickets have no resolution date and aren't counted per week. Sync tickets on the Jira tab.")
+              : t("“Tickets worked” counts distinct ticket keys booked in a week (activity, not closures). Sync Jira on the Jira tab to track actual closures.")}
           </p>
         </>
       )}

@@ -6,6 +6,7 @@
 import { aiChoice, getAppSettings, type AiAnswer } from "@/lib/ai";
 import { AI_PROVIDER_INFO, type AiProvider } from "@/lib/ai/shared";
 import { ValidationError } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { runClaude } from "@/plugins/claude-cli/cli";
 import { runCopilot } from "@/plugins/copilot-cli/cli";
 import { isInstalled, providerAvailable } from "@/plugins/state";
@@ -38,10 +39,10 @@ export function llmPreamble(): string {
  * installed.
  */
 export function llm<T>(task: LlmTaskId, prompt: string, schema: object, opts: { provider?: AiProvider; timeoutMs?: number; maxBudgetUsd?: number } = {}): Promise<AiAnswer<T>> {
-  if (!isInstalled("llm")) return Promise.reject(new ValidationError("The LLM plugin is not installed (Menu → Plugins) — no AI tasks."));
+  if (!isInstalled("llm")) return Promise.reject(new ValidationError(t("The LLM plugin is not installed (Menu → Plugins) — no AI tasks.")));
   const choice = llmChoice(task);
   const provider = opts.provider ?? choice.provider;
-  if (!providerAvailable(provider)) return Promise.reject(new ValidationError(`${AI_PROVIDER_INFO[provider].label}: the plugin is not installed (Menu → Plugins).`));
+  if (!providerAvailable(provider)) return Promise.reject(new ValidationError(t("{provider}: the plugin is not installed (Menu → Plugins).", { provider: AI_PROVIDER_INFO[provider].label })));
   const app = getAppSettings();
   const model = (opts.provider && opts.provider !== choice.provider ? (provider === "copilot" ? app.copilotModel : app.claudeModel) : choice.model) || undefined;
   const preamble = llmPreamble();

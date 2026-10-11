@@ -3,7 +3,7 @@
  * the click opens Gmail's compose window, filled in, in your browser; you check and send it
  * yourself. Client-safe.
  */
-import { action, str } from "../actions/types";
+import { action, EN, str } from "../actions/types";
 
 const enc = encodeURIComponent;
 
@@ -25,8 +25,8 @@ export const GMAIL_ACTIONS = [
     },
     clean: (o) =>
       str(o.body) ? { type: "gmail-compose", to: str(o.to).slice(0, 300), subject: str(o.subject).slice(0, 300), body: str(o.body).slice(0, 8000) } : null,
-    title: (op) => `Mail${op.to ? ` to ${op.to}` : ""}${op.subject ? ` “${op.subject.slice(0, 60)}”` : ""}`,
-    note: (op) => ({ heading: `Mail${op.to ? ` to ${op.to}` : ""}`, detail: op.subject || null, body: op.body }),
+    title: (op, t = EN) => `${op.to ? t("Mail to {to}", { to: op.to }) : t("Mail")}${op.subject ? ` “${op.subject.slice(0, 60)}”` : ""}`,
+    note: (op, t = EN) => ({ heading: op.to ? t("Mail to {to}", { to: op.to }) : t("Mail"), detail: op.subject || null, body: op.body }),
     // Gmail's compose window, filled in (the first signed-in account) — sent by you.
     href: (op) => `https://mail.google.com/mail/u/0/?view=cm&fs=1&to=${enc(op.to)}&su=${enc(op.subject)}&body=${enc(op.body)}`,
   }),

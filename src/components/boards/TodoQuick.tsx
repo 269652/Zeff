@@ -5,6 +5,8 @@ import { addTodoNoteAction, draftReplyAction, instructTodoAction, openReplyTarge
 import type { ReplyTarget } from "@/lib/boards/reply-draft";
 import { NoteIcon, SparkIcon } from "../icons";
 import { toast } from "../Toaster";
+import { useT } from "@/components/I18nProvider";
+import type { T } from "@/lib/i18n/shared";
 import { saveDraft, useTodoDrafts } from "./todo-drafts";
 
 export type QuickPanel = "note" | "ai" | "reply" | null;
@@ -14,6 +16,7 @@ const ICON_BTN =
 
 /** The todo's two small buttons: a note to it (context), an instruction for Copilot. */
 export function TodoQuickButtons({ todoId, panel, onToggle, aiDisabled, canReply }: { todoId: number; panel: QuickPanel; onToggle: (p: QuickPanel) => void; aiDisabled?: string; canReply?: boolean }) {
+  const t = useT();
   const drafts = useTodoDrafts(todoId);
   const dot = <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-amber-500" aria-hidden />;
   return (
@@ -21,8 +24,8 @@ export function TodoQuickButtons({ todoId, panel, onToggle, aiDisabled, canReply
       <button
         type="button"
         className={`${ICON_BTN} relative ${panel === "note" ? "bg-zinc-100 text-indigo-600 dark:bg-zinc-800 dark:text-indigo-400" : ""}`}
-        title={drafts.note ? `Note draft: ${drafts.note.slice(0, 120)}` : "Add a note — context for the briefing, workers and agents"}
-        aria-label="Add a note"
+        title={drafts.note ? t("Note draft: {text}", { text: drafts.note.slice(0, 120) }) : t("Add a note — context for the briefing, workers and agents")}
+        aria-label={t("Add a note")}
         aria-expanded={panel === "note"}
         onClick={() => onToggle(panel === "note" ? null : "note")}
       >
@@ -32,8 +35,8 @@ export function TodoQuickButtons({ todoId, panel, onToggle, aiDisabled, canReply
       <button
         type="button"
         className={`${ICON_BTN} relative ${panel === "ai" ? "bg-zinc-100 text-indigo-600 dark:bg-zinc-800 dark:text-indigo-400" : ""}`}
-        title={aiDisabled ?? (drafts.ai ? `Instruction draft: ${drafts.ai.slice(0, 120)}` : "Instruction to Copilot — it works on this todo with it (Work tab)")}
-        aria-label="Instruction to Copilot"
+        title={aiDisabled ?? (drafts.ai ? t("Instruction draft: {text}", { text: drafts.ai.slice(0, 120) }) : t("Instruction to Copilot — it works on this todo with it (Work tab)"))}
+        aria-label={t("Instruction to Copilot")}
         aria-expanded={panel === "ai"}
         disabled={!!aiDisabled}
         onClick={() => onToggle(panel === "ai" ? null : "ai")}
@@ -45,8 +48,8 @@ export function TodoQuickButtons({ todoId, panel, onToggle, aiDisabled, canReply
         <button
           type="button"
           className={`${ICON_BTN} relative ${panel === "reply" ? "bg-zinc-100 text-indigo-600 dark:bg-zinc-800 dark:text-indigo-400" : ""}`}
-          title={drafts.reply ? `Reply draft: ${drafts.reply.slice(0, 120)}` : "Draft a reply — the AI writes it from the history, you send it"}
-          aria-label="Draft a reply"
+          title={drafts.reply ? t("Reply draft: {text}", { text: drafts.reply.slice(0, 120) }) : t("Draft a reply — the AI writes it from the history, you send it")}
+          aria-label={t("Draft a reply")}
           aria-expanded={panel === "reply"}
           onClick={() => onToggle(panel === "reply" ? null : "reply")}
         >
@@ -60,7 +63,7 @@ export function TodoQuickButtons({ todoId, panel, onToggle, aiDisabled, canReply
       {/* Not sent yet: said beside them (a click opens it). */}
       {!panel && (drafts.ai || drafts.note) && (
         <button type="button" className="ml-1 text-[11px] font-medium text-amber-700 hover:underline dark:text-amber-400" onClick={() => onToggle(drafts.ai ? "ai" : "note")} title={(drafts.ai || drafts.note).slice(0, 200)}>
-          {drafts.ai ? "Instruction" : "Note"} draft
+          {drafts.ai ? t("Instruction draft") : t("Note draft")}
         </button>
       )}
     </span>
@@ -69,6 +72,7 @@ export function TodoQuickButtons({ todoId, panel, onToggle, aiDisabled, canReply
 
 /** The text field the buttons open: a note saved to the todo, or an instruction Copilot carries out. */
 export function TodoQuickPanel({ todoId, todoRef, panel, onClose }: { todoId: number; todoRef: string; panel: QuickPanel; onClose: () => void }) {
+  const t = useT();
   const drafts = useTodoDrafts(todoId);
   const [pending, start] = useTransition();
   if (!panel) return null;
@@ -81,20 +85,20 @@ export function TodoQuickPanel({ todoId, todoRef, panel, onClose }: { todoId: nu
     start(async () => {
       const r = ai ? await instructTodoAction(todoId, text) : await addTodoNoteAction(todoId, text);
       if (!r?.ok) {
-        toast(r?.error ?? "Didn't work.", { tone: "error" });
+        toast(r?.error ?? t("Didn't work."), { tone: "error" });
         return;
       }
-      if (ai) toast(r.message ?? `Copilot is working on ${todoRef}.`);
+      if (ai) toast(r.message ?? t("Copilot is working on {ref}.", { ref: todoRef }));
       saveDraft(todoId, panel, "");
       onClose();
     });
   };
   // What the AI can do with a todo, as one click (actions now) or a ready instruction to edit.
   const SHORTCUTS: { label: string; title: string; text?: string }[] = [
-    { label: "Suggest actions", title: "The AI now makes ready-made actions for this todo (message, comment, mail, meeting…)" },
-    { label: "Draft a reply", title: "Instruction: draft the reply or message it is about", text: `Entwirf die Antwort oder Nachricht, um die es in ${todoRef} geht — fertig formuliert, als followUp mit Entwurf (channel, target) und ggf. als Operation. Nichts senden.` },
-    { label: "Summarize", title: "Instruction: where it stands and the next step", text: `Fass zusammen, worum es in ${todoRef} geht: was der Stand ist, wer was zuletzt gesagt hat, was offen ist und was der nächste Schritt wäre. Nichts ändern.` },
-    { label: "Research", title: "Instruction: look in the repo and the context and report", text: `Sieh im Repo und im Kontext nach, was für ${todoRef} wichtig ist (betroffene Stellen, Ursachen, offene Fragen), und berichte. Nichts ändern.` },
+    { label: t("Suggest actions"), title: t("The AI now makes ready-made actions for this todo (message, comment, mail, meeting…)") },
+    { label: t("Draft a reply"), title: t("Instruction: draft the reply or message it is about"), text: `Entwirf die Antwort oder Nachricht, um die es in ${todoRef} geht — fertig formuliert, als followUp mit Entwurf (channel, target) und ggf. als Operation. Nichts senden.` },
+    { label: t("Summarize"), title: t("Instruction: where it stands and the next step"), text: `Fass zusammen, worum es in ${todoRef} geht: was der Stand ist, wer was zuletzt gesagt hat, was offen ist und was der nächste Schritt wäre. Nichts ändern.` },
+    { label: t("Research"), title: t("Instruction: look in the repo and the context and report"), text: `Sieh im Repo und im Kontext nach, was für ${todoRef} wichtig ist (betroffene Stellen, Ursachen, offene Fragen), und berichte. Nichts ändern.` },
   ];
   return (
     <div className="mt-1.5 space-y-1.5 rounded-md border border-zinc-200 p-2 dark:border-zinc-700">
@@ -112,7 +116,7 @@ export function TodoQuickPanel({ todoId, todoRef, panel, onClose }: { todoId: nu
                   ? setText(sc.text)
                   : start(async () => {
                       const r = await suggestTodoActionsAction(todoId);
-                      toast(r?.ok ? (r.message ?? "Done.") : (r?.error ?? "Didn't work."), { tone: r?.ok ? "ok" : "error" });
+                      toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" });
                       if (r?.ok) onClose();
                     })
               }
@@ -126,7 +130,7 @@ export function TodoQuickPanel({ todoId, todoRef, panel, onClose }: { todoId: nu
         autoFocus
         rows={ai ? 3 : 2}
         className="input w-full resize-y text-sm"
-        placeholder={ai ? `What should Copilot do on ${todoRef}? (e.g. “Check whether this is already done on the branch”)` : `Note on ${todoRef} — what you know, what applies, what's already settled…`}
+        placeholder={ai ? t("What should Copilot do on {ref}? (e.g. “Check whether this is already done on the branch”)", { ref: todoRef }) : t("Note on {ref} — what you know, what applies, what's already settled…", { ref: todoRef })}
         value={text}
         disabled={pending}
         onChange={(e) => setText(e.target.value)}
@@ -139,20 +143,20 @@ export function TodoQuickPanel({ todoId, todoRef, panel, onClose }: { todoId: nu
       />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs text-zinc-400">
-          {ai ? "Copilot CLI gets the todo with all its context; the result shows on the Work tab." : "Goes as context to the briefing, workers and agents."} Ctrl+Enter
-          {text.trim() && " · draft saved"}
+          {ai ? t("Copilot CLI gets the todo with all its context; the result shows on the Work tab.") : t("Goes as context to the briefing, workers and agents.")} Ctrl+Enter
+          {text.trim() && ` · ${t("draft saved")}`}
         </span>
         <span className="flex gap-1.5">
           {text.trim() && (
-            <button type="button" className="btn btn-sm" onClick={() => saveDraft(todoId, panel, "")} disabled={pending} title="Delete the draft">
-              Discard
+            <button type="button" className="btn btn-sm" onClick={() => saveDraft(todoId, panel, "")} disabled={pending} title={t("Delete the draft")}>
+              {t("Discard")}
             </button>
           )}
-          <button type="button" className="btn btn-sm" onClick={onClose} disabled={pending} title="Close — the draft stays">
-            Close
+          <button type="button" className="btn btn-sm" onClick={onClose} disabled={pending} title={t("Close — the draft stays")}>
+            {t("Close")}
           </button>
           <button type="button" className="btn btn-sm btn-primary" onClick={submit} disabled={pending || !text.trim()}>
-            {pending ? "…" : ai ? "To Copilot" : "Save note"}
+            {pending ? "…" : ai ? t("To Copilot") : t("Save note")}
           </button>
         </span>
       </div>
@@ -160,7 +164,7 @@ export function TodoQuickPanel({ todoId, todoRef, panel, onClose }: { todoId: nu
   );
 }
 
-const CHANNEL_LABELS: Record<ReplyTarget["channel"], string> = { whatsapp: "WhatsApp", mail: "Mail", teams: "Teams" };
+const channelLabels = (t: T): Record<ReplyTarget["channel"], string> => ({ whatsapp: "WhatsApp", mail: t("Mail"), teams: "Teams" });
 
 /**
  * A reply to the message the todo is about: drafted by the AI from the conversation (when there's
@@ -168,6 +172,8 @@ const CHANNEL_LABELS: Record<ReplyTarget["channel"], string> = { whatsapp: "What
  * (WhatsApp, Gmail, Outlook or Teams brought up in the automation Chrome).
  */
 function ReplyPanel({ todoId, onClose }: { todoId: number; onClose: () => void }) {
+  const t = useT();
+  const CHANNEL_LABELS = channelLabels(t);
   const drafts = useTodoDrafts(todoId);
   const [target, setTarget] = useState<ReplyTarget | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -194,13 +200,13 @@ function ReplyPanel({ todoId, onClose }: { todoId: number; onClose: () => void }
   const text = drafts.reply;
   return (
     <div className="mt-1.5 space-y-1.5 rounded-md border border-zinc-200 p-2 dark:border-zinc-700">
-      {pending && !text && <p className="text-sm text-zinc-500">The AI is drafting the reply from the history…</p>}
+      {pending && !text && <p className="text-sm text-zinc-500">{t("The AI is drafting the reply from the history…")}</p>}
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       {(text || !pending) && (
         <textarea
           rows={Math.min(10, Math.max(3, text.split("\n").length + 1))}
           className="input w-full resize-y text-sm"
-          placeholder="The reply…"
+          placeholder={t("The reply…")}
           value={text}
           disabled={pending}
           onChange={(e) => saveDraft(todoId, "reply", e.target.value)}
@@ -208,10 +214,10 @@ function ReplyPanel({ todoId, onClose }: { todoId: number; onClose: () => void }
         />
       )}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs text-zinc-400">{target ? `To ${target.to} · ${CHANNEL_LABELS[target.channel]}` : "Nothing is sent — you copy it and send it."}</span>
+        <span className="text-xs text-zinc-400">{target ? t("To {to} · {channel}", { to: target.to, channel: CHANNEL_LABELS[target.channel] }) : t("Nothing is sent — you copy it and send it.")}</span>
         <span className="flex flex-wrap gap-1.5">
-          <button type="button" className="btn btn-sm" onClick={draft} disabled={pending} title="Draft again (the current text is replaced)">
-            {pending ? "…" : "Redraft"}
+          <button type="button" className="btn btn-sm" onClick={draft} disabled={pending} title={t("Draft again (the current text is replaced)")}>
+            {pending ? "…" : t("Redraft")}
           </button>
           {target && (
             <button
@@ -221,12 +227,12 @@ function ReplyPanel({ todoId, onClose }: { todoId: number; onClose: () => void }
               onClick={() =>
                 start(async () => {
                   const r = await openReplyTargetAction(target.openUrl);
-                  toast(r?.ok ? (r.message ?? "Opened.") : (r?.error ?? "Didn't work."), { tone: r?.ok ? "ok" : "error" });
+                  toast(r?.ok ? (r.message ?? t("Opened.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" });
                 })
               }
-              title={`Bring ${CHANNEL_LABELS[target.channel]} to the front in the automation Chrome`}
+              title={t("Bring {channel} to the front in the automation Chrome", { channel: CHANNEL_LABELS[target.channel] })}
             >
-              Open {CHANNEL_LABELS[target.channel]}
+              {t("Open {channel}", { channel: CHANNEL_LABELS[target.channel] })}
             </button>
           )}
           <button
@@ -235,15 +241,15 @@ function ReplyPanel({ todoId, onClose }: { todoId: number; onClose: () => void }
             disabled={!text.trim()}
             onClick={() =>
               navigator.clipboard.writeText(text).then(
-                () => toast("Copied — paste it and send it."),
-                () => toast("Copying didn't work.", { tone: "error" }),
+                () => toast(t("Copied — paste it and send it.")),
+                () => toast(t("Copying didn't work."), { tone: "error" }),
               )
             }
           >
-            Copy
+            {t("Copy")}
           </button>
           <button type="button" className="btn btn-sm" onClick={onClose}>
-            Close
+            {t("Close")}
           </button>
         </span>
       </div>

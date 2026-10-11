@@ -6,6 +6,7 @@
  * validation of what an AI proposes, the runner. Client-safe.
  */
 import type { TodoOp } from "@/lib/boards/shared";
+import { translator, type T as Translate } from "@/lib/i18n/shared";
 import type { PluginId } from "../catalog";
 
 export type ActionType = TodoOp["type"];
@@ -21,7 +22,10 @@ export type ActionSpec<T extends ActionType = ActionType> = {
   type: T;
   /** The plugin that contributes it (null: Zeff's own). */
   plugin: PluginId | null;
-  /** Its name ("Teams-Nachricht senden") and its button's verb ("Send"). */
+  /**
+   * Its name ("Send Teams message") and its button's verb ("Send") — English, as the AI's
+   * dictionary has them; shown translated with catalogText() (they're listed in catalog-text.ts).
+   */
   label: string;
   verb: string;
   /**
@@ -31,9 +35,9 @@ export type ActionSpec<T extends ActionType = ActionType> = {
   offer?: { when: string; fields: Record<string, string>; example: Record<string, string> };
   /** Its parts as an AI may hand them over, cleaned — null: incomplete, dropped. */
   clean: (o: Record<string, unknown>, ctx: CleanContext) => OpOf<T> | null;
-  /** In a few words ("PROJ-415 → Testing"). */
-  title: (op: OpOf<T>) => string;
-  note: (op: OpOf<T>) => ActionNote;
+  /** In a few words ("PROJ-415 → Testing") — in the language of `t` (English without). */
+  title: (op: OpOf<T>, t?: Translate) => string;
+  note: (op: OpOf<T>, t?: Translate) => ActionNote;
   /**
    * Runs in your browser instead: a pre-filled window (a mail draft, an appointment) you finish
    * and send yourself — its address.
@@ -49,6 +53,9 @@ export type ActionSpec<T extends ActionType = ActionType> = {
 export const str = (v: unknown) => (typeof v === "string" ? v.trim() : typeof v === "number" ? String(v) : "");
 export const ticketKey = (v: unknown, fallback: string) => (/^[A-Z][A-Z0-9]+-\d+$/i.test(str(v)) ? str(v).toUpperCase() : fallback);
 export const noteId = (v: unknown) => /(?:gitlab:)?(note:\d+)/.exec(str(v))?.[1] ?? "";
+
+/** English: what title() and note() write when they're given no translator. */
+export const EN: Translate = translator("en");
 
 /** An action spec, typed by its own operation. */
 export const action = <T extends ActionType>(spec: ActionSpec<T>) => spec;

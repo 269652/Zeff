@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { getJobNumberForTicket, createEntry, deleteEntry, updateEntry, requireEntry, applyReportRuleTagsToEntries, reapplyMeetingJobRules, applyTypeRulesToEntries } from "@/lib/entries";
 import { errorMessage } from "@/lib/errors";
 import { formatDate, formatHours } from "@/lib/format";
+import { t } from "@/lib/i18n/server";
 import { setPauses } from "@/lib/pauses";
 import { setDefaultTags } from "@/lib/default-tags";
 import { createJob, updateJob, deleteJob } from "@/lib/jobs";
@@ -27,13 +28,13 @@ import { syncWhatsappAction } from "@/plugins/whatsapp/server-actions";
 export async function createEntryAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   try {
     const hours = num(fd, "hours");
-    if (hours === undefined) return { ok: false, error: "Hours is required (e.g. 1.5)." };
+    if (hours === undefined) return { ok: false, error: t("Hours is required (e.g. 1.5).") };
     const ticket = str(fd, "ticket");
     const bookOn = parseBookOn(str(fd, "bookOn") ?? str(fd, "jobNumber"));
     // Reuse the job a ticket was last booked on when none was chosen.
     const ticketJob = !bookOn && ticket ? getJobNumberForTicket(ticket) : undefined;
     const target = bookOn ?? (ticketJob ? { jobNumber: ticketJob } : undefined);
-    if (!target) return { ok: false, error: "Pick a job or a project to book on." };
+    if (!target) return { ok: false, error: t("Pick a job or a project to book on.") };
     // "+ Add context": checked before booking, so a bad link or ticket doesn't leave the entry half-saved.
     const context = entryContextOf(fd);
     const contexts = context ? await import("@/lib/contexts") : null;
@@ -41,7 +42,7 @@ export async function createEntryAction(_prev: ActionState, fd: FormData): Promi
       try {
         contexts.validateContextInput(context.input, { hasFiles: context.files.length + context.pasted.length > 0 });
       } catch (err) {
-        return { ok: false, error: `Context: ${errorMessage(err)}` };
+        return { ok: false, error: t("Context: {error}", { error: errorMessage(err) }) };
       }
     }
     const entry = createEntry(
@@ -67,12 +68,16 @@ export async function createEntryAction(_prev: ActionState, fd: FormData): Promi
       }
     }
     revalidateAll();
-    const withContext = context ? " — with its context" : "";
+    const v = { hours: formatHours(entry.hours), project: entry.project?.title, job: entry.job.name, number: entry.job.number, date: entry.date };
     return {
       ok: true,
       message: entry.project
-        ? `Booked ${formatHours(entry.hours)}h on ${entry.project.title} (${entry.job.name}) for ${entry.date}${withContext}.`
-        : `Booked ${formatHours(entry.hours)}h on ${entry.job.number} for ${entry.date}${withContext}.`,
+        ? context
+          ? t("Booked {hours}h on {project} ({job}) for {date} — with its context.", v)
+          : t("Booked {hours}h on {project} ({job}) for {date}.", v)
+        : context
+          ? t("Booked {hours}h on {number} for {date} — with its context.", v)
+          : t("Booked {hours}h on {number} for {date}.", v),
     };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
@@ -87,7 +92,7 @@ export async function updateEntryAction(
   let date: string;
   try {
     const hours = num(fd, "hours");
-    if (hours === undefined) return { ok: false, error: "Hours is required (e.g. 1.5)." };
+    if (hours === undefined) return { ok: false, error: t("Hours is required (e.g. 1.5).") };
     const bookOn = parseBookOn(str(fd, "bookOn") ?? str(fd, "jobNumber"));
     const entry = updateEntry(id, {
       ...(bookOn && ("projectId" in bookOn ? bookOn : { jobNumber: bookOn.jobNumber, projectId: null })),
@@ -110,10 +115,10 @@ export async function updateEntryAction(
 /** Inline edit from the entries table: change just the hours of one entry. */
 export async function updateEntryHoursAction(id: number, hours: number): Promise<ActionState> {
   try {
-    if (!Number.isFinite(hours)) return { ok: false, error: "Enter hours as a number, e.g. 1.5." };
+    if (!Number.isFinite(hours)) return { ok: false, error: t("Enter hours as a number, e.g. 1.5.") };
     const entry = updateEntry(id, { hours });
     revalidateAll();
-    return { ok: true, message: `${formatHours(entry.hours)} h` };
+    return { ok: true, message: t("{hours} h", { hours: formatHours(entry.hours) }) };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -137,10 +142,10 @@ export async function deleteEntryAction(fd: FormData): Promise<void> {
 /** Default tags of a ticket (Jira tab): added to every entry booked on it. */
 export async function setTicketTagsAction(ticket: string, tags: string[]): Promise<ActionState> {
   try {
-    if (!ticket.trim()) return { ok: false, error: "Missing ticket." };
+    if (!ticket.trim()) return { ok: false, error: t("Missing ticket.") };
     const saved = setDefaultTags({ ticket }, tags);
     revalidateAll();
-    return { ok: true, message: saved.length ? saved.map((t) => `#${t}`).join(" ") : "No default tags." };
+    return { ok: true, message: saved.length ? saved.map((tag) => `#${tag}`).join(" ") : t("No default tags.") };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -151,9 +156,13 @@ export async function setPausesAction(dates: string[], text: string, defaultStar
   try {
     const saved = setPauses(dates, text, defaultStart);
     revalidateAll();
-    const days = dates.length === 1 ? "" : ` on ${dates.length} days`;
-    const what = saved.none ? "Marked as no break" : saved.pauses.length ? "Saved the break" : "Removed the break";
-    return { ok: true, message: `${what}${days}.` };
+    const n = dates.length;
+    const message = saved.none
+      ? n === 1 ? t("Marked as no break.") : t("Marked as no break on {n} days.", { n })
+      : saved.pauses.length
+        ? n === 1 ? t("Saved the break.") : t("Saved the break on {n} days.", { n })
+        : n === 1 ? t("Removed the break.") : t("Removed the break on {n} days.", { n });
+    return { ok: true, message };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -163,8 +172,8 @@ export async function setPausesAction(dates: string[], text: string, defaultStar
 export async function copyEntryAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const id = int(fd, "id");
   const date = str(fd, "date")?.trim();
-  if (id === undefined) return { ok: false, error: "Missing entry to copy." };
-  if (!date) return { ok: false, error: "Pick a day to copy to." };
+  if (id === undefined) return { ok: false, error: t("Missing entry to copy.") };
+  if (!date) return { ok: false, error: t("Pick a day to copy to.") };
   try {
     const src = requireEntry(id);
     createEntry(
@@ -176,13 +185,13 @@ export async function copyEntryAction(_prev: ActionState, fd: FormData): Promise
         ticket: src.ticket ?? undefined,
         type: src.type,
         reportedBy: src.reportedBy,
-        tags: src.tags.map((t) => t.name),
+        tags: src.tags.map((tag) => tag.name),
       },
       "web",
       { defaultTags: false }, // a copy keeps the original's tags
     );
     revalidateAll();
-    return { ok: true, message: `Copied ${formatHours(src.hours)} h to ${date}.` };
+    return { ok: true, message: t("Copied {hours} h to {date}.", { hours: formatHours(src.hours), date }) };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -202,7 +211,7 @@ export async function createJobAction(_prev: ActionState, fd: FormData): Promise
     });
     setDefaultTags({ job: job.id }, tagsFrom(fd, "defaultTags"));
     revalidateAll();
-    return { ok: true, message: `Created job ${job.number} — ${job.name}.` };
+    return { ok: true, message: t("Created job {number} — {name}.", { number: job.number, name: job.name }) };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -223,7 +232,7 @@ export async function updateJobAction(
     });
     setDefaultTags({ job: job.id }, tagsFrom(fd, "defaultTags"));
     revalidateAll();
-    return { ok: true, message: `Saved job ${job.number}.` };
+    return { ok: true, message: t("Saved job {number}.", { number: job.number }) };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -242,7 +251,7 @@ export async function toggleJobActiveAction(fd: FormData): Promise<void> {
 
 export async function deleteJobAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const id = int(fd, "id");
-  if (id === undefined) return { ok: false, error: "Missing job id." };
+  if (id === undefined) return { ok: false, error: t("Missing job id.") };
   try {
     deleteJob(id);
     revalidateAll();
@@ -274,7 +283,9 @@ export async function createProjectAction(_prev: ActionState, fd: FormData): Pro
     revalidateAll();
     return {
       ok: true,
-      message: `Created project ${project.title}${project.job ? ` on ${project.job.number}` : " (no job yet)"}.`,
+      message: project.job
+        ? t("Created project {title} on {job}.", { title: project.title, job: project.job.number })
+        : t("Created project {title} (no job yet).", { title: project.title }),
     };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
@@ -290,12 +301,12 @@ export async function updateProjectAction(
     const { project, moved } = updateProject(id, { ...projectFields(fd), active: fd.get("active") === "on" });
     setDefaultTags({ project: project.id }, tagsFrom(fd, "defaultTags"));
     revalidateAll();
-    const where = project.job ? `${project.job.number} — ${project.job.name}` : "No job yet";
+    const where = project.job ? `${project.job.number} — ${project.job.name}` : t("No job yet");
     return {
       ok: true,
       message:
-        `Saved project ${project.title}.` +
-        (moved ? ` Moved ${moved} ${moved === 1 ? "entry" : "entries"} to ${where}.` : ""),
+        t("Saved project {title}.", { title: project.title }) +
+        (moved ? ` ${moved === 1 ? t("Moved 1 entry to {where}.", { where }) : t("Moved {n} entries to {where}.", { n: moved, where })}` : ""),
     };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
@@ -322,12 +333,15 @@ export async function bookProjectDaysAction(
     revalidateAll();
     const total = booked.reduce((a, b) => a + b.hours, 0);
     const skippedText = skipped.length
-      ? ` Skipped ${skipped.map((s) => `${s.date} (${s.reason})`).join(", ")}.`
+      ? ` ${t("Skipped {days}.", { days: skipped.map((s) => `${s.date} (${s.reason})`).join(", ") })}`
       : "";
-    if (booked.length === 0) return { ok: false, error: `Nothing to book.${skippedText}` };
+    if (booked.length === 0) return { ok: false, error: `${t("Nothing to book.")}${skippedText}` };
     return {
       ok: true,
-      message: `Booked ${formatHours(total)} h on ${booked.length} ${booked.length === 1 ? "day" : "days"}.${skippedText}`,
+      message:
+        (booked.length === 1
+          ? t("Booked {hours} h on 1 day.", { hours: formatHours(total) })
+          : t("Booked {hours} h on {n} days.", { hours: formatHours(total), n: booked.length })) + skippedText,
     };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
@@ -347,7 +361,7 @@ export async function toggleProjectActiveAction(fd: FormData): Promise<void> {
 
 export async function deleteProjectAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const id = int(fd, "id");
-  if (id === undefined) return { ok: false, error: "Missing project id." };
+  if (id === undefined) return { ok: false, error: t("Missing project id.") };
   try {
     deleteProject(id);
     revalidateAll();
@@ -369,7 +383,7 @@ export async function saveScheduleAction(_prev: ActionState, fd: FormData): Prom
     ) as Record<(typeof WEEKDAY_KEYS)[number], number>;
     updateWorkSchedule(hours);
     revalidateAll();
-    return { ok: true, message: "Working hours saved." };
+    return { ok: true, message: t("Working hours saved.") };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -381,7 +395,7 @@ export async function saveDefaultPausesAction(_prev: ActionState, fd: FormData):
   try {
     const s = updateDefaultPauses(str(fd, "defaultPauses") ?? "", fd.get("timoDefaultPauses") === "on");
     revalidateAll();
-    return { ok: true, message: s.defaultPauses ? `Default break saved: ${s.defaultPauses}.` : "Default break removed." };
+    return { ok: true, message: s.defaultPauses ? t("Default break saved: {pauses}.", { pauses: s.defaultPauses }) : t("Default break removed.") };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -393,11 +407,11 @@ export async function saveFlexTimeAction(_prev: ActionState, fd: FormData): Prom
     const jobNumber = str(fd, "flexJobNumber") ?? null;
     const { getJobByNumber } = await import("@/lib/jobs");
     const job = jobNumber ? getJobByNumber(jobNumber) : undefined;
-    if (jobNumber && !job) return { ok: false, error: `There's no job ${jobNumber}.` };
+    if (jobNumber && !job) return { ok: false, error: t("There's no job {job}.", { job: jobNumber }) };
     const { getFlexTime, updateFlexTime } = await import("@/lib/schedule");
     const flex = getFlexTime(updateFlexTime({ jobNumber: job?.number ?? null, comment: str(fd, "flexComment") ?? "" }));
     revalidateAll();
-    return { ok: true, message: job ? `Flex time goes to ${job.number} as “${flex.comment}”.` : "Flex time is off." };
+    return { ok: true, message: job ? t("Flex time goes to {job} as “{comment}”.", { job: job.number, comment: flex.comment }) : t("Flex time is off.") };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -413,13 +427,18 @@ export async function bookFlexTimeAction(dates: string[]): Promise<ActionState> 
     const r = bookFlexTime(Array.isArray(dates) ? dates.map(String) : []);
     if (!r.booked.length) {
       const why = r.skipped.map((s) => `${s.label} ${s.reason}`).join(", ");
-      return { ok: false, error: `Nothing to book${why ? ` — ${why}` : ""}.` };
+      return { ok: false, error: why ? t("Nothing to book — {why}.", { why }) : t("Nothing to book.") };
     }
     revalidateAll();
     const hours = r.booked.reduce((a, b) => a + b.hours, 0);
     return {
       ok: true,
-      message: `Booked ${formatHours(hours)} h “${r.comment}” on ${r.jobNumber}: ${r.booked.map((b) => `${b.label} ${formatHours(b.hours)} h`).join(", ")}.`,
+      message: t("Booked {hours} h “{comment}” on {job}: {days}.", {
+        hours: formatHours(hours),
+        comment: r.comment,
+        job: r.jobNumber,
+        days: r.booked.map((b) => `${b.label} ${t("{hours} h", { hours: formatHours(b.hours) })}`).join(", "),
+      }),
     };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
@@ -435,7 +454,9 @@ export async function createAbsenceAction(_prev: ActionState, fd: FormData): Pro
     const hours = num(fd, "hours");
     const a = createAbsence({ startDate: start, endDate: end, type, hours: hours ?? null, note: str(fd, "note") ?? null });
     revalidateAll();
-    return { ok: true, message: `Added ${type} ${a.startDate}${a.endDate !== a.startDate ? `–${a.endDate}` : ""}.` };
+    const label = { vacation: t("vacation"), sick: t("sick"), holiday: t("holiday"), other: t("other") }[type] ?? type;
+    const dates = `${a.startDate}${a.endDate !== a.startDate ? `–${a.endDate}` : ""}`;
+    return { ok: true, message: t("Added {type} {dates}.", { type: label, dates }) };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -464,9 +485,9 @@ export async function deleteAbsenceAction(fd: FormData): Promise<void> {
 export async function createEntryTypeAction(label: string, color: string): Promise<ActionState> {
   try {
     const { createEntryType } = await import("@/lib/entry-types");
-    const t = createEntryType({ label, color });
+    const type = createEntryType({ label, color });
     revalidateAll();
-    return { ok: true, message: `Added type ${t.label}.` };
+    return { ok: true, message: t("Added type {label}.", { label: type.label }) };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -478,7 +499,7 @@ export async function saveEntryTypesAction(updates: { key: string; label: string
     const { updateEntryTypes } = await import("@/lib/entry-types");
     const n = updateEntryTypes(updates);
     revalidateAll();
-    return { ok: true, message: `Saved ${n} ${n === 1 ? "type" : "types"}.` };
+    return { ok: true, message: n === 1 ? t("Saved 1 type.") : t("Saved {n} types.", { n }) };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -489,7 +510,7 @@ export async function deleteEntryTypeAction(key: string): Promise<ActionState> {
     const { deleteEntryType } = await import("@/lib/entry-types");
     deleteEntryType(key);
     revalidateAll();
-    return { ok: true, message: "Type deleted." };
+    return { ok: true, message: t("Type deleted.") };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -500,7 +521,7 @@ export async function createTagAction(_prev: ActionState, fd: FormData): Promise
   try {
     const tag = createTag(str(fd, "name") ?? "", str(fd, "color"));
     revalidateAll();
-    return { ok: true, message: `Added tag #${tag.name}.` };
+    return { ok: true, message: t("Added tag #{name}.", { name: tag.name }) };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -508,12 +529,12 @@ export async function createTagAction(_prev: ActionState, fd: FormData): Promise
 
 export async function renameTagAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const id = int(fd, "id");
-  if (id === undefined) return { ok: false, error: "Missing tag id." };
+  if (id === undefined) return { ok: false, error: t("Missing tag id.") };
   const { renameTag } = await import("@/lib/tags");
   try {
     const tag = renameTag(id, str(fd, "name") ?? "", str(fd, "color") ?? null);
     revalidateAll();
-    return { ok: true, message: `Saved #${tag.name}.` };
+    return { ok: true, message: t("Saved #{name}.", { name: tag.name }) };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -546,7 +567,12 @@ export async function saveReportSettingsAction(_prev: ActionState, fd: FormData)
     revalidateAll();
     return {
       ok: true,
-      message: tagged === null ? "Report rules saved." : `Report rules saved; tagged ${tagged} existing entr${tagged === 1 ? "y" : "ies"}.`,
+      message:
+        tagged === null
+          ? t("Report rules saved.")
+          : tagged === 1
+            ? t("Report rules saved; tagged 1 existing entry.")
+            : t("Report rules saved; tagged {n} existing entries.", { n: tagged }),
     };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
@@ -560,14 +586,17 @@ export async function saveMeetingJobRulesAction(_prev: ActionState, fd: FormData
     const rules = parseMeetingJobRules(str(fd, "meetingJobRules") ?? null);
     const defaultJob = str(fd, "meetingDefaultJob") ?? null;
     if (defaultJob && !listJobs({ includeInactive: true }).some((j) => j.number === defaultJob)) {
-      return { ok: false, error: `Unknown job ${defaultJob}.` };
+      return { ok: false, error: t("Unknown job {job}.", { job: defaultJob }) };
     }
     updateReportSettings({ meetingJobRules: rules, meetingDefaultJob: defaultJob });
     // "Save & reapply" (apply=1): also re-book already imported meetings that match a rule.
     const moves = fd.get("apply") === "1" ? reapplyMeetingJobRules(rules) : null;
     revalidateAll();
-    const saved = `Saved ${rules.length} meeting rule${rules.length === 1 ? "" : "s"}`;
-    if (moves === null) return { ok: true, message: `${saved}.` };
+    if (moves === null) {
+      return { ok: true, message: rules.length === 1 ? t("Saved 1 meeting rule.") : t("Saved {n} meeting rules.", { n: rules.length }) };
+    }
+    const saved = rules.length === 1 ? t("Saved 1 meeting rule") : t("Saved {n} meeting rules", { n: rules.length });
+    const moved = moves.length === 1 ? t("moved 1 imported meeting") : t("moved {n} imported meetings", { n: moves.length });
     const shown = moves
       .slice(0, 5)
       .map((m) => `${formatDate(m.date, { weekday: false })} “${m.description}” → ${m.to}`)
@@ -575,7 +604,7 @@ export async function saveMeetingJobRulesAction(_prev: ActionState, fd: FormData
     return {
       ok: true,
       message:
-        `${saved}; moved ${moves.length} imported meeting${moves.length === 1 ? "" : "s"}` +
+        `${saved}; ${moved}` +
         (moves.length ? `: ${shown}${moves.length > 5 ? "; …" : ""}.` : "."),
     };
   } catch (err) {
@@ -594,13 +623,13 @@ export async function setMeetingExcludedAction(
 ): Promise<{ ok: boolean; error?: string; rules?: string[] }> {
   const { getMeetingExcludeRules, getReportSettings, updateReportSettings } = await import("@/lib/report");
   const { isExcludedMeeting } = await import("@/lib/calendar/meetings");
-  const t = (title ?? "").trim();
-  if (!t) return { ok: false, error: "The meeting has no title." };
+  const name = (title ?? "").trim();
+  if (!name) return { ok: false, error: t("The meeting has no title.") };
   try {
     const rules = getMeetingExcludeRules(getReportSettings());
     const next = exclude
-      ? isExcludedMeeting(t, rules) ? rules : [...rules, t]
-      : rules.filter((r) => !isExcludedMeeting(t, [r]));
+      ? isExcludedMeeting(name, rules) ? rules : [...rules, name]
+      : rules.filter((r) => !isExcludedMeeting(name, [r]));
     updateReportSettings({ meetingExcludeRules: next });
     revalidateAll();
     return { ok: true, rules: next };
@@ -618,15 +647,15 @@ export async function saveTypeRulesAction(_prev: ActionState, fd: FormData): Pro
     const rules = parseTypeRules(str(fd, "typeRules") ?? null);
     const known = new Set(listJobs({ includeInactive: true }).map((j) => j.number));
     const unknown = rules.find((r) => r.jobNumber && !known.has(r.jobNumber));
-    if (unknown) return { ok: false, error: `Unknown job ${unknown.jobNumber}.` };
+    if (unknown) return { ok: false, error: t("Unknown job {job}.", { job: unknown.jobNumber }) };
     updateReportSettings({ typeRules: rules });
     const applied = fd.get("apply") === "1" ? applyTypeRulesToEntries() : null;
     revalidateAll();
-    const saved = `Saved ${rules.length} type rule${rules.length === 1 ? "" : "s"}`;
-    return {
-      ok: true,
-      message: applied === null ? `${saved}.` : `${saved}; re-typed ${applied} existing entr${applied === 1 ? "y" : "ies"}.`,
-    };
+    const n = rules.length;
+    if (applied === null) return { ok: true, message: n === 1 ? t("Saved 1 type rule.") : t("Saved {n} type rules.", { n }) };
+    const saved = n === 1 ? t("Saved 1 type rule") : t("Saved {n} type rules", { n });
+    const retyped = applied === 1 ? t("re-typed 1 existing entry.") : t("re-typed {n} existing entries.", { n: applied });
+    return { ok: true, message: `${saved}; ${retyped}` };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -638,7 +667,7 @@ export async function saveMeetingExcludeRulesAction(_prev: ActionState, fd: Form
     const rules = parseMeetingExcludeRules(str(fd, "meetingExcludeRules") ?? null);
     updateReportSettings({ meetingExcludeRules: rules });
     revalidateAll();
-    return { ok: true, message: `Saved ${rules.length} exclude rule${rules.length === 1 ? "" : "s"}.` };
+    return { ok: true, message: rules.length === 1 ? t("Saved 1 exclude rule.") : t("Saved {n} exclude rules.", { n: rules.length }) };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -648,7 +677,7 @@ export async function saveMeetingExcludeRulesAction(_prev: ActionState, fd: Form
 export async function openServiceLoginAction(service: string): Promise<ActionState> {
   try {
     const { openServiceLogin, SERVICE_LABELS } = await import("@/lib/attention");
-    if (!(service in SERVICE_LABELS)) return { ok: false, error: "Unknown service." };
+    if (!(service in SERVICE_LABELS)) return { ok: false, error: t("Unknown service.") };
     const r = await openServiceLogin(service as keyof typeof SERVICE_LABELS);
     return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
   } catch (err) {
@@ -669,14 +698,14 @@ export async function saveMenuAction(change: { href?: string; place?: string; hi
       // The section's entries last, in their new order (only their order among themselves counts).
       setMenuPrefs({ order: [...cur.order.filter((k) => !keys.includes(k)), ...keys] });
       revalidatePath("/", "layout");
-      return { ok: true, message: "Saved." };
+      return { ok: true, message: t("Saved.") };
     }
     const href = String(change?.href ?? "");
-    if (!href.startsWith("/")) return { ok: false, error: "Not a menu entry." };
+    if (!href.startsWith("/")) return { ok: false, error: t("Not a menu entry.") };
     if (change.place === "header" || change.place === "menu" || change.place === "hidden") setMenuPrefs({ place: { ...cur.place, [href]: change.place } });
     else if (typeof change.hidden === "boolean") setMenuPrefs({ hidden: change.hidden ? [...new Set([...cur.hidden, href])] : cur.hidden.filter((h) => h !== href) });
     revalidatePath("/", "layout");
-    return { ok: true, message: "Saved." };
+    return { ok: true, message: t("Saved.") };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -710,7 +739,7 @@ export async function skipSetupAction(): Promise<void> {
 export async function checkLoginAction(service: string): Promise<ActionState> {
   try {
     const { SERVICE_LABELS } = await import("@/lib/attention");
-    if (!(service in SERVICE_LABELS)) return { ok: false, error: "Unknown service." };
+    if (!(service in SERVICE_LABELS)) return { ok: false, error: t("Unknown service.") };
     const { checkLogin } = await import("@/lib/logins");
     const r = await checkLogin(service as keyof typeof SERVICE_LABELS);
     revalidatePath("/logins");
@@ -729,7 +758,7 @@ export async function checkAllLoginsAction(): Promise<ActionState> {
     const todo = logins.filter((l) => l.checkable);
     for (const l of todo) if ((await checkLogin(l.service)).state === "ok") ok++;
     revalidatePath("/logins");
-    return { ok: true, message: `${ok} of ${todo.length} signed in.` };
+    return { ok: true, message: t("{ok} of {n} signed in.", { ok, n: todo.length }) };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -747,14 +776,14 @@ export async function retryServiceAction(service: string): Promise<ActionState> 
       const { syncFromJira } = await import("@/lib/jira/sync");
       await syncFromJira();
       revalidateAll();
-      return { ok: true, message: "Jira works again." };
+      return { ok: true, message: t("Jira works again.") };
     }
     if (service === "roar" || service === "timo") {
       const msg = service === "roar" ? await callRoar("roar_status", {}) : await callTimo("timo_status", {});
       revalidateAll();
       return /not signed in/i.test(msg) ? { ok: false, error: msg } : { ok: true, message: msg };
     }
-    return { ok: false, error: "Unknown service." };
+    return { ok: false, error: t("Unknown service.") };
   } catch (err) {
     revalidateAll();
     return { ok: false, error: errorMessage(err) };
@@ -840,31 +869,31 @@ export async function syncMailAction(): Promise<ActionState> {
   const { syncAndWait } = await import("@/lib/sync/registry");
   const r = await syncAndWait("mail");
   revalidateAll();
-  return r.lastOk ? { ok: true, message: r.lastMessage ?? "" } : { ok: false, error: r.lastMessage ?? "Failed." };
+  return r.lastOk ? { ok: true, message: r.lastMessage ?? "" } : { ok: false, error: r.lastMessage ?? t("Failed.") };
 }
 
 /** Which Outlook folders the mail sync reads, by name as Outlook lists them ("Posteingang, Notifications"). */
 export async function saveMailFoldersAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const text = String(fd.get("folders") ?? "");
   const folders = [...new Set(text.split(",").map((f) => f.trim()).filter(Boolean))].slice(0, 12);
-  if (!folders.length) return { ok: false, error: "At least one folder (e.g. Posteingang)." };
+  if (!folders.length) return { ok: false, error: t("At least one folder (e.g. Posteingang).") };
   const { updateMailSettings } = await import("@/lib/mail/store");
   updateMailSettings({ folders });
   revalidateAll();
-  return { ok: true, message: `Reads: ${folders.join(", ")}.` };
+  return { ok: true, message: t("Reads: {folders}.", { folders: folders.join(", ") }) };
 }
 
 /** The Sync settings page: how often one sync runs by itself (an installed plugin's — its settings module sets it). */
 export async function saveSyncIntervalAction(key: string, minutes: number): Promise<ActionState> {
   const { findSyncInterval } = await import("@/plugins/sync-settings-modules");
   const i = findSyncInterval(String(key));
-  if (!i) return { ok: false, error: "There is no such sync (plugin not installed?)." };
+  if (!i) return { ok: false, error: t("There is no such sync (plugin not installed?).") };
   const m = Math.round(Number(minutes));
-  if (!Number.isFinite(m) || m < 0 || m > Math.max(...i.choices, i.get())) return { ok: false, error: "Not a valid interval." };
+  if (!Number.isFinite(m) || m < 0 || m > Math.max(...i.choices, i.get())) return { ok: false, error: t("Not a valid interval.") };
   i.set(m);
   revalidateAll();
   const { minutesText } = await import("@/plugins/sync-settings");
-  return { ok: true, message: minutesText(m) };
+  return { ok: true, message: minutesText(m, t) };
 }
 
 // ---------------------------------------------------------------------------
@@ -880,7 +909,7 @@ export async function syncOverviewAction(): Promise<import("@/lib/sync/shared").
 /** One step, started in the background (the menu follows it). */
 export async function runSyncAction(key: string): Promise<ActionState> {
   const { isSyncKey } = await import("@/lib/sync/shared");
-  if (!isSyncKey(key)) return { ok: false, error: "Unknown sync." };
+  if (!isSyncKey(key)) return { ok: false, error: t("Unknown sync.") };
   const { startSync } = await import("@/lib/sync/registry");
   const r = startSync(key);
   return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
@@ -889,13 +918,13 @@ export async function runSyncAction(key: string): Promise<ActionState> {
 /** Stop a sync that's running (Sync menu, a page's button) — and what it started. */
 export async function stopSyncAction(key: string): Promise<ActionState> {
   const { stopSync } = await import("@/lib/sync/registry");
-  return stopSync(String(key)) ? { ok: true, message: "Stopping." } : { ok: false, error: "Not running." };
+  return stopSync(String(key)) ? { ok: true, message: t("Stopping.") } : { ok: false, error: t("Not running.") };
 }
 
 /** Stop "Sync all" (the step it's on, and the rest). */
 export async function stopSyncAllAction(): Promise<ActionState> {
   const { stopSyncAll } = await import("@/lib/sync/registry");
-  return stopSyncAll() ? { ok: true, message: "Stopping." } : { ok: false, error: "Not running." };
+  return stopSyncAll() ? { ok: true, message: t("Stopping.") } : { ok: false, error: t("Not running.") };
 }
 
 /** "Sync all": every step one after the other, in the background. */
@@ -913,11 +942,11 @@ export async function addContextSourceAction(entryId: number, url: string, ticke
   try {
     const { resolveLinks } = await import("@/lib/context-links");
     const e = resolveLinks([String(url)])[String(url).trim()];
-    if (!e) return { ok: false, error: "That isn't a synced Teams message or GitLab item." };
+    if (!e) return { ok: false, error: t("That isn't a synced Teams message or GitLab item.") };
     const { addSource } = await import("@/lib/contexts");
     addSource(String(url), e, { entryId, ticket });
     revalidateAll();
-    return { ok: true, message: "Added." };
+    return { ok: true, message: t("Added.") };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -929,7 +958,7 @@ export async function createContextAction(entryId: number | null, _prev: ActionS
     const { createContext } = await import("@/lib/contexts");
     await createContext(contextInputOf(fd), contextFilesOf(fd), entryId ?? undefined, contextPastedOf(fd));
     revalidateAll();
-    return { ok: true, message: "Context added." };
+    return { ok: true, message: t("Context added.") };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -940,7 +969,7 @@ export async function updateContextAction(contextId: number, _prev: ActionState,
     const { updateContext } = await import("@/lib/contexts");
     await updateContext(contextId, contextInputOf(fd), contextFilesOf(fd), contextPastedOf(fd));
     revalidateAll();
-    return { ok: true, message: "Context saved." };
+    return { ok: true, message: t("Context saved.") };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -966,11 +995,11 @@ export async function deleteContextFileAction(fd: FormData): Promise<void> {
 export async function linkContextAction(entryId: number, _prev: ActionState, fd: FormData): Promise<ActionState> {
   try {
     const contextId = int(fd, "contextId");
-    if (contextId === undefined) return { ok: false, error: "Pick a context item to link." };
+    if (contextId === undefined) return { ok: false, error: t("Pick a context item to link.") };
     const { linkContext } = await import("@/lib/contexts");
     linkContext(entryId, contextId);
     revalidateAll();
-    return { ok: true, message: "Context linked." };
+    return { ok: true, message: t("Context linked.") };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -988,7 +1017,7 @@ export async function unlinkContextAction(fd: FormData): Promise<void> {
 /** An entry's context dragged into a new order (item ids, first to last). */
 export async function reorderEntryContextsAction(entryId: number, contextIds: number[]): Promise<ActionState> {
   try {
-    if (!Number.isInteger(entryId) || !Array.isArray(contextIds) || !contextIds.every(Number.isInteger)) return { ok: false, error: "Nothing to reorder." };
+    if (!Number.isInteger(entryId) || !Array.isArray(contextIds) || !contextIds.every(Number.isInteger)) return { ok: false, error: t("Nothing to reorder.") };
     const { reorderEntryContexts } = await import("@/lib/contexts");
     reorderEntryContexts(entryId, contextIds);
     revalidateAll();
@@ -1008,14 +1037,16 @@ export async function syncContextsToJiraAction(contextIds: number[]): Promise<Ac
     const r = await syncContextsToJira(contextIds);
     revalidateAll();
     const parts = [
-      r.posted.length && `${r.posted.length} posted`,
-      r.updated.length && `${r.updated.length} updated`,
-      r.unchanged.length && `${r.unchanged.length} already up to date`,
-      r.files.length && `${r.files.length} file${r.files.length === 1 ? "" : "s"} attached`,
-      r.skipped.length && `${r.skipped.length} without a ticket`,
+      r.posted.length && t("{n} posted", { n: r.posted.length }),
+      r.updated.length && t("{n} updated", { n: r.updated.length }),
+      r.unchanged.length && t("{n} already up to date", { n: r.unchanged.length }),
+      r.files.length && (r.files.length === 1 ? t("1 file attached") : t("{n} files attached", { n: r.files.length })),
+      r.skipped.length && t("{n} without a ticket", { n: r.skipped.length }),
     ].filter(Boolean);
-    const summary = parts.length ? `${parts.join(", ")}.` : "Nothing to sync.";
-    return r.errors.length ? { ok: false, error: `${summary} Failed: ${r.errors.join("; ")}` } : { ok: true, message: `Jira: ${summary}` };
+    const summary = parts.length ? `${parts.join(", ")}.` : t("Nothing to sync.");
+    return r.errors.length
+      ? { ok: false, error: t("{summary} Failed: {errors}", { summary, errors: r.errors.join("; ") }) }
+      : { ok: true, message: t("Jira: {summary}", { summary }) };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -1024,13 +1055,15 @@ export async function syncContextsToJiraAction(contextIds: number[]): Promise<Ac
 /** Feierabend: the day's lines booked as you took them over (meetings, suggestions, tickets). */
 export async function bookDayAction(date: string, rows: import("@/lib/feierabend").DayBooking[]): Promise<ActionState> {
   try {
-    if (!(await import("@/plugins/state")).isInstalled("zeiterfassung")) return { ok: false, error: "Time tracking is not installed (Menu → Plugins)." };
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) return { ok: false, error: "Not a day." };
+    if (!(await import("@/plugins/state")).isInstalled("zeiterfassung")) return { ok: false, error: t("Time tracking is not installed (Menu → Plugins).") };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) return { ok: false, error: t("Not a day.") };
     const { bookDay } = await import("@/lib/feierabend");
     const r = await bookDay(String(date), Array.isArray(rows) ? rows.slice(0, 60) : []);
     revalidateAll();
-    const said = `${r.booked} booked (${formatHours(r.hours)} h)${r.skipped ? `, ${r.skipped} already booked` : ""}`;
-    return r.errors.length ? { ok: false, error: `${said} — not booked: ${r.errors.join("; ")}` } : { ok: true, message: `${said}.` };
+    const said = r.skipped
+      ? t("{booked} booked ({hours} h), {skipped} already booked", { booked: r.booked, hours: formatHours(r.hours), skipped: r.skipped })
+      : t("{booked} booked ({hours} h)", { booked: r.booked, hours: formatHours(r.hours) });
+    return r.errors.length ? { ok: false, error: t("{said} — not booked: {errors}", { said, errors: r.errors.join("; ") }) } : { ok: true, message: `${said}.` };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -1060,7 +1093,12 @@ export async function acceptSuggestionAction(id: number, edits: { hours?: number
     const r = acceptSuggestion(Number(id), { hours: edits?.hours === undefined ? undefined : Number(edits.hours), description: edits?.description === undefined ? undefined : String(edits.description) }, { context: false });
     after(() => attachContextLater(r.entryId, r.ticket, r.todoIds));
     revalidateAll();
-    return { ok: true, message: `Booked ${formatHours(r.hours)} h${r.ticket ? ` on ${r.ticket}` : ""}.` };
+    return {
+      ok: true,
+      message: r.ticket
+        ? t("Booked {hours} h on {ticket}.", { hours: formatHours(r.hours), ticket: r.ticket })
+        : t("Booked {hours} h.", { hours: formatHours(r.hours) }),
+    };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -1072,7 +1110,7 @@ export async function skipSuggestionAction(id: number): Promise<ActionState> {
     const { skipSuggestion } = await import("@/lib/work/suggestions");
     skipSuggestion(Number(id));
     revalidateAll();
-    return { ok: true, message: "Suggestion dismissed." };
+    return { ok: true, message: t("Suggestion dismissed.") };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -1089,7 +1127,12 @@ export async function bookDoneTodayAction(v: { ticket: string; todoIds: number[]
       after(() => attachContextLater(entryId, String(v.ticket), r.todoIds));
     }
     revalidateAll();
-    return { ok: true, message: v.skip ? `${v.ticket}: not suggested any more.` : `Booked ${formatHours(r.hours)} h on ${v.ticket}.` };
+    return {
+      ok: true,
+      message: v.skip
+        ? t("{ticket}: not suggested any more.", { ticket: v.ticket })
+        : t("Booked {hours} h on {ticket}.", { hours: formatHours(r.hours), ticket: v.ticket }),
+    };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -1113,14 +1156,14 @@ export async function startSetupAction(id: string): Promise<ActionState> {
  * when cancelled. In front of the other windows; the server isn't held up while it's open.
  */
 export async function pickFolderAction(initial?: string): Promise<{ ok: boolean; path?: string | null; error?: string }> {
-  if (process.platform !== "win32") return { ok: false, error: "The folder dialog is only available on Windows — please type the path." };
+  if (process.platform !== "win32") return { ok: false, error: t("The folder dialog is only available on Windows — please type the path.") };
   const { execFile } = await import("node:child_process");
   const script = [
     "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
     "Add-Type -AssemblyName System.Windows.Forms",
     "$owner = New-Object System.Windows.Forms.Form -Property @{ TopMost = $true; ShowInTaskbar = $false; WindowState = 'Minimized' }",
     "$d = New-Object System.Windows.Forms.FolderBrowserDialog",
-    "$d.Description = 'Folder for Zeff backups'",
+    "$d.Description = $env:ZEFF_PICK_TITLE",
     "$d.ShowNewFolderButton = $true",
     "if ($env:ZEFF_PICK_INITIAL -and (Test-Path -LiteralPath $env:ZEFF_PICK_INITIAL)) { $d.SelectedPath = $env:ZEFF_PICK_INITIAL }",
     "if ($d.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.SelectedPath) }",
@@ -1129,8 +1172,8 @@ export async function pickFolderAction(initial?: string): Promise<{ ok: boolean;
     execFile(
       "powershell.exe",
       ["-NoProfile", "-STA", "-NonInteractive", "-Command", script],
-      { encoding: "utf8", timeout: 5 * 60000, windowsHide: true, env: { ...process.env, ZEFF_PICK_INITIAL: initial ?? "" } },
-      (err, out) => (err ? resolve({ ok: false, error: `The dialog didn't open: ${errorMessage(err)}` }) : resolve({ ok: true, path: String(out).trim() || null })),
+      { encoding: "utf8", timeout: 5 * 60000, windowsHide: true, env: { ...process.env, ZEFF_PICK_INITIAL: initial ?? "", ZEFF_PICK_TITLE: t("Folder for Zeff backups") } },
+      (err, out) => (err ? resolve({ ok: false, error: t("The dialog didn't open: {error}", { error: errorMessage(err) }) }) : resolve({ ok: true, path: String(out).trim() || null })),
     ),
   );
 }
@@ -1143,7 +1186,7 @@ export async function pickFolderAction(initial?: string): Promise<{ ok: boolean;
 export async function setPluginInstalledAction(id: string, installed: boolean): Promise<ActionState> {
   try {
     const { isPluginId, pluginById } = await import("@/plugins/catalog");
-    if (!isPluginId(id)) return { ok: false, error: "Unknown plugin." };
+    if (!isPluginId(id)) return { ok: false, error: t("Unknown plugin.") };
     const { dependents, setInstalled } = await import("@/plugins/state");
     // Uninstalled: what builds on it goes too (it stays set, and is back once this is).
     const along = installed ? [] : dependents(id);
@@ -1155,9 +1198,9 @@ export async function setPluginInstalledAction(id: string, installed: boolean): 
     return {
       ok: true,
       message:
-        `${pluginById(id).name} ${installed ? "installed" : "uninstalled"}.` +
-        (ids.length > 1 ? ` Installed along with it: ${names(ids.slice(1))}.` : "") +
-        (along.length ? ` Not available without it: ${names(along)}.` : ""),
+        (installed ? t("{name} installed.", { name: pluginById(id).name }) : t("{name} uninstalled.", { name: pluginById(id).name })) +
+        (ids.length > 1 ? ` ${t("Installed along with it: {names}.", { names: names(ids.slice(1)) })}` : "") +
+        (along.length ? ` ${t("Not available without it: {names}.", { names: names(along) })}` : ""),
     };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };

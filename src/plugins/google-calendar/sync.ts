@@ -6,6 +6,7 @@
 import { clearAttention, needsSignIn, raiseLogin } from "@/lib/attention";
 import { ensureCalendar, replaceEvents, type EventInput } from "@/lib/calendar/ir";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { getPref } from "@/lib/prefs";
 import { automationCdp, automationEnv, driverPath } from "@/plugins/drivers";
 
@@ -33,10 +34,10 @@ async function chromeUp(): Promise<boolean> {
 }
 
 export async function syncGoogleCalendar({ background = false } = {}): Promise<{ ok: boolean; message: string }> {
-  if (flag.__zeffGcalSyncing) return { ok: false, message: "A Google Calendar sync is already running." };
+  if (flag.__zeffGcalSyncing) return { ok: false, message: t("A Google Calendar sync is already running.") };
   flag.__zeffGcalSyncing = true;
   try {
-    if (background && !(await chromeUp())) return { ok: false, message: "The automation Chrome isn't running. Not synced." };
+    if (background && !(await chromeUp())) return { ok: false, message: t("The automation Chrome isn't running. Not synced.") };
     const s = googleCalendarSettings();
     const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
     const out = await runStdioSession(
@@ -45,7 +46,7 @@ export async function syncGoogleCalendar({ background = false } = {}): Promise<{
       300000,
     );
     const data = (typeof out === "string" ? (out.trim().startsWith("{") ? JSON.parse(out) : null) : out) as Read | null;
-    if (!data || !Array.isArray(data.calendars) || !Array.isArray(data.events)) throw new Error(typeof out === "string" ? out.replace(/^Error:\s*/, "").slice(0, 300) : "Google Calendar returned nothing readable.");
+    if (!data || !Array.isArray(data.calendars) || !Array.isArray(data.events)) throw new Error(typeof out === "string" ? out.replace(/^Error:\s*/, "").slice(0, 300) : t("Google Calendar returned nothing readable."));
     // The weeks read: from their Monday, so many weeks on.
     const to = new Date(`${data.from}T00:00:00`);
     to.setDate(to.getDate() + 7 * s.weeks);
@@ -62,7 +63,10 @@ export async function syncGoogleCalendar({ background = false } = {}): Promise<{
       );
     }
     clearAttention("login:gcalendar");
-    return { ok: true, message: `${events} events in ${data.calendars.length} calendars${data.unparsed ? ` · ${data.unparsed} unreadable` : ""}` };
+    return {
+      ok: true,
+      message: `${t("{events} events in {calendars} calendars", { events, calendars: data.calendars.length })}${data.unparsed ? ` · ${t("{n} unreadable", { n: data.unparsed })}` : ""}`,
+    };
   } catch (e) {
     const message = errorMessage(e).slice(0, 300);
     if (needsSignIn(message) || /sign[- ]in|anmeld|not signed/i.test(message)) raiseLogin("gcalendar", message);

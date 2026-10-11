@@ -3,8 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { startRecapAction } from "@/plugins/todos/server-actions";
+import { useT } from "@/components/I18nProvider";
+import type { T } from "@/lib/i18n/shared";
 
-const PHASES: Record<string, string> = { gather: "gathering the day", ai: "writing", saving: "saving" };
+const phases = (t: T): Record<string, string> => ({ gather: t("gathering the day"), ai: t("writing"), saving: t("saving") });
 
 const sinceText = (since: number) => {
   const s = Math.max(0, Math.round((Date.now() - since) / 1000));
@@ -13,6 +15,8 @@ const sinceText = (since: number) => {
 
 /** "Zusammenfassen" for a day: starts it on the server; while it runs, the page follows (refreshed every few seconds). */
 export function RecapControls({ day, running, phase, since, provider, again }: { day: string; running: boolean; phase: string | null; since: number | null; provider: string; again: boolean }) {
+  const t = useT();
+  const PHASES = phases(t);
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +24,7 @@ export function RecapControls({ day, running, phase, since, provider, again }: {
 
   useEffect(() => {
     if (!running) return;
-    const clock = setInterval(() => setTick((t) => t + 1), 1000);
+    const clock = setInterval(() => setTick((n) => n + 1), 1000);
     const follow = setInterval(() => router.refresh(), 4000);
     return () => {
       clearInterval(clock);
@@ -33,7 +37,7 @@ export function RecapControls({ day, running, phase, since, provider, again }: {
       {running && (
         <span className="inline-flex items-center gap-2 text-sm text-zinc-500" role="status">
           <span className="size-2 animate-pulse rounded-full bg-indigo-500" aria-hidden />
-          {since ? sinceText(since) : ""} · {phase === "ai" ? `${provider} ${PHASES.ai}` : (PHASES[phase ?? ""] ?? "running")}
+          {since ? sinceText(since) : ""} · {phase === "ai" ? t("{provider} writing", { provider }) : (PHASES[phase ?? ""] ?? t("running"))}
         </span>
       )}
       <button
@@ -44,13 +48,13 @@ export function RecapControls({ day, running, phase, since, provider, again }: {
           start(async () => {
             setError(null);
             const r = await startRecapAction(day);
-            if (r && !r.ok) setError(r.error ?? "Didn't work.");
+            if (r && !r.ok) setError(r.error ?? t("Didn't work."));
             router.refresh();
           })
         }
-        title="Gathers what you did that day (entries, todos, workers, Jira, commits, GitLab) and has the AI from the settings summarize it"
+        title={t("Gathers what you did that day (entries, todos, workers, Jira, commits, GitLab) and has the AI from the settings summarize it")}
       >
-        {running || pending ? "Running…" : again ? "Summarize again" : "Summarize"}
+        {running || pending ? t("Running…") : again ? t("Summarize again") : t("Summarize")}
       </button>
       {error && <span className="text-sm text-red-600 dark:text-red-400">{error}</span>}
     </div>

@@ -5,6 +5,7 @@ import { setPausesAction } from "@/app/actions";
 import { formatHours } from "@/lib/format";
 import { formatPauses, parsePauses, parseTime, totalPauseHours, type PauseRange } from "@/lib/pauses-shared";
 import { useLockedBreakText } from "./useLockedBreakText";
+import { useT } from "@/components/I18nProvider";
 
 const PRESET_MINUTES = [30, 45, 60];
 const WIDTH = 300;
@@ -45,6 +46,7 @@ export function PauseCell({
   /** The week's working days, for "All workdays". */
   workdays: string[];
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pos, setPos] = useState({ top: 0, left: 0 });
@@ -62,13 +64,13 @@ export function PauseCell({
   const draftRef = useRef<HTMLInputElement>(null);
   const draftField = useLockedBreakText("", defaultStart, draftRef);
   const draft = draftField.text;
-  const preview = parsePauses(draft, defaultStart);
+  const preview = parsePauses(draft, defaultStart, t);
 
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (!popRef.current?.contains(t) && !cellRef.current?.contains(t)) setOpen(false);
+      const target = e.target as Node;
+      if (!popRef.current?.contains(target) && !cellRef.current?.contains(target)) setOpen(false);
     };
     const onMove = () => setPos(popoverPosition(cellRef.current));
     document.addEventListener("mousedown", onDown);
@@ -94,7 +96,7 @@ export function PauseCell({
   }
 
   function save(text: string, dates: string[] = [date]) {
-    const parsed = parsePauses(text, defaultStart);
+    const parsed = parsePauses(text, defaultStart, t);
     if (!parsed.ok) {
       setError(parsed.error);
       return;
@@ -102,7 +104,7 @@ export function PauseCell({
     startTransition(async () => {
       const r = await setPausesAction(dates, text, defaultStart);
       if (r?.ok) close();
-      else setError(r?.error ?? "Could not save the break.");
+      else setError(r?.error ?? t("Could not save the break."));
     });
   }
 
@@ -117,12 +119,14 @@ export function PauseCell({
     : !preview.ok
       ? preview.error
       : preview.none
-        ? "No break this day — the default doesn't apply"
+        ? t("No break this day — the default doesn't apply")
         : preview.pauses.length
           ? `${ranges(preview.pauses)} · ${formatHours(totalPauseHours(preview.pauses))} h`
           : entered
-            ? `Empty — Enter clears the day${shadow.length ? " (the default shows again)" : ""}`
-            : "Nothing entered";
+            ? shadow.length
+              ? t("Empty — Enter clears the day (the default shows again)")
+              : t("Empty — Enter clears the day")
+            : t("Nothing entered");
 
   return (
     <>
@@ -133,8 +137,8 @@ export function PauseCell({
             onClick={() => save(formatPauses(shadow))}
             disabled={pending}
             className="rounded px-1 leading-5 font-semibold text-zinc-400 hover:bg-indigo-50 hover:text-indigo-600 dark:text-zinc-500 dark:hover:bg-indigo-950/50 dark:hover:text-indigo-300"
-            title={`Take the default break (${ranges(shadow)}) for this day`}
-            aria-label={`Take the default break for ${dayLabel}`}
+            title={t("Take the default break ({ranges}) for this day", { ranges: ranges(shadow) })}
+            aria-label={t("Take the default break for {day}", { day: dayLabel })}
           >
             +
           </button>
@@ -145,7 +149,13 @@ export function PauseCell({
           onClick={() => (open ? setOpen(false) : openEditor())}
           className={`-mx-1 rounded px-1 text-right hover:bg-zinc-100 dark:hover:bg-zinc-800 ${pending ? "opacity-60" : ""}`}
           title={
-            pauses.length ? "Edit the break" : noBreak ? "No break this day — click to change" : showShadow ? "Default break, not entered — click to edit" : "Add a break"
+            pauses.length
+              ? t("Edit the break")
+              : noBreak
+                ? t("No break this day — click to change")
+                : showShadow
+                  ? t("Default break, not entered — click to edit")
+                  : t("Add a break")
           }
           aria-haspopup="dialog"
           aria-expanded={open}
@@ -160,7 +170,7 @@ export function PauseCell({
               ))}
             </>
           ) : noBreak ? (
-            <span className="text-[11px] whitespace-nowrap text-zinc-400 dark:text-zinc-500">no break</span>
+            <span className="text-[11px] whitespace-nowrap text-zinc-400 dark:text-zinc-500">{t("no break")}</span>
           ) : showShadow ? (
             <span className="text-zinc-300 dark:text-zinc-600">
               <span className="block tabular-nums">{formatHours(totalPauseHours(shadow))}</span>
@@ -180,15 +190,15 @@ export function PauseCell({
         <div
           ref={popRef}
           role="dialog"
-          aria-label={`Break on ${dayLabel}`}
+          aria-label={t("Break on {day}", { day: dayLabel })}
           style={{ top: pos.top, left: pos.left, width: WIDTH }}
           className="card fixed z-50 space-y-2 p-3 text-left font-sans text-sm font-normal tracking-normal text-zinc-800 normal-case shadow-lg dark:text-zinc-100"
         >
           <div className="flex items-baseline justify-between gap-2">
-            <span className="text-xs font-semibold text-zinc-500 uppercase">Break · {dayLabel}</span>
+            <span className="text-xs font-semibold text-zinc-500 uppercase">{t("Break · {day}", { day: dayLabel })}</span>
             {!entered && offer.length > 0 && (
               <span className="text-[11px] text-zinc-400">
-                {shadow.length ? "default break — Enter takes it" : "last break — Enter repeats it"}
+                {shadow.length ? t("default break — Enter takes it") : t("last break — Enter repeats it")}
               </span>
             )}
           </div>
@@ -212,7 +222,7 @@ export function PauseCell({
                 close();
               }
             }}
-            aria-label="Break times"
+            aria-label={t("Break times")}
             aria-invalid={!!error}
           />
           <p className={`text-xs ${error ? "text-red-600 dark:text-red-400" : "text-zinc-500"}`}>{previewText}</p>
@@ -227,9 +237,9 @@ export function PauseCell({
               className="btn btn-sm"
               disabled={pending || !preview.ok || preview.pauses.length === 0 || workdays.length === 0}
               onClick={() => save(draft, workdays)}
-              title="Set this break on every working day of the week"
+              title={t("Set this break on every working day of the week")}
             >
-              All workdays
+              {t("All workdays")}
             </button>
             {!noBreak && (
               <button
@@ -237,21 +247,22 @@ export function PauseCell({
                 className="btn btn-sm"
                 disabled={pending}
                 onClick={() => save("none")}
-                title="No break this day — nothing goes to TimO, not even the default"
+                title={t("No break this day — nothing goes to TimO, not even the default")}
               >
-                No break
+                {t("No break")}
               </button>
             )}
             {entered && (
               <button type="button" className="btn btn-sm btn-danger" disabled={pending} onClick={() => save("")}>
-                Clear
+                {t("Clear")}
               </button>
             )}
           </div>
           <p className="text-[11px] leading-snug text-zinc-400">
-            Enter saves · Esc closes. Type 12-12:30, 12:15 45m, just 30 (minutes from {defaultStart}) or none;
-            separate several breaks with “;”. Changing a start or end moves the break (its length stays) — use a
-            preset or “12:00 45m” to change the length.
+            {t(
+              "Enter saves · Esc closes. Type 12-12:30, 12:15 45m, just 30 (minutes from {start}) or none; separate several breaks with “;”. Changing a start or end moves the break (its length stays) — use a preset or “12:00 45m” to change the length.",
+              { start: defaultStart },
+            )}
           </p>
         </div>
       )}

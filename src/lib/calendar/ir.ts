@@ -9,6 +9,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, eq, gt, gte, isNotNull, isNull, lt, or } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { getPref, setPref } from "@/lib/prefs";
+import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { inboxWrittenAt, readInbox } from "./inbox";
 import { CALENDAR_COLORS, type CalendarEventView, type CalendarSourceKind, type CalendarView, type SeriesScope } from "./ir-shared";
@@ -129,7 +130,7 @@ export function listCalendars(): CalendarView[] {
 export function updateCalendar(id: number, patch: { name?: string; color?: string; visible?: boolean; busy?: boolean; book?: boolean; todos?: boolean }): CalendarView {
   const db = getDb();
   const c = db.select().from(calendars).where(eq(calendars.id, id)).get();
-  if (!c) throw new Error("Unknown calendar.");
+  if (!c) throw new Error(t("Unknown calendar."));
   const set: Partial<typeof calendars.$inferInsert> = { updatedAt: now() };
   if (patch.name !== undefined && c.source === "zeff") set.name = patch.name.trim().slice(0, 80) || c.name;
   if (patch.color && /^#[0-9a-f]{6}$/i.test(patch.color)) set.color = patch.color;
@@ -143,7 +144,7 @@ export function updateCalendar(id: number, patch: { name?: string; color?: strin
 /** One of Zeff's own calendars. */
 export function createCalendar(name: string, color?: string): CalendarView {
   const n = name.trim().slice(0, 80);
-  if (!n) throw new Error("A name, please.");
+  if (!n) throw new Error(t("A name, please."));
   return ensureCalendar(`zeff:${randomUUID()}`, { source: "zeff", name: n, color });
 }
 
@@ -152,7 +153,7 @@ export function deleteCalendar(id: number): void {
   const db = getDb();
   const c = db.select().from(calendars).where(eq(calendars.id, id)).get();
   if (!c) return;
-  if (c.source !== "zeff") throw new Error("Only Zeff's own calendars can be deleted — hide the others.");
+  if (c.source !== "zeff") throw new Error(t("Only Zeff's own calendars can be deleted — hide the others."));
   db.transaction((tx) => {
     tx.delete(calendarEvents).where(eq(calendarEvents.calendarId, id)).run();
     tx.delete(calendars).where(eq(calendars.id, id)).run();
@@ -234,8 +235,8 @@ export function eventsBetween(from: string, to: string, only: { visible?: boolea
 /** An appointment in one of Zeff's own calendars. */
 export function addEvent(calendarId: number, e: Omit<EventInput, "key">): CalendarEventView {
   const c = getDb().select().from(calendars).where(eq(calendars.id, calendarId)).get();
-  if (!c || c.source !== "zeff") throw new Error("Events can only be created in Zeff's own calendars.");
-  if (!e.title.trim() || !e.start) throw new Error("A title and a start, please.");
+  if (!c || c.source !== "zeff") throw new Error(t("Events can only be created in Zeff's own calendars."));
+  if (!e.title.trim() || !e.start) throw new Error(t("A title and a start, please."));
   return eventView(getDb().insert(calendarEvents).values(row(calendarId, { ...e, key: randomUUID() })).returning().get());
 }
 
@@ -244,7 +245,7 @@ export function updateEvent(id: number, patch: Partial<Omit<EventInput, "key">>)
   const db = getDb();
   const e = db.select().from(calendarEvents).where(eq(calendarEvents.id, id)).get();
   const c = e && db.select().from(calendars).where(eq(calendars.id, e.calendarId)).get();
-  if (!e || !c || c.source !== "zeff") throw new Error("Only events in Zeff's own calendars can be changed.");
+  if (!e || !c || c.source !== "zeff") throw new Error(t("Only events in Zeff's own calendars can be changed."));
   // A series keeps its left-out occurrences.
   const next = row(e.calendarId, { ...eventView(e), exdates: exdatesOf(e), ...patch, key: e.key, raw: e.raw, todoId: patch.todoId ?? e.todoId });
   return eventView(db.update(calendarEvents).set(next).where(eq(calendarEvents.id, id)).returning().get());
@@ -254,7 +255,7 @@ export function deleteEvent(id: number): void {
   const db = getDb();
   const e = db.select().from(calendarEvents).where(eq(calendarEvents.id, id)).get();
   const c = e && db.select().from(calendars).where(eq(calendars.id, e.calendarId)).get();
-  if (!e || !c || c.source !== "zeff") throw new Error("Only events in Zeff's own calendars can be deleted.");
+  if (!e || !c || c.source !== "zeff") throw new Error(t("Only events in Zeff's own calendars can be deleted."));
   db.transaction((tx) => {
     // A series: with the occurrences changed on their own.
     tx.delete(calendarEvents).where(eq(calendarEvents.seriesId, id)).run();
@@ -271,9 +272,9 @@ function seriesRow(id: number) {
   const db = getDb();
   const e = db.select().from(calendarEvents).where(eq(calendarEvents.id, id)).get();
   const c = e && db.select().from(calendars).where(eq(calendars.id, e.calendarId)).get();
-  if (!e || !c || c.source !== "zeff") throw new Error("Only events in Zeff's own calendars can be changed.");
+  if (!e || !c || c.source !== "zeff") throw new Error(t("Only events in Zeff's own calendars can be changed."));
   const rule = parseRecurrence(e.recurrence);
-  if (!rule) throw new Error("That event isn't a series.");
+  if (!rule) throw new Error(t("That event isn't a series."));
   return { e, rule };
 }
 

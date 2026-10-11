@@ -1,14 +1,16 @@
 "use client";
 
+import { useT } from "@/components/I18nProvider";
 import { snippetParts, type KnowledgeEntity, type KnowledgePage } from "./shared";
 
 type Loaded = { pages: KnowledgePage[]; entities: KnowledgeEntity[] } | { error: string } | null;
 
 /** The pages (title, space, the passage found) and the entities with their relations. */
 export function TodoKnowledgeList({ k }: { k: Loaded }) {
-  if (!k) return <p className="text-xs text-zinc-500">Searching the knowledge …</p>;
+  const t = useT();
+  if (!k) return <p className="text-xs text-zinc-500">{t("Searching the knowledge …")}</p>;
   if ("error" in k) return <p className="text-xs text-red-600 dark:text-red-400">{k.error}</p>;
-  if (!k.pages.length && !k.entities.length) return <p className="text-xs text-zinc-500">Nothing fitting in the knowledge.</p>;
+  if (!k.pages.length && !k.entities.length) return <p className="text-xs text-zinc-500">{t("Nothing fitting in the knowledge.")}</p>;
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
       {k.pages.map((p) => (
@@ -43,9 +45,10 @@ export function TodoKnowledgeList({ k }: { k: Loaded }) {
 
 /** The toggle's hovercard: the knowledge the Wissens-Zuordnung picked. */
 export function TodoKnowledgePreview({ k }: { k: Loaded }) {
+  const t = useT();
   return (
     <div className="space-y-1.5 overflow-hidden rounded-lg border border-zinc-200 bg-white p-3 text-xs shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-      <p className="font-medium text-zinc-600 dark:text-zinc-300">Knowledge (Confluence)</p>
+      <p className="font-medium text-zinc-600 dark:text-zinc-300">{t("Knowledge (Confluence)")}</p>
       <TodoKnowledgeList k={k} />
     </div>
   );

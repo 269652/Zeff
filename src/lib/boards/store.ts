@@ -5,6 +5,7 @@ import { getDb, schema } from "@/db";
 import { emitChange } from "@/lib/events";
 import type { BoardRun, BoardSettings, Todo } from "@/db/schema";
 import { NotFoundError } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { resolveRefs, unresolveRefs } from "@/lib/resolved";
 import { cleanOps, cleanPlan, DELIVERY_OP_TYPES, dueDay, isTodoKind, parseTodoRef, todoRef, type BoardResult, type BoardRunView, type BoardTicket, type TodoOp, type TodoPath, type TodoStatus, type TodoStep, type TodoView } from "./shared";
 
@@ -311,7 +312,7 @@ export function setTodoStatus(id: number, status: TodoStatus, note?: string | nu
   emitChange("todos");
   const db = getDb();
   const before = getTodo(id);
-  if (!before) throw new NotFoundError(`Todo ${todoRef(id)} not found.`);
+  if (!before) throw new NotFoundError(t("Todo {ref} not found.", { ref: todoRef(id) }));
   if (status !== "open") resolveRefs(before.refs, before.ticket);
   else if (before.status !== "open") unresolveRefs(before.refs, before.ticket); // taken back: they're open again
   const now = new Date().toISOString();
@@ -578,11 +579,11 @@ export function setTodoOps(id: number, ops: TodoView["ops"], text?: string): Tod
 
 /** Your note on a todo, added (context for whoever works on it) — or one taken away (by its time). */
 export function addTodoUserNote(id: number, text: string): TodoView {
-  const t = getTodo(id);
-  if (!t) throw new NotFoundError(`Todo ${todoRef(id)} not found.`);
+  const todo = getTodo(id);
+  if (!todo) throw new NotFoundError(t("Todo {ref} not found.", { ref: todoRef(id) }));
   const note = text.trim().slice(0, 4000);
-  if (!note) return t;
-  const notes = [...t.userNotes, { at: new Date().toISOString(), text: note }];
+  if (!note) return todo;
+  const notes = [...todo.userNotes, { at: new Date().toISOString(), text: note }];
   getDb().update(todos).set({ userNotes: JSON.stringify(notes), updatedAt: new Date().toISOString() }).where(eq(todos.id, id)).run();
   emitChange("todos");
   return getTodo(id)!;
@@ -651,9 +652,9 @@ export function addTodoInstruction(id: number, text: string, runId: number): voi
 }
 
 export function removeTodoUserNote(id: number, at: string): TodoView {
-  const t = getTodo(id);
-  if (!t) throw new NotFoundError(`Todo ${todoRef(id)} not found.`);
-  getDb().update(todos).set({ userNotes: JSON.stringify(t.userNotes.filter((n) => n.at !== at)) }).where(eq(todos.id, id)).run();
+  const todo = getTodo(id);
+  if (!todo) throw new NotFoundError(t("Todo {ref} not found.", { ref: todoRef(id) }));
+  getDb().update(todos).set({ userNotes: JSON.stringify(todo.userNotes.filter((n) => n.at !== at)) }).where(eq(todos.id, id)).run();
   emitChange("todos");
   return getTodo(id)!;
 }
@@ -697,7 +698,7 @@ export function promoteApprovedMerges(approved: Set<string>): number {
 /** A todo's drafted message (and where it goes), as a worker wrote it or you changed it. */
 export function setTodoDraft(id: number, v: { draft: string | null; channel?: string | null; target?: string | null; workRunId?: number }): TodoView {
   emitChange("todos");
-  if (!getTodo(id)) throw new NotFoundError(`Todo ${todoRef(id)} not found.`);
+  if (!getTodo(id)) throw new NotFoundError(t("Todo {ref} not found.", { ref: todoRef(id) }));
   getDb()
     .update(todos)
     .set({

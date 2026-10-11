@@ -1,6 +1,7 @@
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
+import { t } from "@/lib/i18n/server";
 import { connection } from "next/server";
 import Link from "next/link";
 import { syncMailAction } from "@/app/actions";
@@ -15,7 +16,9 @@ import { syncOverview } from "@/lib/sync/registry";
 import { pushTo } from "@/lib/collections";
 import { formatDate, formatTime } from "@/lib/format";
 
-export const metadata: Metadata = { title: "Messages" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: t("Messages") };
+}
 
 const when = (iso: string) => {
   const d = new Date(iso);
@@ -35,7 +38,7 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
   const gmail = isInstalled("gmail");
   const whatsapp = isInstalled("whatsapp");
   if (!outlook && !gmail && !whatsapp) return <PluginNotInstalled id="outlook-mail" />;
-  const source = [outlook && "Outlook", gmail && "Gmail", whatsapp && "WhatsApp"].filter(Boolean).join(", ").replace(/, ([^,]*)$/, " and $1");
+  const source = [outlook && "Outlook", gmail && "Gmail", whatsapp && "WhatsApp"].filter(Boolean).join(", ").replace(/, ([^,]*)$/, ` ${t("and")} $1`);
   const wa = whatsapp ? syncOverview().steps.find((s) => s.key === "whatsapp") : undefined;
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
@@ -53,17 +56,19 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
   return (
     <div className="page">
       <div className="page-aside">
-        <h1 className="text-lg font-semibold">Messages</h1>
+        <h1 className="text-lg font-semibold">{t("Messages")}</h1>
         <p className="text-sm text-zinc-500">
-          All your messages in one place — read from {source} in the automation Chrome, a filter per source. No mail or chat is opened, nothing marked as read. “Sync now”
-          reads two months, the background sync the last few days. What names a ticket, the briefing reads too; the rest goes through the mail review (Todos).
+          {t(
+            "All your messages in one place — read from {source} in the automation Chrome, a filter per source. No mail or chat is opened, nothing marked as read. “Sync now” reads two months, the background sync the last few days. What names a ticket, the briefing reads too; the rest goes through the mail review (Todos).",
+            { source },
+          )}
         </p>
         {outlook && <MailFoldersForm folders={settings.folders} />}
       </div>
 
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-      <nav className="flex rounded-md border border-zinc-200 p-0.5 text-sm dark:border-zinc-700" aria-label="Folders">
+      <nav className="flex rounded-md border border-zinc-200 p-0.5 text-sm dark:border-zinc-700" aria-label={t("Folders")}>
         {[undefined, ...Object.keys(counts)].map((f) => (
           <Link
             key={f ?? "all"}
@@ -71,18 +76,18 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
             aria-current={folder === f ? "page" : undefined}
             className={`rounded px-3 py-1 ${folder === f ? "bg-zinc-200 font-medium dark:bg-zinc-700" : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}
           >
-            {f ?? "All"} <span className="text-xs text-zinc-400">{f ? counts[f] : total}</span>
+            {f ?? t("All")} <span className="text-xs text-zinc-400">{f ? counts[f] : total}</span>
           </Link>
         ))}
       </nav>
       <form action="/mail" className="flex justify-end gap-2">
         {folder && <input type="hidden" name="folder" value={folder} />}
-        <input name="q" defaultValue={q} className="input max-w-md" placeholder="Sender, subject, text…" aria-label="Search messages" />
-        <button type="submit" className="btn">Search</button>
+        <input name="q" defaultValue={q} className="input max-w-md" placeholder={t("Sender, subject, text…")} aria-label={t("Search messages")} />
+        <button type="submit" className="btn">{t("Search")}</button>
         <SyncSplitButton
           sources={[
             ...(outlook || gmail
-              ? [{ key: "mail", label: "Mails", minutes: settings.syncMinutes, sync: syncMailAction, last: settings.lastSyncAt ? { at: settings.lastSyncAt, ago: agoText(settings.lastSyncAt), ok: !!settings.lastOk, result: settings.lastResult ?? "" } : null }]
+              ? [{ key: "mail", label: t("Mails"), minutes: settings.syncMinutes, sync: syncMailAction, last: settings.lastSyncAt ? { at: settings.lastSyncAt, ago: agoText(settings.lastSyncAt), ok: !!settings.lastOk, result: settings.lastResult ?? "" } : null }]
               : []),
             ...(wa ? [{ key: "whatsapp", label: "WhatsApp", minutes: wa.everyMinutes, sync: syncWhatsappAction, last: wa.lastAt ? { at: wa.lastAt, ago: agoText(wa.lastAt), ok: !!wa.lastOk, result: wa.lastMessage ?? "" } : null }] : []),
           ]}
@@ -104,7 +109,7 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
               <li key={latest.convId}>
                 <details className="group">
                   <summary className="flex cursor-pointer list-none items-start gap-3 px-4 py-2.5 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900/60 [&::-webkit-details-marker]:hidden">
-                    <span className={`mt-1.5 size-2 shrink-0 rounded-full ${unread ? (chat ? "bg-emerald-500" : "bg-indigo-500") : "bg-transparent"}`} title={unread ? "Unread" : undefined} />
+                    <span className={`mt-1.5 size-2 shrink-0 rounded-full ${unread ? (chat ? "bg-emerald-500" : "bg-indigo-500") : "bg-transparent"}`} title={unread ? t("Unread") : undefined} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline gap-2">
                         <span className={`truncate ${unread ? "font-semibold" : "font-medium"}`}>{chat ? latest.subject : <TodoRefs text={latest.subject} />}</span>
@@ -120,7 +125,7 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
                     </div>
                   </summary>
                   <ul className="space-y-1.5 px-4 pb-3 pl-9">
-                    {list.length > thread.length && <li className="text-xs text-zinc-400">… {list.length - thread.length} older</li>}
+                    {list.length > thread.length && <li className="text-xs text-zinc-400">{t("… {n} older", { n: list.length - thread.length })}</li>}
                     {thread.map((m) => {
                       const mine = m.fromName === "Ich";
                       return (
@@ -129,7 +134,7 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
                             <div className="flex items-baseline gap-2 text-xs">
                               <span className="font-medium text-zinc-700 dark:text-zinc-200" title={m.fromEmail ?? undefined}>{m.fromName ?? m.fromEmail ?? "?"}</span>
                               <span className="text-zinc-400">{when(m.receivedAt)}</span>
-                              {m.unread && <span className="text-zinc-400">· unread</span>}
+                              {m.unread && <span className="text-zinc-400">· {t("unread")}</span>}
                             </div>
                             {!chat && m.subject !== latest.subject && <div className="text-xs font-medium"><TodoRefs text={m.subject} /></div>}
                             <div className="whitespace-pre-line">{m.preview}</div>
@@ -145,10 +150,12 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
         </ul>
       ) : (
         <p className="py-6 text-center text-sm text-zinc-500">
-          {q ? "No message matches." : `Nothing synced yet — “Sync” opens the inbox (${source}) in the automation Chrome if it isn't open.`}
+          {q ? t("No message matches.") : t("Nothing synced yet — “Sync” opens the inbox ({source}) in the automation Chrome if it isn't open.", { source })}
         </p>
       )}
-      {convs.size > conversations.length && <p className="text-center text-xs text-zinc-400">The newest {conversations.length} conversations — search to find older ones.</p>}
+      {convs.size > conversations.length && (
+        <p className="text-center text-xs text-zinc-400">{t("The newest {n} conversations — search to find older ones.", { n: conversations.length })}</p>
+      )}
     </div>
   );
 }

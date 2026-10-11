@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { useT } from "@/components/I18nProvider";
 
 type Toast = { id: number; text: string; tone: "ok" | "error"; action?: { label: string; run: () => unknown } };
 
@@ -34,6 +35,7 @@ const NONE: Toast[] = [];
 
 /** Where the toasts show (once, in the layout). */
 export function Toaster() {
+  const t = useT();
   const list = useSyncExternalStore(
     subscribe,
     () => toasts,
@@ -41,27 +43,27 @@ export function Toaster() {
   );
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex flex-col items-center gap-2 px-4" aria-live="polite" role="status">
-      {list.map((t) => (
+      {list.map((item) => (
         <div
-          key={t.id}
+          key={item.id}
           className={`pointer-events-auto flex max-w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm shadow-lg ${
-            t.tone === "error" ? "bg-red-700 text-white" : "bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+            item.tone === "error" ? "bg-red-700 text-white" : "bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
           }`}
         >
-          <span className="min-w-0">{t.text}</span>
-          {t.action && (
+          <span className="min-w-0">{item.text}</span>
+          {item.action && (
             <button
               type="button"
               className="shrink-0 rounded px-2 py-0.5 font-semibold text-indigo-300 hover:bg-white/10 dark:text-indigo-700 dark:hover:bg-black/10"
               onClick={() => {
-                dismiss(t.id);
-                t.action!.run();
+                dismiss(item.id);
+                item.action!.run();
               }}
             >
-              {t.action.label}
+              {item.action.label}
             </button>
           )}
-          <button type="button" className="shrink-0 rounded px-1 text-zinc-400 hover:text-zinc-200 dark:hover:text-zinc-700" onClick={() => dismiss(t.id)} aria-label="Close">
+          <button type="button" className="shrink-0 rounded px-1 text-zinc-400 hover:text-zinc-200 dark:hover:text-zinc-700" onClick={() => dismiss(item.id)} aria-label={t("Close")}>
             ×
           </button>
         </div>

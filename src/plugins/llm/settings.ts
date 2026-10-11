@@ -1,5 +1,6 @@
 import { getAppSettings, updateAppSettings } from "@/lib/ai";
 import { ValidationError } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { EMPTY_LLM_SETTINGS, isLlmTask, type LlmSettings, type LlmTaskSetting } from "./tasks";
 
 /** The LLM plugin's settings: instructions, context, each task's backend and model. */
@@ -16,7 +17,7 @@ export function getLlmSettings(): LlmSettings {
 export function saveLlmSettings(v: { instructions: string; context: string; tasks: Record<string, LlmTaskSetting> }): LlmSettings {
   const instructions = String(v.instructions ?? "").trim();
   const context = String(v.context ?? "").trim();
-  if (instructions.length + context.length > 8000) throw new ValidationError("Instructions and context: at most 8000 characters together.");
+  if (instructions.length + context.length > 8000) throw new ValidationError(t("Instructions and context: at most 8000 characters together."));
   const tasks: LlmSettings["tasks"] = {};
   for (const [id, t] of Object.entries(v.tasks ?? {})) {
     if (!isLlmTask(id)) continue;

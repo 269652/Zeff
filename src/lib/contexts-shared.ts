@@ -2,18 +2,25 @@
  * Context items (a colleague's message, a Teams message, a Jira comment) — the parts the
  * forms and cards share with the server. No DB access here (client-safe).
  */
+import { translator, type T } from "@/lib/i18n/shared";
 import { imageTargets, mapImageTargets, markdownToPlain, normalizeListIndent } from "./markdown";
+
+/** English (the default for the label helpers below; client components pass their useT() t). */
+const en = translator("en");
 
 export const CONTEXT_KINDS = ["teams", "jira", "gitlab", "email", "note"] as const;
 export type ContextKind = (typeof CONTEXT_KINDS)[number];
 
-export const CONTEXT_KIND_LABELS: Record<ContextKind, string> = {
+/** The kinds' names in a language (client: `contextKindLabels(useT())`). */
+export const contextKindLabels = (t: T): Record<ContextKind, string> => ({
   teams: "Teams",
   jira: "Jira",
   gitlab: "GitLab",
-  email: "Email",
-  note: "Note",
-};
+  email: t("Email"),
+  note: t("Note"),
+});
+/** In English (shown through t() — or use contextKindLabels(t)). */
+export const CONTEXT_KIND_LABELS: Record<ContextKind, string> = contextKindLabels(en);
 
 export const isContextKind = (v: unknown): v is ContextKind => (CONTEXT_KINDS as readonly unknown[]).includes(v);
 
@@ -51,14 +58,15 @@ export function kindOfUrl(url: string): Exclude<ContextKind, "note"> | null {
  * "proj-bund #12" (an issue), "proj-bund @1a2b3c4" (a commit) — "comment" added for a link to
  * one of their comments (#note_…). Null when the address doesn't say.
  */
-export function describeGitlabLink(url: string | null | undefined): string | null {
+export function describeGitlabLink(url: string | null | undefined, t: T = en): string | null {
   try {
     const u = new URL(url ?? "");
     const m = /^\/(.+?)\/-\/(merge_requests|issues|work_items|commit|commits)\/([^/?#]+)/.exec(u.pathname);
     const project = (m?.[1] ?? u.pathname.split("/-/")[0]).split("/").filter(Boolean).pop();
     if (!m) return project ? `GitLab · ${decodeURIComponent(project)}` : null;
     const ref = m[2] === "merge_requests" ? `!${m[3]}` : m[2].startsWith("commit") ? `@${m[3].slice(0, 8)}` : `#${m[3]}`;
-    return `${project ? `${decodeURIComponent(project)} ` : ""}${ref}${/^#note_/.test(u.hash) ? " comment" : ""}`;
+    const what = `${project ? `${decodeURIComponent(project)} ` : ""}${ref}`;
+    return /^#note_/.test(u.hash) ? t("{what} comment", { what }) : what;
   } catch {
     return null;
   }
@@ -92,20 +100,23 @@ export function describeTeamsLink(url: string | null | undefined): { place: stri
   }
 }
 
-/** A link's label: its own, else what it points at ("PROJ-337 comment", "Teams · PROJ › General", "proj-bund !167", the host). */
-export function linkLabel(link: ContextLink): string {
+/**
+ * A link's label: its own, else what it points at ("PROJ-337 comment", "Teams · PROJ › General", "proj-bund !167", the host).
+ * In English by default — as posted to Jira (jiraCommentMarkdown, its sync hash); the UI passes its t.
+ */
+export function linkLabel(link: ContextLink, t: T = en): string {
   if (link.label?.trim()) return link.label.trim();
   const todo = /^zeff:todo:(\d+)$/.exec(link.url.trim());
-  if (todo) return `Todo T-${todo[1]}`;
+  if (todo) return t("Todo {ref}", { ref: `T-${todo[1]}` });
   const ticket = ticketOfUrl(link.url);
-  if (ticket) return /focusedCommentId|#comment-/i.test(link.url) ? `${ticket} comment` : ticket;
+  if (ticket) return /focusedCommentId|#comment-/i.test(link.url) ? t("{what} comment", { what: ticket }) : ticket;
   const kind = kindOfUrl(link.url);
   if (kind === "teams") {
     const { place } = describeTeamsLink(link.url);
-    return place ? `Teams · ${place}` : "Teams message";
+    return place ? `Teams · ${place}` : t("Teams message");
   }
   if (kind === "gitlab") {
-    const what = describeGitlabLink(link.url);
+    const what = describeGitlabLink(link.url, t);
     if (what) return what;
   }
   if (/^mailto:/i.test(link.url)) return link.url.slice(7);
@@ -143,12 +154,12 @@ export function cleanLinks(raw: unknown[]): ContextLink[] {
 }
 
 /** A context item's headline: its title, else the message's first line (clipped), else its first link. */
-export function contextHeadline(c: { title: string | null; body: string; links: ContextLink[] }): string {
-  const t = c.title?.trim();
-  if (t) return t;
+export function contextHeadline(c: { title: string | null; body: string; links: ContextLink[] }, t: T = en): string {
+  const title = c.title?.trim();
+  if (title) return title;
   const line = markdownToPlain(c.body).split("\n").find(Boolean);
   if (line) return line.length > 90 ? `${line.slice(0, 88)}…` : line;
-  return c.links[0] ? linkLabel(c.links[0]) : "(empty)";
+  return c.links[0] ? linkLabel(c.links[0], t) : t("(empty)");
 }
 
 /** What the forms post. */
@@ -223,8 +234,8 @@ export type ContextBriefItem = {
 export type ContextBrief = { count: number; headline: string; items: ContextBriefItem[] };
 
 /** A context item as the hover card shows it. */
-export function contextBriefItem(c: ContextItem): ContextBriefItem {
-  const headline = contextHeadline(c);
+export function contextBriefItem(c: ContextItem, t: T = en): ContextBriefItem {
+  const headline = contextHeadline(c, t);
   const lines = markdownToPlain(c.body).split("\n").map((l) => l.trim());
   // Without a title the headline is the message's first line — the excerpt carries on after it.
   if (!c.title?.trim()) lines.splice(0, lines.findIndex(Boolean) + 1);
@@ -237,7 +248,7 @@ export function contextBriefItem(c: ContextItem): ContextBriefItem {
     headline,
     excerpt: excerpt.length > 600 ? `${excerpt.slice(0, 598)}…` : excerpt,
     ticket: c.ticket,
-    links: c.links.slice(0, 4).map((l) => ({ url: l.url, label: linkLabel(l), kind: kindOfUrl(l.url) })),
+    links: c.links.slice(0, 4).map((l) => ({ url: l.url, label: linkLabel(l, t), kind: kindOfUrl(l.url) })),
     files: c.files.length,
     sync: jiraSyncState(c),
   };

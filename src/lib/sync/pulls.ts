@@ -1,5 +1,6 @@
 import { automationEnv, driverPath } from "@/plugins/drivers";
 import { resultToPayload, runStdioSession } from "@/lib/jira/mcp-client";
+import { t } from "@/lib/i18n/server";
 import type { RoarPulledEntry } from "@/lib/roar-status";
 import type { TimoRecord } from "@/lib/timo-status";
 
@@ -24,14 +25,20 @@ export async function keepRoarPull(weekStartIso: string, entries: RoarPulledEntr
 
 /** "6 approved, 4 submitted" in a fixed order. */
 export function statusCounts(counts: Map<string, number>): string {
-  return ["approved", "submitted", "rejected", "draft"].filter((k) => counts.get(k)).map((k) => `${counts.get(k)} ${k}`).join(", ");
+  const text: Record<string, (n: number) => string> = {
+    approved: (n) => t("{n} approved", { n }),
+    submitted: (n) => t("{n} submitted", { n }),
+    rejected: (n) => t("{n} rejected", { n }),
+    draft: (n) => t("{n} draft", { n }),
+  };
+  return ["approved", "submitted", "rejected", "draft"].filter((k) => counts.get(k)).map((k) => text[k](counts.get(k)!)).join(", ");
 }
 
 /** Pull these weeks (Monday ISO dates, those begun) from Roar in one visit and keep them. */
 export async function pullRoarWeekStarts(weekStartIsos: string[]): Promise<{ ok: boolean; message: string }> {
   const { todayIso } = await import("@/lib/week");
   const weeks = [...new Set(weekStartIsos)].filter((w) => w <= todayIso()).sort();
-  if (weeks.length === 0) return { ok: true, message: "These weeks haven't begun yet." };
+  if (weeks.length === 0) return { ok: true, message: t("These weeks haven't begun yet.") };
   const raw = await callDriver("roar", "roar_pull", { weekStartIsos: weeks }, "Roar pull", 180000);
   let pulled: { weekStartIso: string; entries: RoarPulledEntry[] }[];
   try {
@@ -44,8 +51,15 @@ export async function pullRoarWeekStarts(weekStartIsos: string[]): Promise<{ ok:
     for (const [k, n] of await keepRoarPull(w.weekStartIso, w.entries)) counts.set(k, (counts.get(k) ?? 0) + n);
   }
   const n = [...counts.values()].reduce((a, b) => a + b, 0);
-  const w = `${pulled.length} week${pulled.length === 1 ? "" : "s"}`;
-  return { ok: true, message: n ? `Pulled ${n} Roar entries in ${w}: ${statusCounts(counts)}.` : `Roar has no entries in these ${w}.` };
+  const one = pulled.length === 1;
+  if (!n) return { ok: true, message: one ? t("Roar has no entries in this week.") : t("Roar has no entries in these {weeks} weeks.", { weeks: pulled.length }) };
+  const counted = statusCounts(counts);
+  return {
+    ok: true,
+    message: one
+      ? t("Pulled {n} Roar entries in 1 week: {counts}.", { n, counts: counted })
+      : t("Pulled {n} Roar entries in {weeks} weeks: {counts}.", { n, weeks: pulled.length, counts: counted }),
+  };
 }
 
 /** Read what TimO has on these days (read-only) and keep it for the weekly TimO marks. */

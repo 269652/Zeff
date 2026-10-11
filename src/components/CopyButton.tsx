@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { useT } from "@/components/I18nProvider";
 
 /** Copy text to the clipboard — the API, else a hidden textarea (older or locked-down browsers). */
 async function copyText(text: string): Promise<boolean> {
@@ -27,7 +28,7 @@ async function copyText(text: string): Promise<boolean> {
 /** A button that copies `text` and says so for a moment. `children` (an icon, say) stands in for `label`. */
 export function CopyButton({
   text,
-  label = "Copy",
+  label,
   className = "btn btn-sm",
   title,
   children,
@@ -38,6 +39,7 @@ export function CopyButton({
   title?: string;
   children?: ReactNode;
 }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   return (
     <button
@@ -51,7 +53,7 @@ export function CopyButton({
         setTimeout(() => setCopied(false), 1500);
       }}
     >
-      {copied ? "Copied ✓" : (children ?? label)}
+      {copied ? `${t("Copied")} ✓` : (children ?? label ?? t("Copy"))}
     </button>
   );
 }

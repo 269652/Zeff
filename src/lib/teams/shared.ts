@@ -3,6 +3,7 @@
  * (client-safe).
  */
 import { htmlToMarkdown } from "../html-to-markdown";
+import { type T, translator } from "@/lib/i18n/shared";
 
 /** Where you were @mentioned, or what a colleague wrote you in a 1:1 chat. */
 /** mention: you were @mentioned; pm: a colleague wrote you 1:1; chat: a chat's other messages lately (yours too, group chats) — the conversation. */
@@ -28,17 +29,17 @@ export type TeamsMessageView = {
   resolvedAt: string | null;
 };
 
-const MENTION_LABELS: Record<string, string> = {
-  person: "you",
-  tag: "a tag",
-  team: "the team",
-  channel: "the channel",
-  everyone: "everyone",
-};
+const mentionLabels = (t: T): Record<string, string> => ({
+  person: t("you"),
+  tag: t("a tag"),
+  team: t("the team"),
+  channel: t("the channel"),
+  everyone: t("everyone"),
+});
 
-/** "Mention · you", "Mention · the channel", "PM". */
-export const teamsKindLabel = (m: Pick<TeamsMessageView, "kind" | "mentionType">) =>
-  m.kind === "pm" ? "PM" : m.kind === "chat" ? "Chat" : `@${MENTION_LABELS[m.mentionType ?? "person"] ?? m.mentionType}`;
+/** "@you", "@the channel", "PM" — in the language of `t` (English without). */
+export const teamsKindLabel = (m: Pick<TeamsMessageView, "kind" | "mentionType">, t: T = translator("en")) =>
+  m.kind === "pm" ? t("PM") : m.kind === "chat" ? t("Chat") : `@${mentionLabels(t)[m.mentionType ?? "person"] ?? m.mentionType}`;
 
 /** Teams keeps pictures behind its own sign-in (asm.skype.com): they can't be fetched — the message in Teams has them. */
 const isTeamsPicture = (src: string) => /asm\.skype\.com|teams\.microsoft\.com|teams\.cloud\.microsoft/i.test(src);

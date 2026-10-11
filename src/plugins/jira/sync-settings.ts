@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n/server";
 import { setStepMinutes, stepMinutes } from "@/lib/sync/intervals";
 import { MINUTE_CHOICES, type PluginSyncSettings } from "../sync-settings";
 
@@ -7,7 +8,9 @@ export const syncSettings: PluginSyncSettings = {
     {
       key: "jira",
       label: "Jira",
-      what: "Your tickets and those of the chosen boards (status, comments, history).",
+      get what() {
+        return t("Your tickets and those of the chosen boards (status, comments, history).");
+      },
       get: () => stepMinutes("jira"),
       set: (m) => setStepMinutes("jira", m),
       choices: MINUTE_CHOICES,

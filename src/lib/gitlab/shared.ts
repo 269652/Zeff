@@ -2,11 +2,13 @@
  * Synced GitLab items — the parts pages, forms and the server share. No DB access here
  * (client-safe).
  */
+import { type T, translator } from "@/lib/i18n/shared";
 
 /** A merge request, a comment on one, or a branch. */
 export type GitlabKind = "mr" | "comment" | "branch";
 
 export const GITLAB_KIND_LABELS: Record<GitlabKind, string> = { mr: "MR", comment: "Comment", branch: "Branch" };
+export const gitlabKindLabels = (t: T): Record<GitlabKind, string> => ({ mr: t("MR"), comment: t("Comment"), branch: t("Branch") });
 
 export type GitlabItemView = {
   key: string;
@@ -92,7 +94,8 @@ export function gitlabTicket(item: Pick<GitlabItemView, "title" | "branch" | "re
 }
 
 /** "Comment on !167 Title", "!167 Title", "Branch feature/x". */
-export function gitlabHeadline(item: Pick<GitlabItemView, "kind" | "ref" | "title">): string {
-  if (item.kind === "branch") return `Branch ${item.ref}`;
-  return `${item.kind === "comment" ? "Comment on " : ""}${item.ref} ${item.title}`;
+export function gitlabHeadline(item: Pick<GitlabItemView, "kind" | "ref" | "title">, t: T = translator("en")): string {
+  if (item.kind === "branch") return t("Branch {ref}", { ref: item.ref });
+  if (item.kind === "comment") return t("Comment on {ref} {title}", { ref: item.ref, title: item.title });
+  return `${item.ref} ${item.title}`;
 }

@@ -9,6 +9,7 @@ import { myJiraName } from "@/lib/jira/store";
 import { getJiraSyncConfig } from "@/lib/jira/sync";
 import { emitChange } from "@/lib/events";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 
 /**
  * The Board-Lage (Jira Lage plugin): the Lage for the tickets on your boards that are relevant now
@@ -137,7 +138,7 @@ export function runBoardLage(opts: { force?: boolean; all?: boolean } = {}): Pro
     const keys = relevantKeys(all);
     if (!keys.length) return { ok: true, all, relevant: 0, analyzed: 0, unchanged: 0, failed: 0 };
     const cfg = getJiraSyncConfig();
-    if (!cfg.configured || !cfg.command) return { ok: false, all, relevant: keys.length, analyzed: 0, unchanged: 0, failed: 0, error: "Jira isn't set up." };
+    if (!cfg.configured || !cfg.command) return { ok: false, all, relevant: keys.length, analyzed: 0, unchanged: 0, failed: 0, error: t("Jira isn't set up.") };
     // Read from Jira: each with its comments and history.
     const issues: Issue[] = await runStdioSession(
       { command: cfg.command, args: cfg.args, env: cfg.env, label: "Jira (board briefing)" },

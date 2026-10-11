@@ -1,6 +1,7 @@
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
+import { t } from "@/lib/i18n/server";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { connection } from "next/server";
@@ -23,17 +24,19 @@ import { getUiOpen } from "@/lib/ui-state";
 import type { UiOpenState } from "@/lib/ui-state-shared";
 import { currentWeek, formatWeekRange, resolveWeek, shiftWeek } from "@/lib/week";
 
-export const metadata: Metadata = { title: "Import meetings" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: t("Import meetings") };
+}
 
-const REASON_LABEL: Record<ExclusionReason, string> = {
-  "all-day": "all-day",
-  cancelled: "cancelled",
-  declined: "declined",
-  "not-finished": "not finished yet",
-  "outside-range": "outside the week",
-  "too-long": "longer than a day",
-  "no-title": "without a title (working location)",
-};
+const reasonLabels = (): Record<ExclusionReason, string> => ({
+  "all-day": t("all-day"),
+  cancelled: t("cancelled"),
+  declined: t("declined"),
+  "not-finished": t("not finished yet"),
+  "outside-range": t("outside the week"),
+  "too-long": t("longer than a day"),
+  "no-title": t("without a title (working location)"),
+});
 
 export default async function ImportPage({
   searchParams,
@@ -63,18 +66,19 @@ export default async function ImportPage({
     <div className="page">
       <div className="page-aside">
         <div>
-          <Link href={`/?week=${week.key}`} className="text-sm text-zinc-500 hover:underline">← Weekly report</Link>
-          <h1 className="text-lg font-semibold">Import meetings</h1>
+          <Link href={`/?week=${week.key}`} className="text-sm text-zinc-500 hover:underline">{t("← Weekly report")}</Link>
+          <h1 className="text-lg font-semibold">{t("Import meetings")}</h1>
           <p className="text-sm text-zinc-500">
-            Pull finished meetings from your Outlook / Teams calendar and book them as time entries.
-            Cancelled, all-day and future meetings are skipped; ones already imported are marked.
+            {t("Pull finished meetings from your Outlook / Teams calendar and book them as time entries. Cancelled, all-day and future meetings are skipped; ones already imported are marked.")}
           </p>
         </div>
         {status.account && !status.fixture && (
           <form action={disconnectCalendarAction} className="text-right">
             <div className="text-sm">{status.account.name ?? status.account.email}</div>
             <div className="text-xs text-zinc-500">{status.account.email}</div>
-            <SubmitButton className="btn btn-sm mt-1" pendingText="…" confirm="Disconnect the Outlook account?">Disconnect</SubmitButton>
+            <SubmitButton className="btn btn-sm mt-1" pendingText="…" confirm={t("Disconnect the Outlook account?")}>
+              {t("Disconnect")}
+            </SubmitButton>
           </form>
         )}
       </div>
@@ -84,7 +88,7 @@ export default async function ImportPage({
       {sp.error && (
         <p className="alert-error">
           {sp.error === "use-device-code"
-            ? "That sign-in method needs a custom app registration. Use the bookmarklet below instead."
+            ? t("That sign-in method needs a custom app registration. Use the bookmarklet below instead.")
             : sp.error}
         </p>
       )}
@@ -101,18 +105,19 @@ export default async function ImportPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Link className="btn btn-sm" href={`/import?week=${prev.key}`}>← {prev.key}</Link>
-          <div className="text-sm font-medium">Week {week.week} · {formatWeekRange(week)}</div>
+          <div className="text-sm font-medium">
+            {t("Week {n}", { n: week.week })} · {formatWeekRange(week)}
+          </div>
           <Link className="btn btn-sm" href={`/import?week=${next.key}`}>{next.key} →</Link>
           {week.key !== currentWeek().key && (
-            <Link className="btn btn-sm" href="/import">This week</Link>
+            <Link className="btn btn-sm" href="/import">{t("This week")}</Link>
           )}
         </div>
       </div>
 
       {status.source === "none" ? (
         <p className="text-sm text-zinc-500">
-          No meetings loaded yet. Run the bookmarklet in your Outlook calendar tab, then this week&apos;s
-          meetings appear here to review and book.
+          {t("No meetings loaded yet. Run the bookmarklet in your Outlook calendar tab, then this week's meetings appear here to review and book.")}
         </p>
       ) : (
         <Preview weekKey={week.key} from={week.startIso} to={week.endIso} reportedBy={status.account?.name ?? ""} />
@@ -139,49 +144,55 @@ function LoadFromOutlook({
   return (
     <section className="card space-y-4 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-zinc-500 uppercase">Load from Outlook</h2>
+        <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Load from Outlook")}</h2>
         <span className="text-xs text-zinc-500">
-          {fixture ? "fixture mode active" : `${inboxCount} meeting${inboxCount === 1 ? "" : "s"} in inbox`}
+          {fixture ? t("fixture mode active") : inboxCount === 1 ? t("1 meeting in inbox") : t("{n} meetings in inbox", { n: inboxCount })}
           {inboxCount > 0 && !fixture && (
             <form action={clearInboxAction} className="ml-2 inline">
-              <SubmitButton className="btn btn-sm" pendingText="…">Clear</SubmitButton>
+              <SubmitButton className="btn btn-sm" pendingText="…">
+                {t("Clear")}
+              </SubmitButton>
             </form>
           )}
         </span>
       </div>
 
       <p className="text-sm text-zinc-500">
-        No app registration or admin consent needed. Your browser (which is signed in to Outlook)
-        grabs the meetings and hands them to Zeff — nothing leaves your machine.
+        {t("No app registration or admin consent needed. Your browser (which is signed in to Outlook) grabs the meetings and hands them to Zeff — nothing leaves your machine.")}
       </p>
 
       <ol className="list-decimal space-y-2 pl-5 text-sm">
         <li>
-          Drag this button to your bookmarks bar (once):{" "}
-          <BookmarkletButton href={bookmarklet} label="📅 Zeff: import meetings" className="btn btn-primary btn-sm align-middle" />
+          {t("Drag this button to your bookmarks bar (once):")}{" "}
+          <BookmarkletButton href={bookmarklet} label={t("📅 Zeff: import meetings")} className="btn btn-primary btn-sm align-middle" />
         </li>
         <li>
-          Open <a className="underline" href="https://outlook.office.com/calendar/view/week" target="_blank" rel="noreferrer">outlook.office.com</a> in <strong>Week view</strong>, go to the week you want, and click the bookmark. It sends that week&apos;s meetings to Zeff.
+          {t("Open")}{" "}
+          <a className="underline" href="https://outlook.office.com/calendar/view/week" target="_blank" rel="noreferrer">
+            outlook.office.com
+          </a>{" "}
+          {t("in")} <strong>{t("Week view")}</strong>
+          {t(", go to the week you want, and click the bookmark. It sends that week's meetings to Zeff.")}
         </li>
-        <li>Come back here — the meetings show up below to review and book. Repeat per week.</li>
+        <li>{t("Come back here — the meetings show up below to review and book. Repeat per week.")}</li>
       </ol>
 
       <PersistentDetails name="import-paste" ui={ui} className="text-sm">
-        <summary className="cursor-pointer text-zinc-500">Bookmarklet blocked or offline? Use copy &amp; paste</summary>
+        <summary className="cursor-pointer text-zinc-500">{t("Bookmarklet blocked or offline? Use copy & paste")}</summary>
         <div className="mt-3 space-y-3">
           <p className="text-zinc-500">
-            Drag this instead — it copies the meetings to your clipboard:{" "}
-            <BookmarkletButton href={copyBookmarklet} label="📋 Zeff: copy meetings" className="btn btn-sm align-middle" />
+            {t("Drag this instead — it copies the meetings to your clipboard:")}{" "}
+            <BookmarkletButton href={copyBookmarklet} label={t("📋 Zeff: copy meetings")} className="btn btn-sm align-middle" />
           </p>
           <PasteEventsForm />
           <p className="text-xs text-zinc-400">
-            The bookmarklet posts to <code className="code">{ingestUrl}</code>.
+            {t("The bookmarklet posts to")} <code className="code">{ingestUrl}</code>.
           </p>
         </div>
       </PersistentDetails>
 
       <PersistentDetails name="import-signin" ui={ui} className="text-sm">
-        <summary className="cursor-pointer text-zinc-500">Have a Microsoft app registration? Sign in directly</summary>
+        <summary className="cursor-pointer text-zinc-500">{t("Have a Microsoft app registration? Sign in directly")}</summary>
         <div className="mt-3">
           <DeviceCodeConnect />
         </div>
@@ -199,7 +210,7 @@ async function Preview({ weekKey, from, to, reportedBy }: { weekKey: string; fro
     const excludeRules = getMeetingExcludeRules(getReportSettings());
     plan = planImport(events, { from, to, now: new Date(), booked, excludeRules });
   } catch (err) {
-    return <p className="alert-error">Could not load the calendar: {errorMessage(err)}</p>;
+    return <p className="alert-error">{t("Could not load the calendar: {error}", { error: errorMessage(err) })}</p>;
   }
 
   const counts = new Map<ExclusionReason, number>();
@@ -220,7 +231,7 @@ async function Preview({ weekKey, from, to, reportedBy }: { weekKey: string; fro
       </section>
       {plan.excluded.length > 0 && (
         <p className="text-xs text-zinc-500">
-          Not shown for this week: {[...counts].map(([r, n]) => `${n} ${REASON_LABEL[r]}`).join(", ")}.
+          {t("Not shown for this week: {what}.", { what: [...counts].map(([r, n]) => `${n} ${reasonLabels()[r]}`).join(", ") })}
         </p>
       )}
     </>

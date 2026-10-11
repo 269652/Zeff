@@ -1,4 +1,5 @@
 import type { TimoDayState } from "@/lib/timo-status";
+import { t } from "@/lib/i18n/server";
 
 /**
  * A day's TimO mark in the weekly Booked row: a blue ✓ when TimO has Zeff's hours, an amber
@@ -7,7 +8,7 @@ import type { TimoDayState } from "@/lib/timo-status";
 export function TimoMark({ day }: { day: TimoDayState }) {
   const synced = day.state === "synced";
   return (
-    <span className="ml-1 inline-flex align-[-2px]" title={day.title} aria-label={synced ? `In TimO — ${day.title}` : day.title}>
+    <span className="ml-1 inline-flex align-[-2px]" title={day.title} aria-label={synced ? t("In TimO — {title}", { title: day.title }) : day.title}>
       <svg
         viewBox="0 0 24 24"
         fill="none"

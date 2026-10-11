@@ -59,5 +59,6 @@ export async function watchSignIn(service: "roar" | "timo", fn: () => Promise<st
 }
 
 export async function accountsOn(): Promise<string | null> {
-  return (await import("@/plugins/state")).isInstalled("accounts") ? null : "Accounts is not installed (Menu → Plugins).";
+  const { t } = await import("@/lib/i18n/server");
+  return (await import("@/plugins/state")).isInstalled("accounts") ? null : t("Accounts is not installed (Menu → Plugins).");
 }

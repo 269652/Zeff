@@ -2,14 +2,16 @@
 
 import { useState, useTransition } from "react";
 import type { WorkRunView } from "@/lib/work/shared";
+import type { T } from "@/lib/i18n/shared";
+import { useT } from "@/components/I18nProvider";
 import { Markdown } from "../Markdown";
 import { toast } from "../Toaster";
 
-const MODE_HINT: Record<string, string> = {
-  agent: "Asks you before it does anything that isn't allowed",
-  plan: "Plans first, carries it out after your OK",
-  autopilot: "Allows itself everything and runs through to the end",
-};
+const modeHints = (t: T): Record<string, string> => ({
+  agent: t("Asks you before it does anything that isn't allowed"),
+  plan: t("Plans first, carries it out after your OK"),
+  autopilot: t("Allows itself everything and runs through to the end"),
+});
 const short = (id: string) => id.replace(/^.*#/, "");
 
 /**
@@ -18,6 +20,8 @@ const short = (id: string) => id.replace(/^.*#/, "");
  * it, or "wrap up" for its result.
  */
 export function LiveControls({ run }: { run: WorkRunView }) {
+  const t = useT();
+  const MODE_HINT = modeHints(t);
   const live = run.live!;
   const [text, setText] = useState("");
   const [pending, start] = useTransition();
@@ -29,7 +33,7 @@ export function LiveControls({ run }: { run: WorkRunView }) {
   const act = (body: Record<string, string>, then?: () => void) =>
     start(async () => {
       const r = await post(body);
-      if (!r.ok) toast(r.error ?? "Didn't work.", { tone: "error" });
+      if (!r.ok) toast(r.error ?? t("Didn't work."),{ tone: "error" });
       else then?.();
     });
   const send = () => text.trim() && act({ do: "send", text }, () => setText(""));
@@ -37,8 +41,8 @@ export function LiveControls({ run }: { run: WorkRunView }) {
   return (
     <div className="space-y-2 rounded-md border border-indigo-200 bg-indigo-50/50 p-2.5 text-sm dark:border-indigo-900 dark:bg-indigo-950/30">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold text-zinc-500 uppercase">Mode</span>
-        <span className="inline-flex overflow-hidden rounded-md border border-zinc-300 dark:border-zinc-700" role="radiogroup" aria-label="Mode">
+        <span className="text-xs font-semibold text-zinc-500 uppercase">{t("Mode")}</span>
+        <span className="inline-flex overflow-hidden rounded-md border border-zinc-300 dark:border-zinc-700" role="radiogroup" aria-label={t("Mode")}>
           {live.modes.map((m) => {
             const on = m.id === live.mode;
             return (
@@ -57,12 +61,12 @@ export function LiveControls({ run }: { run: WorkRunView }) {
             );
           })}
         </span>
-        <span className="text-xs text-zinc-500">{live.busy ? (live.permission ? "waiting for your permission" : "working…") : "waiting for you"}</span>
+        <span className="text-xs text-zinc-500">{live.busy ? (live.permission ? t("waiting for your permission") : t("working…")) : t("waiting for you")}</span>
       </div>
 
       {live.permission && (
         <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50 p-2 dark:border-amber-800 dark:bg-amber-950/40">
-          <p className="font-medium text-amber-950 dark:text-amber-100">Copilot wants to: {live.permission.title}</p>
+          <p className="font-medium text-amber-950 dark:text-amber-100">{t("Copilot wants to: {action}", { action: live.permission.title })}</p>
           {live.permission.detail && <pre className="max-h-40 overflow-auto rounded bg-white/70 p-1.5 font-mono text-xs whitespace-pre-wrap dark:bg-zinc-900/70">{live.permission.detail}</pre>}
           <div className="flex flex-wrap gap-1.5">
             {live.permission.options.map((o) => (
@@ -90,7 +94,7 @@ export function LiveControls({ run }: { run: WorkRunView }) {
           <textarea
             rows={2}
             className="input w-full resize-y text-sm"
-            placeholder="Your answer to Copilot… (Ctrl+Enter)"
+            placeholder={t("Your answer to Copilot… (Ctrl+Enter)")}
             value={text}
             disabled={pending}
             onChange={(e) => setText(e.target.value)}
@@ -103,10 +107,10 @@ export function LiveControls({ run }: { run: WorkRunView }) {
           />
           <div className="flex flex-wrap gap-1.5">
             <button type="button" className="btn btn-sm btn-primary" disabled={pending || !text.trim()} onClick={send}>
-              Send
+              {t("Send")}
             </button>
-            <button type="button" className="btn btn-sm" disabled={pending} onClick={() => act({ do: "wrap-up" })} title="Copilot sums up and gives its result — that ends the run">
-              Wrap up
+            <button type="button" className="btn btn-sm" disabled={pending} onClick={() => act({ do: "wrap-up" })} title={t("Copilot sums up and gives its result — that ends the run")}>
+              {t("Wrap up")}
             </button>
           </div>
         </div>

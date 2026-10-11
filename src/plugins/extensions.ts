@@ -6,7 +6,9 @@
  * set it (Plugins page, under the plugin it extends) — some are on by themselves (`defaultInstalled`)
  * the moment their plugins are there. What it brings (sync steps, actions) goes with it. Client-safe.
  */
+import { translator, type T } from "@/lib/i18n/shared";
 import { PLUGINS, pluginById, type PluginId } from "./catalog";
+import { catalogText } from "./catalog-text";
 
 /** An extension as its plugin declares it. */
 export type ExtensionDecl = {
@@ -43,5 +45,8 @@ export const extensionOfAction = (type: string) => EXTENSIONS.find((e) => e.acti
 /** The plugins an extension needs: the one that brings it, the one it extends, and what else it requires. */
 export const extensionNeeds = (e: Extension): PluginId[] => [...new Set([e.by, e.for, ...(e.requires ?? [])])];
 
-/** "von Google Keep" — or "von Google Keep, braucht LLM" when it needs more. */
-export const extensionOrigin = (e: Extension) => `from ${pluginById(e.by).name}${e.requires?.length ? `, needs ${e.requires.map((r) => pluginById(r).name).join(", ")}` : ""}`;
+/** "from Google Keep" — or "from Google Keep, needs LLM" when it needs more — in the language of `t`. */
+export const extensionOrigin = (e: Extension, t: T = translator("en")) => {
+  const name = (id: PluginId) => catalogText(t, pluginById(id).name);
+  return e.requires?.length ? t("from {plugin}, needs {needs}", { plugin: name(e.by), needs: e.requires.map(name).join(", ") }) : t("from {plugin}", { plugin: name(e.by) });
+};

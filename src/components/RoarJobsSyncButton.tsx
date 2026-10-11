@@ -3,9 +3,11 @@
 import { useState, useTransition } from "react";
 import { syncRoarJobsAction } from "@/plugins/roar/server-actions";
 import type { ActionState } from "@/app/action-helpers";
+import { useT } from "@/components/I18nProvider";
 
 /** Looks every job up in Roar's job search and refreshes the Roar column (nothing is added in Roar). */
 export function RoarJobsSyncButton({ count }: { count: number }) {
+  const t = useT();
   const [state, setState] = useState<ActionState>(null);
   const [pending, startTransition] = useTransition();
   return (
@@ -17,9 +19,9 @@ export function RoarJobsSyncButton({ count }: { count: number }) {
         className="btn btn-sm"
         disabled={pending || count === 0}
         onClick={() => startTransition(async () => setState(await syncRoarJobsAction()))}
-        title="Look every job up in Roar's job search (read-only — nothing is added in Roar)"
+        title={t("Look every job up in Roar's job search (read-only — nothing is added in Roar)")}
       >
-        {pending ? `Checking ${count} jobs in Roar…` : "Sync with Roar"}
+        {pending ? t("Checking {n} jobs in Roar…", { n: count }) : t("Sync with Roar")}
       </button>
     </div>
   );

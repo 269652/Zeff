@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { JiraStatusCategory } from "@/db/schema";
 import type { TicketCard } from "@/lib/jira/ticket-card-shared";
+import { useT } from "@/components/I18nProvider";
 
 const CARD_WIDTH = 360;
 
@@ -35,6 +36,7 @@ function day(s: string | null): string | null {
  * with its title, status, description and details. Without a card it's just the link.
  */
 export function TicketLink({ ticket, card, className = "", external = false }: { ticket: string; card?: TicketCard; className?: string; /** With ↗: it opens Jira. */ external?: boolean }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number }>({ left: 0 });
   const linkRef = useRef<HTMLAnchorElement>(null);
@@ -111,49 +113,49 @@ export function TicketLink({ ticket, card, className = "", external = false }: {
           </div>
           {card.synced ? (
             <>
-              <div className="font-medium leading-snug">{card.summary || <span className="text-zinc-400">No title</span>}</div>
+              <div className="font-medium leading-snug">{card.summary || <span className="text-zinc-400">{t("No title")}</span>}</div>
               {description && (
                 <p className="line-clamp-6 text-xs leading-relaxed whitespace-pre-line text-zinc-600 dark:text-zinc-300">{description}</p>
               )}
               <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
                 {card.assignee && (
                   <>
-                    <dt className="text-zinc-500">Assignee</dt>
+                    <dt className="text-zinc-500">{t("Assignee")}</dt>
                     <dd>{card.assignee}</dd>
                   </>
                 )}
                 {card.priority && (
                   <>
-                    <dt className="text-zinc-500">Priority</dt>
+                    <dt className="text-zinc-500">{t("Priority")}</dt>
                     <dd>{card.priority}</dd>
                   </>
                 )}
                 {day(card.openedAt) && (
                   <>
-                    <dt className="text-zinc-500">Opened</dt>
+                    <dt className="text-zinc-500">{t("Opened")}</dt>
                     <dd className="font-mono">{day(card.openedAt)}</dd>
                   </>
                 )}
                 {day(card.resolvedAt) && (
                   <>
-                    <dt className="text-zinc-500">Resolved</dt>
+                    <dt className="text-zinc-500">{t("Resolved")}</dt>
                     <dd className="font-mono">{day(card.resolvedAt)}</dd>
                   </>
                 )}
                 {card.jobNumber && (
                   <>
-                    <dt className="text-zinc-500">Zeff job</dt>
+                    <dt className="text-zinc-500">{t("Zeff job")}</dt>
                     <dd className="font-mono">{card.jobNumber}</dd>
                   </>
                 )}
               </dl>
             </>
           ) : (
-            <p className="text-xs text-zinc-500">Not synced from Jira yet — sync on the Jira tab for its title and details.</p>
+            <p className="text-xs text-zinc-500">{t("Not synced from Jira yet — sync on the Jira tab for its title and details.")}</p>
           )}
           {url && (
             <a href={url} target="_blank" rel="noreferrer" className="inline-block text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400">
-              Open in Jira ↗
+              {t("Open in Jira ↗")}
             </a>
           )}
         </div>

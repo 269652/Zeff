@@ -2,11 +2,13 @@ import { mailSender, type MailView } from "@/lib/mail/shared";
 import { ChevronIcon } from "./icons";
 import { ResolvedMark } from "./ResolvedMark";
 import { formatDateTime } from "@/lib/format";
+import type { T } from "@/lib/i18n/shared";
+import { useT } from "@/components/I18nProvider";
 
 const when = (iso: string) => formatDateTime(iso);
 
 /** "Mail", or "WhatsApp" for a chat's message (the mail sync reads those too). */
-const kindOf = (m: Pick<MailView, "folder">) => (m.folder === "WhatsApp" ? "WhatsApp" : "Mail");
+const kindOf = (m: Pick<MailView, "folder">, t: T) => (m.folder === "WhatsApp" ? "WhatsApp" : t("Mail"));
 
 const CARD = "space-y-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-900";
 const INNER = "flex min-w-0 flex-1 items-center gap-2 py-1 pr-2 pl-1.5 text-left";
@@ -34,6 +36,7 @@ export function ChatIcon({ className = "" }: { className?: string }) {
 
 /** A mail as a badge: who wrote it, when, its subject — like a comment's. With `onToggle` it unfolds. */
 export function MailBadge({ m, className = "", expanded = false, onToggle }: { m: MailView; className?: string; expanded?: boolean; onToggle?: () => void }) {
+  const t = useT();
   const chat = m.folder === "WhatsApp";
   const body = (
     <>
@@ -41,14 +44,14 @@ export function MailBadge({ m, className = "", expanded = false, onToggle }: { m
       {chat ? <ChatIcon className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" /> : <MailIcon className="size-4 shrink-0 text-sky-600 dark:text-sky-400" />}
       <ResolvedMark done={!!m.resolvedAt} />
       <span className="shrink-0 font-medium">{mailSender(m)}</span>
-      <span className={`shrink-0 ${chat ? "text-emerald-700/80 dark:text-emerald-300/80" : "text-sky-700/80 dark:text-sky-300/80"}`}>{kindOf(m)} · {when(m.receivedAt)}</span>
+      <span className={`shrink-0 ${chat ? "text-emerald-700/80 dark:text-emerald-300/80" : "text-sky-700/80 dark:text-sky-300/80"}`}>{kindOf(m, t)} · {when(m.receivedAt)}</span>
       <span className={`min-w-0 truncate ${chat ? "text-emerald-900/70 dark:text-emerald-100/70" : "text-sky-900/70 dark:text-sky-100/70"}`}>{m.subject}</span>
     </>
   );
   return (
     <div className={`${chat ? CHAT_BADGE : BADGE} ${className}`}>
       {onToggle ? (
-        <button type="button" className={`${INNER} cursor-pointer transition ${chat ? "hover:bg-emerald-100 dark:hover:bg-emerald-950" : "hover:bg-sky-100 dark:hover:bg-sky-950"}`} onClick={onToggle} aria-expanded={expanded} title={expanded ? "Fold" : chat ? "Show the message" : "Show the mail"}>
+        <button type="button" className={`${INNER} cursor-pointer transition ${chat ? "hover:bg-emerald-100 dark:hover:bg-emerald-950" : "hover:bg-sky-100 dark:hover:bg-sky-950"}`} onClick={onToggle} aria-expanded={expanded} title={expanded ? t("Fold") : chat ? t("Show the message") : t("Show the mail")}>
           {body}
         </button>
       ) : (
@@ -60,15 +63,18 @@ export function MailBadge({ m, className = "", expanded = false, onToggle }: { m
 
 /** A mail in full, as Zeff has it: subject, sender, when, its first lines (the list's — it isn't opened). */
 export function MailDetails({ m }: { m: MailView }) {
+  const t = useT();
   return (
     <div className={CARD}>
       <div className="flex items-center justify-between gap-2 text-xs text-zinc-500">
-        <span>{kindOf(m)} · {when(m.receivedAt)}{m.unread ? " · unread" : ""}</span>
+        <span>{kindOf(m, t)} · {when(m.receivedAt)}{m.unread ? ` · ${t("unread")}` : ""}</span>
         <span title={m.fromEmail ?? undefined}>{mailSender(m)}</span>
       </div>
       <p className="font-medium text-zinc-800 dark:text-zinc-100">{m.subject}</p>
-      <p className="leading-relaxed whitespace-pre-line text-zinc-700 dark:text-zinc-300">{m.preview || "(no text in the preview)"}</p>
-      <p className="text-xs text-zinc-400">{m.folder === "WhatsApp" ? "The chat's last message, as WhatsApp's chat list shows it — the history is in WhatsApp." : "The first lines, as the list shows them — the whole mail is in the mailbox."}</p>
+      <p className="leading-relaxed whitespace-pre-line text-zinc-700 dark:text-zinc-300">{m.preview || t("(no text in the preview)")}</p>
+      <p className="text-xs text-zinc-400">{m.folder === "WhatsApp"
+          ? t("The chat's last message, as WhatsApp's chat list shows it — the history is in WhatsApp.")
+          : t("The first lines, as the list shows them — the whole mail is in the mailbox.")}</p>
     </div>
   );
 }

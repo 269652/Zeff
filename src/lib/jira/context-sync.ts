@@ -4,6 +4,7 @@ import { contextHeadline, jiraCommentMarkdown, jiraSyncHash, jiraSyncState, type
 import { entitySourceLabel, entityText, entityWhoWhen } from "@/lib/entities-shared";
 import { gitlabHeadline, gitlabMarkdown } from "@/lib/gitlab/shared";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { resultToPayload, runStdioSession } from "./mcp-client";
 import { getJiraSyncConfig } from "./sync";
 
@@ -71,19 +72,19 @@ export async function syncContextsToJira(ids: number[], opts: { dryRun?: boolean
   const res: ContextSyncResult = { posted: [], updated: [], unchanged: [], files: [], skipped: [], errors: [] };
   const items = [...new Set(ids)].map((id) => getContextItem(id)).filter((c): c is ContextItem => !!c);
   const todo = items.filter((c) => {
-    if (!c.ticket) res.skipped.push(`“${contextHeadline(c)}” has no Jira ticket`);
-    else if (jiraSyncState(c) === "no-ticket") res.skipped.push(`“${contextHeadline(c)}” is in Jira already`);
+    if (!c.ticket) res.skipped.push(t("“{title}” has no Jira ticket", { title: contextHeadline(c, t) }));
+    else if (jiraSyncState(c) === "no-ticket") res.skipped.push(t("“{title}” is in Jira already", { title: contextHeadline(c, t) }));
     return jiraSyncState(c) !== "no-ticket";
   });
   if (!todo.length) return res;
   const cfg = getJiraSyncConfig();
-  if (!cfg.configured || !cfg.command) throw new Error("Jira isn't set up — see the Jira tab.");
+  if (!cfg.configured || !cfg.command) throw new Error(t("Jira isn't set up — see the Jira tab."));
 
   await runStdioSession(
     { command: cfg.command, args: cfg.args, env: cfg.env, label: "Jira" },
     async (call) => {
       for (const c of todo) {
-        const where = `${c.ticket} · ${contextHeadline(c)}`;
+        const where = `${c.ticket} · ${contextHeadline(c, t)}`;
         try {
           // Files first: the comment shows pasted images inline by their attachment name.
           const pending = c.files.filter((f) => !f.jiraSyncedAt);

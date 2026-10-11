@@ -1,6 +1,7 @@
 /** The Teams plugin's action, run: a 1:1 message through the Teams driver in the automation Chrome. Server only. */
 import type { TodoOp } from "@/lib/boards/shared";
 import { formatDateTime } from "@/lib/format";
+import { t } from "@/lib/i18n/server";
 import { resultToPayload, runStdioSession } from "@/lib/jira/mcp-client";
 import { saveTeamsMessages, type TeamsMessageInput } from "@/lib/teams/store";
 import { automationEnv, driverPath } from "../drivers";
@@ -24,7 +25,11 @@ export async function runTeamsMessage(op: Extract<TodoOp, { type: "teams-message
       if (r.message) saveTeamsMessages([r.message]);
       const at = formatDateTime(r.message?.sentAt ?? Date.now());
       return {
-        what: `Teams message sent to ${r.to}${r.newChat ? " (new chat)" : ""}${r.message ? `: ${r.message.link}` : ""}${r.away ? ` — note: ${r.away}` : ""}`,
+        what: [
+          r.newChat ? t("Teams message sent to {to} (new chat)", { to: r.to }) : t("Teams message sent to {to}", { to: r.to }),
+          r.message ? `: ${r.message.link}` : "",
+          r.away ? ` — ${t("note: {away}", { away: r.away })}` : "",
+        ].join(""),
         ref: r.message ? `teams:${r.message.key}` : undefined,
         todoNote: `Teams message sent to ${r.to} on ${at}${r.away ? ` (${r.away})` : ""}.`,
       };

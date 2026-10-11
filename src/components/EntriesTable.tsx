@@ -6,6 +6,7 @@ import type { EntryWithJob } from "@/lib/entries";
 import { entryTypeMap } from "@/lib/entry-types";
 import { getTicketCards } from "@/lib/jira/store";
 import { formatHours } from "@/lib/format";
+import { t } from "@/lib/i18n/server";
 import { NO_JOB_NUMBER } from "@/lib/projects-shared";
 import type { EntryRoarStatus } from "@/lib/roar-status";
 import { CollapsibleTags } from "./CollapsibleTags";
@@ -34,7 +35,7 @@ export function EntriesTable({
   showProject?: boolean;
 }) {
   if (entries.length === 0) {
-    return <p className="py-4 text-center text-sm text-zinc-500">No entries.</p>;
+    return <p className="py-4 text-center text-sm text-zinc-500">{t("No entries.")}</p>;
   }
   const projectColumn = !showJob && showProject && entries.some((e) => e.project);
   const types = entryTypeMap();
@@ -50,13 +51,13 @@ export function EntriesTable({
       <table className="table">
         <thead>
           <tr>
-            <th>Date</th>
-            {showJob && <th>Job</th>}
-            {projectColumn && <th>Project</th>}
-            <th className="num">Hours</th>
-            <th className="w-full">Description</th>
-            <th>Ticket</th>
-            <th className="whitespace-nowrap">Type · Tags</th>
+            <th>{t("Date")}</th>
+            {showJob && <th>{t("Job")}</th>}
+            {projectColumn && <th>{t("Project")}</th>}
+            <th className="num">{t("Hours")}</th>
+            <th className="w-full">{t("Description")}</th>
+            <th>{t("Ticket")}</th>
+            <th className="whitespace-nowrap">{t("Type · Tags")}</th>
             <th></th>
           </tr>
         </thead>
@@ -70,7 +71,7 @@ export function EntriesTable({
                   {e.project ? (
                     <ProjectWithJob project={e.project} job={e.job} titleOnly />
                   ) : e.job.number === NO_JOB_NUMBER ? (
-                    <Link href="/projects" className="badge badge-nojob">No job yet</Link>
+                    <Link href="/projects" className="badge badge-nojob">{t("No job yet")}</Link>
                   ) : (
                     <Link href={`/jobs/${e.job.id}`} className="hover:underline" title={e.job.number}>
                       {e.job.name}
@@ -94,7 +95,7 @@ export function EntriesTable({
               <td>
                 {/* The description opens the entry; the context icon sits at the cell's right edge, level with the first line. */}
                 <div className="flex items-start gap-2">
-                  <Link href={`/entries/${e.id}`} className="min-w-0 flex-1 hover:underline" title="Edit this entry">
+                  <Link href={`/entries/${e.id}`} className="min-w-0 flex-1 hover:underline" title={t("Edit this entry")}>
                     {e.description}
                   </Link>
                   {briefs[e.id] && <ContextHoverIcon entryId={e.id} brief={briefs[e.id]} ticketUrls={ticketUrls} />}
@@ -115,9 +116,9 @@ export function EntriesTable({
                     <SubmitButton
                       className="icon-btn icon-btn-danger"
                       pendingText="…"
-                      confirm={`Delete ${formatHours(e.hours)}h on ${e.job.number} (${e.date})?`}
-                      title="Delete this entry"
-                      label={`Delete ${formatHours(e.hours)} h on ${e.job.number} (${e.date})`}
+                      confirm={t("Delete {hours}h on {job} ({date})?", { hours: formatHours(e.hours), job: e.job.number, date: e.date })}
+                      title={t("Delete this entry")}
+                      label={t("Delete {hours} h on {job} ({date})", { hours: formatHours(e.hours), job: e.job.number, date: e.date })}
                     >
                       <TrashIcon />
                     </SubmitButton>

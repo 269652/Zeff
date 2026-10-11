@@ -1,5 +1,8 @@
 import type { EntryType } from "@/db/schema";
+import { translator, type T } from "@/lib/i18n/shared";
 import { dedupeTags, normalizeTagName } from "./tags-shared";
+
+const en = translator("en");
 
 /**
  * Report-rewriting rules — a server-free module so the client settings form and
@@ -48,14 +51,17 @@ export type RuleEntry = {
   project: string;
 };
 
-export const RULE_FIELD_LABELS: Record<RuleField, string> = {
-  type: "Type is",
-  title: "Meeting title contains",
-  tag: "Has tag",
-  ticket: "Ticket starts with",
-  job: "Job is",
-  project: "Project is",
-};
+/** The condition fields' names in a language (client: `ruleFieldLabels(useT())`). */
+export const ruleFieldLabels = (t: T): Record<RuleField, string> => ({
+  type: t("Type is"),
+  title: t("Meeting title contains"),
+  tag: t("Has tag"),
+  ticket: t("Ticket starts with"),
+  job: t("Job is"),
+  project: t("Project is"),
+});
+/** In English (shown through t() — or use ruleFieldLabels(t)). */
+export const RULE_FIELD_LABELS: Record<RuleField, string> = ruleFieldLabels(en);
 
 export const RULE_FIELDS: RuleField[] = ["type", "title", "tag", "ticket", "job", "project"];
 
@@ -234,17 +240,17 @@ export function parseRules(json: string | null | undefined): ReportRule[] {
   return out;
 }
 
-/** Validate a rule list for saving; returns an error message or null. */
-export function validateRules(rules: ReportRule[]): string | null {
-  if (rules.length === 0) return "Add at least one rule.";
+/** Validate a rule list for saving; returns an error message (in English unless a `t` is given) or null. */
+export function validateRules(rules: ReportRule[], t: T = en): string | null {
+  if (rules.length === 0) return t("Add at least one rule.");
   for (const r of rules) {
-    if (!r.template.trim()) return "Every rule needs an output template.";
+    if (!r.template.trim()) return t("Every rule needs an output template.");
     for (const c of r.conditions) {
-      if (!isRuleField(c.field)) return "Each condition needs a valid field.";
-      if (c.field === "type" && !c.value.trim()) return "Pick a type for a Type condition.";
-      if (c.field === "tag" && !c.value.trim()) return "Give the tag name for a Has-tag condition.";
-      if (c.field === "job" && !c.value.trim()) return "Pick a job for a Job condition.";
-      if (c.field === "title" && !c.value.trim()) return "Give the text a meeting title should contain.";
+      if (!isRuleField(c.field)) return t("Each condition needs a valid field.");
+      if (c.field === "type" && !c.value.trim()) return t("Pick a type for a Type condition.");
+      if (c.field === "tag" && !c.value.trim()) return t("Give the tag name for a Has-tag condition.");
+      if (c.field === "job" && !c.value.trim()) return t("Pick a job for a Job condition.");
+      if (c.field === "title" && !c.value.trim()) return t("Give the text a meeting title should contain.");
     }
   }
   return null;

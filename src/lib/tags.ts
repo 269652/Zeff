@@ -2,6 +2,7 @@ import { asc, eq, inArray, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { Tag } from "@/db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "./errors";
+import { t } from "@/lib/i18n/server";
 import { dedupeTags, normalizeTagName, type TagLite } from "./tags-shared";
 
 const { tags, entryTags } = schema;
@@ -34,8 +35,8 @@ export function getTagByName(name: string): Tag | undefined {
 
 export function createTag(name: string, color?: string | null): Tag {
   const n = normalizeTagName(name);
-  if (!n) throw new ValidationError("Tag name is required.");
-  if (getTagByName(n)) throw new ConflictError(`Tag "${n}" already exists.`);
+  if (!n) throw new ValidationError(t("Tag name is required."));
+  if (getTagByName(n)) throw new ConflictError(t("Tag \"{name}\" already exists.", { name: n }));
   return getDb().insert(tags).values({ name: n, color: color || null }).returning().get();
 }
 
@@ -52,12 +53,12 @@ export function getOrCreateTags(names: string[]): Tag[] {
 
 export function renameTag(id: number, name: string, color?: string | null): Tag {
   const n = normalizeTagName(name);
-  if (!n) throw new ValidationError("Tag name is required.");
+  if (!n) throw new ValidationError(t("Tag name is required."));
   const db = getDb();
   const existing = db.select().from(tags).where(eq(tags.id, id)).get();
-  if (!existing) throw new NotFoundError(`Tag #${id} not found.`);
+  if (!existing) throw new NotFoundError(t("Tag #{id} not found.", { id }));
   const clash = getTagByName(n);
-  if (clash && clash.id !== id) throw new ConflictError(`Tag "${n}" already exists.`);
+  if (clash && clash.id !== id) throw new ConflictError(t("Tag \"{name}\" already exists.", { name: n }));
   return db
     .update(tags)
     .set({ name: n, color: color === undefined ? existing.color : color || null })

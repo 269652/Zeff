@@ -2,10 +2,14 @@
  * Kanban, client-safe: your own boards (columns, cards K-<id>) and the boards other plugins bring
  * (Jira Lage: your Jira boards, each card with the Lage of its ticket) — one way to show both.
  */
+import type { T } from "@/lib/i18n/shared";
 
 export const PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 export type Priority = (typeof PRIORITIES)[number];
+/** The priorities' names in English (what the briefing reads). */
 export const PRIORITY_LABELS: Record<Priority, string> = { low: "Low", normal: "Normal", high: "High", urgent: "Urgent" };
+/** The priorities' names as shown, in the language of `t`. */
+export const priorityLabels = (t: T): Record<Priority, string> => ({ low: t("Low"), normal: t("Normal"), high: t("High"), urgent: t("Urgent") });
 export const isPriority = (v: unknown): v is Priority => (PRIORITIES as readonly unknown[]).includes(v);
 
 export const BOARD_COLORS = ["indigo", "emerald", "amber", "rose", "sky", "violet", "zinc"] as const;

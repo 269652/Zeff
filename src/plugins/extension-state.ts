@@ -1,6 +1,7 @@
 import { inArray } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { emitChange } from "@/lib/events";
+import { t } from "@/lib/i18n/server";
 import { EXTENSIONS, extensionById, extensionNeeds, extensionOfAction, extensionOfStep, type Extension } from "./extensions";
 import { installedPlugins } from "./state";
 import type { PluginId } from "./catalog";
@@ -42,7 +43,7 @@ export const extensionInstalled = (id: string) => installedExtensions().has(id);
 /** Turn one on or off (it stays set while its plugins come and go). */
 export function setExtensionInstalled(id: string, installed: boolean): Extension {
   const ext = extensionById(id);
-  if (!ext) throw new Error("Unbekannte Erweiterung.");
+  if (!ext) throw new Error(t("Unknown extension."));
   const changedAt = new Date().toISOString();
   getDb().insert(schema.plugins).values({ id: ROW(id), installed, changedAt }).onConflictDoUpdate({ target: schema.plugins.id, set: { installed, changedAt } }).run();
   emitChange("attention");

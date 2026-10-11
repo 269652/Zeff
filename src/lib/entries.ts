@@ -6,6 +6,7 @@ import { defaultTagsFor } from "./default-tags";
 import { assertEntryType, isEntryType } from "./entry-types";
 import { NotFoundError, ValidationError } from "./errors";
 import { round2 } from "./format";
+import { t } from "@/lib/i18n/server";
 import { isNoJobPlaceholder, requireJobByNumber } from "./jobs";
 import { projectBookingJob, requireProject } from "./projects";
 import { getStoredReportRules } from "./report-rules";
@@ -97,7 +98,7 @@ export function getEntry(id: number): EntryWithJob | undefined {
 
 export function requireEntry(id: number): EntryWithJob {
   const entry = getEntry(id);
-  if (!entry) throw new NotFoundError(`Time entry #${id} not found.`);
+  if (!entry) throw new NotFoundError(t("Time entry #{id} not found.", { id }));
   return entry;
 }
 
@@ -113,10 +114,10 @@ function resolveBooking(
     const project = requireProject(projectId);
     return { job: projectBookingJob(project), projectId: project.id, projectTitle: project.title };
   }
-  if (!jobNumber?.trim()) throw new ValidationError("Pick a job or a project to book on.");
+  if (!jobNumber?.trim()) throw new ValidationError(t("Pick a job or a project to book on."));
   const job = requireJobByNumber(jobNumber);
   if (isNoJobPlaceholder(job)) {
-    throw new ValidationError(`"${job.name}" is only for project entries — pick a job or a project.`);
+    throw new ValidationError(t("\"{job}\" is only for project entries — pick a job or a project.", { job: job.name }));
   }
   return { job, projectId: null, projectTitle: "" };
 }

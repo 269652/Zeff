@@ -3,6 +3,7 @@ import { listTodos } from "@/lib/boards/store";
 import { duplicateTodo } from "@/lib/boards/similar";
 import type { TodoView } from "@/lib/boards/shared";
 import { pushTo } from "@/lib/collections";
+import { t } from "@/lib/i18n/server";
 
 /**
  * How well the AI steps did: per step that makes todos (the Ticket-Lage, the review of mails and
@@ -13,16 +14,17 @@ import { pushTo } from "@/lib/collections";
 
 export type Origin = "lage" | "mail" | "notes" | "work" | "plan" | "agent" | "you" | "unknown";
 
-export const ORIGIN_LABELS: Record<Origin, string> = {
-  lage: "Briefing",
-  mail: "Mail & chat review",
-  notes: "Note review",
-  work: "Workers (follow-up steps)",
-  plan: "Planned steps",
-  agent: "Agents (MCP)",
-  you: "By you",
-  unknown: "Unknown",
-};
+/** Each origin's name, in the account's language (asked at each call). */
+export const originLabels = (): Record<Origin, string> => ({
+  lage: t("Briefing"),
+  mail: t("Mail & chat review"),
+  notes: t("Note review"),
+  work: t("Workers (follow-up steps)"),
+  plan: t("Planned steps"),
+  agent: t("Agents (MCP)"),
+  you: t("By you"),
+  unknown: t("Unknown"),
+});
 
 /** The steps whose todos the AI proposes by itself (the others come from you, or follow from a todo you did). */
 export const AI_ORIGINS: Origin[] = ["lage", "mail", "notes", "work"];
@@ -78,7 +80,7 @@ const median = (xs: number[]) => {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
 
-const iso = (t: string) => (/^\d{4}-\d{2}-\d{2} /.test(t) ? `${t.replace(" ", "T")}Z` : t);
+const iso = (s: string) => (/^\d{4}-\d{2}-\d{2} /.test(s) ? `${s.replace(" ", "T")}Z` : s);
 
 /** The quality of the todo-making steps, over the todos made in the last `days` (null: all). */
 export function aiQuality(days: number | null, now = Date.now()): AiQuality {
@@ -122,10 +124,11 @@ export function aiQuality(days: number | null, now = Date.now()): AiQuality {
     pushTo(byOrigin, o, r);
   }
   const order: Origin[] = ["lage", "mail", "notes", "work", "plan", "agent", "you", "unknown"];
-  const out = order.filter((o) => byOrigin.has(o)).map((o) => tally(o, ORIGIN_LABELS[o], byOrigin.get(o)!));
+  const labels = originLabels();
+  const out = order.filter((o) => byOrigin.has(o)).map((o) => tally(o, labels[o], byOrigin.get(o)!));
   // Auto-Aktionen: the todos it put ready-made actions on (whoever made the todo).
   const auto = inWindow.filter((r) => r.auto_ops_why);
-  if (auto.length) out.push(tally("auto-actions", "Auto actions (todos with ready-made actions)", auto));
+  if (auto.length) out.push(tally("auto-actions", t("Auto actions (todos with ready-made actions)"), auto));
 
   return { since, rows: out, repeats: repeats(rows, since) };
 }
@@ -137,19 +140,19 @@ export function aiQuality(days: number | null, now = Date.now()): AiQuality {
 function repeats(rows: Row[], since: string | null): Repeat[] {
   const dropped = rows.filter((r) => r.status === "dismissed" && r.closed_by === "you" && r.done_at);
   if (!dropped.length) return [];
-  const all = new Map(listTodos({ status: "all" }).map((t) => [t.id, t]));
+  const all = new Map(listTodos({ status: "all" }).map((todo) => [todo.id, todo]));
   const out: Repeat[] = [];
   for (const r of rows) {
     if (since && iso(r.created_at) < since) continue;
     if (!AI_ORIGINS.includes(originOf(r.source, r.made_by))) continue;
-    const t = all.get(r.id);
-    if (!t) continue;
+    const todo = all.get(r.id);
+    if (!todo) continue;
     const before: TodoView[] = dropped
       .filter((d) => d.id !== r.id && iso(d.done_at!) <= iso(r.created_at))
       .map((d) => all.get(d.id))
       .filter((d): d is TodoView => !!d);
-    const like = duplicateTodo({ text: t.text, ops: t.ops }, before);
-    if (like) out.push({ id: t.id, ref: t.ref, text: t.text, createdAt: iso(r.created_at), like: { id: like.id, ref: like.ref, text: like.text, droppedAt: like.doneAt ?? "" } });
+    const like = duplicateTodo({ text: todo.text, ops: todo.ops }, before);
+    if (like) out.push({ id: todo.id, ref: todo.ref, text: todo.text, createdAt: iso(r.created_at), like: { id: like.id, ref: like.ref, text: like.text, droppedAt: like.doneAt ?? "" } });
   }
   return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }

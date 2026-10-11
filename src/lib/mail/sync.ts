@@ -3,6 +3,7 @@ import { clearAttention, needsSignIn, raiseLogin } from "@/lib/attention";
 import { sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { getPref, setPref } from "@/lib/prefs";
 import { getMailSettings, saveMails, updateMailSettings, type MailInput } from "./store";
 
@@ -65,7 +66,7 @@ async function readMailbox(source: Source, days: number, background: boolean, gm
     600000, // two months of the list: scrolled (paged) through, row by row
   );
   const data = (typeof out === "string" ? JSON.parse(out) : out) as { messages?: MailInput[]; missing?: string[] };
-  if (!Array.isArray(data.messages)) throw new Error(typeof out === "string" ? out.slice(0, 300) : `${SOURCE_LABELS[source]} returned nothing readable.`);
+  if (!Array.isArray(data.messages)) throw new Error(typeof out === "string" ? out.slice(0, 300) : t("{source} returned nothing readable.", { source: SOURCE_LABELS[source] }));
   return { messages: data.messages, missing: data.missing };
 }
 
@@ -81,7 +82,9 @@ async function syncSource(source: Source, days: number, background: boolean, pre
       if (full.length) setPref(k, [...new Set([...getPref<string[]>(k, []), ...full])].slice(-5000));
     }
     clearAttention(`login:${source}`);
-    return { ok: true, part: `${prefix ? `${label}: ` : ""}${added} new · ${total} in all${r.missing?.length ? ` — not found in Outlook: ${r.missing.join(", ")}` : ""}` };
+    const counted = t("{added} new · {total} in all", { added, total });
+    const missing = r.missing?.length ? ` — ${t("not found in Outlook: {folders}", { folders: r.missing.join(", ") })}` : "";
+    return { ok: true, part: `${prefix ? `${label}: ` : ""}${counted}${missing}` };
   } catch (e) {
     const message = errorMessage(e).slice(0, 300);
     if (needsSignIn(message) || /sign[- ]in|anmeld|verknüpf/i.test(message)) raiseLogin(source, message);
@@ -95,15 +98,15 @@ async function syncSource(source: Source, days: number, background: boolean, pre
  * may start it. A mailbox that fails doesn't stop the other.
  */
 export async function syncMail({ background = false } = {}): Promise<{ ok: boolean; message: string }> {
-  if (state.__zeffMailSyncing) return { ok: false, message: "A mail sync is already running." };
+  if (state.__zeffMailSyncing) return { ok: false, message: t("A mail sync is already running.") };
   state.__zeffMailSyncing = true;
   try {
     // In the background without the automation Chrome: later, as for the other sources — not a failure
     // (that would also make the next sync read two months again).
-    if (background && !(await chromeUp())) return { ok: true, message: "The automation Chrome isn't running — later." };
+    if (background && !(await chromeUp())) return { ok: true, message: t("The automation Chrome isn't running — later.") };
     const { isInstalled } = await import("@/plugins/state");
     const sources = (["outlook", "gmail"] as const).filter((s) => isInstalled(SOURCE_PLUGINS[s]));
-    if (!sources.length) return record(false, "No mail plugin installed (Outlook Mail or Gmail).");
+    if (!sources.length) return record(false, t("No mail plugin installed (Outlook Mail or Gmail)."));
     const days = background && getMailSettings().lastOk ? DAYS : FULL_DAYS;
     const done = [];
     // Gmail: each account set on its settings page, into its own folder.
@@ -124,7 +127,7 @@ export async function syncMail({ background = false } = {}): Promise<{ ok: boole
  */
 export async function syncWhatsapp({ background = false } = {}): Promise<{ ok: boolean; message: string }> {
   const flag = globalThis as { __zeffWhatsappSyncing?: boolean };
-  if (flag.__zeffWhatsappSyncing) return { ok: false, message: "A WhatsApp sync is already running." };
+  if (flag.__zeffWhatsappSyncing) return { ok: false, message: t("A WhatsApp sync is already running.") };
   flag.__zeffWhatsappSyncing = true;
   try {
     if (background && !(await chromeUp())) return { ok: false, message: "The automation Chrome isn't running. Not synced." };

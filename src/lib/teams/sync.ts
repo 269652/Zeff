@@ -1,6 +1,7 @@
 import { automationCdp, automationEnv, driverPath } from "@/plugins/drivers";
 import { clearAttention, needsSignIn, raiseLogin } from "@/lib/attention";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { saveTeamsMessages, updateTeamsSettings, type TeamsMessageInput } from "./store";
 
 /** How far back 1:1 chats (PMs) are read on each sync. */
@@ -30,11 +31,11 @@ async function chromeUp(): Promise<boolean> {
  * `background`: only when Chrome runs with Teams open; by hand it may open Teams.
  */
 export async function syncTeams({ background = false } = {}): Promise<{ ok: boolean; message: string }> {
-  if (state.__zeffTeamsSyncing) return { ok: false, message: "A Teams sync is already running." };
+  if (state.__zeffTeamsSyncing) return { ok: false, message: t("A Teams sync is already running.") };
   state.__zeffTeamsSyncing = true;
   try {
     // In the background without the automation Chrome: later, as for the other sources — not a failure.
-    if (background && !(await chromeUp())) return { ok: true, message: "The automation Chrome isn't running — later." };
+    if (background && !(await chromeUp())) return { ok: true, message: t("The automation Chrome isn't running — later.") };
     const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
     const script = driverPath("teams");
     const out = await runStdioSession(
@@ -44,10 +45,10 @@ export async function syncTeams({ background = false } = {}): Promise<{ ok: bool
       180000,
     );
     const data = (typeof out === "string" ? JSON.parse(out) : out) as { messages?: TeamsMessageInput[]; unresolved?: number };
-    if (!Array.isArray(data.messages)) throw new Error(typeof out === "string" ? out.slice(0, 300) : "Teams returned nothing readable.");
+    if (!Array.isArray(data.messages)) throw new Error(typeof out === "string" ? out.slice(0, 300) : t("{source} returned nothing readable.", { source: "Teams" }));
     const { added, total } = saveTeamsMessages(data.messages);
     clearAttention("login:teams");
-    return record(true, `${added} new · ${total} in all`);
+    return record(true, t("{added} new · {total} in all", { added, total }));
   } catch (e) {
     const message = errorMessage(e).slice(0, 300);
     // Teams wants you to sign in: asked of you (and pinged) — never done by Zeff.

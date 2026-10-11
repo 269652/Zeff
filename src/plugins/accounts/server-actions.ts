@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { accountsOn, revalidateAll, type ActionState } from "@/app/action-helpers";
 
 /** Accounts: its server actions (each answers an ActionState unless it says otherwise). */
@@ -14,7 +15,7 @@ export async function switchAccountAction(id: string): Promise<ActionState & { h
     const a = (await import("@/lib/accounts")).switchAccount(String(id));
     revalidateAll();
     const { appTabs } = await import("@/plugins/tabs");
-    return { ok: true, message: `Now in “${a.name}”.`, href: appTabs()[0]?.href ?? "/plugins" };
+    return { ok: true, message: t("Now in “{name}”.", { name: a.name }), href: appTabs()[0]?.href ?? "/plugins" };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -32,7 +33,11 @@ export async function createAccountAction(v: { name: string; color: string; copy
       shareChrome: !!v.shareChrome,
     });
     revalidatePath("/accounts");
-    return { ok: true, id: account.id, message: `Account “${account.name}” created${copied ? ` — ${copied} settings taken over` : ""}.` };
+    return {
+      ok: true,
+      id: account.id,
+      message: copied ? t("Account “{name}” created — {n} settings taken over.", { name: account.name, n: copied }) : t("Account “{name}” created.", { name: account.name }),
+    };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -45,7 +50,7 @@ export async function updateAccountAction(id: string, v: { name?: string; color?
     const { updateAccount } = await import("@/db/accounts");
     const a = updateAccount(String(id), { name: v.name === undefined ? undefined : String(v.name), color: v.color === undefined ? undefined : String(v.color) });
     revalidateAll();
-    return { ok: true, message: `“${a.name}” saved.` };
+    return { ok: true, message: t("“{name}” saved.", { name: a.name }) };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -58,7 +63,7 @@ export async function deleteAccountAction(id: string): Promise<ActionState> {
     if (off) return { ok: false, error: off };
     const to = (await import("@/lib/accounts")).deleteAccount(String(id));
     revalidatePath("/accounts");
-    return { ok: true, message: `Account removed — its data is in ${to}.` };
+    return { ok: true, message: t("Account removed — its data is in {dir}.", { dir: to }) };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

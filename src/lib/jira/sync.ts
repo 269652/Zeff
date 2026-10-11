@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { t } from "@/lib/i18n/server";
 import { resultToPayload, runStdioSession, type McpStdioConfig } from "./mcp-client";
 import { extractIssues, normalizeIssue, type NormalizedTicket } from "./normalize";
 import {
@@ -169,12 +170,12 @@ async function readFromJira(): Promise<SyncResult> {
   const cfg = getJiraSyncConfig();
   if (!cfg.configured || !cfg.command) {
     throw new Error(
-      "Jira MCP sync is not configured. Set JIRA_MCP_COMMAND (and optionally JIRA_MCP_ARGS/JIRA_MCP_ENV/JIRA_JQL) in .env.local, or use Paste import.",
+      t("Jira MCP sync is not configured. Set JIRA_MCP_COMMAND (and optionally JIRA_MCP_ARGS/JIRA_MCP_ENV/JIRA_JQL) in .env.local, or use Paste import."),
     );
   }
   const config: McpStdioConfig = { command: cfg.command, args: cfg.args, env: cfg.env, label: "Jira MCP" };
   const normalize = (issues: unknown[]) =>
-    issues.map((i) => normalizeIssue(i, cfg.baseUrl)).filter((t): t is NormalizedTicket => t !== null);
+    issues.map((i) => normalizeIssue(i, cfg.baseUrl)).filter((x): x is NormalizedTicket => x !== null);
 
   // mcp-atlassian cold-starts in ~30s; do every fetch over ONE session.
   return runStdioSession(
@@ -183,7 +184,7 @@ async function readFromJira(): Promise<SyncResult> {
       // 1. My assigned tickets (expand=changelog brings history for time-to-respond).
       const myRaw = extractIssues(resultToPayload(await call(cfg.tool, { jql: cfg.jql, limit: cfg.limit, fields: cfg.fields, expand: "changelog" })));
       const myTickets = normalize(myRaw);
-      const myKeys = myTickets.map((t) => t.key);
+      const myKeys = myTickets.map((x) => x.key);
 
       // 2. All issues on each enabled board (any assignee). First enabled board wins per ticket.
       //    jira_get_board_issues caps `limit` at 50 and requires `jql`; page with `start_at`.
@@ -209,9 +210,9 @@ async function readFromJira(): Promise<SyncResult> {
           }
           const raw = extractIssues(payload);
           if (raw.length === 0) break;
-          for (const t of normalize(raw)) {
-            boardTickets.push(t);
-            if (!seen.has(t.key)) { seen.add(t.key); members.push({ key: t.key, boardId }); }
+          for (const x of normalize(raw)) {
+            boardTickets.push(x);
+            if (!seen.has(x.key)) { seen.add(x.key); members.push({ key: x.key, boardId }); }
           }
           const total = Number((payload as { total?: unknown })?.total ?? 0);
           if (raw.length < BOARD_PAGE || (total > 0 && startAt + BOARD_PAGE >= total)) break;
@@ -219,18 +220,20 @@ async function readFromJira(): Promise<SyncResult> {
       }
 
       if (myTickets.length === 0 && boardTickets.length === 0) {
-        throw new Error(`The Jira MCP tool "${cfg.tool}" / jira_get_board_issues returned no recognizable issues. Check the config on the Jira tab.`);
+        throw new Error(
+          t("The Jira MCP tool \"{tool}\" / jira_get_board_issues returned no recognizable issues. Check the config on the Jira tab.", { tool: cfg.tool }),
+        );
       }
 
       // 3. Merge (my tickets win for shared keys — they carry the changelog), upsert, deactivate the rest.
       const byKey = new Map<string, NormalizedTicket>();
-      for (const t of boardTickets) byKey.set(t.key, t);
-      for (const t of myTickets) byKey.set(t.key, t);
+      for (const x of boardTickets) byKey.set(x.key, x);
+      for (const x of myTickets) byKey.set(x.key, x);
       const all = [...byKey.values()];
       const upserted = upsertTickets(all, { markMissingInactive: unread.length === 0 });
 
       // 4. Board membership + mine flags across everything we just synced.
-      const unionKeys = all.map((t) => t.key);
+      const unionKeys = all.map((x) => x.key);
       assignTicketBoards(unionKeys, members);
       setTicketsMine(myKeys, unionKeys);
 
@@ -258,14 +261,14 @@ export function importPastedTickets(text: string, baseUrl?: string): SyncResult 
   try {
     json = JSON.parse(text);
   } catch {
-    throw new Error("That is not valid JSON.");
+    throw new Error(t("That is not valid JSON."));
   }
   const issues = extractIssues(json);
   const tickets = issues
     .map((i) => normalizeIssue(i, baseUrl ?? getJiraSyncConfig().baseUrl))
-    .filter((t): t is NormalizedTicket => t !== null);
+    .filter((x): x is NormalizedTicket => x !== null);
   if (tickets.length === 0) {
-    throw new Error("No recognizable Jira issues found (need objects with a key like PROJ-80).");
+    throw new Error(t("No recognizable Jira issues found (need objects with a key like PROJ-80)."));
   }
   const upserted = upsertTickets(tickets);
   return { ...upserted, fetched: issues.length, titlesAdded: 0, boardTickets: 0, mine: 0 };

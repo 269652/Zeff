@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useT } from "@/components/I18nProvider";
 
 /**
  * Reads calendar events the bookmarklet placed in the URL fragment
@@ -10,6 +11,7 @@ import { useRouter } from "next/navigation";
  * hits the server log or history.
  */
 export function HashIngest() {
+  const t = useT();
   const router = useRouter();
   const [msg, setMsg] = useState<string>();
   const [error, setError] = useState(false);
@@ -30,10 +32,10 @@ export function HashIngest() {
         payload = JSON.parse(decodeURIComponent(encoded));
       } catch {
         setError(true);
-        setMsg("Could not read the meetings from Outlook — try the copy & paste option.");
+        setMsg(t("Could not read the meetings from Outlook — try the copy & paste option."));
         return;
       }
-      setMsg("Loading meetings from Outlook…");
+      setMsg(t("Loading meetings from Outlook…"));
       try {
         const res = await fetch("/api/calendar/ingest", {
           method: "POST",
@@ -41,14 +43,19 @@ export function HashIngest() {
           body: JSON.stringify(payload),
         });
         const j = await res.json();
-        setMsg(`Loaded ${j.accepted ?? 0} meetings from Outlook (${j.total ?? 0} in the inbox). Review and book below.`);
+        setMsg(
+          t("Loaded {n} meetings from Outlook ({total} in the inbox). Review and book below.", {
+            n: j.accepted ?? 0,
+            total: j.total ?? 0,
+          }),
+        );
         router.refresh();
       } catch (e) {
         setError(true);
-        setMsg(`Could not load the meetings: ${e}`);
+        setMsg(t("Could not load the meetings: {error}", { error: String(e) }));
       }
     })();
-  }, [router]);
+  }, [router, t]);
 
   if (!msg) return null;
   return <p className={error ? "alert-error" : "alert-ok"}>{msg}</p>;

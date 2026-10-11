@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { t } from "@/lib/i18n/server";
 import { isValidIsoDate } from "./week";
 
 export const isoDateSchema = z
@@ -83,9 +84,23 @@ export const projectInputSchema = z.object({
 
 export type ProjectInput = z.infer<typeof projectInputSchema>;
 
+/** The messages of the schemas above in the account's language (zod's own stay English). */
+const messages = (): Record<string, string> => ({
+  "Expected an ISO date in the form YYYY-MM-DD": t("Expected an ISO date in the form YYYY-MM-DD"),
+  "Hours must be greater than 0": t("Hours must be greater than 0"),
+  "Hours must not exceed 24 for a single entry": t("Hours must not exceed 24 for a single entry"),
+  "Job number is required": t("Job number is required"),
+  "Job number is too long": t("Job number is too long"),
+  "Description is required": t("Description is required"),
+  "Description is too long": t("Description is too long"),
+  "Name is required": t("Name is required"),
+  "Title is required": t("Title is required"),
+});
+
 /** Turn a zod error into a single readable line. */
 export function formatZodError(err: z.ZodError): string {
+  const say = messages();
   return err.issues
-    .map((i) => (i.path.length ? `${i.path.join(".")}: ${i.message}` : i.message))
+    .map((i) => (i.path.length ? `${i.path.join(".")}: ${say[i.message] ?? i.message}` : (say[i.message] ?? i.message)))
     .join("; ");
 }

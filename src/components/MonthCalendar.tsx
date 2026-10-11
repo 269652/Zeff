@@ -3,10 +3,11 @@ import type { DayShortfall } from "@/lib/day-status";
 import { formatHours, round2 } from "@/lib/format";
 import type { MonthInfo } from "@/lib/month";
 import type { DayTarget } from "@/lib/schedule";
-import { ABSENCE_LABELS, type AbsenceType } from "@/lib/schedule-shared";
+import { absenceLabels, type AbsenceType } from "@/lib/schedule-shared";
 import { isoDate } from "@/lib/week";
+import { t } from "@/lib/i18n/server";
 
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const weekdays = () => [t("Mon"), t("Tue"), t("Wed"), t("Thu"), t("Fri"), t("Sat"), t("Sun")];
 
 const APPROVED_TEXT = "text-emerald-700 dark:text-emerald-300";
 const PENDING_TEXT = "text-orange-600 dark:text-orange-400";
@@ -45,12 +46,12 @@ export function MonthCalendar({
     <div className="overflow-x-auto">
       <div className="grid min-w-[36rem] grid-cols-[3rem_repeat(7,minmax(0,1fr))_4.5rem] gap-1 text-sm">
         <div />
-        {WEEKDAYS.map((d, i) => (
+        {weekdays().map((d, i) => (
           <div key={d} className={`px-2 text-xs font-medium uppercase ${i >= 5 ? "text-zinc-400" : "text-zinc-500"}`}>
             {d}
           </div>
         ))}
-        <div className="px-2 text-right text-xs font-medium text-zinc-500 uppercase">Week</div>
+        <div className="px-2 text-right text-xs font-medium text-zinc-500 uppercase">{t("Week")}</div>
 
         {month.weeks.map((w) => {
           const inMonth = w.days.map((d) => index.get(isoDate(d)));
@@ -61,9 +62,9 @@ export function MonthCalendar({
               key={`${w.key}-label`}
               href={`/?week=${w.key}`}
               className="flex items-center justify-center rounded-md text-xs font-medium text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-              title={`Open week ${w.week}`}
+              title={t("Open week {week}", { week: w.week })}
             >
-              W{w.week}
+              {t("W{week}", { week: w.week })}
             </Link>,
             ...w.days.map((d, k) => {
               const i = inMonth[k];
@@ -85,26 +86,26 @@ export function MonthCalendar({
             }),
             <div key={`${w.key}-total`} className="flex flex-col items-end justify-center px-2 tabular-nums">
               <span className="font-semibold">{booked ? formatHours(booked) : "–"}</span>
-              {target > 0 && <span className="text-[11px] text-zinc-400">of {formatHours(target)}</span>}
+              {target > 0 && <span className="text-[11px] text-zinc-400">{t("of {hours}", { hours: formatHours(target) })}</span>}
             </div>,
           ];
         })}
       </div>
 
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">
-        <LegendDot className="bg-emerald-100 dark:bg-emerald-900/60" label="all approved in Roar" />
+        <LegendDot className="bg-emerald-100 dark:bg-emerald-900/60" label={t("all approved in Roar")} />
         <span>
           <span className={`font-semibold ${APPROVED_TEXT}`}>8</span> / <span className={`font-semibold ${PENDING_TEXT}`}>12</span>{" "}
-          approved / booked
+          {t("approved / booked")}
         </span>
         <span>
-          <span className={`font-semibold ${PENDING_TEXT}`}>8</span> not approved yet
+          <span className={`font-semibold ${PENDING_TEXT}`}>8</span> {t("not approved yet")}
         </span>
-        <LegendDot className="bg-red-100 dark:bg-red-900/60" label="hours missing" />
-        <LegendDot className="bg-amber-100 dark:bg-amber-900/60" label="due today" />
-        <LegendDot className="bg-zinc-100 dark:bg-zinc-800" label="off / absent" />
+        <LegendDot className="bg-red-100 dark:bg-red-900/60" label={t("hours missing")} />
+        <LegendDot className="bg-amber-100 dark:bg-amber-900/60" label={t("due today")} />
+        <LegendDot className="bg-zinc-100 dark:bg-zinc-800" label={t("off / absent")} />
         {roarOn && roar.some((r, i) => r === null && dayTotals[i] > 0) && (
-          <span className="text-zinc-400">plain hours: week not pulled from Roar</span>
+          <span className="text-zinc-400">{t("plain hours: week not pulled from Roar")}</span>
         )}
       </div>
     </div>
@@ -148,22 +149,26 @@ function DayCell({
             ? "bg-zinc-50 text-zinc-500 dark:bg-zinc-900/60 dark:text-zinc-400"
             : "bg-white dark:bg-zinc-950";
   const note = target.absence
-    ? ABSENCE_LABELS[target.absence.type as AbsenceType]
+    ? absenceLabels(t)[target.absence.type as AbsenceType]
     : off && target.base <= 0
-      ? "off"
+      ? t("off")
       : "";
   const title = [
-    `${hours ? formatHours(hours) : 0} h booked`,
-    target.target > 0 ? `target ${formatHours(target.target)} h` : "",
-    shortfall.state !== "ok" ? `${formatHours(shortfall.gap)} h ${shortfall.state === "missing" ? "missing" : "still due"}` : "",
+    t("{hours} h booked", { hours: hours ? formatHours(hours) : 0 }),
+    target.target > 0 ? t("target {hours} h", { hours: formatHours(target.target) }) : "",
+    shortfall.state !== "ok"
+      ? shortfall.state === "missing"
+        ? t("{hours} h missing", { hours: formatHours(shortfall.gap) })
+        : t("{hours} h still due", { hours: formatHours(shortfall.gap) })
+      : "",
     hours > 0 && roarOn
       ? !roar
-        ? "week not pulled from Roar"
+        ? t("week not pulled from Roar")
         : allApproved
-          ? "all approved in Roar"
+          ? t("all approved in Roar")
           : partlyApproved
-            ? `${formatHours(approved)} of ${formatHours(hours)} h approved in Roar`
-            : "not approved in Roar yet"
+            ? t("{approved} of {hours} h approved in Roar", { approved: formatHours(approved), hours: formatHours(hours) })
+            : t("not approved in Roar yet")
       : "",
     note,
   ]

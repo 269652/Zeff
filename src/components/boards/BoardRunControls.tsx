@@ -7,23 +7,25 @@ import { runSyncAction, stopSyncAction, syncOverviewAction } from "@/app/actions
 import type { SyncKey, SyncOverview } from "@/lib/sync/shared";
 import { ChevronIcon } from "../icons";
 import { SyncStepRow } from "../SyncMenu";
+import { useT } from "@/components/I18nProvider";
+import type { T } from "@/lib/i18n/shared";
 
 /** What "Jetzt auswerten" does, in order — each a step of its own, as in the Sync menu. */
 /** After the syncs it runs first (the Auswerten settings): the Lage and its steps. */
 const AFTER_STEPS: SyncKey[] = ["boards", "mailtodos", "relations", "notetodos", "noterelations", "knowledgerel", "autoactions"];
 
-const PHASES: Record<string, string> = {
-  sync: "syncing first",
-  jira: "reading Jira and Zeff",
-  ai: "analyzing",
-  saving: "saving",
-  mailtodos: "finding todos in mails and WhatsApp",
-  mails: "matching mails to the todos",
-  notetodos: "finding todos in notes",
-  knowledge: "matching knowledge to the todos",
-  notes: "matching notes to the todos",
-  autoactions: "taking actions for the todos",
-};
+const phases = (t: T): Record<string, string> => ({
+  sync: t("syncing first"),
+  jira: t("reading Jira and Zeff"),
+  ai: t("analyzing"),
+  saving: t("saving"),
+  mailtodos: t("finding todos in mails and WhatsApp"),
+  mails: t("matching mails to the todos"),
+  notetodos: t("finding todos in notes"),
+  knowledge: t("matching knowledge to the todos"),
+  notes: t("matching notes to the todos"),
+  autoactions: t("taking actions for the todos"),
+});
 
 /** Seconds since a moment, as m:ss (outside render: the clock isn't a render input). */
 const sinceText = (since: number) => {
@@ -49,6 +51,8 @@ export function BoardRunControls({
   /** The syncs it runs first (Auswerten → Vorher synchronisieren). */
   presync?: SyncKey[];
 }) {
+  const t = useT();
+  const PHASES = phases(t);
   const RUN_STEPS = [...presync, ...AFTER_STEPS];
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -81,7 +85,7 @@ export function BoardRunControls({
       }
     };
     void poll();
-    const t = setInterval(poll, 2000);
+    const timer = setInterval(poll, 2000);
     const onDown = (e: MouseEvent) => {
       if (!root.current?.contains(e.target as Node)) setOpen(false);
     };
@@ -92,7 +96,7 @@ export function BoardRunControls({
     document.addEventListener("keydown", onKey);
     return () => {
       alive = false;
-      clearInterval(t);
+      clearInterval(timer);
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
     };
@@ -101,14 +105,14 @@ export function BoardRunControls({
     start(async () => {
       setError(null);
       const r = await runSyncAction(key);
-      if (r && !r.ok) setError(r.error ?? "Couldn't start.");
+      if (r && !r.ok) setError(r.error ?? t("Couldn't start."));
       setSteps(await syncOverviewAction());
       router.refresh();
     });
 
   useEffect(() => {
     if (!running) return;
-    const clock = setInterval(() => setTick((t) => t + 1), 1000);
+    const clock = setInterval(() => setTick((n) => n + 1), 1000);
     // The run's phase, now and then (its end refreshes at once, through LiveRefresh) — a refresh renders the whole Lage.
     const follow = setInterval(() => router.refresh(), 10000);
     return () => {
@@ -130,21 +134,21 @@ export function BoardRunControls({
           />
           {since ? sinceText(since) : ""} ·{" "}
           {phase === "ai"
-            ? `${provider} ${PHASES.ai}`
-            : (PHASES[phase ?? ""] ?? "running")}
+            ? t("{provider} analyzing", { provider })
+            : (PHASES[phase ?? ""] ?? t("running"))}
           <button
             type="button"
             className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
             onClick={() =>
               start(async () => {
                 const r = await stopBoardRunAction();
-                if (r && !r.ok) setError(r.error ?? "Didn't work.");
+                if (r && !r.ok) setError(r.error ?? t("Didn't work."));
                 router.refresh();
               })
             }
-            title="Cancel the run — the step it is on (sync, AI) ends with it"
+            title={t("Cancel the run — the step it is on (sync, AI) ends with it")}
           >
-            Cancel
+            {t("Cancel")}
           </button>
         </span>
       )}
@@ -157,13 +161,15 @@ export function BoardRunControls({
             start(async () => {
               setError(null);
               const r = await runBoardAction();
-              if (r && !r.ok) setError(r.error ?? "Couldn't start.");
+              if (r && !r.ok) setError(r.error ?? t("Couldn't start."));
               router.refresh();
             })
           }
-          title="First syncs what AI steps → “Sync first” lists, then reads your tickets (with comments and history) and what Zeff knows about them, has the AI from the settings write the briefing and the todos — and then matches each todo with the mails it is about"
+          title={t(
+            "First syncs what AI steps → “Sync first” lists, then reads your tickets (with comments and history) and what Zeff knows about them, has the AI from the settings write the briefing and the todos — and then matches each todo with the mails it is about",
+          )}
         >
-          {running || pending ? "Running…" : "Run now"}
+          {running || pending ? t("Running…") : t("Run now")}
         </button>
         <button
           type="button"
@@ -172,7 +178,7 @@ export function BoardRunControls({
           aria-expanded={open}
           aria-controls="board-run-steps"
           onClick={toggle}
-          title="The run's steps — how they last ran, each one startable on its own"
+          title={t("The run's steps — how they last ran, each one startable on its own")}
         >
           <ChevronIcon className={`size-4 ${open ? "-rotate-90" : "rotate-90"}`} />
         </button>
@@ -183,8 +189,7 @@ export function BoardRunControls({
             className="z-50 w-[22rem] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950"
           >
             <p className="border-b border-zinc-200 px-3 py-2.5 text-xs text-zinc-500 dark:border-zinc-800">
-              “Run now” does these steps one after another — each also
-              works on its own.
+              {t("“Run now” does these steps one after another — each also works on its own.")}
             </p>
             <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
               {RUN_STEPS.flatMap(
@@ -205,7 +210,7 @@ export function BoardRunControls({
                 />
               ))}
               {!steps && (
-                <li className="px-3 py-3 text-sm text-zinc-500">Loading…</li>
+                <li className="px-3 py-3 text-sm text-zinc-500">{t("Loading…")}</li>
               )}
             </ul>
           </div>

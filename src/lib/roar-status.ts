@@ -1,6 +1,7 @@
 import { parseISO } from "date-fns";
 import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { getDb, schema } from "@/db";
+import { t } from "@/lib/i18n/server";
 import { NO_JOB_NUMBER } from "./projects-shared";
 import { getRewrittenJobLines } from "./report";
 import { clipComment, roarComment, roundRoarHours } from "./roar";
@@ -188,14 +189,16 @@ export function roarStatusByEntry(week: WeekInfo): Record<number, EntryRoarStatu
 /** A status as a sentence, for tooltips. */
 export function roarStatusTitle(s: EntryRoarStatus): string {
   switch (s.kind) {
-    case "approved":
-      return `Roar: approved${s.approvedBy ? ` by ${s.approvedBy}` : ""}${s.approvedAt ? ` (${s.approvedAt.slice(0, 10)})` : ""}`;
+    case "approved": {
+      const on = s.approvedAt ? ` (${s.approvedAt.slice(0, 10)})` : "";
+      return `${s.approvedBy ? t("Roar: approved by {name}", { name: s.approvedBy }) : t("Roar: approved")}${on}`;
+    }
     case "rejected":
-      return `Roar: rejected${s.rejectionComment ? ` — ${s.rejectionComment}` : ""}`;
+      return s.rejectionComment ? t("Roar: rejected — {comment}", { comment: s.rejectionComment }) : t("Roar: rejected");
     case "submitted":
-      return `Roar: submitted${s.approver ? `, waiting for ${s.approver}` : ""}`;
+      return s.approver ? t("Roar: submitted, waiting for {name}", { name: s.approver }) : t("Roar: submitted");
     default:
-      return `Roar: ${s.status || "draft"} (not submitted)`;
+      return t("Roar: {status} (not submitted)", { status: s.status || t("draft") });
   }
 }
 

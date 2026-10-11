@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { WorkLogLine } from "@/lib/work/shared";
+import { useT } from "@/components/I18nProvider";
 
 /** One log line. */
 function Line({ l }: { l: WorkLogLine }) {
+  const t = useT();
   switch (l.k) {
     case "start":
       return <div className="text-zinc-500">▶ {l.text}</div>;
@@ -20,7 +22,7 @@ function Line({ l }: { l: WorkLogLine }) {
     case "out":
       return <div className={`pl-4 ${l.error ? "text-red-400" : "text-zinc-500"}`}>{l.error ? "✗ " : "↳ "}{l.text}</div>;
     case "deny":
-      return <div className="text-amber-400">⛔ refused — {l.text}</div>;
+      return <div className="text-amber-400">⛔ {t("refused")} — {l.text}</div>;
     case "end":
       return <div className={`font-semibold ${l.ok ? "text-emerald-400" : "text-red-400"}`}>{l.ok ? "■" : "✗"} {l.text}</div>;
     default:
@@ -33,6 +35,7 @@ function Line({ l }: { l: WorkLogLine }) {
  * new lines), kept scrolled to the end unless you scroll up. Then it stays as it ended.
  */
 export function RunLog({ id, fill = false }: { id: number; /** The whole height it's given (a session's page), not a box. */ fill?: boolean }) {
+  const t = useT();
   const [lines, setLines] = useState<WorkLogLine[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -84,7 +87,7 @@ export function RunLog({ id, fill = false }: { id: number; /** The whole height 
       className={`${fill ? "min-h-0 flex-1" : "max-h-96"} space-y-1 overflow-auto rounded-md bg-zinc-950 p-2.5 font-mono text-xs leading-snug break-words text-zinc-300`}
       role="log"
       aria-live="polite"
-      aria-label="Worker log"
+      aria-label={t("Worker log")}
     >
       {lines.map((l, i) => (
         <Line key={i} l={l} />
@@ -98,8 +101,8 @@ export function RunLog({ id, fill = false }: { id: number; /** The whole height 
           ))}
         </div>
       )}
-      {loaded && !lines.length && !errors.length && <div className="text-zinc-500">Nothing in the log yet.</div>}
-      {!loaded && <div className="text-zinc-500">Loading…</div>}
+      {loaded && !lines.length && !errors.length && <div className="text-zinc-500">{t("Nothing in the log yet.")}</div>}
+      {!loaded && <div className="text-zinc-500">{t("Loading…")}</div>}
     </div>
   );
 }

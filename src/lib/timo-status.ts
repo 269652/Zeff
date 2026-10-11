@@ -1,6 +1,7 @@
 import { inArray } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { formatHours, round2 } from "./format";
+import { t } from "@/lib/i18n/server";
 import { getReportSettings, getTimoConfig } from "./report";
 import { getTimoExportPlan } from "./timo";
 import { isoDate, type WeekInfo } from "./week";
@@ -69,13 +70,18 @@ export function timoDayStates(week: WeekInfo): { states: (TimoDayState | undefin
       .join(" · ");
     const work = plan.days.find((d) => d.iso === iso && d.kind === "work");
     const absence = plan.days.find((d) => d.iso === iso && d.kind === "absence");
-    if (!work && !absence) return { state: "differs", title: `TimO has ${has} — Zeff records nothing for this day` };
+    if (!work && !absence) return { state: "differs", title: t("TimO has {has} — Zeff records nothing for this day", { has }) };
     // Within a minute: TimO keeps whole minutes.
     const workOk = work ? Math.abs(net - work.hours) < 1 / 60 : !timo.work.length;
     const absenceOk = !absence || timo.absence.length > 0;
-    if (workOk && absenceOk) return { state: "synced", title: `In TimO: ${has}` };
-    const want = [work ? `${formatHours(work.hours)} h working time` : "", absence ? (absence.absenceType ?? "an absence") : ""].filter(Boolean).join(" + ");
-    return { state: "differs", title: `TimO has ${has}; Zeff would record ${want} — export the week to TimO again` };
+    if (workOk && absenceOk) return { state: "synced", title: t("In TimO: {has}", { has }) };
+    const want = [
+      work ? t("{hours} h working time", { hours: formatHours(work.hours) }) : "",
+      absence ? (absence.absenceType ?? t("an absence")) : "",
+    ]
+      .filter(Boolean)
+      .join(" + ");
+    return { state: "differs", title: t("TimO has {has}; Zeff would record {want} — export the week to TimO again", { has, want }) };
   });
   const planned = new Set(plan.days.map((d) => d.iso));
   const inSync =

@@ -5,9 +5,11 @@ import { useState, useTransition } from "react";
 import { saveSyncIntervalAction } from "@/app/actions";
 import { minutesText } from "@/plugins/sync-settings";
 import { toast } from "./Toaster";
+import { useT } from "@/components/I18nProvider";
 
 /** How often one sync runs by itself — saved as soon as it's picked. */
 export function SyncIntervalSelect({ syncKey, label, minutes, choices }: { syncKey: string; label: string; minutes: number; choices: readonly number[] }) {
+  const t = useT();
   const router = useRouter();
   const [value, setValue] = useState(minutes);
   const [pending, start] = useTransition();
@@ -15,7 +17,7 @@ export function SyncIntervalSelect({ syncKey, label, minutes, choices }: { syncK
   return (
     <select
       className="input w-44"
-      aria-label={`${label}: how often`}
+      aria-label={t("{label}: how often", { label })}
       value={value}
       disabled={pending}
       onChange={(e) => {
@@ -23,7 +25,7 @@ export function SyncIntervalSelect({ syncKey, label, minutes, choices }: { syncK
         setValue(m);
         start(async () => {
           const r = await saveSyncIntervalAction(syncKey, m);
-          toast(r?.ok ? `${label}: ${r.message}` : (r?.error ?? "Didn't work."), { tone: r?.ok ? "ok" : "error" });
+          toast(r?.ok ? `${label}: ${r.message}` : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" });
           if (!r?.ok) setValue(minutes);
           router.refresh();
         });
@@ -31,7 +33,7 @@ export function SyncIntervalSelect({ syncKey, label, minutes, choices }: { syncK
     >
       {options.map((m) => (
         <option key={m} value={m}>
-          {minutesText(m)}
+          {minutesText(m, t)}
         </option>
       ))}
     </select>

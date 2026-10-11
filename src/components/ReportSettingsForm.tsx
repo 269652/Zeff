@@ -5,7 +5,7 @@ import { saveReportSettingsAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
 import {
   RULE_FIELDS,
-  RULE_FIELD_LABELS,
+  ruleFieldLabels,
   defaultRules,
   newCondition,
   newRuleId,
@@ -16,6 +16,7 @@ import {
 import type { EntryTypeDef } from "@/lib/entry-types-shared";
 import { SubmitButton } from "./SubmitButton";
 import { TagsField } from "./TagsField";
+import { useT } from "@/components/I18nProvider";
 
 export function ReportSettingsForm({
   initialRules,
@@ -35,6 +36,7 @@ export function ReportSettingsForm({
   /** Recent meeting titles, suggested for "Meeting title contains" conditions. */
   meetingTitles?: string[];
 }) {
+  const t = useT();
   const [rules, setRules] = useState<ReportRule[]>(initialRules.length ? initialRules : defaultRules());
   const [state, action, pending] = useActionState<ActionState, FormData>(saveReportSettingsAction, null);
 
@@ -79,7 +81,7 @@ export function ReportSettingsForm({
       );
     if (c.field === "tag")
       return (
-        <input className="input w-28 py-1 text-sm" list="rule-tags" placeholder="Migration" value={c.value} onChange={(e) => onChange(e.target.value)} />
+        <input className="input w-28 py-1 text-sm" list="rule-tags" placeholder={t("Migration")} value={c.value} onChange={(e) => onChange(e.target.value)} />
       );
     if (c.field === "ticket")
       return (
@@ -91,7 +93,7 @@ export function ReportSettingsForm({
           className="input w-56 py-1 text-sm"
           list="rule-meeting-titles"
           placeholder="PROJ | Mob Programming"
-          title="Case-insensitive; matches anywhere in the meeting title (the entry's description)"
+          title={t("Case-insensitive; matches anywhere in the meeting title (the entry's description)")}
           value={c.value}
           onChange={(e) => onChange(e.target.value)}
         />
@@ -99,7 +101,7 @@ export function ReportSettingsForm({
     if (c.field === "project")
       return (
         <select className="input w-44 py-1 text-sm" value={c.value} onChange={(e) => onChange(e.target.value)}>
-          <option value="">(any project)</option>
+          <option value="">{t("(any project)")}</option>
           {c.value && !projects.includes(c.value) && <option value={c.value}>{c.value}</option>}
           {projects.map((p) => (
             <option key={p} value={p}>{p}</option>
@@ -108,7 +110,7 @@ export function ReportSettingsForm({
       );
     return (
       <select className="input w-44 py-1 text-sm" value={c.value} onChange={(e) => onChange(e.target.value)}>
-        {jobs.length === 0 && <option value="">(no jobs)</option>}
+        {jobs.length === 0 && <option value="">{t("(no jobs)")}</option>}
         {jobs.map((j) => (
           <option key={j.number} value={j.number}>{j.number} — {j.name}</option>
         ))}
@@ -130,15 +132,16 @@ export function ReportSettingsForm({
     >
       <input type="hidden" name="rules" value={JSON.stringify(rules)} />
       <p className="text-xs text-zinc-500">
-        Rules are tried top-down; the first whose conditions ALL match rewrites the entry&apos;s report line, and
-        entries that render to the same label on a day are merged (hours summed). A rule with no conditions is a
-        catch-all — keep it last. Placeholders: <code className="code">{"{ticket-nr}"}</code>{" "}
+        {t(
+          "Rules are tried top-down; the first whose conditions ALL match rewrites the entry's report line, and entries that render to the same label on a day are merged (hours summed). A rule with no conditions is a catch-all — keep it last. Placeholders:",
+        )}{" "}
+        <code className="code">{"{ticket-nr}"}</code>{" "}
         <code className="code">{"{ticket-name}"}</code> <code className="code">{"{desc}"}</code>{" "}
         <code className="code">{"{type}"}</code> <code className="code">{"{tags}"}</code>{" "}
         <code className="code">{"{job}"}</code> <code className="code">{"{jobName}"}</code>{" "}
         <code className="code">{"{project}"}</code> (
-        <code className="code">{"{ticket-nr}"}</code> is the key, <code className="code">{"{ticket-name}"}</code> the
-        Jira title).
+        <code className="code">{"{ticket-nr}"}</code> {t("is the key,")} <code className="code">{"{ticket-name}"}</code>{" "}
+        {t("the Jira title")}).
       </p>
 
       <datalist id="rule-tags">
@@ -157,14 +160,14 @@ export function ReportSettingsForm({
           <div key={r.id} className="space-y-2 rounded-lg border border-zinc-200 p-2.5 dark:border-zinc-800">
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="w-5 text-right text-xs tabular-nums text-zinc-400">{ri + 1}</span>
-              <span className="text-xs text-zinc-500">When</span>
-              {r.conditions.length === 0 && <span className="text-xs italic text-zinc-400">any entry</span>}
+              <span className="text-xs text-zinc-500">{t("When")}</span>
+              {r.conditions.length === 0 && <span className="text-xs italic text-zinc-400">{t("any entry")}</span>}
               {r.conditions.map((c, ci) => (
                 <span key={ci} className="inline-flex items-center gap-1">
-                  {ci > 0 && <span className="px-0.5 text-xs font-medium text-zinc-400">and</span>}
+                  {ci > 0 && <span className="px-0.5 text-xs font-medium text-zinc-400">{t("and")}</span>}
                   <select className="input w-44 py-1 text-sm" value={c.field} onChange={(e) => changeField(r.id, ci, e.target.value as RuleField)}>
                     {RULE_FIELDS.map((f) => (
-                      <option key={f} value={f}>{RULE_FIELD_LABELS[f]}</option>
+                      <option key={f} value={f}>{ruleFieldLabels(t)[f]}</option>
                     ))}
                   </select>
                   {conditionValue(r, ci, c)}
@@ -172,14 +175,14 @@ export function ReportSettingsForm({
                     type="button"
                     onClick={() => removeCondition(r.id, ci)}
                     className="px-1 text-zinc-400 hover:text-red-500"
-                    aria-label="Remove condition"
+                    aria-label={t("Remove condition")}
                   >
                     ×
                   </button>
                 </span>
               ))}
               <button type="button" className="btn btn-sm" onClick={() => addCondition(r.id)}>
-                + and
+                + {t("and")}
               </button>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -190,25 +193,25 @@ export function ReportSettingsForm({
                 value={r.template}
                 onChange={(e) => setRule(r.id, { template: e.target.value })}
               />
-              <div className="w-48" title="Tags for the entries this rule applies to">
+              <div className="w-48" title={t("Tags for the entries this rule applies to")}>
                 <TagsField
                   key={`${r.id}:${resets}`}
                   name=""
                   compact
                   allTags={tags}
                   defaultValue={r.tags ?? []}
-                  placeholder="+ tags"
+                  placeholder={t("+ tags")}
                   onChange={(t) => setRule(r.id, { tags: t })}
                 />
               </div>
               <div className="flex items-center gap-1">
-                <button type="button" className="btn btn-sm" onClick={() => move(ri, -1)} disabled={ri === 0} aria-label="Move up">
+                <button type="button" className="btn btn-sm" onClick={() => move(ri, -1)} disabled={ri === 0} aria-label={t("Move up")}>
                   ↑
                 </button>
-                <button type="button" className="btn btn-sm" onClick={() => move(ri, 1)} disabled={ri === rules.length - 1} aria-label="Move down">
+                <button type="button" className="btn btn-sm" onClick={() => move(ri, 1)} disabled={ri === rules.length - 1} aria-label={t("Move down")}>
                   ↓
                 </button>
-                <button type="button" className="btn btn-sm btn-danger" onClick={() => removeRule(r.id)} aria-label="Delete rule">
+                <button type="button" className="btn btn-sm btn-danger" onClick={() => removeRule(r.id)} aria-label={t("Delete rule")}>
                   ✕
                 </button>
               </div>
@@ -219,28 +222,30 @@ export function ReportSettingsForm({
 
       <div className="flex flex-wrap items-center gap-3">
         <button type="button" className="btn btn-sm" onClick={addRule}>
-          + Add rule
+          + {t("Add rule")}
         </button>
         <button type="button" className="btn btn-sm" onClick={reset}>
-          Reset to defaults
+          {t("Reset to defaults")}
         </button>
-        <SubmitButton className="btn btn-primary" pendingText="Saving…" pending={pending}>
-          Save report rules
+        <SubmitButton className="btn btn-primary" pendingText={t("Saving…")} pending={pending}>
+          {t("Save report rules")}
         </SubmitButton>
-        <SubmitButton className="btn btn-sm" pendingText="Tagging…" pending={pending} name="apply" value="1">
-          Save &amp; tag existing entries
+        <SubmitButton className="btn btn-sm" pendingText={t("Tagging…")} pending={pending} name="apply" value="1">
+          {t("Save & tag existing entries")}
         </SubmitButton>
         {state?.error && <span className="text-sm text-red-600 dark:text-red-400">{state.error}</span>}
         {state?.ok && state.message && <span className="text-sm text-emerald-600 dark:text-emerald-400">{state.message}</span>}
       </div>
 
       <p className="text-xs text-zinc-400">
-        Example: <code className="code">Job is · Interne Meetings · and · Type is · Meeting → Internal</code> above{" "}
-        <code className="code">Type is · Meeting → Meetings</code> labels only that job&apos;s meetings differently;{" "}
-        <code className="code">Meeting title contains · Mob Programming → Mob Programming</code> above it gives one
-        meeting its own line. A rule&apos;s tags (e.g. <code className="code">#mob</code>) are added to the entries it
-        applies to when they&apos;re booked or imported; <strong>Save &amp; tag existing entries</strong> adds them to
-        entries you already have (it never removes tags).
+        {t("Example:")} <code className="code">{t("Job is · Interne Meetings · and · Type is · Meeting → Internal")}</code>{" "}
+        {t("above")} <code className="code">{t("Type is · Meeting → Meetings")}</code>{" "}
+        {t("labels only that job's meetings differently;")}{" "}
+        <code className="code">{t("Meeting title contains · Mob Programming → Mob Programming")}</code>{" "}
+        {t("above it gives one meeting its own line. A rule's tags (e.g.")} <code className="code">#mob</code>
+        {t(") are added to the entries it applies to when they're booked or imported;")}{" "}
+        <strong>{t("Save & tag existing entries")}</strong>{" "}
+        {t("adds them to entries you already have (it never removes tags).")}
       </p>
     </form>
   );

@@ -3,9 +3,11 @@
 import { useActionState } from "react";
 import { exportToTimoAction, timoStatusAction } from "@/plugins/timo/server-actions";
 import type { ActionState } from "@/app/action-helpers";
+import { useT } from "@/components/I18nProvider";
 import { SubmitButton } from "./SubmitButton";
 
 export function TimoExportControls({ week, by, fillGaps }: { week: string; by?: string; fillGaps: boolean }) {
+  const t = useT();
   const [exp, exportAction] = useActionState<ActionState, FormData>(exportToTimoAction, null);
   const [stat, statusAction] = useActionState<ActionState, FormData>(timoStatusAction, null);
 
@@ -13,16 +15,16 @@ export function TimoExportControls({ week, by, fillGaps }: { week: string; by?: 
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3">
         <form action={statusAction}>
-          <SubmitButton className="btn btn-sm" pendingText="Checking…">Check TimO connection</SubmitButton>
+          <SubmitButton className="btn btn-sm" pendingText={t("Checking…")}>{t("Check TimO connection")}</SubmitButton>
         </form>
         <form action={exportAction} className="flex items-center gap-2">
           <input type="hidden" name="week" value={week} />
           {by ? <input type="hidden" name="by" value={by} /> : null}
           {fillGaps ? <input type="hidden" name="fillGaps" value="on" /> : null}
-          <SubmitButton className="btn btn-sm" name="dryRun" value="on" pendingText="Checking forms…">
-            Dry run (no save)
+          <SubmitButton className="btn btn-sm" name="dryRun" value="on" pendingText={t("Checking forms…")}>
+            {t("Dry run (no save)")}
           </SubmitButton>
-          <SubmitButton className="btn btn-primary" pendingText="Filling TimO…">Fill in TimO</SubmitButton>
+          <SubmitButton className="btn btn-primary" pendingText={t("Filling TimO…")}>{t("Fill in TimO")}</SubmitButton>
         </form>
       </div>
 

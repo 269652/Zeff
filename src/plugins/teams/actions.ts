@@ -1,5 +1,5 @@
 /** The Teams plugin's action: a 1:1 message, sent through Teams Web in the automation Chrome. Client-safe. */
-import { action, str } from "../actions/types";
+import { action, EN, str } from "../actions/types";
 
 export const TEAMS_ACTIONS = [
   action({
@@ -21,7 +21,7 @@ export const TEAMS_ACTIONS = [
       },
     },
     clean: (o) => (str(o.to) && str(o.body) ? { type: "teams-message", to: str(o.to).slice(0, 120), body: str(o.body).slice(0, 4000) } : null),
-    title: (op) => `Teams message to ${op.to}`,
-    note: (op) => ({ heading: `Teams message to ${op.to}`, detail: null, body: op.body }),
+    title: (op, t = EN) => t("Teams message to {to}", { to: op.to }),
+    note: (op, t = EN) => ({ heading: t("Teams message to {to}", { to: op.to }), detail: null, body: op.body }),
   }),
 ];

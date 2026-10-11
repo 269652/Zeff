@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n/server";
 import { setStepMinutes, stepMinutes } from "@/lib/sync/intervals";
 import { MINUTE_CHOICES, type PluginSyncSettings } from "../sync-settings";
 
@@ -7,11 +8,15 @@ export const syncSettings: PluginSyncSettings = {
     {
       key: "timo",
       label: "TimO",
-      what: "What TimO has for the days of this week and last (read only — entries are only made on your click).",
+      get what() {
+        return t("What TimO has for the days of this week and last (read only — entries are only made on your click).");
+      },
       get: () => stepMinutes("timo"),
       set: (m) => setStepMinutes("timo", m),
       choices: MINUTE_CHOICES,
-      window: "while the automation Chrome is running",
+      get window() {
+        return t("while the automation Chrome is running");
+      },
     },
   ],
 };

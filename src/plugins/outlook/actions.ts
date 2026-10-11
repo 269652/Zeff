@@ -4,7 +4,7 @@
  * Client-safe.
  */
 import { formatDate, formatTime } from "@/lib/format";
-import { action, str } from "../actions/types";
+import { action, EN, str } from "../actions/types";
 
 const OWA = "https://outlook.office.com";
 const q = (params: Record<string, string>) =>
@@ -45,8 +45,12 @@ export const OUTLOOK_MAIL_ACTIONS = [
       example: { type: "mail-compose", to: "anna.schmidt@example.org", subject: "AW: Freigabe Startseite", body: "Hallo Frau Schmidt,\n\ndie Änderung ist auf Test — können Sie sie bis Freitag freigeben?\n\nViele Grüße" },
     },
     clean: (o) => (str(o.subject) && str(o.body) ? { type: "mail-compose", to: addresses(str(o.to)), subject: str(o.subject).slice(0, 250), body: str(o.body).slice(0, 8000) } : null),
-    title: (op) => `Mail${op.to ? ` to ${op.to.split(";")[0]}` : ""}: ${op.subject}`,
-    note: (op) => ({ heading: `Mail draft${op.to ? ` to ${op.to.replace(/;/g, ", ")}` : ""}`, detail: `Subject: ${op.subject}`, body: op.body }),
+    title: (op, t = EN) => `${op.to ? t("Mail to {to}", { to: op.to.split(";")[0] }) : t("Mail")}: ${op.subject}`,
+    note: (op, t = EN) => ({
+      heading: op.to ? t("Mail draft to {to}", { to: op.to.replace(/;/g, ", ") }) : t("Mail draft"),
+      detail: t("Subject: {subject}", { subject: op.subject }),
+      body: op.body,
+    }),
     href: (op) => `${OWA}/mail/deeplink/compose?${q({ to: op.to, subject: op.subject, body: op.body })}`,
   }),
 ];
@@ -79,10 +83,10 @@ export const OUTLOOK_CALENDAR_ACTIONS = [
             body: str(o.body).slice(0, 4000),
           }
         : null,
-    title: (op) => `Meeting: ${op.subject}`,
-    note: (op) => ({
-      heading: `Meeting in Outlook${op.attendees ? ` with ${op.attendees.replace(/;/g, ", ")}` : ""}`,
-      detail: `${formatDate(op.start)}, ${formatTime(op.start)} · ${op.minutes} min · “${op.subject}”`,
+    title: (op, t = EN) => t("Meeting: {subject}", { subject: op.subject }),
+    note: (op, t = EN) => ({
+      heading: op.attendees ? t("Meeting in Outlook with {attendees}", { attendees: op.attendees.replace(/;/g, ", ") }) : t("Meeting in Outlook"),
+      detail: `${formatDate(op.start)}, ${formatTime(op.start)} · ${t("{n} min", { n: op.minutes })} · “${op.subject}”`,
       body: op.body || null,
     }),
     href: (op) => `${OWA}/calendar/deeplink/compose?${q({ subject: op.subject, body: op.body, startdt: localIso(op.start), enddt: localIso(op.start, op.minutes), to: op.attendees })}`,

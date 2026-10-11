@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "@/components/Toaster";
+import { useT } from "@/components/I18nProvider";
 import { CloseIcon, PencilIcon } from "@/components/icons";
 import {
   addColumnAction,
@@ -20,7 +21,7 @@ import {
 import { BoardFrame, COLUMN } from "./BoardFrame";
 import { CardChecklist } from "./CardChecklist";
 import { initials, NOBODY, PersonChips, peopleOf } from "./PersonChips";
-import { PRIORITIES, PRIORITY_LABELS, type BoardView, type CardLage, type CardView, type ColumnView, type Priority } from "./shared";
+import { PRIORITIES, priorityLabels, type BoardView, type CardLage, type CardView, type ColumnView, type Priority } from "./shared";
 import { isoDate } from "@/lib/week";
 import { formatDate, formatDateTime } from "@/lib/format";
 
@@ -54,6 +55,7 @@ const STRIPE: Record<string, string> = {
  * clicked to open it.
  */
 function Card({ c, lage, onOpen, onDragStart, onDragEnd, dragging }: { c: CardView; lage?: CardLage; onOpen: () => void; onDragStart: (e: React.DragEvent) => void; onDragEnd: () => void; dragging: boolean }) {
+  const t = useT();
   return (
     <button
       type="button"
@@ -76,24 +78,24 @@ function Card({ c, lage, onOpen, onDragStart, onDragEnd, dragging }: { c: CardVi
       {lage?.lead && <span className="mt-1 block text-xs text-zinc-600 dark:text-zinc-400">{lage.lead}</span>}
       {(c.labels.length > 0 || c.priority || c.due || c.description) && (
         <span className="mt-1.5 flex flex-wrap items-center gap-1 text-[11px]">
-          {c.priority && c.priority !== "normal" && <span className={`rounded px-1.5 py-0.5 font-medium ${PRIORITY_TONE[c.priority]}`}>{PRIORITY_LABELS[c.priority]}</span>}
+          {c.priority && c.priority !== "normal" && <span className={`rounded px-1.5 py-0.5 font-medium ${PRIORITY_TONE[c.priority]}`}>{priorityLabels(t)[c.priority]}</span>}
           {c.labels.map((l) => (
             <span key={l} className="rounded bg-indigo-50 px-1.5 py-0.5 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
               {l}
             </span>
           ))}
           {c.due && <span className={`ml-auto ${dueTone(c.due)}`}>⏰ {fmtDue(c.due)}</span>}
-          {c.description && !c.due && <span className="ml-auto text-zinc-400" title="Has a description">≡</span>}
+          {c.description && !c.due && <span className="ml-auto text-zinc-400" title={t("Has a description")}>≡</span>}
         </span>
       )}
       {lage && lage.todos.length > 0 && (() => {
         // The checklist's progress: done of all (open ones first in the card's panel).
-        const done = lage.todos.filter((t) => t.status === "done").length;
+        const done = lage.todos.filter((x) => x.status === "done").length;
         const all = lage.todos.length;
         return (
           <span
             className={`mt-1.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${done === all ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"}`}
-            title={`${all - done} open, ${done} done`}
+            title={t("{open} open, {done} done", { open: all - done, done })}
           >
             ☑ {done}/{all}
           </span>
@@ -105,6 +107,7 @@ function Card({ c, lage, onOpen, onDragStart, onDragEnd, dragging }: { c: CardVi
 
 /** A card opened: everything about it, to change — and to move, archive or delete it. */
 function CardPanel({ c, lage, people, columns, onClose, run }: { c: CardView; lage?: CardLage; people: string[]; columns: ColumnView[]; onClose: () => void; run: (fn: () => Promise<Result>, after?: () => void) => void }) {
+  const t = useT();
   const [title, setTitle] = useState(c.title);
   const [description, setDescription] = useState(c.description);
   const [labels, setLabels] = useState(c.labels.join(", "));
@@ -134,25 +137,25 @@ function CardPanel({ c, lage, people, columns, onClose, run }: { c: CardView; la
   return (
     <>
       <div className="fixed inset-0 z-40 bg-zinc-950/30" onClick={onClose} aria-hidden />
-      <aside role="dialog" aria-label={`Card ${c.ref}`} className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col border-l border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
+      <aside role="dialog" aria-label={t("Card {ref}", { ref: c.ref })} className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col border-l border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
         <div className="flex items-center justify-between gap-2 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
           <span className="font-mono text-sm text-zinc-500">{c.ref}</span>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close" title="Close (Esc)">
+          <button type="button" className="icon-btn" onClick={onClose} aria-label={t("Close")} title={t("Close (Esc)")}>
             <CloseIcon />
           </button>
         </div>
         <div className="flex-1 space-y-3 overflow-y-auto p-4">
           <label className="block">
-            <span className="label">Title</span>
+            <span className="label">{t("Title")}</span>
             <input className="input text-base font-medium" value={title} onChange={(e) => setTitle(e.target.value)} />
           </label>
           <label className="block">
-            <span className="label">Description</span>
-            <textarea className="input min-h-40 font-mono text-xs" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What it's about, steps, links …" />
+            <span className="label">{t("Description")}</span>
+            <textarea className="input min-h-40 font-mono text-xs" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("What it's about, steps, links …")} />
           </label>
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="block">
-              <span className="label">Column</span>
+              <span className="label">{t("Column")}</span>
               <select className="input" value={c.columnId} onChange={(e) => run(() => moveCardAction(c.id, Number(e.target.value), null))}>
                 {columns.map((col) => (
                   <option key={col.id} value={col.id}>
@@ -162,24 +165,24 @@ function CardPanel({ c, lage, people, columns, onClose, run }: { c: CardView; la
               </select>
             </label>
             <label className="block">
-              <span className="label">Priority</span>
+              <span className="label">{t("Priority")}</span>
               <select className="input" value={priority} onChange={(e) => setPriority(e.target.value)}>
                 <option value="">—</option>
                 {PRIORITIES.map((p) => (
                   <option key={p} value={p}>
-                    {PRIORITY_LABELS[p]}
+                    {priorityLabels(t)[p]}
                   </option>
                 ))}
               </select>
             </label>
             <label className="block">
-              <span className="label">Due</span>
+              <span className="label">{t("Due")}</span>
               <input type="date" className="input" value={due} onChange={(e) => setDue(e.target.value)} />
             </label>
           </div>
           <label className="block">
-            <span className="label">Person</span>
-            <input className="input" value={assignee} onChange={(e) => setAssignee(e.target.value)} list="kanban-people" placeholder="Who's on it (optional)" />
+            <span className="label">{t("Person")}</span>
+            <input className="input" value={assignee} onChange={(e) => setAssignee(e.target.value)} list="kanban-people" placeholder={t("Who's on it (optional)")} />
             <datalist id="kanban-people">
               {people.map((p) => (
                 <option key={p} value={p} />
@@ -187,14 +190,15 @@ function CardPanel({ c, lage, people, columns, onClose, run }: { c: CardView; la
             </datalist>
           </label>
           <label className="block">
-            <span className="label">Labels (comma-separated)</span>
-            <input className="input" value={labels} onChange={(e) => setLabels(e.target.value)} placeholder="e.g. private, taxes, garden" />
+            <span className="label">{t("Labels (comma-separated)")}</span>
+            <input className="input" value={labels} onChange={(e) => setLabels(e.target.value)} placeholder={t("e.g. private, taxes, garden")} />
           </label>
           <CardChecklist cardRef={c.ref} todos={lage?.todos ?? []} />
           {lage && (lage.lead || lage.summary || lage.happened.length > 0) && (
             <section className="space-y-2 rounded-lg border border-violet-200 bg-violet-50/50 p-3 text-sm dark:border-violet-900 dark:bg-violet-950/30">
               <h3 className="label">
-                Briefing{lage.attentionLabel ? ` · ${lage.attentionLabel}` : ""}
+                {t("Briefing")}
+                {lage.attentionLabel ? ` · ${lage.attentionLabel}` : ""}
               </h3>
               {lage.lead && <p className="font-medium">{lage.lead}</p>}
               {lage.summary && <p className="whitespace-pre-line text-zinc-700 dark:text-zinc-300">{lage.summary}</p>}
@@ -214,25 +218,25 @@ function CardPanel({ c, lage, people, columns, onClose, run }: { c: CardView; la
             </section>
           )}
           <p className="text-xs text-zinc-500">
-            Created {formatDateTime(new Date(c.createdAt.replace(" ", "T") + (c.createdAt.includes("Z") ? "" : "Z")))}
-            {c.doneAt && ` · done ${formatDateTime(new Date(c.doneAt))}`}
+            {t("Created {when}", { when: formatDateTime(new Date(c.createdAt.replace(" ", "T") + (c.createdAt.includes("Z") ? "" : "Z"))) })}
+            {c.doneAt && ` · ${t("done {when}", { when: formatDateTime(new Date(c.doneAt)) })}`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
           <button type="button" className="btn btn-primary" disabled={!dirty || !title.trim()} onClick={save}>
-            Save
+            {t("Save")}
           </button>
           <button type="button" className="btn" onClick={() => run(() => archiveCardAction(c.id), onClose)}>
-            Archive
+            {t("Archive")}
           </button>
           <button
             type="button"
             className="btn btn-danger ml-auto"
             onClick={() => {
-              if (confirm(`Delete ${c.ref} “${c.title}”?`)) run(() => deleteCardAction(c.id), onClose);
+              if (confirm(t("Delete {ref} “{title}”?", { ref: c.ref, title: c.title }))) run(() => deleteCardAction(c.id), onClose);
             }}
           >
-            Delete
+            {t("Delete")}
           </button>
         </div>
       </aside>
@@ -242,6 +246,7 @@ function CardPanel({ c, lage, people, columns, onClose, run }: { c: CardView; la
 
 /** A column's head: its name (click to rename), how many (of the WIP limit), and its menu. */
 function ColumnHead({ col, first, last, run }: { col: ColumnView; first: boolean; last: boolean; run: (fn: () => Promise<Result>) => void }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(col.name);
   const [menu, setMenu] = useState(false);
@@ -260,43 +265,47 @@ function ColumnHead({ col, first, last, run }: { col: ColumnView; first: boolean
           <input className="input py-0.5 text-sm font-semibold" value={name} autoFocus onChange={(e) => setName(e.target.value)} onBlur={(e) => e.currentTarget.form?.requestSubmit()} />
         </form>
       ) : (
-        <button type="button" className="min-w-0 flex-1 truncate text-left text-sm font-semibold" onClick={() => setEditing(true)} title="Rename">
+        <button type="button" className="min-w-0 flex-1 truncate text-left text-sm font-semibold" onClick={() => setEditing(true)} title={t("Rename")}>
           {col.name}
           {col.done && <span className="ml-1 text-xs font-normal text-emerald-600 dark:text-emerald-400">✓</span>}
         </button>
       )}
-      <span className={`rounded-full px-1.5 text-xs tabular-nums ${over ? "bg-red-100 font-semibold text-red-700 dark:bg-red-950 dark:text-red-300" : "bg-zinc-200/70 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"}`} title={col.wipLimit ? `WIP limit ${col.wipLimit}` : undefined}>
+      <span className={`rounded-full px-1.5 text-xs tabular-nums ${over ? "bg-red-100 font-semibold text-red-700 dark:bg-red-950 dark:text-red-300" : "bg-zinc-200/70 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"}`} title={col.wipLimit ? t("WIP limit {n}", { n: col.wipLimit }) : undefined}>
         {col.cards.length}
         {col.wipLimit ? `/${col.wipLimit}` : ""}
       </span>
-      <button type="button" className="icon-btn" onClick={() => setMenu(!menu)} aria-label="Column menu" title="Column …">
+      <button type="button" className="icon-btn" onClick={() => setMenu(!menu)} aria-label={t("Column menu")} title={t("Column …")}>
         <PencilIcon className="size-3.5" />
       </button>
       {menu && (
         <div className="absolute top-full right-0 z-20 mt-1 w-56 space-y-1 rounded-md border border-zinc-200 bg-white p-1 text-sm shadow-lg dark:border-zinc-700 dark:bg-zinc-900" onMouseLeave={() => setMenu(false)}>
           {[
-            ["← move left", () => moveColumnAction(col.id, -1), first],
-            ["move right →", () => moveColumnAction(col.id, 1), last],
+            [t("← move left"), () => moveColumnAction(col.id, -1), first],
+            [t("move right →"), () => moveColumnAction(col.id, 1), last],
           ].map(([label, fn, off]) => (
             <button key={label as string} type="button" disabled={off as boolean} className="block w-full rounded px-2 py-1 text-left hover:bg-zinc-100 disabled:opacity-40 dark:hover:bg-zinc-800" onClick={() => run(fn as () => Promise<Result>)}>
               {label as string}
             </button>
           ))}
           <button type="button" className="block w-full rounded px-2 py-1 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => run(() => updateColumnAction(col.id, { done: !col.done }))}>
-            {col.done ? "No longer counts as done" : "Counts as done ✓"}
+            {col.done ? t("No longer counts as done") : t("Counts as done ✓")}
           </button>
           <button
             type="button"
             className="block w-full rounded px-2 py-1 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800"
             onClick={() => {
-              const v = prompt("WIP limit (empty: none)", col.wipLimit ? String(col.wipLimit) : "");
+              const v = prompt(t("WIP limit (empty: none)"), col.wipLimit ? String(col.wipLimit) : "");
               if (v !== null) run(() => updateColumnAction(col.id, { wipLimit: v.trim() ? Number(v) : null }));
             }}
           >
-            WIP limit …
+            {t("WIP limit …")}
           </button>
-          <button type="button" className="block w-full rounded px-2 py-1 text-left text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950" onClick={() => confirm(`Delete the column “${col.name}”?`) && run(() => deleteColumnAction(col.id))}>
-            Delete column
+          <button
+            type="button"
+            className="block w-full rounded px-2 py-1 text-left text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950"
+            onClick={() => confirm(t("Delete the column “{name}”?", { name: col.name })) && run(() => deleteColumnAction(col.id))}
+          >
+            {t("Delete column")}
           </button>
         </div>
       )}
@@ -306,12 +315,13 @@ function ColumnHead({ col, first, last, run }: { col: ColumnView; first: boolean
 
 /** A new card at a column's end: typed in, Enter — the next one right after. */
 function AddCard({ columnId, run }: { columnId: number; run: (fn: () => Promise<Result>) => void }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   if (!open)
     return (
       <button type="button" className="w-full rounded-md px-2 py-1.5 text-left text-sm text-zinc-500 hover:bg-zinc-200/60 dark:hover:bg-zinc-800" onClick={() => setOpen(true)}>
-        + Card
+        {t("+ Card")}
       </button>
     );
   return (
@@ -319,16 +329,16 @@ function AddCard({ columnId, run }: { columnId: number; run: (fn: () => Promise<
       onSubmit={(e) => {
         e.preventDefault();
         if (!title.trim()) return;
-        const t = title;
+        const text = title;
         setTitle("");
-        run(() => createCardAction(columnId, t));
+        run(() => createCardAction(columnId, text));
       }}
     >
       <textarea
         className="input min-h-16 text-sm"
         value={title}
         autoFocus
-        placeholder="Title — Enter to create, Esc to close"
+        placeholder={t("Title — Enter to create, Esc to close")}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {
@@ -347,6 +357,7 @@ function AddCard({ columnId, run }: { columnId: number; run: (fn: () => Promise<
  * columns, opened to change. Columns are renamed, moved, limited (WIP), marked as "done" here.
  */
 export function OwnBoard({ board, lage = {} }: { board: BoardView; lage?: Record<string, CardLage> }) {
+  const t = useT();
   const router = useRouter();
   const params = useSearchParams();
   const [cols, setCols] = useState(board.columns);
@@ -371,7 +382,7 @@ export function OwnBoard({ board, lage = {} }: { board: BoardView; lage?: Record
   const run = (fn: () => Promise<Result>, after?: () => void) =>
     start(async () => {
       const r = await fn();
-      if (!r.ok) toast(r.error ?? "That didn't work.", { tone: "error" });
+      if (!r.ok) toast(r.error ?? t("That didn't work."), { tone: "error" });
       else {
         if (r.message) toast(r.message, { tone: "ok" });
         after?.();
@@ -434,19 +445,19 @@ export function OwnBoard({ board, lage = {} }: { board: BoardView; lage?: Record
                   <input name="name" className="input text-lg font-semibold" defaultValue={board.name} autoFocus onBlur={(e) => e.currentTarget.form?.requestSubmit()} />
                 </form>
               ) : (
-                <h1 className="cursor-text text-lg font-semibold" onClick={() => setEditingName(true)} title="Rename">
+                <h1 className="cursor-text text-lg font-semibold" onClick={() => setEditingName(true)} title={t("Rename")}>
                   {board.name}
                 </h1>
               )}
               {board.description && <p className="mt-1 text-sm text-zinc-500">{board.description}</p>}
               <p className="mt-1 text-xs text-zinc-500">
-                {allCards.length} cards · {board.inLage ? "in the briefing (KB-…)" : "not in the briefing"}
+                {t("{n} cards", { n: allCards.length })} · {board.inLage ? t("in the briefing (KB-…)") : t("not in the briefing")}
               </p>
             </div>
-            <input className="input" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter cards …" aria-label="Filter cards" />
+            <input className="input" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t("Filter cards …")} aria-label={t("Filter cards")} />
             {people.length > 0 && (
               <div className="space-y-1.5">
-                <h2 className="label">People</h2>
+                <h2 className="label">{t("People")}</h2>
                 <PersonChips
                   people={people}
                   selected={persons}
@@ -467,17 +478,22 @@ export function OwnBoard({ board, lage = {} }: { board: BoardView; lage?: Record
                 type="button"
                 className="btn btn-sm"
                 onClick={() => {
-                  const d = prompt("The board's description", board.description);
+                  const d = prompt(t("The board's description"), board.description);
                   if (d !== null) run(() => updateBoardAction(board.id, { description: d }));
                 }}
               >
-                Description …
+                {t("Description …")}
               </button>
-              <button type="button" className="btn btn-sm" onClick={() => run(() => updateBoardAction(board.id, { inLage: !board.inLage }))} title="The open cards go into the briefing as KB-…: todos, a briefing per card, reports">
-                {board.inLage ? "Take out of the briefing" : "Into the briefing"}
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={() => run(() => updateBoardAction(board.id, { inLage: !board.inLage }))}
+                title={t("The open cards go into the briefing as KB-…: todos, a briefing per card, reports")}
+              >
+                {board.inLage ? t("Take out of the briefing") : t("Into the briefing")}
               </button>
               <Link href="/kanban/settings" className="btn btn-sm">
-                Manage boards
+                {t("Manage boards")}
               </Link>
             </div>
           </>
@@ -541,7 +557,7 @@ export function OwnBoard({ board, lage = {} }: { board: BoardView; lage?: Record
             run(() => addColumnAction(board.id, n));
           }}
         >
-          <input className="input text-sm" value={newCol} onChange={(e) => setNewCol(e.target.value)} placeholder="+ Column" aria-label="New column" />
+          <input className="input text-sm" value={newCol} onChange={(e) => setNewCol(e.target.value)} placeholder={t("+ Column")} aria-label={t("New column")} />
         </form>
       </BoardFrame>
       {opened && (

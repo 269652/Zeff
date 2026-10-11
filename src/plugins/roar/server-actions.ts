@@ -1,6 +1,7 @@
 "use server";
 
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { revalidateAll, str, type ActionState } from "@/app/action-helpers";
 import { callRoar } from "@/plugins/roar/call";
 
@@ -14,7 +15,7 @@ export async function syncRoarJobsAction(): Promise<ActionState> {
   try {
     const { listJobs, recordRoarLookup } = await import("@/lib/jobs");
     const numbers = listJobs({ includeInactive: true }).map((j) => j.number);
-    if (numbers.length === 0) return { ok: false, error: "There are no jobs to look up." };
+    if (numbers.length === 0) return { ok: false, error: t("There are no jobs to look up.") };
     const raw = await callRoar("roar_jobs", { jobNumbers: numbers });
     let results: { jobNumber: string; found?: boolean; name?: string; client?: string; group?: string; error?: string }[];
     try {
@@ -29,9 +30,9 @@ export async function syncRoarJobsAction(): Promise<ActionState> {
     const missing = looked.filter((r) => !r.found).map((r) => r.jobNumber);
     const failed = results.filter((r) => r.error).map((r) => `${r.jobNumber} (${r.error})`);
     const text =
-      `${found} of ${numbers.length} jobs are in Roar` +
-      (missing.length ? `; not found: ${missing.join(", ")}` : "") +
-      (failed.length ? `; couldn't check: ${failed.join(", ")}` : "") +
+      t("{found} of {n} jobs are in Roar", { found, n: numbers.length }) +
+      (missing.length ? `; ${t("not found: {jobs}", { jobs: missing.join(", ") })}` : "") +
+      (failed.length ? `; ${t("couldn't check: {jobs}", { jobs: failed.join(", ") })}` : "") +
       ".";
     return failed.length ? { ok: false, error: text } : { ok: true, message: text };
   } catch (err) {
@@ -47,12 +48,12 @@ export async function pullRoarAction(weekKey: string): Promise<ActionState> {
   try {
     const { resolveWeek } = await import("@/lib/week");
     const week = resolveWeek(weekKey);
-    if (!week) return { ok: false, error: "Could not read the week." };
+    if (!week) return { ok: false, error: t("Could not read the week.") };
     const counts = await pullRoarWeek(week.startIso);
     revalidateAll();
     const n = [...counts.values()].reduce((a, b) => a + b, 0);
-    if (n === 0) return { ok: true, message: "Roar has no entries in this week." };
-    return { ok: true, message: `Pulled ${n} Roar entries: ${await statusCounts(counts)}.` };
+    if (n === 0) return { ok: true, message: t("Roar has no entries in this week.") };
+    return { ok: true, message: t("Pulled {n} Roar entries: {counts}.", { n, counts: await statusCounts(counts) }) };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -65,7 +66,7 @@ export async function pullRoarAction(weekKey: string): Promise<ActionState> {
 export async function pullRoarMonthAction(monthKey: string): Promise<ActionState> {
   const { resolveMonth } = await import("@/lib/month");
   const month = resolveMonth(monthKey);
-  if (!month) return { ok: false, error: "Could not read the month." };
+  if (!month) return { ok: false, error: t("Could not read the month.") };
   return pullRoarWeeks(month.weeks);
 }
 
@@ -117,14 +118,14 @@ export async function roarStatusAction(): Promise<ActionState> {
 export async function exportToRoarAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const { resolveWeek } = await import("@/lib/week");
   const week = resolveWeek(str(fd, "week"));
-  if (!week) return { ok: false, error: "Could not read the week." };
+  if (!week) return { ok: false, error: t("Could not read the week.") };
   const dryRun = fd.get("dryRun") === "on";
   const { getRoarExportPlan, toRoarPayload } = await import("@/lib/roar");
   const { getReportSettings, getRoarWorkcodes } = await import("@/lib/report");
   const { listJobs } = await import("@/lib/jobs");
   const by = str(fd, "by");
   const plan = getRoarExportPlan(week, { reportedBy: by });
-  if (plan.rows.length === 0) return { ok: false, error: "Nothing booked in this week to export." };
+  if (plan.rows.length === 0) return { ok: false, error: t("Nothing booked in this week to export.") };
   // Attach any per-job WorkCode overrides (e.g. Abwesenheit → ABSENCE).
   const workcodes = getRoarWorkcodes(getReportSettings());
   const payload = toRoarPayload(plan);
@@ -147,7 +148,7 @@ export async function saveRoarWorkcodesAction(_prev: ActionState, fd: FormData):
     updateReportSettings({ roarWorkcodes: map });
     revalidateAll();
     const n = Object.keys(map).length;
-    return { ok: true, message: `Saved ${n} WorkCode override${n === 1 ? "" : "s"}.` };
+    return { ok: true, message: n === 1 ? t("Saved 1 WorkCode override.") : t("Saved {n} WorkCode overrides.", { n }) };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

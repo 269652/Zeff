@@ -1,6 +1,7 @@
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
+import { t } from "@/lib/i18n/server";
 import Link from "next/link";
 import { connection } from "next/server";
 import { CalendarWeek } from "@/components/CalendarWeek";
@@ -12,7 +13,9 @@ import { listJobs } from "@/lib/jobs";
 import { getMeetingDefaultJob, getMeetingExcludeRules, getMeetingJobRules, getReportSettings } from "@/lib/report";
 import { currentWeek, formatWeekRange, isoDate, resolveWeek, shiftWeek, todayIso } from "@/lib/week";
 
-export const metadata: Metadata = { title: "Calendar" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: t("Calendar") };
+}
 
 export default async function CalendarPage({
   searchParams,
@@ -46,50 +49,54 @@ export default async function CalendarPage({
     <div className="page">
       <div className="page-aside">
         <div>
-          <h1 className="text-lg font-semibold">Calendar</h1>
+          <h1 className="text-lg font-semibold">{t("Calendar")}</h1>
           <p className="text-sm text-zinc-500">
-            Your Outlook meetings, synced from the automation Chrome. Tick the ones to book and import them — finished
-            meetings that aren&apos;t booked yet start ticked.
+            {t("Your Outlook meetings, synced from the automation Chrome. Tick the ones to book and import them — finished meetings that aren't booked yet start ticked.")}
           </p>
         </div>
         <OutlookSyncButton week={week.key} syncedAt={syncedAt} />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Link className="btn" href={href(shiftWeek(week, -1).key)} aria-label="Previous week">
+        <Link className="btn" href={href(shiftWeek(week, -1).key)} aria-label={t("Previous week")}>
           ←
         </Link>
         <div className="min-w-44 text-center">
           <div className="font-semibold">
-            Week {week.week} <span className="text-zinc-400">·</span> {week.year}
+            {t("Week {n}", { n: week.week })} <span className="text-zinc-400">·</span> {week.year}
           </div>
           <div className="text-sm text-zinc-500">{formatWeekRange(week)}</div>
         </div>
-        <Link className="btn" href={href(shiftWeek(week, 1).key)} aria-label="Next week">
+        <Link className="btn" href={href(shiftWeek(week, 1).key)} aria-label={t("Next week")}>
           →
         </Link>
         {week.key !== currentWeek().key && (
           <Link className="btn btn-sm" href="/calendar">
-            This week
+            {t("This week")}
           </Link>
         )}
         <Link className="btn btn-sm ml-auto" href={`/?week=${week.key}`}>
-          Weekly report →
+          {t("Weekly report →")}
         </Link>
       </div>
 
       {sp.imported !== undefined && (
         <p className="alert-ok">
-          Imported {sp.imported} meeting{sp.imported === "1" ? "" : "s"} as time entries
-          {sp.skipped ? ` (${sp.skipped} already booked, skipped)` : ""}.
+          {sp.imported === "1"
+            ? sp.skipped
+              ? t("Imported 1 meeting as time entries ({skipped} already booked, skipped).", { skipped: sp.skipped })
+              : t("Imported 1 meeting as time entries.")
+            : sp.skipped
+              ? t("Imported {n} meetings as time entries ({skipped} already booked, skipped).", { n: sp.imported, skipped: sp.skipped })
+              : t("Imported {n} meetings as time entries.", { n: sp.imported })}
         </p>
       )}
-      {sp.week && !requested && <p className="alert-error">Could not read week &quot;{sp.week}&quot; — showing this week.</p>}
+      {sp.week && !requested && <p className="alert-error">{t('Could not read week "{week}" — showing this week.', { week: sp.week })}</p>}
 
       <section className="card p-4">
         {count === 0 ? (
           <p className="py-6 text-center text-sm text-zinc-500">
-            {syncedAt ? "No meetings in this week." : "This week hasn't been synced yet — click Sync Outlook."}
+            {syncedAt ? t("No meetings in this week.") : t("This week hasn't been synced yet — click Sync Outlook.")}
           </p>
         ) : (
           <CalendarWeek key={`${week.key}:${syncedAt ?? ""}:${booked}`} weekKey={week.key} days={days} jobs={jobs} today={todayIso()} />
@@ -97,14 +104,15 @@ export default async function CalendarPage({
       </section>
 
       <p className="text-xs text-zinc-400">
-        Sync reads Outlook on the web in the automation Chrome (sign in there once) — from the start of last month to
-        next week, plus the week shown; nothing is changed in Outlook. Jobs come from your{" "}
+        {t(
+          "Sync reads Outlook on the web in the automation Chrome (sign in there once) — from the start of last month to next week, plus the week shown; nothing is changed in Outlook. Jobs come from your",
+        )}{" "}
         <Link href="/settings" className="underline">
-          meeting → job rules
+          {t("meeting → job rules")}
         </Link>
-        . Other ways to load meetings (bookmarklet, paste):{" "}
+        {t(". Other ways to load meetings (bookmarklet, paste):")}{" "}
         <Link href={`/import?week=${week.key}`} className="underline">
-          Import meetings
+          {t("Import meetings")}
         </Link>
         .
       </p>

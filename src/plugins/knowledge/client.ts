@@ -1,4 +1,5 @@
 import { accountKnowledge } from "@/db/accounts";
+import { t } from "@/lib/i18n/server";
 import type { KnowledgeAnswer, KnowledgeEntity, KnowledgeEntityDetail, KnowledgePage, KnowledgePerson, KnowledgeStatus, KnowledgeTurn } from "./shared";
 
 /**
@@ -16,10 +17,10 @@ async function call<T>(path: string, init: { method?: "GET" | "POST"; body?: unk
   try {
     r = await fetch(`${knowledgeUrl()}${path}`, { method: init.method ?? "GET", headers, body: init.body === undefined ? undefined : JSON.stringify(init.body), signal: AbortSignal.timeout(init.timeoutMs ?? 10000), cache: "no-store" });
   } catch {
-    throw new Error(`This account's knowledge server isn't answering (${knowledgeUrl()}) — is it running? The launcher (Zeff.exe) starts it.`);
+    throw new Error(t("This account's knowledge server isn't answering ({url}) — is it running? The launcher (Zeff.exe) starts it.", { url: knowledgeUrl() }));
   }
   const data = (await r.json().catch(() => null)) as (T & { error?: string }) | null;
-  if (!r.ok || !data) throw new Error(data?.error ?? `Knowledge server: ${r.status}`);
+  if (!r.ok || !data) throw new Error(data?.error ?? t("Knowledge server: {status}", { status: r.status }));
   return data;
 }
 

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { SidebarFrame } from "@/components/SidebarFrame";
+import { useT } from "@/components/I18nProvider";
 
 /**
  * A board's frame: the sidebar on the left — back to all boards, the board's name and what it
@@ -9,8 +10,9 @@ import { SidebarFrame } from "@/components/SidebarFrame";
  * whole height (each column scrolls in itself).
  */
 export function BoardFrame({ sidebar, children }: { sidebar: ReactNode; children: ReactNode }) {
+  const t = useT();
   return (
-    <SidebarFrame sidebar={sidebar} back={{ href: "/kanban", label: "All boards" }} storageKey="zeff-kanban-sidebar" contentClassName="items-stretch gap-3 overflow-x-auto pb-2">
+    <SidebarFrame sidebar={sidebar} back={{ href: "/kanban", label: t("All boards") }} storageKey="zeff-kanban-sidebar" contentClassName="items-stretch gap-3 overflow-x-auto pb-2">
       {children}
     </SidebarFrame>
   );

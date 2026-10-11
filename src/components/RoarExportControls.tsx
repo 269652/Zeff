@@ -4,8 +4,10 @@ import { useActionState } from "react";
 import { exportToRoarAction, roarStatusAction } from "@/plugins/roar/server-actions";
 import type { ActionState } from "@/app/action-helpers";
 import { SubmitButton } from "./SubmitButton";
+import { useT } from "@/components/I18nProvider";
 
 export function RoarExportControls({ week, by }: { week: string; by?: string }) {
+  const t = useT();
   const [exp, exportAction] = useActionState<ActionState, FormData>(exportToRoarAction, null);
   const [stat, statusAction] = useActionState<ActionState, FormData>(roarStatusAction, null);
 
@@ -13,18 +15,18 @@ export function RoarExportControls({ week, by }: { week: string; by?: string }) 
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3">
         <form action={statusAction}>
-          <SubmitButton className="btn btn-sm" pendingText="Checking…">
-            Check Roar connection
+          <SubmitButton className="btn btn-sm" pendingText={t("Checking…")}>
+            {t("Check Roar connection")}
           </SubmitButton>
         </form>
         <form action={exportAction} className="flex items-center gap-2">
           <input type="hidden" name="week" value={week} />
           {by ? <input type="hidden" name="by" value={by} /> : null}
-          <SubmitButton className="btn btn-sm" name="dryRun" value="on" pendingText="Reading Roar…">
-            Dry run (preview changes)
+          <SubmitButton className="btn btn-sm" name="dryRun" value="on" pendingText={t("Reading Roar…")}>
+            {t("Dry run (preview changes)")}
           </SubmitButton>
-          <SubmitButton className="btn btn-primary" pendingText="Filling Roar…">
-            Fill in Roar
+          <SubmitButton className="btn btn-primary" pendingText={t("Filling Roar…")}>
+            {t("Fill in Roar")}
           </SubmitButton>
         </form>
       </div>

@@ -3,6 +3,7 @@ import { getDb, schema } from "@/db";
 import type { Absence, WorkSchedule } from "@/db/schema";
 import { ValidationError } from "./errors";
 import { round2 } from "./format";
+import { t } from "@/lib/i18n/server";
 import { formatPauses, parsePauses, type PauseRange } from "./pauses-shared";
 import {
   ABSENCE_TYPES,
@@ -16,7 +17,7 @@ import { isoDate, type WeekInfo } from "./week";
 
 const { workSchedule, absences } = schema;
 
-export { ABSENCE_LABELS, ABSENCE_TYPES, DEFAULT_FLEX_COMMENT, WEEKDAY_KEYS, WEEKDAY_LABELS } from "./schedule-shared";
+export { ABSENCE_LABELS, ABSENCE_TYPES, absenceLabels, DEFAULT_FLEX_COMMENT, WEEKDAY_KEYS, WEEKDAY_LABELS } from "./schedule-shared";
 export type { AbsenceType, FlexTime, WeekdayKey } from "./schedule-shared";
 
 // ---------------------------------------------------------------------------
@@ -39,7 +40,7 @@ export function updateWorkSchedule(hours: Record<WeekdayKey, number>): WorkSched
   for (const k of WEEKDAY_KEYS) {
     const v = hours[k];
     if (!Number.isFinite(v) || v < 0 || v > 24) {
-      throw new ValidationError(`Hours for ${k} must be between 0 and 24.`);
+      throw new ValidationError(t("Hours for {day} must be between 0 and 24.", { day: k }));
     }
   }
   getWorkSchedule(); // ensure the row exists
@@ -68,7 +69,7 @@ export function getDefaultPauses(s: WorkSchedule = getWorkSchedule()): PauseRang
 
 /** Set the default break ("12:00-13:00", "12 30m", …; empty = none) and whether TimO records it. */
 export function updateDefaultPauses(text: string, exportToTimo: boolean): WorkSchedule {
-  const parsed = parsePauses(text);
+  const parsed = parsePauses(text, undefined, t);
   if (!parsed.ok) throw new ValidationError(parsed.error);
   getWorkSchedule(); // ensure the row exists
   return getDb()
@@ -128,16 +129,16 @@ export function createAbsence(input: {
 }): Absence {
   const isoRe = /^\d{4}-\d{2}-\d{2}$/;
   if (!isoRe.test(input.startDate) || !isoRe.test(input.endDate)) {
-    throw new ValidationError("Absence dates must be YYYY-MM-DD.");
+    throw new ValidationError(t("Absence dates must be YYYY-MM-DD."));
   }
   if (input.endDate < input.startDate) {
-    throw new ValidationError("The end date cannot be before the start date.");
+    throw new ValidationError(t("The end date cannot be before the start date."));
   }
   if (input.hours != null && (input.hours <= 0 || input.hours > 24)) {
-    throw new ValidationError("Partial-day hours must be between 0 and 24.");
+    throw new ValidationError(t("Partial-day hours must be between 0 and 24."));
   }
   if (!ABSENCE_TYPES.includes(input.type)) {
-    throw new ValidationError(`Unknown absence type "${input.type}".`);
+    throw new ValidationError(t("Unknown absence type \"{type}\".", { type: input.type }));
   }
   return getDb()
     .insert(absences)

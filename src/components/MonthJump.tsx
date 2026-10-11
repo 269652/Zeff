@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useTransition } from "react";
+import { useT } from "@/components/I18nProvider";
 
 const isMonthKey = (v: string) => /^\d{4}-\d{2}$/.test(v);
 
@@ -10,6 +11,7 @@ const isMonthKey = (v: string) => /^\d{4}-\d{2}$/.test(v);
  * is picked (or on Enter) / a reporter is chosen — no Apply button.
  */
 export function MonthJump({ monthKey, by, reporters }: { monthKey: string; by?: string; reporters: string[] }) {
+  const t = useT();
   const router = useRouter();
   const [pending, start] = useTransition();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -23,7 +25,7 @@ export function MonthJump({ monthKey, by, reporters }: { monthKey: string; by?: 
   return (
     <>
       <div>
-        <label className="label" htmlFor="month">Jump to month</label>
+        <label className="label" htmlFor="month">{t("Jump to month")}</label>
         <input
           id="month"
           type="month"
@@ -45,14 +47,14 @@ export function MonthJump({ monthKey, by, reporters }: { monthKey: string; by?: 
         />
       </div>
       <div>
-        <label className="label" htmlFor="by">Reported by</label>
+        <label className="label" htmlFor="by">{t("Reported by")}</label>
         <select
           id="by"
           defaultValue={by ?? ""}
           className="input min-w-36"
           onChange={(e) => go(monthKey, e.target.value || undefined)}
         >
-          <option value="">Everyone</option>
+          <option value="">{t("Everyone")}</option>
           {reporters.map((r) => (
             <option key={r} value={r}>{r}</option>
           ))}

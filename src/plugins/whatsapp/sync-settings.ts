@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n/server";
 import { MAIL_FOLLOWERS } from "@/lib/mail/sync-settings";
 import { setStepMinutes, stepMinutes } from "@/lib/sync/intervals";
 import { MINUTE_CHOICES, type PluginSyncSettings } from "../sync-settings";
@@ -8,11 +9,15 @@ export const syncSettings: PluginSyncSettings = {
     {
       key: "whatsapp",
       label: "WhatsApp",
-      what: "The last message of every chat — from WhatsApp Web's chat list, no chat opened. The more often, the fewer messages get lost between two syncs.",
+      get what() {
+        return t("The last message of every chat — from WhatsApp Web's chat list, no chat opened. The more often, the fewer messages get lost between two syncs.");
+      },
       get: () => stepMinutes("whatsapp"),
       set: (m) => setStepMinutes("whatsapp", m),
       choices: MINUTE_CHOICES,
-      window: "while the automation Chrome is running",
+      get window() {
+        return t("while the automation Chrome is running");
+      },
     },
   ],
   follows: MAIL_FOLLOWERS,

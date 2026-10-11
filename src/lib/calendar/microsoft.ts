@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { CalendarConnection } from "@/db/schema";
+import { t } from "@/lib/i18n/server";
 import { CALENDAR_SCOPES, DEVICE_CODE_SCOPE, type MicrosoftConfig } from "./config";
 import type { GraphEvent } from "./meetings";
 
@@ -80,7 +81,7 @@ async function tokenRequest(config: MicrosoftConfig, params: Record<string, stri
   };
   if (!res.ok || !json.access_token) {
     throw new CalendarAuthError(
-      `${json.error ?? `HTTP ${res.status}`}: ${json.error_description ?? "token request failed"}`,
+      `${json.error ?? `HTTP ${res.status}`}: ${json.error_description ?? t("token request failed")}`,
     );
   }
   return json as TokenResponse;
@@ -140,7 +141,7 @@ export async function startDeviceCode(config: MicrosoftConfig): Promise<DeviceCo
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok || typeof json.device_code !== "string") {
     throw new CalendarAuthError(
-      `${json.error ?? `HTTP ${res.status}`}: ${json.error_description ?? "device code request failed"}`,
+      `${json.error ?? `HTTP ${res.status}`}: ${json.error_description ?? t("device code request failed")}`,
     );
   }
   return {
@@ -177,7 +178,7 @@ export async function pollDeviceToken(config: MicrosoftConfig, deviceCode: strin
   if (json.error === "authorization_pending" || json.error === "slow_down") return { status: "pending" };
   return {
     status: "error",
-    message: `${json.error ?? `HTTP ${res.status}`}: ${json.error_description ?? "device sign-in failed"}`,
+    message: `${json.error ?? `HTTP ${res.status}`}: ${json.error_description ?? t("device sign-in failed")}`,
   };
 }
 
@@ -216,10 +217,10 @@ export function deleteConnection(): void {
 /** Access token for Graph, refreshed when it expires within the next minute. */
 export async function getValidAccessToken(config: MicrosoftConfig): Promise<string> {
   const conn = getConnection();
-  if (!conn) throw new CalendarAuthError("Outlook is not connected.");
+  if (!conn) throw new CalendarAuthError(t("Outlook is not connected."));
   if (conn.expiresAt - 60_000 > Date.now()) return conn.accessToken;
   if (!conn.refreshToken) {
-    throw new CalendarAuthError("Session expired and no refresh token available — reconnect Outlook.");
+    throw new CalendarAuthError(t("Session expired and no refresh token available — reconnect Outlook."));
   }
   const tokens = await refreshTokens(config, conn.refreshToken);
   saveConnection(tokens, decodeIdToken(tokens.id_token));
@@ -262,10 +263,10 @@ export async function fetchCalendarView(
         prefer: `outlook.timezone="${timeZone}"`,
       },
     });
-    if (res.status === 401) throw new CalendarAuthError("Graph rejected the access token — reconnect Outlook.");
+    if (res.status === 401) throw new CalendarAuthError(t("Graph rejected the access token — reconnect Outlook."));
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      throw new Error(`Graph request failed (HTTP ${res.status}): ${text.slice(0, 300)}`);
+      throw new Error(t("Graph request failed (HTTP {status}): {text}", { status: res.status, text: text.slice(0, 300) }));
     }
     const json = (await res.json()) as { value?: GraphEvent[]; "@odata.nextLink"?: string };
     events.push(...(json.value ?? []));

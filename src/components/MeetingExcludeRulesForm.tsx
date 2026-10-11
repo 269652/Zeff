@@ -4,9 +4,11 @@ import { startTransition, useActionState, useState } from "react";
 import { saveMeetingExcludeRulesAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
 import { SubmitButton } from "./SubmitButton";
+import { useT } from "@/components/I18nProvider";
 
 /** Title patterns whose imported meetings start unchecked (placeholders, reminders, blockers). */
 export function MeetingExcludeRulesForm({ initialRules }: { initialRules: string[] }) {
+  const t = useT();
   const [rules, setRules] = useState<string[]>(initialRules);
   const [state, action, pending] = useActionState<ActionState, FormData>(saveMeetingExcludeRulesAction, null);
 
@@ -26,11 +28,12 @@ export function MeetingExcludeRulesForm({ initialRules }: { initialRules: string
       <input type="hidden" name="meetingExcludeRules" value={JSON.stringify(rules.map((r) => r.trim()).filter(Boolean))} />
 
       <div className="grid grid-cols-[minmax(0,1fr)_2rem] items-center gap-2">
-        <span className="text-xs font-medium text-zinc-500 uppercase">Meeting title contains</span>
+        <span className="text-xs font-medium text-zinc-500 uppercase">{t("Meeting title contains")}</span>
         <span />
         {rules.length === 0 && (
           <p className="col-span-2 text-sm text-zinc-500">
-            No exclude rules yet — add one here, or press <strong>Exclude</strong> next to a meeting on the import page.
+            {t("No exclude rules yet — add one here, or press")} <strong>{t("Exclude")}</strong>{" "}
+            {t("next to a meeting on the import page.")}
           </p>
         )}
         {rules.map((r, i) => (
@@ -39,14 +42,14 @@ export function MeetingExcludeRulesForm({ initialRules }: { initialRules: string
               className="input py-1 text-sm"
               value={r}
               placeholder="Zeiten in Roar Erfassen"
-              aria-label={`Exclude rule ${i + 1}: meeting title contains`}
+              aria-label={t("Exclude rule {n}: meeting title contains", { n: i + 1 })}
               onChange={(e) => setRule(i, e.target.value)}
             />
             <button
               type="button"
               className="btn btn-sm btn-danger w-8 justify-center px-0"
               onClick={() => removeRule(i)}
-              aria-label="Remove exclude rule"
+              aria-label={t("Remove exclude rule")}
             >
               ✕
             </button>
@@ -56,17 +59,18 @@ export function MeetingExcludeRulesForm({ initialRules }: { initialRules: string
 
       <div className="flex items-center gap-2">
         <button type="button" className="btn btn-sm" onClick={() => setRules((rs) => [...rs, ""])}>
-          + Add rule
+          {t("+ Add rule")}
         </button>
-        <SubmitButton className="btn btn-primary btn-sm" pendingText="Saving…" pending={pending}>
-          Save exclude rules
+        <SubmitButton className="btn btn-primary btn-sm" pendingText={t("Saving…")} pending={pending}>
+          {t("Save exclude rules")}
         </SubmitButton>
         {state?.ok && <span className="text-sm text-emerald-600">{state.message}</span>}
         {state?.error && <span className="alert-error">{state.error}</span>}
       </div>
       <p className="text-xs text-zinc-400">
-        Case-insensitive. Matching meetings still show on the import page — marked “excluded” and unticked — so you can
-        tick one to book it anyway.
+        {t(
+          "Case-insensitive. Matching meetings still show on the import page — marked “excluded” and unticked — so you can tick one to book it anyway.",
+        )}
       </p>
     </form>
   );

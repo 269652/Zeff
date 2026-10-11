@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import { dedupeTags, normalizeTagName } from "@/lib/tags-shared";
+import { useT } from "@/components/I18nProvider";
 
 /**
  * Tags as removable chips plus an input that suggests existing tags: Enter, a comma or
@@ -13,7 +14,7 @@ export function TagsField({
   allTags,
   defaultValue = [],
   onChange,
-  placeholder = "Add tag…",
+  placeholder,
   disabled = false,
   compact = false,
   id,
@@ -29,6 +30,7 @@ export function TagsField({
   compact?: boolean;
   id?: string;
 }) {
+  const t = useT();
   const [tags, setTags] = useState(() => dedupeTags(defaultValue));
   const [draft, setDraft] = useState("");
   const listId = useId();
@@ -42,20 +44,20 @@ export function TagsField({
   function add(raw: string) {
     const tag = normalizeTagName(raw.replace(/[,;]+$/, ""));
     setDraft("");
-    if (tag && !tags.some((t) => t.toLowerCase() === tag.toLowerCase())) update([...tags, tag]);
+    if (tag && !tags.some((x) => x.toLowerCase() === tag.toLowerCase())) update([...tags, tag]);
   }
 
   return (
     <div className={`input flex flex-wrap items-center gap-1 ${compact ? "min-h-7 py-0.5" : "min-h-9 py-1"} ${disabled ? "opacity-60" : ""}`}>
-      {tags.map((t) => (
-        <span key={t} className="badge badge-tag inline-flex items-center gap-1">
-          #{t}
+      {tags.map((tag) => (
+        <span key={tag} className="badge badge-tag inline-flex items-center gap-1">
+          #{tag}
           <button
             type="button"
-            aria-label={`Remove ${t}`}
+            aria-label={t("Remove {tag}", { tag })}
             className="text-current/70 hover:text-current"
             disabled={disabled}
-            onClick={() => update(tags.filter((x) => x !== t))}
+            onClick={() => update(tags.filter((x) => x !== tag))}
           >
             ×
           </button>
@@ -66,12 +68,12 @@ export function TagsField({
         list={listId}
         value={draft}
         disabled={disabled}
-        placeholder={tags.length ? "" : placeholder}
+        placeholder={tags.length ? "" : (placeholder ?? t("Add tag…"))}
         className={`flex-1 bg-transparent outline-none ${compact ? "min-w-14 text-xs" : "min-w-24 text-sm"}`}
         onChange={(e) => {
           const v = e.target.value;
           // A picked suggestion arrives without an inputType; a typed comma ends a tag.
-          const picked = !(e.nativeEvent as InputEvent).inputType && allTags.some((t) => t.toLowerCase() === v.trim().toLowerCase());
+          const picked = !(e.nativeEvent as InputEvent).inputType && allTags.some((x) => x.toLowerCase() === v.trim().toLowerCase());
           if (picked || /[,;]$/.test(v)) add(v);
           else setDraft(v);
         }}
@@ -87,14 +89,14 @@ export function TagsField({
       />
       <datalist id={listId}>
         {allTags
-          .filter((t) => !tags.some((x) => x.toLowerCase() === t.toLowerCase()))
-          .map((t) => (
-            <option key={t} value={t} />
+          .filter((tag) => !tags.some((x) => x.toLowerCase() === tag.toLowerCase()))
+          .map((tag) => (
+            <option key={tag} value={tag} />
           ))}
       </datalist>
       {name &&
-        tags.map((t) => (
-          <input key={t} type="hidden" name={name} value={t} />
+        tags.map((tag) => (
+          <input key={tag} type="hidden" name={name} value={tag} />
         ))}
     </div>
   );

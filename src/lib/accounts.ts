@@ -1,6 +1,7 @@
 import { closeAccountDb } from "@/db";
 import { accountById, addAccount, currentAccountId, removeAccount, setActiveAccount, withAccount, type Account } from "@/db/accounts";
 import { writeKnowledgeInstances } from "@/plugins/knowledge/instances";
+import { t } from "@/lib/i18n/server";
 import { forgetBranchWork } from "./branches";
 import { emitChange } from "./events";
 import { runsByStatus } from "./work/store";
@@ -17,28 +18,28 @@ export function accountBusy(): string | null {
     __zeffOpsNow?: Set<number>;
   };
   const busy: string[] = [];
-  if (g.__zeffSyncs?.running.size || g.__zeffSyncs?.all) busy.push("a sync");
-  if (g.__zeffTeamsSyncing || g.__zeffMailSyncing || g.__zeffGitlabSyncing || g.__zeffKeepSyncing) busy.push("a sync");
-  if (g.__zeffBoardRun) busy.push("the briefing");
-  if (g.__zeffRecap) busy.push("a day recap");
-  if (g.__zeffMailTodos || g.__zeffMailRelations || g.__zeffAutoActions || g.__zeffBoardLage) busy.push("an AI step");
-  if (g.__zeffBackups?.size) busy.push("a backup");
-  if (g.__zeffWhatsappHistory) busy.push("a WhatsApp history");
-  if (g.__zeffPeopleDates) busy.push("finding dates");
-  if (g.__zeffBoardSync) busy.push("a Keep board sync");
-  if (g.__zeffOpsNow?.size) busy.push("a todo's actions");
+  if (g.__zeffSyncs?.running.size || g.__zeffSyncs?.all) busy.push(t("a sync"));
+  if (g.__zeffTeamsSyncing || g.__zeffMailSyncing || g.__zeffGitlabSyncing || g.__zeffKeepSyncing) busy.push(t("a sync"));
+  if (g.__zeffBoardRun) busy.push(t("the briefing"));
+  if (g.__zeffRecap) busy.push(t("a day recap"));
+  if (g.__zeffMailTodos || g.__zeffMailRelations || g.__zeffAutoActions || g.__zeffBoardLage) busy.push(t("an AI step"));
+  if (g.__zeffBackups?.size) busy.push(t("a backup"));
+  if (g.__zeffWhatsappHistory) busy.push(t("a WhatsApp history"));
+  if (g.__zeffPeopleDates) busy.push(t("finding dates"));
+  if (g.__zeffBoardSync) busy.push(t("a Keep board sync"));
+  if (g.__zeffOpsNow?.size) busy.push(t("a todo's actions"));
   const runs = runsByStatus(["queued", "running"]).length;
-  if (runs) busy.push(runs === 1 ? "a work run" : `${runs} work runs`);
+  if (runs) busy.push(runs === 1 ? t("a work run") : t("{n} work runs", { n: runs }));
   return busy.length ? [...new Set(busy)].join(", ") : null;
 }
 
 /** Into another account: its data, settings and plugins from now on. */
 export function switchAccount(id: string): Account {
   const a = accountById(id);
-  if (!a) throw new Error("Unknown account.");
+  if (!a) throw new Error(t("Unknown account."));
   if (id === currentAccountId()) return a;
   const busy = accountBusy();
-  if (busy) throw new Error(`Running now: ${busy} — switch once it's done.`);
+  if (busy) throw new Error(t("Running now: {busy} — switch once it's done.", { busy }));
   setActiveAccount(id);
   writeKnowledgeInstances(); // https://knowledge.zeff follows the account you're in
   // What's kept in memory belongs to the account before.
@@ -59,7 +60,7 @@ const CONFIG_PREF = /^(menu|layout|auswerten|plugin:.+)$/;
  */
 export async function createAccount(v: { name: string; color: string; copyFrom?: string; shareChrome?: boolean }): Promise<{ account: Account; copied: number }> {
   const from = v.copyFrom ? accountById(v.copyFrom) : undefined;
-  if (v.copyFrom && !from) throw new Error("The account to copy from doesn't exist.");
+  if (v.copyFrom && !from) throw new Error(t("The account to copy from doesn't exist."));
   const account = addAccount(v.name, v.color, from && v.shareChrome ? from.id : undefined);
   let copied = 0;
   if (from) {
@@ -99,7 +100,7 @@ export async function startSetup(id: string): Promise<void> {
 
 /** An account off the list (its folder set aside, not deleted). Where it went. */
 export function deleteAccount(id: string): string {
-  if (id === currentAccountId()) throw new Error("Switch to another account first.");
+  if (id === currentAccountId()) throw new Error(t("Switch to another account first."));
   closeAccountDb(id);
   const to = removeAccount(id);
   writeKnowledgeInstances(); // its knowledge server stops (its data went along to the set-aside folder)

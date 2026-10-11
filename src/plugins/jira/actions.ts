@@ -1,5 +1,5 @@
 /** The Jira plugin's actions: a status, an assignee, a comment, a new ticket — through Zeff's Jira connection. Client-safe. */
-import { action, str, ticketKey } from "../actions/types";
+import { action, EN, str, ticketKey } from "../actions/types";
 
 export const JIRA_ACTIONS = [
   action({
@@ -14,7 +14,7 @@ export const JIRA_ACTIONS = [
     },
     clean: (o, c) => (str(o.to) ? { type: "jira-transition", ticket: ticketKey(o.ticket, c.ticket), to: str(o.to) } : null),
     title: (op) => `${op.ticket} → ${op.to}`,
-    note: (op) => ({ heading: "Change Jira status", detail: `${op.ticket} → ${op.to}`, body: null }),
+    note: (op, t = EN) => ({ heading: t("Change Jira status"), detail: `${op.ticket} → ${op.to}`, body: null }),
   }),
   action({
     type: "jira-assign",
@@ -27,8 +27,8 @@ export const JIRA_ACTIONS = [
       example: { type: "jira-assign", ticket: "PROJ-415", assignee: "cressl" },
     },
     clean: (o, c) => (str(o.assignee) ? { type: "jira-assign", ticket: ticketKey(o.ticket, c.ticket), assignee: str(o.assignee) } : null),
-    title: (op) => `Assign ${op.ticket}: ${op.assignee}`,
-    note: (op) => ({ heading: "Assign Jira ticket", detail: `${op.ticket} → ${op.assignee}`, body: null }),
+    title: (op, t = EN) => t("Assign {ticket}: {assignee}", { ticket: op.ticket, assignee: op.assignee }),
+    note: (op, t = EN) => ({ heading: t("Assign Jira ticket"), detail: `${op.ticket} → ${op.assignee}`, body: null }),
   }),
   action({
     type: "jira-comment",
@@ -42,8 +42,8 @@ export const JIRA_ACTIONS = [
       example: { type: "jira-comment", ticket: "PROJ-415", body: "Der Fix ist auf feature/PROJ-415-… — bitte erneut testen." },
     },
     clean: (o, c) => (str(o.body) ? { type: "jira-comment", ticket: ticketKey(o.ticket, c.ticket), body: str(o.body).slice(0, 8000) } : null),
-    title: (op) => `Comment on ${op.ticket}`,
-    note: (op) => ({ heading: `Comment on ${op.ticket}`, detail: null, body: op.body }),
+    title: (op, t = EN) => t("Comment on {ticket}", { ticket: op.ticket }),
+    note: (op, t = EN) => ({ heading: t("Comment on {ticket}", { ticket: op.ticket }), detail: null, body: op.body }),
   }),
   action({
     type: "jira-create",
@@ -70,7 +70,11 @@ export const JIRA_ACTIONS = [
       str(o.summary) && str(o.body)
         ? { type: "jira-create", ticket: ticketKey(o.ticket, c.ticket), summary: str(o.summary).slice(0, 250), issueType: str(o.issueType) || str(o.issue_type) || "Task", body: str(o.body).slice(0, 20000) }
         : null,
-    title: (op) => `Create ticket: ${op.summary}`,
-    note: (op) => ({ heading: `Create Jira ticket (${op.ticket.split("-")[0]}, ${op.issueType})`, detail: `“${op.summary}” — linked to ${op.ticket}`, body: op.body }),
+    title: (op, t = EN) => t("Create ticket: {summary}", { summary: op.summary }),
+    note: (op, t = EN) => ({
+      heading: t("Create Jira ticket ({project}, {type})", { project: op.ticket.split("-")[0], type: op.issueType }),
+      detail: t("“{summary}” — linked to {ticket}", { summary: op.summary, ticket: op.ticket }),
+      body: op.body,
+    }),
   }),
 ];

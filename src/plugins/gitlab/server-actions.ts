@@ -1,6 +1,7 @@
 "use server";
 
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { revalidateAll, str, type ActionState } from "@/app/action-helpers";
 
 /** GitLab (merge requests, their comments, your branches — read through the automation Chrome) — its server actions (each answers an ActionState unless it says otherwise). */
@@ -16,11 +17,11 @@ export async function syncGitlabAction(): Promise<ActionState> {
 /** Your GitLab's address (how often it syncs: the Sync settings page). */
 export async function saveGitlabSyncAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const base = (str(fd, "baseUrl") ?? "").replace(/\/+$/, "");
-  if (!/^https?:\/\/[^/\s]+$/.test(base)) return { ok: false, error: "Your GitLab's address, like https://git.example.com" };
+  if (!/^https?:\/\/[^/\s]+$/.test(base)) return { ok: false, error: t("Your GitLab's address, like https://git.example.com") };
   const { updateGitlabSettings } = await import("@/lib/gitlab/store");
   updateGitlabSettings({ baseUrl: base });
   revalidateAll();
-  return { ok: true, message: `Reads ${new URL(base).host}.` };
+  return { ok: true, message: t("Reads {host}.", { host: new URL(base).host }) };
 }
 
 /**
@@ -29,7 +30,7 @@ export async function saveGitlabSyncAction(_prev: ActionState, fd: FormData): Pr
  */
 export async function setGitlabResolvedAction(key: string, resolved: boolean): Promise<ActionState> {
   try {
-    if (!/^note:\d+$/.test(String(key))) return { ok: false, error: "Only GitLab comments can be marked done." };
+    if (!/^note:\d+$/.test(String(key))) return { ok: false, error: t("Only GitLab comments can be marked done.") };
     const { gitlabItemsByKeys, setGitlabState } = await import("@/lib/gitlab/store");
     const item = gitlabItemsByKeys([String(key)]).get(String(key));
     if (item && (item.state === "resolved" || item.state === "unresolved")) {

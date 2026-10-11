@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { ValidationError } from "./errors";
+import { t } from "@/lib/i18n/server";
 import { parsePauses, parseTime, type PauseRange } from "./pauses-shared";
 import { isValidIsoDate } from "./week";
 
@@ -60,9 +61,9 @@ export function setPauses(
   defaultStart = "12:00",
 ): { pauses: PauseRange[]; none: boolean } {
   if (dates.length === 0 || dates.length > 7 || !dates.every(isValidIsoDate)) {
-    throw new ValidationError("Pick the day(s) to set the break on.");
+    throw new ValidationError(t("Pick the day(s) to set the break on."));
   }
-  const parsed = parsePauses(text, parseTime(defaultStart) ?? "12:00");
+  const parsed = parsePauses(text, parseTime(defaultStart) ?? "12:00", t);
   if (!parsed.ok) throw new ValidationError(parsed.error);
   const rows = parsed.none ? [NO_BREAK_MARK] : parsed.pauses;
   getDb().transaction((tx) => {

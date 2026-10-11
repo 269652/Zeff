@@ -3,9 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useRef } from "react";
 import { CalendarIcon } from "../icons";
+import { useT } from "@/components/I18nProvider";
 
 /** A calendar icon that opens the browser's date picker — the recap of the day picked is shown. */
 export function RecapDayPicker({ day, max }: { day: string; max: string }) {
+  const t = useT();
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   return (
@@ -22,8 +24,8 @@ export function RecapDayPicker({ day, max }: { day: string; max: string }) {
             el.focus();
           }
         }}
-        title="Jump to a day"
-        aria-label="Jump to a day"
+        title={t("Jump to a day")}
+        aria-label={t("Jump to a day")}
       >
         <CalendarIcon />
       </button>

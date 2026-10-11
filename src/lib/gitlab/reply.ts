@@ -1,4 +1,5 @@
 import { automationEnv, driverPath } from "@/plugins/drivers";
+import { t } from "@/lib/i18n/server";
 import { getGitlabSettings } from "./store";
 
 /**
@@ -16,7 +17,7 @@ export async function postGitlabReply(noteUrl: string, body: string, opts: { dry
     180000,
   );
   const r = (typeof out === "string" ? JSON.parse(out) : out) as { via?: "api" | "page"; url?: string; apiFailed?: string };
-  if (!r?.via) throw new Error(typeof out === "string" ? out.slice(0, 300) : "GitLab gave no answer.");
+  if (!r?.via) throw new Error(typeof out === "string" ? out.slice(0, 300) : t("GitLab gave no answer."));
   return { via: r.via, url: r.url ?? noteUrl, apiFailed: r.apiFailed };
 }
 
@@ -31,7 +32,7 @@ export async function commentOnMr(project: string, iid: number, body: string, op
     120000,
   );
   const r = (typeof out === "string" ? JSON.parse(out) : out) as { url?: string };
-  if (!r?.url) throw new Error(typeof out === "string" ? out.slice(0, 300) : "GitLab gave no answer.");
+  if (!r?.url) throw new Error(typeof out === "string" ? out.slice(0, 300) : t("GitLab gave no answer."));
   return { url: r.url };
 }
 
@@ -50,7 +51,7 @@ export async function resolveGitlabThread(noteUrl: string, resolved: boolean, op
     120000,
   );
   const r = (typeof out === "string" ? JSON.parse(out) : out) as { resolvable?: boolean; resolved?: boolean };
-  if (typeof r?.resolvable !== "boolean") throw new Error(typeof out === "string" ? out.slice(0, 300) : "GitLab gave no answer.");
+  if (typeof r?.resolvable !== "boolean") throw new Error(typeof out === "string" ? out.slice(0, 300) : t("GitLab gave no answer."));
   return { resolvable: r.resolvable, resolved: r.resolved };
 }
 
@@ -72,7 +73,7 @@ export async function openGitlabMr(
     180000,
   );
   const r = (typeof out === "string" ? JSON.parse(out) : out) as { url?: string; iid?: number; existed?: boolean; dryRun?: boolean };
-  if (!r?.url && !r?.dryRun) throw new Error(typeof out === "string" ? out.slice(0, 300) : "GitLab gave no answer.");
+  if (!r?.url && !r?.dryRun) throw new Error(typeof out === "string" ? out.slice(0, 300) : t("GitLab gave no answer."));
   const iid = r.iid ?? Number(/merge_requests\/(\d+)/.exec(r.url ?? "")?.[1]);
   if (r.url && iid && !opts.dryRun) {
     const { recordOpenedMr } = await import("./store");
@@ -93,6 +94,6 @@ export async function mergeGitlabMr(project: string, iid: number, opts: { dryRun
     120000,
   );
   const r = (typeof out === "string" ? JSON.parse(out) : out) as { url?: string; state?: string; already?: boolean };
-  if (!r?.url) throw new Error(typeof out === "string" ? out.slice(0, 300) : "GitLab gave no answer.");
+  if (!r?.url) throw new Error(typeof out === "string" ? out.slice(0, 300) : t("GitLab gave no answer."));
   return { url: r.url, state: r.state, already: r.already };
 }

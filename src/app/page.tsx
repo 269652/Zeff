@@ -2,9 +2,10 @@ import { redirect } from "next/navigation";
 import { firstAppTab } from "@/plugins/tabs";
 import { installedPlugins, isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
+import { t } from "@/lib/i18n/server";
 import Link from "next/link";
 import { connection } from "next/server";
-import { format, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
 import { createEntryAction } from "@/app/actions";
 import { ContextFormOptionsProvider } from "@/components/ContextFormOptions";
 import { EntriesTable } from "@/components/EntriesTable";
@@ -36,7 +37,7 @@ import {
 import { timoDayStates } from "@/lib/timo-status";
 import { weekClose } from "@/lib/week-close";
 import { getWeeklyReport, listReporters } from "@/lib/entries";
-import { formatDate, formatHours, round2 } from "@/lib/format";
+import { currentLocale, formatDate, formatHours, round2 } from "@/lib/format";
 import { getJobByNumber, listJobs } from "@/lib/jobs";
 import { latestPausesBefore, listPausesByDate } from "@/lib/pauses";
 import { listProjectOptions } from "@/lib/projects";
@@ -52,7 +53,9 @@ import { DoneTodayPanel } from "@/components/DoneTodayPanel";
 import { SuggestionsPanel } from "@/components/SuggestionsPanel";
 import { openSuggestions } from "@/lib/work/suggestions";
 
-export const metadata: Metadata = { title: "Weekly report" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: t("Weekly report") };
+}
 
 export default async function WeekPage({
   searchParams,
@@ -76,7 +79,7 @@ export default async function WeekPage({
   const jobs = listJobs();
   const projects = listProjectOptions();
   const reporters = listReporters();
-  const allTags = listTags().map((t) => t.name);
+  const allTags = listTags().map((tag) => tag.name);
   const ticketSuggestions = getEntryTicketSuggestions(week);
   const ui = await getUiOpen();
   const types = listEntryTypes();
@@ -95,7 +98,7 @@ export default async function WeekPage({
   const filtered = !!by;
   // The booked card: each day against its target (its color), and today's hours when this week holds today.
   const shortfall = dayShortfalls(week, report.dayTotals, targets.targets, { today, filtered });
-  const bookedDays = week.days.map((d, i) => ({ shortfall: shortfall[i], label: format(d, "EEE") }));
+  const bookedDays = week.days.map((d, i) => ({ shortfall: shortfall[i], label: d.toLocaleDateString(currentLocale(), { weekday: "short" }) }));
   const todayIndex = week.days.findIndex((d) => isoDate(d) === today);
   const todayBooked = todayIndex >= 0 ? { booked: report.dayTotals[todayIndex], target: targets.targets[todayIndex] } : undefined;
 
@@ -107,23 +110,26 @@ export default async function WeekPage({
 
       {sp.imported !== undefined && (
         <p className="alert-ok">
-          Imported {sp.imported} meeting{sp.imported === "1" ? "" : "s"} as time entries
-          {sp.skipped ? ` (${sp.skipped} already booked, skipped)` : ""}.
+          {sp.imported === "1"
+            ? sp.skipped
+              ? t("Imported 1 meeting as time entries ({skipped} already booked, skipped).", { skipped: sp.skipped })
+              : t("Imported 1 meeting as time entries.")
+            : sp.skipped
+              ? t("Imported {n} meetings as time entries ({skipped} already booked, skipped).", { n: sp.imported, skipped: sp.skipped })
+              : t("Imported {n} meetings as time entries.", { n: sp.imported })}
         </p>
       )}
 
       {sp.week && !requested && (
-        <p className="alert-error">
-          Could not read week &quot;{sp.week}&quot; — showing the current week instead.
-        </p>
+        <p className="alert-error">{t('Could not read week "{week}" — showing the current week instead.', { week: sp.week })}</p>
       )}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <BookedStat
-          label="Booked this week"
+          label={t("Booked this week")}
           booked={report.total}
           target={targets.weekTarget}
-          workdays={targets.targets.filter((t) => t > 0).length}
+          workdays={targets.targets.filter((h) => h > 0).length}
           absentDays={targets.absenceByDay.filter(Boolean).length}
           filtered={filtered}
           today={todayBooked}
@@ -137,7 +143,7 @@ export default async function WeekPage({
 
       <section className="card p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Hours per job and day</h2>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Hours per job and day")}</h2>
           <div className="flex flex-wrap items-center justify-end gap-2">
             {timo && <TimoPullButton week={week.key} pulledAt={timo.pulledAt} synced={timo.inSync} />}
             {roarOn && <RoarPullButton week={week.key} pulledAt={pulledAt} synced={roarInSync(report.entries, roarStatuses)} />}
@@ -156,7 +162,7 @@ export default async function WeekPage({
       </section>
 
       <section className="card p-4">
-        <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">Add entry</h2>
+        <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">{t("Add entry")}</h2>
         <ContextFormOptionsProvider value={{ people: listContextPeople(), tickets: ticketSuggestions }}>
           <EntryForm
             jobs={jobs}
@@ -182,15 +188,15 @@ export default async function WeekPage({
 
       <section className="card p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Report · week {week.week}</h2>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Report · week {n}", { n: week.week })}</h2>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-zinc-400">grouped per day · configure on Schedule</span>
+            <span className="text-xs text-zinc-400">{t("grouped per day · configure on Schedule")}</span>
             {roarOn && (
               <Link
                 href={`/export/roar?week=${week.key}${by ? `&by=${encodeURIComponent(by)}` : ""}`}
                 className="btn btn-sm"
               >
-                Export to Roar →
+                {t("Export to Roar →")}
               </Link>
             )}
             {timoOn && (
@@ -198,7 +204,7 @@ export default async function WeekPage({
                 href={`/export/timo?week=${week.key}${by ? `&by=${encodeURIComponent(by)}` : ""}`}
                 className="btn btn-sm"
               >
-                Export to TimO →
+                {t("Export to TimO →")}
               </Link>
             )}
           </div>
@@ -218,7 +224,7 @@ export default async function WeekPage({
         <PersistentDetails name="week-entries" ui={ui} className="group">
           <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-zinc-500 uppercase [&::-webkit-details-marker]:hidden">
             <span className="text-zinc-400 transition-transform group-open:rotate-90">▸</span>
-            Entries in week {week.week}
+            {t("Entries in week {n}", { n: week.week })}
             <span className="font-normal normal-case text-zinc-400">({report.entries.length})</span>
           </summary>
           <div className="mt-3">
@@ -243,17 +249,17 @@ function ApprovalsCard() {
   const day = (iso: string) => formatDate(iso);
   const item = (i: RoarItem) => `${day(i.date)} · ${i.jobNumber} · ${formatHours(i.hours)} h “${i.comment}”`;
   const waitingHours = round2(a.awaiting.reduce((s, i) => s + i.hours, 0));
-  const notSubmitted = a.unsubmitted.length ? `${a.unsubmitted.length} not submitted` : "";
+  const notSubmitted = a.unsubmitted.length ? t("{n} not submitted", { n: a.unsubmitted.length }) : "";
 
   const left: StatHalf = {
-    label: "Awaiting approval",
+    label: t("Awaiting approval"),
     value: pulled ? String(a.awaiting.length) : "–",
     // The oldest waiting (else unsubmitted) entry's month: its calendar shows which days.
     href: a.awaiting[0] || a.unsubmitted[0] ? `/month?month=${(a.awaiting[0] ?? a.unsubmitted[0]).date.slice(0, 7)}` : undefined,
     title:
       [
-        ...a.awaiting.map((i) => `${item(i)}${i.approver ? ` · waiting for ${i.approver}` : ""}`),
-        ...a.unsubmitted.map((i) => `${item(i)} · not submitted`),
+        ...a.awaiting.map((i) => `${item(i)}${i.approver ? ` · ${t("waiting for {who}", { who: i.approver })}` : ""}`),
+        ...a.unsubmitted.map((i) => `${item(i)} · ${t("not submitted")}`),
       ].join("\n") || undefined,
     view: !pulled
       ? undefined
@@ -261,11 +267,11 @@ function ApprovalsCard() {
         ? { color: "amber", icon: "info", caption: [`${formatHours(waitingHours)} h`, notSubmitted].filter(Boolean).join(" · ") }
         : notSubmitted
           ? { color: "orange", icon: "info", caption: notSubmitted }
-          : { color: "green", icon: "check", caption: "Nothing waiting" },
-    hint: pulled ? undefined : "Pull Roar to see approvals",
+          : { color: "green", icon: "check", caption: t("Nothing waiting") },
+    hint: pulled ? undefined : t("Pull Roar to see approvals"),
   };
   const right: StatHalf = {
-    label: "Rejected",
+    label: t("Rejected"),
     value: pulled ? String(a.rejected.length) : "–",
     // The first rejected entry's week, where it gets corrected.
     href: a.rejected[0] ? `/?week=${weekFromDate(parseISO(a.rejected[0].date)).key}` : undefined,
@@ -274,7 +280,7 @@ function ApprovalsCard() {
       ? undefined
       : a.rejected.length
         ? { color: "red", icon: "cross", caption: [...new Set(a.rejected.map((i) => day(i.date)))].slice(0, 3).join(", ") }
-        : { color: "green", icon: "check", caption: "None rejected" },
+        : { color: "green", icon: "check", caption: t("None rejected") },
   };
   return (
     <SplitStat
@@ -284,8 +290,9 @@ function ApprovalsCard() {
       footer={
         <div className="flex flex-wrap items-center justify-between gap-x-2">
           <span>
-            {format(last.start, "MMM")} – {format(current.start, "MMM yyyy")}
-            {a.unpulledWeeks.length > 0 && ` · not pulled: ${a.unpulledWeeks.map((k) => `W${Number(k.slice(-2))}`).join(", ")}`}
+            {last.start.toLocaleDateString(currentLocale(), { month: "short" })} –{" "}
+            {current.start.toLocaleDateString(currentLocale(), { month: "short", year: "numeric" })}
+            {a.unpulledWeeks.length > 0 && ` · ${t("not pulled: {weeks}", { weeks: a.unpulledWeeks.map((k) => `W${Number(k.slice(-2))}`).join(", ") })}`}
           </span>
           {/* ✓ for a few hours after a pull of every week. */}
           <RoarPullButton approvals pulledAt={a.pulledAt} synced={a.unpulledWeeks.length === 0 && pulledWithin(a.pulledAt, APPROVALS_FRESH_HOURS)} />

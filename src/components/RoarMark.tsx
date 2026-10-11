@@ -1,4 +1,5 @@
 import { aggregateRoarKind, roarStatusTitle, type EntryRoarStatus, type RoarMarkKind } from "@/lib/roar-status";
+import { t } from "@/lib/i18n/server";
 
 const MARK_CLASS: Record<RoarMarkKind, string> = {
   approved: "text-emerald-600 dark:text-emerald-400",
@@ -43,7 +44,7 @@ function Mark({ kind, title }: { kind: RoarMarkKind; title: string }) {
 
 /** One entry's Roar status (or "not in Roar" when the week was pulled but nothing matched). */
 export function RoarMark({ status }: { status: EntryRoarStatus | undefined }) {
-  return <Mark kind={status ? status.kind : "missing"} title={status ? roarStatusTitle(status) : "Not in Roar"} />;
+  return <Mark kind={status ? status.kind : "missing"} title={status ? roarStatusTitle(status) : t("Not in Roar")} />;
 }
 
 /** Several entries' Roar statuses as one mark (a weekly-table cell). */
@@ -53,9 +54,11 @@ export function RoarCellMark({ statuses }: { statuses: (EntryRoarStatus | undefi
   const known = statuses.filter((s): s is EntryRoarStatus => !!s);
   const title =
     kind === "missing"
-      ? `${statuses.length - known.length} of ${statuses.length} not in Roar`
+      ? t("{n} of {total} not in Roar", { n: statuses.length - known.length, total: statuses.length })
       : kind === "approved"
-        ? `Roar: approved${known[0]?.approvedBy ? ` by ${known[0].approvedBy}` : ""}`
+        ? known[0]?.approvedBy
+          ? t("Roar: approved by {who}", { who: known[0].approvedBy })
+          : t("Roar: approved")
         : roarStatusTitle(known.find((s) => s.kind === kind)!);
   return <Mark kind={kind} title={title} />;
 }

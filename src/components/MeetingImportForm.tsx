@@ -6,16 +6,18 @@ import { setMeetingExcludedAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
 import { isExcludedMeeting, jobForMeeting, type Meeting, type MeetingFlag, type MeetingJobRule } from "@/lib/calendar/meetings";
 import type { EntryFormJob } from "./EntryForm";
+import { useT } from "@/components/I18nProvider";
+import type { T } from "@/lib/i18n/shared";
 
 type Row = Meeting & { jobNumber: string; description: string; ticketValue: string; hoursValue: string };
 
-const FLAG_LABEL: Record<MeetingFlag, string> = {
-  imported: "already booked",
-  excluded: "excluded",
-  tentative: "tentative",
-  free: "shown as free",
-  private: "private",
-};
+const flagLabels = (t: T): Record<MeetingFlag, string> => ({
+  imported: t("already booked"),
+  excluded: t("excluded"),
+  tentative: t("tentative"),
+  free: t("shown as free"),
+  private: t("private"),
+});
 
 export function MeetingImportForm({
   weekKey,
@@ -33,6 +35,7 @@ export function MeetingImportForm({
   otherMeetingsJob?: string | null;
   defaultReportedBy: string;
 }) {
+  const t = useT();
   const fallbackJob =
     (otherMeetingsJob && jobs.some((j) => j.number === otherMeetingsJob) ? otherMeetingsJob : jobs[0]?.number) ?? "";
   const [defaultJob, setDefaultJob] = useState(fallbackJob);
@@ -55,7 +58,7 @@ export function MeetingImportForm({
     startRuling(async () => {
       const r = await setMeetingExcludedAction(subject, exclude);
       if (!r.ok || !r.rules) {
-        setState({ ok: false, error: r.error ?? "Could not save the exclude rule." });
+        setState({ ok: false, error: r.error ?? t("Could not save the exclude rule.") });
         return;
       }
       const rules = r.rules;
@@ -94,10 +97,10 @@ export function MeetingImportForm({
   }
 
   if (jobs.length === 0) {
-    return <p className="text-sm text-zinc-500">Create a job first — meetings are booked on a job number.</p>;
+    return <p className="text-sm text-zinc-500">{t("Create a job first — meetings are booked on a job number.")}</p>;
   }
   if (rows.length === 0) {
-    return <p className="py-4 text-center text-sm text-zinc-500">No finished meetings to import in this week.</p>;
+    return <p className="py-4 text-center text-sm text-zinc-500">{t("No finished meetings to import in this week.")}</p>;
   }
 
   return (
@@ -107,7 +110,7 @@ export function MeetingImportForm({
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-64">
-          <label className="label" htmlFor="defaultJob">Book all meetings on</label>
+          <label className="label" htmlFor="defaultJob">{t("Book all meetings on")}</label>
           <select id="defaultJob" className="input" value={defaultJob} onChange={(e) => applyJobToAll(e.target.value)}>
             {jobs.map((j) => (
               <option key={j.id} value={j.number}>{j.number} — {j.name}</option>
@@ -115,12 +118,12 @@ export function MeetingImportForm({
           </select>
         </div>
         <div>
-          <label className="label" htmlFor="reportedBy">Reported by</label>
-          <input id="reportedBy" name="reportedBy" className="input" defaultValue={defaultReportedBy} placeholder="your name" />
+          <label className="label" htmlFor="reportedBy">{t("Reported by")}</label>
+          <input id="reportedBy" name="reportedBy" className="input" defaultValue={defaultReportedBy} placeholder={t("your name")} />
         </div>
         <div className="flex gap-1 pb-0.5">
-          <button type="button" className="btn btn-sm" onClick={() => setAll(true)}>Select all</button>
-          <button type="button" className="btn btn-sm" onClick={() => setAll(false)}>None</button>
+          <button type="button" className="btn btn-sm" onClick={() => setAll(true)}>{t("Select all")}</button>
+          <button type="button" className="btn btn-sm" onClick={() => setAll(false)}>{t("None")}</button>
         </div>
       </div>
 
@@ -129,13 +132,13 @@ export function MeetingImportForm({
           <thead>
             <tr>
               <th></th>
-              <th>Date</th>
-              <th>Time</th>
-              <th>Meeting → description</th>
-              <th className="num">Hours</th>
-              <th>Ticket</th>
-              <th>Job</th>
-              <th>Notes</th>
+              <th>{t("Date")}</th>
+              <th>{t("Time")}</th>
+              <th>{t("Meeting → description")}</th>
+              <th className="num">{t("Hours")}</th>
+              <th>{t("Ticket")}</th>
+              <th>{t("Job")}</th>
+              <th>{t("Notes")}</th>
             </tr>
           </thead>
           <tbody>
@@ -160,11 +163,11 @@ export function MeetingImportForm({
                   <td className="font-mono whitespace-nowrap">{r.startTime}–{r.endTime}</td>
                   <td className="min-w-64">
                     <input name={`description-${i}`} className="input" value={r.description} onChange={(e) => update(i, { description: e.target.value })} disabled={imported} />
-                    {r.organizer && <div className="mt-0.5 text-xs text-zinc-500">by {r.organizer}</div>}
+                    {r.organizer && <div className="mt-0.5 text-xs text-zinc-500">{t("by {name}", { name: r.organizer })}</div>}
                   </td>
                   <td>
                     <input name={`hours-${i}`} type="number" step="0.25" min="0.25" max="24" className="input num w-20" value={r.hoursValue} onChange={(e) => update(i, { hoursValue: e.target.value })} disabled={imported} />
-                    <div className="mt-0.5 text-right text-xs text-zinc-500">{r.minutes} min</div>
+                    <div className="mt-0.5 text-right text-xs text-zinc-500">{t("{n} min", { n: r.minutes })}</div>
                   </td>
                   <td>
                     <input name={`ticket-${i}`} className="input w-28 font-mono" value={r.ticketValue} onChange={(e) => update(i, { ticketValue: e.target.value })} disabled={imported} placeholder="—" />
@@ -180,7 +183,7 @@ export function MeetingImportForm({
                     <div className="flex flex-wrap items-center gap-1">
                       {r.isTeams && <span className="badge badge-mcp">Teams</span>}
                       {r.flags.map((f) => (
-                        <span key={f} className="badge badge-web">{FLAG_LABEL[f]}</span>
+                        <span key={f} className="badge badge-web">{flagLabels(t)[f]}</span>
                       ))}
                       {!imported && (
                         <button
@@ -190,11 +193,11 @@ export function MeetingImportForm({
                           onClick={() => toggleExcluded(r.subject, !excluded)}
                           title={
                             excluded
-                              ? `Stop excluding meetings titled “${r.subject}”`
-                              : `Always uncheck meetings titled “${r.subject}” (adds an exclude rule)`
+                              ? t("Stop excluding meetings titled “{title}”", { title: r.subject })
+                              : t("Always uncheck meetings titled “{title}” (adds an exclude rule)", { title: r.subject })
                           }
                         >
-                          {excluded ? "Include" : "Exclude"}
+                          {excluded ? t("Include") : t("Exclude")}
                         </button>
                       )}
                     </div>
@@ -208,10 +211,18 @@ export function MeetingImportForm({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-zinc-500">
-          {selectedRows.length} of {rows.length} meetings selected · {Math.round(selectedHours * 100) / 100} h
+          {t("{selected} of {total} meetings selected · {hours} h", {
+            selected: selectedRows.length,
+            total: rows.length,
+            hours: Math.round(selectedHours * 100) / 100,
+          })}
         </p>
         <button type="submit" className="btn btn-primary" disabled={pending || selectedRows.length === 0}>
-          {pending ? "Booking…" : `Book ${selectedRows.length} meeting${selectedRows.length === 1 ? "" : "s"}`}
+          {pending
+            ? t("Booking…")
+            : selectedRows.length === 1
+              ? t("Book 1 meeting")
+              : t("Book {n} meetings", { n: selectedRows.length })}
         </button>
       </div>
       {state?.error && <p className="alert-error whitespace-pre-line">{state.error}</p>}

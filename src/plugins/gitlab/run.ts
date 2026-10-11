@@ -4,6 +4,7 @@ import { forgetBranchWork } from "@/lib/branches";
 import { mergeGitlabMr, openGitlabMr, postGitlabReply, resolveGitlabThread } from "@/lib/gitlab/reply";
 import { gitlabItemsByKeys, setGitlabState } from "@/lib/gitlab/store";
 import { setGitlabResolved } from "@/lib/resolved";
+import { t } from "@/lib/i18n/server";
 import type { ActionResult } from "../actions/run-types";
 
 /** A reply in a comment's thread, or the thread resolved. */
@@ -11,12 +12,12 @@ export async function runGitlabNote(op: Extract<TodoOp, { type: "gitlab-reply" |
       const item = gitlabItemsByKeys([op.note]).get(op.note);
       if (!item || item.kind !== "comment")
         throw new Error(
-          `The GitLab comment ${op.note} isn't among the synced ones — sync GitLab first.`,
+          t("The GitLab comment {note} isn't among the synced ones — sync GitLab first.", { note: op.note }),
         );
       if (op.type === "gitlab-reply") {
         const r = await postGitlabReply(item.url, op.body);
         return {
-          what: `Reply posted in ${item.ref} (${r.via === "api" ? "API" : "through the page"})`,
+          what: r.via === "api" ? t("Reply posted in {ref} (API)", { ref: item.ref }) : t("Reply posted in {ref} (through the page)", { ref: item.ref }),
         };
       }
       const r = await resolveGitlabThread(item.url, true);
@@ -24,8 +25,8 @@ export async function runGitlabNote(op: Extract<TodoOp, { type: "gitlab-reply" |
       setGitlabResolved(op.note, true);
       return {
         what: r.resolvable
-          ? `Thread in ${item.ref} resolved`
-          : `Comment in ${item.ref} done (no resolvable thread)`,
+          ? t("Thread in {ref} resolved", { ref: item.ref })
+          : t("Comment in {ref} done (no resolvable thread)", { ref: item.ref }),
       };
     }
 
@@ -41,7 +42,7 @@ export async function runGitlabOpenMr(op: Extract<TodoOp, { type: "gitlab-open-m
       const iid =
         mr.iid ?? Number(/merge_requests\/(\d+)/.exec(mr.url ?? "")?.[1]);
       return {
-        what: `${mr.existed ? "MR already existed" : "MR opened"}: ${mr.url}`,
+        what: mr.existed ? t("MR already existed: {url}", { url: mr.url }) : t("MR opened: {url}", { url: mr.url }),
         next: iid
           ? {
               text: `Merge !${iid} into ${op.target} as soon as it's approved`,
@@ -65,7 +66,7 @@ export async function runGitlabMerge(op: Extract<TodoOp, { type: "gitlab-merge" 
       forgetBranchWork();
       return {
         what: r.already
-          ? `!${op.iid} was already merged`
-          : `!${op.iid} merged: ${r.url}`,
+          ? t("!{iid} was already merged", { iid: op.iid })
+          : t("!{iid} merged: {url}", { iid: op.iid, url: r.url }),
       };
     }

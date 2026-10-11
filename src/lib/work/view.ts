@@ -1,10 +1,11 @@
 import { aiChoice, aiProviders, getAppSettings } from "@/lib/ai";
 import { withAlternatives } from "@/lib/boards/alternatives";
-import { CLAUDE_MODELS, copilotModelName } from "@/lib/ai/shared";
+import { claudeModels, copilotModelName } from "@/lib/ai/shared";
 import { todoSources } from "@/lib/boards/sources";
 import type { BoardRunView, TodoSource, TodoView } from "@/lib/boards/shared";
 import { lastGoodRun, listTodos } from "@/lib/boards/store";
 import { gitlabItemsByKeys } from "@/lib/gitlab/store";
+import { t } from "@/lib/i18n/server";
 import type { TicketCard } from "@/lib/jira/ticket-card-shared";
 import { getTicketCards } from "@/lib/jira/store";
 import { teamsMessagesByKeys } from "@/lib/teams/store";
@@ -48,39 +49,39 @@ export function workPageData(copilot: string[] = []): WorkPageData {
   const settings = getWorkSettings();
   const board = lastGoodRun();
   const since = new Date(Date.now() - 7 * 864e5).toISOString();
-  const recent = listTodos({ status: "all" }).filter((t) => t.status === "open" || (t.doneAt ?? "") >= since);
-  const runMap = runsForTodos(recent.map((t) => t.id));
+  const recent = listTodos({ status: "all" }).filter((todo) => todo.status === "open" || (todo.doneAt ?? "") >= since);
+  const runMap = runsForTodos(recent.map((todo) => todo.id));
   // Flagged by you first, then those a worker reports done, put down by you last (a stable sort — otherwise as they were).
-  const rank = (t: TodoView) => (t.flaggedAt ? -2 : t.workerDone && t.status === "open" ? -1 : t.deferred ? 1 : 0);
+  const rank = (todo: TodoView) => (todo.flaggedAt ? -2 : todo.workerDone && todo.status === "open" ? -1 : todo.deferred ? 1 : 0);
   const todos = withAlternatives(recent).sort((a, b) => rank(a) - rank(b));
 
-  const order = [...(board?.result?.tickets ?? []).map((t) => t.key), ...(board?.tickets ?? []).filter((t) => t.analyzed).map((t) => t.key)];
-  const tickets = [...new Set([...order, ...todos.map((t) => t.ticket).sort()])].filter((k) => todos.some((t) => t.ticket === k));
+  const order = [...(board?.result?.tickets ?? []).map((x) => x.key), ...(board?.tickets ?? []).filter((x) => x.analyzed).map((x) => x.key)];
+  const tickets = [...new Set([...order, ...todos.map((todo) => todo.ticket).sort()])].filter((k) => todos.some((todo) => todo.ticket === k));
 
   const sources = todoSources(todos, board?.tickets ?? []);
-  const teams = teamsMessagesByKeys(todos.flatMap((t) => (t.target?.startsWith("teams:") ? [t.target.slice(6)] : [])));
-  const gitlab = gitlabItemsByKeys(todos.flatMap((t) => (t.target?.startsWith("gitlab:") ? [t.target.slice(7)] : [])));
-  const jiraKey = (t: TodoView) => (t.target && KEY.test(t.target) ? t.target.toUpperCase() : t.ticket);
-  const cards = getTicketCards([...tickets, ...todos.filter((t) => t.channel === "jira").map(jiraKey)]);
+  const teams = teamsMessagesByKeys(todos.flatMap((todo) => (todo.target?.startsWith("teams:") ? [todo.target.slice(6)] : [])));
+  const gitlab = gitlabItemsByKeys(todos.flatMap((todo) => (todo.target?.startsWith("gitlab:") ? [todo.target.slice(7)] : [])));
+  const jiraKey = (todo: TodoView) => (todo.target && KEY.test(todo.target) ? todo.target.toUpperCase() : todo.ticket);
+  const cards = getTicketCards([...tickets, ...todos.filter((todo) => todo.channel === "jira").map(jiraKey)]);
   const sourceLink = (ref: string | null) => {
     const s = ref ? sources[ref] : undefined;
     return s?.source === "teams" ? s.teams.link : s?.source === "gitlab" ? s.gitlab.url : null;
   };
   const targets: Record<number, string | null> = {};
-  for (const t of todos) {
-    const ref = t.target ?? t.refs.find((r) => r.startsWith(`${t.channel}:`)) ?? null;
-    targets[t.id] =
-      t.channel === "teams"
+  for (const todo of todos) {
+    const ref = todo.target ?? todo.refs.find((r) => r.startsWith(`${todo.channel}:`)) ?? null;
+    targets[todo.id] =
+      todo.channel === "teams"
         ? (teams.get(ref?.slice(6) ?? "")?.link ?? sourceLink(ref))
-        : t.channel === "gitlab"
+        : todo.channel === "gitlab"
           ? (gitlab.get(ref?.slice(7) ?? "")?.url ?? sourceLink(ref))
-          : t.channel === "jira"
-            ? (cards[jiraKey(t)]?.url ?? null)
+          : todo.channel === "jira"
+            ? (cards[jiraKey(todo)]?.url ?? null)
             : null;
   }
 
   const created: WorkPageData["created"] = {};
-  for (const t of todos) if (t.workRunId && t.parentId) (created[t.workRunId] ??= []).push({ id: t.id, text: t.text, done: t.status !== "open" });
+  for (const todo of todos) if (todo.workRunId && todo.parentId) (created[todo.workRunId] ??= []).push({ id: todo.id, text: todo.text, done: todo.status !== "open" });
 
   const app = getAppSettings();
   const preferred = aiChoice().provider;
@@ -111,7 +112,7 @@ export function workPageData(copilot: string[] = []): WorkPageData {
     defaultModel: preferred === "copilot" ? app.copilotModel : app.claudeModel,
     models:
       preferred === "copilot"
-        ? [{ value: "auto", label: "Auto — Copilot picks" }, ...copilot.map((m) => ({ value: m, label: copilotModelName(m) }))]
-        : CLAUDE_MODELS.filter((m) => m.value).map((m) => ({ value: m.value, label: m.label })),
+        ? [{ value: "auto", label: t("Auto — Copilot picks") }, ...copilot.map((m) => ({ value: m, label: copilotModelName(m) }))]
+        : claudeModels(t).filter((m) => m.value).map((m) => ({ value: m.value, label: m.label })),
   };
 }

@@ -2,19 +2,22 @@ import Link from "next/link";
 import { LoginButtons } from "@/components/LoginButtons";
 import { listLogins, type LoginState } from "@/lib/logins";
 import { formatAgo } from "@/lib/format";
+import { t } from "@/lib/i18n/server";
 
-const BADGE: Record<LoginState, [string, string]> = {
-  ok: ["signed in", "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"],
-  login: ["Sign-in needed", "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200"],
-  closed: ["not open", "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200"],
-  chrome: ["Chrome isn't running", "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"],
-  unknown: ["unknown", "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"],
-};
-const SOURCE = { check: "checked", request: "sign-in prompt", sync: "last sync" } as const;
+const badges = (): Record<LoginState, [string, string]> => ({
+  ok: [t("signed in"), "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"],
+  login: [t("Sign-in needed"), "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200"],
+  closed: [t("not open"), "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200"],
+  chrome: [t("Chrome isn't running"), "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"],
+  unknown: [t("unknown"), "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"],
+});
+const sources = () => ({ check: t("checked"), request: t("sign-in prompt"), sync: t("last sync") });
 
 /** Every service the installed plugins sign in to, with its state and its buttons (Anmelden, Prüfen). */
 export async function LoginsList() {
   const { logins } = await listLogins();
+  const BADGE = badges();
+  const SOURCE = sources();
   return (
     <>
         {logins.length ? (
@@ -43,9 +46,9 @@ export async function LoginsList() {
           </ul>
         ) : (
           <p className="py-6 text-center text-sm text-zinc-500">
-            None of the installed plugins needs a sign-in —{" "}
+            {t("None of the installed plugins needs a sign-in —")}{" "}
             <Link href="/plugins" className="text-indigo-600 hover:underline dark:text-indigo-400">
-              Plugins
+              {t("Plugins")}
             </Link>
             .
           </p>

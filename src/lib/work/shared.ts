@@ -4,11 +4,20 @@
  */
 import { actionHref } from "@/plugins/actions/catalog";
 import { TODO_KINDS, TODO_OPS_SCHEMA, type TodoKind, type TodoView } from "@/lib/boards/shared";
+import { type T, translator } from "@/lib/i18n/shared";
 
 /** code: do the work in the ticket's repo · draft: write the message a todo asks for · send: post a drafted message. */
 /** …mr: open the merge request for a pushed branch; ops: run a todo's operations (both Zeff itself, no AI). */
 export type WorkMode = "code" | "draft" | "send" | "mr" | "ops" | "instruct";
 export const WORK_MODE_LABELS: Record<WorkMode, string> = { code: "implement", draft: "write the draft", send: "post to Jira", mr: "open the MR", ops: "run", instruct: "follow your instruction" };
+export const workModeLabels = (t: T): Record<WorkMode, string> => ({
+  code: t("implement"),
+  draft: t("write the draft"),
+  send: t("post to Jira"),
+  mr: t("open the MR"),
+  ops: t("run"),
+  instruct: t("follow your instruction"),
+});
 export function parseMrTarget(target: string | null | undefined): { project: string; source: string; target: string } | null {
   const m = /^gitlab-mr:([^|]+)\|([^|]+)\|([^|]+)$/.exec(target ?? "");
   return m ? { project: m[1], source: m[2], target: m[3] } : null;
@@ -23,6 +32,14 @@ export const WORK_STATUS_LABELS: Record<WorkStatus, string> = {
   cancelled: "stopped",
   interrupted: "interrupted",
 };
+export const workStatusLabels = (t: T): Record<WorkStatus, string> => ({
+  queued: t("queued"),
+  running: t("running"),
+  done: t("done"),
+  failed: t("failed"),
+  cancelled: t("stopped"),
+  interrupted: t("interrupted"),
+});
 export const isActive = (s: WorkStatus) => s === "queued" || s === "running";
 
 /** A work run's reference: "W-12". */
@@ -39,18 +56,27 @@ export const CHANNEL_LABELS: Record<Channel, string> = { jira: "Jira", teams: "T
  * deploy (yours to do), a drafted message for Teams or GitLab (no worker can post there: copy
  * the draft and send it yourself).
  */
-export function workModeOf(t: Pick<TodoView, "kind" | "owner" | "status" | "draft" | "channel" | "target" | "ops">): { mode: WorkMode; why?: undefined } | { mode: null; why: string } {
-  if (t.status !== "open") return { mode: null, why: "Done already." };
+export function workModeOf(
+  todo: Pick<TodoView, "kind" | "owner" | "status" | "draft" | "channel" | "target" | "ops">,
+  t: T = translator("en"),
+): { mode: WorkMode; why?: undefined } | { mode: null; why: string } {
+  if (todo.status !== "open") return { mode: null, why: t("Done already.") };
   // Its operations Zeff can run while you wait (asking them, assigning it) — a merge only once approved.
   // (Not the ones that open in your browser — a mail draft, an appointment: those are links.)
-  const zeff = t.ops.filter((o) => !actionHref(o));
-  if (zeff.length && !(t.owner === "other" && zeff.some((o) => o.type === "gitlab-merge"))) return { mode: "ops" };
-  if (t.owner === "other") return { mode: null, why: "Waiting for someone else — nothing for a worker." };
-  if (t.kind === "deploy") return { mode: null, why: "Deploys are yours to do." };
-  if (t.kind === "merge") return parseMrTarget(t.target) ? { mode: "mr" } : { mode: null, why: "Which branch into which isn't known — open the merge request yourself." };
-  if (!COMMS_KINDS.includes(t.kind)) return { mode: "code" };
-  if (!t.draft?.trim()) return { mode: "draft" };
-  if (t.channel === "teams") return { mode: null, why: `No worker can post in ${CHANNEL_LABELS[t.channel]} — copy the draft and send it yourself.` };
+  const zeff = todo.ops.filter((o) => !actionHref(o));
+  if (zeff.length && !(todo.owner === "other" && zeff.some((o) => o.type === "gitlab-merge"))) return { mode: "ops" };
+  if (todo.owner === "other") return { mode: null, why: t("Waiting for someone else — nothing for a worker.") };
+  if (todo.kind === "deploy") return { mode: null, why: t("Deploys are yours to do.") };
+  if (todo.kind === "merge") {
+    if (parseMrTarget(todo.target)) return { mode: "mr" };
+    return { mode: null, why: t("Which branch into which isn't known — open the merge request yourself.") };
+  }
+  if (!COMMS_KINDS.includes(todo.kind)) return { mode: "code" };
+  if (!todo.draft?.trim()) return { mode: "draft" };
+  if (todo.channel === "teams") {
+    const channel = CHANNEL_LABELS[todo.channel];
+    return { mode: null, why: t("No worker can post in {channel} — copy the draft and send it yourself.", { channel }) };
+  }
   return { mode: "send" };
 }
 
@@ -174,6 +200,17 @@ export const PERMISSION_MODE_INFO: Record<PermissionMode, { label: string; hint:
   acceptEdits: { label: "Edits only", hint: "File edits yes; commands only those you already allowed in Claude Code — tests won't run otherwise." },
   bypassPermissions: { label: "Allow everything", hint: "No checks at all. Only if you fully trust the workers." },
 };
+export const permissionModeInfo = (t: T): Record<PermissionMode, { label: string; hint: string }> => ({
+  auto: {
+    label: t("Auto (recommended)"),
+    hint: t("Claude's classifier approves or refuses each action — risky ones (pushing, deleting, reaching out) are refused."),
+  },
+  acceptEdits: {
+    label: t("Edits only"),
+    hint: t("File edits yes; commands only those you already allowed in Claude Code — tests won't run otherwise."),
+  },
+  bypassPermissions: { label: t("Allow everything"), hint: t("No checks at all. Only if you fully trust the workers.") },
+});
 
 export type WorkIsolation = "worktree" | "checkout";
 
@@ -185,6 +222,11 @@ export const COPILOT_MODE_LABELS: Record<CopilotMode, string> = {
   autopilot: "Autopilot — allows everything, runs through",
   headless: "No questions (as before) — refuses what isn't allowed",
 };
+export const copilotModeLabels = (t: T): Record<CopilotMode, string> => ({
+  interactive: t("Interactive — asks you for permission"),
+  autopilot: t("Autopilot — allows everything, runs through"),
+  headless: t("No questions (as before) — refuses what isn't allowed"),
+});
 
 export type WorkSettingsView = {
   parallel: number;

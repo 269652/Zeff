@@ -2,6 +2,7 @@ import { automationEnv } from "@/plugins/drivers";
 import path from "node:path";
 import { isRemoteImage, type FetchedImage } from "@/lib/contexts-shared";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 
 const MAX_BYTES = 20 * 1024 * 1024;
 /** The picture types kept (shown inline, attached in Jira) — no SVG, which can carry scripts. */
@@ -22,8 +23,8 @@ export function imageFileName(url: string, mime: string): string {
 
 /** A picture the way Zeff keeps it, or why not. */
 function kept(url: string, mime: string, data: Buffer | string, size: number): FetchedImage {
-  if (!KEPT[mime]) return { url, ok: false, error: `isn't a picture Zeff keeps (${mime})` };
-  if (size > MAX_BYTES) return { url, ok: false, error: `larger than ${MAX_BYTES / 1024 / 1024} MB` };
+  if (!KEPT[mime]) return { url, ok: false, error: t("isn't a picture Zeff keeps ({mime})", { mime }) };
+  if (size > MAX_BYTES) return { url, ok: false, error: t("larger than {mb} MB", { mb: MAX_BYTES / 1024 / 1024 }) };
   return { url, ok: true, name: imageFileName(url, mime), mime, size, data: typeof data === "string" ? data : data.toString("base64") };
 }
 
@@ -52,7 +53,7 @@ async function fetchViaChrome(urls: string[]): Promise<FetchedImage[]> {
   );
   const parsed = (typeof out === "string" ? JSON.parse(out) : out) as { images?: ({ url: string; ok: boolean; mime?: string; size?: number; data?: string; error?: string })[] };
   return (parsed.images ?? []).map((r) =>
-    r.ok && r.mime && r.data ? kept(r.url, r.mime, r.data, r.size ?? 0) : { url: r.url, ok: false, error: r.error ?? "couldn't be fetched" },
+    r.ok && r.mime && r.data ? kept(r.url, r.mime, r.data, r.size ?? 0) : { url: r.url, ok: false, error: r.error ?? t("couldn't be fetched") },
   );
 }
 
@@ -73,5 +74,5 @@ export async function fetchRemoteImages(urls: string[]): Promise<FetchedImage[]>
       for (const url of rest) viaChrome.set(url, { url, ok: false, error: why });
     }
   }
-  return list.map((url, i) => direct[i] ?? viaChrome.get(url) ?? { url, ok: false, error: "couldn't be fetched" });
+  return list.map((url, i) => direct[i] ?? viaChrome.get(url) ?? { url, ok: false, error: t("couldn't be fetched") });
 }

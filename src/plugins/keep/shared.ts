@@ -14,5 +14,5 @@ export type KeepNoteBrief = {
   archived: boolean;
 };
 
-/** A note's line: its title, else its first line. */
-export const noteHeadline = (n: Pick<KeepNoteBrief, "title" | "text">) => n.title || n.text.split("\n")[0].slice(0, 120) || "Notiz";
+/** A note's line: its title, else its first line (else `untitled`: "Notiz" for the AI's briefs, the UI passes its own). */
+export const noteHeadline = (n: Pick<KeepNoteBrief, "title" | "text">, untitled = "Notiz") => n.title || n.text.split("\n")[0].slice(0, 120) || untitled;

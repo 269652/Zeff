@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import type { ActionState } from "@/app/action-helpers";
 import { minutesText } from "@/plugins/sync-settings";
 import { currentLocale } from "@/lib/format";
+import { useT } from "@/components/I18nProvider";
 
 /**
  * "Sync now", how the last sync went, and how often it runs in the background (set on the Sync
@@ -32,6 +33,7 @@ export function SyncControls({
   save?: (prev: ActionState, fd: FormData) => Promise<ActionState>;
   baseUrl?: string;
 }) {
+  const t = useT();
   const [state, setState] = useState<ActionState>(null);
   const [saved, setSaved] = useState<ActionState>(null);
   const [base, setBase] = useState(baseUrl ?? "");
@@ -43,12 +45,12 @@ export function SyncControls({
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <button type="button" className="btn btn-primary btn-sm" disabled={syncing} onClick={() => startSync(async () => setState(await sync()))}>
-            {syncing ? "Syncing…" : label ? `Sync ${label}` : "Sync now"}
+            {syncing ? t("Syncing…") : label ? t("Sync {label}", { label }) : t("Sync now")}
           </button>
           <span className="text-xs text-zinc-500">
-            By itself: {minutesText(syncMinutes)} ·{" "}
+            {t("By itself: {interval}", { interval: minutesText(syncMinutes, t) })} ·{" "}
             <Link href={`/sync-settings#${syncKey}`} className="text-indigo-600 hover:underline dark:text-indigo-400">
-              change
+              {t("change")}
             </Link>
           </span>
         </div>
@@ -56,13 +58,13 @@ export function SyncControls({
           {state?.error ? (
             <span className="text-red-600 dark:text-red-400">{state.error}</span>
           ) : state?.ok ? (
-            <span className="text-emerald-600 dark:text-emerald-400">Synced: {state.message}</span>
+            <span className="text-emerald-600 dark:text-emerald-400">{t("Synced: {message}", { message: state.message ?? "" })}</span>
           ) : last ? (
             <span className={last.ok ? "text-zinc-500" : "text-amber-700 dark:text-amber-400"} title={new Date(last.at).toLocaleString(currentLocale())}>
-              Last sync {last.ago}: {last.result}
+              {t("Last sync {ago}: {result}", { ago: last.ago, result: last.result })}
             </span>
           ) : (
-            <span className="text-zinc-500">Not synced yet.</span>
+            <span className="text-zinc-500">{t("Not synced yet.")}</span>
           )}
         </p>
       </div>
@@ -77,7 +79,7 @@ export function SyncControls({
           className="flex flex-wrap items-end gap-2"
         >
           <div>
-            <label className="label" htmlFor="syncBaseUrl">Address</label>
+            <label className="label" htmlFor="syncBaseUrl">{t("Address")}</label>
             <input
               id="syncBaseUrl"
               name="baseUrl"
@@ -91,7 +93,7 @@ export function SyncControls({
             />
           </div>
           <button type="submit" className="btn btn-sm" disabled={saving}>
-            {saving ? "Saving…" : "Save"}
+            {saving ? t("Saving…") : t("Save")}
           </button>
           {saved && <span className="basis-full text-xs">{saved.error ? <span className="text-red-600 dark:text-red-400">{saved.error}</span> : <span className="text-zinc-500">{saved.message}</span>}</span>}
         </form>

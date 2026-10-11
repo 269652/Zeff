@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { t } from "@/lib/i18n/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
@@ -15,7 +16,7 @@ import { EntryForm, type TicketSuggestionLite } from "@/components/EntryForm";
 import { LinkContextForm } from "@/components/LinkContextForm";
 import { resolveLinks } from "@/lib/context-links";
 import { contextsForEntry, listContextPeople, listContexts } from "@/lib/contexts";
-import { CONTEXT_KIND_LABELS, contextHeadline, itemSource, jiraSyncState } from "@/lib/contexts-shared";
+import { contextHeadline, contextKindLabels, itemSource, jiraSyncState } from "@/lib/contexts-shared";
 import { getTicketCards } from "@/lib/jira/store";
 import { SubmitButton } from "@/components/SubmitButton";
 import { listDefaultTagMaps } from "@/lib/default-tags";
@@ -28,7 +29,9 @@ import { getEntryTicketSuggestions } from "@/lib/ticket-suggestions";
 import { listTags } from "@/lib/tags";
 import { weekFromDate } from "@/lib/week";
 
-export const metadata: Metadata = { title: "Edit entry" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: t("Edit entry") };
+}
 
 export default async function EntryPage({ params }: { params: Promise<{ id: string }> }) {
   await connection();
@@ -45,7 +48,7 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
     jobs.unshift({ id: entry.job.id, number: entry.job.number, name: entry.job.name, customer: entry.job.customer });
   }
   const week = weekFromDate(new Date(entry.date + "T00:00:00"));
-  const allTags = listTags().map((t) => t.name);
+  const allTags = listTags().map((tag) => tag.name);
   const ticketSuggestions = getEntryTicketSuggestions(week);
 
   return (
@@ -53,14 +56,14 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
       <div className="page-aside">
         <div>
           <Link href={`/?week=${week.key}`} className="text-sm text-zinc-500 hover:underline">
-            ← Week {week.week}
+            {t("← Week {n}", { n: week.week })}
           </Link>
           <h1 className="text-lg font-semibold">
-            Entry #{entry.id} · {formatHours(entry.hours)}h on{" "}
+            {t("Entry #{id} · {hours}h on", { id: entry.id, hours: formatHours(entry.hours) })}{" "}
             {entry.project ? entry.project.title : <span className="font-mono">{entry.job.number}</span>}
           </h1>
           <p className="text-sm text-zinc-500">
-            Reported by {entry.reportedBy} via {entry.source} · created {entry.createdAt} UTC
+            {t("Reported by {who} via {source} · created {at} UTC", { who: entry.reportedBy, source: entry.source, at: entry.createdAt })}
           </p>
         </div>
         <form action={deleteEntryAction}>
@@ -68,10 +71,10 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
           <input type="hidden" name="redirectTo" value="/?week={date}" />
           <SubmitButton
             className="btn btn-danger"
-            pendingText="Deleting…"
-            confirm={`Delete this ${formatHours(entry.hours)}h entry?`}
+            pendingText={t("Deleting…")}
+            confirm={t("Delete this {hours}h entry?", { hours: formatHours(entry.hours) })}
           >
-            Delete entry
+            {t("Delete entry")}
           </SubmitButton>
         </form>
       </div>
@@ -81,7 +84,7 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
           jobs={jobs}
           projects={projects}
           action={updateEntryAction.bind(null, entry.id)}
-          submitLabel="Save"
+          submitLabel={t("Save")}
           resetOnSuccess={false}
           allTags={allTags}
           ticketSuggestions={ticketSuggestions}
@@ -96,7 +99,7 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
             ticket: entry.ticket ?? "",
             reportedBy: entry.reportedBy,
             type: entry.type,
-            tags: entry.tags.map((t) => t.name),
+            tags: entry.tags.map((tag) => tag.name),
           }}
         />
       </section>
@@ -134,7 +137,7 @@ function ContextSection({
     .filter((c) => !linked.has(c.id))
     .map((c) => ({
       id: c.id,
-      label: [CONTEXT_KIND_LABELS[c.kind], c.author, c.date, c.ticket, contextHeadline(c)].filter(Boolean).join(" · "),
+      label: [contextKindLabels(t)[c.kind], c.author, c.date, c.ticket, contextHeadline(c, t)].filter(Boolean).join(" · "),
     }));
   const toSync = items.filter((c) => ["unsynced", "changed"].includes(jiraSyncState(c)));
   const tickets = getTicketCards(items.map((c) => c.ticket));
@@ -149,11 +152,11 @@ function ContextSection({
       <section id="context" className="card scroll-mt-4 space-y-3 p-4">
         <div className="flex min-h-7 flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">
-            Context <span className="font-normal normal-case text-zinc-400">({items.length})</span>
+            {t("Context")} <span className="font-normal normal-case text-zinc-400">({items.length})</span>
           </h2>
           {/* One at a time is each row's own Sync. */}
           {toSync.length > 1 && (
-            <ContextSyncButton ids={toSync.map((c) => c.id)} tickets={toSync.map((c) => c.ticket!)} label={`Sync ${toSync.length} to Jira`} />
+            <ContextSyncButton ids={toSync.map((c) => c.id)} tickets={toSync.map((c) => c.ticket!)} label={t("Sync {n} to Jira", { n: toSync.length })} />
           )}
         </div>
         <EntrySourceAdder entryId={entryId} ticket={ticket} linked={items.flatMap((c) => c.links.map((l) => l.url))} />
@@ -162,7 +165,7 @@ function ContextSection({
           <ContextCard key={c.id} item={c} entryId={entryId} tickets={tickets} entities={entities} />
         ))}
         {items.length === 0 && (
-          <p className="text-sm text-zinc-500">Nothing yet — search Teams and GitLab above for what colleagues wrote about this work, or write a note.</p>
+          <p className="text-sm text-zinc-500">{t("Nothing yet — search Teams and GitLab above for what colleagues wrote about this work, or write a note.")}</p>
         )}
         <EntryContextAdders
           noteAction={createContextAction.bind(null, entryId)}

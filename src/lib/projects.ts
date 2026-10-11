@@ -3,6 +3,7 @@ import { getDb, schema } from "@/db";
 import type { Job, Project } from "@/db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "./errors";
 import { round2 } from "./format";
+import { t } from "@/lib/i18n/server";
 import { getJob, getJobByNumber, getNoJobPlaceholder, isNoJobPlaceholder, requireJobByNumber } from "./jobs";
 import { NO_JOB_NUMBER, type ProjectOption } from "./projects-shared";
 import { formatZodError, projectInputSchema, type ProjectInput } from "./validation";
@@ -58,14 +59,14 @@ export function getProject(id: number): ProjectWithStats | undefined {
 
 export function requireProject(id: number): ProjectWithStats {
   const project = getProject(id);
-  if (!project) throw new NotFoundError(`Project #${id} not found.`);
+  if (!project) throw new NotFoundError(t("Project #{id} not found.", { id }));
   return project;
 }
 
 /** Look up a project by its title, ignoring case. */
 export function getProjectByTitle(title: string): Project | undefined {
-  const t = title.trim();
-  return getDb().select().from(projects).where(sql`lower(${projects.title}) = lower(${t})`).get();
+  const want = title.trim();
+  return getDb().select().from(projects).where(sql`lower(${projects.title}) = lower(${want})`).get();
 }
 
 export function requireProjectByTitle(title: string): Project {
@@ -73,7 +74,9 @@ export function requireProjectByTitle(title: string): Project {
   if (!project) {
     const known = listProjects().map((p) => `"${p.title}"`).join(", ");
     throw new NotFoundError(
-      `Unknown project "${title.trim()}".` + (known ? ` Active projects: ${known}.` : " No projects exist yet."),
+      known
+        ? t("Unknown project \"{title}\". Active projects: {known}.", { title: title.trim(), known })
+        : t("Unknown project \"{title}\". No projects exist yet.", { title: title.trim() }),
     );
   }
   return project;
@@ -93,7 +96,7 @@ function resolveJobId(jobNumber: string | undefined): number | null {
 }
 
 function checkRange(start: string | null | undefined, end: string | null | undefined) {
-  if (start && end && end < start) throw new ValidationError("The end date is before the start date.");
+  if (start && end && end < start) throw new ValidationError(t("The end date is before the start date."));
 }
 
 export function createProject(raw: ProjectInput): ProjectWithStats {
@@ -101,7 +104,7 @@ export function createProject(raw: ProjectInput): ProjectWithStats {
   if (!parsed.success) throw new ValidationError(formatZodError(parsed.error));
   const input = parsed.data;
   if (getProjectByTitle(input.title)) {
-    throw new ConflictError(`A project named "${input.title}" already exists.`);
+    throw new ConflictError(t("A project named \"{title}\" already exists.", { title: input.title }));
   }
   checkRange(input.startDate, input.endDate);
   const row = getDb()
@@ -134,7 +137,7 @@ export function updateProject(
   const existing = requireProject(id);
   if (patch.title !== undefined) {
     const clash = getProjectByTitle(patch.title);
-    if (clash && clash.id !== id) throw new ConflictError(`A project named "${patch.title}" already exists.`);
+    if (clash && clash.id !== id) throw new ConflictError(t("A project named \"{title}\" already exists.", { title: patch.title }));
   }
   checkRange(
     patch.startDate !== undefined ? patch.startDate : existing.startDate,
@@ -188,8 +191,9 @@ export function deleteProject(id: number): ProjectWithStats {
     const stranded = Number(row?.n ?? 0);
     if (stranded > 0) {
       throw new ConflictError(
-        `"${existing.title}" has ${stranded} ${stranded === 1 ? "entry" : "entries"} without a job. ` +
-          "Set the project's job first (or delete those entries), then delete the project.",
+        stranded === 1
+          ? t("\"{title}\" has 1 entry without a job. Set the project's job first (or delete those entries), then delete the project.", { title: existing.title })
+          : t("\"{title}\" has {n} entries without a job. Set the project's job first (or delete those entries), then delete the project.", { title: existing.title, n: stranded }),
       );
     }
   }

@@ -12,6 +12,7 @@ import { TeamsMessageBadge, TeamsMessageDetails } from "./TeamsMessageBadge";
 import { TodoBadge, TodoDetails } from "./TodoBadge";
 import { WorkRunBadge, WorkRunDetails } from "./WorkRunBadge";
 import type { ReorderRow } from "./useReorder";
+import { useT } from "@/components/I18nProvider";
 
 /**
  * A source's badge — a Teams message, a GitLab item, a Jira comment or ticket, a mail, or a board
@@ -63,13 +64,14 @@ export function ExpandableSource({ entity, before, after, className = "" }: { en
 
 /** The handle a row is dragged by — ↑/↓ move it too, while it has focus. */
 export function DragGrip(props: ReorderRow["grip"]) {
+  const t = useT();
   return (
     <button
       type="button"
       {...props}
       className="shrink-0 cursor-grab rounded p-0.5 text-zinc-300 transition hover:bg-zinc-100 hover:text-zinc-600 focus-visible:ring-2 focus-visible:ring-indigo-500/40 focus-visible:outline-none active:cursor-grabbing dark:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-      title="Drag to reorder (or ↑ / ↓)"
-      aria-label="Reorder: drag, or press ↑ or ↓"
+      title={t("Drag to reorder (or ↑ / ↓)")}
+      aria-label={t("Reorder: drag, or press ↑ or ↓")}
     >
       <GripIcon />
     </button>

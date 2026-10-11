@@ -1,3 +1,5 @@
+import { t } from "@/lib/i18n/server";
+
 /** A donut slice; `color` (e.g. an entry type's) or a stroke-* class. */
 export type DonutSegment = { key: string; value: number; color?: string; strokeClass?: string };
 
@@ -55,7 +57,7 @@ export type BarItem = {
 };
 
 /** A horizontal bar list, sorted by the caller. */
-export function BarList({ items, max, empty = "No data." }: { items: BarItem[]; max?: number; empty?: string }) {
+export function BarList({ items, max, empty = t("No data.") }: { items: BarItem[]; max?: number; empty?: string }) {
   if (items.length === 0) return <p className="py-3 text-center text-sm text-zinc-500">{empty}</p>;
   const top = max ?? Math.max(...items.map((i) => i.value), 1);
   return (
@@ -132,7 +134,7 @@ export function LineChart({
   colorClass = "text-indigo-500",
   format = (v: number) => String(v),
   unit = "",
-  empty = "No data.",
+  empty = t("No data."),
 }: {
   points: LinePoint[];
   height?: number;
@@ -165,11 +167,11 @@ export function LineChart({
     <div className={colorClass}>
       <div className="mb-1 flex items-baseline justify-between text-[11px] text-zinc-500 tabular-nums">
         <span>
-          max {format(max)}
+          {t("max {value}", { value: format(max) })}
           {unit}
         </span>
         <span className="font-medium text-current">
-          now {format(last.value)}
+          {t("now {value}", { value: format(last.value) })}
           {unit}
         </span>
       </div>

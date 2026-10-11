@@ -4,6 +4,7 @@ import { getMicrosoftConfig } from "@/lib/calendar/config";
 import { decodeIdToken, exchangeCode, saveConnection } from "@/lib/calendar/microsoft";
 import { OAUTH_COOKIE, parseOAuthCookie } from "@/lib/calendar/oauth-cookie";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 
 /** GET /api/calendar/callback?code=…&state=… — Microsoft redirects here after login. */
 export async function GET(req: NextRequest) {
@@ -21,10 +22,10 @@ export async function GET(req: NextRequest) {
   const config = getMicrosoftConfig();
   if (sp.get("error")) return fail(`${sp.get("error")}: ${sp.get("error_description") ?? ""}`.trim());
   if (!cookie || sp.get("state") !== cookie.state) {
-    return fail("Login state did not match — please try connecting again.");
+    return fail(t("Login state did not match — please try connecting again."));
   }
   const code = sp.get("code");
-  if (!code) return fail("Microsoft did not return an authorization code.");
+  if (!code) return fail(t("Microsoft did not return an authorization code."));
 
   try {
     const tokens = await exchangeCode({

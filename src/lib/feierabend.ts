@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, isNull, like } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { isInstalled } from "@/plugins/state";
+import { t } from "@/lib/i18n/server";
 
 /** A line of the day's proposal: a meeting, an agent's suggestion, or a ticket you worked on. */
 export type DayRow = {
@@ -118,13 +119,13 @@ export async function bookDay(date: string, rows: DayBooking[]): Promise<{ booke
   const by = reporter();
   const out = { booked: 0, hours: 0, skipped: 0, errors: [] as string[] };
   for (const r of rows) {
-    const what = r.description || r.ticket || "Line";
+    const what = r.description || r.ticket || t("Line");
     try {
       const hours = Math.round(Number(r.hours) * 100) / 100;
-      if (!(hours > 0) || hours > 24) throw new Error("Hours: more than 0, at most 24.");
+      if (!(hours > 0) || hours > 24) throw new Error(t("Hours: more than 0, at most 24."));
       if (r.kind === "suggestion" && r.suggestionId) acceptSuggestion(r.suggestionId, { hours, description: r.description });
       else {
-        if (!r.jobNumber) throw new Error("No job chosen.");
+        if (!r.jobNumber) throw new Error(t("No job chosen."));
         createEntry(
           { jobNumber: r.jobNumber, date, hours, description: r.description || r.ticket || "Meeting", ticket: r.ticket ?? undefined, reportedBy: by },
           r.kind === "meeting" ? "calendar" : "web",

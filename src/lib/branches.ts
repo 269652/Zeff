@@ -7,6 +7,7 @@ import { listGitlabItems } from "@/lib/gitlab/store";
 import { getJiraTicket } from "@/lib/jira/store";
 import { listRepos, type RepoView } from "@/lib/repos";
 import { emitChange } from "@/lib/events";
+import { t } from "@/lib/i18n/server";
 
 /** What a local branch needs, the most pressing first. */
 export type BranchState = "dirty" | "unpushed" | "ahead" | "no-mr" | "mr-open" | "merged" | "gone";
@@ -128,14 +129,14 @@ export async function branchWork(repo: RepoView): Promise<BranchItem[]> {
     const mrInfo = mr ? { iid: Number(mr.ref.replace("!", "")), url: mr.url } : null;
     let state: BranchState;
     let todo: string;
-    if (dirty) [state, todo] = ["dirty", `${dirty} file${dirty === 1 ? "" : "s"} not committed`];
-    else if (merged.has(branch) || mr?.state?.includes("merged")) [state, todo] = ["merged", `Merged into ${def.name} — delete locally`];
-    else if (!upstream && ahead) [state, todo] = ["unpushed", `${ahead} commit${ahead === 1 ? "" : "s"} only local — push`];
+    if (dirty) [state, todo] = ["dirty", dirty === 1 ? t("1 file not committed") : t("{n} files not committed", { n: dirty })];
+    else if (merged.has(branch) || mr?.state?.includes("merged")) [state, todo] = ["merged", t("Merged into {branch} — delete locally", { branch: def.name })];
+    else if (!upstream && ahead) [state, todo] = ["unpushed", ahead === 1 ? t("1 commit only local — push") : t("{n} commits only local — push", { n: ahead })];
     else if (!upstream) continue; // nothing of its own: nothing to do
-    else if (/gone/.test(track ?? "")) [state, todo] = ["gone", "Deleted on origin — delete locally?"];
-    else if (ahead) [state, todo] = ["ahead", `${ahead} commit${ahead === 1 ? "" : "s"} not pushed yet`];
-    else if (mr?.state?.includes("opened")) [state, todo] = ["mr-open", `${mr.ref} open — merge into ${def.name}`];
-    else [state, todo] = ["no-mr", `Pushed, no merge request — open an MR into ${def.name}`];
+    else if (/gone/.test(track ?? "")) [state, todo] = ["gone", t("Deleted on origin — delete locally?")];
+    else if (ahead) [state, todo] = ["ahead", ahead === 1 ? t("1 commit not pushed yet") : t("{n} commits not pushed yet", { n: ahead })];
+    else if (mr?.state?.includes("opened")) [state, todo] = ["mr-open", t("{mr} open — merge into {branch}", { mr: mr.ref, branch: def.name })];
+    else [state, todo] = ["no-mr", t("Pushed, no merge request — open an MR into {branch}", { branch: def.name })];
     out.push({
       repoId: repo.id,
       repo: repo.name,
@@ -199,35 +200,35 @@ export async function branchOp(repoId: number, branch: string, op: BranchOp): Pr
 
 async function doBranchOp(repoId: number, branch: string, op: BranchOp): Promise<string> {
   const repo = listRepos().find((r) => r.id === repoId);
-  if (!repo?.ok) throw new NotFoundError("That repo isn't there (or its folder is missing).");
+  if (!repo?.ok) throw new NotFoundError(t("That repo isn't there (or its folder is missing)."));
   const save = (list: string[]) => getDb().update(schema.repos).set({ ignoredBranches: JSON.stringify([...new Set(list)].sort()) }).where(eq(schema.repos.id, repoId)).run();
   if (op === "ignore-stale") {
     const stale = (await branchWork(repo)).filter((b) => b.stale && !b.ignored).map((b) => b.branch);
     save([...ignoredOf(repoId), ...stale]);
-    return `${stale.length} old branch${stale.length === 1 ? "" : "es"} hidden.`;
+    return stale.length === 1 ? t("1 old branch hidden.") : t("{n} old branches hidden.", { n: stale.length });
   }
   if (op === "ignore" || op === "unignore") {
     const list = ignoredOf(repoId).filter((b) => b !== branch);
     save(op === "ignore" ? [...list, branch] : list);
-    return op === "ignore" ? `${branch} hidden.` : `${branch} shown again.`;
+    return op === "ignore" ? t("{branch} hidden.", { branch }) : t("{branch} shown again.", { branch });
   }
   const item = (await branchWork(repo)).find((b) => b.branch === branch);
-  if (!item) throw new ValidationError(`${branch} has nothing to do (any more).`);
+  if (!item) throw new ValidationError(t("{branch} has nothing to do (any more).", { branch }));
   const def = await defaultOf(repo.path);
   if (op === "push") {
     await gitAsync(repo.path, ["push", "-u", "origin", `${branch}:${branch}`]);
-    return `${branch} pushed.`;
+    return t("{branch} pushed.", { branch });
   }
   if (op === "delete") {
-    if (item.checkedOutAt) throw new ValidationError(`${branch} is checked out (${item.checkedOutAt}) — switch away (or remove that worktree) first.`);
+    if (item.checkedOutAt) throw new ValidationError(t("{branch} is checked out ({at}) — switch away (or remove that worktree) first.", { branch, at: item.checkedOutAt }));
     await gitAsync(repo.path, ["branch", item.state === "merged" ? "-d" : "-D", branch]);
-    return `${branch} deleted (locally).`;
+    return t("{branch} deleted (locally).", { branch });
   }
-  if (!repo.gitlabProject) throw new ValidationError(`${repo.name} has no GitLab project — set it on the Repos page.`);
+  if (!repo.gitlabProject) throw new ValidationError(t("{repo} has no GitLab project — set it on the Repos page.", { repo: repo.name }));
   if (op === "merge") {
-    if (!item.mr) throw new ValidationError(`${branch} has no merge request.`);
+    if (!item.mr) throw new ValidationError(t("{branch} has no merge request.", { branch }));
     const r = await mergeGitlabMr(repo.gitlabProject, item.mr.iid);
-    return r.already ? `!${item.mr.iid} was merged already.` : `!${item.mr.iid} merged: ${r.url}`;
+    return r.already ? t("!{iid} was merged already.", { iid: item.mr.iid }) : t("!{iid} merged: {url}", { iid: item.mr.iid, url: r.url });
   }
   const summary = item.ticket ? getJiraTicket(item.ticket)?.summary : undefined;
   const log = run(repo.path, ["log", "--oneline", "--no-decorate", `${def.ref}..${branch}`]);
@@ -240,5 +241,5 @@ async function doBranchOp(repoId: number, branch: string, op: BranchOp): Promise
     title: item.ticket ? `${item.ticket}: ${summary ?? branch}` : branch,
     description: log ? `Commits:\n${log}` : "",
   });
-  return mr.existed ? `There's an open MR already: ${mr.url}` : `MR opened: ${mr.url}`;
+  return mr.existed ? t("There's an open MR already: {url}", { url: mr.url }) : t("MR opened: {url}", { url: mr.url });
 }

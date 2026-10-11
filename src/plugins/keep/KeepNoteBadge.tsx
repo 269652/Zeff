@@ -1,14 +1,16 @@
 "use client";
 
+import { useT } from "@/components/I18nProvider";
 import { keepNoteClass } from "./colors";
 import { noteHeadline, type KeepNoteBrief } from "./shared";
 
 /** A note as a source's badge: "Note · its title" — with `onToggle`, it unfolds. */
 export function KeepNoteBadge({ n, className = "", expanded, onToggle }: { n: KeepNoteBrief; className?: string; expanded?: boolean; onToggle?: () => void }) {
+  const t = useT();
   const body = (
     <>
-      <span className="shrink-0 rounded bg-yellow-100 px-1 text-[10px] font-semibold text-yellow-800 uppercase dark:bg-yellow-950 dark:text-yellow-300">Note</span>
-      <span className="truncate">{noteHeadline(n)}</span>
+      <span className="shrink-0 rounded bg-yellow-100 px-1 text-[10px] font-semibold text-yellow-800 uppercase dark:bg-yellow-950 dark:text-yellow-300">{t("Note")}</span>
+      <span className="truncate">{noteHeadline(n, t("Note"))}</span>
       <span className="shrink-0 text-zinc-400">{n.where}</span>
     </>
   );

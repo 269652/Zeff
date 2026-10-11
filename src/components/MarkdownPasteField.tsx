@@ -4,6 +4,7 @@ import { useState } from "react";
 import { isRemoteImage } from "@/lib/contexts-shared";
 import { htmlToMarkdown } from "@/lib/html-to-markdown";
 import { imageTargets } from "@/lib/markdown";
+import { useT } from "@/components/I18nProvider";
 import { Markdown } from "./Markdown";
 
 /** An image pasted into the message, kept until the form is saved (then stored as a file). */
@@ -56,6 +57,7 @@ export function MarkdownPasteField({
   /** Pictures pasted as links (http/https), as they stand in the message. */
   onRemoteImages?: (urls: string[]) => void;
 }) {
+  const t = useT();
   const [preview, setPreview] = useState(false);
 
   const show = (target: string) => {
@@ -122,25 +124,25 @@ export function MarkdownPasteField({
     <div>
       <div className="mb-1 flex items-center justify-between gap-2">
         <label className="label mb-0" htmlFor={id}>
-          Message
+          {t("Message")}
         </label>
         <span
           className="ml-auto cursor-help text-xs text-zinc-400"
-          title="**bold**, *italic*, * lists, [links](https://…) — pasted formatting and pictures are converted"
+          title={t("**bold**, *italic*, * lists, [links](https://…) — pasted formatting and pictures are converted")}
         >
           Markdown
         </span>
         <div className="flex rounded-md border border-zinc-200 p-0.5 text-xs dark:border-zinc-700" role="tablist">
-          {(["Write", "Preview"] as const).map((t) => (
+          {(["Write", "Preview"] as const).map((tab) => (
             <button
-              key={t}
+              key={tab}
               type="button"
               role="tab"
-              aria-selected={(t === "Preview") === preview}
-              onClick={() => setPreview(t === "Preview")}
-              className={`rounded px-2 py-0.5 ${(t === "Preview") === preview ? "bg-zinc-200 font-medium dark:bg-zinc-700" : "text-zinc-500"}`}
+              aria-selected={(tab === "Preview") === preview}
+              onClick={() => setPreview(tab === "Preview")}
+              className={`rounded px-2 py-0.5 ${(tab === "Preview") === preview ? "bg-zinc-200 font-medium dark:bg-zinc-700" : "text-zinc-500"}`}
             >
-              {t}
+              {tab === "Preview" ? t("Preview") : t("Write")}
             </button>
           ))}
         </div>
@@ -150,14 +152,14 @@ export function MarkdownPasteField({
         name={name}
         rows={6}
         className={`input font-mono text-[13px] ${preview ? "hidden" : ""}`}
-        placeholder="Paste what your colleague wrote — formatting and pictures from Teams, Jira or Outlook are kept"
+        placeholder={t("Paste what your colleague wrote — formatting and pictures from Teams, Jira or Outlook are kept")}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onPaste={onPaste}
       />
       {preview && (
         <div className="min-h-24 rounded-md border border-zinc-200 p-3 dark:border-zinc-700">
-          {value.trim() ? <Markdown text={value} image={show} /> : <p className="text-sm text-zinc-400">Nothing to preview.</p>}
+          {value.trim() ? <Markdown text={value} image={show} /> : <p className="text-sm text-zinc-400">{t("Nothing to preview.")}</p>}
         </div>
       )}
     </div>

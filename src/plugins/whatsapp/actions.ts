@@ -2,7 +2,7 @@
  * WhatsApp's action for Auto-Aktionen (its extension "Nachricht senden"): a message to a chat,
  * sent through WhatsApp Web in the automation Chrome — on your click, never by itself. Client-safe.
  */
-import { action, str } from "../actions/types";
+import { action, EN, str } from "../actions/types";
 
 export const WHATSAPP_ACTIONS = [
   action({
@@ -20,7 +20,7 @@ export const WHATSAPP_ACTIONS = [
       example: { type: "whatsapp-message", chat: "Natha", body: "Hey, morgen um 15 Uhr passt mir gut für die Flaschen — ich bring die große Tüte mit 😊" },
     },
     clean: (o) => (str(o.chat) && str(o.body) ? { type: "whatsapp-message", chat: str(o.chat).slice(0, 120), body: str(o.body).slice(0, 4000) } : null),
-    title: (op) => `WhatsApp to ${op.chat}`,
-    note: (op) => ({ heading: `WhatsApp message to ${op.chat}`, detail: null, body: op.body }),
+    title: (op, t = EN) => t("WhatsApp to {chat}", { chat: op.chat }),
+    note: (op, t = EN) => ({ heading: t("WhatsApp message to {chat}", { chat: op.chat }), detail: null, body: op.body }),
   }),
 ];

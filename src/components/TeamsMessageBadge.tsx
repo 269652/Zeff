@@ -9,6 +9,7 @@ import { ResolvedMark } from "./ResolvedMark";
 import { ResolveToggle } from "./ResolveToggle";
 import { useIsClient } from "./useIsClient";
 import { currentLocale, formatDate, formatDateTime, formatTime } from "@/lib/format";
+import { useT } from "@/components/I18nProvider";
 
 const when = (iso: string) => formatDateTime(iso);
 const full = (iso: string) =>
@@ -52,6 +53,9 @@ export function TeamsMessageBadge({
   onToggle?: () => void;
   resolved?: boolean;
 }) {
+  const t = useT();
+  const who = m.senderName ?? t("message");
+  const at = new Date(m.sentAt).toLocaleString(currentLocale());
   const start = [m.subject, m.text].filter(Boolean).join(" — ");
   const what = (
     <>
@@ -64,7 +68,7 @@ export function TeamsMessageBadge({
       {/* Where and when — on a phone it gives way too (ellipsis). */}
       <span className="shrink-0 text-violet-700/80 max-sm:min-w-0 max-sm:shrink max-sm:truncate dark:text-violet-300/80">
         {m.place ? `${m.place} · ` : ""}
-        {when(m.sentAt)} · {teamsKindLabel(m)}
+        {when(m.sentAt)} · {teamsKindLabel(m, t)}
       </span>
       {start && <span className="min-w-0 truncate text-violet-800/70 dark:text-violet-200/70">{start}</span>}
     </>
@@ -80,7 +84,7 @@ export function TeamsMessageBadge({
           className={`${inner} cursor-pointer transition hover:bg-violet-100 dark:hover:bg-violet-950`}
           onClick={onToggle}
           aria-expanded={expanded}
-          title={expanded ? "Fold" : "Show the whole message"}
+          title={expanded ? t("Fold") : t("Show the whole message")}
         >
           {what}
         </button>
@@ -92,8 +96,12 @@ export function TeamsMessageBadge({
         target="_blank"
         rel="noreferrer"
         className="flex shrink-0 items-center px-2 text-violet-700 transition hover:bg-violet-100 dark:text-violet-300 dark:hover:bg-violet-950"
-        title={`Open in Teams: ${m.senderName ?? "message"}${m.place ? ` in ${m.place}` : ""}, ${new Date(m.sentAt).toLocaleString(currentLocale())}`}
-        aria-label="Open in Teams"
+        title={
+          m.place
+            ? t("Open in Teams: {who} in {place}, {at}", { who, place: m.place, at })
+            : t("Open in Teams: {who}, {at}", { who, at })
+        }
+        aria-label={t("Open in Teams")}
       >
         ↗
       </a>
@@ -104,39 +112,42 @@ export function TeamsMessageBadge({
 /** A synced Teams message in full, as a card: what kind, all it says, who wrote it, where and when. */
 export function TeamsMessageDetails({ m }: { m: TeamsMessageView }) {
   // The HTML → Markdown conversion needs the browser (DOMParser): plain text until then.
+  const t = useT();
   const client = useIsClient();
   const { markdown, pictures } = client ? teamsMarkdown(m.html) : { markdown: m.text, pictures: 0 };
   return (
     <div className="space-y-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex items-center justify-between gap-2 text-xs text-zinc-500">
         <span>
-          Teams · {teamsKindLabel(m)}
-          {m.kind === "mention" && m.isRead === false ? " · unread" : ""}
+          Teams · {teamsKindLabel(m, t)}
+          {m.kind === "mention" && m.isRead === false ? ` · ${t("unread")}` : ""}
         </span>
         <span className="flex items-center gap-2">
           <ResolveToggle done={!!m.resolvedAt} onChange={(next) => setTeamsResolvedAction(m.key, next)} />
           <a href={m.link} target="_blank" rel="noreferrer" className="font-medium text-indigo-600 hover:underline dark:text-indigo-400">
-            Open in Teams ↗
+            {t("Open in Teams")} ↗
           </a>
         </span>
       </div>
       {m.subject && <div className="font-medium leading-snug">{m.subject}</div>}
-      {markdown.trim() ? <Markdown text={markdown} className="text-zinc-700 dark:text-zinc-300" /> : <p className="text-zinc-400">(no text)</p>}
+      {markdown.trim() ? <Markdown text={markdown} className="text-zinc-700 dark:text-zinc-300" /> : <p className="text-zinc-400">{t("(no text)")}</p>}
       {pictures > 0 && (
         <p className="text-xs text-zinc-400">
-          {pictures === 1 ? "A picture" : `${pictures} pictures`} — open the message in Teams to see {pictures === 1 ? "it" : "them"}.
+          {pictures === 1
+            ? t("A picture — open the message in Teams to see it.")
+            : t("{n} pictures — open the message in Teams to see them.", { n: pictures })}
         </p>
       )}
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
-        <dt className="text-zinc-500">From</dt>
+        <dt className="text-zinc-500">{t("From")}</dt>
         <dd>{m.senderName ?? "—"}</dd>
         {m.place && (
           <>
-            <dt className="text-zinc-500">In</dt>
+            <dt className="text-zinc-500">{t("In")}</dt>
             <dd>{m.place}</dd>
           </>
         )}
-        <dt className="text-zinc-500">Sent</dt>
+        <dt className="text-zinc-500">{t("Sent")}</dt>
         <dd>{full(m.sentAt)}</dd>
       </dl>
     </div>

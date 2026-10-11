@@ -4,6 +4,7 @@ import { getDb, schema } from "@/db";
 import { errorMessage, NotFoundError, ValidationError } from "@/lib/errors";
 import { resultToPayload, runStdioSession } from "@/lib/jira/mcp-client";
 import { getJiraSyncConfig } from "@/lib/jira/sync";
+import { t } from "@/lib/i18n/server";
 import type { TicketAction } from "./shared";
 import { getBoardRun } from "./store";
 
@@ -23,8 +24,8 @@ export function actionsDone(runId: number): Record<string, ActionDone> {
 /** A ticket's transitions as mcp-atlassian lists them. */
 export function transitionsOf(payload: unknown): { id: string; name: string; to: string | null }[] {
   const list = Array.isArray(payload) ? payload : ((payload as { transitions?: unknown[] })?.transitions ?? []);
-  return list.flatMap((t) => {
-    const x = (t ?? {}) as { id?: string | number; name?: string; to_status?: string | { name?: string }; to?: { name?: string } };
+  return list.flatMap((item) => {
+    const x = (item ?? {}) as { id?: string | number; name?: string; to_status?: string | { name?: string }; to?: { name?: string } };
     const to = typeof x.to_status === "string" ? x.to_status : (x.to_status?.name ?? x.to?.name ?? null);
     return x.id !== undefined && x.name ? [{ id: String(x.id), name: x.name, to }] : [];
   });
@@ -44,9 +45,9 @@ export const norm = (s: string | null | undefined) =>
  */
 export async function runTicketAction(runId: number, ticket: string, idx: number): Promise<{ action: TicketAction; detail: string }> {
   const run = getBoardRun(runId);
-  const action = run?.result?.tickets.find((t) => t.key === ticket)?.actions?.[idx];
-  if (!run || !action) throw new NotFoundError("That suggestion isn't there (any more).");
-  if (actionsDone(runId)[`${ticket}#${idx}`]?.status === "done") throw new ValidationError(`“${action.label}” is done already.`);
+  const action = run?.result?.tickets.find((x) => x.key === ticket)?.actions?.[idx];
+  if (!run || !action) throw new NotFoundError(t("That suggestion isn't there (any more)."));
+  if (actionsDone(runId)[`${ticket}#${idx}`]?.status === "done") throw new ValidationError(t("“{label}” is done already.", { label: action.label }));
   const keep = (status: "done" | "failed", detail: string) =>
     getDb()
       .insert(ticketActions)
@@ -65,7 +66,7 @@ export async function runTicketAction(runId: number, ticket: string, idx: number
     }
   }
   const cfg = getJiraSyncConfig();
-  if (!cfg.configured || !cfg.command) throw new ValidationError("Jira isn't set up — see the Jira tab.");
+  if (!cfg.configured || !cfg.command) throw new ValidationError(t("Jira isn't set up — see the Jira tab."));
 
   try {
     const detail = await runStdioSession(
@@ -74,17 +75,17 @@ export async function runTicketAction(runId: number, ticket: string, idx: number
         if (action.type === "transition") {
           const list = transitionsOf(resultToPayload(await call("jira_get_transitions", { issue_key: ticket })));
           const want = norm(action.to);
-          const hit = list.find((t) => norm(t.name) === want || norm(t.to) === want) ?? list.find((t) => !!want && (norm(t.name).includes(want) || norm(t.to).includes(want)));
-          if (!hit) throw new Error(`No transition “${action.to}” from here — possible: ${list.map((t) => t.name).join(", ") || "none"}.`);
+          const hit = list.find((x) => norm(x.name) === want || norm(x.to) === want) ?? list.find((x) => !!want && (norm(x.name).includes(want) || norm(x.to).includes(want)));
+          if (!hit) throw new Error(t("No transition “{to}” from here — possible: {list}.", { to: action.to, list: list.map((x) => x.name).join(", ") || t("none") }));
           await call("jira_transition_issue", { issue_key: ticket, transition_id: hit.id });
           return `→ ${hit.to ?? hit.name}`;
         }
         if (action.type === "assign") {
           await call("jira_update_issue", { issue_key: ticket, fields: JSON.stringify({ assignee: action.assignee }) });
-          return `assigned: ${action.assignee}`;
+          return t("assigned: {assignee}", { assignee: action.assignee });
         }
         await call("jira_add_comment", { issue_key: ticket, body: action.comment });
-        return "Comment posted";
+        return t("Comment posted");
       },
       90000,
     );

@@ -6,23 +6,25 @@ import type { ActionState } from "@/app/action-helpers";
 import type { MeetingFlag } from "@/lib/calendar/meetings";
 import type { CalendarDay, CalendarEvent, CalendarEventState } from "@/lib/calendar/week-view";
 import { formatDate, formatHours, round2 } from "@/lib/format";
+import { useT } from "@/components/I18nProvider";
+import type { T } from "@/lib/i18n/shared";
 
 
-const STATE_LABEL: Partial<Record<CalendarEventState, string>> = {
-  booked: "booked",
-  later: "later today",
-  upcoming: "upcoming",
-  cancelled: "cancelled",
-  declined: "declined",
-  "too-long": "longer than a day",
-};
+const stateLabels = (t: T): Partial<Record<CalendarEventState, string>> => ({
+  booked: t("booked"),
+  later: t("later today"),
+  upcoming: t("upcoming"),
+  cancelled: t("cancelled"),
+  declined: t("declined"),
+  "too-long": t("longer than a day"),
+});
 
-const FLAG_LABEL: Partial<Record<MeetingFlag, string>> = {
-  excluded: "excluded",
-  tentative: "tentative",
-  free: "free",
-  private: "private",
-};
+const flagLabels = (t: T): Partial<Record<MeetingFlag, string>> => ({
+  excluded: t("excluded"),
+  tentative: t("tentative"),
+  free: t("free"),
+  private: t("private"),
+});
 
 /** Ticked by default or by hand: over and not booked yet, or still to come today. */
 const selectable = (e: CalendarEvent) => e.state === "importable" || e.state === "later";
@@ -43,6 +45,7 @@ export function CalendarWeek({
   jobs: { number: string; name: string }[];
   today: string;
 }) {
+  const t = useT();
   const events = days.flatMap((d) => d.events);
   const defaults = () => new Set(events.filter((e) => selectable(e) && e.selected).map((e) => e.externalId));
   const [selected, setSelected] = useState<Set<string>>(defaults);
@@ -85,17 +88,19 @@ export function CalendarWeek({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-sm text-zinc-500">
-          {toImport.length} meeting{toImport.length === 1 ? "" : "s"} ticked · {formatHours(hours)} h — imports up to today
+          {toImport.length === 1
+            ? t("1 meeting ticked · {hours} h — imports up to today", { hours: formatHours(hours) })
+            : t("{n} meetings ticked · {hours} h — imports up to today", { n: toImport.length, hours: formatHours(hours) })}
         </span>
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" className="btn btn-sm" onClick={() => setSelected(defaults())} disabled={pending}>
-            Reset
+            {t("Reset")}
           </button>
           <button type="button" className="btn btn-sm" onClick={() => setSelected(new Set())} disabled={pending}>
-            None
+            {t("None")}
           </button>
           <button type="button" className="btn btn-primary btn-sm" onClick={importSelected} disabled={pending || toImport.length === 0}>
-            {pending ? "Importing…" : `Import ${toImport.length} meeting${toImport.length === 1 ? "" : "s"}`}
+            {pending ? t("Importing…") : toImport.length === 1 ? t("Import 1 meeting") : t("Import {n} meetings", { n: toImport.length })}
           </button>
         </div>
       </div>
@@ -122,7 +127,7 @@ export function CalendarWeek({
                 {d.allDay.length > 0 && (
                   <div className="mb-1.5 space-y-0.5">
                     {d.allDay.map((e) => (
-                      <div key={e.externalId} className="truncate rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-500 dark:bg-zinc-800" title={`${e.subject} (all day)`}>
+                      <div key={e.externalId} className="truncate rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-500 dark:bg-zinc-800" title={t("{subject} (all day)", { subject: e.subject })}>
                         {e.subject}
                       </div>
                     ))}
@@ -166,6 +171,9 @@ function EventCard({
   jobs: { number: string; name: string }[];
   onJob: (number: string) => void;
 }) {
+  const t = useT();
+  const STATE_LABEL = stateLabels(t);
+  const FLAG_LABEL = flagLabels(t);
   const canTick = selectable(e);
   const tone =
     canTick && on
@@ -180,8 +188,8 @@ function EventCard({
   const badges = [STATE_LABEL[e.state], ...e.flags.map((f) => FLAG_LABEL[f])].filter(Boolean) as string[];
   const title = [
     `${e.subject} · ${e.startTime}–${e.endTime}`,
-    e.organizer ? `by ${e.organizer}` : "",
-    canTick ? (on ? "ticked — click to leave it out" : "click to import it") : STATE_LABEL[e.state] ?? "",
+    e.organizer ? t("by {organizer}", { organizer: e.organizer }) : "",
+    canTick ? (on ? t("ticked — click to leave it out") : t("click to import it")) : STATE_LABEL[e.state] ?? "",
   ]
     .filter(Boolean)
     .join(" · ");
@@ -244,7 +252,7 @@ function EventCard({
               onClick={(ev) => ev.stopPropagation()}
               onKeyDown={(ev) => ev.stopPropagation()}
               onChange={(ev) => onJob(ev.target.value)}
-              aria-label={`Job for ${e.subject}`}
+              aria-label={t("Job for {subject}", { subject: e.subject })}
             >
               {jobs.map((j) => (
                 <option key={j.number} value={j.number}>

@@ -2,6 +2,7 @@ import { automationEnv } from "@/plugins/drivers";
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { emitChange } from "@/lib/events";
+import { t } from "@/lib/i18n/server";
 
 /** The systems Zeff reaches through the automation Chrome (or a login), each with where you sign in. */
 export type ServiceId = "teams" | "outlook" | "gmail" | "whatsapp" | "keep" | "gcalendar" | "gitlab" | "jira" | "roar" | "timo";
@@ -33,7 +34,7 @@ async function serviceUrl(id: ServiceId): Promise<string | null> {
  */
 export async function openServiceLogin(id: ServiceId): Promise<{ ok: boolean; message: string }> {
   const url = await serviceUrl(id);
-  if (!url) return { ok: false, message: `No address is set for ${SERVICE_LABELS[id]}.` };
+  if (!url) return { ok: false, message: t("No address is set for {service}.", { service: SERVICE_LABELS[id] }) };
   return openInAutomationChrome(url, SERVICE_LABELS[id]);
 }
 
@@ -46,10 +47,15 @@ export async function openInAutomationChrome(url: string, label: string): Promis
   try {
     const r = JSON.parse(out) as { ok: boolean; newTab?: boolean; error?: string };
     return r.ok
-      ? { ok: true, message: `${label} is in front in the automation Chrome${r.newTab ? " (new tab)" : ""} — sign in there.` }
-      : { ok: false, message: r.error ?? "Didn't work." };
+      ? {
+          ok: true,
+          message: r.newTab
+            ? t("{label} is in front in the automation Chrome (new tab) — sign in there.", { label })
+            : t("{label} is in front in the automation Chrome — sign in there.", { label }),
+        }
+      : { ok: false, message: r.error ?? t("Didn't work.") };
   } catch {
-    return { ok: false, message: out.slice(0, 300) || "Chrome didn't answer." };
+    return { ok: false, message: out.slice(0, 300) || t("Chrome didn't answer.") };
   }
 }
 
@@ -80,8 +86,8 @@ export function raiseLogin(service: ServiceId, detail: string): void {
     key,
     kind: "login",
     service,
-    title: `${SERVICE_LABELS[service]}: sign-in needed`,
-    body: `${detail.slice(0, 200)} — sign in in the automation Chrome (Zeff never types credentials), then try again.`,
+    title: t("{service}: sign-in needed", { service: SERVICE_LABELS[service] }),
+    body: t("{detail} — sign in in the automation Chrome (Zeff never types credentials), then try again.", { detail: detail.slice(0, 200) }),
     at: new Date().toISOString(),
   });
   emitChange("attention");
@@ -96,16 +102,23 @@ export function clearAttention(key: string): void {
 export async function listAttention(): Promise<Attention[]> {
   const { listTodos } = await import("@/lib/boards/store");
   const questions = listTodos({ status: "open" })
-    .filter((t) => t.needsInput)
-    .map((t): Attention => ({ key: `question:${t.id}`, kind: "question", title: `${t.ref} is waiting for your answer`, body: t.needsInput!, at: t.updatedAt, href: `/t/${t.id}` }));
+    .filter((todo) => todo.needsInput)
+    .map((todo): Attention => ({
+      key: `question:${todo.id}`,
+      kind: "question",
+      title: t("{ref} is waiting for your answer", { ref: todo.ref }),
+      body: todo.needsInput!,
+      at: todo.updatedAt,
+      href: `/t/${todo.id}`,
+    }));
   // Live Copilot sessions waiting on you: a permission it asks for, or its turn over without a result.
   const { lives } = await import("@/plugins/copilot-cli/live-state");
   const { workRef } = await import("@/lib/work/shared");
   const live = [...lives.values()].flatMap((l): Attention[] =>
     l.view.permission
-      ? [{ key: `permission:${l.runId}:${l.view.permission.title}`, kind: "question", title: `${workRef(l.runId)} asks for permission`, body: `${l.view.permission.title}${l.view.permission.detail ? ` — ${l.view.permission.detail}` : ""}`, at: new Date().toISOString(), href: `/work#w-${l.runId}` }]
+      ? [{ key: `permission:${l.runId}:${l.view.permission.title}`, kind: "question", title: t("{ref} asks for permission", { ref: workRef(l.runId) }), body: `${l.view.permission.title}${l.view.permission.detail ? ` — ${l.view.permission.detail}` : ""}`, at: new Date().toISOString(), href: `/work#w-${l.runId}` }]
       : l.view.waiting
-        ? [{ key: `waiting:${l.runId}`, kind: "question", title: `${workRef(l.runId)} is waiting for your answer`, body: l.view.waiting.slice(-300), at: new Date().toISOString(), href: `/work#w-${l.runId}` }]
+        ? [{ key: `waiting:${l.runId}`, kind: "question", title: t("{ref} is waiting for your answer", { ref: workRef(l.runId) }), body: l.view.waiting.slice(-300), at: new Date().toISOString(), href: `/work#w-${l.runId}` }]
         : [],
   );
   // Sign-ins only for what's installed (an uninstalled plugin's request is moot).

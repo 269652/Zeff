@@ -1,5 +1,6 @@
 import { getSqlite } from "@/db";
 import { emitChange } from "@/lib/events";
+import { t } from "@/lib/i18n/server";
 import { daysBetween, isDateKind, isoDay, nextOccurrence, type DateKind, type Person, type PersonDate, type Upcoming } from "./shared";
 
 /**
@@ -75,13 +76,13 @@ export function getPerson(id: number): Person | null {
 
 export function createPerson(v: { name: string; aliases?: string[]; whatsapp?: string; emails?: string[]; entityId?: number | null; note?: string }): number {
   const name = v.name.trim().slice(0, 120);
-  if (!name) throw new Error("A name, please.");
+  if (!name) throw new Error(t("A name, please."));
   const had = db().prepare("select id from people where lower(name) = lower(?)").get(name) as { id: number } | undefined;
   if (had) return had.id;
-  const t = now();
+  const at = now();
   const r = db()
     .prepare("insert into people (name, aliases, note, whatsapp, emails, entity_id, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?)")
-    .run(name, JSON.stringify(clean(v.aliases).filter((a) => a.toLowerCase() !== name.toLowerCase())), (v.note ?? "").slice(0, 20000), (v.whatsapp ?? "").trim(), JSON.stringify(clean(v.emails)), v.entityId ?? null, t, t);
+    .run(name, JSON.stringify(clean(v.aliases).filter((a) => a.toLowerCase() !== name.toLowerCase())), (v.note ?? "").slice(0, 20000), (v.whatsapp ?? "").trim(), JSON.stringify(clean(v.emails)), v.entityId ?? null, at, at);
   changed();
   return Number(r.lastInsertRowid);
 }
@@ -91,7 +92,7 @@ export function updatePerson(id: number, patch: { name?: string; aliases?: strin
   const args: unknown[] = [];
   const set = (col: string, v: unknown) => (sets.push(`${col} = ?`), args.push(v));
   if (patch.name !== undefined) {
-    if (!patch.name.trim()) throw new Error("A name, please.");
+    if (!patch.name.trim()) throw new Error(t("A name, please."));
     set("name", patch.name.trim().slice(0, 120));
   }
   if (patch.aliases !== undefined) set("aliases", JSON.stringify(clean(patch.aliases)));

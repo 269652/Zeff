@@ -1,10 +1,11 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
+import { useT } from "@/components/I18nProvider";
 
 export function SubmitButton({
   children,
-  pendingText = "Saving…",
+  pendingText,
   className = "btn btn-primary",
   confirm: confirmText,
   name,
@@ -28,6 +29,7 @@ export function SubmitButton({
   /** Accessible name, for a button that shows just an icon. */
   label?: string;
 }) {
+  const t = useT();
   const status = useFormStatus();
   const pending = pendingProp ?? status.pending;
   return (
@@ -43,7 +45,7 @@ export function SubmitButton({
         if (confirmText && !window.confirm(confirmText)) e.preventDefault();
       }}
     >
-      {pending ? pendingText : children}
+      {pending ? (pendingText ?? t("Saving…")) : children}
     </button>
   );
 }

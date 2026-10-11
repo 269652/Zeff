@@ -8,11 +8,11 @@ import { dispatchWorkAction } from "@/plugins/work/server-actions";
 import { doneBrowserOpAction, removeTodoOpAction, saveTodoDraftAction, saveTodoOpTextAction, setTodoStatusAction } from "@/plugins/todos/server-actions";
 import {
   agentInstruction,
-  opLabel,
+  opTitle,
   opNote,
   opsButton,
   sourcesOf,
-  TODO_KIND_LABELS,
+  todoKindLabels,
   todoRef,
   type TodoSource,
   type TodoView,
@@ -23,7 +23,7 @@ import {
   COMMS_KINDS,
   isActive,
   parseMrTarget,
-  WORK_MODE_LABELS,
+  workModeLabels,
   workModeOf,
   workRef,
   type WorkRunView,
@@ -41,6 +41,7 @@ import { RunningSpinner } from "../RunningSpinner";
 import { RunPanel } from "./RunPanel";
 import { TodoQuickButtons, TodoQuickPanel, type QuickPanel } from "../boards/TodoQuick";
 import { FlagButton } from "../boards/FlagButton";
+import { useT } from "@/components/I18nProvider";
 
 export type Provider = {
   id: "claude" | "copilot";
@@ -50,7 +51,7 @@ export type Provider = {
 
 /** "Send to Claude", with the other provider a click away (▾) — or, while it's out, where it is; code work without a repo: where to set one. */
 function SendButton({
-  t,
+  t: todo,
   providers,
   preferred,
   active,
@@ -67,20 +68,21 @@ function SendButton({
   full: boolean;
   parallel: number;
 }) {
+  const t = useT();
   const router = useRouter();
   const [pending, start] = useTransition();
   const [menu, setMenu] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const m = workModeOf(t);
+  const m = workModeOf(todo, t);
   if (!m.mode) return null;
   if (m.mode === "code" && !repo && !active)
     return (
       <a
         href="/repos"
         className="shrink-0 text-xs text-amber-700 hover:underline dark:text-amber-400"
-        title="Code work needs a repo: assign the ticket's board (or the ticket) to one"
+        title={t("Code work needs a repo: assign the ticket's board (or the ticket) to one")}
       >
-        No repo — set one
+        {t("No repo — set one")}
       </a>
     );
   const usable = providers.filter(
@@ -91,21 +93,21 @@ function SendButton({
   const send = (provider: Provider["id"]) =>
     start(async () => {
       setMenu(false);
-      const r = await dispatchWorkAction(t.id, provider);
-      setError(r && !r.ok ? (r.error ?? "Couldn't hand it out.") : null);
+      const r = await dispatchWorkAction(todo.id, provider);
+      setError(r && !r.ok ? (r.error ?? t("Couldn't hand it out.")) : null);
       router.refresh();
     });
-  if (m.mode === "send" && t.channel !== "gitlab")
+  if (m.mode === "send" && todo.channel !== "gitlab")
     return (
       <span
         className="max-w-48 shrink-0 text-right text-xs text-zinc-400"
-        title="The briefing gives every todo its operations (status, assignee, comment…) — then “Run” runs them without AI"
+        title={t("The briefing gives every todo its operations (status, assignee, comment…) — then “Run” runs them without AI")}
       >
-        Its operations come with the next briefing
+        {t("Its operations come with the next briefing")}
       </span>
     );
   if (
-    (m.mode === "send" && t.channel === "gitlab") ||
+    (m.mode === "send" && todo.channel === "gitlab") ||
     m.mode === "mr" ||
     m.mode === "ops"
   )
@@ -114,38 +116,38 @@ function SendButton({
         <button
           type="button"
           className={`btn btn-sm ${active ? "" : "btn-primary"}`}
-          disabled={pending || !!active || !!t.blockedBy}
+          disabled={pending || !!active || !!todo.blockedBy}
           onClick={() => send("claude")}
           title={
-            t.blockedBy
-              ? `Waiting: ${t.blockedBy} — the GitLab sync notices once it is`
+            todo.blockedBy
+              ? t("Waiting: {blockedBy} — the GitLab sync notices once it is", { blockedBy: todo.blockedBy })
               : m.mode === "ops"
-                ? `Zeff does it itself, no AI: ${t.ops.map(opLabel).join(" · ")}`
+                ? t("Zeff does it itself, no AI: {ops}", { ops: todo.ops.map((o) => opTitle(o, t)).join(" · ") })
                 : m.mode === "mr"
-                  ? "Zeff opens the merge request (first line of the draft: its title, the rest: its description) through GitLab's API in the automation Chrome"
-                  : "Zeff posts this draft as a reply in the comment's thread — through GitLab's API in the automation Chrome, else through the page"
+                  ? t("Zeff opens the merge request (first line of the draft: its title, the rest: its description) through GitLab's API in the automation Chrome")
+                  : t("Zeff posts this draft as a reply in the comment's thread — through GitLab's API in the automation Chrome, else through the page")
           }
         >
           {active
             ? active.status === "queued"
-              ? "Queued…"
-              : "Working…"
+              ? t("Queued…")
+              : t("Working…")
             : pending
-              ? "Sending…"
+              ? t("Sending…")
               : m.mode === "ops"
-                ? opsButton(t.ops)
+                ? opsButton(todo.ops, t)
                 : m.mode === "mr"
-                  ? "Open MR"
-                  : "Post to GitLab"}
+                  ? t("Open MR")
+                  : t("Post to GitLab")}
         </button>
         <span
           className={`text-[11px] text-zinc-400 ${m.mode === "ops" ? "hidden" : ""}`}
         >
           {m.mode === "ops"
-            ? "no AI"
+            ? t("no AI")
             : m.mode === "mr"
-              ? (parseMrTarget(t.target)?.source ?? "")
-              : "reply in its thread"}
+              ? (parseMrTarget(todo.target)?.source ?? "")
+              : t("reply in its thread")}
         </span>
         {error && (
           <span className="max-w-64 text-right text-xs text-red-600 dark:text-red-400">
@@ -156,10 +158,10 @@ function SendButton({
     );
   const hint =
     m.mode === "code"
-      ? "It implements the todo in the ticket's repo (its own worktree and branch), commits there, reports back — and leaves follow-ups for what goes out."
+      ? t("It implements the todo in the ticket's repo (its own worktree and branch), commits there, reports back — and leaves follow-ups for what goes out.")
       : m.mode === "draft"
-        ? "It writes the message this todo asks for — nothing is sent. You read it, change it, then send it (or hand it out again to post it)."
-        : "It posts exactly this draft to Jira (comment, status, assignee) through Zeff's Jira connection — then the todo is done.";
+        ? t("It writes the message this todo asks for — nothing is sent. You read it, change it, then send it (or hand it out again to post it).")
+        : t("It posts exactly this draft to Jira (comment, status, assignee) through Zeff's Jira connection — then the todo is done.");
   return (
     <div className="relative flex shrink-0 flex-col items-end gap-0.5">
       {main ? (
@@ -171,21 +173,21 @@ function SendButton({
             onClick={() => send(main.id)}
             title={
               active
-                ? `${workRef(active.id)} has it`
+                ? t("{ref} has it", { ref: workRef(active.id) })
                 : full
-                  ? `All ${parallel} workers are busy — wait for one, or allow more in the settings`
+                  ? t("All {parallel} workers are busy — wait for one, or allow more in the settings", { parallel })
                   : hint
             }
           >
             {active
               ? active.status === "queued"
-                ? "Queued…"
-                : "Running…"
+                ? t("Queued…")
+                : t("Running…")
               : pending
-                ? "Sending…"
+                ? t("Sending…")
                 : m.mode === "draft"
-                  ? `Write draft with ${main.label}`
-                  : `Send to ${main.label}`}
+                  ? t("Write draft with {name}", { name: main.label })
+                  : t("Send to {name}", { name: main.label })}
           </button>
           {others.length > 0 && !active && (
             <button
@@ -193,7 +195,7 @@ function SendButton({
               className="btn btn-primary btn-sm rounded-l-none border-l border-white/30 px-1.5"
               disabled={pending || full}
               onClick={() => setMenu(!menu)}
-              aria-label="Send to another worker"
+              aria-label={t("Send to another worker")}
               aria-expanded={menu}
             >
               ▾
@@ -203,13 +205,13 @@ function SendButton({
       ) : (
         <span
           className="text-xs text-zinc-400"
-          title="Install Claude Code (or the Copilot CLI) — see Settings"
+          title={t("Install Claude Code (or the Copilot CLI) — see Settings")}
         >
-          No worker CLI found
+          {t("No worker CLI found")}
         </span>
       )}
       <span className="text-[11px] text-zinc-400">
-        {WORK_MODE_LABELS[m.mode]}
+        {workModeLabels(t)[m.mode]}
       </span>
       {menu && (
         <div className="absolute top-8 right-0 z-20 rounded-md border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
@@ -220,7 +222,7 @@ function SendButton({
               className="block w-full px-3 py-1.5 text-left text-sm whitespace-nowrap hover:bg-zinc-50 dark:hover:bg-zinc-800"
               onClick={() => send(p.id)}
             >
-              Send to {p.label}
+              {t("Send to {name}", { name: p.label })}
             </button>
           ))}
         </div>
@@ -270,8 +272,9 @@ function OpChip({
   /** The GitLab comment it's about, as synced. */
   note?: NonNullable<TodoView["links"]>["notes"][string];
 }) {
+  const t = useT();
   const router = useRouter();
-  const { heading, detail, body, files } = opNote(op);
+  const { heading, detail, body, files } = opNote(op, t);
   const href = actionHref(op);
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(body ?? "");
@@ -286,9 +289,9 @@ function OpChip({
             target="_blank"
             rel="noreferrer"
             className="shrink-0 rounded px-1.5 font-medium text-sky-700 hover:bg-sky-100 dark:text-sky-300 dark:hover:bg-sky-900"
-            title={`Opens filled in in ${openIn(href)} — check it and send it yourself`}
+            title={t("Opens filled in in {app} — check it and send it yourself", { app: openIn(href) })}
           >
-            Open in {openIn(href)} ↗
+            {t("Open in {app}", { app: openIn(href) })} ↗
           </a>
         )}
         <span className="flex shrink-0 items-center gap-0.5">
@@ -300,8 +303,8 @@ function OpChip({
               setText(body);
               setEditing(true);
             }}
-            title="Edit the text"
-            aria-label="Edit the text"
+            title={t("Edit the text")}
+            aria-label={t("Edit the text")}
           >
             <PencilIcon className="size-3.5" />
           </button>
@@ -315,12 +318,12 @@ function OpChip({
             onClick={() =>
               start(async () => {
                 const r = await doneBrowserOpAction(todoId, index);
-                toast(r?.ok ? (r.message ?? "Noted.") : (r?.error ?? "Didn't work."), { tone: r?.ok ? "ok" : "error" });
+                toast(r?.ok ? (r.message ?? t("Noted.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" });
                 router.refresh();
               })
             }
-            title={op.type === "calendar-event" ? "Done: the meeting is created in Outlook — note it on the todo" : "Done: the mail is sent — note it on the todo"}
-            aria-label="Done"
+            title={op.type === "calendar-event" ? t("Done: the meeting is created in Outlook — note it on the todo") : t("Done: the mail is sent — note it on the todo")}
+            aria-label={t("Done")}
           >
             <CheckIcon className="size-3.5" />
           </button>
@@ -334,12 +337,12 @@ function OpChip({
             onClick={() =>
               start(async () => {
                 const r = await removeTodoOpAction(todoId, index);
-                if (!r?.ok) toast(r?.error ?? "Didn't work.", { tone: "error" });
+                if (!r?.ok) toast(r?.error ?? t("Didn't work."), { tone: "error" });
                 router.refresh();
               })
             }
-            title="Remove — without a note"
-            aria-label="Remove the action"
+            title={t("Remove — without a note")}
+            aria-label={t("Remove the action")}
           >
             <CloseIcon className="size-3.5" />
           </button>
@@ -352,9 +355,9 @@ function OpChip({
           target="_blank"
           rel="noreferrer"
           className="block text-xs break-words text-sky-950/80 hover:underline dark:text-sky-100/80"
-          title={`${"note" in op ? op.note : ""} — open in GitLab`}
+          title={t("{note} — open in GitLab", { note: "note" in op ? op.note : "" })}
         >
-          {note.author ?? "Comment"}: “{note.excerpt}”{note.state === "resolved" ? " (already resolved)" : ""} ↗
+          {note.author ?? t("Comment")}: “{note.excerpt}”{note.state === "resolved" ? ` ${t("(already resolved)")}` : ""} ↗
         </a>
       ) : (
         detail && (
@@ -365,7 +368,7 @@ function OpChip({
       )}
       {!!files?.length && (
         <details className="mt-0.5 text-xs text-sky-950/80 dark:text-sky-100/80">
-          <summary className="cursor-pointer">Show files</summary>
+          <summary className="cursor-pointer">{t("Show files")}</summary>
           <ul className="mt-0.5 space-y-0.5 font-mono text-[11px]">
             {files.map((f) => (
               <li key={f} className="break-all" title={f}>
@@ -399,13 +402,13 @@ function OpChip({
                   start(async () => {
                     const r = await saveTodoOpTextAction(todoId!, index, text);
                     if (r && !r.ok)
-                      toast(r.error ?? "Didn't work.", { tone: "error" });
+                      toast(r.error ?? t("Didn't work."), { tone: "error" });
                     else setEditing(false);
                     router.refresh();
                   })
                 }
               >
-                {pending ? "…" : "Save"}
+                {pending ? "…" : t("Save")}
               </button>
               <button
                 type="button"
@@ -413,7 +416,7 @@ function OpChip({
                 disabled={pending}
                 onClick={() => setEditing(false)}
               >
-                Cancel
+                {t("Cancel")}
               </button>
             </span>
           </span>
@@ -422,7 +425,7 @@ function OpChip({
           (op.type === "jira-create" ? (
             // A new ticket's description is long: folded, its title above says what it is.
             <details className="mt-0.5 text-xs text-sky-950/80 dark:text-sky-100/80">
-              <summary className="cursor-pointer">Show description</summary>
+              <summary className="cursor-pointer">{t("Show description")}</summary>
               <span className="mt-0.5 block whitespace-pre-wrap">{body}</span>
             </details>
           ) : (
@@ -436,8 +439,9 @@ function OpChip({
 }
 
 /** A todo's message: drafted by a worker (or by you), changed here, copied — or opened where it goes. */
-function DraftBox({ t, targetUrl }: { t: TodoView; targetUrl: string | null }) {
-  const saved = t.draft ?? "";
+function DraftBox({ t: todo, targetUrl }: { t: TodoView; targetUrl: string | null }) {
+  const t = useT();
+  const saved = todo.draft ?? "";
   const [text, setText] = useState(saved);
   const [from, setFrom] = useState(saved);
   if (from !== saved) {
@@ -447,19 +451,19 @@ function DraftBox({ t, targetUrl }: { t: TodoView; targetUrl: string | null }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const dirty = text.trim() !== saved.trim();
-  const where = t.channel ? CHANNEL_LABELS[t.channel] : null;
-  const m = workModeOf({ ...t, draft: text });
+  const where = todo.channel ? CHANNEL_LABELS[todo.channel] : null;
+  const m = workModeOf({ ...todo, draft: text }, t);
   return (
     <div className="ml-6 space-y-1.5 rounded-md border border-dashed border-zinc-300 p-2 dark:border-zinc-700">
       <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-        <span className="font-semibold uppercase">Draft</span>
+        <span className="font-semibold uppercase">{t("Draft")}</span>
         <span>
           {where
-            ? `for ${where}`
+            ? t("for {where}", { where })
             : saved
               ? ""
-              : "none yet — “Write draft” lets a worker write it, or write it yourself"}
-          {t.target ? ` → ${t.target}` : ""}
+              : t("none yet — “Write draft” lets a worker write it, or write it yourself")}
+          {todo.target ? ` → ${todo.target}` : ""}
         </span>
         <span className="ml-auto flex items-center gap-2">
           {dirty && (
@@ -469,21 +473,21 @@ function DraftBox({ t, targetUrl }: { t: TodoView; targetUrl: string | null }) {
               disabled={pending}
               onClick={() =>
                 start(async () => {
-                  const r = await saveTodoDraftAction(t.id, text);
+                  const r = await saveTodoDraftAction(todo.id, text);
                   setError(
-                    r && !r.ok ? (r.error ?? "Couldn't save it.") : null,
+                    r && !r.ok ? (r.error ?? t("Couldn't save it.")) : null,
                   );
                 })
               }
             >
-              {pending ? "Saving…" : "Save draft"}
+              {pending ? t("Saving…") : t("Save draft")}
             </button>
           )}
           {text.trim() && (
             <CopyButton
               text={text}
               className="btn btn-sm"
-              title="Copy the draft"
+              title={t("Copy the draft")}
             />
           )}
           {targetUrl && where && (
@@ -492,9 +496,9 @@ function DraftBox({ t, targetUrl }: { t: TodoView; targetUrl: string | null }) {
               target="_blank"
               rel="noreferrer"
               className="btn btn-sm"
-              title={`Open where it goes, to send it yourself`}
+              title={t("Open where it goes, to send it yourself")}
             >
-              Open in {where} ↗
+              {t("Open in {where}", { where })} ↗
             </a>
           )}
         </span>
@@ -504,8 +508,8 @@ function DraftBox({ t, targetUrl }: { t: TodoView; targetUrl: string | null }) {
         rows={Math.min(14, Math.max(3, text.split("\n").length + 1))}
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="The message — a worker drafts it, or write it here."
-        aria-label={`Draft for ${todoRef(t.id)}`}
+        placeholder={t("The message — a worker drafts it, or write it here.")}
+        aria-label={t("Draft for {ref}", { ref: todoRef(todo.id) })}
       />
       {saved && !m.mode && m.why && (
         <p className="text-xs text-zinc-500">{m.why}</p>
@@ -524,7 +528,7 @@ function DraftBox({ t, targetUrl }: { t: TodoView; targetUrl: string | null }) {
  * with its log.
  */
 export function WorkTodo({
-  t,
+  t: todo,
   runs,
   sources,
   cards,
@@ -550,25 +554,26 @@ export function WorkTodo({
   full: boolean;
   parallel: number;
 }) {
+  const t = useT();
   const instructions = useAgentInstructions();
-  const [status, setStatus] = useState(t.status);
-  const [fromStatus, setFromStatus] = useState(t.status);
-  if (fromStatus !== t.status) {
-    setFromStatus(t.status);
-    setStatus(t.status);
+  const [status, setStatus] = useState(todo.status);
+  const [fromStatus, setFromStatus] = useState(todo.status);
+  if (fromStatus !== todo.status) {
+    setFromStatus(todo.status);
+    setStatus(todo.status);
   }
   const [, start] = useTransition();
   const [quick, setQuick] = useState<QuickPanel>(null);
   const closed = status !== "open";
-  const opsMode = !closed && t.ops.length > 0 && workModeOf(t).mode === "ops";
+  const opsMode = !closed && todo.ops.length > 0 && workModeOf(todo, t).mode === "ops";
   const active = runs.find((r) => isActive(r.status));
-  const cameFrom = sourcesOf(t.refs, sources);
-  const comms = COMMS_KINDS.includes(t.kind);
+  const cameFrom = sourcesOf(todo.refs, sources);
+  const comms = COMMS_KINDS.includes(todo.kind);
   // A worker or agent says it's done: highlighted, still open - closing it is yours.
-  const reported = !closed && !t.needsInput && !active && !!t.workerDone;
+  const reported = !closed && !todo.needsInput && !active && !!todo.workerDone;
   return (
     <li
-      id={`work-todo-${t.id}`}
+      id={`work-todo-${todo.id}`}
       className={`group scroll-mt-24 space-y-1.5 rounded-md target:bg-amber-50 dark:target:bg-amber-950/30 ${active ? "-mx-2 bg-indigo-50 px-2 py-1.5 ring-1 ring-indigo-200 dark:bg-indigo-950/40 dark:ring-indigo-900" : reported ? "-mx-2 bg-emerald-50 px-2 py-1.5 ring-1 ring-emerald-300 dark:bg-emerald-950/30 dark:ring-emerald-800" : ""}`}
     >
       <div className="flex items-start gap-2">
@@ -578,127 +583,135 @@ export function WorkTodo({
           checked={closed}
           disabled={!!active}
           title={
-            active ? `${active.ref} is on it — when it's through` : undefined
+            active ? t("{ref} is on it — when it's through", { ref: active.ref }) : undefined
           }
           onChange={() => {
             const before = status;
             const next = closed ? "open" : "done";
             setStatus(next);
             start(async () => {
-              const r = await setTodoStatusAction(t.id, next);
+              const r = await setTodoStatusAction(todo.id, next);
               if (r && !r.ok) {
-                setStatus(t.status);
-                toast(r.error ?? `Couldn't change ${todoRef(t.id)}.`, {
+                setStatus(todo.status);
+                toast(r.error ?? t("Couldn't change {ref}.", { ref: todoRef(todo.id) }), {
                   tone: "error",
                 });
                 return;
               }
               toast(
                 next === "done"
-                  ? `${todoRef(t.id)} done.`
-                  : `${todoRef(t.id)} is open again.`,
+                  ? t("{ref} done.", { ref: todoRef(todo.id) })
+                  : t("{ref} is open again.", { ref: todoRef(todo.id) }),
                 {
                   action: {
-                    label: "Undo",
-                    run: () => setTodoStatusAction(t.id, before),
+                    label: t("Undo"),
+                    run: () => setTodoStatusAction(todo.id, before),
                   },
                 },
               );
             });
           }}
-          aria-label={`${todoRef(t.id)} ${closed ? "open again" : "done"}`}
+          aria-label={closed ? t("{ref} open again", { ref: todoRef(todo.id) }) : t("{ref} done", { ref: todoRef(todo.id) })}
         />
         <div className="min-w-0 flex-1 text-sm">
           <div
             className={
               closed
                 ? "text-zinc-400 line-through"
-                : t.owner === "other"
+                : todo.owner === "other"
                   ? "text-zinc-600 italic dark:text-zinc-300"
                   : ""
             }
           >
-            {t.needsInput && !closed && (
-              <span className="mr-1 font-bold text-amber-600 not-italic dark:text-amber-400" title={`The agent is waiting for you: ${t.needsInput}`} aria-label="Waiting for you">
+            {todo.needsInput && !closed && (
+              <span className="mr-1 font-bold text-amber-600 not-italic dark:text-amber-400" title={t("The agent is waiting for you: {question}", { question: todo.needsInput })} aria-label={t("Waiting for you")}>
                 ❗
               </span>
             )}
-            {active && !closed && !t.needsInput && <RunningSpinner title={active.status === "queued" ? `${active.ref} is waiting for a free worker` : `${active.ref} is working on it`} />}
-            <Linked text={t.text} cards={cards} mrs={t.links?.mrs} />
+            {active && !closed && !todo.needsInput && <RunningSpinner title={active.status === "queued" ? t("{ref} is waiting for a free worker", { ref: active.ref }) : t("{ref} is working on it", { ref: active.ref })} />}
+            <Linked text={todo.text} cards={cards} mrs={todo.links?.mrs} />
           </div>
-          {t.needsInput && !closed && (
+          {todo.needsInput && !closed && (
             <div className="mt-0.5 text-xs whitespace-pre-line text-amber-700 dark:text-amber-300">
-              <strong>Waiting for you:</strong> {t.needsInput}
+              <strong>{t("Waiting for you:")}</strong> {todo.needsInput}
             </div>
           )}
           <div className="text-xs text-zinc-400">
             <CopyButton
-              text={agentInstruction(t, instructions)}
+              text={agentInstruction(todo, instructions)}
               className="font-mono hover:text-indigo-600 hover:underline dark:hover:text-indigo-400"
-              title={`Copy “${agentInstruction(t, instructions)}” — for Copilot / Claude Code`}
+              title={t("Copy “{instruction}” — for Copilot / Claude Code", { instruction: agentInstruction(todo, instructions) })}
             >
-              {todoRef(t.id)}
+              {todoRef(todo.id)}
             </CopyButton>{" "}
             <Link
-              href={`/todos${closed ? "?todos=done" : ""}#todo-${t.id}`}
+              href={`/todos${closed ? "?todos=done" : ""}#todo-${todo.id}`}
               className="hover:underline"
-              title={`Show ${todoRef(t.id)} on the Todos tab`}
+              title={t("Show {ref} on the Todos tab", { ref: todoRef(todo.id) })}
             >
               ↗
             </Link>{" "}
-            <TodoMrLinks mrs={t.links?.mrs} />
-            {" "}· {TODO_KIND_LABELS[t.kind]}
-            {t.path && <> · path “{t.path}”</>}
-            {t.parentId && (
+            <TodoMrLinks mrs={todo.links?.mrs} />
+            {" "}· {todoKindLabels(t)[todo.kind]}
+            {todo.path && <> · {t("path “{path}”", { path: todo.path })}</>}
+            {todo.parentId && (
               <>
                 {" "}
-                · follows{" "}
+                · {t("follows")}{" "}
                 <a
-                  href={`#work-todo-${t.parentId}`}
+                  href={`#work-todo-${todo.parentId}`}
                   className="font-mono hover:underline"
                 >
-                  {todoRef(t.parentId)}
+                  {todoRef(todo.parentId)}
                 </a>
               </>
             )}
-            {t.workRunId && t.parentId && (
+            {todo.workRunId && todo.parentId && (
               <>
                 {" "}
-                · from{" "}
+                · {t("from")}{" "}
                 <a
-                  href={`#w-${t.workRunId}`}
+                  href={`#w-${todo.workRunId}`}
                   className="font-mono hover:underline"
                 >
-                  {workRef(t.workRunId)}
+                  {workRef(todo.workRunId)}
                 </a>
               </>
             )}
-            {t.note && (
+            {todo.note && (
               <>
                 {" "}
-                · <TodoRefs text={t.note} />
+                · <TodoRefs text={todo.note} />
               </>
             )}
-            {!closed && <TodoQuickButtons todoId={t.id} panel={quick} onToggle={setQuick} aiDisabled={active ? `${active.ref} is already working on it` : undefined} />}
-            {!closed && <FlagButton todoId={t.id} todoRef={todoRef(t.id)} flagged={!!t.flaggedAt} className="ml-0.5 inline-flex size-5 items-center justify-center rounded align-middle hover:bg-zinc-100 dark:hover:bg-zinc-800 [&_svg]:size-3.5" />}
-            {t.flaggedAt && !closed && <span className="font-medium text-red-600 dark:text-red-400"> · important</span>}
-            {reported && t.workerDone && <span className="font-medium text-emerald-700 dark:text-emerald-400" title={`${t.workerDone.by} reports this done${t.workerDone.note ? `: ${t.workerDone.note}` : ""} - tick it off to close it`}> · ✓ {t.workerDone.by.split(" · ")[0]}: reported done</span>}
+            {!closed && <TodoQuickButtons todoId={todo.id} panel={quick} onToggle={setQuick} aiDisabled={active ? t("{ref} is already working on it", { ref: active.ref }) : undefined} />}
+            {!closed && <FlagButton todoId={todo.id} todoRef={todoRef(todo.id)} flagged={!!todo.flaggedAt} className="ml-0.5 inline-flex size-5 items-center justify-center rounded align-middle hover:bg-zinc-100 dark:hover:bg-zinc-800 [&_svg]:size-3.5" />}
+            {todo.flaggedAt && !closed && <span className="font-medium text-red-600 dark:text-red-400"> · {t("important")}</span>}
+            {reported && todo.workerDone && (
+              <span
+                className="font-medium text-emerald-700 dark:text-emerald-400"
+                title={todo.workerDone.note ? t("{by} reports this done: {note} — tick it off to close it", { by: todo.workerDone.by, note: todo.workerDone.note }) : t("{by} reports this done — tick it off to close it", { by: todo.workerDone.by })}
+              >
+                {" "}
+                · ✓ {t("{by}: reported done", { by: todo.workerDone.by.split(" · ")[0] })}
+              </span>
+            )}
           </div>
-          <TodoQuickPanel todoId={t.id} todoRef={todoRef(t.id)} panel={closed ? null : quick} onClose={() => setQuick(null)} />
-          <TodoContext t={t} cameFrom={cameFrom} />
-          <TodoPlan t={{ planned: t.planned, status }} />
+          <TodoQuickPanel todoId={todo.id} todoRef={todoRef(todo.id)} panel={closed ? null : quick} onClose={() => setQuick(null)} />
+          <TodoContext t={todo} cameFrom={cameFrom} />
+          <TodoPlan t={{ planned: todo.planned, status }} />
           {opsMode ? (
             // The operations and their button in one row (centred), each alternative a row below.
             <span className="mt-1.5 flex flex-col gap-1.5">
               <span className="flex items-center gap-2 max-sm:flex-col max-sm:items-start">
                 <OpChips
-                  ops={t.ops}
-                  todoId={active ? undefined : t.id}
-                  notes={t.links?.notes}
+                  ops={todo.ops}
+                  todoId={active ? undefined : todo.id}
+                  notes={todo.links?.notes}
                   className="min-w-0 flex-1 items-stretch"
                 />
                 <SendButton
-                  t={t}
+                  t={todo}
                   providers={providers}
                   preferred={preferred}
                   active={active}
@@ -707,18 +720,18 @@ export function WorkTodo({
                   parallel={parallel}
                 />
               </span>
-              {!active && <TodoAlternatives t={t} />}
+              {!active && <TodoAlternatives t={todo} />}
             </span>
           ) : (
-            t.ops.length > 0 &&
+            todo.ops.length > 0 &&
             !closed && (
-              <OpChips ops={t.ops} todoId={active ? undefined : t.id} notes={t.links?.notes} />
+              <OpChips ops={todo.ops} todoId={active ? undefined : todo.id} notes={todo.links?.notes} />
             )
           )}
         </div>
         {!closed && !opsMode && (
           <SendButton
-            t={t}
+            t={todo}
             providers={providers}
             preferred={preferred}
             active={active}
@@ -728,8 +741,8 @@ export function WorkTodo({
           />
         )}
       </div>
-      {comms && !closed && t.owner === "me" && (!t.ops.length || !!t.draft) && (
-        <DraftBox t={t} targetUrl={targetUrl} />
+      {comms && !closed && todo.owner === "me" && (!todo.ops.length || !!todo.draft) && (
+        <DraftBox t={todo} targetUrl={targetUrl} />
       )}
       {runs.length > 0 && (
         <div className="space-y-1.5 pl-6">
@@ -741,8 +754,7 @@ export function WorkTodo({
                 className="block text-xs text-indigo-600 hover:underline dark:text-indigo-400"
               >
                 <span className="font-mono">{r.ref}</span>{" "}
-                {r.status === "queued" ? "is waiting" : "is working on it"} —
-                its log is at the top ↑
+                {r.status === "queued" ? t("is waiting — its log is at the top") : t("is working on it — its log is at the top")} ↑
               </a>
             ) : (
               <RunPanel key={r.id} run={r} created={created[r.id] ?? []} />
