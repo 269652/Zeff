@@ -20,6 +20,10 @@ export async function startSessionAction(v: {
   repoId?: number;
   provider?: string;
   continueRunId?: number;
+  /** Any folder in a git repo (the picker's), and the branch / how to work there. */
+  repoPath?: string;
+  branch?: string;
+  workspace?: string;
 }): Promise<{ ok: true; runId: number } | { ok: false; error: string }> {
   try {
     const instruction = String(v.instruction ?? "").trim();
@@ -54,9 +58,43 @@ export async function startSessionAction(v: {
     const ticket = String(v.ticket ?? existing?.ticket ?? "").trim();
     if (ticket && !/^[A-Z][A-Z0-9]+-\d+$/i.test(ticket)) return { ok: false, error: `„${ticket}“ ist kein Ticket.` };
     const todo = existing?.status === "open" ? existing : addSessionTodo({ ticket, text: instruction.split("\n")[0].slice(0, 200) });
-    const run = dispatchTodo(todo.id, { instruction, provider: isAiProvider(v.provider) ? v.provider : undefined, repoId: v.repoId ? Number(v.repoId) : undefined });
+    const workspace = v.workspace === "worktree" || v.workspace === "branch" || v.workspace === "checkout" ? v.workspace : undefined;
+    const run = dispatchTodo(todo.id, {
+      instruction,
+      provider: isAiProvider(v.provider) ? v.provider : undefined,
+      repoId: v.repoId ? Number(v.repoId) : undefined,
+      repoPath: v.repoPath?.trim() || undefined,
+      branch: v.branch?.trim() || undefined,
+      workspace,
+    });
     revalidatePath("/work");
     return { ok: true, runId: run.id };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/**
+ * Switch the branch a session works on (its worktree, or the repo it works in) - when it is
+ * idle, nothing is uncommitted, and the branch isn't checked out elsewhere. The next message
+ * goes on from there.
+ */
+export async function switchSessionBranchAction(runId: number, branch: string): Promise<{ ok: true; branch: string } | { ok: false; error: string }> {
+  try {
+    const { getRun, runsForTodos, updateRun } = await import("@/lib/work/store");
+    const { isActive } = await import("@/lib/work/shared");
+    const { switchBranch } = await import("@/lib/work/git");
+    const r = getRun(Number(runId));
+    if (!r) return { ok: false, error: "Diese Session gibt es nicht mehr." };
+    // The conversation's newest run is the session.
+    const last = (runsForTodos([r.todoId]).get(r.todoId) ?? [r])[0] ?? r;
+    if (isActive(last.status as import("@/lib/work/shared").WorkStatus)) return { ok: false, error: "The session is working - switch the branch once it has answered." };
+    if (!last.cwd) return { ok: false, error: "This session has no folder of its own." };
+    const now = switchBranch(last.cwd, String(branch));
+    // The conversation's runs all follow (a later message starts from the folder as it is now).
+    for (const x of runsForTodos([r.todoId]).get(r.todoId) ?? [r]) if (x.cwd === last.cwd) updateRun(x.id, { branch: now });
+    revalidatePath("/work");
+    return { ok: true, branch: now };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

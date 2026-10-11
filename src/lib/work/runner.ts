@@ -23,7 +23,7 @@ import { errorMessage, NotFoundError, ValidationError } from "@/lib/errors";
 import { getJiraSyncConfig } from "@/lib/jira/sync";
 import { briefFor, taskFor, workerRules } from "./brief";
 import { listRepos, repoForTicket } from "@/lib/repos";
-import { addWorktree, baseFor, git, gitSummary } from "./git";
+import { addBranchWorktree, addWorktree, baseFor, git, gitSummary, repoRoot, switchBranch } from "./git";
 import { startInteractive } from "@/plugins/copilot-cli/interactive";
 import { errPath, logPath, readErrors, readLog, readOutput, workDir } from "./log";
 import { applyOutcome, normalizeResult } from "./outcome";
@@ -120,6 +120,12 @@ export function dispatchTodo(
     /** A session in this repo (Repos page), whatever the ticket says. */ repoId?: number;
     /** Your next message in this run's conversation: Claude goes on with its session (where it worked), like Claude Code. */
     continueRun?: number;
+    /** A folder in a git repo to work in (any folder, not only a registered repo) - its repo is used. */
+    repoPath?: string;
+    /** The branch to start from / work on (see workspace); none: the ticket's own branch, else the default. */
+    branch?: string;
+    /** worktree: a new branch from `branch` in a worktree · branch: `branch` itself in a worktree · checkout: in the repo itself. None: the Work settings. */
+    workspace?: "worktree" | "branch" | "checkout";
   } = {},
 ): WorkRunView {
   if (!isInstalled("work")) throw new ValidationError("Work ist nicht installiert (Menü → Plugins) — ohne es arbeitet kein Worker an Todos.");
@@ -147,8 +153,12 @@ export function dispatchTodo(
   if (provider !== "zeff" && !isInstalled("llm")) throw new ValidationError("Das LLM-Plugin ist nicht installiert (Menü → Plugins) — keine Worker.");
   if (provider !== "zeff" && !providerAvailable(provider)) throw new ValidationError(`${provider === "claude" ? "Claude CLI" : "Copilot CLI"}: das Plugin ist nicht installiert (Settings → Plugins).`);
   if (m.mode === "send" && provider === "copilot") throw new ValidationError("Only Claude can post to Jira (through Zeff's Jira connection) — install the Claude CLI plugin.");
+  const chosen = opts.repoPath?.trim() ? repoRoot(opts.repoPath.trim()) : null;
+  if (opts.repoPath?.trim() && !chosen) throw new ValidationError(`${opts.repoPath} isn't in a git repo.`);
   const repo = (opts.repoId ? listRepos().find((r) => r.id === opts.repoId) : undefined) ?? repoForTicket(todo.ticket)?.repo;
-  if (m.mode === "code" && !repo) throw new ValidationError(`No repo for ${todo.ticket} — assign its board (or the ticket) to one on the Repos page.`);
+  const repoDir = chosen ?? repo?.path ?? null;
+  if (opts.branch && !repoDir) throw new ValidationError("A branch needs a repo.");
+  if (m.mode === "code" && !repoDir) throw new ValidationError(`No repo for ${todo.ticket} — assign its board (or the ticket) to one on the Repos page.`);
   const app = getAppSettings();
   // The Work tab's model is one of the Settings provider's; another provider gets its own Settings model.
   const own = provider === "zeff" ? "" : provider === llmChoice("worker").provider ? llmChoice("worker").model : provider === "copilot" ? app.copilotModel : app.claudeModel;
@@ -162,7 +172,9 @@ export function dispatchTodo(
     provider,
     model: resume ? (opts.provider ? model : (prev!.model ?? model)) : model,
     permissionMode: provider === "claude" ? s.permissionMode : provider === "copilot" ? "allow-all-tools" : null,
-    repo: resume ? resume.repo : (repo?.path ?? null),
+    repo: resume ? resume.repo : repoDir,
+    // (A conversation goes on where it worked; a new run starts where you chose.)
+    ...(resume ? { workspace: resume.workspace } : { workspace: repoDir && (opts.workspace ?? null), ...(opts.branch ? { base: opts.branch } : {}) }),
     prompt: resume
       ? `## Deine Anweisung (vom Nutzer — sie geht vor)\n${instruction}`
       : instruction
@@ -187,10 +199,11 @@ export function pump(): void {
   const running = runsByStatus(["running"]).filter((r) => r.provider !== "agent");
   let free = s.parallel - running.length;
   if (free <= 0) return;
-  const busy = new Set(s.isolation === "checkout" ? running.filter((r) => codeLike(r.mode)).map((r) => r.repo) : []);
+  const inPlace = (r: WorkRun) => (r.workspace ?? s.isolation) === "checkout";
+  const busy = new Set(running.filter((r) => codeLike(r.mode) && inPlace(r)).map((r) => r.repo));
   for (const r of runsByStatus(["queued"])) {
     if (free <= 0) break;
-    if (s.isolation === "checkout" && codeLike(r.mode) && r.repo) {
+    if (inPlace(r) && codeLike(r.mode) && r.repo) {
       if (busy.has(r.repo)) continue;
       busy.add(r.repo);
     }
@@ -229,13 +242,20 @@ function start(id: number): void {
     if (resume) {
       ({ cwd, branch, base, baseSha } = { cwd: r.cwd!, branch: r.branch, base: r.base, baseSha: r.baseSha });
     } else if (codeLike(mode) && r.repo) {
-      if (s.isolation === "worktree") {
-        base = baseFor(r.repo, r.ticket);
-        ({ cwd, branch, baseSha } = addWorktree(r.repo, r.ticket, id, base));
-      } else {
+      const where = r.workspace ?? s.isolation;
+      if (where === "branch" && r.base) {
+        // The existing branch itself, in a worktree of its own.
+        base = r.base;
+        ({ cwd, branch, baseSha } = addBranchWorktree(r.repo, r.base, id));
+      } else if (where === "checkout") {
         cwd = r.repo;
+        // A branch chosen for the checkout itself: switched to (nothing uncommitted may be lost).
+        if (r.base) switchBranch(cwd, r.base);
         base = git(cwd, ["rev-parse", "--abbrev-ref", "HEAD"]);
         baseSha = git(cwd, ["rev-parse", "HEAD"]);
+      } else {
+        base = r.base || baseFor(r.repo, r.ticket);
+        ({ cwd, branch, baseSha } = addWorktree(r.repo, r.ticket, id, base));
       }
     } else if (mode === "draft" && r.repo) {
       cwd = r.repo; // to look things up — read only
@@ -245,7 +265,7 @@ function start(id: number): void {
     const repoRules = r.repo ? (listRepos().find((x) => x.path === r.repo)?.instructions ?? "") : "";
     // (Your instructions and context from the LLM plugin first — for every worker.)
     const rules = workerRules([llmPreamble(), s.instructions, repoRules].filter((x) => x.trim()).join("\n\n"));
-    const prompt = `${r.prompt}\n\n${taskFor(mode, { todo, runId: id, repo: r.repo, cwd, branch, base, isolation: s.isolation })}`;
+    const prompt = `${r.prompt}\n\n${taskFor(mode, { todo, runId: id, repo: r.repo, cwd, branch, base, isolation: r.workspace === "checkout" || (!r.workspace && s.isolation === "checkout") ? "checkout" : "worktree", onExisting: r.workspace === "branch" && !!branch })}`;
     updateRun(id, { cwd, branch, base, baseSha, prompt });
 
     fs.mkdirSync(/*turbopackIgnore: true*/ path.dirname(logPath(id)), { recursive: true });
@@ -485,6 +505,10 @@ const gitAsync = (cwd: string, args: string[]) =>
  * branch and push. Returns what to add to the git summary.
  */
 async function proposeDelivery(r: WorkRun, res: WorkResult): Promise<string> {
+  // Work on a branch you picked stays on it (its commits are there) - no merge into main behind your back.
+  if (r.workspace === "branch") return `
+
+Die Commits liegen auf ${r.branch} (dem gewählten Branch) - nichts wird von Zeff gemergt.`;
   if (!r.cwd || !r.branch || !r.baseSha || !r.repo) return "";
   const commits = await gitAsync(r.cwd, ["rev-list", "--count", `${r.baseSha}..HEAD`]).catch(() => "0");
   if (!Number(commits)) return "";
