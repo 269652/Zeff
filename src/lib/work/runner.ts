@@ -20,6 +20,7 @@ import { runTodoOps } from "@/lib/ops";
 import { gitlabItemsByKeys, listGitlabItems } from "@/lib/gitlab/store";
 import type { WorkRun } from "@/db/schema";
 import { errorMessage, NotFoundError, ValidationError } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { getJiraSyncConfig } from "@/lib/jira/sync";
 import { briefFor, taskFor, workerRules } from "./brief";
 import { listRepos, repoForTicket } from "@/lib/repos";
@@ -31,9 +32,9 @@ import { createRun, getRun, getWorkSettings, runsByStatus, toRunView, updateRun 
 import { parseMrTarget, WORK_RESULT_SCHEMA, workModeOf, workRef, type WorkResult, type WorkRunView } from "./shared";
 
 /** Zeff's own booking tools — a worker never books: Zeff books its runs (Weekly report). (complete_todo is allowed: it only marks a todo "done by the worker".) */
-const ZEFF_TOOLS = ["report_time", "update_time_entry", "delete_time_entry", "create_job"].map((t) => `mcp__zeff__${t}`);
+const ZEFF_TOOLS = ["report_time", "update_time_entry", "delete_time_entry", "create_job"].map((tool) => `mcp__zeff__${tool}`);
 /** The Jira tools a send run may use, from Zeff's own Jira connection (server "zeff-jira"). */
-const JIRA_SEND_TOOLS = ["jira_add_comment", "jira_get_transitions", "jira_transition_issue", "jira_update_issue", "jira_get_issue"].map((t) => `mcp__zeff-jira__${t}`);
+const JIRA_SEND_TOOLS = ["jira_add_comment", "jira_get_transitions", "jira_transition_issue", "jira_update_issue", "jira_get_issue"].map((tool) => `mcp__zeff-jira__${tool}`);
 
 const now = () => new Date().toISOString();
 /** The run's MCP config (Zeff's server, for a send run Jira too). */
@@ -119,21 +120,23 @@ export function dispatchTodo(
     continueRun?: number;
   } = {},
 ): WorkRunView {
-  if (!isInstalled("work")) throw new ValidationError("Work is not installed (Menu → Plugins) — without it no worker works on todos.");
+  if (!isInstalled("work")) throw new ValidationError(t("Work is not installed (Menu → Plugins) — without it no worker works on todos."));
   const todo = getTodo(todoId);
-  if (!todo) throw new NotFoundError(`Todo ${todoRef(todoId)} not found.`);
+  if (!todo) throw new NotFoundError(t("Todo {ref} not found.", { ref: todoRef(todoId) }));
   // Your instruction: an AI run on the todo that does what you say (whatever the todo's own mode).
   const instruction = opts.instruction?.trim();
   const prev = opts.continueRun ? getRun(opts.continueRun) : undefined;
-  if (opts.continueRun && (!prev || prev.todoId !== todoId)) throw new ValidationError(`${workRef(opts.continueRun)} isn't a session on ${todoRef(todoId)}.`);
-  if (prev && !instruction) throw new ValidationError("What's your next message?");
+  if (opts.continueRun && (!prev || prev.todoId !== todoId)) {
+    throw new ValidationError(t("{run} isn't a session on {ref}.", { run: workRef(opts.continueRun), ref: todoRef(todoId) }));
+  }
+  if (prev && !instruction) throw new ValidationError(t("What's your next message?"));
   // A conversation goes on whatever became of its todo; a new instruction needs an open one.
-  if (instruction && !prev && todo.status !== "open") throw new ValidationError(`${todoRef(todoId)} is ${todo.status} already.`);
-  const m: ReturnType<typeof workModeOf> = instruction ? { mode: "instruct" } : workModeOf(todo);
+  if (instruction && !prev && todo.status !== "open") throw new ValidationError(t("{ref} is {status} already.", { ref: todoRef(todoId), status: todo.status }));
+  const m: ReturnType<typeof workModeOf> = instruction ? { mode: "instruct" } : workModeOf(todo, t);
   if (!m.mode) throw new ValidationError(m.why);
   // (An instruction from the todo's own operations — Zeff running them right now — goes ahead.)
   const active = runsByStatus(["queued", "running"]).find((r) => r.todoId === todoId && !(opts.instruction && r.provider === "zeff"));
-  if (active) throw new ValidationError(`${todoRef(todoId)} is with ${workRef(active.id)} already.`);
+  if (active) throw new ValidationError(t("{ref} is with {run} already.", { ref: todoRef(todoId), run: workRef(active.id) }));
   const s = getWorkSettings();
   // A GitLab reply Zeff posts itself; a Jira one goes through Claude (with Zeff's Jira connection).
   const byZeff = !instruction && ((m.mode === "send" && todo.channel === "gitlab") || m.mode === "mr" || m.mode === "ops");
@@ -141,11 +144,17 @@ export function dispatchTodo(
   // (Going on with a session: its provider, unless you pick another.)
   const prevProvider = prev?.provider === "claude" || prev?.provider === "copilot" ? prev.provider : undefined;
   const provider: AiProvider | "zeff" = byZeff ? "zeff" : (opts.provider ?? prevProvider ?? llmChoice("worker").provider);
-  if (provider !== "zeff" && !isInstalled("llm")) throw new ValidationError("The LLM plugin is not installed (Menu → Plugins) — no workers.");
-  if (provider !== "zeff" && !providerAvailable(provider)) throw new ValidationError(`${provider === "claude" ? "Claude CLI" : "Copilot CLI"}: not installed (Menu → Plugins).`);
-  if (m.mode === "send" && provider === "copilot") throw new ValidationError("Only Claude can post to Jira (through Zeff's Jira connection) — install the Claude CLI plugin.");
+  if (provider !== "zeff" && !isInstalled("llm")) throw new ValidationError(t("The LLM plugin is not installed (Menu → Plugins) — no workers."));
+  if (provider !== "zeff" && !providerAvailable(provider)) {
+    throw new ValidationError(t("{cli}: not installed (Menu → Plugins).", { cli: provider === "claude" ? "Claude CLI" : "Copilot CLI" }));
+  }
+  if (m.mode === "send" && provider === "copilot") {
+    throw new ValidationError(t("Only Claude can post to Jira (through Zeff's Jira connection) — install the Claude CLI plugin."));
+  }
   const repo = (opts.repoId ? listRepos().find((r) => r.id === opts.repoId) : undefined) ?? repoForTicket(todo.ticket)?.repo;
-  if (m.mode === "code" && !repo) throw new ValidationError(`No repo for ${todo.ticket} — assign its board (or the ticket) to one on the Repos page.`);
+  if (m.mode === "code" && !repo) {
+    throw new ValidationError(t("No repo for {ticket} — assign its board (or the ticket) to one on the Repos page.", { ticket: todo.ticket }));
+  }
   const app = getAppSettings();
   // The Work tab's model is one of the Settings provider's; another provider gets its own Settings model.
   const own = provider === "zeff" ? "" : provider === llmChoice("worker").provider ? llmChoice("worker").model : provider === "copilot" ? app.copilotModel : app.claudeModel;
@@ -208,7 +217,7 @@ function start(id: number): void {
   try {
     const s = getWorkSettings();
     const todo = getTodo(r.todoId);
-    if (!todo) throw new Error(`${todoRef(r.todoId)} doesn't exist any more.`);
+    if (!todo) throw new Error(t("{ref} doesn't exist any more.", { ref: todoRef(r.todoId) }));
     // Zeff's own runs (operations, GitLab replies, merge requests): no worktree, no CLI.
     if (r.provider === "zeff") {
       fs.mkdirSync(/*turbopackIgnore: true*/ path.dirname(logPath(id)), { recursive: true });
@@ -252,7 +261,7 @@ function start(id: number): void {
     let sessionId: string | null = null;
     if (r.provider === "copilot") {
       const cli = findCopilotCli();
-      if (!cli) throw new Error("The Copilot CLI wasn't found (npm install -g @github/copilot, or set COPILOT_CLI).");
+      if (!cli) throw new Error(t("The Copilot CLI wasn't found (npm install -g @github/copilot, or set COPILOT_CLI)."));
       const tail = `\n\nAntworte am Ende mit einem JSON-Objekt nach diesem JSON-Schema, in einem \`\`\`json-Block:\n${JSON.stringify(WORK_RESULT_SCHEMA)}`;
       // A live session (it asks you for permissions on the Work tab, you can write to it, switch it to autopilot).
       if (s.copilotMode !== "headless") {
@@ -280,7 +289,7 @@ function start(id: number): void {
       stdin = `${rules}\n\n${prompt}${tail}`;
     } else {
       const cli = findClaudeCli();
-      if (!cli) throw new Error("The Claude CLI wasn't found — install Claude Code, or set CLAUDE_CLI.");
+      if (!cli) throw new Error(t("The Claude CLI wasn't found — install Claude Code, or set CLAUDE_CLI."));
       sessionId = resume ? r.sessionId! : randomUUID();
       // CLAUDE_CLI may be a script (a stand-in): run with node.
       const script = /\.(c|m)?js$/i.test(cli);
@@ -309,7 +318,9 @@ function start(id: number): void {
       let extra: Record<string, unknown> = {};
       if (mode === "send") {
         const jira = getJiraSyncConfig();
-        if (!jira.configured || !jira.command) throw new Error("Zeff's Jira connection isn't set up (Jira tab) — nothing can be posted without it.");
+        if (!jira.configured || !jira.command) {
+          throw new Error(t("Zeff's Jira connection isn't set up (Jira tab) — nothing can be posted without it."));
+        }
         extra = { "zeff-jira": { type: "stdio", command: jira.command, args: jira.args, env: jira.env } };
       }
       fs.writeFileSync(/*turbopackIgnore: true*/ jiraConfigPath(id), JSON.stringify(workerMcpServers(currentAccountId(), extra)), { mode: 0o600 });
@@ -349,7 +360,10 @@ async function postReply(r: WorkRun, todo: TodoView): Promise<void> {
       const mrs = listGitlabItems({ kind: "mr", limit: 500 }).filter((x) => x.ref === `!${iid}`);
       const repoProject = repoForTicket(todo.ticket)?.repo.gitlabProject;
       const mr = mrs.find((x) => x.project === repoProject) ?? mrs.find((x) => new RegExp(`(^|[^A-Za-z0-9])${todo.ticket}(?![0-9])`, "i").test(`${x.title} ${x.branch ?? ""}`)) ?? (mrs.length === 1 ? mrs[0] : undefined);
-      if (!iid || !mr) throw new Error(`Which comment (or merge request) to answer isn't known (${todo.target ?? "no target"}) — sync GitLab, or post it yourself.`);
+      if (!iid || !mr) {
+        const target = todo.target ?? t("no target");
+        throw new Error(t("Which comment (or merge request) to answer isn't known ({target}) — sync GitLab, or post it yourself.", { target }));
+      }
       note(`[Zeff] The comment isn't known — posting as a new comment in ${mr.ref} (${mr.project}).`);
       const c = await commentOnMr(mr.project, iid, todo.draft ?? "");
       note(`[Zeff] Posted: ${c.url}`);
@@ -421,15 +435,15 @@ async function runOps(r: WorkRun, todo: TodoView): Promise<void> {
 async function openMr(r: WorkRun, todo: TodoView): Promise<void> {
   const note = (msg: string) => fs.appendFileSync(/*turbopackIgnore: true*/ logPath(r.id), `${msg}\n`);
   try {
-    const t = parseMrTarget(todo.target);
-    if (!t) throw new Error("Which branch into which isn't known.");
+    const mt = parseMrTarget(todo.target);
+    if (!mt) throw new Error(t("Which branch into which isn't known."));
     const [title, ...rest] = (todo.draft ?? todo.text).split("\n");
-    note(`[Zeff] Merge request ${t.source} → ${t.target} in ${t.project} — through GitLab's API from the automation Chrome.`);
-    const mr = await openGitlabMr({ project: t.project, sourceBranch: t.source, targetBranch: t.target, title: title.trim(), description: rest.join("\n").trim() });
+    note(`[Zeff] Merge request ${mt.source} → ${mt.target} in ${mt.project} — through GitLab's API from the automation Chrome.`);
+    const mr = await openGitlabMr({ project: mt.project, sourceBranch: mt.source, targetBranch: mt.target, title: title.trim(), description: rest.join("\n").trim() });
     note(mr.existed ? `[Zeff] There was an open one already: ${mr.url}` : `[Zeff] Opened: ${mr.url}`);
     const result: WorkResult = {
       outcome: "done",
-      summary: `Merge request ${mr.existed ? "(existed already) " : ""}${t.source} → ${t.target}: ${mr.url}`,
+      summary: `Merge request ${mr.existed ? "(existed already) " : ""}${mt.source} → ${mt.target}: ${mr.url}`,
       entry: "Merge Request geöffnet",
       completedTodos: [todo.id],
       followUps: [],
@@ -491,7 +505,7 @@ async function proposeDelivery(r: WorkRun, res: WorkResult): Promise<string> {
   const text = direct ? `Merge ${r.branch} into ${base} and push` : `Deliver ${r.branch}: push as ${remote}, merge request into ${base}`;
   // First tested by hand — the delivery (its buttons) comes once that's ticked off.
   const test = addTestedDelivery({ from: todo, workRunId: r.id, source: `Follow-up from ${workRef(r.id)}`, branch: direct ? r.branch : remote, delivery: { text, ops } });
-  return `\n\nTest first: ${todoRef(test.id)} — then the delivery: ${text}`;
+  return `\n\n${t("Test first: {ref} — then the delivery: {text}", { ref: todoRef(test.id), text })}`;
 }
 
 /** The JSON object at the end of a plain-text answer (Copilot's): the last ```json block, else the last object that parses. */
@@ -504,11 +518,11 @@ function lastJson(text: string): unknown {
       // the next one
     }
   }
-  const t = text.slice(-60000);
-  const end = t.lastIndexOf("}");
-  for (let i = t.lastIndexOf("{", end); i >= 0; i = t.lastIndexOf("{", i - 1)) {
+  const tail = text.slice(-60000);
+  const end = tail.lastIndexOf("}");
+  for (let i = tail.lastIndexOf("{", end); i >= 0; i = tail.lastIndexOf("{", i - 1)) {
     try {
-      return JSON.parse(t.slice(i, end + 1));
+      return JSON.parse(tail.slice(i, end + 1));
     } catch {
       // further back
     }
@@ -561,7 +575,7 @@ export async function finalize(id: number, gone = false): Promise<void> {
     // error all the same — left "running", it would hold the queue (and account switching) forever.
     console.error(`[work] finishing run ${id} failed:`, e);
     try {
-      updateRun(id, { status: "failed", error: `Finishing the run failed: ${errorMessage(e)}`.slice(0, 2000), finishedAt: now() });
+      updateRun(id, { status: "failed", error: t("Finishing the run failed: {error}", { error: errorMessage(e) }).slice(0, 2000), finishedAt: now() });
     } catch {
       // the database itself: nothing more to do here
     }
@@ -591,12 +605,12 @@ async function finish(r: WorkRun, gone: boolean): Promise<void> {
       denials = end.permission_denials?.length ?? 0;
     }
     if (end && !end.is_error && end.subtype === "success") result = normalizeResult(end.structured_output);
-    if (!result) error = end?.result ? `${end.subtype ?? "error"}: ${end.result}` : readErrors(id) || "The run ended without a result.";
+    if (!result) error = end?.result ? `${end.subtype ?? "error"}: ${end.result}` : readErrors(id) || t("The run ended without a result.");
   } else {
     const output = readOutput(id);
     result = normalizeResult(lastJson(output));
     if (!result && r.provider === "copilot" && output.trim() && getRun(id)?.status === "running") result = await structureCopilotReport(r, output);
-    if (!result) error = readErrors(id) || "Copilot gave no result in the asked-for format.";
+    if (!result) error = readErrors(id) || t("Copilot gave no result in the asked-for format.");
     if (getRun(id)?.status !== "running") return; // stopped meanwhile
   }
   let gitText = codeLike(r.mode) && r.cwd && r.baseSha ? gitSummary(r.cwd, r.baseSha) : "";
@@ -605,7 +619,7 @@ async function finish(r: WorkRun, gone: boolean): Promise<void> {
     try {
       applyOutcome(r, result);
     } catch (e) {
-      error = `Its result couldn't be taken in: ${errorMessage(e)}`;
+      error = t("Its result couldn't be taken in: {error}", { error: errorMessage(e) });
     }
   }
   updateRun(id, {
@@ -630,18 +644,18 @@ async function finish(r: WorkRun, gone: boolean): Promise<void> {
 /** Stop a run (or take it out of the queue): its process and everything it started. */
 export function cancelRun(id: number): void {
   const r = getRun(id);
-  if (!r) throw new NotFoundError(`${workRef(id)} not found.`);
+  if (!r) throw new NotFoundError(t("{ref} not found.", { ref: workRef(id) }));
   if (r.status === "queued") {
-    updateRun(id, { status: "cancelled", finishedAt: now(), error: "Taken out of the queue." });
+    updateRun(id, { status: "cancelled", finishedAt: now(), error: t("Taken out of the queue.") });
     return;
   }
-  if (r.status !== "running") throw new ValidationError(`${workRef(id)} isn't running.`);
+  if (r.status !== "running") throw new ValidationError(t("{ref} isn't running.", { ref: workRef(id) }));
   const finishedAt = now();
   updateRun(id, {
     status: "cancelled",
     finishedAt,
     durationMs: r.startedAt ? Date.parse(finishedAt) - Date.parse(r.startedAt) : null,
-    error: "Stopped.",
+    error: t("Stopped."),
     gitSummary: codeLike(r.mode) && r.cwd && r.baseSha ? gitSummary(r.cwd, r.baseSha) || null : null,
   });
   if (r.pid && alive(r.pid)) killTree(r.pid);
@@ -661,17 +675,18 @@ export function resumeWork(): void {
     // A live session was this server's: it's over with the old one — ended, to start again by hand.
     if (r.permissionMode?.startsWith("acp")) {
       if (r.pid && alive(r.pid)) killTree(r.pid);
-      fs.appendFileSync(/*turbopackIgnore: true*/ errPath(r.id), "Zeff was restarted — that ended the interactive session. Run it again to start a new one.\n");
+      const why = t("Zeff was restarted — that ended the interactive session. Run it again to start a new one.");
+      fs.appendFileSync(/*turbopackIgnore: true*/ errPath(r.id), `${why}\n`);
       void finalize(r.id, true);
       continue;
     }
     if (r.pid && alive(r.pid)) {
-      const t = setInterval(() => {
+      const timer = setInterval(() => {
         if (alive(r.pid!)) return;
-        clearInterval(t);
+        clearInterval(timer);
         void finalize(r.id, true);
       }, 3000);
-      t.unref?.();
+      timer.unref?.();
     } else void finalize(r.id, true);
   }
   pump();

@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
+import { t } from "@/lib/i18n/server";
 import Link from "next/link";
 import { connection } from "next/server";
 import { CheckAllLoginsButton } from "@/components/LoginButtons";
 import { LoginsList } from "@/components/LoginsList";
 import { listLogins } from "@/lib/logins";
 
-export const metadata: Metadata = { title: "Sign-ins" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: t("Sign-ins") };
+}
 
 /**
  * Logins: every service the installed plugins reach through the automation Chrome, and whether
@@ -19,24 +22,27 @@ export default async function LoginsPage({ searchParams }: { searchParams: Promi
   return (
     <div className="page">
       <div className="page-aside">
-        <h1 className="text-lg font-semibold">Sign-ins</h1>
+        <h1 className="text-lg font-semibold">{t("Sign-ins")}</h1>
         <p className="text-sm text-zinc-500">
-          Where the installed plugins read (and, on your click, write): each site in this account&apos;s automation Chrome. “Sign in” brings it to the front there — you sign in yourself, Zeff
-          never types credentials. “Check” asks the plugin whether you&apos;re signed in, and opens nothing.
+          {t(
+            "Where the installed plugins read (and, on your click, write): each site in this account's automation Chrome. “Sign in” brings it to the front there — you sign in yourself, Zeff never types credentials. “Check” asks the plugin whether you're signed in, and opens nothing.",
+          )}
         </p>
         <p className="text-xs text-zinc-400">
-          Automation Chrome: {chrome.endpoint} — {chrome.running ? "running" : "not running (“Sign in” starts it)"}
+          {chrome.running
+            ? t("Automation Chrome: {endpoint} — running", { endpoint: chrome.endpoint })
+            : t("Automation Chrome: {endpoint} — not running (“Sign in” starts it)", { endpoint: chrome.endpoint })}
         </p>
         <CheckAllLoginsButton />
       </div>
 
       {setup && (
         <section className="card border-indigo-200 bg-indigo-50 p-4 text-sm dark:border-indigo-900 dark:bg-indigo-950/40">
-          <p className="font-medium">Last step of the setup: sign in to each service.</p>
+          <p className="font-medium">{t("Last step of the setup: sign in to each service.")}</p>
           <p className="text-zinc-600 dark:text-zinc-300">
-            For each entry “Sign in”, sign in in the automation Chrome, then “Check”. Then{" "}
+            {t("For each entry “Sign in”, sign in in the automation Chrome, then “Check”. Then")}{" "}
             <Link href="/" className="text-indigo-600 hover:underline dark:text-indigo-400">
-              off you go
+              {t("off you go")}
             </Link>
             .
           </p>

@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n/server";
 import { setStepMinutes, stepMinutes } from "@/lib/sync/intervals";
 import { MINUTE_CHOICES, type PluginSyncSettings } from "../sync-settings";
 
@@ -7,11 +8,15 @@ export const syncSettings: PluginSyncSettings = {
     {
       key: "gcalendar",
       label: "Google Calendar",
-      what: "Your Google calendars — the week view is read in a new tab, week by week, then the tab is closed again. Nothing changes in Google.",
+      get what() {
+        return t("Your Google calendars — the week view is read in a new tab, week by week, then the tab is closed again. Nothing changes in Google.");
+      },
       get: () => stepMinutes("gcalendar"),
       set: (m) => setStepMinutes("gcalendar", m),
       choices: MINUTE_CHOICES,
-      window: "while the automation Chrome is running",
+      get window() {
+        return t("while the automation Chrome is running");
+      },
     },
   ],
 };

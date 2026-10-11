@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
+import { useT } from "@/components/I18nProvider";
 
 /**
  * A full-window page with a sidebar on the left (what the page is, its controls — folded away on
@@ -9,6 +10,7 @@ import { useEffect, useState, type ReactNode } from "react";
  * (the content scrolls in itself). Kanban boards, the Knowledge chat.
  */
 export function SidebarFrame({ sidebar, children, back, storageKey, contentClassName = "" }: { sidebar: ReactNode; children: ReactNode; back?: { href: string; label: string }; storageKey: string; contentClassName?: string }) {
+  const t = useT();
   const [folded, setFolded] = useState(false);
   useEffect(() => {
     try {
@@ -29,7 +31,7 @@ export function SidebarFrame({ sidebar, children, back, storageKey, contentClass
   return (
     <div className="flex gap-6 max-lg:flex-col lg:h-full">
       {folded ? (
-        <button type="button" onClick={() => fold(false)} className="icon-btn shrink-0 self-start" title="Show the sidebar" aria-label="Show the sidebar">
+        <button type="button" onClick={() => fold(false)} className="icon-btn shrink-0 self-start" title={t("Show the sidebar")} aria-label={t("Show the sidebar")}>
           »
         </button>
       ) : (
@@ -42,7 +44,7 @@ export function SidebarFrame({ sidebar, children, back, storageKey, contentClass
             ) : (
               <span />
             )}
-            <button type="button" onClick={() => fold(true)} className="icon-btn max-lg:hidden" title="Collapse the sidebar" aria-label="Collapse the sidebar">
+            <button type="button" onClick={() => fold(true)} className="icon-btn max-lg:hidden" title={t("Collapse the sidebar")} aria-label={t("Collapse the sidebar")}>
               «
             </button>
           </div>

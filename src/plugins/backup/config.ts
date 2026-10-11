@@ -1,6 +1,7 @@
 import { getSqlite } from "@/db";
 import { currentAccount } from "@/db/accounts";
 import { ValidationError } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 
 /**
  * Settings and configuration, apart from the data: the app settings (AI backends, LLM
@@ -48,9 +49,9 @@ export function parseConfig(raw: string | Buffer): ConfigExport {
   try {
     v = JSON.parse(raw.toString()) as ConfigExport;
   } catch {
-    throw new ValidationError(`${CONFIG_FILE} isn't JSON.`);
+    throw new ValidationError(t("{file} isn't JSON.", { file: CONFIG_FILE }));
   }
-  if (v?.zeff !== "config" || typeof v.tables !== "object" || !v.tables) throw new ValidationError("Not a Zeff configuration.");
+  if (v?.zeff !== "config" || typeof v.tables !== "object" || !v.tables) throw new ValidationError(t("Not a Zeff configuration."));
   return v;
 }
 

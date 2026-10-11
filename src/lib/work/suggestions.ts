@@ -6,6 +6,7 @@ import { todoRef } from "@/lib/boards/shared";
 import { emitChange } from "@/lib/events";
 import { createEntry, getJobNumberForTicket } from "@/lib/entries";
 import { ValidationError } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { round2 } from "@/lib/format";
 import { getTicketDefaultJob } from "@/lib/jira/store";
 import { getJobByNumber } from "@/lib/jobs";
@@ -97,8 +98,8 @@ function toView(r: EntrySuggestion): SuggestionView {
     entryId: r.entryId,
     createdAt: r.createdAt,
     todos: todoIds.flatMap((id) => {
-      const t = ts.get(id);
-      return t ? [{ id, ref: todoRef(id), text: t.text, status: t.status }] : [];
+      const todo = ts.get(id);
+      return todo ? [{ id, ref: todoRef(id), text: todo.text, status: todo.status }] : [];
     }),
     runs: runs
       .sort((a, b) => (a.startedAt ?? "").localeCompare(b.startedAt ?? ""))
@@ -153,11 +154,11 @@ export function suggestEntry(v: {
   runIds?: number[];
 }): SuggestionView {
   const hours = round2(Number(v.hours));
-  if (!(hours > 0) || hours > 24) throw new ValidationError("Hours: more than 0, at most 24.");
+  if (!(hours > 0) || hours > 24) throw new ValidationError(t("Hours: more than 0, at most 24."));
   const description = oneLine(v.description ?? "");
-  if (!description) throw new ValidationError("A description (one line) is needed.");
+  if (!description) throw new ValidationError(t("A description (one line) is needed."));
   const date = v.date?.trim() || isoDate(new Date());
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new ValidationError("Date: YYYY-MM-DD.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new ValidationError(t("Date: YYYY-MM-DD."));
   const todoIds = [...new Set((v.todoIds ?? []).filter((n) => Number.isInteger(n)))];
   const runIds = [...new Set([...(v.runIds ?? []), ...unsuggestedRuns(todoIds)])];
   const now = new Date().toISOString();
@@ -212,8 +213,10 @@ export function openSuggestionTotals(from: string, to: string): { count: number;
 
 function requireOpen(id: number): EntrySuggestion {
   const r = getDb().select().from(entrySuggestions).where(eq(entrySuggestions.id, id)).get();
-  if (!r) throw new ValidationError(`${suggestionRef(id)} doesn't exist.`);
-  if (r.status !== "open") throw new ValidationError(`${suggestionRef(id)} is ${r.status === "accepted" ? "taken over (a booked entry) already" : "skipped"} — it can't be changed any more.`);
+  const ref = suggestionRef(id);
+  if (!r) throw new ValidationError(t("{ref} doesn't exist.", { ref }));
+  if (r.status === "accepted") throw new ValidationError(t("{ref} is taken over (a booked entry) already — it can't be changed any more.", { ref }));
+  if (r.status !== "open") throw new ValidationError(t("{ref} is skipped — it can't be changed any more.", { ref }));
   return r;
 }
 
@@ -226,16 +229,16 @@ export function updateSuggestion(
   const set: Partial<EntrySuggestion> = { updatedAt: new Date().toISOString() };
   if (patch.hours !== undefined) {
     const h = round2(Number(patch.hours));
-    if (!(h > 0) || h > 24) throw new ValidationError("Hours: more than 0, at most 24.");
+    if (!(h > 0) || h > 24) throw new ValidationError(t("Hours: more than 0, at most 24."));
     set.hours = h;
   }
   if (patch.description !== undefined) {
     const d = oneLine(patch.description);
-    if (!d) throw new ValidationError("A description (one line) is needed.");
+    if (!d) throw new ValidationError(t("A description (one line) is needed."));
     set.description = d;
   }
   if (patch.date !== undefined) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(patch.date)) throw new ValidationError("Date: YYYY-MM-DD.");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(patch.date)) throw new ValidationError(t("Date: YYYY-MM-DD."));
     set.date = patch.date;
   }
   if (patch.ticket !== undefined) set.ticket = patch.ticket?.trim().toUpperCase() || null;
@@ -271,9 +274,11 @@ export function skipSuggestion(id: number): void {
 export function acceptSuggestion(id: number, edits: { hours?: number; description?: string } = {}, opts: { context?: boolean } = {}): { entryId: number; hours: number; ticket: string | null; todoIds: number[] } {
   const r = requireOpen(id);
   const job = jobOf(r);
-  if (!job && !r.projectId) throw new ValidationError(r.ticket ? `${r.ticket} has no job — give it (or its board) one on the Jira tab.` : "No job to book on.");
+  if (!job && !r.projectId) {
+    throw new ValidationError(r.ticket ? t("{ticket} has no job — give it (or its board) one on the Jira tab.", { ticket: r.ticket }) : t("No job to book on."));
+  }
   const hours = edits.hours !== undefined ? round2(Number(edits.hours)) : r.hours;
-  if (!(hours > 0) || hours > 24) throw new ValidationError("Hours: more than 0, at most 24.");
+  if (!(hours > 0) || hours > 24) throw new ValidationError(t("Hours: more than 0, at most 24."));
   const description = (edits.description !== undefined ? oneLine(edits.description) : "") || r.description;
   let tags: string[] = [];
   try {

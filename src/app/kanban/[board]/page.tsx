@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { t } from "@/lib/i18n/server";
 import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { OwnBoard } from "@/plugins/kanban/OwnBoard";
 import { providerBoard } from "@/plugins/kanban/providers";
 import { RichBoardView } from "@/plugins/kanban/RichBoardView";
-import { ATTENTION_LABELS, isAttention } from "@/lib/boards/shared";
+import { attentionLabels, isAttention } from "@/lib/boards/shared";
 import type { BoardView, CardLage, CardTodo } from "@/plugins/kanban/shared";
 import { getBoard } from "@/plugins/kanban/store";
 import { isInstalled } from "@/plugins/state";
@@ -20,17 +21,17 @@ async function cardLage(view: BoardView): Promise<Record<string, CardLage>> {
   const { byKey } = lageByTicket();
   const refs = new Set(view.columns.flatMap((x) => x.cards.map((c) => c.ref)));
   const todos = new Map<string, CardTodo[]>();
-  for (const t of listTodos({ status: "all" }))
-    if (t.status !== "dismissed")
-      for (const k of [t.ticket, ...t.alsoTickets].map((x) => x.toUpperCase()).filter((x) => refs.has(x)))
-        todos.set(k, [...(todos.get(k) ?? []), { id: t.id, text: t.text, owner: t.owner, status: t.status === "done" ? "done" : "open", due: t.due }]);
+  for (const todo of listTodos({ status: "all" }))
+    if (todo.status !== "dismissed")
+      for (const k of [todo.ticket, ...todo.alsoTickets].map((x) => x.toUpperCase()).filter((x) => refs.has(x)))
+        todos.set(k, [...(todos.get(k) ?? []), { id: todo.id, text: todo.text, owner: todo.owner, status: todo.status === "done" ? "done" : "open", due: todo.due }]);
   const out: Record<string, CardLage> = {};
   for (const c of view.columns.flatMap((x) => x.cards)) {
     const l = byKey.get(c.ref);
-    const t = todos.get(c.ref) ?? [];
-    if (!l && !t.length) continue;
+    const cardTodos = todos.get(c.ref) ?? [];
+    if (!l && !cardTodos.length) continue;
     const attention = l && isAttention(l.attention) ? l.attention : null;
-    out[c.ref] = { attention, attentionLabel: attention ? ATTENTION_LABELS[attention] : null, lead: l?.lead ?? null, summary: l?.summary ?? null, happened: (l?.happened ?? []).slice(-6), todos: t };
+    out[c.ref] = { attention, attentionLabel: attention ? attentionLabels(t)[attention] : null, lead: l?.lead ?? null, summary: l?.summary ?? null, happened: (l?.happened ?? []).slice(-6), todos: cardTodos };
   }
   return out;
 }

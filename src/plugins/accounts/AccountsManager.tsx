@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { createAccountAction, deleteAccountAction, switchAccountAction, updateAccountAction } from "@/plugins/accounts/server-actions";
 import { startSetupAction } from "@/app/actions";
 import { toast } from "@/components/Toaster";
+import { useT } from "@/components/I18nProvider";
 import { ACCOUNT_DOT, dotOf } from "./AccountSwitcher";
 
 type Row = { id: string; name: string; color: string; createdAt: string; dir: string; current: boolean };
@@ -12,8 +13,9 @@ type Row = { id: string; name: string; color: string; createdAt: string; dir: st
 const COLORS = Object.keys(ACCOUNT_DOT);
 
 function ColorPicker({ value, onChange, disabled }: { value: string; onChange: (c: string) => void; disabled?: boolean }) {
+  const t = useT();
   return (
-    <span className="flex items-center gap-1" role="radiogroup" aria-label="Colour">
+    <span className="flex items-center gap-1" role="radiogroup" aria-label={t("Colour")}>
       {COLORS.map((c) => (
         <button
           key={c}
@@ -32,6 +34,7 @@ function ColorPicker({ value, onChange, disabled }: { value: string; onChange: (
 
 /** The accounts: switch, rename and recolor, remove — and a new one. */
 export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: string | null }) {
+  const t = useT();
   const router = useRouter();
   const [pending, start] = useTransition();
   const [editing, setEditing] = useState<string | null>(null);
@@ -41,7 +44,7 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
   const [made, setMade] = useState<{ id: string; name: string } | null>(null);
 
   const done = (r: { ok: boolean; message?: string; error?: string } | null) => {
-    toast(r?.ok ? (r.message ?? "Done.") : (r?.error ?? "That didn't work."), { tone: r?.ok ? "ok" : "error" });
+    toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("That didn't work.")), { tone: r?.ok ? "ok" : "error" });
     if (r?.ok) router.refresh();
     return !!r?.ok;
   };
@@ -50,7 +53,7 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
     <div className="space-y-6">
       {busy && (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
-          {busy} is running right now — you can switch as soon as it&apos;s finished.
+          {t("{what} is running right now — you can switch as soon as it's finished.", { what: busy })}
         </p>
       )}
       <ul className="grid gap-3 md:grid-cols-2">
@@ -66,15 +69,15 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
                   });
                 }}
               >
-                <input className="input w-full" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} aria-label="Name" autoFocus />
+                <input className="input w-full" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} aria-label={t("Name")} autoFocus />
                 <div className="flex items-center justify-between gap-2">
                   <ColorPicker value={draft.color} onChange={(color) => setDraft({ ...draft, color })} disabled={pending} />
                   <span className="flex gap-2">
                     <button type="button" className="btn btn-sm" onClick={() => setEditing(null)}>
-                      Cancel
+                      {t("Cancel")}
                     </button>
                     <button type="submit" className="btn btn-sm btn-primary" disabled={pending}>
-                      Save
+                      {t("Save")}
                     </button>
                   </span>
                 </div>
@@ -85,7 +88,7 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
                   <h2 className="flex min-w-0 items-center gap-2 font-medium">
                     <span className={`size-2.5 shrink-0 rounded-full ${dotOf(a.color)}`} aria-hidden />
                     <span className="truncate">{a.name}</span>
-                    {a.current && <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[11px] font-medium text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">active</span>}
+                    {a.current && <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[11px] font-medium text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">{t("active")}</span>}
                   </h2>
                   <span className="flex shrink-0 gap-2">
                     {!a.current && (
@@ -93,7 +96,7 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
                         type="button"
                         className="btn btn-sm btn-primary"
                         disabled={pending || !!busy}
-                        title={busy ? `${busy} is running right now` : `Switch to “${a.name}”`}
+                        title={busy ? t("{what} is running right now", { what: busy }) : t("Switch to “{name}”", { name: a.name })}
                         onClick={() =>
                           start(async () => {
                             const r = await switchAccountAction(a.id);
@@ -101,7 +104,7 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
                           })
                         }
                       >
-                        Switch
+                        {t("Switch")}
                       </button>
                     )}
                     <button
@@ -113,7 +116,7 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
                         setEditing(a.id);
                       }}
                     >
-                      Edit
+                      {t("Edit")}
                     </button>
                     {!a.current && a.id !== "default" && (
                       <button
@@ -121,11 +124,11 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
                         className="btn btn-sm text-red-600 dark:text-red-400"
                         disabled={pending}
                         onClick={() => {
-                          if (!confirm(`Remove the account “${a.name}”? Its data is set aside (data\\accounts\\.deleted), not deleted.`)) return;
+                          if (!confirm(t("Remove the account “{name}”? Its data is set aside ({dir}), not deleted.", { name: a.name, dir: "data\\accounts\\.deleted" }))) return;
                           start(async () => void done(await deleteAccountAction(a.id)));
                         }}
                       >
-                        Remove
+                        {t("Remove")}
                       </button>
                     )}
                   </span>
@@ -141,8 +144,8 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
 
       {made && (
         <section className="card max-w-xl space-y-2 border-indigo-200 bg-indigo-50 p-4 text-sm dark:border-indigo-900 dark:bg-indigo-950/40">
-          <p className="font-medium">“{made.name}” has been created.</p>
-          <p className="text-zinc-600 dark:text-zinc-300">The setup assistant walks you through plugins, settings, sign-ins — and at the end fetches all the data and analyses it for the first time.</p>
+          <p className="font-medium">{t("“{name}” has been created.", { name: made.name })}</p>
+          <p className="text-zinc-600 dark:text-zinc-300">{t("The setup assistant walks you through plugins, settings, sign-ins — and at the end fetches all the data and analyses it for the first time.")}</p>
           <div className="flex gap-2">
             <button
               type="button"
@@ -155,10 +158,10 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
                 })
               }
             >
-              Start setup
+              {t("Start setup")}
             </button>
             <button type="button" className="btn btn-sm" onClick={() => setMade(null)}>
-              Later
+              {t("Later")}
             </button>
           </div>
         </section>
@@ -177,40 +180,44 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
           });
         }}
       >
-        <h2 className="font-medium">New account</h2>
+        <h2 className="font-medium">{t("New account")}</h2>
         <label className="block space-y-1 text-sm">
-          <span className="text-zinc-600 dark:text-zinc-300">Name</span>
-          <input className="input w-full" value={fresh.name} onChange={(e) => setFresh({ ...fresh, name: e.target.value })} placeholder="e.g. Private" required />
+          <span className="text-zinc-600 dark:text-zinc-300">{t("Name")}</span>
+          <input className="input w-full" value={fresh.name} onChange={(e) => setFresh({ ...fresh, name: e.target.value })} placeholder={t("e.g. Private")} required />
         </label>
         <div className="space-y-1 text-sm">
-          <span className="text-zinc-600 dark:text-zinc-300">Colour</span>
+          <span className="text-zinc-600 dark:text-zinc-300">{t("Colour")}</span>
           <ColorPicker value={fresh.color} onChange={(color) => setFresh({ ...fresh, color })} disabled={pending} />
         </div>
         <label className="block space-y-1 text-sm">
-          <span className="text-zinc-600 dark:text-zinc-300">Take over settings from</span>
+          <span className="text-zinc-600 dark:text-zinc-300">{t("Take over settings from")}</span>
           <select className="input w-full" value={fresh.copyFrom} onChange={(e) => setFresh({ ...fresh, copyFrom: e.target.value })}>
-            <option value="">— none (empty, default plugins) —</option>
+            <option value="">{t("— none (empty, default plugins) —")}</option>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name}
               </option>
             ))}
           </select>
-          <span className="block text-xs text-zinc-500">Settings, AI backends, LLM instructions, installed plugins, repos, boards, report rules, working hours, calendar connection, menu, sync intervals — no entries, todos or mails.</span>
+          <span className="block text-xs text-zinc-500">
+            {t("Settings, AI backends, LLM instructions, installed plugins, repos, boards, report rules, working hours, calendar connection, menu, sync intervals — no entries, todos or mails.")}
+          </span>
         </label>
         {fresh.copyFrom && (
           <label className="flex items-start gap-2 text-sm">
             <input type="checkbox" className="mt-0.5" checked={fresh.shareChrome} onChange={(e) => setFresh({ ...fresh, shareChrome: e.target.checked })} />
             <span>
-              Share the sign-ins
+              {t("Share the sign-ins")}
               <span className="block text-xs text-zinc-500">
-                The automation Chrome of “{accounts.find((a) => a.id === fresh.copyFrom)?.name}” — everything is already signed in there. Without: a Chrome of its own, where you sign in again.
+                {t("The automation Chrome of “{name}” — everything is already signed in there. Without: a Chrome of its own, where you sign in again.", {
+                  name: accounts.find((a) => a.id === fresh.copyFrom)?.name,
+                })}
               </span>
             </span>
           </label>
         )}
         <button type="submit" className="btn btn-primary" disabled={pending || !fresh.name.trim()}>
-          Create
+          {t("Create")}
         </button>
       </form>
     </div>

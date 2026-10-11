@@ -1,4 +1,5 @@
 import { entityWhoWhen } from "@/lib/entities-shared";
+import { t } from "@/lib/i18n/server";
 import { todoSources } from "./sources";
 import { sourcesOf, type TodoSource, type TodoView } from "./shared";
 
@@ -7,7 +8,7 @@ const DOWN_DAYS = 3;
 
 // When and from whom: the same for every kind of source (Jira, Teams, GitLab, mail).
 const sourceAt = (s: TodoSource) => entityWhoWhen(s).at ?? "";
-const sourceWho = (s: TodoSource) => entityWhoWhen(s).author ?? "someone";
+const sourceWho = (s: TodoSource) => entityWhoWhen(s).author ?? t("someone");
 const time = (at: string) => Date.parse(at && !at.includes("T") ? `${at.replace(" ", "T")}Z` : at);
 
 /**
@@ -15,25 +16,28 @@ const time = (at: string) => Date.parse(at && !at.includes("T") ? `${at.replace(
  * something new in what it came from (a reply, a comment), a note, or it's been down long enough.
  */
 export function deferral(list: TodoView[]): Record<number, { deferred: boolean; bubbledUp?: string }> {
-  const down = list.filter((t) => t.status === "open" && t.deferredAt);
+  const down = list.filter((x) => x.status === "open" && x.deferredAt);
   if (!down.length) return {};
   const sources = todoSources(down, []);
   const out: Record<number, { deferred: boolean; bubbledUp?: string }> = {};
-  for (const t of down) {
-    const since = time(t.deferredAt!);
-    const fresh = sourcesOf(t.refs, sources)
+  for (const todo of down) {
+    const since = time(todo.deferredAt!);
+    const fresh = sourcesOf(todo.refs, sources)
       .filter((s) => time(sourceAt(s)) > since)
       .sort((a, b) => time(sourceAt(b)) - time(sourceAt(a)))[0];
-    const why = t.needsInput
-      ? "an agent asks you"
+    const noteBy = todo.userNotes.findLast((n) => time(n.at) > since)?.by;
+    const why = todo.needsInput
+      ? t("an agent asks you")
       : fresh
-        ? `new from ${sourceWho(fresh)}`
-        : t.userNotes.some((n) => time(n.at) > since)
-          ? `new note${t.userNotes.findLast((n) => time(n.at) > since)?.by ? ` from ${t.userNotes.findLast((n) => time(n.at) > since)!.by}` : ""}`
+        ? t("new from {who}", { who: sourceWho(fresh) })
+        : todo.userNotes.some((n) => time(n.at) > since)
+          ? noteBy
+            ? t("new note from {who}", { who: noteBy })
+            : t("new note")
           : Date.now() - since > DOWN_DAYS * 864e5
-            ? `put down ${DOWN_DAYS} days ago`
+            ? t("put down {n} days ago", { n: DOWN_DAYS })
             : undefined;
-    out[t.id] = why ? { deferred: false, bubbledUp: why } : { deferred: true };
+    out[todo.id] = why ? { deferred: false, bubbledUp: why } : { deferred: true };
   }
   return out;
 }

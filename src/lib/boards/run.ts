@@ -3,6 +3,7 @@ import { ABORTED, throwIfAborted, withAbort } from "@/lib/abort";
 import { inThisAccount } from "@/db/accounts";
 import { AI_PROVIDER_INFO } from "@/lib/ai/shared";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { collectBoard } from "./collect";
 import { BOARD_RESULT_SCHEMA, isAttention, TICKET_ACTION_TYPES, type BoardResult, type BoardTicket } from "./shared";
 import { closeTodosOfDoneTickets, finishRun, getBoardSettings, lastGoodRun, reconcileTodos, startRun } from "./store";
@@ -62,7 +63,7 @@ function cleanResult(r: BoardResult, tickets: BoardTicket[]): BoardResult {
 export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean; message: string } {
   // Kept in the account it was started in — whichever is switched to while it runs.
   return inThisAccount(() => {
-    if (state.__zeffBoardRun) return { ok: false, message: "A briefing run is already running." };
+    if (state.__zeffBoardRun) return { ok: false, message: t("A briefing run is already running.") };
     const s = getBoardSettings();
     const ai = aiChoice();
     const provider = AI_PROVIDER_INFO[ai.provider].label;
@@ -149,7 +150,7 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
         if (stopState.__zeffBoardRunStop === stop) stopState.__zeffBoardRunStop = null;
       }
     });
-    return { ok: true, message: "Briefing started." };
+    return { ok: true, message: t("Briefing started.") };
   });
 }
 

@@ -7,6 +7,8 @@ import { runSyncAction, runSyncAllAction, stopSyncAction, stopSyncAllAction, syn
 import type { SyncOverview, SyncView } from "@/lib/sync/shared";
 import { SyncIcon } from "./icons";
 import { currentLocale, formatAgo, formatTime } from "@/lib/format";
+import { useT } from "./I18nProvider";
+import type { T } from "@/lib/i18n/shared";
 
 /** Now, outside render (the clock isn't a render input). */
 const now = () => Date.now();
@@ -17,13 +19,17 @@ function ago(isoTime: string): string {
 }
 
 /** "in 4 min (14:05)". */
-function until(isoTime: string): string {
+function until(t: T, isoTime: string): string {
   const m = Math.max(0, Math.round((new Date(isoTime).getTime() - now()) / 60000));
   const at = formatTime(isoTime);
-  return m < 1 ? `within a minute (${at})` : m < 120 ? `in ${m} min (${at})` : `at ${new Date(isoTime).toLocaleString(currentLocale(), { weekday: "short", hour: "2-digit", minute: "2-digit" })}`;
+  return m < 1
+    ? t("within a minute ({at})", { at })
+    : m < 120
+      ? t("in {m} min ({at})", { m, at })
+      : t("at {when}", { when: new Date(isoTime).toLocaleString(currentLocale(), { weekday: "short", hour: "2-digit", minute: "2-digit" }) });
 }
 
-const every = (min: number) => (min % 60 === 0 ? `every ${min / 60} h` : `every ${min} min`);
+const every = (t: T, min: number) => (min % 60 === 0 ? t("every {n} h", { n: min / 60 }) : t("every {n} min", { n: min }));
 
 /** A ring filling up from the last run toward the next one by itself. */
 function NextRing({ s }: { s: SyncView }) {
@@ -42,10 +48,13 @@ function NextRing({ s }: { s: SyncView }) {
 
 /** The ring (or a spinner while it runs, a dashed circle when only by hand) — its tooltip says when. */
 function StepMark({ s }: { s: SyncView }) {
-  if (s.running) return <span className="block size-[18px] animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" aria-label="Syncing" />;
+  const t = useT();
+  if (s.running) return <span className="block size-[18px] animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" aria-label={t("Syncing")} />;
   if (!s.everyMinutes || !s.nextAt)
-    return <span className="block size-[18px] rounded-full border-2 border-dashed border-zinc-300 dark:border-zinc-600" title="Only by hand" aria-label="Only by hand" />;
-  const label = `Runs ${every(s.everyMinutes)}${s.window ? ` (${s.window})` : ""} — next ${until(s.nextAt)}`;
+    return <span className="block size-[18px] rounded-full border-2 border-dashed border-zinc-300 dark:border-zinc-600" title={t("Only by hand")} aria-label={t("Only by hand")} />;
+  const label = s.window
+    ? t("Runs {every} ({window}) — next {next}", { every: every(t, s.everyMinutes), window: s.window, next: until(t, s.nextAt) })
+    : t("Runs {every} — next {next}", { every: every(t, s.everyMinutes), next: until(t, s.nextAt) });
   return (
     <span title={label} aria-label={label}>
       <NextRing s={s} />
@@ -55,6 +64,7 @@ function StepMark({ s }: { s: SyncView }) {
 
 /** One step in a sync list: its mark, name (to its page), how it last went, a button to run it now. */
 export function SyncStepRow({ s, disabled, onRun, onStop, onNavigate, running = s.running }: { s: SyncView; disabled?: boolean; onRun: () => void; onStop?: () => void; onNavigate?: () => void; running?: boolean }) {
+  const t = useT();
   return (
     <li className="flex items-center gap-2.5 px-3 py-2">
       <span className="shrink-0">
@@ -66,25 +76,25 @@ export function SyncStepRow({ s, disabled, onRun, onStop, onNavigate, running = 
         </Link>
         <div className="truncate text-xs text-zinc-500" title={s.lastMessage ?? undefined}>
           {running ? (
-            "syncing…"
+            t("syncing…")
           ) : s.lastAt ? (
             <>
               {s.lastOk === false ? <span className="text-red-600 dark:text-red-400">✗</span> : <span className="text-emerald-600 dark:text-emerald-400">✓</span>} {ago(s.lastAt)}
               {s.lastMessage ? ` · ${s.lastMessage}` : ""}
             </>
           ) : (
-            "not synced yet"
+            t("not synced yet")
           )}
         </div>
       </div>
       {running && onStop ? (
-        <button type="button" className="icon-btn text-red-600 dark:text-red-400" onClick={onStop} title={`Cancel ${s.label} — what it started ends with it`} aria-label={`Cancel ${s.label}`}>
+        <button type="button" className="icon-btn text-red-600 dark:text-red-400" onClick={onStop} title={t("Cancel {step} — what it started ends with it", { step: s.label })} aria-label={t("Cancel {step}", { step: s.label })}>
           <svg viewBox="0 0 20 20" className="size-4" fill="currentColor" aria-hidden>
             <rect x="5" y="5" width="10" height="10" rx="1.5" />
           </svg>
         </button>
       ) : (
-        <button type="button" className="icon-btn" disabled={running || disabled} onClick={onRun} title={`${s.label} now — ${s.what}`} aria-label={`${s.label} now`}>
+        <button type="button" className="icon-btn" disabled={running || disabled} onClick={onRun} title={t("{step} now — {what}", { step: s.label, what: s.what })} aria-label={t("{step} now", { step: s.label })}>
           <SyncIcon />
         </button>
       )}
@@ -99,6 +109,7 @@ export function SyncStepRow({ s, disabled, onRun, onStop, onNavigate, running = 
  * what a sync brought once it's done.
  */
 export function SyncMenu() {
+  const t = useT();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<SyncOverview | null>(null);
@@ -122,10 +133,10 @@ export function SyncMenu() {
       }
     };
     void poll();
-    const t = setInterval(poll, open || running ? 2000 : 30000);
+    const timer = setInterval(poll, open || running ? 2000 : 30000);
     return () => {
       alive = false;
-      clearInterval(t);
+      clearInterval(timer);
     };
   }, [open, running]);
 
@@ -138,7 +149,7 @@ export function SyncMenu() {
   // While open: the rings move on; a click outside or Escape closes.
   useEffect(() => {
     if (!open) return;
-    const clock = setInterval(() => setTick((t) => t + 1), 15000);
+    const clock = setInterval(() => setTick((n) => n + 1), 15000);
     const onDown = (e: MouseEvent) => {
       if (!root.current?.contains(e.target as Node)) setOpen(false);
     };
@@ -158,7 +169,7 @@ export function SyncMenu() {
     start(async () => {
       setError(null);
       const r = await fn();
-      if (r && r.ok === false) setError(r.error ?? "Couldn't start.");
+      if (r && r.ok === false) setError(r.error ?? t("Couldn't start."));
       setData(await syncOverviewAction());
     });
 
@@ -171,26 +182,28 @@ export function SyncMenu() {
         aria-expanded={open}
         aria-controls="sync-menu"
         onClick={() => setOpen(!open)}
-        title={running ? "Syncing…" : failed ? "Sync — one failed last time" : "Sync"}
+        title={running ? t("Syncing…") : failed ? t("Sync — one failed last time") : t("Sync")}
       >
         <SyncIcon className={`size-5 ${running ? "animate-spin [animation-duration:1.5s]" : ""}`} />
-        <span className="hidden sm:inline">Sync</span>
+        <span className="hidden sm:inline">{t("Sync")}</span>
         {failed && <span className="absolute top-1.5 right-1 size-1.5 rounded-full bg-red-500" aria-hidden />}
       </button>
       {open && (
         <div id="sync-menu" className="absolute right-0 z-50 mt-2 w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
           <div className="flex items-center justify-between gap-3 border-b border-zinc-200 px-3 py-2.5 dark:border-zinc-800">
             {data?.all.running ? (
-              <button type="button" className="btn btn-sm text-red-600 dark:text-red-400" onClick={() => go(stopSyncAllAction)} title="Cancel the running step and start no more">
-                <SyncIcon className="size-4 animate-spin" /> Stop
+              <button type="button" className="btn btn-sm text-red-600 dark:text-red-400" onClick={() => go(stopSyncAllAction)} title={t("Cancel the running step and start no more")}>
+                <SyncIcon className="size-4 animate-spin" /> {t("Stop")}
               </button>
             ) : (
               <button type="button" className="btn btn-primary btn-sm" disabled={!data} onClick={() => go(runSyncAllAction)}>
-                <SyncIcon className="size-4" /> Sync all
+                <SyncIcon className="size-4" /> {t("Sync all")}
               </button>
             )}
             <span className="truncate text-xs text-zinc-500">
-              {data?.all.running ? `Syncing all — ${data.steps.find((s) => s.key === data.all.step)?.label ?? "…"}` : "One after the other, the briefing last"}
+              {data?.all.running
+                ? t("Syncing all — {step}", { step: data.steps.find((s) => s.key === data.all.step)?.label ?? "…" })
+                : t("One after the other, the briefing last")}
             </span>
           </div>
           {error && <p className="border-b border-zinc-200 px-3 py-2 text-xs text-red-600 dark:border-zinc-800 dark:text-red-400">{error}</p>}
@@ -198,14 +211,14 @@ export function SyncMenu() {
             {(data?.steps ?? []).map((s) => (
               <SyncStepRow key={s.key} s={s} disabled={!!data?.all.running} onRun={() => go(() => runSyncAction(s.key))} onStop={() => go(() => stopSyncAction(s.key))} onNavigate={() => setOpen(false)} />
             ))}
-            {!data && <li className="px-3 py-3 text-sm text-zinc-500">Loading…</li>}
+            {!data && <li className="px-3 py-3 text-sm text-zinc-500">{t("Loading…")}</li>}
           </ul>
           <div className="flex justify-between gap-3 border-t border-zinc-200 px-3 py-2 text-xs dark:border-zinc-800">
             <Link href="/sync-settings" className="text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setOpen(false)}>
-              Set intervals
+              {t("Set intervals")}
             </Link>
             <Link href="/logins" className="text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setOpen(false)}>
-              Sign-ins
+              {t("Sign-ins")}
             </Link>
           </div>
         </div>

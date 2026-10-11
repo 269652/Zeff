@@ -4,6 +4,7 @@ import { commentsOfTickets } from "@/lib/jira/comments";
 import { getJiraTicket, myJiraName } from "@/lib/jira/store";
 import { gitlabItemsByKeys } from "@/lib/gitlab/store";
 import { listRepos } from "@/lib/repos";
+import { t } from "@/lib/i18n/server";
 import { todoLinks } from "./links";
 import { relatedNotes } from "./related-notes";
 import { deferral } from "./deferral";
@@ -77,14 +78,14 @@ export function todoAlternatives(
       .map((r) => `${r.parentId}|${r.text}`),
   );
   const out: Record<number, TodoAlternative[]> = {};
-  for (const t of open) {
+  for (const todo of open) {
     const alts: TodoAlternative[] = [];
-    for (const o of t.ops) {
+    for (const o of todo.ops) {
       if (o.type === "jira-comment") {
         const names = [
           ...new Set([
             ...(authors.get(o.ticket.toUpperCase()) ?? []).map((c) => c.author),
-            ...namesIn(`${t.text} ${o.body}`),
+            ...namesIn(`${todo.text} ${o.body}`),
           ]),
         ];
         for (const user of new Set(
@@ -93,7 +94,7 @@ export function todoAlternatives(
           const name = names.find((n) => isUserOf(user, n));
           if (me && name && plainName(name) === plainName(me)) continue;
           if (
-            t.ops.some(
+            todo.ops.some(
               (x) =>
                 x.type === "jira-assign" &&
                 x.ticket === o.ticket &&
@@ -103,12 +104,12 @@ export function todoAlternatives(
             continue;
           const who = name ?? user;
           const title = `${o.ticket} ${name ?? user} zuweisen`;
-          if (made.has(`${t.id}|${title}`)) continue;
+          if (made.has(`${todo.id}|${title}`)) continue;
           const assignee = getJiraTicket(o.ticket)?.assignee;
           if (assignee && name && plainName(assignee) === plainName(name))
             continue;
           alts.push({
-            label: `${who.split(" ")[0]} zuweisen`,
+            label: t("Assign {name}", { name: who.split(" ")[0] }),
             title,
             ops: [{ type: "jira-assign", ticket: o.ticket, assignee: user }],
             also: true,
@@ -118,18 +119,20 @@ export function todoAlternatives(
     }
     // A delivery: the other way, whole — merge into main instead of the merge request, or the
     // merge request instead of merging (the commit, when there's one, first either way).
-    const commit = t.ops.find((o) => o.type === "git-commit-branch");
-    const push = t.ops.find((o) => o.type === "git-push");
-    const mr = t.ops.find((o) => o.type === "gitlab-open-mr");
-    const merge = t.ops.find((o) => o.type === "git-merge-main");
+    const commit = todo.ops.find((o) => o.type === "git-commit-branch");
+    const push = todo.ops.find((o) => o.type === "git-push");
+    const mr = todo.ops.find((o) => o.type === "gitlab-open-mr");
+    const merge = todo.ops.find((o) => o.type === "git-merge-main");
     const repo = commit?.repo ?? push?.repo ?? mr?.repo ?? merge?.repo;
     if (repo && (push || mr) && !merge) {
       const target = (mr ?? push)!.target;
       const branch = commit ? commit.branch : push ? push.branch : `origin/${mr!.source}`;
       const name = branch.replace(/^origin\//, "");
       alts.push({
-        label: `Merge into ${target}`,
-        title: `Instead of a merge request: ${commit ? "commit, then " : ""}merge ${name} straight into ${target} (in a worktree of its own) and push`,
+        label: t("Merge into {target}", { target }),
+        title: commit
+          ? t("Instead of a merge request: commit, then merge {name} straight into {target} (in a worktree of its own) and push", { name, target })
+          : t("Instead of a merge request: merge {name} straight into {target} (in a worktree of its own) and push", { name, target }),
         ops: [...(commit ? [commit] : []), { type: "git-merge-main", repo, branch, target }],
         text: `Merge ${name} into ${target} and push`,
       });
@@ -139,8 +142,13 @@ export function todoAlternatives(
       if (project && name !== merge.target) {
         const local = !!commit || !merge.branch.startsWith("origin/");
         alts.push({
-          label: "Open MR",
-          title: `Instead of merging straight away: ${commit ? "commit, " : ""}${local ? "push, " : ""}open merge request ${name} → ${merge.target}`,
+          label: t("Open MR"),
+          // (A commit is local: pushed too.)
+          title: commit
+            ? t("Instead of merging straight away: commit, push, open merge request {name} → {target}", { name, target: merge.target })
+            : local
+              ? t("Instead of merging straight away: push, open merge request {name} → {target}", { name, target: merge.target })
+              : t("Instead of merging straight away: open merge request {name} → {target}", { name, target: merge.target }),
           ops: [
             ...(commit ? [commit] : []),
             ...(local ? [{ type: "git-push" as const, repo: merge.repo, branch: name, remote: name, target: merge.target, title: commit?.message ?? name, description: "" }] : []),
@@ -150,7 +158,7 @@ export function todoAlternatives(
         });
       }
     }
-    if (alts.length) out[t.id] = alts;
+    if (alts.length) out[todo.id] = alts;
   }
   return out;
 }
@@ -160,15 +168,16 @@ export function todoAlternatives(
  * request that isn't approved (or is merged or closed already). No AI — the MR's state.
  */
 export function blockedBy(list: TodoView[]): Record<number, string> {
-  const merges = list.flatMap((t) => (t.status === "open" ? t.ops.flatMap((o) => (o.type === "gitlab-merge" ? [{ t, key: `mr:${o.project}!${o.iid}`, iid: o.iid }] : [])) : []));
+  const merges = list.flatMap((todo) => (todo.status === "open" ? todo.ops.flatMap((o) => (o.type === "gitlab-merge" ? [{ todo, key: `mr:${o.project}!${o.iid}`, iid: o.iid }] : [])) : []));
   if (!merges.length) return {};
   const items = gitlabItemsByKeys(merges.map((m) => m.key));
   const out: Record<number, string> = {};
   for (const m of merges) {
     const state = items.get(m.key)?.state ?? "";
-    if (/merged/.test(state)) out[m.t.id] = `!${m.iid} is merged already`;
-    else if (/closed/.test(state)) out[m.t.id] = `!${m.iid} is closed`;
-    else if (!/approved/.test(state)) out[m.t.id] = `!${m.iid} isn't approved yet${state ? "" : " (unknown to the GitLab sync)"}`;
+    if (/merged/.test(state)) out[m.todo.id] = t("!{iid} is merged already", { iid: m.iid });
+    else if (/closed/.test(state)) out[m.todo.id] = t("!{iid} is closed", { iid: m.iid });
+    else if (!/approved/.test(state))
+      out[m.todo.id] = state ? t("!{iid} isn't approved yet", { iid: m.iid }) : t("!{iid} isn't approved yet (unknown to the GitLab sync)", { iid: m.iid });
   }
   return out;
 }

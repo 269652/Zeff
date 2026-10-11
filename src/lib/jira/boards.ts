@@ -1,4 +1,5 @@
 import { getDb, schema } from "@/db";
+import { t } from "@/lib/i18n/server";
 import { runStdioSession, resultToPayload, type McpStdioConfig } from "./mcp-client";
 import { assignTicketBoards, enabledBoardIds, setBoardMemberCount, upsertBoards, type BoardInput } from "./store";
 import { getJiraSyncConfig } from "./sync";
@@ -53,10 +54,10 @@ function chunk<T>(arr: T[], size: number): T[][] {
 export async function syncBoardsFromJira(): Promise<BoardSyncResult> {
   const cfg = getJiraSyncConfig();
   if (!cfg.configured || !cfg.command) {
-    throw new Error("Jira MCP sync is not configured. Set it up on the Jira tab first (same server as ticket sync).");
+    throw new Error(t("Jira MCP sync is not configured. Set it up on the Jira tab first (same server as ticket sync)."));
   }
   const byProject = ticketKeysByProject();
-  if (byProject.size === 0) throw new Error("No synced tickets yet — sync tickets first, then sync boards.");
+  if (byProject.size === 0) throw new Error(t("No synced tickets yet — sync tickets first, then sync boards."));
 
   const config: McpStdioConfig = { command: cfg.command, args: cfg.args, env: cfg.env, label: "Jira MCP" };
   const knownBefore = new Set(getDb().select({ id: schema.jiraBoards.id }).from(schema.jiraBoards).all().map((r) => r.id));

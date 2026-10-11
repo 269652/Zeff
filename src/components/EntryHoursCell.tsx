@@ -3,6 +3,7 @@
 import { useOptimistic, useState, useTransition } from "react";
 import { updateEntryHoursAction } from "@/app/actions";
 import { formatHours } from "@/lib/format";
+import { useT } from "./I18nProvider";
 
 const STEP = 0.25;
 
@@ -12,6 +13,7 @@ const STEP = 0.25;
  * −/+ (or ↓/↑) step by a quarter hour.
  */
 export function EntryHoursCell({ entryId, hours }: { entryId: number; hours: number }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +47,7 @@ export function EntryHoursCell({ entryId, hours }: { entryId: number; hours: num
       className="btn btn-sm px-2 py-0.5"
       onMouseDown={(e) => e.preventDefault()}
       onClick={() => step(dir)}
-      aria-label={dir > 0 ? "Add a quarter hour" : "Remove a quarter hour"}
+      aria-label={dir > 0 ? t("Add a quarter hour") : t("Remove a quarter hour")}
       title={dir > 0 ? "+0.25 h" : "−0.25 h"}
     >
       {dir > 0 ? "+" : "−"}
@@ -55,7 +57,7 @@ export function EntryHoursCell({ entryId, hours }: { entryId: number; hours: num
   function save() {
     const value = Number(draft.trim().replace(",", "."));
     if (!draft.trim() || !Number.isFinite(value)) {
-      setError("Enter hours as a number, e.g. 1.5");
+      setError(t("Enter hours as a number, e.g. 1.5"));
       return;
     }
     setEditing(false);
@@ -65,7 +67,7 @@ export function EntryHoursCell({ entryId, hours }: { entryId: number; hours: num
       const r = await updateEntryHoursAction(entryId, value);
       if (!r?.ok) {
         setDraft(String(value));
-        setError(r?.error ?? "Could not save.");
+        setError(r?.error ?? t("Could not save."));
         setEditing(true);
       }
     });
@@ -99,7 +101,7 @@ export function EntryHoursCell({ entryId, hours }: { entryId: number; hours: num
               }
             }}
             onBlur={cancel}
-            aria-label="Hours"
+            aria-label={t("Hours")}
             aria-invalid={!!error}
           />
           {stepButton(1)}
@@ -114,7 +116,7 @@ export function EntryHoursCell({ entryId, hours }: { entryId: number; hours: num
       type="button"
       onClick={begin}
       className={`-mx-1 cursor-text rounded px-1 tabular-nums hover:bg-zinc-100 dark:hover:bg-zinc-800 ${pending ? "opacity-60" : ""}`}
-      title="Click to edit · Enter saves · Esc cancels"
+      title={t("Click to edit · Enter saves · Esc cancels")}
     >
       {formatHours(shown)}
     </button>

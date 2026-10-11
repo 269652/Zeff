@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useT } from "@/components/I18nProvider";
 import { pollDeviceCodeAction, startDeviceCodeAction, type DeviceCodeInfo } from "@/plugins/outlook-calendar/server-actions";
 
 type Phase = "idle" | "starting" | "waiting" | "done" | "error";
 
 export function DeviceCodeConnect() {
+  const t = useT();
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("idle");
   const [info, setInfo] = useState<DeviceCodeInfo | null>(null);
@@ -46,12 +48,12 @@ export function DeviceCodeConnect() {
       }
       if (poll.status === "expired") {
         setPhase("error");
-        setError("The code expired before sign-in completed. Please try again.");
+        setError(t("The code expired before sign-in completed. Please try again."));
         return;
       }
       if (poll.status === "error") {
         setPhase("error");
-        setError(poll.message ?? "Sign-in failed.");
+        setError(poll.message ?? t("Sign-in failed."));
         return;
       }
       // "pending" → keep polling
@@ -62,41 +64,40 @@ export function DeviceCodeConnect() {
     return (
       <div className="space-y-3">
         <p className="text-sm">
-          A Microsoft sign-in page should have opened. Enter this code there, sign in, and allow
-          read access to your calendar:
+          {t("A Microsoft sign-in page should have opened. Enter this code there, sign in, and allow read access to your calendar:")}
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <span className="rounded-lg border border-zinc-300 bg-zinc-50 px-4 py-2 font-mono text-2xl tracking-[0.3em] dark:border-zinc-700 dark:bg-zinc-950">
             {info.userCode}
           </span>
           <a className="btn" href={info.verificationUri} target="_blank" rel="noreferrer">
-            Open sign-in page
+            {t("Open sign-in page")}
           </a>
           <button
             type="button"
             className="btn btn-sm"
             onClick={() => navigator.clipboard?.writeText(info.userCode)}
           >
-            Copy code
+            {t("Copy code")}
           </button>
         </div>
         <p className="flex items-center gap-2 text-sm text-zinc-500">
           <span className="inline-block size-2 animate-pulse rounded-full bg-indigo-500" />
-          Waiting for you to finish signing in…
+          {t("Waiting for you to finish signing in…")}
         </p>
       </div>
     );
   }
 
   if (phase === "done") {
-    return <p className="alert-ok">Connected. Loading your calendar…</p>;
+    return <p className="alert-ok">{t("Connected. Loading your calendar…")}</p>;
   }
 
   return (
     <div className="space-y-3">
       {phase === "error" && <p className="alert-error whitespace-pre-line">{error}</p>}
       <button type="button" className="btn btn-primary" onClick={start} disabled={phase === "starting"}>
-        {phase === "starting" ? "Preparing…" : phase === "error" ? "Try again" : "Connect Outlook"}
+        {phase === "starting" ? t("Preparing…") : phase === "error" ? t("Try again") : t("Connect Outlook")}
       </button>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { ActionState } from "@/app/action-helpers";
+import { useT } from "@/components/I18nProvider";
 
 /**
  * "Erledigt" for something a colleague wrote (a Jira comment, a Teams message): marked, the Ticket-Lage
@@ -19,6 +20,7 @@ export function ResolveToggle({
   /** What hovering says, done and not (by default: about Ticket-Lage runs). */
   hint?: { done: string; open: string };
 }) {
+  const t = useT();
   const [value, setValue] = useState(done);
   const [from, setFrom] = useState(done);
   if (from !== done) {
@@ -46,11 +48,11 @@ export function ResolveToggle({
       } ${className}`}
       title={
         value
-          ? (hint?.done ?? "Done — the briefing makes no new todos from it. Click: reopen.")
-          : (hint?.open ?? "Mark as done — the briefing then makes no new todos from it")
+          ? (hint?.done ?? t("Done — the briefing makes no new todos from it. Click: reopen."))
+          : (hint?.open ?? t("Mark as done — the briefing then makes no new todos from it"))
       }
     >
-      {value ? "✓ done" : "done?"}
+      {value ? `✓ ${t("done")}` : t("done?")}
     </button>
   );
 }

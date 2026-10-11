@@ -4,7 +4,7 @@ import Link from "next/link";
 import { startTransition, useState, type ReactNode } from "react";
 import { deleteContextAction, unlinkContextAction, updateContextAction } from "@/app/actions";
 import {
-  CONTEXT_KIND_LABELS,
+  contextKindLabels,
   contextHeadline,
   inlineFileIds,
   itemSource,
@@ -14,7 +14,9 @@ import {
   type ContextItem,
 } from "@/lib/contexts-shared";
 import type { TicketCard } from "@/lib/jira/ticket-card-shared";
-import { formatHours } from "@/lib/format";
+import { formatDate, formatHours } from "@/lib/format";
+import { useT } from "@/components/I18nProvider";
+import type { T } from "@/lib/i18n/shared";
 import { ContextForm } from "./ContextForm";
 import { CONTEXT_KIND_STYLE } from "./contextKindStyle";
 import { ContextSyncButton } from "./ContextSyncButton";
@@ -28,9 +30,9 @@ import { formatDateTime } from "@/lib/format";
 
 const KIND_STYLE = CONTEXT_KIND_STYLE;
 
-const day = (iso: string | null) => (iso ? `${Number(iso.slice(8, 10))}.${Number(iso.slice(5, 7))}.${iso.slice(0, 4)}` : null);
+const day = (iso: string | null) => (iso ? formatDate(iso.slice(0, 10), { weekday: false, year: true }) : null);
 const size = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
-const entries = (n: number) => `${n} ${n === 1 ? "entry" : "entries"}`;
+const entries = (t: T, n: number) => (n === 1 ? t("1 entry") : t("{n} entries", { n }));
 
 /** A ticket key as a chip (a link to Jira, with its hover card). */
 const TICKET_CHIP =
@@ -41,6 +43,7 @@ const TICKET_CHIP =
  * a Sync button, amber when it changed since. `short`: the ticket is shown beside it.
  */
 function JiraState({ item, ticketUrl, short = false }: { item: ContextItem; ticketUrl?: string | null; short?: boolean }) {
+  const t = useT();
   const state = jiraSyncState(item);
   if (state === "no-ticket") return null;
   const at = item.jiraSyncedAt ? formatDateTime(item.jiraSyncedAt) : "";
@@ -49,33 +52,38 @@ function JiraState({ item, ticketUrl, short = false }: { item: ContextItem; tick
       <ContextSyncButton
         ids={[item.id]}
         tickets={[item.ticket!]}
-        label="Sync"
+        label={t("Sync")}
         small
         changed={state === "changed"}
-        title={state === "changed" ? `Changed since it was posted to ${item.ticket} (${at}) — update the comment` : `Not on ${item.ticket} yet — post it there as a comment`}
+        title={
+          state === "changed"
+            ? t("Changed since it was posted to {ticket} ({at}) — update the comment", { ticket: item.ticket, at })
+            : t("Not on {ticket} yet — post it there as a comment", { ticket: item.ticket })
+        }
       />
     );
   }
-  const text = short ? "✓ synced" : `✓ on ${item.ticket}`;
+  const text = short ? `✓ ${t("synced")}` : `✓ ${t("on {ticket}", { ticket: item.ticket })}`;
   const cls = "rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200";
   const id = item.jiraCommentId;
   if (id && ticketUrl) {
     const href = `${ticketUrl}?focusedCommentId=${encodeURIComponent(id)}&page=com.atlassian.jira.plugin.system.issuetabpanels%3Acomment-tabpanel#comment-${encodeURIComponent(id)}`;
     return (
-      <a href={href} target="_blank" rel="noreferrer" className={`${cls} hover:underline`} title={`Posted to ${item.ticket} (${at}) — open the comment in Jira`}>
+      <a href={href} target="_blank" rel="noreferrer" className={`${cls} hover:underline`} title={t("Posted to {ticket} ({at}) — open the comment in Jira", { ticket: item.ticket, at })}>
         {text} ↗
       </a>
     );
   }
   return (
-    <span className={cls} title={`Posted to ${item.ticket} (${at})`}>
+    <span className={cls} title={t("Posted to {ticket} ({at})", { ticket: item.ticket, at })}>
       {text}
     </span>
   );
 }
 
 /** On an entry: take it off (×) — it stays in the Context tab. In the Context tab: delete it everywhere. */
-function RemoveButton({ item, entryId, what }: { item: ContextItem; entryId?: number; what: string }) {
+function RemoveButton({ item, entryId, headline }: { item: ContextItem; entryId?: number; headline?: string }) {
+  const t = useT();
   if (entryId !== undefined) {
     return (
       <button
@@ -87,8 +95,8 @@ function RemoveButton({ item, entryId, what }: { item: ContextItem; entryId?: nu
           fd.set("contextId", String(item.id));
           startTransition(() => unlinkContextAction(fd));
         }}
-        title="Remove it from this entry (it stays in the Context tab)"
-        aria-label="Remove it from this entry"
+        title={t("Remove it from this entry (it stays in the Context tab)")}
+        aria-label={t("Remove it from this entry")}
       >
         ×
       </button>
@@ -99,13 +107,22 @@ function RemoveButton({ item, entryId, what }: { item: ContextItem; entryId?: nu
       type="button"
       className="icon-btn icon-btn-danger"
       onClick={() => {
-        if (!confirm(`Delete ${what} everywhere${item.entries.length ? ` (it's on ${entries(item.entries.length)})` : ""}?`)) return;
+        const on = item.entries.length ? entries(t, item.entries.length) : null;
+        const question =
+          headline === undefined
+            ? on
+              ? t("Delete it everywhere (it's on {entries})?", { entries: on })
+              : t("Delete it everywhere?")
+            : on
+              ? t("Delete “{what}” everywhere (it's on {entries})?", { what: headline, entries: on })
+              : t("Delete “{what}” everywhere?", { what: headline });
+        if (!confirm(question)) return;
         const fd = new FormData();
         fd.set("id", String(item.id));
         startTransition(() => deleteContextAction(fd));
       }}
-      title="Delete it everywhere"
-      aria-label="Delete it everywhere"
+      title={t("Delete it everywhere")}
+      aria-label={t("Delete it everywhere")}
     >
       <TrashIcon />
     </button>
@@ -143,12 +160,13 @@ export function ContextCard({
   /** A source row in a list that can be reordered: its grip and drop target (useReorder). */
   reorder?: ReorderRow;
 }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [open, setOpen] = useState(false);
   // A source row: its badge unfolded into the whole message / item.
   const [expanded, setExpanded] = useState(false);
   const ticket = item.ticket ? tickets[item.ticket.toUpperCase()] : undefined;
-  const headline = contextHeadline(item);
+  const headline = contextHeadline(item, t);
   const body = item.body.trim();
   const showBody = !!body && body !== item.title?.trim();
   const inline = inlineFileIds(body);
@@ -168,7 +186,7 @@ export function ContextCard({
           action={updateContextAction.bind(null, item.id)}
           defaults={item}
           files={item.files}
-          submitLabel="Save"
+          submitLabel={t("Save")}
           onDone={() => setEditing(false)}
           sources={false}
         />
@@ -189,7 +207,7 @@ export function ContextCard({
           <SourceBadge entity={source} expanded={expanded} onToggle={() => setExpanded(!expanded)} className="min-w-0 flex-1" />
           {plain.map((l) => (
             <a key={l.url} href={l.url} target="_blank" rel="noreferrer" className={`shrink-0 rounded px-1.5 py-0.5 text-xs hover:underline ${KIND_STYLE[kindOfUrl(l.url) ?? "note"]}`} title={l.url}>
-              {linkLabel(l)} ↗
+              {linkLabel(l, t)} ↗
             </a>
           ))}
         </div>
@@ -197,14 +215,16 @@ export function ContextCard({
         <div className="hidden text-xs whitespace-nowrap text-zinc-500 sm:block">
           {others.length > 0 && (
             <span title={others.map((e) => `${day(e.date)} · ${e.description}`).join("\n")}>
-              {entryId !== undefined ? "also on" : "on"} {entries(others.length)}
+              {entryId !== undefined
+                ? t("also on {entries}", { entries: entries(t, others.length) })
+                : t("on {entries}", { entries: entries(t, others.length) })}
             </span>
           )}
         </div>
         <div>
           <JiraState item={item} ticketUrl={ticket?.url} short={onTicket} />
         </div>
-        <RemoveButton item={item} entryId={entryId} what="it" />
+        <RemoveButton item={item} entryId={entryId} />
         {expanded && (
           <div className="col-span-full">
             <SourceDetails entity={source} />
@@ -217,7 +237,7 @@ export function ContextCard({
   return (
     <article className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
       <header className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500">
-        <span className={`rounded px-1.5 py-0.5 font-medium ${KIND_STYLE[item.kind]}`}>{CONTEXT_KIND_LABELS[item.kind]}</span>
+        <span className={`rounded px-1.5 py-0.5 font-medium ${KIND_STYLE[item.kind]}`}>{contextKindLabels(t)[item.kind]}</span>
         {item.author && <span className="font-medium text-zinc-700 dark:text-zinc-200">{item.author}</span>}
         {item.date && <span>{day(item.date)}</span>}
         {item.ticket && (
@@ -233,10 +253,10 @@ export function ContextCard({
         )}
         <span className="ml-auto flex items-center gap-1">
           <JiraState item={item} ticketUrl={ticket?.url} short />
-          <button type="button" className="icon-btn" onClick={() => setEditing(true)} title="Edit" aria-label="Edit">
+          <button type="button" className="icon-btn" onClick={() => setEditing(true)} title={t("Edit")} aria-label={t("Edit")}>
             <PencilIcon />
           </button>
-          <RemoveButton item={item} entryId={entryId} what={`“${headline}”`} />
+          <RemoveButton item={item} entryId={entryId} headline={headline} />
         </span>
       </header>
 
@@ -252,7 +272,7 @@ export function ContextCard({
           </div>
           {long && (
             <button type="button" className="mt-0.5 text-xs text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setOpen(!open)}>
-              {open ? "Show less" : "Show more"}
+              {open ? t("Show less") : t("Show more")}
             </button>
           )}
         </div>
@@ -279,7 +299,7 @@ export function ContextCard({
                   className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs hover:underline ${KIND_STYLE[kind ?? "note"]}`}
                   title={l.url}
                 >
-                  {linkLabel(l)} ↗
+                  {linkLabel(l, t)} ↗
                 </a>
               </li>
             );
@@ -311,7 +331,7 @@ export function ContextCard({
 
       {others.length > 0 && (
         <div className="mt-2 text-xs text-zinc-500">
-          {entryId !== undefined ? "Also on " : "On "}
+          {entryId !== undefined ? t("Also on") : t("On")}{" "}
           {others.slice(0, 6).map((e, i) => (
             <span key={e.id}>
               {i > 0 && ", "}
@@ -320,7 +340,7 @@ export function ContextCard({
               </Link>
             </span>
           ))}
-          {others.length > 6 && ` and ${others.length - 6} more`}
+          {others.length > 6 && ` ${t("and {n} more", { n: others.length - 6 })}`}
         </div>
       )}
     </article>

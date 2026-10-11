@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useT } from "@/components/I18nProvider";
 
 /**
  * Renders a draggable bookmarklet link. React strips `javascript:` hrefs, so we
@@ -15,6 +16,7 @@ export function BookmarkletButton({
   label: string;
   className?: string;
 }) {
+  const t = useT();
   const ref = useRef<HTMLAnchorElement>(null);
   useEffect(() => {
     if (ref.current) ref.current.setAttribute("href", href);
@@ -25,7 +27,7 @@ export function BookmarkletButton({
       className={className}
       draggable
       onClick={(e) => e.preventDefault()}
-      title="Drag me to your bookmarks bar"
+      title={t("Drag me to your bookmarks bar")}
     >
       {label}
     </a>

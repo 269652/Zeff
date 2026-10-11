@@ -1,3 +1,5 @@
+import { t } from "@/lib/i18n/server";
+
 /** While a page loads (a tab switched): at once, in the middle of where it will be, a calm sign that it's coming. */
 export default function Loading() {
   return (
@@ -6,7 +8,7 @@ export default function Loading() {
         <circle cx="24" cy="24" r="20" fill="none" stroke="currentColor" strokeWidth="4" className="opacity-15" />
         <circle cx="24" cy="24" r="20" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeDasharray="40 126" />
       </svg>
-      <span className="text-xs font-medium tracking-wide text-zinc-400 uppercase">Loading</span>
+      <span className="text-xs font-medium tracking-wide text-zinc-400 uppercase">{t("Loading")}</span>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { bookFlexTimeAction } from "@/app/actions";
 import { formatHours, round2 } from "@/lib/format";
+import { useT } from "@/components/I18nProvider";
 
 /** A shadow value that books itself: dashed, greyed out, indigo on hover. */
 const GHOST =
@@ -34,6 +35,7 @@ export function FlexTimeRow({
   comment: string;
   days: FlexTimeDay[];
 }) {
+  const t = useT();
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +48,7 @@ export function FlexTimeRow({
     setError(null);
     startTransition(async () => {
       const r = await bookFlexTimeAction(dates);
-      if (!r?.ok) setError(r?.error ?? "Couldn't book the flex time.");
+      if (!r?.ok) setError(r?.error ?? t("Couldn't book the flex time."));
       setBusy(null);
     });
   };
@@ -54,10 +56,10 @@ export function FlexTimeRow({
   return (
     <tr className="text-zinc-400 dark:text-zinc-500">
       <td className={dashed}>
-        <Link href={`/jobs/${job.id}`} className="italic hover:underline" title="The flex-time job (Schedule → Flex time)">
+        <Link href={`/jobs/${job.id}`} className="italic hover:underline" title={t("The flex-time job (Schedule → Flex time)")}>
           <span className="font-mono whitespace-nowrap">{job.number}</span> {job.name}
         </Link>
-        <div className="text-xs">Flex time · “{comment}”</div>
+        <div className="text-xs">{t("Flex time · “{comment}”", { comment })}</div>
         {error && (
           <div className="mt-0.5 text-xs text-red-600 dark:text-red-400" role="alert">
             {error}
@@ -72,8 +74,13 @@ export function FlexTimeRow({
               className={GHOST}
               disabled={pending}
               onClick={() => book([d.iso], d.iso)}
-              title={`Book the missing ${formatHours(d.gap)} h on ${job.number} as “${comment}” for ${d.label}`}
-              aria-label={`Book ${formatHours(d.gap)} hours flex time on ${d.label}`}
+              title={t("Book the missing {hours} h on {job} as “{comment}” for {day}", {
+                hours: formatHours(d.gap),
+                job: job.number,
+                comment,
+                day: d.label,
+              })}
+              aria-label={t("Book {hours} hours flex time on {day}", { hours: formatHours(d.gap), day: d.label })}
             >
               {busy === d.iso ? "…" : `+${formatHours(d.gap)}`}
             </button>
@@ -87,8 +94,13 @@ export function FlexTimeRow({
             className={GHOST}
             disabled={pending}
             onClick={() => book(open.map((d) => d.iso), "all")}
-            title={`Book the missing hours of all ${open.length} days (${formatHours(total)} h) on ${job.number} as “${comment}”`}
-            aria-label={`Book ${formatHours(total)} hours flex time on all ${open.length} days`}
+            title={t("Book the missing hours of all {n} days ({hours} h) on {job} as “{comment}”", {
+              n: open.length,
+              hours: formatHours(total),
+              job: job.number,
+              comment,
+            })}
+            aria-label={t("Book {hours} hours flex time on all {n} days", { hours: formatHours(total), n: open.length })}
           >
             {busy === "all" ? "…" : `+${formatHours(total)}`}
           </button>

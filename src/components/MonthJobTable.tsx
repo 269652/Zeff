@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { formatHours, round2 } from "@/lib/format";
+import { t } from "@/lib/i18n/server";
 import { weekRangeInMonth } from "@/lib/month";
 import type { MonthlyReport } from "@/lib/monthly";
 import { NO_JOB_NUMBER } from "@/lib/projects-shared";
@@ -27,24 +28,26 @@ export function MonthJobTable({
       <table className="table">
         <thead>
           <tr>
-            <th>Job</th>
+            <th>{t("Job")}</th>
             {month.weeks.map((w) => (
               <th key={w.key} className="num">
                 <Link href={`/?week=${w.key}`} className="hover:underline">
-                  W{w.week}
+                  {t("W{week}", { week: w.week })}
                 </Link>
                 <div className="font-normal normal-case">{weekRangeInMonth(w, month)}</div>
               </th>
             ))}
-            <th className="num">Total</th>
-            <th className="num">Share</th>
+            <th className="num">{t("Total")}</th>
+            <th className="num">{t("Share")}</th>
           </tr>
         </thead>
         <tbody>
           {report.rows.length === 0 ? (
             <tr>
               <td colSpan={month.weeks.length + 3} className="py-6 text-center text-sm text-zinc-500">
-                No time booked in this month{report.filter.reportedBy ? ` by ${report.filter.reportedBy}` : ""}.
+                {report.filter.reportedBy
+                  ? t("No time booked in this month by {name}.", { name: report.filter.reportedBy })
+                  : t("No time booked in this month.")}
               </td>
             </tr>
           ) : (
@@ -77,7 +80,7 @@ export function MonthJobTable({
         </tbody>
         <tfoot>
           <tr className="font-semibold">
-            <td>Booked</td>
+            <td>{t("Booked")}</td>
             {report.weekTotals.map((h, i) => (
               <td key={i} className="num">{h ? formatHours(h) : ""}</td>
             ))}
@@ -86,7 +89,7 @@ export function MonthJobTable({
           </tr>
           {missingTotal > 0 && (
             <tr className="font-semibold text-red-600 dark:text-red-400">
-              <td>Missing</td>
+              <td>{t("Missing")}</td>
               {weekMissing.map((m, i) => (
                 <td key={i} className={`num ${m > 0 ? "bg-red-50 dark:bg-red-950/40" : ""}`}>{m > 0 ? formatHours(m) : ""}</td>
               ))}
@@ -95,9 +98,9 @@ export function MonthJobTable({
             </tr>
           )}
           <tr className="text-zinc-500">
-            <td>Target</td>
-            {weekTargets.map((t, i) => (
-              <td key={i} className="num">{t ? formatHours(t) : ""}</td>
+            <td>{t("Target")}</td>
+            {weekTargets.map((h, i) => (
+              <td key={i} className="num">{h ? formatHours(h) : ""}</td>
             ))}
             <td className="num">{formatHours(monthTarget)}</td>
             <td />

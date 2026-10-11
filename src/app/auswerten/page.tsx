@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
+import { t } from "@/lib/i18n/server";
 import Link from "next/link";
 import { connection } from "next/server";
 import { ContextStepForm } from "@/components/ContextStepForm";
 import { aiQuality, STALE_DAYS, type AiQuality } from "@/lib/ai-quality";
 import { getContextPrefs } from "@/lib/boards/context-prefs";
-import { CONTEXT_STEPS } from "@/lib/boards/context-prefs-shared";
+import { contextSteps } from "@/lib/boards/context-prefs-shared";
 import { installedPlugins } from "@/plugins/state";
 
-export const metadata: Metadata = { title: "AI steps" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: t("AI steps") };
+}
 
 /**
  * Auswerten: what each AI step of the evaluation reads — the Ticket-Lage, the review of mails and
@@ -18,31 +21,32 @@ export default async function AuswertenPage({ searchParams }: { searchParams: Pr
   await connection();
   const on = installedPlugins();
   const prefs = getContextPrefs();
-  const steps = CONTEXT_STEPS.filter((s) => !s.plugin || on.has(s.plugin));
+  const steps = contextSteps(t).filter((s) => !s.plugin || on.has(s.plugin));
   const all = (await searchParams).zeit === "alle";
   const quality = aiQuality(all ? null : 30);
   return (
     <div className="page">
       <div className="page-aside">
-        <h1 className="text-lg font-semibold">AI steps</h1>
+        <h1 className="text-lg font-semibold">{t("AI steps")}</h1>
         <p className="text-sm text-zinc-500">
-          What the AI reads at each step: which sources, how far back, how much — and what you give it for the step. A source turned off doesn&apos;t go into the AI (in the
-          reviews its messages wait until you turn it back on).
+          {t(
+            "What the AI reads at each step: which sources, how far back, how much — and what you give it for the step. A source turned off doesn't go into the AI (in the reviews its messages wait until you turn it back on).",
+          )}
         </p>
         <p className="text-sm text-zinc-500">
-          Who you are and what always applies:{" "}
+          {t("Who you are and what always applies:")}{" "}
           <Link href="/llm" className="text-indigo-600 hover:underline dark:text-indigo-400">
             LLM
           </Link>
-          . How often it runs:{" "}
+          {t(". How often it runs:")}{" "}
           <Link href="/sync-settings" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            Sync settings
+            {t("Sync settings")}
           </Link>
           .
         </p>
-        <nav className="flex flex-col gap-0.5 text-sm" aria-label="Steps">
+        <nav className="flex flex-col gap-0.5 text-sm" aria-label={t("Steps")}>
           <a href="#qualitaet" className="rounded px-2 py-1 text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
-            How well it did
+            {t("How well it did")}
           </a>
           {steps.map((s) => (
             <a key={s.id} href={`#${s.id}`} className="rounded px-2 py-1 text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
@@ -66,7 +70,7 @@ export default async function AuswertenPage({ searchParams }: { searchParams: Pr
 }
 
 const pct = (x: number | null) => (x === null ? "–" : `${Math.round(x * 100)} %`);
-const days = (x: number | null) => (x === null ? "–" : x < 1 ? "< 1 day" : `${x.toFixed(1)} days`);
+const days = (x: number | null) => (x === null ? "–" : x < 1 ? t("< 1 day") : t("{n} days", { n: x.toFixed(1) }));
 
 /** How well the steps did: what became of the todos each made — and what was proposed again after you dropped it. */
 function Quality({ q, all }: { q: AiQuality; all: boolean }) {
@@ -75,18 +79,18 @@ function Quality({ q, all }: { q: AiQuality; all: boolean }) {
     <section id="qualitaet" className="card scroll-mt-4 space-y-3 p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <h2 className="font-medium">How well it did</h2>
+          <h2 className="font-medium">{t("How well it did")}</h2>
           <p className="text-sm text-zinc-500">
-            What became of each step&apos;s todos. What you dismiss, you didn&apos;t want: the <em>hit rate</em> is done ÷ (done + dismissed by you). Todos the AI
-            withdrew itself (outdated, another way) don&apos;t count against it.
+            {t("What became of each step's todos. What you dismiss, you didn't want: the")} <em>{t("hit rate")}</em>{" "}
+            {t("is done ÷ (done + dismissed by you). Todos the AI withdrew itself (outdated, another way) don't count against it.")}
           </p>
         </div>
         <div className="flex gap-1 text-sm">
           <a href="?zeit=30#qualitaet" className={tab(!all)}>
-            30 days
+            {t("30 days")}
           </a>
           <a href="?zeit=alle#qualitaet" className={tab(all)}>
-            All
+            {t("All")}
           </a>
         </div>
       </div>
@@ -95,15 +99,25 @@ function Quality({ q, all }: { q: AiQuality; all: boolean }) {
           <table className="table text-sm">
             <thead>
               <tr className="text-left text-xs text-zinc-500">
-                <th>Step</th>
-                <th className="text-right">New</th>
-                <th className="text-right">Done</th>
-                <th className="text-right" title="Dismissed by you">Dismissed</th>
-                <th className="text-right" title="Withdrawn by the AI (outdated) or done another way">Withdrawn</th>
-                <th className="text-right" title="Reopened by you — closed too early">Reopened</th>
-                <th className="text-right" title={`In brackets: untouched for ${STALE_DAYS} days`}>Open</th>
-                <th className="text-right">Hit rate</th>
-                <th className="text-right" title="Median: created to done">To done</th>
+                <th>{t("Step")}</th>
+                <th className="text-right">{t("New")}</th>
+                <th className="text-right">{t("Done")}</th>
+                <th className="text-right" title={t("Dismissed by you")}>
+                  {t("Dismissed")}
+                </th>
+                <th className="text-right" title={t("Withdrawn by the AI (outdated) or done another way")}>
+                  {t("Withdrawn")}
+                </th>
+                <th className="text-right" title={t("Reopened by you — closed too early")}>
+                  {t("Reopened")}
+                </th>
+                <th className="text-right" title={t("In brackets: untouched for {n} days", { n: STALE_DAYS })}>
+                  {t("Open")}
+                </th>
+                <th className="text-right">{t("Hit rate")}</th>
+                <th className="text-right" title={t("Median: created to done")}>
+                  {t("To done")}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -127,11 +141,11 @@ function Quality({ q, all }: { q: AiQuality; all: boolean }) {
           </table>
         </div>
       ) : (
-        <p className="text-sm text-zinc-400">{all ? "No todos yet." : "No new todos in the last 30 days."}</p>
+        <p className="text-sm text-zinc-400">{all ? t("No todos yet.") : t("No new todos in the last 30 days.")}</p>
       )}
       {q.repeats.length > 0 && (
         <div className="space-y-1">
-          <h3 className="text-sm font-medium">Suggested again after you dismissed it</h3>
+          <h3 className="text-sm font-medium">{t("Suggested again after you dismissed it")}</h3>
           <ul className="space-y-1 text-sm">
             {q.repeats.slice(0, 10).map((r) => (
               <li key={r.id} className="flex flex-wrap items-baseline gap-x-2">
@@ -140,7 +154,7 @@ function Quality({ q, all }: { q: AiQuality; all: boolean }) {
                 </Link>
                 <span className="min-w-0 flex-1">{r.text}</span>
                 <span className="text-xs text-zinc-500">
-                  like{" "}
+                  {t("like")}{" "}
                   <Link href={`/t/${r.like.id}`} className="font-mono hover:underline">
                     {r.like.ref}
                   </Link>
@@ -148,7 +162,9 @@ function Quality({ q, all }: { q: AiQuality; all: boolean }) {
               </li>
             ))}
           </ul>
-          <p className="text-xs text-zinc-500">The mail review and the note review no longer create these: what you dismissed in the last 60 days counts as already there for them.</p>
+          <p className="text-xs text-zinc-500">
+            {t("The mail review and the note review no longer create these: what you dismissed in the last 60 days counts as already there for them.")}
+          </p>
         </div>
       )}
     </section>

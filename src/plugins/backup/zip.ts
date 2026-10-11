@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import zlib from "node:zlib";
+import { t } from "@/lib/i18n/server";
 
 /**
  * ZIP archives, with or without a password — encrypted as WinZip AES-256 (AE-2: PBKDF2-SHA1 keys,
@@ -123,12 +124,12 @@ export function readZip(zip: Buffer, password?: string): ZipEntry[] {
       break;
     }
   }
-  if (eocd < 0) throw new Error("Not a ZIP file (no central directory found).");
+  if (eocd < 0) throw new Error(t("Not a ZIP file (no central directory found)."));
   const count = zip.readUInt16LE(eocd + 10);
   let p = zip.readUInt32LE(eocd + 16);
   const out: ZipEntry[] = [];
   for (let n = 0; n < count; n++) {
-    if (zip.readUInt32LE(p) !== 0x02014b50) throw new Error("Damaged ZIP central directory.");
+    if (zip.readUInt32LE(p) !== 0x02014b50) throw new Error(t("Damaged ZIP central directory."));
     const flags = zip.readUInt16LE(p + 8);
     let method = zip.readUInt16LE(p + 10);
     const crc = zip.readUInt32LE(p + 16);
@@ -149,24 +150,24 @@ export function readZip(zip: Buffer, password?: string): ZipEntry[] {
         const len = extra.readUInt16LE(e + 2);
         if (id === 0x9901) {
           aesVersion = extra.readUInt16LE(e + 4);
-          if (extra.readUInt8(e + 8) !== AES_STRENGTH) throw new Error(`${name}: only AES-256 is supported.`);
+          if (extra.readUInt8(e + 8) !== AES_STRENGTH) throw new Error(t("{name}: only AES-256 is supported.", { name }));
           method = extra.readUInt16LE(e + 9);
         }
         e += 4 + len;
       }
-      if (!aesVersion) throw new Error(`${name}: unknown encryption.`);
-      if (!password) throw new ZipPasswordError("The backup is encrypted — enter the password.");
+      if (!aesVersion) throw new Error(t("{name}: unknown encryption.", { name }));
+      if (!password) throw new ZipPasswordError(t("The backup is encrypted — enter the password."));
       const salt = body.subarray(0, SALT_LEN);
       const k = keys(password, salt);
-      if (!body.subarray(SALT_LEN, SALT_LEN + 2).equals(k.verify)) throw new ZipPasswordError("Wrong password.");
+      if (!body.subarray(SALT_LEN, SALT_LEN + 2).equals(k.verify)) throw new ZipPasswordError(t("Wrong password."));
       const cipher = body.subarray(SALT_LEN + 2, body.length - AUTH_LEN);
       const auth = crypto.createHmac("sha1", k.auth).update(cipher).digest().subarray(0, AUTH_LEN);
-      if (!auth.equals(body.subarray(body.length - AUTH_LEN))) throw new Error(`${name}: checksum doesn't match — file damaged.`);
+      if (!auth.equals(body.subarray(body.length - AUTH_LEN))) throw new Error(t("{name}: checksum doesn't match — file damaged.", { name }));
       body = ctr(k.enc, cipher);
-    } else if (flags & 0x0001) throw new Error(`${name}: this encryption isn't supported.`);
+    } else if (flags & 0x0001) throw new Error(t("{name}: this encryption isn't supported.", { name }));
     const data = method === 8 ? zlib.inflateRawSync(body) : method === 0 ? Buffer.from(body) : null;
-    if (!data) throw new Error(`${name}: compression ${method} isn't supported.`);
-    if (aesVersion !== 2 && (zlib.crc32(data) >>> 0) !== crc) throw new Error(`${name}: CRC doesn't match — file damaged.`);
+    if (!data) throw new Error(t("{name}: compression {method} isn't supported.", { name, method }));
+    if (aesVersion !== 2 && (zlib.crc32(data) >>> 0) !== crc) throw new Error(t("{name}: CRC doesn't match — file damaged.", { name }));
     out.push({ name, data });
   }
   return out;

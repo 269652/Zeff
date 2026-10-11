@@ -5,12 +5,14 @@ import { useState, useTransition } from "react";
 import { saveContextPrefsAction } from "@/plugins/todos/server-actions";
 import { sourceShown, type ContextStep, type StepPrefs } from "@/lib/boards/context-prefs-shared";
 import { toast } from "./Toaster";
+import { useT } from "@/components/I18nProvider";
 
 /**
  * One AI step's context settings: its sources (switches, saved at once), its numbers and your own
  * instructions for it (saved with a button).
  */
 export function ContextStepForm({ step, prefs, installed }: { step: ContextStep; prefs: StepPrefs; installed: string[] }) {
+  const t = useT();
   const router = useRouter();
   const [pending, start] = useTransition();
   const [numbers, setNumbers] = useState(prefs.numbers);
@@ -18,7 +20,7 @@ export function ContextStepForm({ step, prefs, installed }: { step: ContextStep;
   const save = (patch: Parameters<typeof saveContextPrefsAction>[1], quiet = false) =>
     start(async () => {
       const r = await saveContextPrefsAction(step.id, patch);
-      if (!r?.ok || !quiet) toast(r?.ok ? (r.message ?? "Saved.") : (r?.error ?? "Didn't work."), { tone: r?.ok ? "ok" : "error" });
+      if (!r?.ok || !quiet) toast(r?.ok ? (r.message ?? t("Saved.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" });
       router.refresh();
     });
   const sources = step.sources.filter((s) => sourceShown(s, installed));
@@ -28,7 +30,7 @@ export function ContextStepForm({ step, prefs, installed }: { step: ContextStep;
     <div className="space-y-3">
       {sources.length > 0 && (
         <div>
-          <div className="label">Sources</div>
+          <div className="label">{t("Sources")}</div>
           <ul className="grid gap-1.5 sm:grid-cols-2">
             {sources.map((s) => (
               <li key={s.key}>
@@ -71,20 +73,20 @@ export function ContextStepForm({ step, prefs, installed }: { step: ContextStep;
         </div>
       )}
       <label className="block text-sm">
-        <span className="label">Your own instructions for this step</span>
+        <span className="label">{t("Your own instructions for this step")}</span>
         <textarea
           className="input w-full resize-y"
           rows={2}
           value={extra}
-          placeholder="e.g. “ignore newsletters from X”, “always reply on first-name terms”, “customer meetings take priority”"
+          placeholder={t("e.g. “ignore newsletters from X”, “always reply on first-name terms”, “customer meetings take priority”")}
           onChange={(e) => setExtra(e.target.value)}
         />
       </label>
       <div className="flex items-center gap-2">
         <button type="button" className="btn btn-sm btn-primary" disabled={pending || !dirty} onClick={() => save({ numbers, extra })}>
-          {pending ? "Saving…" : "Save"}
+          {pending ? t("Saving…") : t("Save")}
         </button>
-        {dirty && <span className="text-xs text-amber-600 dark:text-amber-400">Not saved</span>}
+        {dirty && <span className="text-xs text-amber-600 dark:text-amber-400">{t("Not saved")}</span>}
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { runSyncAllAction, stopSyncAllAction, syncOverviewAction } from "@/app/actions";
 import type { SyncOverview } from "@/lib/sync/shared";
+import { useT } from "@/components/I18nProvider";
 import { toast } from "./Toaster";
 
 /**
@@ -11,6 +12,7 @@ import { toast } from "./Toaster";
  * started with one click and followed live: which step runs, how each went.
  */
 export function SetupDataRun({ next }: { next: string }) {
+  const t = useT();
   const [data, setData] = useState<SyncOverview | null>(null);
   const [started, setStarted] = useState(false);
   const [pending, start] = useTransition();
@@ -23,17 +25,17 @@ export function SetupDataRun({ next }: { next: string }) {
       if (alive && d) setData(d);
     };
     void poll();
-    const t = setInterval(poll, running ? 2000 : 10000);
+    const timer = setInterval(poll, running ? 2000 : 10000);
     return () => {
       alive = false;
-      clearInterval(t);
+      clearInterval(timer);
     };
   }, [running]);
 
   const go = () =>
     start(async () => {
       const r = await runSyncAllAction();
-      if (!r?.ok) toast(r?.error ?? "Didn't work.", { tone: "error" });
+      if (!r?.ok) toast(r?.error ?? t("Didn't work."), { tone: "error" });
       else setStarted(true);
       setData(await syncOverviewAction());
     });
@@ -48,15 +50,21 @@ export function SetupDataRun({ next }: { next: string }) {
       <div className="flex flex-wrap items-center gap-3">
         {running ? (
           <button type="button" className="btn btn-sm text-red-600 dark:text-red-400" disabled={pending} onClick={() => start(async () => void (await stopSyncAllAction()))}>
-            Cancel
+            {t("Cancel")}
           </button>
         ) : (
           <button type="button" className="btn btn-primary btn-sm" disabled={pending || !data} onClick={go}>
-            {finished ? "Once more" : "Fetch everything and run the AI steps"}
+            {finished ? t("Once more") : t("Fetch everything and run the AI steps")}
           </button>
         )}
         <span className="text-zinc-500">
-          {running ? "Running — the first time takes a while (everything is read for the first time)." : finished ? (failed.length ? `Done — ${failed.length} with errors.` : "Done.") : "Every sync in turn, the briefing last: the first AI run."}
+          {running
+            ? t("Running — the first time takes a while (everything is read for the first time).")
+            : finished
+              ? failed.length
+                ? t("Done — {n} with errors.", { n: failed.length })
+                : t("Done.")
+              : t("Every sync in turn, the briefing last: the first AI run.")}
         </span>
       </div>
       <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
@@ -69,7 +77,7 @@ export function SetupDataRun({ next }: { next: string }) {
               </span>
               <span className="w-32 shrink-0">{s.label}</span>
               <span className={`min-w-0 flex-1 truncate text-xs ${s.lastOk === false ? "text-red-600 dark:text-red-400" : "text-zinc-500"}`} title={s.lastMessage ?? undefined}>
-                {now ? "running…" : (s.lastMessage ?? "not read yet")}
+                {now ? t("running…") : (s.lastMessage ?? t("not read yet"))}
               </span>
             </li>
           );
@@ -77,17 +85,17 @@ export function SetupDataRun({ next }: { next: string }) {
       </ul>
       {finished && failed.length > 0 && (
         <p className="text-xs text-zinc-500">
-          A sign-in missing?{" "}
+          {t("A sign-in missing?")}{" "}
           <Link href="/setup?step=logins" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            Back to the sign-ins
+            {t("Back to the sign-ins")}
           </Link>
-          , then once more.
+          {t(", then once more.")}
         </p>
       )}
       {finished && (
         <div className="flex justify-end">
           <Link href={next} className="btn btn-primary btn-sm">
-            Next: done
+            {t("Next: done")}
           </Link>
         </div>
       )}

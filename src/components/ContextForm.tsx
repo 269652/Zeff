@@ -5,7 +5,7 @@ import { deleteContextFileAction, fetchImagesAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
 import {
   CONTEXT_KINDS,
-  CONTEXT_KIND_LABELS,
+  contextKindLabels,
   describeTeamsLink,
   isRemoteImage,
   kindOfUrl,
@@ -17,6 +17,7 @@ import {
 import { imageTargets, mapImageTargets } from "@/lib/markdown";
 import { gitlabLinkKey, gitlabTicket } from "@/lib/gitlab/shared";
 import { teamsLinkKey } from "@/lib/teams/shared";
+import { useT } from "@/components/I18nProvider";
 import { useContextFormOptions } from "./ContextFormOptions";
 import { useSyncedGitlabItems } from "./GitlabItemBadge";
 import { PaperclipIcon } from "./icons";
@@ -53,6 +54,7 @@ type Source = "auto" | "link" | "user";
  * (followEntry) until changed here, and a Teams link's date replaces the entry's.
  */
 export function useContextDraft(defaults: ContextFormDefaults = {}, { fromEntry = false, sources = true } = {}) {
+  const t = useT();
   const initial = () => ({
     kind: defaults.kind ?? ("note" as ContextKind),
     title: defaults.title ?? "",
@@ -186,15 +188,19 @@ export function useContextDraft(defaults: ContextFormDefaults = {}, { fromEntry 
       }
       if (added.length) {
         setPasted((p) => [...p, ...added]);
-        setV((x) => ({ ...x, body: mapImageTargets(x.body, (t) => local.get(t) ?? t) }));
+        setV((x) => ({ ...x, body: mapImageTargets(x.body, (target) => local.get(target) ?? target) }));
       }
       const failed = got.filter((g) => !g.ok);
       if (failed.length) {
         const why = [...new Set(failed.map((f) => (f.ok ? "" : f.error)))].join(" · ");
-        setFetchError(`${failed.length === 1 ? "A picture" : `${failed.length} pictures`} couldn't be fetched: ${why}`);
+        setFetchError(
+          failed.length === 1
+            ? t("A picture couldn't be fetched: {why}", { why })
+            : t("{n} pictures couldn't be fetched: {why}", { n: failed.length, why }),
+        );
       }
     } catch (e) {
-      setFetchError(`The pictures couldn't be fetched: ${e instanceof Error ? e.message : String(e)}`);
+      setFetchError(t("The pictures couldn't be fetched: {error}", { error: e instanceof Error ? e.message : String(e) }));
     } finally {
       setFetching((n) => n - todo.length);
     }
@@ -291,6 +297,7 @@ export function ContextFields({
   files?: ContextFileInfo[];
   ticket?: boolean;
 }) {
+  const t = useT();
   // Colleagues and tickets to pick from (ContextFormOptionsProvider).
   const { people, tickets } = useContextFormOptions();
   // Several forms can be open at once (adding, editing a card): ids of their own.
@@ -300,7 +307,7 @@ export function ContextFields({
   const fileInput = useRef<HTMLInputElement>(null);
   const { v } = d;
   // Jira keys GitLab items name count when their prefix is one you book ("PROJ").
-  const ticketPrefixes = new Set(tickets.map((t) => t.ticket.split("-")[0].toUpperCase()));
+  const ticketPrefixes = new Set(tickets.map((tk) => tk.ticket.split("-")[0].toUpperCase()));
   const linked = new Set(v.links.map((l) => l.url.trim()).filter(Boolean));
   const links = v.links.map((l, i) => ({ l, i, e: d.sources ? d.resolvedOf(l.url) : null }));
   const sources = links.filter((x) => x.e);
@@ -329,7 +336,7 @@ export function ContextFields({
                   entity={e!}
                   before={sources.length > 1 ? <DragGrip {...r.grip} /> : null}
                   after={
-                    <button type="button" className="icon-btn text-base" onClick={() => d.removeLink(i)} aria-label="Remove" title="Remove">
+                    <button type="button" className="icon-btn text-base" onClick={() => d.removeLink(i)} aria-label={t("Remove")} title={t("Remove")}>
                       ×
                     </button>
                   }
@@ -344,25 +351,25 @@ export function ContextFields({
         <>
           <div className="grid gap-3 sm:grid-cols-[8rem_1fr_10rem]">
             <div>
-              <label className="label" htmlFor={fid("kind")}>From</label>
+              <label className="label" htmlFor={fid("kind")}>{t("From")}</label>
               <select id={fid("kind")} name={field("kind")} className="input" value={v.kind} onChange={(e) => d.edit({ kind: e.target.value as ContextKind })}>
                 {CONTEXT_KINDS.map((k) => (
-                  <option key={k} value={k}>{CONTEXT_KIND_LABELS[k]}</option>
+                  <option key={k} value={k}>{contextKindLabels(t)[k]}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="label" htmlFor={fid("author")}>Who</label>
+              <label className="label" htmlFor={fid("author")}>{t("Who")}</label>
               <PersonCombobox id={fid("author")} name={field("author")} value={v.author ?? ""} onChange={(author) => d.set({ author })} people={people} />
             </div>
             <div>
-              <label className="label" htmlFor={fid("date")}>When</label>
+              <label className="label" htmlFor={fid("date")}>{t("When")}</label>
               <input id={fid("date")} name={field("date")} type="date" className="input" value={v.date ?? ""} onChange={(e) => d.edit({ date: e.target.value })} />
             </div>
           </div>
           <div>
-            <label className="label" htmlFor={fid("title")}>Headline <span className="font-normal text-zinc-400 normal-case">(optional)</span></label>
-            <input id={fid("title")} name={field("title")} className="input" placeholder="Scope of the content migration agreed" value={v.title ?? ""} onChange={(e) => d.set({ title: e.target.value })} />
+            <label className="label" htmlFor={fid("title")}>{t("Headline")} <span className="font-normal text-zinc-400 normal-case">{t("(optional)")}</span></label>
+            <input id={fid("title")} name={field("title")} className="input" placeholder={t("Scope of the content migration agreed")} value={v.title ?? ""} onChange={(e) => d.set({ title: e.target.value })} />
           </div>
           <div className="space-y-1.5">
             <MarkdownPasteField
@@ -392,28 +399,28 @@ export function ContextFields({
               <input
                 name={field(`link-url-${i}`)}
                 className="input flex-[3]"
-                placeholder="https://… — a Teams, GitLab or Jira link, a mail"
+                placeholder={t("https://… — a Teams, GitLab or Jira link, a mail")}
                 value={l.url}
                 onChange={(ev) => d.setLink(i, { url: ev.target.value })}
-                aria-label={`Link ${i + 1}`}
+                aria-label={t("Link {n}", { n: i + 1 })}
                 autoFocus={!l.url}
               />
               <input
                 name={field(`link-label-${i}`)}
                 className="input flex-[2]"
-                placeholder="label (optional)"
+                placeholder={t("label (optional)")}
                 value={l.label ?? ""}
                 onChange={(ev) => d.setLink(i, { label: ev.target.value })}
-                aria-label={`Link ${i + 1} label`}
+                aria-label={t("Link {n} label", { n: i + 1 })}
               />
-              <button type="button" className="icon-btn text-base" onClick={() => d.removeLink(i)} aria-label={`Remove link ${i + 1}`} title="Remove">
+              <button type="button" className="icon-btn text-base" onClick={() => d.removeLink(i)} aria-label={t("Remove link {n}", { n: i + 1 })} title={t("Remove")}>
                 ×
               </button>
             </div>
           ))}
         </div>
       )}
-      {d.resolving && <p className="text-xs text-zinc-500">Looking up the link…</p>}
+      {d.resolving && <p className="text-xs text-zinc-500">{t("Looking up the link…")}</p>}
 
       {files.length > 0 && (
         <ul className="flex flex-wrap gap-1.5">
@@ -423,10 +430,10 @@ export function ContextFields({
               <button
                 type="button"
                 className="text-zinc-400 hover:text-red-500"
-                aria-label={`Remove ${f.name}`}
-                title={`Remove ${f.name}`}
+                aria-label={t("Remove {name}", { name: f.name })}
+                title={t("Remove {name}", { name: f.name })}
                 onClick={() => {
-                  if (!confirm(`Remove ${f.name}?`)) return;
+                  if (!confirm(t("Remove {name}?", { name: f.name }))) return;
                   const fd = new FormData();
                   fd.set("id", String(f.id));
                   startTransition(() => deleteContextFileAction(fd));
@@ -442,11 +449,11 @@ export function ContextFields({
       <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
         {showTicket ? (
           <div className="w-full sm:w-64">
-            <label className="label" htmlFor={fid("ticket")}>Jira ticket</label>
+            <label className="label" htmlFor={fid("ticket")}>{t("Jira ticket")}</label>
             <TicketCombobox
               id={fid("ticket")}
               name={field("ticket")}
-              placeholder="PROJ-337 or words of its title"
+              placeholder={t("PROJ-337 or words of its title")}
               value={v.ticket ?? ""}
               onChange={(ticket) => d.edit({ ticket })}
               suggestions={tickets}
@@ -458,14 +465,14 @@ export function ContextFields({
         <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 text-xs ${showTicket ? "sm:pb-2" : ""}`}>
           {!d.noteShown && (
             <button type="button" className={TEXT_BTN} onClick={d.openNote}>
-              + Write a note
+              {t("+ Write a note")}
             </button>
           )}
           <button type="button" className={TEXT_BTN} onClick={d.addLink}>
-            + Add a link
+            {t("+ Add a link")}
           </button>
           <button type="button" className={TEXT_BTN} onClick={() => fileInput.current?.click()}>
-            <PaperclipIcon className="size-3.5" /> Attach files
+            <PaperclipIcon className="size-3.5" /> {t("Attach files")}
           </button>
           <input
             ref={fileInput}
@@ -474,12 +481,12 @@ export function ContextFields({
             multiple
             className="sr-only"
             tabIndex={-1}
-            aria-label="Files to attach"
+            aria-label={t("Files to attach")}
             onChange={(e) => d.setFileNames([...(e.target.files ?? [])].map((f) => f.name))}
           />
           {d.fileNames.length > 0 && (
             <span className="text-zinc-600 dark:text-zinc-300" title={d.fileNames.join("\n")}>
-              📎 {d.fileNames.length === 1 ? d.fileNames[0] : `${d.fileNames.length} files`}
+              📎 {d.fileNames.length === 1 ? d.fileNames[0] : t("{n} files", { n: d.fileNames.length })}
             </span>
           )}
         </div>
@@ -493,11 +500,12 @@ export function ContextFields({
  * that didn't work (not signed in there) — why, with a button to try again.
  */
 function LinkedPictures({ draft: d }: { draft: ContextDraft }) {
+  const t = useT();
   const linked = [...new Set(imageTargets(d.v.body).filter(isRemoteImage))];
   if (d.fetching > 0) {
     return (
       <p className="text-xs text-zinc-500" role="status">
-        Fetching {d.fetching === 1 ? "a picture" : `${d.fetching} pictures`}…
+        {d.fetching === 1 ? t("Fetching a picture…") : t("Fetching {n} pictures…", { n: d.fetching })}
       </p>
     );
   }
@@ -513,10 +521,12 @@ function LinkedPictures({ draft: d }: { draft: ContextDraft }) {
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" role="status">
       <span className="text-amber-700 dark:text-amber-400">
-        {linked.length === 1 ? "A picture links" : `${linked.length} pictures link`} to {hosts} — not kept with the item yet.
+        {linked.length === 1
+          ? t("A picture links to {hosts} — not kept with the item yet.", { hosts })
+          : t("{n} pictures link to {hosts} — not kept with the item yet.", { n: linked.length, hosts })}
       </span>
       <button type="button" className="btn btn-sm" onClick={() => d.fetchImages(linked)}>
-        Fetch {linked.length === 1 ? "it" : "them"}
+        {linked.length === 1 ? t("Fetch it") : t("Fetch them")}
       </button>
       {d.fetchError && <span className="basis-full text-red-600 dark:text-red-400">{d.fetchError}</span>}
     </div>
@@ -531,7 +541,7 @@ export function ContextForm({
   action: serverAction,
   defaults = {},
   files = [],
-  submitLabel = "Add context",
+  submitLabel,
   onDone,
   fromEntry = false,
   sources = true,
@@ -546,6 +556,7 @@ export function ContextForm({
   /** Offer the Teams / GitLab search (each pick becomes an item of its own); off: just written — a note, a mail. */
   sources?: boolean;
 }) {
+  const t = useT();
   const draft = useContextDraft(defaults, { fromEntry, sources });
   const [state, setState] = useState<ActionState>(null);
   const [pending, startSaving] = useTransition();
@@ -573,12 +584,12 @@ export function ContextForm({
     >
       <ContextFields draft={draft} files={files} />
       <div className="flex flex-wrap items-center gap-3">
-        <SubmitButton className="btn btn-primary btn-sm" pendingText={draft.fetching ? "Fetching pictures…" : "Saving…"} pending={pending || draft.fetching > 0}>
-          {submitLabel}
+        <SubmitButton className="btn btn-primary btn-sm" pendingText={draft.fetching ? t("Fetching pictures…") : t("Saving…")} pending={pending || draft.fetching > 0}>
+          {submitLabel ?? t("Add context")}
         </SubmitButton>
         {onDone && (
           <button type="button" className="btn btn-sm" onClick={onDone}>
-            Cancel
+            {t("Cancel")}
           </button>
         )}
         {state?.error && <span className="text-sm text-red-600 dark:text-red-400">{state.error}</span>}

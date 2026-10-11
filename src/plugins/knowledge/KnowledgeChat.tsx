@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { askKnowledgeAction } from "@/plugins/knowledge/server-actions";
+import { useT } from "@/components/I18nProvider";
 import type { KnowledgeAnswer, KnowledgeTurn } from "./shared";
 
 type Msg = { role: "user"; text: string } | { role: "assistant"; text: string; answer: KnowledgeAnswer };
@@ -36,6 +37,7 @@ function Cited({ text, answer }: { text: string; answer: KnowledgeAnswer }) {
  * found, citing them; the sources and the entities it touched below it. Kept in this browser.
  */
 export function KnowledgeChat() {
+  const t = useT();
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [q, setQ] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +79,7 @@ export function KnowledgeChat() {
   return (
     <div className="card flex min-h-0 w-full flex-1 flex-col gap-3 p-4 max-lg:min-h-[70vh]">
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
-        {!msgs.length && <p className="text-sm text-zinc-500">Ask something about the documentation — e.g. “How does code get onto the test environment?” or “Who runs the ordering system?”</p>}
+        {!msgs.length && <p className="text-sm text-zinc-500">{t("Ask something about the documentation — e.g. “How does code get onto the test environment?” or “Who runs the ordering system?”")}</p>}
         {msgs.map((m, i) =>
           m.role === "user" ? (
             <div key={i} className="max-w-3xl self-end rounded-lg bg-indigo-600 px-3 py-2 text-sm text-white">
@@ -115,7 +117,7 @@ export function KnowledgeChat() {
             </div>
           ),
         )}
-        {pending && <p className="text-sm text-zinc-500">Searching and answering …</p>}
+        {pending && <p className="text-sm text-zinc-500">{t("Searching and answering …")}</p>}
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <div ref={end} />
       </div>
@@ -126,13 +128,13 @@ export function KnowledgeChat() {
           send();
         }}
       >
-        <input className="input flex-1" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask a question …" aria-label="Question" />
+        <input className="input flex-1" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Ask a question …")} aria-label={t("Question")} />
         <button type="submit" className="btn btn-primary" disabled={pending || !q.trim()}>
-          Ask
+          {t("Ask")}
         </button>
         {msgs.length > 0 && (
-          <button type="button" className="btn" disabled={pending} onClick={() => setMsgs([])} title="New conversation">
-            New
+          <button type="button" className="btn" disabled={pending} onClick={() => setMsgs([])} title={t("New conversation")}>
+            {t("New")}
           </button>
         )}
       </form>

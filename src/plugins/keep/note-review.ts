@@ -6,6 +6,7 @@ import { isTodoKind, TODO_KINDS } from "@/lib/boards/shared";
 import { duplicateTodo } from "@/lib/boards/similar";
 import { addNoteTodo, droppedByYou, lastGoodRun, listTodos } from "@/lib/boards/store";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { emitChange } from "@/lib/events";
 import { getJiraTicket } from "@/lib/jira/store";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
@@ -150,7 +151,7 @@ export function reviewNotesForTodos(runId: number | null = null): Promise<NoteTo
       reviewed += batch.length;
     }
     if (added) emitChange("todos");
-    return { ok: failed < batches.length, reviewed, added, batches: batches.length, ...(failed ? { error: `${failed} of ${batches.length} parts failed` } : {}) };
+    return { ok: failed < batches.length, reviewed, added, batches: batches.length, ...(failed ? { error: t("{failed} of {n} parts failed", { failed, n: batches.length }) } : {}) };
   })()
     .catch((e): NoteTodosResult => {
       console.error("[note-todos]", errorMessage(e));

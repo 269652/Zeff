@@ -6,6 +6,7 @@ import { asc, eq, isNotNull, like, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { Repo } from "@/db/schema";
 import { NotFoundError, ValidationError } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { listJiraBoards } from "@/lib/jira/store";
 
 const { repos, gitlabItems, jiraTickets } = schema;
@@ -72,11 +73,11 @@ const KEY = /^[A-Z][A-Z0-9]+-\d+$/;
 
 function clean(input: RepoInput): RepoInput {
   const p = input.path.trim().replace(/^["']|["']$/g, "");
-  if (!p) throw new ValidationError("The repo's folder is needed.");
-  if (!isRepo(p)) throw new ValidationError(`${p} isn't a git repo (no .git there).`);
+  if (!p) throw new ValidationError(t("The repo's folder is needed."));
+  if (!isRepo(p)) throw new ValidationError(t("{path} isn't a git repo (no .git there).", { path: p }));
   const tickets = [...new Set(input.tickets.map((t) => t.trim().toUpperCase()).filter(Boolean))];
   const bad = tickets.find((t) => !KEY.test(t));
-  if (bad) throw new ValidationError(`"${bad}" isn't a ticket key (like PROJ-321).`);
+  if (bad) throw new ValidationError(t("\"{key}\" isn't a ticket key (like PROJ-321).", { key: bad }));
   return {
     name: input.name.trim() || path.basename(p),
     path: p,
@@ -95,7 +96,7 @@ export function saveRepo(input: RepoInput, id?: number): RepoView {
   const db = getDb();
   if (id) {
     const row = db.update(repos).set(values).where(eq(repos.id, id)).returning().get();
-    if (!row) throw new NotFoundError("That repo isn't there any more.");
+    if (!row) throw new NotFoundError(t("That repo isn't there any more."));
     return toView(row);
   }
   return toView(db.insert(repos).values(values).returning().get());
@@ -212,8 +213,8 @@ export function cachedLocalBranches(dir: string): string[] {
  */
 export function switchBranch(id: number, branch: string): string {
   const repo = listRepos().find((r) => r.id === id);
-  if (!repo?.ok) throw new NotFoundError("That repo isn't there (or its folder is missing).");
-  if (!localBranches(repo.path).includes(branch)) throw new ValidationError(`${branch} isn't a local branch of ${repo.name}.`);
+  if (!repo?.ok) throw new NotFoundError(t("That repo isn't there (or its folder is missing)."));
+  if (!localBranches(repo.path).includes(branch)) throw new ValidationError(t("{branch} isn't a local branch of {repo}.", { branch, repo: repo.name }));
   try {
     execFileSync("git", ["switch", branch], { cwd: repo.path, encoding: "utf8", timeout: 60000, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
   } catch (e) {

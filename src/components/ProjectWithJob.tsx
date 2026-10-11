@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { JobRef, ProjectRef } from "@/lib/entries";
 import { NO_JOB_NUMBER } from "@/lib/projects-shared";
+import { t } from "@/lib/i18n/server";
 
 /**
  * A project's title with its job number in small below it (or a hint while it has no job yet).
@@ -21,9 +22,9 @@ export function ProjectWithJob({ project, job, titleOnly = false }: { project: P
         <Link
           href={`/projects/${project.id}`}
           className="block text-xs text-amber-600 hover:underline dark:text-amber-400"
-          title="Not exported to Chrono until the project has a job"
+          title={t("Not exported to Chrono until the project has a job")}
         >
-          no job yet
+          {t("no job yet")}
         </Link>
       ) : (
         !titleOnly && (

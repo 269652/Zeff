@@ -2,6 +2,10 @@
  * Breaks ("Pausen") as local "HH:MM" ranges. Server-free, so the Pause cell editor can
  * parse and preview input while typing and the server validates it the same way.
  */
+import { translator, type T } from "@/lib/i18n/shared";
+
+const en = translator("en");
+
 export type PauseRange = { start: string; end: string };
 
 /** `none`: the day explicitly had no break (so no default break applies either). */
@@ -60,34 +64,34 @@ export function parseDuration(raw: string): number | undefined {
 }
 
 /** A start time plus minutes, kept within the day. */
-function span(start: string, minutes: number): PauseRange | string {
-  if (minutes <= 0) return "A break needs a length.";
+function span(start: string, minutes: number, t: T = en): PauseRange | string {
+  if (minutes <= 0) return t("A break needs a length.");
   const end = toMinutes(start) + minutes;
-  if (end > 23 * 60 + 59) return "The break runs past midnight.";
+  if (end > 23 * 60 + 59) return t("The break runs past midnight.");
   return { start, end: fromMinutes(end) };
 }
 
-function parseSegment(seg: string, defaultStart: string): PauseRange | string | undefined {
+function parseSegment(seg: string, defaultStart: string, t: T = en): PauseRange | string | undefined {
   // "12:00-12:30", "12 – 12.30", "12:00 bis 12:30" (or a length after the dash: "12-30m", "12-45")
   let m = /^(\S+?)\s*(?:-|–|—|\bbis\b|\bto\b)\s*(\S+)$/i.exec(seg);
   if (m) {
     const start = parseTime(m[1]);
     const end = parseTime(m[2]);
     if (start && end) {
-      return toMinutes(end) > toMinutes(start) ? { start, end } : `The break ends before it starts (${start}–${end}).`;
+      return toMinutes(end) > toMinutes(start) ? { start, end } : t("The break ends before it starts ({start}–{end}).", { start, end });
     }
     const length = start ? parseDuration(m[2]) : undefined;
-    return start && length !== undefined ? span(start, length) : undefined;
+    return start && length !== undefined ? span(start, length, t) : undefined;
   }
   // "30m", "45", "1h": a length starting at the usual time
   const minutes = parseDuration(seg);
-  if (minutes !== undefined) return span(defaultStart, minutes);
+  if (minutes !== undefined) return span(defaultStart, minutes, t);
   // "12:00 30m", "12+45", "12:15 + 1h"
   m = /^(\S+?)\s*(?:\+|\s)\s*(.+)$/.exec(seg);
   if (m) {
     const start = parseTime(m[1]);
     const length = parseDuration(m[2]);
-    if (start && length !== undefined) return span(start, length);
+    if (start && length !== undefined) return span(start, length, t);
   }
   return undefined;
 }
@@ -250,20 +254,20 @@ export function lockBreakEdit(
  * Read one day's breaks from free text: breaks separated by ";" or ",", each a range
  * ("12:00-12:30", "12-1230", "12 bis 12.30"), a start plus a length ("12:00 30m",
  * "12+45") or just a length ("30", "45m", "1h") from `defaultStart`. Empty = nothing
- * entered; "0" / "none" / "keine" = explicitly no break.
+ * entered; "0" / "none" / "keine" = explicitly no break. Its errors in English unless a `t` is given.
  */
-export function parsePauses(text: string, defaultStart = "12:00"): ParsedPauses {
+export function parsePauses(text: string, defaultStart = "12:00", t: T = en): ParsedPauses {
   if (NO_BREAK.test(text.trim())) return { ok: true, pauses: [], none: true };
   const pauses: PauseRange[] = [];
   for (const seg of segmentsOf(text)) {
-    const p = parseSegment(seg, defaultStart);
-    if (p === undefined) return { ok: false, error: `Can't read "${seg}" — try 12:00-12:30 or 12:00 30m.` };
+    const p = parseSegment(seg, defaultStart, t);
+    if (p === undefined) return { ok: false, error: t("Can't read \"{text}\" — try 12:00-12:30 or 12:00 30m.", { text: seg }) };
     if (typeof p === "string") return { ok: false, error: p };
     pauses.push(p);
   }
   pauses.sort((a, b) => toMinutes(a.start) - toMinutes(b.start));
   for (let i = 1; i < pauses.length; i++) {
-    if (toMinutes(pauses[i].start) < toMinutes(pauses[i - 1].end)) return { ok: false, error: "Those breaks overlap." };
+    if (toMinutes(pauses[i].start) < toMinutes(pauses[i - 1].end)) return { ok: false, error: t("Those breaks overlap.") };
   }
   return { ok: true, pauses };
 }

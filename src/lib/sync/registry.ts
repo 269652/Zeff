@@ -2,6 +2,7 @@ import { eq, sql, type AnyColumn } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { getBoardSettings, latestRun } from "@/lib/boards/store";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { getGitlabSettings } from "@/lib/gitlab/store";
 import { getTeamsSettings } from "@/lib/teams/store";
 import { getMailSettings } from "@/lib/mail/store";
@@ -102,7 +103,7 @@ type Step = {
   /** Running by itself right now. */
   busy?: () => boolean;
   last?: () => Last;
-  schedule?: () => { everyMinutes: number; lastAt: string | null; window?: string };
+  schedule?: () => { everyMinutes: number; lastAt: string | null; window?: string; workdays?: boolean };
   /** Stop it, when it doesn't run through runStoppable (the Ticket-Lage's own run). */
   stop?: () => void;
 };
@@ -127,15 +128,18 @@ const STEPS: Record<SyncKey, Step> = {
   jira: {
     label: "Jira",
     href: "/jira",
-    what: "Your tickets and the chosen boards' tickets",
+    get what() { return t("Your tickets and the chosen boards' tickets"); },
     run: async () => {
       const { syncFromJira } = await import("@/lib/jira/sync");
       const { jiraDown } = await import("@/lib/jira/mcp-client");
       const r = await syncFromJira().catch((e) => {
         throw new Error(jiraDown(errorMessage(e)) ?? errorMessage(e));
       });
-      const unread = r.unreadBoards ? ` ${r.unreadBoards} board(s) couldn't be read to the end — nothing deactivated, next sync tries again.` : "";
-      return { ok: !unread, message: `${r.total} tickets — ${r.mine} yours (${r.inserted} new, ${r.updated} updated).${unread}` };
+      const unread = r.unreadBoards
+        ? ` ${t("{n} board(s) couldn't be read to the end — nothing deactivated, next sync tries again.", { n: r.unreadBoards })}`
+        : "";
+      const done = t("{total} tickets — {mine} yours ({inserted} new, {updated} updated).", { total: r.total, mine: r.mine, inserted: r.inserted, updated: r.updated });
+      return { ok: !unread, message: `${done}${unread}` };
     },
     last: () => recordedOr("jira", jiraTickets.syncedAt),
     schedule: () => ({ everyMinutes: stepMinutes("jira"), lastAt: recordedOr("jira", jiraTickets.syncedAt).lastAt }),
@@ -143,7 +147,7 @@ const STEPS: Record<SyncKey, Step> = {
   teams: {
     label: "Teams",
     href: "/teams",
-    what: "Your mentions and 1:1 messages",
+    get what() { return t("Your mentions and 1:1 messages"); },
     ownRecord: true,
     run: async () => (await import("@/lib/teams/sync")).syncTeams(),
     busy: () => flag("__zeffTeamsSyncing"),
@@ -151,9 +155,9 @@ const STEPS: Record<SyncKey, Step> = {
     schedule: () => ({ everyMinutes: getTeamsSettings().syncMinutes, lastAt: iso(getTeamsSettings().lastSyncAt) }),
   },
   mail: {
-    label: "Mail",
+    get label() { return t("Mail"); },
     href: "/mail",
-    what: "Your inbox's latest mails (Outlook, Gmail — read from the list, none opened)",
+    get what() { return t("Your inbox's latest mails (Outlook, Gmail — read from the list, none opened)"); },
     ownRecord: true,
     run: async () => (await import("@/lib/mail/sync")).syncMail(),
     busy: () => flag("__zeffMailSyncing"),
@@ -163,31 +167,31 @@ const STEPS: Record<SyncKey, Step> = {
   whatsapp: {
     label: "WhatsApp",
     href: "/mail?folder=WhatsApp",
-    what: "Your chats' latest messages (WhatsApp Web's chat list — no chat opened, nothing marked read)",
+    get what() { return t("Your chats' latest messages (WhatsApp Web's chat list — no chat opened, nothing marked read)"); },
     run: async () => (await import("@/lib/mail/sync")).syncWhatsapp(),
     busy: () => flag("__zeffWhatsappSyncing"),
-    schedule: () => ({ everyMinutes: stepMinutes("whatsapp"), lastAt: recorded("whatsapp").lastAt, window: "while the automation Chrome runs" }),
+    schedule: () => ({ everyMinutes: stepMinutes("whatsapp"), lastAt: recorded("whatsapp").lastAt, window: t("while the automation Chrome runs") }),
   },
   keep: {
     label: "Google Keep",
     href: "/keep/google",
-    what: "Your Google Keep notes (Keep opened in a fresh tab, what it loads kept — nothing in Keep changes)",
+    get what() { return t("Your Google Keep notes (Keep opened in a fresh tab, what it loads kept — nothing in Keep changes)"); },
     run: async () => (await import("@/plugins/keep/sync")).syncKeep(),
     busy: () => flag("__zeffKeepSyncing"),
-    schedule: () => ({ everyMinutes: stepMinutes("keep"), lastAt: recorded("keep").lastAt, window: "while the automation Chrome runs" }),
+    schedule: () => ({ everyMinutes: stepMinutes("keep"), lastAt: recorded("keep").lastAt, window: t("while the automation Chrome runs") }),
   },
   gcalendar: {
     label: "Google Calendar",
     href: "/kalender",
-    what: "Your Google calendars (the week view read in a fresh tab, week by week — nothing in Google changes)",
+    get what() { return t("Your Google calendars (the week view read in a fresh tab, week by week — nothing in Google changes)"); },
     run: async () => (await import("@/plugins/google-calendar/sync")).syncGoogleCalendar(),
     busy: () => flag("__zeffGcalSyncing"),
-    schedule: () => ({ everyMinutes: stepMinutes("gcalendar"), lastAt: recorded("gcalendar").lastAt, window: "while the automation Chrome runs" }),
+    schedule: () => ({ everyMinutes: stepMinutes("gcalendar"), lastAt: recorded("gcalendar").lastAt, window: t("while the automation Chrome runs") }),
   },
   gitlab: {
     label: "GitLab",
     href: "/gitlab",
-    what: "Merge requests, comments and branches",
+    get what() { return t("Merge requests, comments and branches"); },
     ownRecord: true,
     run: async () => (await import("@/lib/gitlab/sync")).syncGitlab(),
     busy: () => flag("__zeffGitlabSyncing"),
@@ -195,41 +199,41 @@ const STEPS: Record<SyncKey, Step> = {
     schedule: () => ({ everyMinutes: getGitlabSettings().syncMinutes, lastAt: iso(getGitlabSettings().lastSyncAt) }),
   },
   calendar: {
-    label: "Calendar",
+    get label() { return t("Calendar"); },
     href: "/calendar",
-    what: "Outlook meetings, last month to next week (read-only)",
+    get what() { return t("Outlook meetings, last month to next week (read-only)"); },
     run: async () => {
       const { outlookWeeks, syncOutlookWeekStarts } = await import("./pulls");
       const r = await syncOutlookWeekStarts(await outlookWeeks());
-      return { ok: true, message: `${r.weeks} weeks from Outlook — ${r.events} events.` };
+      return { ok: true, message: t("{weeks} weeks from Outlook — {events} events.", { weeks: r.weeks, events: r.events }) };
     },
-    schedule: () => ({ everyMinutes: stepMinutes("calendar"), lastAt: lastSyncOf("calendar"), window: "while the automation Chrome runs" }),
+    schedule: () => ({ everyMinutes: stepMinutes("calendar"), lastAt: lastSyncOf("calendar"), window: t("while the automation Chrome runs") }),
   },
   chrono: {
     label: "Chrono",
     href: "/month",
-    what: "Your Chrono entries' approvals, last and this month (read-only)",
+    get what() { return t("Your Chrono entries' approvals, last and this month (read-only)"); },
     run: async () => (await import("./pulls")).pullChronoWeekStarts(await lastAndCurrentWeeks()),
     last: () => recordedOr("chrono", chronoEntries.pulledAt),
-    schedule: () => ({ everyMinutes: stepMinutes("chrono"), lastAt: lastSyncOf("chrono"), window: "while the automation Chrome runs" }),
+    schedule: () => ({ everyMinutes: stepMinutes("chrono"), lastAt: lastSyncOf("chrono"), window: t("while the automation Chrome runs") }),
   },
   punch: {
     label: "Punch",
     href: "/",
-    what: "What Punch has on this and last week's days (read-only)",
+    get what() { return t("What Punch has on this and last week's days (read-only)"); },
     run: async () => {
       const { currentWeek, shiftWeek, isoDate } = await import("@/lib/week");
       const days = [shiftWeek(currentWeek(), -1), currentWeek()].flatMap((w) => w.days.map(isoDate));
       await (await import("./pulls")).pullPunchIsoDays(days);
-      return { ok: true, message: `Read Punch for ${days.length} days.` };
+      return { ok: true, message: t("Read Punch for {n} days.", { n: days.length }) };
     },
     last: () => recordedOr("punch", punchDays.pulledAt),
-    schedule: () => ({ everyMinutes: stepMinutes("punch"), lastAt: lastSyncOf("punch"), window: "while the automation Chrome runs" }),
+    schedule: () => ({ everyMinutes: stepMinutes("punch"), lastAt: lastSyncOf("punch"), window: t("while the automation Chrome runs") }),
   },
   boards: {
-    label: "Briefing",
+    get label() { return t("Briefing"); },
     href: "/todos",
-    what: "Your tickets through the AI: what happened, what's to do",
+    get what() { return t("Your tickets through the AI: what happened, what's to do"); },
     ownRecord: true,
     run: async () => {
       const { startBoardRun, boardRunState } = await import("@/lib/boards/run");
@@ -238,7 +242,7 @@ const STEPS: Record<SyncKey, Step> = {
       // It runs in the background: wait for it, so "Sync all" ends when it does.
       while (boardRunState()) await new Promise((res) => setTimeout(res, 2000));
       const run = latestRun();
-      return run?.status === "ok" ? { ok: true, message: "Briefing updated." } : { ok: false, message: run?.error ?? "The run failed." };
+      return run?.status === "ok" ? { ok: true, message: t("Briefing updated.") } : { ok: false, message: run?.error ?? t("The run failed.") };
     },
     stop: () => {
       void import("@/lib/boards/run").then((m) => m.stopBoardRun());
@@ -254,106 +258,117 @@ const STEPS: Record<SyncKey, Step> = {
       return {
         lastAt: iso(run.finishedAt ?? run.startedAt),
         lastOk: run.status === "ok",
-        lastMessage: run.status === "ok" ? `${run.tickets.filter((t) => t.analyzed).length} tickets` : run.error,
+        lastMessage: run.status === "ok" ? t("{n} tickets", { n: run.tickets.filter((x) => x.analyzed).length }) : run.error,
       };
     },
-    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: iso(latestRun()?.startedAt), window: "workdays" }),
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: iso(latestRun()?.startedAt), window: t("workdays"), workdays: true }),
   },
   mailtodos: {
-    label: "Mail review",
+    get label() { return t("Mail review"); },
     href: "/todos",
-    what: "Todos from your mails — what they ask of you (trainings, deadlines, forms), by the AI (after each briefing)",
+    get what() { return t("Todos from your mails — what they ask of you (trainings, deadlines, forms), by the AI (after each briefing)"); },
     run: async () => {
       const r = await (await import("@/lib/boards/mail-todos")).reviewMailsForTodos(
         (globalThis as { __zeffBoardRun?: { id: number } | null }).__zeffBoardRun?.id ?? null,
       );
       return r.ok
-        ? { ok: true, message: `${r.reviewed} mails reviewed, ${r.added} new todos${r.updated ? `, ${r.updated} updated` : ""}${r.error ? ` (${r.error})` : ""}` }
-        : { ok: false, message: r.error ?? "Failed." };
+        ? {
+            ok: true,
+            message: `${t("{reviewed} mails reviewed, {added} new todos", { reviewed: r.reviewed, added: r.added })}${r.updated ? `, ${t("{n} updated", { n: r.updated })}` : ""}${r.error ? ` (${r.error})` : ""}`,
+          }
+        : { ok: false, message: r.error ?? t("Failed.") };
     },
     busy: () => flag("__zeffMailTodos"),
     // It runs with the Ticket-Lage (after it, before the Mail-Zuordnung).
-    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("mailtodos").lastAt, window: "workdays, with the briefing" }),
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("mailtodos").lastAt, window: t("workdays, with the briefing"), workdays: true }),
   },
   autoactions: {
-    label: "Auto actions",
+    get label() { return t("Auto actions"); },
     href: "/todos",
-    what: "Ready actions for the todos without a button — by the AI, from what the installed plugins can do (after each briefing)",
+    get what() { return t("Ready actions for the todos without a button — by the AI, from what the installed plugins can do (after each briefing)"); },
     run: async () => {
       const r = await (await import("@/plugins/auto-actions/review")).reviewTodosForActions();
       return r.ok
-        ? { ok: true, message: `${r.reviewed} todos reviewed, ${r.withActions} with actions${r.error ? ` (${r.error})` : ""}` }
-        : { ok: false, message: r.error ?? "Failed." };
+        ? { ok: true, message: `${t("{reviewed} todos reviewed, {n} with actions", { reviewed: r.reviewed, n: r.withActions })}${r.error ? ` (${r.error})` : ""}` }
+        : { ok: false, message: r.error ?? t("Failed.") };
     },
     busy: () => flag("__zeffAutoActions"),
-    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("autoactions").lastAt, window: "workdays, with the briefing" }),
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("autoactions").lastAt, window: t("workdays, with the briefing"), workdays: true }),
   },
   boardlage: {
-    label: "Board briefing",
+    get label() { return t("Board briefing"); },
     href: "/kanban",
-    what: "The briefing on every relevant ticket on your Jira boards (not only yours) — for the Kanban cards (by hand, from a Jira board; only what changed)",
+    get what() { return t("The briefing on every relevant ticket on your Jira boards (not only yours) — for the Kanban cards (by hand, from a Jira board; only what changed)"); },
     run: async () => {
       const r = await (await import("@/plugins/jira-lage/board-lage")).runBoardLage();
       return r.ok
-        ? { ok: true, message: `${r.relevant} tickets ${r.all ? "(all)" : "(with you)"} · ${r.analyzed} reassessed · ${r.unchanged} unchanged${r.failed ? ` · ${r.failed} failed` : ""}` }
-        : { ok: false, message: r.error ?? "Failed." };
+        ? {
+            ok: true,
+            message: [
+              r.all ? t("{n} tickets (all)", { n: r.relevant }) : t("{n} tickets (with you)", { n: r.relevant }),
+              t("{n} reassessed", { n: r.analyzed }),
+              t("{n} unchanged", { n: r.unchanged }),
+              ...(r.failed ? [t("{n} failed", { n: r.failed })] : []),
+            ].join(" · "),
+          }
+        : { ok: false, message: r.error ?? t("Failed.") };
     },
     busy: () => flag("__zeffBoardLage"),
-    schedule: () => ({ everyMinutes: 0, lastAt: recorded("boardlage").lastAt, window: "by hand, from a Jira board" }),
+    schedule: () => ({ everyMinutes: 0, lastAt: recorded("boardlage").lastAt, window: t("by hand, from a Jira board") }),
   },
   relations: {
-    label: "Mail matching",
+    get label() { return t("Mail matching"); },
     href: "/todos",
-    what: "Which mails each open todo is about — the AI reads them by content (after each briefing)",
+    get what() { return t("Which mails each open todo is about — the AI reads them by content (after each briefing)"); },
     run: async () => {
       const r = await (await import("@/lib/boards/mail-relations")).relateMails();
       return r.ok
-        ? { ok: true, message: `${r.todos} todos, ${r.changed} changed${r.error ? ` (${r.error})` : ""}` }
-        : { ok: false, message: r.error ?? "Failed." };
+        ? { ok: true, message: `${t("{todos} todos, {changed} changed", { todos: r.todos, changed: r.changed })}${r.error ? ` (${r.error})` : ""}` }
+        : { ok: false, message: r.error ?? t("Failed.") };
     },
     busy: () => flag("__zeffMailRelations"),
     // It runs with the Ticket-Lage (its last step).
-    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("relations").lastAt, window: "workdays, with the briefing" }),
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("relations").lastAt, window: t("workdays, with the briefing"), workdays: true }),
   },
   // Google Keep's extensions for Todos (there while they're on — see extensions.ts):
   notetodos: {
-    label: "Note review",
+    get label() { return t("Note review"); },
     href: "/keep",
-    what: "Todos from your notes — new and edited ones (Google Keep, your Keep boards in the briefing), by the AI (after each briefing)",
+    get what() { return t("Todos from your notes — new and edited ones (Google Keep, your Keep boards in the briefing), by the AI (after each briefing)"); },
     run: async () => {
       const r = await (await import("@/plugins/keep/note-review")).reviewNotesForTodos(
         (globalThis as { __zeffBoardRun?: { id: number } | null }).__zeffBoardRun?.id ?? null,
       );
       return r.ok
-        ? { ok: true, message: `${r.reviewed} notes reviewed, ${r.added} new todos${r.error ? ` (${r.error})` : ""}` }
-        : { ok: false, message: r.error ?? "Failed." };
+        ? { ok: true, message: `${t("{reviewed} notes reviewed, {added} new todos", { reviewed: r.reviewed, added: r.added })}${r.error ? ` (${r.error})` : ""}` }
+        : { ok: false, message: r.error ?? t("Failed.") };
     },
     busy: () => flag("__zeffNoteTodos"),
-    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("notetodos").lastAt, window: "workdays, with the briefing" }),
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("notetodos").lastAt, window: t("workdays, with the briefing"), workdays: true }),
   },
   noterelations: {
-    label: "Note matching",
+    get label() { return t("Note matching"); },
     href: "/todos",
-    what: "Which notes each open todo is about — the AI reads them by content (after each briefing)",
+    get what() { return t("Which notes each open todo is about — the AI reads them by content (after each briefing)"); },
     run: async () => {
       const r = await (await import("@/plugins/keep/note-relations")).relateNotes();
       return r.ok
-        ? { ok: true, message: `${r.todos} todos, ${r.changed} changed${r.error ? ` (${r.error})` : ""}` }
-        : { ok: false, message: r.error ?? "Failed." };
+        ? { ok: true, message: `${t("{todos} todos, {changed} changed", { todos: r.todos, changed: r.changed })}${r.error ? ` (${r.error})` : ""}` }
+        : { ok: false, message: r.error ?? t("Failed.") };
     },
     busy: () => flag("__zeffNoteRelations"),
-    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("noterelations").lastAt, window: "workdays, with the briefing" }),
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("noterelations").lastAt, window: t("workdays, with the briefing"), workdays: true }),
   },
   knowledgerel: {
-    label: "Knowledge matching",
+    get label() { return t("Knowledge matching"); },
     href: "/todos",
-    what: "Which knowledge pages each open todo needs — the AI keeps only those that really fit (after each briefing)",
+    get what() { return t("Which knowledge pages each open todo needs — the AI keeps only those that really fit (after each briefing)"); },
     run: async () => {
       const r = await (await import("@/plugins/knowledge/relations")).relateKnowledge();
-      return r.ok ? { ok: true, message: `${r.todos} todos reviewed, ${r.assigned} with knowledge` } : { ok: false, message: r.error ?? "Failed." };
+      return r.ok ? { ok: true, message: t("{todos} todos reviewed, {n} with knowledge", { todos: r.todos, n: r.assigned }) } : { ok: false, message: r.error ?? t("Failed.") };
     },
     busy: () => flag("__zeffKnowledgeRelations"),
-    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("knowledgerel").lastAt, window: "workdays, with the briefing" }),
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("knowledgerel").lastAt, window: t("workdays, with the briefing"), workdays: true }),
   },
 };
 
@@ -393,7 +408,7 @@ export function syncOverview(): SyncOverview {
       running: l.running.has(key) || !!s.busy?.(),
       ...(s.last ? s.last() : recorded(key)),
       everyMinutes: sched?.everyMinutes ?? 0,
-      nextAt: sched ? nextRun(sched.everyMinutes, sched.lastAt, !!sched.window?.startsWith("workdays")) : null,
+      nextAt: sched ? nextRun(sched.everyMinutes, sched.lastAt, !!sched.workdays) : null,
       window: sched?.window ?? null,
     };
   });
@@ -445,10 +460,10 @@ export async function syncAndWait(key: SyncKey): Promise<Last> {
 export function startSync(key: SyncKey): { ok: boolean; message: string } {
   // Kept in the account it was started in — whichever is switched to while it runs.
   return inThisAccount(() => {
-    if (!stepAvailable(key)) return { ok: false, message: `${STEPS[key].label}: not installed (Menu → Plugins).` };
-    if (live().running.has(key) || STEPS[key].busy?.()) return { ok: false, message: `${STEPS[key].label} is already syncing.` };
+    if (!stepAvailable(key)) return { ok: false, message: t("{step}: not installed (Menu → Plugins).", { step: STEPS[key].label }) };
+    if (live().running.has(key) || STEPS[key].busy?.()) return { ok: false, message: t("{step} is already syncing.", { step: STEPS[key].label }) };
     void runStep(key);
-    return { ok: true, message: `${STEPS[key].label} is syncing.` };
+    return { ok: true, message: t("{step} is syncing.", { step: STEPS[key].label }) };
   });
 }
 
@@ -460,7 +475,7 @@ export function startSyncAll(): { ok: boolean; message: string } {
   // Kept in the account it was started in — whichever is switched to while it runs.
   return inThisAccount(() => {
     const l = live();
-    if (l.all !== undefined) return { ok: false, message: "Already syncing all." };
+    if (l.all !== undefined) return { ok: false, message: t("Already syncing all.") };
     l.all = null;
     l.allStopped = false;
     void (async () => {
@@ -475,6 +490,6 @@ export function startSyncAll(): { ok: boolean; message: string } {
         l.all = undefined;
       }
     })();
-    return { ok: true, message: "Syncing all." };
+    return { ok: true, message: t("Syncing all.") };
   });
 }

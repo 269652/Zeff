@@ -5,6 +5,7 @@ import { useTransition } from "react";
 import { runTodoAlternativeAction } from "@/plugins/todos/server-actions";
 import { opsButton, type TodoView } from "@/lib/boards/shared";
 import { toast } from "../Toaster";
+import { useT } from "@/components/I18nProvider";
 
 /** The blue chip an operation (or an alternative) is shown as. */
 export const OP_CHIP =
@@ -15,18 +16,19 @@ export const OP_CHIP =
  * its chip — what it does — and its button, which runs it at once (a merge asks first).
  */
 export function TodoAlternatives({
-  t,
+  t: todo,
   disabled = false,
 }: {
   t: TodoView;
   disabled?: boolean;
 }) {
+  const t = useT();
   const router = useRouter();
   const [pending, start] = useTransition();
-  if (!t.alternatives?.length) return null;
+  if (!todo.alternatives?.length) return null;
   return (
     <>
-      {t.alternatives.map((a) => (
+      {todo.alternatives.map((a) => (
         <span
           key={a.label}
           className="flex items-center gap-2 max-sm:flex-col max-sm:items-start"
@@ -49,16 +51,16 @@ export function TodoAlternatives({
               )
                 return;
               start(async () => {
-                const r = await runTodoAlternativeAction(t.id, a.label);
+                const r = await runTodoAlternativeAction(todo.id, a.label);
                 toast(
-                  r?.ok ? (r.message ?? "Running.") : (r?.error ?? "Didn't work."),
+                  r?.ok ? (r.message ?? t("Running.")) : (r?.error ?? t("Didn't work.")),
                   { tone: r?.ok ? "ok" : "error" },
                 );
                 router.refresh();
               });
             }}
           >
-            {pending ? "…" : opsButton(a.ops)}
+            {pending ? "…" : opsButton(a.ops, t)}
           </button>
         </span>
       ))}

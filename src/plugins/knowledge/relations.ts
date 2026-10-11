@@ -8,6 +8,7 @@ import type { TodoView } from "@/lib/boards/shared";
 import { errorMessage } from "@/lib/errors";
 import { emitChange } from "@/lib/events";
 import { getJiraTicket } from "@/lib/jira/store";
+import { t } from "@/lib/i18n/server";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { parseTodoKnowledge, type KnowledgeEntity, type KnowledgePage, type TodoKnowledge } from "./shared";
 
@@ -122,7 +123,7 @@ export function relateKnowledge(): Promise<KnowledgeRelationResult> {
       }
     }
     emitChange("todos");
-    return failed && failed === batches.length ? { ok: false, todos: due.length, assigned, error: "The AI didn't answer." } : { ok: true, todos: due.length, assigned };
+    return failed && failed === batches.length ? { ok: false, todos: due.length, assigned, error: t("The AI didn't answer.") } : { ok: true, todos: due.length, assigned };
   })();
   state.__zeffKnowledgeRelations = run;
   void run.finally(() => {

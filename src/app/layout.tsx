@@ -9,6 +9,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { SiteHeader, type MenuGroup } from "@/components/SiteHeader";
 import { PLUGINS } from "@/plugins/catalog";
+import { catalogText } from "@/plugins/catalog-text";
 import { installedPlugins } from "@/plugins/state";
 import { allApps, appTabs, getMenuPrefs } from "@/plugins/tabs";
 import { inOrder } from "@/lib/layout-shared";
@@ -27,11 +28,11 @@ const pluginGroups = (): MenuGroup[] => {
   const groups = PLUGINS.filter((p) => on.has(p.id) && p.category !== "language")
     .sort((a, b) => (a.id === "zeiterfassung" ? 0 : rank[a.category]) - (b.id === "zeiterfassung" ? 0 : rank[b.category]))
     .map((p) => {
-      const nav = (p.nav ?? []).filter((n) => !appHrefs.has(n.href));
-      const settings = p.settings && !nav.some((n) => n.href === p.settings!.href) ? [{ href: p.settings.href, label: "Settings", hint: p.settings.what }] : [];
+      const nav = (p.nav ?? []).filter((n) => !appHrefs.has(n.href)).map((n) => ({ ...n, label: catalogText(t, n.label), hint: catalogText(t, n.hint) }));
+      const settings = p.settings && !nav.some((n) => n.href === p.settings!.href) ? [{ href: p.settings.href, label: t("Settings"), hint: catalogText(t, p.settings.what) }] : [];
       const items = inOrder([...nav, ...settings].filter((n) => !seen.has(n.href)), (n) => n.href, order);
       for (const n of items) seen.add(n.href);
-      return { id: p.id, name: p.name, items };
+      return { id: p.id, name: catalogText(t, p.name), items };
     })
     .filter((g) => g.items.length);
   // In the order you put them in (Menu → Anpassen).
@@ -40,7 +41,7 @@ const pluginGroups = (): MenuGroup[] => {
 /** The header's tabs — those whose plugin gives a dropdown (Kanban's boards) as split buttons. */
 const headerTabs = () => {
   const withMenu = tabsWithMenu();
-  return appTabs().map((t) => ({ href: t.href, label: t.label, short: t.short, also: t.also, menu: withMenu.has(t.href) }));
+  return appTabs().map((tab) => ({ href: tab.href, label: tab.label, short: tab.short, also: tab.also, menu: withMenu.has(tab.href) }));
 };
 /** The pages the setup assistant leads to: its steps, the plugins' settings, sign-ins, syncs, accounts. */
 const setupPages = () => ["/setup", "/logins", "/sync-settings", "/plugins", "/accounts", "/preferences", ...PLUGINS.flatMap((p) => (p.settings ? [p.settings.href.split(/[?#]/)[0]] : []))];
@@ -56,16 +57,18 @@ import { getAppSettings } from "@/lib/ai";
 import { MainArea } from "@/components/MainArea";
 import { PluginFlagsProvider } from "@/components/PluginFlags";
 import { I18nProvider } from "@/components/I18nProvider";
-import { applyLanguage } from "@/lib/i18n/server";
+import { applyLanguage, t } from "@/lib/i18n/server";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
-export const metadata: Metadata = {
-  title: { default: "Zeff", template: "%s · Zeff" },
-  description: "Zeff — hourly time reports for jobs, with an MCP server for agents.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: { default: "Zeff", template: "%s · Zeff" },
+    description: t("Zeff — hourly time reports for jobs, with an MCP server for agents."),
+  };
+}
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Not set up yet (a new Zeff, a new account): a bare header, and the way into the setup assistant.

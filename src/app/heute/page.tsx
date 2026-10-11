@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { t } from "@/lib/i18n/server";
 import Link from "next/link";
 import { connection } from "next/server";
 import { daysUntil, dueText, dueTone } from "@/lib/boards/due-shared";
@@ -9,11 +10,13 @@ import { remindedFormAction } from "@/plugins/people/server-actions";
 import { inDaysText, upcomingTitle } from "@/plugins/people/shared";
 import { isInstalled } from "@/plugins/state";
 
-export const metadata: Metadata = { title: "Today" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: t("Today") };
+}
 
 const ago = (iso: string, now: number) => {
   const d = Math.floor((now - new Date(iso).getTime()) / 864e5);
-  return d <= 0 ? "today" : d === 1 ? "since yesterday" : `for ${d} days`;
+  return d <= 0 ? t("today") : d === 1 ? t("since yesterday") : t("for {n} days", { n: d });
 };
 
 function Card({ title, href, count, children }: { title: string; href?: string; count?: number; children: React.ReactNode }) {
@@ -26,7 +29,7 @@ function Card({ title, href, count, children }: { title: string; href?: string; 
         </span>
         {href && (
           <Link href={href} className="text-xs font-normal tracking-normal text-indigo-600 normal-case hover:underline dark:text-indigo-400">
-            all →
+            {t("all →")}
           </Link>
         )}
       </h2>
@@ -43,14 +46,14 @@ async function heuteData() {
   const { listTodos, latestRun } = await import("@/lib/boards/store");
   const run = latestRun();
   const open = listTodos({ status: "open" });
-  const mine = open.filter((t) => t.owner === "me");
-  const asking = open.filter((t) => t.needsInput);
+  const mine = open.filter((x) => x.owner === "me");
+  const asking = open.filter((x) => x.needsInput);
   // Workers and agents report these done: yours to look at and close.
-  const reportedDone = open.filter((t) => t.workerDone && !t.needsInput);
-  const due = mine.filter((t) => t.due && daysUntil(t.due) <= 3).sort((a, b) => a.due!.localeCompare(b.due!));
-  const flagged = mine.filter((t) => t.flaggedAt && !(t.due && daysUntil(t.due) <= 3));
+  const reportedDone = open.filter((x) => x.workerDone && !x.needsInput);
+  const due = mine.filter((x) => x.due && daysUntil(x.due) <= 3).sort((a, b) => a.due!.localeCompare(b.due!));
+  const flagged = mine.filter((x) => x.flaggedAt && !(x.due && daysUntil(x.due) <= 3));
   // Waiting on others for three days or more: time to ask again.
-  const waiting = open.filter((t) => t.owner === "other" && now - new Date(t.createdAt).getTime() >= 3 * 864e5).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const waiting = open.filter((x) => x.owner === "other" && now - new Date(x.createdAt).getTime() >= 3 * 864e5).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
   // Today's meetings (Outlook's calendar).
   const today = new Date();
@@ -60,7 +63,7 @@ async function heuteData() {
     const { readInbox } = await import("@/lib/calendar/inbox");
     meetings = readInbox()
       .filter((e) => !e.isCancelled && !e.isAllDay && e.start.dateTime.slice(0, 10) === iso && e.showAs !== "free")
-      .map((e) => ({ subject: e.subject ?? "(no title)", start: e.start.dateTime, end: e.end.dateTime, online: !!e.isOnlineMeeting }))
+      .map((e) => ({ subject: e.subject ?? t("(no title)"), start: e.start.dateTime, end: e.end.dateTime, online: !!e.isOnlineMeeting }))
       .sort((a, b) => a.start.localeCompare(b.start));
   }
 
@@ -110,11 +113,12 @@ async function heuteData() {
     const { currentWeek, shiftWeek } = await import("@/lib/week");
     const { weekClose } = await import("@/lib/week-close");
     const thisWeek = currentWeek();
-    const candidates = today.getDay() >= 1 && today.getDay() <= 3 ? [{ w: shiftWeek(thisWeek, -1), title: "Close last week" }] : [];
-    candidates.push({ w: thisWeek, title: "Close the week" });
-    for (const { w, title } of candidates) {
+    const candidates = today.getDay() >= 1 && today.getDay() <= 3 ? [{ w: shiftWeek(thisWeek, -1), last: true }] : [];
+    candidates.push({ w: thisWeek, last: false });
+    for (const { w, last } of candidates) {
       const c = await weekClose(w, today);
-      if (c.over && !c.done) weeks.push({ key: w.key, title: `${title} (W${w.week})`, open: c.items.filter((i) => i.state !== "ok").length, href: `/?week=${w.key}` });
+      const title = last ? t("Close last week (W{n})", { n: w.week }) : t("Close the week (W{n})", { n: w.week });
+      if (c.over && !c.done) weeks.push({ key: w.key, title, open: c.items.filter((i) => i.state !== "ok").length, href: `/?week=${w.key}` });
     }
   }
 
@@ -127,9 +131,10 @@ async function heuteData() {
     mine,
     meetings,
     unanswered,
-    dates: reminders.map((r) => ({ key: `${r.date.id}:${r.on}`, title: upcomingTitle(r), inDays: r.inDays, href: `/personen/${r.person.id}` })),
+    dates: reminders.map((r) => ({ key: `${r.date.id}:${r.on}`, title: upcomingTitle(r, t), inDays: r.inDays, href: `/personen/${r.person.id}` })),
     hours,
     weeks,
+    t,
   });
 
   return { run, open, mine, asking, reportedDone, due, flagged, waiting, meetings, unanswered, hours, problems, reminders, next, today, now };
@@ -142,11 +147,11 @@ const NEXT_TONE: Record<import("@/lib/heute-next").NextTone, string> = {
   zinc: "text-zinc-500",
 };
 
-const PROBLEM: Record<"login" | "chrome" | "broken", string> = {
-  login: "Sign-in needed",
-  chrome: "automation Chrome isn't running",
-  broken: "failing",
-};
+const problemLabels = (): Record<"login" | "chrome" | "broken", string> => ({
+  login: t("Sign-in needed"),
+  chrome: t("automation Chrome isn't running"),
+  broken: t("failing"),
+});
 
 /**
  * Heute: the day on one page — what the Lage says, what's due, what agents ask, today's meetings,
@@ -158,12 +163,13 @@ export default async function HeutePage() {
   if (!isInstalled("todos")) return <PluginNotInstalled id="todos" />;
   const { run, mine, asking, reportedDone, due, flagged, waiting, meetings, unanswered, hours, problems, reminders, next, today, now } = await heuteData();
 
-  const todo = (t: TodoView, extra?: React.ReactNode) => (
-    <li key={t.id} className="flex items-baseline gap-2 text-sm">
-      <Link href={`/t/${t.id}`} className="font-mono text-xs text-zinc-400 hover:underline">
-        {t.ref}
+  const problem = problemLabels();
+  const todo = (td: TodoView, extra?: React.ReactNode) => (
+    <li key={td.id} className="flex items-baseline gap-2 text-sm">
+      <Link href={`/t/${td.id}`} className="font-mono text-xs text-zinc-400 hover:underline">
+        {td.ref}
       </Link>
-      <span className="min-w-0 flex-1">{t.text}</span>
+      <span className="min-w-0 flex-1">{td.text}</span>
       {extra}
     </li>
   );
@@ -171,19 +177,19 @@ export default async function HeutePage() {
   return (
     <div className="page">
       <div className="page-aside">
-        <h1 className="text-lg font-semibold">Today</h1>
+        <h1 className="text-lg font-semibold">{t("Today")}</h1>
         <p className="text-sm text-zinc-500">{today.toLocaleDateString(currentLocale(), { weekday: "long", day: "numeric", month: "long" })}</p>
         {run?.result?.lede && (
           <div className="space-y-1">
             <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{run.result.lede}</p>
             <Link href="/todos" className="text-xs text-indigo-600 hover:underline dark:text-indigo-400">
-              To the briefing →
+              {t("To the briefing →")}
             </Link>
           </div>
         )}
         {hours && (
           <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
-            <div className="text-xs text-zinc-500 uppercase">Hours today</div>
+            <div className="text-xs text-zinc-500 uppercase">{t("Hours today")}</div>
             <div className="text-2xl font-semibold tabular-nums">
               {formatHours(hours.booked)} <span className="text-base font-normal text-zinc-400">/ {formatHours(hours.target)}</span>
             </div>
@@ -191,7 +197,11 @@ export default async function HeutePage() {
               <div className="h-full bg-indigo-500" style={{ width: `${Math.min(100, hours.target ? (hours.booked / hours.target) * 100 : 0)}%` }} />
             </div>
             <Link href="/feierabend" className="mt-1 block text-xs text-indigo-600 hover:underline dark:text-indigo-400">
-              {hours.suggestions ? `${hours.suggestions} ${hours.suggestions === 1 ? "suggestion" : "suggestions"} from today — book the day →` : "Book the day (End of day) →"}
+              {hours.suggestions
+                ? hours.suggestions === 1
+                  ? t("1 suggestion from today — book the day →")
+                  : t("{n} suggestions from today — book the day →", { n: hours.suggestions })
+                : t("Book the day (End of day) →")}
             </Link>
           </div>
         )}
@@ -200,7 +210,7 @@ export default async function HeutePage() {
       <div className="grid gap-4 xl:grid-cols-2">
         {next.length > 0 && (
           <section className="card p-4 xl:col-span-2">
-            <h2 className="mb-2 text-sm font-semibold text-zinc-500 uppercase">Up next</h2>
+            <h2 className="mb-2 text-sm font-semibold text-zinc-500 uppercase">{t("Up next")}</h2>
             <ol className="space-y-1.5">
               {next.map((n, i) => {
                 const body = (
@@ -227,7 +237,7 @@ export default async function HeutePage() {
         )}
 
         {problems.length > 0 && (
-          <Card title="Syncs with problems" count={problems.length}>
+          <Card title={t("Syncs with problems")} count={problems.length}>
             <ul className="space-y-1.5">
               {problems.map((p) => (
                 <li key={p.key} className="text-sm">
@@ -235,7 +245,7 @@ export default async function HeutePage() {
                     <Link href={p.kind === "login" ? "/logins" : p.href} className="shrink-0 font-medium hover:underline">
                       {p.label}
                     </Link>
-                    <span className="min-w-0 flex-1 text-red-600 dark:text-red-400">{PROBLEM[p.kind]}</span>
+                    <span className="min-w-0 flex-1 text-red-600 dark:text-red-400">{problem[p.kind]}</span>
                     <span className="shrink-0 text-xs text-zinc-400">
                       {p.failures}× · {ago(p.since, now)}
                     </span>
@@ -253,26 +263,26 @@ export default async function HeutePage() {
           </Card>
         )}
         {asking.length > 0 && (
-          <Card title="Agents ask you" count={asking.length}>
-            <ul className="space-y-1.5">{asking.map((t) => todo(t, <span className="shrink-0 text-xs text-amber-600 dark:text-amber-400">❗</span>))}</ul>
+          <Card title={t("Agents ask you")} count={asking.length}>
+            <ul className="space-y-1.5">{asking.map((x) => todo(x, <span className="shrink-0 text-xs text-amber-600 dark:text-amber-400">❗</span>))}</ul>
           </Card>
         )}
 
         {reminders.length > 0 && (
-          <Card title="Reminders" count={reminders.length} href="/personen">
+          <Card title={t("Reminders")} count={reminders.length} href="/personen">
             <ul className="space-y-1.5">
               {reminders.map((r) => (
                 <li key={`${r.date.id}:${r.on}`} className="flex items-baseline gap-2 text-sm">
                   <span className="shrink-0">{r.date.kind === "birthday" ? "🎂" : "📅"}</span>
                   <Link href={`/personen/${r.person.id}`} className="min-w-0 flex-1 hover:underline">
-                    {upcomingTitle(r)}
+                    {upcomingTitle(r, t)}
                   </Link>
-                  <span className={`shrink-0 text-xs ${r.inDays === 0 ? "font-medium text-amber-700 dark:text-amber-400" : "text-zinc-500"}`}>{inDaysText(r.inDays, r.on)}</span>
+                  <span className={`shrink-0 text-xs ${r.inDays === 0 ? "font-medium text-amber-700 dark:text-amber-400" : "text-zinc-500"}`}>{inDaysText(r.inDays, r.on, t)}</span>
                   <form action={remindedFormAction} className="shrink-0">
                     <input type="hidden" name="dateId" value={r.date.id} />
                     <input type="hidden" name="on" value={r.on} />
-                    <button className="text-xs text-zinc-400 hover:text-zinc-700 hover:underline dark:hover:text-zinc-200" title="Done — don't show again until next time">
-                      done
+                    <button className="text-xs text-zinc-400 hover:text-zinc-700 hover:underline dark:hover:text-zinc-200" title={t("Done — don't show again until next time")}>
+                      {t("done")}
                     </button>
                   </form>
                 </li>
@@ -281,19 +291,23 @@ export default async function HeutePage() {
           </Card>
         )}
 
-        <Card title="Due" count={due.length + flagged.length} href="/todos">
+        <Card title={t("Due")} count={due.length + flagged.length} href="/todos">
           {due.length || flagged.length ? (
             <ul className="space-y-1.5">
-              {due.map((t) => todo(t, <span className={`shrink-0 text-xs ${dueTone(t.due!)}`}>{dueText(t.due!)}</span>))}
-              {flagged.map((t) => todo(t, <span className="shrink-0 text-xs text-red-600 dark:text-red-400">important</span>))}
+              {due.map((x) => todo(x, <span className={`shrink-0 text-xs ${dueTone(x.due!)}`}>{dueText(x.due!, t)}</span>))}
+              {flagged.map((x) => todo(x, <span className="shrink-0 text-xs text-red-600 dark:text-red-400">{t("important")}</span>))}
             </ul>
           ) : (
-            <Empty>Nothing due in the next three days. {mine.length} {mine.length === 1 ? "todo" : "todos"} open.</Empty>
+            <Empty>
+              {mine.length === 1
+                ? t("Nothing due in the next three days. 1 todo open.")
+                : t("Nothing due in the next three days. {n} todos open.", { n: mine.length })}
+            </Empty>
           )}
         </Card>
 
         {isInstalled("outlook-calendar") && (
-          <Card title="Meetings" count={meetings.length} href="/calendar">
+          <Card title={t("Meetings")} count={meetings.length} href="/calendar">
             {meetings.length ? (
               <ul className="space-y-1.5">
                 {meetings.map((m, i) => {
@@ -304,19 +318,19 @@ export default async function HeutePage() {
                         {formatTime(m.start)}–{formatTime(m.end)}
                       </span>
                       <span className={`min-w-0 flex-1 ${live ? "font-medium" : ""}`}>{m.subject}</span>
-                      {live && <span className="shrink-0 text-xs text-emerald-600 dark:text-emerald-400">now</span>}
+                      {live && <span className="shrink-0 text-xs text-emerald-600 dark:text-emerald-400">{t("now")}</span>}
                     </li>
                   );
                 })}
               </ul>
             ) : (
-              <Empty>No meetings today.</Empty>
+              <Empty>{t("No meetings today.")}</Empty>
             )}
           </Card>
         )}
 
         {(isInstalled("whatsapp") || isInstalled("teams")) && (
-          <Card title="Waiting for your answer" count={unanswered.length} href="/mail">
+          <Card title={t("Waiting for your answer")} count={unanswered.length} href="/mail">
             {unanswered.length ? (
               <ul className="space-y-1.5">
                 {unanswered.slice(0, 12).map((u) => (
@@ -325,7 +339,7 @@ export default async function HeutePage() {
                       <span className="shrink-0 font-medium">{u.who}</span>
                       <span className="min-w-0 flex-1 truncate text-zinc-500">{u.text}</span>
                       <span className="shrink-0 text-xs text-zinc-400">
-                        {u.count > 1 ? `${u.count} messages · ` : ""}
+                        {u.count > 1 ? `${t("{n} messages", { n: u.count })} · ` : ""}
                         {u.source} · {ago(u.since, now)}
                       </span>
                     </a>
@@ -333,16 +347,16 @@ export default async function HeutePage() {
                 ))}
               </ul>
             ) : (
-              <Empty>Nobody is waiting for you.</Empty>
+              <Empty>{t("Nobody is waiting for you.")}</Empty>
             )}
           </Card>
         )}
 
-        <Card title="Waiting on others" count={waiting.length} href="/todos">
+        <Card title={t("Waiting on others")} count={waiting.length} href="/todos">
           {waiting.length ? (
-            <ul className="space-y-1.5">{waiting.slice(0, 10).map((t) => todo(t, <span className="shrink-0 text-xs text-zinc-400">⏳ {ago(t.createdAt, now)}</span>))}</ul>
+            <ul className="space-y-1.5">{waiting.slice(0, 10).map((x) => todo(x, <span className="shrink-0 text-xs text-zinc-400">⏳ {ago(x.createdAt, now)}</span>))}</ul>
           ) : (
-            <Empty>Nothing has been waiting longer than three days.</Empty>
+            <Empty>{t("Nothing has been waiting longer than three days.")}</Empty>
           )}
         </Card>
       </div>

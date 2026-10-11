@@ -3,6 +3,8 @@ import { SyncIntervalSelect } from "@/components/SyncIntervalSelect";
 import { syncOverview } from "@/lib/sync/registry";
 import { formatAgo, formatDate, formatTime } from "@/lib/format";
 import { installedSyncSettings } from "@/plugins/sync-settings-modules";
+import { t } from "@/lib/i18n/server";
+import { catalogText } from "@/plugins/catalog-text";
 
 const at = (iso: string) => `${formatDate(iso)}, ${formatTime(iso)}`;
 
@@ -15,7 +17,7 @@ export function SyncSettingsList() {
       {groups.length ? (
         groups.map(({ plugin, settings }) => (
           <section key={plugin.id} className="card divide-y divide-zinc-100 dark:divide-zinc-800">
-            <h2 className="px-4 py-2.5 text-sm font-semibold text-zinc-500">{plugin.name}</h2>
+            <h2 className="px-4 py-2.5 text-sm font-semibold text-zinc-500">{catalogText(t, plugin.name)}</h2>
             {settings.intervals.map((i) => {
               const s = steps.get(i.key);
               return (
@@ -26,8 +28,11 @@ export function SyncSettingsList() {
                     <p className="text-xs text-zinc-400">
                       {[
                         i.window,
-                        s?.lastAt && `last run ${formatAgo(s.lastAt)}${s.lastOk === false ? " (failed)" : ""}`,
-                        s?.nextAt && `next run ${at(s.nextAt)}`,
+                        s?.lastAt &&
+                          (s.lastOk === false
+                            ? t("last run {ago} (failed)", { ago: formatAgo(s.lastAt) })
+                            : t("last run {ago}", { ago: formatAgo(s.lastAt) })),
+                        s?.nextAt && t("next run {at}", { at: at(s.nextAt) }),
                       ]
                         .filter(Boolean)
                         .join(" · ")}
@@ -47,9 +52,9 @@ export function SyncSettingsList() {
         ))
       ) : (
         <p className="py-6 text-center text-sm text-zinc-500">
-          None of the installed plugins brings a sync —{" "}
+          {t("None of the installed plugins brings a sync —")}{" "}
           <Link href="/plugins" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            Plugins
+            {t("Plugins")}
           </Link>
           .
         </p>

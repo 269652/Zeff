@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import type { TicketSuggestionLite } from "./EntryForm";
+import { useT } from "@/components/I18nProvider";
 
 /**
  * A ticket autocomplete that replaces the native <datalist>. Unlike a datalist —
@@ -26,6 +27,7 @@ export function TicketCombobox({
   placeholder?: string;
   disabled?: boolean;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -113,7 +115,7 @@ export function TicketCombobox({
                   <span
                     className={`badge ${s.mine ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300" : "badge-web"}`}
                   >
-                    {s.mine ? "You" : s.assignee}
+                    {s.mine ? t("You") : s.assignee}
                   </span>
                 )}
               </div>

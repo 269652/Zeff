@@ -1,17 +1,20 @@
 import type { Metadata } from "next";
+import { t } from "@/lib/i18n/server";
 import { headers } from "next/headers";
 import { DEFAULT_ACCOUNT, accountsInstalled, listAccounts } from "@/db/accounts";
 
-export const metadata: Metadata = { title: "MCP setup" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: t("MCP setup") };
+}
 
-const TOOLS: [string, string][] = [
-  ["report_time", "Book hours on a job (jobNumber, hours, description, date?, ticket?, reportedBy?)."],
-  ["list_jobs", "List job numbers, optionally filtered by a search term."],
-  ["create_job", "Create a new job number."],
-  ["get_weekly_report", "Hours per job and weekday for a week, plus all its entries."],
-  ["list_time_entries", "List entries with filters (job, date range, ticket, reporter)."],
-  ["update_time_entry", "Correct an entry."],
-  ["delete_time_entry", "Delete an entry booked by mistake."],
+const tools = (): [string, string][] => [
+  ["report_time", t("Book hours on a job (jobNumber, hours, description, date?, ticket?, reportedBy?).")],
+  ["list_jobs", t("List job numbers, optionally filtered by a search term.")],
+  ["create_job", t("Create a new job number.")],
+  ["get_weekly_report", t("Hours per job and weekday for a week, plus all its entries.")],
+  ["list_time_entries", t("List entries with filters (job, date range, ticket, reporter).")],
+  ["update_time_entry", t("Correct an entry.")],
+  ["delete_time_entry", t("Delete an entry booked by mistake.")],
 ];
 
 export default async function McpPage() {
@@ -50,21 +53,19 @@ export default async function McpPage() {
   return (
     <div className="page">
       <div className="page-aside">
-        <h1 className="text-lg font-semibold">Connect an agent</h1>
+        <h1 className="text-lg font-semibold">{t("Connect an agent")}</h1>
         <p className="text-sm text-zinc-500">
-          Zeff exposes a Model Context Protocol server over Streamable HTTP. Any MCP client can
-          book time on jobs with the <code className="code">report_time</code> tool.
+          {t("Zeff exposes a Model Context Protocol server over Streamable HTTP. Any MCP client can book time on jobs with the")}{" "}
+          <code className="code">report_time</code> {t("tool.")}
         </p>
       </div>
 
       <section className="card space-y-2 p-4">
-        <h2 className="text-sm font-semibold text-zinc-500 uppercase">Endpoint</h2>
+        <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Endpoint")}</h2>
         <pre className="pre">{url}</pre>
         {accounts.length > 1 && (
           <>
-            <p className="text-sm">
-              One endpoint per account — an agent stays in its account, whichever one you switch to in Zeff:
-            </p>
+            <p className="text-sm">{t("One endpoint per account — an agent stays in its account, whichever one you switch to in Zeff:")}</p>
             <table className="table">
               <tbody>
                 {accounts.map((a) => (
@@ -80,12 +81,12 @@ export default async function McpPage() {
         <p className="text-sm text-zinc-500">
           {tokenSet ? (
             <>
-              Protected: requests must send <code className="code">Authorization: Bearer &lt;ZEFF_MCP_TOKEN&gt;</code>.
+              {t("Protected: requests must send")} <code className="code">Authorization: Bearer &lt;ZEFF_MCP_TOKEN&gt;</code>.
             </>
           ) : (
             <>
-              Currently unprotected (fine on localhost). Set <code className="code">ZEFF_MCP_TOKEN</code> in{" "}
-              <code className="code">.env.local</code> to require a bearer token.
+              {t("Currently unprotected (fine on localhost). Set")} <code className="code">ZEFF_MCP_TOKEN</code> {t("in")}{" "}
+              <code className="code">.env.local</code> {t("to require a bearer token.")}
             </>
           )}
         </p>
@@ -93,27 +94,31 @@ export default async function McpPage() {
 
       <section className="card space-y-3 p-4">
         <h2 className="text-sm font-semibold text-zinc-500 uppercase">Claude Code</h2>
-        <p className="text-sm">Add it for the current user (or drop the JSON below into a project&apos;s <code className="code">.mcp.json</code>):</p>
+        <p className="text-sm">
+          {t("Add it for the current user (or drop the JSON below into a project's")} <code className="code">.mcp.json</code>):
+        </p>
         <pre className="pre">{claudeCli}</pre>
         <pre className="pre">{mcpJson}</pre>
         <p className="text-sm">
-          Then, after finishing a ticket, tell the agent something like{" "}
-          <em>&quot;Report 1.5h for PROJ-337 on job 2026-0815 in Zeff.&quot;</em> — or add that rule to your{" "}
-          <code className="code">CLAUDE.md</code> so it happens automatically.
+          {t("Then, after finishing a ticket, tell the agent something like")}{" "}
+          <em>&quot;{t("Report 1.5h for PROJ-337 on job 2026-0815 in Zeff.")}&quot;</em> {t("— or add that rule to your")}{" "}
+          <code className="code">CLAUDE.md</code> {t("so it happens automatically.")}
         </p>
       </section>
 
       <section className="card space-y-3 p-4">
-        <h2 className="text-sm font-semibold text-zinc-500 uppercase">Claude Desktop, Cursor &amp; other clients</h2>
-        <p className="text-sm">Clients that support remote (HTTP) servers can use the JSON above. Clients that only speak stdio can bridge with <code className="code">mcp-remote</code>:</p>
+        <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Claude Desktop, Cursor & other clients")}</h2>
+        <p className="text-sm">
+          {t("Clients that support remote (HTTP) servers can use the JSON above. Clients that only speak stdio can bridge with")} <code className="code">mcp-remote</code>:
+        </p>
         <pre className="pre">{stdioJson}</pre>
       </section>
 
       <section className="card space-y-3 p-4">
-        <h2 className="text-sm font-semibold text-zinc-500 uppercase">Tools</h2>
+        <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Tools")}</h2>
         <table className="table">
           <tbody>
-            {TOOLS.map(([name, desc]) => (
+            {tools().map(([name, desc]) => (
               <tr key={name}>
                 <td className="font-mono whitespace-nowrap">{name}</td>
                 <td>{desc}</td>
@@ -124,7 +129,7 @@ export default async function McpPage() {
       </section>
 
       <section className="card space-y-3 p-4">
-        <h2 className="text-sm font-semibold text-zinc-500 uppercase">Smoke test</h2>
+        <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Smoke test")}</h2>
         <pre className="pre">{curl}</pre>
       </section>
     </div>

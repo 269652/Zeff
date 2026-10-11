@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { t } from "@/lib/i18n/server";
 
 /** git in a folder: its output (trimmed), or throws with what git said. */
 export function git(cwd: string, args: string[], timeoutMs = 60000): string {
@@ -70,10 +71,10 @@ export function gitSummary(cwd: string, baseSha: string | null): string {
   if (!cwd || !isRepo(cwd)) return ""; // a worktree's .git is a file: there too
   const parts: string[] = [];
   const commits = baseSha ? tryGit(cwd, ["log", "--oneline", "--no-decorate", `${baseSha}..HEAD`]) : "";
-  if (commits) parts.push(`Commits:\n${commits}`);
+  if (commits) parts.push(`${t("Commits:")}\n${commits}`);
   const stat = baseSha ? tryGit(cwd, ["diff", "--stat", baseSha]) : "";
-  if (stat) parts.push(`Changed since the start:\n${stat}`);
+  if (stat) parts.push(`${t("Changed since the start:")}\n${stat}`);
   const status = tryGit(cwd, ["status", "--short"]);
-  if (status) parts.push(`Not committed:\n${status}`);
+  if (status) parts.push(`${t("Not committed:")}\n${status}`);
   return parts.join("\n\n").slice(0, 6000);
 }

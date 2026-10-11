@@ -3,6 +3,7 @@ import { and, desc, eq, gte, like, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { resolveLinks } from "@/lib/context-links";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { entityHeadline, entityText, type Entity, entityDone } from "@/lib/entities-shared";
 import { gitlabDone } from "@/lib/gitlab/shared";
 import { gitlabItemsByKeys } from "@/lib/gitlab/store";
@@ -645,8 +646,8 @@ export async function collectBoard(
   if (!boards.length && !kanbanOn)
     throw new Error(
       jiraOn
-        ? "No boards chosen — enable the boards to read on the Jira tab (or put a Kanban board in the briefing)."
-        : "Nothing to brief on: neither Jira (plugin, set up, boards chosen) nor Kanban boards in the briefing.",
+        ? t("No boards chosen — enable the boards to read on the Jira tab (or put a Kanban board in the briefing).")
+        : t("Nothing to brief on: neither Jira (plugin, set up, boards chosen) nor Kanban boards in the briefing."),
     );
   const cutoff = Date.now() - STALE_DAYS * 864e5;
   // Tickets followed besides the filter (by hand, or while you're active on them).

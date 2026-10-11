@@ -1,3 +1,5 @@
+import type { T } from "@/lib/i18n/shared";
+
 /** What happened to a todo — one line of the Aktivität tab. */
 export type TodoEventKind = "created" | "done" | "dismissed" | "reopened";
 
@@ -25,6 +27,14 @@ export const TODO_EVENT_LABELS: Record<TodoEventKind, { icon: string; label: str
   dismissed: { icon: "✕", label: "dismissed", tone: "text-zinc-500" },
   reopened: { icon: "↺", label: "reopened", tone: "text-amber-600 dark:text-amber-400" },
 };
+
+/** The same, its labels in the account's language. */
+export const todoEventLabels = (t: T): Record<TodoEventKind, { icon: string; label: string; tone: string }> => ({
+  created: { ...TODO_EVENT_LABELS.created, label: t("new") },
+  done: { ...TODO_EVENT_LABELS.done, label: t("done") },
+  dismissed: { ...TODO_EVENT_LABELS.dismissed, label: t("dismissed") },
+  reopened: { ...TODO_EVENT_LABELS.reopened, label: t("reopened") },
+});
 
 /** Where the newest seen event's id is kept (this browser). */
 export const ACTIVITY_SEEN_KEY = "zeff-activity-seen";

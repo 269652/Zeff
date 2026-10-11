@@ -2,7 +2,8 @@ import { desc, eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { currentAccountId } from "@/db/accounts";
 import { formatDate } from "@/lib/format";
-import { ATTENTION_LABELS, isAttention } from "@/lib/boards/shared";
+import { t } from "@/lib/i18n/server";
+import { attentionLabels, isAttention, type Attention } from "@/lib/boards/shared";
 import { lageByTicket, openTodosByTicket, type Lage } from "@/lib/boards/ticket-lage";
 import type { BoardSummary, RichBoard, RichCard, RichColumn } from "@/plugins/kanban/shared";
 
@@ -52,7 +53,7 @@ async function boardColumns(boardId: number): Promise<{ columns: JiraColumn[] | 
   if (hit && Date.now() - hit.at < HOUR) return hit;
   const j = jiraRest();
   let out: { columns: JiraColumn[] | null; error?: string };
-  if (!j) out = { columns: null, error: "Jira access (JIRA_URL, JIRA_PERSONAL_TOKEN) is missing — columns by status category." };
+  if (!j) out = { columns: null, error: t("Jira access (JIRA_URL, JIRA_PERSONAL_TOKEN) is missing — columns by status category.") };
   else {
     try {
       const [names, r] = await Promise.all([statusNames(), fetch(`${j.base}/rest/agile/1.0/board/${boardId}/configuration`, { headers: j.headers, signal: AbortSignal.timeout(15000) })]);
@@ -61,17 +62,17 @@ async function boardColumns(boardId: number): Promise<{ columns: JiraColumn[] | 
       const cols = (cfg.columnConfig?.columns ?? []).map((c) => ({ name: c.name.trim(), statuses: (c.statuses ?? []).map((s) => names.get(String(s.id)) ?? "").filter(Boolean) }));
       out = { columns: cols.length ? cols : null };
     } catch (e) {
-      out = { columns: null, error: `Couldn't read the columns from Jira (${e instanceof Error ? e.message : e}) — by status category.` };
+      out = { columns: null, error: t("Couldn't read the columns from Jira ({error}) — by status category.", { error: e instanceof Error ? e.message : String(e) }) };
     }
   }
   columnsCache.set(key, { at: Date.now(), ...out });
   return out;
 }
 
-const CATEGORY_COLUMNS: JiraColumn[] = [
-  { name: "To do", statuses: [] },
-  { name: "In progress", statuses: [] },
-  { name: "Done", statuses: [] },
+const categoryColumns = (): JiraColumn[] => [
+  { name: t("To do"), statuses: [] },
+  { name: t("In progress"), statuses: [] },
+  { name: t("Done"), statuses: [] },
 ];
 const categoryIndex = (c: string | null | undefined) => (c === "done" ? 2 : c === "inprogress" ? 1 : 0);
 
@@ -100,6 +101,9 @@ function commentActivity(keys: string[]): Map<string, Activity> {
   return out;
 }
 
+/** An attention in the account's language (outside card(), whose `t` is the ticket). */
+const attentionLabel = (a: Attention) => attentionLabels(t)[a];
+
 function card(t: Ticket, lage: Lage | undefined, todos: Map<string, { id: number; text: string; owner: "me" | "other" }[]>, comments?: Map<string, Activity>): RichCard {
   const badges: RichCard["badges"] = [];
   if (t.issueType) badges.push({ text: t.issueType, tone: /bug|fehler/i.test(t.issueType) ? "red" : "zinc" });
@@ -111,7 +115,7 @@ function card(t: Ticket, lage: Lage | undefined, todos: Map<string, { id: number
     title: t.summary,
     url: t.url,
     attention,
-    attentionLabel: attention ? ATTENTION_LABELS[attention] : null,
+    attentionLabel: attention ? attentionLabel(attention) : null,
     badges,
     // Jira's "Unassigned" is nobody.
     assignee: t.assignee && !/^(unassigned|nicht zugewiesen|nicht zugeordnet)$/i.test(t.assignee.trim()) ? t.assignee : null,
@@ -129,9 +133,9 @@ function card(t: Ticket, lage: Lage | undefined, todos: Map<string, { id: number
 
 function place(tickets: Ticket[], cols: JiraColumn[] | null, byKey: Map<string, Lage>, todos: Map<string, { id: number; text: string; owner: "me" | "other" }[]>): RichColumn[] {
   const comments = commentActivity(tickets.filter((t) => !byKey.has(t.key.toUpperCase())).map((t) => t.key));
-  const list = cols ?? CATEGORY_COLUMNS;
+  const list = cols ?? categoryColumns();
   const columns: RichColumn[] = list.map((c, i) => ({ id: `c${i}`, name: c.name, cards: [] }));
-  const other: RichColumn = { id: "other", name: "Other", cards: [] };
+  const other: RichColumn = { id: "other", name: t("Other"), cards: [] };
   for (const t of tickets) {
     const i = cols ? cols.findIndex((c) => c.statuses.some((s) => s.toLowerCase() === t.status.toLowerCase())) : categoryIndex(t.statusCategory);
     (i >= 0 ? columns[i] : other).cards.push(card(t, byKey.get(t.key.toUpperCase()), todos, comments));
@@ -152,13 +156,13 @@ export function lageBoards(): BoardSummary[] {
   const open = (id: number) => counts.filter((c) => c.board === id && !c.resolved).length;
   const { tickets, at } = lageByTicket();
   return [
-    { id: "jira-lage", name: "My briefing", description: "The briefing run's tickets — each with its briefing.", color: "violet", source: "Jira briefing", cards: tickets.length, open: tickets.filter((t) => t.statusCategory !== "done").length, href: "/kanban/jira-lage", updatedAt: at },
+    { id: "jira-lage", name: t("My briefing"), description: t("The briefing run's tickets — each with its briefing."), color: "violet", source: t("Jira briefing"), cards: tickets.length, open: tickets.filter((t) => t.statusCategory !== "done").length, href: "/kanban/jira-lage", updatedAt: at },
     ...getDb()
       .select()
       .from(jiraBoards)
       .where(eq(jiraBoards.enabled, true))
       .all()
-      .map((b) => ({ id: `jira-${b.id}`, name: b.name, description: `Jira board${b.projectKey ? ` · ${b.projectKey}` : ""} — mirrored, with the briefing per ticket.`, color: "sky", source: "Jira briefing", cards: open(b.id), open: open(b.id), href: `/kanban/jira-${b.id}`, updatedAt: b.syncedAt })),
+      .map((b) => ({ id: `jira-${b.id}`, name: b.name, description: t("Jira board{project} — mirrored, with the briefing per ticket.", { project: b.projectKey ? ` · ${b.projectKey}` : "" }), color: "sky", source: t("Jira briefing"), cards: open(b.id), open: open(b.id), href: `/kanban/jira-${b.id}`, updatedAt: b.syncedAt })),
   ];
 }
 
@@ -187,9 +191,9 @@ export async function lageBoard(id: string): Promise<RichBoard | null> {
     }
     return {
       id,
-      name: "My briefing",
-      description: "The last briefing run's tickets — in the columns of your Jira boards.",
-      source: "Jira briefing",
+      name: t("My briefing"),
+      description: t("The last briefing run's tickets — in the columns of your Jira boards."),
+      source: t("Jira briefing"),
       url: null,
       columns: place(list, merged.length ? merged : null, byKey, todos),
       lede,
@@ -216,8 +220,8 @@ export async function lageBoard(id: string): Promise<RichBoard | null> {
   return {
     id,
     name: b.name,
-    description: `Jira board${b.projectKey ? ` · ${b.projectKey}` : ""}${b.type ? ` · ${b.type}` : ""} — the columns as in Jira, each card with its briefing.`,
-    source: "Jira briefing",
+    description: t("Jira board{project} — the columns as in Jira, each card with its briefing.", { project: `${b.projectKey ? ` · ${b.projectKey}` : ""}${b.type ? ` · ${b.type}` : ""}` }),
+    source: t("Jira briefing"),
     url: base ? `${base}/secure/RapidBoard.jspa?rapidView=${boardId}` : null,
     columns: place(list, columns, byKey, todos),
     lede,

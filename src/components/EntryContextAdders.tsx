@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import type { ActionState } from "@/app/action-helpers";
 import { ContextForm, type ContextFormDefaults } from "./ContextForm";
+import { useT } from "@/components/I18nProvider";
 
 /**
  * Under an entry's context: "+ Write a note" and "Link existing…", each opening its form below
@@ -19,6 +20,7 @@ export function EntryContextAdders({
   /** The "link an item that's already in Zeff" form — none when there's nothing to link. */
   link?: ReactNode;
 }) {
+  const t = useT();
   const [open, setOpen] = useState<"note" | "link" | null>(null);
   const toggle = (what: "note" | "link") => setOpen((o) => (o === what ? null : what));
   const tab = (what: "note" | "link", label: string) => (
@@ -34,11 +36,11 @@ export function EntryContextAdders({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        {tab("note", "+ Write a note")}
-        {link && tab("link", "Link existing…")}
+        {tab("note", `+ ${t("Write a note")}`)}
+        {link && tab("link", t("Link existing…"))}
       </div>
       <div hidden={open !== "note"} className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
-        <ContextForm action={noteAction} defaults={noteDefaults} fromEntry sources={false} submitLabel="Add note" onDone={() => setOpen(null)} />
+        <ContextForm action={noteAction} defaults={noteDefaults} fromEntry sources={false} submitLabel={t("Add note")} onDone={() => setOpen(null)} />
       </div>
       {link && (
         <div hidden={open !== "link"} className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">

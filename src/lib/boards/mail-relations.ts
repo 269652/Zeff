@@ -2,6 +2,7 @@ import { aiChoice, runAi } from "@/lib/ai";
 import { throwIfAborted } from "@/lib/abort";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { getJiraTicket } from "@/lib/jira/store";
 import { mailsForTickets } from "@/lib/mail/store";
 import { extraBlock, getContextPrefs } from "./context-prefs";
@@ -111,7 +112,7 @@ export function relateMails(): Promise<MailRelationResult> {
       }
     }
     const changed = setTodoMailRefs(picks);
-    return { ok: failed < batches.length || !batches.length, todos: picks.size, changed, batches: batches.length, ...(failed ? { error: `${failed} of ${batches.length} parts failed` } : {}) };
+    return { ok: failed < batches.length || !batches.length, todos: picks.size, changed, batches: batches.length, ...(failed ? { error: t("{failed} of {n} parts failed", { failed, n: batches.length }) } : {}) };
   })()
     .catch((e): MailRelationResult => {
       console.error("[mail-relations]", errorMessage(e));

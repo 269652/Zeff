@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { isPriority } from "./shared";
 import * as store from "./store";
@@ -12,7 +13,7 @@ type Result = { ok: boolean; error?: string; message?: string; id?: number };
 
 async function act(fn: () => unknown, message?: string): Promise<Result> {
   try {
-    if (!isInstalled("kanban")) return { ok: false, error: "Kanban is not installed (Menu → Plugins)." };
+    if (!isInstalled("kanban")) return { ok: false, error: t("Kanban is not installed (Menu → Plugins).") };
     const r = fn();
     revalidatePath("/kanban", "layout");
     return { ok: true, message, ...(typeof r === "number" ? { id: r } : {}) };
@@ -33,12 +34,12 @@ export async function createBoardAction(v: { name: string; description?: string;
           .map((c) => c.trim())
           .filter(Boolean),
       }),
-    "Board created.",
+    t("Board created."),
   );
 }
 
 export async function updateBoardAction(id: number, patch: { name?: string; description?: string; color?: string; archived?: boolean; inLage?: boolean }): Promise<Result> {
-  return act(() => store.updateBoard(Number(id), patch), patch.archived ? "Board archived." : patch.archived === false ? "Board restored." : "Saved.");
+  return act(() => store.updateBoard(Number(id), patch), patch.archived ? t("Board archived.") : patch.archived === false ? t("Board restored.") : t("Saved."));
 }
 
 export async function moveBoardAction(id: number, dir: -1 | 1): Promise<Result> {
@@ -46,7 +47,7 @@ export async function moveBoardAction(id: number, dir: -1 | 1): Promise<Result> 
 }
 
 export async function deleteBoardAction(id: number): Promise<Result> {
-  return act(() => store.deleteBoard(Number(id)), "Board deleted.");
+  return act(() => store.deleteBoard(Number(id)), t("Board deleted."));
 }
 
 export async function addColumnAction(boardId: number, name: string): Promise<Result> {
@@ -87,9 +88,9 @@ export async function moveCardAction(id: number, columnId: number, before: numbe
 }
 
 export async function archiveCardAction(id: number): Promise<Result> {
-  return act(() => store.archiveCard(Number(id)), "Card archived.");
+  return act(() => store.archiveCard(Number(id)), t("Card archived."));
 }
 
 export async function deleteCardAction(id: number): Promise<Result> {
-  return act(() => store.deleteCard(Number(id)), "Card deleted.");
+  return act(() => store.deleteCard(Number(id)), t("Card deleted."));
 }

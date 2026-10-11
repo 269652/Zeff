@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { currentLocale, formatAgo } from "@/lib/format";
+import { useT } from "./I18nProvider";
 
 /** How long ago `then` was, as of now — read when the tooltip opens (an event, never during render). */
 const ageOf = (then: Date) => formatAgo(then);
@@ -34,6 +35,7 @@ export function PulledAtIcon({
   syncedNote?: string;
   tone?: keyof typeof TONE;
 }) {
+  const t = useT();
   const [tip, setTip] = useState<Tip | null>(null);
   const pulled = pulledAt ? new Date(pulledAt) : null;
   const inSync = synced && !!pulled;
@@ -72,8 +74,11 @@ export function PulledAtIcon({
           >
             <span className="block font-medium">
               {pulled
-                ? `${source} status from ${pulled.toLocaleString(currentLocale(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`
-                : `Not pulled from ${source} yet`}
+                ? t("{source} status from {when}", {
+                    source,
+                    when: pulled.toLocaleString(currentLocale(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }),
+                  })
+                : t("Not pulled from {source} yet", { source })}
               {tip.age && <span className="font-normal opacity-75"> · {tip.age}</span>}
             </span>
             {inSync && syncedNote && <span className="block">✓ {syncedNote}</span>}

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { t } from "@/lib/i18n/server";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -6,12 +7,14 @@ import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import type { KnowledgeEntityDetail } from "@/plugins/knowledge/shared";
 import { addDateFormAction, dateFormAction, deletePersonFormAction, findDatesFormAction, updatePersonFormAction } from "@/plugins/people/server-actions";
-import { DATE_KIND_LABELS, DATE_KINDS, dateText, daysBetween, inDaysText, isoDay, nextOccurrence } from "@/plugins/people/shared";
+import { dateKindLabels, DATE_KINDS, dateText, daysBetween, inDaysText, isoDay, nextOccurrence } from "@/plugins/people/shared";
 import { contactsOf, datesOf, getPerson, namesThem, rememberEntity } from "@/plugins/people/store";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { isInstalled } from "@/plugins/state";
 
-export const metadata: Metadata = { title: "Person" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: t("Person") };
+}
 
 function Card({ title, children, extra }: { title: string; children: React.ReactNode; extra?: React.ReactNode }) {
   return (
@@ -58,9 +61,9 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
   if (isInstalled("todos")) {
     const { listTodos } = await import("@/lib/boards/store");
     todos = listTodos({ status: "open" })
-      .filter((t) => namesThem(p, `${t.text} ${t.note ?? ""}`))
+      .filter((todo) => namesThem(p, `${todo.text} ${todo.note ?? ""}`))
       .slice(0, 15)
-      .map((t) => ({ id: t.id, ref: t.ref, text: t.text, due: t.due }));
+      .map((todo) => ({ id: todo.id, ref: todo.ref, text: todo.text, due: todo.due }));
   }
   const h = await headers();
   let knowledgeBase = "";
@@ -82,59 +85,66 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
     <div className="page">
       <div className="page-aside">
         <Link href="/personen" className="text-xs text-zinc-500 hover:underline">
-          ← People
+          {t("← People")}
         </Link>
         <div className="flex items-start gap-2">
           <form action={updatePersonFormAction}>
             <input type="hidden" name="id" value={p.id} />
             <input type="hidden" name="starred" value={p.starred ? "0" : "1"} />
-            <button className={`text-xl leading-none ${p.starred ? "text-amber-500" : "text-zinc-300 hover:text-amber-400 dark:text-zinc-600"}`} aria-label={p.starred ? "Remove star" : "Add star"}>
+            <button className={`text-xl leading-none ${p.starred ? "text-amber-500" : "text-zinc-300 hover:text-amber-400 dark:text-zinc-600"}`} aria-label={p.starred ? t("Remove star") : t("Add star")}>
               ★
             </button>
           </form>
           <h1 className="text-lg font-semibold break-words">{p.name}</h1>
         </div>
-        {p.aliases.length > 0 && <p className="text-xs text-zinc-500">Also: {p.aliases.join(", ")}</p>}
+        {p.aliases.length > 0 && <p className="text-xs text-zinc-500">{t("Also: {names}", { names: p.aliases.join(", ") })}</p>}
         {sp.error && <p className="alert-error text-sm">{sp.error}</p>}
-        {sp.saved && <p className="alert-ok text-sm">Saved ✓</p>}
-        {sp.found !== undefined && <p className="alert-ok text-sm">{sp.found === "0" ? "No new dates found." : `${sp.found} ${sp.found === "1" ? "date" : "dates"} found — confirm below.`}</p>}
+        {sp.saved && <p className="alert-ok text-sm">{t("Saved ✓")}</p>}
+        {sp.found !== undefined && (
+          <p className="alert-ok text-sm">
+            {sp.found === "0" ? t("No new dates found.") : sp.found === "1" ? t("1 date found — confirm below.") : t("{n} dates found — confirm below.", { n: sp.found })}
+          </p>
+        )}
         <details>
-          <summary className="cursor-pointer text-sm text-zinc-600 dark:text-zinc-300">Name, aliases, WhatsApp, mail</summary>
+          <summary className="cursor-pointer text-sm text-zinc-600 dark:text-zinc-300">{t("Name, aliases, WhatsApp, mail")}</summary>
           <form action={updatePersonFormAction} className="mt-2 space-y-2 text-sm">
             <input type="hidden" name="id" value={p.id} />
             <label className="block">
-              <span className="label">Name</span>
+              <span className="label">{t("Name")}</span>
               <input name="name" defaultValue={p.name} className="input" />
             </label>
             <label className="block">
-              <span className="label">Also called (comma-separated)</span>
+              <span className="label">{t("Also called (comma-separated)")}</span>
               <input name="aliases" defaultValue={p.aliases.join(", ")} className="input" />
             </label>
             <label className="block">
-              <span className="label">WhatsApp chat (its name)</span>
+              <span className="label">{t("WhatsApp chat (its name)")}</span>
               <input name="whatsapp" defaultValue={p.whatsapp} className="input" />
             </label>
             <label className="block">
-              <span className="label">Mail addresses (comma-separated)</span>
+              <span className="label">{t("Mail addresses (comma-separated)")}</span>
               <input name="emails" defaultValue={p.emails.join(", ")} className="input" />
             </label>
-            <button className="btn btn-primary btn-sm">Save</button>
+            <button className="btn btn-primary btn-sm">{t("Save")}</button>
           </form>
           <form action={deletePersonFormAction} className="mt-3">
             <input type="hidden" name="id" value={p.id} />
-            <button className="btn btn-sm text-red-700 dark:text-red-400">Delete profile</button>
+            <button className="btn btn-sm text-red-700 dark:text-red-400">{t("Delete profile")}</button>
           </form>
         </details>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card
-          title="Dates"
+          title={t("Dates")}
           extra={
             <form action={findDatesFormAction}>
               <input type="hidden" name="personId" value={p.id} />
-              <button className="text-xs font-normal tracking-normal text-indigo-600 normal-case hover:underline dark:text-indigo-400" title="In the facts and (with the LLM plugin) by AI in the knowledge and the messages">
-                Find dates
+              <button
+                className="text-xs font-normal tracking-normal text-indigo-600 normal-case hover:underline dark:text-indigo-400"
+                title={t("In the facts and (with the LLM plugin) by AI in the knowledge and the messages")}
+              >
+                {t("Find dates")}
               </button>
             </form>
           }
@@ -147,15 +157,15 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
                 return (
                   <li key={d.id} className={`space-y-1 text-sm ${d.confirmed ? "" : "rounded-md bg-amber-50 p-2 dark:bg-amber-950/40"}`}>
                     <div className="flex flex-wrap items-baseline gap-2">
-                      <span className="font-medium">{d.kind === "other" ? d.label || "Date" : DATE_KIND_LABELS[d.kind]}</span>
+                      <span className="font-medium">{d.kind === "other" ? d.label || t("Date") : dateKindLabels(t)[d.kind]}</span>
                       <span className="tabular-nums">{dateText(d)}</span>
                       {on && inDays !== null && (
                         <span className="text-xs text-zinc-500">
-                          {inDaysText(inDays, isoDay(on))}
-                          {d.year && d.yearly && d.kind === "birthday" ? ` · turns ${on.getFullYear() - d.year}` : ""}
+                          {inDaysText(inDays, isoDay(on), t)}
+                          {d.year && d.yearly && d.kind === "birthday" ? ` · ${t("turns {age}", { age: on.getFullYear() - d.year })}` : ""}
                         </span>
                       )}
-                      {!d.confirmed && <span className="text-xs text-amber-700 dark:text-amber-400">found — is it right?</span>}
+                      {!d.confirmed && <span className="text-xs text-amber-700 dark:text-amber-400">{t("found — is it right?")}</span>}
                     </div>
                     {d.sourceText && <p className="text-xs text-zinc-500">{d.sourceText}</p>}
                     <form action={dateFormAction} className="flex flex-wrap items-center gap-1.5 text-xs">
@@ -163,21 +173,21 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
                       <input type="hidden" name="to" value={back} />
                       {!d.confirmed && (
                         <button name="op" value="confirm" className="btn btn-primary btn-sm">
-                          Right
+                          {t("Right")}
                         </button>
                       )}
                       {d.confirmed && (
                         <>
-                          <span className="text-zinc-500">remind</span>
-                          <input name="remindDays" type="number" min={0} max={60} defaultValue={d.remindDays} className="input w-16 py-0.5 text-xs" aria-label="Days before to remind" />
-                          <span className="text-zinc-500">days before</span>
+                          <span className="text-zinc-500">{t("remind")}</span>
+                          <input name="remindDays" type="number" min={0} max={60} defaultValue={d.remindDays} className="input w-16 py-0.5 text-xs" aria-label={t("Days before to remind")} />
+                          <span className="text-zinc-500">{t("days before")}</span>
                           <button name="op" value="remind" className="btn btn-sm">
-                            OK
+                            {t("OK")}
                           </button>
                         </>
                       )}
                       <button name="op" value="delete" className="btn btn-sm">
-                        {d.confirmed ? "Delete" : "Wrong"}
+                        {d.confirmed ? t("Delete") : t("Wrong")}
                       </button>
                     </form>
                   </li>
@@ -185,38 +195,44 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
               })}
             </ul>
           ) : (
-            <p className="text-sm text-zinc-500">No date yet — enter one or let Zeff search (“Find dates”).</p>
+            <p className="text-sm text-zinc-500">{t("No date yet — enter one or let Zeff search (“Find dates”).")}</p>
           )}
           <form action={addDateFormAction} className="flex flex-wrap items-end gap-2 border-t border-zinc-200 pt-3 text-sm dark:border-zinc-800">
             <input type="hidden" name="personId" value={p.id} />
-            <select name="kind" className="input w-auto" aria-label="Kind">
+            <select name="kind" className="input w-auto" aria-label={t("Kind")}>
               {DATE_KINDS.map((k) => (
                 <option key={k} value={k}>
-                  {DATE_KIND_LABELS[k]}
+                  {dateKindLabels(t)[k]}
                 </option>
               ))}
             </select>
-            <input name="date" required placeholder="16.10. or 16.10.1996" className="input w-40" aria-label="Date" />
-            <input name="label" placeholder="what for (other dates)" className="input min-w-32 flex-1" aria-label="Label" />
-            <button className="btn btn-sm">Add</button>
+            <input name="date" required placeholder={t("16.10. or 16.10.1996")} className="input w-40" aria-label={t("Date")} />
+            <input name="label" placeholder={t("what for (other dates)")} className="input min-w-32 flex-1" aria-label={t("Label")} />
+            <button className="btn btn-sm">{t("Add")}</button>
           </form>
         </Card>
 
-        <Card title="Notes">
+        <Card title={t("Notes")}>
           <form action={updatePersonFormAction} className="space-y-2">
             <input type="hidden" name="id" value={p.id} />
-            <textarea name="note" defaultValue={p.note} rows={Math.min(14, Math.max(4, p.note.split("\n").length + 1))} placeholder="What you want to remember about them — preferences, gift ideas, what you last talked about…" className="input resize-y text-sm" />
-            <button className="btn btn-sm">Save</button>
+            <textarea
+              name="note"
+              defaultValue={p.note}
+              rows={Math.min(14, Math.max(4, p.note.split("\n").length + 1))}
+              placeholder={t("What you want to remember about them — preferences, gift ideas, what you last talked about…")}
+              className="input resize-y text-sm"
+            />
+            <button className="btn btn-sm">{t("Save")}</button>
           </form>
         </Card>
 
         {isInstalled("knowledge") && (
           <Card
-            title="What the knowledge knows"
+            title={t("What the knowledge knows")}
             extra={
               entity && knowledgeBase ? (
                 <a href={`${knowledgeBase}/graph?e=${entity.id}`} target="_blank" rel="noreferrer" className="text-xs font-normal tracking-normal text-indigo-600 normal-case hover:underline dark:text-indigo-400">
-                  In the graph ↗
+                  {t("In the graph ↗")}
                 </a>
               ) : undefined
             }
@@ -241,7 +257,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
                 )}
                 {entity.pages.length > 0 && (
                   <details>
-                    <summary className="cursor-pointer text-xs text-zinc-500">{entity.pages.length} pages</summary>
+                    <summary className="cursor-pointer text-xs text-zinc-500">{t("{n} pages", { n: entity.pages.length })}</summary>
                     <ul className="mt-1 space-y-1 text-sm">
                       {entity.pages.slice(0, 30).map((pg) => (
                         <li key={pg.id}>
@@ -256,12 +272,12 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
                 )}
               </>
             ) : (
-              !knowledgeError && <p className="text-sm text-zinc-500">The knowledge knows nobody of this name. An alias — what the person is called in your pages — helps.</p>
+              !knowledgeError && <p className="text-sm text-zinc-500">{t("The knowledge knows nobody of this name. An alias — what the person is called in your pages — helps.")}</p>
             )}
           </Card>
         )}
 
-        <Card title="Latest messages">
+        <Card title={t("Latest messages")}>
           {contacts.length ? (
             <ul className="space-y-1.5 text-sm">
               {contacts.map((c) => (
@@ -276,26 +292,26 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-zinc-500">No messages — enter the WhatsApp chat or the mail addresses above.</p>
+            <p className="text-sm text-zinc-500">{t("No messages — enter the WhatsApp chat or the mail addresses above.")}</p>
           )}
         </Card>
 
         {isInstalled("todos") && (
-          <Card title="Todos they appear in">
+          <Card title={t("Todos they appear in")}>
             {todos.length ? (
               <ul className="space-y-1.5 text-sm">
-                {todos.map((t) => (
-                  <li key={t.id} className="flex items-baseline gap-2">
-                    <Link href={`/t/${t.id}`} className="font-mono text-xs text-zinc-400 hover:underline">
-                      {t.ref}
+                {todos.map((todo) => (
+                  <li key={todo.id} className="flex items-baseline gap-2">
+                    <Link href={`/t/${todo.id}`} className="font-mono text-xs text-zinc-400 hover:underline">
+                      {todo.ref}
                     </Link>
-                    <span className="min-w-0 flex-1">{t.text}</span>
-                    {t.due && <span className="shrink-0 text-xs text-zinc-500">{formatDate(t.due, { weekday: false })}</span>}
+                    <span className="min-w-0 flex-1">{todo.text}</span>
+                    {todo.due && <span className="shrink-0 text-xs text-zinc-500">{formatDate(todo.due, { weekday: false })}</span>}
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-zinc-500">No open todo names them.</p>
+              <p className="text-sm text-zinc-500">{t("No open todo names them.")}</p>
             )}
           </Card>
         )}

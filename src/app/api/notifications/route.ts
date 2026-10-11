@@ -1,4 +1,5 @@
 import { connection } from "next/server";
+import { t } from "@/lib/i18n/server";
 
 /**
  * What's worth a desktop notification right now (the launcher polls it and shows each id once):
@@ -15,9 +16,15 @@ export async function GET() {
     const { listTodos } = await import("@/lib/boards/store");
     const now = new Date();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    for (const t of listTodos({ status: "open" }))
-      if (t.owner === "me" && t.due && t.due <= today)
-        items.push({ id: `due:${t.id}:${today}`, title: t.due < today ? `${t.ref} is overdue` : `${t.ref} is due today`, body: t.text.slice(0, 200), href: `/t/${t.id}`, at: now.toISOString() });
+    for (const todo of listTodos({ status: "open" }))
+      if (todo.owner === "me" && todo.due && todo.due <= today)
+        items.push({
+          id: `due:${todo.id}:${today}`,
+          title: todo.due < today ? t("{ref} is overdue", { ref: todo.ref }) : t("{ref} is due today", { ref: todo.ref }),
+          body: todo.text.slice(0, 200),
+          href: `/t/${todo.id}`,
+          at: now.toISOString(),
+        });
   }
   // Your people's dates (Personen plugin): once when the reminder starts, once on the day.
   if (isInstalled("people")) {
@@ -27,8 +34,8 @@ export async function GET() {
     for (const u of upcoming({ withinReminder: true }))
       items.push({
         id: `person-date:${u.date.id}:${u.on}:${u.inDays === 0 ? "today" : "soon"}`,
-        title: u.inDays === 0 ? `Today: ${upcomingTitle(u)}` : `${upcomingTitle(u)} ${inDaysText(u.inDays, u.on)}`,
-        body: u.date.kind === "birthday" ? "Don't forget to congratulate." : u.date.label || "",
+        title: u.inDays === 0 ? t("Today: {what}", { what: upcomingTitle(u, t) }) : `${upcomingTitle(u, t)} ${inDaysText(u.inDays, u.on, t)}`,
+        body: u.date.kind === "birthday" ? t("Don't forget to congratulate.") : u.date.label || "",
         href: `/personen/${u.person.id}`,
         at: now.toISOString(),
       });

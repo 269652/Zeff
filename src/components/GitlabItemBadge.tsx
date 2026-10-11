@@ -2,19 +2,21 @@
 
 import { useEffect, useState } from "react";
 import { findGitlabItemsAction, setGitlabResolvedAction } from "@/plugins/gitlab/server-actions";
-import { GITLAB_KIND_LABELS, gitlabDone, gitlabLinkKey, gitlabMarkdown, resolvedInGitlab, type GitlabItemView, type GitlabKind } from "@/lib/gitlab/shared";
+import { gitlabDone, gitlabKindLabels, gitlabLinkKey, gitlabMarkdown, resolvedInGitlab, type GitlabItemView, type GitlabKind } from "@/lib/gitlab/shared";
 import { ChevronIcon } from "./icons";
 import { Markdown } from "./Markdown";
 import { ResolvedMark } from "./ResolvedMark";
 import { ResolveToggle } from "./ResolveToggle";
 import { formatDate, formatDateTime, formatTime } from "@/lib/format";
+import type { T } from "@/lib/i18n/shared";
+import { useT } from "@/components/I18nProvider";
 
 const when = (iso: string | null) => (iso ? formatDateTime(iso) : "");
 const full = (iso: string) =>
   `${formatDate(iso, { year: true })}, ${formatTime(iso)}`;
 
 /** What a kind is, spelled out. */
-const KIND_NAME: Record<GitlabKind, string> = { mr: "Merge request", comment: "Comment", branch: "Branch" };
+const kindNames = (t: T): Record<GitlabKind, string> => ({ mr: t("Merge request"), comment: t("Comment"), branch: t("Branch") });
 
 /** A GitLab state's colours: merged / resolved, closed, open / unresolved / draft. */
 export const STATE_STYLE = (state: string) =>
@@ -32,6 +34,7 @@ export const STATE_STYLE = (state: string) =>
  * Nothing for merge requests and branches.
  */
 export function GitlabResolve({ item, className = "" }: { item: Pick<GitlabItemView, "key" | "kind" | "state" | "resolvedAt">; className?: string }) {
+  const t = useT();
   if (item.kind !== "comment") return null;
   const thread = item.state === "resolved" || item.state === "unresolved";
   return (
@@ -41,7 +44,7 @@ export function GitlabResolve({ item, className = "" }: { item: Pick<GitlabItemV
       className={className}
       hint={
         thread
-          ? { done: "Resolved in GitLab — click: reopen it there (and here)", open: "Done — resolves the thread in GitLab too" }
+          ? { done: t("Resolved in GitLab — click: reopen it there (and here)"), open: t("Done — resolves the thread in GitLab too") }
           : undefined
       }
     />
@@ -86,6 +89,7 @@ export function GitlabItemBadge({
   onToggle?: () => void;
   resolved?: boolean;
 }) {
+  const t = useT();
   const project = item.project.split("/").pop();
   const what = item.kind === "branch" ? item.ref : `${item.ref} ${item.title}`;
   const start = item.kind === "comment" ? item.body.replace(/\s+/g, " ").trim() : "";
@@ -111,8 +115,8 @@ export function GitlabItemBadge({
           </>
         )}
       </svg>
-      {item.kind === "comment" && <ResolvedMark done={resolved || gitlabDone(item)} title={resolvedInGitlab(item) ? "resolved in GitLab" : undefined} />}
-      <span className="shrink-0 font-medium">{GITLAB_KIND_LABELS[item.kind]}</span>
+      {item.kind === "comment" && <ResolvedMark done={resolved || gitlabDone(item)} title={resolvedInGitlab(item) ? t("resolved in GitLab") : undefined} />}
+      <span className="shrink-0 font-medium">{gitlabKindLabels(t)[item.kind]}</span>
       {item.kind === "branch" ? (
         <span className="min-w-0 truncate font-medium">{what}</span>
       ) : (
@@ -142,7 +146,7 @@ export function GitlabItemBadge({
           className={`${inner} cursor-pointer transition hover:bg-orange-100 dark:hover:bg-orange-950`}
           onClick={onToggle}
           aria-expanded={expanded}
-          title={expanded ? "Fold" : "Show all of it"}
+          title={expanded ? t("Fold") : t("Show all of it")}
         >
           {content}
         </button>
@@ -154,8 +158,8 @@ export function GitlabItemBadge({
         target="_blank"
         rel="noreferrer"
         className="flex shrink-0 items-center px-2 text-orange-800 transition hover:bg-orange-100 dark:text-orange-200 dark:hover:bg-orange-950"
-        title={`Open in GitLab: ${GITLAB_KIND_LABELS[item.kind]} ${what} (${item.project})`}
-        aria-label="Open in GitLab"
+        title={t("Open in GitLab: {kind} {what} ({project})", { kind: gitlabKindLabels(t)[item.kind], what, project: item.project })}
+        aria-label={t("Open in GitLab")}
       >
         ↗
       </a>
@@ -165,6 +169,7 @@ export function GitlabItemBadge({
 
 /** A synced GitLab item in full, as a card: what it is and its state, its text, where, who and when. */
 export function GitlabItemDetails({ item }: { item: GitlabItemView }) {
+  const t = useT();
   const markdown = gitlabMarkdown(item);
   const row = (label: string, value: string | null | undefined, mono = false) =>
     value ? (
@@ -177,26 +182,26 @@ export function GitlabItemDetails({ item }: { item: GitlabItemView }) {
     <div className="space-y-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex items-center justify-between gap-2 text-xs text-zinc-500">
         <span className="flex items-center gap-1.5">
-          GitLab · {KIND_NAME[item.kind]}
+          GitLab · {kindNames(t)[item.kind]}
           {item.state && <span className={`rounded px-1.5 py-0.5 font-medium ${STATE_STYLE(item.state)}`}>{item.state}</span>}
         </span>
         <span className="flex items-center gap-2">
           <GitlabResolve item={item} />
           <a href={item.url} target="_blank" rel="noreferrer" className="font-medium text-indigo-600 hover:underline dark:text-indigo-400">
-            Open in GitLab ↗
+            {t("Open in GitLab")} ↗
           </a>
         </span>
       </div>
       <div className="font-medium leading-snug">
-        {item.kind === "branch" ? <span className="font-mono">{item.ref}</span> : `${item.kind === "comment" ? "On " : ""}${item.ref} ${item.title}`}
+        {item.kind === "branch" ? <span className="font-mono">{item.ref}</span> : item.kind === "comment" ? t("On {ref} {title}", { ref: item.ref, title: item.title }) : `${item.ref} ${item.title}`}
       </div>
       {markdown.trim() && <Markdown text={markdown} className="text-zinc-700 dark:text-zinc-300" />}
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
-        {row("Project", item.project, true)}
-        {row(item.kind === "branch" ? "Last commit by" : "By", item.author)}
-        {row(item.kind === "branch" ? "Committed" : "Written", item.createdAt ? full(item.createdAt) : null)}
-        {item.kind === "mr" && item.updatedAt !== item.createdAt && row("Updated", item.updatedAt ? full(item.updatedAt) : null)}
-        {item.kind !== "branch" && row("Branch", item.branch, true)}
+        {row(t("Project"), item.project, true)}
+        {row(item.kind === "branch" ? t("Last commit by") : t("By"), item.author)}
+        {row(item.kind === "branch" ? t("Committed") : t("Written"), item.createdAt ? full(item.createdAt) : null)}
+        {item.kind === "mr" && item.updatedAt !== item.createdAt && row(t("Updated"), item.updatedAt ? full(item.updatedAt) : null)}
+        {item.kind !== "branch" && row(t("Branch"), item.branch, true)}
       </dl>
     </div>
   );

@@ -3,6 +3,7 @@ import { plain } from "@/lib/boards/collect";
 import type { TodoView } from "@/lib/boards/shared";
 import { listTodos, setTodoNoteRefs } from "@/lib/boards/store";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { getJiraTicket } from "@/lib/jira/store";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { lageNotes, type NoteView } from "./boards";
@@ -97,7 +98,7 @@ export function relateNotes(): Promise<NoteRelationResult> {
       }
     }
     const changed = setTodoNoteRefs(picks);
-    return { ok: failed < batches.length || !batches.length, todos: picks.size, changed, batches: batches.length, ...(failed ? { error: `${failed} of ${batches.length} parts failed` } : {}) };
+    return { ok: failed < batches.length || !batches.length, todos: picks.size, changed, batches: batches.length, ...(failed ? { error: t("{failed} of {n} parts failed", { failed, n: batches.length }) } : {}) };
   })()
     .catch((e): NoteRelationResult => {
       console.error("[note-relations]", errorMessage(e));

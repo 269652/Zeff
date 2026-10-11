@@ -6,12 +6,14 @@ import { searchMailsAction } from "@/app/actions";
 import { searchTeamsMessagesAction } from "@/plugins/teams/server-actions";
 import { searchTodosAction } from "@/plugins/todos/server-actions";
 import { mailLink, mailSender } from "@/lib/mail/shared";
-import { TODO_KIND_LABELS } from "@/lib/boards/shared";
+import { todoKindLabels } from "@/lib/boards/shared";
 import { todoLink, type Entity } from "@/lib/entities-shared";
-import { GITLAB_KIND_LABELS, gitlabDone, gitlabLinkKey, type GitlabKind } from "@/lib/gitlab/shared";
+import { gitlabDone, gitlabKindLabels, gitlabLinkKey, type GitlabKind } from "@/lib/gitlab/shared";
 import { teamsKindLabel, teamsLinkKey } from "@/lib/teams/shared";
 import { SearchIcon } from "./icons";
 import { formatDateTime } from "@/lib/format";
+import { useT } from "@/components/I18nProvider";
+import type { T } from "@/lib/i18n/shared";
 
 const when = (iso: string | null) => (iso ? formatDateTime(iso) : "");
 
@@ -19,7 +21,7 @@ const when = (iso: string | null) => (iso ? formatDateTime(iso) : "");
 export type Picked = Exclude<Entity, { source: "jira" | "jira-comment" | "work" }> & { url: string };
 
 /** The GitLab sections' headings, by kind. */
-const GITLAB_SECTION: Record<GitlabKind, string> = { comment: "GitLab comments", mr: "Merge requests", branch: "Branches" };
+const gitlabSection = (t: T): Record<GitlabKind, string> => ({ comment: t("GitLab comments"), mr: t("Merge requests"), branch: t("Branches") });
 
 /** A pasted link rather than words. */
 const isLink = (q: string) => /^(https?:|msteams:)/i.test(q.trim());
@@ -29,14 +31,15 @@ const targetOf = (url: string) => gitlabLinkKey(url) ?? teamsLinkKey(url) ?? url
 
 /** One hit, compact: what, where, who, when — and its first words. */
 function Hit({ p, linked }: { p: Picked; linked: boolean }) {
+  const t = useT();
   const meta =
     p.source === "teams"
-      ? [p.teams.senderName ?? "Someone", p.teams.place, when(p.teams.sentAt), teamsKindLabel(p.teams)]
+      ? [p.teams.senderName ?? t("Someone"), p.teams.place, when(p.teams.sentAt), teamsKindLabel(p.teams, t)]
       : p.source === "mail"
-        ? [p.mail.folder === "WhatsApp" ? "WhatsApp" : "Mail", mailSender(p.mail), when(p.mail.receivedAt), p.mail.unread ? "unread" : ""]
+        ? [p.mail.folder === "WhatsApp" ? "WhatsApp" : t("Mail"), mailSender(p.mail), when(p.mail.receivedAt), p.mail.unread ? t("unread") : ""]
         : p.source === "todo"
-        ? [`Todo ${p.todo.ref}`, p.todo.ticket, TODO_KIND_LABELS[p.todo.kind], p.todo.status === "done" ? when(p.todo.doneAt) : "open"]
-        : [GITLAB_KIND_LABELS[p.gitlab.kind], p.gitlab.project.split("/").pop(), p.gitlab.author, when(p.gitlab.kind === "comment" ? p.gitlab.createdAt : p.gitlab.updatedAt), p.gitlab.state];
+        ? [t("Todo {ref}", { ref: p.todo.ref }), p.todo.ticket, todoKindLabels(t)[p.todo.kind], p.todo.status === "done" ? when(p.todo.doneAt) : t("open")]
+        : [gitlabKindLabels(t)[p.gitlab.kind], p.gitlab.project.split("/").pop(), p.gitlab.author, when(p.gitlab.kind === "comment" ? p.gitlab.createdAt : p.gitlab.updatedAt), p.gitlab.state];
   const words =
     p.source === "teams"
       ? [p.teams.subject, p.teams.text].filter(Boolean).join(" — ")
@@ -52,10 +55,10 @@ function Hit({ p, linked }: { p: Picked; linked: boolean }) {
     <>
       <span className="flex items-center gap-1.5 text-xs text-zinc-500">
         <span className="truncate">{meta.filter(Boolean).join(" · ")}</span>
-        {done && <span className="shrink-0 rounded bg-emerald-100 px-1 text-[10px] font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">done</span>}
-        {linked && <span className="ml-auto shrink-0 font-medium text-emerald-600 dark:text-emerald-400">✓ added</span>}
+        {done && <span className="shrink-0 rounded bg-emerald-100 px-1 text-[10px] font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">{t("done")}</span>}
+        {linked && <span className="ml-auto shrink-0 font-medium text-emerald-600 dark:text-emerald-400">{t("✓ added")}</span>}
       </span>
-      <span className="line-clamp-2 text-sm">{words || "(no text)"}</span>
+      <span className="line-clamp-2 text-sm">{words || t("(no text)")}</span>
     </>
   );
 }
@@ -67,6 +70,7 @@ function Hit({ p, linked }: { p: Picked; linked: boolean }) {
  * Enter, or click. Each pick adds its link; the search clears for the next one.
  */
 export function SourcePicker({ linked, onPick }: { linked: Set<string>; onPick: (p: Picked) => void }) {
+  const t = useT();
   const id = useId();
   const listId = `${id}-list`;
   const [q, setQ] = useState("");
@@ -90,7 +94,7 @@ export function SourcePicker({ linked, onPick }: { linked: Set<string>; onPick: 
           ]);
           setHits([
             // Done todos first: the work an entry is about.
-            ...todos.map((t): Picked => ({ source: "todo", todo: t, url: todoLink(t.id) })),
+            ...todos.map((todo): Picked => ({ source: "todo", todo, url: todoLink(todo.id) })),
             ...teams.map((m): Picked => ({ source: "teams", teams: m, url: m.link })),
             ...mails.map((m): Picked => ({ source: "mail", mail: m, url: mailLink(m.key) })),
             ...gitlab.map((g): Picked => ({ source: "gitlab", gitlab: g, url: g.url })),
@@ -112,7 +116,16 @@ export function SourcePicker({ linked, onPick }: { linked: Set<string>; onPick: 
   // by kind — or, for a pasted link, what it points at with its merge request's family, together.
   const sections: { label: string; items: { p: Picked; i: number }[] }[] = [];
   (hits ?? []).forEach((p, i) => {
-    const label = p.source === "teams" ? "Teams" : p.source === "mail" ? "Mails" : p.source === "todo" ? "Todos" : isLink(q) ? "GitLab" : GITLAB_SECTION[p.gitlab.kind];
+    const label =
+      p.source === "teams"
+        ? "Teams"
+        : p.source === "mail"
+          ? t("Mails")
+          : p.source === "todo"
+            ? t("Todos")
+            : isLink(q)
+              ? "GitLab"
+              : gitlabSection(t)[p.gitlab.kind];
     const last = sections[sections.length - 1];
     if (last?.label === label) last.items.push({ p, i });
     else sections.push({ label, items: [{ p, i }] });
@@ -123,13 +136,13 @@ export function SourcePicker({ linked, onPick }: { linked: Set<string>; onPick: 
   return (
     <div className="relative">
       <label className="sr-only" htmlFor={id}>
-        Add from Teams, mail, GitLab or your todos
+        {t("Add from Teams, mail, GitLab or your todos")}
       </label>
       <SearchIcon className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-zinc-400" />
       <input
         id={id}
         className="input pl-8"
-        placeholder="Add from Teams, mail, GitLab or your todos — sender, chat, words, !169, T-12 or a link…"
+        placeholder={t("Add from Teams, mail, GitLab or your todos — sender, chat, words, !169, T-12 or a link…")}
         value={q}
         autoComplete="off"
         role="combobox"
@@ -165,13 +178,15 @@ export function SourcePicker({ linked, onPick }: { linked: Set<string>; onPick: 
         >
           {hits.length === 0 ? (
             <li className="px-3 py-2 text-sm text-zinc-500">
-              {isLink(q) ? "That link isn't synced (yet) — sync on the Teams or GitLab page." : "Nothing synced matches — sync on the Teams or GitLab page."}
+              {isLink(q)
+                ? t("That link isn't synced (yet) — sync on the Teams or GitLab page.")
+                : t("Nothing synced matches — sync on the Teams or GitLab page.")}
             </li>
           ) : (
             [
               missing && (
                 <li key="missing" role="presentation" className="px-3 pt-1.5 pb-1 text-xs text-amber-700 dark:text-amber-400">
-                  That comment isn&apos;t synced (yet) — sync on the GitLab page. Its merge request:
+                  {t("That comment isn't synced (yet) — sync on the GitLab page. Its merge request:")}
                 </li>
               ),
               ...sections.map((g) =>

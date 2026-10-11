@@ -5,6 +5,7 @@ import path from "node:path";
 import type { TodoOp } from "@/lib/boards/shared";
 import { forgetBranchWork } from "@/lib/branches";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { listRepos } from "@/lib/repos";
 import type { ActionContext, ActionResult } from "../actions/run-types";
 
@@ -40,7 +41,7 @@ export async function runGitPush(op: Extract<TodoOp, { type: "git-push" }>): Pro
         (r) => r.path === op.repo,
       )?.gitlabProject;
       return {
-        what: `${op.branch} pushed as origin/${op.remote}`,
+        what: t("{branch} pushed as origin/{remote}", { branch: op.branch, remote: op.remote }),
         next: project
           ? {
               text: `Open merge request ${op.remote} → ${op.target}`,
@@ -68,7 +69,7 @@ export async function runGitCommit(op: Extract<TodoOp, { type: "git-commit-branc
           () => true,
           () => false,
         );
-        if (exists) throw new Error(`${op.branch} already exists, and ${current || "nothing"} is checked out — switch to it first, then try again.`);
+        if (exists) throw new Error(t("{branch} already exists, and {current} is checked out — switch to it first, then try again.", { branch: op.branch, current: current || t("nothing") }));
         // A new branch from where the checkout is — the changes come along.
         await gitAsync(op.repo, ["switch", "-c", op.branch]);
       }
@@ -77,7 +78,7 @@ export async function runGitCommit(op: Extract<TodoOp, { type: "git-commit-branc
       await gitAsync(op.repo, ["commit", "-m", op.message, "--", ...op.files]);
       forgetBranchWork();
       return {
-        what: `${op.files.length} file${op.files.length === 1 ? "" : "s"} committed on ${op.branch}`,
+        what: op.files.length === 1 ? t("1 file committed on {branch}", { branch: op.branch }) : t("{n} files committed on {branch}", { n: op.files.length, branch: op.branch }),
         next: {
           text: `Push ${op.branch} (then a merge request into ${op.target})`,
           ops: [{ type: "git-push", repo: op.repo, branch: op.branch, remote: op.branch, target: op.target, title: op.message, description: "" }],
@@ -116,7 +117,7 @@ export async function runGitMergeMain(op: Extract<TodoOp, { type: "git-merge-mai
         } catch (e) {
           await gitAsync(dir, ["merge", "--abort"]).catch(() => {});
           throw new Error(
-            `Merge conflict — ${op.branch} can't be merged into ${op.target} by itself: ${errorMessage(e)}`,
+            t("Merge conflict — {branch} can't be merged into {target} by itself: {error}", { branch: op.branch, target: op.target, error: errorMessage(e) }),
           );
         }
         await gitAsync(dir, ["push", "origin", `HEAD:refs/heads/${op.target}`]);
@@ -130,12 +131,17 @@ export async function runGitMergeMain(op: Extract<TodoOp, { type: "git-merge-mai
         );
       }
       forgetBranchWork();
-      return { what: `${op.branch} merged into ${op.target} and pushed` };
+      return { what: t("{branch} merged into {target} and pushed", { branch: op.branch, target: op.target }) };
 }
 
 /** The todo handed to a worker with the instruction — a run on the Work tab (its report comes back on the todo). */
 export async function runWorkInstruct(op: Extract<TodoOp, { type: "work-instruct" }>, ctx: ActionContext): Promise<ActionResult> {
   const { dispatchTodo } = await import("@/lib/work/runner");
   const run = dispatchTodo(ctx.todo.id, { instruction: op.instruction });
-  return { what: `Handed to ${run.ref} (${run.status === "running" ? "running" : "waiting for a free worker"}) — the report goes to ${ctx.todo.ref}.` };
+  return {
+    what:
+      run.status === "running"
+        ? t("Handed to {run} (running) — the report goes to {todo}.", { run: run.ref, todo: ctx.todo.ref })
+        : t("Handed to {run} (waiting for a free worker) — the report goes to {todo}.", { run: run.ref, todo: ctx.todo.ref }),
+  };
 }

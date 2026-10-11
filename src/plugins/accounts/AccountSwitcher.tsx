@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { switchAccountAction } from "@/plugins/accounts/server-actions";
 import { toast } from "@/components/Toaster";
+import { useT } from "@/components/I18nProvider";
 
 export type AccountChip = { id: string; name: string; color: string };
 
@@ -21,6 +22,7 @@ export const dotOf = (color: string) => ACCOUNT_DOT[color] ?? ACCOUNT_DOT.indigo
 
 /** The header's account: which one you're in — click for the others, and to switch. */
 export function AccountSwitcher({ current, list }: { current: AccountChip; list: AccountChip[] }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -44,11 +46,11 @@ export function AccountSwitcher({ current, list }: { current: AccountChip; list:
     start(async () => {
       const r = await switchAccountAction(id);
       if (!r.ok) {
-        toast(r.error ?? "That didn't work.", { tone: "error" });
+        toast(r.error ?? t("That didn't work."), { tone: "error" });
         return;
       }
       setOpen(false);
-      toast(r.message ?? "Switched.", { tone: "ok" });
+      toast(r.message ?? t("Switched."), { tone: "ok" });
       router.push(r.href ?? "/");
       router.refresh();
     });
@@ -62,10 +64,10 @@ export function AccountSwitcher({ current, list }: { current: AccountChip; list:
         aria-haspopup="menu"
         aria-expanded={open}
         disabled={pending}
-        title={`Account: ${current.name} — switch`}
+        title={t("Account: {name} — switch", { name: current.name })}
       >
         <span className={`size-2 shrink-0 rounded-full ${dotOf(current.color)}`} aria-hidden />
-        <span className="truncate">{pending ? "switching…" : current.name}</span>
+        <span className="truncate">{pending ? t("switching…") : current.name}</span>
       </button>
       {open && (
         <div role="menu" className="absolute top-full left-0 z-50 mt-1 w-56 rounded-md border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
@@ -81,12 +83,12 @@ export function AccountSwitcher({ current, list }: { current: AccountChip; list:
             >
               <span className={`size-2 shrink-0 rounded-full ${dotOf(a.color)}`} aria-hidden />
               <span className="min-w-0 flex-1 truncate">{a.name}</span>
-              {a.id === current.id && <span className="text-xs text-zinc-500">active</span>}
+              {a.id === current.id && <span className="text-xs text-zinc-500">{t("active")}</span>}
             </button>
           ))}
           <div className="my-1 border-t border-zinc-200 dark:border-zinc-700" />
           <Link href="/accounts" onClick={() => setOpen(false)} className="block rounded px-2 py-1.5 text-sm text-indigo-600 hover:bg-zinc-100 dark:text-indigo-400 dark:hover:bg-zinc-800" role="menuitem">
-            Manage accounts…
+            {t("Manage accounts…")}
           </Link>
         </div>
       )}

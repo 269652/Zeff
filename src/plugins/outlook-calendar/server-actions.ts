@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { deleteConnection } from "@/lib/calendar/microsoft";
 import { createEntry } from "@/lib/entries";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { int, num, revalidateAll, str, type ActionState } from "@/app/action-helpers";
 
 /** Calendar import — its server actions (each answers an ActionState unless it says otherwise). */
@@ -26,7 +27,7 @@ export async function importMeetingsAction(_prev: ActionState, fd: FormData): Pr
     const externalId = str(fd, `externalId-${i}`);
     const hours = num(fd, `hours-${i}`);
     if (!externalId || hours === undefined) {
-      result.errors.push(`Row ${i + 1}: missing id or hours.`);
+      result.errors.push(t("Row {n}: missing id or hours.", { n: i + 1 }));
       continue;
     }
     try {
@@ -58,7 +59,7 @@ export async function importMeetingsAction(_prev: ActionState, fd: FormData): Pr
     return {
       ok: false,
       error:
-        `${result.imported} imported, ${result.skipped} skipped, ${result.errors.length} failed:\n` +
+        `${t("{imported} imported, {skipped} skipped, {failed} failed:", { imported: result.imported, skipped: result.skipped, failed: result.errors.length })}\n` +
         result.errors.join("\n"),
     };
   }
@@ -126,14 +127,14 @@ export type PollDeviceCodeResult = { status: "pending" | "done" | "expired" | "e
 export async function pollDeviceCodeAction(): Promise<PollDeviceCodeResult> {
   const store = await cookies();
   const raw = store.get(DEVICE_COOKIE)?.value;
-  if (!raw) return { status: "error", message: "No sign-in in progress — start again." };
+  if (!raw) return { status: "error", message: t("No sign-in in progress — start again.") };
 
   let parsed: { deviceCode?: string; expiresAt?: number };
   try {
     parsed = JSON.parse(raw);
   } catch {
     store.delete(DEVICE_COOKIE);
-    return { status: "error", message: "Sign-in state was invalid — start again." };
+    return { status: "error", message: t("Sign-in state was invalid — start again.") };
   }
   if (!parsed.deviceCode || !parsed.expiresAt || Date.now() > parsed.expiresAt) {
     store.delete(DEVICE_COOKIE);
@@ -166,12 +167,12 @@ export async function pollDeviceCodeAction(): Promise<PollDeviceCodeResult> {
 
 export async function pasteEventsAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const raw = str(fd, "json");
-  if (!raw) return { ok: false, error: "Paste the JSON the bookmarklet produced." };
+  if (!raw) return { ok: false, error: t("Paste the JSON the bookmarklet produced.") };
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return { ok: false, error: "That is not valid JSON." };
+    return { ok: false, error: t("That is not valid JSON.") };
   }
   const events = Array.isArray(parsed)
     ? parsed
@@ -180,12 +181,12 @@ export async function pasteEventsAction(_prev: ActionState, fd: FormData): Promi
       : Array.isArray((parsed as { value?: unknown }).value)
         ? (parsed as { value: unknown[] }).value
         : null;
-  if (!events) return { ok: false, error: "Expected { events: [...] } or an array of events." };
+  if (!events) return { ok: false, error: t("Expected {shape} or an array of events.", { shape: "{ events: [...] }" }) };
 
   const { mergeIntoInbox } = await import("@/lib/calendar/inbox");
   const { accepted, total } = mergeIntoInbox(events);
   revalidateAll();
-  return { ok: true, message: `Loaded ${accepted} meetings (${total} in the inbox).` };
+  return { ok: true, message: t("Loaded {accepted} meetings ({total} in the inbox).", { accepted, total }) };
 }
 
 export async function clearInboxAction(): Promise<void> {
@@ -210,7 +211,10 @@ export async function syncOutlookAction(weekKey: string): Promise<ActionState> {
     const { outlookWeeks, syncOutlookWeekStarts } = await import("@/lib/sync/pulls");
     const r = await syncOutlookWeekStarts(await outlookWeeks((resolveWeek(weekKey) ?? currentWeek()).startIso));
     revalidateAll();
-    return { ok: true, message: `Synced ${r.weeks} week${r.weeks === 1 ? "" : "s"} from Outlook — ${r.events} events.` };
+    return {
+      ok: true,
+      message: r.weeks === 1 ? t("Synced 1 week from Outlook — {n} events.", { n: r.events }) : t("Synced {weeks} weeks from Outlook — {n} events.", { weeks: r.weeks, n: r.events }),
+    };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

@@ -2,6 +2,7 @@ import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import { PersistedDetails } from "@/components/PersistedDetails";
 import type { Metadata } from "next";
+import { t } from "@/lib/i18n/server";
 import Link from "next/link";
 import { connection } from "next/server";
 import { TicketLink } from "@/components/TicketLink";
@@ -12,12 +13,12 @@ import { RunPanel } from "@/components/work/RunPanel";
 import { WorkFollow } from "@/components/work/WorkFollow";
 import { WorkSettingsForm } from "@/components/work/WorkSettingsForm";
 import { WorkTodo } from "@/components/work/WorkTodo";
-import { ATTENTION_LABELS, todoRef, type TodoView } from "@/lib/boards/shared";
+import { attentionLabels, todoRef, type TodoView } from "@/lib/boards/shared";
 import {
   COMMS_KINDS,
   duration,
-  WORK_MODE_LABELS,
-  WORK_STATUS_LABELS,
+  workModeLabels,
+  workStatusLabels,
 } from "@/lib/work/shared";
 import { aiChoice, aiProviders } from "@/lib/ai";
 import { copilotModels } from "@/plugins/copilot-cli/cli";
@@ -30,7 +31,9 @@ import { getRun, toRunView } from "@/lib/work/store";
 import { listRepos } from "@/lib/repos";
 import { currentLocale } from "@/lib/format";
 
-export const metadata: Metadata = { title: "Work" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: t("Work") };
+}
 
 const when = (iso: string | null) =>
   iso
@@ -50,12 +53,13 @@ const when = (iso: string | null) =>
  * they came from marked done, follow-ups (replies, comments, ticket changes) drafted — to send
  * yourself or hand out again. Its time waits in the Weekly report, to book with a click.
  */
-const TABS = [
-  ["todos", "Todos"],
-  ["runs", "Runs"],
-  ["branches", "Branches"],
-  ["settings", "Settings"],
-] as const;
+const tabs = () =>
+  [
+    ["todos", t("Todos")],
+    ["runs", t("Runs")],
+    ["branches", t("Branches")],
+    ["settings", t("Settings")],
+  ] as const;
 
 export default async function WorkPage({
   searchParams,
@@ -75,20 +79,20 @@ export default async function WorkPage({
     const run = runId ? getRun(runId) : undefined;
     const ticket = sp.ticket === undefined ? undefined : sp.ticket === "-" ? "" : sp.ticket.toUpperCase();
     const options = {
-      tickets: tickets.filter((t) => t.ticket).map((t) => ({ key: t.ticket, summary: t.summary })),
+      tickets: tickets.filter((x) => x.ticket).map((x) => ({ key: x.ticket, summary: x.summary })),
       repos: listRepos().map((r) => ({ id: r.id, name: r.name })),
       providers: aiProviders()
         .filter((x) => x.found)
         .map((x) => ({ id: x.id, label: x.label })),
     };
-    const running = tickets.reduce((n, t) => n + t.sessions.filter((x) => x.status === "running").length, 0);
+    const running = tickets.reduce((n, x) => n + x.sessions.filter((x) => x.status === "running").length, 0);
     return (
       <SidebarFrame storageKey="zeff-work-sidebar" sidebar={sidebar({ run: run?.id, ticket, isNew: !run && ticket === undefined })} contentClassName="flex-col">
         <WorkFollow active={running > 0} />
         {run ? (
           <SessionPane run={toRunView(run)} options={options} />
         ) : ticket !== undefined ? (
-          <TicketPane ticket={ticket} data={tickets.find((t) => t.ticket === ticket)} options={options} />
+          <TicketPane ticket={ticket} data={tickets.find((x) => x.ticket === ticket)} options={options} />
         ) : (
           <NewSessionPane options={options} running={running} />
         )}
@@ -106,24 +110,24 @@ export default async function WorkPage({
     (r) => r.status === "running" && r.provider === "agent",
   );
   const queued = d.active.filter((r) => r.status === "queued").length;
-  const todoById = new Map(d.todos.map((t) => [t.id, t]));
+  const todoById = new Map(d.todos.map((x) => [x.id, x]));
   const analysis = new Map(
-    (d.board?.result?.tickets ?? []).map((t) => [t.key, t]),
+    (d.board?.result?.tickets ?? []).map((x) => [x.key, x]),
   );
-  const facts = new Map((d.board?.tickets ?? []).map((t) => [t.key, t]));
+  const facts = new Map((d.board?.tickets ?? []).map((x) => [x.key, x]));
 
-  const item = (t: TodoView) => (
+  const item = (x: TodoView) => (
     <WorkTodo
-      key={t.id}
-      t={t}
-      runs={d.runs[t.id] ?? []}
+      key={x.id}
+      t={x}
+      runs={d.runs[x.id] ?? []}
       sources={d.sources}
       cards={d.cards}
       providers={d.providers}
       preferred={d.preferred}
-      targetUrl={d.targets[t.id] ?? null}
+      targetUrl={d.targets[x.id] ?? null}
       created={d.created}
-      repo={d.repoOf[t.ticket]?.name ?? null}
+      repo={d.repoOf[x.ticket]?.name ?? null}
       full={running >= d.settings.parallel}
       parallel={d.settings.parallel}
     />
@@ -134,23 +138,26 @@ export default async function WorkPage({
       <div className="space-y-6">
       <WorkFollow active={d.active.length > 0} />
       <div className="flex flex-wrap items-baseline justify-between gap-4">
-        <h1 className="text-lg font-semibold">Work</h1>
+        <h1 className="text-lg font-semibold">{t("Work")}</h1>
         <div className="text-right text-sm text-zinc-500" role="status">
           <div>
             <span className="font-semibold text-zinc-700 dark:text-zinc-200">
               {running}/{d.settings.parallel}
             </span>{" "}
-            workers busy{queued ? ` · ${queued} queued` : ""}
+            {t("workers busy")}
+            {queued ? ` · ${t("{n} queued", { n: queued })}` : ""}
             {agents.length > 0 && (
               <span
                 title={agents
-                  .map((r) => `${r.ref}: ${r.model ?? "Agent"} on ${r.ticket}`)
+                  .map((r) => t("{ref}: {who} on {ticket}", { ref: r.ref, who: r.model ?? t("Agent"), ticket: r.ticket }))
                   .join("\n")}
               >
                 {" "}
-                · +{agents.length} external (
-                {[...new Set(agents.map((r) => r.model ?? "Agent"))].join(", ")}
-                )
+                ·{" "}
+                {t("+{n} external ({who})", {
+                  n: agents.length,
+                  who: [...new Set(agents.map((r) => r.model ?? t("Agent")))].join(", "),
+                })}
               </span>
             )}
           </div>
@@ -160,9 +167,9 @@ export default async function WorkPage({
       <nav
         className="flex flex-wrap gap-1 border-b border-zinc-200 dark:border-zinc-800"
         role="tablist"
-        aria-label="Work"
+        aria-label={t("Work")}
       >
-        {TABS.map(([key, label]) => (
+        {tabs().map(([key, label]) => (
           <Link
             key={key}
             href={`/work?tab=${key}`}
@@ -172,7 +179,7 @@ export default async function WorkPage({
             className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${tab === key ? "border-indigo-600 text-zinc-900 dark:border-indigo-400 dark:text-zinc-100" : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}
           >
             {label}
-            {key === "settings" && !d.repos.length ? " ·  set up" : ""}
+            {key === "settings" && !d.repos.length ? ` ·  ${t("set up")}` : ""}
           </Link>
         ))}
       </nav>
@@ -196,10 +203,10 @@ export default async function WorkPage({
           {d.active.length > 0 && (
             <section className="space-y-2">
               <h2 className="text-sm font-semibold text-zinc-500 uppercase">
-                Working now
+                {t("Working now")}
               </h2>
               {d.active.map((r) => {
-                const t = todoById.get(r.todoId);
+                const x = todoById.get(r.todoId);
                 return (
                   <div key={r.id} className="space-y-1">
                     <a
@@ -208,7 +215,7 @@ export default async function WorkPage({
                     >
                       <span className="font-mono">{r.ticket}</span> ·{" "}
                       <span className="font-mono">{todoRef(r.todoId)}</span>
-                      {t ? ` — ${t.text}` : ""}
+                      {x ? ` — ${x.text}` : ""}
                     </a>
                     <RunPanel run={r} created={d.created[r.id] ?? []} />
                   </div>
@@ -219,14 +226,14 @@ export default async function WorkPage({
 
           {!d.board && (
             <p className="card p-6 text-center text-sm text-zinc-500">
-              No briefing yet — run it on the{" "}
+              {t("No briefing yet — run it on the")}{" "}
               <Link
                 href="/todos"
                 className="text-indigo-600 hover:underline dark:text-indigo-400"
               >
-                Todos
+                {t("Todos")}
               </Link>{" "}
-              tab: its todos are the work here.
+              {t("tab: its todos are the work here.")}
             </p>
           )}
 
@@ -234,29 +241,29 @@ export default async function WorkPage({
           {[
             d.tickets.filter((k) =>
               d.todos.some(
-                (t) =>
-                  t.ticket === k && t.status === "open" && t.owner === "me",
+                (x) =>
+                  x.ticket === k && x.status === "open" && x.owner === "me",
               ),
             ),
             d.tickets.filter(
               (k) =>
                 !d.todos.some(
-                  (t) =>
-                    t.ticket === k && t.status === "open" && t.owner === "me",
+                  (x) =>
+                    x.ticket === k && x.status === "open" && x.owner === "me",
                 ),
             ),
           ].map((keys, group) => {
             const sections = keys.map((key) => {
-              const mine = d.todos.filter((t) => t.ticket === key);
-              const open = mine.filter((t) => t.status === "open");
+              const mine = d.todos.filter((x) => x.ticket === key);
+              const open = mine.filter((x) => x.status === "open");
               const code = open.filter(
-                (t) => t.owner === "me" && !COMMS_KINDS.includes(t.kind),
+                (x) => x.owner === "me" && !COMMS_KINDS.includes(x.kind),
               );
               const comms = open.filter(
-                (t) => t.owner === "me" && COMMS_KINDS.includes(t.kind),
+                (x) => x.owner === "me" && COMMS_KINDS.includes(x.kind),
               );
-              const waiting = open.filter((t) => t.owner === "other");
-              const done = mine.filter((t) => t.status !== "open");
+              const waiting = open.filter((x) => x.owner === "other");
+              const done = mine.filter((x) => x.status !== "open");
               const a = analysis.get(key);
               const f = facts.get(key);
               return (
@@ -273,7 +280,7 @@ export default async function WorkPage({
                       </span>
                       {a && (
                         <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-                          {ATTENTION_LABELS[a.attention]}
+                          {attentionLabels(t)[a.attention]}
                         </span>
                       )}
                       <span className="ml-auto flex flex-wrap items-center gap-1.5 text-xs text-zinc-500">
@@ -282,7 +289,13 @@ export default async function WorkPage({
                             <Link
                               href="/repos"
                               className="hover:underline"
-                              title={`Code work goes to ${d.repoOf[key]!.name} (${d.repoOf[key]!.via === "ticket" ? "the ticket is assigned to it" : d.repoOf[key]!.via === "board" ? "its board is assigned to it" : "its merge requests are in its GitLab project"})`}
+                              title={
+                                d.repoOf[key]!.via === "ticket"
+                                  ? t("Code work goes to {repo} (the ticket is assigned to it)", { repo: d.repoOf[key]!.name })
+                                  : d.repoOf[key]!.via === "board"
+                                    ? t("Code work goes to {repo} (its board is assigned to it)", { repo: d.repoOf[key]!.name })
+                                    : t("Code work goes to {repo} (its merge requests are in its GitLab project)", { repo: d.repoOf[key]!.name })
+                              }
                             >
                               <span className="font-medium text-zinc-700 dark:text-zinc-200">
                                 {d.repoOf[key]!.name}
@@ -303,7 +316,7 @@ export default async function WorkPage({
                             href="/repos"
                             className="text-amber-700 hover:underline dark:text-amber-400"
                           >
-                            no repo — set one
+                            {t("no repo — set one")}
                           </Link>
                         )}
                       </span>
@@ -320,14 +333,14 @@ export default async function WorkPage({
                     )}
                     {!code.length && !comms.length && (
                       <p className="text-sm text-zinc-500">
-                        Nothing open for you here.
+                        {t("Nothing open for you here.")}
                       </p>
                     )}
                     {waiting.length > 0 && (
                       <PersistedDetails
                         storageKey="work-waiting"
                         summaryClassName="text-xs font-semibold text-zinc-500 uppercase"
-                        summary={`Waiting on others (${waiting.length})`}
+                        summary={t("Waiting on others ({n})", { n: waiting.length })}
                       >
                         <ul className="mt-2 space-y-3">{waiting.map(item)}</ul>
                       </PersistedDetails>
@@ -337,7 +350,7 @@ export default async function WorkPage({
                         href="/todos?todos=done"
                         className="block text-xs text-zinc-400 hover:text-indigo-600 hover:underline dark:hover:text-indigo-400"
                       >
-                        {done.length} done this week →
+                        {t("{n} done this week →", { n: done.length })}
                       </Link>
                     )}
                   </div>
@@ -353,7 +366,7 @@ export default async function WorkPage({
             return keys.length > 0 ? (
               <details key="others" className="space-y-6">
                 <summary className="cursor-pointer text-sm font-semibold text-zinc-500 uppercase">
-                  No todos for you ({keys.length})
+                  {t("No todos for you ({n})", { n: keys.length })}
                 </summary>
                 <div className="mt-3 space-y-6">{sections}</div>
               </details>
@@ -367,7 +380,7 @@ export default async function WorkPage({
         <>
           {d.history.length === 0 && (
             <p className="card p-6 text-center text-sm text-zinc-500">
-              No runs yet.
+              {t("No runs yet.")}
             </p>
           )}
           {d.history.length > 0 && (
@@ -388,9 +401,9 @@ export default async function WorkPage({
                       <span className="font-mono text-zinc-500">
                         {todoRef(r.todoId)}
                       </span>
-                      <span>{WORK_MODE_LABELS[r.mode]}</span>
+                      <span>{workModeLabels(t)[r.mode]}</span>
                       <span className="text-zinc-500">
-                        {WORK_STATUS_LABELS[r.status]}
+                        {workStatusLabels(t)[r.status]}
                         {r.outcome ? ` (${r.outcome})` : ""}
                       </span>
                       <span className="text-zinc-500">
@@ -399,7 +412,7 @@ export default async function WorkPage({
                       </span>
                       {r.entryId && (
                         <span className="text-emerald-700 dark:text-emerald-400">
-                          booked
+                          {t("booked")}
                         </span>
                       )}
                       {r.entryLine && (
@@ -434,8 +447,7 @@ function BranchesTab() {
     <BranchWork items={items} />
   ) : (
     <p className="card p-6 text-center text-sm text-zinc-500">
-      No local branch needs anything
-      {items.length ? ` (${items.length} ignored)` : ""}.
+      {items.length ? t("No local branch needs anything ({n} ignored).", { n: items.length }) : t("No local branch needs anything.")}
     </p>
   );
 }

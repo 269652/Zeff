@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { tabMenuAction } from "@/app/actions";
 import type { TabMenuItem } from "@/plugins/tab-menus-shared";
 import type { HeaderTab } from "./SiteHeader";
+import { useT } from "@/components/I18nProvider";
 
 // Where you last were under a tab ("/kanban/3", or "/kanban" itself) — kept in this browser.
 const lastKey = (tab: string) => `zeff-tab-last:${tab}`;
@@ -30,6 +31,7 @@ const readLast = (tab: string) => {
  * (Kanban: every board — open one directly). The entries load when it opens.
  */
 export function TabSplit({ tab, current, pathname, className, active, children }: { tab: HeaderTab; current: boolean; pathname: string; className: string; active: boolean; children: ReactNode }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<TabMenuItem[] | null>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -68,14 +70,14 @@ export function TabSplit({ tab, current, pathname, className, active, children }
 
   return (
     <div ref={root} className="relative flex items-stretch">
-      <Link href={last} className={className} aria-current={active ? "page" : undefined} title={last !== tab.href ? `${tab.label} — last opened` : undefined}>
+      <Link href={last} className={className} aria-current={active ? "page" : undefined} title={last !== tab.href ? t("{tab} — last opened", { tab: tab.label }) : undefined}>
         {children}
       </Link>
       <button
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`${tab.label}: more`}
+        aria-label={t("{tab}: more", { tab: tab.label })}
         onClick={() => setOpen((o) => !o)}
         className={`rounded-md rounded-l-none border-l px-1.5 transition ${
           current
@@ -89,8 +91,8 @@ export function TabSplit({ tab, current, pathname, className, active, children }
       </button>
       {open && (
         <div role="menu" className="absolute top-full right-0 z-50 mt-2 max-h-[70vh] w-72 overflow-y-auto rounded-lg border border-zinc-200 bg-white py-1 shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
-          {!items && <p className="px-3 py-2 text-sm text-zinc-500">Loading…</p>}
-          {items?.length === 0 && <p className="px-3 py-2 text-sm text-zinc-500">Nothing here.</p>}
+          {!items && <p className="px-3 py-2 text-sm text-zinc-500">{t("Loading…")}</p>}
+          {items?.length === 0 && <p className="px-3 py-2 text-sm text-zinc-500">{t("Nothing here.")}</p>}
           {items?.map((i) => (
             <Link
               key={i.href}

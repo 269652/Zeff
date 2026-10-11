@@ -1,4 +1,5 @@
 import { getPref, setPref } from "@/lib/prefs";
+import { t } from "@/lib/i18n/server";
 import { CONTEXT_STEPS, withDefaults, type ContextPrefs, type ContextStepId, type StepPrefs } from "./context-prefs-shared";
 
 export type { ContextPrefs, StepPrefs } from "./context-prefs-shared";
@@ -11,7 +12,7 @@ export const getContextPrefs = (): ContextPrefs => withDefaults(getPref(KEY, {})
 /** One step's settings changed (sources, numbers, instructions) — the others as they are. */
 export function setStepPrefs(step: ContextStepId, patch: Partial<StepPrefs>): ContextPrefs {
   const def = CONTEXT_STEPS.find((s) => s.id === step);
-  if (!def) throw new Error("Unbekannter Schritt.");
+  if (!def) throw new Error(t("Unknown step."));
   const cur = getPref<Record<string, Partial<StepPrefs>>>(KEY, {});
   const was = withDefaults(cur)[step];
   const next: StepPrefs = {

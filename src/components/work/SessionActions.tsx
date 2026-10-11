@@ -4,9 +4,11 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { cancelWorkAction, startSessionAction } from "@/plugins/work/server-actions";
 import { toast } from "@/components/Toaster";
+import { useT } from "@/components/I18nProvider";
 
 /** A session's stop button (queued or at work). */
 export function StopSessionButton({ runId }: { runId: number }) {
+  const t = useT();
   const router = useRouter();
   const [pending, start] = useTransition();
   return (
@@ -15,21 +17,22 @@ export function StopSessionButton({ runId }: { runId: number }) {
       className="btn btn-sm btn-danger"
       disabled={pending}
       onClick={() =>
-        confirm("Cancel the session?") &&
+        confirm(t("Cancel the session?")) &&
         start(async () => {
           const r = await cancelWorkAction(runId);
-          if (!r?.ok) toast(r?.error ?? "Didn't work.", { tone: "error" });
+          if (!r?.ok) toast(r?.error ?? t("Didn't work."), { tone: "error" });
           router.refresh();
         })
       }
     >
-      Cancel
+      {t("Cancel")}
     </button>
   );
 }
 
 /** A todo handed to a worker as it is (its brief) — a session of its own. */
 export function TodoSessionButton({ todoId }: { todoId: number }) {
+  const t = useT();
   const router = useRouter();
   const [pending, start] = useTransition();
   return (
@@ -44,9 +47,9 @@ export function TodoSessionButton({ todoId }: { todoId: number }) {
           router.push(`/work?run=${r.runId}`);
         })
       }
-      title="A worker takes over this todo (in a session of its own)"
+      title={t("A worker takes over this todo (in a session of its own)")}
     >
-      {pending ? "starting…" : "Session"}
+      {pending ? t("starting…") : t("Session")}
     </button>
   );
 }

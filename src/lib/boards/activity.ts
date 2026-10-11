@@ -1,6 +1,7 @@
 import { and, desc, gt, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { currentLocale } from "@/lib/format";
+import { t } from "@/lib/i18n/server";
 import type { TodoEventKind, TodoEventView } from "./activity-shared";
 
 const { todoEvents, todos, workRuns, boardRuns } = schema;
@@ -66,23 +67,23 @@ export function todoActivity(opts: { days?: number; limit?: number } = {}): Todo
       : [],
   );
   const by = (actor: string | null): TodoEventView["by"] => {
-    if (!actor) return { label: "unknown", title: "Not attributed by Zeff (before the activity log, or a path without a sender)" };
-    if (actor === "you") return { label: "You" };
-    if (actor === "jira") return { label: "Jira sync", title: "The ticket is done in Jira" };
-    if (actor === "plan") return { label: "Plan", title: "A planned step (after the todo before it, or another path was taken)" };
+    if (!actor) return { label: t("unknown"), title: t("Not attributed by Zeff (before the activity log, or a path without a sender)") };
+    if (actor === "you") return { label: t("You") };
+    if (actor === "jira") return { label: t("Jira sync"), title: t("The ticket is done in Jira") };
+    if (actor === "plan") return { label: t("Plan"), title: t("A planned step (after the todo before it, or another path was taken)") };
     const agent = /^agent:(.*)$/.exec(actor);
-    if (agent) return { label: `Agent ${agent[1] || ""}`.trim(), title: "Through Zeff's MCP server" };
+    if (agent) return { label: agent[1]?.trim() ? t("Agent {name}", { name: agent[1].trim() }) : t("Agent"), title: t("Through Zeff's MCP server") };
     const w = /^work:(\d+)$/.exec(actor);
     if (w) {
       const r = work.get(Number(w[1]));
-      const who = r ? (r.provider === "agent" ? (r.model ?? "Agent") : r.provider === "zeff" ? "Zeff (action)" : `Worker${r.model ? ` · ${r.model}` : ""}`) : "Worker";
-      return { label: `W-${w[1]} · ${who}`, href: `/work#w-${w[1]}`, title: "The run on the Work tab" };
+      const who = r ? (r.provider === "agent" ? (r.model ?? t("Agent")) : r.provider === "zeff" ? t("Zeff (action)") : `${t("Worker")}${r.model ? ` · ${r.model}` : ""}`) : t("Worker");
+      return { label: `W-${w[1]} · ${who}`, href: `/work#w-${w[1]}`, title: t("The run on the Work tab") };
     }
     const l = /^lage:(\d+)$/.exec(actor);
     if (l) {
       const started = lage.get(Number(l[1]));
       const when = started ? new Date(`${started.replace(" ", "T")}${started.includes("T") ? "" : "Z"}`).toLocaleString(currentLocale(), { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "";
-      return { label: `Briefing${when ? ` (${when})` : ""}`, href: "/todos", title: `Briefing run #${l[1]}` };
+      return { label: when ? t("Briefing ({when})", { when }) : t("Briefing"), href: "/todos", title: t("Briefing run #{n}", { n: l[1] }) };
     }
     return { label: actor };
   };

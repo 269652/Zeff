@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n/server";
 import { setStepMinutes, stepMinutes } from "@/lib/sync/intervals";
 import { MINUTE_CHOICES, type PluginSyncSettings } from "../sync-settings";
 
@@ -6,12 +7,18 @@ export const syncSettings: PluginSyncSettings = {
   intervals: [
     {
       key: "calendar",
-      label: "Calendar",
-      what: "Your Outlook meetings, last month to next week (read only).",
+      get label() {
+        return t("Calendar");
+      },
+      get what() {
+        return t("Your Outlook meetings, last month to next week (read only).");
+      },
       get: () => stepMinutes("calendar"),
       set: (m) => setStepMinutes("calendar", m),
       choices: MINUTE_CHOICES,
-      window: "while the automation Chrome is running",
+      get window() {
+        return t("while the automation Chrome is running");
+      },
     },
   ],
 };

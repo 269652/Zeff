@@ -2,9 +2,10 @@ import Link from "next/link";
 import { dayShortfalls } from "@/lib/day-status";
 import type { WeeklyReport } from "@/lib/entries";
 import { formatHours, round2 } from "@/lib/format";
+import { t } from "@/lib/i18n/server";
 import { totalPauseHours, type PauseRange } from "@/lib/pauses-shared";
 import { NO_JOB_NUMBER } from "@/lib/projects-shared";
-import { ABSENCE_LABELS, type AbsenceType } from "@/lib/schedule-shared";
+import { absenceLabels, type AbsenceType } from "@/lib/schedule-shared";
 import { aggregateChronoKind, type EntryChronoStatus } from "@/lib/chrono-status";
 import type { WeekTargets } from "@/lib/schedule";
 import type { PunchDayState } from "@/lib/punch-status";
@@ -96,7 +97,9 @@ export function WeekTable({
   if (report.rows.length === 0 && !targets) {
     return (
       <p className="py-6 text-center text-sm text-zinc-500">
-        No time booked in this week{report.filter.reportedBy ? ` by ${report.filter.reportedBy}` : ""} yet.
+        {report.filter.reportedBy
+          ? t("No time booked in this week by {name} yet.", { name: report.filter.reportedBy })
+          : t("No time booked in this week yet.")}
       </p>
     );
   }
@@ -106,7 +109,7 @@ export function WeekTable({
       <table className="table">
         <thead>
           <tr>
-            <th>Job</th>
+            <th>{t("Job")}</th>
             {week.days.map((d, i) => {
               const absence = targets?.absenceByDay[i];
               return (
@@ -117,22 +120,24 @@ export function WeekTable({
                   <div className="font-normal normal-case">{formatDay(d, "d MMM")}</div>
                   {absence ? (
                     <div className="font-normal text-[10px] tracking-normal text-amber-600 normal-case dark:text-amber-400">
-                      {ABSENCE_LABELS[absence.type as AbsenceType]}
+                      {absenceLabels(t)[absence.type as AbsenceType]}
                     </div>
                   ) : nonWorking(i) ? (
-                    <div className="font-normal text-[10px] tracking-normal text-zinc-400 normal-case">off</div>
+                    <div className="font-normal text-[10px] tracking-normal text-zinc-400 normal-case">{t("off")}</div>
                   ) : null}
                 </th>
               );
             })}
-            <th className="num">Total</th>
+            <th className="num">{t("Total")}</th>
           </tr>
         </thead>
         <tbody>
           {report.rows.length === 0 ? (
             <tr>
               <td colSpan={9} className="py-6 text-center text-sm text-zinc-500">
-                No time booked in this week{report.filter.reportedBy ? ` by ${report.filter.reportedBy}` : ""} yet.
+                {report.filter.reportedBy
+                  ? t("No time booked in this week by {name} yet.", { name: report.filter.reportedBy })
+                  : t("No time booked in this week yet.")}
               </td>
             </tr>
           ) : (
@@ -170,12 +175,12 @@ export function WeekTable({
         </tbody>
         <tfoot>
           <tr className="font-semibold">
-            <td>Booked</td>
+            <td>{t("Booked")}</td>
             {report.dayTotals.map((h, i) => (
               <td
                 key={i}
                 className={bookedClass(i)}
-                title={shortfall[i].state === "ok" ? undefined : `${formatHours(shortfall[i].gap)} h below the target`}
+                title={shortfall[i].state === "ok" ? undefined : t("{hours} h below the target", { hours: formatHours(shortfall[i].gap) })}
               >
                 {h ? formatHours(h) : shortfall[i].state === "ok" ? "" : "0"}
                 {punch?.[i] && <PunchMark day={punch[i]} />}
@@ -185,7 +190,7 @@ export function WeekTable({
           </tr>
           {missingTotal > 0 && (
             <tr className="font-semibold text-red-600 dark:text-red-400">
-              <td>Missing</td>
+              <td>{t("Missing")}</td>
               {shortfall.map((s, i) => (
                 <td key={i} className={`num ${s.state === "missing" ? "bg-red-50 dark:bg-red-950/40" : ""}`}>
                   {s.state === "missing" ? formatHours(s.gap) : ""}
@@ -196,10 +201,10 @@ export function WeekTable({
           )}
           {targets && (
             <tr className="text-zinc-500">
-              <td>Target</td>
-              {targets.targets.map((t, i) => (
+              <td>{t("Target")}</td>
+              {targets.targets.map((h, i) => (
                 <td key={i} className={`num ${nonWorking(i) ? "bg-zinc-50 dark:bg-zinc-900/60" : ""}`}>
-                  {t ? formatHours(t) : ""}
+                  {h ? formatHours(h) : ""}
                 </td>
               ))}
               <td className="num">{formatHours(targets.weekTarget)}</td>
@@ -207,7 +212,7 @@ export function WeekTable({
           )}
           {pauses && (
             <tr className="text-zinc-600 dark:text-zinc-300">
-              <td>Pause</td>
+              <td>{t("Pause")}</td>
               {week.days.map((d, i) => (
                 <td key={i} className={`num align-top ${nonWorking(i) ? "bg-zinc-50 dark:bg-zinc-900/60" : ""}`}>
                   <PauseCell

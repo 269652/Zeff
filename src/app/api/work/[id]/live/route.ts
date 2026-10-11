@@ -1,6 +1,7 @@
 import { isInstalled } from "@/plugins/state";
 import { answerPermission, sendToLive, setMode, wrapUp } from "@/plugins/copilot-cli/interactive";
 import { foreignRequest, refused } from "@/lib/request-guard";
+import { t } from "@/lib/i18n/server";
 
 /**
  * POST /api/work/:id/live — what you do in a live Copilot session: { do: "answer", option } /
@@ -15,15 +16,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const runId = Number((await params).id);
   const body = (await req.json().catch(() => ({}))) as { do?: string; option?: string; text?: string; mode?: string };
   try {
-    if (!Number.isInteger(runId)) throw new Error("Unknown run.");
+    if (!Number.isInteger(runId)) throw new Error(t("Unknown run."));
     if (body.do === "answer") answerPermission(runId, String(body.option ?? ""));
     else if (body.do === "send") {
       const text = String(body.text ?? "").trim();
-      if (!text) throw new Error("The message is empty.");
+      if (!text) throw new Error(t("The message is empty."));
       sendToLive(runId, text.slice(0, 8000));
     } else if (body.do === "mode") await setMode(runId, String(body.mode ?? ""));
     else if (body.do === "wrap-up") wrapUp(runId);
-    else throw new Error("Unknown action.");
+    else throw new Error(t("Unknown action."));
     return Response.json({ ok: true });
   } catch (e) {
     return Response.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 400 });

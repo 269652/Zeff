@@ -1,6 +1,7 @@
 import { inThisAccount } from "@/db/accounts";
 import { getSqlite } from "@/db";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { listFacts } from "@/lib/facts";
 import { isInstalled } from "@/plugins/state";
 import { DATE_KINDS, isDateKind, parseDayMonth, type DateKind, type Person } from "./shared";
@@ -120,7 +121,7 @@ ${found.join("\n")}`;
 /** Facts and AI for one person: how many dates proposed. */
 export async function findDates(personId: number, { ai = true } = {}): Promise<{ facts: number; ai: number }> {
   const p = getPerson(personId);
-  if (!p) throw new Error("That person doesn't exist (any more).");
+  if (!p) throw new Error(t("That person doesn't exist (any more)."));
   const facts = datesFromFacts(p);
   const found = ai && isInstalled("llm") ? await datesWithAi(p) : 0;
   return { facts, ai: found };

@@ -1,6 +1,8 @@
 import { DEFAULT_MENU, inOrder, type AppView, type MenuPrefs } from "@/lib/layout-shared";
 import { getPref, setPref } from "@/lib/prefs";
+import { t } from "@/lib/i18n/server";
 import { PLUGINS } from "./catalog";
+import { catalogText } from "./catalog-text";
 import { installedPlugins } from "./state";
 
 /** The applications' default order (a plugin's tabs — Work, Todos …); the plugins' apps (Mail, Gmail …) after. */
@@ -15,18 +17,20 @@ export const setMenuPrefs = (patch: Partial<MenuPrefs>) => setPref("menu", { ...
 
 /**
  * Every installed plugin's applications — its tabs (in the header by default) and its apps (in the
- * menu's "Apps" by default) — each where the menu's settings put it.
+ * menu's "Apps" by default) — each where the menu's settings put it. Their words (label, short,
+ * hint, plugin name) in the account's language.
  */
 export function allApps(): AppView[] {
   const on = installedPlugins();
+  const tr = (s: string) => catalogText(t, s);
   const prefs = getMenuPrefs();
   const rank = (id: string) => (TAB_ORDER.includes(id) ? TAB_ORDER.indexOf(id) : TAB_ORDER.length);
   const plugins = PLUGINS.filter((p) => on.has(p.id)).sort((a, b) => rank(a.id) - rank(b.id));
   const seen = new Set<string>();
   const apps: AppView[] = [];
   for (const [list, defaultPlace] of [
-    [plugins.flatMap((p) => (p.tabs ?? []).map((t) => ({ ...t, hint: p.name, pluginName: p.name }))), "header"],
-    [plugins.flatMap((p) => (p.apps ?? []).map((a) => ({ ...a, pluginName: p.name }))), "menu"],
+    [plugins.flatMap((p) => (p.tabs ?? []).map((x) => ({ ...x, label: tr(x.label), short: tr(x.short), hint: tr(p.name), pluginName: tr(p.name) }))), "header"],
+    [plugins.flatMap((p) => (p.apps ?? []).map((a) => ({ ...a, label: tr(a.label), short: tr(a.short), hint: tr(a.hint), pluginName: tr(p.name) }))), "menu"],
   ] as const) {
     for (const a of list) {
       if (seen.has(a.href)) continue;

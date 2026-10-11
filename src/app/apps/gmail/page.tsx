@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { t } from "@/lib/i18n/server";
 import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { TodoRefs } from "@/components/boards/TodoRefs";
@@ -36,9 +37,9 @@ export default async function GmailAppPage({ searchParams }: { searchParams: Pro
     <div className="page">
       <div className="page-aside">
         <h1 className="text-lg font-semibold">Gmail</h1>
-        <p className="text-sm text-zinc-500">Your Gmail mails as Gmail&apos;s list shows them — read by the mail sync (sync menu), none opened.</p>
-        {settings.lastSyncAt && <p className="text-xs text-zinc-400">Last synced {agoText(settings.lastSyncAt)}.</p>}
-        <nav className="flex flex-col gap-0.5 text-sm" aria-label="Accounts">
+        <p className="text-sm text-zinc-500">{t("Your Gmail mails as Gmail's list shows them — read by the mail sync (sync menu), none opened.")}</p>
+        {settings.lastSyncAt && <p className="text-xs text-zinc-400">{t("Last synced {ago}.", { ago: agoText(settings.lastSyncAt) })}</p>}
+        <nav className="flex flex-col gap-0.5 text-sm" aria-label={t("Accounts")}>
           {[undefined, ...Object.keys(counts)].map((f) => (
             <Link
               key={f ?? "all"}
@@ -46,16 +47,16 @@ export default async function GmailAppPage({ searchParams }: { searchParams: Pro
               aria-current={folder === f ? "page" : undefined}
               className={`flex justify-between rounded px-2 py-1 ${folder === f ? "bg-zinc-200 font-medium dark:bg-zinc-800" : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}
             >
-              {f ? f.replace(/^Gmail · /, "") || f : "All accounts"} <span className="text-xs text-zinc-400">{f ? counts[f] : total}</span>
+              {f ? f.replace(/^Gmail · /, "") || f : t("All accounts")} <span className="text-xs text-zinc-400">{f ? counts[f] : total}</span>
             </Link>
           ))}
         </nav>
         <form action="/apps/gmail" className="flex gap-2">
           {folder && <input type="hidden" name="folder" value={folder} />}
-          <input name="q" defaultValue={q} className="input" placeholder="Sender, subject, text…" aria-label="Search mails" />
+          <input name="q" defaultValue={q} className="input" placeholder={t("Sender, subject, text…")} aria-label={t("Search mails")} />
         </form>
         <Link href="/gmail" className="block text-xs text-indigo-600 hover:underline dark:text-indigo-400">
-          Set up accounts
+          {t("Set up accounts")}
         </Link>
       </div>
 
@@ -63,7 +64,7 @@ export default async function GmailAppPage({ searchParams }: { searchParams: Pro
         <ul className="card divide-y divide-zinc-100 dark:divide-zinc-800">
           {mails.map((m) => (
             <li key={m.key} className="flex items-start gap-3 px-4 py-2.5 text-sm">
-              <span className={`mt-1.5 size-2 shrink-0 rounded-full ${m.unread ? "bg-red-500" : "bg-transparent"}`} title={m.unread ? "Unread" : undefined} />
+              <span className={`mt-1.5 size-2 shrink-0 rounded-full ${m.unread ? "bg-red-500" : "bg-transparent"}`} title={m.unread ? t("Unread") : undefined} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-2">
                   <span className={`truncate ${m.unread ? "font-semibold" : "font-medium"}`} title={m.fromEmail ?? undefined}>
@@ -81,7 +82,7 @@ export default async function GmailAppPage({ searchParams }: { searchParams: Pro
           ))}
         </ul>
       ) : (
-        <p className="py-6 text-center text-sm text-zinc-500">{q ? "No mail matches." : "Nothing synced yet — the mail sync (sync menu) reads the accounts."}</p>
+        <p className="py-6 text-center text-sm text-zinc-500">{q ? t("No mail matches.") : t("Nothing synced yet — the mail sync (sync menu) reads the accounts.")}</p>
       )}
     </div>
   );

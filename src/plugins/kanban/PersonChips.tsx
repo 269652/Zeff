@@ -1,5 +1,7 @@
 "use client";
 
+import { useT } from "@/components/I18nProvider";
+
 /** A person's initials (a card's avatar). */
 export const initials = (name: string) =>
   name
@@ -18,9 +20,10 @@ export const NOBODY = "—";
  * (several at once), again to let go. "—": the cards nobody is on.
  */
 export function PersonChips({ people, selected, onToggle, onClear }: { people: { name: string; count: number }[]; selected: Set<string>; onToggle: (name: string) => void; onClear: () => void }) {
+  const t = useT();
   if (!people.length) return null;
   return (
-    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by person">
+    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t("Filter by person")}>
       {people.map((p) => {
         const on = selected.has(p.name);
         return (
@@ -34,17 +37,17 @@ export function PersonChips({ people, selected, onToggle, onClear }: { people: {
                 ? "border-indigo-500 bg-indigo-600 text-white dark:border-indigo-400"
                 : "border-zinc-200 bg-white text-zinc-700 hover:border-indigo-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
             }`}
-            title={p.name === NOBODY ? "Cards without a person" : p.name}
+            title={p.name === NOBODY ? t("Cards without a person") : p.name}
           >
             <span className={`flex size-5 items-center justify-center rounded-full text-[9px] font-semibold ${on ? "bg-white/25" : "bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200"}`}>{p.name === NOBODY ? "—" : initials(p.name)}</span>
-            <span className="max-w-32 truncate">{p.name === NOBODY ? "Nobody" : p.name.replace(/\s*\(.*\)$/, "")}</span>
+            <span className="max-w-32 truncate">{p.name === NOBODY ? t("Nobody") : p.name.replace(/\s*\(.*\)$/, "")}</span>
             <span className={on ? "text-white/80" : "text-zinc-400"}>{p.count}</span>
           </button>
         );
       })}
       {selected.size > 0 && (
         <button type="button" onClick={onClear} className="text-xs text-indigo-600 hover:underline dark:text-indigo-400">
-          all
+          {t("all")}
         </button>
       )}
     </div>

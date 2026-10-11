@@ -10,6 +10,7 @@ import { formatDay } from "@/lib/week";
 import { CopyButton } from "./CopyButton";
 import { TicketLink } from "./TicketLink";
 import { TypeBadge } from "./TypeBadge";
+import { useT } from "@/components/I18nProvider";
 
 function EntryRow({ e, nested, tickets }: { e: ReportLineEntry; nested?: boolean; tickets: Record<string, TicketCard> }) {
   return (
@@ -123,6 +124,7 @@ export function ReportView({
   /** Hover cards for the tickets in the report (by upper-case key). */
   ticketCards: Record<string, TicketCard>;
 }) {
+  const t = useT();
   const typeMap = useMemo(() => typeMapOf(types), [types]);
   const [openDays, setOpenDays] = useState<Set<string>>(
     () => new Set(report.days.filter((d) => isOpen(ui, uiKey.day(d.date), d.date === today)).map((d) => d.date)),
@@ -139,9 +141,9 @@ export function ReportView({
   };
 
   if (report.days.length === 0) {
-    return <p className="py-4 text-center text-sm text-zinc-500">No time booked in this week.</p>;
+    return <p className="py-4 text-center text-sm text-zinc-500">{t("No time booked in this week.")}</p>;
   }
-  const groupLabel = "rewritten by your report rules";
+  const groupLabel = t("rewritten by your report rules");
 
   return (
     <div className="space-y-4">
@@ -150,7 +152,7 @@ export function ReportView({
           {groupLabel}
           {report.filter.reportedBy ? ` · ${report.filter.reportedBy}` : ""}
         </div>
-        <CopyButton text={text} label="Copy report" />
+        <CopyButton text={text} label={t("Copy report")} />
       </div>
 
       <div className="space-y-3">
@@ -167,7 +169,7 @@ export function ReportView({
                 <span className="flex items-center gap-2">
                   <span className="w-3 text-zinc-400">{open ? "▾" : "▸"}</span>
                   {formatDay(new Date(day.date + "T00:00:00"), "EEEE, d MMM")}
-                  {!open && <span className="text-xs font-normal text-zinc-400">· {day.lines.length} lines</span>}
+                  {!open && <span className="text-xs font-normal text-zinc-400">· {day.lines.length === 1 ? t("1 line") : t("{n} lines", { n: day.lines.length })}</span>}
                 </span>
                 <span className="tabular-nums">{formatHours(day.total)} h</span>
               </button>
@@ -184,7 +186,7 @@ export function ReportView({
       </div>
 
       <div className="flex items-center justify-between border-t border-zinc-200 pt-2 text-sm font-semibold dark:border-zinc-800">
-        <span>Total</span>
+        <span>{t("Total")}</span>
         <span className="tabular-nums">{formatHours(report.total)} h</span>
       </div>
     </div>

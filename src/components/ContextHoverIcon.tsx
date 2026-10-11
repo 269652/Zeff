@@ -2,27 +2,32 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { CONTEXT_KIND_LABELS, type ContextBrief, type ContextBriefItem } from "@/lib/contexts-shared";
+import { contextKindLabels, type ContextBrief, type ContextBriefItem } from "@/lib/contexts-shared";
 import { CONTEXT_KIND_STYLE } from "./contextKindStyle";
+import { useT } from "@/components/I18nProvider";
+import { formatDate } from "@/lib/format";
+import type { T } from "@/lib/i18n/shared";
 
 const CARD_WIDTH = 380;
 /** Items shown in the card; the rest are counted. */
 const SHOWN = 3;
 
-const day = (iso: string | null) => (iso ? `${Number(iso.slice(8, 10))}.${Number(iso.slice(5, 7))}.${iso.slice(0, 4)}` : null);
+const day = (iso: string | null) => (iso ? formatDate(iso.slice(0, 10), { weekday: false, year: true }) : null);
 
-const SYNC: Record<Exclude<ContextBriefItem["sync"], "no-ticket">, { text: string; cls: string }> = {
-  synced: { text: "✓ in Jira", cls: "text-emerald-700 dark:text-emerald-400" },
-  changed: { text: "changed since sync", cls: "text-amber-700 dark:text-amber-400" },
-  unsynced: { text: "not in Jira yet", cls: "text-zinc-400" },
-};
+const syncStates = (t: T): Record<Exclude<ContextBriefItem["sync"], "no-ticket">, { text: string; cls: string }> => ({
+  synced: { text: `✓ ${t("in Jira")}`, cls: "text-emerald-700 dark:text-emerald-400" },
+  changed: { text: t("changed since sync"), cls: "text-amber-700 dark:text-amber-400" },
+  unsynced: { text: t("not in Jira yet"), cls: "text-zinc-400" },
+});
 
 /** One item in the card: where it's from, who and when, its headline, the start of the message, its links and files. */
 function Item({ c, first, ticketUrl }: { c: ContextBriefItem; first: boolean; ticketUrl?: string | null }) {
+  const t = useT();
+  const SYNC = syncStates(t);
   return (
     <div className={`space-y-1 ${first ? "" : "border-t border-zinc-100 pt-2.5 dark:border-zinc-800"}`}>
       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-zinc-500">
-        <span className={`rounded px-1.5 py-0.5 font-medium ${CONTEXT_KIND_STYLE[c.kind]}`}>{CONTEXT_KIND_LABELS[c.kind]}</span>
+        <span className={`rounded px-1.5 py-0.5 font-medium ${CONTEXT_KIND_STYLE[c.kind]}`}>{contextKindLabels(t)[c.kind]}</span>
         {c.author && <span className="font-medium text-zinc-700 dark:text-zinc-200">{c.author}</span>}
         {c.date && <span>{day(c.date)}</span>}
         {c.ticket &&
@@ -53,7 +58,7 @@ function Item({ c, first, ticketUrl }: { c: ContextBriefItem; first: boolean; ti
           ))}
           {c.files > 0 && (
             <span className="text-[11px] text-zinc-500">
-              📎 {c.files} file{c.files === 1 ? "" : "s"}
+              📎 {c.files === 1 ? t("1 file") : t("{n} files", { n: c.files })}
             </span>
           )}
         </div>
@@ -76,6 +81,7 @@ export function ContextHoverIcon({
   /** Jira addresses of the items' tickets, by key. */
   ticketUrls?: Record<string, string | null>;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number; maxHeight?: number }>({ left: 0 });
   const linkRef = useRef<HTMLAnchorElement>(null);
@@ -121,7 +127,7 @@ export function ContextHoverIcon({
         ref={linkRef}
         href={`/entries/${entryId}#context`}
         className="mt-[3px] inline-flex shrink-0 text-sky-600 hover:text-sky-800 dark:text-sky-400 dark:hover:text-sky-300"
-        aria-label={`Context (${brief.count})`}
+        aria-label={t("Context ({n})", { n: brief.count })}
         onMouseEnter={show}
         onMouseLeave={hide}
         onFocus={show}
@@ -143,14 +149,14 @@ export function ContextHoverIcon({
           onMouseLeave={hide}
         >
           <div className="text-xs font-semibold text-zinc-500 uppercase">
-            Context · {brief.count} item{brief.count === 1 ? "" : "s"}
+            {brief.count === 1 ? t("Context · 1 item") : t("Context · {n} items", { n: brief.count })}
           </div>
           {brief.items.slice(0, SHOWN).map((c, i) => (
             <Item key={c.id} c={c} first={i === 0} ticketUrl={c.ticket ? ticketUrls[c.ticket] : null} />
           ))}
-          {brief.count > SHOWN && <p className="text-xs text-zinc-500">and {brief.count - SHOWN} more</p>}
+          {brief.count > SHOWN && <p className="text-xs text-zinc-500">{t("and {n} more", { n: brief.count - SHOWN })}</p>}
           <Link href={`/entries/${entryId}#context`} className="inline-block text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400">
-            Open on the entry →
+            {t("Open on the entry")} →
           </Link>
         </div>
       )}

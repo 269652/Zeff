@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
+import { t } from "@/lib/i18n/server";
 import { AiSettingsForm } from "@/components/AiSettingsForm";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { aiChoice, aiProviders, getAppSettings } from "@/lib/ai";
@@ -29,14 +30,16 @@ export default async function LlmPage() {
       <div className="page-aside">
         <h1 className="text-lg font-semibold">LLM</h1>
         <p className="max-w-[75ch] text-sm text-zinc-500">
-          The AI layer: the briefing, recap, mail steps, auto actions and the workers all run through it. Backends are the installed CLI plugins (Menu → Plugins).
+          {t("The AI layer: the briefing, recap, mail steps, auto actions and the workers all run through it. Backends are the installed CLI plugins (Menu → Plugins).")}
         </p>
       </div>
       <section className="card space-y-3 p-4">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Backends</h2>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Backends")}</h2>
           <p className="max-w-[75ch] text-sm text-zinc-500">
-            The default for all tasks and the model per backend. The analyses run headless and closed: the data goes with the prompt, without tools, files or servers of their own. Each with its own sign-in.
+            {t(
+              "The default for all tasks and the model per backend. The analyses run headless and closed: the data goes with the prompt, without tools, files or servers of their own. Each with its own sign-in.",
+            )}
           </p>
         </div>
         <AiSettingsForm
@@ -50,13 +53,15 @@ export default async function LlmPage() {
       </section>
       <section className="card space-y-3 p-4">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Instructions, context & tasks</h2>
-          <p className="max-w-[75ch] text-sm text-zinc-500">Goes before every prompt, to every worker and to every agent via MCP (start_todo) — and a backend of its own per task, if you want.</p>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Instructions, context & tasks")}</h2>
+          <p className="max-w-[75ch] text-sm text-zinc-500">
+            {t("Goes before every prompt, to every worker and to every agent via MCP (start_todo) — and a backend of its own per task, if you want.")}
+          </p>
         </div>
         <LlmSettingsForm
           initial={getLlmSettings()}
           providers={providers.map((p) => ({ id: p.id, label: AI_PROVIDER_INFO[p.id].label }))}
-          effective={Object.fromEntries(LLM_TASKS.map((t) => [t.id, llmChoice(t.id)]))}
+          effective={Object.fromEntries(LLM_TASKS.map((task) => [task.id, llmChoice(task.id)]))}
         />
       </section>
     </div>

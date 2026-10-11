@@ -23,6 +23,7 @@ import { resolveLinks } from "./context-links";
 import { entityHeadline, entityKey, entityText, entityWhoWhen, type Entity, type EntityMap } from "./entities-shared";
 import { teamsDay } from "./teams/shared";
 import { NotFoundError, ValidationError } from "./errors";
+import { t } from "@/lib/i18n/server";
 import { mapImageTargets } from "./markdown";
 
 const { contexts, contextFiles, entryContexts, timeEntries, jobs } = schema;
@@ -36,17 +37,17 @@ const LINK_SCHEMES = /^(https?:|mailto:|msteams:|zeff:todo:)/i;
 /** Check and tidy what a form posted: a known kind, a real ticket key, safe links, something to say. */
 export function validateContextInput(raw: ContextInput, opts: { hasFiles?: boolean } = {}): ContextInput {
   const text = (v: string | null | undefined, max: number) => {
-    const t = (v ?? "").trim();
-    return t ? t.slice(0, max) : null;
+    const s = (v ?? "").trim();
+    return s ? s.slice(0, max) : null;
   };
   const links = cleanLinks(raw.links);
   const bad = links.find((l) => !LINK_SCHEMES.test(l.url));
-  if (bad) throw new ValidationError(`“${bad.url}” isn't a web, mail or Teams link.`);
+  if (bad) throw new ValidationError(t("“{url}” isn't a web, mail or Teams link.", { url: bad.url }));
   const ticketRaw = (raw.ticket ?? "").trim();
   const ticket = normalizeTicket(ticketRaw);
-  if (ticketRaw && !ticket) throw new ValidationError(`“${ticketRaw}” isn't a Jira ticket key (like PROJ-337).`);
+  if (ticketRaw && !ticket) throw new ValidationError(t("“{ticket}” isn't a Jira ticket key (like PROJ-337).", { ticket: ticketRaw }));
   const date = raw.date?.trim() || null;
-  if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new ValidationError("The date must be YYYY-MM-DD.");
+  if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new ValidationError(t("The date must be YYYY-MM-DD."));
   const input: ContextInput = {
     kind: isContextKind(raw.kind) ? raw.kind : "note",
     title: text(raw.title, 200),
@@ -57,7 +58,7 @@ export function validateContextInput(raw: ContextInput, opts: { hasFiles?: boole
     ticket,
   };
   if (!input.body && !input.title && !input.links.length && !opts.hasFiles) {
-    throw new ValidationError("Add the message, a title, a link or a file.");
+    throw new ValidationError(t("Add the message, a title, a link or a file."));
   }
   return input;
 }
@@ -196,7 +197,7 @@ export function contextBriefs(entryIds: number[]): Record<number, ContextBrief> 
   // A source is told by its message / item: who, where, and their words.
   const entities = resolveLinks(full.flatMap((i) => i.links.map((l) => l.url)));
   const briefOf = (i: ContextItem) => {
-    const b = contextBriefItem(i);
+    const b = contextBriefItem(i, t);
     const source = itemSource(i, entities);
     if (!source) return b;
     const e = entities[source.url];
@@ -422,7 +423,7 @@ function linkLike(from: number, to: number): void {
 /** Files over the size limit are refused. */
 function checkFiles(files: File[]): void {
   const tooBig = files.find((f) => f && f.size > MAX_CONTEXT_FILE_BYTES);
-  if (tooBig) throw new ValidationError(`${tooBig.name} is larger than ${MAX_CONTEXT_FILE_BYTES / 1024 / 1024} MB.`);
+  if (tooBig) throw new ValidationError(t("{name} is larger than {mb} MB.", { name: tooBig.name, mb: MAX_CONTEXT_FILE_BYTES / 1024 / 1024 }));
 }
 
 /**
@@ -467,7 +468,7 @@ export async function createContext(
  */
 export async function updateContext(id: number, raw: ContextInput, files: File[] = [], pasted: { token: string; file: File }[] = []): Promise<ContextItem> {
   const existing = getContextItem(id);
-  if (!existing) throw new NotFoundError(`Context #${id} not found.`);
+  if (!existing) throw new NotFoundError(t("Context #{id} not found.", { id }));
   const input = validateContextInput(raw, { hasFiles: existing.files.length > 0 || files.some((f) => f && f.size > 0) || pasted.length > 0 });
   const db = getDb();
   const moved = input.ticket !== existing.ticket;
@@ -501,10 +502,10 @@ export function deleteContext(id: number): void {
 export function linkContext(entryId: number, contextId: number): void {
   const db = getDb();
   if (!db.select({ id: timeEntries.id }).from(timeEntries).where(eq(timeEntries.id, entryId)).get()) {
-    throw new NotFoundError(`Time entry #${entryId} not found.`);
+    throw new NotFoundError(t("Time entry #{id} not found.", { id: entryId }));
   }
   if (!db.select({ id: contexts.id }).from(contexts).where(eq(contexts.id, contextId)).get()) {
-    throw new NotFoundError(`Context #${contextId} not found.`);
+    throw new NotFoundError(t("Context #{id} not found.", { id: contextId }));
   }
   // Last on the entry (already on it: it stays where it is).
   const last = db.select({ p: sql<number | null>`max(${entryContexts.position})` }).from(entryContexts).where(eq(entryContexts.entryId, entryId)).get()?.p;
@@ -539,13 +540,13 @@ export function listContextPeople(): ContextPerson[] {
     people.set(key, p);
   };
   for (const r of db.select({ name: contexts.author, n: sql<number>`count(*)` }).from(contexts).groupBy(contexts.author).all()) {
-    add(r.name, 100 * r.n, `in ${r.n} context item${r.n === 1 ? "" : "s"}`);
+    add(r.name, 100 * r.n, r.n === 1 ? t("in 1 context item") : t("in {n} context items", { n: r.n }));
   }
-  for (const e of readInbox()) add(e.organizer?.emailAddress?.name, 3, "meeting organizer");
+  for (const e of readInbox()) add(e.organizer?.emailAddress?.name, 3, t("meeting organizer"));
   for (const r of db.select({ name: schema.jiraTickets.assignee, n: sql<number>`count(*)` }).from(schema.jiraTickets).groupBy(schema.jiraTickets.assignee).all()) {
-    add(r.name, r.n, "Jira assignee");
+    add(r.name, r.n, t("Jira assignee"));
   }
-  for (const r of db.selectDistinct({ name: schema.chronoEntries.approver }).from(schema.chronoEntries).all()) add(r.name, 10, "Chrono approver");
+  for (const r of db.selectDistinct({ name: schema.chronoEntries.approver }).from(schema.chronoEntries).all()) add(r.name, 10, t("Chrono approver"));
   return [...people.values()]
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
     .slice(0, 300)

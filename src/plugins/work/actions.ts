@@ -2,7 +2,7 @@
  * The Work plugin's actions: handing a todo to a worker with an instruction, and the delivery
  * steps Zeff makes after an implementation (commit, push, merge into main). Client-safe.
  */
-import { action, str } from "../actions/types";
+import { action, EN, str } from "../actions/types";
 
 export const WORK_ACTIONS = [
   action({
@@ -19,8 +19,8 @@ export const WORK_ACTIONS = [
       },
     },
     clean: (o) => (str(o.instruction) ? { type: "work-instruct", instruction: str(o.instruction).slice(0, 4000) } : null),
-    title: (op) => `To Copilot: ${op.instruction.slice(0, 60)}${op.instruction.length > 60 ? "…" : ""}`,
-    note: (op) => ({ heading: "Hand to Copilot (Work tab)", detail: null, body: op.instruction }),
+    title: (op, t = EN) => t("To Copilot: {instruction}", { instruction: `${op.instruction.slice(0, 60)}${op.instruction.length > 60 ? "…" : ""}` }),
+    note: (op, t = EN) => ({ heading: t("Hand to Copilot (Work tab)"), detail: null, body: op.instruction }),
   }),
   action({
     type: "git-push",
@@ -32,8 +32,8 @@ export const WORK_ACTIONS = [
       str(o.repo) && str(o.branch) && str(o.remote)
         ? { type: "git-push", repo: str(o.repo), branch: str(o.branch), remote: str(o.remote), target: str(o.target) || "main", title: str(o.title) || undefined, description: str(o.description) || undefined }
         : null,
-    title: (op) => `Push ${op.branch} as ${op.remote}`,
-    note: (op) => ({ heading: "Push branch", detail: `${op.branch} → origin/${op.remote}`, body: null }),
+    title: (op, t = EN) => t("Push {branch} as {remote}", { branch: op.branch, remote: op.remote }),
+    note: (op, t = EN) => ({ heading: t("Push branch"), detail: `${op.branch} → origin/${op.remote}`, body: null }),
   }),
   action({
     type: "git-merge-main",
@@ -42,8 +42,12 @@ export const WORK_ACTIONS = [
     verb: "Merge",
     delivery: true,
     clean: (o) => (str(o.repo) && str(o.branch) ? { type: "git-merge-main", repo: str(o.repo), branch: str(o.branch), target: str(o.target) || "main" } : null),
-    title: (op) => `Merge ${op.branch} into ${op.target} and push`,
-    note: (op) => ({ heading: `Merge into ${op.target}`, detail: `${op.branch.replace(/^origin\//, "")} → ${op.target}, then push`, body: null }),
+    title: (op, t = EN) => t("Merge {branch} into {target} and push", { branch: op.branch, target: op.target }),
+    note: (op, t = EN) => ({
+      heading: t("Merge into {target}", { target: op.target }),
+      detail: t("{branch} → {target}, then push", { branch: op.branch.replace(/^origin\//, ""), target: op.target }),
+      body: null,
+    }),
   }),
   action({
     type: "git-commit-branch",
@@ -55,7 +59,12 @@ export const WORK_ACTIONS = [
       str(o.repo) && str(o.branch) && Array.isArray(o.files) && o.files.length
         ? { type: "git-commit-branch", repo: str(o.repo), branch: str(o.branch), files: o.files.map(str).filter(Boolean).slice(0, 500), message: str(o.message) || str(o.branch), target: str(o.target) || "main" }
         : null,
-    title: (op) => `Commit ${op.files.length} file${op.files.length === 1 ? "" : "s"} on ${op.branch}`,
-    note: (op) => ({ heading: `Commit ${op.files.length} file${op.files.length === 1 ? "" : "s"}`, detail: `on ${op.branch}: “${op.message}”`, body: null, files: op.files }),
+    title: (op, t = EN) => (op.files.length === 1 ? t("Commit 1 file on {branch}", { branch: op.branch }) : t("Commit {n} files on {branch}", { n: op.files.length, branch: op.branch })),
+    note: (op, t = EN) => ({
+      heading: op.files.length === 1 ? t("Commit 1 file") : t("Commit {n} files", { n: op.files.length }),
+      detail: t("on {branch}: “{message}”", { branch: op.branch, message: op.message }),
+      body: null,
+      files: op.files,
+    }),
   }),
 ];

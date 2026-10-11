@@ -1,6 +1,7 @@
 import { automationCdp, automationEnv, driverPath } from "@/plugins/drivers";
 import { clearAttention, needsSignIn, raiseLogin } from "@/lib/attention";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { getGitlabSettings, saveGitlabItems, updateGitlabSettings, type GitlabItemInput } from "./store";
 
 /** How far back a full sync (and branches on every sync) goes. */
@@ -29,13 +30,13 @@ async function chromeUp(): Promise<boolean> {
  * `background`: only when Chrome runs with GitLab open; by hand it may open GitLab.
  */
 export async function syncGitlab({ background = false } = {}): Promise<{ ok: boolean; message: string }> {
-  if (state.__zeffGitlabSyncing) return { ok: false, message: "A GitLab sync is already running." };
+  if (state.__zeffGitlabSyncing) return { ok: false, message: t("A GitLab sync is already running.") };
   state.__zeffGitlabSyncing = true;
   try {
     const s = getGitlabSettings();
     const base = s.baseUrl.replace(/\/+$/, "");
     // In the background without the automation Chrome: later, as for the other sources — not a failure.
-    if (background && !(await chromeUp())) return { ok: true, message: "The automation Chrome isn't running — later." };
+    if (background && !(await chromeUp())) return { ok: true, message: t("The automation Chrome isn't running — later.") };
     const sinceIso = s.lastOk && s.lastSyncAt ? new Date(new Date(s.lastSyncAt).getTime() - 864e5).toISOString() : undefined;
     const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
     const script = driverPath("gitlab");
@@ -46,7 +47,7 @@ export async function syncGitlab({ background = false } = {}): Promise<{ ok: boo
       240000,
     );
     const data = (typeof out === "string" ? JSON.parse(out) : out) as { items?: GitlabItemInput[] };
-    if (!Array.isArray(data.items)) throw new Error(typeof out === "string" ? out.slice(0, 300) : "GitLab returned nothing readable.");
+    if (!Array.isArray(data.items)) throw new Error(typeof out === "string" ? out.slice(0, 300) : t("GitLab returned nothing readable."));
     const { added, total } = saveGitlabItems(data.items);
     // Merge todos waiting for an approval: theirs is in.
     const { promoteApprovedMerges } = await import("@/lib/boards/store");
@@ -59,7 +60,7 @@ export async function syncGitlab({ background = false } = {}): Promise<{ ok: boo
       // without buttons, then
     }
     clearAttention("login:gitlab");
-    return record(true, `${added} new · ${total} in all`);
+    return record(true, t("{added} new · {total} in all", { added, total }));
   } catch (e) {
     const message = errorMessage(e).slice(0, 300);
     // GitLab wants you to sign in (not just unreachable): asked of you, and pinged.

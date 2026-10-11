@@ -2,6 +2,7 @@ import { asc, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { BUILTIN_TYPE_KEYS, typeMapOf, type EntryTypeDef } from "./entry-types-shared";
 import { ConflictError, NotFoundError, ValidationError } from "./errors";
+import { t } from "@/lib/i18n/server";
 import { getTypeRules } from "./type-rules";
 
 const { entryTypes, timeEntries } = schema;
@@ -28,7 +29,7 @@ export function isEntryType(key: string): boolean {
 /** Throws unless `key` is a configured type. */
 export function assertEntryType(key: string): void {
   if (!isEntryType(key)) {
-    throw new ValidationError(`Unknown type "${key}". Types: ${listEntryTypes().map((t) => t.key).join(", ")}.`);
+    throw new ValidationError(t("Unknown type \"{key}\". Types: {types}.", { key, types: listEntryTypes().map((x) => x.key).join(", ") }));
   }
 }
 
@@ -55,16 +56,16 @@ function slugify(label: string): string {
 }
 
 function checkFields(label: string, color: string) {
-  if (!label.trim()) throw new ValidationError("Give the type a name.");
-  if (label.trim().length > 40) throw new ValidationError("Keep the name under 40 characters.");
-  if (!HEX_COLOR.test(color)) throw new ValidationError("Pick a color.");
+  if (!label.trim()) throw new ValidationError(t("Give the type a name."));
+  if (label.trim().length > 40) throw new ValidationError(t("Keep the name under 40 characters."));
+  if (!HEX_COLOR.test(color)) throw new ValidationError(t("Pick a color."));
 }
 
 export function createEntryType(input: { label: string; color: string }): EntryTypeDef {
   checkFields(input.label, input.color);
   const key = slugify(input.label);
-  if (!key) throw new ValidationError("Use letters or digits in the name.");
-  if (isEntryType(key)) throw new ConflictError(`There already is a type "${key}".`);
+  if (!key) throw new ValidationError(t("Use letters or digits in the name."));
+  if (isEntryType(key)) throw new ConflictError(t("There already is a type \"{key}\".", { key }));
   const db = getDb();
   const last = db.select({ max: sql<number>`coalesce(max(${entryTypes.sort}), -1)` }).from(entryTypes).get();
   db.insert(entryTypes)
@@ -93,13 +94,19 @@ export function updateEntryTypes(updates: { key: string; label: string; color: s
 /** Delete a type nothing uses (built-in types stay). */
 export function deleteEntryType(key: string): void {
   const db = getDb();
-  const t = db.select().from(entryTypes).where(eq(entryTypes.key, key)).get();
-  if (!t) throw new NotFoundError(`Type "${key}" not found.`);
-  if (BUILTIN_TYPE_KEYS.includes(key)) throw new ValidationError(`"${t.label}" is built in — rename or recolor it instead.`);
+  const type = db.select().from(entryTypes).where(eq(entryTypes.key, key)).get();
+  if (!type) throw new NotFoundError(t("Type \"{key}\" not found.", { key }));
+  if (BUILTIN_TYPE_KEYS.includes(key)) throw new ValidationError(t("\"{label}\" is built in — rename or recolor it instead.", { label: type.label }));
   const used = entryTypeUsage()[key] ?? 0;
-  if (used) throw new ConflictError(`${used} ${used === 1 ? "entry is" : "entries are"} typed "${t.label}" — change them first.`);
+  if (used) {
+    throw new ConflictError(
+      used === 1
+        ? t("1 entry is typed \"{label}\" — change them first.", { label: type.label })
+        : t("{n} entries are typed \"{label}\" — change them first.", { n: used, label: type.label }),
+    );
+  }
   if (getTypeRules().some((r) => r.type === key)) {
-    throw new ConflictError(`An entry type rule (Schedule) sets "${t.label}" — change that rule first.`);
+    throw new ConflictError(t("An entry type rule (Schedule) sets \"{label}\" — change that rule first.", { label: type.label }));
   }
   db.delete(entryTypes).where(eq(entryTypes.key, key)).run();
 }

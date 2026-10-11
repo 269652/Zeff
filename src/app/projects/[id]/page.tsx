@@ -1,6 +1,7 @@
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
+import { t } from "@/lib/i18n/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
@@ -18,7 +19,9 @@ import { getProject } from "@/lib/projects";
 import { listTags } from "@/lib/tags";
 import { todayIso } from "@/lib/week";
 
-export const metadata: Metadata = { title: "Project" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: t("Project") };
+}
 
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   await connection();
@@ -40,27 +43,27 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     <div className="page">
       <div className="page-aside">
         <div>
-          <Link href="/projects" className="text-sm text-zinc-500 hover:underline">← All projects</Link>
+          <Link href="/projects" className="text-sm text-zinc-500 hover:underline">{t("← All projects")}</Link>
           <h1 className="text-lg font-semibold">
             {project.title}
-            {!project.active && <span className="badge badge-web ml-2 align-middle">inactive</span>}
+            {!project.active && <span className="badge badge-web ml-2 align-middle">{t("inactive")}</span>}
           </h1>
           <p className="text-sm text-zinc-500">
-            {formatHours(project.totalHours)}h booked in {project.entryCount} entries ·{" "}
+            {t("{hours}h booked in {n} entries", { hours: formatHours(project.totalHours), n: project.entryCount })} ·{" "}
             {project.job ? (
               <>
-                on{" "}
+                {t("on")}{" "}
                 <Link href={`/jobs/${project.job.id}`} className="hover:underline">
                   <span className="font-mono">{project.job.number}</span> {project.job.name}
                 </Link>
               </>
             ) : (
-              <span className="badge badge-nojob">No job yet</span>
+              <span className="badge badge-nojob">{t("No job yet")}</span>
             )}
           </p>
           {!project.job && project.entryCount > 0 && (
             <p className="mt-1 text-sm text-amber-700 dark:text-amber-400">
-              The Chrono export skips these entries until you pick the project&apos;s job below.
+              {t("The Chrono export skips these entries until you pick the project's job below.")}
             </p>
           )}
         </div>
@@ -68,14 +71,14 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       </div>
 
       <section className="card p-4">
-        <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">Edit project</h2>
+        <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">{t("Edit project")}</h2>
         <ProjectForm
           action={updateProjectAction.bind(null, project.id)}
           jobs={jobs}
           mode="edit"
-          submitLabel="Save"
+          submitLabel={t("Save")}
           entryCount={project.entryCount}
-          allTags={listTags().map((t) => t.name)}
+          allTags={listTags().map((tag) => tag.name)}
           defaults={{
             tags: getDefaultTags({ project: project.id }),
             title: project.title,
@@ -90,10 +93,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       </section>
 
       <section className="card p-4">
-        <h2 className="mb-1 text-sm font-semibold text-zinc-500 uppercase">Book days</h2>
+        <h2 className="mb-1 text-sm font-semibold text-zinc-500 uppercase">{t("Book days")}</h2>
         <p className="mb-3 text-xs text-zinc-500">
-          One entry per working day — e.g. all days of a training. Single entries can also be booked on the project
-          from the week page (&ldquo;Book on&rdquo;).
+          {t("One entry per working day — e.g. all days of a training. Single entries can also be booked on the project from the week page (“Book on”).")}
         </p>
         <ProjectBookDaysForm
           action={bookProjectDaysAction.bind(null, project.id)}
@@ -104,7 +106,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       </section>
 
       <section className="card p-4">
-        <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">Time entries</h2>
+        <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">{t("Time entries")}</h2>
         <EntriesTable entries={entries} showJob={false} showProject={false} />
       </section>
     </div>

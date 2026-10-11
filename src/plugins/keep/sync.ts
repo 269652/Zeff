@@ -1,5 +1,6 @@
 import { clearAttention, needsSignIn, raiseLogin } from "@/lib/attention";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { automationCdp, automationEnv, driverPath } from "@/plugins/drivers";
 import { keepSettings, saveKeepNotes, type KeepNote } from "./store";
 
@@ -19,10 +20,10 @@ async function chromeUp(): Promise<boolean> {
  * them. `background`: only while Chrome runs; by hand it may start it. "N new · M changed · K in all".
  */
 export async function syncKeep({ background = false } = {}): Promise<{ ok: boolean; message: string }> {
-  if (flag.__zeffKeepSyncing) return { ok: false, message: "A Keep sync is already running." };
+  if (flag.__zeffKeepSyncing) return { ok: false, message: t("A Keep sync is already running.") };
   flag.__zeffKeepSyncing = true;
   try {
-    if (background && !(await chromeUp())) return { ok: false, message: "The automation Chrome isn't running. Not synced." };
+    if (background && !(await chromeUp())) return { ok: false, message: t("The automation Chrome isn't running. Not synced.") };
     const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
     const out = await runStdioSession(
       { command: process.execPath, args: [driverPath("keep")], env: automationEnv(), label: "Keep sync" },
@@ -30,10 +31,13 @@ export async function syncKeep({ background = false } = {}): Promise<{ ok: boole
       240000,
     );
     const data = (typeof out === "string" ? (out.trim().startsWith("{") ? JSON.parse(out) : null) : out) as { notes?: KeepNote[]; full?: boolean } | null;
-    if (!data || !Array.isArray(data.notes)) throw new Error(typeof out === "string" ? out.replace(/^Error:\s*/, "").slice(0, 300) : "Keep returned nothing readable.");
+    if (!data || !Array.isArray(data.notes)) throw new Error(typeof out === "string" ? out.replace(/^Error:\s*/, "").slice(0, 300) : t("Keep returned nothing readable."));
     const r = saveKeepNotes(data.notes, !!data.full);
     clearAttention("login:keep");
-    return { ok: true, message: `${r.added} new · ${r.changed} changed${r.removed ? ` · ${r.removed} removed` : ""} · ${r.total} in all` };
+    return {
+      ok: true,
+      message: [t("{n} new", { n: r.added }), t("{n} changed", { n: r.changed }), ...(r.removed ? [t("{n} removed", { n: r.removed })] : []), t("{n} in all", { n: r.total })].join(" · "),
+    };
   } catch (e) {
     const message = errorMessage(e).slice(0, 300);
     if (needsSignIn(message) || /sign[- ]in|anmeld/i.test(message)) raiseLogin("keep", message);

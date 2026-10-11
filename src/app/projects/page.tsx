@@ -1,6 +1,7 @@
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
+import { t } from "@/lib/i18n/server";
 import Link from "next/link";
 import { connection } from "next/server";
 import { createProjectAction, toggleProjectActiveAction } from "@/app/actions";
@@ -12,47 +13,48 @@ import { listDefaultTagMaps } from "@/lib/default-tags";
 import { listProjects } from "@/lib/projects";
 import { listTags } from "@/lib/tags";
 
-export const metadata: Metadata = { title: "Projects" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: t("Projects") };
+}
 
 export default async function ProjectsPage() {
   await connection();
   if (!isInstalled("zeiterfassung")) return <PluginNotInstalled id="zeiterfassung" />;
   const projects = listProjects({ includeInactive: true });
   const jobs = listJobs().map((j) => ({ number: j.number, name: j.name }));
-  const allTags = listTags().map((t) => t.name);
+  const allTags = listTags().map((tag) => tag.name);
   const defaultTags = listDefaultTagMaps().projects;
 
   return (
     <div className="page">
       <div className="page-aside">
-        <h1 className="text-lg font-semibold">Projects</h1>
+        <h1 className="text-lg font-semibold">{t("Projects")}</h1>
         <p className="text-sm text-zinc-500">
-          Book time on a project instead of a job — e.g. a training. The hours land on the project&apos;s job, and
-          setting or changing that job later moves all its entries along.
+          {t("Book time on a project instead of a job — e.g. a training. The hours land on the project's job, and setting or changing that job later moves all its entries along.")}
         </p>
       </div>
 
       <section className="card p-4">
-        <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">New project</h2>
+        <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">{t("New project")}</h2>
         <ProjectForm action={createProjectAction} jobs={jobs} allTags={allTags} />
       </section>
 
       <section className="card p-4">
-        <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">All projects ({projects.length})</h2>
+        <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">{t("All projects ({n})", { n: projects.length })}</h2>
         {projects.length === 0 ? (
-          <p className="py-4 text-center text-sm text-zinc-500">No projects yet.</p>
+          <p className="py-4 text-center text-sm text-zinc-500">{t("No projects yet.")}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Title</th>
-                  <th>Job</th>
-                  <th>Customer</th>
-                  <th>Booked</th>
-                  <th className="num">Hours</th>
-                  <th className="num">Entries</th>
-                  <th>Status</th>
+                  <th>{t("Title")}</th>
+                  <th>{t("Job")}</th>
+                  <th>{t("Customer")}</th>
+                  <th>{t("Booked")}</th>
+                  <th className="num">{t("Hours")}</th>
+                  <th className="num">{t("Entries")}</th>
+                  <th>{t("Status")}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -64,8 +66,8 @@ export default async function ProjectsPage() {
                       {p.description && <div className="text-xs text-zinc-500">{p.description}</div>}
                       {(defaultTags[p.id] ?? []).length > 0 && (
                         <div className="mt-0.5 flex flex-wrap gap-1">
-                          {(defaultTags[p.id] ?? []).map((t) => (
-                            <span key={t} className="badge badge-tag">#{t}</span>
+                          {(defaultTags[p.id] ?? []).map((tag) => (
+                            <span key={tag} className="badge badge-tag">#{tag}</span>
                           ))}
                         </div>
                       )}
@@ -76,7 +78,7 @@ export default async function ProjectsPage() {
                           <span className="font-mono whitespace-nowrap">{p.job.number}</span> {p.job.name}
                         </Link>
                       ) : (
-                        <span className="badge badge-nojob">No job yet</span>
+                        <span className="badge badge-nojob">{t("No job yet")}</span>
                       )}
                     </td>
                     <td>{p.customer ?? ""}</td>
@@ -86,16 +88,16 @@ export default async function ProjectsPage() {
                     <td className="num">{formatHours(p.totalHours)}</td>
                     <td className="num">{p.entryCount}</td>
                     <td>
-                      <span className={`badge ${p.active ? "badge-mcp" : "badge-web"}`}>{p.active ? "active" : "inactive"}</span>
+                      <span className={`badge ${p.active ? "badge-mcp" : "badge-web"}`}>{p.active ? t("active") : t("inactive")}</span>
                     </td>
                     <td>
                       <div className="flex justify-end gap-1">
-                        <Link href={`/projects/${p.id}`} className="btn btn-sm">Edit</Link>
+                        <Link href={`/projects/${p.id}`} className="btn btn-sm">{t("Edit")}</Link>
                         <form action={toggleProjectActiveAction}>
                           <input type="hidden" name="id" value={p.id} />
                           <input type="hidden" name="active" value={p.active ? "false" : "true"} />
                           <SubmitButton className="btn btn-sm" pendingText="…">
-                            {p.active ? "Deactivate" : "Activate"}
+                            {p.active ? t("Deactivate") : t("Activate")}
                           </SubmitButton>
                         </form>
                       </div>

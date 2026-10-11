@@ -4,8 +4,10 @@ import { useActionState } from "react";
 import { deleteTagAction, renameTagAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
 import { SubmitButton } from "./SubmitButton";
+import { useT } from "@/components/I18nProvider";
 
 export function TagRow({ id, name, count }: { id: number; name: string; count: number }) {
+  const t = useT();
   const [state, action] = useActionState<ActionState, FormData>(renameTagAction, null);
   return (
     <tr>
@@ -14,7 +16,7 @@ export function TagRow({ id, name, count }: { id: number; name: string; count: n
           <input type="hidden" name="id" value={id} />
           <span className="text-zinc-400">#</span>
           <input name="name" defaultValue={name} className="input w-44" />
-          <SubmitButton className="btn btn-sm" pendingText="…">Save</SubmitButton>
+          <SubmitButton className="btn btn-sm" pendingText="…">{t("Save")}</SubmitButton>
           {state?.error && <span className="text-xs text-red-600 dark:text-red-400">{state.error}</span>}
         </form>
       </td>
@@ -25,9 +27,13 @@ export function TagRow({ id, name, count }: { id: number; name: string; count: n
           <SubmitButton
             className="btn btn-sm btn-danger"
             pendingText="…"
-            confirm={`Delete tag #${name}? It will be removed from ${count} ${count === 1 ? "entry" : "entries"}.`}
+            confirm={
+              count === 1
+                ? t("Delete tag #{name}? It will be removed from 1 entry.", { name })
+                : t("Delete tag #{name}? It will be removed from {n} entries.", { name, n: count })
+            }
           >
-            Delete
+            {t("Delete")}
           </SubmitButton>
         </form>
       </td>

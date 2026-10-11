@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { DayShortfall } from "@/lib/day-status";
 import { formatDate, formatHours, round2 } from "@/lib/format";
+import { t } from "@/lib/i18n/server";
 import type { PastWeeksDue } from "@/lib/monthly";
 import { StatusIcon } from "./StatusIcon";
 
@@ -80,19 +81,19 @@ export type BookedDay = { shortfall: DayShortfall; label: string };
  */
 function bookedView(booked: number, target: number, days: BookedDay[] | undefined, started: boolean): StatView | undefined {
   const onTarget = target > 0 && round2(booked) === round2(target);
-  if (!days) return onTarget ? { color: "green", icon: "check", caption: "Matches the target" } : undefined;
+  if (!days) return onTarget ? { color: "green", icon: "check", caption: t("Matches the target") } : undefined;
   const missing = days.filter((d) => d.shortfall.state === "missing");
   if (missing.length) {
     const hours = round2(missing.reduce((a, d) => a + d.shortfall.gap, 0));
     const names = missing.length > 4 ? `${missing.slice(0, 3).map((d) => d.label).join(", ")} +${missing.length - 3}` : missing.map((d) => d.label).join(", ");
-    return { color: "red", icon: "cross", caption: `${formatHours(hours)} h missing · ${names}` };
+    return { color: "red", icon: "cross", caption: t("{hours} h missing · {days}", { hours: formatHours(hours), days: names }) };
   }
   const over = round2(booked - target);
-  if (target > 0 && over > 0) return { color: "amber", icon: "info", caption: `${formatHours(over)} h over the target` };
+  if (target > 0 && over > 0) return { color: "amber", icon: "info", caption: t("{hours} h over the target", { hours: formatHours(over) }) };
   const today = days.find((d) => d.shortfall.state === "short");
-  if (today) return { color: "amber", icon: "info", caption: `${formatHours(today.shortfall.gap)} h to go today` };
+  if (today) return { color: "amber", icon: "info", caption: t("{hours} h to go today", { hours: formatHours(today.shortfall.gap) }) };
   if (!started || target <= 0) return undefined;
-  return { color: "green", icon: "check", caption: onTarget ? "Matches the target" : "All booked so far" };
+  return { color: "green", icon: "check", caption: onTarget ? t("Matches the target") : t("All booked so far") };
 }
 
 /**
@@ -136,13 +137,15 @@ export function BookedStat({
         </>
       }
       view={view}
-      hint={`${workdays} workday${workdays === 1 ? "" : "s"}${absentDays ? ` · ${absentDays} day${absentDays === 1 ? "" : "s"} absent` : ""}`}
+      hint={`${workdays === 1 ? t("1 workday") : t("{n} workdays", { n: workdays })}${
+        absentDays ? ` · ${absentDays === 1 ? t("1 day absent") : t("{n} days absent", { n: absentDays })}` : ""
+      }`}
     >
       {today && (
         <div className="text-sm tabular-nums">
-          <span className="text-zinc-500">Today </span>
+          <span className="text-zinc-500">{t("Today")} </span>
           <span className={`font-semibold ${todayDone ? "text-emerald-600 dark:text-emerald-400" : ""}`}>{formatHours(today.booked)}</span>
-          <span className="text-zinc-400">{today.target > 0 ? ` / ${formatHours(today.target)} h` : " h · day off"}</span>
+          <span className="text-zinc-400">{today.target > 0 ? ` / ${formatHours(today.target)} h` : ` h · ${t("day off")}`}</span>
         </div>
       )}
     </Stat>
@@ -161,14 +164,18 @@ export function PastWeeksStat({ due }: { due: PastWeeksDue }) {
     due.filtered || due.weeks.length === 0
       ? undefined
       : due.missing > 0
-        ? { color: "red", icon: "cross", caption: `${shortDays} day${shortDays === 1 ? "" : "s"} short since ${since}` }
-        : { color: "green", icon: "check", caption: `All booked since ${since}` };
+        ? {
+            color: "red",
+            icon: "cross",
+            caption: shortDays === 1 ? t("1 day short since {since}", { since }) : t("{n} days short since {since}", { n: shortDays, since }),
+          }
+        : { color: "green", icon: "check", caption: t("All booked since {since}", { since }) };
   return (
     <Stat
-      label="Due in past weeks"
+      label={t("Due in past weeks")}
       value={due.filtered || due.weeks.length === 0 ? "–" : `${formatHours(due.missing)} h`}
       view={view}
-      hint={due.filtered ? "Not shown while filtered" : "No past weeks yet"}
+      hint={due.filtered ? t("Not shown while filtered") : t("No past weeks yet")}
     >
       {!due.filtered && due.weeks.length > 0 && (
         <div className="my-1 flex flex-wrap gap-1">
@@ -178,8 +185,16 @@ export function PastWeeksStat({ due }: { due: PastWeeksDue }) {
               href={`/?week=${w.key}`}
               title={
                 w.missing > 0
-                  ? `Week ${w.week}: ${formatHours(w.missing)} h missing — ${w.shortDays.map((d) => `${day(d.date)} −${formatHours(d.gap)}`).join(", ")}`
-                  : `Week ${w.week}: ${formatHours(w.booked)} of ${formatHours(w.target)} h booked`
+                  ? t("Week {week}: {hours} h missing — {days}", {
+                      week: w.week,
+                      hours: formatHours(w.missing),
+                      days: w.shortDays.map((d) => `${day(d.date)} −${formatHours(d.gap)}`).join(", "),
+                    })
+                  : t("Week {week}: {booked} of {target} h booked", {
+                      week: w.week,
+                      booked: formatHours(w.booked),
+                      target: formatHours(w.target),
+                    })
               }
               className={`rounded px-1.5 py-0.5 text-[11px] font-medium tabular-nums hover:brightness-95 dark:hover:brightness-125 ${
                 w.missing > 0
@@ -187,7 +202,7 @@ export function PastWeeksStat({ due }: { due: PastWeeksDue }) {
                   : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-200"
               }`}
             >
-              W{w.week}
+              {t("W{week}", { week: w.week })}
               {w.missing > 0 && ` −${formatHours(w.missing)}`}
             </Link>
           ))}

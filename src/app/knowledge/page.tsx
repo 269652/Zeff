@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { t } from "@/lib/i18n/server";
 import { headers } from "next/headers";
 import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
@@ -10,7 +11,9 @@ import { KnowledgeSyncButton } from "@/plugins/knowledge/KnowledgeSyncButton";
 import { formatDateTime } from "@/lib/format";
 import { isInstalled } from "@/plugins/state";
 
-export const metadata: Metadata = { title: "Chat" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: t("Chat") };
+}
 
 /**
  * Knowledge (Knowledge plugin): ask the knowledge — the knowledge server answers from the pages
@@ -32,8 +35,8 @@ export default async function KnowledgePage() {
       sidebar={
         <>
           <div>
-            <h1 className="text-lg font-semibold">Chat</h1>
-            <p className="text-sm text-zinc-500">Questions to the knowledge — Confluence and what Zeff has synced; every answer with its sources.</p>
+            <h1 className="text-lg font-semibold">{t("Chat")}</h1>
+            <p className="text-sm text-zinc-500">{t("Questions to the knowledge — Confluence and what Zeff has synced; every answer with its sources.")}</p>
           </div>
           {typeof status === "string" ? (
             <p className="alert-error text-sm">{status}</p>
@@ -41,10 +44,10 @@ export default async function KnowledgePage() {
             <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
               {(
                 [
-                  ["Pages", status.counts.pages],
-                  ["Spaces", status.counts.spaces],
-                  ["Entities", status.counts.entities],
-                  ["Relations", status.counts.relations],
+                  [t("Pages"), status.counts.pages],
+                  [t("Spaces"), status.counts.spaces],
+                  [t("Entities"), status.counts.entities],
+                  [t("Relations"), status.counts.relations],
                 ] as const
               ).map(([label, n]) => (
                 <div key={label}>
@@ -52,13 +55,15 @@ export default async function KnowledgePage() {
                   <dd className="text-lg font-semibold tabular-nums">{n}</dd>
                 </div>
               ))}
-              {status.counts.compiled < status.counts.pages && <p className="col-span-2 text-xs text-amber-700 dark:text-amber-400">{status.counts.pages - status.counts.compiled} not compiled yet</p>}
+              {status.counts.compiled < status.counts.pages && (
+                <p className="col-span-2 text-xs text-amber-700 dark:text-amber-400">{t("{n} not compiled yet", { n: status.counts.pages - status.counts.compiled })}</p>
+              )}
               {status.confluence && <p className="col-span-2 truncate text-xs text-zinc-500" title={status.confluence}>{status.confluence}</p>}
               {last && (
                 <p className="col-span-2 text-xs text-zinc-500">
-                  Last {last.kind === "sync" ? "read" : "compiled"} {formatDateTime(last.started_at)}
+                  {last.kind === "sync" ? t("Last read {at}", { at: formatDateTime(last.started_at) }) : t("Last compiled {at}", { at: formatDateTime(last.started_at) })}
                   {last.ok === 0 ? " ✗" : ""}
-                  {busy && " · running now"}
+                  {busy && ` · ${t("running now")}`}
                 </p>
               )}
             </dl>
@@ -66,10 +71,10 @@ export default async function KnowledgePage() {
           <div className="flex flex-wrap gap-2">
             {typeof status !== "string" && <KnowledgeSyncButton busy={busy} />}
             <a href={`${server}/graph`} target="_blank" rel="noreferrer" className="btn btn-sm">
-              Graph ↗
+              {t("Graph ↗")}
             </a>
             <a href={server} target="_blank" rel="noreferrer" className="btn btn-sm">
-              Knowledge server ↗
+              {t("Knowledge server ↗")}
             </a>
           </div>
           {typeof status !== "string" && <KnowledgeAdd />}

@@ -6,6 +6,7 @@ import {
   hashtagAtCaret,
   normalizeTagName,
 } from "@/lib/tags-shared";
+import { useT } from "@/components/I18nProvider";
 
 /**
  * A description field with #tag autocomplete. Typing `#` shows a popup of
@@ -21,7 +22,7 @@ export function TagInput({
   tags: controlledTags,
   onTagsChange,
   autoTags = [],
-  placeholder = "What was done? Type # to tag",
+  placeholder,
   required,
 }: {
   name?: string;
@@ -36,6 +37,7 @@ export function TagInput({
   placeholder?: string;
   required?: boolean;
 }) {
+  const t = useT();
   const [description, setDescription] = useState(defaultDescription);
   const [ownTags, setOwnTags] = useState<string[]>(() => dedupeTags(defaultTags));
   const tags = controlledTags ?? ownTags;
@@ -113,18 +115,18 @@ export function TagInput({
     <div className="relative">
       {tags.length > 0 && (
         <div className="mb-1 flex flex-wrap gap-1">
-          {tags.map((t) => (
+          {tags.map((tag) => (
             <span
-              key={t}
-              className={`badge badge-tag inline-flex items-center gap-1 ${auto.has(t.toLowerCase()) ? "border-dashed" : ""}`}
-              title={auto.has(t.toLowerCase()) ? "Default tag of the job, project or ticket — × removes it from this entry" : undefined}
+              key={tag}
+              className={`badge badge-tag inline-flex items-center gap-1 ${auto.has(tag.toLowerCase()) ? "border-dashed" : ""}`}
+              title={auto.has(tag.toLowerCase()) ? t("Default tag of the job, project or ticket — × removes it from this entry") : undefined}
             >
-              #{t}
+              #{tag}
               <button
                 type="button"
-                aria-label={`Remove ${t}`}
+                aria-label={t("Remove {tag}", { tag })}
                 className="text-current/70 hover:text-current"
-                onClick={() => setTags((prev) => prev.filter((x) => x !== t))}
+                onClick={() => setTags((prev) => prev.filter((x) => x !== tag))}
               >
                 ×
               </button>
@@ -139,7 +141,7 @@ export function TagInput({
         rows={2}
         required={required}
         className="input"
-        placeholder={placeholder}
+        placeholder={placeholder ?? t("What was done? Type # to tag")}
         value={description}
         onChange={(e) => sync(e.currentTarget)}
         onClick={(e) => setQuery(hashtagAtCaret(e.currentTarget.value, e.currentTarget.selectionStart ?? 0))}
@@ -165,7 +167,7 @@ export function TagInput({
                   }}
                 >
                   <span className="font-mono">#{tag}</span>
-                  {creating && <span className="text-xs text-zinc-400">— create</span>}
+                  {creating && <span className="text-xs text-zinc-400">— {t("create")}</span>}
                 </button>
               </li>
             );

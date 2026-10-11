@@ -2,6 +2,7 @@ import { and, asc, desc, eq, like, ne, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { Job } from "@/db/schema";
 import { ConflictError, NotFoundError, ValidationError } from "./errors";
+import { t } from "@/lib/i18n/server";
 import { NO_JOB_NAME, NO_JOB_NUMBER } from "./projects-shared";
 import { formatZodError, jobInputSchema, type JobInput } from "./validation";
 
@@ -77,8 +78,9 @@ export function requireJobByNumber(number: string): Job {
       .map((j) => `${j.number} (${j.name})`)
       .join(", ");
     throw new NotFoundError(
-      `Unknown job number "${number.trim()}".` +
-        (hint ? ` Did you mean: ${hint}?` : " No jobs exist yet — create one first."),
+      hint
+        ? t("Unknown job number \"{number}\". Did you mean: {hint}?", { number: number.trim(), hint })
+        : t("Unknown job number \"{number}\". No jobs exist yet — create one first.", { number: number.trim() }),
     );
   }
   return job;
@@ -130,7 +132,7 @@ export function isNoJobPlaceholder(job: Pick<Job, "number">): boolean {
 
 function assertNotReserved(number: string) {
   if (number.trim().toLowerCase() === NO_JOB_NUMBER.toLowerCase()) {
-    throw new ValidationError(`"${NO_JOB_NUMBER}" is reserved for entries of projects without a job.`);
+    throw new ValidationError(t("\"{number}\" is reserved for entries of projects without a job.", { number: NO_JOB_NUMBER }));
   }
 }
 
@@ -141,7 +143,7 @@ export function createJob(raw: JobInput): Job {
   const db = getDb();
   assertNotReserved(input.number);
   if (getJobByNumber(input.number)) {
-    throw new ConflictError(`A job with number "${input.number}" already exists.`);
+    throw new ConflictError(t("A job with number \"{number}\" already exists.", { number: input.number }));
   }
   return db
     .insert(jobs)
@@ -162,12 +164,12 @@ export function updateJob(id: number, raw: Partial<JobInput>): Job {
   const patch = parsed.data;
   const db = getDb();
   const existing = getJob(id);
-  if (!existing) throw new NotFoundError(`Job #${id} not found.`);
+  if (!existing) throw new NotFoundError(t("Job #{id} not found.", { id }));
   if (patch.number !== undefined) {
     if (patch.number !== existing.number) assertNotReserved(patch.number);
     const clash = getJobByNumber(patch.number);
     if (clash && clash.id !== id) {
-      throw new ConflictError(`A job with number "${patch.number}" already exists.`);
+      throw new ConflictError(t("A job with number \"{number}\" already exists.", { number: patch.number }));
     }
   }
   return db
@@ -187,7 +189,7 @@ export function updateJob(id: number, raw: Partial<JobInput>): Job {
 export function deleteJob(id: number): void {
   const db = getDb();
   const existing = getJob(id);
-  if (!existing) throw new NotFoundError(`Job #${id} not found.`);
+  if (!existing) throw new NotFoundError(t("Job #{id} not found.", { id }));
   const used = db
     .select({ n: sql<number>`count(*)` })
     .from(timeEntries)
@@ -195,7 +197,7 @@ export function deleteJob(id: number): void {
     .get();
   if (used && Number(used.n) > 0) {
     throw new ConflictError(
-      `Job ${existing.number} has ${used.n} time entries and cannot be deleted. Deactivate it instead.`,
+      t("Job {number} has {n} time entries and cannot be deleted. Deactivate it instead.", { number: existing.number, n: used.n }),
     );
   }
   db.delete(jobs).where(eq(jobs.id, id)).run();

@@ -6,6 +6,7 @@ import { listEntries, type EntryWithJob } from "./entries";
 import { DEFAULT_PUNCH_CONFIG, type PunchConfig } from "./punch";
 import { round2 } from "./format";
 import { ValidationError } from "./errors";
+import { t } from "@/lib/i18n/server";
 import { entryTypeMap } from "./entry-types";
 import { getTicketSummaries } from "./jira/store";
 import {
@@ -150,7 +151,7 @@ export function updateReportSettings(patch: {
   punchConfig?: PunchConfig;
 }): ReportSettings {
   if (patch.rules !== undefined) {
-    const err = validateRules(patch.rules);
+    const err = validateRules(patch.rules, t);
     if (err) throw new ValidationError(err);
   }
   getReportSettings();
@@ -442,7 +443,7 @@ export function jobSummariesToText(title: string, total: number, jobs: JobReport
   const lines = [`${title} — ${formatHours(total)}h`, ""];
   for (const j of jobs) {
     lines.push(`${j.jobNumber} ${j.jobName} — ${formatHours(j.hours)}h`);
-    for (const l of j.lines) lines.push(`  - ${l.label} — ${formatHours(l.hours)}h (${l.days} day${l.days === 1 ? "" : "s"})`);
+    for (const l of j.lines) lines.push(`  - ${l.label} — ${formatHours(l.hours)}h (${l.days === 1 ? t("1 day") : t("{n} days", { n: l.days })})`);
     lines.push("");
   }
   return lines.join("\n").trimEnd();
@@ -454,11 +455,11 @@ export function reportToText(report: RewrittenReport, formatHours: (h: number) =
   for (const day of report.days) {
     lines.push(`${day.date}  (${formatHours(day.total)}h)`);
     for (const l of day.lines) {
-      const tags = l.tags.length ? " " + l.tags.map((t) => `#${t.name}`).join(" ") : "";
+      const tags = l.tags.length ? " " + l.tags.map((tag) => `#${tag.name}`).join(" ") : "";
       lines.push(`  - ${l.label}${tags} — ${formatHours(l.hours)}h`);
     }
     lines.push("");
   }
-  lines.push(`Total: ${formatHours(report.total)}h`);
+  lines.push(t("Total: {hours}h", { hours: formatHours(report.total) }));
   return lines.join("\n");
 }

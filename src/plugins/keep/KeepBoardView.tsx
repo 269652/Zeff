@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "@/components/Toaster";
+import { useT } from "@/components/I18nProvider";
+import type { T } from "@/lib/i18n/shared";
 import { createGoogleNoteAction, trashGoogleNoteAction, updateGoogleNoteAction } from "@/plugins/keep-write/server-actions";
 import { createNoteAction, deleteNoteAction, updateNoteAction } from "./actions";
 import { KEEP_SWATCH, keepNoteClass } from "./colors";
@@ -26,20 +28,20 @@ type Api = {
   google: boolean;
 };
 
-const apiFor = (s: NoteSource): Api =>
+const apiFor = (s: NoteSource, t: T): Api =>
   s.kind === "own"
     ? {
         create: (v) => createNoteAction(s.boardId, v),
         update: (id, p) => updateNoteAction(Number(id), p),
         remove: (id) => deleteNoteAction(Number(id)),
-        removeQuestion: "Delete the note?",
+        removeQuestion: t("Delete the note?"),
         google: false,
       }
     : {
         create: (v) => createGoogleNoteAction(v),
         update: (id, p) => updateGoogleNoteAction(String(id), p),
         remove: (id) => trashGoogleNoteAction(String(id)),
-        removeQuestion: "Move the note to Google Keep's bin?",
+        removeQuestion: t("Move the note to Google Keep's bin?"),
         google: true,
       };
 
@@ -71,9 +73,10 @@ function NoteText({ text, onToggle }: { text: string; onToggle?: (line: number) 
 }
 
 function ColorPicker({ value, onPick, disabled }: { value: string | null; onPick: (c: string | null) => void; disabled?: boolean }) {
+  const t = useT();
   return (
-    <span className="flex flex-wrap items-center gap-1" role="radiogroup" aria-label="Colour">
-      <button type="button" role="radio" aria-checked={!value} aria-label="No colour" disabled={disabled} onClick={() => onPick(null)} className={`size-4 rounded-full border border-zinc-300 bg-white dark:bg-zinc-900 ${!value ? "ring-2 ring-zinc-500" : ""}`} />
+    <span className="flex flex-wrap items-center gap-1" role="radiogroup" aria-label={t("Colour")}>
+      <button type="button" role="radio" aria-checked={!value} aria-label={t("No colour")} disabled={disabled} onClick={() => onPick(null)} className={`size-4 rounded-full border border-zinc-300 bg-white dark:bg-zinc-900 ${!value ? "ring-2 ring-zinc-500" : ""}`} />
       {Object.entries(KEEP_SWATCH).map(([c, cls]) => (
         <button key={c} type="button" role="radio" aria-checked={value === c} aria-label={c} disabled={disabled} onClick={() => onPick(c)} className={`size-4 rounded-full ${cls} ${value === c ? "ring-2 ring-zinc-500" : "opacity-70 hover:opacity-100"}`} />
       ))}
@@ -83,6 +86,7 @@ function ColorPicker({ value, onPick, disabled }: { value: string | null; onPick
 
 /** "Write a note …": opens into title, text, labels and colour; saved with Enter in the title or the button. */
 function Composer({ api, run }: { api: Api; run: Run }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState("");
@@ -101,24 +105,32 @@ function Composer({ api, run }: { api: Api; run: Run }) {
   if (!open)
     return (
       <button type="button" onClick={() => setOpen(true)} className="card mx-auto block w-full max-w-xl px-4 py-3 text-left text-sm text-zinc-500 hover:shadow">
-        {api.google ? "Write a note in Google Keep …" : "Write a note …"}
+        {api.google ? t("Write a note in Google Keep …") : t("Write a note …")}
       </button>
     );
   return (
     <div className={`card mx-auto max-w-xl space-y-2 p-3 ${keepNoteClass(color)} ${busy ? "opacity-70" : ""}`} aria-busy={busy}>
-      <input autoFocus disabled={busy} className="w-full bg-transparent font-medium outline-none" placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), void save())} />
-      <textarea disabled={busy} className="min-h-24 w-full resize-y bg-transparent text-sm outline-none" placeholder="Note … (a list: lines with “- [ ] ”)" value={text} onChange={(e) => setText(e.target.value)} />
-      <input disabled={busy} className="input text-xs" placeholder="Labels, comma-separated" value={labels} onChange={(e) => setLabels(e.target.value)} />
+      <input
+        autoFocus
+        disabled={busy}
+        className="w-full bg-transparent font-medium outline-none"
+        placeholder={t("Title")}
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), void save())}
+      />
+      <textarea disabled={busy} className="min-h-24 w-full resize-y bg-transparent text-sm outline-none" placeholder={t("Note … (a list: lines with “- [ ] ”)")} value={text} onChange={(e) => setText(e.target.value)} />
+      <input disabled={busy} className="input text-xs" placeholder={t("Labels, comma-separated")} value={labels} onChange={(e) => setLabels(e.target.value)} />
       <div className="flex flex-wrap items-center gap-2">
         <ColorPicker value={color} onPick={setColor} disabled={busy} />
-        <button type="button" disabled={busy} className="btn btn-sm ml-auto" onClick={() => setText((t) => `${t}${t && !t.endsWith("\n") ? "\n" : ""}- [ ] `)}>
-          ☐ List
+        <button type="button" disabled={busy} className="btn btn-sm ml-auto" onClick={() => setText((s) => `${s}${s && !s.endsWith("\n") ? "\n" : ""}- [ ] `)}>
+          ☐ {t("List")}
         </button>
         <button type="button" disabled={busy} className="btn btn-sm" onClick={reset}>
-          Discard
+          {t("Discard")}
         </button>
         <button type="button" disabled={busy} className="btn btn-primary btn-sm" onClick={() => void save()}>
-          {busy ? (api.google ? "Saving in Keep …" : "…") : "Save"}
+          {busy ? (api.google ? t("Saving in Keep …") : "…") : t("Save")}
         </button>
       </div>
     </div>
@@ -127,6 +139,7 @@ function Composer({ api, run }: { api: Api; run: Run }) {
 
 /** One note: as Keep shows it; a click opens it for editing (title, text, labels), ticks, colour, pin, archive, delete. */
 function NoteCard({ n, api, run, labelHref }: { n: BoardNote; api: Api; run: Run; labelHref?: string }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState(n.title);
@@ -160,15 +173,15 @@ function NoteCard({ n, api, run, labelHref }: { n: BoardNote; api: Api; run: Run
     <article id={`note-${n.id}`} aria-busy={busy} className={`card group mb-3 break-inside-avoid space-y-2 p-3 ${keepNoteClass(n.color)} ${busy ? "opacity-70" : ""}`}>
       {editing ? (
         <>
-          <input autoFocus disabled={busy} className="w-full bg-transparent font-medium outline-none" placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <input autoFocus disabled={busy} className="w-full bg-transparent font-medium outline-none" placeholder={t("Title")} value={title} onChange={(e) => setTitle(e.target.value)} />
           <textarea disabled={busy} className="min-h-32 w-full resize-y bg-transparent text-sm outline-none" value={text} onChange={(e) => setText(e.target.value)} />
-          <input disabled={busy} className="input text-xs" placeholder="Labels, comma-separated" value={labels} onChange={(e) => setLabels(e.target.value)} />
+          <input disabled={busy} className="input text-xs" placeholder={t("Labels, comma-separated")} value={labels} onChange={(e) => setLabels(e.target.value)} />
           <div className="flex justify-end gap-2">
             <button type="button" disabled={busy} className="btn btn-sm" onClick={() => (setTitle(n.title), setText(n.text), setLabels(n.labels.join(", ")), setEditing(false))}>
-              Cancel
+              {t("Cancel")}
             </button>
             <button type="button" disabled={busy} className="btn btn-primary btn-sm" onClick={() => void save()}>
-              {busy ? (api.google ? "Saving in Keep …" : "…") : "Save"}
+              {busy ? (api.google ? t("Saving in Keep …") : "…") : t("Save")}
             </button>
           </div>
         </>
@@ -177,7 +190,7 @@ function NoteCard({ n, api, run, labelHref }: { n: BoardNote; api: Api; run: Run
           {(n.title || n.pinned) && (
             <h2 className="flex items-baseline gap-2 font-medium">
               <span className="min-w-0 flex-1 break-words">{n.title}</span>
-              {n.pinned && <span title="Pinned">📌</span>}
+              {n.pinned && <span title={t("Pinned")}>📌</span>}
             </h2>
           )}
           {shown && <NoteText text={shown} onToggle={toggle} />}
@@ -201,24 +214,31 @@ function NoteCard({ n, api, run, labelHref }: { n: BoardNote; api: Api; run: Run
       <div className="flex flex-wrap items-center gap-1.5 text-xs text-zinc-500 opacity-60 group-hover:opacity-100 focus-within:opacity-100">
         <ColorPicker value={n.color} disabled={busy} onPick={(c) => void go({ color: c })} />
         <span className="ml-auto flex items-center gap-1">
-          {busy && <span className="text-zinc-500">{api.google ? "saving in Keep …" : "…"}</span>}
+          {busy && <span className="text-zinc-500">{api.google ? t("saving in Keep …") : "…"}</span>}
           {n.url && (
             <a href={n.url} target="_blank" rel="noreferrer" className="px-1 text-indigo-600 hover:underline dark:text-indigo-400">
               Keep ↗
             </a>
           )}
-          <button type="button" disabled={busy} className="icon-btn" title={n.pinned ? "Unpin" : "Pin"} aria-label={n.pinned ? "Unpin" : "Pin"} onClick={() => void go({ pinned: !n.pinned })}>
+          <button type="button" disabled={busy} className="icon-btn" title={n.pinned ? t("Unpin") : t("Pin")} aria-label={n.pinned ? t("Unpin") : t("Pin")} onClick={() => void go({ pinned: !n.pinned })}>
             📌
           </button>
-          <button type="button" disabled={busy} className="icon-btn" title={n.archived ? "Restore" : "Archive"} aria-label={n.archived ? "Restore" : "Archive"} onClick={() => void go({ archived: !n.archived })}>
+          <button
+            type="button"
+            disabled={busy}
+            className="icon-btn"
+            title={n.archived ? t("Restore") : t("Archive")}
+            aria-label={n.archived ? t("Restore") : t("Archive")}
+            onClick={() => void go({ archived: !n.archived })}
+          >
             {n.archived ? "↩" : "🗄"}
           </button>
           <button
             type="button"
             disabled={busy}
             className="icon-btn"
-            title="Delete"
-            aria-label="Delete"
+            title={t("Delete")}
+            aria-label={t("Delete")}
             onClick={() => {
               if (!confirm(api.removeQuestion)) return;
               setBusy(true);
@@ -235,16 +255,17 @@ function NoteCard({ n, api, run, labelHref }: { n: BoardNote; api: Api; run: Run
 
 /** Notes like Keep's — one of your boards or Google Keep: write a note, see them (pinned first), edit, tick, colour, pin, archive. */
 export function KeepBoardView({ source, notes, archived, empty }: { source: NoteSource; notes: BoardNote[]; archived: boolean; empty: string }) {
+  const t = useT();
   const router = useRouter();
   const [, start] = useTransition();
-  const api = apiFor(source);
+  const api = apiFor(source, t);
   const labelHref = source.kind === "google" ? source.labelHref : undefined;
   const run: Run = (fn) =>
     new Promise<boolean>((resolve) => {
-      if (api.google) toast("Writing to Google Keep … (about half a minute)", { tone: "ok" });
+      if (api.google) toast(t("Writing to Google Keep … (about half a minute)"), { tone: "ok" });
       start(async () => {
         const r: Result = await fn().catch((e: unknown) => ({ ok: false, error: String((e as Error)?.message ?? e) }));
-        if (!r.ok) toast(r.error ?? "That didn't work.", { tone: "error" });
+        if (!r.ok) toast(r.error ?? t("That didn't work."), { tone: "error" });
         else if (r.message) toast(r.message, { tone: "ok" });
         router.refresh();
         resolve(r.ok);
@@ -257,9 +278,9 @@ export function KeepBoardView({ source, notes, archived, empty }: { source: Note
     <section className="space-y-4">
       {!archived && <Composer api={api} run={run} />}
       {notes.length === 0 && <p className="py-6 text-center text-sm text-zinc-500">{empty}</p>}
-      {pinned.length > 0 && others.length > 0 && <h2 className="text-xs font-semibold text-zinc-500 uppercase">Pinned</h2>}
+      {pinned.length > 0 && others.length > 0 && <h2 className="text-xs font-semibold text-zinc-500 uppercase">{t("Pinned")}</h2>}
       {pinned.length > 0 && <div className="columns-1 gap-3 sm:columns-2 xl:columns-3">{pinned.map(card)}</div>}
-      {pinned.length > 0 && others.length > 0 && <h2 className="text-xs font-semibold text-zinc-500 uppercase">Others</h2>}
+      {pinned.length > 0 && others.length > 0 && <h2 className="text-xs font-semibold text-zinc-500 uppercase">{t("Others")}</h2>}
       {others.length > 0 && <div className="columns-1 gap-3 sm:columns-2 xl:columns-3">{others.map(card)}</div>}
     </section>
   );

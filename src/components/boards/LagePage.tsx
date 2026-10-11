@@ -33,6 +33,7 @@ import { mailsForTickets } from "@/lib/mail/store";
 import { getTicketCards } from "@/lib/jira/store";
 import { resolvedCommentIds } from "@/lib/resolved";
 import { currentLocale, formatDate, formatTime } from "@/lib/format";
+import { t } from "@/lib/i18n/server";
 
 
 /** A run's time (stored as UTC "YYYY-MM-DD HH:MM:SS") in local words. */
@@ -69,6 +70,7 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
   // What "Jetzt auswerten" syncs first (Auswerten → Vorher synchronisieren), as installed.
   const pre = getContextPrefs().presync.sources;
   const presync = PRESYNC_ORDER.filter((k) => pre[k] && stepAvailable(k));
+  const analyzed = shown?.tickets.filter((x) => x.analyzed).length ?? 0;
 
   return (
     <SidebarFrame
@@ -79,14 +81,14 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
           <WorkFollow active={busy.length > 0} />
           {part === "todos" && <ViewTabs view="lage" />}
           <div className="space-y-1">
-          <h1 className="text-lg font-semibold">{part === "tickets" ? "Tickets" : "Todos"}</h1>
+          <h1 className="text-lg font-semibold">{part === "tickets" ? t("Tickets") : t("Todos")}</h1>
           {shown && (
             <p className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[11px] text-zinc-400">
-              <span>As of: {when(shown.finishedAt ?? shown.startedAt)}</span>
+              <span>{t("As of: {when}", { when: when(shown.finishedAt ?? shown.startedAt) })}</span>
               {shown.model && <span>{shown.model}</span>}
               {shown.durationMs ? <span>{minutes(shown.durationMs)}</span> : null}
               {shown.costUsd != null && <span>≈ {shown.costUsd.toLocaleString(currentLocale(), { style: "currency", currency: "USD" })}</span>}
-              <span>{shown.tickets.filter((t) => t.analyzed).length} tickets analyzed</span>
+              <span>{analyzed === 1 ? t("1 ticket analyzed") : t("{n} tickets analyzed", { n: analyzed })}</span>
             </p>
           )}
           </div>
@@ -96,8 +98,8 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
           {shown?.result?.lede && <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{shown.result.lede}</p>}
           {failed && (
             <div className="alert-error text-sm">
-              The last run ({when(failed.startedAt)}) failed: {failed.error}
-              {shown ? " — this is the one before." : ""}
+              {t("The last run ({when}) failed: {error}", { when: when(failed.startedAt), error: failed.error ?? "" })}
+              {shown ? ` — ${t("this is the one before.")}` : ""}
             </div>
           )}
         </>
@@ -134,7 +136,7 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
       ) : (
         !running && (
           <p className="card p-6 text-center text-sm text-zinc-500">
-            No briefing yet — “Run now” reads your tickets and has the AI ({aiLabel}) write the briefing (takes a minute or two).
+            {t("No briefing yet — “Run now” reads your tickets and has the AI ({ai}) write the briefing (takes a minute or two).", { ai: aiLabel })}
           </p>
         )
       )}
@@ -145,11 +147,11 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
 /** The Todos tab's two views: the Ticket-Lage, and the recap of what you did on a day. */
 function ViewTabs({ view }: { view: "lage" | "recap" }) {
   return (
-    <nav className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800" aria-label="Todos">
+    <nav className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800" aria-label={t("Todos")}>
       {(
         [
-          ["lage", "Briefing", "/todos"],
-          ["recap", "Recap", "/todos?view=recap"],
+          ["lage", t("Briefing"), "/todos"],
+          ["recap", t("Recap"), "/todos?view=recap"],
         ] as const
       ).map(([key, label, href]) => (
         <Link
@@ -195,12 +197,12 @@ function RecapPage({ day }: { day: string }) {
           <ViewTabs view="recap" />
           <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <Link href={`/todos?view=recap&day=${shiftWorkday(day, -1)}`} className="icon-btn" aria-label="Day before" title="Day before">
+            <Link href={`/todos?view=recap&day=${shiftWorkday(day, -1)}`} className="icon-btn" aria-label={t("Day before")} title={t("Day before")}>
               ←
             </Link>
             <h1 className="text-lg font-semibold">{dayLabel(day)}</h1>
             {later <= today && (
-              <Link href={`/todos?view=recap&day=${later}`} className="icon-btn" aria-label="Day after" title="Day after">
+              <Link href={`/todos?view=recap&day=${later}`} className="icon-btn" aria-label={t("Day after")} title={t("Day after")}>
                 →
               </Link>
             )}
@@ -208,7 +210,7 @@ function RecapPage({ day }: { day: string }) {
           </div>
           {shown && (
             <p className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[11px] text-zinc-400">
-              <span>As of: {when(shown.finishedAt ?? shown.startedAt)}</span>
+              <span>{t("As of: {when}", { when: when(shown.finishedAt ?? shown.startedAt) })}</span>
               {shown.model && <span>{shown.model}</span>}
               {shown.durationMs ? <span>{minutes(shown.durationMs)}</span> : null}
               {shown.costUsd != null && <span>≈ {shown.costUsd.toLocaleString(currentLocale(), { style: "currency", currency: "USD" })}</span>}
@@ -218,8 +220,8 @@ function RecapPage({ day }: { day: string }) {
           <RecapControls day={day} running={running} phase={running ? (live?.phase ?? null) : null} since={running ? (live?.since ?? null) : null} provider={live?.provider ?? aiLabel} again={!!shown} />
           {failed && (
             <div className="alert-error text-sm">
-              Summarizing ({when(failed.startedAt)}) failed: {failed.error}
-              {shown ? " — this is the one before." : ""}
+              {t("Summarizing ({when}) failed: {error}", { when: when(failed.startedAt), error: failed.error ?? "" })}
+              {shown ? ` — ${t("this is the one before.")}` : ""}
             </div>
           )}
         </>
@@ -228,7 +230,7 @@ function RecapPage({ day }: { day: string }) {
       {shown ? (
         <RecapView recap={shown} cards={getTicketCards(shown.facts.tickets.map((t) => t.key))} entities={recapEntities(shown)} />
       ) : (
-        !running && <p className="card p-6 text-center text-sm text-zinc-500">No summary for this day yet — “Summarize” makes one (takes a minute).</p>
+        !running && <p className="card p-6 text-center text-sm text-zinc-500">{t("No summary for this day yet — “Summarize” makes one (takes a minute).")}</p>
       )}
     </SidebarFrame>
   );

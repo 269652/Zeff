@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { ABORTED, onAbort } from "@/lib/abort";
+import { t } from "@/lib/i18n/server";
 
 export type McpStdioConfig = {
   command: string;
@@ -31,7 +32,7 @@ export function runStdioSession<T>(
   body: (call: ToolCaller) => Promise<T>,
   timeoutMs = 150000,
 ): Promise<T> {
-  const label = config.label ?? "MCP server";
+  const label = config.label ?? t("MCP server");
   return new Promise<T>((resolve, reject) => {
     let child;
     try {
@@ -42,7 +43,7 @@ export function runStdioSession<T>(
         shell: false,
       });
     } catch (e) {
-      reject(new Error(`Cannot start the ${label} ("${config.command}"): ${(e as Error).message}`));
+      reject(new Error(t("Cannot start the {label} (\"{command}\"): {error}", { label, command: config.command, error: (e as Error).message })));
       return;
     }
 
@@ -68,14 +69,14 @@ export function runStdioSession<T>(
     // The sync it's part of stopped: the driver with it.
     const stopListening = onAbort(() => fail(ABORTED));
     const timer = setTimeout(
-      () => fail(`${label} timed out after ${timeoutMs}ms.${stderr ? ` stderr: ${stderr.slice(0, 400)}` : ""}`),
+      () => fail(`${t("{label} timed out after {ms}ms.", { label, ms: timeoutMs })}${stderr ? ` stderr: ${stderr.slice(0, 400)}` : ""}`),
       timeoutMs,
     );
 
-    child.on("error", (e) => fail(`Cannot start the ${label} ("${config.command}"): ${e.message}`));
+    child.on("error", (e) => fail(t("Cannot start the {label} (\"{command}\"): {error}", { label, command: config.command, error: e.message })));
     // The driver gone mid-session (crashed, not on PATH): writing to it fails here — not as an
     // uncaught EPIPE that takes the server down.
-    child.stdin.on("error", (e) => fail(`${label}: its input closed (${e.message}).${stderr ? ` stderr: ${stderr.slice(0, 400)}` : ""}`));
+    child.stdin.on("error", (e) => fail(`${t("{label}: its input closed ({error}).", { label, error: e.message })}${stderr ? ` stderr: ${stderr.slice(0, 400)}` : ""}`));
     child.stderr.on("data", (d) => {
       stderr += d.toString();
     });
@@ -100,7 +101,7 @@ export function runStdioSession<T>(
       }
     });
     child.on("exit", (code) => {
-      if (!settled) fail(`${label} exited early (code ${code}).${stderr ? ` stderr: ${stderr.slice(0, 400)}` : ""}`);
+      if (!settled) fail(`${t("{label} exited early (code {code}).", { label, code })}${stderr ? ` stderr: ${stderr.slice(0, 400)}` : ""}`);
     });
 
     const send = (method: string, params?: unknown): Promise<JsonRpcResponse> => {
@@ -115,13 +116,13 @@ export function runStdioSession<T>(
 
     const call: ToolCaller = async (toolName, args) => {
       const res = await send("tools/call", { name: toolName, arguments: args });
-      if (res.error) throw new Error(`tool "${toolName}" returned an error: ${res.error.message}`);
+      if (res.error) throw new Error(t("tool \"{tool}\" returned an error: {error}", { tool: toolName, error: res.error.message }));
       // A tool can also report failure via isError on the result envelope.
       const result = res.result as Record<string, unknown> | undefined;
       if (result?.isError) {
         const content = Array.isArray(result.content) ? (result.content as Record<string, unknown>[]) : [];
         const text = content.map((c) => (typeof c.text === "string" ? c.text : "")).filter(Boolean).join(" ");
-        throw new Error(`tool "${toolName}": ${text || "returned an error"}`);
+        throw new Error(`tool "${toolName}": ${text || t("returned an error")}`);
       }
       return res.result;
     };
@@ -132,7 +133,7 @@ export function runStdioSession<T>(
         capabilities: {},
         clientInfo: { name: "zeff", version: "0.1.0" },
       });
-      if (init.error) return fail(`${label} initialize failed: ${init.error.message}`);
+      if (init.error) return fail(t("{label} initialize failed: {error}", { label, error: init.error.message }));
       notify("notifications/initialized");
       const out = await body(call);
       finish(() => resolve(out));
@@ -184,5 +185,7 @@ export function resultToPayload(result: unknown): unknown {
 export function jiraDown(message: string): string | null {
   if (!/<!DOCTYPE html|<html|Maintenance|Wartung|502 Bad Gateway|503 Service|504 Gateway/i.test(message)) return null;
   const maintenance = /Maintenance|Wartung/i.test(message);
-  return `Jira can't be reached right now${maintenance ? " (maintenance page)" : " (it answers with an error page instead of data)"} — try again later.`;
+  return maintenance
+    ? t("Jira can't be reached right now (maintenance page) — try again later.")
+    : t("Jira can't be reached right now (it answers with an error page instead of data) — try again later.");
 }

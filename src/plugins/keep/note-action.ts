@@ -3,7 +3,7 @@
  * Keep boards — something to keep, not to do (a list, the details of an appointment, ideas). Offered
  * and run only while the extension is on. Client-safe.
  */
-import { action, str } from "../actions/types";
+import { action, EN, str } from "../actions/types";
 
 export const KEEP_ACTIONS = [
   action({
@@ -24,7 +24,14 @@ export const KEEP_ACTIONS = [
       str(o.title) || str(o.text)
         ? { type: "keep-note", board: str(o.board).slice(0, 80), title: str(o.title).slice(0, 300), text: str(o.text).slice(0, 8000) }
         : null,
-    title: (op) => `Note “${op.title || op.text.split("\n")[0].slice(0, 60)}”${op.board ? ` in ${op.board}` : ""}`,
-    note: (op) => ({ heading: `Note “${op.title || "untitled"}”`, detail: op.board ? `Keep board ${op.board}` : "first Keep board", body: op.text }),
+    title: (op, t = EN) => {
+      const title = op.title || op.text.split("\n")[0].slice(0, 60);
+      return op.board ? t("Note “{title}” in {board}", { title, board: op.board }) : t("Note “{title}”", { title });
+    },
+    note: (op, t = EN) => ({
+      heading: t("Note “{title}”", { title: op.title || t("untitled") }),
+      detail: op.board ? t("Keep board {board}", { board: op.board }) : t("first Keep board"),
+      body: op.text,
+    }),
   }),
 ];

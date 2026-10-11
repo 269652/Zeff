@@ -1,5 +1,6 @@
 import { runAi } from "@/lib/ai";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { conversationOf, mailsByKeys } from "@/lib/mail/store";
 import { teamsMessagesByKeys } from "@/lib/teams/store";
 import { extraBlock, getContextPrefs } from "./context-prefs";
@@ -20,16 +21,16 @@ const SCHEMA = { type: "object", properties: { reply: { type: "string" } }, requ
  * and send it yourself.
  */
 export async function draftReply(todoId: number): Promise<ReplyDraft> {
-  const t = getTodo(todoId);
-  if (!t) return { ok: false, error: "That todo doesn't exist." };
-  const refs = [...t.refs, ...t.mailRefs];
+  const todo = getTodo(todoId);
+  if (!todo) return { ok: false, error: t("That todo doesn't exist.") };
+  const refs = [...todo.refs, ...todo.mailRefs];
   const mails = [...mailsByKeys(refs.filter((r) => r.startsWith("mail:")).map((r) => r.slice(5))).values()].sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
   const teams = [...teamsMessagesByKeys(refs.filter((r) => r.startsWith("teams:")).map((r) => r.slice(6))).values()].sort((a, b) => b.sentAt.localeCompare(a.sentAt));
   const mail = mails[0];
   const tm = teams[0];
   // The newest message it's about: the one to answer.
   const useTeams = !!tm && (!mail || tm.sentAt > mail.receivedAt);
-  if (!mail && !tm) return { ok: false, error: "The todo names no message to reply to." };
+  if (!mail && !tm) return { ok: false, error: t("The todo names no message to reply to.") };
 
   let target: ReplyTarget;
   let history: string[];
@@ -52,12 +53,12 @@ export async function draftReply(todoId: number): Promise<ReplyDraft> {
     );
   }
 
-  const notes = t.userNotes.map((n) => `- ${n.text}`).join("\n");
+  const notes = todo.userNotes.map((n) => `- ${n.text}`).join("\n");
   const prompt = [
     `Schreib meine Antwort auf diese ${target.channel === "whatsapp" ? "WhatsApp-Unterhaltung" : target.channel === "teams" ? "Teams-Nachricht" : "Mail"} — ich schicke sie selbst ab.`,
     "Die Antwort erledigt dieses Todo, so weit eine Nachricht das kann. Sprache, Anrede (du/Sie) und Ton wie im Verlauf; kurz und natürlich, so wie ich schreibe (meine Nachrichten stehen als „Ich“ im Verlauf). Keine Floskeln, keine Platzhalter in eckigen Klammern — wo etwas fehlt (eine Uhrzeit, ein Datum), schlag etwas Konkretes und Plausibles vor oder frag kurz zurück. Bei Mails ohne Betreffzeile, nur der Text mit Gruß." + extraBlock("replies"),
     "",
-    `# Todo\n${t.text}${t.due ? ` (Frist ${t.due})` : ""}`,
+    `# Todo\n${todo.text}${todo.due ? ` (Frist ${todo.due})` : ""}`,
     notes && `# Meine Notizen dazu\n${notes}`,
     `# Verlauf (älteste zuerst) — an ${target.to}\n${history.join("\n")}`,
     `Heute ist ${new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}.`,
@@ -67,7 +68,7 @@ export async function draftReply(todoId: number): Promise<ReplyDraft> {
   try {
     const answer = await runAi<{ reply?: string }>(prompt, SCHEMA, { task: "reply-draft", timeoutMs: 3 * 60000, maxBudgetUsd: 0.3 });
     const text = answer.output?.reply?.trim();
-    return text ? { ok: true, text, target } : { ok: false, error: "The AI returned no draft." };
+    return text ? { ok: true, text, target } : { ok: false, error: t("The AI returned no draft.") };
   } catch (e) {
     return { ok: false, error: errorMessage(e).slice(0, 300) };
   }

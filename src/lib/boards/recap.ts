@@ -7,6 +7,7 @@ import { aiChoice, runAi } from "@/lib/ai";
 import { AI_PROVIDER_INFO } from "@/lib/ai/shared";
 import { listEntries } from "@/lib/entries";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { gitlabTicket } from "@/lib/gitlab/shared";
 import { resultToPayload, runStdioSession } from "@/lib/jira/mcp-client";
 import { getJiraTicket, myJiraName } from "@/lib/jira/store";
@@ -153,7 +154,7 @@ export async function gather(day: string): Promise<{ facts: RecapFacts; notes: s
         }
       }
     } catch (e) {
-      notes.push(`Couldn't read Jira: ${errorMessage(e)}`);
+      notes.push(t("Couldn't read Jira: {error}", { error: errorMessage(e) }));
     }
   }
 
@@ -278,8 +279,8 @@ function finish(id: number, patch: Partial<typeof dayRecaps.$inferInsert>) {
 export function startRecap(day: string): { ok: boolean; message: string } {
   // Kept in the account it was started in — whichever is switched to while it runs.
   return inThisAccount(() => {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { ok: false, message: "Which day?" };
-    if (state.__zeffRecap) return { ok: false, message: "A day is being recapped already." };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { ok: false, message: t("Which day?") };
+    if (state.__zeffRecap) return { ok: false, message: t("A day is being recapped already.") };
     const ai = aiChoice();
     const provider = AI_PROVIDER_INFO[ai.provider].label;
     const id = getDb()
@@ -293,7 +294,7 @@ export function startRecap(day: string): { ok: boolean; message: string } {
       try {
         const { facts, notes } = await gather(day);
         if (!facts.tickets.length && !facts.other.length) {
-          finish(id, { status: "ok", facts: JSON.stringify(facts), result: JSON.stringify({ summary: `Zeff found nothing of yours for this day.${notes.length ? ` (${notes.join(" ")})` : ""}`, tickets: [], other: [] }), durationMs: Date.now() - t0 });
+          finish(id, { status: "ok", facts: JSON.stringify(facts), result: JSON.stringify({ summary: `${t("Zeff found nothing of yours for this day.")}${notes.length ? ` (${notes.join(" ")})` : ""}`, tickets: [], other: [] }), durationMs: Date.now() - t0 });
           return;
         }
         state.__zeffRecap = { id, day, phase: "ai", since: t0, provider };
@@ -308,7 +309,7 @@ export function startRecap(day: string): { ok: boolean; message: string } {
         state.__zeffRecap = null;
       }
     })();
-    return { ok: true, message: "Recapping." };
+    return { ok: true, message: t("Recapping.") };
   });
 }
 

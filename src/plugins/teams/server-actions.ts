@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidateAll, type ActionState } from "@/app/action-helpers";
+import { t } from "@/lib/i18n/server";
 
 /** Teams (mentions and 1:1 messages, read from Teams in the automation Chrome) — its server actions (each answers an ActionState unless it says otherwise). */
 
@@ -30,7 +31,7 @@ export async function searchTeamsMessagesAction(q: string): Promise<import("@/li
 
 /** A Teams message marked done (or not): no new todos from it. */
 export async function setTeamsResolvedAction(key: string, resolved: boolean): Promise<ActionState> {
-  if (!String(key).includes("|")) return { ok: false, error: "Unknown message." };
+  if (!String(key).includes("|")) return { ok: false, error: t("Unknown message.") };
   const { setTeamsResolved } = await import("@/lib/resolved");
   setTeamsResolved(String(key), !!resolved);
   revalidateAll();

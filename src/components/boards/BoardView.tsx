@@ -10,7 +10,7 @@ import { runTicketActionAction } from "@/plugins/todos/server-actions";
 import { setJiraCommentResolvedAction } from "@/plugins/jira/server-actions";
 import type { ActionDone } from "@/lib/boards/actions";
 import {
-  ATTENTION_LABELS,
+  attentionLabels,
   ATTENTIONS,
   type Attention,
   type BoardRunView,
@@ -33,6 +33,7 @@ import { UnseenActivityBadge } from "./ActivitySeen";
 import { FollowToggle } from "./FollowToggle";
 import { TodoItem } from "./TodoItem";
 import { formatDate, formatDateTime } from "@/lib/format";
+import { useT } from "@/components/I18nProvider";
 
 /** Each attention's colours: its stripe, its chip, its share of the bar. */
 const ATT: Record<Attention, { stripe: string; chip: string }> = {
@@ -92,6 +93,7 @@ function TicketActionButton({
   action: TicketAction;
   done?: ActionDone;
 }) {
+  const t = useT();
   const [pending, start] = useTransition();
   if (done?.status === "done")
     return (
@@ -115,14 +117,14 @@ function TicketActionButton({
         onClick={() => {
           const ask =
             action.type === "comment"
-              ? `Post this comment on ${ticket}?\n\n${action.comment}`
+              ? `${t("Post this comment on {ticket}?", { ticket })}\n\n${action.comment}`
               : `${ticket}: ${action.label}?\n\n${action.why}`;
           if (!window.confirm(ask)) return;
           start(async () => {
             const r = await runTicketActionAction(runId, ticket, idx);
-            if (r?.ok) toast(r.message ?? `${ticket}: done.`);
+            if (r?.ok) toast(r.message ?? t("{ticket}: done.", { ticket }));
             else
-              toast(r?.error ?? "Didn't work.", {
+              toast(r?.error ?? t("Didn't work."), {
                 tone: "error",
                 ms: 12000,
               });
@@ -139,7 +141,7 @@ function TicketActionButton({
       )}
       {done?.status === "failed" && (
         <p className="text-[11px] leading-snug text-red-600 dark:text-red-400">
-          Failed: {done.detail}
+          {t("Failed: {detail}", { detail: done.detail })}
         </p>
       )}
     </div>
@@ -183,6 +185,7 @@ function TicketRow({
   actionsDone: Record<string, ActionDone>;
   workOn?: boolean;
 }) {
+  const t = useT();
   const card = cards[facts.key];
   const recent = facts.recent ?? [];
   const attention = a?.attention ?? "ready";
@@ -210,7 +213,7 @@ function TicketRow({
             <span
               className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${ATT[attention].chip}`}
             >
-              {ATTENTION_LABELS[attention]}
+              {attentionLabels(t)[attention]}
             </span>
           )}
         </div>
@@ -223,7 +226,7 @@ function TicketRow({
           </p>
         ) : (
           <p className="text-sm text-zinc-400">
-            Not analyzed in this run.
+            {t("Not analyzed in this run.")}
           </p>
         )}
         {a && a.flags.length > 0 && (
@@ -258,7 +261,7 @@ function TicketRow({
         {todos.some((t) => t.status !== "open") && (
           <details className="text-sm">
             <summary className="cursor-pointer text-xs text-zinc-500">
-              Done ({todos.filter((t) => t.status !== "open").length})
+              {t("Done ({n})", { n: todos.filter((x) => x.status !== "open").length })}
             </summary>
             <ul className="mt-1.5 space-y-1 rounded-md bg-zinc-50 p-2 dark:bg-zinc-950/60">
               {todos
@@ -279,7 +282,7 @@ function TicketRow({
         {a && a.happened.length > 0 && (
           <details className="text-sm">
             <summary className="cursor-pointer text-xs text-zinc-500">
-              What happened ({a.happened.length})
+              {t("What happened ({n})", { n: a.happened.length })}
             </summary>
             <ul className="mt-1.5 space-y-0.5 text-zinc-600 dark:text-zinc-300">
               {a.happened.map((h, i) => (
@@ -298,16 +301,18 @@ function TicketRow({
         {(recent.length > 0 || gitlab.length > 0) && (
           <details className="text-sm">
             <summary className="cursor-pointer text-xs text-zinc-500">
-              Comments (
+              {t("Comments")} (
               {[
                 recent.length
-                  ? `Jira ${recent.length}${facts.comments > recent.length ? ` of ${facts.comments}` : ""}`
+                  ? facts.comments > recent.length
+                    ? t("Jira {n} of {total}", { n: recent.length, total: facts.comments })
+                    : `Jira ${recent.length}`
                   : "",
                 gitlab.length ? `GitLab ${gitlab.length}` : "",
               ]
                 .filter(Boolean)
                 .join(" · ")}
-              ) — done ones don&apos;t feed new todos
+              ) — {t("done ones don't feed new todos")}
             </summary>
             {recent.length > 0 && (
               <ul className="mt-1.5 space-y-1">
@@ -349,7 +354,7 @@ function TicketRow({
                         target="_blank"
                         rel="noreferrer"
                         className="font-mono text-xs text-orange-700 hover:underline dark:text-orange-300"
-                        title={`On ${c.ref} ${c.title} — open in GitLab`}
+                        title={t("On {ref} {title} — open in GitLab", { ref: c.ref, title: c.title })}
                       >
                         {c.ref}
                       </a>{" "}
@@ -365,7 +370,13 @@ function TicketRow({
         {mails.length > 0 && (
           <details className="text-sm">
             <summary className="cursor-pointer text-xs text-zinc-500">
-              Mails ({mails.length}{mails.some((m) => m.unread) ? `, ${mails.filter((m) => m.unread).length} unread` : ""}) — the first lines, as Outlook lists them
+              {mails.some((m) => m.unread)
+                ? t("Mails ({n}, {unread} unread)", {
+                    n: mails.length,
+                    unread: mails.filter((m) => m.unread).length,
+                  })
+                : t("Mails ({n})", { n: mails.length })}{" "}
+              — {t("the first lines, as Outlook lists them")}
             </summary>
             <div className="mt-1.5 flex flex-col items-start gap-1">
               {mails.map((m) => (
@@ -380,10 +391,12 @@ function TicketRow({
           {facts.issueType && <span>{facts.issueType}</span>}
           {facts.priority && <span>{facts.priority}</span>}
           <span>
-            {facts.comments} comment{facts.comments === 1 ? "" : "s"}
+            {facts.comments === 1
+              ? t("1 comment")
+              : t("{n} comments", { n: facts.comments })}
           </span>
-          {facts.parent && <span>Parent {facts.parent}</span>}
-          {facts.updatedAt && <span>last {day(facts.updatedAt)}</span>}
+          {facts.parent && <span>{t("Parent {key}", { key: facts.parent })}</span>}
+          {facts.updatedAt && <span>{t("last {date}", { date: day(facts.updatedAt) })}</span>}
         </div>
       </div>
       <div className="flex shrink-0 flex-col gap-2 border-zinc-200 p-3 md:w-60 md:border-l md:border-dashed max-md:border-t max-md:border-dashed dark:border-zinc-800">
@@ -394,13 +407,13 @@ function TicketRow({
             rel="noreferrer"
             className="font-mono text-xs text-zinc-500 hover:text-indigo-600 hover:underline"
           >
-            Open in Jira ↗
+            {t("Open in Jira")} ↗
           </a>
         )}
         {a?.actions?.length ? (
           <div className="space-y-2">
             <div className="text-xs font-semibold text-zinc-500 uppercase">
-              Suggestions
+              {t("Suggestions")}
             </div>
             {a.actions.map((x, i) => (
               <TicketActionButton
@@ -416,15 +429,15 @@ function TicketRow({
         ) : (
           <p className="text-xs text-zinc-400">
             {a?.actions
-              ? "No change to the ticket suggested."
-              : "Suggestions come with the next run."}
+              ? t("No change to the ticket suggested.")
+              : t("Suggestions come with the next run.")}
           </p>
         )}
         <Link
           href="/work"
           className="text-xs text-indigo-600 hover:underline dark:text-indigo-400"
         >
-          Todos on the Work tab →
+          {t("Todos on the Work tab")} →
         </Link>
       </div>
     </article>
@@ -488,6 +501,7 @@ export function BoardView({
   /** The recent events that are news, for the unseen badge. */
   activityIds?: number[];
 }) {
+  const t = useT();
   const done = new Set(doneComments);
   // A link to one todo (a context badge's ↗): unfold what it's in, and bring it into view.
   useEffect(() => {
@@ -555,7 +569,7 @@ export function BoardView({
   // (filterSlot: the element there), else above the list.
   const chips =
     order.length > 0 ? (
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by state">
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("Filter by state")}>
         {[{ a: "all" as const, n: order.length }, ...counts].map((c) => {
           const on = filter === c.a;
           return (
@@ -571,7 +585,7 @@ export function BoardView({
               }`}
             >
               {c.a !== "all" && <span className={`size-2 shrink-0 rounded-full ${ATT[c.a].stripe}`} aria-hidden />}
-              <span>{c.a === "all" ? "All" : ATTENTION_LABELS[c.a]}</span>
+              <span>{c.a === "all" ? t("All") : attentionLabels(t)[c.a]}</span>
               <span className={on ? "opacity-70" : "text-zinc-400"}>{c.n}</span>
             </button>
           );
@@ -594,13 +608,13 @@ export function BoardView({
         <div
           className="flex flex-wrap items-center gap-1"
           role="tablist"
-          aria-label="Todos"
+          aria-label={t("Todos")}
         >
           {(
             [
-              ["open", "Your todos", mine.length, "/todos"],
-              ["done", "Done", doneCount ?? doneList.length, "/todos?todos=done"],
-              ["activity", "Activity", null, "/todos?todos=activity"],
+              ["open", t("Your todos"), mine.length, "/todos"],
+              ["done", t("Done"), doneCount ?? doneList.length, "/todos?todos=done"],
+              ["activity", t("Activity"), null, "/todos?todos=activity"],
             ] as const
           ).map(([key, label, n, href]) => (
             <Link
@@ -641,7 +655,7 @@ export function BoardView({
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-zinc-500">Nothing done yet.</p>
+            <p className="text-sm text-zinc-500">{t("Nothing done yet.")}</p>
           )
         ) : (
           <>
@@ -661,14 +675,14 @@ export function BoardView({
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-zinc-500">Nothing open for you.</p>
+              <p className="text-sm text-zinc-500">{t("Nothing open for you.")}</p>
             )}
             {waiting.length > 0 && (
               <PersistedDetails
                 storageKey="boards-waiting"
                 className="pt-1"
                 summaryClassName="text-xs font-semibold text-zinc-500 uppercase"
-                summary={`Waiting on others (${waiting.length})`}
+                summary={t("Waiting on others ({n})", { n: waiting.length })}
               >
                 <ul className="mt-1.5 space-y-1">
                   {waiting.map((t) => (
@@ -714,7 +728,7 @@ export function BoardView({
         ))}
         {order.length === 0 && (
           <p className="card p-6 text-center text-sm text-zinc-500">
-            No open tickets on the chosen boards.
+            {t("No open tickets on the chosen boards.")}
           </p>
         )}
       </section>
@@ -722,7 +736,7 @@ export function BoardView({
       {left.length > 0 && (
         <section className="space-y-2">
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">
-            No longer on the list since the last run
+            {t("No longer on the list since the last run")}
           </h2>
           <ul className="space-y-1.5 text-sm">
             {left.map((t) => (
@@ -747,10 +761,12 @@ export function BoardView({
       {listed.length > 0 && (
         <details className="card p-4">
           <summary className="cursor-pointer text-sm font-semibold text-zinc-500 uppercase">
-            Only listed{" "}
+            {t("Only listed")}{" "}
             <span className="font-normal normal-case text-zinc-400">
-              — closed without a resolution or untouched for months (
-              {listed.length})
+              —{" "}
+              {t("closed without a resolution or untouched for months ({n})", {
+                n: listed.length,
+              })}
             </span>
           </summary>
           <table className="mt-3 w-full text-sm">

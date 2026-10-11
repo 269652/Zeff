@@ -6,9 +6,11 @@ import type { ActionState } from "@/app/action-helpers";
 import { formatHours } from "@/lib/format";
 import { parsePauses, totalPauseHours } from "@/lib/pauses-shared";
 import { useLockedBreakText } from "./useLockedBreakText";
+import { useT } from "@/components/I18nProvider";
 
 /** The default break window(s) on workdays, and whether the Punch export records it. */
 export function DefaultPausesForm({ text, exportToPunch, punchOn = true }: { text: string; exportToPunch: boolean; punchOn?: boolean }) {
+  const t = useT();
   // Changing a start or end moves that break; its length stays.
   const draftRef = useRef<HTMLInputElement>(null);
   const draftField = useLockedBreakText(text, "12:00", draftRef);
@@ -16,7 +18,7 @@ export function DefaultPausesForm({ text, exportToPunch, punchOn = true }: { tex
   const [toPunch, setToPunch] = useState(exportToPunch);
   const [state, setState] = useState<ActionState>(null);
   const [pending, startTransition] = useTransition();
-  const preview = parsePauses(draft);
+  const preview = parsePauses(draft, undefined, t);
 
   return (
     <form
@@ -31,7 +33,7 @@ export function DefaultPausesForm({ text, exportToPunch, punchOn = true }: { tex
     >
       <div className="flex flex-wrap items-end gap-3">
         <div>
-          <label className="label" htmlFor="defaultPauses">Default break</label>
+          <label className="label" htmlFor="defaultPauses">{t("Default break")}</label>
           <input
             ref={draftRef}
             id="defaultPauses"
@@ -50,7 +52,7 @@ export function DefaultPausesForm({ text, exportToPunch, punchOn = true }: { tex
             ? preview.error
             : preview.pauses.length
               ? `${preview.pauses.map((p) => `${p.start}–${p.end}`).join(", ")} · ${formatHours(totalPauseHours(preview.pauses))} h`
-              : "No default break"}
+              : t("No default break")}
         </p>
       </div>
       {/* Without the Punch plugin: not offered — what's set stays (sent along unseen). */}
@@ -66,11 +68,11 @@ export function DefaultPausesForm({ text, exportToPunch, punchOn = true }: { tex
           }}
           className="size-4 accent-indigo-600"
         />
-        Record the default break in Punch on workdays without an entered break
+        {t("Record the default break in Punch on workdays without an entered break")}
       </label>}
       <div className="flex items-center gap-3">
         <button type="submit" className="btn btn-primary" disabled={pending || !preview.ok}>
-          {pending ? "Saving…" : "Save default break"}
+          {pending ? t("Saving…") : t("Save default break")}
         </button>
         {state?.error && <span className="text-sm text-red-600 dark:text-red-400">{state.error}</span>}
         {state?.ok && state.message && <span className="text-sm text-emerald-600 dark:text-emerald-400">{state.message}</span>}

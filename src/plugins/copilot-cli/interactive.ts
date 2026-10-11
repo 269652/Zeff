@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { emitChange } from "@/lib/events";
+import { t } from "@/lib/i18n/server";
 import { lives, type Live } from "./live-state";
 import { errPath, logPath } from "@/lib/work/log";
 
@@ -132,7 +133,7 @@ async function turn(live: Live, text: string) {
     await end(live);
     return;
   }
-  live.view.waiting = live.turnText.trim().slice(-800) || "Copilot is waiting for you.";
+  live.view.waiting = live.turnText.trim().slice(-800) || t("Copilot is waiting for you.");
   emitChange("work");
   emitChange("attention");
 }
@@ -196,17 +197,17 @@ export async function startInteractive(v: { runId: number; command: string; args
 
 const liveOf = (runId: number) => {
   const live = lives.get(runId);
-  if (!live) throw new Error("The session isn't running (any more).");
+  if (!live) throw new Error(t("The session isn't running (any more)."));
   return live;
 };
 
 /** Your answer to what it asked (allow once, always, reject …). */
 export function answerPermission(runId: number, optionId: string) {
   const live = liveOf(runId);
-  if (live.permissionRpcId === null || !live.view.permission) throw new Error("It isn't waiting for a permission.");
+  if (live.permissionRpcId === null || !live.view.permission) throw new Error(t("It isn't waiting for a permission."));
   // One of the options it offered — nothing else is passed on.
   const option = live.view.permission.options.find((o) => o.id === optionId);
-  if (!option) throw new Error("Not one of the options offered.");
+  if (!option) throw new Error(t("Not one of the options offered."));
   send(live, { id: live.permissionRpcId, result: { outcome: { outcome: "selected", optionId } } });
   log(runId, `[Du] ${option.name}\n`);
   live.permissionRpcId = null;
@@ -218,7 +219,7 @@ export function answerPermission(runId: number, optionId: string) {
 /** Your message to it (between turns). */
 export function sendToLive(runId: number, text: string) {
   const live = liveOf(runId);
-  if (live.view.busy) throw new Error("Copilot is still at it — wait until it's finished (or stop it).");
+  if (live.view.busy) throw new Error(t("Copilot is still at it — wait until it's finished (or stop it)."));
   log(runId, `\n[Du] ${text}\n`);
   void turn(live, text);
 }

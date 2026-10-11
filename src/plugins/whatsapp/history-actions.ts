@@ -2,13 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { isInstalled } from "@/plugins/state";
+import { t } from "@/lib/i18n/server";
 import { pullWhatsappHistory } from "./history";
 
 /** "Ganzen Verlauf laden" on a chat (WhatsApp app): its whole history, from the phone too. */
 export async function pullWhatsappHistoryAction(chat: string): Promise<{ ok: boolean; error?: string; message?: string }> {
-  if (!isInstalled("whatsapp")) return { ok: false, error: "WhatsApp is not installed (Menu → Plugins)." };
+  if (!isInstalled("whatsapp")) return { ok: false, error: t("WhatsApp is not installed (Menu → Plugins).") };
   const name = String(chat ?? "").trim();
-  if (!name) return { ok: false, error: "Which chat?" };
+  if (!name) return { ok: false, error: t("Which chat?") };
   const r = await pullWhatsappHistory(name);
   revalidatePath("/apps/whatsapp");
   return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };

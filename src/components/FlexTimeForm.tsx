@@ -4,9 +4,11 @@ import { useState, useTransition } from "react";
 import { saveFlexTimeAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
 import { DEFAULT_FLEX_COMMENT, type FlexTime } from "@/lib/schedule-shared";
+import { useT } from "./I18nProvider";
 
 /** Schedule → Flex time: which job takes a day's missing hours (Gleitzeit), and what those bookings say. */
 export function FlexTimeForm({ flex, jobs }: { flex: FlexTime; jobs: { number: string; name: string }[] }) {
+  const t = useT();
   const [jobNumber, setJobNumber] = useState(flex.jobNumber ?? "");
   const [comment, setComment] = useState(flex.comment);
   const [state, setState] = useState<ActionState>(null);
@@ -25,7 +27,7 @@ export function FlexTimeForm({ flex, jobs }: { flex: FlexTime; jobs: { number: s
     >
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-64">
-          <label className="label" htmlFor="flexJobNumber">Gleitzeit job</label>
+          <label className="label" htmlFor="flexJobNumber">{t("Gleitzeit job")}</label>
           <select
             id="flexJobNumber"
             name="flexJobNumber"
@@ -36,14 +38,14 @@ export function FlexTimeForm({ flex, jobs }: { flex: FlexTime; jobs: { number: s
               setState(null);
             }}
           >
-            <option value="">— none (no flex-time row) —</option>
+            <option value="">{t("— none (no flex-time row) —")}</option>
             {jobs.map((j) => (
               <option key={j.number} value={j.number}>{j.number} — {j.name}</option>
             ))}
           </select>
         </div>
         <div className="min-w-56 flex-1">
-          <label className="label" htmlFor="flexComment">Comment</label>
+          <label className="label" htmlFor="flexComment">{t("Comment")}</label>
           <input
             id="flexComment"
             name="flexComment"
@@ -60,7 +62,7 @@ export function FlexTimeForm({ flex, jobs }: { flex: FlexTime; jobs: { number: s
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? "Saving…" : "Save flex time"}
+          {pending ? t("Saving…") : t("Save flex time")}
         </button>
         {state?.error && <span className="text-sm text-red-600 dark:text-red-400">{state.error}</span>}
         {state?.ok && state.message && <span className="text-sm text-emerald-600 dark:text-emerald-400">{state.message}</span>}

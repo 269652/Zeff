@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { accountDir, currentAccountId } from "@/db/accounts";
+import { t } from "@/lib/i18n/server";
 import type { WorkLogLine } from "./shared";
 
 /**
@@ -48,8 +49,8 @@ const read = (file: string) => {
 };
 
 const short = (s: string, max: number) => {
-  const t = s.replace(/\s+/g, " ").trim();
-  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
+  const one = s.replace(/\s+/g, " ").trim();
+  return one.length > max ? `${one.slice(0, max - 1)}…` : one;
 };
 
 /** A tool call in a few words. */
@@ -80,10 +81,10 @@ function callText(name: string, input: Record<string, unknown> = {}): string {
       return short(s("description") || s("prompt"), 160);
     case "TodoWrite": {
       const todos = Array.isArray(input.todos) ? (input.todos as { content?: string; status?: string }[]) : [];
-      return short(todos.map((t) => `${t.status === "completed" ? "✓" : t.status === "in_progress" ? "▸" : "·"} ${t.content ?? ""}`).join("  "), 300);
+      return short(todos.map((x) => `${x.status === "completed" ? "✓" : x.status === "in_progress" ? "▸" : "·"} ${x.content ?? ""}`).join("  "), 300);
     }
     case "StructuredOutput":
-      return "the result";
+      return t("the result");
     default:
       return short(JSON.stringify(input), 200);
   }
@@ -137,7 +138,7 @@ export function readLog(id: number): { lines: WorkLogLine[]; errors: string[]; r
       sessionId = e.session_id ?? sessionId;
       cwd = e.cwd ?? cwd;
       const mcp = (e.mcp_servers ?? []).map((m) => `${m.name}${m.status === "connected" ? "" : ` (${m.status})`}`).join(", ");
-      lines.push({ k: "start", model: e.model, text: [e.model, e.cwd, e.permissionMode && `permissions: ${e.permissionMode}`, mcp && `MCP: ${mcp}`].filter(Boolean).join(" · ") });
+      lines.push({ k: "start", model: e.model, text: [e.model, e.cwd, e.permissionMode && t("permissions: {mode}", { mode: e.permissionMode }), mcp && `MCP: ${mcp}`].filter(Boolean).join(" · ") });
     } else if (e.type === "assistant" && Array.isArray(e.message?.content)) {
       for (const b of e.message.content) {
         if (b.type === "text" && b.text?.trim()) lines.push({ k: "say", text: b.text.trim() });
@@ -159,11 +160,15 @@ export function readLog(id: number): { lines: WorkLogLine[]; errors: string[]; r
       sessionId = e.session_id ?? sessionId;
       for (const d of e.permission_denials ?? []) lines.push({ k: "deny", text: `${d.tool_name ?? "?"}: ${callText(d.tool_name ?? "", (d.tool_input ?? {}) as Record<string, unknown>)}` });
       const cost = typeof e.total_cost_usd === "number" ? ` · $${e.total_cost_usd.toFixed(2)}` : "";
-      const turns = e.num_turns ? ` · ${e.num_turns} turns` : "";
+      const turns = e.num_turns ? ` · ${t("{n} turns", { n: e.num_turns })}` : "";
       lines.push(
         e.is_error || e.subtype !== "success"
-          ? { k: "end", ok: false, text: `Ended (${e.subtype ?? "error"})${turns}${cost}${e.result ? ` — ${short(e.result, 300)}` : ""}` }
-          : { k: "end", ok: true, text: `Finished${turns}${cost}` },
+          ? {
+              k: "end",
+              ok: false,
+              text: `${t("Ended ({reason})", { reason: e.subtype ?? "error" })}${turns}${cost}${e.result ? ` — ${short(e.result, 300)}` : ""}`,
+            }
+          : { k: "end", ok: true, text: `${t("Finished")}${turns}${cost}` },
       );
     }
   }
@@ -182,8 +187,8 @@ export function readOutput(id: number): string {
 
 /** The error output, its last lines. */
 export function readErrors(id: number, max = 1500): string {
-  const t = read(errPath(id)).trim();
-  return t.length > max ? `…${t.slice(-max)}` : t;
+  const text = read(errPath(id)).trim();
+  return text.length > max ? `…${text.slice(-max)}` : text;
 }
 
 /**

@@ -9,6 +9,7 @@ import { addSource, reorderEntryContexts } from "@/lib/contexts";
 import { todoLink, workLink } from "@/lib/entities-shared";
 import { createEntry } from "@/lib/entries";
 import { ValidationError } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { round2 } from "@/lib/format";
 import { gitlabCommentsByTicket } from "@/lib/gitlab/store";
 import { getJiraTicket, getTicketDefaultJob } from "@/lib/jira/store";
@@ -41,7 +42,7 @@ export type DoneToday = {
 export function doneToday(): DoneToday[] {
   const today = isoDate(new Date());
   const done = listTodos({ status: "done" }).filter(
-    (t) => t.doneAt && isoDate(new Date(t.doneAt)) === today,
+    (todo) => todo.doneAt && isoDate(new Date(todo.doneAt)) === today,
   );
   if (!done.length) return [];
   // What an agent suggested a booking for already (a shadow row of its own): not here again.
@@ -54,7 +55,7 @@ export function doneToday(): DoneToday[] {
         and(
           inArray(
             todos.id,
-            done.map((t) => t.id),
+            done.map((todo) => todo.id),
           ),
           isNull(todos.entryId),
         ),
@@ -76,14 +77,14 @@ export function doneToday(): DoneToday[] {
     .all()
     .filter((r) => !suggested.runIds.has(r.id));
   const byTicket = new Map<string, typeof done>();
-  for (const t of done)
-    if (unbooked.has(t.id))
-      byTicket.set(t.ticket, [...(byTicket.get(t.ticket) ?? []), t]);
+  for (const todo of done)
+    if (unbooked.has(todo.id))
+      byTicket.set(todo.ticket, [...(byTicket.get(todo.ticket) ?? []), todo]);
   return [...byTicket.entries()].map(([ticket, list]) => {
-    const theirs = runs.filter((r) => list.some((t) => t.id === r.todoId));
+    const theirs = runs.filter((r) => list.some((todo) => todo.id === r.todoId));
     const ms = theirs.reduce((a, r) => a + (r.durationMs ?? 0), 0);
     const byHand = list.filter(
-      (t) => !theirs.some((r) => r.todoId === t.id),
+      (todo) => !theirs.some((r) => r.todoId === todo.id),
     ).length;
     const lines = [
       ...new Set([
@@ -91,8 +92,8 @@ export function doneToday(): DoneToday[] {
           .map((r) => r.entryLine?.trim())
           .filter((l): l is string => !!l),
         ...list
-          .filter((t) => !theirs.some((r) => r.todoId === t.id))
-          .map((t) => t.text.trim()),
+          .filter((todo) => !theirs.some((r) => r.todoId === todo.id))
+          .map((todo) => todo.text.trim()),
       ]),
     ];
     const text = lines.join("; ");
@@ -102,8 +103,8 @@ export function doneToday(): DoneToday[] {
       ticket,
       summary: getJiraTicket(ticket)?.summary ?? null,
       job: job ? { id: job.id, number: job.number, name: job.name } : null,
-      todoIds: list.map((t) => t.id),
-      todos: list.map((t) => ({ ref: todoRef(t.id), text: t.text })),
+      todoIds: list.map((todo) => todo.id),
+      todos: list.map((todo) => ({ ref: todoRef(todo.id), text: todo.text })),
       hours: round2((ms ? quarters(ms) : 0) + byHand * 0.25),
       description: text.length > 200 ? `${text.slice(0, 199)}…` : text,
     };
@@ -116,11 +117,11 @@ export function commentTickets(todoIds: number[]): string[] {
   const from = todoSources(list, lastGoodRun()?.tickets ?? []);
   return [
     ...new Set(
-      list.flatMap((t) =>
-        t.refs.flatMap((r) => {
+      list.flatMap((todo) =>
+        todo.refs.flatMap((r) => {
           const s = from[r];
           return s?.source === "jira-comment"
-            ? [s.comment.ticket || t.ticket]
+            ? [s.comment.ticket || todo.ticket]
             : [];
         }),
       ),
@@ -138,7 +139,7 @@ export function todoContextUrls(ticket: string | null, todoIds: number[]): strin
   const from = todoSources(list, lastGoodRun()?.tickets ?? []);
   const keys = [
     ...new Set(
-      [ticket, ...list.map((t) => t.ticket)]
+      [ticket, ...list.map((todo) => todo.ticket)]
         .filter((k): k is string => !!k)
         .map((k) => k.toUpperCase()),
     ),
@@ -147,8 +148,8 @@ export function todoContextUrls(ticket: string | null, todoIds: number[]): strin
   const mrs = gitlabCommentsByTicket(keys, 5, "mr");
   const urls = [
     ...keys.flatMap((k) => (mrs[k] ?? []).map((m) => m.url)),
-    ...list.flatMap((t) =>
-      sourcesOf(t.refs, from).flatMap((s) => {
+    ...list.flatMap((todo) =>
+      sourcesOf(todo.refs, from).flatMap((s) => {
         if (s.source === "teams") return [s.teams.link];
         if (s.source === "gitlab") return [s.gitlab.url];
         if (s.source === "mail") return [mailLink(s.mail.key)];
@@ -162,7 +163,7 @@ export function todoContextUrls(ticket: string | null, todoIds: number[]): strin
         return url ? [url] : [];
       }),
     ),
-    ...list.map((t) => todoLink(t.id)),
+    ...list.map((todo) => todoLink(todo.id)),
   ];
   return [...new Set(urls)];
 }
@@ -212,7 +213,7 @@ export function bookDoneToday(v: {
     .all()
     .map((r) => r.id);
   if (!open.length)
-    throw new ValidationError("Nothing left to book — booked already?");
+    throw new ValidationError(t("Nothing left to book — booked already?"));
   if (v.skip) {
     getDb()
       .update(todos)
@@ -222,11 +223,13 @@ export function bookDoneToday(v: {
     return { entryId: null, hours: 0, todoIds: open };
   }
   if (!(v.hours > 0) || v.hours > 24)
-    throw new ValidationError("Hours: more than 0, at most 24.");
+    throw new ValidationError(t("Hours: more than 0, at most 24."));
   const jobNumber = getTicketDefaultJob(v.ticket);
   if (!jobNumber)
     throw new ValidationError(
-      `${v.ticket} has no job — give it (or its board) one on the Jira tab.`,
+      t("{ticket} has no job — give it (or its board) one on the Jira tab.", {
+        ticket: v.ticket,
+      }),
     );
   const entry = createEntry(
     {

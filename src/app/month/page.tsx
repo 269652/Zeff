@@ -1,6 +1,7 @@
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
+import { t } from "@/lib/i18n/server";
 import Link from "next/link";
 import { connection } from "next/server";
 import { BarList, type BarItem } from "@/components/charts";
@@ -28,7 +29,9 @@ import { getDayTargets } from "@/lib/schedule";
 import { getUiOpen } from "@/lib/ui-state";
 import { isoDate, todayIso } from "@/lib/week";
 
-export const metadata: Metadata = { title: "Monthly report" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: t("Monthly report") };
+}
 
 export default async function MonthPage({
   searchParams,
@@ -47,8 +50,8 @@ export default async function MonthPage({
 
   const report = getMonthlyReport(month, { reportedBy: by });
   const targets = getDayTargets(month.days);
-  const target = round2(targets.reduce((a, t) => a + t.target, 0));
-  const shortfalls = dayShortfalls(month, report.dayTotals, targets.map((t) => t.target), { today, filtered });
+  const target = round2(targets.reduce((a, x) => a + x.target, 0));
+  const shortfalls = dayShortfalls(month, report.dayTotals, targets.map((x) => x.target), { today, filtered });
 
   // Per week of the month (its days only): the target, and the hours missing on past days.
   const dayIndex = new Map(month.days.map((d, i) => [isoDate(d), i]));
@@ -82,8 +85,8 @@ export default async function MonthPage({
   // The oldest pull among the month's weeks (what "Chrono status from …" vouches for).
   const oldestPull = pulledAt.filter((p): p is string => !!p).sort()[0] ?? null;
 
-  const workdays = targets.filter((t) => t.target > 0).length;
-  const absentDays = targets.filter((t) => t.absence).length;
+  const workdays = targets.filter((x) => x.target > 0).length;
+  const absentDays = targets.filter((x) => x.absence).length;
 
   const types = listEntryTypes();
   const jobs = getJobReportSummaries(month.startIso, month.endIso, { reportedBy: by });
@@ -93,33 +96,33 @@ export default async function MonthPage({
   const summaryText = jobSummariesToText(`${formatMonth(month)}${by ? ` · ${by}` : ""}`, report.total, jobs, formatHours);
 
   // Entry types in their configured order and colors; keys with hours but no type (deleted) in grey.
-  const known = new Set(types.map((t) => t.key));
+  const known = new Set(types.map((x) => x.key));
   const typeItems: BarItem[] = [
     ...types,
     ...Object.keys(report.byType)
       .filter((k) => !known.has(k))
       .map((k) => ({ key: k, label: k, color: FALLBACK_TYPE_COLOR, builtin: false })),
   ]
-    .filter((t) => (report.byType[t.key] ?? 0) > 0)
+    .filter((x) => (report.byType[x.key] ?? 0) > 0)
     .sort((a, b) => (report.byType[b.key] ?? 0) - (report.byType[a.key] ?? 0))
-    .map((t) => ({
-      key: t.key,
-      label: t.label,
-      value: report.byType[t.key] ?? 0,
-      valueLabel: `${formatHours(report.byType[t.key] ?? 0)} h`,
-      color: t.color,
+    .map((x) => ({
+      key: x.key,
+      label: x.label,
+      value: report.byType[x.key] ?? 0,
+      valueLabel: `${formatHours(report.byType[x.key] ?? 0)} h`,
+      color: x.color,
     }));
-  const tagItems: BarItem[] = report.byTag.slice(0, 12).map((t) => ({
-    key: String(t.tag.id),
-    label: `#${t.tag.name}`,
-    value: t.hours,
-    valueLabel: `${formatHours(t.hours)} h`,
+  const tagItems: BarItem[] = report.byTag.slice(0, 12).map((x) => ({
+    key: String(x.tag.id),
+    label: `#${x.tag.name}`,
+    value: x.hours,
+    valueLabel: `${formatHours(x.hours)} h`,
     barClass: "bg-teal-500",
   }));
   if (report.untaggedHours > 0) {
     tagItems.push({
       key: "untagged",
-      label: "untagged",
+      label: t("untagged"),
       value: report.untaggedHours,
       valueLabel: `${formatHours(report.untaggedHours)} h`,
       barClass: "bg-zinc-300 dark:bg-zinc-600",
@@ -133,12 +136,12 @@ export default async function MonthPage({
       </div>
 
       {sp.month && !requested && (
-        <p className="alert-error">Could not read month &quot;{sp.month}&quot; — showing the current month instead.</p>
+        <p className="alert-error">{t('Could not read month "{month}" — showing the current month instead.', { month: sp.month })}</p>
       )}
 
       <div className="grid gap-3 sm:grid-cols-3">
         <BookedStat
-          label="Booked this month"
+          label={t("Booked this month")}
           booked={report.total}
           target={target}
           workdays={workdays}
@@ -150,7 +153,7 @@ export default async function MonthPage({
         {/* Hours left unbooked in this month's weeks that are over. */}
         <PastWeeksStat due={getPastWeeksDue(month.startIso, month.endIso, today, { reportedBy: by })} />
         <Stat
-          label="Entries"
+          label={t("Entries")}
           value={String(report.entries.length)}
           view={entriesView(report.entries, today > month.endIso)}
         />
@@ -159,8 +162,10 @@ export default async function MonthPage({
       <section className="card p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="text-sm font-semibold text-zinc-500 uppercase">Days</h2>
-            <p className="text-xs text-zinc-400">booked hours{chronoOn ? " and their Chrono approval" : ""} · click a day to open its week</p>
+            <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Days")}</h2>
+            <p className="text-xs text-zinc-400">
+              {chronoOn ? t("booked hours and their Chrono approval · click a day to open its week") : t("booked hours · click a day to open its week")}
+            </p>
           </div>
           {chronoOn && <ChronoPullButton month={month.key} pulledAt={oldestPull} synced={!!oldestPull && chronoInSync(report.entries, statuses)} />}
         </div>
@@ -176,32 +181,33 @@ export default async function MonthPage({
       </section>
 
       <section className="card p-4">
-        <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">Hours per job and week</h2>
+        <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">{t("Hours per job and week")}</h2>
         <MonthJobTable report={report} weekTargets={weekTargets} weekMissing={weekMissing} />
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="card p-4">
-          <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">Hours by type</h2>
-          <BarList items={typeItems} empty="No entries." />
+          <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">{t("Hours by type")}</h2>
+          <BarList items={typeItems} empty={t("No entries.")} />
         </section>
         <section className="card p-4">
-          <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">Hours by tag</h2>
-          <BarList items={tagItems} empty="No entries." />
+          <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">{t("Hours by tag")}</h2>
+          <BarList items={tagItems} empty={t("No entries.")} />
         </section>
       </div>
 
       <section className="card p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="text-sm font-semibold text-zinc-500 uppercase">Report · {formatMonth(month)}</h2>
+            <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Report · {month}", { month: formatMonth(month) })}</h2>
             <p className="text-xs text-zinc-400">
-              What each job&apos;s time went to, named by your report rules{by ? ` · ${by}` : ""}
+              {t("What each job's time went to, named by your report rules")}
+              {by ? ` · ${by}` : ""}
               {report.entries.length > 0 &&
-                ` · ${report.entries.length} entr${report.entries.length === 1 ? "y" : "ies"} in ${reportLines} line${reportLines === 1 ? "" : "s"}`}
+                ` · ${report.entries.length === 1 ? t("1 entry") : t("{n} entries", { n: report.entries.length })} ${reportLines === 1 ? t("in 1 line") : t("in {n} lines", { n: reportLines })}`}
             </p>
           </div>
-          {jobs.length > 0 && <CopyButton text={summaryText} label="Copy report" />}
+          {jobs.length > 0 && <CopyButton text={summaryText} label={t("Copy report")} />}
         </div>
         <JobSummaries jobs={jobs} total={report.total} types={typeMapOf(types)} tickets={tickets} />
       </section>
@@ -210,7 +216,7 @@ export default async function MonthPage({
         <PersistentDetails name="month-entries" ui={ui} className="group">
           <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-zinc-500 uppercase [&::-webkit-details-marker]:hidden">
             <span className="text-zinc-400 transition-transform group-open:rotate-90">▸</span>
-            Entries in {formatMonth(month)}
+            {t("Entries in {month}", { month: formatMonth(month) })}
             <span className="font-normal normal-case text-zinc-400">({report.entries.length})</span>
           </summary>
           <div className="mt-3">
@@ -226,7 +232,7 @@ export default async function MonthPage({
 function entriesView(entries: EntryWithJob[], monthOver: boolean): StatView | undefined {
   if (entries.length === 0) return undefined;
   const noJob = entries.filter((e) => e.job.number === NO_JOB_NUMBER);
-  if (noJob.length === 0) return { color: "green", icon: "check", caption: "All entries have a job" };
+  if (noJob.length === 0) return { color: "green", icon: "check", caption: t("All entries have a job") };
   const projectIds = [...new Set(noJob.flatMap((e) => (e.projectId == null ? [] : [e.projectId])))];
   const n = noJob.length;
   return {
@@ -234,7 +240,7 @@ function entriesView(entries: EntryWithJob[], monthOver: boolean): StatView | un
     icon: monthOver ? "cross" : "info",
     caption: (
       <Link href={projectIds.length === 1 ? `/projects/${projectIds[0]}` : "/projects"} className="hover:underline">
-        {n} {n === 1 ? "entry" : "entries"} without a job
+        {n === 1 ? t("1 entry without a job") : t("{n} entries without a job", { n })}
       </Link>
     ),
   };

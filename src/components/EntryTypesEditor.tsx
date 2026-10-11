@@ -4,12 +4,14 @@ import { useState, useTransition } from "react";
 import { createEntryTypeAction, deleteEntryTypeAction, saveEntryTypesAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
 import { typeColorStyle, type EntryTypeDef } from "@/lib/entry-types-shared";
+import { useT } from "./I18nProvider";
 
 /**
  * Rename and recolor entry types, add new ones, delete unused ones. Built-in types (the
  * ones imports and exports rely on) can't be deleted. Remount it (key) when types change.
  */
 export function EntryTypesEditor({ types, usage }: { types: EntryTypeDef[]; usage: Record<string, number> }) {
+  const t = useT();
   const [rows, setRows] = useState(types);
   const [newLabel, setNewLabel] = useState("");
   const [newColor, setNewColor] = useState("#14b8a6");
@@ -17,8 +19,8 @@ export function EntryTypesEditor({ types, usage }: { types: EntryTypeDef[]; usag
   const [pending, startTransition] = useTransition();
 
   const changed = rows.filter((r) => {
-    const t = types.find((x) => x.key === r.key);
-    return t && (t.label !== r.label || t.color !== r.color);
+    const orig = types.find((x) => x.key === r.key);
+    return orig && (orig.label !== r.label || orig.color !== r.color);
   });
   const setRow = (key: string, patch: Partial<EntryTypeDef>) => {
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
@@ -32,11 +34,11 @@ export function EntryTypesEditor({ types, usage }: { types: EntryTypeDef[]; usag
         <table className="table">
           <thead>
             <tr>
-              <th>Color</th>
-              <th>Name</th>
-              <th>Key</th>
-              <th className="num">Entries</th>
-              <th>Looks like</th>
+              <th>{t("Color")}</th>
+              <th>{t("Name")}</th>
+              <th>{t("Key")}</th>
+              <th className="num">{t("Entries")}</th>
+              <th>{t("Looks like")}</th>
               <th></th>
             </tr>
           </thead>
@@ -48,7 +50,7 @@ export function EntryTypesEditor({ types, usage }: { types: EntryTypeDef[]; usag
                   <td>
                     <input
                       type="color"
-                      aria-label={`Color of ${r.label}`}
+                      aria-label={t("Color of {type}", { type: r.label })}
                       className="h-8 w-10 cursor-pointer rounded border border-zinc-200 bg-transparent dark:border-zinc-700"
                       value={r.color}
                       onChange={(e) => setRow(r.key, { color: e.target.value })}
@@ -57,14 +59,14 @@ export function EntryTypesEditor({ types, usage }: { types: EntryTypeDef[]; usag
                   <td>
                     <input
                       className="input py-1"
-                      aria-label={`Name of ${r.key}`}
+                      aria-label={t("Name of {type}", { type: r.key })}
                       value={r.label}
                       onChange={(e) => setRow(r.key, { label: e.target.value })}
                     />
                   </td>
                   <td className="font-mono text-xs whitespace-nowrap text-zinc-500">
                     {r.key}
-                    {r.builtin && <span className="badge badge-web ml-2 font-sans" title="Used by imports and exports — rename and recolor only">built-in</span>}
+                    {r.builtin && <span className="badge badge-web ml-2 font-sans" title={t("Used by imports and exports — rename and recolor only")}>{t("built-in")}</span>}
                   </td>
                   <td className="num">{used}</td>
                   <td>
@@ -76,12 +78,12 @@ export function EntryTypesEditor({ types, usage }: { types: EntryTypeDef[]; usag
                         type="button"
                         className="btn btn-sm btn-danger"
                         disabled={pending || used > 0}
-                        title={used > 0 ? `${used} entries use it — change them first` : "Delete this type"}
+                        title={used > 0 ? t("{n} entries use it — change them first", { n: used }) : t("Delete this type")}
                         onClick={() => {
-                          if (window.confirm(`Delete the type ${r.label}?`)) run(() => deleteEntryTypeAction(r.key));
+                          if (window.confirm(t("Delete the type {type}?", { type: r.label }))) run(() => deleteEntryTypeAction(r.key));
                         }}
                       >
-                        Delete
+                        {t("Delete")}
                       </button>
                     )}
                   </td>
@@ -99,7 +101,7 @@ export function EntryTypesEditor({ types, usage }: { types: EntryTypeDef[]; usag
           disabled={pending || changed.length === 0}
           onClick={() => run(() => saveEntryTypesAction(changed.map(({ key, label, color }) => ({ key, label, color }))))}
         >
-          {pending ? "Saving…" : changed.length ? `Save ${changed.length} change${changed.length === 1 ? "" : "s"}` : "Saved"}
+          {pending ? t("Saving…") : changed.length ? (changed.length === 1 ? t("Save 1 change") : t("Save {n} changes", { n: changed.length })) : t("Saved")}
         </button>
         {state?.error && <span className="text-sm text-red-600 dark:text-red-400">{state.error}</span>}
         {state?.ok && state.message && <span className="text-sm text-emerald-600 dark:text-emerald-400">{state.message}</span>}
@@ -113,7 +115,7 @@ export function EntryTypesEditor({ types, usage }: { types: EntryTypeDef[]; usag
         }}
       >
         <div>
-          <label className="label" htmlFor="new-type-color">Color</label>
+          <label className="label" htmlFor="new-type-color">{t("Color")}</label>
           <input
             id="new-type-color"
             type="color"
@@ -123,11 +125,11 @@ export function EntryTypesEditor({ types, usage }: { types: EntryTypeDef[]; usag
           />
         </div>
         <div>
-          <label className="label" htmlFor="new-type-label">New type</label>
+          <label className="label" htmlFor="new-type-label">{t("New type")}</label>
           <input
             id="new-type-label"
             className="input"
-            placeholder="e.g. Pairing"
+            placeholder={t("e.g. Pairing")}
             value={newLabel}
             onChange={(e) => {
               setNewLabel(e.target.value);
@@ -137,7 +139,7 @@ export function EntryTypesEditor({ types, usage }: { types: EntryTypeDef[]; usag
           />
         </div>
         <button type="submit" className="btn" disabled={pending || !newLabel.trim()}>
-          Add type
+          {t("Add type")}
         </button>
       </form>
     </div>

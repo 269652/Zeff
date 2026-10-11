@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "@/components/Toaster";
+import { useT } from "@/components/I18nProvider";
 import { formatDateTime } from "@/lib/format";
 import type { RichBoard } from "@/plugins/kanban/shared";
 import { startBoardLageAction } from "./actions";
@@ -14,6 +15,7 @@ const when = (iso: string | null) => (iso ? formatDateTime(iso) : "");
  * ticked, of all of them — apart from the Ticket-Lage. While it runs, the cards fill in as parts are done.
  */
 export function BoardLageButton({ state }: { state: NonNullable<RichBoard["boardLage"]> }) {
+  const t = useT();
   const router = useRouter();
   const [pending, start] = useTransition();
   const running = state.running || pending;
@@ -36,18 +38,24 @@ export function BoardLageButton({ state }: { state: NonNullable<RichBoard["board
         onClick={() =>
           start(async () => {
             const r = await startBoardLageAction({ all });
-            toast(r.ok ? (r.message ?? "Running.") : (r.error ?? "That didn't work."), { tone: r.ok ? "ok" : "error" });
+            toast(r.ok ? (r.message ?? t("Running.")) : (r.error ?? t("That didn't work.")), { tone: r.ok ? "ok" : "error" });
             router.refresh();
           })
         }
-        title={all ? "All currently relevant tickets of the Jira boards through the AI — only what changed" : "The currently relevant tickets you're involved in (assigned, followed, commented, your todos or entries) — only what changed"}
+        title={
+          all
+            ? t("All currently relevant tickets of the Jira boards through the AI — only what changed")
+            : t("The currently relevant tickets you're involved in (assigned, followed, commented, your todos or entries) — only what changed")
+        }
       >
         {running ? (
           <>
-            <span className="size-2 animate-pulse rounded-full bg-white" aria-hidden /> Analysing …
+            <span className="size-2 animate-pulse rounded-full bg-white" aria-hidden /> {t("Analysing …")}
           </>
+        ) : all ? (
+          t("Analyse — all tickets")
         ) : (
-          `Analyse — ${all ? "all tickets" : "with me"}`
+          t("Analyse — with me")
         )}
       </button>
       <label className="flex items-start gap-1.5 text-xs text-zinc-600 dark:text-zinc-400">
@@ -64,11 +72,11 @@ export function BoardLageButton({ state }: { state: NonNullable<RichBoard["board
           }}
           className="mt-0.5 accent-indigo-600"
         />
-        <span>Tickets without me too — only with what Jira knows about them</span>
+        <span>{t("Tickets without me too — only with what Jira knows about them")}</span>
       </label>
       {state.lastAt && !state.running && (
         <p className={`text-xs ${state.lastOk === false ? "text-red-600 dark:text-red-400" : "text-zinc-500"}`}>
-          Last {when(state.lastAt)}: {state.lastMessage}
+          {t("Last {when}: {message}", { when: when(state.lastAt), message: state.lastMessage })}
         </p>
       )}
     </div>

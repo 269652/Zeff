@@ -1,6 +1,7 @@
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
+import { t } from "@/lib/i18n/server";
 import { connection } from "next/server";
 import { deleteAbsenceAction } from "@/app/actions";
 import { AbsenceForm } from "@/components/AbsenceForm";
@@ -21,7 +22,7 @@ import { listEntryTypes } from "@/lib/entry-types";
 import { listTags } from "@/lib/tags";
 import { formatHours } from "@/lib/format";
 import {
-  ABSENCE_LABELS,
+  absenceLabels,
   getFlexTime,
   getWorkSchedule,
   listAbsences,
@@ -30,7 +31,9 @@ import {
 } from "@/lib/schedule";
 import { todayIso } from "@/lib/week";
 
-export const metadata: Metadata = { title: "Working hours & absences" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: t("Working hours & absences") };
+}
 
 export default async function SettingsPage() {
   await connection();
@@ -42,37 +45,33 @@ export default async function SettingsPage() {
   const settings = getReportSettings();
   const reportRules = getReportRules(settings);
   const meetingJobRules = getMeetingJobRules(settings);
-  const tagNames = listTags().map((t) => t.name);
+  const tagNames = listTags().map((tag) => tag.name);
   const jobOptions = listJobs().map((j) => ({ number: j.number, name: j.name }));
   const flex = getFlexTime(schedule);
   // The flex-time job stays pickable even once it's deactivated.
   const flexJob = flex.jobNumber && !jobOptions.some((j) => j.number === flex.jobNumber) ? getJobByNumber(flex.jobNumber) : undefined;
-  const flexJobOptions = flexJob ? [{ number: flexJob.number, name: `${flexJob.name} (inactive)` }, ...jobOptions] : jobOptions;
+  const flexJobOptions = flexJob ? [{ number: flexJob.number, name: t("{name} (inactive)", { name: flexJob.name }) }, ...jobOptions] : jobOptions;
 
   return (
     <div className="page">
       <div className="page-aside">
-        <h1 className="text-lg font-semibold">Working hours &amp; absences</h1>
+        <h1 className="text-lg font-semibold">{t("Working hours & absences")}</h1>
         <p className="text-sm text-zinc-500">
-          Set your weekly working pattern (part-time) and record time off. The weekly report uses this
-          to show booked hours against your target.
+          {t("Set your weekly working pattern (part-time) and record time off. The weekly report uses this to show booked hours against your target.")}
         </p>
       </div>
 
       <section className="card p-4">
-        <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">
-          Weekly hours · {formatHours(weekTotal)} h/week
-        </h2>
+        <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">{t("Weekly hours · {hours} h/week", { hours: formatHours(weekTotal) })}</h2>
         <ScheduleForm hours={hours} />
       </section>
 
       <section className="card space-y-3 p-4">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Default break</h2>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Default break")}</h2>
           <p className="mt-1 text-sm text-zinc-500">
-            Your usual break window on workdays, e.g. <span className="font-mono">12:00-13:00</span> (several with
-            “;”). The weekly table shows it greyed out on days without an entered break — click its + to take it for
-            that day. Breaks you enter always go to Punch as Geht/Kommt.
+            {t("Your usual break window on workdays, e.g.")} <span className="font-mono">12:00-13:00</span>{" "}
+            {t("(several with “;”). The weekly table shows it greyed out on days without an entered break — click its + to take it for that day. Breaks you enter always go to Punch as Geht/Kommt.")}
           </p>
         </div>
         <DefaultPausesForm text={schedule.defaultPauses ?? ""} exportToPunch={schedule.punchDefaultPauses} punchOn={isInstalled("punch")} />
@@ -80,12 +79,11 @@ export default async function SettingsPage() {
 
       <section className="card space-y-3 p-4">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Flex time (Gleitzeit)</h2>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Flex time (Gleitzeit)")}</h2>
           <p className="mt-1 text-sm text-zinc-500">
-            The job for hours you take off your overtime. In the weekly table, days that aren&apos;t fully booked get a
-            greyed-out row for it under the booked jobs — click a day&apos;s <span className="font-mono">+</span> to book
-            its missing hours there with this comment. Punch doesn&apos;t get these hours as working time, so its own
-            flex-time balance goes down.
+            {t("The job for hours you take off your overtime. In the weekly table, days that aren't fully booked get a greyed-out row for it under the booked jobs — click a day's")}{" "}
+            <span className="font-mono">+</span>{" "}
+            {t("to book its missing hours there with this comment. Punch doesn't get these hours as working time, so its own flex-time balance goes down.")}
           </p>
         </div>
         <FlexTimeForm flex={flex} jobs={flexJobOptions} />
@@ -93,10 +91,9 @@ export default async function SettingsPage() {
 
       <section className="card space-y-3 p-4">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Entry type rules</h2>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Entry type rules")}</h2>
           <p className="mt-1 text-sm text-zinc-500">
-            Infer an entry&apos;s type (Ticket, Meeting, Internal, Other, Absence) from its job and description — e.g. job
-            Abwesenheit + “Urlaub” → Absence. Report rules and exports can then key off the type.
+            {t("Infer an entry's type (Ticket, Meeting, Internal, Other, Absence) from its job and description — e.g. job Abwesenheit + “Urlaub” → Absence. Report rules and exports can then key off the type.")}
           </p>
         </div>
         <TypeRulesForm initialRules={getTypeRules()} jobs={jobOptions} types={listEntryTypes()} />
@@ -104,10 +101,9 @@ export default async function SettingsPage() {
 
       <section className="card space-y-3 p-4">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Report rewriting</h2>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Report rewriting")}</h2>
           <p className="mt-1 text-sm text-zinc-500">
-            Rules that rewrite and group the “Report” view on the weekly page — a condition on each
-            entry maps to an output label, and optionally to tags for those entries.
+            {t("Rules that rewrite and group the “Report” view on the weekly page — a condition on each entry maps to an output label, and optionally to tags for those entries.")}
           </p>
         </div>
         <ReportSettingsForm
@@ -125,10 +121,9 @@ export default async function SettingsPage() {
         <>
       <section className="card space-y-3 p-4">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Meeting → job rules</h2>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Meeting → job rules")}</h2>
           <p className="mt-1 text-sm text-zinc-500">
-            Auto-pick a job when importing meetings, by matching the meeting title — e.g. book every
-            “Mob Programming” meeting on your Relaunch job.
+            {t("Auto-pick a job when importing meetings, by matching the meeting title — e.g. book every “Mob Programming” meeting on your Relaunch job.")}
           </p>
         </div>
         <MeetingJobRulesForm
@@ -140,11 +135,10 @@ export default async function SettingsPage() {
 
       <section className="card space-y-3 p-4">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Meeting exclude rules</h2>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Meeting exclude rules")}</h2>
           <p className="mt-1 text-sm text-zinc-500">
-            Imported meetings whose title contains one of these start unticked — for placeholders and reminders like
-            “Zeiten in Chrono Erfassen”. <strong>Exclude</strong> / <strong>Include</strong> next to a meeting on the import
-            page adds or removes it here.
+            {t("Imported meetings whose title contains one of these start unticked — for placeholders and reminders like “Zeiten in Chrono Erfassen”.")}{" "}
+            <strong>{t("Exclude")}</strong> / <strong>{t("Include")}</strong> {t("next to a meeting on the import page adds or removes it here.")}
           </p>
         </div>
         <MeetingExcludeRulesForm initialRules={getMeetingExcludeRules(settings)} />
@@ -153,21 +147,21 @@ export default async function SettingsPage() {
       )}
 
       <section className="card space-y-4 p-4">
-        <h2 className="text-sm font-semibold text-zinc-500 uppercase">Absences &amp; time off</h2>
+        <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Absences & time off")}</h2>
         <AbsenceForm defaultDate={todayIso()} />
 
         {absences.length === 0 ? (
-          <p className="py-2 text-center text-sm text-zinc-500">No absences recorded.</p>
+          <p className="py-2 text-center text-sm text-zinc-500">{t("No absences recorded.")}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="table">
               <thead>
                 <tr>
-                  <th>From</th>
-                  <th>To</th>
-                  <th>Type</th>
-                  <th className="num">Hours/day</th>
-                  <th>Note</th>
+                  <th>{t("From")}</th>
+                  <th>{t("To")}</th>
+                  <th>{t("Type")}</th>
+                  <th className="num">{t("Hours/day")}</th>
+                  <th>{t("Note")}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -177,14 +171,16 @@ export default async function SettingsPage() {
                     <td className="font-mono whitespace-nowrap">{a.startDate}</td>
                     <td className="font-mono whitespace-nowrap">{a.endDate}</td>
                     <td>
-                      <span className="badge badge-web">{ABSENCE_LABELS[a.type as AbsenceType]}</span>
+                      <span className="badge badge-web">{absenceLabels(t)[a.type as AbsenceType]}</span>
                     </td>
-                    <td className="num">{a.hours == null ? "full day" : formatHours(a.hours)}</td>
+                    <td className="num">{a.hours == null ? t("full day") : formatHours(a.hours)}</td>
                     <td>{a.note ?? ""}</td>
                     <td className="text-right">
                       <form action={deleteAbsenceAction}>
                         <input type="hidden" name="id" value={a.id} />
-                        <SubmitButton className="btn btn-sm btn-danger" pendingText="…">Delete</SubmitButton>
+                        <SubmitButton className="btn btn-sm btn-danger" pendingText="…">
+                          {t("Delete")}
+                        </SubmitButton>
                       </form>
                     </td>
                   </tr>

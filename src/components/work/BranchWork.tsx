@@ -5,6 +5,8 @@ import { branchOpAction } from "@/plugins/work/server-actions";
 import type { BranchItem, BranchOp, BranchState } from "@/lib/branches";
 import { toast } from "../Toaster";
 import { formatDate } from "@/lib/format";
+import { useT } from "@/components/I18nProvider";
+import type { T } from "@/lib/i18n/shared";
 
 const STATE_STYLE: Record<BranchState, string> = {
   dirty: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
@@ -15,32 +17,45 @@ const STATE_STYLE: Record<BranchState, string> = {
   merged: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
   gone: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
 };
-const STATE_LABEL: Record<BranchState, string> = { dirty: "uncommitted", unpushed: "local only", ahead: "ahead", "no-mr": "no MR", "mr-open": "MR open", merged: "merged", gone: "gone on origin" };
+const stateLabels = (t: T): Record<BranchState, string> => ({
+  dirty: t("uncommitted"),
+  unpushed: t("local only"),
+  ahead: t("ahead"),
+  "no-mr": t("no MR"),
+  "mr-open": t("MR open"),
+  merged: t("merged"),
+  gone: t("gone on origin"),
+});
 
 /** The button a branch's state calls for (none for uncommitted changes: those are yours). */
-const ACTION: Partial<Record<BranchState, { op: BranchOp; label: string; ask: (b: BranchItem) => string }>> = {
-  unpushed: { op: "push", label: "Push", ask: (b) => `Push ${b.branch} to origin (${b.repo})?` },
-  ahead: { op: "push", label: "Push", ask: (b) => `Push ${b.ahead} commit(s) of ${b.branch} to origin?` },
-  "no-mr": { op: "open-mr", label: "Open MR", ask: (b) => `Open a merge request for ${b.branch} into the default branch?` },
-  "mr-open": { op: "merge", label: "Merge", ask: (b) => `Merge !${b.mr?.iid} (${b.branch}) in GitLab?` },
-  merged: { op: "delete", label: "Delete", ask: (b) => `Delete the local branch ${b.branch}? (It's merged.)` },
-  gone: { op: "delete", label: "Delete", ask: (b) => `Delete the local branch ${b.branch}? Its remote is gone — commits only here would be lost.` },
-};
+const actions = (t: T): Partial<Record<BranchState, { op: BranchOp; label: string; ask: (b: BranchItem) => string }>> => ({
+  unpushed: { op: "push", label: t("Push"), ask: (b) => t("Push {branch} to origin ({repo})?", { branch: b.branch, repo: b.repo }) },
+  ahead: { op: "push", label: t("Push"), ask: (b) => t("Push {n} commit(s) of {branch} to origin?", { n: b.ahead, branch: b.branch }) },
+  "no-mr": { op: "open-mr", label: t("Open MR"), ask: (b) => t("Open a merge request for {branch} into the default branch?", { branch: b.branch }) },
+  "mr-open": { op: "merge", label: t("Merge"), ask: (b) => t("Merge !{iid} ({branch}) in GitLab?", { iid: b.mr?.iid, branch: b.branch }) },
+  merged: { op: "delete", label: t("Delete"), ask: (b) => t("Delete the local branch {branch}? (It's merged.)", { branch: b.branch }) },
+  gone: {
+    op: "delete",
+    label: t("Delete"),
+    ask: (b) => t("Delete the local branch {branch}? Its remote is gone — commits only here would be lost.", { branch: b.branch }),
+  },
+});
 
 function Row({ b }: { b: BranchItem }) {
+  const t = useT();
   const [pending, start] = useTransition();
-  const act = ACTION[b.state];
+  const act = actions(t)[b.state];
   const go = (op: BranchOp, ask?: string) => {
     if (ask && !window.confirm(ask)) return;
     start(async () => {
       const r = await branchOpAction(b.repoId, b.branch, op);
-      toast(r?.ok ? (r.message ?? "Done.") : (r?.error ?? "Didn't work."), { tone: r?.ok ? "ok" : "error", ms: r?.ok ? 8000 : 15000 });
+      toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error", ms: r?.ok ? 8000 : 15000 });
     });
   };
   return (
     <li className={`flex flex-wrap items-center gap-x-2 gap-y-1 py-1.5 text-sm ${b.ignored ? "opacity-60" : ""}`}>
-      <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${STATE_STYLE[b.state]}`}>{STATE_LABEL[b.state]}</span>
-      <span className="font-mono text-xs" title={b.checkedOutAt ? `Checked out in ${b.checkedOutAt}` : undefined}>
+      <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${STATE_STYLE[b.state]}`}>{stateLabels(t)[b.state]}</span>
+      <span className="font-mono text-xs" title={b.checkedOutAt ? t("Checked out in {path}", { path: b.checkedOutAt }) : undefined}>
         {b.branch}
       </span>
       {b.mr && (
@@ -58,8 +73,8 @@ function Row({ b }: { b: BranchItem }) {
             {pending ? "…" : act.label}
           </button>
         )}
-        <button type="button" className="btn btn-sm" disabled={pending} onClick={() => go(b.ignored ? "unignore" : "ignore")} title={b.ignored ? "List it again" : "Don't list this branch any more"}>
-          {b.ignored ? "Show again" : "Ignore"}
+        <button type="button" className="btn btn-sm" disabled={pending} onClick={() => go(b.ignored ? "unignore" : "ignore")} title={b.ignored ? t("List it again") : t("Don't list this branch any more")}>
+          {b.ignored ? t("Show again") : t("Ignore")}
         </button>
       </span>
     </li>
@@ -72,13 +87,14 @@ function Row({ b }: { b: BranchItem }) {
  * ones (no commit for 30 days) can be ignored at once; ignored ones fold away.
  */
 export function BranchWork({ items }: { items: BranchItem[] }) {
+  const t = useT();
   const [showIgnored, setShowIgnored] = useState(false);
   const [pending, start] = useTransition();
   const repos = [...new Set(items.map((b) => b.repoId))];
   if (!items.some((b) => !b.ignored)) return null;
   return (
     <section className="card space-y-3 p-4">
-      <h2 className="text-sm font-semibold text-zinc-500 uppercase">Branches</h2>
+      <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Branches")}</h2>
       {repos.map((id) => {
         const list = items.filter((b) => b.repoId === id);
         const shown = list.filter((b) => !b.ignored);
@@ -96,16 +112,16 @@ export function BranchWork({ items }: { items: BranchItem[] }) {
                   onClick={() =>
                     start(async () => {
                       const r = await branchOpAction(id, "", "ignore-stale");
-                      toast(r?.ok ? (r.message ?? "Done.") : (r?.error ?? "Didn't work."), { tone: r?.ok ? "ok" : "error" });
+                      toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" });
                     })
                   }
                 >
-                  Ignore the {stale.length} older than 30 days
+                  {t("Ignore the {n} older than 30 days", { n: stale.length })}
                 </button>
               )}
               {ignored.length > 0 && (
                 <button type="button" className="hover:underline" onClick={() => setShowIgnored(!showIgnored)}>
-                  {showIgnored ? "Hide" : "Show"} ignored ({ignored.length})
+                  {showIgnored ? t("Hide ignored ({n})", { n: ignored.length }) : t("Show ignored ({n})", { n: ignored.length })}
                 </button>
               )}
             </div>

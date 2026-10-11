@@ -1,11 +1,13 @@
 "use client";
 
 import { setTodoStatusAction } from "@/plugins/todos/server-actions";
-import { TODO_KIND_LABELS, type TodoSource, type TodoView } from "@/lib/boards/shared";
+import { todoKindLabels, type TodoSource, type TodoView } from "@/lib/boards/shared";
 import { ChevronIcon } from "./icons";
 import { TodoSources } from "./boards/TodoSources";
 import { ResolveToggle } from "./ResolveToggle";
 import { formatDate, formatTime } from "@/lib/format";
+import { useT } from "@/components/I18nProvider";
+import type { T } from "@/lib/i18n/shared";
 
 const day = (iso: string) => formatDate(iso, { weekday: false });
 const full = (iso: string) => `${formatDate(iso, { year: true })}, ${formatTime(iso)}`;
@@ -13,7 +15,7 @@ const full = (iso: string) => `${formatDate(iso, { year: true })}, ${formatTime(
 /** Where a todo is shown: the Todos page (its Done tab once it's closed) — brought into view there. */
 export const todoHref = (t: Pick<TodoView, "id" | "status">) => (t.status === "open" ? `/todos#todo-${t.id}` : `/todos?todos=done#todo-${t.id}`);
 
-const STATUS = { open: "open", done: "done", dismissed: "dismissed" } as const;
+const STATUS = (t: T) => ({ open: t("open"), done: t("done"), dismissed: t("dismissed") });
 
 /** Green once it's done, blue while it's open. */
 const TONE = {
@@ -38,8 +40,9 @@ const TONE = {
  * done — and what it asks. With `onToggle` a click unfolds it (the chevron); ↗ shows it on the
  * Todos page.
  */
-export function TodoBadge({ t, className = "", expanded = false, onToggle }: { t: TodoView; className?: string; expanded?: boolean; onToggle?: () => void }) {
-  const closed = t.status !== "open";
+export function TodoBadge({ t: todo, className = "", expanded = false, onToggle }: { t: TodoView; className?: string; expanded?: boolean; onToggle?: () => void }) {
+  const t = useT();
+  const closed = todo.status !== "open";
   const tone = TONE[closed ? "done" : "open"];
   const what = (
     <>
@@ -48,31 +51,31 @@ export function TodoBadge({ t, className = "", expanded = false, onToggle }: { t
         <rect x="3.5" y="3.5" width="13" height="13" rx="2.5" />
         {closed && <path d="m7 10.25 2 2 4-4.5" />}
       </svg>
-      <span className="shrink-0 font-mono font-medium">{t.ref}</span>
+      <span className="shrink-0 font-mono font-medium">{todo.ref}</span>
       {/* Ticket, kind and state — on a phone it gives way too (ellipsis). */}
       <span className={`shrink-0 max-sm:min-w-0 max-sm:shrink max-sm:truncate ${tone.meta}`}>
-        {t.ticket} · {TODO_KIND_LABELS[t.kind]} · {closed ? `${STATUS[t.status]} ${day(t.doneAt ?? t.updatedAt)}` : STATUS.open}
+        {todo.ticket} · {todoKindLabels(t)[todo.kind]} · {closed ? `${STATUS(t)[todo.status]} ${day(todo.doneAt ?? todo.updatedAt)}` : STATUS(t).open}
       </span>
-      <span className={`min-w-0 truncate ${tone.words}`}>{t.text}</span>
+      <span className={`min-w-0 truncate ${tone.words}`}>{todo.text}</span>
     </>
   );
   const inner = "flex min-w-0 flex-1 items-center gap-2 py-1 pr-2 pl-1.5 text-left";
   return (
     <div className={`flex min-w-0 items-stretch overflow-hidden rounded-md border text-xs ${tone.box} ${className}`}>
       {onToggle ? (
-        <button type="button" className={`${inner} cursor-pointer transition ${tone.hover}`} onClick={onToggle} aria-expanded={expanded} title={expanded ? "Fold" : "Show the whole todo"}>
+        <button type="button" className={`${inner} cursor-pointer transition ${tone.hover}`} onClick={onToggle} aria-expanded={expanded} title={expanded ? t("Fold") : t("Show the whole todo")}>
           {what}
         </button>
       ) : (
         <span className={inner}>{what}</span>
       )}
       <a
-        href={todoHref(t)}
+        href={todoHref(todo)}
         target="_blank"
         rel="noreferrer"
         className={`flex shrink-0 items-center px-2 transition ${tone.accent} ${tone.hover}`}
-        title={`Show ${t.ref} on the Todos page`}
-        aria-label={`Show ${t.ref} on the Todos page`}
+        title={t("Show {ref} on the Todos page", { ref: todo.ref })}
+        aria-label={t("Show {ref} on the Todos page", { ref: todo.ref })}
       >
         ↗
       </a>
@@ -84,7 +87,8 @@ export function TodoBadge({ t, className = "", expanded = false, onToggle }: { t
  * A board todo in full, as a card: what it asks, why it was closed, what it came from (`from`:
  * badges with hover cards) — tick it done here too.
  */
-export function TodoDetails({ t, from = [] }: { t: TodoView; from?: TodoSource[] }) {
+export function TodoDetails({ t: todo, from = [] }: { t: TodoView; from?: TodoSource[] }) {
+  const t = useT();
   const row = (label: string, value: string | null | undefined, mono = false) =>
     value ? (
       <>
@@ -96,33 +100,33 @@ export function TodoDetails({ t, from = [] }: { t: TodoView; from?: TodoSource[]
     <div className="space-y-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex items-center justify-between gap-2 text-xs text-zinc-500">
         <span>
-          Todo · {TODO_KIND_LABELS[t.kind]}
-          {t.owner === "other" ? " · waiting on others" : ""}
-          {t.status === "dismissed" ? " · dismissed" : ""}
+          {t("Todo")} · {todoKindLabels(t)[todo.kind]}
+          {todo.owner === "other" ? ` · ${t("waiting on others")}` : ""}
+          {todo.status === "dismissed" ? ` · ${t("dismissed")}` : ""}
         </span>
         <span className="flex items-center gap-2">
-          {t.status !== "dismissed" && (
+          {todo.status !== "dismissed" && (
             <ResolveToggle
-              done={t.status === "done"}
-              onChange={(next) => setTodoStatusAction(t.id, next ? "done" : "open")}
-              hint={{ done: `${t.ref} is done. Click: reopen.`, open: `Mark ${t.ref} as done` }}
+              done={todo.status === "done"}
+              onChange={(next) => setTodoStatusAction(todo.id, next ? "done" : "open")}
+              hint={{ done: t("{ref} is done. Click: reopen.", { ref: todo.ref }), open: t("Mark {ref} as done", { ref: todo.ref }) }}
             />
           )}
-          <a href={todoHref(t)} target="_blank" rel="noreferrer" className="font-medium text-indigo-600 hover:underline dark:text-indigo-400">
-            Open in Boards ↗
+          <a href={todoHref(todo)} target="_blank" rel="noreferrer" className="font-medium text-indigo-600 hover:underline dark:text-indigo-400">
+            {t("Open in Boards")} ↗
           </a>
         </span>
       </div>
-      <p className="leading-snug">{t.text}</p>
-      {t.note && <p className="text-xs text-zinc-500">{t.note}</p>}
+      <p className="leading-snug">{todo.text}</p>
+      {todo.note && <p className="text-xs text-zinc-500">{todo.note}</p>}
       {/* Everything it has: what it came from, and the notes on it — yours and the runs' reports. */}
-      {(from.length > 0 || t.userNotes.length > 0) && <TodoSources list={from} notes={t.userNotes} />}
+      {(from.length > 0 || todo.userNotes.length > 0) && <TodoSources list={from} notes={todo.userNotes} />}
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
-        {row("Todo", t.ref, true)}
-        {row("Ticket", t.ticket, true)}
-        {row("Source", t.source)}
-        {row("Found", full(t.createdAt))}
-        {t.doneAt && row(t.status === "dismissed" ? "Dismissed" : "Done", full(t.doneAt))}
+        {row(t("Todo"), todo.ref, true)}
+        {row(t("Ticket"), todo.ticket, true)}
+        {row(t("Source"), todo.source)}
+        {row(t("Found"), full(todo.createdAt))}
+        {todo.doneAt && row(todo.status === "dismissed" ? t("Dismissed") : t("Done"), full(todo.doneAt))}
       </dl>
     </div>
   );

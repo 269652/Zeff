@@ -7,6 +7,8 @@ import { OFFERED_ACTIONS, actionOf, cleanActions } from "@/plugins/actions/catal
 import type { MailView } from "@/lib/mail/shared";
 import type { GitlabItemView } from "@/lib/gitlab/shared";
 import type { TeamsMessageView } from "@/lib/teams/shared";
+import { translator, type T } from "@/lib/i18n/shared";
+import { catalogText } from "@/plugins/catalog-text";
 
 /** Where a ticket stands, as a run reads it: what its stripe says and how urgent it sorts. */
 export const ATTENTIONS = [
@@ -30,6 +32,17 @@ export const ATTENTION_LABELS: Record<Attention, string> = {
   stale: "Stalled",
 };
 
+/** The same in a language (`t`) — for what's shown. */
+export const attentionLabels = (t: T): Record<Attention, string> => ({
+  feedback: t("Open question"),
+  active: t("In progress"),
+  check: t("Testing / Review"),
+  spec: t("Spec"),
+  blocked: t("Waiting on others"),
+  ready: t("Ready"),
+  stale: t("Stalled"),
+});
+
 export const isAttention = (v: unknown): v is Attention =>
   (ATTENTIONS as readonly unknown[]).includes(v);
 
@@ -50,6 +63,7 @@ export const TODO_KINDS = [
 ] as const;
 export type TodoKind = (typeof TODO_KINDS)[number];
 
+/** German: the prompts (the work brief, the auto-actions review) use them too — the pages show `todoKindLabels(t)`. */
 export const TODO_KIND_LABELS: Record<TodoKind, string> = {
   reply: "Antworten",
   comment: "Kommentieren",
@@ -64,6 +78,22 @@ export const TODO_KIND_LABELS: Record<TodoKind, string> = {
   merge: "Ausliefern",
   other: "Sonstiges",
 };
+
+/** What a todo asks for, in a language (`t`) — for what's shown. */
+export const todoKindLabels = (t: T): Record<TodoKind, string> => ({
+  reply: t("Reply"),
+  comment: t("Comment"),
+  update: t("Update ticket"),
+  implement: t("Implement"),
+  fix: t("Fix"),
+  test: t("Test"),
+  review: t("Review"),
+  clarify: t("Clarify"),
+  document: t("Docs"),
+  deploy: t("Deploy"),
+  merge: t("Deliver"),
+  other: t("Other"),
+});
 
 export const isTodoKind = (v: unknown): v is TodoKind =>
   (TODO_KINDS as readonly unknown[]).includes(v);
@@ -133,9 +163,14 @@ export const DELIVERY_OP_TYPES = [
 /** The operations an AI may propose: the offered actions of all plugins (which are installed is checked where they're offered). */
 export const TODO_OP_TYPES = OFFERED_ACTIONS.map((a) => a.type);
 
-/** An operation in a few words: "PROJ-415 → Testing", "PROJ-415 zuweisen: clorenz", "Thread note:461450 auflösen". */
+/** An operation in a few words: "PROJ-415 → Testing", "PROJ-415 zuweisen: clorenz", "Thread note:461450 auflösen" — in English (one argument, so `ops.map(opLabel)` works; shown: opTitle). */
 export function opLabel(op: TodoOp): string {
-  return (actionOf(op.type).title as (o: TodoOp) => string)(op);
+  return opTitle(op, translator("en"));
+}
+
+/** The same in `t`'s language — for what's shown. */
+export function opTitle(op: TodoOp, t: T): string {
+  return (actionOf(op.type).title as (o: TodoOp, t?: T) => string)(op, t);
 }
 
 /**
@@ -158,22 +193,22 @@ export function opsSettle(t: Pick<TodoView, "kind" | "owner" | "ops" | "text">):
 /** A todo that asks someone to review or approve (a merge request) — "um Approval bitten", "erneut prüfen lassen". */
 export const asksForApproval = (text: string) => /approv|freigabe|(erneut|nochmal|noch einmal)[^.]{0,40}(prüf|review)|um (ein )?review|review[^.]{0,20}bitten/i.test(text);
 
-/** What a button running these operations says: the action ("Merge", "Comment & Assign"), else "Run". */
-export function opsButton(ops: TodoOp[]): string {
-  const verb = (o: TodoOp) => actionOf(o.type).verb;
+/** What a button running these operations says: the action ("Merge", "Comment & Assign"), else "Run" (in `t`'s language; English when none is given). */
+export function opsButton(ops: TodoOp[], t: T = translator("en")): string {
+  const verb = (o: TodoOp) => catalogText(t, actionOf(o.type).verb);
   // A delivery (commit → push → MR, or → merge): its final step names it.
   const last = ops[ops.length - 1];
   if (ops.length > 1 && last && ["gitlab-open-mr", "git-merge-main", "gitlab-merge"].includes(last.type) && ops.every((o) => actionOf(o.type).delivery)) return verb(last);
   const verbs = [...new Set(ops.map(verb))];
-  return verbs.length === 0 ? "Run" : verbs.length <= 2 ? verbs.join(" & ") : "Run";
+  return verbs.length === 0 ? t("Run") : verbs.length <= 2 ? verbs.join(" & ") : t("Run");
 }
 
 /**
  * An operation as a note: its heading ("MR öffnen") and the line under it — what exactly
  * (branches, ticket and status, …); for one with a text (comment, reply, message) that's `body`.
  */
-export function opNote(op: TodoOp): { heading: string; detail: string | null; body: string | null; files?: string[] } {
-  return (actionOf(op.type).note as (o: TodoOp) => ReturnType<typeof opNote>)(op);
+export function opNote(op: TodoOp, t?: T): { heading: string; detail: string | null; body: string | null; files?: string[] } {
+  return (actionOf(op.type).note as (o: TodoOp, t?: T) => ReturnType<typeof opNote>)(op, t);
 }
 
 /** Operations as an AI hands them over, cleaned: the ones that are complete, in Zeff's shapes (each action's own rules). */

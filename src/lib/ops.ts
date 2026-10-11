@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
-import { opLabel, type TodoView } from "@/lib/boards/shared";
+import { opLabel, opTitle, type TodoView } from "@/lib/boards/shared";
 import { errorMessage } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { actionHref, actionOf } from "@/plugins/actions/catalog";
 import { RUNNERS } from "@/plugins/actions/run";
 import type { NextTodo } from "@/plugins/actions/run-types";
@@ -36,7 +37,7 @@ export async function runTodoOps(
     while (left.length) {
       const op = left[0];
       // An action needs its plugin installed.
-      if (!opAvailable(op.type)) throw new Error(`${opLabel(op)}: not installed (Menu → Plugins).`);
+      if (!opAvailable(op.type)) throw new Error(t("{action}: not installed (Menu → Plugins).", { action: opTitle(op, t) }));
       note(`[Zeff] ${opLabel(op)} …`);
       if (op.type.startsWith("jira-")) {
         // The Jira operations in a row go in one session.
@@ -53,14 +54,14 @@ export async function runTodoOps(
         continue;
       }
       const runner = RUNNERS[op.type];
-      if (!runner) throw new Error(`${opLabel(op)}: there's nothing to run it.`);
+      if (!runner) throw new Error(t("{action}: there's nothing to run it.", { action: opTitle(op, t) }));
       const r = await runner(op, { todo, note });
       left.shift();
       done.push(r.what);
       // What it left to know (a sent message): on the todo — its reference, its note.
       if (r.ref || r.todoNote) {
-        const t = getDb().select({ refs: schema.todos.refs }).from(schema.todos).where(eq(schema.todos.id, todo.id)).get();
-        const refs = [...new Set([...(JSON.parse(t?.refs ?? "[]") as string[]), ...(r.ref ? [r.ref] : [])])];
+        const row = getDb().select({ refs: schema.todos.refs }).from(schema.todos).where(eq(schema.todos.id, todo.id)).get();
+        const refs = [...new Set([...(JSON.parse(row?.refs ?? "[]") as string[]), ...(r.ref ? [r.ref] : [])])];
         getDb()
           .update(schema.todos)
           .set({ refs: JSON.stringify(refs), ...(r.todoNote ? { note: r.todoNote.slice(0, 500) } : {}) })
@@ -89,11 +90,11 @@ export async function runTodoOpsNow(todoId: number): Promise<{ done: string[]; s
   const store = await import("@/lib/boards/store");
   const { opsSettle, todoRef } = await import("@/lib/boards/shared");
   const todo = store.getTodo(todoId);
-  if (!todo) throw new Error(`${todoRef(todoId)} doesn't exist.`);
-  if (todo.status !== "open") throw new Error(`${todo.ref} is ${todo.status === "done" ? "done" : "dismissed"} already.`);
-  if (!todo.ops.length) throw new Error(`${todo.ref} has no actions.`);
+  if (!todo) throw new Error(t("{ref} doesn't exist.", { ref: todoRef(todoId) }));
+  if (todo.status !== "open") throw new Error(todo.status === "done" ? t("{ref} is done already.", { ref: todo.ref }) : t("{ref} is dismissed already.", { ref: todo.ref }));
+  if (!todo.ops.length) throw new Error(t("{ref} has no actions.", { ref: todo.ref }));
   const running = (globalThis as { __zeffOpsNow?: Set<number> }).__zeffOpsNow ??= new Set();
-  if (running.has(todoId)) throw new Error(`${todo.ref} is running already.`);
+  if (running.has(todoId)) throw new Error(t("{ref} is running already.", { ref: todo.ref }));
   running.add(todoId);
   try {
     const { done, next } = await runTodoOps(todo, (line) => console.log(`[ops ${todo.ref}] ${line}`));

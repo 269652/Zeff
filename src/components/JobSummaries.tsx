@@ -4,15 +4,16 @@ import type { TicketCard } from "@/lib/jira/ticket-card-shared";
 import type { JobLabelSummary, JobReportSummary } from "@/lib/report";
 import { TicketLink } from "./TicketLink";
 import { TypeBadge } from "./TypeBadge";
+import { t } from "@/lib/i18n/server";
 
 /** A label, with its ticket key as a Jira link when the label starts with it ("PROJ-401: …"). */
 function Label({ line, tickets }: { line: JobLabelSummary; tickets: Record<string, TicketCard> }) {
-  const t = line.ticket?.trim();
-  if (t && line.label.toUpperCase().startsWith(t.toUpperCase())) {
+  const key = line.ticket?.trim();
+  if (key && line.label.toUpperCase().startsWith(key.toUpperCase())) {
     return (
       <>
-        <TicketLink ticket={t} card={tickets[t.toUpperCase()]} />
-        {line.label.slice(t.length)}
+        <TicketLink ticket={key} card={tickets[key.toUpperCase()]} />
+        {line.label.slice(key.length)}
       </>
     );
   }
@@ -31,7 +32,7 @@ export function JobSummaries({
   types: Record<string, EntryTypeDef>;
   tickets: Record<string, TicketCard>;
 }) {
-  if (jobs.length === 0) return <p className="py-4 text-center text-sm text-zinc-500">No time booked in this month.</p>;
+  if (jobs.length === 0) return <p className="py-4 text-center text-sm text-zinc-500">{t("No time booked in this month.")}</p>;
   return (
     <div className="space-y-3">
       {jobs.map((j) => (
@@ -58,9 +59,12 @@ export function JobSummaries({
                 <span className="flex shrink-0 items-center gap-2">
                   <span
                     className="text-xs text-zinc-400 tabular-nums"
-                    title={`${l.count} entr${l.count === 1 ? "y" : "ies"} on ${l.days} day${l.days === 1 ? "" : "s"}`}
+                    title={t("{entries} on {days}", {
+                      entries: l.count === 1 ? t("1 entry") : t("{n} entries", { n: l.count }),
+                      days: l.days === 1 ? t("1 day") : t("{n} days", { n: l.days }),
+                    })}
                   >
-                    {l.days} day{l.days === 1 ? "" : "s"}
+                    {l.days === 1 ? t("1 day") : t("{n} days", { n: l.days })}
                   </span>
                   <TypeBadge type={l.type} types={types} />
                   <span className="min-w-[7ch] border-l border-zinc-200 pl-2 text-right font-medium tabular-nums dark:border-zinc-700">

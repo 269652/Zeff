@@ -6,6 +6,7 @@ import { dataDir } from "@/db";
 import { ACCOUNTS_DIR, currentAccountId, DEFAULT_ACCOUNT } from "@/db/accounts";
 import { getAppSettings, updateAppSettings } from "@/lib/ai";
 import { errorMessage, ValidationError } from "@/lib/errors";
+import { t } from "@/lib/i18n/server";
 import { CONFIG_FILE, exportConfig, importConfig, parseConfig } from "./config";
 import { createZip, readZip, type ZipEntry } from "./zip";
 
@@ -71,18 +72,18 @@ export function getBackupSettings(): BackupSettingsView {
 /** Change the settings — the password only when one is given (`clearPassword`: none any more). */
 export function saveBackupSettings(v: { enabled: boolean; everyHours: number; keepDaily: number; keepWeekly: number; keepMonthly: number; config?: boolean; dir: string; password?: string; clearPassword?: boolean }): BackupSettingsView & { moved: number } {
   const everyHours = Math.round(Number(v.everyHours));
-  if (!(everyHours >= 1 && everyHours <= 24 * 30)) throw new ValidationError("Interval: 1 hour to 30 days.");
+  if (!(everyHours >= 1 && everyHours <= 24 * 30)) throw new ValidationError(t("Interval: 1 hour to 30 days."));
   const count = (n: number, what: string, max: number) => {
     const k = Math.round(Number(n));
-    if (!(k >= 0 && k <= max)) throw new ValidationError(`${what}: 0 to ${max}.`);
+    if (!(k >= 0 && k <= max)) throw new ValidationError(t("{what}: 0 to {max}.", { what, max }));
     return k;
   };
-  const keepDaily = count(v.keepDaily, "Daily", 365);
-  const keepWeekly = count(v.keepWeekly, "Weekly", 260);
-  const keepMonthly = count(v.keepMonthly, "Monthly", 240);
-  if (!keepDaily && !keepWeekly && !keepMonthly) throw new ValidationError("At least one tier has to keep backups.");
+  const keepDaily = count(v.keepDaily, t("Daily"), 365);
+  const keepWeekly = count(v.keepWeekly, t("Weekly"), 260);
+  const keepMonthly = count(v.keepMonthly, t("Monthly"), 240);
+  if (!keepDaily && !keepWeekly && !keepMonthly) throw new ValidationError(t("At least one tier has to keep backups."));
   const dir = v.dir.trim();
-  if (dir && !path.isAbsolute(dir)) throw new ValidationError("Folder: an absolute path (or empty for data\\backups).");
+  if (dir && !path.isAbsolute(dir)) throw new ValidationError(t("Folder: an absolute path (or empty for {dir}).", { dir: "data\\backups" }));
   // Another folder: it must be writable — and the backups there so far move along.
   const from = backupDir();
   const to = backupDir(dir);
@@ -108,7 +109,7 @@ function moveBackups(from: string, to: string): number {
     fs.writeFileSync(probe, "");
     fs.rmSync(probe, { force: true });
   } catch (e) {
-    throw new ValidationError(`Zeff can't write to ${to}: ${errorMessage(e)}`);
+    throw new ValidationError(t("Zeff can't write to {dir}: {error}", { dir: to, error: errorMessage(e) }));
   }
   let n = 0;
   for (const name of listBackups(from).flatMap((b) => (b.config ? [b.name, configName(b.name)] : [b.name]))) {
@@ -195,7 +196,13 @@ export function runBackup(label = ""): Promise<{ ok: boolean; message: string; f
       // the ones made by hand around a restore — the others go (their config ZIPs with them).
       const old = listBackups(dir).filter((b) => !b.tiers.length);
       for (const b of old) for (const n of [b.name, configName(b.name)]) fs.rmSync(path.join(dir, n), { force: true });
-      const message = `${name}${s.backupConfig ? " (+ configuration)" : ""} · ${(zip.length / 1048576).toFixed(1)} MB · ${entries.length} files${s.backupPassword ? " · encrypted" : " · NOT ENCRYPTED (no password set)"}${old.length ? ` · ${old.length} old ones removed` : ""}`;
+      const message = [
+        s.backupConfig ? `${name} ${t("(+ configuration)")}` : name,
+        `${(zip.length / 1048576).toFixed(1)} MB`,
+        t("{n} files", { n: entries.length }),
+        s.backupPassword ? t("encrypted") : t("NOT ENCRYPTED (no password set)"),
+        ...(old.length ? [t("{n} old ones removed", { n: old.length })] : []),
+      ].join(" · ");
       updateAppSettings({ backupLastAt: new Date().toISOString(), backupLastOk: true, backupLastResult: message });
       return { ok: true, message, file };
     } catch (e) {
@@ -292,15 +299,15 @@ export function listBackups(dir = backupDir()): BackupFile[] {
 
 /** A backup's path in the folder — only names from the list (no paths). */
 export function backupPath(name: string): string {
-  if (!name.startsWith(prefix()) || !/^zeff-[\w.-]+\.zip$/.test(name)) throw new ValidationError("Unknown backup.");
+  if (!name.startsWith(prefix()) || !/^zeff-[\w.-]+\.zip$/.test(name)) throw new ValidationError(t("Unknown backup."));
   const file = path.join(backupDir(), name);
-  if (!fs.existsSync(file)) throw new ValidationError(`${name} doesn't exist (any more).`);
+  if (!fs.existsSync(file)) throw new ValidationError(t("{name} doesn't exist (any more).", { name }));
   return file;
 }
 
 /** An uploaded backup, put in the folder (to restore it from there). Its name in the list. */
 export function storeUploadedBackup(original: string, data: Buffer): string {
-  if (data.readUInt32LE(0) !== 0x04034b50) throw new ValidationError("That's not a ZIP file.");
+  if (data.readUInt32LE(0) !== 0x04034b50) throw new ValidationError(t("That's not a ZIP file."));
   const base = path.basename(original).replace(/\.zip$/i, "").replace(/[^\w.-]+/g, "_").slice(0, 80);
   const name = `${prefix()}upload-${stamp()}-${base}.zip`;
   fs.mkdirSync(backupDir(), { recursive: true });
@@ -317,7 +324,7 @@ export async function stageRestore(name: string, password?: string): Promise<{ f
   const file = backupPath(name);
   const entries = readZip(fs.readFileSync(file), password || getAppSettings().backupPassword || undefined);
   const db = entries.find((e) => e.name === DB_FILE);
-  if (!db) throw new ValidationError(`No ${DB_FILE} in the backup — not a Zeff backup?`);
+  if (!db) throw new ValidationError(t("No {file} in the backup — not a Zeff backup?", { file: DB_FILE }));
   // A Zeff database: it opens, and has the tables.
   const probe = path.join(os.tmpdir(), `zeff-restore-probe-${Date.now()}.db`);
   fs.writeFileSync(probe, db.data);
@@ -325,9 +332,9 @@ export async function stageRestore(name: string, password?: string): Promise<{ f
     const d = new Database(probe, { readonly: true });
     try {
       const ok = d.prepare("select count(*) n from sqlite_master where type='table' and name in ('time_entries','jobs')").get() as { n: number };
-      if (ok.n < 2) throw new ValidationError("The database in the backup isn't a Zeff database.");
+      if (ok.n < 2) throw new ValidationError(t("The database in the backup isn't a Zeff database."));
       const check = d.pragma("quick_check", { simple: true });
-      if (check !== "ok") throw new ValidationError(`The database in the backup is damaged: ${String(check)}`);
+      if (check !== "ok") throw new ValidationError(t("The database in the backup is damaged: {check}", { check: String(check) }));
     } finally {
       d.close();
     }
@@ -336,7 +343,7 @@ export async function stageRestore(name: string, password?: string): Promise<{ f
   }
   // The state now, kept first.
   const safety = await runBackup("vor-wiederherstellung");
-  if (!safety.ok) throw new Error(`Backing up the current state failed — nothing restored: ${safety.message}`);
+  if (!safety.ok) throw new Error(t("Backing up the current state failed — nothing restored: {error}", { error: safety.message }));
   const RESTORE_DIR = restoreDir();
   fs.rmSync(RESTORE_DIR, { recursive: true, force: true });
   for (const e of entries) {
@@ -357,13 +364,13 @@ export function importConfigZip(from: { backup: string } | { data: Buffer }, pas
   let data: Buffer;
   if ("backup" in from) {
     const file = path.join(backupDir(), configName(path.basename(backupPath(from.backup))));
-    if (!fs.existsSync(file)) throw new ValidationError("There's no configuration for this backup.");
+    if (!fs.existsSync(file)) throw new ValidationError(t("There's no configuration for this backup."));
     data = fs.readFileSync(file);
   } else data = from.data;
-  if (data.length < 4 || data.readUInt32LE(0) !== 0x04034b50) throw new ValidationError("That's not a ZIP file.");
+  if (data.length < 4 || data.readUInt32LE(0) !== 0x04034b50) throw new ValidationError(t("That's not a ZIP file."));
   const entries = readZip(data, password || getAppSettings().backupPassword || undefined);
   const cfg = entries.find((e) => e.name === CONFIG_FILE);
-  if (!cfg) throw new ValidationError(`No ${CONFIG_FILE} in the ZIP — not a Zeff configuration?`);
+  if (!cfg) throw new ValidationError(t("No {file} in the ZIP — not a Zeff configuration?", { file: CONFIG_FILE }));
   const c = parseConfig(cfg.data);
   return { ...importConfig(c), account: c.account };
 }

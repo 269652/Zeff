@@ -2,6 +2,7 @@ import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { t } from "@/lib/i18n/server";
 import { connection } from "next/server";
 import { clearJiraAction } from "@/plugins/jira/server-actions";
 import { BoardEnableToggle } from "@/components/BoardEnableToggle";
@@ -41,11 +42,11 @@ export default async function JiraPage({
   const cfg = getJiraSyncConfig();
   const stats = jiraStats();
   const allTickets = listJiraTickets();
-  const mineCount = allTickets.filter((t) => t.mine).length;
-  const tickets = mineOnly ? allTickets.filter((t) => t.mine) : allTickets;
+  const mineCount = allTickets.filter((x) => x.mine).length;
+  const tickets = mineOnly ? allTickets.filter((x) => x.mine) : allTickets;
   const boards = listJiraBoards();
   const jobRows = listJobs();
-  const allTags = listTags().map((t) => t.name);
+  const allTags = listTags().map((x) => x.name);
   const ticketTags = listDefaultTagMaps().tickets;
   const jobs = jobRows.map((j) => ({ number: j.number, name: j.name }));
   const ui = await getUiOpen();
@@ -58,14 +59,13 @@ export default async function JiraPage({
         <div>
           <h1 className="text-lg font-semibold">Jira</h1>
           <p className="text-sm text-zinc-500">
-            A local, syncable copy of your assigned tickets. Feeds the ticket autocomplete, ticket→job
-            memory, and completion tracking in Analysis.
+            {t("A local, syncable copy of your assigned tickets. Feeds the ticket autocomplete, ticket→job memory, and completion tracking in Analysis.")}
           </p>
         </div>
         {stats.total > 0 && (
           <form action={clearJiraAction}>
-            <SubmitButton className="btn btn-sm btn-danger" pendingText="…" confirm="Delete all synced tickets?">
-              Clear
+            <SubmitButton className="btn btn-sm btn-danger" pendingText="…" confirm={t("Delete all synced tickets?")}>
+              {t("Clear")}
             </SubmitButton>
           </form>
         )}
@@ -73,55 +73,58 @@ export default async function JiraPage({
 
       <section className="card space-y-3 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Sync</h2>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Sync")}</h2>
           <span className="text-xs text-zinc-500">
             {cfg.configured
-              ? `via ${cfg.source === "mcp.json" ? ".mcp.json" : "env"}: ${cfg.command} ${cfg.args.join(" ")} · ${cfg.tool}`
-              : "no Jira MCP server configured"}
-            {stats.lastSyncedAt ? ` · last synced ${stats.lastSyncedAt.replace("T", " ").slice(0, 16)}` : ""}
+              ? t("via {source}: {command} · {tool}", {
+                  source: cfg.source === "mcp.json" ? ".mcp.json" : "env",
+                  command: `${cfg.command} ${cfg.args.join(" ")}`,
+                  tool: cfg.tool,
+                })
+              : t("no Jira MCP server configured")}
+            {stats.lastSyncedAt ? ` · ${t("last synced {at}", { at: stats.lastSyncedAt.replace("T", " ").slice(0, 16) })}` : ""}
           </span>
         </div>
         <JiraSyncControls configured={cfg.configured} ui={ui} />
         {cfg.configured && (
           <p className="text-xs text-zinc-400">
             JQL: <code className="code">{cfg.jql}</code>
-            {cfg.baseUrl ? ` · ${cfg.baseUrl}` : ""}. Runs the Jira MCP server directly (no LLM); first
-            run is slow while <code className="code">uvx</code> starts it.
+            {cfg.baseUrl ? ` · ${cfg.baseUrl}` : ""}. {t("Runs the Jira MCP server directly (no LLM); first run is slow while")}{" "}
+            <code className="code">uvx</code> {t("starts it.")}
           </p>
         )}
       </section>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <Stat label="Tickets" value={String(stats.total)} />
-        <Stat label="To do" value={String(stats.byCategory.todo)} />
-        <Stat label="In progress" value={String(stats.byCategory.inprogress)} tone="amber" />
-        <Stat label="Done" value={String(stats.byCategory.done)} tone="emerald" />
-        <Stat label="Linked to a job" value={String(stats.withJob)} />
+        <Stat label={t("Tickets")} value={String(stats.total)} />
+        <Stat label={t("To do")} value={String(stats.byCategory.todo)} />
+        <Stat label={t("In progress")} value={String(stats.byCategory.inprogress)} tone="amber" />
+        <Stat label={t("Done")} value={String(stats.byCategory.done)} tone="emerald" />
+        <Stat label={t("Linked to a job")} value={String(stats.withJob)} />
       </div>
 
       <section className="card space-y-3 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase">Boards → default job</h2>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Boards → default job")}</h2>
           <BoardSyncControls />
         </div>
         <p className="text-xs text-zinc-400">
-          Only <strong>enabled</strong> boards are synced and feed the ticket dropdown — uncheck stale boards to
-          declutter. Map a board to a job and every ticket on it defaults to that job (override per ticket below).
-          Re-syncing only re-reads enabled and newly-found boards.
+          {t("Only")} <strong>{t("enabled")}</strong>{" "}
+          {t("boards are synced and feed the ticket dropdown — uncheck stale boards to declutter. Map a board to a job and every ticket on it defaults to that job (override per ticket below). Re-syncing only re-reads enabled and newly-found boards.")}
         </p>
         {boards.length === 0 ? (
-          <p className="py-2 text-sm text-zinc-500">No boards yet — click “Sync boards”.</p>
+          <p className="py-2 text-sm text-zinc-500">{t("No boards yet — click “Sync boards”.")}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="table">
               <thead>
                 <tr>
-                  <th className="text-center">On</th>
-                  <th>Board</th>
-                  <th>Type</th>
-                  <th>Project</th>
-                  <th className="text-right">Tickets</th>
-                  <th>Default job</th>
+                  <th className="text-center">{t("On")}</th>
+                  <th>{t("Board")}</th>
+                  <th>{t("Type")}</th>
+                  <th>{t("Project")}</th>
+                  <th className="text-right">{t("Tickets")}</th>
+                  <th>{t("Default job")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -148,71 +151,71 @@ export default async function JiraPage({
       <section className="card p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">
-            Tickets ({tickets.length}{mineOnly ? ` of ${allTickets.length}` : ""})
+            {mineOnly ? t("Tickets ({n} of {total})", { n: tickets.length, total: allTickets.length }) : t("Tickets ({n})", { n: tickets.length })}
           </h2>
           <div className="flex items-center gap-1">
-            <Link href="/jira" className={`btn btn-sm ${mineOnly ? "" : "btn-primary"}`}>All {allTickets.length}</Link>
-            <Link href="/jira?mine=1" className={`btn btn-sm ${mineOnly ? "btn-primary" : ""}`}>Mine {mineCount}</Link>
+            <Link href="/jira" className={`btn btn-sm ${mineOnly ? "" : "btn-primary"}`}>{t("All {n}", { n: allTickets.length })}</Link>
+            <Link href="/jira?mine=1" className={`btn btn-sm ${mineOnly ? "btn-primary" : ""}`}>{t("Mine {n}", { n: mineCount })}</Link>
           </div>
         </div>
         {tickets.length === 0 ? (
           <p className="py-4 text-center text-sm text-zinc-500">
-            {mineOnly ? "None of the synced tickets are assigned to you." : "No tickets yet. Sync from Jira, or paste issues JSON above."}
+            {mineOnly ? t("None of the synced tickets are assigned to you.") : t("No tickets yet. Sync from Jira, or paste issues JSON above.")}
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Key</th>
-                  <th>Type</th>
-                  <th>Summary</th>
-                  <th>Status</th>
-                  <th>Assignee</th>
-                  <th>Board</th>
-                  <th>Job</th>
-                  <th title="Default tags: added to every entry booked on the ticket">Tags</th>
+                  <th>{t("Key")}</th>
+                  <th>{t("Type")}</th>
+                  <th>{t("Summary")}</th>
+                  <th>{t("Status")}</th>
+                  <th>{t("Assignee")}</th>
+                  <th>{t("Board")}</th>
+                  <th>{t("Job")}</th>
+                  <th title={t("Default tags: added to every entry booked on the ticket")}>{t("Tags")}</th>
                 </tr>
               </thead>
               <tbody>
-                {tickets.map((t) => {
-                  const board = t.boardId != null ? boardMap.get(t.boardId) : undefined;
+                {tickets.map((tk) => {
+                  const board = tk.boardId != null ? boardMap.get(tk.boardId) : undefined;
                   const boardJob =
                     board?.enabled && board.jobNumber
                       ? { number: board.jobNumber, name: jobName.get(board.jobNumber) ?? board.jobNumber }
                       : null;
                   return (
-                    <tr key={t.id} className={`${t.active ? "" : "opacity-50"} ${t.mine ? "bg-indigo-50/50 dark:bg-indigo-950/20" : ""}`}>
+                    <tr key={tk.id} className={`${tk.active ? "" : "opacity-50"} ${tk.mine ? "bg-indigo-50/50 dark:bg-indigo-950/20" : ""}`}>
                       <td className="font-mono whitespace-nowrap">
-                        {t.url ? (
-                          <a href={t.url} target="_blank" rel="noreferrer" className="hover:underline">{t.key}</a>
+                        {tk.url ? (
+                          <a href={tk.url} target="_blank" rel="noreferrer" className="hover:underline">{tk.key}</a>
                         ) : (
-                          t.key
+                          tk.key
                         )}
                       </td>
-                      <td className="whitespace-nowrap text-xs text-zinc-500">{t.issueType ?? ""}</td>
-                      <td className="max-w-md truncate" title={t.summary}>{t.summary}</td>
+                      <td className="whitespace-nowrap text-xs text-zinc-500">{tk.issueType ?? ""}</td>
+                      <td className="max-w-md truncate" title={tk.summary}>{tk.summary}</td>
                       <td className="whitespace-nowrap">
-                        <span className={`badge ${CAT_BADGE[t.statusCategory]}`}>{t.status || t.statusCategory}</span>
+                        <span className={`badge ${CAT_BADGE[tk.statusCategory]}`}>{tk.status || tk.statusCategory}</span>
                       </td>
                       <td className="whitespace-nowrap">
-                        {t.assignee ? (
+                        {tk.assignee ? (
                           <span
-                            className={`badge ${t.mine ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300" : "badge-web"}`}
-                            title={t.mine ? "Assigned to you" : t.assignee}
+                            className={`badge ${tk.mine ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300" : "badge-web"}`}
+                            title={tk.mine ? t("Assigned to you") : tk.assignee}
                           >
-                            {t.assignee}
+                            {tk.assignee}
                           </span>
                         ) : (
-                          <span className="text-xs text-zinc-400">Unassigned</span>
+                          <span className="text-xs text-zinc-400">{t("Unassigned")}</span>
                         )}
                       </td>
                       <td className="whitespace-nowrap text-xs text-zinc-500" title={board?.name}>{board?.name ?? ""}</td>
                       <td>
-                        <JiraJobSelect ticketKey={t.key} jobs={jobs} current={t.jobNumber} boardJob={boardJob} />
+                        <JiraJobSelect ticketKey={tk.key} jobs={jobs} current={tk.jobNumber} boardJob={boardJob} />
                       </td>
                       <td>
-                        <TicketTagsEditor ticketKey={t.key} tags={ticketTags[t.key.toUpperCase()] ?? []} allTags={allTags} />
+                        <TicketTagsEditor ticketKey={tk.key} tags={ticketTags[tk.key.toUpperCase()] ?? []} allTags={allTags} />
                       </td>
                     </tr>
                   );
