@@ -7,7 +7,7 @@
  * say, the work ones go and the rest stays. Client-safe (data only).
  */
 
-export const PLUGIN_IDS = ["zeiterfassung", "weekly-report", "monthly-report", "todos", "tickets", "kanban", "jira-lage", "work", "work-elevated", "auto-actions", "backup", "accounts", "knowledge", "people", "jira", "llm", "copilot-cli", "claude-cli", "outlook-mail", "gmail", "whatsapp", "keep", "keep-write", "calendar", "google-calendar", "outlook-calendar", "teams", "gitlab", "chrono", "punch", "lang-en", "lang-de", "lang-es"] as const;
+export const PLUGIN_IDS = ["zeiterfassung", "weekly-report", "monthly-report", "todos", "tickets", "kanban", "jira-lage", "work", "work-elevated", "auto-actions", "backup", "accounts", "knowledge", "people", "jira", "llm", "copilot-cli", "claude-cli", "codex-cli", "outlook-mail", "gmail", "whatsapp", "keep", "keep-write", "calendar", "google-calendar", "outlook-calendar", "teams", "gitlab", "chrono", "punch", "lang-en", "lang-de", "lang-es"] as const;
 export type PluginId = (typeof PLUGIN_IDS)[number];
 export const isPluginId = (v: unknown): v is PluginId => (PLUGIN_IDS as readonly unknown[]).includes(v);
 
@@ -40,7 +40,7 @@ export type PluginManifest = {
   /** The services it signs in to (sign-in prompts). */
   services?: string[];
   /** The AI provider it is. */
-  aiProvider?: "copilot" | "claude";
+  aiProvider?: "copilot" | "claude" | "codex";
   /** What it brings to other plugins — extensions (see extensions.ts), there while all their plugins are. */
   extensions?: import("./extensions").ExtensionDecl[];
   /** Beta: works, but may break — the warning shown with it (Plugins page, before installing, where it acts). */
@@ -279,6 +279,16 @@ export const PLUGINS: PluginManifest[] = [
     dependsOn: ["llm"],
     requires: "The Claude CLI (claude), signed in.",
     aiProvider: "claude",
+  },
+  {
+    id: "codex-cli",
+    name: "ChatGPT (Codex CLI)",
+    description: "ChatGPT as the AI for the briefing, the mail steps and the other AI tasks — through OpenAI's Codex CLI, signed in with your ChatGPT account.",
+    category: "ai",
+    defaultInstalled: false,
+    dependsOn: ["llm"],
+    requires: "The Codex CLI (npm install -g @openai/codex), signed in once (codex login).",
+    aiProvider: "codex",
   },
   {
     id: "outlook-mail",

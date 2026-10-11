@@ -712,6 +712,7 @@ export const appSettings = sqliteTable("app_settings", {
   aiProvider: text("ai_provider").notNull().default("claude"),
   claudeModel: text("claude_model").notNull().default(""),
   copilotModel: text("copilot_model").notNull().default(""),
+  codexModel: text("codex_model").notNull().default(""),
   /** Work tab: how many workers run at once. */
   workParallel: integer("work_parallel").notNull().default(2),
   /** Claude Code's permission mode for workers (auto: its classifier decides each action). */

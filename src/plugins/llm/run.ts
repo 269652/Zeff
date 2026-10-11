@@ -1,13 +1,14 @@
 /**
  * The LLM plugin: the one way Zeff asks an AI — a task (the Ticket-Lage, the mail steps, the
- * auto-actions …) through its backend (the Copilot CLI or the Claude CLI plugin, as set for the
+ * auto-actions …) through its backend (the Copilot, Claude or Codex CLI plugin, as set for the
  * task or by default), with your instructions and context in front of every prompt. Server only.
  */
-import { aiChoice, getAppSettings, type AiAnswer } from "@/lib/ai";
+import { aiChoice, defaultModelOf, type AiAnswer } from "@/lib/ai";
 import { AI_PROVIDER_INFO, type AiProvider } from "@/lib/ai/shared";
 import { ValidationError } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { runClaude } from "@/plugins/claude-cli/cli";
+import { runCodex } from "@/plugins/codex-cli/cli";
 import { runCopilot } from "@/plugins/copilot-cli/cli";
 import { isInstalled, providerAvailable } from "@/plugins/state";
 import { getLlmSettings } from "./settings";
@@ -16,10 +17,10 @@ import { LLM_PREAMBLE_MAX, type LlmTaskId } from "./tasks";
 /** Which backend and model a task runs with: its own (if that backend is installed), else the default. */
 export function llmChoice(task: LlmTaskId): { provider: AiProvider; model: string } {
   const own = getLlmSettings().tasks[task];
-  const app = getAppSettings();
-  const provider: AiProvider = own?.provider && providerAvailable(own.provider) ? own.provider : aiChoice().provider;
-  const fallback = provider === "copilot" ? app.copilotModel : app.claudeModel;
-  return { provider, model: (own?.model && own.provider === provider ? own.model : "") || fallback };
+  let provider: AiProvider = own?.provider && providerAvailable(own.provider) ? own.provider : aiChoice().provider;
+  // Workers on the Work tab run on Claude or Copilot (ChatGPT's workers aren't there yet): the first of those installed.
+  if (task === "worker" && provider === "codex") provider = (["claude", "copilot"] as const).find((p) => providerAvailable(p)) ?? "copilot";
+  return { provider, model: (own?.model && own.provider === provider ? own.model : "") || defaultModelOf(provider) };
 }
 
 /** Your instructions and context, as they go in front of a prompt (or to a worker / agent) — "" when there are none. */
@@ -43,12 +44,13 @@ export function llm<T>(task: LlmTaskId, prompt: string, schema: object, opts: { 
   const choice = llmChoice(task);
   const provider = opts.provider ?? choice.provider;
   if (!providerAvailable(provider)) return Promise.reject(new ValidationError(t("{provider}: the plugin is not installed (Menu → Plugins).", { provider: AI_PROVIDER_INFO[provider].label })));
-  const app = getAppSettings();
-  const model = (opts.provider && opts.provider !== choice.provider ? (provider === "copilot" ? app.copilotModel : app.claudeModel) : choice.model) || undefined;
+  const model = (opts.provider && opts.provider !== choice.provider ? defaultModelOf(provider) : choice.model) || undefined;
   const preamble = llmPreamble();
   // Last: what comes last weighs most — the user's word over the task's own rules.
   const full = preamble ? `${prompt}\n\n---\n\n${preamble}` : prompt;
   return provider === "copilot"
     ? runCopilot<T>(full, schema, { model, timeoutMs: opts.timeoutMs })
-    : runClaude<T>(full, schema, { model, timeoutMs: opts.timeoutMs, maxBudgetUsd: opts.maxBudgetUsd });
+    : provider === "codex"
+      ? runCodex<T>(full, schema, { model, timeoutMs: opts.timeoutMs })
+      : runClaude<T>(full, schema, { model, timeoutMs: opts.timeoutMs, maxBudgetUsd: opts.maxBudgetUsd });
 }

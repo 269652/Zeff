@@ -1,6 +1,7 @@
 import { getDb, schema } from "@/db";
 import type { AppSettings } from "@/db/schema";
 import { findClaudeCli } from "@/plugins/claude-cli/cli";
+import { findCodexCli } from "@/plugins/codex-cli/cli";
 import { findCopilotCli } from "@/plugins/copilot-cli/cli";
 import type { LlmTaskId } from "@/plugins/llm/tasks";
 import { AI_PROVIDER_INFO, AI_PROVIDERS, type AiAnswer, type AiProvider } from "./shared";
@@ -29,7 +30,7 @@ export function aiProviders(): { id: AiProvider; label: string; found: string | 
   return AI_PROVIDERS.filter((id) => providerAvailable(id)).map((id) => ({
     id,
     label: AI_PROVIDER_INFO[id].label,
-    found: id === "claude" ? findClaudeCli() : (findCopilotCli()?.where ?? null),
+    found: id === "claude" ? findClaudeCli() : id === "codex" ? (findCodexCli()?.where ?? null) : (findCopilotCli()?.where ?? null),
   }));
 }
 
@@ -39,8 +40,12 @@ export function aiChoice(): { provider: AiProvider; model: string; maxPrompt: nu
   // The one chosen — while its plugin is installed; else the first installed (Copilot by default).
   const chosen = AI_PROVIDERS.find((p) => p === s.aiProvider);
   const provider: AiProvider = chosen && providerAvailable(chosen) ? chosen : (AI_PROVIDERS.find((p) => providerAvailable(p)) ?? "copilot");
-  return { provider, model: provider === "copilot" ? s.copilotModel : s.claudeModel, maxPrompt: null };
+  return { provider, model: defaultModelOf(provider, s), maxPrompt: null };
 }
+
+/** A provider's own default model, as set on the LLM page ("" = its CLI's). */
+export const defaultModelOf = (provider: AiProvider, s: AppSettings = getAppSettings()): string =>
+  provider === "copilot" ? s.copilotModel : provider === "codex" ? s.codexModel : s.claudeModel;
 
 /**
  * A prompt answered as JSON matching `schema` — through the LLM plugin (its task's backend and
