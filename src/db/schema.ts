@@ -302,6 +302,10 @@ export const emails = sqliteTable(
     isGroup: integer("is_group", { mode: "boolean" }),
     /** WhatsApp, in a group: to you — it mentions you or quotes your message (null: not known). */
     toMe: integer("to_me", { mode: "boolean" }),
+    /** The list shows attachments on it (null: not known — read before Zeff looked). */
+    hasAttachments: integer("has_attachments", { mode: "boolean" }),
+    /** How the driver finds the message again to fetch its attachments (Gmail: msg-f:<id>; Outlook: the item id). */
+    attachRef: text("attach_ref"),
   },
   (t) => [index("emails_received_idx").on(t.receivedAt), index("emails_conv_idx").on(t.convId)],
 );
@@ -1215,6 +1219,34 @@ export const calendarEvents = sqliteTable(
     updatedAt: text("updated_at").notNull(),
   },
   (t) => [uniqueIndex("calendar_events_key").on(t.calendarId, t.key), index("calendar_events_start").on(t.start)],
+);
+
+/**
+ * Mail attachments taken into the Documents store (src/lib/mail/attachments-sync.ts): one row per
+ * attachment of a mail — also the "seen already" list, so a sync never fetches the same one twice.
+ * status: done (a document, `docId`) | skipped (the rules said no, `error` says why) | failed
+ * (retried a few times) | none (a mail the list flagged but that has nothing to take; att_key "").
+ */
+export const mailAttachments = sqliteTable(
+  "mail_attachments",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    /** outlook | gmail */
+    source: text("source").notNull(),
+    /** emails.key */
+    mailKey: text("mail_key").notNull(),
+    /** "<name>|<size>" — what identifies an attachment of a mail across fetches. */
+    attKey: text("att_key").notNull(),
+    name: text("name").notNull().default(""),
+    mime: text("mime").notNull().default(""),
+    size: integer("size").notNull().default(0),
+    docId: integer("doc_id"),
+    status: text("status").notNull(),
+    error: text("error").notNull().default(""),
+    tries: integer("tries").notNull().default(0),
+    fetchedAt: text("fetched_at").notNull(),
+  },
+  (t) => [uniqueIndex("mail_attachments_key").on(t.source, t.mailKey, t.attKey), index("mail_attachments_doc").on(t.docId)],
 );
 
 /**

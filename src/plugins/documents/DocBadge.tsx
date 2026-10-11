@@ -4,6 +4,7 @@ import { useT } from "@/components/I18nProvider";
 import { ChevronIcon } from "@/components/icons";
 import { formatDate } from "@/lib/format";
 import { KIND_ICONS, sizeText, type DocView } from "./shared";
+import type { DocOrigin } from "@/lib/mail/shared";
 
 const BADGE = "flex min-w-0 items-stretch overflow-hidden rounded-md border border-teal-200 bg-teal-50 text-xs text-teal-950 dark:border-teal-900 dark:bg-teal-950/40 dark:text-teal-100";
 const INNER = "flex min-w-0 flex-1 items-center gap-2 py-1 pr-2 pl-1.5 text-left";
@@ -36,8 +37,20 @@ function statusText(d: DocView, t: ReturnType<typeof useT>): string {
   return d.status === "ready" ? "" : d.status === "queued" || d.status === "extracting" ? t("being read …") : d.status === "unsupported" ? t("not readable") : t("failed");
 }
 
+/** "from mail <subject>" — a document that came from a mail's attachment (Mail attachments → Documents). */
+export function OriginLine({ o }: { o: DocOrigin }) {
+  const t = useT();
+  const when = formatDate(o.receivedAt, { weekday: false });
+  return (
+    <span className="block min-w-0 truncate text-xs text-zinc-500" title={[o.subject, o.from, when].filter(Boolean).join(" · ")}>
+      {t("from mail")} <span className="text-zinc-700 dark:text-zinc-300">{o.subject}</span>
+      {o.from ? " · " + o.from : ""} · {when}
+    </span>
+  );
+}
+
 /** A document's card: what it is, its abstract (the knowledge server's, once it compiled it), concepts, and a link to the file. */
-export function DocDetails({ d }: { d: DocView }) {
+export function DocDetails({ d, origin }: { d: DocView; origin?: DocOrigin }) {
   const t = useT();
   return (
     <div className="space-y-1.5 rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -49,6 +62,7 @@ export function DocDetails({ d }: { d: DocView }) {
           {sizeText(d.size)} · {formatDate(d.createdAt, { weekday: false, year: true })}
         </span>
       </div>
+      {origin && <OriginLine o={origin} />}
       {d.status === "ready" ? (
         <>
           <p className="text-xs font-semibold text-zinc-500 uppercase">{d.compiled ? t("Abstract") : t("Beginning (not compiled yet)")}</p>
