@@ -13,6 +13,13 @@
  *   GET  /health            → { ok, children }
  *   POST /spawn { runId, account, command, args, cwd, env, stdin, outFile, errFile, live? } → { pid }
  *   POST /message { runId, text } → { ok } — into a live run, or 409 when it is closing / not live
+ *   POST /write { runId, line } → { ok } — one stream-json line as it is (a live Claude session's
+ *        answers to its permission requests, interrupt, mode or model switches)
+ *   POST /close { runId } → { ok } — ends a live run's stdin (the CLI finishes and quits)
+ *   POST /kill { runId } → { ok } — the run's process and everything it started, gone
+ *
+ * A live session (`keep`) stays open until Zeff closes it — a conversation waits for you between
+ * turns; its first lines (`stdinLines`) go in as they are.
  *
  * A live run (Claude with --input-format stream-json): its stdin stays open, the first message is
  * `stdin`, more come through /message — the CLI takes them in when it is idle (or at its next
@@ -115,8 +122,9 @@ function start(spec) {
   child.on("exit", () => void report(c));
   child.stdin.on("error", () => {}); // a CLI that quits early: its exit says why
   if (spec.live) {
-    c.live = { stdin: child.stdin, closed: false, timer: null };
-    child.stdin.write(userLine(stdin ?? ""), "utf8");
+    c.live = { stdin: child.stdin, closed: false, timer: null, keep: !!spec.keep };
+    if (Array.isArray(spec.stdinLines)) for (const line of spec.stdinLines) child.stdin.write(`${line}${NL}`, "utf8");
+    else child.stdin.write(userLine(stdin ?? ""), "utf8");
     watchOutput(c, outFile);
     child.on("exit", () => {
       c.live.closed = true;
@@ -128,6 +136,22 @@ function start(spec) {
   save();
   log(`run ${runId}: ${path.basename(command)} pid ${c.pid}`);
   return c.pid;
+}
+
+/** A run's process and everything it started (tests, servers) — gone. */
+function killTree(pid) {
+  if (!pid) return;
+  if (process.platform === "win32") spawn("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+  else
+    try {
+      process.kill(-pid, "SIGTERM");
+    } catch {
+      try {
+        process.kill(pid, "SIGTERM");
+      } catch {
+        // gone already
+      }
+    }
 }
 
 /** Closes a live run's stdin once the CLI has answered and nothing follows. */
@@ -166,6 +190,7 @@ function watchOutput(c, file) {
       }
       if (type === "result") {
         clearTimeout(c.live.timer);
+        if (c.live.keep) continue; // a session: open till Zeff closes it
         c.live.timer = setTimeout(() => closeLive(c), IDLE_MS);
       } else if (type === "assistant" || type === "stream_event") clearTimeout(c.live.timer);
     }
@@ -190,6 +215,37 @@ const server = http.createServer((req, res) => {
     req.on("end", () => {
       try {
         send(200, { pid: start(JSON.parse(body)) });
+      } catch (e) {
+        send(400, { error: e instanceof Error ? e.message : String(e) });
+      }
+    });
+    return;
+  }
+  if (req.method === "POST" && (req.url === "/write" || req.url === "/close" || req.url === "/kill")) {
+    let body = "";
+    req.on("data", (d) => {
+      body += d;
+      if (body.length > 64 * 1024 * 1024) req.destroy(); // images go along: big, not that big
+    });
+    req.on("end", () => {
+      try {
+        const { runId, line } = JSON.parse(body);
+        const c = children.get(runId);
+        if (!c) return send(404, { error: "unknown run" });
+        if (req.url === "/kill") {
+          killTree(c.pid);
+          return send(200, { ok: true });
+        }
+        if (!c.live || c.live.closed) return send(409, { error: "closed" });
+        if (req.url === "/close") {
+          closeLive(c);
+          return send(200, { ok: true });
+        }
+        if (typeof line !== "string") return send(400, { error: "no line" });
+        JSON.parse(line); // one JSON line, nothing else
+        clearTimeout(c.live.timer);
+        c.live.stdin.write(`${line.replace(/[\r\n]+/g, " ")}${NL}`, "utf8");
+        send(200, { ok: true });
       } catch (e) {
         send(400, { error: e instanceof Error ? e.message : String(e) });
       }

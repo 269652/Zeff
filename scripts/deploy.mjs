@@ -102,7 +102,15 @@ function busyRuns() {
     if (!fs.existsSync(f)) continue;
     const db = new Database(f, { readonly: true });
     try {
-      for (const t of ["board_runs", "work_runs"]) for (const r of db.prepare(`select id, status from ${t} where status in ('running','queued')`).all()) if (!(OWN_RUN && t === "work_runs" && r.id === OWN_RUN.id && account === OWN_RUN.account) && !(t === "work_runs" && r.status === "running" && hosted.has(`${account}:${r.id}`))) busy.push(`${path.relative(DATA, f)} ${t} #${r.id}`);
+      for (const t of ["board_runs", "work_runs"])
+        for (const r of db.prepare(`select id, status from ${t} where status in ('running','queued')`).all()) {
+          if (OWN_RUN && t === "work_runs" && r.id === OWN_RUN.id && account === OWN_RUN.account) continue;
+          // A worker on the launcher's work host outlives the restart (the host reports its end).
+          if (t === "work_runs" && r.status === "running" && hosted.has(`${account}:${r.id}`)) continue;
+          // An administrator session runs under its own host (scripts/work-session-host.mjs): it outlives it too.
+          if (t === "work_runs" && fs.existsSync(path.join(path.dirname(f), "work", "sessions", `${r.id}.host.json`))) continue;
+          busy.push(`${path.relative(DATA, f)} ${t} #${r.id}`);
+        }
     } finally {
       db.close();
     }

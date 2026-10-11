@@ -7,7 +7,7 @@
  * say, the work ones go and the rest stays. Client-safe (data only).
  */
 
-export const PLUGIN_IDS = ["zeiterfassung", "weekly-report", "monthly-report", "todos", "tickets", "kanban", "jira-lage", "work", "auto-actions", "backup", "accounts", "knowledge", "people", "jira", "llm", "copilot-cli", "claude-cli", "outlook-mail", "gmail", "whatsapp", "keep", "keep-write", "calendar", "google-calendar", "outlook-calendar", "teams", "gitlab", "roar", "timo", "lang-en", "lang-de", "lang-es"] as const;
+export const PLUGIN_IDS = ["zeiterfassung", "weekly-report", "monthly-report", "todos", "tickets", "kanban", "jira-lage", "work", "work-elevated", "auto-actions", "backup", "accounts", "knowledge", "people", "jira", "llm", "copilot-cli", "claude-cli", "outlook-mail", "gmail", "whatsapp", "keep", "keep-write", "calendar", "google-calendar", "outlook-calendar", "teams", "gitlab", "roar", "timo", "lang-en", "lang-de", "lang-es"] as const;
 export type PluginId = (typeof PLUGIN_IDS)[number];
 export const isPluginId = (v: unknown): v is PluginId => (PLUGIN_IDS as readonly unknown[]).includes(v);
 
@@ -139,6 +139,19 @@ export const PLUGINS: PluginManifest[] = [
     tabs: [{ href: "/work", label: "Work", short: "Work" }],
     nav: [{ href: "/repos", label: "Repos", hint: "Where workers implement" }],
     routes: ["/work", "/api/work", "/repos"],
+  },
+  {
+    id: "work-elevated",
+    settings: { href: "/work/admin", what: "Ask Windows each time (UAC), or start them without asking (a scheduled task, set up once)" },
+    name: "Admin sessions",
+    description:
+      "Live Claude sessions on the Work tab as administrator (Windows): installing software, services, system settings, anything that needs elevation. Each time Windows asks you (UAC) — or, set up once, a scheduled task starts them without asking.",
+    category: "app",
+    defaultInstalled: false,
+    dependsOn: ["work", "claude-cli"],
+    requires: "Windows, and an administrator account (UAC).",
+    routes: ["/work/admin"],
+    beta: "An administrator session can change anything on this computer — and in Bypass or Auto mode it does so without asking you first. Use Ask mode unless you know what it will do. Automatic start (the scheduled task) means no prompt at all: anything that can write to your user profile could get a process elevated through it. Set it up only on a computer you alone use.",
   },
   {
     id: "auto-actions",

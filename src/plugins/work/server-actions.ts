@@ -25,6 +25,8 @@ export async function startSessionAction(v: {
   repoPath?: string;
   branch?: string;
   workspace?: string;
+  /** A live Claude session's choices: mode, model, effort, isolation, as administrator. */
+  session?: import("@/lib/work/shared").SessionOptions;
 }): Promise<{ ok: true; runId: number } | { ok: false; error: string }> {
   try {
     const instruction = String(v.instruction ?? "").trim();
@@ -36,12 +38,13 @@ export async function startSessionAction(v: {
       return { ok: true, runId: run.id };
     }
     if (!instruction) return { ok: false, error: t("What should the worker do?") };
+    const session = await checkSession(v.session);
     const { isAiProvider } = await import("@/lib/ai/shared");
     const { dispatchTodo } = await import("@/lib/work/runner");
     if (v.continueRunId) {
       const { getRun } = await import("@/lib/work/store");
       const prev = getRun(Number(v.continueRunId));
-      if (!prev) return { ok: false, error: "Diese Session gibt es nicht mehr." };
+      if (!prev) return { ok: false, error: t("That session doesn't exist any more.") };
       // Still working: the message goes into the running session (it takes it in when idle).
       if (prev.status === "running" && prev.provider === "claude" && !isAiProvider(v.provider)) {
         const { messageRunningSession } = await import("@/lib/work/runner");
@@ -49,7 +52,7 @@ export async function startSessionAction(v: {
         revalidatePath("/work");
         return { ok: true, runId: prev.id };
       }
-      const run = dispatchTodo(prev.todoId, { instruction, continueRun: prev.id, provider: isAiProvider(v.provider) ? v.provider : undefined });
+      const run = dispatchTodo(prev.todoId, { instruction, continueRun: prev.id, provider: isAiProvider(v.provider) ? v.provider : undefined, conversation: true, session });
       revalidatePath("/work");
       return { ok: true, runId: run.id };
     }
@@ -67,6 +70,8 @@ export async function startSessionAction(v: {
       repoPath: v.repoPath?.trim() || undefined,
       branch: v.branch?.trim() || undefined,
       workspace,
+      conversation: true,
+      session,
     });
     revalidatePath("/work");
     return { ok: true, runId: run.id };
@@ -86,11 +91,11 @@ export async function switchSessionBranchAction(runId: number, branch: string): 
     const { isActive } = await import("@/lib/work/shared");
     const { switchBranch } = await import("@/lib/work/git");
     const r = getRun(Number(runId));
-    if (!r) return { ok: false, error: "Diese Session gibt es nicht mehr." };
+    if (!r) return { ok: false, error: t("That session doesn't exist any more.") };
     // The conversation's newest run is the session.
     const last = (runsForTodos([r.todoId]).get(r.todoId) ?? [r])[0] ?? r;
-    if (isActive(last.status as import("@/lib/work/shared").WorkStatus)) return { ok: false, error: "The session is working - switch the branch once it has answered." };
-    if (!last.cwd) return { ok: false, error: "This session has no folder of its own." };
+    if (isActive(last.status as import("@/lib/work/shared").WorkStatus)) return { ok: false, error: t("The session is working — switch the branch once it has answered.") };
+    if (!last.cwd) return { ok: false, error: t("This session has no folder of its own.") };
     const now = switchBranch(last.cwd, String(branch));
     // The conversation's runs all follow (a later message starts from the folder as it is now).
     for (const x of runsForTodos([r.todoId]).get(r.todoId) ?? [r]) if (x.cwd === last.cwd) updateRun(x.id, { branch: now });
@@ -99,6 +104,32 @@ export async function switchSessionBranchAction(runId: number, branch: string): 
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
+}
+
+/** The composer's session choices, checked (a page can send anything). */
+async function checkSession(raw: unknown): Promise<import("@/lib/work/shared").SessionOptions | undefined> {
+  if (!raw || typeof raw !== "object") return undefined;
+  const { EFFORTS, isClaudeMode } = await import("@/lib/work/shared");
+  const o = raw as Record<string, unknown>;
+  const out: import("@/lib/work/shared").SessionOptions = {};
+  if (o.permissionMode !== undefined && o.permissionMode !== "") {
+    if (!isClaudeMode(o.permissionMode)) throw new Error(t("Unknown permission mode."));
+    out.permissionMode = o.permissionMode;
+  }
+  if (typeof o.model === "string" && o.model.trim()) {
+    if (!/^[\w.[\]-]{1,80}$/.test(o.model.trim())) throw new Error(t("Unknown model."));
+    out.model = o.model.trim();
+  }
+  if (typeof o.effort === "string" && o.effort) {
+    if (!(EFFORTS as readonly string[]).includes(o.effort)) throw new Error(t("Unknown effort."));
+    out.effort = o.effort as (typeof EFFORTS)[number];
+  }
+  if (o.elevated === true) {
+    const { elevationAvailable } = await import("@/plugins/work-elevated/elevate");
+    if (!elevationAvailable()) throw new Error(t("Admin sessions need Windows and the “Admin sessions” plugin (Plugins)."));
+    out.elevated = true;
+  }
+  return out;
 }
 
 export async function dispatchWorkAction(todoId: number, provider?: string): Promise<ActionState> {
@@ -246,6 +277,45 @@ export async function branchOpAction(repoId: number, branch: string, op: string)
     const message = await branchOp(Number(repoId), String(branch), op as (typeof ops)[number]);
     revalidateAll();
     return { ok: true, message };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** Live Claude sessions' settings (Work → Settings → Claude sessions). */
+export async function saveClaudeSessionSettingsAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  try {
+    const { EFFORTS, isClaudeMode } = await import("@/lib/work/shared");
+    const { updateClaudeSessionSettings } = await import("@/lib/work/store");
+    const mode = str(fd, "mode") ?? "default";
+    const autoMode = str(fd, "autoMode") ?? "auto";
+    if (!isClaudeMode(mode) || !isClaudeMode(autoMode)) return { ok: false, error: t("Unknown permission mode.") };
+    const allowBypass = fd.get("allowBypass") === "on";
+    if (!allowBypass && (mode === "bypassPermissions" || autoMode === "bypassPermissions")) return { ok: false, error: t("Bypass isn't allowed — tick “Bypass may be picked” first.") };
+    const effort = str(fd, "effort") ?? "";
+    if (!(EFFORTS as readonly string[]).includes(effort)) return { ok: false, error: t("Unknown effort.") };
+    const askTimeoutMin = num(fd, "askTimeoutMin") ?? 0;
+    updateClaudeSessionSettings({ live: fd.get("live") === "on", mode, autoMode, effort: effort as (typeof EFFORTS)[number], allowBypass, askTimeoutMin });
+    revalidateAll();
+    return { ok: true, message: t("Saved.") };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** Admin sessions: started without asking (the scheduled task — Windows asks once, now) or with UAC each time. */
+export async function setAdminSessionsAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  try {
+    const { isInstalled } = await import("@/plugins/state");
+    if (!isInstalled("work-elevated")) return { ok: false, error: t("The Admin sessions plugin isn't installed.") };
+    const { installTask, removeTask, setElevationMode } = await import("@/plugins/work-elevated/elevate");
+    const what = str(fd, "do");
+    if (what === "install") await installTask();
+    else if (what === "remove") await removeTask();
+    else if (what === "uac") setElevationMode("uac");
+    else return { ok: false, error: t("Unknown action.") };
+    revalidatePath("/work/admin");
+    return { ok: true, message: what === "install" ? t("Set up — admin sessions start without asking.") : what === "remove" ? t("Removed — Windows asks each time again.") : t("Saved.") };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

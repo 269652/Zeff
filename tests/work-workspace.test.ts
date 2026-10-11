@@ -47,6 +47,9 @@ test("a session works where you picked: another folder, a new branch from a chos
   try {
     const { setInstalled } = await import("@/plugins/state");
     for (const p of ["work", "llm", "claude-cli"] as const) setInstalled(p, true);
+    // One-shot runs (the stand-in answers at once and ends) — live sessions are tests/work-live*.test.ts.
+    const { updateClaudeSessionSettings } = await import("@/lib/work/store");
+    updateClaudeSessionSettings({ live: false });
     const { addSessionTodo } = await import("@/lib/boards/store");
     const { dispatchTodo } = await import("@/lib/work/runner");
     const start = async (opts: Parameters<typeof dispatchTodo>[1]) => {

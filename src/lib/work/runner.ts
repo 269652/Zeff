@@ -26,10 +26,11 @@ import { briefFor, taskFor, workerRules } from "./brief";
 import { listRepos, repoForTicket } from "@/lib/repos";
 import { addBranchWorktree, addWorktree, baseFor, git, gitSummary, repoRoot, switchBranch } from "./git";
 import { startInteractive } from "@/plugins/copilot-cli/interactive";
-import { errPath, logPath, readErrors, readLog, readOutput, workDir } from "./log";
+import { claudeIdle, isClaudeSession, killClaude, liveOutcome, readSessionOpts, reattachClaudeSessions, saveSessionOpts, startClaudeSession } from "@/plugins/claude-cli/live";
+import { errPath, lastJson, logPath, readErrors, readLog, readOutput, workDir } from "./log";
 import { applyOutcome, normalizeResult } from "./outcome";
-import { createRun, getRun, getWorkSettings, runsByStatus, toRunView, updateRun } from "./store";
-import { parseMrTarget, WORK_RESULT_SCHEMA, workModeOf, workRef, type WorkResult, type WorkRunView } from "./shared";
+import { claudeSessionSettings, createRun, getRun, getWorkSettings, runsByStatus, toRunView, updateRun } from "./store";
+import { parseMrTarget, WORK_RESULT_SCHEMA, workModeOf, workRef, type SessionOptions, type WorkResult, type WorkRunView } from "./shared";
 
 /** Zeff's own booking tools — a worker never books: Zeff books its runs (Weekly report). (complete_todo is allowed: it only marks a todo "done by the worker".) */
 const ZEFF_TOOLS = ["report_time", "update_time_entry", "delete_time_entry", "create_job"].map((tool) => `mcp__zeff__${tool}`);
@@ -45,7 +46,7 @@ const jiraConfigPath = (id: number) => path.join(workDir(), `jira-mcp-${id}.json
  * Claude Code session's markers, NODE_ENV=production (npm would skip devDependencies), Next's
  * and npm's variables, Zeff's settings.
  */
-function workerEnv(runId: number, viaHost = false): Record<string, string | undefined> {
+export function workerEnv(runId: number, viaHost = false): Record<string, string | undefined> {
   const env: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (/^(CLAUDECODE|CLAUDE_CODE_ENTRYPOINT|NODE_ENV|PORT|HOSTNAME|DATABASE_PATH|NODE_OPTIONS)$/i.test(k)) continue;
@@ -118,7 +119,8 @@ export function dispatchTodo(
   opts: {
     provider?: AiProvider;
     instruction?: string;
-    /** A session in this repo (Repos page), whatever the ticket says. */ repoId?: number;
+    /** A session in this repo (Repos page), whatever the ticket says. */
+    repoId?: number;
     /** Your next message in this run's conversation: Claude goes on with its session (where it worked), like Claude Code. */
     continueRun?: number;
     /** A folder in a git repo to work in (any folder, not only a registered repo) - its repo is used. */
@@ -127,6 +129,10 @@ export function dispatchTodo(
     branch?: string;
     /** worktree: a new branch from `branch` in a worktree · branch: `branch` itself in a worktree · checkout: in the repo itself. None: the Work settings. */
     workspace?: "worktree" | "branch" | "checkout";
+    /** Started by you to talk to (the composer): it waits for you after each turn — else a task that ends with its result. */
+    conversation?: boolean;
+    /** The composer's choices: mode, model, effort, as administrator. */
+    session?: SessionOptions;
   } = {},
 ): WorkRunView {
   if (!isInstalled("work")) throw new ValidationError(t("Work is not installed (Menu → Plugins) — without it no worker works on todos."));
@@ -171,26 +177,38 @@ export function dispatchTodo(
   const app = getAppSettings();
   // The Work tab's model is one of the Settings provider's; another provider gets its own Settings model.
   const own = provider === "zeff" ? "" : provider === llmChoice("worker").provider ? llmChoice("worker").model : provider === "copilot" ? app.copilotModel : app.claudeModel;
-  const model = (provider === aiChoice().provider ? s.model || own : own) || null;
+  const so = opts.session ?? {};
+  const model = so.model?.trim() || (provider === aiChoice().provider ? s.model || own : own) || null;
   // Claude resumes its session — in the folder it ran in (Claude keeps sessions by folder), so it knows everything said and done.
   const resume = prev && provider === "claude" && prev.provider === "claude" && prev.sessionId && prev.cwd && fs.existsSync(/*turbopackIgnore: true*/ prev.cwd) ? prev : undefined;
+  // A live Claude session (the Work settings): its mode — yours from the composer, else the settings' (yours or Zeff's own runs).
+  const cs = claudeSessionSettings();
+  const live = provider === "claude" && cs.live && m.mode !== "send";
+  const liveMode = so.permissionMode ?? (opts.conversation || prev ? cs.mode : cs.autoMode);
+  if (live && liveMode === "bypassPermissions" && !cs.allowBypass) throw new ValidationError(t("Bypass isn't allowed — Work settings → Claude sessions."));
+  if (so.elevated && !live) throw new ValidationError(t("Only live Claude sessions run as administrator."));
   const run = createRun({
     ticket: todo.ticket,
     todoId,
     mode: m.mode,
     provider,
-    model: resume ? (opts.provider ? model : (prev!.model ?? model)) : model,
-    permissionMode: provider === "claude" ? s.permissionMode : provider === "copilot" ? "allow-all-tools" : null,
+    model: resume ? (opts.provider || so.model ? model : (prev!.model ?? model)) : model,
+    permissionMode: live ? liveMode : provider === "claude" ? s.permissionMode : provider === "copilot" ? "allow-all-tools" : null,
     repo: resume ? resume.repo : repoDir,
     // (A conversation goes on where it worked; a new run starts where you chose.)
     ...(resume ? { workspace: resume.workspace } : { workspace: repoDir && (opts.workspace ?? null), ...(opts.branch ? { base: opts.branch } : {}) }),
     prompt: resume
-      ? `## Deine Anweisung (vom Nutzer — sie geht vor)\n${instruction}`
+      ? `## Deine Anweisung (vom Nutzer — sie geht vor)
+${instruction}`
       : instruction
-        ? `${briefFor(todo)}\n\n## Deine Anweisung (vom Nutzer — sie geht vor)\n${instruction}`
+        ? `${briefFor(todo)}
+
+## Deine Anweisung (vom Nutzer — sie geht vor)
+${instruction}`
         : briefFor(todo),
     ...(resume ? { sessionId: resume.sessionId, cwd: resume.cwd, branch: resume.branch, base: resume.base, baseSha: resume.baseSha } : {}),
   });
+  if (live) saveSessionOpts(run.id, { ...so, permissionMode: liveMode, conversation: !!opts.conversation });
   // Your instruction on the todo, as your words (context for the Lage, workers and agents too).
   if (instruction) addTodoInstruction(todoId, instruction, run.id);
   pump();
@@ -205,7 +223,8 @@ export function pump(): void {
   if (!isInstalled("work")) return;
   const s = getWorkSettings();
   // Agents outside Zeff (through its MCP) work on top of its own workers.
-  const running = runsByStatus(["running"]).filter((r) => r.provider !== "agent");
+  // (A live session waiting for you doesn't hold a worker — like a Claude Code tab you left open.)
+  const running = runsByStatus(["running"]).filter((r) => r.provider !== "agent" && !claudeIdle(r.id));
   let free = s.parallel - running.length;
   if (free <= 0) return;
   const inPlace = (r: WorkRun) => (r.workspace ?? s.isolation) === "checkout";
@@ -248,6 +267,7 @@ function start(id: number): void {
     let branch: string | null = null;
     let base: string | null = null;
     let baseSha: string | null = null;
+    const so = readSessionOpts(id);
     if (resume) {
       ({ cwd, branch, base, baseSha } = { cwd: r.cwd!, branch: r.branch, base: r.base, baseSha: r.baseSha });
     } else if (codeLike(mode) && r.repo) {
@@ -273,9 +293,63 @@ function start(id: number): void {
     // House rules: everyone's, then the repo's own.
     const repoRules = r.repo ? (listRepos().find((x) => x.path === r.repo)?.instructions ?? "") : "";
     // (Your instructions and context from the LLM plugin first — for every worker.)
-    const rules = workerRules([llmPreamble(), s.instructions, repoRules].filter((x) => x.trim()).join("\n\n"));
-    const prompt = `${r.prompt}\n\n${taskFor(mode, { todo, runId: id, repo: r.repo, cwd, branch, base, isolation: r.workspace === "checkout" || (!r.workspace && s.isolation === "checkout") ? "checkout" : "worktree", onExisting: r.workspace === "branch" && !!branch })}`;
+    const rules = workerRules([llmPreamble(), s.instructions, repoRules].filter((x) => x.trim()).join("\n\n"), { conversation: !!so?.conversation });
+    // A conversation going on: just your words. A task: the brief, what to do, and its result as JSON at the end (a live Claude task — without --json-schema).
+    const tail = `\n\nAntworte am Ende mit dem Ergebnis als JSON in einem \`\`\`json-Block, nach diesem JSON-Schema:\n${JSON.stringify(WORK_RESULT_SCHEMA)}`;
+    const isolation = r.workspace === "checkout" || (!r.workspace && s.isolation === "checkout") ? "checkout" : "worktree";
+    const task = taskFor(mode, { todo, runId: id, repo: r.repo, cwd, branch, base, isolation, onExisting: r.workspace === "branch" && !!branch });
+    const prompt = resume && so ? r.prompt : `${r.prompt}\n\n${task}${so && !so.conversation ? tail : ""}`;
     updateRun(id, { cwd, branch, base, baseSha, prompt });
+
+    if (so && r.provider === "claude") {
+      const cli = findClaudeCli();
+      if (!cli) throw new Error(t("The Claude CLI wasn't found — install Claude Code, or set CLAUDE_CLI."));
+      const script = /\.(c|m)?js$/i.test(cli);
+      const cs = claudeSessionSettings();
+      const disallowed = [...ZEFF_TOOLS, ...(codeLike(mode) ? [] : ["Edit", "Write", "MultiEdit", "NotebookEdit"])];
+      const sessionId = resume ? r.sessionId! : randomUUID();
+      updateRun(id, { sessionId });
+      void startClaudeSession(
+        {
+          runId: id,
+          conversation: !!so.conversation,
+          elevated: !!so.elevated,
+          effort: so.effort ?? cs.effort,
+          model: r.model,
+          mode: so.permissionMode ?? cs.autoMode,
+          allowBypass: cs.allowBypass,
+          askTimeoutMin: cs.askTimeoutMin,
+          command: script ? process.execPath : cli,
+          args: [
+            ...(script ? [cli] : []),
+            "-p",
+            "--input-format",
+            "stream-json",
+            "--output-format",
+            "stream-json",
+            "--verbose",
+            "--permission-prompt-tool",
+            "stdio",
+            "--replay-user-messages",
+            "--name",
+            `Zeff ${workRef(id)} · ${r.ticket || "session"}`,
+            "--append-system-prompt",
+            rules,
+            "--disallowedTools",
+            disallowed.join(","),
+            ...(cs.allowBypass ? ["--allow-dangerously-skip-permissions"] : []),
+          ],
+          cwd,
+          resumeSession: resume ? sessionId : null,
+          newSessionId: resume ? null : sessionId,
+        },
+        prompt,
+      ).catch((e) => {
+        fs.appendFileSync(/*turbopackIgnore: true*/ errPath(id), `${errorMessage(e)}\n`);
+        void finalize(id);
+      });
+      return;
+    }
 
     fs.mkdirSync(/*turbopackIgnore: true*/ path.dirname(logPath(id)), { recursive: true });
     let command: string;
@@ -550,28 +624,6 @@ Die Commits liegen auf ${r.branch} (dem gewählten Branch) - nichts wird von Zef
   return `\n\n${t("Test first: {ref} — then the delivery: {text}", { ref: todoRef(test.id), text })}`;
 }
 
-/** The JSON object at the end of a plain-text answer (Copilot's): the last ```json block, else the last object that parses. */
-function lastJson(text: string): unknown {
-  const fences = [...text.matchAll(/```json\s*([\s\S]*?)```/g)];
-  for (const f of fences.reverse()) {
-    try {
-      return JSON.parse(f[1]);
-    } catch {
-      // the next one
-    }
-  }
-  const tail = text.slice(-60000);
-  const end = tail.lastIndexOf("}");
-  for (let i = tail.lastIndexOf("{", end); i >= 0; i = tail.lastIndexOf("{", i - 1)) {
-    try {
-      return JSON.parse(tail.slice(i, end + 1));
-    } catch {
-      // further back
-    }
-  }
-  return null;
-}
-
 /** Runs being finished right now (finishing can wait for Copilot), so a second exit signal doesn't finish them twice. */
 const finishing = ((globalThis as { __zeffWorkFinishing?: Set<number> }).__zeffWorkFinishing ??= new Set<number>());
 
@@ -637,7 +689,18 @@ async function finish(r: WorkRun, gone: boolean): Promise<void> {
   let turns: number | null = null;
   let denials: number | null = null;
   let sessionId = r.sessionId;
-  if (r.provider === "claude") {
+  let closedText: string | null = null;
+  if (r.provider === "claude" && isClaudeSession(id)) {
+    // A live session: its last turn's JSON — or closed by you (no result: nothing taken in, its last words the summary).
+    const o = liveOutcome(id);
+    sessionId = o.sessionId ?? sessionId;
+    costUsd = o.costUsd;
+    turns = o.turns;
+    denials = o.denials;
+    result = o.closed ? null : o.result;
+    if (o.closed) closedText = o.lastText.slice(-4000) || "Closed.";
+    else if (!result) error = readErrors(id) || (o.lastText ? `It ended without a result. Its last words: ${o.lastText.slice(-1500)}` : "The session ended without a result.");
+  } else if (r.provider === "claude") {
     const log = readLog(id);
     const end = log.result;
     sessionId = log.sessionId ?? sessionId;
@@ -665,7 +728,7 @@ async function finish(r: WorkRun, gone: boolean): Promise<void> {
     }
   }
   updateRun(id, {
-    status: result ? "done" : gone ? "interrupted" : "failed",
+    status: result || closedText !== null ? "done" : gone ? "interrupted" : "failed",
     finishedAt,
     durationMs,
     costUsd,
@@ -674,7 +737,7 @@ async function finish(r: WorkRun, gone: boolean): Promise<void> {
     sessionId,
     result: result ? JSON.stringify(result) : null,
     outcome: result?.outcome ?? null,
-    summary: result?.summary ?? null,
+    summary: result?.summary ?? closedText,
     entryLine: result?.entry ?? null,
     gitSummary: gitText || null,
     error: error?.slice(0, 4000) ?? null,
@@ -700,7 +763,8 @@ export function cancelRun(id: number): void {
     error: t("Stopped."),
     gitSummary: codeLike(r.mode) && r.cwd && r.baseSha ? gitSummary(r.cwd, r.baseSha) || null : null,
   });
-  if (r.pid && alive(r.pid)) killTree(r.pid);
+  if (isClaudeSession(id)) killClaude(id);
+  else if (r.pid && alive(r.pid)) killTree(r.pid);
   fs.rmSync(/*turbopackIgnore: true*/ jiraConfigPath(id), { force: true });
   setImmediate(pump);
 }
@@ -712,8 +776,12 @@ export function cancelRun(id: number): void {
  */
 export function resumeWork(): void {
   if (!isInstalled("work")) return;
+  // Live Claude sessions outlive the server (their host): found again, their logs read where they stand.
+  const live = runsByStatus(["running"]).filter((r) => r.provider === "claude" && isClaudeSession(r.id));
+  reattachClaudeSessions(live.map((r) => r.id));
   for (const r of runsByStatus(["running"])) {
     if (r.provider === "agent") continue; // an agent outside Zeff: it ends its run through the MCP
+    if (live.some((x) => x.id === r.id)) continue;
     // A live session was this server's: it's over with the old one — ended, to start again by hand.
     if (r.permissionMode?.startsWith("acp")) {
       if (r.pid && alive(r.pid)) killTree(r.pid);

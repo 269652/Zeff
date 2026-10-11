@@ -22,6 +22,10 @@ export type HostSpawn = {
   errFile: string;
   /** Keep stdin open for more messages (Claude, stream-json input). */
   live?: boolean;
+  /** A live session: open till Zeff closes it (not when it has answered). */
+  keep?: boolean;
+  /** Its first stream-json lines, as they are (instead of `stdin` as a message). */
+  stdinLines?: string[];
 };
 
 /** The work host answers? (Asked right before each start: it may be restarting.) */
@@ -59,4 +63,31 @@ export function fromWorkHost(req: Request): boolean {
   const want = Buffer.from(token());
   const got = Buffer.from(req.headers.get("x-zeff-work-token") ?? "");
   return want.length > 0 && want.length === got.length && timingSafeEqual(want, got);
+}
+
+async function post(path: string, body: Record<string, unknown>): Promise<{ ok: boolean; status: number; error?: string }> {
+  if (!hostUrl()) return { ok: false, status: 0, error: "no work host" };
+  try {
+    const r = await fetch(`${hostUrl()}${path}`, { method: "POST", headers: headers(), body: JSON.stringify(body), signal: AbortSignal.timeout(15000) });
+    const j = (await r.json().catch(() => ({}))) as { error?: string };
+    return { ok: r.ok, status: r.status, error: j.error };
+  } catch (e) {
+    return { ok: false, status: 0, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/** One stream-json line into a live session on the host (an answer, an interrupt, a mode switch, a message). */
+export async function writeToHost(runId: number, line: string): Promise<void> {
+  const r = await post("/write", { runId, line });
+  if (!r.ok) throw new Error(r.status === 409 ? "The session is closing." : `The work host didn't take it: ${r.error ?? r.status}`);
+}
+
+/** End a live session's input (it finishes and quits). */
+export async function closeOnHost(runId: number): Promise<boolean> {
+  return (await post("/close", { runId })).ok;
+}
+
+/** A run's process and everything it started, gone. */
+export async function killOnHost(runId: number): Promise<boolean> {
+  return (await post("/kill", { runId })).ok;
 }
