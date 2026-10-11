@@ -7,6 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { currentAccountId, withAccount } from "@/db/accounts";
 import { spawnOnHost, workHostUp } from "./host";
+import { workerMcpServers } from "./mcp";
 import { aiChoice, getAppSettings } from "@/lib/ai";
 import { findClaudeCli } from "@/plugins/claude-cli/cli";
 import { COPILOT_MAX_PROMPT, findCopilotCli, runCopilot } from "@/plugins/copilot-cli/cli";
@@ -35,6 +36,7 @@ const ZEFF_TOOLS = ["report_time", "update_time_entry", "delete_time_entry", "co
 const JIRA_SEND_TOOLS = ["jira_add_comment", "jira_get_transitions", "jira_transition_issue", "jira_update_issue", "jira_get_issue"].map((t) => `mcp__zeff-jira__${t}`);
 
 const now = () => new Date().toISOString();
+/** The run's MCP config (Zeff's server, for a send run Jira too). */
 const jiraConfigPath = (id: number) => path.join(workDir(), `jira-mcp-${id}.json`);
 
 /**
@@ -303,16 +305,15 @@ function start(id: number): void {
         disallowed.join(","),
       ];
       if (r.model) args.push("--model", r.model);
+      // Zeff's MCP server of this run's account (the folder's .mcp.json would say the first account's), and for a send run the Jira connection.
+      let extra: Record<string, unknown> = {};
       if (mode === "send") {
         const jira = getJiraSyncConfig();
         if (!jira.configured || !jira.command) throw new Error("Zeff's Jira connection isn't set up (Jira tab) — nothing can be posted without it.");
-        fs.writeFileSync(
-          /*turbopackIgnore: true*/ jiraConfigPath(id),
-          JSON.stringify({ mcpServers: { "zeff-jira": { type: "stdio", command: jira.command, args: jira.args, env: jira.env } } }),
-          { mode: 0o600 },
-        );
-        args.push("--mcp-config", jiraConfigPath(id), "--allowedTools", JIRA_SEND_TOOLS.join(","));
+        extra = { "zeff-jira": { type: "stdio", command: jira.command, args: jira.args, env: jira.env } };
       }
+      fs.writeFileSync(/*turbopackIgnore: true*/ jiraConfigPath(id), JSON.stringify(workerMcpServers(currentAccountId(), extra)), { mode: 0o600 });
+      args.push("--mcp-config", jiraConfigPath(id), ...(mode === "send" ? ["--allowedTools", JIRA_SEND_TOOLS.join(",")] : []));
       stdin = prompt;
     }
 
