@@ -16,7 +16,7 @@ export function getAppSettings(): AppSettings {
   const row = db.select().from(appSettings).limit(1).get();
   if (row) return row;
   // Several processes may get here at once on a fresh database (next build's workers): one insert wins.
-  db.insert(appSettings).values({ id: 1 }).onConflictDoNothing().run();
+  db.insert(appSettings).values({ id: 1, claudeModel: "sonnet", codexModel: "gpt-6-luna" }).onConflictDoNothing().run();
   return db.select().from(appSettings).limit(1).get()!;
 }
 
