@@ -67,7 +67,8 @@ export function SessionPane({ run, options }: { run: WorkRunView; options: Optio
           </h1>
           <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-zinc-500">
             <span className={`inline-flex items-center gap-1 rounded-full px-2 py-px font-medium ${TONE[last.status] ?? ""}`}>
-              {active && <span className="size-1.5 animate-pulse rounded-full bg-current" aria-hidden />}
+              {/* (The dot keeps its place when idle: the header doesn't shift when a turn starts or ends.) */}
+              <span className={`size-1.5 rounded-full bg-current ${active ? "animate-pulse" : "invisible"}`} aria-hidden />
               {liveStatus(last)}
             </span>
             {last.claude?.elevated && <span className="rounded bg-red-100 px-1.5 font-semibold text-red-800 dark:bg-red-950 dark:text-red-200">{t("Administrator")}</span>}
@@ -80,16 +81,17 @@ export function SessionPane({ run, options }: { run: WorkRunView; options: Optio
             )}
             {card?.summary && <span className="max-w-72 truncate">{card.summary}</span>}
             <SessionBranch runId={last.id} repo={last.repo} cwd={last.cwd} branch={last.branch} worktree={!!last.cwd && !!last.repo && last.cwd !== last.repo} idle={!active} />
-            {todo &&
-              (active ? (
-                // The session's own todo: a chip while it is being worked on.
-                <Link href={`/t/${todo.id}`} title={todo.text} className="inline-flex shrink-0 items-center gap-1 rounded-full bg-indigo-100 px-2 py-px font-mono whitespace-nowrap text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">
-                  <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-current" aria-hidden />
-                  {todoRef(todo.id)}
-                </Link>
-              ) : (
-                <span className="shrink-0 font-mono whitespace-nowrap">{todoRef(todo.id)}</span>
-              ))}
+            {todo && (
+              // The session's own todo: always a chip (the same size idle and working) — lit while it's worked on.
+              <Link
+                href={`/t/${todo.id}`}
+                title={todo.text}
+                className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-px font-mono whitespace-nowrap ${active ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200" : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"}`}
+              >
+                <span className={`size-1.5 shrink-0 rounded-full bg-current ${active ? "animate-pulse" : "invisible"}`} aria-hidden />
+                {todoRef(todo.id)}
+              </Link>
+            )}
             {cost > 0 && <span>${cost.toFixed(2)}</span>}
           </div>
           {side.length > 0 && (
