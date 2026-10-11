@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { accountDir, currentAccountId } from "@/db/accounts";
 import { t } from "@/lib/i18n/server";
+import { isCodexRun, readCodexLog } from "@/plugins/codex-cli/log";
 import type { WorkLogLine } from "./shared";
 
 /**
@@ -161,6 +162,8 @@ function answerText(res: InMsg["response"]): { answer: string; ok: boolean } {
 }
 
 export function readLog(id: number): { lines: WorkLogLine[]; errors: string[]; result: StreamResult | null; sessionId: string | null; cwd: string | null } {
+  // A Codex run (its log starts with its marker): JSON-RPC, read there.
+  if (isCodexRun(id)) return readCodexLog(id);
   const raw = read(logPath(id));
   const whole = raw.endsWith("\n") ? raw : raw.slice(0, raw.lastIndexOf("\n") + 1);
   const lines: WorkLogLine[] = [];
