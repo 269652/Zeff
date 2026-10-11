@@ -5,9 +5,9 @@ import { emitChange } from "@/lib/events";
 import { t } from "@/lib/i18n/server";
 
 /** The systems Zeff reaches through the automation Chrome (or a login), each with where you sign in. */
-export type ServiceId = "teams" | "outlook" | "gmail" | "whatsapp" | "keep" | "gcalendar" | "gitlab" | "jira" | "chrono" | "punch";
+export type ServiceId = "teams" | "outlook" | "gmail" | "whatsapp" | "signal" | "keep" | "gcalendar" | "gitlab" | "jira" | "chrono" | "punch";
 
-export const SERVICE_LABELS: Record<ServiceId, string> = { teams: "Teams", outlook: "Outlook", gmail: "Gmail", whatsapp: "WhatsApp", keep: "Google Keep", gcalendar: "Google Calendar", gitlab: "GitLab", jira: "Jira", chrono: "Chrono", punch: "Punch" };
+export const SERVICE_LABELS: Record<ServiceId, string> = { teams: "Teams", outlook: "Outlook", gmail: "Gmail", whatsapp: "WhatsApp", signal: "Signal", keep: "Google Keep", gcalendar: "Google Calendar", gitlab: "GitLab", jira: "Jira", chrono: "Chrono", punch: "Punch" };
 
 /** A sign-in page some service sends you to (Microsoft's, GitLab's, …): tabs on it count as that service's. */
 const SIGN_IN_PAGES = "accounts\\.google\\.com|login\\.microsoftonline\\.com|login\\.live\\.com|login\\.windows\\.net|/users/sign_in|/login";
@@ -33,6 +33,8 @@ async function serviceUrl(id: ServiceId): Promise<string | null> {
  * never types anything there.
  */
 export async function openServiceLogin(id: ServiceId): Promise<{ ok: boolean; message: string }> {
+  // Signal has no web app: Signal Desktop started (with its debug port) — you link it there.
+  if (id === "signal") return (await import("@/plugins/signal/open")).openSignal();
   const url = await serviceUrl(id);
   if (!url) return { ok: false, message: t("No address is set for {service}.", { service: SERVICE_LABELS[id] }) };
   return openInAutomationChrome(url, SERVICE_LABELS[id]);

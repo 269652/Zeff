@@ -20,6 +20,7 @@ import { callPunch } from "@/plugins/punch/call";
 import { syncKeepAction } from "@/plugins/keep/server-actions";
 import { syncTeamsAction } from "@/plugins/teams/server-actions";
 import { syncWhatsappAction } from "@/plugins/whatsapp/server-actions";
+import { syncSignalAction } from "@/plugins/signal/server-actions";
 
 // ---------------------------------------------------------------------------
 // Time entries
@@ -770,6 +771,7 @@ export async function retryServiceAction(service: string): Promise<ActionState> 
     if (service === "teams") return await syncTeamsAction();
     if (service === "outlook" || service === "gmail") return await syncMailAction();
     if (service === "whatsapp") return await syncWhatsappAction();
+    if (service === "signal") return await syncSignalAction();
     if (service === "keep") return await syncKeepAction();
     if (service === "gitlab") return await syncGitlabAction();
     if (service === "jira") {

@@ -120,8 +120,8 @@ async function lastAndCurrentWeeks(): Promise<string[]> {
 export const jiraLastSyncAt = () => recordedOr("jira", jiraTickets.syncedAt).lastAt;
 
 /** When a step last ran, however it was started. */
-export const lastSyncOf = (key: "calendar" | "chrono" | "punch" | "whatsapp" | "keep" | "gcalendar") =>
-  (key === "calendar" || key === "whatsapp" || key === "keep" || key === "gcalendar" ? recorded(key) : recordedOr(key, key === "chrono" ? chronoEntries.pulledAt : punchDays.pulledAt)).lastAt;
+export const lastSyncOf = (key: "calendar" | "chrono" | "punch" | "whatsapp" | "signal" | "keep" | "gcalendar") =>
+  (key === "calendar" || key === "whatsapp" || key === "signal" || key === "keep" || key === "gcalendar" ? recorded(key) : recordedOr(key, key === "chrono" ? chronoEntries.pulledAt : punchDays.pulledAt)).lastAt;
 
 /** Each step: how it runs, what it last did, when it runs by itself. All only read from elsewhere. */
 const STEPS: Record<SyncKey, Step> = {
@@ -171,6 +171,14 @@ const STEPS: Record<SyncKey, Step> = {
     run: async () => (await import("@/lib/mail/sync")).syncWhatsapp(),
     busy: () => flag("__zeffWhatsappSyncing"),
     schedule: () => ({ everyMinutes: stepMinutes("whatsapp"), lastAt: recorded("whatsapp").lastAt, window: t("while the automation Chrome runs") }),
+  },
+  signal: {
+    label: "Signal",
+    href: "/mail?folder=Signal",
+    get what() { return t("Your Signal chats' latest messages (from Signal Desktop — no chat opened, nothing marked read)"); },
+    run: async () => (await import("@/lib/mail/sync")).syncSignal(),
+    busy: () => flag("__zeffSignalSyncing"),
+    schedule: () => ({ everyMinutes: stepMinutes("signal"), lastAt: recorded("signal").lastAt, window: t("while Signal Desktop runs") }),
   },
   keep: {
     label: "Google Keep",

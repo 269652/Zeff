@@ -10,6 +10,7 @@ import { gitlabItemsByKeys } from "@/lib/gitlab/store";
 import { teamsMessagesByKeys } from "@/lib/teams/store";
 import { lageNoteLines } from "@/plugins/keep/lage";
 import { mailsForTickets } from "@/lib/mail/store";
+import { sourceOn } from "@/lib/mail/shared";
 import { extraBlock, getContextPrefs } from "./context-prefs";
 import { followedTickets } from "./followed";
 import { commentCopies } from "./sources";
@@ -442,8 +443,8 @@ export function ticketBlock(
     : [];
   if (zeff.length) lines.push("Aus Zeff:", ...zeff.map((l) => `- ${l}`));
   if (cp.sources.git && git?.length) lines.push(...git);
-  // Mails in your inbox that name the ticket (as the list shows them: subject and first lines) — and WhatsApp messages.
-  const mails = (mailsForTickets([issue.key], cp.numbers.mailDays)[issue.key] ?? []).filter((m) => (m.folder === "WhatsApp" ? cp.sources.whatsapp : cp.sources.mail));
+  // Mails in your inbox that name the ticket (as the list shows them: subject and first lines) — and chat messages (WhatsApp, Signal).
+  const mails = (mailsForTickets([issue.key], cp.numbers.mailDays)[issue.key] ?? []).filter((m) => sourceOn(cp.sources, m.folder));
   if (mails.length)
     lines.push(
       `E-Mails, die ${issue.key} nennen (neueste zuerst):`,

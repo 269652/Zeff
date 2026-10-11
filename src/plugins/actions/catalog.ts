@@ -10,12 +10,13 @@ import { GMAIL_ACTIONS } from "../gmail/actions";
 import { CALENDAR_ACTIONS } from "../calendar/actions";
 import { KEEP_ACTIONS } from "../keep/note-action";
 import { WHATSAPP_ACTIONS } from "../whatsapp/actions";
+import { SIGNAL_ACTIONS } from "../signal/actions";
 import { OUTLOOK_CALENDAR_ACTIONS, OUTLOOK_MAIL_ACTIONS } from "../outlook/actions";
 import { TEAMS_ACTIONS } from "../teams/actions";
 import { WORK_ACTIONS } from "../work/actions";
 import type { ActionSpec, ActionType, CleanContext } from "./types";
 
-export const ACTIONS: ActionSpec[] = [...JIRA_ACTIONS, ...GITLAB_ACTIONS, ...TEAMS_ACTIONS, ...OUTLOOK_MAIL_ACTIONS, ...OUTLOOK_CALENDAR_ACTIONS, ...WORK_ACTIONS, ...KEEP_ACTIONS, ...WHATSAPP_ACTIONS, ...GMAIL_ACTIONS, ...CALENDAR_ACTIONS] as unknown as ActionSpec[];
+export const ACTIONS: ActionSpec[] = [...JIRA_ACTIONS, ...GITLAB_ACTIONS, ...TEAMS_ACTIONS, ...OUTLOOK_MAIL_ACTIONS, ...OUTLOOK_CALENDAR_ACTIONS, ...WORK_ACTIONS, ...KEEP_ACTIONS, ...WHATSAPP_ACTIONS, ...SIGNAL_ACTIONS, ...GMAIL_ACTIONS, ...CALENDAR_ACTIONS] as unknown as ActionSpec[];
 
 const BY_TYPE = new Map(ACTIONS.map((a) => [a.type, a]));
 

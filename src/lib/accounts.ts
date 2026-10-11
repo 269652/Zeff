@@ -25,6 +25,7 @@ export function accountBusy(): string | null {
   if (g.__zeffMailTodos || g.__zeffMailRelations || g.__zeffAutoActions || g.__zeffBoardLage) busy.push(t("an AI step"));
   if (g.__zeffBackups?.size) busy.push(t("a backup"));
   if (g.__zeffWhatsappHistory) busy.push(t("a WhatsApp history"));
+  if (g.__zeffSignalHistory) busy.push(t("a Signal history"));
   if (g.__zeffPeopleDates) busy.push(t("finding dates"));
   if (g.__zeffBoardSync) busy.push(t("a Keep board sync"));
   if (g.__zeffOpsNow?.size) busy.push(t("a todo's actions"));

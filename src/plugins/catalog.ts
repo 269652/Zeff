@@ -7,7 +7,7 @@
  * say, the work ones go and the rest stays. Client-safe (data only).
  */
 
-export const PLUGIN_IDS = ["zeiterfassung", "weekly-report", "monthly-report", "todos", "tickets", "kanban", "jira-lage", "work", "work-elevated", "auto-actions", "backup", "accounts", "knowledge", "people", "jira", "llm", "copilot-cli", "claude-cli", "codex-cli", "outlook-mail", "gmail", "whatsapp", "keep", "keep-write", "calendar", "google-calendar", "outlook-calendar", "teams", "gitlab", "chrono", "punch", "lang-en", "lang-de", "lang-es"] as const;
+export const PLUGIN_IDS = ["zeiterfassung", "weekly-report", "monthly-report", "todos", "tickets", "kanban", "jira-lage", "work", "work-elevated", "auto-actions", "backup", "accounts", "knowledge", "people", "jira", "llm", "copilot-cli", "claude-cli", "codex-cli", "outlook-mail", "gmail", "whatsapp", "signal", "keep", "keep-write", "calendar", "google-calendar", "outlook-calendar", "teams", "gitlab", "chrono", "punch", "lang-en", "lang-de", "lang-es"] as const;
 export type PluginId = (typeof PLUGIN_IDS)[number];
 export const isPluginId = (v: unknown): v is PluginId => (PLUGIN_IDS as readonly unknown[]).includes(v);
 
@@ -353,6 +353,32 @@ export const PLUGINS: PluginManifest[] = [
         description: "Auto actions also suggest WhatsApp messages (reply, accept, propose a time) — ready-worded; they're only sent on your click, through WhatsApp Web in the automation Chrome.",
         defaultInstalled: true,
         actions: ["whatsapp-message"],
+      },
+    ],
+  },
+  {
+    id: "signal",
+    name: "Signal",
+    description: "Reads your Signal chats from Signal Desktop on this computer (over its local debug port) — the messages of your active chats; no chat is opened, so nothing is marked as read. The messages go into the review (todos), matching and knowledge, just like mails.",
+    category: "connector",
+    defaultInstalled: false,
+    beta: "Zeff reads Signal Desktop through its internals, over a debug port — a Signal update can change them and stop the sync until Zeff is adapted. While the port is open, any program on this computer could read Signal through it (as with the automation Chrome).",
+    requires: "Signal Desktop on this computer, linked to your phone — running with its debug port (Zeff starts it so, or sets up its autostart).",
+    apps: [
+      { href: "/apps/signal", label: "Signal", short: "Signal", hint: "Your Signal chats, their latest messages" },
+      { href: "/mail", label: "Messages", short: "Msgs", hint: "All mails and chats in one place, their sync" },
+    ],
+    routes: ["/mail", "/apps/signal", "/api/boards/mail-relations"],
+    syncSteps: ["signal", "mailtodos", "relations"],
+    services: ["signal"],
+    extensions: [
+      {
+        key: "send-action",
+        for: "auto-actions",
+        name: "Send message",
+        description: "Auto actions also suggest Signal messages (reply, accept, propose a time) — ready-worded; they are only sent on your click, through Signal Desktop.",
+        defaultInstalled: true,
+        actions: ["signal-message"],
       },
     ],
   },

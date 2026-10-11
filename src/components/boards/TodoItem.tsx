@@ -17,6 +17,7 @@ import {
 } from "@/lib/boards/shared";
 import { OpChips } from "../work/WorkTodo";
 import type { TicketCard } from "@/lib/jira/ticket-card-shared";
+import { isChatFolder } from "@/lib/mail/shared";
 import { CopyButton } from "../CopyButton";
 import { HoverCard } from "../HoverCard";
 import { BookIcon, SparkIcon, ToBottomIcon, ToTopIcon } from "../icons";
@@ -191,9 +192,10 @@ export function TodoItem({
   // Proposed by the auto-actions review: folded behind "Show actions (n)" — they're suggestions.
   const proposed = todo.ops.length > 0 && !closed && !!todo.autoOpsWhy;
   const cameFrom = sourcesOf(todo.refs, sources);
-  // Where a todo without a ticket came from: WhatsApp when its messages are all chats.
+  // Where a todo without a ticket came from: WhatsApp (Signal) when its messages are all that app's chats.
   const msgs = cameFrom.filter((s) => s.source === "mail");
-  const origin = msgs.length && msgs.every((s) => s.source === "mail" && s.mail.folder === "WhatsApp") ? "WhatsApp" : "Mail";
+  const apps = [...new Set(msgs.map((s) => (s.source === "mail" ? s.mail.folder : "")))];
+  const origin = msgs.length && apps.length === 1 && isChatFolder(apps[0]) ? apps[0] : "Mail";
   const context = useContextItems(cameFrom, [...todo.userNotes, ...(todo.relatedNotes ?? [])], todo.id);
   // An agent on it asks you something and waits.
   const asking = !closed && todo.needsInput ? todo.needsInput : null;
@@ -249,7 +251,7 @@ export function TodoItem({
             {todo.ref}
           </CopyButton>
           {/* Linked to more than one ticket (the same thing on both): all of them, the main one first. */}
-          {!todo.ticket && <> · <span title={origin === "WhatsApp" ? t("From WhatsApp — no ticket") : t("From a mail — no ticket")}>{origin === "WhatsApp" ? t("from WhatsApp") : t("from Mail")}</span></>}
+          {!todo.ticket && <> · <span title={origin === "WhatsApp" ? t("From WhatsApp — no ticket") : origin === "Signal" ? t("From Signal — no ticket") : t("From a mail — no ticket")}>{origin === "WhatsApp" ? t("from WhatsApp") : origin === "Signal" ? t("from Signal") : t("from Mail")}</span></>}
           {todo.ticket && (showTicket || todo.alsoTickets.length > 0) && (
             <>
               {" · "}

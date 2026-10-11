@@ -4,6 +4,7 @@ import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { listFacts } from "@/lib/facts";
 import { isInstalled } from "@/plugins/state";
+import { isChatFolder } from "@/lib/mail/shared";
 import { DATE_KINDS, isDateKind, parseDayMonth, type DateKind, type Person } from "./shared";
 import { addDate, getPerson, listPeople, namesOf, namesThem } from "./store";
 
@@ -85,7 +86,7 @@ async function evidence(p: Person): Promise<string[]> {
       .all() as R[];
     for (const r of rows) {
       const text = `${r.subject} ${r.preview}`;
-      if (r.folder === "WhatsApp" ? namesThem(p, `${r.subject} ${r.from_name ?? ""} ${r.preview}`) : namesThem(p, text)) out.push(`[${r.folder} ${r.received_at.slice(0, 10)}, von ${r.from_name ?? "?"}] ${r.preview.slice(0, 400)}`);
+      if (isChatFolder(r.folder) ? namesThem(p, `${r.subject} ${r.from_name ?? ""} ${r.preview}`) : namesThem(p, text)) out.push(`[${r.folder} ${r.received_at.slice(0, 10)}, von ${r.from_name ?? "?"}] ${r.preview.slice(0, 400)}`);
       if (out.length > 80) break;
     }
   } catch {

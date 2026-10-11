@@ -15,6 +15,19 @@ export type MailView = {
   resolvedAt: string | null;
 };
 
+/** The chat apps whose messages the sync keeps with the mails — each in a folder of its name. */
+export const CHAT_FOLDERS = ["WhatsApp", "Signal"] as const;
+export type ChatFolder = (typeof CHAT_FOLDERS)[number];
+
+/** Whether a message is a chat's (WhatsApp, Signal) — not a mail. */
+export const isChatFolder = (folder: string): folder is ChatFolder => (CHAT_FOLDERS as readonly string[]).includes(folder);
+
+/** A chat's conversation (its id: "wa:<chat>", "sg:<chat>"). */
+export const isChatConv = (convId: string) => /^(wa|sg):/.test(convId);
+
+/** Whether a step's sources (Auswerten settings) take this message: a chat's by its app, a mail's as "mail". */
+export const sourceOn = (sources: Record<string, boolean>, folder: string) => (folder === "WhatsApp" ? sources.whatsapp : folder === "Signal" ? sources.signal : sources.mail);
+
 /** A mail's link, as a context item or a todo keeps it (it has no address of its own Zeff can open). */
 export const mailLink = (key: string) => `zeff:mail:${key}`;
 

@@ -32,6 +32,7 @@ const STATUS_TOOL: Partial<Record<ServiceId, [DriverId, string]>> = {
   outlook: ["outlook", "outlook_status"],
   gmail: ["gmail", "gmail_status"],
   whatsapp: ["whatsapp", "whatsapp_status"],
+  signal: ["signal", "signal_status"],
   keep: ["keep", "keep_status"],
   gcalendar: ["google-calendar", "gcal_status"],
   chrono: ["chrono", "chrono_status"],
@@ -80,7 +81,8 @@ export async function checkLogin(service: ServiceId): Promise<{ state: LoginStat
   const tool = STATUS_TOOL[service];
   if (!tool) return { state: "unknown", detail: t("No check of its own — the last sync tells.") };
   let r: { state: LoginState; detail: string };
-  if (!(await chromeUp())) r = { state: "chrome", detail: t("The automation Chrome isn't running — “Sign in” starts it.") };
+  // Signal Desktop isn't in the automation Chrome: its driver tells itself (running, its port, linked).
+  if (service !== "signal" && !(await chromeUp())) r = { state: "chrome", detail: t("The automation Chrome isn't running — “Sign in” starts it.") };
   else {
     try {
       const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");

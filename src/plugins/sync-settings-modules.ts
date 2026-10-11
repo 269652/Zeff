@@ -15,6 +15,7 @@ import { syncSettings as teams } from "./teams/sync-settings";
 import { syncSettings as punch } from "./punch/sync-settings";
 import { syncSettings as todos } from "./todos/sync-settings";
 import { syncSettings as whatsapp } from "./whatsapp/sync-settings";
+import { syncSettings as signal } from "./signal/sync-settings";
 import { syncSettings as knowledge } from "./knowledge/sync-settings";
 import { syncSettings as keep } from "./keep/sync-settings";
 import { syncSettings as googleCalendar } from "./google-calendar/sync-settings";
@@ -30,6 +31,7 @@ const MODULES: Partial<Record<PluginId, PluginSyncSettings>> = {
   "outlook-mail": outlookMail,
   gmail,
   whatsapp,
+  signal,
   keep,
   "google-calendar": googleCalendar,
   "outlook-calendar": outlookCalendar,

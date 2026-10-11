@@ -75,6 +75,11 @@ async function heuteData() {
     for (const c of whatsappChatsWaiting(7, now))
       unanswered.push({ key: c.key, who: c.who, text: c.text, at: c.lastAt, since: c.since, count: c.count, href: `/apps/whatsapp?chat=${encodeURIComponent(c.who)}`, source: "WhatsApp" });
   }
+  if (isInstalled("signal")) {
+    const { chatsWaiting } = await import("@/lib/mail/store");
+    for (const c of chatsWaiting("Signal", 7, now))
+      unanswered.push({ key: c.key, who: c.who, text: c.text, at: c.lastAt, since: c.since, count: c.count, href: `/apps/signal?chat=${encodeURIComponent(c.who)}`, source: "Signal" });
+  }
   if (isInstalled("teams")) {
     // One line per chat (not per message), and only while the last word isn't yours.
     const { teamsChatsWaiting } = await import("@/lib/teams/store");
@@ -329,7 +334,7 @@ export default async function HeutePage() {
           </Card>
         )}
 
-        {(isInstalled("whatsapp") || isInstalled("teams")) && (
+        {(isInstalled("whatsapp") || isInstalled("signal") || isInstalled("teams")) && (
           <Card title={t("Waiting for your answer")} count={unanswered.length} href="/mail">
             {unanswered.length ? (
               <ul className="space-y-1.5">

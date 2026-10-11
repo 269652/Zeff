@@ -26,6 +26,7 @@ export const contextSteps = (t: T): ContextStep[] => [
       { key: "teams", label: "Teams", plugin: "teams", default: true },
       { key: "mail", label: t("Mails"), what: "Outlook, Gmail", plugin: ["outlook-mail", "gmail"], default: true },
       { key: "whatsapp", label: "WhatsApp", plugin: "whatsapp", default: true },
+      { key: "signal", label: "Signal", plugin: "signal", default: true },
       { key: "keep", label: "Keep", plugin: "keep", default: false },
       { key: "gitlab", label: "GitLab", plugin: "gitlab", default: false },
       { key: "calendar", label: t("Calendar"), plugin: "outlook-calendar", default: false },
@@ -42,6 +43,7 @@ export const contextSteps = (t: T): ContextStep[] => [
       { key: "teams", label: t("Teams chats"), what: t("The chats of the last days — agreements, promises, requests"), plugin: "teams", default: true },
       { key: "mail", label: t("Mails"), what: t("Mails (Outlook, Gmail) that name the ticket"), default: true },
       { key: "whatsapp", label: "WhatsApp", what: t("WhatsApp messages that name the ticket"), plugin: "whatsapp", default: true },
+      { key: "signal", label: "Signal", what: t("Signal messages that name the ticket"), plugin: "signal", default: true },
       { key: "gitlab", label: "GitLab", what: t("Merge requests and comments on the ticket"), plugin: "gitlab", default: true },
       { key: "git", label: "Git", what: t("Branches and commits in the ticket's repos"), default: true },
       { key: "related", label: t("Related tickets"), what: t("Tickets it mentions (or that mention it), with their new comments"), default: true },
@@ -61,6 +63,7 @@ export const contextSteps = (t: T): ContextStep[] => [
     sources: [
       { key: "mail", label: t("Mails"), what: t("Outlook and Gmail"), default: true },
       { key: "whatsapp", label: "WhatsApp", plugin: "whatsapp", default: true },
+      { key: "signal", label: "Signal", plugin: "signal", default: true },
       { key: "keep", label: t("Notes (Keep)"), plugin: "keep", default: true },
     ],
     numbers: [
@@ -139,4 +142,4 @@ export const sourceShown = (s: ContextSource, installed: Iterable<string>) => {
 };
 
 /** The syncs "Jetzt auswerten" runs first, in this order (the keys of the presync step). */
-export const PRESYNC_ORDER = ["teams", "jira", "mail", "whatsapp", "keep", "gitlab", "calendar"] as const;
+export const PRESYNC_ORDER = ["teams", "jira", "mail", "whatsapp", "signal", "keep", "gitlab", "calendar"] as const;

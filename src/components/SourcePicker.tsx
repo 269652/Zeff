@@ -5,7 +5,7 @@ import { searchGitlabItemsAction } from "@/plugins/gitlab/server-actions";
 import { searchMailsAction } from "@/app/actions";
 import { searchTeamsMessagesAction } from "@/plugins/teams/server-actions";
 import { searchTodosAction } from "@/plugins/todos/server-actions";
-import { mailLink, mailSender } from "@/lib/mail/shared";
+import { isChatFolder, mailLink, mailSender } from "@/lib/mail/shared";
 import { todoKindLabels } from "@/lib/boards/shared";
 import { todoLink, type Entity } from "@/lib/entities-shared";
 import { gitlabDone, gitlabKindLabels, gitlabLinkKey, type GitlabKind } from "@/lib/gitlab/shared";
@@ -36,7 +36,7 @@ function Hit({ p, linked }: { p: Picked; linked: boolean }) {
     p.source === "teams"
       ? [p.teams.senderName ?? t("Someone"), p.teams.place, when(p.teams.sentAt), teamsKindLabel(p.teams, t)]
       : p.source === "mail"
-        ? [p.mail.folder === "WhatsApp" ? "WhatsApp" : t("Mail"), mailSender(p.mail), when(p.mail.receivedAt), p.mail.unread ? t("unread") : ""]
+        ? [isChatFolder(p.mail.folder) ? p.mail.folder : t("Mail"), mailSender(p.mail), when(p.mail.receivedAt), p.mail.unread ? t("unread") : ""]
         : p.source === "todo"
         ? [t("Todo {ref}", { ref: p.todo.ref }), p.todo.ticket, todoKindLabels(t)[p.todo.kind], p.todo.status === "done" ? when(p.todo.doneAt) : t("open")]
         : [gitlabKindLabels(t)[p.gitlab.kind], p.gitlab.project.split("/").pop(), p.gitlab.author, when(p.gitlab.kind === "comment" ? p.gitlab.createdAt : p.gitlab.updatedAt), p.gitlab.state];

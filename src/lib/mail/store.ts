@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { and, desc, gte, inArray, like, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { getAppSettings, updateAppSettings } from "@/lib/ai";
-import type { MailView } from "./shared";
+import { isChatConv, type ChatFolder, type MailView } from "./shared";
 
 export type { MailView } from "./shared";
 
@@ -10,7 +10,7 @@ const { emails } = schema;
 
 /** A mail as the Outlook driver (src/plugins/outlook/driver.mjs, outlook_mail) reads it from the list. */
 export type MailInput = {
-  /** A message's own id (WhatsApp's, Gmail's) — its key then, whatever it says. */
+  /** A message's own id (WhatsApp's, Signal's, Gmail's) — its key then, whatever it says. */
   id?: string;
   /** Its full text (not just the list's first line) — it replaces what's kept. */
   full?: boolean;
@@ -22,9 +22,9 @@ export type MailInput = {
   preview: string;
   receivedAt: string | null;
   unread: boolean;
-  /** WhatsApp: written in a group. */
+  /** A chat (WhatsApp, Signal): written in a group. */
   group?: boolean;
-  /** WhatsApp, in a group: it mentions you or quotes your message. */
+  /** A chat, in a group: it mentions you or quotes your message. */
   toMe?: boolean;
 };
 
@@ -51,7 +51,7 @@ export function updateMailSettings(patch: Partial<MailSettings>): void {
 /** A mail's key: its conversation, and what it says (a new mail in it — another preview — is another row). */
 const keyOf = (m: MailInput) =>
   m.id ? `${m.convId}|${createHash("sha1").update(m.id).digest("hex").slice(0, 16)}` :
-  `${m.convId}|${createHash("sha1").update(`${m.from}\n${m.subject}\n${m.preview}${m.convId.startsWith("wa:") ? "" : `\n${m.receivedAt ?? ""}`}`).digest("hex").slice(0, 16)}`;
+  `${m.convId}|${createHash("sha1").update(`${m.from}\n${m.subject}\n${m.preview}${isChatConv(m.convId) ? "" : `\n${m.receivedAt ?? ""}`}`).digest("hex").slice(0, 16)}`;
 
 /** Keep the mails read — new ones added, known ones updated (read since?). How many were new, how many there are. */
 export function saveMails(list: MailInput[]): { added: number; total: number } {
@@ -180,36 +180,38 @@ export function mailsForTickets(keys: string[], days = MAIL_CONTEXT_DAYS, perTic
 /** WhatsApp's own lines in a chat — not something a person wrote you. */
 const WA_SYSTEM = /^\u202a?\s*(\+?[\d\s]+ wurde in \+?[\d\s]+ geändert|\+?[\d\s]+ changed (their phone number|to \+?[\d\s]+)|\d+ (ungelesene Nachricht(en)?|unread messages?)\b|.{0,80} hat (dich|die Gruppe|den Gruppennamen|das Gruppenbild)|.{0,80} (added you|created group|changed the group)|Nachrichten und Anrufe sind Ende-zu-Ende-verschlüsselt|Messages and calls are end-to-end encrypted|Deine Sicherheitsnummer|Your security code)/i;
 
-/** A WhatsApp chat waiting for your answer: who, what since your last word, since when. */
-export type WhatsappChatWaiting = { convId: string; key: string; who: string; text: string; count: number; since: string; lastAt: string; group: boolean };
+/** A chat (WhatsApp, Signal) waiting for your answer: who, what since your last word, since when. */
+export type ChatWaiting = { convId: string; key: string; who: string; text: string; count: number; since: string; lastAt: string; group: boolean };
+export type WhatsappChatWaiting = ChatWaiting;
 
 /**
- * The WhatsApp chats waiting for your answer — one per chat: the last word isn't yours, and what came
- * since yours (in the last `days`, not marked done). A group only with a message to you (it mentions
- * you or quotes yours) — not its announcements, pictures and chatter. WhatsApp's own lines (a number
- * changed, "5 ungelesene Nachrichten") and its own account don't count.
+ * A chat app's chats (WhatsApp, Signal) waiting for your answer — one per chat: the last word isn't
+ * yours, and what came since yours (in the last `days`, not marked done). A group only with a message
+ * to you (it mentions you or quotes yours) — not its announcements, pictures and chatter. WhatsApp's
+ * own lines (a number changed, "5 ungelesene Nachrichten") and its own account don't count.
  */
-export function whatsappChatsWaiting(days = 7, now = Date.now()): WhatsappChatWaiting[] {
+export function chatsWaiting(folder: ChatFolder, days = 7, now = Date.now()): ChatWaiting[] {
   const since = new Date(now - days * 864e5).toISOString();
   const from = new Date(now - 60 * 864e5).toISOString();
   const rows = getDb()
     .select()
     .from(emails)
-    .where(and(sql`${emails.folder} = 'WhatsApp'`, gte(emails.receivedAt, from)))
+    .where(and(sql`${emails.folder} = ${folder}`, gte(emails.receivedAt, from)))
     .orderBy(emails.receivedAt)
     .all()
-    .filter((m) => !WA_SYSTEM.test(m.preview.trim()));
+    .filter((m) => folder !== "WhatsApp" || !WA_SYSTEM.test(m.preview.trim()));
   const byConv = new Map<string, typeof rows>();
   for (const m of rows) {
     const list = byConv.get(m.convId);
     if (list) list.push(m);
     else byConv.set(m.convId, [m]);
   }
-  const out: WhatsappChatWaiting[] = [];
+  const out: ChatWaiting[] = [];
   for (const [convId, all] of byConv) {
     const subject = all[all.length - 1].subject;
     const mine = (m: (typeof all)[number]) => m.fromName === "Ich";
-    if (subject === "WhatsApp" && !all.some(mine)) continue;
+    // The app's own account (WhatsApp's tips and offers) — not a conversation.
+    if (subject === folder && !all.some(mine)) continue;
     const last = all[all.length - 1];
     if (mine(last)) continue;
     const lastMine = [...all].reverse().find(mine)?.receivedAt ?? "";
@@ -231,3 +233,6 @@ export function whatsappChatsWaiting(days = 7, now = Date.now()): WhatsappChatWa
   }
   return out.sort((a, b) => b.lastAt.localeCompare(a.lastAt));
 }
+
+/** The WhatsApp chats waiting for your answer (see chatsWaiting). */
+export const whatsappChatsWaiting = (days = 7, now = Date.now()) => chatsWaiting("WhatsApp", days, now);

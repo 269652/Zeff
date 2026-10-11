@@ -27,6 +27,12 @@ async function chromeUp(): Promise<boolean> {
 const whileChromeRuns = (key: "calendar" | "chrono" | "punch" | "whatsapp" | "keep" | "gcalendar") => async () =>
   (await chromeUp()) ? startSync(key) : { ok: true, message: "the automation Chrome isn't running — later" };
 
+/** Signal's step — only while Signal Desktop runs (nothing is started for it). */
+const whileSignalRuns = async () => {
+  const { signalRunning, signalUp } = await import("@/plugins/signal/endpoint");
+  return (await signalUp()) || (await signalRunning()) ? startSync("signal") : { ok: true, message: "Signal Desktop isn't running — later" };
+};
+
 const state = globalThis as { __zeffSyncScheduler?: boolean };
 
 
@@ -51,6 +57,8 @@ export function startSyncScheduler(): void {
     { name: "chrono", settings: () => ({ syncMinutes: stepMinutes("chrono"), lastSyncAt: lastSyncOf("chrono") }), run: whileChromeRuns("chrono") },
     { name: "punch", settings: () => ({ syncMinutes: stepMinutes("punch"), lastSyncAt: lastSyncOf("punch") }), run: whileChromeRuns("punch") },
     { name: "whatsapp", settings: () => ({ syncMinutes: stepMinutes("whatsapp"), lastSyncAt: lastSyncOf("whatsapp") }), run: whileChromeRuns("whatsapp") },
+    // Signal: while Signal Desktop runs — without its debug port the sync fails, so the menu tells you.
+    { name: "signal", settings: () => ({ syncMinutes: stepMinutes("signal"), lastSyncAt: lastSyncOf("signal") }), run: whileSignalRuns },
     { name: "keep", settings: () => ({ syncMinutes: stepMinutes("keep"), lastSyncAt: lastSyncOf("keep") }), run: whileChromeRuns("keep") },
     { name: "gcalendar", settings: () => ({ syncMinutes: stepMinutes("gcalendar"), lastSyncAt: lastSyncOf("gcalendar") }), run: whileChromeRuns("gcalendar") },
     { name: "teams", settings: getTeamsSettings, run: () => syncTeams({ background: true }) },
