@@ -153,6 +153,7 @@ function buildMenu() {
     { label: "Status…", click: showWindow },
     { type: "separator" },
     serviceMenu(zeff()),
+    ...state.services.filter((s) => s.name === "Work").map((w) => serviceMenu(w)),
     ...knowledges().map((k) => serviceMenu(k, [{ label: "Open knowledge", click: () => shell.openExternal(knowledgeUrl(k)) }, { type: "separator" }])),
     { type: "separator" },
     { label: "Open data folder", click: () => shell.openPath(state.paths.data) },
@@ -282,12 +283,17 @@ async function start() {
   const next = path.join(paths.app, "node_modules", "next", "dist", "bin", "next");
   // Data outside the app folder (the macOS and Linux bundles, "dataDir"): the servers are told where.
   const ownData = path.resolve(paths.data) !== path.resolve(paths.app, "data");
+  // The work host and Zeff's server share a token: only they may start a worker (kept, so a host that outlived the launcher still matches).
+  const tokenFile = path.join(paths.state, "work-token");
+  if (!fs.existsSync(tokenFile)) fs.writeFileSync(tokenFile, require("node:crypto").randomBytes(24).toString("hex"), { mode: 0o600 });
+  const workToken = fs.readFileSync(tokenFile, "utf8").trim();
   const env = {
     ...process.env,
     NODE_ENV: "production",
     NEXT_TELEMETRY_DISABLED: "1",
     ZEFF_URL: `http://127.0.0.1:${cfg.zeffPort}`,
     KNOWLEDGE_URL: `http://127.0.0.1:${cfg.knowledgePort}`,
+    ...(cfg.workHost ? { ZEFF_WORK_HOST: `http://127.0.0.1:${cfg.workPort}`, ZEFF_WORK_PORT: String(cfg.workPort), ZEFF_WORK_TOKEN: workToken, ZEFF_WORK_STATE: path.join(paths.state, "work-host.json") } : {}),
     // The servers start node for their drivers (process.execPath) — and `node`/`npx` from PATH.
     PATH: `${path.dirname(paths.node)}${path.delimiter}${process.env.PATH ?? ""}`,
     ...(ownData ? { DATABASE_PATH: path.join(paths.data, "zeff.db"), ZEFF_CALENDAR_INBOX: path.join(paths.data, "calendar-inbox.json") } : {}),
@@ -316,6 +322,11 @@ async function start() {
     return s;
   };
   add(new Service(spec("Zeff", null, cfg.zeffPort)));
+  // The work host: plain Node, outside Next. A deploy restarts Zeff's server, not this — the workers it started go on.
+  if (cfg.workHost) {
+    const hostScript = path.join(paths.app, "scripts", "work-host.mjs");
+    add(new Service({ ...spec("Work", null, cfg.workPort), args: [hostScript], buildMarker: hostScript }));
+  }
 
   const routes = { knowledgeHost: cfg.knowledge ? cfg.knowledgeHost : null, zeffPort: cfg.zeffPort, knowledgePort: cfg.knowledgePort };
 
@@ -426,7 +437,7 @@ function unquarantine() {
  */
 async function runSmokeTest() {
   const deadline = Date.now() + 5 * 60 * 1000;
-  const wanted = () => [zeff(), ...(state.cfg.knowledge ? [activeKnowledge()] : [])];
+  const wanted = () => [zeff(), ...state.services.filter((s) => s.name === "Work"), ...(state.cfg.knowledge ? [activeKnowledge()] : [])];
   const get = (host) =>
     new Promise((resolve, reject) => {
       const req = https.get(

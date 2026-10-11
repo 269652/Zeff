@@ -5,6 +5,8 @@ import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { currentAccountId, withAccount } from "@/db/accounts";
+import { spawnOnHost, workHostUp } from "./host";
 import { aiChoice, getAppSettings } from "@/lib/ai";
 import { findClaudeCli } from "@/plugins/claude-cli/cli";
 import { COPILOT_MAX_PROMPT, findCopilotCli, runCopilot } from "@/plugins/copilot-cli/cli";
@@ -40,14 +42,42 @@ const jiraConfigPath = (id: number) => path.join(workDir(), `jira-mcp-${id}.json
  * Claude Code session's markers, NODE_ENV=production (npm would skip devDependencies), Next's
  * and npm's variables, Zeff's settings.
  */
-function workerEnv(): Record<string, string | undefined> {
+function workerEnv(runId: number, viaHost = false): Record<string, string | undefined> {
   const env: Record<string, string | undefined> = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (/^(CLAUDECODE|CLAUDE_CODE_ENTRYPOINT|NODE_ENV|PORT|HOSTNAME|DATABASE_PATH|NODE_OPTIONS)$/i.test(k)) continue;
     if (/^(NEXT_|__NEXT|npm_|ZEFF_|TURBOPACK)/i.test(k)) continue;
     env[k] = v;
   }
+  // Which run this is: `npm run deploy` doesn't wait for its own session — and needs it off this server's process tree.
+  env.ZEFF_WORK_RUN = String(runId);
+  env.ZEFF_WORK_ACCOUNT = currentAccountId();
+  if (viaHost) env.ZEFF_WORK_VIA_HOST = "1";
   return env;
+}
+
+/** A worker's process: on the work host if it's up, else a child of this server. Resolves with its pid. */
+async function launchWorker(id: number, w: { command: string; args: string[]; cwd: string; stdin: string }): Promise<number> {
+  fs.mkdirSync(/*turbopackIgnore: true*/ path.dirname(logPath(id)), { recursive: true });
+  if (await workHostUp()) {
+    return spawnOnHost({ runId: id, account: currentAccountId(), ...w, env: workerEnv(id, true), outFile: logPath(id), errFile: errPath(id) });
+  }
+  const out = fs.openSync(/*turbopackIgnore: true*/ logPath(id), "a");
+  const err = fs.openSync(/*turbopackIgnore: true*/ errPath(id), "a");
+  const account = currentAccountId();
+  const child = spawn(/*turbopackIgnore: true*/ w.command, w.args, { cwd: w.cwd, env: workerEnv(id) as NodeJS.ProcessEnv, stdio: ["pipe", out, err], windowsHide: true, detached: true });
+  fs.closeSync(out);
+  fs.closeSync(err);
+  child.on("error", (e) => {
+    fs.appendFileSync(/*turbopackIgnore: true*/ errPath(id), `${e.message}
+`);
+    void withAccount(account, () => finalize(id));
+  });
+  child.on("exit", () => void withAccount(account, () => finalize(id)));
+  child.stdin?.on("error", () => {}); // a CLI that quits early: its exit says why
+  child.stdin?.end(w.stdin, "utf8");
+  child.unref();
+  return child.pid ?? 0;
 }
 
 /** A process still there? */
@@ -213,8 +243,6 @@ function start(id: number): void {
     updateRun(id, { cwd, branch, base, baseSha, prompt });
 
     fs.mkdirSync(/*turbopackIgnore: true*/ path.dirname(logPath(id)), { recursive: true });
-    const out = fs.openSync(/*turbopackIgnore: true*/ logPath(id), "a");
-    const err = fs.openSync(/*turbopackIgnore: true*/ errPath(id), "a");
     let command: string;
     let args: string[];
     let stdin: string | null = null;
@@ -226,15 +254,13 @@ function start(id: number): void {
       // A live session (it asks you for permissions on the Work tab, you can write to it, switch it to autopilot).
       if (s.copilotMode !== "headless") {
         // The session writes its log itself (as it goes), not a process' output.
-        fs.closeSync(out);
-        fs.closeSync(err);
         updateRun(id, { permissionMode: s.copilotMode === "autopilot" ? "acp-autopilot" : "acp" });
         void startInteractive({
           runId: id,
           command: cli.command,
           args: [...cli.args, "--deny-tool", "shell(git push)", ...(r.model ? ["--model", r.model] : [])],
           cwd,
-          env: workerEnv() as NodeJS.ProcessEnv,
+          env: workerEnv(id) as NodeJS.ProcessEnv,
           prompt: `${rules}\n\n${prompt}${tail}\n\nWenn dir etwas unklar ist, frag mich direkt — ich antworte hier.`,
           autopilot: s.copilotMode === "autopilot",
         })
@@ -289,19 +315,15 @@ function start(id: number): void {
       stdin = prompt;
     }
 
-    // Detached, its output straight into files: a run outlives a restart of Zeff's server.
-    const child = spawn(/*turbopackIgnore: true*/ command, args, { cwd, env: workerEnv() as NodeJS.ProcessEnv, stdio: ["pipe", out, err], windowsHide: true, detached: true });
-    fs.closeSync(out);
-    fs.closeSync(err);
-    child.on("error", (e) => {
-      fs.appendFileSync(/*turbopackIgnore: true*/ errPath(id), `${e.message}\n`);
-      void finalize(id);
-    });
-    child.on("exit", () => void finalize(id));
-    child.stdin?.on("error", () => {}); // a CLI that quits early: its exit says why
-    child.stdin?.end(stdin ?? "", "utf8");
-    child.unref();
-    updateRun(id, { pid: child.pid ?? null, sessionId });
+    // Detached, its output straight into files: a run outlives a restart of Zeff's server — on the
+    // work host (the launcher's, outside this server's process tree), else started here.
+    void launchWorker(id, { command, args, cwd, stdin: stdin ?? "" })
+      .then((pid) => updateRun(id, { pid, sessionId }))
+      .catch((e) => {
+        fs.appendFileSync(/*turbopackIgnore: true*/ errPath(id), `${errorMessage(e)}
+`);
+        void finalize(id);
+      });
   } catch (e) {
     updateRun(id, { status: "failed", error: errorMessage(e).slice(0, 2000), finishedAt: now(), durationMs: Date.now() - Date.parse(startedAt) });
     setImmediate(pump);
