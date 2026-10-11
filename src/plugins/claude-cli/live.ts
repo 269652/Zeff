@@ -6,7 +6,7 @@ import path from "node:path";
 import { currentAccountId, withAccount } from "@/db/accounts";
 import { emitChange } from "@/lib/events";
 import { t } from "@/lib/i18n/server";
-import { closeOnHost, killOnHost, spawnOnHost, workHostUp, writeToHost } from "@/lib/work/host";
+import { closeOnHost, killOnHost, spawnOnHost, workHostFeatures, writeToHost } from "@/lib/work/host";
 import { errPath, inPath, lastJson, logPath, workDir } from "@/lib/work/log";
 import { normalizeResult } from "@/lib/work/outcome";
 import { CLAUDE_MODE_INFO, isClaudeMode, WORK_RESULT_SCHEMA, workRef, type ClaudeAsk, type ClaudeLiveView, type ClaudeMode, type Effort, type SessionOptions, type WorkResult } from "@/lib/work/shared";
@@ -635,7 +635,9 @@ async function startProcess(l: Live, resume: boolean, first?: Record<string, unk
   l.exited = false;
   changed();
   const { workerEnv } = await import("@/lib/work/runner");
-  if (!l.cfg.elevated && (await workHostUp())) {
+  // The launcher's host — when its code knows live sessions (one started before an update doesn't, till it restarts).
+  const features = l.cfg.elevated ? null : await workHostFeatures();
+  if (features?.includes("keep") && features.includes("write")) {
     l.cfg.transport = "launcher";
     const lines = [init, ...(first ? [first] : [])];
     for (const m of lines) keep(l, m);

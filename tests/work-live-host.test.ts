@@ -93,3 +93,44 @@ test("a conversation on the launcher's work host: asked, answered, open between 
   // The host closed its input: the CLI quit, and the host reported it.
   await until("reported over", () => exits.includes(run.id));
 });
+
+test("a work host from before an update (no live features) isn't used: the session gets a host of its own", async () => {
+  // A stand-in for an old host: healthy, but without `features`.
+  const port = await freePort();
+  const old = http.createServer((_req, res) => res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true, children: 0 })));
+  await new Promise<void>((r) => old.listen(port, "127.0.0.1", () => r()));
+  const before = process.env.ZEFF_WORK_HOST;
+  process.env.ZEFF_WORK_HOST = `http://127.0.0.1:${port}`;
+  try {
+    const { addSessionTodo } = await import("@/lib/boards/store");
+    const { createRun, getRun, updateRun } = await import("@/lib/work/store");
+    const live = await import("@/plugins/claude-cli/live");
+    const todo = addSessionTodo({ ticket: "", text: "Old host" });
+    const run = createRun({ ticket: "", todoId: todo.id, mode: "instruct", provider: "claude", model: null, permissionMode: "default", repo: null, prompt: "hello" });
+    updateRun(run.id, { status: "running", startedAt: new Date().toISOString() });
+    await live.startClaudeSession(
+      { runId: run.id, conversation: true, elevated: false, effort: "", model: null, mode: "default", allowBypass: false, askTimeoutMin: 0, command: process.execPath, args: [FAKE, "--replay-user-messages"], cwd: ROOT, newSessionId: `o-${run.id}` },
+      "hello",
+    );
+    assert.equal(live.readSessionCfg(run.id)?.transport, "own");
+    await until("its answer", () => /Echo: hello/.test(live.claudeLiveView(run.id)?.live.waiting ?? ""));
+    await live.closeClaude(run.id);
+    await until("closed", () => getRun(run.id)?.status === "done");
+  } finally {
+    process.env.ZEFF_WORK_HOST = before;
+    old.close();
+  }
+});
+
+test("the work host restarts itself for new code once nothing runs on it", async () => {
+  const fs = await import("node:fs");
+  const script = path.join(ROOT, "scripts", "work-host.mjs");
+  const port = await freePort();
+  const proc = spawn(process.execPath, [script], { env: { ...process.env, ZEFF_WORK_PORT: String(port), ZEFF_URL: "http://127.0.0.1:9", ZEFF_WORK_TOKEN: TOKEN, ZEFF_WORK_STATE: path.join(dir, "host-state-2.json") }, stdio: "ignore" });
+  let exited = false;
+  proc.on("exit", () => (exited = true));
+  await new Promise((r) => setTimeout(r, 1500));
+  const now = new Date();
+  fs.utimesSync(script, now, now); // "updated"
+  await until("it ends (the launcher starts it again)", () => exited, 15000);
+});
