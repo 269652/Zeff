@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { startSessionAction } from "@/plugins/work/server-actions";
 import { toast } from "@/components/Toaster";
+import { NO_WORKSPACE, WorkspacePicker, type Workspace } from "./WorkspacePicker";
 
 /**
  * The message box, like Claude Code's: it grows with what you write, Enter sends, Shift+Enter is a
@@ -26,7 +27,7 @@ export function SessionComposer({
   continueRunId?: number;
   /** For a new session: the tickets to pick from (none: the given one, or none). */
   tickets?: { key: string; summary: string | null }[];
-  repos?: { id: number; name: string }[];
+  repos?: { id: number; name: string; path: string }[];
   providers?: { id: string; label: string }[];
   /** Why you can't send right now (the worker is answering), or null. */
   busy?: string | null;
@@ -37,7 +38,7 @@ export function SessionComposer({
   const [pending, start] = useTransition();
   const [text, setText] = useState("");
   const [pick, setPick] = useState(ticket ?? "");
-  const [repo, setRepo] = useState("");
+  const [ws, setWs] = useState<Workspace>(NO_WORKSPACE);
   const [provider, setProvider] = useState("");
   const area = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
@@ -56,7 +57,9 @@ export function SessionComposer({
         ticket: pick || ticket || "",
         todoId,
         continueRunId,
-        repoId: repo ? Number(repo) : undefined,
+        repoPath: ws.path || undefined,
+        branch: ws.branch || undefined,
+        workspace: ws.mode || undefined,
         provider: provider || undefined,
       });
       if (!r.ok) return void toast(r.error, { tone: "error" });
@@ -96,16 +99,7 @@ export function SessionComposer({
               ))}
             </select>
           )}
-          {repos.length > 0 && !continueRunId && (
-            <select className={`${select} max-w-48`} value={repo} onChange={(e) => setRepo(e.target.value)} aria-label="Repo">
-              <option value="">Repo: the ticket&apos;s</option>
-              {repos.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-          )}
+          {!continueRunId && <WorkspacePicker repos={repos} value={ws} onChange={setWs} selectClass={select} />}
           {providers.length > 1 && (
             <select className={select} value={provider} onChange={(e) => setProvider(e.target.value)} aria-label="Backend">
               <option value="">{continueRunId ? "Same backend" : "Default backend"}</option>

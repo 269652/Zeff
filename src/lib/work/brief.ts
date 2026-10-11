@@ -125,12 +125,14 @@ ${opsDictionary(opAvailable)}${extra.trim() ? `\n\nZusätzlich:\n${extra.trim()}
 /** What the worker is to do, by mode — and where. */
 export function taskFor(
   mode: WorkMode,
-  ctx: { todo: TodoView; runId: number; repo: string | null; cwd: string; branch: string | null; base: string | null; isolation: WorkIsolation },
+  ctx: { todo: TodoView; runId: number; repo: string | null; cwd: string; branch: string | null; base: string | null; isolation: WorkIsolation; /** The work goes on an existing branch you picked (in a worktree of its own). */ onExisting?: boolean },
 ): string {
   const { todo } = ctx;
   if (mode === "code") {
     const where = ctx.branch
-      ? `Du arbeitest im Repo ${ctx.repo} — in einem eigenen Git-Worktree (${ctx.cwd}) auf dem neuen Branch ${ctx.branch}, abgezweigt von ${ctx.base}. Der Checkout des Nutzers bleibt unberührt.`
+      ? ctx.onExisting
+        ? `Du arbeitest im Repo ${ctx.repo} — in einem eigenen Git-Worktree (${ctx.cwd}) auf dem bestehenden Branch ${ctx.branch}, den der Nutzer gewählt hat. Der Checkout des Nutzers bleibt unberührt.`
+        : `Du arbeitest im Repo ${ctx.repo} — in einem eigenen Git-Worktree (${ctx.cwd}) auf dem neuen Branch ${ctx.branch}, abgezweigt von ${ctx.base}. Der Checkout des Nutzers bleibt unberührt.`
       : `Du arbeitest direkt im Repo ${ctx.repo} (dem Checkout des Nutzers, auf seinem aktuellen Branch).`;
     return `## Dein Auftrag (${workRef(ctx.runId)})
 Erledige ${todoRef(todo.id)}: ${todo.text}
@@ -147,7 +149,9 @@ ${ctx.branch ? `- Im Worktree fehlen evtl. Abhängigkeiten (vendor, node_modules
   }
   if (mode === "instruct") {
     const where = ctx.branch
-      ? `Du arbeitest im Repo ${ctx.repo} — in einem eigenen Git-Worktree (${ctx.cwd}) auf dem Branch ${ctx.branch}, abgezweigt von ${ctx.base}. Änderungen committest du dort; pushen, MR und mergen macht Zeff danach selbst.`
+      ? ctx.onExisting
+        ? `Du arbeitest im Repo ${ctx.repo} — in einem eigenen Git-Worktree (${ctx.cwd}) auf dem bestehenden Branch ${ctx.branch}, den der Nutzer gewählt hat. Änderungen committest du dort; pushen und mergen macht der Nutzer.`
+        : `Du arbeitest im Repo ${ctx.repo} — in einem eigenen Git-Worktree (${ctx.cwd}) auf dem Branch ${ctx.branch}, abgezweigt von ${ctx.base}. Änderungen committest du dort; pushen, MR und mergen macht Zeff danach selbst.`
       : ctx.repo
         ? `Du arbeitest direkt im Repo ${ctx.repo} (dem Checkout des Nutzers): nicht committen, nicht den Branch wechseln.`
         : `Zu diesem Ticket kennt Zeff kein Repo: du arbeitest in einem leeren Ordner (${ctx.cwd}).`;
