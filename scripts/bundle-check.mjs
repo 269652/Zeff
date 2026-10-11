@@ -6,7 +6,7 @@
  *   node scripts/bundle-check.mjs [--data <folder with zeff.db>] [--forbid <text>]...
  *
  *   files     what the app reads at run time is there: drizzle/ (every migration), the scripts, every
- *             plugin driver, .mcp.json, both builds
+ *             plugin driver, the external plugins' docs (docs/plugins), .mcp.json, both builds
  *   modules   every dependency of package.json resolves; better-sqlite3's native binding loads
  *   drivers   each src/plugins/<id>/driver.mjs and the MCP scripts start as an MCP server over stdio and
  *             answer initialize + tools/list (their imports — playwright-core … — resolve; no browser needed)
@@ -63,6 +63,10 @@ const pluginDirs = fs.readdirSync(path.join(root, "src", "plugins"), { withFileT
 const drivers = pluginDirs.filter((e) => has("src", "plugins", e.name, "driver.mjs")).map((e) => path.join("src", "plugins", e.name, "driver.mjs"));
 check(drivers.length >= 9, `${drivers.length} plugin drivers`, `only ${drivers.length} plugin drivers`);
 for (const f of [".mcp.json", "package.json", "next.config.ts", ".next/BUILD_ID", "knowledge/.next/BUILD_ID", "node_modules/next/package.json", "node_modules/better-sqlite3/package.json"]) check(has(...f.split("/")), f, `${f} is missing`);
+// The documents of external plugins: shown at /ext/docs and served as Markdown at /ext/raw/<name> (src/app/ext).
+const pluginDocs = ["README", "manifest", "api", "panels", "hooks", "security"];
+const lackDocs = pluginDocs.filter((f) => !has("docs", "plugins", `${f}.md`));
+check(!lackDocs.length, `docs/plugins/: the ${pluginDocs.length} documents of external plugins`, `docs/plugins/ lacks ${lackDocs.join(", ")}`);
 const pkg = JSON.parse(read("package.json"));
 
 // ---------------------------------------------------------------------------

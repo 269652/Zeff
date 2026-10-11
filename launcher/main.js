@@ -442,7 +442,7 @@ function unquarantine() {
 }
 
 /** The pages a smoke test opens (https://zeff<path>) after the start page of each server. */
-const SMOKE_PAGES = ["/heute", "/todos", "/mail", "/kanban", "/plugins", "/sync-settings", "/auswerten", "/logins", "/feierabend", "/work", "/setup", "/jira", "/repos", "/documents"];
+const SMOKE_PAGES = ["/heute", "/todos", "/mail", "/kanban", "/plugins", "/sync-settings", "/auswerten", "/logins", "/feierabend", "/work", "/setup", "/jira", "/repos", "/documents", "/ext/docs", "/ext/docs/api", "/ext/raw/README", "/ext/sdk/zeff.js", "/ext/sdk/zeff-plugin.schema.json"];
 
 /**
  * --smoke-test: the bundle as its user gets it, checked end to end — the servers start on the
