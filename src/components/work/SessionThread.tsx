@@ -256,7 +256,7 @@ function Answer({ run }: { run: WorkRunView }) {
   const res = run.result;
   const meta = [
     BACKEND[run.provider] ?? run.provider,
-    model ?? run.model ?? (run.provider === "claude" || run.provider === "copilot" ? t("default model") : null),
+    model ?? run.model ?? (run.provider === "claude" || run.provider === "copilot" || run.provider === "codex" ? t("default model") : null),
     run.durationMs ? duration(run.durationMs) : null,
     run.turns ? t("{n} turns", { n: run.turns }) : null,
     run.costUsd != null ? `$${run.costUsd.toFixed(2)}` : null,

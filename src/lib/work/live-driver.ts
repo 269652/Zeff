@@ -43,6 +43,8 @@ export type LiveOutcome = { result: WorkResult | null; closed: boolean; lastText
 export type LiveDriver = {
   /** The AI provider it runs (llm's: claude, codex …). */
   provider: string;
+  /** Zeff hands the CLI the session's id to use (Claude: --session-id) — else the CLI makes its own and the driver reports it (Codex: its thread). */
+  assignsSessionId?: boolean;
   /** Its modes (Bypass only when allowed), and the one a session starts in when none is picked. */
   modes(opts: { allowBypass: boolean }): SessionMode[];
   start(s: LiveStart): Promise<void>;

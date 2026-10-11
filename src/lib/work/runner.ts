@@ -8,10 +8,10 @@ import path from "node:path";
 import { currentAccountId, withAccount } from "@/db/accounts";
 import { sendToHost, spawnOnHost, workHostUp } from "./host";
 import { workerMcpServers } from "./mcp";
-import { aiChoice, getAppSettings } from "@/lib/ai";
+import { aiChoice, defaultModelOf, getAppSettings } from "@/lib/ai";
 import { findClaudeCli } from "@/plugins/claude-cli/cli";
 import { COPILOT_MAX_PROMPT, findCopilotCli, runCopilot } from "@/plugins/copilot-cli/cli";
-import type { AiProvider } from "@/lib/ai/shared";
+import { isAiProvider, type AiProvider } from "@/lib/ai/shared";
 import { asksForApproval, opsSettle, todoRef } from "@/lib/boards/shared";
 import type { TodoOp, TodoView } from "@/lib/boards/shared";
 import { addFollowUp, addTestedDelivery, addTodoInstruction, getTodo, handOverPlan, setTodoOps } from "@/lib/boards/store";
@@ -172,13 +172,13 @@ export function dispatchTodo(
   const byZeff = !instruction && ((m.mode === "send" && todo.channel === "gitlab") || m.mode === "mr" || m.mode === "ops");
   // A worker is the LLM plugin's "worker" task: its backend (or the default).
   // (Going on with a session: its provider, unless you pick another.)
-  const prevProvider = prev?.provider === "claude" || prev?.provider === "copilot" ? prev.provider : undefined;
+  const prevProvider = prev && isAiProvider(prev.provider) ? prev.provider : undefined;
   const provider: AiProvider | "zeff" = byZeff ? "zeff" : (opts.provider ?? prevProvider ?? llmChoice("worker").provider);
   if (provider !== "zeff" && !isInstalled("llm")) throw new ValidationError(t("The LLM plugin is not installed (Menu → Plugins) — no workers."));
   if (provider !== "zeff" && !providerAvailable(provider)) {
-    throw new ValidationError(t("{cli}: not installed (Menu → Plugins).", { cli: provider === "claude" ? "Claude CLI" : "Copilot CLI" }));
+    throw new ValidationError(t("{cli}: not installed (Menu → Plugins).", { cli: provider === "claude" ? "Claude CLI" : provider === "codex" ? "Codex CLI" : "Copilot CLI" }));
   }
-  if (m.mode === "send" && provider === "copilot") {
+  if (m.mode === "send" && (provider === "copilot" || provider === "codex")) {
     throw new ValidationError(t("Only Claude can post to Jira (through Zeff's Jira connection) — install the Claude CLI plugin."));
   }
   const chosen = opts.repoPath?.trim() ? repoRoot(opts.repoPath.trim()) : null;
@@ -191,16 +191,20 @@ export function dispatchTodo(
   }
   const app = getAppSettings();
   // The Work tab's model is one of the Settings provider's; another provider gets its own Settings model.
-  const own = provider === "zeff" ? "" : provider === llmChoice("worker").provider ? llmChoice("worker").model : provider === "copilot" ? app.copilotModel : app.claudeModel;
+  const own = provider === "zeff" ? "" : provider === llmChoice("worker").provider ? llmChoice("worker").model : defaultModelOf(provider, app);
   const so = opts.session ?? {};
-  const model = so.model?.trim() || (provider === aiChoice().provider ? s.model || own : own) || null;
+  // (The Work settings' model is a Claude/Copilot one: ChatGPT gets its own default.)
+  const model = so.model?.trim() || (provider !== "codex" && provider === aiChoice().provider ? s.model || own : own) || null;
   // Claude resumes its session — in the folder it ran in (Claude keeps sessions by folder), so it knows everything said and done.
   const waitFor = prev && (prev.status === "queued" || prev.status === "running") ? prev : undefined;
-  const resume = prev && !waitFor && provider === "claude" && prev.provider === "claude" && prev.sessionId && prev.cwd && fs.existsSync(/*turbopackIgnore: true*/ prev.cwd) ? prev : undefined;
-  // A live Claude session (the Work settings): its mode — yours from the composer, else the settings' (yours or Zeff's own runs).
+  // A live session (the Work settings): its mode — yours from the composer, else the settings' (yours or Zeff's own runs).
   const cs = claudeSessionSettings();
   const driver = provider === "zeff" ? undefined : liveDriverFor(provider);
   const live = !!driver && cs.live && m.mode !== "send";
+  if (provider === "codex" && !live) {
+    throw new ValidationError(t("ChatGPT workers need Live sessions — switch them on in the Work settings (Claude sessions)."));
+  }
+  const resume = prev && !waitFor && resumes(provider, prev) && fs.existsSync(/*turbopackIgnore: true*/ prev.cwd!) ? prev : undefined;
   const modes = driver?.modes({ allowBypass: cs.allowBypass }) ?? [];
   // (Claude's from the Work settings — yours or Zeff's own runs; another provider's: its first.)
   const liveMode = so.permissionMode ?? (provider === "claude" ? (opts.conversation || prev ? cs.mode : cs.autoMode) : (modes[0]?.id ?? ""));
@@ -267,6 +271,17 @@ export function pump(): void {
   }
 }
 
+/**
+ * A run this one can go on with: the same conversation (its folder is the caller's to check). Claude resumes
+ * its session in any mode (--resume); another provider's only while sessions run live (its driver
+ * resumes the thread).
+ */
+const resumes = (provider: string, from: Pick<WorkRun, "provider" | "sessionId" | "cwd">): boolean =>
+  from.provider === provider &&
+  !!from.sessionId &&
+  !!from.cwd &&
+  (provider === "claude" || (!!liveDriverFor(provider) && claudeSessionSettings().live));
+
 /** A run that may change code (in the repo, its worktree): an implementation, or your instruction. */
 const codeLike = (mode: string) => mode === "code" || mode === "instruct";
 
@@ -277,7 +292,7 @@ function start(id: number): void {
   // Sent while the run before it worked: it goes on with that conversation, where it worked — or, if there's none to resume, from the todo's brief.
   if (r.afterRun) {
     const before = getRun(r.afterRun);
-    const resumable = before?.provider === "claude" && r.provider === "claude" && before.sessionId && before.cwd && fs.existsSync(/*turbopackIgnore: true*/ before.cwd);
+    const resumable = !!before && resumes(r.provider, before) && fs.existsSync(/*turbopackIgnore: true*/ before.cwd!);
     const todo = getTodo(r.todoId);
     r =
       updateRun(
@@ -302,7 +317,7 @@ function start(id: number): void {
     }
     const mode = r.mode === "draft" || r.mode === "send" || r.mode === "instruct" ? r.mode : "code";
     // Queued with a session: the next message in a conversation — Claude resumes it where it worked.
-    const resume = r.provider === "claude" && !!r.sessionId && !!r.cwd;
+    const resume = resumes(r.provider, r);
     let cwd = path.join(workDir(), "scratch");
     let branch: string | null = null;
     let base: string | null = null;
@@ -333,7 +348,7 @@ function start(id: number): void {
     // House rules: everyone's, then the repo's own.
     const repoRules = r.repo ? (listRepos().find((x) => x.path === r.repo)?.instructions ?? "") : "";
     // (Your instructions and context from the LLM plugin first — for every worker.)
-    const rules = workerRules([llmPreamble(), s.instructions, repoRules].filter((x) => x.trim()).join("\n\n"), { conversation: !!so?.conversation, live: !!so && r.provider === "claude" });
+    const rules = workerRules([llmPreamble(), s.instructions, repoRules].filter((x) => x.trim()).join("\n\n"), { conversation: !!so?.conversation, live: !!so && !!liveDriverFor(r.provider) });
     // A conversation going on: just your words. A task: the brief, what to do, and its result as JSON at the end (a live Claude task — without --json-schema).
     const tail = `\n\nAntworte am Ende mit dem Ergebnis als JSON in einem \`\`\`json-Block, nach diesem JSON-Schema:\n${JSON.stringify(WORK_RESULT_SCHEMA)}`;
     const isolation = r.workspace === "checkout" || (!r.workspace && s.isolation === "checkout") ? "checkout" : "worktree";
@@ -344,8 +359,9 @@ function start(id: number): void {
     const driver = so ? liveDriverFor(r.provider) : undefined;
     if (so && driver) {
       const cs = claudeSessionSettings();
-      const sessionId = resume ? r.sessionId! : randomUUID();
-      updateRun(id, { sessionId });
+      // (Claude is handed its session's id; another CLI makes its own — the driver reports it.)
+      const sessionId = resume ? r.sessionId! : driver.assignsSessionId ? randomUUID() : null;
+      if (sessionId) updateRun(id, { sessionId });
       void driver
         .start({
           runId: id,
@@ -473,8 +489,10 @@ export async function messageRunningSession(runId: number, text: string): Promis
   if (!r) throw new NotFoundError(`${workRef(runId)} not found.`);
   const message = text.trim();
   if (!message) throw new ValidationError("What's your message?");
-  if (r.status !== "running" || r.provider !== "claude") throw new ValidationError(`${workRef(runId)} isn't a working Claude session.`);
-  if (!(await sendToHost(runId, message))) throw new ValidationError(`${workRef(runId)} can't take a message right now - it is just finishing (or the work host isn't running). Send it again in a moment.`);
+  const driver = liveDriverOf(runId);
+  if (r.status !== "running" || (r.provider !== "claude" && !driver)) throw new ValidationError(`${workRef(runId)} isn't a working session.`);
+  if (driver?.view(runId)) await driver.send(runId, message, []);
+  else if (!(await sendToHost(runId, message))) throw new ValidationError(`${workRef(runId)} can't take a message right now - it is just finishing (or the work host isn't running). Send it again in a moment.`);
   addTodoInstruction(r.todoId, message, runId);
 }
 

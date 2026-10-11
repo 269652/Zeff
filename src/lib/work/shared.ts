@@ -177,7 +177,7 @@ export type WorkRunView = {
   todoId: number;
   mode: WorkMode;
   /** zeff: Zeff did it itself (a GitLab reply posted through the automation Chrome); agent: an agent outside Zeff (its name: model), through Zeff's MCP. */
-  provider: "claude" | "copilot" | "zeff" | "agent";
+  provider: "claude" | "copilot" | "codex" | "zeff" | "agent";
   model: string | null;
   permissionMode: string | null;
   status: WorkStatus;
