@@ -3,7 +3,7 @@ import { CLAUDE_MODELS } from "@/lib/ai/shared";
 import type { BackendChoices, ComposerOptions } from "@/lib/work/composer-shared";
 import { liveDriverFor } from "@/lib/work/live-driver";
 import { claudeSessionSettings } from "@/lib/work/store";
-import { codexModels } from "@/plugins/codex-cli/cli";
+import { codexModels, refreshCodexSandbox } from "@/plugins/codex-cli/cli";
 import { llmChoice } from "@/plugins/llm/run";
 import { elevationAvailable } from "@/plugins/work-elevated/elevate";
 import { providerAvailable } from "@/plugins/state";
@@ -20,6 +20,8 @@ export async function composerOptions(): Promise<ComposerOptions> {
     // ChatGPT has no one-shot workers: without live sessions it isn't offered.
     if (!live && p.id === "codex") continue;
     if (live && driver) {
+      // (ChatGPT's Auto mode says whether its Windows sandbox is set up: ask it first.)
+      if (p.id === "codex") await refreshCodexSandbox();
       const modes = driver.modes({ allowBypass: cs.allowBypass });
       if (p.id === "claude") {
         choices[p.id] = {
