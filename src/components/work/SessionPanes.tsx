@@ -84,7 +84,7 @@ export function SessionPane({ run, options }: { run: WorkRunView; options: Optio
             ticket={last.ticket}
             continueRunId={last.id}
             providers={options.providers}
-            busy={active ? (last.status === "queued" ? "Waiting for a free worker …" : "Working — you can reply once it has answered.") : null}
+            busy={last.status === "queued" ? "Waiting for a free worker …" : active && last.provider !== "claude" ? "Working — you can reply once it has answered." : null}
             placeholder="Reply …"
             autoFocus
           />

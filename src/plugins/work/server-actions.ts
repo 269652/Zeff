@@ -37,6 +37,13 @@ export async function startSessionAction(v: {
       const { getRun } = await import("@/lib/work/store");
       const prev = getRun(Number(v.continueRunId));
       if (!prev) return { ok: false, error: "Diese Session gibt es nicht mehr." };
+      // Still working: the message goes into the running session (it takes it in when idle).
+      if (prev.status === "running" && prev.provider === "claude" && !isAiProvider(v.provider)) {
+        const { messageRunningSession } = await import("@/lib/work/runner");
+        await messageRunningSession(prev.id, instruction);
+        revalidatePath("/work");
+        return { ok: true, runId: prev.id };
+      }
       const run = dispatchTodo(prev.todoId, { instruction, continueRun: prev.id, provider: isAiProvider(v.provider) ? v.provider : undefined });
       revalidatePath("/work");
       return { ok: true, runId: run.id };

@@ -121,6 +121,8 @@ export type WorkLogLine =
   | { k: "start"; text: string; /** The model that answers, as the CLI reports it. */ model?: string }
   /** The worker's own words. */
   | { k: "say"; text: string }
+  /** A message of yours while it was working (the first message is the run's prompt, shown as the question). */
+  | { k: "you"; text: string }
   /** A tool call, in short ("Bash", "npm test"). */
   | { k: "tool"; tool: string; text: string }
   /** A tool's result (errors and short ones). */

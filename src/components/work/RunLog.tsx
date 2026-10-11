@@ -10,6 +10,8 @@ function Line({ l }: { l: WorkLogLine }) {
       return <div className="text-zinc-500">▶ {l.text}</div>;
     case "say":
       return <div className="font-sans text-[13px] leading-relaxed whitespace-pre-wrap text-zinc-100">{l.text}</div>;
+    case "you":
+      return <div className="font-sans text-[13px] text-indigo-300">› {l.text}</div>;
     case "tool":
       return (
         <div className="text-zinc-300">

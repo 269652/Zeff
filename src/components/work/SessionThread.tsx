@@ -48,7 +48,7 @@ function useRunLog(id: number, active: boolean) {
 }
 
 type Step = Extract<WorkLogLine, { k: "tool" | "out" | "deny" }>;
-type Block = { t: "say"; text: string } | { t: "steps"; steps: Step[] } | { t: "raw"; text: string };
+type Block = { t: "say"; text: string } | { t: "you"; text: string } | { t: "steps"; steps: Step[] } | { t: "raw"; text: string };
 
 /** The log as a conversation: the worker's words, its tool calls grouped between them, plain output kept together. */
 function toBlocks(lines: WorkLogLine[]): { blocks: Block[]; model: string | null } {
@@ -58,6 +58,7 @@ function toBlocks(lines: WorkLogLine[]): { blocks: Block[]; model: string | null
     const last = blocks[blocks.length - 1];
     if (l.k === "start") model = l.model ?? model;
     else if (l.k === "say") blocks.push({ t: "say", text: l.text });
+    else if (l.k === "you") blocks.push({ t: "you", text: l.text });
     else if (l.k === "tool" || l.k === "out" || l.k === "deny") {
       if (last?.t === "steps") last.steps.push(l);
       else blocks.push({ t: "steps", steps: [l] });
@@ -174,6 +175,12 @@ function Answer({ run }: { run: WorkRunView }) {
       {blocks.map((b, i) =>
         b.t === "say" ? (
           <Markdown key={i} text={b.text} className="text-zinc-800 dark:text-zinc-200" />
+        ) : b.t === "you" ? (
+          <div key={i} className="flex justify-end">
+            <div className="max-w-[85%] rounded-2xl rounded-br-md bg-zinc-100 px-4 py-2.5 text-sm whitespace-pre-wrap text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100" title="Sent while it was working">
+              {b.text}
+            </div>
+          </div>
         ) : b.t === "steps" ? (
           <Steps key={i} steps={b.steps} working={active && i === blocks.length - 1} />
         ) : (
