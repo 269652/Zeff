@@ -248,7 +248,7 @@ function Shell({ cmd, text, ok }: { cmd: string; text: string; ok: boolean }) {
 function Answer({ run }: { run: WorkRunView }) {
   const t = useT();
   const active = isActive(run.status);
-  const { lines, errors, loaded } = useRunLog(run.id, active, !!run.claude);
+  const { lines, errors, loaded } = useRunLog(run.id, active, !!run.session);
   const { blocks, model } = toBlocks(lines);
   const summary = run.summary?.trim() || run.result?.draft?.trim() || "";
   const lastSay = [...blocks].reverse().find((b) => b.t === "say");
@@ -261,7 +261,7 @@ function Answer({ run }: { run: WorkRunView }) {
     run.turns ? t("{n} turns", { n: run.turns }) : null,
     run.costUsd != null ? `$${run.costUsd.toFixed(2)}` : null,
   ].filter(Boolean);
-  const waiting = run.claude ? run.claude.asks.length > 0 || !run.live?.busy : run.live && !run.live.busy;
+  const waiting = run.session ? run.session.asks.length > 0 || !run.live?.busy : run.live && !run.live.busy;
   return (
     <div className="space-y-3">
       {blocks.map((b, i) =>
@@ -284,7 +284,7 @@ function Answer({ run }: { run: WorkRunView }) {
       {active && (
         <div className="flex items-center gap-2 text-sm text-zinc-500" role="status">
           {!waiting && <Spinner />}
-          {run.status === "queued" ? t("Waiting for a free worker …") : run.claude?.asks.length ? t("It asks you — below") : waiting ? t("Waiting for you") : t("Working …")}
+          {run.status === "queued" ? t("Waiting for a free worker …") : run.session?.asks.length ? t("It asks you — below") : waiting ? t("Waiting for you") : t("Working …")}
         </div>
       )}
       {!active && showSummary && <Markdown text={summary} className="text-zinc-800 dark:text-zinc-200" />}

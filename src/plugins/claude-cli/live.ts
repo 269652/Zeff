@@ -9,7 +9,9 @@ import { t } from "@/lib/i18n/server";
 import { closeOnHost, killOnHost, spawnOnHost, workHostFeatures, writeToHost } from "@/lib/work/host";
 import { errPath, inPath, lastJson, logPath, workDir } from "@/lib/work/log";
 import { normalizeResult } from "@/lib/work/outcome";
-import { CLAUDE_MODE_INFO, isClaudeMode, WORK_RESULT_SCHEMA, workRef, type ClaudeAsk, type ClaudeLiveView, type ClaudeMode, type Effort, type SessionOptions, type WorkResult } from "@/lib/work/shared";
+import { CLAUDE_MODE_INFO, CLAUDE_MODES, isClaudeMode, WORK_RESULT_SCHEMA, workRef, type AskAnswer, type ClaudeAsk, type ClaudeLiveView, type ClaudeMode, type Effort, type SessionMode, type SessionOptions, type WorkResult } from "@/lib/work/shared";
+import type { LiveDriver, LiveStart } from "@/lib/work/live-driver";
+import { findClaudeCli } from "./cli";
 import type { LiveView } from "@/plugins/copilot-cli/live-state";
 
 /**
@@ -178,8 +180,14 @@ function changed(alsoAttention = false) {
   if (alsoAttention) emitChange("attention");
 }
 
-/** The live session as the pages see it (the Copilot-shaped part for the sidebar and attention; the rest under `claude`). */
-export function claudeLiveView(runId: number): { live: LiveView; claude: ClaudeLiveView } | undefined {
+/** Claude Code's modes, as the pages offer them (Bypass only when allowed). */
+export function claudeModes(allowBypass: boolean): SessionMode[] {
+  const tone: Partial<Record<ClaudeMode, SessionMode["tone"]>> = { plan: "info", auto: "warn", bypassPermissions: "danger" };
+  return CLAUDE_MODES.filter((m) => m !== "bypassPermissions" || allowBypass).map((m) => ({ id: m, label: CLAUDE_MODE_INFO[m].label, hint: CLAUDE_MODE_INFO[m].hint, tone: tone[m] }));
+}
+
+/** The live session as the pages see it (the Copilot-shaped part for the sidebar and attention; the rest under `session`). */
+export function claudeLiveView(runId: number): { live: LiveView; session: ClaudeLiveView } | undefined {
   const l = claudeLives.get(runId);
   if (!l || l.closed) return undefined;
   const ask = l.view.asks[0];
@@ -190,7 +198,7 @@ export function claudeLiveView(runId: number): { live: LiveView; claude: ClaudeL
     permission: ask ? { title: askTitle(ask), detail: askDetail(ask), options: [] } : null,
     waiting: !l.busy && !ask && l.view.host !== "starting" && l.caughtUp ? (l.waiting ?? "") : null,
   };
-  return { live, claude: { ...l.view, asks: [...l.view.asks], costUsd: l.costDone + l.costNow, queued: Math.max(0, l.sent - 1), shellPending: l.shell.length } };
+  return { live, session: { ...l.view, asks: [...l.view.asks], costUsd: l.costDone + l.costNow, queued: Math.max(0, l.sent - 1), shellPending: l.shell.length } };
 }
 
 /** What it asks, in a few words. */
@@ -709,7 +717,24 @@ function newLive(runId: number, cfg: SessionCfg): Live {
     answered: new Set(),
     sock: null,
     connecting: null,
-    view: { sessionId: cfg.resumeSession ?? null, model: cfg.model, models: [], effort: cfg.effort, elevated: cfg.elevated, commands: [], host: "down", conversation: cfg.conversation, asks: [], queued: 0, costUsd: 0, shellPending: 0, allowBypass: cfg.allowBypass },
+    view: {
+      provider: "claude",
+      modes: claudeModes(cfg.allowBypass),
+      features: ["images", "commands", "shell", "effort", "admin"],
+      sessionId: cfg.resumeSession ?? null,
+      model: cfg.model,
+      models: [],
+      effort: cfg.effort,
+      elevated: cfg.elevated,
+      commands: [],
+      host: "down",
+      conversation: cfg.conversation,
+      asks: [],
+      queued: 0,
+      costUsd: 0,
+      shellPending: 0,
+      allowBypass: cfg.allowBypass,
+    },
     mode: cfg.mode,
     busy: false,
     turnText: "",
@@ -810,21 +835,6 @@ export async function sendToClaude(runId: number, text: string, images: Img[] = 
   changed(true);
 }
 
-export type AskAnswer = {
-  behavior: "allow" | "deny";
-  /** Allow — and the rules it suggested from now on (allow always). */
-  always?: boolean;
-  /** Deny: why (it reads it); with interrupt, it stops the turn too. */
-  message?: string;
-  interrupt?: boolean;
-  /** AskUserQuestion: the answers (question → chosen label(s), or your own text). */
-  answers?: Record<string, string>;
-  /** ExitPlanMode: the mode to go on in. */
-  then?: ClaudeMode;
-  /** Its input, changed by you (an edited command). */
-  input?: Record<string, unknown>;
-};
-
 /** Your answer to what it asks. */
 export async function answer(runId: number, requestId: string, a: AskAnswer) {
   const l = liveOf(runId);
@@ -834,6 +844,7 @@ export async function answer(runId: number, requestId: string, a: AskAnswer) {
   if (a.behavior === "allow") {
     const input = a.answers ? { ...ask.input, answers: a.answers } : (a.input ?? ask.input);
     const perms = a.then ? [{ type: "setMode", mode: a.then, destination: "session" }] : a.always ? ask.suggestions : undefined;
+    if (a.then && !isClaudeMode(a.then)) throw new Error(t("Unknown mode."));
     if (a.then === "bypassPermissions" && !l.cfg.allowBypass) throw new Error(t("Bypass isn't allowed (Work settings)."));
     response = { behavior: "allow", updatedInput: input, ...(perms?.length ? { updatedPermissions: perms } : {}) };
   } else {
@@ -966,3 +977,74 @@ export async function runShell(runId: number, cmd: string): Promise<{ out: strin
   changed();
   return res;
 }
+
+/** The tools a live session must not use beyond Zeff's: StructuredOutput (a conversation an older one-shot run began knows it — not here: its result is a json block). */
+const NOT_HERE = ["StructuredOutput"];
+
+/** Start a live session from what the runner knows: Claude Code's own arguments made here. */
+async function startFrom(s: LiveStart): Promise<void> {
+  const cli = findClaudeCli();
+  if (!cli) throw new Error(t("The Claude CLI wasn't found — install Claude Code, or set CLAUDE_CLI."));
+  // CLAUDE_CLI may be a script (a stand-in): run with node.
+  const script = /\.(c|m)?js$/i.test(cli);
+  await startClaudeSession(
+    {
+      runId: s.runId,
+      conversation: s.conversation,
+      elevated: s.elevated,
+      effort: s.effort,
+      model: s.model,
+      mode: isClaudeMode(s.mode) ? s.mode : "default",
+      allowBypass: s.allowBypass,
+      askTimeoutMin: s.askTimeoutMin,
+      command: script ? process.execPath : cli,
+      args: [
+        ...(script ? [cli] : []),
+        "-p",
+        "--input-format",
+        "stream-json",
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        "--permission-prompt-tool",
+        "stdio",
+        "--replay-user-messages",
+        "--name",
+        s.name,
+        "--append-system-prompt",
+        s.rules,
+        "--disallowedTools",
+        [...s.disallowedTools, ...NOT_HERE].join(","),
+        ...(s.allowBypass ? ["--allow-dangerously-skip-permissions"] : []),
+      ],
+      cwd: s.cwd,
+      resumeSession: s.resumeSession,
+      newSessionId: s.newSessionId,
+    },
+    s.prompt,
+  );
+}
+
+/** Claude Code as a live-session driver (see lib/work/live-driver.ts). */
+export const claudeLiveDriver: LiveDriver = {
+  provider: "claude",
+  modes: ({ allowBypass }) => claudeModes(allowBypass),
+  start: startFrom,
+  reattach: reattachClaudeSessions,
+  has: isClaudeSession,
+  runIds: () => [...claudeLives.keys()],
+  view: claudeLiveView,
+  idle: claudeIdle,
+  send: sendToClaude,
+  answer,
+  interrupt: interruptClaude,
+  setMode: setClaudeMode,
+  setModel: setClaudeModel,
+  setEffort: setClaudeEffort,
+  shell: runShell,
+  finish: finishClaude,
+  close: closeClaude,
+  kill: killClaude,
+  outcome: liveOutcome,
+  workerExited: claudeWorkerExited,
+};

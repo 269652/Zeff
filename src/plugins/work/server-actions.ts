@@ -139,11 +139,12 @@ export async function deleteSessionAction(todoId: number): Promise<ActionState> 
 /** The composer's session choices, checked (a page can send anything). */
 async function checkSession(raw: unknown): Promise<import("@/lib/work/shared").SessionOptions | undefined> {
   if (!raw || typeof raw !== "object") return undefined;
-  const { EFFORTS, isClaudeMode } = await import("@/lib/work/shared");
+  const { EFFORTS } = await import("@/lib/work/shared");
   const o = raw as Record<string, unknown>;
   const out: import("@/lib/work/shared").SessionOptions = {};
+  // A mode its provider's driver offers (checked against them when the run is dispatched).
   if (o.permissionMode !== undefined && o.permissionMode !== "") {
-    if (!isClaudeMode(o.permissionMode)) throw new Error(t("Unknown permission mode."));
+    if (typeof o.permissionMode !== "string" || !/^[\w-]{1,40}$/.test(o.permissionMode)) throw new Error(t("Unknown permission mode."));
     out.permissionMode = o.permissionMode;
   }
   if (typeof o.model === "string" && o.model.trim()) {

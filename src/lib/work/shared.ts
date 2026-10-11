@@ -169,8 +169,8 @@ export type WorkLogLine =
 export type WorkRunView = {
   /** A live (interactive) session: its mode, whether it works, what it asks of you. */
   live: import("@/plugins/copilot-cli/live-state").LiveView | null;
-  /** A live Claude session (more than a Copilot one: its asks, models, commands). */
-  claude: ClaudeLiveView | null;
+  /** A live session (any provider's: its asks, modes, models, commands — see live-driver.ts). */
+  session: SessionLiveView | null;
   id: number;
   ref: string;
   ticket: string;
@@ -246,7 +246,8 @@ export type Effort = (typeof EFFORTS)[number];
 
 /** How a session is started — the composer's choices (the rest from the Work settings). */
 export type SessionOptions = {
-  permissionMode?: ClaudeMode;
+  /** A mode its driver offers (Claude: default, acceptEdits, auto, plan …). */
+  permissionMode?: string;
   model?: string;
   effort?: Effort;
   /** As administrator (Windows; the "Admin sessions" plugin). */
@@ -283,7 +284,35 @@ export type ClaudeAsk = {
 };
 
 /** A live Claude session as the pages see it. */
-export type ClaudeLiveView = {
+/** A live session's mode as its driver offers it (Claude: Ask, Edits, Auto, Plan …; others their own). */
+export type SessionMode = { id: string; label: string; hint: string; /** How careful to show it: info (plan), warn (auto), danger (no checks). */ tone?: "info" | "warn" | "danger" };
+
+/** What a live session can do besides talking (its driver's): images, /commands, !shell, effort, administrator. */
+export type SessionFeature = "images" | "commands" | "shell" | "effort" | "admin";
+
+/** Your answer to what a live session asks (any provider's). */
+export type AskAnswer = {
+  behavior: "allow" | "deny";
+  /** Allow — and the rules it suggested from now on (allow always). */
+  always?: boolean;
+  /** Deny: why (it reads it); with interrupt, it stops the turn too. */
+  message?: string;
+  interrupt?: boolean;
+  /** A question's answers (question → chosen label(s), or your own text). */
+  answers?: Record<string, string>;
+  /** A plan approved: the mode to go on in. */
+  then?: string;
+  /** Its input, changed by you (an edited command). */
+  input?: Record<string, unknown>;
+};
+
+/** A live session as the pages see it — any provider's (see live-driver.ts). */
+export type SessionLiveView = {
+  /** Whose session: claude, codex … */
+  provider: string;
+  /** The modes it offers (switch any time), and what it can do besides talking. */
+  modes: SessionMode[];
+  features: SessionFeature[];
   sessionId: string | null;
   model: string | null;
   models: { value: string; label: string; efforts: string[] }[];
@@ -298,11 +327,14 @@ export type ClaudeLiveView = {
   asks: ClaudeAsk[];
   /** Turns sent and not answered yet (a message sent while it works waits its turn). */
   queued: number;
-  costUsd: number;
+  /** What it cost so far — null where that isn't known (a subscription). */
+  costUsd: number | null;
   /** Shell commands (!cmd) run since your last message — they go along with the next one. */
   shellPending: number;
   allowBypass: boolean;
 };
+/** (Claude's, as it was called before there were other providers.) */
+export type ClaudeLiveView = SessionLiveView;
 
 /** How Copilot workers run: a live session asking you (interactive), one allowed everything (autopilot), or a one-shot run (headless). */
 export const COPILOT_MODES = ["interactive", "autopilot", "headless"] as const;

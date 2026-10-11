@@ -32,7 +32,7 @@ const TONE: Record<string, string> = {
 
 /** What a run is doing right now, in a few words. */
 function liveStatus(r: WorkRunView): string {
-  if (r.claude) return r.claude.asks.length ? t("waits for your answer") : r.claude.host === "starting" ? t("starting") : r.live?.busy ? t("working") : t("waiting for you");
+  if (r.session) return r.session.asks.length ? t("waits for your answer") : r.session.host === "starting" ? t("starting") : r.live?.busy ? t("working") : t("waiting for you");
   if (r.live) return r.live.permission ? t("asks for permission") : r.live.busy ? t("working") : t("waiting for you");
   return statusText(r.status);
 }
@@ -57,7 +57,7 @@ export function SessionPane({ run, options }: { run: WorkRunView; options: Optio
   const active = isActive(last.status);
   // Every todo being worked on in this session: its own, and those it took on the way (the worker's start-todo actions).
   const side = sideTodos(runs.map((r) => r.id)).filter((s) => s.todoId !== run.todoId);
-  const cost = runs.reduce((n, r) => n + (r.costUsd ?? 0), 0) + (last.claude?.costUsd && !last.costUsd ? last.claude.costUsd : 0);
+  const cost = runs.reduce((n, r) => n + (r.costUsd ?? 0), 0) + (last.session?.costUsd && !last.costUsd ? last.session.costUsd : 0);
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col max-lg:min-h-[80vh]">
       <header className="flex items-center gap-3 border-b border-zinc-200 pb-2.5 dark:border-zinc-800">
@@ -71,7 +71,7 @@ export function SessionPane({ run, options }: { run: WorkRunView; options: Optio
               <span className={`size-1.5 rounded-full bg-current ${active ? "animate-pulse" : "invisible"}`} aria-hidden />
               {liveStatus(last)}
             </span>
-            {last.claude?.elevated && <span className="rounded bg-red-100 px-1.5 font-semibold text-red-800 dark:bg-red-950 dark:text-red-200">{t("Administrator")}</span>}
+            {last.session?.elevated && <span className="rounded bg-red-100 px-1.5 font-semibold text-red-800 dark:bg-red-950 dark:text-red-200">{t("Administrator")}</span>}
             {last.ticket ? (
               <Link href={`/work?ticket=${encodeURIComponent(last.ticket)}`} className="font-mono text-indigo-600 hover:underline dark:text-indigo-400">
                 {last.ticket}
@@ -124,7 +124,7 @@ export function SessionPane({ run, options }: { run: WorkRunView; options: Optio
       <SessionTabs key={last.id} runId={last.id} git={!!last.cwd && !!last.repo} title={`${last.ticket ? `${last.ticket}: ` : ""}${todo?.text ?? ""}`.slice(0, 120)}>
         <SessionThread turns={turns} />
         <div className="pt-2">
-          {last.claude && last.status === "running" ? (
+          {last.session && last.status === "running" ? (
             <ClaudeSession key={last.id} run={last} />
           ) : last.live && last.status === "running" ? (
             <LiveControls run={last} />
