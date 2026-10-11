@@ -258,8 +258,8 @@ export default async function HeutePage() {
         )}
 
         {reportedDone.length > 0 && (
-          <Card title="Von Workern erledigt gemeldet" count={reportedDone.length} href="/todos">
-            <ul className="space-y-1.5">{reportedDone.map((t) => todo(t, <span className="shrink-0 text-xs text-emerald-600 dark:text-emerald-400">✓</span>))}</ul>
+          <Card title={t("Reported done by workers")} count={reportedDone.length} href="/todos">
+            <ul className="space-y-1.5">{reportedDone.map((x) => todo(x, <span className="shrink-0 text-xs text-emerald-600 dark:text-emerald-400">✓</span>))}</ul>
           </Card>
         )}
         {asking.length > 0 && (
