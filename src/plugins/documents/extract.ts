@@ -13,15 +13,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
-import { getPref } from "@/lib/prefs";
 import { t } from "@/lib/i18n/server";
+import { ensurePoppler } from "./poppler";
+import { documentSettings } from "./settings";
 import type { DocKind } from "./shared";
 
 /** Not readable (yet): the reason, and what would help — not a failure to fix, a state to tell. */
 export class UnsupportedError extends Error {}
-
-export type DocumentSettings = { transcriber: string };
-export const documentSettings = (): DocumentSettings => ({ transcriber: "", ...getPref<Partial<DocumentSettings>>("plugin:documents", {}) });
 
 const MAX_TEXT = 400000;
 
@@ -252,7 +250,7 @@ export function pdfText(buf: Buffer): string {
 // The Claude CLI: pictures, scanned PDFs
 // ---------------------------------------------------------------------------
 
-async function readWithClaude(file: string, name: string): Promise<string> {
+async function readWithClaude(file: string, name: string, extraPath?: string): Promise<string> {
   const { findClaudeCli, runClaude } = await import("@/plugins/claude-cli/cli");
   if (!findClaudeCli()) throw new UnsupportedError(t("The Claude CLI isn't installed — it reads pictures and scanned PDFs."));
   // A folder of its own for the one file: the AI may read there, nowhere else.
@@ -263,7 +261,7 @@ async function readWithClaude(file: string, name: string): Promise<string> {
     const r = await runClaude<{ text?: string }>(
       `Lies die Datei ${copy} mit dem Read-Werkzeug (ein PDF mit mehr als 20 Seiten in Abschnitten). Gib ihren gesamten Inhalt als Text zurück, in der Sprache des Dokuments, ohne etwas hinzuzufügen oder zu kürzen: bei einem Dokument seinen vollständigen Text (Tabellen als Markdown-Tabellen); bei einem Bild erst den darin sichtbaren Text (OCR), dann in zwei, drei Sätzen, was es zeigt. Kannst du die Datei nicht lesen, gib genau den Text „UNREADABLE: “ und den Grund zurück.`,
       { type: "object", properties: { text: { type: "string" } }, required: ["text"] },
-      { readDir: dir, timeoutMs: 8 * 60000, maxBudgetUsd: 1 },
+      { readDir: dir, timeoutMs: 8 * 60000, maxBudgetUsd: 1, extraPath },
     );
     const text = (r.output?.text ?? "").trim();
     if (/^UNREADABLE:/i.test(text) || /pdftoppm|poppler/i.test(text)) {
@@ -312,7 +310,16 @@ export async function extractText(file: string, name: string, kind: DocKind): Pr
   else if (kind === "pdf") {
     text = pdfText(fs.readFileSync(file));
     // Nothing sensible in it (a scan, fonts without a plain text mapping): the Claude CLI looks.
-    if (text.length < 40 || wordish(text) < 0.8) text = await readWithClaude(file, name);
+    if (text.length < 40 || wordish(text) < 0.8) {
+      // The CLI's Read tool renders PDF pages with Poppler's pdftoppm: found, or installed now (if allowed).
+      let dir: string;
+      try {
+        dir = await ensurePoppler();
+      } catch (e) {
+        throw new UnsupportedError(e instanceof Error ? e.message : String(e));
+      }
+      text = await readWithClaude(file, name, dir);
+    }
   } else if (kind === "image") text = await readWithClaude(file, name);
   else if (kind === "audio") {
     const command = documentSettings().transcriber.trim();

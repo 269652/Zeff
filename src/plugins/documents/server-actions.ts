@@ -36,6 +36,8 @@ export async function reprocessDocumentAction(id: number): Promise<ActionState> 
     const { getDocument, setStatus } = await import("./store");
     if (!getDocument(Number(id))) throw new Error(t("This document doesn't exist (any more)."));
     setStatus(Number(id), "queued");
+    // Poppler (a scanned PDF's reader) that failed to install is tried again.
+    (await import("./poppler")).forgetPopplerFailure();
     (await import("./process")).startProcessing();
     return t("Reading it again …");
   });
@@ -75,10 +77,10 @@ export async function listDocumentsAction(): Promise<DocView[]> {
 }
 
 /** The audio transcriber: the command that turns a recording into text — {file} and {dir} filled in. */
-export async function saveDocumentSettingsAction(v: { transcriber: string }): Promise<ActionState> {
+export async function saveDocumentSettingsAction(v: { transcriber: string; autoInstall: boolean }): Promise<ActionState> {
   return run(async () => {
     const { setPref } = await import("@/lib/prefs");
-    setPref("plugin:documents", { transcriber: String(v.transcriber ?? "").trim().slice(0, 500) });
+    setPref("plugin:documents", { transcriber: String(v.transcriber ?? "").trim().slice(0, 500), autoInstall: v.autoInstall !== false });
     return t("Saved.");
   });
 }

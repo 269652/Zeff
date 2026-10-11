@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { listTodos } from "@/lib/boards/store";
 import { t } from "@/lib/i18n/server";
-import { documentSettings } from "@/plugins/documents/extract";
+import { documentSettings } from "@/plugins/documents/settings";
 import { DocumentsApp } from "@/plugins/documents/DocumentsApp";
 import { pollAbstracts, pullAbstracts, startProcessing } from "@/plugins/documents/process";
 import { listDocuments, queuedDocuments, uncompiledDocuments } from "@/plugins/documents/store";
@@ -38,7 +38,7 @@ export default async function DocumentsPage() {
           })}
         </p>
       </div>
-      <DocumentsApp docs={listDocuments()} todos={todos} transcriber={documentSettings().transcriber} knowledge={knowledge} />
+      <DocumentsApp docs={listDocuments()} todos={todos} settings={documentSettings()} knowledge={knowledge} />
     </div>
   );
 }

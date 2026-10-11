@@ -129,3 +129,36 @@ test("documents: the store keeps a file once, queues it, drops it from todos whe
   assert.deepEqual(getTodo(todo.id)?.refs, []);
   assert.equal(listDocuments().length, 0);
 });
+
+/** Poppler (a scanned PDF's reader): found on the PATH, the install commands per machine, off / failed-before refuse without installing. */
+test("documents: Poppler is found, installers are chosen per machine, nothing is installed when off or failed before", async () => {
+  const { findPoppler, installers, ensurePoppler } = await import("@/plugins/documents/poppler");
+  const { setPref } = await import("@/lib/prefs");
+
+  // On the PATH.
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), "zeff-poppler-"));
+  fs.writeFileSync(path.join(bin, process.platform === "win32" ? "pdftoppm.exe" : "pdftoppm"), "");
+  const oldPath = process.env.PATH;
+  process.env.PATH = bin;
+  assert.equal(findPoppler(), bin);
+  assert.equal(await ensurePoppler(), bin);
+  process.env.PATH = oldPath;
+
+  // Which package manager, where.
+  assert.deepEqual(installers("win32", (c) => c === "winget").map((i) => i.name), ["winget"]);
+  assert.deepEqual(installers("win32", () => true).map((i) => i.name), ["winget", "scoop"]);
+  assert.deepEqual(installers("win32", () => false), []);
+  assert.deepEqual(installers("darwin", (c) => c === "brew").map((i) => i.command), ["brew"]);
+  assert.deepEqual(installers("linux", () => true), []);
+  assert.ok(installers("win32", () => true)[0].args.includes("oschwartz10612.Poppler"));
+
+  // Not there (skipped on a machine that has it): off → told, not installed; failed a moment ago → told, not tried again.
+  process.env.PATH = "";
+  if (findPoppler()) return;
+  setPref("plugin:documents", { transcriber: "", autoInstall: false });
+  await assert.rejects(() => ensurePoppler(), /Automatic installation is off/);
+  setPref("plugin:documents", { transcriber: "", autoInstall: true });
+  setPref("documents:poppler-failure", { at: new Date().toISOString(), reason: "winget: no network" });
+  await assert.rejects(() => ensurePoppler(), /installation failed \(winget: no network\)/);
+  process.env.PATH = oldPath;
+});
