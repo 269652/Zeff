@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { HoverCard } from "@/components/HoverCard";
 import { useT } from "@/components/I18nProvider";
 import { formatDateTime } from "@/lib/format";
+import { isChatFolder } from "@/lib/mail/shared";
 import { mentionMatcher, splitMentions, type PersonIndexEntry } from "./mentions";
 import { personCardAction, type PersonCardData } from "./server-actions";
 
@@ -106,7 +107,7 @@ function PersonCard({ id, name }: { id: number; name: string }) {
               {data.messages.map((m, i) => (
                 <p key={i} className="line-clamp-2">
                   <span className="text-zinc-400">
-                    {formatDateTime(m.at)} · {m.folder === "WhatsApp" ? "WhatsApp" : t("Mail")} · {m.who}:
+                    {formatDateTime(m.at)} · {isChatFolder(m.folder) ? m.folder : t("Mail")} · {m.who}:
                   </span>{" "}
                   {m.text}
                 </p>
