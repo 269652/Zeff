@@ -46,7 +46,7 @@ async function heuteData() {
   const { listTodos, latestRun } = await import("@/lib/boards/store");
   const run = latestRun();
   const open = listTodos({ status: "open" });
-  const mine = open.filter((x) => x.owner === "me");
+  const mine = open.filter((x) => x.owner === "me" && !x.byWorker);
   const asking = open.filter((x) => x.needsInput);
   // Workers and agents report these done: yours to look at and close.
   const reportedDone = open.filter((x) => x.workerDone && !x.needsInput);

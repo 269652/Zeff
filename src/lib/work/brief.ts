@@ -6,6 +6,7 @@ import { getJiraTicket } from "@/lib/jira/store";
 import { mailSender } from "@/lib/mail/shared";
 import { noteHeadline } from "@/plugins/keep/shared";
 import { resolvedCommentIds } from "@/lib/resolved";
+import { sideTodos } from "./actions";
 import { runsForTodos } from "./store";
 import { CHANNEL_LABELS, workRef, type WorkIsolation, type WorkMode } from "./shared";
 
@@ -128,6 +129,26 @@ ${end}
 ${opsDictionary(opAvailable)}${extra.trim() ? `\n\nZusätzlich:\n${extra.trim()}` : ""}`;
 }
 
+/**
+ * The todos of a session as Zeff knows them right now, so the worker always knows which one it is
+ * on - without being told on every message: the session's own (★), those it began on the way
+ * through start_todo (▶ still going, · over), and the ticket's other open ones to match a change
+ * of subject against. Fresh with every message.
+ */
+function sessionTodos(todo: TodoView, runId: number): string {
+  const runIds = [...new Set([...(runsForTodos([todo.id]).get(todo.id) ?? []).map((r) => r.id), runId])];
+  const side = sideTodos(runIds).filter((s) => s.todoId !== todo.id);
+  const line = (mark: string, t: TodoView, note: string) => `- ${mark} ${todoRef(t.id)}: ${t.text.slice(0, 160)}${note ? ` (${note})` : ""}`;
+  const lines = [line("★", todo, "Auftrag dieser Session")];
+  for (const s of side) {
+    const t = getTodo(s.todoId);
+    if (t) lines.push(line(s.active ? "▶" : "·", t, s.active ? "von dir begonnen, läuft" : "von dir bearbeitet"));
+  }
+  const others = listTodos({ ticket: todo.ticket, status: "open" }).filter((t) => t.id !== todo.id && !side.some((s) => s.todoId === t.id));
+  for (const t of others.slice(0, 25)) lines.push(line("☐", t, "offen"));
+  return `## Todos dieser Session\nAktuell dran: ${side.find((s) => s.active) ? todoRef(side.find((s) => s.active)!.todoId) : todoRef(todo.id)}.\n${lines.join("\n")}`;
+}
+
 /** What the worker is to do, by mode — and where. */
 export function taskFor(
   mode: WorkMode,
@@ -166,9 +187,13 @@ Tu, was der Nutzer oben unter „Deine Anweisung“ zu ${todoRef(todo.id)} sagt 
 
 ${where}
 - Nichts nach außen (keine Jira-, Teams- oder GitLab-Nachrichten, kein Push), außer die Anweisung verlangt es ausdrücklich — und auch dann nur als followUp mit fertigem Entwurf (channel, target) bzw. als ops, die Zeff auf Klick ausführt.
+- Welches Todo gerade dran ist: Unter „Todos dieser Session“ (am Ende) steht, woran du arbeitest — ▶ ist das zuletzt von dir begonnene, sonst ★ der Auftrag dieser Session. Erkenne bei jeder Nachricht selbst, ob sie dazu gehört oder zu etwas anderem wechselt, auch ohne Nummer oder Namen („mach jetzt noch …“, ein anderes Thema, eine neue Aufgabe): ordne sie dem passendsten offenen Todo zu (Liste unten, oben, list_todos, notfalls todo_context). Unsicher zwischen zwei? Nimm das wahrscheinlichere und nenne deine Annahme in der summary. Passt keins und es ist offensichtlich eine neue Aufgabe, erledige sie trotzdem unter dem aktuellen Todo und schlage das neue Todo als followUp vor (kind, text). Sag in der summary immer kurz, an welchem Todo du gearbeitet hast.
+- Wechselst du zu einem anderen offenen Todo als dem aktuellen (genannt per Nummer — „mach T-38“ — oder von dir erkannt), markierst du es selbst als in Arbeit: als Allererstes, bevor du etwas liest oder änderst, rufst du das Zeff-MCP-Tool start_todo auf — todo: die Nummer, agent: genau „${workRef(ctx.runId)} · Session“, note: ein kurzer Satz. Gibst du Zwischenstände, ist todo_progress dafür da. finish_todo rufst du dafür nicht auf (auch wenn die Antwort von start_todo es nahelegt, ebenso einen Feature-Branch: für diesen Lauf gilt, was hier steht): Zeff beendet diese Todos mit diesem Lauf und bucht nur den Lauf. Hast du ein solches Todo erledigt, führst du es zusätzlich in completedTodos.
 - summary: was du getan oder herausgefunden hast — das ist die Antwort an den Nutzer, also vollständig.
 - completedTodos: ${todo.id} nur, wenn das Todo damit wirklich erledigt ist; sonst leer (outcome partial, wenn nur ein Teil davon).
-- followUps: was danach zu tun ist; entry: eine Zeile für die Zeitbuchung.`;
+- followUps: was danach zu tun ist; entry: eine Zeile für die Zeitbuchung.
+
+${sessionTodos(todo, ctx.runId)}`;
   }
   if (mode === "draft") {
     const target = todo.refs.find((r) => r.startsWith("teams:")) ?? todo.refs.find((r) => r.startsWith("gitlab:")) ?? null;

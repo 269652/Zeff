@@ -156,6 +156,7 @@ const toTodo = (r: Todo): TodoView => ({
   deferredAt: r.deferredAt ?? null,
   flaggedAt: r.flaggedAt ?? null,
   workerDone: parse<TodoView["workerDone"]>(r.workerDone ?? "null", null),
+  byWorker: !!r.byWorker,
   alsoTickets: parse<string[]>(r.alsoTickets, []).filter((k) => typeof k === "string"),
   createdAt: iso(r.createdAt),
   updatedAt: iso(r.updatedAt),
@@ -227,7 +228,15 @@ export function listTodos(opts: { ticket?: string; status?: TodoStatus | "all"; 
 /** These tickets' todos as the Todos page shows them: the open ones, and those closed in the last `days`. */
 export function boardTodos(tickets: string[], days = 7): TodoView[] {
   const since = new Date(Date.now() - days * 864e5).toISOString();
-  return listTodos({ status: "all", tickets }).filter((t) => t.status === "open" || (t.doneAt ?? "") >= since);
+  return listTodos({ status: "all", tickets }).filter((t) => !t.byWorker && (t.status === "open" || (t.doneAt ?? "") >= since));
+}
+
+/** The workers' own todos (the Todos page's "Worker" tab): the open ones, then those closed lately — newest first. */
+export function workerTodos(days = 14): TodoView[] {
+  const since = new Date(Date.now() - days * 864e5).toISOString();
+  return listTodos({ status: "all" })
+    .filter((t) => t.byWorker && (t.status === "open" || (t.doneAt ?? "") >= since))
+    .sort((a, b) => Number(b.status === "open") - Number(a.status === "open") || b.id - a.id);
 }
 
 /** Done and dismissed todos, the latest first — all of them (up to `limit`). */
@@ -235,7 +244,7 @@ export function doneTodos(limit = 300): TodoView[] {
   return getDb()
     .select()
     .from(todos)
-    .where(inArray(todos.status, ["done", "dismissed"]))
+    .where(and(inArray(todos.status, ["done", "dismissed"]), eq(todos.byWorker, false)))
     .orderBy(desc(todos.doneAt), desc(todos.id))
     .limit(limit)
     .all()
@@ -268,7 +277,7 @@ export function doneTodoTickets(limit = 300): { count: number; tickets: string[]
   const rows = getDb()
     .select({ ticket: todos.ticket })
     .from(todos)
-    .where(inArray(todos.status, ["done", "dismissed"]))
+    .where(and(inArray(todos.status, ["done", "dismissed"]), eq(todos.byWorker, false)))
     .orderBy(desc(todos.doneAt), desc(todos.id))
     .limit(limit)
     .all();
@@ -434,10 +443,12 @@ export function addFollowUp(v: {
   draft?: string | null;
   channel?: string | null;
   target?: string | null;
-  parentId: number;
+  parentId: number | null;
   workRunId: number | null;
   source: string;
   ops?: unknown[];
+  /** A worker's own todo (its follow-up): on the Worker tab, not in your list. */
+  byWorker?: boolean;
   /** other: waiting for someone else first (a merge request's approval). */
   owner?: "me" | "other";
   /** What comes after it (a planned step's rest), and the alternative path it's on. */
@@ -463,6 +474,7 @@ export function addFollowUp(v: {
       target,
       parentId: v.parentId,
       workRunId: v.workRunId,
+      byWorker: !!v.byWorker,
       ops: JSON.stringify(cleanOps(v.ops, v.ticket.trim().toUpperCase())),
       planned: JSON.stringify(v.planned ?? []),
       path: v.path ?? null,
@@ -666,6 +678,8 @@ export function removeTodoUserNote(id: number, at: string): TodoView {
 export function markWorkerDone(id: number, by: string, note?: string | null): TodoView {
   const t = getTodo(id);
   if (!t) throw new NotFoundError(`Todo ${todoRef(id)} not found.`);
+  // A worker's own todo needs no one to close it.
+  if (t.byWorker) return setTodoStatus(id, "done", note?.trim() || `Erledigt von ${by}`);
   const v: NonNullable<TodoView["workerDone"]> = { at: new Date().toISOString(), by: by.slice(0, 100), note: note?.trim().slice(0, 500) || null };
   getDb().update(todos).set({ workerDone: JSON.stringify(v), updatedAt: v.at }).where(eq(todos.id, id)).run();
   emitChange("todos");

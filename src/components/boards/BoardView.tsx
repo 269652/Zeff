@@ -12,6 +12,7 @@ import type { ActionDone } from "@/lib/boards/actions";
 import {
   attentionLabels,
   ATTENTIONS,
+  TODO_KIND_LABELS,
   type Attention,
   type BoardRunView,
   type BoardTicket,
@@ -452,6 +453,7 @@ export function BoardView({
   run,
   todos,
   done: doneList = [],
+  worker: workerList = [],
   doneCount,
   tab = "open",
   cards,
@@ -480,10 +482,12 @@ export function BoardView({
   todos: TodoView[];
   /** All done and dismissed todos (the "Erledigt" tab), latest first. */
   done?: TodoView[];
+  /** The workers' own todos (the "Worker" tab). */
+  worker?: TodoView[];
   /** How many there are (the tab's number) — the list itself only comes on its tab. */
   doneCount?: number;
   /** Which todos the card shows: open ones, or the done ones. */
-  tab?: "open" | "done" | "activity";
+  tab?: "open" | "done" | "activity" | "worker";
   cards: Record<string, TicketCard>;
   doneComments?: string[];
   /** The comments on each ticket's merge requests, by ticket. */
@@ -559,8 +563,20 @@ export function BoardView({
       (x, y) =>
         down(x) - down(y) || (rank.get(x.ticket) ?? 99) - (rank.get(y.ticket) ?? 99) || x.id - y.id,
     );
-  const mine = ranked(open.filter((t) => t.owner === "me"));
-  const waiting = ranked(open.filter((t) => t.owner === "other"));
+  // The todo lists' filter: by ticket, kind (what it asks for) or a word in its text.
+  const [fTicket, setFTicket] = useState("");
+  const [fKind, setFKind] = useState("");
+  const [fText, setFText] = useState("");
+  const pool = tab === "done" ? doneList : tab === "worker" ? workerList : open;
+  const passes = (t: TodoView) =>
+    (!fTicket || (fTicket === "-" ? !t.ticket : t.ticket === fTicket || t.alsoTickets.includes(fTicket))) &&
+    (!fKind || t.kind === fKind) &&
+    (!fText.trim() || `${t.ref} ${t.ticket} ${t.text} ${t.source ?? ""}`.toLowerCase().includes(fText.trim().toLowerCase()));
+  const filtering = !!(fTicket || fKind || fText.trim());
+  const mine = ranked(open.filter((t) => t.owner === "me" && passes(t)));
+  const waiting = ranked(open.filter((t) => t.owner === "other" && passes(t)));
+  const doneShown = doneList.filter(passes);
+  const workerShown = workerList.filter(passes);
   const left = run.tickets.filter((t) => t.left);
   const listed = run.tickets.filter((t) => !t.analyzed && !t.left);
   const leftNote = new Map((result?.left ?? []).map((l) => [l.key, l.note]));
@@ -614,6 +630,7 @@ export function BoardView({
             [
               ["open", t("Your todos"), mine.length, "/todos"],
               ["done", t("Done"), doneCount ?? doneList.length, "/todos?todos=done"],
+              ["worker", "Worker", workerList.filter((x) => x.status === "open").length, "/todos?todos=worker"],
               ["activity", t("Activity"), null, "/todos?todos=activity"],
             ] as const
           ).map(([key, label, n, href]) => (
@@ -636,12 +653,59 @@ export function BoardView({
             </Link>
           ))}
         </div>
+        {tab !== "activity" && (
+          <div className="flex flex-wrap items-center gap-2" role="search" aria-label="Todos filtern">
+            <select value={fTicket} onChange={(e) => setFTicket(e.target.value)} className="input w-auto py-1 text-xs" aria-label="Nach Ticket filtern">
+              <option value="">Alle Tickets</option>
+              {[...new Set(pool.map((t) => t.ticket))].sort().map((k) => (
+                <option key={k} value={k || "-"}>
+                  {k || "Ohne Ticket"}
+                </option>
+              ))}
+            </select>
+            <select value={fKind} onChange={(e) => setFKind(e.target.value)} className="input w-auto py-1 text-xs" aria-label="Nach Art filtern">
+              <option value="">Alle Arten</option>
+              {[...new Set(pool.map((t) => t.kind))].map((k) => (
+                <option key={k} value={k}>
+                  {TODO_KIND_LABELS[k]}
+                </option>
+              ))}
+            </select>
+            <input value={fText} onChange={(e) => setFText(e.target.value)} placeholder="Suchen…" className="input w-40 py-1 text-xs" aria-label="Todos durchsuchen" />
+            {filtering && (
+              <button
+                type="button"
+                className="text-xs text-indigo-600 hover:underline dark:text-indigo-400"
+                onClick={() => {
+                  setFTicket("");
+                  setFKind("");
+                  setFText("");
+                }}
+              >
+                Filter löschen
+              </button>
+            )}
+          </div>
+        )}
         {tab === "activity" ? (
           <ActivityList events={activity} />
+        ) : tab === "worker" ? (
+          <>
+            <p className="text-xs text-zinc-500">Todos, die Worker selbst anlegen — sie schließen sie auch selbst. Sie stehen nicht in deiner Liste.</p>
+            {workerShown.length > 0 ? (
+              <ul className="space-y-1">
+                {workerShown.map((t) => (
+                  <TodoItem workOn={workOn} key={t.id} t={t} showTicket cards={cards} sources={sources} anchor running={runningTodos.includes(t.id)} />
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-zinc-500">{filtering ? "Nichts passt zum Filter." : "Noch keine Worker-Todos."}</p>
+            )}
+          </>
         ) : tab === "done" ? (
-          doneList.length > 0 ? (
+          doneShown.length > 0 ? (
             <ul className="space-y-1">
-              {doneList.map((t) => (
+              {doneShown.map((t) => (
                 <TodoItem
                   workOn={workOn}
                   key={t.id}
@@ -655,7 +719,7 @@ export function BoardView({
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-zinc-500">{t("Nothing done yet.")}</p>
+            <p className="text-sm text-zinc-500">{filtering ? "Nichts passt zum Filter." : t("Nothing done yet.")}</p>
           )
         ) : (
           <>
@@ -675,7 +739,7 @@ export function BoardView({
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-zinc-500">{t("Nothing open for you.")}</p>
+              <p className="text-sm text-zinc-500">{filtering ? "Nichts passt zum Filter." : t("Nothing open for you.")}</p>
             )}
             {waiting.length > 0 && (
               <PersistedDetails

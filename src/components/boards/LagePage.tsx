@@ -27,7 +27,7 @@ import { runsByStatus } from "@/lib/work/store";
 import { WorkFollow } from "@/components/work/WorkFollow";
 import { withAlternatives } from "@/lib/boards/alternatives";
 import { activityNewsIds, todoActivity } from "@/lib/boards/activity";
-import { boardTodos, doneTodos, doneTodoTickets, lastGoodRun, latestRun } from "@/lib/boards/store";
+import { boardTodos, doneTodos, doneTodoTickets, lastGoodRun, latestRun, workerTodos } from "@/lib/boards/store";
 import { gitlabCommentsByTicket } from "@/lib/gitlab/store";
 import { mailsForTickets } from "@/lib/mail/store";
 import { getTicketCards } from "@/lib/jira/store";
@@ -51,7 +51,7 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
   await connection();
   const sp = await searchParams;
   if (part === "todos" && (sp.view === "recap" || sp.view === "gestern")) return <RecapPage day={sp.day && /^\d{4}-\d{2}-\d{2}$/.test(sp.day) ? sp.day : previousWorkday()} />;
-  const tab = sp.todos === "done" ? "done" : sp.todos === "activity" ? "activity" : "open";
+  const tab = sp.todos === "done" ? "done" : sp.todos === "activity" ? "activity" : sp.todos === "worker" ? "worker" : "open";
   const latest = latestRun();
   const live = boardRunState();
   // Running: the Lage being made, or (it's there already) the mails being related to its todos.
@@ -65,6 +65,8 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
   // The done ones whole only on their tab — the others count them (and their tickets for the cards).
   const doneSummary = doneTodoTickets();
   const done = tab === "done" ? doneTodos() : [];
+  // The workers' own todos: counted always, whole on their tab.
+  const worker = workerTodos();
   const ai = aiChoice();
   const aiLabel = `${AI_PROVIDER_INFO[ai.provider].label}${ai.model ? ` · ${ai.model}` : ""}`;
   // What "Jetzt auswerten" syncs first (Auswerten → Vorher synchronisieren), as installed.
@@ -112,11 +114,12 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
           todos={withAlternatives(todos)}
           // The done ones (and what they came from) only on their tab — the others just count them.
           done={done}
+          worker={worker}
           doneCount={doneSummary.count}
           tab={tab}
           activity={tab === "activity" ? todoActivity() : []}
           activityIds={activityNewsIds()}
-          cards={getTicketCards([...keys, ...doneSummary.tickets])}
+          cards={getTicketCards([...keys, ...doneSummary.tickets, ...(tab === "worker" ? worker.map((t) => t.ticket).filter(Boolean) : [])])}
           doneComments={[...resolvedCommentIds(shown.tickets.flatMap((t) => (t.recent ?? []).map((c) => c.id)))]}
           mails={mailsForTickets(keys)}
           gitlab={Object.fromEntries(
@@ -125,7 +128,7 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
               list.map((c) => ({ ...c, body: c.body.slice(0, 600) })),
             ]),
           )}
-          sources={todoSources([...todos, ...done], shown.tickets)}
+          sources={todoSources([...todos, ...done, ...(tab === "worker" ? worker : [])], shown.tickets)}
           actionsDone={actionsDone(shown.id)}
           runningTodos={busy}
           workOn={isInstalled("work")}

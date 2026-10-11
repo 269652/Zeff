@@ -22,6 +22,8 @@ import type { WorkRun } from "@/db/schema";
 import { errorMessage, NotFoundError, ValidationError } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { getJiraSyncConfig } from "@/lib/jira/sync";
+import { endSideWork } from "./actions";
+import { attachmentsDir, attachmentsNote, attachmentsPrompt } from "./attachments";
 import { briefFor, taskFor, workerRules } from "./brief";
 import { listRepos, repoForTicket } from "@/lib/repos";
 import { addBranchWorktree, addWorktree, baseFor, git, gitSummary, repoRoot, switchBranch } from "./git";
@@ -133,24 +135,36 @@ export function dispatchTodo(
     conversation?: boolean;
     /** The composer's choices: mode, model, effort, as administrator. */
     session?: SessionOptions;
+    /** Pictures and documents sent with it: files for the CLI to read. */
+    attachments?: { name: string; path: string }[];
   } = {},
 ): WorkRunView {
   if (!isInstalled("work")) throw new ValidationError(t("Work is not installed (Menu → Plugins) — without it no worker works on todos."));
   const todo = getTodo(todoId);
   if (!todo) throw new NotFoundError(t("Todo {ref} not found.", { ref: todoRef(todoId) }));
   // Your instruction: an AI run on the todo that does what you say (whatever the todo's own mode).
-  const instruction = opts.instruction?.trim();
+  const files = opts.attachments ?? [];
+  // What the worker is told (with where the files are) and what shows as your words (with their names).
+  const instruction = opts.instruction?.trim() ? `${opts.instruction.trim()}${attachmentsPrompt(files)}` : undefined;
+  const shown = opts.instruction?.trim() ? `${opts.instruction.trim()}${attachmentsNote(files)}` : "";
   const prev = opts.continueRun ? getRun(opts.continueRun) : undefined;
   if (opts.continueRun && (!prev || prev.todoId !== todoId)) {
     throw new ValidationError(t("{run} isn't a session on {ref}.", { run: workRef(opts.continueRun), ref: todoRef(todoId) }));
   }
   if (prev && !instruction) throw new ValidationError(t("What's your next message?"));
+  // Messages sent while the worker is busy are collected: one waiting for the run before it takes the next ones too, and they all go at once.
+  if (prev && instruction && prev.status === "queued" && prev.afterRun) {
+    const merged = updateRun(prev.id, { prompt: `${prev.prompt}\n\n## Weitere Nachricht des Nutzers (danach geschickt)\n${instruction}` });
+    addTodoInstruction(todoId, shown, prev.id);
+    return toRunView(merged ?? prev);
+  }
   // A conversation goes on whatever became of its todo; a new instruction needs an open one.
   if (instruction && !prev && todo.status !== "open") throw new ValidationError(t("{ref} is {status} already.", { ref: todoRef(todoId), status: todo.status }));
   const m: ReturnType<typeof workModeOf> = instruction ? { mode: "instruct" } : workModeOf(todo, t);
   if (!m.mode) throw new ValidationError(m.why);
   // (An instruction from the todo's own operations — Zeff running them right now — goes ahead.)
-  const active = runsByStatus(["queued", "running"]).find((r) => r.todoId === todoId && !(opts.instruction && r.provider === "zeff"));
+  // (Your next message in a session may come while its worker still works: it waits for that run — see `afterRun`.)
+  const active = prev ? undefined : runsByStatus(["queued", "running"]).find((r) => r.todoId === todoId && !(opts.instruction && r.provider === "zeff"));
   if (active) throw new ValidationError(t("{ref} is with {run} already.", { ref: todoRef(todoId), run: workRef(active.id) }));
   const s = getWorkSettings();
   // A GitLab reply Zeff posts itself; a Jira one goes through Claude (with Zeff's Jira connection).
@@ -180,7 +194,8 @@ export function dispatchTodo(
   const so = opts.session ?? {};
   const model = so.model?.trim() || (provider === aiChoice().provider ? s.model || own : own) || null;
   // Claude resumes its session — in the folder it ran in (Claude keeps sessions by folder), so it knows everything said and done.
-  const resume = prev && provider === "claude" && prev.provider === "claude" && prev.sessionId && prev.cwd && fs.existsSync(/*turbopackIgnore: true*/ prev.cwd) ? prev : undefined;
+  const waitFor = prev && (prev.status === "queued" || prev.status === "running") ? prev : undefined;
+  const resume = prev && !waitFor && provider === "claude" && prev.provider === "claude" && prev.sessionId && prev.cwd && fs.existsSync(/*turbopackIgnore: true*/ prev.cwd) ? prev : undefined;
   // A live Claude session (the Work settings): its mode — yours from the composer, else the settings' (yours or Zeff's own runs).
   const cs = claudeSessionSettings();
   const live = provider === "claude" && cs.live && m.mode !== "send";
@@ -192,14 +207,13 @@ export function dispatchTodo(
     todoId,
     mode: m.mode,
     provider,
-    model: resume ? (opts.provider || so.model ? model : (prev!.model ?? model)) : model,
+    model: resume || waitFor ? (opts.provider || so.model ? model : (prev!.model ?? model)) : model,
     permissionMode: live ? liveMode : provider === "claude" ? s.permissionMode : provider === "copilot" ? "allow-all-tools" : null,
-    repo: resume ? resume.repo : repoDir,
+    repo: resume ? resume.repo : (waitFor?.repo ?? repoDir),
     // (A conversation goes on where it worked; a new run starts where you chose.)
     ...(resume ? { workspace: resume.workspace } : { workspace: repoDir && (opts.workspace ?? null), ...(opts.branch ? { base: opts.branch } : {}) }),
-    prompt: resume
-      ? `## Deine Anweisung (vom Nutzer — sie geht vor)
-${instruction}`
+    prompt: resume || waitFor
+      ? `## Deine Anweisung (vom Nutzer — sie geht vor)\n${instruction}`
       : instruction
         ? `${briefFor(todo)}
 
@@ -207,10 +221,11 @@ ${instruction}`
 ${instruction}`
         : briefFor(todo),
     ...(resume ? { sessionId: resume.sessionId, cwd: resume.cwd, branch: resume.branch, base: resume.base, baseSha: resume.baseSha } : {}),
+    ...(waitFor ? { afterRun: waitFor.id } : {}),
   });
   if (live) saveSessionOpts(run.id, { ...so, permissionMode: liveMode, conversation: !!opts.conversation });
   // Your instruction on the todo, as your words (context for the Lage, workers and agents too).
-  if (instruction) addTodoInstruction(todoId, instruction, run.id);
+  if (instruction) addTodoInstruction(todoId, shown, run.id);
   pump();
   return toRunView(getRun(run.id)!);
 }
@@ -231,6 +246,11 @@ export function pump(): void {
   const busy = new Set(running.filter((r) => codeLike(r.mode) && inPlace(r)).map((r) => r.repo));
   for (const r of runsByStatus(["queued"])) {
     if (free <= 0) break;
+    // A message sent while the run before it still worked waits for that run.
+    if (r.afterRun) {
+      const before = getRun(r.afterRun);
+      if (before && (before.status === "queued" || before.status === "running")) continue;
+    }
     if (inPlace(r) && codeLike(r.mode) && r.repo) {
       if (busy.has(r.repo)) continue;
       busy.add(r.repo);
@@ -245,8 +265,21 @@ const codeLike = (mode: string) => mode === "code" || mode === "instruct";
 
 /** One run begins: where it works (a worktree of its own, the repo, or a scratch folder), its full prompt, its process. */
 function start(id: number): void {
-  const r = getRun(id);
+  let r = getRun(id);
   if (!r || r.status !== "queued") return;
+  // Sent while the run before it worked: it goes on with that conversation, where it worked — or, if there's none to resume, from the todo's brief.
+  if (r.afterRun) {
+    const before = getRun(r.afterRun);
+    const resumable = before?.provider === "claude" && r.provider === "claude" && before.sessionId && before.cwd && fs.existsSync(/*turbopackIgnore: true*/ before.cwd);
+    const todo = getTodo(r.todoId);
+    r =
+      updateRun(
+        id,
+        resumable
+          ? { afterRun: null, sessionId: before.sessionId, cwd: before.cwd, branch: before.branch, base: before.base, baseSha: before.baseSha, repo: before.repo ?? r.repo }
+          : { afterRun: null, prompt: todo ? `${briefFor(todo)}\n\n${r.prompt}` : r.prompt },
+      ) ?? r;
+  }
   const startedAt = now();
   updateRun(id, { status: "running", startedAt });
   try {
@@ -409,6 +442,9 @@ function start(id: number): void {
         rules,
         "--disallowedTools",
         disallowed.join(","),
+        // The pictures and documents you sent: outside the working folder, but for it to read.
+        "--add-dir",
+        attachmentsDir(),
       ];
       if (r.model) args.push("--model", r.model);
       // Zeff's MCP server of this run's account (the folder's .mcp.json would say the first account's), and for a send run the Jira connection.
@@ -742,6 +778,7 @@ async function finish(r: WorkRun, gone: boolean): Promise<void> {
     gitSummary: gitText || null,
     error: error?.slice(0, 4000) ?? null,
   });
+  endSideWork(id, result?.summary ?? null, result?.outcome ?? null);
   fs.rmSync(/*turbopackIgnore: true*/ jiraConfigPath(id), { force: true });
   setImmediate(pump);
 }
@@ -750,6 +787,8 @@ async function finish(r: WorkRun, gone: boolean): Promise<void> {
 export function cancelRun(id: number): void {
   const r = getRun(id);
   if (!r) throw new NotFoundError(t("{ref} not found.", { ref: workRef(id) }));
+  // Messages waiting for this run (sent while it worked) are taken back with it.
+  for (const w of runsByStatus(["queued"]).filter((x) => x.afterRun === id)) cancelRun(w.id);
   if (r.status === "queued") {
     updateRun(id, { status: "cancelled", finishedAt: now(), error: t("Taken out of the queue.") });
     return;
@@ -763,6 +802,7 @@ export function cancelRun(id: number): void {
     error: t("Stopped."),
     gitSummary: codeLike(r.mode) && r.cwd && r.baseSha ? gitSummary(r.cwd, r.baseSha) || null : null,
   });
+  endSideWork(id, null, "blocked");
   if (isClaudeSession(id)) killClaude(id);
   else if (r.pid && alive(r.pid)) killTree(r.pid);
   fs.rmSync(/*turbopackIgnore: true*/ jiraConfigPath(id), { force: true });

@@ -25,8 +25,9 @@ export type ClaudeComposerOptions = {
 /**
  * The message box, like Claude Code's: it grows with what you write, Enter sends, Shift+Enter is a
  * new line. A new session also picks its ticket, repo and CLI — and, for a live Claude session, its
- * mode, model, effort, as administrator; in a session (`continueRunId`) your
- * message goes on with its conversation. `busy`: the worker is still answering — wait for it.
+ * mode, model, effort, as administrator; in a session (`continueRunId`) your message goes on with its
+ * conversation — also while the worker still answers: it follows when that run has ended. `busy`:
+ * something else keeps you from sending.
  */
 export function SessionComposer({
   ticket,
@@ -68,6 +69,26 @@ export function SessionComposer({
   const [effort, setEffort] = useState<Effort>(claude?.effort ?? "");
   const [admin, setAdmin] = useState(false);
   const area = useRef<HTMLTextAreaElement>(null);
+  const picker = useRef<HTMLInputElement>(null);
+  // Pictures and documents pasted, dropped or picked: kept at once (so the CLI can read them), listed under the box.
+  const [files, setFiles] = useState<{ ref: string; name: string; size: number }[]>([]);
+  const [uploading, setUploading] = useState(0);
+  const [over, setOver] = useState(false);
+  const attach = async (list: File[]) => {
+    if (!list.length) return;
+    setUploading((n) => n + 1);
+    try {
+      const body = new FormData();
+      for (const f of list) body.append("files", f, f.name || "bild.png");
+      const r = (await fetch("/api/work/attach", { method: "POST", body }).then((x) => x.json())) as { ok: boolean; error?: string; files?: { ref: string; name: string; size: number }[] };
+      if (!r.ok) toast(r.error ?? "Ging nicht.", { tone: "error" });
+      else setFiles((f) => [...f, ...(r.files ?? [])]);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Ging nicht.", { tone: "error" });
+    } finally {
+      setUploading((n) => n - 1);
+    }
+  };
   useEffect(() => {
     const el = area.current;
     if (!el) return;
@@ -77,13 +98,14 @@ export function SessionComposer({
   // The backend it'll be: picked here, else the session's (going on), else the default.
   const backend = provider || (continueRunId ? continueProvider : undefined) || claude?.defaultProvider;
   const isClaude = !!claude?.live && backend === "claude";
-  const blocked = pending || !!busy;
+  const blocked = pending || !!busy || uploading > 0;
   const send = () =>
-    text.trim() &&
+    (text.trim() || files.length > 0) &&
     !blocked &&
     start(async () => {
       const r = await startSessionAction({
         instruction: text,
+        attachments: files.map((f) => f.ref),
         ticket: pick || ticket || "",
         todoId,
         continueRunId,
@@ -95,18 +117,40 @@ export function SessionComposer({
       });
       if (!r.ok) return void toast(r.error, { tone: "error" });
       setText("");
+      setFiles([]);
       router.push(`/work?run=${r.runId}`);
     });
   const select = "rounded-md border-0 bg-transparent py-0.5 pr-6 pl-1.5 text-xs text-zinc-500 hover:bg-zinc-100 focus:ring-1 focus:ring-indigo-400 dark:hover:bg-zinc-800";
   return (
     <div className="mx-auto w-full max-w-3xl">
-      <div className="rounded-2xl border border-zinc-300 bg-white shadow-sm transition focus-within:border-indigo-400 focus-within:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:focus-within:border-indigo-500">
+      <div
+        className={`rounded-2xl border bg-white shadow-sm transition focus-within:border-indigo-400 focus-within:shadow-md dark:bg-zinc-900 dark:focus-within:border-indigo-500 ${over ? "border-indigo-500 ring-2 ring-indigo-300" : "border-zinc-300 dark:border-zinc-700"}`}
+        onDragOver={(e) => {
+          if (!e.dataTransfer.types.includes("Files")) return;
+          e.preventDefault();
+          setOver(true);
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(e) => {
+          if (!e.dataTransfer.files.length) return;
+          e.preventDefault();
+          setOver(false);
+          void attach([...e.dataTransfer.files]);
+        }}
+      >
         <textarea
           ref={area}
           rows={1}
           className="block max-h-80 min-h-12 w-full resize-none bg-transparent px-4 pt-3 pb-1 text-sm outline-none placeholder:text-zinc-400"
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onPaste={(e) => {
+            // A picture or a file on the clipboard (a screenshot, a copied document): attached; text pastes as usual.
+            const list = [...e.clipboardData.files];
+            if (!list.length) return;
+            e.preventDefault();
+            void attach(list);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
@@ -118,7 +162,28 @@ export function SessionComposer({
           disabled={pending}
           autoFocus={autoFocus}
         />
+        {(files.length > 0 || uploading > 0) && (
+          <ul className="flex flex-wrap gap-1.5 px-3 pb-1" aria-label="Anhänge">
+            {files.map((f) => (
+              <li key={f.ref} className="inline-flex max-w-56 items-center gap-1 rounded-md bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200" title={`${f.name} · ${Math.max(1, Math.round(f.size / 1024))} KB`}>
+                <span aria-hidden>📎</span>
+                <span className="truncate">{f.name}</span>
+                <button type="button" className="text-zinc-400 hover:text-red-600" aria-label={`${f.name} entfernen`} onClick={() => setFiles((l) => l.filter((x) => x.ref !== f.ref))}>
+                  ×
+                </button>
+              </li>
+            ))}
+            {uploading > 0 && <li className="text-xs text-zinc-500">lädt hoch …</li>}
+          </ul>
+        )}
         <div className="flex flex-wrap items-center gap-1 px-2.5 pb-2">
+          <input ref={picker} type="file" multiple hidden onChange={(e) => {
+            void attach([...(e.target.files ?? [])]);
+            e.target.value = "";
+          }} />
+          <button type="button" className="grid size-7 place-items-center rounded-md text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => picker.current?.click()} aria-label="Bild oder Dokument anhängen" title="Bild oder Dokument anhängen (oder einfügen / hineinziehen)">
+            📎
+          </button>
           {tickets.length > 0 && (
             <select className={`${select} max-w-56`} value={pick} onChange={(e) => setPick(e.target.value)} aria-label={t("Ticket")}>
               <option value="">{t("No ticket")}</option>
@@ -176,7 +241,7 @@ export function SessionComposer({
           <button
             type="button"
             className="ml-2 grid size-8 place-items-center rounded-full bg-zinc-900 text-white transition hover:bg-zinc-700 disabled:bg-zinc-200 disabled:text-zinc-400 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white dark:disabled:bg-zinc-800 dark:disabled:text-zinc-600"
-            disabled={blocked || !text.trim()}
+            disabled={blocked || (!text.trim() && files.length === 0)}
             onClick={send}
             aria-label={t("Send")}
             title={t("Send")}

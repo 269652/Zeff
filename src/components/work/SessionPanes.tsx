@@ -6,6 +6,7 @@ import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n/server";
 import type { SessionTicket } from "@/lib/work/sessions";
 import { isActive, WORK_MODE_LABELS, type WorkRunView, type WorkStatus } from "@/lib/work/shared";
+import { sideTodos } from "@/lib/work/actions";
 import { runsForTodos } from "@/lib/work/store";
 import { ClaudeSession } from "./ClaudeSession";
 import { LiveControls } from "./LiveControls";
@@ -49,12 +50,13 @@ export function SessionPane({ run, options }: { run: WorkRunView; options: Optio
   const runs = [...(runsForTodos([run.todoId]).get(run.todoId) ?? [run])].reverse();
   const turns: SessionTurn[] = runs.map((r) => ({
     run: r,
-    ask: todo?.userNotes.find((n) => n.kind === "instruction" && n.run === r.id)?.text ?? null,
+    ask: todo?.userNotes.filter((n) => n.kind === "instruction" && n.run === r.id).map((n) => n.text).join("\n\n") || null,
     label: `${WORK_MODE_LABELS[r.mode]}${todo ? ` · ${todoRef(todo.id)} ${todo.text}` : ""}`,
   }));
   const last = runs[runs.length - 1] ?? run;
   const active = isActive(last.status);
-  const meta = [todo && todoRef(todo.id)].filter(Boolean) as string[];
+  // Every todo being worked on in this session: its own, and those it took on the way (the worker's start-todo actions).
+  const side = sideTodos(runs.map((r) => r.id)).filter((s) => s.todoId !== run.todoId);
   const cost = runs.reduce((n, r) => n + (r.costUsd ?? 0), 0) + (last.claude?.costUsd && !last.costUsd ? last.claude.costUsd : 0);
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col max-lg:min-h-[80vh]">
@@ -78,13 +80,37 @@ export function SessionPane({ run, options }: { run: WorkRunView; options: Optio
             )}
             {card?.summary && <span className="max-w-72 truncate">{card.summary}</span>}
             <SessionBranch runId={last.id} repo={last.repo} cwd={last.cwd} branch={last.branch} worktree={!!last.cwd && !!last.repo && last.cwd !== last.repo} idle={!active} />
-            {meta.map((m) => (
-              <span key={m} className="font-mono">
-                {m}
-              </span>
-            ))}
+            {todo &&
+              (active ? (
+                // The session's own todo: a chip while it is being worked on.
+                <Link href={`/t/${todo.id}`} title={todo.text} className="inline-flex shrink-0 items-center gap-1 rounded-full bg-indigo-100 px-2 py-px font-mono whitespace-nowrap text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">
+                  <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-current" aria-hidden />
+                  {todoRef(todo.id)}
+                </Link>
+              ) : (
+                <span className="shrink-0 font-mono whitespace-nowrap">{todoRef(todo.id)}</span>
+              ))}
             {cost > 0 && <span>${cost.toFixed(2)}</span>}
           </div>
+          {side.length > 0 && (
+            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs" aria-label="Todos in Arbeit">
+              {side.map((s) => {
+                const t = getTodo(s.todoId);
+                return (
+                  <Link
+                    key={s.todoId}
+                    href={`/t/${s.todoId}`}
+                    title={t?.text}
+                    className={`inline-flex max-w-64 items-center gap-1 rounded-full px-2 py-px ${s.active ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200" : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800"}`}
+                  >
+                    {s.active && <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-current" aria-hidden />}
+                    <span className="font-mono">{todoRef(s.todoId)}</span>
+                    <span className="truncate">{t?.text}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <a href={`/api/work/${last.id}/prompt`} target="_blank" rel="noreferrer" className="btn btn-sm" title={t("What the worker was told")}>
@@ -107,8 +133,7 @@ export function SessionPane({ run, options }: { run: WorkRunView; options: Optio
               continueProvider={last.provider}
               providers={options.providers}
               claude={options.claude}
-              busy={last.status === "queued" ? t("Waiting for a free worker …") : active && last.provider !== "claude" ? t("Working — you can reply once it has answered.") : null}
-              placeholder={t("Reply …")}
+              placeholder={active ? (last.status === "queued" ? "Waiting for a free worker … — your reply is sent after it" : "Working … — your reply is sent as soon as it has answered") : t("Reply …")}
               autoFocus
             />
           )}

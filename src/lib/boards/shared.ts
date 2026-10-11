@@ -319,6 +319,8 @@ export type TodoView = {
   flaggedAt: string | null;
   /** A worker or agent reports it done (null: none did). It stays open — closing it is yours. */
   workerDone: { at: string; by: string; note: string | null } | null;
+  /** A worker made it: it's on the "Worker" tab, not in your list — workers may close such todos themselves. */
+  byWorker: boolean;
   /** Other tickets it's about too (linked: the same thing on two tickets); `ticket` is the main one. */
   alsoTickets: string[];
   /** The mails the mail relation run related to it ("mail:<key>") — in `refs` too, as context like the rest. */

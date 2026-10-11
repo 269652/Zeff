@@ -27,9 +27,14 @@ export async function startSessionAction(v: {
   workspace?: string;
   /** A live Claude session's choices: mode, model, effort, isolation, as administrator. */
   session?: import("@/lib/work/shared").SessionOptions;
+  /** Pictures and documents pasted into the chat (refs from /api/work/attach): the CLI gets them to read. */
+  attachments?: string[];
 }): Promise<{ ok: true; runId: number } | { ok: false; error: string }> {
   try {
-    const instruction = String(v.instruction ?? "").trim();
+    const { resolveAttachments } = await import("@/lib/work/attachments");
+    const attachments = resolveAttachments(v.attachments);
+    // Only files: "see the attachment" is an instruction too.
+    const instruction = String(v.instruction ?? "").trim() || (attachments.length ? "Sieh dir die Anhänge an." : "");
     // A todo without words: it's worked on as it is (its brief).
     if (!instruction && v.todoId) {
       const { dispatchTodo } = await import("@/lib/work/runner");
@@ -52,7 +57,7 @@ export async function startSessionAction(v: {
         revalidatePath("/work");
         return { ok: true, runId: prev.id };
       }
-      const run = dispatchTodo(prev.todoId, { instruction, continueRun: prev.id, provider: isAiProvider(v.provider) ? v.provider : undefined, conversation: true, session });
+      const run = dispatchTodo(prev.todoId, { instruction, attachments, continueRun: prev.id, provider: isAiProvider(v.provider) ? v.provider : undefined, conversation: true, session });
       revalidatePath("/work");
       return { ok: true, runId: run.id };
     }
@@ -65,6 +70,7 @@ export async function startSessionAction(v: {
     const workspace = v.workspace === "worktree" || v.workspace === "branch" || v.workspace === "checkout" ? v.workspace : undefined;
     const run = dispatchTodo(todo.id, {
       instruction,
+      attachments,
       provider: isAiProvider(v.provider) ? v.provider : undefined,
       repoId: v.repoId ? Number(v.repoId) : undefined,
       repoPath: v.repoPath?.trim() || undefined,

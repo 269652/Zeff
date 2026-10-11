@@ -8,7 +8,8 @@ import { providerBoard } from "@/plugins/kanban/providers";
 import { RichBoardView } from "@/plugins/kanban/RichBoardView";
 import { attentionLabels, isAttention } from "@/lib/boards/shared";
 import type { BoardView, CardLage, CardTodo } from "@/plugins/kanban/shared";
-import { getBoard } from "@/plugins/kanban/store";
+import { getBoard, listBoards } from "@/plugins/kanban/store";
+import { listContextPeople } from "@/lib/contexts";
 import { isInstalled } from "@/plugins/state";
 
 export const metadata: Metadata = { title: "Kanban" };
@@ -49,7 +50,11 @@ export default async function BoardPage({ params }: { params: Promise<{ board: s
       view = null;
     }
     if (!view) notFound();
-    return <OwnBoard board={view} lage={await cardLage(view)} />;
+    // To move a card to, and the names to suggest for a person: those Zeff knows (contacts, Jira, the people list).
+    const others = listBoards().filter((b) => b.id !== view!.id).map((b) => ({ id: b.id, name: b.name }));
+    let known = listContextPeople().map((p) => p.name);
+    if (isInstalled("people")) known = [...(await import("@/plugins/people/store")).listPeople().map((p) => p.name), ...known];
+    return <OwnBoard board={view} lage={await cardLage(view)} todosOn={isInstalled("todos")} otherBoards={others} knownPeople={[...new Set(known)]} />;
   }
   const rich = await providerBoard(board);
   if (!rich) notFound();
