@@ -587,7 +587,7 @@ export type Collected = {
 };
 
 /** A ticket as Zeff keeps it (its synced copy and the comments kept), in the shape Jira gives it. */
-function cachedIssue(key: string): Issue | null {
+export function cachedIssue(key: string): Issue | null {
   const t = getJiraTicket(key);
   if (!t) return null;
   const kept = commentsOfTickets([key], 30).get(key.toUpperCase()) ?? [];
