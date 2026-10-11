@@ -1,3 +1,4 @@
+import { extWorkPanels } from "@/lib/ext/work";
 import Link from "next/link";
 import { getTodo } from "@/lib/boards/store";
 import { todoRef } from "@/lib/boards/shared";
@@ -122,7 +123,14 @@ export function SessionPane({ run, options }: { run: WorkRunView; options: Optio
           {active && <StopSessionButton runId={last.id} />}
         </div>
       </header>
-      <SessionTabs key={last.id} runId={last.id} git={!!last.cwd && !!last.repo} title={`${last.ticket ? `${last.ticket}: ` : ""}${todo?.text ?? ""}`.slice(0, 120)}>
+      <SessionTabs
+        key={last.id}
+        runId={last.id}
+        git={!!last.cwd && !!last.repo}
+        title={`${last.ticket ? `${last.ticket}: ` : ""}${todo?.text ?? ""}`.slice(0, 120)}
+        extPanels={extWorkPanels("session").map((x) => ({ id: x.id, plugin: x.plugin, entry: x.entry, title: x.title }))}
+        extContext={{ runId: last.id, ticket: last.ticket || undefined, todoId: run.todoId }}
+      >
         <SessionThread turns={turns} />
         <div className="pt-2">
           {last.session && last.status === "running" ? (

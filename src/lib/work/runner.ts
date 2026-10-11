@@ -7,6 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { currentAccountId, withAccount } from "@/db/accounts";
 import { sendToHost, spawnOnHost, workHostUp } from "./host";
+import { announceRun, extWorkerRules } from "@/lib/ext/work";
 import { workerMcpServers } from "./mcp";
 import { aiChoice, defaultModelOf, getAppSettings } from "@/lib/ai";
 import { findClaudeCli } from "@/plugins/claude-cli/cli";
@@ -305,6 +306,7 @@ function start(id: number): void {
   }
   const startedAt = now();
   updateRun(id, { status: "running", startedAt });
+  announceRun(id, "work.run.started");
   try {
     const s = getWorkSettings();
     const todo = getTodo(r.todoId);
@@ -349,7 +351,7 @@ function start(id: number): void {
     // House rules: everyone's, then the repo's own.
     const repoRules = r.repo ? (listRepos().find((x) => x.path === r.repo)?.instructions ?? "") : "";
     // (Your instructions and context from the LLM plugin first — for every worker.)
-    const rules = workerRules([llmPreamble(), s.instructions, repoRules].filter((x) => x.trim()).join("\n\n"), { conversation: !!so?.conversation, live: !!so && !!liveDriverFor(r.provider) });
+    const rules = workerRules([llmPreamble(), s.instructions, repoRules, extWorkerRules()].filter((x) => x.trim()).join("\n\n"), { conversation: !!so?.conversation, live: !!so && !!liveDriverFor(r.provider) });
     // A conversation going on: just your words. A task: the brief, what to do, and its result as JSON at the end (a live Claude task — without --json-schema).
     const tail = `\n\nAntworte am Ende mit dem Ergebnis als JSON in einem \`\`\`json-Block, nach diesem JSON-Schema:\n${JSON.stringify(WORK_RESULT_SCHEMA)}`;
     const isolation = r.workspace === "checkout" || (!r.workspace && s.isolation === "checkout") ? "checkout" : "worktree";
@@ -476,6 +478,7 @@ function start(id: number): void {
       });
   } catch (e) {
     updateRun(id, { status: "failed", error: errorMessage(e).slice(0, 2000), finishedAt: now(), durationMs: Date.now() - Date.parse(startedAt) });
+    announceRun(id, "work.run.finished");
     setImmediate(pump);
   }
 }
@@ -712,6 +715,7 @@ export async function finalize(id: number, gone = false): Promise<void> {
     console.error(`[work] finishing run ${id} failed:`, e);
     try {
       updateRun(id, { status: "failed", error: t("Finishing the run failed: {error}", { error: errorMessage(e) }).slice(0, 2000), finishedAt: now() });
+      announceRun(id, "work.run.finished");
     } catch {
       // the database itself: nothing more to do here
     }
@@ -787,6 +791,7 @@ async function finish(r: WorkRun, gone: boolean): Promise<void> {
   });
   endSideWork(id, result?.summary ?? null, result?.outcome ?? null);
   fs.rmSync(/*turbopackIgnore: true*/ jiraConfigPath(id), { force: true });
+  announceRun(id, "work.run.finished");
   setImmediate(pump);
 }
 
@@ -798,6 +803,7 @@ export function cancelRun(id: number): void {
   for (const w of runsByStatus(["queued"]).filter((x) => x.afterRun === id)) cancelRun(w.id);
   if (r.status === "queued") {
     updateRun(id, { status: "cancelled", finishedAt: now(), error: t("Taken out of the queue.") });
+    announceRun(id, "work.run.finished");
     return;
   }
   if (r.status !== "running") throw new ValidationError(t("{ref} isn't running.", { ref: workRef(id) }));
@@ -810,6 +816,7 @@ export function cancelRun(id: number): void {
     gitSummary: codeLike(r.mode) && r.cwd && r.baseSha ? gitSummary(r.cwd, r.baseSha) || null : null,
   });
   endSideWork(id, null, "blocked");
+  announceRun(id, "work.run.finished");
   const liveDriver = liveDriverOf(id);
   if (liveDriver) liveDriver.kill(id);
   else if (r.pid && alive(r.pid)) killTree(r.pid);

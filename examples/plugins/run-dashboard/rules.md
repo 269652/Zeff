@@ -1,0 +1,2 @@
+- Keep your final report short: one sentence on what is now done, then at most five bullets.
+- When you changed code, say how you checked it (the test command and its result) — or that you couldn't.

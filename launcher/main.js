@@ -157,11 +157,22 @@ function buildMenu() {
     ...knowledges().map((k) => serviceMenu(k, [{ label: "Open knowledge", click: () => shell.openExternal(knowledgeUrl(k)) }, { type: "separator" }])),
     { type: "separator" },
     { label: "Open data folder", click: () => shell.openPath(state.paths.data) },
+    { label: "Open plugins folder", click: openPluginsFolder },
     { label: PLATFORM === "win32" ? "Start with Windows" : "Start at log in", type: "checkbox", checked: state.autostart, click: (item) => toggleAutostart(item.checked) },
     { label: `Set up https://${state.cfg.host}…`, click: () => machineSetup(true) },
     { type: "separator" },
     { label: "Quit Zeff", click: () => app.quit() },
   ]);
+}
+
+/**
+ * External plugins (docs/plugins): a folder in the data folder — made if it isn't there yet. The servers read
+ * the same place (ZEFF_PLUGINS_DIR from zeff-launcher.json's "env" overrides it for both).
+ */
+function openPluginsFolder() {
+  const dir = state.cfg.env?.ZEFF_PLUGINS_DIR ? path.resolve(state.cfg.env.ZEFF_PLUGINS_DIR) : path.join(state.paths.data, "plugins");
+  fs.mkdirSync(dir, { recursive: true });
+  shell.openPath(dir);
 }
 
 function showWindow() {
@@ -510,6 +521,9 @@ ipcMain.handle("do", async (_e, action, name) => {
       break;
     case "data":
       shell.openPath(state.paths.data);
+      break;
+    case "plugins":
+      openPluginsFolder();
       break;
     case "setup":
       await machineSetup(true);

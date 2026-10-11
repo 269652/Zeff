@@ -48,6 +48,7 @@ function render(st) {
 $("setup").onclick = () => act("setup");
 $("autostart").onchange = () => act("autostart");
 $("data").onclick = () => act("data");
+$("plugins").onclick = () => act("plugins");
 $("quit").onclick = () => act("quit");
 window.zeff.onState(render);
 window.zeff.state().then(render);

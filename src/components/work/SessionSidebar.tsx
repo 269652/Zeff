@@ -82,12 +82,15 @@ export function SessionSidebar({
   selected,
   showArchived = false,
   archivedCount = 0,
+  extTabs = [],
 }: {
   tickets: SessionTicket[];
   selected: { ticket?: string; run?: number; isNew?: boolean };
   /** Your archived sessions shown too (marked), and how many there are. */
   showArchived?: boolean;
   archivedCount?: number;
+  /** Views external plugins add to Work (src/lib/ext): a link each. */
+  extTabs?: { id: string; title: string; plugin: string; href: string }[];
 }) {
   const t = useT();
   const [q, setQ] = useState("");
@@ -160,6 +163,16 @@ export function SessionSidebar({
         <Link href={showArchived ? "/work" : "/work?archived=1"} className="block text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200">
           {showArchived ? t("Hide archived") : t("Show archived ({n})", { n: archivedCount })}
         </Link>
+      )}
+      {extTabs.length > 0 && (
+        <nav className="space-y-1 border-t border-zinc-200 pt-3 text-xs dark:border-zinc-800" aria-label={t("Plugin views")}>
+          {extTabs.map((x) => (
+            <Link key={x.id} href={x.href} className="flex items-baseline gap-1.5 rounded px-1.5 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800" title={x.plugin}>
+              <span className="font-medium">{x.title}</span>
+              <span className="truncate text-[10px] text-zinc-400">{x.plugin}</span>
+            </Link>
+          ))}
+        </nav>
       )}
       <div className="border-t border-zinc-200 pt-3 text-xs dark:border-zinc-800">
         <Link href="/settings#work" className="text-indigo-600 hover:underline dark:text-indigo-400">

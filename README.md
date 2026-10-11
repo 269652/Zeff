@@ -1,8 +1,66 @@
 # Zeff
 
-Zeff started as a *Zeiterfassung*: hourly time reports on job numbers, with an MCP server so a
-coding agent can book the time it spent on a ticket. It has grown into a local work assistant
-around that core:
+**A local work assistant that extends and changes itself.**
+
+Zeff reads your tickets, mail, chats and calendars, tells you what's to do, and puts AI agents to work on
+it in your own repos — on your machine, with your data in a local SQLite file. And it doesn't stop at what
+we built: **Zeff loads plugins while it runs.** Drop a folder next to it and its **Work tab** gains new rules, commands,
+views, tools and automations — no source code, no rebuild, no restart, and the same in the packaged app you
+download as in a checkout. Ask a worker in Work to write that plugin for you, and Zeff has extended itself.
+
+```
+plugins/my-plugin/
+  zeff-plugin.json   ← what it adds, and what it may do
+  ui/index.html      ← a view of your own, inside Zeff
+  rules.md           ← rules every Work worker gets
+```
+
+## Zeff changes itself
+
+External plugins ([docs/plugins](docs/plugins/README.md), also in the app under `/ext/docs`) are plain folders in Zeff's
+data folder. They show up on **Menu → Plugins** at once, and you turn them on there — after seeing what they ask for.
+
+| A plugin can add … | So Work … |
+| --- | --- |
+| **Rules** — text files for every worker | behaves the way you want: house style, checks before "done", words to avoid |
+| **`/` commands** — prompt templates | starts the jobs you do all the time with one keystroke |
+| **Views** — your own HTML page, in the sidebar or as a tab of every session | shows what you care about: run dashboards, costs, a ticket's state next to its session |
+| **MCP servers** — more tools for workers | can reach your own systems (a stdio program or an http URL) |
+| **Event hooks** — a program run when a run starts or ends, or a todo changes | reacts: notify, log, open a todo when a run fails, send the worker a follow-up |
+| **The API** — read and drive Work from a panel or a hook | is steered by your code: start and continue sessions, add todos, keep data |
+
+Because a hook can start sessions and a session's end is itself an event, a plugin can close the loop: **Zeff
+acting on Zeff** — a failed run becomes a todo, a finished run triggers the next step, a view starts the job it shows.
+
+And you don't have to write the plugin yourself. A plugin is plain text in a documented format, and Zeff serves its
+own docs as Markdown (`/ext/raw/README` …). The `plugin-builder` example adds a `/plugin` command to Work's message box:
+describe what you want, and a worker reads the docs, creates the plugin folder and tells you what it asks for.
+Nothing a worker writes runs until you review it and turn it on.
+
+```json
+{
+  "id": "hello", "name": "Hello", "apiVersion": 1,
+  "permissions": ["prompt", "work.read"],
+  "contributes": {
+    "workerRules": "rules.md",
+    "workCommands": [{ "id": "tests", "label": "tests", "template": "Run the tests and tell me what fails." }],
+    "workPanels": [{ "id": "runs", "title": "Hello runs", "entry": "index.html" }]
+  }
+}
+```
+
+**Safe by design.** Views run in a sandboxed frame with no access to Zeff's page, storage or API except through a
+permission-checked bridge; the server checks every call against what you granted; hooks have time limits and no shell.
+The one permission you can't contain is `exec` — a plugin that runs programs runs them with your rights — and Zeff
+says so before you turn it on. [docs/plugins/security.md](docs/plugins/security.md) has the whole trust model.
+
+Start with the [overview](docs/plugins/README.md) and the three working examples in
+[`examples/plugins/`](examples/plugins): `run-dashboard` (a view, commands, rules, a session tab), `run-notifier` (a hook that
+calls the API) and `plugin-builder`. Reference: [manifest](docs/plugins/manifest.md) ·
+[API](docs/plugins/api.md) · [panels](docs/plugins/panels.md) · [hooks](docs/plugins/hooks.md) ·
+[security](docs/plugins/security.md). `npm run plugin:check -- <folder>` validates a plugin.
+
+## What it does today
 
 - **Time tracking.** Entries on jobs and projects, working hours, absences, flex time, a weekly
   and a monthly report. Every agent booking arrives as a suggestion that you take over.
@@ -12,37 +70,22 @@ around that core:
   actions. **Heute** is the day on one page.
 - **Connectors.** Jira, Outlook mail and calendar, Gmail, Teams, WhatsApp, Signal, Google Keep and GitLab.
   They are read through their web apps in an *automation Chrome*, so no OAuth is needed.
-- **Work.** Agents (Claude Code, Copilot CLI) run on your todos in your repos, with live sessions,
-  branches and delivery.
+- **Work.** Agents (Claude Code, Codex, Copilot CLI) run on your todos in your repos, with live sessions,
+  branches and delivery — and, as above, the tab you can extend yourself.
 - **Knowledge.** A second server compiles Confluence and Zeff's own data (tickets, chats, mail,
   notes, facts) into a searchable wiki and graph. You can ask it in Zeff, and agents can search it
   over MCP.
 - **Accounts.** Zeff can run more than once, for example work and private. Each account has its
   own database, automation Chrome, knowledge server and plugins.
 
-Everything is a **plugin**: install what you use on the Plugins page (Menu → Plugins). Zeff runs
+Everything built in is a **plugin** too: install what you use on the Plugins page (Menu → Plugins). Zeff runs
 only on this machine, and its data is local SQLite.
 
 Stack: Next.js 16 (App Router, Turbopack), React 19, Tailwind CSS 4, Drizzle ORM + better-sqlite3,
 `mcp-handler` 2 / MCP SDK v2, and Playwright over CDP for the browser drivers. An Electron
 launcher supervises it.
 
-## Running it
-
-| | |
-| --- | --- |
-| **Everyday** | The **launcher** (`dist\Zeff\Zeff.exe`, see [launcher/README.md](launcher/README.md)) runs Zeff on `127.0.0.1:9333` and one knowledge server per account (`:9555`, `:9556` …). It serves them as `https://zeff` and `https://knowledge.zeff`, restarts them after a crash, and starts with Windows (tray → "Start with Windows"). |
-| **Deploy a change** | `npm run deploy` is the only way to update the running Zeff. It takes a lock, waits for no active run, then runs typecheck, lint, `npm test` and the build. It restarts through the launcher and probes the main pages. Use `-- --knowledge` to also build and restart the knowledge server, and `-- --wait` to wait for a running Lage or work run instead of refusing. |
-| **Develop** | `npm run dev` (any free port) on the same database. Test risky writes on a snapshot (`better-sqlite3` `backup()`) with `DATABASE_PATH` set, never on `data/zeff.db`. |
-
-```bash
-npm install
-npm test          # each test file on its own temporary database
-npm run deploy    # typecheck, lint, tests, build, restart, page probes
-npm run eval:mail # before/after of the Mail-Durchsicht prompt on your real mails — nothing may get lost
-```
-
-### Releases (Windows, macOS, Linux)
+## Get it
 
 Others run Zeff from a release: one archive per system with the launcher, its own Node and Zeff
 built — no Node, npm or checkout needed. Download it from the repository's GitHub Releases:
@@ -58,7 +101,7 @@ built — no Node, npm or checkout needed. Download it from the repository's Git
 (hosts entry + Zeff's own certificate, asks for admin rights; without it Zeff runs on
 `https://127.0.0.1:1337`), then follow **Setup** in the app (plugins, sign-ins, first data). An update
 replaces the program and keeps the data: Windows `app\data` and `app\knowledge\data`; macOS
-`~/Library/Application Support/Zeff`; Linux `~/.local/share/zeff`. Each archive has a `.sha256` next to
+`~/Library/Application Support/Zeff`; Linux `~/.local/share/zeff`. The **plugins folder** for external plugins is `plugins/` inside that data folder (the launcher's tray icon opens it). Each archive has a `.sha256` next to
 it (`sha256sum -c`, or `Get-FileHash`), and a `README.txt` inside with the details for its system.
 
 **What is inside:** the launcher (Electron), `runtime/node` (the Node that built it), and `app/` — Zeff and
@@ -98,13 +141,29 @@ A tag starts the same on all systems: `git tag v0.2.0 && git push github v0.2.0`
 archive (`npm run release:check`), and publishes the GitHub release only when all of them pass. "Run
 workflow" on the Actions tab builds and checks without publishing.
 
+## Running it
+
+| | |
+| --- | --- |
+| **Everyday** | The **launcher** (`dist\Zeff\Zeff.exe`, see [launcher/README.md](launcher/README.md)) runs Zeff on `127.0.0.1:9333` and one knowledge server per account (`:9555`, `:9556` …). It serves them as `https://zeff` and `https://knowledge.zeff`, restarts them after a crash, and starts with Windows (tray → "Start with Windows"). |
+| **Deploy a change** | `npm run deploy` is the only way to update the running Zeff. It takes a lock, waits for no active run, then runs typecheck, lint, `npm test` and the build. It restarts through the launcher and probes the main pages. Use `-- --knowledge` to also build and restart the knowledge server, and `-- --wait` to wait for a running Lage or work run instead of refusing. |
+| **Develop** | `npm run dev` (any free port) on the same database. Test risky writes on a snapshot (`better-sqlite3` `backup()`) with `DATABASE_PATH` set, never on `data/zeff.db`. |
+
+```bash
+npm install
+npm test          # each test file on its own temporary database
+npm run deploy    # typecheck, lint, tests, build, restart, page probes
+npm run eval:mail # before/after of the Mail-Durchsicht prompt on your real mails — nothing may get lost
+npm run plugin:check -- examples/plugins/run-dashboard   # validate an external plugin
+```
+
 The database is created and migrated on first start (`drizzle/`). After editing
 `src/db/schema.ts`, **write the migration by hand** (`drizzle/00NN_name.sql`, statements separated
 by `--> statement-breakpoint`) and add it to `drizzle/meta/_journal.json` with a `"when"` greater
 than every earlier one — Drizzle skips a migration whose `when` is lower than the last applied.
 Don't run `npm run db:generate`: its snapshots stop at 0062, so it would recreate existing tables.
 
-## Plugins
+## Built-in plugins
 
 | Plugin | What it is |
 | --- | --- |
@@ -113,7 +172,7 @@ Don't run `npm run db:generate`: its snapshots stop at 0062, so it would recreat
 | Kanban, Jira Lage | Your own boards; your Jira boards with each card's Lage |
 | Kalender | One calendar for everything: your own calendars in Zeff and your sources' (Outlook, Google Calendar) |
 | Personen | A profile for each person who matters to you: your notes, their dates (birthdays …), reminders on Heute |
-| Work | Agents on your todos: runs, live sessions, repos, delivery |
+| Work | Agents on your todos: runs, live sessions, repos, delivery — and the extension points above |
 | Auto-Aktionen | Ready-made actions for every open todo, from what the installed plugins can do |
 | LLM, Copilot CLI, Claude CLI | The AI layer: a backend and model per task, your instructions |
 | Knowledge | The knowledge server's chat, and "Show knowledge" on todos |
@@ -121,6 +180,8 @@ Don't run `npm run db:generate`: its snapshots stop at 0062, so it would recreat
 | Google Keep schreiben (beta) | Your Keep notes editable in Zeff — written back through Keep's own editor, on your click |
 | Chrono, Punch | The corporate timesheets: export and read back |
 | Backups, Konten | Encrypted backups (daily, weekly, monthly); more than one account |
+
+Built-in plugins are compiled into Zeff; **external plugins** (above) are loaded from the data folder while it runs.
 
 **Writes happen only on your click.** Sending a WhatsApp, Signal or Teams message, posting to Jira or
 GitLab, exporting to Chrono or Punch, writing a Keep note: each runs only from a button. The automatic
@@ -145,7 +206,7 @@ For knowledge: `search_knowledge`. The server's instructions tell the agent how 
 line, honest hours, and a suggestion for you to take over.
 
 Set `ZEFF_MCP_TOKEN` in `.env.local` to require `Authorization: Bearer <token>`. Without it the
-endpoint is open, which is fine on localhost.
+endpoint is open, which is fine on localhost. (External plugins have their own API, [docs/plugins/api.md](docs/plugins/api.md).)
 
 ## The knowledge server (`knowledge/`)
 
@@ -206,17 +267,22 @@ src/
   app/                 pages (App Router), API routes, Zeff's own server actions (actions.ts)
     action-helpers.ts  what the server actions share (forms, revalidation, ActionState)
     api/mcp/           the MCP endpoints (/api/mcp, /api/mcp/<account>)
-  plugins/<id>/        a plugin: its manifest entry (catalog.ts), driver.mjs, server-actions.ts,
+    api/ext/v1/        the extension API for external plugins
+    ext/               what external plugins are served from: their panels, the SDK, the docs
+  plugins/<id>/        a built-in plugin: its manifest entry (catalog.ts), driver.mjs, server-actions.ts,
                        the client-safe catalog of a todo's operations (actions.ts), run.ts, UI
   lib/                 the core: entries, week math, schedule, boards (the Lage), work, sync, mail …
+    ext/               external plugins: manifest, registry, API, hooks, panel assets, SDK
   mcp/                 the MCP tools (server.ts) and the per-account HTTP handler (http.ts)
   db/                  Drizzle schema, the connection, accounts (one database each)
+docs/plugins/          the documentation of external plugins (shipped with Zeff, shown at /ext/docs)
+examples/plugins/      plugins to copy: run-dashboard, run-notifier, plugin-builder
 knowledge/             the knowledge server (its own Next app)
 launcher/              the Electron launcher (supervisor, HTTPS proxy, tray)
-scripts/               deploy, dist, seed, the Chrome/CDP helper, driver shims
+scripts/               deploy, dist, seed, plugin-check, the Chrome/CDP helper, driver shims
 tests/                 npm test (node:test + tsx), each file on a temporary database
 drizzle/               SQL migrations
-data/                  the databases, backups, logs (git-ignored)
+data/                  the databases, backups, logs, plugins (git-ignored)
 ```
 
 ## Notes
@@ -225,3 +291,4 @@ data/                  the databases, backups, logs (git-ignored)
 - Hours are decimals (`0.25` = 15 min), and one entry may not exceed 24 h.
 - A job can only be deleted while no time is booked on it. Deactivate it instead.
 - The web UI has no login. Run it on localhost (the launcher binds 127.0.0.1).
+- External plugins are code someone wrote: turn on only ones you trust, and read what a plugin asks for first.

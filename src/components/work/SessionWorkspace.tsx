@@ -5,10 +5,12 @@ import type { DiffFile } from "@/lib/work/session-git";
 import type { ProcView } from "@/lib/work/session-procs";
 import { useT } from "../I18nProvider";
 import { toast } from "../Toaster";
+import { ExtFrame, type ExtContext } from "../ext/ExtFrame";
 import { Patch } from "./Diff";
 import { fileStatusText } from "./mode-text";
 
-type Tab = "chat" | "changes" | "preview";
+/** "chat", "changes", "preview" — or "ext:<plugin>:<panel>", a plugin's session panel. */
+type Tab = string;
 
 const STATUS_TONE: Record<DiffFile["status"], string> = {
   added: "text-emerald-600",
@@ -28,10 +30,10 @@ const post = (runId: number, body: Record<string, unknown>): Promise<Answer> =>
  * A session's workspace, beside its conversation — Claude Code's panes: the changes since it
  * began (file by file, as diffs), commit / push / merge request, and its dev servers (preview).
  */
-export function SessionTabs({ runId, git, children, title }: { runId: number; git: boolean; children: React.ReactNode; title: string }) {
+export function SessionTabs({ runId, git, children, title, extPanels = [], extContext }: { runId: number; git: boolean; children: React.ReactNode; title: string; /** Plugins' session panels: more tabs, each handed this session (extContext). */ extPanels?: { id: string; plugin: string; entry: string; title: string }[]; extContext?: ExtContext }) {
   const t = useT();
   const [tab, setTab] = useState<Tab>("chat");
-  const tabs: { id: Tab; label: string }[] = [{ id: "chat", label: t("Conversation") }, ...(git ? [{ id: "changes" as Tab, label: t("Changes") }] : []), { id: "preview", label: t("Preview") }];
+  const tabs: { id: Tab; label: string }[] = [{ id: "chat", label: t("Conversation") }, ...(git ? [{ id: "changes" as Tab, label: t("Changes") }] : []), { id: "preview", label: t("Preview") }, ...extPanels.map((x) => ({ id: `ext:${x.id}`, label: x.title }))];
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800" role="tablist">
@@ -52,6 +54,9 @@ export function SessionTabs({ runId, git, children, title }: { runId: number; gi
       <div className={tab === "chat" ? "flex min-h-0 flex-1 flex-col gap-2" : "hidden"}>{children}</div>
       {tab === "changes" && <Changes runId={runId} title={title} />}
       {tab === "preview" && <Preview runId={runId} />}
+      {extPanels.filter((x) => tab === `ext:${x.id}`).map((x) => (
+        <ExtFrame key={x.id} plugin={x.plugin} entry={x.entry} title={x.title} context={extContext} />
+      ))}
     </div>
   );
 }

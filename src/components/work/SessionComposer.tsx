@@ -10,6 +10,7 @@ import { effortsOf, type ComposerOptions } from "@/lib/work/composer-shared";
 import { useT } from "../I18nProvider";
 import { modeText } from "./mode-text";
 import { isClaudeMode } from "@/lib/work/shared";
+import { SlashCommands } from "../ext/SlashCommands";
 
 /**
  * The message box, like Claude Code's: it grows with what you write, Enter sends, Shift+Enter is a
@@ -141,6 +142,7 @@ export function SessionComposer({
           void attach([...e.dataTransfer.files]);
         }}
       >
+        <SlashCommands text={text} onPick={setText} area={area} />
         <textarea
           ref={area}
           rows={1}

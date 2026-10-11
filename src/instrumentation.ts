@@ -54,6 +54,12 @@ export async function register() {
   } catch (e) {
     console.error("[knowledge] listing the knowledge servers failed", e);
   }
+  try {
+    const { startExtWatcher } = await import("./lib/ext/work");
+    startExtWatcher(); // external plugins' work.changed / todos.changed events
+  } catch (e) {
+    console.error("[ext] starting the event watcher failed", e);
+  }
   const { startSyncScheduler } = await import("./lib/sync-scheduler");
   startSyncScheduler();
 }
