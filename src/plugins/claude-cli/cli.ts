@@ -31,7 +31,7 @@ export function findClaudeCli(): string | null {
 export function runClaude<T>(
   prompt: string,
   schema: object,
-  opts: { model?: string; systemPrompt?: string; timeoutMs?: number; maxBudgetUsd?: number } = {},
+  opts: { model?: string; systemPrompt?: string; timeoutMs?: number; maxBudgetUsd?: number; readDir?: string } = {},
 ): Promise<AiAnswer<T>> {
   const cli = findClaudeCli();
   if (!cli) return Promise.reject(new Error("The Claude CLI wasn't found — install Claude Code, or set CLAUDE_CLI to claude.exe."));
@@ -44,8 +44,10 @@ export function runClaude<T>(
     "json",
     "--json-schema",
     JSON.stringify(schema),
+    // Closed: no tools — except, for reading a picture or a PDF, the Read tool on one folder.
     "--tools",
-    "",
+    opts.readDir ? "Read" : "",
+    ...(opts.readDir ? ["--add-dir", opts.readDir] : []),
     "--strict-mcp-config",
     "--no-session-persistence",
     "--disable-slash-commands",

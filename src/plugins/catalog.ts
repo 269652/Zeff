@@ -7,7 +7,7 @@
  * say, the work ones go and the rest stays. Client-safe (data only).
  */
 
-export const PLUGIN_IDS = ["zeiterfassung", "weekly-report", "monthly-report", "todos", "tickets", "kanban", "jira-lage", "work", "work-elevated", "auto-actions", "backup", "accounts", "knowledge", "people", "jira", "llm", "copilot-cli", "claude-cli", "codex-cli", "outlook-mail", "gmail", "whatsapp", "signal", "keep", "keep-write", "calendar", "google-calendar", "outlook-calendar", "teams", "gitlab", "roar", "timo", "lang-en", "lang-de", "lang-es"] as const;
+export const PLUGIN_IDS = ["zeiterfassung", "weekly-report", "monthly-report", "todos", "tickets", "kanban", "jira-lage", "work", "work-elevated", "auto-actions", "backup", "accounts", "knowledge", "people", "documents", "jira", "llm", "copilot-cli", "claude-cli", "codex-cli", "outlook-mail", "gmail", "whatsapp", "signal", "keep", "keep-write", "calendar", "google-calendar", "outlook-calendar", "teams", "gitlab", "roar", "timo", "lang-en", "lang-de", "lang-es"] as const;
 export type PluginId = (typeof PLUGIN_IDS)[number];
 export const isPluginId = (v: unknown): v is PluginId => (PLUGIN_IDS as readonly unknown[]).includes(v);
 
@@ -228,6 +228,18 @@ export const PLUGINS: PluginManifest[] = [
     routes: ["/personen"],
     // Names in todos → people (aliases, new profiles, merges): with each briefing, through the AI.
     syncSteps: ["peoplenorm"],
+  },
+  {
+    id: "documents",
+    name: "Documents",
+    description:
+      "A store for your documents: drop text files, Office files, PDFs, pictures or audio — Zeff reads the text out of them (pictures and scanned PDFs through the Claude CLI; audio through a transcriber you set, e.g. Whisper) and, with the Knowledge plugin, the knowledge server compiles them: an abstract on hover, searchable, context for your todos. Attach a document to a todo by hand to give it as context.",
+    category: "app",
+    defaultInstalled: false,
+    requires: "For pictures and scanned PDFs: the Claude CLI (scanned PDFs also Poppler's pdftoppm). For audio: a transcriber command.",
+    apps: [{ href: "/documents", label: "Documents", short: "Docs", hint: "Drop documents, images, audio" }],
+    settings: { href: "/documents#settings", what: "The audio transcriber" },
+    routes: ["/documents", "/api/documents"],
   },
   {
     id: "accounts",

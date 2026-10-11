@@ -8,8 +8,10 @@ import { toast } from "../Toaster";
 import { useT } from "@/components/I18nProvider";
 import type { T } from "@/lib/i18n/shared";
 import { saveDraft, useTodoDrafts } from "./todo-drafts";
+import { AttachPanel } from "@/plugins/documents/AttachPanel";
+import { usePluginOn } from "../PluginFlags";
 
-export type QuickPanel = "note" | "ai" | "reply" | null;
+export type QuickPanel = "note" | "ai" | "reply" | "doc" | null;
 
 const ICON_BTN =
   "inline-flex size-5 items-center justify-center rounded align-middle text-zinc-400 hover:bg-zinc-100 hover:text-indigo-600 disabled:opacity-40 dark:hover:bg-zinc-800 dark:hover:text-indigo-400";
@@ -19,8 +21,23 @@ export function TodoQuickButtons({ todoId, panel, onToggle, aiDisabled, canReply
   const t = useT();
   const drafts = useTodoDrafts(todoId);
   const dot = <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-amber-500" aria-hidden />;
+  const documents = usePluginOn("documents");
   return (
     <span className="ml-1 inline-flex items-center gap-0.5 align-middle">
+      {documents && (
+        <button
+          type="button"
+          className={`${ICON_BTN} ${panel === "doc" ? "bg-zinc-100 text-indigo-600 dark:bg-zinc-800 dark:text-indigo-400" : ""}`}
+          title={t("Attach a document — context for this todo")}
+          aria-label={t("Attach a document")}
+          aria-expanded={panel === "doc"}
+          onClick={() => onToggle(panel === "doc" ? null : "doc")}
+        >
+          <svg viewBox="0 0 20 20" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M15.5 9.5 9.2 15.8a3.5 3.5 0 0 1-5-5l6.6-6.6a2.3 2.3 0 0 1 3.3 3.3l-6.6 6.6a1.1 1.1 0 0 1-1.6-1.6l6-6" />
+          </svg>
+        </button>
+      )}
       <button
         type="button"
         className={`${ICON_BTN} relative ${panel === "note" ? "bg-zinc-100 text-indigo-600 dark:bg-zinc-800 dark:text-indigo-400" : ""}`}
@@ -77,6 +94,7 @@ export function TodoQuickPanel({ todoId, todoRef, panel, onClose }: { todoId: nu
   const [pending, start] = useTransition();
   if (!panel) return null;
   if (panel === "reply") return <ReplyPanel todoId={todoId} onClose={onClose} />;
+  if (panel === "doc") return <AttachPanel todoId={todoId} onClose={onClose} />;
   const ai = panel === "ai";
   const text = drafts[panel];
   const setText = (v: string) => saveDraft(todoId, panel, v);

@@ -486,7 +486,9 @@ export type TodoSource =
   /** A note (Google Keep's or one of your Keep boards') it follows from or is about. */
   | { source: "keep"; note: import("@/plugins/keep/shared").KeepNoteBrief }
   /** A fact of yours it needs ("Nadines Geburtstag: 16.10.") — found in your messages. */
-  | { source: "fact"; fact: import("@/lib/facts-shared").FactView };
+  | { source: "fact"; fact: import("@/lib/facts-shared").FactView }
+  /** A document of the store attached to it (by hand) — its abstract is its context. */
+  | { source: "document"; doc: import("@/plugins/documents/shared").DocView };
 
 /** A source's identity: its message, whichever ref named it. */
 export const sourceKey = (s: TodoSource) =>
@@ -500,7 +502,9 @@ export const sourceKey = (s: TodoSource) =>
           ? s.note.ref
           : s.source === "fact"
             ? s.fact.ref
-            : `gitlab:${s.gitlab.key}`;
+            : s.source === "document"
+              ? s.doc.ref
+              : `gitlab:${s.gitlab.key}`;
 
 /**
  * A todo's sources from its refs, each once (a message and its synced copy are one); a GitLab
