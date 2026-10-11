@@ -16,7 +16,7 @@ const usePost = (runId: number): Post => (body) =>
     .then((r) => r.json() as Promise<{ ok: boolean; error?: string }>)
     .catch((e: unknown) => ({ ok: false, error: e instanceof Error ? e.message : String(e) }));
 
-const MODE_TONE: Partial<Record<ClaudeMode, string>> = { bypassPermissions: "bg-red-600 text-white", auto: "bg-amber-500 text-white", plan: "bg-sky-600 text-white" };
+const MODE_TEXT: Partial<Record<ClaudeMode, string>> = { bypassPermissions: "font-medium text-red-600", auto: "font-medium text-amber-600", plan: "font-medium text-sky-600" };
 
 /**
  * A live Claude session's bar — Claude Code's prompt area: its mode (switch any time), model and
@@ -50,101 +50,112 @@ export function ClaudeSession({ run }: { run: WorkRunView }) {
             ? t("working …")
             : t("waiting for you");
 
+  // The same quiet dropdowns as a new message's box (SessionComposer).
+  const select = "rounded-md border-0 bg-transparent py-0.5 pr-6 pl-1.5 text-xs hover:bg-zinc-100 focus:ring-1 focus:ring-indigo-400 disabled:opacity-60 dark:hover:bg-zinc-800";
+  const quiet = "rounded-md px-1.5 py-0.5 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 disabled:opacity-50 dark:hover:bg-zinc-800 dark:hover:text-zinc-200";
   return (
-    <div className="space-y-2">
+    <div className="mx-auto w-full max-w-3xl space-y-2">
       {c.asks[0] && <AskCard key={c.asks[0].requestId} ask={c.asks[0]} more={c.asks.length - 1} act={act} pending={pending} allowBypass={c.allowBypass} />}
-
-      <div className="space-y-1.5 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="flex flex-wrap items-center gap-2 px-1 text-xs">
-          <span className={`inline-block size-2 rounded-full ${working || c.host !== "up" ? "animate-pulse bg-indigo-500" : c.asks.length ? "bg-amber-500" : "bg-emerald-500"}`} aria-hidden />
-          <span className="text-zinc-600 dark:text-zinc-300">{status}</span>
-          {c.queued > 0 && <span className="rounded bg-zinc-100 px-1.5 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">{t("{n} queued", { n: c.queued })}</span>}
-          {c.shellPending > 0 && (
-            <span className="rounded bg-amber-100 px-1.5 text-amber-800 dark:bg-amber-950 dark:text-amber-200" title={t("Claude Code's !: the output goes along with your next message")}>
-              {t("{n} command output(s) go along with your next message", { n: c.shellPending })}
-            </span>
-          )}
-          {c.elevated && <span className="rounded bg-red-100 px-1.5 font-semibold text-red-800 dark:bg-red-950 dark:text-red-200">{t("Administrator")}</span>}
-          {working && (
-            <button type="button" className="btn btn-sm" disabled={pending} onClick={() => act({ do: "interrupt" })} title={t("Stop its current turn (Esc)")}>
-              ■ {t("Stop turn")}
-            </button>
-          )}
-          <span className="ml-auto text-zinc-500">{c.costUsd ? `$${c.costUsd.toFixed(2)}` : ""}</span>
-        </div>
-
-        <Composer run={run} post={post} pending={pending} start={start} working={working} />
-
-        <div className="flex flex-wrap items-center gap-1.5 px-1">
-          <span className="inline-flex overflow-hidden rounded-md border border-zinc-300 dark:border-zinc-700" role="radiogroup" aria-label={t("Permission mode")}>
-            {CLAUDE_MODES.filter((m) => m !== "bypassPermissions" || c.allowBypass).map((m) => {
-              const on = m === mode;
-              return (
-                <button
-                  key={m}
-                  type="button"
-                  role="radio"
-                  aria-checked={on}
-                  disabled={pending || on}
-                  onClick={() => act({ do: "mode", mode: m })}
-                  title={modeText(t, m).hint}
-                  className={`px-2 py-0.5 text-[11px] font-medium ${on ? (MODE_TONE[m] ?? "bg-indigo-600 text-white") : "bg-white text-zinc-600 hover:bg-zinc-50 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"}`}
-                >
-                  {modeText(t, m).label}
-                </button>
-              );
-            })}
-          </span>
-          <select className="input w-auto py-0.5 text-[11px]" value={c.model ?? ""} disabled={pending} onChange={(e) => act({ do: "model", model: e.target.value })} aria-label={t("Model")}>
-            {!c.models.some((m) => m.value === c.model) && <option value={c.model ?? ""}>{c.model || t("Default model")}</option>}
-            {c.models.map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-          <select
-            className="input w-auto py-0.5 text-[11px]"
-            value={c.effort}
-            disabled={pending || working}
-            onChange={(e) => act({ do: "effort", effort: e.target.value })}
-            aria-label={t("Effort")}
-            title={t("Changing it restarts the session between turns (resumed — nothing is lost).")}
-          >
-            {EFFORTS.map((e) => (
-              <option key={e} value={e}>
-                {e ? t("Effort: {e}", { e }) : t("Effort: default")}
-              </option>
-            ))}
-          </select>
-          <span className="ml-auto flex gap-1.5">
-            <button
-              type="button"
-              className="btn btn-sm"
+      <Composer
+        run={run}
+        post={post}
+        pending={pending}
+        start={start}
+        working={working}
+        onStop={() => act({ do: "interrupt" })}
+        controls={
+          <>
+            <select className={`${select} ${MODE_TEXT[mode] ?? "text-zinc-500"}`} value={mode} disabled={pending} onChange={(e) => act({ do: "mode", mode: e.target.value })} aria-label={t("Permission mode")} title={modeText(t, mode).hint}>
+              {CLAUDE_MODES.filter((m) => m !== "bypassPermissions" || c.allowBypass).map((m) => (
+                <option key={m} value={m}>
+                  {t("Mode: {m}", { m: modeText(t, m).label })}
+                </option>
+              ))}
+            </select>
+            <select className={`${select} text-zinc-500`} value={c.model ?? ""} disabled={pending} onChange={(e) => act({ do: "model", model: e.target.value })} aria-label={t("Model")}>
+              {!c.models.some((m) => m.value === c.model) && <option value={c.model ?? ""}>{c.model || t("Default model")}</option>}
+              {c.models.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+            <select
+              className={`${select} text-zinc-500`}
+              value={c.effort}
               disabled={pending || working}
-              onClick={() => act({ do: "wrap-up" })}
-              title={t("It sums up and gives its result — that ends the session: its todo ticked off, the time suggested.")}
+              onChange={(e) => act({ do: "effort", effort: e.target.value })}
+              aria-label={t("Effort")}
+              title={t("Changing it restarts the session between turns (resumed — nothing is lost).")}
             >
+              {EFFORTS.map((e) => (
+                <option key={e} value={e}>
+                  {e ? t("Effort: {e}", { e }) : t("Effort: default")}
+                </option>
+              ))}
+            </select>
+          </>
+        }
+        status={
+          <span className="ml-auto flex min-w-0 items-center gap-1.5 text-[11px] text-zinc-500">
+            <span className={`inline-block size-1.5 shrink-0 rounded-full ${working || c.host !== "up" ? "animate-pulse bg-indigo-500" : c.asks.length ? "bg-amber-500" : "bg-emerald-500"}`} aria-hidden />
+            <span className="truncate">{status}</span>
+            {c.queued > 0 && <span className="shrink-0 rounded bg-zinc-100 px-1 dark:bg-zinc-800">{t("{n} queued", { n: c.queued })}</span>}
+            {c.shellPending > 0 && (
+              <span className="shrink-0 rounded bg-amber-100 px-1 text-amber-800 dark:bg-amber-950 dark:text-amber-200" title={t("Claude Code's !: the output goes along with your next message")}>
+                {t("{n} command output(s) go along with your next message", { n: c.shellPending })}
+              </span>
+            )}
+            {c.elevated && <span className="shrink-0 rounded bg-red-100 px-1 font-semibold text-red-800 dark:bg-red-950 dark:text-red-200">{t("Administrator")}</span>}
+          </span>
+        }
+        actions={
+          <>
+            <button type="button" className={quiet} disabled={pending || working} onClick={() => act({ do: "wrap-up" })} title={t("It sums up and gives its result — that ends the session: its todo ticked off, the time suggested.")}>
               {t("Finish")}
             </button>
             <button
               type="button"
-              className="btn btn-sm"
+              className={quiet}
               disabled={pending}
               onClick={() => confirm(t("Close the session without a result? (Nothing is ticked off or booked.)")) && act({ do: "close" })}
               title={t("End it without a result")}
             >
               {t("Close")}
             </button>
-          </span>
-        </div>
-      </div>
+          </>
+        }
+      />
     </div>
   );
 }
 
 /** The message box: Enter sends (also while it works: it waits its turn), Shift+Enter a new line, /commands, @files, !shell, images. */
-function Composer({ run, post, pending, start, working }: { run: WorkRunView; post: Post; pending: boolean; start: (fn: () => Promise<void>) => void; working: boolean }) {
+function Composer({
+  run,
+  post,
+  pending,
+  start,
+  working,
+  onStop,
+  controls,
+  status,
+  actions,
+}: {
+  run: WorkRunView;
+  post: Post;
+  pending: boolean;
+  start: (fn: () => Promise<void>) => void;
+  working: boolean;
+  /** Stop its current turn (the round button while it works and nothing is typed). */
+  onStop: () => void;
+  /** Its mode, model, effort — in the bottom row. */
+  controls: React.ReactNode;
+  /** What it's doing, small. */
+  status: React.ReactNode;
+  /** Finish, Close. */
+  actions: React.ReactNode;
+}) {
   const t = useT();
   const c = run.claude!;
   const [text, setText] = useState("");
@@ -152,6 +163,12 @@ function Composer({ run, post, pending, start, working }: { run: WorkRunView; po
   const [menu, setMenu] = useState<{ kind: "/" | "@"; items: { value: string; label: string; hint?: string }[]; at: number; sel: number } | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const shell = text.startsWith("!");
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 320)}px`;
+  }, [text]);
   const draftKey = `zeff-session-draft-${run.id}`;
 
   // Your unsent words survive a page refresh (per session, this browser).
@@ -269,75 +286,105 @@ function Composer({ run, post, pending, start, working }: { run: WorkRunView; po
           ))}
         </ul>
       )}
-      {images.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 px-1 pb-1">
-          {images.map((im, i) => (
-            <span key={i} className="relative">
-              {/* eslint-disable-next-line @next/next/no-img-element -- a data URL preview */}
-              <img src={`data:${im.mediaType};base64,${im.data}`} alt={im.name} className="h-14 w-auto rounded border border-zinc-200 dark:border-zinc-700" />
-              <button type="button" className="absolute -top-1.5 -right-1.5 rounded-full bg-zinc-800 px-1 text-[10px] text-white" onClick={() => setImages((xs) => xs.filter((_, j) => j !== i))} aria-label={t("Remove image")}>
-                ✕
-              </button>
-            </span>
-          ))}
+      <div className="rounded-2xl border border-zinc-300 bg-white shadow-sm transition focus-within:border-indigo-400 focus-within:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:focus-within:border-indigo-500">
+          <textarea
+            ref={box}
+            rows={1}
+            className={`block max-h-80 min-h-12 w-full resize-none bg-transparent px-4 pt-3 pb-1 text-sm outline-none placeholder:text-zinc-400 ${shell ? "font-mono text-amber-700 dark:text-amber-300" : ""}`}
+            value={text}
+            disabled={pending && !working}
+            placeholder={working ? t("Message — it reads it after this step (Enter)") : t("Message (Enter) · / commands · @ files · ! shell · paste images")}
+            aria-label={t("Message to the session")}
+            onChange={(e) => {
+              setText(e.target.value);
+              void suggest(e.target.value, e.target.selectionStart ?? e.target.value.length);
+            }}
+            onPaste={(e) => {
+              const files = [...e.clipboardData.files];
+              if (files.length) {
+                e.preventDefault();
+                void addFiles(files);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (menu) {
+                if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setMenu({ ...menu, sel: (menu.sel + (e.key === "ArrowDown" ? 1 : menu.items.length - 1)) % menu.items.length });
+                  return;
+                }
+                if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+                  e.preventDefault();
+                  pick(menu.sel);
+                  return;
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setMenu(null);
+                  return;
+                }
+              }
+              if (e.key === "Escape" && working) {
+                e.preventDefault();
+                start(async () => void (await post({ do: "interrupt" })));
+                return;
+              }
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                send();
+              }
+            }}
+          />
+        {images.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 px-3 pb-1">
+            {images.map((im, i) => (
+              <span key={i} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element -- a data URL preview */}
+                <img src={`data:${im.mediaType};base64,${im.data}`} alt={im.name} className="h-14 w-auto rounded border border-zinc-200 dark:border-zinc-700" />
+                <button type="button" className="absolute -top-1.5 -right-1.5 rounded-full bg-zinc-800 px-1 text-[10px] text-white" onClick={() => setImages((xs) => xs.filter((_, j) => j !== i))} aria-label={t("Remove image")}>
+                  ✕
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-1 px-2.5 pb-2">
+          <label className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-md text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" title={t("Attach images")}>
+            <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple className="hidden" onChange={(e) => e.target.files && void addFiles(e.target.files)} />
+            📎
+          </label>
+          {controls}
+          {status}
+          {actions}
+          {working && !text.trim() && !images.length ? (
+            <button
+              type="button"
+              className="ml-1 grid size-8 shrink-0 place-items-center rounded-full bg-zinc-900 text-white transition hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+              onClick={onStop}
+              aria-label={t("Stop turn")}
+              title={t("Stop its current turn (Esc)")}
+            >
+              <span className="size-2.5 rounded-[2px] bg-current" aria-hidden />
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="ml-1 grid size-8 shrink-0 place-items-center rounded-full bg-zinc-900 text-white transition hover:bg-zinc-700 disabled:bg-zinc-200 disabled:text-zinc-400 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white dark:disabled:bg-zinc-800 dark:disabled:text-zinc-600"
+              disabled={pending || (!text.trim() && !images.length)}
+              onClick={send}
+              aria-label={shell ? t("Run") : working ? t("Queue") : t("Send")}
+              title={shell ? t("Run") : working ? t("Queue — it reads it after this step") : t("Send")}
+            >
+              {pending ? (
+                <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden />
+              ) : (
+                <svg viewBox="0 0 20 20" fill="currentColor" className="size-4" aria-hidden>
+                  <path d="M10 3.5a.75.75 0 0 1 .53.22l5 5a.75.75 0 1 1-1.06 1.06l-3.72-3.72v9.19a.75.75 0 0 1-1.5 0V6.06L5.53 9.78a.75.75 0 0 1-1.06-1.06l5-5A.75.75 0 0 1 10 3.5Z" />
+                </svg>
+              )}
+            </button>
+          )}
         </div>
-      )}
-      <div className="flex items-end gap-1.5">
-        <textarea
-          ref={box}
-          rows={2}
-          className={`block min-h-14 w-full resize-y bg-transparent px-2 py-1.5 text-sm outline-none ${shell ? "font-mono text-amber-700 dark:text-amber-300" : ""}`}
-          value={text}
-          disabled={pending && !working}
-          placeholder={working ? t("Message — it reads it after this step (Enter)") : t("Message (Enter) · / commands · @ files · ! shell · paste images")}
-          aria-label={t("Message to the session")}
-          onChange={(e) => {
-            setText(e.target.value);
-            void suggest(e.target.value, e.target.selectionStart ?? e.target.value.length);
-          }}
-          onPaste={(e) => {
-            const files = [...e.clipboardData.files];
-            if (files.length) {
-              e.preventDefault();
-              void addFiles(files);
-            }
-          }}
-          onKeyDown={(e) => {
-            if (menu) {
-              if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-                e.preventDefault();
-                setMenu({ ...menu, sel: (menu.sel + (e.key === "ArrowDown" ? 1 : menu.items.length - 1)) % menu.items.length });
-                return;
-              }
-              if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
-                e.preventDefault();
-                pick(menu.sel);
-                return;
-              }
-              if (e.key === "Escape") {
-                e.preventDefault();
-                setMenu(null);
-                return;
-              }
-            }
-            if (e.key === "Escape" && working) {
-              e.preventDefault();
-              start(async () => void (await post({ do: "interrupt" })));
-              return;
-            }
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              send();
-            }
-          }}
-        />
-        <label className="btn btn-sm shrink-0 cursor-pointer" title={t("Attach images")}>
-          <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple className="hidden" onChange={(e) => e.target.files && void addFiles(e.target.files)} />
-          🖼
-        </label>
-        <button type="button" className="btn btn-primary btn-sm shrink-0" disabled={pending || (!text.trim() && !images.length)} onClick={send}>
-          {shell ? t("Run") : working ? t("Queue") : t("Send")}
-        </button>
       </div>
     </div>
   );
