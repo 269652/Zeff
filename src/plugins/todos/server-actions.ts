@@ -175,7 +175,14 @@ export async function addTodoNoteAction(todoId: number, text: string): Promise<A
     const { addTodoUserNote } = await import("@/lib/boards/store");
     const todo = addTodoUserNote(Number(todoId), String(text));
     revalidateAll();
-    // Its actions proposed by the auto-actions (not run, not edited): proposed again with the note — in the background.
+    // The todo brought up to date with the note at once (its text, kind, done …, then its actions) —
+    // in the background, just this todo: no whole run needed. While a run is under way, it reads the note itself.
+    const { canRefreshTodo, refreshTodoSoon } = await import("@/lib/boards/todo-refresh");
+    if (todo && canRefreshTodo(todo)) {
+      refreshTodoSoon(todo.id);
+      return { ok: true, message: t("Note saved — the todo is being updated with it.") };
+    }
+    // (Can't now — a run under way: its actions proposed by the auto-actions, proposed again with the note.)
     if (todo?.autoOpsWhy && todo.ops.length && (await import("@/plugins/state")).isInstalled("auto-actions")) {
       const { reviewTodosForActions } = await import("@/plugins/auto-actions/review");
       void reviewTodosForActions({ ids: [todo.id] }).catch(() => {});

@@ -61,7 +61,9 @@ export function runClaude<T>(
   delete env.CLAUDE_CODE_ENTRYPOINT;
 
   return new Promise((resolve, reject) => {
-    const child = spawn(/*turbopackIgnore: true*/ cli, args, { cwd, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+    // CLAUDE_CLI may be a script (a stand-in, as in the tests): run with node.
+    const script = /\.(c|m)?js$/i.test(cli);
+    const child = spawn(/*turbopackIgnore: true*/ script ? process.execPath : cli, script ? [cli, ...args] : args, { cwd, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
     let stdout = "";
     let stderr = "";
     let done = false;
