@@ -53,3 +53,18 @@ test("runCodex reads the answer from the events and says when it isn't signed in
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+/** Auto's hint says the truth when Codex's Windows sandbox isn't set up (it asks for every command then). */
+test("Auto's hint names a missing Windows sandbox", async () => {
+  const { codexModes } = await import("../src/plugins/codex-cli/live");
+  const cache = globalThis as { __zeffCodexSandbox?: { at: number; state: string } };
+  const auto = () => codexModes(false).find((m) => m.id === "agent")!.hint;
+  try {
+    cache.__zeffCodexSandbox = { at: Date.now(), state: "ready" };
+    assert.doesNotMatch(auto(), /sandbox/i);
+    cache.__zeffCodexSandbox = { at: Date.now(), state: "notConfigured" };
+    if (process.platform === "win32") assert.match(auto(), /Windows sandbox isn't set up/);
+  } finally {
+    delete cache.__zeffCodexSandbox;
+  }
+});
