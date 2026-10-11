@@ -31,7 +31,7 @@ export function findClaudeCli(): string | null {
 export function runClaude<T>(
   prompt: string,
   schema: object,
-  opts: { model?: string; systemPrompt?: string; timeoutMs?: number; maxBudgetUsd?: number; readDir?: string } = {},
+  opts: { model?: string; systemPrompt?: string; timeoutMs?: number; maxBudgetUsd?: number; readDir?: string; extraPath?: string } = {},
 ): Promise<AiAnswer<T>> {
   const cli = findClaudeCli();
   if (!cli) return Promise.reject(new Error("The Claude CLI wasn't found — install Claude Code, or set CLAUDE_CLI to claude.exe."));
@@ -61,6 +61,11 @@ export function runClaude<T>(
   const env = { ...process.env };
   delete env.CLAUDECODE;
   delete env.CLAUDE_CODE_ENTRYPOINT;
+  // A folder of programs the CLI's tools may need (Poppler's pdftoppm, installed just now: not on this server's PATH yet).
+  if (opts.extraPath) {
+    const key = Object.keys(env).find((k) => k.toLowerCase() === "path") ?? "PATH";
+    env[key] = `${opts.extraPath}${path.delimiter}${env[key] ?? ""}`;
+  }
 
   return new Promise((resolve, reject) => {
     // CLAUDE_CLI may be a script (a stand-in, as in the tests): run with node.

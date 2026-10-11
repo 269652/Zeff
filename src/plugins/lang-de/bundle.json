@@ -856,6 +856,7 @@
   "Chat": "Chat",
   "Chat, sender, text…": "Chat, Absender, Text…",
   "ChatGPT as the AI for the briefing, the mail steps and the other AI tasks — through OpenAI's Codex CLI, signed in with your ChatGPT account.": "ChatGPT als KI für die Ticket-Lage, die Mail-Schritte und die anderen KI-Aufgaben — über OpenAIs Codex CLI, angemeldet mit deinem ChatGPT-Konto.",
+  "ChatGPT workers need Live sessions — switch them on in the Work settings (Claude sessions).": "ChatGPT-Worker brauchen Live-Sessions – schalte sie in den Work-Einstellungen ein (Claude-Sessions).",
   "ChatGPT's default": "Standard von ChatGPT",
   "Chats": "Chats",
   "Check": "Prüfen",
@@ -3508,5 +3509,11 @@
   "“{name}” attached.": "„{name}“ angehängt.",
   "Detached.": "Abgehängt.",
   "“{name}” is empty.": "„{name}“ ist leer.",
-  "“{name}” is too large (at most {n} MB).": "„{name}“ ist zu groß (höchstens {n} MB)."
+  "“{name}” is too large (at most {n} MB).": "„{name}“ ist zu groß (höchstens {n} MB).",
+  "A scanned or complex PDF needs Poppler (pdftoppm). Automatic installation is off (Documents → Settings) — turn it on, or install it yourself ({command}), then click “Read again”.": "Ein gescanntes oder komplexes PDF braucht Poppler (pdftoppm). Die automatische Installation ist aus (Dokumente → Einstellungen) — schalte sie ein oder installiere es selbst ({command}) und klick dann auf „Neu lesen“.",
+  "Poppler (pdftoppm) isn't installed, and the automatic installation failed ({reason}). Install it yourself ({command}), then click “Read again”.": "Poppler (pdftoppm) ist nicht installiert, und die automatische Installation ist fehlgeschlagen ({reason}). Installier es selbst ({command}) und klick dann auf „Neu lesen“.",
+  "A scanned or complex PDF needs Poppler (pdftoppm), and this machine has no package manager Zeff can use. Install it yourself ({command}), then click “Read again”.": "Ein gescanntes oder komplexes PDF braucht Poppler (pdftoppm), und dieser Rechner hat keinen Paketmanager, den Zeff nutzen kann. Installier es selbst ({command}) und klick dann auf „Neu lesen“.",
+  "installed, but pdftoppm wasn't found": "installiert, aber pdftoppm wurde nicht gefunden",
+  "Install Poppler by itself when a scanned or complex PDF needs it": "Poppler von selbst installieren, wenn ein gescanntes oder komplexes PDF es braucht",
+  "Poppler (pdftoppm) is what lets the Claude CLI read such PDFs. Zeff installs it once, with your package manager (winget or scoop on Windows, Homebrew on a Mac); if that fails it says so and tries again only when you click “Read again”.": "Poppler (pdftoppm) ermöglicht der Claude-CLI, solche PDFs zu lesen. Zeff installiert es einmal mit deinem Paketmanager (winget oder scoop unter Windows, Homebrew auf dem Mac); schlägt das fehl, sagt es das und versucht es erst wieder, wenn du auf „Neu lesen“ klickst."
 }

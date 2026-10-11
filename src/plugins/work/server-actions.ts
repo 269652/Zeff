@@ -51,7 +51,7 @@ export async function startSessionAction(v: {
       const prev = getRun(Number(v.continueRunId));
       if (!prev) return { ok: false, error: t("That session doesn't exist any more.") };
       // Still working: the message goes into the running session (it takes it in when idle).
-      if (prev.status === "running" && prev.provider === "claude" && !isAiProvider(v.provider)) {
+      if (prev.status === "running" && (prev.provider === "claude" || (await import("@/lib/work/live-driver")).liveDriverOf(prev.id)) && !isAiProvider(v.provider)) {
         const { messageRunningSession } = await import("@/lib/work/runner");
         await messageRunningSession(prev.id, instruction);
         revalidatePath("/work");
