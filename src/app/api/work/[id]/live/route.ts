@@ -1,7 +1,7 @@
 import { isInstalled } from "@/plugins/state";
 import { answerPermission, sendToLive, setMode, wrapUp } from "@/plugins/copilot-cli/interactive";
-import { answer, claudeLives, closeClaude, finishClaude, interruptClaude, runShell, sendToClaude, setClaudeEffort, setClaudeMode, setClaudeModel, type AskAnswer } from "@/plugins/claude-cli/live";
-import { EFFORTS, isClaudeMode, type Effort } from "@/lib/work/shared";
+import { liveDriverOf, type LiveDriver } from "@/lib/work/live-driver";
+import { EFFORTS, type AskAnswer, type Effort } from "@/lib/work/shared";
 import { foreignRequest, refused } from "@/lib/request-guard";
 import { t } from "@/lib/i18n/server";
 
@@ -41,8 +41,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   };
   try {
     if (!Number.isInteger(runId)) throw new Error(t("Unknown run."));
-    if (claudeLives.has(runId)) {
-      const out = await claude(runId, body);
+    // A live session (any provider's driver that has it running).
+    const driver = liveDriverOf(runId);
+    if (driver?.view(runId)) {
+      const out = await session(driver, runId, body);
       return Response.json({ ok: true, ...out });
     }
     if (body.do === "answer") answerPermission(runId, String(body.option ?? ""));
@@ -61,7 +63,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
 type ClaudeBody = { do?: string; text?: string; mode?: string; model?: string; effort?: string; cmd?: string; requestId?: string; answer?: AskAnswer; images?: { mediaType?: string; data?: string }[] };
 
-async function claude(runId: number, b: ClaudeBody) {
+async function session(d: LiveDriver, runId: number, b: ClaudeBody) {
   switch (b.do) {
     case "send": {
       const text = String(b.text ?? "").trim();
@@ -73,14 +75,14 @@ async function claude(runId: number, b: ClaudeBody) {
         return { mediaType, data };
       });
       if (!text && !images.length) throw new Error(t("The message is empty."));
-      await sendToClaude(runId, text.slice(0, 100000) || "(see the image)", images);
+      await d.send(runId, text.slice(0, 100000) || "(see the image)", images);
       return {};
     }
     case "answer": {
       if (!b.requestId || !b.answer || (b.answer.behavior !== "allow" && b.answer.behavior !== "deny")) throw new Error(t("Which answer?"));
       const a = b.answer;
-      if (a.then !== undefined && !isClaudeMode(a.then)) throw new Error(t("Unknown mode."));
-      await answer(runId, b.requestId, {
+      if (a.then !== undefined && !d.view(runId)?.session.modes.some((m) => m.id === a.then)) throw new Error(t("Unknown mode."));
+      await d.answer(runId, b.requestId, {
         behavior: a.behavior,
         always: !!a.always,
         message: typeof a.message === "string" ? a.message.slice(0, 4000) : undefined,
@@ -92,31 +94,33 @@ async function claude(runId: number, b: ClaudeBody) {
       return {};
     }
     case "interrupt":
-      await interruptClaude(runId);
+      await d.interrupt(runId);
       return {};
     case "mode":
-      await setClaudeMode(runId, String(b.mode ?? ""));
+      await d.setMode(runId, String(b.mode ?? ""));
       return {};
     case "model":
-      await setClaudeModel(runId, String(b.model ?? ""));
+      await d.setModel(runId, String(b.model ?? ""));
       return {};
     case "effort": {
       const effort = String(b.effort ?? "");
       if (!(EFFORTS as readonly string[]).includes(effort)) throw new Error(t("Unknown effort."));
-      await setClaudeEffort(runId, effort as Effort);
+      if (!d.setEffort) throw new Error(t("This session's effort can't be changed."));
+      await d.setEffort(runId, effort as Effort);
       return {};
     }
     case "shell": {
       const cmd = String(b.cmd ?? "").trim();
       if (!cmd) throw new Error(t("Which command?"));
-      const r = await runShell(runId, cmd.slice(0, 8000));
+      if (!d.shell) throw new Error(t("This session doesn't run commands of yours."));
+      const r = await d.shell(runId, cmd.slice(0, 8000));
       return { out: r.out.slice(-20000), code: r.code };
     }
     case "wrap-up":
-      await finishClaude(runId);
+      await d.finish(runId);
       return {};
     case "close":
-      await closeClaude(runId);
+      await d.close(runId);
       return {};
     default:
       throw new Error(t("Unknown action."));

@@ -3,7 +3,7 @@ import { asc, desc, eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { emitChange } from "@/lib/events";
 import { liveView } from "@/plugins/copilot-cli/live-state";
-import { claudeLiveView } from "@/plugins/claude-cli/live";
+import { liveSessionView } from "./live-driver";
 import { getPref, setPref } from "@/lib/prefs";
 import type { WorkRun } from "@/db/schema";
 import { getAppSettings, updateAppSettings } from "@/lib/ai";
@@ -83,8 +83,8 @@ export function toRunView(r: WorkRun): WorkRunView {
     ticket: r.ticket,
     todoId: r.todoId,
     mode: (["code", "draft", "send", "mr", "ops", "instruct"].includes(r.mode) ? r.mode : "code") as WorkMode,
-    live: liveView(r.id) ?? claudeLiveView(r.id)?.live ?? null,
-    claude: claudeLiveView(r.id)?.claude ?? null,
+    live: liveView(r.id) ?? liveSessionView(r.id)?.live ?? null,
+    session: liveSessionView(r.id)?.session ?? null,
     provider: r.provider === "copilot" || r.provider === "zeff" || r.provider === "agent" ? r.provider : "claude",
     model: r.model,
     permissionMode: r.permissionMode,

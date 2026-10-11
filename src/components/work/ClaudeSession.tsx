@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { CLAUDE_MODES, EFFORTS, type ClaudeAsk, type ClaudeMode, type WorkRunView } from "@/lib/work/shared";
+import { EFFORTS, isClaudeMode, type ClaudeAsk, type SessionMode, type WorkRunView } from "@/lib/work/shared";
 import { useT } from "../I18nProvider";
 import { modeText } from "./mode-text";
 import { Markdown } from "../Markdown";
@@ -16,7 +16,11 @@ const usePost = (runId: number): Post => (body) =>
     .then((r) => r.json() as Promise<{ ok: boolean; error?: string }>)
     .catch((e: unknown) => ({ ok: false, error: e instanceof Error ? e.message : String(e) }));
 
-const MODE_TEXT: Partial<Record<ClaudeMode, string>> = { bypassPermissions: "font-medium text-red-600", auto: "font-medium text-amber-600", plan: "font-medium text-sky-600" };
+/** A mode's tone, in colour: the riskier, the louder. */
+const TONE_TEXT: Record<string, string> = { danger: "font-medium text-red-600", warn: "font-medium text-amber-600", info: "font-medium text-sky-600" };
+
+/** A mode's name and what it does — Claude's translated (their keys are in mode-text.ts), another driver's as it gives them. */
+const modeName = (t: ReturnType<typeof useT>, m: SessionMode) => (isClaudeMode(m.id) ? modeText(t, m.id) : { label: t(m.label), hint: t(m.hint) });
 
 /**
  * A live Claude session's bar — Claude Code's prompt area: its mode (switch any time), model and
@@ -25,7 +29,7 @@ const MODE_TEXT: Partial<Record<ClaudeMode, string>> = { bypassPermissions: "fon
  */
 export function ClaudeSession({ run }: { run: WorkRunView }) {
   const t = useT();
-  const c = run.claude!;
+  const c = run.session!;
   const live = run.live!;
   const post = usePost(run.id);
   const [pending, start] = useTransition();
@@ -35,7 +39,9 @@ export function ClaudeSession({ run }: { run: WorkRunView }) {
       if (!r.ok) toast(r.error ?? t("Didn't work."), { tone: "error" });
       else then?.(r);
     });
-  const mode = (CLAUDE_MODES as readonly string[]).includes(live.mode) ? (live.mode as ClaudeMode) : "default";
+  // Its mode: one its driver offers (a mode it isn't in any more — off the list — shows as the first).
+  const current = c.modes.find((m) => m.id === live.mode) ?? c.modes[0];
+  const mode = current?.id ?? live.mode;
   const working = live.busy && !c.asks.length;
   const status =
     c.host === "starting"
@@ -65,10 +71,17 @@ export function ClaudeSession({ run }: { run: WorkRunView }) {
         onStop={() => act({ do: "interrupt" })}
         controls={
           <>
-            <select className={`${select} ${MODE_TEXT[mode] ?? "text-zinc-500"}`} value={mode} disabled={pending} onChange={(e) => act({ do: "mode", mode: e.target.value })} aria-label={t("Permission mode")} title={modeText(t, mode).hint}>
-              {CLAUDE_MODES.filter((m) => m !== "bypassPermissions" || c.allowBypass).map((m) => (
-                <option key={m} value={m}>
-                  {t("Mode: {m}", { m: modeText(t, m).label })}
+            <select
+              className={`${select} ${(current?.tone && TONE_TEXT[current.tone]) ?? "text-zinc-500"}`}
+              value={mode}
+              disabled={pending}
+              onChange={(e) => act({ do: "mode", mode: e.target.value })}
+              aria-label={t("Permission mode")}
+              title={current ? modeName(t, current).hint : undefined}
+            >
+              {c.modes.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {t("Mode: {m}", { m: modeName(t, m).label })}
                 </option>
               ))}
             </select>
@@ -80,6 +93,7 @@ export function ClaudeSession({ run }: { run: WorkRunView }) {
                 </option>
               ))}
             </select>
+            {c.features.includes("effort") && (
             <select
               className={`${select} text-zinc-500`}
               value={c.effort}
@@ -94,6 +108,7 @@ export function ClaudeSession({ run }: { run: WorkRunView }) {
                 </option>
               ))}
             </select>
+            )}
           </>
         }
         status={
@@ -157,7 +172,7 @@ function Composer({
   actions: React.ReactNode;
 }) {
   const t = useT();
-  const c = run.claude!;
+  const c = run.session!;
   const [text, setText] = useState("");
   const [images, setImages] = useState<{ mediaType: string; data: string; name: string }[]>([]);
   const [menu, setMenu] = useState<{ kind: "/" | "@"; items: { value: string; label: string; hint?: string }[]; at: number; sel: number } | null>(null);

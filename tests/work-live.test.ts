@@ -50,8 +50,8 @@ const status = async (id: number) => (await import("@/lib/work/store")).getRun(i
 test("a conversation: it asks, you allow, it waits for you; finishing ends it with its result", async () => {
   const live = await import("@/plugins/claude-cli/live");
   const id = await session("ASK to run something", true);
-  await until("its question", () => (live.claudeLiveView(id)?.claude.asks.length ?? 0) > 0);
-  const ask = (await view(id))!.claude.asks[0];
+  await until("its question", () => (live.claudeLiveView(id)?.session.asks.length ?? 0) > 0);
+  const ask = (await view(id))!.session.asks[0];
   assert.equal(ask.tool, "Bash");
   assert.equal(ask.input.command, "echo hi");
   await live.answer(id, ask.requestId, { behavior: "allow" });
@@ -59,8 +59,8 @@ test("a conversation: it asks, you allow, it waits for you; finishing ends it wi
   assert.match(live.claudeLiveView(id)!.live.waiting!, /Echo: ASK/);
   assert.equal(await status(id), "running", "a conversation waits for you");
   // The commands and models from initialize.
-  assert.ok(live.claudeLiveView(id)!.claude.commands.some((c) => c.name === "review"));
-  assert.equal(live.claudeLiveView(id)!.claude.models[0]?.value, "fake-model");
+  assert.ok(live.claudeLiveView(id)!.session.commands.some((c) => c.name === "review"));
+  assert.equal(live.claudeLiveView(id)!.session.models[0]?.value, "fake-model");
 
   await live.finishClaude(id);
   let st: string | undefined;
@@ -95,8 +95,8 @@ test("a task ends on its own when its result comes", async () => {
 test("questions get your answers; Zeff restarting doesn't end the session", async () => {
   const live = await import("@/plugins/claude-cli/live");
   const id = await session("QUESTION for you", true);
-  await until("its question", () => (live.claudeLiveView(id)?.claude.asks.length ?? 0) > 0);
-  const ask = live.claudeLiveView(id)!.claude.asks[0];
+  await until("its question", () => (live.claudeLiveView(id)?.session.asks.length ?? 0) > 0);
+  const ask = live.claudeLiveView(id)!.session.asks[0];
   assert.equal(ask.tool, "AskUserQuestion");
   await live.answer(id, ask.requestId, { behavior: "allow", answers: { "Which one?": "B" } });
   await until("its answer", () => /You chose B/.test(live.claudeLiveView(id)?.live.waiting ?? ""));

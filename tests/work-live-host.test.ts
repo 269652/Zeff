@@ -72,8 +72,8 @@ test("a conversation on the launcher's work host: asked, answered, open between 
   assert.equal(live.readSessionCfg(run.id)?.transport, "launcher", "on the launcher's host");
   assert.ok(getRun(run.id)?.pid, "its pid kept");
 
-  await until("its question", () => (live.claudeLiveView(run.id)?.claude.asks.length ?? 0) > 0);
-  const ask = live.claudeLiveView(run.id)!.claude.asks[0];
+  await until("its question", () => (live.claudeLiveView(run.id)?.session.asks.length ?? 0) > 0);
+  const ask = live.claudeLiveView(run.id)!.session.asks[0];
   await live.answer(run.id, ask.requestId, { behavior: "allow" });
   await until("its turn over", () => live.claudeLiveView(run.id)?.live.waiting != null);
 

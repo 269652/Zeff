@@ -28,7 +28,8 @@ import { briefFor, taskFor, workerRules } from "./brief";
 import { listRepos, repoForTicket } from "@/lib/repos";
 import { addBranchWorktree, addWorktree, baseFor, git, gitSummary, repoRoot, switchBranch } from "./git";
 import { startInteractive } from "@/plugins/copilot-cli/interactive";
-import { claudeIdle, isClaudeSession, killClaude, liveOutcome, readSessionOpts, reattachClaudeSessions, saveSessionOpts, startClaudeSession } from "@/plugins/claude-cli/live";
+import { readSessionOpts, saveSessionOpts } from "@/plugins/claude-cli/live";
+import { liveDriverFor, liveDriverOf, liveDrivers, liveIdle } from "./live-driver";
 import { errPath, lastJson, logPath, readErrors, readLog, readOutput, workDir } from "./log";
 import { applyOutcome, normalizeResult } from "./outcome";
 import { claudeSessionSettings, createRun, getRun, getWorkSettings, runsByStatus, toRunView, updateRun } from "./store";
@@ -198,9 +199,15 @@ export function dispatchTodo(
   const resume = prev && !waitFor && provider === "claude" && prev.provider === "claude" && prev.sessionId && prev.cwd && fs.existsSync(/*turbopackIgnore: true*/ prev.cwd) ? prev : undefined;
   // A live Claude session (the Work settings): its mode — yours from the composer, else the settings' (yours or Zeff's own runs).
   const cs = claudeSessionSettings();
-  const live = provider === "claude" && cs.live && m.mode !== "send";
-  const liveMode = so.permissionMode ?? (opts.conversation || prev ? cs.mode : cs.autoMode);
-  if (live && liveMode === "bypassPermissions" && !cs.allowBypass) throw new ValidationError(t("Bypass isn't allowed — Work settings → Claude sessions."));
+  const driver = provider === "zeff" ? undefined : liveDriverFor(provider);
+  const live = !!driver && cs.live && m.mode !== "send";
+  const modes = driver?.modes({ allowBypass: cs.allowBypass }) ?? [];
+  // (Claude's from the Work settings — yours or Zeff's own runs; another provider's: its first.)
+  const liveMode = so.permissionMode ?? (provider === "claude" ? (opts.conversation || prev ? cs.mode : cs.autoMode) : (modes[0]?.id ?? ""));
+  if (live && !modes.some((x) => x.id === liveMode)) {
+    throw new ValidationError(liveMode === "bypassPermissions" ? t("Bypass isn't allowed — Work settings → Claude sessions.") : t("Unknown mode."));
+  }
+  if (so.elevated && provider !== "claude") throw new ValidationError(t("Only live Claude sessions run as administrator."));
   if (so.elevated && !live) throw new ValidationError(t("Only live Claude sessions run as administrator."));
   const run = createRun({
     ticket: todo.ticket,
@@ -239,7 +246,7 @@ export function pump(): void {
   const s = getWorkSettings();
   // Agents outside Zeff (through its MCP) work on top of its own workers.
   // (A live session waiting for you doesn't hold a worker — like a Claude Code tab you left open.)
-  const running = runsByStatus(["running"]).filter((r) => r.provider !== "agent" && !claudeIdle(r.id));
+  const running = runsByStatus(["running"]).filter((r) => r.provider !== "agent" && !liveIdle(r.id));
   let free = s.parallel - running.length;
   if (free <= 0) return;
   const inPlace = (r: WorkRun) => (r.workspace ?? s.isolation) === "checkout";
@@ -334,54 +341,33 @@ function start(id: number): void {
     const prompt = resume && so ? r.prompt : `${r.prompt}\n\n${task}${so && !so.conversation ? tail : ""}`;
     updateRun(id, { cwd, branch, base, baseSha, prompt });
 
-    if (so && r.provider === "claude") {
-      const cli = findClaudeCli();
-      if (!cli) throw new Error(t("The Claude CLI wasn't found — install Claude Code, or set CLAUDE_CLI."));
-      const script = /\.(c|m)?js$/i.test(cli);
+    const driver = so ? liveDriverFor(r.provider) : undefined;
+    if (so && driver) {
       const cs = claudeSessionSettings();
-      // (StructuredOutput: a conversation an older one-shot run began knows it — not here: its result is a json block.)
-      const disallowed = [...ZEFF_TOOLS, "StructuredOutput", ...(codeLike(mode) ? [] : ["Edit", "Write", "MultiEdit", "NotebookEdit"])];
       const sessionId = resume ? r.sessionId! : randomUUID();
       updateRun(id, { sessionId });
-      void startClaudeSession(
-        {
+      void driver
+        .start({
           runId: id,
           conversation: !!so.conversation,
           elevated: !!so.elevated,
           effort: so.effort ?? cs.effort,
           model: r.model,
-          mode: so.permissionMode ?? cs.autoMode,
+          mode: so.permissionMode ?? r.permissionMode ?? "",
           allowBypass: cs.allowBypass,
           askTimeoutMin: cs.askTimeoutMin,
-          command: script ? process.execPath : cli,
-          args: [
-            ...(script ? [cli] : []),
-            "-p",
-            "--input-format",
-            "stream-json",
-            "--output-format",
-            "stream-json",
-            "--verbose",
-            "--permission-prompt-tool",
-            "stdio",
-            "--replay-user-messages",
-            "--name",
-            `Zeff ${workRef(id)} · ${r.ticket || "session"}`,
-            "--append-system-prompt",
-            rules,
-            "--disallowedTools",
-            disallowed.join(","),
-            ...(cs.allowBypass ? ["--allow-dangerously-skip-permissions"] : []),
-          ],
           cwd,
+          rules,
+          prompt,
+          name: `Zeff ${workRef(id)} · ${r.ticket || "session"}`,
+          disallowedTools: [...ZEFF_TOOLS, ...(codeLike(mode) ? [] : ["Edit", "Write", "MultiEdit", "NotebookEdit"])],
           resumeSession: resume ? sessionId : null,
           newSessionId: resume ? null : sessionId,
-        },
-        prompt,
-      ).catch((e) => {
-        fs.appendFileSync(/*turbopackIgnore: true*/ errPath(id), `${errorMessage(e)}\n`);
-        void finalize(id);
-      });
+        })
+        .catch((e) => {
+          fs.appendFileSync(/*turbopackIgnore: true*/ errPath(id), `${errorMessage(e)}\n`);
+          void finalize(id);
+        });
       return;
     }
 
@@ -727,9 +713,10 @@ async function finish(r: WorkRun, gone: boolean): Promise<void> {
   let denials: number | null = null;
   let sessionId = r.sessionId;
   let closedText: string | null = null;
-  if (r.provider === "claude" && isClaudeSession(id)) {
+  const liveDriver = liveDriverOf(id);
+  if (liveDriver) {
     // A live session: its last turn's JSON — or closed by you (no result: nothing taken in, its last words the summary).
-    const o = liveOutcome(id);
+    const o = liveDriver.outcome(id);
     sessionId = o.sessionId ?? sessionId;
     costUsd = o.costUsd;
     turns = o.turns;
@@ -804,7 +791,8 @@ export function cancelRun(id: number): void {
     gitSummary: codeLike(r.mode) && r.cwd && r.baseSha ? gitSummary(r.cwd, r.baseSha) || null : null,
   });
   endSideWork(id, null, "blocked");
-  if (isClaudeSession(id)) killClaude(id);
+  const liveDriver = liveDriverOf(id);
+  if (liveDriver) liveDriver.kill(id);
   else if (r.pid && alive(r.pid)) killTree(r.pid);
   fs.rmSync(/*turbopackIgnore: true*/ jiraConfigPath(id), { force: true });
   setImmediate(pump);
@@ -818,8 +806,9 @@ export function cancelRun(id: number): void {
 export function resumeWork(): void {
   if (!isInstalled("work")) return;
   // Live Claude sessions outlive the server (their host): found again, their logs read where they stand.
-  const live = runsByStatus(["running"]).filter((r) => r.provider === "claude" && isClaudeSession(r.id));
-  reattachClaudeSessions(live.map((r) => r.id));
+  const running = runsByStatus(["running"]);
+  const live = running.filter((r) => liveDriverFor(r.provider)?.has(r.id));
+  for (const d of liveDrivers()) d.reattach(live.filter((r) => r.provider === d.provider).map((r) => r.id));
   for (const r of runsByStatus(["running"])) {
     if (r.provider === "agent") continue; // an agent outside Zeff: it ends its run through the MCP
     if (live.some((x) => x.id === r.id)) continue;
