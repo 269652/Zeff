@@ -31,6 +31,15 @@ export const MAIL_FOLLOWERS: SyncFollower[] = [
     },
   },
   {
+    key: "mailattachments",
+    get label() {
+      return t("Mail attachments");
+    },
+    get follows() {
+      return t("with each mail sync — attachments into Documents, only if turned on (Messages page → Mail attachments)");
+    },
+  },
+  {
     key: "relations",
     get label() {
       return t("Mail matching");

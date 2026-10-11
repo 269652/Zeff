@@ -6,9 +6,10 @@ import { HoverCard } from "@/components/HoverCard";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { formatDate } from "@/lib/format";
-import { DocDetails } from "./DocBadge";
+import { DocDetails, OriginLine } from "./DocBadge";
 import { attachDocumentAction, deleteDocumentAction, reprocessDocumentAction, saveDocumentSettingsAction } from "./server-actions";
 import { KIND_ICONS, sizeText, type DocView } from "./shared";
+import type { DocOrigin } from "@/lib/mail/shared";
 
 /** Posts files to the store; the answer says what came of each. */
 export async function uploadDocuments(files: File[]): Promise<{ ok: boolean; documents?: { id: number; ref: string; name: string; fresh: boolean }[]; errors?: string[]; error?: string }> {
@@ -30,7 +31,7 @@ const CHIP: Record<string, string> = {
  * The Documents app: a drop zone (files dragged in, or picked), the store's documents with their
  * state — hover one for its abstract —, the open todos to attach one to, and the transcriber setting.
  */
-export function DocumentsApp({ docs, todos, settings, knowledge }: { docs: DocView[]; todos: { id: number; ref: string; text: string }[]; settings: { transcriber: string; autoInstall: boolean }; knowledge: boolean }) {
+export function DocumentsApp({ docs, origins = {}, todos, settings, knowledge }: { docs: DocView[]; origins?: Record<number, DocOrigin>; todos: { id: number; ref: string; text: string }[]; settings: { transcriber: string; autoInstall: boolean }; knowledge: boolean }) {
   const t = useT();
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -100,11 +101,12 @@ export function DocumentsApp({ docs, todos, settings, knowledge }: { docs: DocVi
         <ul className="card divide-y divide-zinc-100 dark:divide-zinc-800">
           {docs.map((d) => (
             <li key={d.id} id={d.ref} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 text-sm">
-              <HoverCard width={440} card={<DocDetails d={d} />} className="min-w-0 flex-1 basis-64">
+              <HoverCard width={440} card={<DocDetails d={d} origin={origins[d.id]} />} className="min-w-0 flex-1 basis-64">
                 <a href={`/api/documents/${d.id}/file`} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-2 hover:underline">
                   <span aria-hidden>{KIND_ICONS[d.kind]}</span>
                   <span className="min-w-0 truncate font-medium">{d.name}</span>
                 </a>
+                {origins[d.id] && <OriginLine o={origins[d.id]} />}
               </HoverCard>
               <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${CHIP[d.status]}`} title={d.error || undefined}>
                 {d.status === "ready" ? (knowledge ? (d.compiled ? t("compiled") : t("ready — compiling …")) : t("ready")) : d.status === "queued" ? t("waiting") : d.status === "extracting" ? t("being read …") : d.status === "unsupported" ? t("not readable") : t("failed")}

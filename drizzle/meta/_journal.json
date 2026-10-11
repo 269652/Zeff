@@ -645,6 +645,13 @@
       "when": 1791970000000,
       "tag": "0091_default_models",
       "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "6",
+      "when": 1791980000000,
+      "tag": "0092_mail_attachments",
+      "breakpoints": true
     }
   ]
 }

@@ -12,11 +12,17 @@
  *                                       list (sender, subject, preview, time, unread) in a mail
  *                                       tab of its own — no mail is opened (none marked read)
  *                                       (its own previous/next week buttons); changes nothing
+ *   outlook_attachments {ref}        -> one mail's attachments (name, size), the mail opened by its id in a
+ *                                       tab of its own (see the Attachments section: may mark an unread one read)
+ *   outlook_download {ref, ids, dir} -> those attachments saved into dir
  *
  * Events come out Graph-shaped by the same extractor as the bookmarklet
  * (src/lib/calendar/owa-extractor.mjs), so already-booked meetings match up.
  */
+import { mkdirSync, statSync } from "node:fs";
+import path from "node:path";
 import { OWA_EXTRACTOR } from "../../lib/calendar/owa-extractor.mjs";
+import { mimeOfName } from "../../lib/mail/mime.mjs";
 import { connectToChrome, ChromeConnectError, withTabLock } from "../../../scripts/chrome-cdp.mjs";
 
 const CDP = process.env.OUTLOOK_CDP_ENDPOINT || process.env.CHRONO_CDP_ENDPOINT || "http://127.0.0.1:9222";
@@ -302,6 +308,8 @@ function readRows() {
       preview: lines.slice(2, -1).join(" ").slice(0, 1000),
       timeText: lines[lines.length - 1] || "",
       unread: /^(Ungelesen|Unread)\b/i.test(r.getAttribute("aria-label") || ""),
+      // The paperclip: a glyph (U+E1BB) of Fluent's icon font that only rows with attachments carry.
+      attach: [...r.querySelectorAll("i")].some((e) => (e.textContent || "").includes(String.fromCodePoint(0xe1bb))),
     };
   });
 }
@@ -415,6 +423,7 @@ async function outlookMail({ days = 3, folders, openIfMissing = false, launch = 
   const browser = await connectToChrome(CDP, { launchUrls: launch ? [MAIL_URL] : [] });
   try {
     const page = await mailPage(browser, { openIfMissing: !!openIfMissing });
+    const watch = watchItems(page);
     const messages = [];
     const missing = [];
     for (const name of names) {
@@ -424,11 +433,192 @@ async function outlookMail({ days = 3, folders, openIfMissing = false, launch = 
       }
       const got = await readFolder(page, since, INBOX.test(name) ? "Posteingang" : name);
       debug(`${name}: ${got.length} mails`);
-      messages.push(...got);
+      // The list's first page was fetched before we listened: one reload gives those their message ids.
+      if (got.some((r) => r.attach && !itemOf(watch.items, r))) {
+        await page.reload({ waitUntil: "domcontentloaded", timeout: 60000 }).catch((e) => debug(`reload: ${e}`));
+        for (let i = 0; i < 20 && got.some((r) => r.attach && !itemOf(watch.items, r)); i++) await new Promise((r) => setTimeout(r, 500));
+      }
+      messages.push(...got.map(({ attach, ...r }) => ({ ...r, hasAttachments: attach || !!itemOf(watch.items, r), ...(itemOf(watch.items, r) ? { attachRef: itemOf(watch.items, r) } : {}) })));
     }
+    watch.stop();
     // Leave it on the inbox, as you'd expect to find it.
     await openFolder(page, "Posteingang").catch(() => {});
     return JSON.stringify({ messages, missing });
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Attachments. Verified live (on read mails): the list marks a mail with attachments by a paperclip
+// glyph in its row (U+E1BB of Fluent's icon font) and Outlook's own FindItem answers say
+// HasAttachments with the item's id; a mail opened by its id (/mail/deeplink/read/<id>) lists its
+// attachments as cards (role=listbox "Dateianlagen"), each with a "more actions" menu whose
+// "Herunterladen" fires a browser download. UNVERIFIED: whether opening an UNREAD mail marks it
+// read there (Zeff skips unread mails unless told otherwise) and the "mark as unread" restore.
+// ---------------------------------------------------------------------------
+
+const fileSafe = (name) => (String(name).replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "_").replace(/^\.+/, "").trim().slice(0, 120) || "file");
+
+/** "91 KB", "1,2 MB", "3.5 MB", "512 Bytes" → bytes (0: unknown). */
+function sizeBytes(text) {
+  const m = /([\d.,]+)\s*(bytes?|b|kb|mb|gb)\b/i.exec(String(text || ""));
+  if (!m) return 0;
+  const n = Number(m[1].replace(/\.(?=\d{3}\b)/g, "").replace(",", "."));
+  const unit = m[2].toLowerCase();
+  return Math.round(n * (unit.startsWith("g") ? 1024 ** 3 : unit.startsWith("m") ? 1024 ** 2 : unit.startsWith("k") ? 1024 : 1));
+}
+
+/**
+ * Listens to the list's own answers (FindItem) on a mail tab: the items they carry by id —
+ * with HasAttachments and the conversation — so a row can be given its message's id.
+ */
+function watchItems(page) {
+  const items = new Map();
+  const on = async (r) => {
+    try {
+      if (!/action=FindItem/.test(r.request().url())) return;
+      const j = JSON.parse(await r.text());
+      for (const m of j?.Body?.ResponseMessages?.Items ?? []) for (const it of m?.RootFolder?.Items ?? []) if (it?.ItemId?.Id) items.set(it.ItemId.Id, it);
+    } catch {
+      // not a JSON answer: nothing to learn from it
+    }
+  };
+  page.on("response", on);
+  return { items, stop: () => page.off("response", on) };
+}
+
+/** A row's message with attachments among the items seen: the one with its subject, else the newest. */
+function itemOf(items, row) {
+  const mine = [...items.values()].filter((i) => i.ConversationId?.Id === row.convId && i.HasAttachments);
+  const same = mine.filter((i) => String(i.Subject || "").trim() === String(row.subject).trim());
+  const pick = (same.length ? same : mine).sort((a, b) => String(b.DateTimeReceived).localeCompare(String(a.DateTimeReceived)))[0];
+  return pick?.ItemId?.Id;
+}
+
+const ATTACHMENTS_LIST = /anlage|attachment/i;
+
+/** Runs IN a message tab: its attachment cards (name, size) as listed. */
+function readCards(re) {
+  const box = [...document.querySelectorAll('[role="listbox"]')].find((e) => new RegExp(re, "i").test(e.getAttribute("aria-label") || ""));
+  if (!box) return null;
+  return [...box.querySelectorAll('[role="option"]')].map((o) => {
+    const lines = (o.innerText || "").split("\n").map((s) => s.trim()).filter(Boolean);
+    return { name: lines[0] || "", sizeText: lines.find((l, i) => i > 0 && /\d\s*(bytes?|kb|mb|gb)\b/i.test(l)) || "" };
+  });
+}
+
+/** A mail opened by its id in a tab of its own: that tab and the attachment cards it lists. The caller closes the tab. */
+async function openMessage(browser, itemId) {
+  if (!itemId) throw new Error("No message id for this mail (the list didn't give one).");
+  const context = browser.contexts()[0];
+  if (!context) throw new ChromeConnectError("The automation Chrome has no window open.");
+  const origin = new URL(context.pages().find((p) => isOutlookMail(p.url()))?.url() ?? "https://outlook.office.com/mail/").origin;
+  const page = await context.newPage();
+  try {
+    await page.goto(`${origin}/mail/deeplink/read/${encodeURIComponent(itemId)}`, { waitUntil: "domcontentloaded", timeout: 60000 }).catch((e) => debug(`opening a message: ${e}`));
+    let cards = null;
+    let stable = 0;
+    let last = "";
+    for (let i = 0; i < 50; i++) {
+      if (isLoginUrl(page.url())) throw new Error("Outlook shows its sign-in page — sign in in the automation Chrome, then try again.");
+      cards = await page.evaluate(readCards, ATTACHMENTS_LIST.source).catch(() => null);
+      if (cards?.length) {
+        // The cards are there; wait until their list stops changing.
+        const sig = JSON.stringify(cards);
+        stable = sig === last ? stable + 1 : 0;
+        last = sig;
+        if (stable >= 2) break;
+      }
+      await page.waitForTimeout(500);
+    }
+    return { page, cards: (cards ?? []).map((c, i) => ({ id: String(i + 1), name: c.name, size: sizeBytes(c.sizeText) })) };
+  } catch (e) {
+    await page.close().catch(() => {});
+    throw e;
+  }
+}
+
+/** Marks the opened mail unread again (the toolbar's or its "more" menu's entry). True when an entry was clicked. UNVERIFIED. */
+async function markUnreadAgain(page) {
+  const re = /als ungelesen markieren|mark as unread/i;
+  try {
+    const direct = page.getByRole("button", { name: re }).or(page.getByRole("menuitem", { name: re })).first();
+    if (await direct.isVisible().catch(() => false)) {
+      await direct.click({ timeout: 5000 });
+      return true;
+    }
+    // In the toolbar's overflow menu ("Weitere Aktionen"), not a card's.
+    const more = page.locator('button[aria-label="Weitere Aktionen"], button[aria-label="More actions"]').first();
+    await more.click({ timeout: 5000 });
+    await page.getByRole("menuitem", { name: re }).first().click({ timeout: 5000 });
+    return true;
+  } catch (e) {
+    debug(`mark unread again: ${e?.message ?? e}`);
+    return false;
+  }
+}
+
+/**
+ * One mail's attachments (read-only): the mail opened by its id in a tab of its own — which may mark
+ * an UNREAD mail read there; with `restoreUnread` and `wasUnread` it is marked unread again afterwards
+ * (a write, only then). Returns JSON { opened, wasUnread, restoredUnread, attachments }.
+ */
+async function outlookAttachments({ ref = "", wasUnread = false, restoreUnread = false } = {}) {
+  const browser = await connectToChrome(CDP, {});
+  try {
+    const { page, cards } = await openMessage(browser, ref);
+    try {
+      const restored = wasUnread && restoreUnread ? await markUnreadAgain(page) : false;
+      return JSON.stringify({ opened: true, wasUnread: !!wasUnread, restoredUnread: restored, attachments: cards.map((c) => ({ ...c, mime: mimeOfName(c.name), inline: false })) });
+    } finally {
+      await page.close().catch(() => {});
+    }
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}
+
+/** The chosen attachments of one mail saved into `dir` (each card's "more actions" → download). Returns JSON { opened, files, skipped, restoredUnread }. */
+async function outlookDownload({ ref = "", ids = [], dir = "", maxBytes = 0, wasUnread = false, restoreUnread = false } = {}) {
+  if (!dir) throw new Error("dir is required.");
+  const browser = await connectToChrome(CDP, {});
+  try {
+    const { page, cards } = await openMessage(browser, ref);
+    try {
+      mkdirSync(dir, { recursive: true });
+      const want = new Set((Array.isArray(ids) ? ids : []).map(String));
+      const files = [];
+      const skipped = [];
+      for (const c of cards) {
+        if (want.size && !want.has(c.id)) continue;
+        if (maxBytes > 0 && c.size > maxBytes) {
+          skipped.push({ id: c.id, why: "too large" });
+          continue;
+        }
+        const card = page.locator('[role="listbox"]').filter({ has: page.locator('[role="option"]') }).locator('[role="option"]').nth(Number(c.id) - 1);
+        try {
+          await card.hover({ timeout: 5000 });
+          await card.getByRole("button", { name: /weitere aktionen|more actions/i }).click({ timeout: 8000 });
+          const waiting = page.waitForEvent("download", { timeout: 60000 });
+          await page.getByRole("menuitem", { name: /herunterladen|download/i }).first().click({ timeout: 8000 });
+          const dl = await waiting;
+          const failure = await dl.failure();
+          if (failure) throw new Error(failure);
+          const name = dl.suggestedFilename() || c.name;
+          const p = path.join(dir, `${c.id}-${fileSafe(name)}`);
+          await dl.saveAs(p);
+          files.push({ id: c.id, name, mime: mimeOfName(name), size: statSync(p).size, path: p });
+        } catch (e) {
+          skipped.push({ id: c.id, why: String(e?.message ?? e).slice(0, 120) });
+          await page.keyboard.press("Escape").catch(() => {});
+        }
+      }
+      const restored = wasUnread && restoreUnread ? await markUnreadAgain(page) : false;
+      return JSON.stringify({ opened: true, wasUnread: !!wasUnread, restoredUnread: restored, files, skipped });
+    } finally {
+      await page.close().catch(() => {});
+    }
   } finally {
     await browser.close().catch(() => {});
   }
@@ -470,6 +660,36 @@ const TOOLS = [
       },
     },
   },
+  {
+    name: "outlook_attachments",
+    description:
+      "The attachments of one Outlook mail (name, size, type): the mail is opened by its id in a tab of its own — that may mark an unread mail read; with wasUnread+restoreUnread it is marked unread again afterwards. Returns JSON { opened, wasUnread, restoredUnread, attachments }.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ref: { type: "string", description: "The message id (attachRef of outlook_mail)." },
+        wasUnread: { type: "boolean" },
+        restoreUnread: { type: "boolean", description: "Mark it unread again when wasUnread." },
+      },
+      required: ["ref"],
+    },
+  },
+  {
+    name: "outlook_download",
+    description: "Save attachments of one Outlook mail into a folder (each card's download). Returns JSON { opened, files: [{ id, name, mime, size, path }], skipped, restoredUnread }.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ref: { type: "string", description: "The message id (attachRef of outlook_mail)." },
+        ids: { type: "array", items: { type: "string" }, description: "Which attachments (ids of outlook_attachments); none: all." },
+        dir: { type: "string", description: "The folder to save into (made if missing)." },
+        maxBytes: { type: "number", description: "Skip files larger than this." },
+        wasUnread: { type: "boolean" },
+        restoreUnread: { type: "boolean" },
+      },
+      required: ["ref", "dir"],
+    },
+  },
 ];
 
 function send(msg) {
@@ -496,6 +716,8 @@ async function handle(msg) {
       if (name === "outlook_status") return ok(id, textResult(await outlookStatus()));
       if (name === "outlook_events") return ok(id, textResult(await withTabLock("Outlook", name, () => outlookEvents(args), debug)));
       if (name === "outlook_mail") return ok(id, textResult(await withTabLock("Outlook Mail", name, () => outlookMail(args), debug)));
+      if (name === "outlook_attachments") return ok(id, textResult(await withTabLock("Outlook Mail", name, () => outlookAttachments(args), debug)));
+      if (name === "outlook_download") return ok(id, textResult(await withTabLock("Outlook Mail", name, () => outlookDownload(args), debug)));
       return ok(id, textResult(`Unknown tool "${name}".`, true));
     } catch (e) {
       log("tool error:", String(e));

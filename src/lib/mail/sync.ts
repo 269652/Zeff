@@ -115,6 +115,16 @@ export async function syncMail({ background = false } = {}): Promise<{ ok: boole
     const { gmailAccounts, gmailFolder } = await import("@/plugins/gmail/accounts");
     const boxes = sources.flatMap((source): { source: Source; gmail?: { account: string; folder: string } }[] => (source === "gmail" ? gmailAccounts().map((a, i) => ({ source, gmail: { account: a.account, folder: gmailFolder(a, i) } })) : [{ source, gmail: undefined }]));
     for (const b of boxes) done.push(await syncSource(b.source, days, background, boxes.length > 1, b.gmail));
+    // Attachments → Documents (when turned on): its own step after the mails are kept — whatever goes wrong
+    // there is a note in the result, never a failed mail sync.
+    if (done.some((d) => d.ok)) {
+      try {
+        const att = await (await import("./attachments-sync")).fetchMailAttachments();
+        if (att.message) done.push({ ok: true, part: att.message });
+      } catch (e) {
+        done.push({ ok: true, part: t("attachments: {error}", { error: errorMessage(e).slice(0, 200) }) });
+      }
+    }
     return record(done.some((d) => d.ok), done.map((d) => d.part).join(" · "));
   } finally {
     state.__zeffMailSyncing = false;

@@ -8,9 +8,15 @@
  * Tools:
  *   gmail_status            -> is Chrome reachable, is Gmail signed in
  *   gmail_mail {days}       -> the inbox's mails of the last days, read from the list as Gmail
- *                              shows it (sender, subject, snippet, time, unread), page by page
- *                              (#inbox/p2 …) in a Gmail tab — no mail is opened, none marked read
+ *                              shows it (sender, subject, snippet, time, unread, has attachments),
+ *                              page by page (#inbox/p2 …) in a Gmail tab — no mail is opened, none marked read
+ *   gmail_attachments {account, ref}        -> one mail's attachments (name, size, type), from its raw
+ *                              message — the mail isn't opened (stays unread)
+ *   gmail_download {account, ref, ids, dir, maxBytes} -> those attachments saved into dir
  */
+import { mkdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { mimeAttachments } from "../../lib/mail/mime.mjs";
 import { connectToChrome, ChromeConnectError, withTabLock } from "../../../scripts/chrome-cdp.mjs";
 
 const CDP = process.env.GMAIL_CDP_ENDPOINT || process.env.CHRONO_CDP_ENDPOINT || "http://127.0.0.1:9222";
@@ -79,6 +85,8 @@ function readRows() {
         preview: snippet,
         title: dateEl?.getAttribute("title") || "",
         unread: r.classList.contains("zE"),
+        // The paperclip (img.yE, "Mit Anhang") and the attachment chips the list shows under a mail (div.brc).
+        attach: !!r.querySelector("img.yE, div.brc"),
       };
     });
 }
@@ -181,7 +189,7 @@ async function wholeThread(page, n, thread, subject, known, folder) {
       await page.goBack({ waitUntil: "domcontentloaded" }).catch(() => {});
       await new Promise((res) => setTimeout(res, 600));
     }
-    out.push({ id: r.msg || undefined, convId: `gmail:${thread}`, folder, from: mine ? "Ich" : r.from, fromEmail: mine ? null : r.fromEmail, subject: flat(r.subject), preview, receivedAt: parseTitle(r.title), unread: mine ? false : r.unread, full });
+    out.push({ id: r.msg || undefined, convId: `gmail:${thread}`, folder, from: mine ? "Ich" : r.from, fromEmail: mine ? null : r.fromEmail, subject: flat(r.subject), preview, receivedAt: parseTitle(r.title), unread: mine ? false : r.unread, full, hasAttachments: !!r.attach });
   }
   return out;
 }
@@ -219,7 +227,7 @@ async function gmailMail({ days = 3, maxPages = 10, account = 0, folder = "Gmail
         fresh++;
         const me = mine || r.msg.startsWith("msg-a:");
         if (mine) sentThreads.set(id, r.subject);
-        messages.push({ id: r.msg || undefined, convId: `gmail:${id}`, folder, from: me ? "Ich" : r.from, fromEmail: me ? null : r.fromEmail, subject: flat(r.subject), preview: flat(r.preview), receivedAt: at, unread: me ? false : r.unread });
+        messages.push({ id: r.msg || undefined, convId: `gmail:${id}`, folder, from: me ? "Ich" : r.from, fromEmail: me ? null : r.fromEmail, subject: flat(r.subject), preview: flat(r.preview), receivedAt: at, unread: me ? false : r.unread, hasAttachments: !!r.attach });
       }
       debug(`${box} page ${p}: ${rows.length} rows, ${messages.length} kept`);
       // The list is newest first: once older ones show, the rest are older too; nothing new: its end.
@@ -338,6 +346,102 @@ async function gmailAccounts() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Attachments — verified live: Gmail's own "download original message" address, fetched with the
+// browser session's cookies, hands over the raw mail (RFC 822). Nothing is opened in Gmail, so the
+// mail stays unread; the attachments are read out of it (src/lib/mail/mime.mjs).
+// ---------------------------------------------------------------------------
+
+/** The account key Gmail puts in its own addresses (ik), by account number — read once per run from a Gmail tab. */
+const iks = new Map();
+/** The last raw mail fetched (the listing and the download of one mail ask for it twice). */
+let lastRaw = null;
+
+/** "msg-f:1878784830722579956" → the hex id Gmail's download addresses use. */
+function legacyId(ref) {
+  const m = /^msg-f:(\d+)$/.exec(String(ref ?? "").trim());
+  if (!m) throw new Error(`Not a Gmail message id: ${String(ref).slice(0, 40)}`);
+  return BigInt(m[1]).toString(16);
+}
+
+/** The key and number for an account — a fresh Gmail tab (closed again) the first time. */
+async function gmailKey(browser, account) {
+  const ctx = browser.contexts()[0];
+  if (!ctx) throw new ChromeConnectError("The automation Chrome has no window open.");
+  const cached = iks.get(String(account));
+  if (cached) return { ctx, ...cached };
+  const page = await ctx.newPage();
+  try {
+    const n = await accountNumber(page, account);
+    if (!page.url().startsWith(`https://mail.google.com/mail/u/${n}/`)) await page.goto(inboxUrl(n), { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => {});
+    let ik = "";
+    for (let i = 0; i < 40 && !ik; i++) {
+      if (isLogin(page.url())) throw new Error("Gmail shows Google's sign-in — sign in in the automation Chrome, then try again.");
+      ik = await page.evaluate(() => String(window.GM_ID_KEY || "")).catch(() => "");
+      if (!ik) await new Promise((r) => setTimeout(r, 500));
+    }
+    if (!ik) throw new Error("Gmail didn't load far enough to download from.");
+    iks.set(String(account), { n, ik });
+    return { ctx, n, ik };
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
+/** One mail's attachments with their data: its raw message fetched, not opened. */
+async function rawAttachments(browser, account, ref) {
+  const key = `${account}|${ref}`;
+  if (lastRaw?.key === key) return lastRaw.list;
+  const { ctx, n, ik } = await gmailKey(browser, account);
+  const r = await ctx.request.get(`https://mail.google.com/mail/u/${n}/?ui=2&ik=${ik}&view=att&th=${legacyId(ref)}&attid=0&disp=comp&safe=1&zw`, { timeout: 120000 });
+  if (!r.ok()) throw new Error(`Gmail answered ${r.status()} for the message.`);
+  const body = await r.body();
+  if (!/^[\x21-\x7e]+:/.test(body.subarray(0, 200).toString("latin1"))) throw new Error("Gmail didn't hand over the original message (signed out?).");
+  const list = mimeAttachments(body);
+  lastRaw = { key, list };
+  return list;
+}
+
+/** A file name that stays in its folder. */
+const fileSafe = (name) => (String(name).replace(/[\/:*?"<>|\u0000-\u001f]+/g, "_").replace(/^\.+/, "").trim().slice(0, 120) || "file");
+
+/** The attachments of one mail (read-only; it isn't opened — stays unread). Returns JSON { attachments, opened: false }. */
+async function gmailAttachments({ account = 0, ref = "" } = {}) {
+  const browser = await connectToChrome(CDP, {});
+  try {
+    const list = await rawAttachments(browser, account, ref);
+    return JSON.stringify({ opened: false, attachments: list.map(({ data: _data, ...a }) => a) });
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}
+
+/** The chosen attachments of one mail saved into `dir`. Returns JSON { files: [{ id, name, mime, size, path }], skipped: [{ id, why }], opened: false }. */
+async function gmailDownload({ account = 0, ref = "", ids = [], dir = "", maxBytes = 0 } = {}) {
+  if (!dir) throw new Error("dir is required.");
+  const browser = await connectToChrome(CDP, {});
+  try {
+    const list = await rawAttachments(browser, account, ref);
+    const want = new Set((Array.isArray(ids) ? ids : []).map(String));
+    const files = [];
+    const skipped = [];
+    mkdirSync(dir, { recursive: true });
+    for (const a of list) {
+      if (want.size && !want.has(a.id)) continue;
+      if (maxBytes > 0 && a.size > maxBytes) {
+        skipped.push({ id: a.id, why: "too large" });
+        continue;
+      }
+      const p = path.join(dir, `${a.id}-${fileSafe(a.name)}`);
+      writeFileSync(p, a.data);
+      files.push({ id: a.id, name: a.name, mime: a.mime, size: a.size, path: p });
+    }
+    return JSON.stringify({ opened: false, files, skipped });
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}
+
 async function gmailStatus() {
   let browser;
   try {
@@ -364,6 +468,26 @@ const TOOLS = [
     name: "gmail_thread",
     description: "A whole Gmail conversation (thread): every message, both sides, without quoted parts — opened in the Gmail tab (marks it read; ask for read threads only). Returns JSON { thread, subject, messages }.",
     inputSchema: { type: "object", properties: { thread: { type: "string", description: "The thread id (hex, as in gmail:<id>)." }, subject: { type: "string", description: "Its subject (to find it)." }, account: { type: ["number", "string"] } }, required: ["thread"] },
+  },
+  {
+    name: "gmail_attachments",
+    description: "The attachments of one Gmail message (name, size, type, inline or not) — read-only, from the message's raw original fetched with the browser session; the mail is not opened, so it stays unread. Returns JSON { opened: false, attachments }.",
+    inputSchema: { type: "object", properties: { ref: { type: "string", description: "The message id (msg-f:<number>, as the mail list gave it)." }, account: { type: ["number", "string"] } }, required: ["ref"] },
+  },
+  {
+    name: "gmail_download",
+    description: "Save attachments of one Gmail message into a folder — from the raw original (the mail is not opened, stays unread). Returns JSON { opened: false, files: [{ id, name, mime, size, path }], skipped }.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ref: { type: "string", description: "The message id (msg-f:<number>)." },
+        account: { type: ["number", "string"] },
+        ids: { type: "array", items: { type: "string" }, description: "Which attachments (the ids gmail_attachments gave); none: all." },
+        dir: { type: "string", description: "The folder to save into (made if missing)." },
+        maxBytes: { type: "number", description: "Skip files larger than this." },
+      },
+      required: ["ref", "dir"],
+    },
   },
   { name: "gmail_accounts", description: "The Google accounts signed in in the automation Chrome (address, name, Gmail's account number) — read-only. Returns JSON { accounts }.", inputSchema: { type: "object", properties: {} } },
   {
@@ -407,6 +531,8 @@ async function handle(msg) {
       if (name === "gmail_status") return ok(id, textResult(await gmailStatus()));
       if (name === "gmail_accounts") return ok(id, textResult(await gmailAccounts()));
       if (name === "gmail_thread") return ok(id, textResult(await withTabLock("Gmail", name, () => gmailThread(args), debug)));
+      if (name === "gmail_attachments") return ok(id, textResult(await withTabLock("Gmail", name, () => gmailAttachments(args), debug)));
+      if (name === "gmail_download") return ok(id, textResult(await withTabLock("Gmail", name, () => gmailDownload(args), debug)));
       if (name === "gmail_mail") return ok(id, textResult(await withTabLock("Gmail", name, () => gmailMail(args), debug)));
       return ok(id, textResult(`Unknown tool "${name}".`, true));
     } catch (e) {
