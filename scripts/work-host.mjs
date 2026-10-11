@@ -11,7 +11,13 @@
  * Plain Node, no dependencies. Loopback only; every request carries ZEFF_WORK_TOKEN.
  *
  *   GET  /health            → { ok, children }
- *   POST /spawn { runId, account, command, args, cwd, env, stdin, outFile, errFile } → { pid }
+ *   POST /spawn { runId, account, command, args, cwd, env, stdin, outFile, errFile, live? } → { pid }
+ *   POST /message { runId, text } → { ok } — into a live run, or 409 when it is closing / not live
+ *
+ * A live run (Claude with --input-format stream-json): its stdin stays open, the first message is
+ * `stdin`, more come through /message — the CLI takes them in when it is idle (or at its next
+ * step). When the CLI has answered ("result") and nothing else happens for IDLE_MS, the host ends
+ * its stdin, the CLI quits, and the run is reported over as always.
  *
  * What it has started is in <ZEFF_WORK_STATE>: after the host itself restarts it watches those
  * processes again and reports their end all the same.
@@ -25,6 +31,9 @@ const PORT = Number(process.env.ZEFF_WORK_PORT) || 9334;
 const ZEFF_URL = (process.env.ZEFF_URL || "http://127.0.0.1:9333").replace(/\/$/, "");
 const TOKEN = process.env.ZEFF_WORK_TOKEN || "";
 const STATE = process.env.ZEFF_WORK_STATE || path.join(process.cwd(), "data", "launcher", "work-host.json");
+const IDLE_MS = Number(process.env.ZEFF_WORK_IDLE_MS) || 2500;
+const NL = String.fromCharCode(10);
+const userLine = (text) => JSON.stringify({ type: "user", message: { role: "user", content: text } }) + NL;
 const log = (...a) => console.log(new Date().toISOString(), "[work-host]", ...a);
 
 /** runId → { runId, account, pid, ended } — started here and not reported to Zeff yet. */
@@ -105,11 +114,63 @@ function start(spec) {
   });
   child.on("exit", () => void report(c));
   child.stdin.on("error", () => {}); // a CLI that quits early: its exit says why
-  child.stdin.end(stdin ?? "", "utf8");
+  if (spec.live) {
+    c.live = { stdin: child.stdin, closed: false, timer: null };
+    child.stdin.write(userLine(stdin ?? ""), "utf8");
+    watchOutput(c, outFile);
+    child.on("exit", () => {
+      c.live.closed = true;
+      clearTimeout(c.live.timer);
+      fs.unwatchFile(outFile);
+    });
+  } else child.stdin.end(stdin ?? "", "utf8");
   child.unref();
   save();
   log(`run ${runId}: ${path.basename(command)} pid ${c.pid}`);
   return c.pid;
+}
+
+/** Closes a live run's stdin once the CLI has answered and nothing follows. */
+function closeLive(c) {
+  if (c.live.closed) return;
+  c.live.closed = true;
+  c.live.stdin.end();
+  log(`run ${c.runId}: idle - stdin closed`);
+}
+
+/** Reads what the CLI appends to its output file: a "result" means idle; any other step, busy again. */
+function watchOutput(c, file) {
+  let offset = 0;
+  let rest = "";
+  const read = () => {
+    let size;
+    try {
+      size = fs.statSync(file).size;
+    } catch {
+      return;
+    }
+    if (size <= offset) return;
+    const fd = fs.openSync(file, "r");
+    const buf = Buffer.alloc(size - offset);
+    fs.readSync(fd, buf, 0, buf.length, offset);
+    fs.closeSync(fd);
+    offset = size;
+    const lines = (rest + buf.toString("utf8")).split(NL);
+    rest = lines.pop() ?? "";
+    for (const line of lines) {
+      let type;
+      try {
+        type = JSON.parse(line).type;
+      } catch {
+        continue;
+      }
+      if (type === "result") {
+        clearTimeout(c.live.timer);
+        c.live.timer = setTimeout(() => closeLive(c), IDLE_MS);
+      } else if (type === "assistant" || type === "stream_event") clearTimeout(c.live.timer);
+    }
+  };
+  fs.watchFile(file, { interval: 400 }, read);
 }
 
 const server = http.createServer((req, res) => {
@@ -129,6 +190,23 @@ const server = http.createServer((req, res) => {
     req.on("end", () => {
       try {
         send(200, { pid: start(JSON.parse(body)) });
+      } catch (e) {
+        send(400, { error: e instanceof Error ? e.message : String(e) });
+      }
+    });
+    return;
+  }
+  if (req.method === "POST" && req.url === "/message") {
+    let body = "";
+    req.on("data", (d) => (body += d));
+    req.on("end", () => {
+      try {
+        const { runId, text } = JSON.parse(body);
+        const c = children.get(runId);
+        if (!c?.live || c.live.closed || typeof text !== "string" || !text.trim()) return send(409, { error: "closed" });
+        clearTimeout(c.live.timer);
+        c.live.stdin.write(userLine(text), "utf8");
+        send(200, { ok: true });
       } catch (e) {
         send(400, { error: e instanceof Error ? e.message : String(e) });
       }

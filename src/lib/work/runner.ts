@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { currentAccountId, withAccount } from "@/db/accounts";
-import { spawnOnHost, workHostUp } from "./host";
+import { sendToHost, spawnOnHost, workHostUp } from "./host";
 import { workerMcpServers } from "./mcp";
 import { aiChoice, getAppSettings } from "@/lib/ai";
 import { findClaudeCli } from "@/plugins/claude-cli/cli";
@@ -24,7 +24,7 @@ import { t } from "@/lib/i18n/server";
 import { getJiraSyncConfig } from "@/lib/jira/sync";
 import { briefFor, taskFor, workerRules } from "./brief";
 import { listRepos, repoForTicket } from "@/lib/repos";
-import { addWorktree, baseFor, git, gitSummary } from "./git";
+import { addBranchWorktree, addWorktree, baseFor, git, gitSummary, repoRoot, switchBranch } from "./git";
 import { startInteractive } from "@/plugins/copilot-cli/interactive";
 import { errPath, logPath, readErrors, readLog, readOutput, workDir } from "./log";
 import { applyOutcome, normalizeResult } from "./outcome";
@@ -60,10 +60,13 @@ function workerEnv(runId: number, viaHost = false): Record<string, string | unde
 }
 
 /** A worker's process: on the work host if it's up, else a child of this server. Resolves with its pid. */
-async function launchWorker(id: number, w: { command: string; args: string[]; cwd: string; stdin: string }): Promise<number> {
+async function launchWorker(id: number, w: { command: string; args: string[]; cwd: string; stdin: string; /** A Claude run that takes more messages while it works (needs the host). */ live?: boolean }): Promise<number> {
   fs.mkdirSync(/*turbopackIgnore: true*/ path.dirname(logPath(id)), { recursive: true });
+  const { live, ...proc } = w;
   if (await workHostUp()) {
-    return spawnOnHost({ runId: id, account: currentAccountId(), ...w, env: workerEnv(id, true), outFile: logPath(id), errFile: errPath(id) });
+    // Live: the prompt and later messages as stream-json lines on stdin, which the host keeps open while the CLI works.
+    const args = live ? [...proc.args, "--input-format", "stream-json", "--replay-user-messages"] : proc.args;
+    return spawnOnHost({ runId: id, account: currentAccountId(), ...proc, args, live, env: workerEnv(id, true), outFile: logPath(id), errFile: errPath(id) });
   }
   const out = fs.openSync(/*turbopackIgnore: true*/ logPath(id), "a");
   const err = fs.openSync(/*turbopackIgnore: true*/ errPath(id), "a");
@@ -118,6 +121,12 @@ export function dispatchTodo(
     /** A session in this repo (Repos page), whatever the ticket says. */ repoId?: number;
     /** Your next message in this run's conversation: Claude goes on with its session (where it worked), like Claude Code. */
     continueRun?: number;
+    /** A folder in a git repo to work in (any folder, not only a registered repo) - its repo is used. */
+    repoPath?: string;
+    /** The branch to start from / work on (see workspace); none: the ticket's own branch, else the default. */
+    branch?: string;
+    /** worktree: a new branch from `branch` in a worktree · branch: `branch` itself in a worktree · checkout: in the repo itself. None: the Work settings. */
+    workspace?: "worktree" | "branch" | "checkout";
   } = {},
 ): WorkRunView {
   if (!isInstalled("work")) throw new ValidationError(t("Work is not installed (Menu → Plugins) — without it no worker works on todos."));
@@ -151,8 +160,12 @@ export function dispatchTodo(
   if (m.mode === "send" && provider === "copilot") {
     throw new ValidationError(t("Only Claude can post to Jira (through Zeff's Jira connection) — install the Claude CLI plugin."));
   }
+  const chosen = opts.repoPath?.trim() ? repoRoot(opts.repoPath.trim()) : null;
+  if (opts.repoPath?.trim() && !chosen) throw new ValidationError(t("{path} isn't in a git repo.", { path: opts.repoPath }));
   const repo = (opts.repoId ? listRepos().find((r) => r.id === opts.repoId) : undefined) ?? repoForTicket(todo.ticket)?.repo;
-  if (m.mode === "code" && !repo) {
+  const repoDir = chosen ?? repo?.path ?? null;
+  if (opts.branch && !repoDir) throw new ValidationError(t("A branch needs a repo."));
+  if (m.mode === "code" && !repoDir) {
     throw new ValidationError(t("No repo for {ticket} — assign its board (or the ticket) to one on the Repos page.", { ticket: todo.ticket }));
   }
   const app = getAppSettings();
@@ -168,7 +181,9 @@ export function dispatchTodo(
     provider,
     model: resume ? (opts.provider ? model : (prev!.model ?? model)) : model,
     permissionMode: provider === "claude" ? s.permissionMode : provider === "copilot" ? "allow-all-tools" : null,
-    repo: resume ? resume.repo : (repo?.path ?? null),
+    repo: resume ? resume.repo : repoDir,
+    // (A conversation goes on where it worked; a new run starts where you chose.)
+    ...(resume ? { workspace: resume.workspace } : { workspace: repoDir && (opts.workspace ?? null), ...(opts.branch ? { base: opts.branch } : {}) }),
     prompt: resume
       ? `## Deine Anweisung (vom Nutzer — sie geht vor)\n${instruction}`
       : instruction
@@ -193,10 +208,11 @@ export function pump(): void {
   const running = runsByStatus(["running"]).filter((r) => r.provider !== "agent");
   let free = s.parallel - running.length;
   if (free <= 0) return;
-  const busy = new Set(s.isolation === "checkout" ? running.filter((r) => codeLike(r.mode)).map((r) => r.repo) : []);
+  const inPlace = (r: WorkRun) => (r.workspace ?? s.isolation) === "checkout";
+  const busy = new Set(running.filter((r) => codeLike(r.mode) && inPlace(r)).map((r) => r.repo));
   for (const r of runsByStatus(["queued"])) {
     if (free <= 0) break;
-    if (s.isolation === "checkout" && codeLike(r.mode) && r.repo) {
+    if (inPlace(r) && codeLike(r.mode) && r.repo) {
       if (busy.has(r.repo)) continue;
       busy.add(r.repo);
     }
@@ -235,13 +251,20 @@ function start(id: number): void {
     if (resume) {
       ({ cwd, branch, base, baseSha } = { cwd: r.cwd!, branch: r.branch, base: r.base, baseSha: r.baseSha });
     } else if (codeLike(mode) && r.repo) {
-      if (s.isolation === "worktree") {
-        base = baseFor(r.repo, r.ticket);
-        ({ cwd, branch, baseSha } = addWorktree(r.repo, r.ticket, id, base));
-      } else {
+      const where = r.workspace ?? s.isolation;
+      if (where === "branch" && r.base) {
+        // The existing branch itself, in a worktree of its own.
+        base = r.base;
+        ({ cwd, branch, baseSha } = addBranchWorktree(r.repo, r.base, id));
+      } else if (where === "checkout") {
         cwd = r.repo;
+        // A branch chosen for the checkout itself: switched to (nothing uncommitted may be lost).
+        if (r.base) switchBranch(cwd, r.base);
         base = git(cwd, ["rev-parse", "--abbrev-ref", "HEAD"]);
         baseSha = git(cwd, ["rev-parse", "HEAD"]);
+      } else {
+        base = r.base || baseFor(r.repo, r.ticket);
+        ({ cwd, branch, baseSha } = addWorktree(r.repo, r.ticket, id, base));
       }
     } else if (mode === "draft" && r.repo) {
       cwd = r.repo; // to look things up — read only
@@ -251,7 +274,7 @@ function start(id: number): void {
     const repoRules = r.repo ? (listRepos().find((x) => x.path === r.repo)?.instructions ?? "") : "";
     // (Your instructions and context from the LLM plugin first — for every worker.)
     const rules = workerRules([llmPreamble(), s.instructions, repoRules].filter((x) => x.trim()).join("\n\n"));
-    const prompt = `${r.prompt}\n\n${taskFor(mode, { todo, runId: id, repo: r.repo, cwd, branch, base, isolation: s.isolation })}`;
+    const prompt = `${r.prompt}\n\n${taskFor(mode, { todo, runId: id, repo: r.repo, cwd, branch, base, isolation: r.workspace === "checkout" || (!r.workspace && s.isolation === "checkout") ? "checkout" : "worktree", onExisting: r.workspace === "branch" && !!branch })}`;
     updateRun(id, { cwd, branch, base, baseSha, prompt });
 
     fs.mkdirSync(/*turbopackIgnore: true*/ path.dirname(logPath(id)), { recursive: true });
@@ -330,7 +353,7 @@ function start(id: number): void {
 
     // Detached, its output straight into files: a run outlives a restart of Zeff's server — on the
     // work host (the launcher's, outside this server's process tree), else started here.
-    void launchWorker(id, { command, args, cwd, stdin: stdin ?? "" })
+    void launchWorker(id, { command, args, cwd, stdin: stdin ?? "", live: r.provider === "claude" })
       .then((pid) => updateRun(id, { pid, sessionId }))
       .catch((e) => {
         fs.appendFileSync(/*turbopackIgnore: true*/ errPath(id), `${errorMessage(e)}
@@ -341,6 +364,21 @@ function start(id: number): void {
     updateRun(id, { status: "failed", error: errorMessage(e).slice(0, 2000), finishedAt: now(), durationMs: Date.now() - Date.parse(startedAt) });
     setImmediate(pump);
   }
+}
+
+/**
+ * Your message to a Claude session that is still working (like Claude Code): it goes to the CLI
+ * through the work host and is taken in when the CLI is idle (or at its next step) - no new run.
+ * Throws with the reason when it can't (not running, no host, the CLI is just finishing).
+ */
+export async function messageRunningSession(runId: number, text: string): Promise<void> {
+  const r = getRun(runId);
+  if (!r) throw new NotFoundError(`${workRef(runId)} not found.`);
+  const message = text.trim();
+  if (!message) throw new ValidationError("What's your message?");
+  if (r.status !== "running" || r.provider !== "claude") throw new ValidationError(`${workRef(runId)} isn't a working Claude session.`);
+  if (!(await sendToHost(runId, message))) throw new ValidationError(`${workRef(runId)} can't take a message right now - it is just finishing (or the work host isn't running). Send it again in a moment.`);
+  addTodoInstruction(r.todoId, message, runId);
 }
 
 /**
@@ -481,6 +519,10 @@ const gitAsync = (cwd: string, args: string[]) =>
  * branch and push. Returns what to add to the git summary.
  */
 async function proposeDelivery(r: WorkRun, res: WorkResult): Promise<string> {
+  // Work on a branch you picked stays on it (its commits are there) - no merge into main behind your back.
+  if (r.workspace === "branch") return `
+
+Die Commits liegen auf ${r.branch} (dem gewählten Branch) - nichts wird von Zeff gemergt.`;
   if (!r.cwd || !r.branch || !r.baseSha || !r.repo) return "";
   const commits = await gitAsync(r.cwd, ["rev-list", "--count", `${r.baseSha}..HEAD`]).catch(() => "0");
   if (!Number(commits)) return "";

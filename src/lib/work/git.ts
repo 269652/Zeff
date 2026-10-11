@@ -78,3 +78,97 @@ export function gitSummary(cwd: string, baseSha: string | null): string {
   if (status) parts.push(`${t("Not committed:")}\n${status}`);
   return parts.join("\n\n").slice(0, 6000);
 }
+
+/** The git repo a folder is in: its top folder (null: not in one). */
+export function repoRoot(folder: string): string | null {
+  if (!folder || !fs.existsSync(/*turbopackIgnore: true*/ folder)) return null;
+  const top = tryGit(folder, ["rev-parse", "--show-toplevel"]);
+  return top ? path.resolve(top) : null;
+}
+
+export type BranchInfo = {
+  /** Local name; a branch only on the remote: its name without "origin/". */
+  name: string;
+  /** Only on the remote so far (a local tracking branch is made when it is used). */
+  remote: boolean;
+  /** Checked out in the folder asked about. */
+  current: boolean;
+  /** Checked out in another worktree (it can't be checked out twice): that folder. */
+  worktree: string | null;
+};
+
+/** The branches of a repo (newest first) and which are checked out where — worktrees included. `folder`: the checkout asked about (a worktree's own folder, or the repo). */
+export function listBranches(folder: string): { current: string | null; branches: BranchInfo[] } {
+  const here = path.resolve(folder);
+  const used = new Map<string, string>();
+  let dir = "";
+  for (const line of tryGit(folder, ["worktree", "list", "--porcelain"]).split("\n")) {
+    if (line.startsWith("worktree ")) dir = path.resolve(line.slice(9).trim());
+    else if (line.startsWith("branch refs/heads/")) used.set(line.slice(18).trim(), dir);
+  }
+  const current = tryGit(folder, ["symbolic-ref", "--short", "-q", "HEAD"]) || null;
+  const out: BranchInfo[] = [];
+  const seen = new Set<string>();
+  const refs = tryGit(folder, ["for-each-ref", "--sort=-committerdate", "--format=%(refname)", "refs/heads", "refs/remotes"]).split("\n").map((r) => r.trim()).filter(Boolean);
+  // Local branches first, then those only on a remote.
+  for (const remote of [false, true]) {
+    for (const ref of refs) {
+      const isRemote = ref.startsWith("refs/remotes/");
+      if (isRemote !== remote) continue;
+      const name = isRemote ? ref.replace(/^refs\/remotes\/[^/]+\//, "") : ref.replace(/^refs\/heads\//, "");
+      if (!name || name === "HEAD" || seen.has(name)) continue;
+      seen.add(name);
+      const wt = used.get(name) ?? null;
+      out.push({ name, remote: isRemote, current: name === current && (!wt || wt === here), worktree: wt && wt !== here ? wt : null });
+    }
+  }
+  return { current, branches: out.slice(0, 400) };
+}
+
+/** Where git's hooks are switched off for what Zeff does in a fresh folder (see addWorktree). */
+function noHooksFor(dir: string): string {
+  const d = path.join(path.dirname(dir), ".no-hooks");
+  fs.mkdirSync(/*turbopackIgnore: true*/ d, { recursive: true });
+  return d;
+}
+
+/**
+ * A worktree on an existing branch (the work goes on that branch, in a folder of its own): a
+ * branch only on the remote gets a local one tracking it. A branch already checked out elsewhere
+ * can't be — the error says where.
+ */
+export function addBranchWorktree(repo: string, branch: string, runId: number): { cwd: string; branch: string; baseSha: string } {
+  const info = listBranches(repo).branches.find((b) => b.name === branch);
+  if (!info) throw new Error(`Branch ${branch} doesn't exist in ${repo}.`);
+  const holder = info.worktree ?? (info.current ? repo : null);
+  if (holder) throw new Error(`Branch ${branch} is checked out in ${holder} already - pick another, or start a new branch from it.`);
+  const safe = branch.replace(/[^A-Za-z0-9._-]+/g, "-").slice(0, 60);
+  let cwd = path.join(path.dirname(repo), ".zeff-worktrees", `${path.basename(repo)}-${safe}-w${runId}`);
+  for (let n = 2; fs.existsSync(/*turbopackIgnore: true*/ cwd) && n < 20; n++) cwd = path.join(path.dirname(repo), ".zeff-worktrees", `${path.basename(repo)}-${safe}-w${runId}-${n}`);
+  fs.mkdirSync(/*turbopackIgnore: true*/ path.dirname(cwd), { recursive: true });
+  const hooks = ["-c", `core.hooksPath=${noHooksFor(cwd)}`];
+  try {
+    if (info.remote) git(repo, [...hooks, "worktree", "add", "--quiet", "--track", "-b", branch, cwd, `origin/${branch}`], 300000);
+    else git(repo, [...hooks, "worktree", "add", "--quiet", cwd, branch], 300000);
+  } catch (e) {
+    tryGit(repo, ["worktree", "remove", "--force", cwd]);
+    throw e;
+  }
+  return { cwd, branch, baseSha: git(cwd, ["rev-parse", "HEAD"]) };
+}
+
+/**
+ * Switch the branch of a checkout (the session's worktree, or the repo): only when nothing is
+ * uncommitted and the branch isn't checked out in another worktree. Returns the branch now.
+ */
+export function switchBranch(cwd: string, branch: string): string {
+  const { branches, current } = listBranches(cwd);
+  const info = branches.find((b) => b.name === branch);
+  if (!info) throw new Error(`Branch ${branch} doesn't exist.`);
+  if (info.worktree) throw new Error(`Branch ${branch} is checked out in ${info.worktree} - it can't be checked out twice.`);
+  if (current === branch) return branch;
+  const dirty = tryGit(cwd, ["status", "--porcelain"]);
+  if (dirty) throw new Error(`There are uncommitted changes in ${cwd} - commit or stash them first:\n${dirty.split("\n").slice(0, 6).join("\n")}`);
+  git(cwd, ["-c", `core.hooksPath=${noHooksFor(cwd)}`, "switch", "--quiet", branch], 120000);
+  return tryGit(cwd, ["symbolic-ref", "--short", "-q", "HEAD"]) || branch;
+}

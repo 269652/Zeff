@@ -10,8 +10,9 @@ import { SessionComposer } from "./SessionComposer";
 import { SessionThread, type SessionTurn } from "./SessionThread";
 import { StopSessionButton, TodoSessionButton } from "./SessionActions";
 import { formatDateTime } from "@/lib/format";
+import { SessionBranch } from "./SessionBranch";
 
-type Options = { tickets: { key: string; summary: string | null }[]; repos: { id: number; name: string }[]; providers: { id: string; label: string }[] };
+type Options = { tickets: { key: string; summary: string | null }[]; repos: { id: number; name: string; path: string }[]; providers: { id: string; label: string }[] };
 
 const when = (iso: string | null) => (iso ? formatDateTime(iso.includes("T") ? iso : `${iso.replace(" ", "T")}Z`) : "");
 const STATUS: Record<string, string> = { queued: "queued", running: "working", done: "done", failed: "failed", cancelled: "stopped", interrupted: "interrupted" };
@@ -41,7 +42,7 @@ export function SessionPane({ run, options }: { run: WorkRunView; options: Optio
   }));
   const last = runs[runs.length - 1] ?? run;
   const active = isActive(last.status);
-  const meta = [last.repo && last.repo.split(/[\\/]/).pop(), last.branch, todo && todoRef(todo.id)].filter(Boolean) as string[];
+  const meta = [todo && todoRef(todo.id)].filter(Boolean) as string[];
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col max-lg:min-h-[80vh]">
       <header className="flex items-center gap-3 border-b border-zinc-200 pb-2.5 dark:border-zinc-800">
@@ -62,6 +63,7 @@ export function SessionPane({ run, options }: { run: WorkRunView; options: Optio
               <span>no ticket</span>
             )}
             {card?.summary && <span className="max-w-72 truncate">{card.summary}</span>}
+            <SessionBranch runId={last.id} repo={last.repo} cwd={last.cwd} branch={last.branch} worktree={!!last.cwd && !!last.repo && last.cwd !== last.repo} idle={!active} />
             {meta.map((m) => (
               <span key={m} className="font-mono">
                 {m}
@@ -85,7 +87,7 @@ export function SessionPane({ run, options }: { run: WorkRunView; options: Optio
             ticket={last.ticket}
             continueRunId={last.id}
             providers={options.providers}
-            busy={active ? (last.status === "queued" ? "Waiting for a free worker …" : "Working — you can reply once it has answered.") : null}
+            busy={last.status === "queued" ? "Waiting for a free worker …" : active && last.provider !== "claude" ? "Working — you can reply once it has answered." : null}
             placeholder="Reply …"
             autoFocus
           />

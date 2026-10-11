@@ -80,7 +80,7 @@ export default async function WorkPage({
     const ticket = sp.ticket === undefined ? undefined : sp.ticket === "-" ? "" : sp.ticket.toUpperCase();
     const options = {
       tickets: tickets.filter((x) => x.ticket).map((x) => ({ key: x.ticket, summary: x.summary })),
-      repos: listRepos().map((r) => ({ id: r.id, name: r.name })),
+      repos: listRepos().map((r) => ({ id: r.id, name: r.name, path: r.path })),
       providers: aiProviders()
         .filter((x) => x.found)
         .map((x) => ({ id: x.id, label: x.label })),
