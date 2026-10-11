@@ -82,7 +82,7 @@ Lege für jede Aufgabe, die eine Mail an mich stellt, ein Todo an: ein Satz, Ver
 
 Einträge im Ordner „WhatsApp“ sind keine Mails, sondern WhatsApp-Chats: der Betreff ist der Chat (Person oder Gruppe), der Text eine Nachricht daraus, der Absender, wer sie schrieb („Ich“ = ich selbst). Die Nachrichten eines Chats stehen zusammen, der Reihe nach — ein Gespräch: eine spätere Antwort von mir kann eine Bitte schon erledigt haben. Auch dort zählt, worum man mich bittet, was ich zugesagt oder offen gelassen habe (z. B. „Mit Tom eine Uhrzeit ausmachen“, „Bei Lisa melden“, „Ben antworten“ — wenn die letzte Nachricht im Chat eine Frage an mich ist, die ich nicht beantwortet habe) (z. B. „Anna die Fotos vom Samstag schicken“, „Bei Tom wegen Sonntag zurückmelden“) — nicht Smalltalk, Grüße oder Reaktionen.
 
-Trägt eine neue Nachricht etwas zu einem SCHON OFFENEN Todo bei — eine Antwort auf meine Frage, ein Datum, eine Zusage, eine Info, die das Todo braucht (z. B. Lisa schreibt „3.5.“ auf meine Frage nach Toms Geburtstag) —, legst du KEIN neues Todo an, sondern nennst es unter updates: die Nummer des Todos (aus „Schon offene Todos“), die Kennungen der Nachrichten, die dazugehören (auch meine Frage davor), eine kurze Notiz, was neu ist („Lisa: Toms Geburtstag ist am 3.5.“), und done: true nur, wenn das Todo damit wirklich ganz erledigt ist (bleibt ein Teil offen — z. B. das Datum noch eintragen —, done: false). Hat das Todo geplante nächste Schritte („danach geplant: …“), schreib sie NICHT als followUps: ist das Todo selbst erledigt, setz done: true — Zeff legt den nächsten geplanten Schritt dann selbst an (mit der Nachricht und den Fakten als Kontext; eine passende Frist gibst du ihm über followUps mit genau seinem Text und due). Etwas „festhalten“, „notieren“ oder „eintragen“ (ein Datum, eine Info) ist erledigt, sobald du es unter facts angibst — dafür kein eigenes Todo. Folgt daraus darüber hinaus etwas Neues zu tun, gib es unter followUps an (ein Satz, Verb zuerst, mit Frist due JJJJ-MM-TT, wenn eine naheliegt — z. B. nach „Toms Geburtstag ist am 3.5.“: „Tom ein Geschenk besorgen“, due ein paar Tage vorher). Steht in der Nachricht etwas Dauerhaftes, das man sich merken sollte — ein Geburtstag, eine Adresse, eine Telefonnummer (keine Passwörter oder Zugangsdaten), eine Vorliebe, eine Abmachung —, gib es unter facts an: subject kurz und eindeutig („Toms Geburtstag“), text die Tatsache („3.5.“).
+Trägt eine neue Nachricht etwas zu einem SCHON OFFENEN Todo bei — eine Antwort auf meine Frage, ein Datum, eine Zusage, eine Info, die das Todo braucht (z. B. Lisa schreibt „3.5.“ auf meine Frage nach Toms Geburtstag) —, legst du KEIN neues Todo an, sondern nennst es unter updates: die Nummer des Todos (aus „Schon offene Todos“), die Kennungen der Nachrichten, die dazugehören (auch meine Frage davor), eine kurze Notiz, was neu ist („Lisa: Toms Geburtstag ist am 3.5.“), und done: true nur, wenn das Todo damit wirklich ganz erledigt ist (bleibt ein Teil offen — z. B. das Datum noch eintragen —, done: false). Hat das Todo geplante nächste Schritte („danach geplant: …“), schreib sie NICHT als followUps: ist das Todo selbst erledigt, setz done: true — Zeff legt den nächsten geplanten Schritt dann selbst an (mit der Nachricht und den Fakten als Kontext; eine passende Frist gibst du ihm über followUps mit genau seinem Text und due). Steht bei einem offenen Todo „MEINE NEUE NOTIZ“, die es erledigt, überholt oder verschiebt (z. B. „hab ich verpasst, ruf ihn morgen an“), nenn es ebenso unter updates — refs dürfen dann leer bleiben, note eine kurze Zusammenfassung: done: true, wenn es so nicht mehr zu tun ist (die Notiz macht es hinfällig oder sagt, es ist erledigt), und unter followUps, was ich laut Notiz stattdessen oder als Nächstes tun will (z. B. „Tom anrufen und einen neuen Termin ausmachen“, due der Tag, den die Notiz nennt — gerechnet ab dem Tag der Notiz). Eine Notiz, die nur Kontext gibt, ändert nichts. Etwas „festhalten“, „notieren“ oder „eintragen“ (ein Datum, eine Info) ist erledigt, sobald du es unter facts angibst — dafür kein eigenes Todo. Folgt daraus darüber hinaus etwas Neues zu tun, gib es unter followUps an (ein Satz, Verb zuerst, mit Frist due JJJJ-MM-TT, wenn eine naheliegt — z. B. nach „Toms Geburtstag ist am 3.5.“: „Tom ein Geschenk besorgen“, due ein paar Tage vorher). Steht in der Nachricht etwas Dauerhaftes, das man sich merken sollte — ein Geburtstag, eine Adresse, eine Telefonnummer (keine Passwörter oder Zugangsdaten), eine Vorliebe, eine Abmachung —, gib es unter facts an: subject kurz und eindeutig („Toms Geburtstag“), text die Tatsache („3.5.“).
 
 Auch ohne Todo: Steht in einer Nachricht so etwas Dauerhaftes, gib es oben unter facts an (subject, text, refs der Nachrichten).
 
@@ -207,6 +207,9 @@ export function mustDoLeftOut<M extends { key: string; fromName: string | null; 
 /** A ticket key in a mail's subject or lines (one of the tickets the Lage reads — it has those mails). */
 const namesTicket = (keys: string[], text: string) => keys.some((k) => new RegExp(`(^|[^A-Za-z0-9])${k}(?![0-9])`, "i").test(text));
 
+/** My own notes on a todo (not a review's or an agent's) newer than a time. */
+const newNotes = (t: TodoView, since: string) => t.userNotes.filter((n) => !n.by && n.at > since);
+
 /**
  * The review's prompt for one batch — its instructions (or others: the eval's "before"), today, your
  * tickets, the open todos (with what's planned after each), what you dropped and did, the mails
@@ -220,6 +223,8 @@ export function mailReviewPrompt(v: {
   mails: Parameters<typeof mailLine>[0][];
   dormant?: { m: typeof emails.$inferSelect; thread: (typeof emails.$inferSelect)[]; since: string[] }[];
   current?: (typeof emails.$inferSelect)[];
+  /** My notes on open todos newer than this (ISO) are shown with them — what I noted since the last review. */
+  notesSince?: string;
 }): string {
   const dormant = v.dormant ?? [];
   return [
@@ -233,7 +238,8 @@ export function mailReviewPrompt(v: {
     "# Schon offene Todos",
     ...v.open.slice(0, 60).map((t) => {
       const next = t.planned[0]?.steps.map((s) => `„${plain(s.text, 80)}“`).join(" → ");
-      return `- [${t.id}]${t.ticket ? ` ${t.ticket}` : ""}: ${plain(t.text, 160)}${next ? ` — danach geplant: ${next}` : ""}`;
+      const noted = v.notesSince ? newNotes(t, v.notesSince) : [];
+      return `- [${t.id}]${t.ticket ? ` ${t.ticket}` : ""}: ${plain(t.text, 160)}${t.due ? ` (fällig ${t.due})` : ""}${next ? ` — danach geplant: ${next}` : ""}${noted.map((n) => ` — MEINE NEUE NOTIZ (${n.at.slice(0, 16).replace("T", " ")}): „${plain(n.text, 300)}“`).join("")}`;
     }),
     "",
     ...(v.verdicts.dropped.length ? ["# Was ich verworfen habe (letzte 60 Tage)", ...v.verdicts.dropped, ""] : []),
@@ -347,7 +353,11 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
           .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
           .slice(0, 80)
       : [];
-    if (!mails.length && !dormant.length) return { ok: true, reviewed: theirs.length, added: 0, batches: 0 };
+    // Your notes on open todos since the last review: it looks at them too — and runs for them alone.
+    const notesSince = getPref<string>("mailtodos:notes-at", new Date(Date.now() - 864e5).toISOString());
+    const startedAt = new Date().toISOString();
+    const noted = new Set(listTodos({ status: "open" }).filter((t) => newNotes(t, notesSince).length).map((t) => t.id));
+    if (!mails.length && !dormant.length && !noted.size) return { ok: true, reviewed: theirs.length, added: 0, batches: 0 };
 
     const ticketLines = tickets.map((k) => `- ${k}${getJiraTicket(k)?.summary ? ` — ${plain(getJiraTicket(k)!.summary, 120)}` : ""}`);
     const line = mailLine;
@@ -381,6 +391,7 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
         mails: batch,
         dormant: batch === batches[0] ? dormant : [],
         current,
+        notesSince,
       });
       const answer = await runAi<Answer>(prompt, SCHEMA, { task: "mail-todos", timeoutMs: 10 * 60000, maxBudgetUsd: 1 }).catch((e) => {
         console.error("[mail-todos]", errorMessage(e));
@@ -395,8 +406,10 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
       // What new messages add to todos already open: their context, a note — done, if they settle it.
       for (const u of answer.output?.updates ?? []) {
         const todo = open.find((t) => t.id === Number(u.id));
-        const refs = (u.refs ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).map((r) => (r.startsWith("mail:") ? r : `mail:${r}`)).filter((r) => known.has(r));
-        if (!todo || !refs.length) continue;
+        const fromMessages = (u.refs ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).map((r) => (r.startsWith("mail:") ? r : `mail:${r}`)).filter((r) => known.has(r));
+        // From a note of yours (no message): its follow-ups keep the todo's own messages as context.
+        if (!todo || (!fromMessages.length && !noted.has(todo.id))) continue;
+        const refs = fromMessages.length ? fromMessages : todo.refs.filter((r) => r.startsWith("mail:") || r.startsWith("fact:"));
         // Facts it brings: kept as knowledge, linked to this todo and its follow-ups.
         const factRefs = (u.facts ?? []).flatMap((f) => {
           const x = addFact({ subject: f.subject ?? "", text: f.text ?? "", refs });
@@ -465,6 +478,8 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
       reviewed += batch.length;
     }
     if (added || updated) emitChange("todos");
+    // Your notes up to now are looked at (a failed run looks again next time).
+    if (failed < batches.length) setPref("mailtodos:notes-at", startedAt);
     return {
       ok: failed < batches.length,
       reviewed,
