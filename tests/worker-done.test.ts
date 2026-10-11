@@ -10,7 +10,7 @@ test("a worker's completedTodos mark the todo, a click of yours closes it; Zeff'
   const { applyOutcome } = await import("@/lib/work/outcome");
   const { createRun, getRun } = await import("@/lib/work/store");
 
-  const mk = (text: string) => addFollowUp({ ticket: "ABC-1", text, kind: "other", parentId: null, workRunId: null, source: "test" });
+  const mk = (text: string) => addFollowUp({ ticket: "ABC-1", text, kind: "other", parentId: null as unknown as number, workRunId: null, source: "test" });
   const a = mk("Do the thing");
   const b = mk("Send the reply");
   const res = (id: number) => ({ outcome: "done" as const, summary: "Alles gemacht.\nZweite Zeile", entry: "Sache erledigt", completedTodos: [id], followUps: [] });

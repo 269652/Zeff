@@ -1038,6 +1038,8 @@ export const workRuns = sqliteTable(
     costUsd: real("cost_usd"),
     durationMs: integer("duration_ms"),
     turns: integer("turns"),
+    /** Where it works, as chosen with the session: "worktree" (a new branch from `base`, own folder), "branch" (the existing branch `base`, own folder), "checkout" (in the repo itself); null: the Work settings' isolation. */
+    workspace: text("workspace"),
     /** Actions the permission mode refused. */
     denials: integer("denials"),
     /** The time entry its time went into (Weekly report). */

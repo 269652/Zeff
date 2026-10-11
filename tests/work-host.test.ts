@@ -131,3 +131,42 @@ test("Zeff's exit route takes only the work host's token", async () => {
   process.env.ZEFF_WORK_TOKEN = "";
   assert.equal(fromWorkHost(req("")), false); // no token configured: nobody
 });
+
+/** A stand-in for the Claude CLI in stream-json mode: one answer (assistant + result) per message, quits when stdin ends. */
+const FAKE_CLI = [
+  "const rl = require('node:readline').createInterface({ input: process.stdin });",
+  "const out = (o) => console.log(JSON.stringify(o));",
+  "let n = 0;",
+  "rl.on('line', (l) => { const m = JSON.parse(l); n++; out({ type: 'user', isReplay: true, message: { role: 'user', content: m.message.content } });",
+  "  setTimeout(() => { out({ type: 'assistant', message: { content: [{ type: 'text', text: 'ok ' + m.message.content }] } }); out({ type: 'result', subtype: 'success', num_turns: n }); }, 300); });",
+  "rl.on('close', () => { out({ type: 'bye', n }); });",
+].join("\n");
+
+test("a live run takes messages while it works, and the host ends its stdin once it is idle", async () => {
+  process.env.ZEFF_WORK_IDLE_MS = "500";
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "zeff-work-host-"));
+  const zeffPort = await freePort();
+  const zeff = await fakeZeff(zeffPort);
+  const host = await startHost(zeffPort, dir);
+  delete process.env.ZEFF_WORK_IDLE_MS;
+  try {
+    const outFile = path.join(dir, "9.log");
+    const spec = { runId: 9, account: "default", command: process.execPath, args: ["-e", FAKE_CLI], cwd: dir, env: process.env, stdin: "first", outFile, errFile: path.join(dir, "9.err"), live: true };
+    assert.equal((await post(host.url, spec)).status, 200);
+    const msg = (text: string, runId = 9) => fetch(`${host.url}/message`, { method: "POST", headers: { "content-type": "application/json", "x-zeff-work-token": TOKEN }, body: JSON.stringify({ runId, text }) });
+    // While it is still answering the first message.
+    assert.equal((await msg("second")).status, 200);
+    await until(() => zeff.calls.some((c) => c.runId === 9)); // idle -> stdin closed -> the CLI quit -> reported
+    const lines = fs.readFileSync(outFile, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    assert.deepEqual(lines.filter((l) => l.type === "user").map((l) => l.message.content), ["first", "second"]);
+    assert.equal(lines.filter((l) => l.type === "result").length, 2);
+    assert.equal(lines.at(-1).type, "bye");
+    // Over: no more messages (the caller starts a new run), unknown runs too.
+    assert.equal((await msg("late")).status, 409);
+    assert.equal((await msg("x", 12345)).status, 409);
+  } finally {
+    host.proc.kill();
+    zeff.server.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
