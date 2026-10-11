@@ -1,4 +1,5 @@
 import { claudeLiveDriver } from "@/plugins/claude-cli/live";
+import { codexLiveDriver } from "@/plugins/codex-cli/live";
 import type { LiveView } from "@/plugins/copilot-cli/live-state";
 import type { AskAnswer, ClaudeAsk, Effort, SessionLiveView, SessionMode, WorkResult } from "./shared";
 
@@ -104,3 +105,4 @@ export function askTitle(a: ClaudeAsk, t: (s: string) => string): string {
 // The drivers Zeff brings — another provider's is imported and registered here too. (Their modules
 // import only types from this one: no cycle at load.)
 registerLiveDriver(claudeLiveDriver);
+registerLiveDriver(codexLiveDriver);
