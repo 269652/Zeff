@@ -564,10 +564,12 @@ export function WorkTodo({
   const active = runs.find((r) => isActive(r.status));
   const cameFrom = sourcesOf(t.refs, sources);
   const comms = COMMS_KINDS.includes(t.kind);
+  // A worker or agent says it's done: highlighted, still open - closing it is yours.
+  const reported = !closed && !t.needsInput && !active && !!t.workerDone;
   return (
     <li
       id={`work-todo-${t.id}`}
-      className={`group scroll-mt-24 space-y-1.5 rounded-md target:bg-amber-50 dark:target:bg-amber-950/30 ${active ? "-mx-2 bg-indigo-50 px-2 py-1.5 ring-1 ring-indigo-200 dark:bg-indigo-950/40 dark:ring-indigo-900" : ""}`}
+      className={`group scroll-mt-24 space-y-1.5 rounded-md target:bg-amber-50 dark:target:bg-amber-950/30 ${active ? "-mx-2 bg-indigo-50 px-2 py-1.5 ring-1 ring-indigo-200 dark:bg-indigo-950/40 dark:ring-indigo-900" : reported ? "-mx-2 bg-emerald-50 px-2 py-1.5 ring-1 ring-emerald-300 dark:bg-emerald-950/30 dark:ring-emerald-800" : ""}`}
     >
       <div className="flex items-start gap-2">
         <input
@@ -680,6 +682,7 @@ export function WorkTodo({
             {!closed && <TodoQuickButtons todoId={t.id} panel={quick} onToggle={setQuick} aiDisabled={active ? `${active.ref} arbeitet schon daran` : undefined} />}
             {!closed && <FlagButton todoId={t.id} todoRef={todoRef(t.id)} flagged={!!t.flaggedAt} className="ml-0.5 inline-flex size-5 items-center justify-center rounded align-middle hover:bg-zinc-100 dark:hover:bg-zinc-800 [&_svg]:size-3.5" />}
             {t.flaggedAt && !closed && <span className="font-medium text-red-600 dark:text-red-400"> · wichtig</span>}
+            {reported && t.workerDone && <span className="font-medium text-emerald-700 dark:text-emerald-400" title={`${t.workerDone.by} reports this done${t.workerDone.note ? `: ${t.workerDone.note}` : ""} - tick it off to close it`}> · ✓ {t.workerDone.by.split(" · ")[0]}: erledigt gemeldet</span>}
           </div>
           <TodoQuickPanel todoId={t.id} todoRef={todoRef(t.id)} panel={closed ? null : quick} onClose={() => setQuick(null)} />
           <TodoContext t={t} cameFrom={cameFrom} />

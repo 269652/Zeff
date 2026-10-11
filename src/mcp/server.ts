@@ -10,7 +10,7 @@ import {
   type WeeklyReport,
 } from "@/lib/entries";
 import { attributed } from "@/lib/boards/activity";
-import { getTodo, listTodos, setTodoStatus } from "@/lib/boards/store";
+import { getTodo, listTodos, markWorkerDone, setTodoStatus } from "@/lib/boards/store";
 import { parseTodoRef, todoRef } from "@/lib/boards/shared";
 import { formatHours } from "@/lib/format";
 import { getTicketDefaultJob } from "@/lib/jira/store";
@@ -46,7 +46,7 @@ Working on a todo (you're an agent — VS Code Copilot, Claude Code, …):
 3. When you're done — or stop — call finish_todo with: summary (it's shown on the todo as your comment — so ALWAYS a summary of what you did: first ONE sentence saying what is done now, then short bullets: what you changed, how you tested, what's still open and why, where it is — branch and commit), entry (ONE short line for the booking, same rules as report_time descriptions), minutes (how long the work took you, honestly), outcome (done / partial / blocked), branch (the feature branch you committed on — and repo, its folder, if Zeff doesn't know the ticket's repo) and followUps for what's left (replies, comments, ticket changes — with ready drafts).
    With a branch, Zeff creates a todo for the user to TEST AND VERIFY your work by hand first; once they've ticked it off, the delivery follows (push → merge request to main, or merge straight into main — one click each). Don't create test or delivery todos yourself, and say in your summary what the user should test.
    finish_todo records your time as such a suggestion itself (its minutes and its entry line, with the todo and your run as evidence) — so give honest minutes and a good one-line entry, and do NOT also call report_time for that work (it would be suggested twice).
-Use report_time (with todos: ['T-12'] — they're closed with it) for work you did without start_todo / finish_todo, and complete_todo to close a todo nobody needs to book time for.`;
+Use report_time (with todos: ['T-12'] — they're reported done with it) for work you did without start_todo / finish_todo, and complete_todo to report a todo done that nobody needs to book time for. Reporting a todo done marks it (highlighted in Zeff) — it stays open; the user closes it.`;
 
 // ---------------------------------------------------------------------------
 // Result helpers
@@ -189,7 +189,7 @@ export function registerZeffTools(server: McpServer): void {
         todos: z
           .array(z.string())
           .optional()
-          .describe("Board todos this work was on and finished, e.g. ['T-12'] (see list_todos) — the suggestion's evidence; they're closed with it."),
+          .describe("Board todos this work was on and finished, e.g. ['T-12'] (see list_todos) — the suggestion's evidence; they're reported done with it (highlighted, the user closes them)."),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     },
@@ -230,12 +230,12 @@ export function registerZeffTools(server: McpServer): void {
           reportedBy: args.reportedBy ?? "agent",
           todoIds: known,
         });
-        // The todos this work finished: closed, with the suggestion as their note.
+        // The todos this work finished: reported done (highlighted, still open — the user closes them), with the suggestion as the reason.
         const closed: string[] = [];
         for (const id of known) {
           const t = getTodo(id);
           if (t?.status !== "open") continue;
-          attributed(`agent:${s.reportedBy || "MCP"}`, () => setTodoStatus(id, "done", `Erledigt — Buchung vorgeschlagen ${s.ref} (${s.date}, ${formatHours(s.hours)} h): ${s.description}`));
+          attributed(`agent:${s.reportedBy || "MCP"}`, () => markWorkerDone(id, s.reportedBy || "MCP", `Buchung vorgeschlagen ${s.ref} (${s.date}, ${formatHours(s.hours)} h): ${s.description}`));
           closed.push(todoRef(id));
         }
         return ok(
@@ -245,7 +245,7 @@ export function registerZeffTools(server: McpServer): void {
             (s.ticket ? `, ticket ${s.ticket}` : "") +
             ` — "${s.description}". Not booked: the user takes it over in Zeff.` +
             (s.todos.length || s.runs.length ? ` Evidence: ${[...s.todos.map((t) => t.ref), ...s.runs.map((r) => r.ref)].join(", ")}.` : "") +
-            (closed.length ? ` Closed ${closed.join(", ")}.` : "") +
+            (closed.length ? ` Reported done (still open for you to close): ${closed.join(", ")}.` : "") +
             (unknown.length ? ` Unknown todos (not linked): ${unknown.join(", ")}.` : ""),
         );
       }),
@@ -475,7 +475,7 @@ export function registerZeffTools(server: McpServer): void {
         const mins = r.durationMs ? Math.round(r.durationMs / 60000) : args.minutes;
         return ok(
           `W-${r.run.id} finished (${r.run.outcome}) — ${mins} min recorded${r.suggestion ? ` as booking suggestion ${r.suggestion}` : ""} ("${r.run.entryLine ?? ""}"); the user takes it over in Zeff.` +
-            (r.closed.length ? ` Done: ${r.closed.map((id) => todoRef(id)).join(", ")}.` : "") +
+            (r.closed.length || r.marked.length ? ` Reported done: ${[...r.closed, ...r.marked].map((id) => todoRef(id)).join(", ")} (they stay open and are highlighted — the user closes them).` : "") +
             (r.added.length ? ` Follow-ups: ${r.added.map((id) => todoRef(id)).join(", ")}.` : "") +
             (r.delivery ? ` Delivery: ${r.delivery}.` : args.branch ? "" : " No branch given — if you changed code, tell the user which branch it's on."),
         );
@@ -486,7 +486,7 @@ export function registerZeffTools(server: McpServer): void {
     "complete_todo",
     {
       title: "Complete a board todo",
-      description: "Mark a board todo (T-<id>, see list_todos) done — or dismissed, when it doesn't apply — with a short note of what settled it.",
+      description: "Report a board todo (T-<id>, see list_todos) done, with a short note of what settled it. It stays open and is highlighted in Zeff — the user closes it. Or dismiss it, when it doesn't apply (that closes it).",
       inputSchema: z.object({
         todo: z.string().min(1).describe("The todo, e.g. 'T-12'."),
         note: z.string().optional().describe("What settled it, one short line."),
@@ -500,8 +500,8 @@ export function registerZeffTools(server: McpServer): void {
         if (off) return off;
         const id = parseTodoRef(args.todo);
         if (id === null) return fail(`"${args.todo}" isn't a todo reference like T-12.`);
-        const t = attributed("agent:MCP", () => setTodoStatus(id, args.dismiss ? "dismissed" : "done", args.note ?? null));
-        return ok(`${t.ref} (${t.ticket}) is ${t.status}: ${t.text}`);
+        const t = attributed("agent:MCP", () => (args.dismiss ? setTodoStatus(id, "dismissed", args.note ?? null) : markWorkerDone(id, "MCP", args.note ?? null)));
+        return ok(args.dismiss ? `${t.ref} (${t.ticket}) is ${t.status}: ${t.text}` : `${t.ref} (${t.ticket}) is reported done and highlighted — it stays open, the user closes it: ${t.text}`);
       }),
   );
 

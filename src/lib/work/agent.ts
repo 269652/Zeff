@@ -298,8 +298,8 @@ export async function finishAgentWork(v: {
     suggestion = `${s.ref} (${s.hours} h)`;
     note(run.id, `[Zeff] Buchung vorgeschlagen: ${suggestion} — „${s.description}“`);
   }
-  const { closed, added, dupes } = applyOutcome(getRun(run.id)!, res);
+  const { closed, marked, added, dupes } = applyOutcome(getRun(run.id)!, res);
   if (dupes?.length) note(run.id, `[Zeff] Follow-ups weggelassen — sie wiederholen ${dupes.join(", ")}; der Bericht steht am Todo.`);
   setImmediate(pump);
-  return { run: done, closed, added, durationMs, delivery, suggestion };
+  return { run: done, closed, marked, added, durationMs, delivery, suggestion };
 }

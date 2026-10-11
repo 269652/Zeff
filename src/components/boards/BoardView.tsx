@@ -536,7 +536,7 @@ export function BoardView({
   const open = todos.filter((t) => t.status === "open");
   // A ticket's todos: the open ones, then those done lately (struck through).
   // Flagged by you: on top; put down by you: below the rest (till they come back up).
-  const down = (t: TodoView) => (t.flaggedAt ? -1 : t.deferred ? 1 : 0);
+  const down = (t: TodoView) => (t.flaggedAt ? -2 : t.workerDone && t.status === "open" ? -1 : t.deferred ? 1 : 0);
   // Linked todos (the same thing on two tickets) show on both.
   const onTicket = (t: TodoView, key: string) => t.ticket === key || t.alsoTickets.includes(key);
   const byTicket = (key: string) => [
