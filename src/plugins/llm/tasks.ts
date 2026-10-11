@@ -17,6 +17,7 @@ export const llmTasks = (t: T = translator("en")) =>
     { id: "note-relations", label: t("Note matching"), what: t("Matches each todo with the notes it is about.") },
     { id: "knowledge-relations", label: t("Knowledge matching"), what: t("Picks from the knowledge base's hits what really fits each todo.") },
     { id: "people-dates", label: t("People's dates"), what: t("Finds birthdays, anniversaries and other important dates of your people in the knowledge and in your messages (People plugin).") },
+    { id: "people-normalize", label: t("People matching"), what: t("Finds who is meant by the names in your todos — one person under all their names: aliases, new profiles for contacts, duplicates merged (People plugin).") },
     { id: "reply-draft", label: t("Reply draft"), what: t("Writes the reply to a message (WhatsApp, mail, Teams) a todo is about — from the conversation.") },
     { id: "auto-actions", label: t("Auto actions"), what: t("Turns todos into ready-made actions (message, comment, mail, meeting, hand-over).") },
     { id: "worker", label: t("Worker"), what: t("Works on a todo (Work tab, ✨ To Copilot) — in the repo, with tools.") },

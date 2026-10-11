@@ -265,3 +265,51 @@ export function whatsappChats(): { name: string; messages: number; lastAt: strin
 export function rememberEntity(id: number, entityId: number): void {
   db().prepare("update people set entity_id = ? where id = ?").run(entityId, id);
 }
+
+// ---------------------------------------------------------------------------
+// One person under several names: the index texts are matched against, aliases, merging
+// ---------------------------------------------------------------------------
+
+/** Everyone, as texts (todos) are matched against — see mentions.ts. */
+export async function peopleIndex() {
+  const { buildPeopleIndex } = await import("./mentions");
+  return buildPeopleIndex(listPeople());
+}
+
+/** More names for a person (a mention found to be them): those they don't have yet. How many. */
+export function addAliases(id: number, names: string[]): number {
+  const p = getPerson(id);
+  if (!p) return 0;
+  const have = new Set(namesOf(p).map((n) => n.toLowerCase()));
+  const fresh = clean(names).filter((n) => n.length >= 2 && !have.has(n.toLowerCase()));
+  if (!fresh.length) return 0;
+  updatePerson(id, { aliases: [...p.aliases, ...fresh] });
+  return fresh.length;
+}
+
+/**
+ * Two profiles that are one person: `drop` goes into `keep` — its name and aliases become aliases,
+ * its addresses, chat, notes, dates (those not there yet) and star come along; `drop` is deleted.
+ */
+export function mergePeople(keepId: number, dropId: number): void {
+  if (keepId === dropId) return;
+  const keep = getPerson(keepId);
+  const drop = getPerson(dropId);
+  if (!keep || !drop) throw new Error(t("Unknown person."));
+  const d = db();
+  d.transaction(() => {
+    updatePerson(keep.id, {
+      aliases: clean([...keep.aliases, drop.name, ...drop.aliases, ...(drop.whatsapp && drop.whatsapp !== keep.whatsapp && keep.whatsapp ? [drop.whatsapp] : [])]).filter((a) => a.toLowerCase() !== keep.name.toLowerCase()),
+      emails: clean([...keep.emails, ...drop.emails]),
+      whatsapp: keep.whatsapp || drop.whatsapp,
+      note: [keep.note, drop.note].filter((n) => n.trim()).join("\n\n"),
+      entityId: keep.entityId ?? drop.entityId,
+      starred: keep.starred || drop.starred,
+    });
+    for (const x of datesOf(drop.id)) {
+      const { id: _id, personId: _p, ...rest } = x;
+      addDate(keep.id, rest);
+    }
+    deletePerson(drop.id);
+  })();
+}

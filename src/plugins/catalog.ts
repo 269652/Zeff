@@ -226,6 +226,8 @@ export const PLUGINS: PluginManifest[] = [
     defaultInstalled: false,
     apps: [{ href: "/personen", label: "People", short: "People", hint: "Profiles, birthdays, reminders" }],
     routes: ["/personen"],
+    // Names in todos → people (aliases, new profiles, merges): with each briefing, through the AI.
+    syncSteps: ["peoplenorm"],
   },
   {
     id: "accounts",
@@ -524,7 +526,7 @@ export const pluginById = (id: PluginId) => PLUGINS.find((p) => p.id === id)!;
  * What a sync step needs besides its own plugin — a list in the list: any of them (the Ticket-Lage reads
  * Jira or your Kanban boards, or both; without either, Todos has mails, your own, Work).
  */
-export const STEP_NEEDS: Record<string, (PluginId | PluginId[])[]> = { boards: ["llm", ["jira", "kanban"]], recap: ["llm"], mailtodos: ["todos", "llm"], relations: ["todos", "llm"], boardlage: ["jira", "llm"] };
+export const STEP_NEEDS: Record<string, (PluginId | PluginId[])[]> = { boards: ["llm", ["jira", "kanban"]], recap: ["llm"], mailtodos: ["todos", "llm"], relations: ["todos", "llm"], boardlage: ["jira", "llm"], peoplenorm: ["llm"] };
 /** All the plugins that bring a step (Mail: Outlook Mail and Gmail) — any of them installed makes it there. */
 export const pluginsOfStep = (key: string) => PLUGINS.filter((p) => p.syncSteps?.includes(key)).map((p) => p.id);
 /** All the plugins that own a page. */

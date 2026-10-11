@@ -33,6 +33,7 @@ import { RunningSpinner } from "../RunningSpinner";
 import { useAgentInstructions } from "../AgentInstructions";
 import { TodoPlan } from "./TodoPlan";
 import { TodoRefs } from "./TodoRefs";
+import { PersonText } from "@/plugins/people/PersonMention";
 import { LastError } from "./LastError";
 import { TodoQuickButtons, TodoQuickPanel, type QuickPanel } from "./TodoQuick";
 import { useTodoNew } from "./todo-seen";
@@ -91,12 +92,12 @@ export function Linked({
               {q}
             </a>
           ) : (
-            <TodoRefs key={j} text={q} />
+            <PersonText key={j} text={q} render={(s) => <TodoRefs text={s} />} />
           );
         })}
       </Fragment>
     ) : (
-      <TodoRefs key={i} text={p} />
+      <PersonText key={i} text={p} render={(s) => <TodoRefs text={s} />} />
     ),
   );
 }

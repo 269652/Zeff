@@ -359,6 +359,17 @@ const STEPS: Record<SyncKey, Step> = {
     busy: () => flag("__zeffNoteRelations"),
     schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("noterelations").lastAt, window: t("workdays, with the briefing"), workdays: true }),
   },
+  peoplenorm: {
+    get label() { return t("People matching"); },
+    href: "/personen",
+    get what() { return t("Who is meant by the names in your todos — aliases added, profiles for contacts made, duplicates merged (after each briefing)"); },
+    run: async () => {
+      const r = await (await import("@/plugins/people/normalize")).normalizePeople();
+      return r.ok ? { ok: true, message: t("{a} aliases, {c} new, {m} merged", { a: r.aliases, c: r.created, m: r.merged }) } : { ok: false, message: r.error ?? t("Failed.") };
+    },
+    busy: () => flag("__zeffPeopleNormalize"),
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("peoplenorm").lastAt, window: t("workdays, with the briefing"), workdays: true }),
+  },
   knowledgerel: {
     get label() { return t("Knowledge matching"); },
     href: "/todos",
@@ -481,7 +492,7 @@ export function startSyncAll(): { ok: boolean; message: string } {
     void (async () => {
       try {
         // The Mail-Durchsicht and -Zuordnung come with the Ticket-Lage (its last steps) — not twice.
-        for (const key of SYNC_KEYS.filter((k) => k !== "relations" && k !== "mailtodos" && k !== "autoactions" && k !== "boardlage" && k !== "knowledgerel" && k !== "notetodos" && k !== "noterelations" && stepAvailable(k))) {
+        for (const key of SYNC_KEYS.filter((k) => k !== "relations" && k !== "mailtodos" && k !== "autoactions" && k !== "boardlage" && k !== "knowledgerel" && k !== "peoplenorm" && k !== "notetodos" && k !== "noterelations" && stepAvailable(k))) {
           if (l.allStopped) break;
           l.all = key;
           await runStep(key);

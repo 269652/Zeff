@@ -9,7 +9,7 @@ import { BOARD_RESULT_SCHEMA, isAttention, TICKET_ACTION_TYPES, type BoardResult
 import { closeTodosOfDoneTickets, finishRun, getBoardSettings, lastGoodRun, reconcileTodos, startRun } from "./store";
 
 /** What a run is doing right now — one at a time across the server (actions and the scheduler are separate module copies). */
-const state = globalThis as { __zeffBoardRun?: { id: number; phase: "sync" | "jira" | "ai" | "saving" | "mailtodos" | "mails" | "notetodos" | "notes" | "knowledge" | "autoactions"; since: number; provider: string } | null };
+const state = globalThis as { __zeffBoardRun?: { id: number; phase: "sync" | "jira" | "ai" | "saving" | "mailtodos" | "mails" | "notetodos" | "notes" | "knowledge" | "people" | "autoactions"; since: number; provider: string } | null };
 
 /** The run going on in this server, and its step — null when none is. */
 export const boardRunState = () => state.__zeffBoardRun ?? null;
@@ -137,6 +137,11 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
         if (stepAvailable("knowledgerel")) {
           state.__zeffBoardRun = { id, phase: "knowledge", since: t0, provider };
           await syncAndWait("knowledgerel");
+        }
+        // The People plugin: who the names in the todos are (aliases, profiles, merges) — before the actions, which name them.
+        if (stepAvailable("peoplenorm")) {
+          state.__zeffBoardRun = { id, phase: "people", since: t0, provider };
+          await syncAndWait("peoplenorm");
         }
         throwIfAborted();
         // Last: the todos without a button get ready actions (with the mails related to them in their context).
