@@ -12,6 +12,7 @@ import { allBranchWork } from "@/lib/branches";
 import { RunPanel } from "@/components/work/RunPanel";
 import { WorkFollow } from "@/components/work/WorkFollow";
 import { WorkSettingsForm } from "@/components/work/WorkSettingsForm";
+import { ClaudeSessionSettingsForm } from "@/components/work/ClaudeSessionSettingsForm";
 import { WorkTodo } from "@/components/work/WorkTodo";
 import { attentionLabels, todoRef, type TodoView } from "@/lib/boards/shared";
 import {
@@ -27,7 +28,10 @@ import { SidebarFrame } from "@/components/SidebarFrame";
 import { SessionSidebar } from "@/components/work/SessionSidebar";
 import { NewSessionPane, SessionPane, TicketPane } from "@/components/work/SessionPanes";
 import { sessionTickets } from "@/lib/work/sessions";
-import { getRun, toRunView } from "@/lib/work/store";
+import { claudeSessionSettings, getRun, getWorkSettings, toRunView } from "@/lib/work/store";
+import { CLAUDE_MODELS } from "@/lib/ai/shared";
+import { llmChoice } from "@/plugins/llm/run";
+import { elevationAvailable } from "@/plugins/work-elevated/elevate";
 import { listRepos } from "@/lib/repos";
 import { currentLocale } from "@/lib/format";
 
@@ -84,6 +88,18 @@ export default async function WorkPage({
       providers: aiProviders()
         .filter((x) => x.found)
         .map((x) => ({ id: x.id, label: x.label })),
+      claude: (() => {
+        const cs = claudeSessionSettings();
+        return {
+          live: cs.live && isInstalled("claude-cli"),
+          defaultProvider: llmChoice("worker").provider,
+          mode: cs.mode,
+          effort: cs.effort,
+          allowBypass: cs.allowBypass,
+          models: CLAUDE_MODELS.map((m) => ({ value: m.value, label: m.label })),
+          admin: elevationAvailable(),
+        };
+      })(),
     };
     const running = tickets.reduce((n, x) => n + x.sessions.filter((x) => x.status === "running").length, 0);
     return (
@@ -186,6 +202,11 @@ export default async function WorkPage({
 
       {tab === "branches" && <BranchesTab />}
 
+      {tab === "settings" && (
+        <section className="card p-4">
+          <ClaudeSessionSettingsForm s={claudeSessionSettings()} admin={isInstalled("work-elevated")} />
+        </section>
+      )}
       {tab === "settings" && (
         <section className="card p-4">
           <WorkSettingsForm

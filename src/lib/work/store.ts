@@ -3,9 +3,11 @@ import { asc, desc, eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { emitChange } from "@/lib/events";
 import { liveView } from "@/plugins/copilot-cli/live-state";
+import { claudeLiveView } from "@/plugins/claude-cli/live";
+import { getPref, setPref } from "@/lib/prefs";
 import type { WorkRun } from "@/db/schema";
 import { getAppSettings, updateAppSettings } from "@/lib/ai";
-import { COPILOT_MODES, PERMISSION_MODES, workRef, type CopilotMode, type PermissionMode, type WorkMode, type WorkResult, type WorkRunView, type WorkSettingsView, type WorkStatus } from "./shared";
+import { CLAUDE_SESSION_DEFAULTS, COPILOT_MODES, EFFORTS, isClaudeMode, PERMISSION_MODES, workRef, type ClaudeSessionSettings, type CopilotMode, type PermissionMode, type WorkMode, type WorkResult, type WorkRunView, type WorkSettingsView, type WorkStatus } from "./shared";
 
 const { workRuns } = schema;
 
@@ -48,6 +50,30 @@ export function updateWorkSettings(patch: Partial<WorkSettingsView>): WorkSettin
   return getWorkSettings();
 }
 
+/** Live Claude sessions' settings (Work settings → Claude sessions). */
+export function claudeSessionSettings(): ClaudeSessionSettings {
+  const p = { ...CLAUDE_SESSION_DEFAULTS, ...getPref<Partial<ClaudeSessionSettings>>("workClaude", {}) };
+  return {
+    live: p.live !== false,
+    mode: isClaudeMode(p.mode) ? p.mode : CLAUDE_SESSION_DEFAULTS.mode,
+    autoMode: isClaudeMode(p.autoMode) ? p.autoMode : CLAUDE_SESSION_DEFAULTS.autoMode,
+    effort: (EFFORTS as readonly string[]).includes(p.effort) ? p.effort : "",
+    allowBypass: !!p.allowBypass,
+    askTimeoutMin: Math.min(1440, Math.max(0, Math.round(Number(p.askTimeoutMin)) || 0)),
+  };
+}
+
+export function updateClaudeSessionSettings(patch: Partial<ClaudeSessionSettings>): ClaudeSessionSettings {
+  setPref("workClaude", { ...claudeSessionSettings(), ...patch });
+  const s = claudeSessionSettings();
+  // Bypass taken back: it's no longer a mode new sessions start in.
+  if (!s.allowBypass && (s.mode === "bypassPermissions" || s.autoMode === "bypassPermissions")) {
+    setPref("workClaude", { ...s, mode: s.mode === "bypassPermissions" ? "default" : s.mode, autoMode: s.autoMode === "bypassPermissions" ? "auto" : s.autoMode });
+  }
+  emitChange("work");
+  return claudeSessionSettings();
+}
+
 const STATUSES: WorkStatus[] = ["queued", "running", "done", "failed", "cancelled", "interrupted"];
 
 export function toRunView(r: WorkRun): WorkRunView {
@@ -57,7 +83,8 @@ export function toRunView(r: WorkRun): WorkRunView {
     ticket: r.ticket,
     todoId: r.todoId,
     mode: (["code", "draft", "send", "mr", "ops", "instruct"].includes(r.mode) ? r.mode : "code") as WorkMode,
-    live: liveView(r.id) ?? null,
+    live: liveView(r.id) ?? claudeLiveView(r.id)?.live ?? null,
+    claude: claudeLiveView(r.id)?.claude ?? null,
     provider: r.provider === "copilot" || r.provider === "zeff" || r.provider === "agent" ? r.provider : "claude",
     model: r.model,
     permissionMode: r.permissionMode,
@@ -126,6 +153,11 @@ export function runsForTodos(todoIds: number[]): Map<number, WorkRunView[]> {
     out.set(r.todoId, list);
   }
   return out;
+}
+
+/** The runs of one Claude conversation (going on resumes it: the same session id), oldest first. */
+export function runsOfSession(sessionId: string): WorkRunView[] {
+  return getDb().select().from(workRuns).where(eq(workRuns.sessionId, sessionId)).orderBy(asc(workRuns.id)).all().map(toRunView);
 }
 
 /** The newest runs (all of them, for the history). */

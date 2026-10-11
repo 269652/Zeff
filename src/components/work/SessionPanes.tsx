@@ -2,20 +2,24 @@ import Link from "next/link";
 import { getTodo, listTodos } from "@/lib/boards/store";
 import { todoRef } from "@/lib/boards/shared";
 import { getTicketCards } from "@/lib/jira/store";
-import type { SessionTicket } from "@/lib/work/sessions";
-import { isActive, WORK_MODE_LABELS, WORK_STATUS_LABELS, type WorkRunView } from "@/lib/work/shared";
-import { runsForTodos } from "@/lib/work/store";
-import { LiveControls } from "./LiveControls";
-import { SessionComposer } from "./SessionComposer";
-import { SessionThread, type SessionTurn } from "./SessionThread";
-import { StopSessionButton, TodoSessionButton } from "./SessionActions";
 import { formatDateTime } from "@/lib/format";
+import { t } from "@/lib/i18n/server";
+import type { SessionTicket } from "@/lib/work/sessions";
+import { isActive, WORK_MODE_LABELS, type WorkRunView, type WorkStatus } from "@/lib/work/shared";
+import { runsForTodos } from "@/lib/work/store";
+import { ClaudeSession } from "./ClaudeSession";
+import { LiveControls } from "./LiveControls";
+import { SessionComposer, type ClaudeComposerOptions } from "./SessionComposer";
+import { SessionThread, type SessionTurn } from "./SessionThread";
+import { SessionTabs } from "./SessionWorkspace";
+import { StopSessionButton, TodoSessionButton } from "./SessionActions";
 import { SessionBranch } from "./SessionBranch";
 
-type Options = { tickets: { key: string; summary: string | null }[]; repos: { id: number; name: string; path: string }[]; providers: { id: string; label: string }[] };
+type Options = { tickets: { key: string; summary: string | null }[]; repos: { id: number; name: string; path: string }[]; providers: { id: string; label: string }[]; claude?: ClaudeComposerOptions };
 
 const when = (iso: string | null) => (iso ? formatDateTime(iso.includes("T") ? iso : `${iso.replace(" ", "T")}Z`) : "");
-const STATUS: Record<string, string> = { queued: "queued", running: "working", done: "done", failed: "failed", cancelled: "stopped", interrupted: "interrupted" };
+const statusText = (s: WorkStatus) =>
+  ({ queued: t("queued"), running: t("working"), done: t("done"), failed: t("failed"), cancelled: t("stopped"), interrupted: t("interrupted") })[s] ?? s;
 const TONE: Record<string, string> = {
   running: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200",
   queued: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
@@ -25,10 +29,18 @@ const TONE: Record<string, string> = {
   interrupted: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
 };
 
+/** What a run is doing right now, in a few words. */
+function liveStatus(r: WorkRunView): string {
+  if (r.claude) return r.claude.asks.length ? t("waits for your answer") : r.claude.host === "starting" ? t("starting") : r.live?.busy ? t("working") : t("waiting for you");
+  if (r.live) return r.live.permission ? t("asks for permission") : r.live.busy ? t("working") : t("waiting for you");
+  return statusText(r.status);
+}
+
 /**
  * A session, like a conversation in Claude Code: what it's about on top; the conversation the whole
- * height — each message of yours (a run each) and its answer, live while it works; at the bottom
- * the box for your next message, which goes on with the same conversation.
+ * height — each message of yours (a run each) and its answer, live while it works — with its
+ * changes and dev servers beside it; at the bottom a live Claude session's bar (its mode, what it
+ * asks, your next message), or the box for your next message, which goes on with the conversation.
  */
 export function SessionPane({ run, options }: { run: WorkRunView; options: Options }) {
   const todo = getTodo(run.todoId);
@@ -43,6 +55,7 @@ export function SessionPane({ run, options }: { run: WorkRunView; options: Optio
   const last = runs[runs.length - 1] ?? run;
   const active = isActive(last.status);
   const meta = [todo && todoRef(todo.id)].filter(Boolean) as string[];
+  const cost = runs.reduce((n, r) => n + (r.costUsd ?? 0), 0) + (last.claude?.costUsd && !last.costUsd ? last.claude.costUsd : 0);
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col max-lg:min-h-[80vh]">
       <header className="flex items-center gap-3 border-b border-zinc-200 pb-2.5 dark:border-zinc-800">
@@ -53,14 +66,15 @@ export function SessionPane({ run, options }: { run: WorkRunView; options: Optio
           <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-zinc-500">
             <span className={`inline-flex items-center gap-1 rounded-full px-2 py-px font-medium ${TONE[last.status] ?? ""}`}>
               {active && <span className="size-1.5 animate-pulse rounded-full bg-current" aria-hidden />}
-              {last.live ? (last.live.permission ? "asks for permission" : last.live.busy ? "working" : "waiting for you") : STATUS[last.status]}
+              {liveStatus(last)}
             </span>
+            {last.claude?.elevated && <span className="rounded bg-red-100 px-1.5 font-semibold text-red-800 dark:bg-red-950 dark:text-red-200">{t("Administrator")}</span>}
             {last.ticket ? (
               <Link href={`/work?ticket=${encodeURIComponent(last.ticket)}`} className="font-mono text-indigo-600 hover:underline dark:text-indigo-400">
                 {last.ticket}
               </Link>
             ) : (
-              <span>no ticket</span>
+              <span>{t("no ticket")}</span>
             )}
             {card?.summary && <span className="max-w-72 truncate">{card.summary}</span>}
             <SessionBranch runId={last.id} repo={last.repo} cwd={last.cwd} branch={last.branch} worktree={!!last.cwd && !!last.repo && last.cwd !== last.repo} idle={!active} />
@@ -69,30 +83,37 @@ export function SessionPane({ run, options }: { run: WorkRunView; options: Optio
                 {m}
               </span>
             ))}
+            {cost > 0 && <span>${cost.toFixed(2)}</span>}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <a href={`/api/work/${last.id}/prompt`} target="_blank" rel="noreferrer" className="btn btn-sm" title="What the worker was told">
-            Prompt
+          <a href={`/api/work/${last.id}/prompt`} target="_blank" rel="noreferrer" className="btn btn-sm" title={t("What the worker was told")}>
+            {t("Prompt")}
           </a>
           {active && <StopSessionButton runId={last.id} />}
         </div>
       </header>
-      <SessionThread turns={turns} />
-      <div className="pt-2">
-        {last.live && last.status === "running" ? (
-          <LiveControls run={last} />
-        ) : (
-          <SessionComposer
-            ticket={last.ticket}
-            continueRunId={last.id}
-            providers={options.providers}
-            busy={last.status === "queued" ? "Waiting for a free worker …" : active && last.provider !== "claude" ? "Working — you can reply once it has answered." : null}
-            placeholder="Reply …"
-            autoFocus
-          />
-        )}
-      </div>
+      <SessionTabs key={last.id} runId={last.id} git={!!last.cwd && !!last.repo} title={`${last.ticket ? `${last.ticket}: ` : ""}${todo?.text ?? ""}`.slice(0, 120)}>
+        <SessionThread turns={turns} />
+        <div className="pt-2">
+          {last.claude && last.status === "running" ? (
+            <ClaudeSession key={last.id} run={last} />
+          ) : last.live && last.status === "running" ? (
+            <LiveControls run={last} />
+          ) : (
+            <SessionComposer
+              ticket={last.ticket}
+              continueRunId={last.id}
+              continueProvider={last.provider}
+              providers={options.providers}
+              claude={options.claude}
+              busy={last.status === "queued" ? t("Waiting for a free worker …") : active && last.provider !== "claude" ? t("Working — you can reply once it has answered.") : null}
+              placeholder={t("Reply …")}
+              autoFocus
+            />
+          )}
+        </div>
+      </SessionTabs>
     </div>
   );
 }
@@ -100,15 +121,15 @@ export function SessionPane({ run, options }: { run: WorkRunView; options: Optio
 /** A ticket: what it is, its sessions, its open todos (each to hand to a worker) — and a new session on it. */
 export function TicketPane({ ticket, data, options }: { ticket: string; data: SessionTicket | undefined; options: Options }) {
   const card = ticket ? getTicketCards([ticket])[ticket.toUpperCase()] : undefined;
-  const todos = listTodos({ status: "open" }).filter((t) => (t.ticket || "") === ticket || t.alsoTickets.includes(ticket));
+  const todos = listTodos({ status: "open" }).filter((x) => (x.ticket || "") === ticket || x.alsoTickets.includes(ticket));
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col gap-4">
       <header>
         <h1 className="text-lg font-semibold">
-          <span className="font-mono">{ticket || "No ticket"}</span>
+          <span className="font-mono">{ticket || t("No ticket")}</span>
           {card?.url && (
             <a href={card.url} target="_blank" rel="noreferrer" className="ml-2 text-sm font-normal text-indigo-600 hover:underline dark:text-indigo-400">
-              open ↗
+              {t("open ↗")}
             </a>
           )}
         </h1>
@@ -117,32 +138,32 @@ export function TicketPane({ ticket, data, options }: { ticket: string; data: Se
       </header>
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
         <section className="space-y-1.5">
-          <h2 className="label">Open todos ({todos.length})</h2>
+          <h2 className="label">{t("Open todos ({n})", { n: todos.length })}</h2>
           {todos.length ? (
             <ul className="space-y-1.5">
-              {todos.map((t) => (
-                <li key={t.id} className="card flex items-start gap-3 p-3 text-sm">
-                  <Link href={`/t/${t.id}`} className="shrink-0 font-mono text-xs text-indigo-600 hover:underline dark:text-indigo-400">
-                    {todoRef(t.id)}
+              {todos.map((x) => (
+                <li key={x.id} className="card flex items-start gap-3 p-3 text-sm">
+                  <Link href={`/t/${x.id}`} className="shrink-0 font-mono text-xs text-indigo-600 hover:underline dark:text-indigo-400">
+                    {todoRef(x.id)}
                   </Link>
-                  <span className="min-w-0 flex-1">{t.text}</span>
-                  <TodoSessionButton todoId={t.id} />
+                  <span className="min-w-0 flex-1">{x.text}</span>
+                  <TodoSessionButton todoId={x.id} />
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-zinc-500">None.</p>
+            <p className="text-sm text-zinc-500">{t("None.")}</p>
           )}
         </section>
         <section className="space-y-1.5">
-          <h2 className="label">Sessions ({data?.sessions.length ?? 0})</h2>
+          <h2 className="label">{t("Sessions ({n})", { n: data?.sessions.length ?? 0 })}</h2>
           <ul className="space-y-1">
             {(data?.sessions ?? []).map((s) => (
               <li key={s.id}>
                 <Link href={`/work?run=${s.id}`} className="card flex items-center gap-3 p-2.5 text-sm hover:border-indigo-300 dark:hover:border-indigo-700">
                   <span className="font-mono text-xs text-zinc-500">{s.ref}</span>
                   <span className="min-w-0 flex-1 truncate">{s.title}</span>
-                  <span className={`rounded px-1.5 py-0.5 text-xs ${TONE[s.status] ?? ""}`}>{s.waiting ? "waiting for you" : WORK_STATUS_LABELS[s.status]}</span>
+                  <span className={`rounded px-1.5 py-0.5 text-xs ${TONE[s.status] ?? ""}`}>{s.waiting ? t("waiting for you") : statusText(s.status)}</span>
                   <span className="text-xs text-zinc-400">{when(s.at)}</span>
                 </Link>
               </li>
@@ -150,7 +171,13 @@ export function TicketPane({ ticket, data, options }: { ticket: string; data: Se
           </ul>
         </section>
       </div>
-      <SessionComposer ticket={ticket} repos={options.repos} providers={options.providers} placeholder={`New session${ticket ? ` on ${ticket}` : ""} — what should we work on?`} />
+      <SessionComposer
+        ticket={ticket}
+        repos={options.repos}
+        providers={options.providers}
+        claude={options.claude}
+        placeholder={ticket ? t("New session on {ticket} — what should we work on?", { ticket }) : t("New session — what should we work on?")}
+      />
     </div>
   );
 }
@@ -160,12 +187,14 @@ export function NewSessionPane({ options, running }: { options: Options; running
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col justify-center gap-6 pb-[12vh]">
       <div className="text-center">
-        <h1 className="text-2xl font-semibold tracking-tight">What should we work on?</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{t("What should we work on?")}</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Ask a question or give a task — on a ticket, in its repo or one you pick. Sessions run side by side{running ? ` (${running} working now)` : ""}.
+          {running
+            ? t("Ask a question or give a task — on a ticket, in its repo or one you pick. Sessions run side by side ({n} working now).", { n: running })
+            : t("Ask a question or give a task — on a ticket, in its repo or one you pick. Sessions run side by side.")}
         </p>
       </div>
-      <SessionComposer tickets={options.tickets} repos={options.repos} providers={options.providers} autoFocus />
+      <SessionComposer tickets={options.tickets} repos={options.repos} providers={options.providers} claude={options.claude} autoFocus />
     </div>
   );
 }

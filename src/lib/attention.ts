@@ -121,7 +121,17 @@ export async function listAttention(): Promise<Attention[]> {
         ? [{ key: `waiting:${l.runId}`, kind: "question", title: t("{ref} is waiting for your answer", { ref: workRef(l.runId) }), body: l.view.waiting.slice(-300), at: new Date().toISOString(), href: `/work#w-${l.runId}` }]
         : [],
   );
+  // Live Claude sessions: what they ask (a permission, a plan, a question), and a finished turn waiting for your next message.
+  const { claudeLives, claudeLiveView, askTitle } = await import("@/plugins/claude-cli/live");
+  const claude = [...claudeLives.keys()].flatMap((runId): Attention[] => {
+    const v = claudeLiveView(runId);
+    if (!v) return [];
+    const ask = v.claude.asks[0];
+    if (ask) return [{ key: `claude-ask:${runId}:${ask.requestId}`, kind: "question", title: `${workRef(runId)} asks you`, body: `${askTitle(ask)}${v.live.permission?.detail ? ` — ${v.live.permission.detail}` : ""}`, at: ask.at, href: `/work?run=${runId}` }];
+    if (v.live.waiting !== null && v.claude.conversation) return [{ key: `claude-turn:${runId}:${v.claude.costUsd.toFixed(4)}`, kind: "question", title: `${workRef(runId)} is waiting for you`, body: (v.live.waiting || "Its turn is done.").slice(-300), at: new Date().toISOString(), href: `/work?run=${runId}` }];
+    return [];
+  });
   // Sign-ins only for what's installed (an uninstalled plugin's request is moot).
   const { serviceAvailable } = await import("@/plugins/state");
-  return [...[...store.values()].filter((a) => !a.service || serviceAvailable(a.service)), ...questions, ...live];
+  return [...[...store.values()].filter((a) => !a.service || serviceAvailable(a.service)), ...questions, ...live, ...claude];
 }

@@ -147,12 +147,18 @@ export type WorkLogLine =
   | { k: "start"; text: string; /** The model that answers, as the CLI reports it. */ model?: string }
   /** The worker's own words. */
   | { k: "say"; text: string }
-  /** A message of yours while it was working (the first message is the run's prompt, shown as the question). */
-  | { k: "you"; text: string }
-  /** A tool call, in short ("Bash", "npm test"). */
-  | { k: "tool"; tool: string; text: string }
-  /** A tool's result (errors and short ones). */
-  | { k: "out"; text: string; error?: boolean }
+  /** A message of yours while it was working (the first message is the run's prompt, shown as the question) — with how many images. */
+  | { k: "you"; text: string; images?: number }
+  /** A tool call, in short ("Bash", "npm test") — with what it changes (an edit's old and new text, a written file) or its whole input. */
+  | { k: "tool"; tool: string; text: string; diff?: { old: string; new: string }[]; detail?: string }
+  /** A tool's result (errors and short ones) — the whole output to unfold. */
+  | { k: "out"; text: string; error?: boolean; full?: string }
+  /** It asked you (a permission, its plan, a question) — and what you answered. */
+  | { k: "ask"; text: string; answer?: string; ok?: boolean }
+  /** A command you ran in its folder (!cmd), as it went along with your message. */
+  | { k: "shell"; cmd: string; text: string; ok: boolean }
+  /** What happened to the session (mode switched, model set, stopped, restarted). */
+  | { k: "note"; text: string }
   /** Refused by the permission mode. */
   | { k: "deny"; text: string }
   | { k: "end"; text: string; ok: boolean }
@@ -163,6 +169,8 @@ export type WorkLogLine =
 export type WorkRunView = {
   /** A live (interactive) session: its mode, whether it works, what it asks of you. */
   live: import("@/plugins/copilot-cli/live-state").LiveView | null;
+  /** A live Claude session (more than a Copilot one: its asks, models, commands). */
+  claude: ClaudeLiveView | null;
   id: number;
   ref: string;
   ticket: string;
@@ -215,6 +223,86 @@ export const permissionModeInfo = (t: T): Record<PermissionMode, { label: string
 });
 
 export type WorkIsolation = "worktree" | "checkout";
+
+/**
+ * A live Claude session's permission modes (Claude Code's, switchable while it runs): what it may
+ * do without asking — and what it asks you on the Work tab. "default" is Claude Code's "ask".
+ */
+export const CLAUDE_MODES = ["default", "acceptEdits", "auto", "plan", "dontAsk", "bypassPermissions"] as const;
+export type ClaudeMode = (typeof CLAUDE_MODES)[number];
+export const CLAUDE_MODE_INFO: Record<ClaudeMode, { label: string; hint: string }> = {
+  default: { label: "Ask", hint: "Reads freely; asks you before every edit and every command that isn't allowed yet." },
+  acceptEdits: { label: "Edits", hint: "File edits without asking; commands still ask." },
+  auto: { label: "Auto", hint: "Claude's classifier allows what's safe and asks you only when it would block — runs on its own, you step in when needed." },
+  plan: { label: "Plan", hint: "Looks around and plans, changes nothing — you approve the plan, then it carries it out." },
+  dontAsk: { label: "Don't ask", hint: "Never asks: what isn't allowed yet is refused. For runs nobody watches." },
+  bypassPermissions: { label: "Bypass", hint: "Everything allowed, no checks at all — only where nothing can go wrong (a worktree, a sandbox)." },
+};
+export const isClaudeMode = (v: unknown): v is ClaudeMode => typeof v === "string" && (CLAUDE_MODES as readonly string[]).includes(v);
+
+/** Claude's effort levels ("": the model's default). */
+export const EFFORTS = ["", "low", "medium", "high", "xhigh", "max"] as const;
+export type Effort = (typeof EFFORTS)[number];
+
+/** How a session is started — the composer's choices (the rest from the Work settings). */
+export type SessionOptions = {
+  permissionMode?: ClaudeMode;
+  model?: string;
+  effort?: Effort;
+  /** As administrator (Windows; the "Admin sessions" plugin). */
+  elevated?: boolean;
+};
+
+/** The Work tab's settings for live Claude sessions (a pref, not columns). */
+export type ClaudeSessionSettings = {
+  /** Claude workers as live sessions (talk to them, answer them) — off: one-shot runs as before. */
+  live: boolean;
+  /** The mode new sessions start in, and the one runs Zeff starts on its own (todos, Auto-Aktionen) start in. */
+  mode: ClaudeMode;
+  autoMode: ClaudeMode;
+  effort: Effort;
+  /** Bypass may be picked (--allow-dangerously-skip-permissions). */
+  allowBypass: boolean;
+  /** A question nobody answers in a run Zeff started on its own: refused after this many minutes (0: it waits). */
+  askTimeoutMin: number;
+};
+export const CLAUDE_SESSION_DEFAULTS: ClaudeSessionSettings = { live: true, mode: "default", autoMode: "auto", effort: "", allowBypass: false, askTimeoutMin: 0 };
+
+/** Something a live Claude session asks you: a permission, its plan, a question. */
+export type ClaudeAsk = {
+  requestId: string;
+  tool: string;
+  /** What it wants to do — the tool's input (Bash: command; Edit: file, old and new text …). */
+  input: Record<string, unknown>;
+  /** Claude's own words for it, and why it asks. */
+  description: string | null;
+  reason: string | null;
+  /** The rules "allow always" would add (Claude's suggestions). */
+  suggestions: unknown[];
+  at: string;
+};
+
+/** A live Claude session as the pages see it. */
+export type ClaudeLiveView = {
+  sessionId: string | null;
+  model: string | null;
+  models: { value: string; label: string; efforts: string[] }[];
+  effort: Effort;
+  elevated: boolean;
+  /** Its slash commands and skills (/name). */
+  commands: { name: string; description: string; hint: string }[];
+  /** The host process: up, starting (an admin session waits for UAC), down (Zeff restarting it). */
+  host: "up" | "starting" | "down";
+  /** A conversation (you end it) — or a task Zeff ends when its result comes. */
+  conversation: boolean;
+  asks: ClaudeAsk[];
+  /** Turns sent and not answered yet (a message sent while it works waits its turn). */
+  queued: number;
+  costUsd: number;
+  /** Shell commands (!cmd) run since your last message — they go along with the next one. */
+  shellPending: number;
+  allowBypass: boolean;
+};
 
 /** How Copilot workers run: a live session asking you (interactive), one allowed everything (autopilot), or a one-shot run (headless). */
 export const COPILOT_MODES = ["interactive", "autopilot", "headless"] as const;
