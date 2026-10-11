@@ -47,8 +47,9 @@ export async function answerAttachmentOfferAction(answer: "on" | "later"): Promi
 }
 
 /**
- * “Fetch attachments now”: the mails the list flagged in the last days. Mails read before the list
- * could say whether they have attachments are read again first (the Mail sync, two months).
+ * “Fetch attachments now”: starts the run in the background and answers at once — it can take
+ * minutes (the Mail sync first when mails were read before the list could flag attachments, then
+ * the mails one by one); the page follows its progress (GET /api/mail-attachments).
  */
 export async function fetchAttachmentsNowAction(): Promise<ActionState> {
   try {
@@ -57,15 +58,25 @@ export async function fetchAttachmentsNowAction(): Promise<ActionState> {
     const { attachmentSettings, unknownAttachmentMails } = await import("@/lib/mail/attachments-store");
     const s = attachmentSettings();
     if (!s.enabled) return { ok: false, error: t("Turn on “Take attachments into Documents” first.") };
-    if (unknownAttachmentMails(Math.min(s.days, 60)) > 0) {
-      const { syncAndWait } = await import("@/lib/sync/registry");
-      await syncAndWait("mail");
-    }
-    const { fetchMailAttachments } = await import("@/lib/mail/attachments-sync");
-    const r = await fetchMailAttachments({ manual: true });
-    revalidateAll();
-    if (r.error && !r.documents) return { ok: false, error: r.message };
-    return { ok: true, message: r.message || t("No new attachments.") };
+    const { attachmentProgress, fetchMailAttachments, setAttachmentProgress } = await import("@/lib/mail/attachments-sync");
+    if (attachmentProgress().running) return { ok: false, error: t("Attachments are already being fetched.") };
+    const { inThisAccount } = await import("@/db/accounts");
+    const needsSync = unknownAttachmentMails(Math.min(s.days, 60)) > 0;
+    setAttachmentProgress({ running: true, held: true, phase: needsSync ? "mail" : "attachments", mailsDone: 0, mailsTotal: 0, documents: 0, failed: 0 });
+    // Not awaited: the run goes on after this answer (in this account).
+    void inThisAccount(async () => {
+      try {
+        if (needsSync) await (await import("@/lib/sync/registry")).syncAndWait("mail");
+        const r = await fetchMailAttachments({ manual: true });
+        if (!r.ran) setAttachmentProgress({ last: { at: new Date().toISOString(), ok: !r.error, message: r.message || t("No new attachments.") } });
+      } catch (e) {
+        setAttachmentProgress({ last: { at: new Date().toISOString(), ok: false, message: errorMessage(e).slice(0, 300) } });
+      } finally {
+        setAttachmentProgress({ running: false, held: false, phase: "" });
+        revalidateAll();
+      }
+    });
+    return { ok: true, message: t("Started — it goes on in the background.") };
   } catch (e) {
     return { ok: false, error: errorMessage(e) };
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { answerAttachmentOfferAction, fetchAttachmentsNowAction, saveAttachmentSettingsAction } from "@/app/mail-attachment-actions";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
@@ -40,25 +40,83 @@ export function MailAttachmentsOffer() {
   );
 }
 
-/** “Fetch attachments now” — a button on the Messages page and in the settings. */
-export function FetchAttachmentsButton({ className = "btn btn-sm" }: { className?: string }) {
+type Progress = { running: boolean; phase: "" | "mail" | "attachments"; mailsDone: number; mailsTotal: number; documents: number; failed: number; last: { at: string; ok: boolean; message: string } | null };
+
+/**
+ * “Fetch attachments now” — a button on the Messages page and in the settings. The run goes on
+ * in the background (minutes); the button follows it: disabled while it runs (also when it was
+ * started elsewhere — by a sync, in another tab), "3 / 15 mails" as it goes, and the result as a
+ * message when it ends.
+ */
+export function FetchAttachmentsButton({ className = "btn btn-sm", short = false }: { className?: string; short?: boolean }) {
   const t = useT();
   const router = useRouter();
-  const [pending, start] = useTransition();
+  const [progress, setProgress] = useState<Progress | null>(null);
+  // Clicked, the run not yet reported by the server: the button is shut at once.
+  const [starting, setStarting] = useState(false);
+  const wasRunning = useRef(false);
+  const lastSeen = useRef<string | null>(null);
+
+  // What the server says: once now (a run may be going), then every 1.5 s while one is.
+  useEffect(() => {
+    let stop = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = async () => {
+      try {
+        const p = (await fetch("/api/mail-attachments", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null))) as Progress | null;
+        if (stop || !p) return;
+        setProgress(p);
+        if (p.running) wasRunning.current = true;
+        else if (wasRunning.current) {
+          // It just ended: say how, once.
+          wasRunning.current = false;
+          setStarting(false);
+          if (p.last && p.last.at !== lastSeen.current) toast(p.last.message, { tone: p.last.ok ? "ok" : "error" });
+          router.refresh();
+        }
+        if (p.last) lastSeen.current = p.last.at;
+        timer = setTimeout(poll, p.running || starting ? 1500 : 8000);
+      } catch {
+        timer = setTimeout(poll, 8000);
+      }
+    };
+    void poll();
+    return () => {
+      stop = true;
+      clearTimeout(timer);
+    };
+  }, [router, starting]);
+
+  const running = !!progress?.running || starting;
+  const label = !running
+    ? short
+      ? t("Get attachments")
+      : t("Fetch attachments now")
+    : progress?.phase === "attachments" && progress.mailsTotal > 0
+      ? t("Attachments {done} / {total}", { done: progress.mailsDone, total: progress.mailsTotal })
+      : progress?.phase === "mail"
+        ? t("Reading mails …")
+        : t("Fetching attachments …");
   return (
     <button
       type="button"
       className={className}
-      disabled={pending}
-      onClick={() =>
-        start(async () => {
-          const r = await fetchAttachmentsNowAction();
-          toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("That didn't work.")), { tone: r?.ok ? "ok" : "error" });
-          router.refresh();
-        })
-      }
+      disabled={running}
+      aria-busy={running}
+      title={running && progress?.documents ? t("{n} attachments taken into Documents so far", { n: progress.documents }) : undefined}
+      onClick={async () => {
+        setStarting(true);
+        wasRunning.current = true;
+        const r = await fetchAttachmentsNowAction().catch(() => null);
+        if (!r?.ok) {
+          setStarting(false);
+          wasRunning.current = false;
+          toast(r?.error ?? t("That didn't work."), { tone: "error" });
+        }
+      }}
     >
-      {pending ? t("Fetching attachments …") : t("Fetch attachments now")}
+      {running && <span className="mr-1.5 inline-block size-3 animate-spin rounded-full border-2 border-current border-t-transparent align-[-1px]" aria-hidden />}
+      {label}
     </button>
   );
 }
