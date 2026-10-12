@@ -1,4 +1,4 @@
-import { parseFeed } from "./feed";
+import { decodeBody, parseFeed } from "./feed";
 import { fetchArticle, type Article } from "./reader";
 import { addItems, dueForFetch, fetchState, getPrefs, listSources, pauseDisliked, prune, recordFetch, rescore, setContent, setFetchState, UNREADABLE, withoutContent } from "./store";
 import { tokens, topicFeedUrl, type ProfileTerm } from "./shared";
@@ -25,6 +25,10 @@ export type NewsSyncDeps = {
   discoverFeeds?: () => Promise<number>;
   /** Looks for new feeds because fresh news run low (default: the low-news discovery, when it is on). */
   discoverWhenLow?: () => Promise<number>;
+  /** Fetch every due source, not just this round's share (a refresh by hand). */
+  all?: boolean;
+  /** Fetch only these sources (the ones a refresh just added). */
+  onlyIds?: number[];
   /** (internal) the round after a discovery fetches the new feeds and doesn't search again. */
   noLow?: boolean;
   /** After the sync: the AI overview (default: when the preference is on). */
@@ -47,7 +51,7 @@ const defaultFetchFeed = async (url: string): Promise<{ text: string | null }> =
   if (r.status === 304) return { text: null };
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   setFetchState(url, r.headers.get("etag"), r.headers.get("last-modified"));
-  return { text: (await r.text()).slice(0, 4_000_000) };
+  return { text: await decodeBody(r) };
 };
 
 /** The words your open todos are about: the ones that come up, 5+ letters. */
@@ -100,7 +104,8 @@ export async function syncNews(deps: NewsSyncDeps = {}): Promise<{ ok: boolean; 
   // A round fetches a part of the feeds: the ones fetched longest ago (never fetched first), `perRun` of them — a steady trickle
   // of new things all day instead of one wave; the rest are next in line.
   const due = listSources().filter((s) => s.enabled && dueForFetch(s, (deps.now ?? Date.now)()));
-  const sources = [...due].sort((a, b) => (a.lastAt ?? "").localeCompare(b.lastAt ?? "")).slice(0, Math.max(10, getPrefs().perRun));
+  const wanted = deps.onlyIds ? due.filter((s) => deps.onlyIds!.includes(s.id)) : due;
+  const sources = deps.all || deps.onlyIds ? wanted : [...wanted].sort((a, b) => (a.lastAt ?? "").localeCompare(b.lastAt ?? "")).slice(0, Math.max(10, getPrefs().perRun));
   const topics = prefs.topicSearch ? [...prefs.interests].sort((a, b) => b.weight - a.weight).slice(0, 8) : [];
   if (!sources.length && !topics.length) return { ok: true, message: "No sources and no interests yet — add some under Settings → News." };
 
@@ -152,7 +157,11 @@ export async function syncNews(deps: NewsSyncDeps = {}): Promise<{ ok: boolean; 
   // What each headline is about: the corpus tagger always, the AI (when there is one) for a batch of the best unseen ones.
   try {
     (await import("./retag")).retagAll();
-    await (deps.aiTags ?? (async () => void (await (await import("./retag")).aiTagBatch())))();
+    await (deps.aiTags ?? (async () => {
+      const { aiTagBatch } = await import("./retag");
+      // Two batches a round (about 80 headlines) when there is that much untagged.
+      for (let i = 0; i < 2; i++) if (!(await aiTagBatch())) break;
+    }))();
   } catch {
     // tags are a bonus; the sync goes on
   }
@@ -169,7 +178,13 @@ export async function syncNews(deps: NewsSyncDeps = {}): Promise<{ ok: boolean; 
   let foundLow = 0;
   if (!deps.noLow) {
     try {
-      foundLow = await (deps.discoverWhenLow ?? (async () => (await import("./auto-discover")).discoverWhenLow()))();
+      // The catalog first (checked feeds, at once), then the internet search.
+      foundLow = await (deps.discoverWhenLow ?? (async () => {
+        const { unseenCount } = await import("./store");
+        const { LOW_UNSEEN, discoverWhenLow } = await import("./auto-discover");
+        if (!getPrefs().autoDiscover || unseenCount(getPrefs().maxAgeDays) >= LOW_UNSEEN) return 0;
+        return (await import("./expand")).expandWhenLow() || discoverWhenLow();
+      }))();
     } catch {
       // finding is a bonus
     }

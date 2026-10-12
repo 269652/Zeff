@@ -60,6 +60,13 @@ export const GAZETTEER: Map<string, Entry> = (() => {
   return m;
 })();
 
+/** All spellings (lower-case) of a canonical name: itself and its aliases. */
+export function aliasesOf(name: string): string[] {
+  const out = new Set<string>([name.toLowerCase()]);
+  for (const [k, e] of GAZETTEER) if (e.name.toLowerCase() === name.toLowerCase()) out.add(k);
+  return [...out];
+}
+
 /** The longest gazetteer phrase length in words (for the scan). */
 export const GAZETTEER_MAX_WORDS = Math.max(...[...GAZETTEER.keys()].map((k) => k.split(" ").length));
 

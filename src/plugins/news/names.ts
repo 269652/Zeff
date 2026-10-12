@@ -13,7 +13,7 @@ export const FIRST_NAMES = new Set(
 
 /** Last words that make a run an organisation, place or event. */
 export const ORG_SUFFIX = new Set(
-  `bank ag gmbh se kg inc corp corporation group holding partei fraktion verband institut universität hochschule university college museum theater theatre festival messe ministerium amt bundesamt gericht kammer stiftung verein club klub fc sv sc city united airlines air motors tech labs lab systems software media news times post zeitung allianz union konzern gruppe werke werk bahn netz kommission rat ausschuss parlament regierung akademie schule klinik klinikum krankenhaus flughafen hafen stadion arena cup liga league open prize preis award gipfel konferenz summit treffen`
+  `bank ag gmbh se kg inc corp corporation holding partei fraktion verband institut universität hochschule university college museum theater theatre festival messe ministerium amt bundesamt gericht kammer stiftung verein club klub fc sv sc city airlines motors zeitung allianz konzern gruppe werke bahn kommission ausschuss parlament akademie klinik klinikum krankenhaus flughafen stadion arena cup liga league gipfel konferenz summit`
     .split(/\s+/)
     .filter(Boolean),
 );

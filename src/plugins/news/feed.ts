@@ -66,6 +66,22 @@ function itemImage(block: string): string {
   return imageUrl(html.match(/<img\b[^>]*?\bsrc=["']([^"']+)["']/i)?.[1]);
 }
 
+/**
+ * A response's text in its own charset: from the Content-Type, else the XML declaration or a meta tag, else UTF-8 (a feed in
+ * ISO-8859-1 read as UTF-8 turns every umlaut into "�").
+ */
+export async function decodeBody(res: { arrayBuffer(): Promise<ArrayBuffer>; headers: { get(name: string): string | null } }, max = 4_000_000): Promise<string> {
+  const buf = new Uint8Array(await res.arrayBuffer()).slice(0, max);
+  const header = /charset=["']?([\w-]+)/i.exec(res.headers.get("content-type") ?? "")?.[1];
+  const head = new TextDecoder("latin1").decode(buf.slice(0, 400));
+  const declared = header ?? /encoding=["']([\w-]+)["']/i.exec(head)?.[1] ?? /<meta[^>]+charset=["']?([\w-]+)/i.exec(head)?.[1] ?? "utf-8";
+  try {
+    return new TextDecoder(declared.toLowerCase()).decode(buf);
+  } catch {
+    return new TextDecoder("utf-8").decode(buf);
+  }
+}
+
 /** The text of the first <tag> in a block (namespaces allowed: dc:date, content:encoded). */
 function tag(block: string, name: string): string {
   const m = block.match(new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)</${name}>`, "i"));

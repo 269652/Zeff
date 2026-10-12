@@ -28,7 +28,8 @@ const GENERIC = new Set(
    monday tuesday wednesday thursday friday saturday sunday january february march april may june july august september october november december president minister chancellor prime
    el la los las una uno del por para con que como más pero también
    chance folgen rechte recht union problem probleme nutzer gefahr angriffe angriff entwicklungen entwicklung minuten minute nacht grad kritik punkt partei parteien gewalt netz download wirtschaft politik kultur gesellschaft sport preis preise ergebnis ergebnisse lage situation woche wochen
-   anzeige anzeigen sponsored werbung geschichte geschichten podcast folge episode episodes tipps tipp mitte published oct nov dec jan feb sep aug jul jun apr mar on in at of to by is it as an or if so up we
+   tool tools using use used build built make makes made get gets getting best top worst why how what rival labs lab tips guide guides review reviews
+   mitte published oct nov dec jan feb sep aug jul jun apr mar on in at of to by is it as an or if so up we
    mann frau mal teil seit dass bis weil wenn dabei damit dazu davon daran darauf worauf zwischen während trotz wegen laut nur sehr ganz viele vielen einige mehrere`
     .split(/\s+/)
     .filter(Boolean),
@@ -131,8 +132,8 @@ function candidates(text: string, inTitle: boolean): Cand[] {
         else if (rest[0].raw.length >= 4) add(rest[0].raw, "word", 1);
         if (run[0].raw.length >= 4) add(run[0].raw, "word", 0.8);
       }
-    } else if (run.length === 1 && !GENERIC.has(run[0].lower) && run[0].raw.length >= 4) add(run[0].raw, "word", run[0].start ? 0.8 : 1);
-    else if (run.length >= 2) for (const w of run) if (!GENERIC.has(w.lower) && w.raw.length >= 4) add(w.raw, "word", w.start ? 0.8 : 1);
+    } else if (run.length === 1 && !GENERIC.has(run[0].lower) && run[0].raw.length >= 4 && !titleCase) add(run[0].raw, "word", run[0].start ? 0.8 : 1);
+    else if (run.length >= 2 && !titleCase) for (const w of run) if (!GENERIC.has(w.lower) && w.raw.length >= 4) add(w.raw, "word", w.start ? 0.8 : 1);
     i = j;
   }
   // 3. Acronyms.

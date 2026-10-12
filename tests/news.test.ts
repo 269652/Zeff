@@ -889,3 +889,91 @@ test("tags are stored and shown: the corpus tagger after a sync, the AI's replac
   s.setPrefs({ aiTags: false });
   assert.equal(await aiTagBatch({ ask: async () => ({ items: [] }) }), 0, "off: nothing is sent");
 });
+
+test("a feed in ISO-8859-1 keeps its umlauts (charset from the header, else the XML declaration); a chip's topic finds items by tag and by the spellings it knows", async () => {
+  const { decodeBody } = await import("@/plugins/news/feed");
+  const latin1 = new Uint8Array([...Buffer.from('<?xml version="1.0" encoding="ISO-8859-1"?><rss><channel><item><title>K', "latin1"), 0xfc, ...Buffer.from("nstliche Intelligenz f", "latin1"), 0xfc, ...Buffer.from("r alle</title><link>https://x.example/1</link></item></channel></rss>", "latin1")]);
+  const res = (type: string) => ({ arrayBuffer: async () => latin1.buffer.slice(latin1.byteOffset, latin1.byteOffset + latin1.byteLength) as ArrayBuffer, headers: { get: () => type } });
+  assert.match(await decodeBody(res("")), /Künstliche Intelligenz für alle/, "from the XML declaration");
+  assert.match(await decodeBody(res("text/xml; charset=iso-8859-1")), /Künstliche Intelligenz für alle/, "from the header");
+  const utf8 = Buffer.from("<title>Künstliche</title>", "utf8");
+  assert.match(await decodeBody({ arrayBuffer: async () => utf8.buffer.slice(utf8.byteOffset, utf8.byteOffset + utf8.byteLength) as ArrayBuffer, headers: { get: () => "text/xml" } }), /Künstliche/);
+
+  const s = await import("@/plugins/news/store");
+  for (const x of s.listSources()) s.removeSource(x.id);
+  await wipe();
+  const src = s.addSource({ name: "KI", url: "https://ki.example/rss" });
+  const now = new Date().toISOString();
+  s.addItems({ id: src.id, name: "KI" }, [
+    { guid: "1", url: "https://ki.example/1", title: "KI schreibt jetzt Code", summary: "", publishedAt: now },
+    { guid: "2", url: "https://ki.example/2", title: "OpenAI zeigt neues Modell", summary: "", publishedAt: now },
+    { guid: "3", url: "https://ki.example/3", title: "Wie Artificial Intelligence den Alltag verändert", summary: "", publishedAt: now },
+    { guid: "4", url: "https://ki.example/4", title: "Wetter: Sonne am Wochenende", summary: "", publishedAt: now },
+  ]);
+  s.setTags([{ id: s.listItems({ view: "latest", sourceId: src.id }).find((i) => /OpenAI/.test(i.title))!.id, tags: ["OpenAI", "Künstliche Intelligenz"], src: "ai" }]);
+  const found = s.listItems({ view: "latest", term: "Künstliche Intelligenz" }).map((i) => i.title);
+  assert.ok(found.some((t) => /OpenAI/.test(t)), "by its tag");
+  assert.ok(found.some((t) => /Artificial Intelligence/.test(t)), "by a spelling the gazetteer knows");
+  assert.ok(!found.some((t) => /Wetter/.test(t)));
+});
+
+test("more sources from the catalog when fresh news run short: your language and interests first, outlets before searches, never one you have", async () => {
+  const { pickFromCatalog, expandFromCatalog } = await import("@/plugins/news/expand");
+  const feeds = [
+    { category: "World", name: "Tagesschau", url: "https://c.example/tagesschau", lang: "de" },
+    { category: "World", name: "Some Daily", url: "https://c.example/daily", lang: "fr" },
+    { category: "Tech", name: "Ars Technica", url: "https://c.example/ars", lang: "en" },
+    { category: "Topics", name: "Google News · Segeln", url: "https://c.example/segeln", lang: "de" },
+    { category: "Topics", name: "Google News · Kochen", url: "https://c.example/kochen", lang: "de" },
+    { category: "Science", name: "Spektrum", url: "https://c.example/spektrum", lang: "de" },
+  ];
+  const picks = pickFromCatalog(new Set(["https://c.example/spektrum"]), { language: "de", interests: [{ term: "Segeln", weight: 2 }] }, [], 3, feeds).map((f) => f.name);
+  assert.deepEqual(picks.slice(0, 2).sort(), ["Google News · Segeln", "Tagesschau"].sort(), `interest search and a German outlet first: ${picks}`);
+  assert.ok(!picks.includes("Spektrum"), "one you have isn't picked");
+  assert.ok(picks.indexOf("Some Daily") === -1 || picks.indexOf("Some Daily") > picks.indexOf("Ars Technica"), "other languages last");
+  const s = await import("@/plugins/news/store");
+  for (const x of s.listSources()) s.removeSource(x.id);
+  const r = expandFromCatalog(5, feeds);
+  assert.equal(r.added, 5);
+  assert.equal(r.left, 1);
+  assert.equal(expandFromCatalog(5, feeds).added, 1, "the rest, then nothing");
+  assert.equal(expandFromCatalog(5, feeds).added, 0);
+});
+
+test("Refresh: every source is fetched; with fewer than 200 unseen cards sources are added (catalog, then the search) and fetched until there are enough — or none are left", async () => {
+  const s = await import("@/plugins/news/store");
+  const { startRefresh, getRefreshStatus } = await import("@/plugins/news/refresh");
+  for (const x of s.listSources()) s.removeSource(x.id);
+  await wipe();
+  s.setPrefs({ interests: [], mutes: [], autoDiscover: false });
+  const src = s.addSource({ name: "Base", url: "https://refresh.example/base" });
+  let n = 0;
+  const addItems = (count: number) => s.addItems({ id: src.id, name: "Base" }, Array.from({ length: count }, () => (n++, { guid: `r${n}`, url: `https://refresh.example/${n}`, title: `Frische Meldung ${n} aus aller Welt ${"x".repeat(n % 7)}`, summary: "", publishedAt: new Date().toISOString() })));
+  const calls: string[] = [];
+  let expands = 0;
+  const { promise } = startRefresh({
+    target: 200,
+    sync: async (d) => {
+      calls.push(d.onlyIds ? `only:${d.onlyIds.length}` : d.all ? "all" : "round");
+      addItems(d.all ? 60 : 70);
+      return { ok: true, message: "" };
+    },
+    expand: () => (++expands <= 2 ? (s.addSource({ name: `New${expands}`, url: `https://refresh.example/new${expands}` }), { added: 1, left: 5 }) : { added: 0, left: 0 }),
+    discover: async () => 0,
+  });
+  assert.equal(getRefreshStatus().running, true);
+  assert.equal(startRefresh({ sync: async () => ({ ok: true, message: "" }) }).status.running, true, "one at a time");
+  const done = await promise;
+  assert.equal(done.running, false);
+  assert.deepEqual(calls, ["all", "only:1", "only:1"], "all sources first, then only the added ones, each round");
+  assert.equal(done.sourcesAdded, 2);
+  assert.ok(done.unseen >= 200, `unseen ${done.unseen}`);
+  assert.match(done.message, /200 new items, 2 sources added — 200 unseen cards$/);
+
+  // Nothing to add: it stops and says so.
+  await wipe();
+  const calls2: string[] = [];
+  const r2 = await startRefresh({ target: 200, sync: async (d) => (calls2.push(d.all ? "all" : "only"), addItems(20), { ok: true, message: "" }), expand: () => ({ added: 0, left: 0 }), discover: async () => 0 }).promise;
+  assert.deepEqual(calls2, ["all"]);
+  assert.match(r2.message, /20 new items — 20 unseen cards \(the sources have no more fresh news right now\)/);
+});

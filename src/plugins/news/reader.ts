@@ -1,4 +1,4 @@
-import { decodeEntities, stripHtml } from "./feed";
+import { decodeBody, decodeEntities, stripHtml } from "./feed";
 
 /**
  * The reader: an article's page → its text (paragraphs, no HTML) and picture, so it can be read in Zeff without
@@ -60,7 +60,7 @@ export type ReaderDeps = {
 const defaultFetch: NonNullable<ReaderDeps["fetchText"]> = async (url, init) => {
   const r = await fetch(url, { method: init?.method ?? "GET", body: init?.body, headers: { "user-agent": UA, "accept-language": "de,en;q=0.8", ...(init?.headers ?? {}) }, signal: AbortSignal.timeout(20000), redirect: "follow" });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return { text: (await r.text()).slice(0, 3_000_000), url: r.url, type: r.headers.get("content-type") ?? "" };
+  return { text: await decodeBody(r, 3_000_000), url: r.url, type: r.headers.get("content-type") ?? "" };
 };
 
 /** news.google.com/rss/articles/<id> → the publisher's address (Google's own batchexecute call, as its page makes). */

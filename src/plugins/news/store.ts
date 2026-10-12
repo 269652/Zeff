@@ -3,6 +3,7 @@ import { getPref, setPref } from "@/lib/prefs";
 import { DEFAULT_PREFS, diversify, normalizeUrl, scoreItem, snippetOf, titleKey, tokens, type NewsItem, type NewsPrefs, type NewsSource, type NewsState, type ScoreContext } from "./shared";
 import type { FeedItem } from "./feed";
 import { keyTerms, type ExploreItem } from "./explore-core";
+import { aliasesOf } from "./gazetteer";
 
 /**
  * News: the sources, the items fetched from them, what you made of them (read, saved, hidden, liked,
@@ -153,6 +154,11 @@ export function pauseDisliked(threshold = -3): string[] {
   return rows.map((r) => r.name);
 }
 
+/** How many items there are (all of them). */
+export function countItems(): number {
+  return (db().prepare("select count(*) n from news_items").get() as { n: number }).n;
+}
+
 /** How many unseen, visible items there are (what is left to read before the feed runs dry). */
 export function unseenCount(maxAgeDays: number): number {
   return (db().prepare("select count(*) n from news_items i left join news_sources s on s.id = i.source_id where i.seen_at is null and i.state = 'new' and i.score > -50 and i.published_at > ? and (i.source_id is null or s.enabled = 1)").get(new Date(Date.now() - maxAgeDays * 864e5).toISOString()) as { n: number }).n;
@@ -257,9 +263,13 @@ export function listItems(opts: { view?: NewsView; sourceId?: number; category?:
     args.push(opts.story);
   }
   if (opts.term) {
-    // About a thing (Explore): its words in the headline or the summary.
-    where.push("(lower(i.title) like ? or lower(i.summary) like ?)");
-    args.push(`%${opts.term.toLowerCase()}%`, `%${opts.term.toLowerCase()}%`);
+    // About a thing (Explore, a card's chip): items tagged with it, or naming it (or a spelling the gazetteer knows: KI, AI → Künstliche
+    // Intelligence) in the headline or summary. Short spellings are only matched through the tags — "ki" is in half of all words.
+    const spellings = aliasesOf(opts.term).filter((a) => a.length >= 5);
+    if (!spellings.length) spellings.push(opts.term.toLowerCase());
+    const tag = `%${JSON.stringify(opts.term).slice(1, -1)}%`;
+    where.push(`(i.tags like ? or ${spellings.map(() => "lower(i.title) like ? or lower(i.summary) like ?").join(" or ")})`);
+    args.push(tag, ...spellings.flatMap((a) => [`%${a}%`, `%${a}%`]));
   }
   if (opts.category) {
     where.push("s.category = ?");

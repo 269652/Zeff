@@ -19,12 +19,12 @@ export const discoveries = (): Discovery[] => getPref<Discovery[]>("news:discove
 
 const DAY = 864e5;
 /** Fewer unseen items than this: the feed is running out. */
-export const LOW_UNSEEN = 80;
+export const LOW_UNSEEN = 200;
 const LOW_COOLDOWN = 2 * 3600e3;
 const LOW_DAILY_CAP = 12;
 
 type Wanted = { term: string; weight: number };
-export type DiscoverDeps = { now?: () => number; find?: typeof findFeeds; finder?: FinderDeps; perTopic?: number; topics?: number; profile?: () => Promise<ProfileTerm[]> | ProfileTerm[]; unseen?: () => number };
+export type DiscoverDeps = { /** A refresh by hand: no waiting, a higher daily limit. */ force?: boolean; now?: () => number; find?: typeof findFeeds; finder?: FinderDeps; perTopic?: number; topics?: number; profile?: () => Promise<ProfileTerm[]> | ProfileTerm[]; unseen?: () => number };
 
 /** What to look for: interests, the words of what you liked, and what Zeff knows about you — strongest first. */
 export async function wantedTopics(deps: Pick<DiscoverDeps, "profile"> = {}): Promise<Wanted[]> {
@@ -98,9 +98,9 @@ export async function discoverWhenLow(deps: DiscoverDeps = {}): Promise<number> 
   const prefs = getPrefs();
   const nowMs = (deps.now ?? Date.now)();
   if (!prefs.autoDiscover || searching) return 0;
-  if ((deps.unseen ?? (() => unseenCount(prefs.maxAgeDays)))() >= LOW_UNSEEN) return 0;
-  if (nowMs - Number(getPref<number>("news:lowdiscover-at", 0)) < LOW_COOLDOWN) return 0;
-  if (addedToday(nowMs) >= LOW_DAILY_CAP) return 0;
+  if (!deps.force && (deps.unseen ?? (() => unseenCount(prefs.maxAgeDays)))() >= LOW_UNSEEN) return 0;
+  if (!deps.force && nowMs - Number(getPref<number>("news:lowdiscover-at", 0)) < LOW_COOLDOWN) return 0;
+  if (addedToday(nowMs) >= (deps.force ? 40 : LOW_DAILY_CAP)) return 0;
   const wanted = await wantedTopics(deps);
   if (!wanted.length) return 0;
   searching = true;

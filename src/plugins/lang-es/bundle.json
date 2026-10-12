@@ -4123,5 +4123,9 @@
   "Story so far": "Resumen hasta ahora",
   "Threads": "Hilos",
   "Hops": "Saltos",
-  "{n} stories together": "{n} noticias juntas"
+  "{n} stories together": "{n} noticias juntas",
+  "Fetches every source; if there are fewer than 200 unseen cards, adds sources until there are": "Obtiene cada fuente; si hay menos de 200 tarjetas sin ver, añade fuentes hasta que las haya",
+  "Refreshing …": "Actualizando …",
+  "{unseen} of {target} unseen cards": "{unseen} de {target} tarjetas sin ver",
+  "{n} sources added": "{n} fuentes añadidas"
 }

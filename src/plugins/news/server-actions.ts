@@ -162,7 +162,23 @@ export async function newsSoFarAction(term: string): Promise<{ ok: boolean; answ
   return askNewsAction(`Was ist der Stand zu „${label}“? Fasse die Entwicklung chronologisch zusammen.`);
 }
 
-/** "Refresh": the sync, now. */
+/** "Refresh": fetch everything, and add sources until there are at least 200 unseen cards — in the background; the status says where it is. */
+export async function startRefreshAction(): Promise<Result & { status?: import("./refresh").RefreshStatus }> {
+  try {
+    guard();
+    const r = (await import("./refresh")).startRefresh();
+    return { ok: true, status: r.status };
+  } catch (e) {
+    return { ok: false, error: errorMessage(e) };
+  }
+}
+
+export async function refreshStatusAction(): Promise<import("./refresh").RefreshStatus> {
+  guard();
+  return (await import("./refresh")).getRefreshStatus();
+}
+
+/** "Refresh": the sync, now (kept for the settings page). */
 export async function refreshNewsAction(): Promise<Result> {
   try {
     guard();
