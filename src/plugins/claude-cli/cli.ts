@@ -31,7 +31,7 @@ export function findClaudeCli(): string | null {
 export function runClaude<T>(
   prompt: string,
   schema: object,
-  opts: { model?: string; systemPrompt?: string; timeoutMs?: number; maxBudgetUsd?: number; readDir?: string; extraPath?: string } = {},
+  opts: { model?: string; systemPrompt?: string; timeoutMs?: number; maxBudgetUsd?: number; readDir?: string; extraPath?: string; plain?: boolean } = {},
 ): Promise<AiAnswer<T>> {
   const cli = findClaudeCli();
   if (!cli) return Promise.reject(new Error("The Claude CLI wasn't found — install Claude Code, or set CLAUDE_CLI to claude.exe."));
@@ -42,8 +42,8 @@ export function runClaude<T>(
     "-p",
     "--output-format",
     "json",
-    "--json-schema",
-    JSON.stringify(schema),
+    // `plain`: no schema — the answer is the model's own text (a transcription is too long and too free for a field).
+    ...(opts.plain ? [] : ["--json-schema", JSON.stringify(schema)]),
     // Closed: no tools — except, for reading a picture or a PDF, the Read tool on one folder.
     "--tools",
     opts.readDir ? "Read" : "",
@@ -117,6 +117,7 @@ export function runClaude<T>(
           reject(new Error(`The Claude CLI answered with no JSON (exit ${code}): ${(stderr || stdout).trim().slice(0, 600)}`));
           return;
         }
+        if (opts.plain && !j.is_error && typeof j.result === "string" && j.result.trim()) j.structured_output = { text: j.result } as unknown as T;
         if (j.is_error || !j.structured_output) {
           reject(new Error(`The Claude CLI run failed (${j.subtype ?? `exit ${code}`}): ${String(j.result ?? stderr).trim().slice(0, 600)}`));
           return;

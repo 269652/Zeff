@@ -43,6 +43,32 @@ export async function reprocessDocumentAction(id: number): Promise<ActionState> 
   });
 }
 
+/** Reading restarted: the run in flight is stopped, what hung is let go of, the rest is read afresh. */
+export async function restartReadingAction(): Promise<ActionState> {
+  return run(async () => {
+    (await import("./poppler")).forgetPopplerFailure();
+    (await import("./process")).restartReading();
+    return t("Reading restarted.");
+  });
+}
+
+/** Waiting documents are picked up (nothing was working on them). */
+export async function startReadingAction(): Promise<ActionState> {
+  return run(async () => {
+    (await import("./process")).startProcessing();
+    return t("Reading started.");
+  });
+}
+
+/** One document skipped: reading it is stopped (or it isn't read); "Read again" brings it back. */
+export async function skipDocumentAction(id: number): Promise<ActionState> {
+  return run(async () => {
+    if (!(await import("./store")).getDocument(Number(id))) throw new Error(t("This document doesn't exist (any more)."));
+    (await import("./process")).skipDocument(Number(id));
+    return t("Skipped.");
+  });
+}
+
 /** A document attached to a todo, by hand: it shows in its context, and goes into what the AI reads about it. */
 export async function attachDocumentAction(todoId: number, docId: number): Promise<ActionState> {
   return run(async () => {

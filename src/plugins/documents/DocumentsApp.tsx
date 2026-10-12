@@ -7,8 +7,9 @@ import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { formatDate } from "@/lib/format";
 import { DocDetails, OriginLine } from "./DocBadge";
-import { attachDocumentAction, deleteDocumentAction, reprocessDocumentAction, saveDocumentSettingsAction } from "./server-actions";
+import { attachDocumentAction, deleteDocumentAction, reprocessDocumentAction, restartReadingAction, saveDocumentSettingsAction, skipDocumentAction, startReadingAction } from "./server-actions";
 import { KIND_ICONS, sizeText, type DocView } from "./shared";
+import { TodoPicker } from "./TodoPicker";
 import type { DocOrigin } from "@/lib/mail/shared";
 
 /** Posts files to the store; the answer says what came of each. */
@@ -31,7 +32,7 @@ const CHIP: Record<string, string> = {
  * The Documents app: a drop zone (files dragged in, or picked), the store's documents with their
  * state — hover one for its abstract —, the open todos to attach one to, and the transcriber setting.
  */
-export function DocumentsApp({ docs, origins = {}, todos, settings, knowledge }: { docs: DocView[]; origins?: Record<number, DocOrigin>; todos: { id: number; ref: string; text: string }[]; settings: { transcriber: string; autoInstall: boolean }; knowledge: boolean }) {
+export function DocumentsApp({ docs, reading, origins = {}, todos, settings, knowledge }: { docs: DocView[]; /** What is being read now / waits (the server's view). */ reading: { current: { id: number; name: string; since: number; lane: "fast" | "slow" }[]; waiting: number; idle: boolean }; origins?: Record<number, DocOrigin>; todos: { id: number; ref: string; text: string }[]; settings: { transcriber: string; autoInstall: boolean }; knowledge: boolean }) {
   const t = useT();
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -48,6 +49,19 @@ export function DocumentsApp({ docs, origins = {}, todos, settings, knowledge }:
     const timer = setInterval(() => router.refresh(), 4000);
     return () => clearInterval(timer);
   }, [waiting, router]);
+
+  // The running time of what is being read, ticking.
+  const [now, setNow] = useState(() => Date.now());
+  const reads = reading.current.length;
+  useEffect(() => {
+    if (!reads) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [reads]);
+  const clock = (since: number) => {
+    const s = Math.max(0, Math.round((now - since) / 1000));
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  };
 
   const done = (r: { ok: boolean; message?: string; error?: string } | null) => {
     toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("That didn't work.")), { tone: r?.ok ? "ok" : "error" });
@@ -95,6 +109,41 @@ export function DocumentsApp({ docs, origins = {}, todos, settings, knowledge }:
         <input ref={input} type="file" multiple className="hidden" onChange={(e) => void take([...(e.target.files ?? [])]).then(() => (e.target.value = ""))} />
       </div>
 
+      {(reading.current.length > 0 || reading.waiting > 0) && (
+        <div className="card flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-sm" role="status">
+          <span className="min-w-0 flex-1 basis-64">
+            {reading.current.length > 0 ? (
+              <>
+                {t("Reading:")}{" "}
+                {reading.current.map((c, i) => (
+                  <span key={c.id}>
+                    {i > 0 && ", "}
+                    <span className="font-medium">{c.name}</span> <span className="tabular-nums text-zinc-500">({clock(c.since)})</span>
+                  </span>
+                ))}
+                {reading.waiting > 0 && <span className="text-zinc-500"> · {t("{n} waiting", { n: reading.waiting })}</span>}
+              </>
+            ) : (
+              <span className="text-amber-700 dark:text-amber-400">{t("{n} waiting — nothing is being read right now.", { n: reading.waiting })}</span>
+            )}
+          </span>
+          {reading.idle && reading.waiting > 0 && (
+            <button type="button" className="btn btn-primary btn-sm" disabled={pending} onClick={() => start(async () => void done(await startReadingAction()))}>
+              {t("Start reading")}
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={pending}
+            title={t("Stops what is being read now (it waits for “Read again”) and starts the rest afresh.")}
+            onClick={() => start(async () => void done(await restartReadingAction()))}
+          >
+            {t("Restart reading")}
+          </button>
+        </div>
+      )}
+
       {docs.length === 0 ? (
         <p className="py-4 text-center text-sm text-zinc-500">{t("No documents yet.")}</p>
       ) : (
@@ -119,23 +168,12 @@ export function DocumentsApp({ docs, origins = {}, todos, settings, knowledge }:
               )}
               <span className="flex items-center gap-1">
                 {todos.length > 0 && (
-                  <select
-                    className="input h-7 w-36 py-0 text-xs"
-                    value=""
-                    disabled={pending}
-                    onChange={(e) => {
-                      const todo = Number(e.target.value);
-                      if (todo) start(async () => void done(await attachDocumentAction(todo, d.id)));
-                    }}
-                    aria-label={t("Attach to a todo")}
-                  >
-                    <option value="">{t("Attach to todo …")}</option>
-                    {todos.map((x) => (
-                      <option key={x.id} value={x.id}>
-                        {x.ref} {x.text.slice(0, 50)}
-                      </option>
-                    ))}
-                  </select>
+                  <TodoPicker todos={todos} disabled={pending} onPick={(todo) => start(async () => void done(await attachDocumentAction(todo, d.id)))} />
+                )}
+                {(d.status === "queued" || d.status === "extracting") && (
+                  <button type="button" className="btn btn-sm" disabled={pending} onClick={() => start(async () => void done(await skipDocumentAction(d.id)))}>
+                    {t("Skip")}
+                  </button>
                 )}
                 {(d.status === "unsupported" || d.status === "failed") && (
                   <button type="button" className="btn btn-sm" disabled={pending} onClick={() => start(async () => void done(await reprocessDocumentAction(d.id)))}>

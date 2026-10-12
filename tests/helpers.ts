@@ -10,6 +10,14 @@ export function setupTempData(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "zeff-test-"));
   process.env.DATABASE_PATH = path.join(dir, "zeff.db");
   process.env.ZEFF_TEAMS_SYNC = "off";
+  // Gone when the test run ends (the database may still be open then: what can't be removed is left).
+  process.on("exit", () => {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // a file still in use
+    }
+  });
   return dir;
 }
 

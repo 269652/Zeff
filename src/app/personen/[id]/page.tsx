@@ -6,9 +6,9 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import type { KnowledgeEntityDetail } from "@/plugins/knowledge/shared";
-import { addDateFormAction, dateFormAction, deletePersonFormAction, findDatesFormAction, updatePersonFormAction } from "@/plugins/people/server-actions";
+import { addDateFormAction, addRelationFormAction, dateFormAction, deletePersonFormAction, deleteRelationFormAction, findDatesFormAction, mergePersonFormAction, updatePersonFormAction } from "@/plugins/people/server-actions";
 import { dateKindLabels, DATE_KINDS, dateText, daysBetween, inDaysText, isoDay, nextOccurrence } from "@/plugins/people/shared";
-import { contactsOf, datesOf, getPerson, namesThem, rememberEntity } from "@/plugins/people/store";
+import { contactsOf, datesOf, getPerson, listPeople, namesThem, relationsOf, rememberEntity } from "@/plugins/people/store";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { isInstalled } from "@/plugins/state";
 
@@ -72,6 +72,8 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
     knowledgeBase = knowledgeBrowserUrl(h.get("x-forwarded-host") ?? h.get("host"), h.get("x-forwarded-proto"));
   }
   const back = `/personen/${p.id}`;
+  const relations = relationsOf(p.id);
+  const others = listPeople().filter((x) => x.id !== p.id);
   // Relations by whom / what they're with.
   const related = new Map<number, { name: string; type: string; rels: string[] }>();
   for (const r of entity?.relations ?? []) {
@@ -127,6 +129,28 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
             </label>
             <button className="btn btn-primary btn-sm">{t("Save")}</button>
           </form>
+          {listPeople().length > 1 && (
+            <form action={mergePersonFormAction} className="mt-3 space-y-1">
+              <input type="hidden" name="drop" value={p.id} />
+              <span className="label">{t("Same person as …")}</span>
+              <div className="flex gap-2">
+                <select name="keep" required defaultValue="" className="input min-w-0 flex-1" aria-label={t("Same person as …")}>
+                  <option value="" disabled>
+                    {t("Pick a profile …")}
+                  </option>
+                  {listPeople()
+                    .filter((x) => x.id !== p.id)
+                    .map((x) => (
+                      <option key={x.id} value={x.id}>
+                        {x.name}
+                      </option>
+                    ))}
+                </select>
+                <button className="btn btn-sm">{t("Merge into it")}</button>
+              </div>
+              <p className="text-xs text-zinc-400">{t("“{name}” becomes an alias of the chosen profile; its chat, addresses, notes and dates come along; this profile is removed.", { name: p.name })}</p>
+            </form>
+          )}
           <form action={deletePersonFormAction} className="mt-3">
             <input type="hidden" name="id" value={p.id} />
             <button className="btn btn-sm text-red-700 dark:text-red-400">{t("Delete profile")}</button>
@@ -135,6 +159,68 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
+        <Card title={t("Relations")}>
+          <ul className="space-y-1 text-sm">
+            {relations.out.map((r) => (
+              <li key={r.id} className="flex items-baseline gap-2" title={r.evidence || undefined}>
+                <span className="min-w-0 flex-1">
+                  <span className="font-medium">{r.rel}</span>
+                  {r.otherId ? (
+                    <>
+                      {" "}
+                      {t("of")}{" "}
+                      <Link href={`/personen/${r.otherId}`} className="hover:underline">
+                        {r.otherName}
+                      </Link>
+                    </>
+                  ) : (
+                    <span className="text-zinc-400"> {t("(to you)")}</span>
+                  )}
+                  {r.evidence && <span className="block text-xs text-zinc-400">{r.evidence}</span>}
+                </span>
+                <form action={deleteRelationFormAction}>
+                  <input type="hidden" name="id" value={r.id} />
+                  <input type="hidden" name="personId" value={p.id} />
+                  <button className="text-xs text-zinc-400 hover:text-red-600" aria-label={t("Remove")} title={t("Wrong? Remove it.")}>
+                    ✕
+                  </button>
+                </form>
+              </li>
+            ))}
+            {relations.in.map((r) => (
+              <li key={r.id} className="flex items-baseline gap-2" title={r.evidence || undefined}>
+                <span className="min-w-0 flex-1">
+                  <Link href={`/personen/${r.personId}`} className="hover:underline">
+                    {r.personName}
+                  </Link>
+                  : <span className="font-medium">{r.rel}</span>
+                  {r.evidence && <span className="block text-xs text-zinc-400">{r.evidence}</span>}
+                </span>
+                <form action={deleteRelationFormAction}>
+                  <input type="hidden" name="id" value={r.id} />
+                  <input type="hidden" name="personId" value={p.id} />
+                  <button className="text-xs text-zinc-400 hover:text-red-600" aria-label={t("Remove")} title={t("Wrong? Remove it.")}>
+                    ✕
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+          {!relations.out.length && !relations.in.length && <p className="text-xs text-zinc-400">{t("None known yet — the AI derives them from your todos and messages (“Match names”), or add one.")}</p>}
+          <form action={addRelationFormAction} className="flex flex-wrap gap-2 text-sm">
+            <input type="hidden" name="personId" value={p.id} />
+            <input name="rel" required placeholder={t("e.g. mother, landlord")} className="input min-w-0 flex-1" aria-label={t("Relation")} />
+            <select name="other" defaultValue="0" className="input w-40" aria-label={t("To whom")}>
+              <option value="0">{t("to you")}</option>
+              {others.map((x) => (
+                <option key={x.id} value={x.id}>
+                  {t("of {name}", { name: x.name })}
+                </option>
+              ))}
+            </select>
+            <button className="btn btn-sm">{t("Add")}</button>
+          </form>
+        </Card>
         <Card
           title={t("Dates")}
           extra={

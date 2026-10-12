@@ -55,7 +55,7 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
   const latest = latestRun();
   const live = boardRunState();
   // Running: the Lage being made, or (it's there already) the mails being related to its todos.
-  const running = !!live && (latest?.status === "running" || (["mailtodos", "mails", "notetodos", "notes", "knowledge", "autoactions"].includes(live.phase) && live.id === latest?.id));
+  const running = !!live && (latest?.status === "running" || (["mailtodos", "mails", "notetodos", "notes", "documents", "docrelations", "knowledge", "autoactions"].includes(live.phase) && live.id === latest?.id));
   const shown = latest?.status === "ok" ? latest : lastGoodRun();
   const failed = latest?.status === "error" ? latest : null;
   const keys = shown?.tickets.map((t) => t.key) ?? [];

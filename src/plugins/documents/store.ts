@@ -140,6 +140,15 @@ export const queuedDocuments = (): number[] =>
     .all()
     .map((r) => r.id);
 
+/** What is waiting or being read: each one's id, name and state. */
+export const readingDocuments = (): { id: number; name: string; status: DocStatus }[] =>
+  getDb()
+    .select({ id: documents.id, name: documents.name, status: documents.status })
+    .from(documents)
+    .where(inArray(documents.status, ["queued", "extracting"]))
+    .orderBy(documents.id)
+    .all() as { id: number; name: string; status: DocStatus }[];
+
 /** Ready ones the knowledge server hasn't compiled yet. */
 export const uncompiledDocuments = (): number[] =>
   getDb()
@@ -148,3 +157,17 @@ export const uncompiledDocuments = (): number[] =>
     .where(sql`${documents.status} = 'ready' and ${documents.compiled} = 0`)
     .all()
     .map((r) => r.id);
+
+export type ReadableDoc = { id: number; ref: string; name: string; kind: DocKind; createdAt: string; version: string; abstract: string; concepts: string; text: string };
+
+/** The documents whose text was read (ready): for the AI steps — with their full text. */
+export function readableDocuments(): ReadableDoc[] {
+  return getDb()
+    .select()
+    .from(documents)
+    .where(eq(documents.status, "ready"))
+    .orderBy(desc(documents.createdAt))
+    .all()
+    .filter((r) => r.text.trim())
+    .map((r) => ({ id: r.id, ref: docRef(r.id), name: r.name, kind: r.kind as DocKind, createdAt: r.createdAt, version: r.updatedAt, abstract: r.summary, concepts: r.concepts, text: r.text }));
+}

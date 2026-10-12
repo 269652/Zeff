@@ -87,8 +87,8 @@ export async function moveCardAction(id: number, columnId: number, before: numbe
   return act(() => store.moveCard(Number(id), Number(columnId), before === null ? null : Number(before)));
 }
 
-export async function moveCardToBoardAction(id: number, boardId: number): Promise<Result> {
-  return act(() => store.moveCardToBoard(Number(id), Number(boardId)), "Karte verschoben.");
+export async function moveCardToBoardAction(id: number, boardId: number, withSubtasks = false): Promise<Result> {
+  return act(() => store.moveCardToBoard(Number(id), Number(boardId), !!withSubtasks), "Karte verschoben.");
 }
 
 export async function createSubtaskAction(parentId: number, title: string): Promise<Result> {
