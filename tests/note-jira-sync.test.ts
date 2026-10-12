@@ -158,3 +158,22 @@ test("a comment that is gone from Jira is made again; any other failure is repor
   await assert.rejects(syncNoteToJira(todo.id, note.at, { ...base, edit: async () => { throw new Error("connection refused"); } }), /connection refused/);
   assert.equal(getTodo(todo.id)!.userNotes[0].jiraCommentId, "30002");
 });
+
+test("a note tells whether it still matches its comment on Jira: not synced, in sync, or changed since the last sync", async () => {
+  await board("NS-6");
+  const { noteSyncState } = await import("@/lib/boards/shared");
+  const { syncNoteToJira } = await import("@/lib/jira/note-sync");
+  const { updateTodoUserNote, getTodo } = await import("@/lib/boards/store");
+  const { todo, note } = await todoWithNote("NS-6", "Erster Stand");
+  assert.equal(noteSyncState(getTodo(todo.id)!.userNotes[0]), "none");
+  await syncNoteToJira(todo.id, note.at, { post: async () => "40001", edit: async () => {} });
+  assert.equal(getTodo(todo.id)!.userNotes[0].jiraText, "Erster Stand");
+  assert.equal(noteSyncState(getTodo(todo.id)!.userNotes[0]), "synced");
+  updateTodoUserNote(todo.id, note.at, "Zweiter Stand");
+  assert.equal(noteSyncState(getTodo(todo.id)!.userNotes[0]), "changed");
+  await syncNoteToJira(todo.id, note.at, { post: async () => "x", edit: async () => {} });
+  assert.equal(noteSyncState(getTodo(todo.id)!.userNotes[0]), "synced");
+  // Posted before Zeff kept what was synced: not known to match — offered again.
+  assert.equal(noteSyncState({ text: "alt", jiraCommentId: "1" }), "changed");
+  assert.equal(noteSyncState({ text: "alt", by: "W-1" }), "none");
+});

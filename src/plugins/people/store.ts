@@ -306,7 +306,8 @@ export function rememberEntity(id: number, entityId: number): void {
 /** Everyone, as texts (todos) are matched against — see mentions.ts. */
 export async function peopleIndex() {
   const { buildPeopleIndex } = await import("./mentions");
-  return buildPeopleIndex(listPeople());
+  // Their Jira usernames tag them too (@jenschum), like their names and aliases.
+  return buildPeopleIndex(listPeople().map((p) => ({ ...p, aliases: [...p.aliases, ...p.accounts.map((a) => a.value)] })));
 }
 
 /** More names for a person (a mention found to be them): those they don't have yet. How many. */

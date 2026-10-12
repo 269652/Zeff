@@ -748,10 +748,10 @@ export function updateTodoUserNote(id: number, at: string, text: string): TodoVi
 }
 
 /** A note's comment on Jira, as it is now (its address becomes the note's link). */
-export function markNoteSynced(id: number, at: string, v: { commentId: string; hash: string; url: string | null }): void {
+export function markNoteSynced(id: number, at: string, v: { commentId: string; hash: string; url: string | null; text?: string }): void {
   const todo = getTodo(id);
   if (!todo) return;
-  const notes = todo.userNotes.map((n) => (n.at === at ? { ...n, jiraCommentId: v.commentId, jiraHash: v.hash, ...(v.url ? { url: v.url, urlLabel: "Jira" } : {}) } : n));
+  const notes = todo.userNotes.map((n) => (n.at === at ? { ...n, jiraCommentId: v.commentId, jiraHash: v.hash, ...(v.text !== undefined ? { jiraText: v.text } : {}), ...(v.url ? { url: v.url, urlLabel: "Jira" } : {}) } : n));
   getDb().update(todos).set({ userNotes: JSON.stringify(notes) }).where(eq(todos.id, id)).run();
   emitChange("todos");
 }

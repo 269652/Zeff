@@ -1,7 +1,7 @@
 "use client";
 
 import { ChatIcon } from "@/components/MailBadge";
-import { sourceKey, type SyncedComment, type TodoSource, type TodoUserNote, type TodoView } from "@/lib/boards/shared";
+import { mergeJiraNotes, sourceKey, type SyncedComment, type TodoSource, type TodoUserNote, type TodoView } from "@/lib/boards/shared";
 import { NoteBadge, NoteRow } from "./NoteBadge";
 import { DismissButton } from "../DismissButton";
 import { SourceBadge, SourceDetails } from "../SourceBadge";
@@ -58,7 +58,8 @@ function SyncedNote({ s }: { s: SyncedComment }) {
 export function useContextItems(list: TodoSource[], notes: TodoUserNote[], todoId?: number) {
   // Its notes — yours and the runs' reports — among what it came from, as context like the rest.
   // Newest first, whatever kind.
-  const items: Item[] = [...list.map((s): Item => ({ s })), ...notes.map((n): Item => ({ n }))]
+  const merged = mergeJiraNotes(list, notes);
+  const items: Item[] = [...merged.sources.map((s): Item => ({ s })), ...merged.notes.map((m): Item => ({ n: m.n, ...(m.jira ? { jira: m.jira } : {}) }))]
     .map((it) => ({ it, t: Date.parse(normal(itemKind(it).at)) || 0 }))
     .sort((a, b) => b.t - a.t)
     .map((x) => x.it);
@@ -137,7 +138,7 @@ export function ContextList({ items, todoId }: { items: Item[]; todoId?: number 
   return (
     <span className="flex flex-col items-start gap-1">
       {shown.map((it) => {
-        if ("n" in it) return <NoteRow key={`note:${it.n.from ?? ""}:${it.n.at}`} n={it.n} todoId={todoId} />;
+        if ("n" in it) return <NoteRow key={`note:${it.n.from ?? ""}:${it.n.at}`} n={it.n} jira={it.jira} todoId={todoId} />;
         const s = it.s;
         const synced = s.source === "jira-comment" || s.source === "keep" || s.source === "fact" || s.source === "document" ? undefined : s.synced;
         return (
@@ -197,7 +198,7 @@ export function TodoContext({ t, cameFrom }: { t: Pick<TodoView, "id" | "userNot
   return <TodoSources list={list} notes={notes} todoId={t.id} />;
 }
 
-export type Item = { s: TodoSource } | { n: TodoUserNote };
+export type Item = { s: TodoSource } | { n: TodoUserNote; /** The Jira comment this note became (it was synced to Jira) — one entry with both. */ jira?: TodoSource };
 
 // When you last opened each todo's comments (this browser): { since: first visit, todos: { id: when } }.
 const SEEN_KEY = "zeff-sources-seen";

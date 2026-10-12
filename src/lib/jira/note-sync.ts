@@ -95,7 +95,7 @@ export async function syncNoteToJira(todoId: number, at: string, deps?: NoteSync
       }
     }
     const url = ticket.url ? jiraCommentUrl(ticket.url, commentId) : null;
-    markNoteSynced(todoId, at, { commentId, hash, url });
+    markNoteSynced(todoId, at, { commentId, hash, url, text: note.text });
     return { state, commentId, url, noAccount };
   };
   try {

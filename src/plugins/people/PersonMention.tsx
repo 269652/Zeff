@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { HoverCard } from "@/components/HoverCard";
+import { HoverCard, useHoverSide } from "@/components/HoverCard";
 import { useT } from "@/components/I18nProvider";
 import { formatDateTime } from "@/lib/format";
 import { isChatFolder } from "@/lib/mail/shared";
-import { mentionMatcher, splitMentions, type PersonIndexEntry } from "./mentions";
+import { mentionMatcher, splitMentions, splitTags, type PersonIndexEntry } from "./mentions";
 import { personCardAction, type PersonCardData } from "./server-actions";
 
 /**
@@ -40,11 +40,58 @@ export function PersonText({ text, render = (s) => s }: { text: string; render?:
   );
 }
 
-/** A name as a link to the person, with their hover card. */
-export function PersonMention({ id, name, children }: { id: number; name: string; children: ReactNode }) {
+/**
+ * A note's text with the people tagged in it (@Name) underlined — their hover card on hover; the rest as `render` makes it.
+ */
+export function TaggedText({ text, render = (s) => s }: { text: string; render?: (s: string) => ReactNode }) {
+  const matcher = useContext(Ctx);
+  if (!matcher || !text.includes("@")) return <>{render(text)}</>;
+  return (
+    <>
+      {splitTags(text, matcher).map((m, i) =>
+        m.person ? (
+          <PersonMention key={i} id={m.person.id} name={m.person.name} tagged>
+            {m.text}
+          </PersonMention>
+        ) : (
+          <span key={i}>{render(m.text)}</span>
+        ),
+      )}
+    </>
+  );
+}
+
+/**
+ * A name as a link to the person, with their hover card — or, inside another hover card (a note's), their card
+ * as its sidebar: the two become one split view. `tagged`: an @-tag in a note — underlined solid.
+ */
+export function PersonMention({ id, name, children, tagged = false }: { id: number; name: string; children: ReactNode; tagged?: boolean }) {
+  const side = useHoverSide();
+  const underline = tagged
+    ? "underline decoration-teal-500/80 underline-offset-2 hover:text-teal-700 dark:hover:text-teal-300"
+    : "underline decoration-zinc-400/70 decoration-dotted underline-offset-2 hover:text-teal-700 hover:decoration-teal-500 dark:hover:text-teal-300";
+  if (side) {
+    return (
+      <Link
+        href={`/personen/${id}`}
+        className={underline}
+        onClick={(e) => e.stopPropagation()}
+        onMouseEnter={() => {
+          side.setSide(<PersonCard id={id} name={name} flat />);
+          side.open();
+        }}
+        onFocus={() => {
+          side.setSide(<PersonCard id={id} name={name} flat />);
+          side.open();
+        }}
+      >
+        {children}
+      </Link>
+    );
+  }
   return (
     <HoverCard width={360} card={<PersonCard id={id} name={name} />}>
-      <Link href={`/personen/${id}`} className="underline decoration-zinc-400/70 decoration-dotted underline-offset-2 hover:text-teal-700 hover:decoration-teal-500 dark:hover:text-teal-300" onClick={(e) => e.stopPropagation()}>
+      <Link href={`/personen/${id}`} className={underline} onClick={(e) => e.stopPropagation()}>
         {children}
       </Link>
     </HoverCard>
@@ -54,7 +101,7 @@ export function PersonMention({ id, name, children }: { id: number; name: string
 /** Loaded cards (for this page's life): a card opened again shows at once. */
 const cache = new Map<number, PersonCardData | null>();
 
-function PersonCard({ id, name }: { id: number; name: string }) {
+function PersonCard({ id, name, flat = false }: { id: number; name: string; flat?: boolean }) {
   const t = useT();
   const [data, setData] = useState<PersonCardData | null | undefined>(cache.get(id));
   useEffect(() => {
@@ -71,7 +118,7 @@ function PersonCard({ id, name }: { id: number; name: string }) {
     };
   }, [id]);
   return (
-    <div className="space-y-2 rounded-lg border border-zinc-200 bg-white p-3 text-xs shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+    <div className={flat ? "space-y-2 p-3 text-xs" : "space-y-2 rounded-lg border border-zinc-200 bg-white p-3 text-xs shadow-sm dark:border-zinc-800 dark:bg-zinc-900"}>
       <div className="flex items-baseline justify-between gap-2">
         <Link href={`/personen/${id}`} className="text-sm font-semibold hover:underline">
           {data?.name ?? name}

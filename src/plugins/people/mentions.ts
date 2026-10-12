@@ -65,3 +65,26 @@ export function splitMentions(text: string, m: ReturnType<typeof mentionMatcher>
   if (at < text.length) out.push({ text: text.slice(at) });
   return out;
 }
+
+/**
+ * A note's text cut into plain pieces and the people tagged in it (@Name, @alias, @username — any
+ * case): a tag is the person's form right after an @, its piece includes the @. A name without an @
+ * stays plain.
+ */
+export function splitTags(text: string, m: ReturnType<typeof mentionMatcher>): Mention[] {
+  if (!m || !text.includes("@")) return [{ text }];
+  const forms = [...m.who.keys()].sort((a, b) => b.length - a.length).map(esc);
+  const re = new RegExp(String.raw`(?<![\p{L}\p{N}_.@])@(${forms.join("|")})(?![\p{L}\p{N}_])`, "giu");
+  const out: Mention[] = [];
+  let at = 0;
+  for (const x of text.matchAll(re)) {
+    const person = m.who.get(x[1].toLowerCase());
+    if (!person) continue;
+    const start = x.index ?? 0;
+    if (start > at) out.push({ text: text.slice(at, start) });
+    out.push({ text: x[0], person });
+    at = start + x[0].length;
+  }
+  if (at < text.length) out.push({ text: text.slice(at) });
+  return out;
+}

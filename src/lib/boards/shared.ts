@@ -366,7 +366,13 @@ export type TodoUserNote = {
   /** Synced to its ticket in Jira as this comment — and what it said then (to spot a later edit). */
   jiraCommentId?: string;
   jiraHash?: string;
+  /** The note's text as it was last synced — to tell whether it has changed since. */
+  jiraText?: string;
 };
+
+/** Whether a note matches its comment on Jira: none (not synced / not a note to sync), synced, or changed since the last sync (also: synced before Zeff kept what was synced). */
+export const noteSyncState = (n: Pick<TodoUserNote, "text" | "jiraCommentId" | "jiraText" | "by" | "kind">): "none" | "synced" | "changed" =>
+  n.by || n.kind === "instruction" || !n.jiraCommentId ? "none" : n.jiraText === n.text ? "synced" : "changed";
 
 /** A todo's GitLab links: merge requests by ref, comments by key ("note:123"). */
 export type TodoLinks = {
@@ -810,3 +816,19 @@ export type BoardRunView = {
 
 /** A due day (YYYY-MM-DD) — or null for anything else. */
 export const dueDay = (v: unknown): string | null => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v.trim()) && !Number.isNaN(Date.parse(v.trim())) ? v.trim() : null);
+
+/**
+ * A note you synced to Jira comes back as a Jira comment among the todo's sources: the two are one entry. Each note
+ * with its Jira comment (when that has been synced back yet), and the sources without those comments.
+ */
+export function mergeJiraNotes(sources: TodoSource[], notes: TodoUserNote[]): { sources: TodoSource[]; notes: { n: TodoUserNote; jira?: TodoSource }[] } {
+  const comment = (s: TodoSource) => (s.source === "jira-comment" ? String(s.comment.id) : null);
+  const byId = new Map(sources.flatMap((s) => (comment(s) ? [[comment(s)!, s] as const] : [])));
+  const merged = new Set<string>();
+  const out = notes.map((n) => {
+    const jira = n.jiraCommentId ? byId.get(String(n.jiraCommentId)) : undefined;
+    if (jira) merged.add(String(n.jiraCommentId));
+    return { n, ...(jira ? { jira } : {}) };
+  });
+  return { sources: sources.filter((s) => !merged.has(comment(s) ?? "")), notes: out };
+}
