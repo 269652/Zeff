@@ -93,6 +93,24 @@ function pingTab(wsUrl, ms) {
   });
 }
 
+/**
+ * Tabs that don't answer: each is brought to the front (what un-freezes a tab Chrome put to sleep) and asked
+ * again. The ones that still don't answer. Nothing is closed or changed in them. `ping`/`activate` are
+ * there for the tests.
+ */
+export async function wakeTabs(cdp, tabs, { ping = pingTab, activate = (t) => fetch(`${cdp.replace(/\/+$/, "")}/json/activate/${t.id}`, { signal: AbortSignal.timeout(3000) }) } = {}) {
+  const still = [];
+  for (const t of tabs) {
+    try {
+      await activate(t);
+    } catch {
+      // not to be woken: asked anyway
+    }
+    if (!(await ping(t.webSocketDebuggerUrl, 6000))) still.push(t);
+  }
+  return still;
+}
+
 /** A problem attaching to the automation Chrome, worded for the user; the MCP tools pass it through as-is. */
 export class ChromeConnectError extends Error {}
 
@@ -167,7 +185,9 @@ export async function connectToChrome(cdp, { timeout = 20000, launchUrls = [] } 
   // A busy machine can hold Chrome up for a few seconds: those asked once more, with more time.
   const slow = tabs.filter((_, i) => !answers[i]);
   const again = slow.length ? (await sleep(1500), await Promise.all(slow.map((t) => pingTab(t.webSocketDebuggerUrl, 8000)))) : [];
-  const stuck = slow.filter((_, i) => !again[i]);
+  // Chrome freezes tabs that stay in the background for a while (Memory Saver): they answer again once
+  // they're brought to the front — so wake them before giving up. (A really hung tab stays stuck.)
+  const stuck = await wakeTabs(cdp, slow.filter((_, i) => !again[i]));
   if (stuck.length) {
     const names = stuck.map((t) => `“${t.title || t.url}” (${t.url.slice(0, 60)})`).join(", ");
     throw new ChromeConnectError(
