@@ -1,4 +1,7 @@
+import { InstallPrereq } from "@/components/InstallPrereq";
 import { t } from "@/lib/i18n/server";
+import { installPlan } from "@/lib/prerequisites-install";
+import { hasCommand } from "@/plugins/documents/poppler";
 import { neededPrerequisites } from "@/lib/prerequisites";
 
 /**
@@ -9,9 +12,14 @@ import { neededPrerequisites } from "@/lib/prerequisites";
 export function ThisPc() {
   const rows = neededPrerequisites();
   if (!rows.length) return null;
+  const installable = (id: (typeof rows)[number]["id"]) => !!installPlan(id, process.platform, hasCommand);
+  const canInstall = rows.filter((r) => !r.found && installable(r.id));
   return (
     <section className="space-y-2">
-      <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("This PC")}</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("This PC")}</h2>
+        {canInstall.length > 1 && <InstallPrereq id="all" label={t("Install everything missing")} />}
+      </div>
       <p className="max-w-[75ch] text-xs text-zinc-500">{t("Zeff brings its own Node and servers; these programs it uses come from your PC. Installed one just now? Restart Zeff so it finds it.")}</p>
       <ul className="card divide-y divide-zinc-100 dark:divide-zinc-800">
         {rows.map((r) => (
@@ -25,6 +33,7 @@ export function ThisPc() {
               </div>
               {r.found ? <p className="truncate text-xs text-zinc-400" title={r.found}>{r.found}</p> : <p className="text-xs text-red-600 dark:text-red-400">{r.howToGet}</p>}
             </div>
+            {!r.found && installable(r.id) && <InstallPrereq id={r.id} />}
           </li>
         ))}
       </ul>

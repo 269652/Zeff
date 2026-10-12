@@ -3888,5 +3888,16 @@
   "Worked on it — suggests a booking for it in the Weekly report (the todo stays open)": "Trabajado en ello — sugiere una reserva en el informe semanal (el todo sigue abierto)",
   "Added to the hours.": "Añadido a las horas.",
   "add {n} min": "añadir {n} min",
-  "Report the time you spent on a todo (todo, minutes or hours, note, agent) — one record each, a todo can have many; they flow into its booking.": "Informa del tiempo dedicado a una tarea (todo, minutos u horas, note, agent) — un registro cada vez, una tarea puede tener varios; pasan a su registro de horas."
+  "Report the time you spent on a todo (todo, minutes or hours, note, agent) — one record each, a todo can have many; they flow into its booking.": "Informa del tiempo dedicado a una tarea (todo, minutos u horas, note, agent) — un registro cada vez, una tarea puede tener varios; pasan a su registro de horas.",
+  "Everything is signed in.": "Todo está conectado.",
+  "{n} sign-in pages are open in the automation Chrome — sign in to each, then click Check all.": "{n} páginas de inicio de sesión están abiertas en el Chrome de automatización: inicia sesión en cada una y luego pulsa «Comprobar todo».",
+  "Couldn't open: {names}. Is a browser installed?": "No se pudo abrir: {names}. ¿Hay un navegador instalado?",
+  "Nothing to install.": "Nada que instalar.",
+  "Installing {n} program(s) — this takes a few minutes.": "Instalando {n} programa(s): tarda unos minutos.",
+  "Installed. Restart Zeff if a program isn't found right away.": "Instalado. Reinicia Zeff si un programa no se encuentra enseguida.",
+  "Installing …": "Instalando …",
+  "Install everything missing": "Instalar todo lo que falta",
+  "Opening …": "Abriendo …",
+  "Open all sign-in pages": "Abrir todas las páginas de inicio de sesión",
+  "Opens the sign-in page of every service that isn't signed in yet, each in its own tab — you sign in yourself": "Abre la página de inicio de sesión de cada servicio sin conectar, cada una en su pestaña: inicias sesión tú"
 }

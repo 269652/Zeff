@@ -60,7 +60,7 @@ export function installers(platform: NodeJS.Platform, has: (command: string) => 
 export const manualInstall = () => (process.platform === "win32" ? "winget install oschwartz10612.Poppler" : process.platform === "darwin" ? "brew install poppler" : "sudo apt install poppler-utils");
 
 /** Whether a command is on the PATH (or, on Windows, where winget lives). */
-function hasCommand(command: string): boolean {
+export function hasCommand(command: string): boolean {
   const exts = process.platform === "win32" ? [".exe", ".cmd", ".bat"] : [""];
   const dirs = (process.env.PATH ?? "").split(path.delimiter).filter(Boolean);
   if (process.platform === "win32") dirs.push(path.join(process.env.LOCALAPPDATA ?? "", "Microsoft", "WindowsApps"), path.join(os.homedir(), "scoop", "shims"));

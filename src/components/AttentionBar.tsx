@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useSyncExternalStore, useTransition } from "react";
+import { useEffect, useRef, useSyncExternalStore, useTransition } from "react";
 import { dismissAttentionAction, openServiceLoginAction, retryServiceAction } from "@/app/actions";
 import type { Attention } from "@/lib/attention";
 import { toast } from "./Toaster";
@@ -52,6 +52,22 @@ export function AttentionBar({ items }: { items: Attention[] }) {
   const t = useT();
   const perm = useSyncExternalStore(subscribePermission, permission, () => "unsupported" as const);
   useEffect(() => notifyNew(items), [items, perm]);
+  // A sync that asks for a sign-in: a toast right where you are (once per request), with the button that brings the page up.
+  const toasted = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const logins = items.filter((a) => a.kind === "login" && a.service);
+    const seen = (toasted.current ??= new Set());
+    for (const a of logins) {
+      const id = `${a.key}|${a.at}`;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      toast(a.title, {
+        tone: "error",
+        ms: 20000,
+        action: { label: t("Open sign-in"), run: () => void openServiceLoginAction(a.service!).then((r) => toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" })) },
+      });
+    }
+  }, [items, t]);
   const logins = items.filter((a) => a.kind === "login");
   if (!logins.length) return null;
   return (

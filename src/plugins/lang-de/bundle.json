@@ -3888,5 +3888,16 @@
   "Worked on it — suggests a booking for it in the Weekly report (the todo stays open)": "Daran gearbeitet — schlägt im Wochenbericht eine Buchung dafür vor (das Todo bleibt offen)",
   "Added to the hours.": "Zu den Stunden hinzugefügt.",
   "add {n} min": "{n} Min. hinzufügen",
-  "Report the time you spent on a todo (todo, minutes or hours, note, agent) — one record each, a todo can have many; they flow into its booking.": "Melde die Zeit, die du an einem Todo gearbeitet hast (todo, Minuten oder Stunden, note, agent) — je ein Eintrag, ein Todo kann viele haben; sie fließen in seine Buchung."
+  "Report the time you spent on a todo (todo, minutes or hours, note, agent) — one record each, a todo can have many; they flow into its booking.": "Melde die Zeit, die du an einem Todo gearbeitet hast (todo, Minuten oder Stunden, note, agent) — je ein Eintrag, ein Todo kann viele haben; sie fließen in seine Buchung.",
+  "Everything is signed in.": "Alles ist angemeldet.",
+  "{n} sign-in pages are open in the automation Chrome — sign in to each, then click Check all.": "{n} Anmeldeseiten sind im Automations-Chrome geöffnet – melde dich bei jeder an und klicke dann auf „Alle prüfen“.",
+  "Couldn't open: {names}. Is a browser installed?": "Konnte nicht öffnen: {names}. Ist ein Browser installiert?",
+  "Nothing to install.": "Nichts zu installieren.",
+  "Installing {n} program(s) — this takes a few minutes.": "{n} Programm(e) werden installiert – das dauert einige Minuten.",
+  "Installed. Restart Zeff if a program isn't found right away.": "Installiert. Starte Zeff neu, falls ein Programm nicht sofort gefunden wird.",
+  "Installing …": "Installiere …",
+  "Install everything missing": "Alles Fehlende installieren",
+  "Opening …": "Öffne …",
+  "Open all sign-in pages": "Alle Anmeldeseiten öffnen",
+  "Opens the sign-in page of every service that isn't signed in yet, each in its own tab — you sign in yourself": "Öffnet die Anmeldeseite jedes noch nicht angemeldeten Dienstes in einem eigenen Tab – du meldest dich selbst an"
 }

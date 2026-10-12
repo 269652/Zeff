@@ -1220,3 +1220,44 @@ export async function setLanguageAction(lang: string): Promise<ActionState> {
     return { ok: false, error: errorMessage(e) };
   }
 }
+
+/** Setup's "Open all sign-in pages": a tab per service that isn't signed in yet, in the automation Chrome — you sign in there yourself. */
+export async function openAllSignInsAction(): Promise<ActionState> {
+  try {
+    const { listLogins } = await import("@/lib/logins");
+    const { openServiceLogin } = await import("@/lib/attention");
+    const { logins } = await listLogins();
+    const open = logins.filter((l) => l.state !== "ok");
+    if (!open.length) return { ok: true, message: t("Everything is signed in.") };
+    const failed: string[] = [];
+    for (const l of open) if (!(await openServiceLogin(l.service)).ok) failed.push(l.label);
+    revalidatePath("/logins");
+    return failed.length
+      ? { ok: false, error: t("Couldn't open: {names}. Is a browser installed?", { names: failed.join(", ") }) }
+      : { ok: true, message: t("{n} sign-in pages are open in the automation Chrome — sign in to each, then click Check all.", { n: open.length }) };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** "Install" on the This PC list: winget (Homebrew) installs it in the background; `all` takes every missing program that can be installed. */
+export async function installPrerequisiteAction(id: string): Promise<ActionState> {
+  try {
+    const { prerequisites } = await import("@/lib/prerequisites");
+    const { installPlan, startInstall } = await import("@/lib/prerequisites-install");
+    const { hasCommand } = await import("@/plugins/documents/poppler");
+    const rows = prerequisites();
+    const todo = id === "all" ? rows.filter((r) => !r.found && installPlan(r.id, process.platform, hasCommand)) : rows.filter((r) => r.id === id && !r.found);
+    if (!todo.length) return { ok: false, error: t("Nothing to install.") };
+    for (const r of todo) startInstall(r.id, { plan: installPlan(r.id, process.platform, hasCommand), found: () => !!(rows.length && prerequisites().find((x) => x.id === r.id)?.found) });
+    return { ok: true, message: t("Installing {n} program(s) — this takes a few minutes.", { n: todo.length }) };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** What the installs are doing (polled by the This PC list). */
+export async function installStatusAction(): Promise<{ id: string; state: string; out: string }[]> {
+  const { installStates } = await import("@/lib/prerequisites-install");
+  return installStates().map(({ id, state, out }) => ({ id, state, out }));
+}

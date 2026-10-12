@@ -3,7 +3,7 @@ import { t } from "@/lib/i18n/server";
 import Link from "next/link";
 import { connection } from "next/server";
 import { finishSetupAction, skipSetupAction } from "@/app/actions";
-import { CheckAllLoginsButton } from "@/components/LoginButtons";
+import { CheckAllLoginsButton, OpenAllSignInsButton } from "@/components/LoginButtons";
 import { LoginsList } from "@/components/LoginsList";
 import { PluginInstallButton } from "@/components/PluginInstallButton";
 import { SetupDataRun } from "@/components/SetupDataRun";
@@ -150,7 +150,10 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
                   )
                 : t("Sign in to the services the plugins read — in this account's automation Chrome. “Sign in” brings the site to the front there; you sign in yourself, then “Check”.")}
             </p>
-            <CheckAllLoginsButton />
+            <div className="flex flex-wrap gap-2">
+              <OpenAllSignInsButton />
+              <CheckAllLoginsButton />
+            </div>
           </section>
           <LoginsList />
         </>

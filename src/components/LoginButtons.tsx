@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { checkAllLoginsAction, checkLoginAction, openServiceLoginAction } from "@/app/actions";
+import { checkAllLoginsAction, checkLoginAction, openAllSignInsAction, openServiceLoginAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
 import { toast } from "./Toaster";
 import { useT } from "./I18nProvider";
@@ -41,6 +41,17 @@ export function LoginButtons({ service, label, checkable }: { service: string; l
         {t("Sign in")}
       </button>
     </div>
+  );
+}
+
+/** A tab per service that isn't signed in yet, in the automation Chrome — the setup's way to show all the login pages at once. */
+export function OpenAllSignInsButton() {
+  const t = useT();
+  const [pending, act] = useAct();
+  return (
+    <button type="button" className="btn btn-sm btn-primary" disabled={pending} onClick={() => act(openAllSignInsAction)} title={t("Opens the sign-in page of every service that isn't signed in yet, each in its own tab — you sign in yourself")}>
+      {pending ? t("Opening …") : t("Open all sign-in pages")}
+    </button>
   );
 }
 
