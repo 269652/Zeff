@@ -72,6 +72,12 @@ export default async function SettingsPage() {
         <p className="text-sm text-zinc-500">
           {t("Set your weekly working pattern (part-time) and record time off. The weekly report uses this to show booked hours against your target.")}
         </p>
+        <Link href="/diagnostics" className="btn btn-sm w-full text-center">
+          {t("Diagnostics")}
+        </Link>
+        <Link href="/privacy" className="btn btn-sm w-full text-center">
+          {t("What leaves this PC")}
+        </Link>
         {/* The plugins' own settings pages: under Settings, one each. */}
         {PLUGINS.filter((p) => installedPlugins().has(p.id) && p.settings?.href.startsWith("/settings/")).map((p) => (
           <Link key={p.id} href={p.settings!.href} className="btn btn-sm w-full text-center" title={p.settings!.what}>

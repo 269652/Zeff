@@ -119,6 +119,11 @@ test("prerequisites(): every program with its label, use, location and way to ge
   assert.match(rows.find((r) => r.id === "git")!.howToGet, /Git/);
   // The default plugins (Work, Chrono, Jira, Copilot CLI …) need the browser, git, uv and Copilot — not Codex or Poppler.
   const needed = neededPrerequisites().map((r) => r.id);
-  for (const id of ["browser", "git", "uv", "copilot"]) assert.ok(needed.includes(id as PrereqId), id);
+  for (const id of ["browser", "git", "copilot"]) assert.ok(needed.includes(id as PrereqId), id);
+  // Jira isn't installed by default — uv comes with it.
+  assert.ok(!needed.includes("uv"), "no uv without Jira");
+  const { setInstalled } = await import("../src/plugins/state");
+  setInstalled("jira", true);
+  assert.ok(neededPrerequisites().some((r) => r.id === "uv"), "…and with Jira, uv is needed");
   assert.ok(!needed.includes("codex") && !needed.includes("poppler"));
 });

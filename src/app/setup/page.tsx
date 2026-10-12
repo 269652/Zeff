@@ -3,7 +3,10 @@ import { t } from "@/lib/i18n/server";
 import Link from "next/link";
 import { connection } from "next/server";
 import { finishSetupAction, skipSetupAction } from "@/app/actions";
-import { CheckAllLoginsButton, OpenAllSignInsButton } from "@/components/LoginButtons";
+import { AiSignIn } from "@/components/AiSignIn";
+import { AutoCheckLogins, CheckAllLoginsButton, OpenAllSignInsButton } from "@/components/LoginButtons";
+import { LoginSummary } from "@/components/LoginSummary";
+import { prerequisites } from "@/lib/prerequisites";
 import { LoginsList } from "@/components/LoginsList";
 import { PluginInstallButton } from "@/components/PluginInstallButton";
 import { SetupDataRun } from "@/components/SetupDataRun";
@@ -173,6 +176,12 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
           <p className="font-medium">{t("All set up.")}</p>
           <p className="text-zinc-600 dark:text-zinc-300">
             {t("From now on the syncs run by themselves (Menu → Sync settings); a new briefing can be run any time on the Todos tab. Everything can be changed later under Menu → Plugins.")}
+          </p>
+          <p className="text-zinc-600 dark:text-zinc-300">
+            {t("Good to know:")}{" "}
+            <Link href="/preferences#backups" className="text-indigo-600 hover:underline dark:text-indigo-400">{t("Backups")}</Link> ·{" "}
+            <Link href="/privacy" className="text-indigo-600 hover:underline dark:text-indigo-400">{t("What leaves this PC")}</Link> ·{" "}
+            <Link href="/diagnostics" className="text-indigo-600 hover:underline dark:text-indigo-400">{t("Diagnostics")}</Link>
           </p>
           <form action={finishSetupAction}>
             <button type="submit" className="btn btn-primary btn-sm">

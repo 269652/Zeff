@@ -1263,9 +1263,9 @@ async function signInAfterInstall(id: string): Promise<void> {
 }
 
 /** What the installs are doing (polled by the This PC list). */
-export async function installStatusAction(): Promise<{ id: string; state: string; out: string }[]> {
+export async function installStatusAction(): Promise<{ id: string; state: string; out: string; note: string; at: string }[]> {
   const { installStates } = await import("@/lib/prerequisites-install");
-  return installStates().map(({ id, state, out }) => ({ id, state, out }));
+  return installStates().map(({ id, state, out, note, at }) => ({ id, state, out, note: note ?? "", at }));
 }
 
 /** "Sign in" on the This PC list: the AI CLI's own login (opens the browser; Zeff never sees a password). */
@@ -1292,4 +1292,14 @@ export async function aiLoginStatusAction(): Promise<{ provider: string; state: 
       return { provider: p, state: s?.state ?? "idle", url: s?.url ?? null, out: s?.out ?? "", signedIn: s?.state === "running" ? null : s?.state === "done" && !loginCommands(p)?.status ? true : await aiSignedIn(p) };
     }),
   );
+}
+
+/** The diagnostics report (redacted) — shown on the page, copied or saved by the user; Zeff sends it nowhere. */
+export async function diagnosticsAction(): Promise<{ ok: boolean; text?: string; error?: string }> {
+  try {
+    const { diagnosticsReport } = await import("@/lib/diagnostics");
+    return { ok: true, text: await diagnosticsReport() };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
 }

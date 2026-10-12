@@ -6,7 +6,9 @@ import { installPrerequisiteAction, installStatusAction } from "@/app/actions";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "./Toaster";
 
-type Status = { id: string; state: string; out: string };
+type Status = { id: string; state: string; out: string; note: string; at: string };
+
+const clock = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`;
 
 /**
  * "Install" for a missing program (id) — or for every installable missing one (id "all"). The install runs
@@ -20,7 +22,20 @@ export function InstallPrereq({ id, label }: { id: string; label?: string }) {
   const [started, setStarted] = useState(false);
   const mine = id === "all" ? status : status.filter((s) => s.id === id);
   const running = mine.some((s) => s.state === "running");
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!running) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [running]);
   const failed = mine.filter((s) => s.state === "failed");
+  // An install already running (the page was reloaded meanwhile): pick it up again.
+  useEffect(() => {
+    void installStatusAction().then((s) => {
+      setStatus(s);
+      if ((id === "all" ? s : s.filter((x) => x.id === id)).some((x) => x.state === "running")) setStarted(true);
+    });
+  }, [id]);
 
   useEffect(() => {
     if (!started) return;
@@ -63,6 +78,12 @@ export function InstallPrereq({ id, label }: { id: string; label?: string }) {
       >
         {running || pending ? t("Installing …") : (label ?? t("Install"))}
       </button>
+      {mine.filter((s) => s.state === "running").map((s) => (
+        <span key={s.id} className="max-w-[60ch] text-xs text-zinc-500">
+          {id === "all" ? `${s.id}: ` : ""}
+          {s.note || t("Installing …")} · {clock(Math.max(0, now - Date.parse(s.at)))}
+        </span>
+      ))}
       {failed.map((f) => (
         <span key={f.id} className="max-w-[60ch] text-xs text-red-600 dark:text-red-400">
           {f.id}: {f.out}

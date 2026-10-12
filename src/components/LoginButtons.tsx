@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { checkAllLoginsAction, checkLoginAction, openAllSignInsAction, openServiceLoginAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
 import { toast } from "./Toaster";
@@ -64,4 +64,27 @@ export function CheckAllLoginsButton() {
       {pending ? t("Checking…") : t("Check all")}
     </button>
   );
+}
+
+/** Checks every checkable service once when the step is opened (so the list shows who is signed in, not "unknown"). */
+export function AutoCheckLogins() {
+  const t = useT();
+  const router = useRouter();
+  const [checking, setChecking] = useState(false);
+  useEffect(() => {
+    let skip = false;
+    try {
+      skip = sessionStorage.getItem("zeff-logins-autochecked") === "1";
+      sessionStorage.setItem("zeff-logins-autochecked", "1");
+    } catch {
+      // checked every time, then
+    }
+    if (skip) return;
+    setChecking(true);
+    void checkAllLoginsAction().finally(() => {
+      setChecking(false);
+      router.refresh();
+    });
+  }, [router]);
+  return checking ? <p className="text-xs text-zinc-500">{t("Checking who is signed in …")}</p> : null;
 }

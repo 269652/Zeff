@@ -50,7 +50,7 @@ export function installPlan(id: PrereqId, platform: string, has: (command: strin
   return null;
 }
 
-export type InstallState = { id: PrereqId; state: "running" | "done" | "failed"; out: string; at: string };
+export type InstallState = { id: PrereqId; state: "running" | "done" | "failed"; out: string; at: string; /** What it is doing now. */ note?: string };
 
 const g = globalThis as { __zeffInstalls?: Map<PrereqId, InstallState>; __zeffInstallQueue?: Promise<unknown> };
 const installs = (g.__zeffInstalls ??= new Map());
@@ -61,7 +61,7 @@ export const installStates = (): InstallState[] => [...installs.values()];
  * Installs `id` in the background (queued behind any running install — winget allows one at a time).
  * `found` is asked afterwards: installed means the program is there now. Returns at once.
  */
-export function startInstall(id: PrereqId, deps: { plan: InstallPlan | null; found: () => boolean; /** Once it is installed (the AI CLIs: their sign-in starts). */ after?: () => void; run?: (p: InstallPlan) => Promise<{ ok: boolean; out: string }> }): InstallState {
+export function startInstall(id: PrereqId, deps: { plan: InstallPlan | null; found: () => boolean; /** Once it is installed (the AI CLIs: their sign-in starts). */ after?: () => void; run?: (p: InstallPlan, onPhase: (text: string) => void) => Promise<{ ok: boolean; out: string }> }): InstallState {
   const running = installs.get(id);
   if (running?.state === "running") return running;
   const at = new Date().toISOString();
@@ -77,7 +77,7 @@ export function startInstall(id: PrereqId, deps: { plan: InstallPlan | null; fou
   g.__zeffInstallQueue = Promise.resolve(g.__zeffInstallQueue)
     .catch(() => undefined)
     .then(async () => {
-      const r = await run(plan);
+      const r = await run(plan, (note) => installs.set(id, { ...s, note }));
       const found = deps.found();
       if (found) try { deps.after?.(); } catch { /* the install stands */ }
       installs.set(id, { id, state: found ? "done" : "failed", out: found ? "" : r.out.replace(/\s+/g, " ").slice(-200) || (r.ok ? "Installed, but Zeff didn't find it — restart Zeff." : "Failed."), at });
@@ -88,8 +88,9 @@ export function startInstall(id: PrereqId, deps: { plan: InstallPlan | null; fou
 /** Waits for the queue (tests). */
 export const installsSettled = () => Promise.resolve(g.__zeffInstallQueue).catch(() => undefined);
 
-const defaultRun = async (p: InstallPlan): Promise<{ ok: boolean; out: string }> => {
-  if (p.custom === "codex") return (await import("./node-tools")).installCodex();
+const defaultRun = async (p: InstallPlan, onPhase: (text: string) => void): Promise<{ ok: boolean; out: string }> => {
+  if (p.custom === "codex") return (await import("./node-tools")).installCodex({ onPhase });
+  onPhase(`Installing with ${p.name} …`);
   return runCommand(p);
 };
 const runCommand = (p: InstallPlan): Promise<{ ok: boolean; out: string }> =>

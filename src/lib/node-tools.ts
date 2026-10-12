@@ -42,6 +42,8 @@ export type NodeDeps = {
   fetchJson?: (url: string) => Promise<unknown>;
   download?: (url: string, to: string) => Promise<void>;
   run?: Run;
+  /** What it is doing now (shown while the install runs). */
+  onPhase?: (text: string) => void;
   platform?: string;
   arch?: string;
   dir?: string;
@@ -68,7 +70,9 @@ export async function ensurePortableNode(deps: NodeDeps = {}): Promise<{ node: s
   const dist = pickNodeDist((await (deps.fetchJson ?? defaultFetchJson)("https://nodejs.org/dist/index.json")) as NodeRelease[], platform, deps.arch ?? process.arch);
   if (!dist) throw new Error("nodejs.org has no portable Node for this system.");
   const archive = path.join(dir, dist.file);
+  deps.onPhase?.(`Downloading Node ${dist.version} (about 30 MB) …`);
   await (deps.download ?? defaultDownload)(dist.url, archive);
+  deps.onPhase?.("Unpacking Node …");
   const r = await (deps.run ?? run)(
     ...((platform === "win32"
       ? ["powershell", ["-NoProfile", "-Command", `Expand-Archive -LiteralPath '${archive}' -DestinationPath '${dir}' -Force`]]
@@ -86,6 +90,7 @@ export async function npmInstall(pkg: string, deps: NodeDeps = {}): Promise<{ ok
     const { node, npm } = await ensurePortableNode(deps);
     const prefix = path.join(deps.dir ?? toolsDir(), "npm");
     fs.mkdirSync(/*turbopackIgnore: true*/ prefix, { recursive: true });
+    deps.onPhase?.(`Installing ${pkg} with npm (a few minutes) …`);
     return await (deps.run ?? run)(node, [npm, "install", "-g", pkg, "--prefix", prefix, "--no-audit", "--no-fund"], { PATH: `${path.dirname(node)}${path.delimiter}${process.env.PATH ?? ""}` });
   } catch (err) {
     return { ok: false, out: err instanceof Error ? err.message : String(err) };

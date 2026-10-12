@@ -308,7 +308,7 @@ export const PLUGINS: PluginManifest[] = [
     name: "Jira",
     description: "Your tickets and those of the chosen boards — the basis of the todos, the context sync and the entries per ticket.",
     category: "connector",
-    defaultInstalled: true,
+    defaultInstalled: false,
     requires: "The Jira MCP server (mcp-atlassian) with your access.",
     nav: [{ href: "/jira", label: "Jira", hint: "Boards, tickets & sync" }],
     routes: ["/jira"],
