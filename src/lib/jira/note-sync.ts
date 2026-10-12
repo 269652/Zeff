@@ -2,7 +2,8 @@ import { jiraCommentUrl } from "@/lib/boards/shared";
 import { getTodo, markNoteSynced } from "@/lib/boards/store";
 import { ValidationError, errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
-import { jiraNoteBody, linkJiraAccounts } from "@/plugins/people/accounts";
+import { jiraNoteBody, linkJiraAccounts, resolveJiraAccounts } from "@/plugins/people/accounts";
+import { listPeople } from "@/plugins/people/store";
 import { resultToPayload, runStdioSession } from "./mcp-client";
 import { getJiraTicket } from "./store";
 import { getJiraSyncConfig } from "./sync";
@@ -15,6 +16,8 @@ const GONE = /not found|does not exist|doesn'?t exist|no such|404|existiert nich
 
 /** What the sync needs from Jira: one comment posted (its id back), one edited. */
 export type NoteSyncDeps = {
+  /** Jira's user lookup, for tagged people without a Jira account (default: Jira's MCP server; tests pass their own, or none). */
+  lookupUser?: import("@/plugins/people/accounts").JiraLookup;
   post: (ticket: string, body: string) => Promise<string | null>;
   edit: (ticket: string, commentId: string, body: string) => Promise<void>;
 };
@@ -66,6 +69,12 @@ export async function syncNoteToJira(todoId: number, at: string, deps?: NoteSync
   // Jira users Zeff knows by name but hasn't tied to a profile yet: tied now, so a tag becomes a real mention.
   try {
     linkJiraAccounts();
+    // Tagged but not found by name: asked of Jira itself, by the usernames their name would have.
+    const missing = jiraNoteBody(note.text).noAccount;
+    if (missing.length && (!deps || deps.lookupUser)) {
+      const ids = listPeople().filter((p) => missing.includes(p.name)).map((p) => p.id);
+      await resolveJiraAccounts({ ids, lookup: deps?.lookupUser });
+    }
   } catch {
     // without the link, the name is written out
   }

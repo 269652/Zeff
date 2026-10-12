@@ -95,7 +95,7 @@ export async function importPeopleFormAction(): Promise<void> {
     const { importPeopleFromContext } = await import("./import");
     const r = await importPeopleFromContext();
     // Their Jira accounts, tied by name (no AI) — for the people just made too.
-    (await import("./accounts")).linkJiraAccounts();
+    await (await import("./accounts")).resolveJiraAccounts();
     result = `${r.created},${r.updated},${r.candidates}`;
   } catch (e) {
     back("/personen", { error: errorMessage(e) });
@@ -109,7 +109,8 @@ export async function linkJiraAccountsFormAction(): Promise<void> {
   let n = 0;
   try {
     guard();
-    n = (await import("./accounts")).linkJiraAccounts();
+    // By the names seen on the tickets, and for the rest by asking Jira for the usernames their names would have.
+    n = (await (await import("./accounts")).resolveJiraAccounts()).linked;
   } catch (e) {
     back("/personen", { error: errorMessage(e) });
   }
