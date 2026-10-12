@@ -58,6 +58,35 @@ export async function updatePersonFormAction(fd: FormData): Promise<void> {
   back(str(fd, "to") || `/personen/${id}`, { saved: "1" });
 }
 
+/** "Compile": the people's summaries, in the background — the page follows. */
+export async function compileAllFormAction(fd: FormData): Promise<void> {
+  let started = false;
+  try {
+    guard();
+    const { startCompile } = await import("./compile");
+    started = startCompile({ force: fd.get("force") === "1" });
+  } catch (e) {
+    back("/personen/compile", { error: errorMessage(e) });
+  }
+  revalidatePath("/personen", "layout");
+  back("/personen/compile", started ? { started: "1" } : { busy: "1" });
+}
+
+/** "Compile" on one person: just that profile, again. */
+export async function compileOneFormAction(fd: FormData): Promise<void> {
+  const id = Number(str(fd, "id"));
+  let started = false;
+  try {
+    guard();
+    const { startCompile } = await import("./compile");
+    started = startCompile({ ids: [id], force: true });
+  } catch (e) {
+    back("/personen/compile", { error: errorMessage(e) });
+  }
+  revalidatePath("/personen", "layout");
+  back("/personen/compile", started ? { started: "1" } : { busy: "1" });
+}
+
 /** "Import from context": the people of the last 14 days of your mails, chats, Teams, Jira and GitLab, through the AI — now. */
 export async function importPeopleFormAction(): Promise<void> {
   let result = "";

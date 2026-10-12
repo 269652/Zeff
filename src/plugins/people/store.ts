@@ -2,7 +2,7 @@ import { getSqlite } from "@/db";
 import { emitChange } from "@/lib/events";
 import { isChatFolder } from "@/lib/mail/shared";
 import { t } from "@/lib/i18n/server";
-import { daysBetween, isDateKind, isoDay, nextOccurrence, type DateKind, type Person, type PersonAccount, type PersonDate, type Upcoming } from "./shared";
+import { daysBetween, isDateKind, isoDay, nextOccurrence, type DateKind, type Person, type PersonAccount, type PersonDate, type PersonSummary, type Upcoming } from "./shared";
 
 /**
  * People (the Personen plugin): a profile per person you care about — your notes, their dates
@@ -19,6 +19,8 @@ function db() {
     create table if not exists people_reminded (date_id integer not null references people_dates(id) on delete cascade, occurrence text not null, done_at text not null, primary key (date_id, occurrence));
     create table if not exists people_relations (id integer primary key autoincrement, person_id integer not null references people(id) on delete cascade, rel text not null, other_id integer not null default 0, evidence text not null default '', source text not null default 'ai', created_at text not null, unique (person_id, rel, other_id));
   `);
+  // The compiled summary: a column added later.
+  if (!(d.prepare("pragma table_info(people)").all() as { name: string }[]).some((c) => c.name === "compiled")) d.exec("alter table people add column compiled text");
   // Linked accounts (Jira usernames): a column added later.
   if (!(d.prepare("pragma table_info(people)").all() as { name: string }[]).some((c) => c.name === "accounts")) d.exec("alter table people add column accounts text not null default '[]'");
   return d;
@@ -34,7 +36,7 @@ const parse = <T>(s: string, d: T): T => {
 const now = () => new Date().toISOString();
 const changed = () => emitChange("todos");
 
-type PRow = { id: number; name: string; aliases: string; accounts?: string; note: string; whatsapp: string; emails: string; entity_id: number | null; starred: number; created_at: string; updated_at: string };
+type PRow = { id: number; name: string; aliases: string; accounts?: string; compiled?: string | null; note: string; whatsapp: string; emails: string; entity_id: number | null; starred: number; created_at: string; updated_at: string };
 type DRow = { id: number; person_id: number; kind: string; label: string; day: number; month: number; year: number | null; yearly: number; remind_days: number; source: string; source_text: string; confirmed: number };
 
 const toPerson = (r: PRow): Person => ({
@@ -42,6 +44,7 @@ const toPerson = (r: PRow): Person => ({
   name: r.name,
   aliases: parse<string[]>(r.aliases, []),
   accounts: parse<unknown[]>(r.accounts ?? "[]", []).flatMap((a) => (a && typeof a === "object" && (a as PersonAccount).kind === "jira" && typeof (a as PersonAccount).value === "string" ? [{ kind: "jira" as const, value: (a as PersonAccount).value }] : [])),
+  compiled: parse<PersonSummary | null>(r.compiled ?? "null", null),
   note: r.note,
   whatsapp: r.whatsapp,
   emails: parse<string[]>(r.emails, []),
@@ -110,6 +113,12 @@ export function updatePerson(id: number, patch: { name?: string; aliases?: strin
   if (!sets.length) return;
   set("updated_at", now());
   db().prepare(`update people set ${sets.join(", ")} where id = ?`).run(...args, id);
+  changed();
+}
+
+/** A person's compiled summary, kept. */
+export function setCompiled(id: number, summary: PersonSummary): void {
+  db().prepare("update people set compiled = ? where id = ?").run(JSON.stringify(summary), id);
   changed();
 }
 

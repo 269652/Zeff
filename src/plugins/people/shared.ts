@@ -38,12 +38,17 @@ export type PersonDate = {
 /** An account of a person somewhere else — which Jira user they are (for @-mentions in comments synced to Jira). */
 export type PersonAccount = { kind: "jira"; value: string };
 
+/** A person's compiled summary: what connects you, the key facts, the fun facts — and when, from how many things Zeff had on them. */
+export type PersonSummary = { connection: string; keyFacts: string[]; funFacts: string[]; at: string; sources: number };
+
 export type Person = {
   id: number;
   name: string;
   aliases: string[];
   /** Their linked accounts (Jira usernames). */
   accounts: PersonAccount[];
+  /** Their compiled summary (the Compile page); null: not compiled yet. */
+  compiled: PersonSummary | null;
   note: string;
   /** The WhatsApp chat (its name) — their messages. */
   whatsapp: string;

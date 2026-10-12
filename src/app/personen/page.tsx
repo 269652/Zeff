@@ -81,6 +81,9 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
             </button>
           </form>
         )}
+        <Link href="/personen/compile" className="btn btn-sm w-full text-center" title={t("A summary of every person: what connects you, the key facts, the fun facts")}>
+          {t("Compile summaries")}
+        </Link>
         <form action={importPeopleFormAction}>
           <SubmitButton className="btn btn-primary btn-sm w-full" pendingText={t("Reading your context … (a minute or two)")} title={t("The AI goes through the last 14 days of your mails, WhatsApp and Signal chats, Teams, Jira and GitLab and makes a profile of every real person in them — with their other names, mail addresses, chats and Jira users. People you have get what's new about them.")}>
             {t("Import from context (AI)")}
