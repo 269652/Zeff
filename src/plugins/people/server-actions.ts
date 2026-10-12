@@ -7,7 +7,7 @@ import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { findAllDates, findDates } from "./dates";
 import { isDateKind, parseDayMonth } from "./shared";
-import { addDate, createPerson, deleteDate, deletePerson, getPerson, markReminded, updateDate, updatePerson } from "./store";
+import { addDate, addRelation, createPerson, deleteDate, deletePerson, deleteRelation, getPerson, markReminded, mergePeople, updateDate, updatePerson } from "./store";
 
 /** The Personen plugin's server actions — forms post to them; each goes back to a page with what came of it. */
 
@@ -55,6 +55,57 @@ export async function updatePersonFormAction(fd: FormData): Promise<void> {
   }
   revalidatePath("/personen", "layout");
   back(str(fd, "to") || `/personen/${id}`, { saved: "1" });
+}
+
+/** "Match names": the AI looks at who the names in your todos are — aliases, new profiles for contacts, duplicates merged — now (it also runs after each briefing). */
+export async function normalizePeopleFormAction(): Promise<void> {
+  let result = "";
+  try {
+    guard();
+    if (!isInstalled("llm")) throw new Error(t("The LLM plugin is needed for this (Menu → Plugins)."));
+    const r = await (await import("./normalize")).normalizePeople();
+    if (!r.ok) throw new Error(r.error ?? t("Failed."));
+    result = `${r.aliases},${r.created},${r.merged},${r.relations}`;
+  } catch (e) {
+    back("/personen", { error: errorMessage(e) });
+  }
+  revalidatePath("/personen", "layout");
+  back("/personen", { matched: result });
+}
+
+/** Two profiles that are one person: this one (`drop`) goes into the chosen one (`keep`) — its names become aliases, its chat, addresses, notes and dates come along. */
+export async function mergePersonFormAction(fd: FormData): Promise<void> {
+  const drop = Number(str(fd, "drop"));
+  const keep = Number(str(fd, "keep"));
+  try {
+    guard();
+    if (!keep || !drop || keep === drop) throw new Error(t("Pick the profile this one is the same person as."));
+    mergePeople(keep, drop);
+  } catch (e) {
+    back(`/personen/${drop}`, { error: errorMessage(e) });
+  }
+  revalidatePath("/personen", "layout");
+  back(`/personen/${keep}`, { saved: "1" });
+}
+
+/** A relation added by hand: what this person is (to you, or to the chosen profile). */
+export async function addRelationFormAction(fd: FormData): Promise<void> {
+  const personId = Number(str(fd, "personId"));
+  try {
+    guard();
+    if (!addRelation(personId, str(fd, "rel"), Number(str(fd, "other")) || 0, "", "manual")) throw new Error(t("Enter what they are (e.g. mother, landlord) — it can't be saved twice."));
+  } catch (e) {
+    back(`/personen/${personId}`, { error: errorMessage(e) });
+  }
+  revalidatePath("/personen", "layout");
+  back(`/personen/${personId}`, { saved: "1" });
+}
+
+export async function deleteRelationFormAction(fd: FormData): Promise<void> {
+  guard();
+  deleteRelation(Number(str(fd, "id")));
+  revalidatePath("/personen", "layout");
+  redirect(`/personen/${Number(str(fd, "personId"))}`);
 }
 
 export async function deletePersonFormAction(fd: FormData): Promise<void> {
@@ -134,6 +185,8 @@ export type PersonCardData = {
   note: string;
   dates: { label: string; when: string }[];
   facts: { subject: string; text: string }[];
+  /** "Mutter", "Tochter von Nadine", "Sohn: Max" — who they are to you / to others. */
+  relations: string[];
   messages: { who: string; text: string; at: string; folder: string }[];
   todos: { id: number; ref: string; text: string }[];
 };
@@ -143,7 +196,7 @@ export async function personCardAction(id: number): Promise<PersonCardData | nul
   if (!isInstalled("people")) return null;
   const p = getPerson(Number(id));
   if (!p) return null;
-  const { contactsOf, datesOf, peopleIndex } = await import("./store");
+  const { contactsOf, datesOf, peopleIndex, relationsOf } = await import("./store");
   const { mentionMatcher, splitMentions } = await import("./mentions");
   // Named in a text the way todos show it (aliases, "Herr Gorges", "Nadines").
   const matcher = mentionMatcher(await peopleIndex());
@@ -173,6 +226,10 @@ export async function personCardAction(id: number): Promise<PersonCardData | nul
       .filter((f) => names(`${f.subject} ${f.text}`))
       .slice(0, 6)
       .map((f) => ({ subject: f.subject, text: f.text.slice(0, 200) })),
+    relations: [
+      ...relationsOf(p.id).out.map((r) => (r.otherId ? t("{rel} of {name}", { rel: r.rel, name: r.otherName ?? "?" }) : r.rel)),
+      ...relationsOf(p.id).in.map((r) => `${r.personName}: ${r.rel}`),
+    ].slice(0, 6),
     messages: contactsOf(p, 3).map((c) => ({ who: c.who, text: c.text.slice(0, 220), at: c.at, folder: c.folder })),
     todos: listTodos({ status: "open" })
       .filter((x) => names(x.text))

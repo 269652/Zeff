@@ -29,6 +29,14 @@ test("subtasks: linked to the parent, a column of their own, cut loose on delete
   s.moveCardToBoard(parent.id, b);
   assert.equal(s.getBoard(a).columns.flatMap((c) => c.cards).find((c) => c.id === kid2.id)!.parentId, null, "a parent that moves leaves its subtasks as cards of their own");
 
+  // Asked to: the subtasks come along, still linked, into the target's first column.
+  const p3 = s.createCard(open.id, "P3");
+  const k4 = s.createSubtask(p3.id, "K4");
+  s.moveCardToBoard(p3.id, b, true);
+  const moved = s.getBoard(b).columns.flatMap((c) => c.cards);
+  assert.deepEqual([moved.find((c) => c.id === k4.id)?.parentId, moved.find((c) => c.id === k4.id)?.columnId], [p3.id, moved.find((c) => c.id === p3.id)?.columnId]);
+  assert.equal(s.getBoard(a).columns.flatMap((c) => c.cards).some((c) => c.id === k4.id), false);
+
   const p2 = s.createCard(open.id, "P2");
   const k3 = s.createSubtask(p2.id, "K3");
   s.deleteCard(p2.id);

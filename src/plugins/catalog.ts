@@ -240,6 +240,26 @@ export const PLUGINS: PluginManifest[] = [
     apps: [{ href: "/documents", label: "Documents", short: "Docs", hint: "Drop documents, images, audio" }],
     settings: { href: "/documents#settings", what: "The audio transcriber" },
     routes: ["/documents", "/api/documents"],
+    extensions: [
+      {
+        key: "doc-review",
+        for: "todos",
+        name: "Document review",
+        description: "A step after every briefing: the AI reads new and changed documents and makes todos of what they ask of you — a deadline, a bill, a form, an open question — with the document as the source.",
+        requires: ["llm"],
+        defaultInstalled: true,
+        syncSteps: ["doctodos"],
+      },
+      {
+        key: "doc-relations",
+        for: "todos",
+        name: "Document matching",
+        description: "A step after every briefing: the AI attaches to each open todo the documents it is about — by content. They then show on the todo, in its context and in the agents'.",
+        requires: ["llm"],
+        defaultInstalled: true,
+        syncSteps: ["docrelations"],
+      },
+    ],
   },
   {
     id: "accounts",

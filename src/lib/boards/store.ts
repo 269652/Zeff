@@ -123,7 +123,7 @@ function opsOf(r: Todo): TodoView["ops"] {
  * What a todo is related to, by the relation runs (its mail_refs column): the mails (Mail-Zuordnung,
  * "mail:…") and the notes (Notiz-Zuordnung, Keep's extension, "keep:…").
  */
-const relatedRefsOf = (r: Todo) => parse<string[]>(r.mailRefs, []).filter((k) => typeof k === "string" && (k.startsWith("mail:") || k.startsWith("keep:")));
+const relatedRefsOf = (r: Todo) => parse<string[]>(r.mailRefs, []).filter((k) => typeof k === "string" && (k.startsWith("mail:") || k.startsWith("keep:") || k.startsWith("doc:")));
 /** The mails related to a todo (by the mail relation run). */
 const mailRefsOf = (r: Todo) => relatedRefsOf(r).filter((k) => k.startsWith("mail:"));
 
@@ -168,7 +168,7 @@ const toTodo = (r: Todo): TodoView => ({
  * A relation run's pick: per todo, what it's about — its refs of one kind ("mail:" / "keep:")
  * replaced, the other kind's kept. Todos not in `picks` keep theirs.
  */
-function setRelatedRefs(prefix: "mail:" | "keep:", picks: Map<number, string[]>): number {
+function setRelatedRefs(prefix: "mail:" | "keep:" | "doc:", picks: Map<number, string[]>): number {
   if (!picks.size) return 0;
   let changed = 0;
   getDb().transaction((tx) => {
@@ -190,6 +190,9 @@ export const setTodoMailRefs = (picks: Map<number, string[]>) => setRelatedRefs(
 
 /** The Notiz-Zuordnung's pick (Keep's extension): per todo, the notes it's about (["keep:…"]); its mails stay. */
 export const setTodoNoteRefs = (picks: Map<number, string[]>) => setRelatedRefs("keep:", picks);
+
+/** The Dokument-Zuordnung's pick (the Documents plugin's extension): per todo, the documents it's about (["doc:12"]); its mails and notes stay. Documents attached by hand are in its refs — not touched. */
+export const setTodoDocRefs = (picks: Map<number, string[]>) => setRelatedRefs("doc:", picks);
 
 /** A todo on this ticket: its main ticket, or one it's linked to. */
 const onTicket = (key: string) => or(eq(todos.ticket, key), sql`${todos.alsoTickets} like ${`%"${key}"%`}`);
@@ -515,6 +518,30 @@ export function addMailTodo(v: { ticket: string; text: string; kind: string; own
 }
 
 /** A todo from the Notiz-Durchsicht (Keep's extension): what a note asks of you, the notes as its source. */
+/** A todo from a document (the Dokument-Durchsicht): what the document asks of you, due when it says so; the document is its source. */
+export function addDocTodo(v: { ticket: string; text: string; kind: string; owner?: "me" | "other"; refs: string[]; runId: number | null; due?: string | null }): TodoView {
+  emitChange("todos");
+  const now = new Date().toISOString();
+  const row = getDb()
+    .insert(todos)
+    .values({
+      ticket: v.ticket.trim().toUpperCase(),
+      text: v.text.trim().slice(0, 500),
+      kind: isTodoKind(v.kind) ? v.kind : "other",
+      owner: v.owner === "other" ? "other" : "me",
+      status: "open",
+      source: "Dokument-Durchsicht",
+      refs: JSON.stringify(v.refs.filter((r) => r.startsWith("doc:")).slice(0, 15)),
+      runId: v.runId,
+      due: dueDay(v.due),
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning()
+    .get();
+  return toTodo(row);
+}
+
 export function addNoteTodo(v: { ticket: string; text: string; kind: string; owner?: "me" | "other"; refs: string[]; runId: number | null; due?: string | null }): TodoView {
   emitChange("todos");
   const now = new Date().toISOString();

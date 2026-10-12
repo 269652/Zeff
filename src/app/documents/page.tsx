@@ -7,7 +7,7 @@ import { listTodos } from "@/lib/boards/store";
 import { t } from "@/lib/i18n/server";
 import { documentSettings } from "@/plugins/documents/settings";
 import { DocumentsApp } from "@/plugins/documents/DocumentsApp";
-import { pollAbstracts, pullAbstracts, startProcessing } from "@/plugins/documents/process";
+import { pollAbstracts, pullAbstracts, readingStatus, startProcessing } from "@/plugins/documents/process";
 import { listDocuments, queuedDocuments, uncompiledDocuments } from "@/plugins/documents/store";
 import { isInstalled } from "@/plugins/state";
 
@@ -42,7 +42,7 @@ export default async function DocumentsPage() {
         </p>
       </div>
       {attachmentOfferOpen() && <MailAttachmentsOffer />}
-      <DocumentsApp docs={docs} origins={documentOrigins(docs.map((d) => d.id))} todos={todos} settings={documentSettings()} knowledge={knowledge} />
+      <DocumentsApp docs={docs} reading={readingStatus()} origins={documentOrigins(docs.map((d) => d.id))} todos={todos} settings={documentSettings()} knowledge={knowledge} />
     </div>
   );
 }

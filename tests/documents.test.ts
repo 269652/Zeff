@@ -46,8 +46,13 @@ function makeZip(files: Record<string, string>): Buffer {
   return Buffer.concat([...parts, cdBuf, end]);
 }
 
+const made: string[] = [];
+// The folders are gone when the run ends (they used to pile up in the temp folder).
+process.on("exit", () => made.forEach((d) => fs.rmSync(d, { recursive: true, force: true })));
 const tmp = (name: string, data: string | Buffer) => {
-  const f = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "zeff-doc-test-")), name);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "zeff-doc-test-"));
+  made.push(dir);
+  const f = path.join(dir, name);
   fs.writeFileSync(f, data);
   return f;
 };

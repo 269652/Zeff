@@ -15,6 +15,8 @@ export const llmTasks = (t: T = translator("en")) =>
     { id: "mail-relations", label: t("Mail matching"), what: t("Matches each todo with the mails it is about.") },
     { id: "note-todos", label: t("Note review"), what: t("Finds what you have to do in new and changed notes (Google Keep, your Keep boards).") },
     { id: "note-relations", label: t("Note matching"), what: t("Matches each todo with the notes it is about.") },
+    { id: "doc-todos", label: t("Document review"), what: t("Finds what you have to do in new and changed documents (Documents plugin).") },
+    { id: "doc-relations", label: t("Document matching"), what: t("Matches each todo with the documents it is about.") },
     { id: "knowledge-relations", label: t("Knowledge matching"), what: t("Picks from the knowledge base's hits what really fits each todo.") },
     { id: "people-dates", label: t("People's dates"), what: t("Finds birthdays, anniversaries and other important dates of your people in the knowledge and in your messages (People plugin).") },
     { id: "people-normalize", label: t("People matching"), what: t("Finds who is meant by the names in your todos — one person under all their names: aliases, new profiles for contacts, duplicates merged (People plugin).") },

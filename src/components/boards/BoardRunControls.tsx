@@ -12,7 +12,7 @@ import type { T } from "@/lib/i18n/shared";
 
 /** What "Jetzt auswerten" does, in order — each a step of its own, as in the Sync menu. */
 /** After the syncs it runs first (the Auswerten settings): the Lage and its steps. */
-const AFTER_STEPS: SyncKey[] = ["boards", "mailtodos", "relations", "notetodos", "noterelations", "knowledgerel", "peoplenorm", "autoactions"];
+const AFTER_STEPS: SyncKey[] = ["boards", "mailtodos", "relations", "notetodos", "noterelations", "doctodos", "docrelations", "knowledgerel", "peoplenorm", "autoactions"];
 
 const phases = (t: T): Record<string, string> => ({
   sync: t("syncing first"),
@@ -24,6 +24,8 @@ const phases = (t: T): Record<string, string> => ({
   notetodos: t("finding todos in notes"),
   knowledge: t("matching knowledge to the todos"),
   notes: t("matching notes to the todos"),
+  documents: t("finding todos in documents"),
+  docrelations: t("matching documents to the todos"),
   people: t("finding the people in the todos"),
   autoactions: t("taking actions for the todos"),
 });

@@ -189,8 +189,8 @@ export function SyncMenu() {
         {failed && <span className="absolute top-1.5 right-1 size-1.5 rounded-full bg-red-500" aria-hidden />}
       </button>
       {open && (
-        <div id="sync-menu" className="absolute right-0 z-50 mt-2 w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
-          <div className="flex items-center justify-between gap-3 border-b border-zinc-200 px-3 py-2.5 dark:border-zinc-800">
+        <div id="sync-menu" className="absolute right-0 z-50 mt-2 flex max-h-[calc(100dvh-5rem)] w-[22rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-zinc-200 px-3 py-2.5 dark:border-zinc-800">
             {data?.all.running ? (
               <button type="button" className="btn btn-sm text-red-600 dark:text-red-400" onClick={() => go(stopSyncAllAction)} title={t("Cancel the running step and start no more")}>
                 <SyncIcon className="size-4 animate-spin" /> {t("Stop")}
@@ -206,14 +206,15 @@ export function SyncMenu() {
                 : t("One after the other, the briefing last")}
             </span>
           </div>
-          {error && <p className="border-b border-zinc-200 px-3 py-2 text-xs text-red-600 dark:border-zinc-800 dark:text-red-400">{error}</p>}
-          <ul className="divide-y divide-zinc-100 dark:divide-zinc-900">
+          {error && <p className="shrink-0 border-b border-zinc-200 px-3 py-2 text-xs text-red-600 dark:border-zinc-800 dark:text-red-400">{error}</p>}
+          {/* The steps scroll (there are many); the head and the links stay. */}
+          <ul className="min-h-0 flex-1 divide-y divide-zinc-100 overflow-y-auto overscroll-contain dark:divide-zinc-900">
             {(data?.steps ?? []).map((s) => (
               <SyncStepRow key={s.key} s={s} disabled={!!data?.all.running} onRun={() => go(() => runSyncAction(s.key))} onStop={() => go(() => stopSyncAction(s.key))} onNavigate={() => setOpen(false)} />
             ))}
             {!data && <li className="px-3 py-3 text-sm text-zinc-500">{t("Loading…")}</li>}
           </ul>
-          <div className="flex justify-between gap-3 border-t border-zinc-200 px-3 py-2 text-xs dark:border-zinc-800">
+          <div className="flex shrink-0 justify-between gap-3 border-t border-zinc-200 px-3 py-2 text-xs dark:border-zinc-800">
             <Link href="/sync-settings" className="text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setOpen(false)}>
               {t("Set intervals")}
             </Link>

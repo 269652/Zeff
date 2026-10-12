@@ -18,10 +18,12 @@ import { syncSettings as whatsapp } from "./whatsapp/sync-settings";
 import { syncSettings as signal } from "./signal/sync-settings";
 import { syncSettings as knowledge } from "./knowledge/sync-settings";
 import { syncSettings as keep } from "./keep/sync-settings";
+import { syncSettings as documents } from "./documents/sync-settings";
 import { syncSettings as googleCalendar } from "./google-calendar/sync-settings";
 
 /** Each plugin's settings module for the Sync settings page — the plugins that bring a sync. */
 const MODULES: Partial<Record<PluginId, PluginSyncSettings>> = {
+  documents,
   todos,
   knowledge,
   "auto-actions": autoActions,

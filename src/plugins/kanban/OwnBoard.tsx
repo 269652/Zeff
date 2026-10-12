@@ -194,6 +194,8 @@ function CardPanel({ c, lage, people, columns, boards, parent, subtasks, onOpenC
   const [priority, setPriority] = useState<string>(c.priority ?? "");
   const [due, setDue] = useState(c.due ?? "");
   const [assignee, setAssignee] = useState(c.assignee ?? "");
+  /** The board chosen to move the card to, while it has subtasks: asked whether they come along. */
+  const [moveTo, setMoveTo] = useState<{ id: number; name: string } | null>(null);
   const dirty = title !== c.title || description !== c.description || labels !== c.labels.join(", ") || priority !== (c.priority ?? "") || due !== (c.due ?? "") || assignee !== (c.assignee ?? "");
   useEffect(() => {
     const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -252,10 +254,12 @@ function CardPanel({ c, lage, people, columns, boards, parent, subtasks, onOpenC
                   value=""
                   onChange={(e) => {
                     const b = boards.find((x) => x.id === Number(e.target.value));
-                    if (b && confirm(`Karte nach „${b.name}“ verschieben?`)) run(() => moveCardToBoardAction(c.id, b.id), onClose);
+                    if (!b) return;
+                    if (subtasks.length) setMoveTo(b);
+                    else if (confirm(t("Move the card to “{name}”?", { name: b.name }))) run(() => moveCardToBoardAction(c.id, b.id), onClose);
                   }}
                 >
-                  <option value="">Verschieben nach …</option>
+                  <option value="">{t("Move to …")}</option>
                   {boards.map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.name}
@@ -263,6 +267,23 @@ function CardPanel({ c, lage, people, columns, boards, parent, subtasks, onOpenC
                   ))}
                 </select>
               </label>
+            )}
+            {moveTo && (
+              <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm sm:col-span-3 dark:border-amber-700 dark:bg-amber-950/40">
+                <p>{t("Move the card to “{name}”? It has {n} subtasks — move them along?", { name: moveTo.name, n: subtasks.length })}</p>
+                <div className="flex flex-wrap gap-2">
+                  <button className="btn btn-primary btn-sm" onClick={() => run(() => moveCardToBoardAction(c.id, moveTo.id, true), onClose)}>
+                    {t("Move with subtasks")}
+                  </button>
+                  <button className="btn btn-sm" onClick={() => run(() => moveCardToBoardAction(c.id, moveTo.id, false), onClose)}>
+                    {t("Move the card only")}
+                  </button>
+                  <button className="btn btn-sm" onClick={() => setMoveTo(null)}>
+                    {t("Cancel")}
+                  </button>
+                </div>
+                <p className="text-xs text-zinc-500">{t("Without them, the subtasks stay on this board as cards of their own.")}</p>
+              </div>
             )}
             <label className="block">
               <span className="label">{t("Priority")}</span>
