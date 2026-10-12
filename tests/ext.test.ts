@@ -403,3 +403,15 @@ test("a run as plugins see it keeps the same ref as Work's", async () => {
   const { workRef } = await import("@/lib/work/shared");
   assert.equal(runBrief({ id: 7, ticket: "", todoId: 1, status: "done", mode: "code", provider: "claude", model: null, outcome: null, summary: null, error: null, branch: null, startedAt: null, finishedAt: null, durationMs: null, costUsd: null }).ref, workRef(7));
 });
+
+test("the docs render in the app: no bold or code span runs over a line break (the in-app Markdown is a small subset)", () => {
+  for (const file of fs.readdirSync(path.join(process.cwd(), "docs", "plugins")).filter((f) => f.endsWith(".md"))) {
+    let code = false;
+    fs.readFileSync(path.join(process.cwd(), "docs", "plugins", file), "utf8").split(/\r?\n/).forEach((line, i) => {
+      if (line.trim().startsWith("```")) return void (code = !code);
+      if (code) return;
+      assert.equal(line.replace(/`[^`]*`/g, "").split("**").length % 2, 1, `${file}:${i + 1}: a ** span runs over the line's end`);
+      assert.equal(line.split("`").length % 2, 1, `${file}:${i + 1}: a \` span runs over the line's end`);
+    });
+  }
+});

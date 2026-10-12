@@ -26,8 +26,8 @@ Allowed file types: `html htm js mjs css json map txt md svg png jpg jpeg gif we
 
 ## The sandbox
 
-A panel runs in an `<iframe sandbox="allow-scripts allow-forms allow-popups allow-modals">` **without
-`allow-same-origin`**, and Zeff sends its files with a `Content-Security-Policy: sandbox …` header, so even opened
+A panel runs in an `<iframe sandbox="allow-scripts allow-forms allow-popups allow-modals">` **without `allow-same-origin`**,
+and Zeff sends its files with a `Content-Security-Policy: sandbox …` header, so even opened
 directly in a tab it has no origin of its own. Consequences:
 
 - It **can't** read Zeff's page, its cookies, `localStorage` or other frames, and can't send requests to Zeff's

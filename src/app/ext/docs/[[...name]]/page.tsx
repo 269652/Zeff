@@ -3,7 +3,7 @@ import path from "node:path";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Markdown } from "@/components/Markdown";
+import { DocsMarkdown } from "@/components/ext/DocsMarkdown";
 import { t } from "@/lib/i18n/server";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -50,7 +50,7 @@ export default async function PluginDocsPage({ params }: { params: Promise<{ nam
         </Link>
       </nav>
       <article className="docs">
-        <Markdown text={plainLinks(text)} />
+        <DocsMarkdown text={plainLinks(text)} />
       </article>
     </div>
   );

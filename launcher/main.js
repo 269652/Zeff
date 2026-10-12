@@ -444,6 +444,9 @@ function unquarantine() {
 /** The pages a smoke test opens (https://zeff<path>) after the start page of each server. */
 const SMOKE_PAGES = ["/heute", "/todos", "/mail", "/kanban", "/plugins", "/sync-settings", "/auswerten", "/logins", "/feierabend", "/work", "/setup", "/jira", "/repos", "/documents", "/ext/docs", "/ext/docs/api", "/ext/raw/README", "/ext/sdk/zeff.js", "/ext/sdk/zeff-plugin.schema.json"];
 
+/** What a smoke page must show (its own content, not an error page): the plugin docs and what they serve. */
+const SMOKE_CONTENT = { "/ext/docs": "external plugins", "/ext/docs/api": "extension API", "/ext/raw/README": "# Zeff external plugins", "/ext/sdk/zeff.js": "window.zeff", "/ext/sdk/zeff-plugin.schema.json": "apiVersion" };
+
 /**
  * --smoke-test: the bundle as its user gets it, checked end to end — the servers start on the
  * bundled Node (native modules included), the certificate is made, and Zeff and the knowledge
@@ -452,7 +455,8 @@ const SMOKE_PAGES = ["/heute", "/todos", "/mail", "/kanban", "/plugins", "/sync-
 async function runSmokeTest() {
   const deadline = Date.now() + 5 * 60 * 1000;
   const wanted = () => [zeff(), ...state.services.filter((s) => s.name === "Work"), ...(state.cfg.knowledge ? [activeKnowledge()] : [])];
-  const get = (host, urlPath = "/") =>
+  // The status — or, with `text`, { status, body } (the first 2 MB).
+  const get = (host, urlPath = "/", text = false) =>
     new Promise((resolve, reject) => {
       const req = https.get(
         {
@@ -465,8 +469,10 @@ async function runSmokeTest() {
           timeout: 60000,
         },
         (res) => {
-          res.resume();
-          res.on("end", () => resolve(res.statusCode));
+          let body = "";
+          if (text) res.setEncoding("utf8").on("data", (d) => body.length < 2e6 && (body += d));
+          else res.resume();
+          res.on("end", () => resolve(text ? { status: res.statusCode, body } : res.statusCode));
         },
       );
       req.on("timeout", () => req.destroy(new Error("timeout")));
@@ -493,9 +499,13 @@ async function runSmokeTest() {
     // The pages Zeff's deploy script probes (scripts/deploy.mjs) and the ones a new bundle opens first: each renders — a missing file, a
     // native module that doesn't load or a database that didn't migrate shows as a 500 here.
     for (const page of SMOKE_PAGES) {
-      const status = await get(state.cfg.host, page);
+      const { status, body } = await get(state.cfg.host, page, true);
       log(`smoke test: https://${state.cfg.host}${page} → ${status}`);
       if (!(status >= 200 && status < 400)) return failed(`https://${state.cfg.host}${page} answered ${status}`);
+      // A page that fails while it streams still answers 200: React leaves its error in the HTML (data-dgst, $RX).
+      if (/data-dgst=|\$RX\(/.test(body)) return failed(`https://${state.cfg.host}${page} rendered an error (see the server log)`);
+      const want = SMOKE_CONTENT[page];
+      if (want && !body.includes(want)) return failed(`https://${state.cfg.host}${page} doesn't contain "${want}"`);
     }
     log("smoke test passed");
     app.quit();

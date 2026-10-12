@@ -1,10 +1,10 @@
 # Zeff external plugins
 
-External plugins let you extend Zeff — its **Work tab** in particular — **without touching its source and
-without rebuilding it**. They work in a packaged Zeff (the release you download) exactly as in a checkout.
+External plugins let you extend Zeff — its **Work tab** in particular — **without touching its source and without rebuilding it**.
+They work in a packaged Zeff (the release you download) exactly as in a checkout.
 
-A plugin is a folder with a `zeff-plugin.json`. Put it into Zeff's plugins folder: it appears on **Menu →
-Plugins → External plugins** at once (no restart), and you turn it on there. What it may do is named in its
+A plugin is a folder with a `zeff-plugin.json`. Put it into Zeff's plugins folder: it appears on
+**Menu → Plugins → External plugins** at once (no restart), and you turn it on there. What it may do is named in its
 manifest, and you see it before you turn it on.
 
 ## What a plugin can add to Work
