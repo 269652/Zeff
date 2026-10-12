@@ -37,11 +37,12 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, showImages,
   const offset = useRef(initial.length);
   const scroller = useRef<HTMLElement | null>(null);
 
-  // Columns by the width: 1 narrow, 2 medium, 3 wide.
+  // Columns by the width.
   useEffect(() => {
     const el = box.current;
     if (!el) return;
-    const fit = () => setCols(el.clientWidth < 640 ? 1 : el.clientWidth < 1100 ? 2 : 3);
+    // Three columns, fewer only where it gets too narrow (a column wants about 240 px).
+    const fit = () => setCols(Math.max(1, Math.min(3, Math.floor((el.clientWidth + 12) / 252))));
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(el);

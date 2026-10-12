@@ -75,11 +75,18 @@ export function recordFetch(id: number, error: string | null): void {
 export function addItems(source: { id: number | null; name: string }, items: FeedItem[]): number {
   const d = db();
   const insert = d.prepare("insert or ignore into news_items (source_id, source_name, guid, url, url_key, title, title_key, summary, published_at, fetched_at, image, content) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+  const fill = d.prepare("update news_items set image = case when image in ('', '-') then ? else image end, content = case when length(content) <= 1 then ? else content end where url_key = ?");
+  const known = d.prepare("select 1 from news_items where url_key = ?");
   const sameStory = d.prepare("select 1 from news_items where title_key = ? and published_at > ?");
   let added = 0;
   d.transaction(() => {
     for (const it of items) {
       const key = titleKey(it.title);
+      // Kept already (same link): only what is new about it — a picture, the text — is added.
+      if (known.get(normalizeUrl(it.url))) {
+        if (it.image || it.content) fill.run(it.image ?? "", it.content ?? "", normalizeUrl(it.url));
+        continue;
+      }
       const since = new Date(Date.parse(it.publishedAt) - 3 * 864e5).toISOString();
       if (key.length > 12 && sameStory.get(key, since)) continue;
       added += insert.run(source.id, source.name, it.guid, it.url, normalizeUrl(it.url), it.title, key, it.summary, it.publishedAt, now(), it.image ?? "", it.content ?? "").changes;
@@ -122,7 +129,8 @@ const toItem = (r: IRow): NewsItem => ({
   url: r.url,
   title: r.title,
   summary: r.summary,
-  image: r.image,
+  image: r.image === "-" ? "" : r.image,
+  imageChecked: r.image !== "",
   hasContent: !!r.has_content,
   publishedAt: r.published_at,
   state: r.state as NewsState,
@@ -175,7 +183,14 @@ export function getContent(id: number): { content: string; url: string; title: s
 export function setContent(id: number, content: string, image?: string): void {
   const d = db();
   d.prepare("update news_items set content = ? where id = ?").run(content, id);
-  if (image) d.prepare("update news_items set image = ? where id = ? and image = ''").run(image, id);
+  // The page was looked at: a picture found is kept; none found is remembered (not looked for again).
+  if (image) d.prepare("update news_items set image = ? where id = ? and image in ('', '-')").run(image, id);
+  else d.prepare("update news_items set image = '-' where id = ? and image = ''").run(id);
+}
+
+/** Looked at for a picture, found none ("-": not looked at again). */
+export function markNoImage(id: number): void {
+  db().prepare("update news_items set image = '-' where id = ? and image = ''").run(id);
 }
 
 /** The best items without their whole article yet (for reading ahead). */

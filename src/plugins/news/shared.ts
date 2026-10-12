@@ -30,6 +30,8 @@ export type NewsItem = {
   summary: string;
   /** A picture of it (address), or "". */
   image: string;
+  /** Its page was looked at for a picture already (none found, if `image` is empty). */
+  imageChecked: boolean;
   /** The whole article is kept (read it here). */
   hasContent: boolean;
   publishedAt: string;

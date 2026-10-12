@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
-import { newsReadAction, newsStateAction, newsVoteAction } from "./server-actions";
+import { newsPeekAction, newsReadAction, newsStateAction, newsVoteAction } from "./server-actions";
 import type { NewsItem } from "./shared";
+
+/** Pictures are looked for one page at a time (a screenful of cards would otherwise fetch a screenful of sites at once). */
+let peekQueue: Promise<unknown> = Promise.resolve();
 
 /**
  * One news item as a card: its picture, the headline (opens the article in a new tab and counts as read), where it is
@@ -15,6 +18,21 @@ export function NewsCard({ item, ago, showImage, onChange }: { item: NewsItem; a
   const t = useT();
   const [pending, start] = useTransition();
   const [broken, setBroken] = useState(false);
+  const card = useRef<HTMLElement>(null);
+  const wantsPicture = showImage && !item.image && !item.imageChecked;
+  // No picture known yet: when the card comes into view, its page is looked at (once; the answer is kept).
+  useEffect(() => {
+    const el = card.current;
+    if (!wantsPicture || !el) return;
+    const io = new IntersectionObserver((e) => {
+      if (!e.some((x) => x.isIntersecting)) return;
+      io.disconnect();
+      peekQueue = peekQueue.then(() => newsPeekAction(item.id)).then((r) => onChange({ image: r.image, imageChecked: true, ...(r.hasContent ? { hasContent: true } : {}) }), () => undefined);
+    }, { rootMargin: "300px" });
+    io.observe(el);
+    return () => io.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per card
+  }, [wantsPicture, item.id]);
   const [reader, setReader] = useState<{ open: boolean; busy: boolean; text: string; error: string }>({ open: false, busy: false, text: "", error: "" });
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>, patch: Partial<NewsItem>) =>
     start(async () => {
@@ -34,7 +52,7 @@ export function NewsCard({ item, ago, showImage, onChange }: { item: NewsItem; a
     });
   };
   return (
-    <article className={`card overflow-hidden ${read ? "opacity-75" : ""} ${pending ? "opacity-50" : ""}`}>
+    <article ref={card} className={`card overflow-hidden ${read ? "opacity-75" : ""} ${pending ? "opacity-50" : ""}`}>
       {showImage && item.image && !broken && (
         // eslint-disable-next-line @next/next/no-img-element -- pictures of other sites, shown as they are (no optimiser on the way)
         <img src={item.image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken(true)} className="aspect-video w-full bg-zinc-100 object-cover dark:bg-zinc-800" />

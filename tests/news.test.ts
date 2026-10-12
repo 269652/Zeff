@@ -255,3 +255,20 @@ test("paging: a view comes in pages by offset; the sync reads the best unread it
   assert.ok(!s.withoutContent(30, 7).some((i) => i.id === failed.id));
 
 });
+
+test("items kept before the pictures existed get one: a later fetch fills it in, a page without one is remembered, and 'looked at' is told apart from 'not looked at'", async () => {
+  const s = await import("@/plugins/news/store");
+  const src = s.addSource({ name: "Pics", url: "https://pics.example/rss" });
+  const base = { guid: "p", summary: "", publishedAt: new Date().toISOString() };
+  s.addItems({ id: src.id, name: "Pics" }, [{ ...base, guid: "1", url: "https://pics.example/1", title: "Ohne Bild eins" }, { ...base, guid: "2", url: "https://pics.example/2", title: "Ohne Bild zwei" }]);
+  const get = (n: number) => s.listItems({ view: "latest", sourceId: src.id, limit: 10 }).find((i) => i.url.endsWith(`/${n}`))!;
+  assert.deepEqual([get(1).image, get(1).imageChecked], ["", false], "not looked at yet");
+  // The feed has a picture for it now.
+  assert.equal(s.addItems({ id: src.id, name: "Pics" }, [{ ...base, guid: "1", url: "https://pics.example/1", title: "Ohne Bild eins", image: "https://img.example/1.jpg" }]), 0);
+  assert.equal(get(1).image, "https://img.example/1.jpg");
+  // A page looked at without a picture in it: remembered.
+  s.setContent(get(2).id, "Text des Artikels, lang genug.");
+  assert.deepEqual([get(2).image, get(2).imageChecked, get(2).hasContent], ["", true, true]);
+  s.setContent(get(2).id, "Text", "https://img.example/2.jpg");
+  assert.equal(get(2).image, "https://img.example/2.jpg", "a picture found later still replaces the 'none'");
+});

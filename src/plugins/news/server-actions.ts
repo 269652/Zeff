@@ -67,6 +67,24 @@ export async function newsReadAction(id: number): Promise<{ ok: boolean; text?: 
 
 
 /** The next page of a view (infinite scroll): items with how old they are, as the page shows them. */
+/**
+ * A card without a picture came into view: its page is read (that also keeps the whole article, so "Read here" is
+ * instant) and the picture taken from it. None found, or the page can't be read: remembered, not asked again.
+ */
+export async function newsPeekAction(id: number): Promise<{ ok: boolean; image: string; hasContent: boolean }> {
+  try {
+    guard();
+    const have = getContent(Number(id));
+    if (!have) return { ok: false, image: "", hasContent: false };
+    const a = await (await import("./reader")).fetchArticle(have.url);
+    setContent(Number(id), a.text, a.image);
+    return { ok: true, image: a.image, hasContent: true };
+  } catch {
+    setContent(Number(id), UNREADABLE);
+    return { ok: false, image: "", hasContent: false };
+  }
+}
+
 export async function newsMoreAction(view: string, sourceId: number | null, offset: number): Promise<{ items: import("./shared").NewsItem[]; ago: Record<number, string>; done: boolean }> {
   guard();
   const { formatAgo } = await import("@/lib/format");
