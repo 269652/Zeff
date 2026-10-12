@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
-import { isInstalled } from "@/plugins/state";
+import { PLUGINS } from "@/plugins/catalog";
+import { installedPlugins, isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
 import { rich } from "@/lib/i18n/rich";
@@ -70,6 +72,12 @@ export default async function SettingsPage() {
         <p className="text-sm text-zinc-500">
           {t("Set your weekly working pattern (part-time) and record time off. The weekly report uses this to show booked hours against your target.")}
         </p>
+        {/* The plugins' own settings pages: under Settings, one each. */}
+        {PLUGINS.filter((p) => installedPlugins().has(p.id) && p.settings?.href.startsWith("/settings/")).map((p) => (
+          <Link key={p.id} href={p.settings!.href} className="btn btn-sm w-full text-center" title={p.settings!.what}>
+            {t("{plugin} settings", { plugin: p.name })}
+          </Link>
+        ))}
       </div>
 
       <section className="card p-4">

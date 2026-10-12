@@ -121,6 +121,42 @@ export function PersonMention({ id, name, children, tagged = false }: { id: numb
   );
 }
 
+/** How much of a summary the card shows before "Show more". */
+const SUMMARY_CHARS = 300;
+
+/** The person's summary in their card: cut at about 300 characters with an ellipsis; "Show more" opens the rest and the facts. */
+function SummaryBlock({ summary }: { summary: { connection: string; keyFacts: string[]; funFacts: string[] } }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const long = summary.connection.length > SUMMARY_CHARS;
+  const cut = long ? `${summary.connection.slice(0, SUMMARY_CHARS).replace(/\s+\S*$/, "")}…` : summary.connection;
+  const more = long || summary.keyFacts.length > 0 || summary.funFacts.length > 0;
+  return (
+    <div className="space-y-1.5 rounded-md bg-zinc-50 p-2 dark:bg-zinc-800/50">
+      {summary.connection && <p className="whitespace-pre-line text-zinc-700 dark:text-zinc-200">{open ? summary.connection : cut}</p>}
+      {open && summary.keyFacts.length > 0 && (
+        <ul className="list-disc space-y-0.5 pl-4 text-zinc-600 dark:text-zinc-300">
+          {summary.keyFacts.map((f, i) => (
+            <li key={i}>{f}</li>
+          ))}
+        </ul>
+      )}
+      {open && summary.funFacts.length > 0 && (
+        <ul className="space-y-0.5 text-zinc-600 dark:text-zinc-300">
+          {summary.funFacts.map((f, i) => (
+            <li key={i}>🎈 {f}</li>
+          ))}
+        </ul>
+      )}
+      {more && (
+        <button type="button" className="text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {open ? t("Show less") : t("Show more")}
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** Loaded cards (for this page's life): a card opened again shows at once. */
 const cache = new Map<number, PersonCardData | null>();
 
@@ -152,25 +188,7 @@ function PersonCard({ id, name, flat = false }: { id: number; name: string; flat
       {data === null && <p className="text-zinc-400">{t("Nothing known about them yet.")}</p>}
       {data && (
         <>
-          {data.summary && (
-            <div className="space-y-1.5 rounded-md bg-zinc-50 p-2 dark:bg-zinc-800/50">
-              {data.summary.connection && <p className="line-clamp-4 whitespace-pre-line text-zinc-700 dark:text-zinc-200">{data.summary.connection}</p>}
-              {data.summary.keyFacts.length > 0 && (
-                <ul className="list-disc space-y-0.5 pl-4 text-zinc-600 dark:text-zinc-300">
-                  {data.summary.keyFacts.map((f, i) => (
-                    <li key={i}>{f}</li>
-                  ))}
-                </ul>
-              )}
-              {data.summary.funFacts.length > 0 && (
-                <ul className="space-y-0.5 text-zinc-600 dark:text-zinc-300">
-                  {data.summary.funFacts.map((f, i) => (
-                    <li key={i}>🎈 {f}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
+          {data.summary && <SummaryBlock summary={data.summary} />}
           {data.dates.length > 0 && (
             <ul className="space-y-0.5">
               {data.dates.map((d, i) => (
