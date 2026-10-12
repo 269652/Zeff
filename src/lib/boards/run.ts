@@ -5,6 +5,7 @@ import { AI_PROVIDER_INFO } from "@/lib/ai/shared";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { collectBoard } from "./collect";
+import { answerOpenQuestions } from "./questions";
 import { BOARD_RESULT_SCHEMA, isAttention, TICKET_ACTION_TYPES, type BoardResult, type BoardTicket } from "./shared";
 import { closeTodosOfDoneTickets, finishRun, getBoardSettings, lastGoodRun, reconcileTodos, startRun } from "./store";
 
@@ -15,7 +16,7 @@ const state = globalThis as { __zeffBoardRun?: { id: number; phase: "sync" | "ji
 export const boardRunState = () => state.__zeffBoardRun ?? null;
 
 /** Claude's answer, held to the tickets it was given: each once, known attention, todos with text. */
-function cleanResult(r: BoardResult, tickets: BoardTicket[]): BoardResult {
+export function cleanResult(r: BoardResult, tickets: BoardTicket[]): BoardResult {
   const analyzed = new Set(tickets.filter((t) => t.analyzed).map((t) => t.key));
   const left = new Set(tickets.filter((t) => t.left).map((t) => t.key));
   const seen = new Set<string>();
@@ -33,6 +34,14 @@ function cleanResult(r: BoardResult, tickets: BoardTicket[]): BoardResult {
         todos: (t.todos ?? []).filter((d) => d?.text?.trim()),
         resolved: (t.resolved ?? []).filter((d) => Number.isInteger(d?.id)),
         flags: (t.flags ?? []).filter(Boolean).slice(0, 5),
+        questions: (t.questions ?? [])
+          .filter((x) => x && String(x.q ?? "").trim())
+          .slice(0, 5)
+          .map((x) => ({
+            q: String(x.q).trim().slice(0, 200),
+            ...(String(x.a ?? "").trim() ? { a: String(x.a).trim().slice(0, 1500) } : {}),
+            ...(String(x.search ?? "").trim() ? { search: String(x.search).trim().slice(0, 120) } : {}),
+          })),
         actions: (t.actions ?? [])
           .filter(
             (a) =>
@@ -101,6 +110,8 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
           state.__zeffBoardRun = { id, phase: "saving", since: t0, provider };
           const result = cleanResult(answer.output, tickets);
           if (fromCache) result.lede = `⚠ Jira wasn't reachable (${fromCache}) — briefed from Zeff's last copy. ${result.lede}`;
+          // Questions the context left open: answered from what the knowledge base has on them (looked up now, not given in the prompt).
+          await answerOpenQuestions(result).catch((e) => console.error("[boards] answering the questions failed:", errorMessage(e)));
           reconcileTodos(result, id);
           closeTodosOfDoneTickets(doneLeft);
           // Merge requests to open, asked for in words: their button (push → open MR), worked out from git.

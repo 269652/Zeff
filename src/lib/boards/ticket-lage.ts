@@ -1,6 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { getDb, getSqlite, schema } from "@/db";
-import type { BoardResult, BoardTicket } from "./shared";
+import { sourcesOf, type BoardResult, type BoardTicket, type TodoSource, type TodoUserNote } from "./shared";
+import { todoSources } from "./sources";
 import { listTodos } from "./store";
 
 /**
@@ -46,6 +47,25 @@ export function lageByTicket(): { byKey: Map<string, Lage>; tickets: BoardTicket
     // no Board-Lage (yet)
   }
   return { byKey, tickets, lede, at: last?.finishedAt ?? last?.startedAt ?? null };
+}
+
+/** One piece of a ticket's context: what a todo came from, or a note on one. */
+export type TicketContextItem = { s: TodoSource } | { n: TodoUserNote };
+
+/**
+ * Each ticket's context, for its card: everything its open todos came from (the Jira comments,
+ * mails, Teams and GitLab messages, notes, facts, documents) and the notes on them — each once.
+ */
+export function contextByTicket(tickets: BoardTicket[] = []): Map<string, TicketContextItem[]> {
+  const todos = listTodos({ status: "open" }).filter((t) => !t.byWorker);
+  const sources = todos.length ? todoSources(todos, tickets) : {};
+  const out = new Map<string, TicketContextItem[]>();
+  for (const k of new Set(todos.flatMap((t) => [t.ticket, ...t.alsoTickets]).filter(Boolean).map((x) => x.toUpperCase()))) {
+    const mine = todos.filter((t) => [t.ticket, ...t.alsoTickets].some((x) => x.toUpperCase() === k));
+    const notes = new Map(mine.flatMap((t) => [...t.userNotes, ...(t.relatedNotes ?? [])]).map((n) => [`${n.at}|${n.text}`, n]));
+    out.set(k, [...sourcesOf(mine.flatMap((t) => t.refs), sources).map((s): TicketContextItem => ({ s })), ...[...notes.values()].map((n): TicketContextItem => ({ n }))]);
+  }
+  return out;
 }
 
 export function openTodosByTicket(): Map<string, { id: number; text: string; owner: "me" | "other" }[]> {

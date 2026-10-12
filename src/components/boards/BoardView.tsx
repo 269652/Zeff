@@ -29,6 +29,7 @@ import { TicketLink } from "../TicketLink";
 import { PersistedDetails } from "../PersistedDetails";
 import type { TodoEventView } from "@/lib/boards/activity-shared";
 import { ActivityList } from "./ActivityList";
+import { TicketQuestions } from "./TicketQuestions";
 import { LinkPending } from "../LinkPending";
 import { UnseenActivityBadge } from "./ActivitySeen";
 import { FollowToggle } from "./FollowToggle";
@@ -230,6 +231,7 @@ function TicketRow({
             {t("Not analyzed in this run.")}
           </p>
         )}
+        {a?.questions?.length ? <TicketQuestions questions={a.questions} /> : null}
         {a && a.flags.length > 0 && (
           <div className="flex flex-wrap gap-x-3 gap-y-1">
             {a.flags.map((f) => (

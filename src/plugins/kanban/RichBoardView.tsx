@@ -6,6 +6,8 @@ import { CloseIcon } from "@/components/icons";
 import { useT } from "@/components/I18nProvider";
 import { formatAgo, formatDateTime } from "@/lib/format";
 import { BoardLageButton } from "@/plugins/jira-lage/BoardLageButton";
+import { ContextList } from "@/components/boards/TodoSources";
+import { TicketQuestions } from "@/components/boards/TicketQuestions";
 import { BoardFrame, COLUMN } from "./BoardFrame";
 import { initials, NOBODY, PersonChips, peopleOf } from "./PersonChips";
 import type { RichBoard, RichCard } from "./shared";
@@ -146,6 +148,7 @@ function Panel({ c, onClose }: { c: RichCard; onClose: () => void }) {
               </ol>
             </section>
           )}
+          <TicketQuestions questions={c.questions ?? []} />
           {c.todos.length > 0 && (
             <section>
               <h3 className="label">{t("Open todos")}</h3>
@@ -160,6 +163,12 @@ function Panel({ c, onClose }: { c: RichCard; onClose: () => void }) {
                   </li>
                 ))}
               </ul>
+            </section>
+          )}
+          {!!c.context?.length && (
+            <section>
+              <h3 className="label">{t("Context")}</h3>
+              <ContextList items={c.context} />
             </section>
           )}
           {c.actions.length > 0 && (

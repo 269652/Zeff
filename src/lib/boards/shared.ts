@@ -553,6 +553,9 @@ export type TicketAction = {
 };
 export const TICKET_ACTION_TYPES = ["transition", "assign", "comment"] as const;
 
+/** A question someone might ask about a ticket, and its answer — `search`: what to look up in the knowledge base when the context doesn't answer it; `sources`: the pages the answer comes from. */
+export type TicketQuestion = { q: string; a?: string; search?: string; sources?: string[] };
+
 /** What Claude answers for a run (see BOARD_RESULT_SCHEMA). */
 export type BoardResult = {
   lede: string;
@@ -580,6 +583,8 @@ export type BoardResult = {
     flags: string[];
     /** Changes to the ticket to make now (older runs: none). */
     actions?: TicketAction[];
+    /** Possible questions about the ticket, answered from the context — or, with `search`, from the knowledge base afterwards (older runs: none). */
+    questions?: TicketQuestion[];
   }[];
   left: { key: string; note: string }[];
 };
@@ -610,6 +615,7 @@ export const BOARD_RESULT_SCHEMA = {
           "resolved",
           "flags",
           "actions",
+          "questions",
         ],
         properties: {
           key: { type: "string" },
@@ -719,6 +725,20 @@ export const BOARD_RESULT_SCHEMA = {
             items: { type: "string" },
             description:
               "Kurze Warnhinweise, z. B. „Rückfrage seit 24.09. offen“.",
+          },
+          questions: {
+            type: "array",
+            description:
+              "Mögliche Fragen, die jemand zu diesem Ticket stellen würde und die die Lage nicht schon klärt (z. B. „Was für Kritik?“, „Warum vier MRs?“, „Wer entscheidet?“) — höchstens 4, sonst leer.",
+            items: {
+              type: "object",
+              required: ["q"],
+              properties: {
+                q: { type: "string", description: "Die Frage, kurz." },
+                a: { type: "string", description: "Die Antwort — nur, wenn die Daten (Kommentare, Mails, Chats, Git, Notizen) sie hergeben, mit Namen und Daten; sonst weglassen. Nichts raten." },
+                search: { type: "string", description: "Wenn die Antwort in der Wissensbasis (Dokumentation: Systeme, Abläufe, Begriffe, Zuständigkeiten) stehen dürfte und die Daten sie nicht hergeben: 2–5 Suchwörter dafür. Zeff sucht dort nach und beantwortet die Frage damit. Sonst weglassen." },
+              },
+            },
           },
           actions: {
             type: "array",

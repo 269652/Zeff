@@ -3,6 +3,7 @@
  * (Jira Lage: your Jira boards, each card with the Lage of its ticket) — one way to show both.
  */
 import type { T } from "@/lib/i18n/shared";
+import type { TicketQuestion, TodoSource, TodoUserNote } from "@/lib/boards/shared";
 
 export const PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 export type Priority = (typeof PRIORITIES)[number];
@@ -59,6 +60,10 @@ export type RichCard = {
   todos: { id: number; text: string; owner: "me" | "other" }[];
   flags: string[];
   actions: { label: string; why: string }[];
+  /** Possible questions about the ticket, with their answers (the Lage run's). */
+  questions?: TicketQuestion[];
+  /** All the context its open todos came from, and the notes on them. */
+  context?: ({ s: TodoSource } | { n: TodoUserNote })[];
   people: string[];
   updatedAt: string | null;
   /** Not on the last Lage run's list: only what Jira says. */
