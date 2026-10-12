@@ -6,8 +6,10 @@ import { CloseIcon } from "@/components/icons";
 import { useT } from "@/components/I18nProvider";
 import { formatAgo, formatDateTime } from "@/lib/format";
 import { BoardLageButton } from "@/plugins/jira-lage/BoardLageButton";
+import { BriefingRunButton } from "@/plugins/jira-lage/BriefingRunButton";
 import { ContextList } from "@/components/boards/TodoSources";
 import { TicketQuestions } from "@/components/boards/TicketQuestions";
+import { TicketChat } from "@/components/boards/TicketChat";
 import { BoardFrame, COLUMN } from "./BoardFrame";
 import { initials, NOBODY, PersonChips, peopleOf } from "./PersonChips";
 import type { RichBoard, RichCard } from "./shared";
@@ -165,6 +167,7 @@ function Panel({ c, onClose }: { c: RichCard; onClose: () => void }) {
               </ul>
             </section>
           )}
+          <TicketChat key={c.id} ticket={c.ref} initial={c.chat ?? []} />
           {!!c.context?.length && (
             <section>
               <h3 className="label">{t("Context")}</h3>
@@ -245,6 +248,7 @@ export function RichBoardView({ board }: { board: RichBoard }) {
               )}
               {board.error && <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{board.error}</p>}
             </div>
+            {board.briefing && <BriefingRunButton state={board.briefing} />}
             {board.boardLage && <BoardLageButton state={board.boardLage} />}
             <div className="space-y-2 text-sm">
               <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Filter cards …")} aria-label={t("Filter cards")} />

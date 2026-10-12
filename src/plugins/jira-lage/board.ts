@@ -4,6 +4,8 @@ import { currentAccountId } from "@/db/accounts";
 import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n/server";
 import { attentionLabels, isAttention, type Attention } from "@/lib/boards/shared";
+import { boardRunState } from "@/lib/boards/run";
+import { ticketChats, type ChatItem } from "@/lib/boards/ticket-chat";
 import { contextByTicket, lageByTicket, openTodosByTicket, type Lage, type TicketContextItem } from "@/lib/boards/ticket-lage";
 import type { BoardSummary, RichBoard, RichCard, RichColumn } from "@/plugins/kanban/shared";
 
@@ -104,7 +106,7 @@ function commentActivity(keys: string[]): Map<string, Activity> {
 /** An attention in the account's language (outside card(), whose `t` is the ticket). */
 const attentionLabel = (a: Attention) => attentionLabels(t)[a];
 
-function card(t: Ticket, lage: Lage | undefined, todos: Map<string, { id: number; text: string; owner: "me" | "other" }[]>, comments?: Map<string, Activity>, context?: Map<string, TicketContextItem[]>): RichCard {
+function card(t: Ticket, lage: Lage | undefined, todos: Map<string, { id: number; text: string; owner: "me" | "other" }[]>, comments?: Map<string, Activity>, context?: Map<string, TicketContextItem[]>, chats?: Map<string, ChatItem[]>): RichCard {
   const badges: RichCard["badges"] = [];
   if (t.issueType) badges.push({ text: t.issueType, tone: /bug|fehler/i.test(t.issueType) ? "red" : "zinc" });
   if (t.priority && /high|hoch|critical|kritisch|blocker|highest/i.test(t.priority)) badges.push({ text: t.priority, tone: "amber" });
@@ -127,20 +129,21 @@ function card(t: Ticket, lage: Lage | undefined, todos: Map<string, { id: number
     actions: (lage?.actions ?? []).map((a) => ({ label: a.label, why: a.why })),
     questions: lage?.questions ?? [],
     context: context?.get(t.key.toUpperCase()) ?? [],
+    chat: chats?.get(t.key.toUpperCase()) ?? [],
     people: t.people ?? [],
     updatedAt: t.updatedAt,
     noLage: !lage,
   };
 }
 
-function place(tickets: Ticket[], cols: JiraColumn[] | null, byKey: Map<string, Lage>, todos: Map<string, { id: number; text: string; owner: "me" | "other" }[]>, context: Map<string, TicketContextItem[]>): RichColumn[] {
+function place(tickets: Ticket[], cols: JiraColumn[] | null, byKey: Map<string, Lage>, todos: Map<string, { id: number; text: string; owner: "me" | "other" }[]>, context: Map<string, TicketContextItem[]>, chats: Map<string, ChatItem[]>): RichColumn[] {
   const comments = commentActivity(tickets.filter((t) => !byKey.has(t.key.toUpperCase())).map((t) => t.key));
   const list = cols ?? categoryColumns();
   const columns: RichColumn[] = list.map((c, i) => ({ id: `c${i}`, name: c.name, cards: [] }));
   const other: RichColumn = { id: "other", name: t("Other"), cards: [] };
   for (const t of tickets) {
     const i = cols ? cols.findIndex((c) => c.statuses.some((s) => s.toLowerCase() === t.status.toLowerCase())) : categoryIndex(t.statusCategory);
-    (i >= 0 ? columns[i] : other).cards.push(card(t, byKey.get(t.key.toUpperCase()), todos, comments, context));
+    (i >= 0 ? columns[i] : other).cards.push(card(t, byKey.get(t.key.toUpperCase()), todos, comments, context, chats));
   }
   // Most pressing first: by the Lage's attention, then the newest change.
   const rank = (c: RichCard) => (c.attention ? ATTENTION_ORDER.indexOf(c.attention) : 99);
@@ -175,6 +178,7 @@ export async function lageBoard(id: string): Promise<RichBoard | null> {
   const { byKey, tickets: lageTickets, lede, at } = lageByTicket();
   const todos = openTodosByTicket();
   const context = contextByTicket(lageTickets);
+  const chats = ticketChats([...lageTickets.map((x) => x.key), ...getDb().select({ key: jiraTickets.key }).from(jiraTickets).all().map((r) => r.key)]);
   const base = process.env.JIRA_URL?.replace(/\/+$/, "") ?? null;
   if (id === "jira-lage") {
     const list: Ticket[] = lageTickets.filter((t) => !t.left).map((t) => ({ ...t }));
@@ -198,10 +202,10 @@ export async function lageBoard(id: string): Promise<RichBoard | null> {
       description: t("The last briefing run's tickets — in the columns of your Jira boards."),
       source: t("Jira briefing"),
       url: null,
-      columns: place(list, merged.length ? merged : null, byKey, todos, context),
+      columns: place(list, merged.length ? merged : null, byKey, todos, context, chats),
       lede,
       lageAt: at,
-    boardLage: boardLageState(),
+      briefing: { running: !!boardRunState(), lastAt: at },
       error: error ?? null,
     };
   }
@@ -226,7 +230,7 @@ export async function lageBoard(id: string): Promise<RichBoard | null> {
     description: t("Jira board{project} — the columns as in Jira, each card with its briefing.", { project: `${b.projectKey ? ` · ${b.projectKey}` : ""}${b.type ? ` · ${b.type}` : ""}` }),
     source: t("Jira briefing"),
     url: base ? `${base}/secure/RapidBoard.jspa?rapidView=${boardId}` : null,
-    columns: place(list, columns, byKey, todos, context),
+    columns: place(list, columns, byKey, todos, context, chats),
     lede,
     lageAt: at,
     boardLage: boardLageState(),

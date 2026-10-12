@@ -2,6 +2,7 @@ import { opAvailable } from "@/plugins/ops";
 import { todoSources } from "@/lib/boards/sources";
 import { opsDictionary, sourcesOf, TODO_KIND_LABELS, todoRef, type TodoSource, type TodoView } from "@/lib/boards/shared";
 import { getTodo, lastGoodRun, listTodos } from "@/lib/boards/store";
+import { ticketChat } from "@/lib/boards/ticket-chat";
 import { getJiraTicket } from "@/lib/jira/store";
 import { mailSender } from "@/lib/mail/shared";
 import { noteHeadline } from "@/plugins/keep/shared";
@@ -104,6 +105,10 @@ export function briefFor(todo: TodoView): string {
   const from = sourcesOf(todo.refs, sources);
   if (from.length) out.push("", "## Woher das Todo kommt", ...from.map(sourceText));
   else if (todo.source) out.push("", `Quelle laut Ticket-Lage: ${todo.source}`);
+
+  // What was asked about the ticket in its chat (and answered): the user's context until they dismiss it.
+  const chat = ticketChat(todo.ticket);
+  if (chat.length) out.push("", "## Fragen und Antworten zum Ticket (aus dem Ticket-Chat — Kontext des Nutzers)", ...chat.flatMap((c) => [`- Frage: ${c.q}`, indent(`Antwort: ${cut(c.a, 800)}`)]));
 
   const others = listTodos({ ticket: todo.ticket, status: "open" }).filter((t) => t.id !== todo.id);
   if (others.length) {

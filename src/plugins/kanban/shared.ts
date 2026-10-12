@@ -4,6 +4,7 @@
  */
 import type { T } from "@/lib/i18n/shared";
 import type { TicketQuestion, TodoSource, TodoUserNote } from "@/lib/boards/shared";
+import type { ChatItem } from "@/lib/boards/ticket-chat";
 
 export const PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 export type Priority = (typeof PRIORITIES)[number];
@@ -62,6 +63,8 @@ export type RichCard = {
   actions: { label: string; why: string }[];
   /** Possible questions about the ticket, with their answers (the Lage run's). */
   questions?: TicketQuestion[];
+  /** What was asked about the ticket in its chat, with the answers (kept as its context). */
+  chat?: ChatItem[];
   /** All the context its open todos came from, and the notes on them. */
   context?: ({ s: TodoSource } | { n: TodoUserNote })[];
   people: string[];
@@ -82,4 +85,6 @@ export type RichBoard = {
   error?: string | null;
   /** The Board-Lage (Jira Lage's "Auswerten"): running, and how it went last. */
   boardLage?: { running: boolean; lastAt: string | null; lastOk: boolean | null; lastMessage: string | null };
+  /** "My briefing" (the Ticket-Lage's own tickets): its run is the briefing itself — no Board-Lage, which leaves these tickets out. */
+  briefing?: { running: boolean; lastAt: string | null };
 };

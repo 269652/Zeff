@@ -219,6 +219,30 @@ export async function workedOnTodoAction(todoId: number): Promise<ActionState> {
   }
 }
 
+/** A question to a ticket: answered from what Zeff has on it, kept as the ticket's context (until dismissed). */
+export async function askTicketAction(ticket: string, question: string): Promise<{ ok: boolean; item?: import("@/lib/boards/ticket-chat").ChatItem; error?: string }> {
+  try {
+    const { askTicket } = await import("@/lib/boards/ticket-chat");
+    const item = await askTicket(String(ticket ?? ""), String(question ?? ""));
+    revalidateAll();
+    return { ok: true, item };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** An answer of a ticket's chat taken out of its context. */
+export async function dismissChatItemAction(id: number): Promise<ActionState> {
+  try {
+    const { dismissChatItem } = await import("@/lib/boards/ticket-chat");
+    dismissChatItem(Number(id));
+    revalidateAll();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
 /** A time record taken away — while no booking or suggestion covers it. */
 export async function deleteTodoTimeAction(id: number): Promise<ActionState> {
   try {
