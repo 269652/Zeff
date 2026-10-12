@@ -76,6 +76,19 @@ export async function newsMoreAction(view: string, sourceId: number | null, cate
   return { items, ago: Object.fromEntries(items.map((i) => [i.id, formatAgo(i.publishedAt)])), done: items.length < NEWS_PAGE };
 }
 
+/** Ask your news: a question answered from the fetched items, with the sources it used. */
+export async function askNewsAction(question: string): Promise<{ ok: boolean; answer?: string; sources?: { n: number; id: number; title: string; url: string; sourceName: string }[]; error?: string }> {
+  try {
+    guard();
+    const { isInstalled } = await import("@/plugins/state");
+    if (!isInstalled("llm")) throw new Error(t("Asking needs the LLM plugin (Menu → Plugins)."));
+    const r = await (await import("./ask")).askNews(String(question ?? "").slice(0, 400));
+    return { ok: true, answer: r.answer, sources: r.sources };
+  } catch (e) {
+    return { ok: false, error: errorMessage(e) };
+  }
+}
+
 /** "Refresh": the sync, now. */
 export async function refreshNewsAction(): Promise<Result> {
   try {

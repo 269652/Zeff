@@ -4064,5 +4064,12 @@
   "Your facts, open todos and tickets are matched against the headlines — a story about a hobby you noted, or the thing you work on, comes up without being an interest. Compared on this PC; nothing is sent.": "Deine Fakten, offenen Todos und Tickets werden mit den Überschriften verglichen – eine Meldung zu einem notierten Hobby oder zu dem, woran du arbeitest, kommt hoch, ohne dass es ein Interesse sein muss. Der Vergleich läuft auf diesem PC; nichts wird gesendet.",
   "Right now: {terms}": "Gerade: {terms}",
   "Mix it up": "Durchmischen",
-  "No run of one source, the same story from several outlets only once near the top, and every seventh place from something unlike what came before — so the feed stays varied while it learns.": "Keine Reihe von einer Quelle, dieselbe Geschichte von mehreren Medien nur einmal weit oben und jeder siebte Platz von etwas, das sich von davor unterscheidet – so bleibt der Feed abwechslungsreich, während er lernt."
+  "No run of one source, the same story from several outlets only once near the top, and every seventh place from something unlike what came before — so the feed stays varied while it learns.": "Keine Reihe von einer Quelle, dieselbe Geschichte von mehreren Medien nur einmal weit oben und jeder siebte Platz von etwas, das sich von davor unterscheidet – so bleibt der Feed abwechslungsreich, während er lernt.",
+  "Asking needs the LLM plugin (Menu → Plugins).": "Fragen braucht das LLM-Plugin (Menü → Plugins).",
+  "Listen to the briefing": "Briefing anhören",
+  "Read aloud with your browser's voice": "Mit der Stimme deines Browsers vorlesen",
+  "Listen": "Anhören",
+  "Ask your news": "Frag deine Nachrichten",
+  "e.g. What is new in quantum computing this week?": "z. B. Was gibt es diese Woche Neues zu Quantencomputern?",
+  "Reading the news …": "Lese die Nachrichten …"
 }

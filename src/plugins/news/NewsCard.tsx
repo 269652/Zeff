@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
+import { ListenButton } from "./Listen";
 import { newsReadAction, newsStateAction, newsVoteAction } from "./server-actions";
 import type { NewsItem } from "./shared";
 
@@ -108,6 +109,7 @@ export function NewsCard({ item, ago, showImage, onChange }: { item: NewsItem; a
           <button type="button" className={btn(reader.open)} disabled={pending} onClick={toggleReader} title={item.hasContent ? t("The whole article, read here") : t("Fetches the article and shows its text here")}>
             {reader.open ? t("Close") : item.hasContent ? t("Read here") : t("Read")}
           </button>
+          {reader.open && reader.text && <ListenButton text={`${item.title}.\n\n${reader.text}`} lang="de" />}
           <span className="flex-1" />
           <button type="button" className={btn(item.vote === 1)} disabled={pending} title={t("More like this")} onClick={() => run(() => newsVoteAction(item.id, item.vote === 1 ? 0 : 1), { vote: item.vote === 1 ? 0 : 1 })}>
             👍

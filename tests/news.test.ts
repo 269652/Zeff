@@ -523,3 +523,56 @@ test("For you is mixed when it is on, and pages continue the mix", async () => {
   assert.equal(s.listItems({ view: "foryou", limit: 16 }).length, 16);
   s.setPrefs({ diversity: true, useProfile: true, useWork: true });
 });
+
+test("the briefing groups the news into themes that cite their items; themes without real items are dropped", async () => {
+  const s = await import("@/plugins/news/store");
+  const { buildDigest, getDigest } = await import("@/plugins/news/digest");
+  for (const x of s.listSources()) s.removeSource(x.id);
+  const src = s.addSource({ name: "Theme", url: "https://theme.example/rss", category: "Tech" });
+  s.setPrefs({ interests: [{ term: "Chips", weight: 2 }], mutes: [], useProfile: false, useWork: false, diversity: false });
+  const now = new Date().toISOString();
+  s.addItems({ id: src.id, name: "Theme" }, ["Neue Chips von Intel", "AMD zieht bei Chips nach", "Wetter bleibt sonnig", "Marsmission startet"].map((title, i) => ({ guid: `t${i}`, url: `https://theme.example/${i}`, title, summary: "", publishedAt: now })));
+  s.rescore(() => ({ prefs: s.getPrefs(), work: [], sourceWeight: 1, sourceVotes: 0 }));
+  const prompts: string[] = [];
+  const d = await buildDigest({
+    ask: async (p) => (prompts.push(p), { overview: "Chips und Raumfahrt.", themes: [{ title: "Prozessoren", summary: "Intel und AMD bringen neue Chips.", items: [1, 2, 99] }, { title: "Nichts", summary: "Keine echten Meldungen.", items: [42] }], picks: [{ n: 1, why: "Du liest über Chips." }] }),
+  });
+  assert.match(prompts[0], /Interessen: Chips/);
+  assert.equal(d!.themes.length, 1, "a theme that cites nothing real is dropped");
+  assert.equal(d!.themes[0].title, "Prozessoren");
+  assert.equal(d!.themes[0].ids.length, 2, "an unknown number is dropped, the real ones kept");
+  assert.equal(getDigest()!.themes[0].summary, "Intel und AMD bringen neue Chips.");
+});
+
+test("ask your news: the question's words find the items, the AI answers from them, the numbers it cites come back as sources", async () => {
+  const s = await import("@/plugins/news/store");
+  const { askNews, askPrompt } = await import("@/plugins/news/ask");
+  for (const x of s.listSources()) s.removeSource(x.id);
+  const src = s.addSource({ name: "Ask", url: "https://ask.example/rss" });
+  const now = new Date().toISOString();
+  s.addItems({ id: src.id, name: "Ask" }, [
+    { guid: "1", url: "https://ask.example/1", title: "Quantencomputer: Google zeigt neuen Chip", summary: "Fehlerkorrektur gelingt", publishedAt: now },
+    { guid: "2", url: "https://ask.example/2", title: "Fußball: Spielplan veröffentlicht", summary: "", publishedAt: now },
+    { guid: "3", url: "https://ask.example/3", title: "IBM baut Quantencomputer mit 1000 Qubits", summary: "", publishedAt: now },
+  ]);
+  s.rescore(() => ({ prefs: s.getPrefs(), work: [], sourceWeight: 1, sourceVotes: 0 }));
+  const prompts: string[] = [];
+  const r = await askNews("Was gibt es Neues zu Quantencomputern?", { ask: async (p) => (prompts.push(p), { answer: "Google zeigt einen neuen Chip [1]; IBM baut einen mit 1000 Qubits [2].", cites: [1] }) });
+  assert.match(prompts[0], /Quantencomputer: Google zeigt neuen Chip/);
+  assert.doesNotMatch(prompts[0], /Spielplan/, "only items about the question go to the AI");
+  assert.equal(r.sources.length, 2, "cited in the text or in the list");
+  assert.ok(r.sources.every((x) => /quantencomputer/i.test(x.title)));
+  assert.deepEqual((await askNews("Wie wird das Wetter auf dem Jupiter?", { ask: async () => ({ answer: "x", cites: [] }) })).sources, []);
+  assert.match((await askNews("Wie wird das Wetter auf dem Jupiter?", { ask: async () => ({ answer: "x", cites: [] }) })).answer, /nichts gefunden/);
+  await assert.rejects(askNews("a"), /question/i);
+  assert.match(askPrompt("F", [{ n: 1, source: "S", title: "T", text: "X" }]), /\[1\] \(S\) T\nX/);
+});
+
+test("listening: long texts are read in pieces of sentences", async () => {
+  const { chunks } = await import("@/plugins/news/Listen");
+  const text = `${"Dies ist ein Satz mit etwas Länge. ".repeat(30)}\n\nNoch ein Absatz.`;
+  const parts = chunks(text);
+  assert.ok(parts.length > 3 && parts.every((p) => p.length <= 220 * 1.6), parts.map((p) => p.length).join());
+  assert.equal(parts[parts.length - 1], "Noch ein Absatz.");
+  assert.deepEqual(chunks(""), []);
+});

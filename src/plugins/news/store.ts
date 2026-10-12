@@ -216,6 +216,26 @@ export function listItems(opts: { view?: NewsView; sourceId?: number; category?:
   return (db().prepare(sql).all(...args, opts.limit ?? 60, opts.offset ?? 0) as IRow[]).map(toItem);
 }
 
+/**
+ * The items a question is about: its words in the headline, summary or the whole article (all words, else any), the best
+ * by how many words fit — then newest. For "ask your news".
+ */
+export function searchItems(question: string, limit = 12): NewsItem[] {
+  // The words, without an ending (Quantencomputern → Quantencompute, so it also finds Quantencomputer, Quantencomputers).
+  const stem = (w: string) => (w.length >= 6 ? w.replace(/(en|er|es|em|e|n|s)$/, "") : w);
+  const words = [...new Set(question.toLowerCase().split(/[^\p{L}\p{N}-]+/u).filter((w) => w.length >= 4 && !STOPWORDS.has(w)).map(stem))].slice(0, 6);
+  if (!words.length) return [];
+  const like = (w: string) => `(i.title like ? or i.summary like ? or i.content like ?)`;
+  const run = (join: "and" | "or") =>
+    db()
+      .prepare(`select ${ICOLS}, (${words.map((w) => `(case when lower(i.title) like ? then 3 else 0 end + case when lower(i.summary) like ? then 1 else 0 end + case when lower(i.content) like ? then 1 else 0 end)`).join(" + ")}) as hits from ${IFROM} where i.state != 'hidden' and i.score > -50 and (${words.map(like).join(` ${join} `)}) order by hits desc, i.published_at desc limit ?`)
+      .all(...words.flatMap((w) => [`%${w}%`, `%${w}%`, `%${w}%`]), ...words.flatMap((w) => [`%${w}%`, `%${w}%`, `%${w}%`]), limit) as IRow[];
+  const all = run("and");
+  return (all.length >= 3 || words.length === 1 ? all : [...all, ...run("or").filter((r) => !all.some((a) => a.id === r.id))].slice(0, limit)).map(toItem);
+}
+
+const STOPWORDS = new Set("what which when where wann welche welcher welches warum wieso wurde wurden wird werden sind sein haben gibt aber auch oder nicht diese dieser dieses über nach neue neuen about with that this have from were was wie wer wo was neues neuer gibt".split(" "));
+
 export function getItem(id: number): NewsItem | null {
   const r = db().prepare(`select ${ICOLS} from ${IFROM} where i.id = ?`).get(id) as IRow | undefined;
   return r ? toItem(r) : null;

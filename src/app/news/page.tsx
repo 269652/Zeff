@@ -5,6 +5,8 @@ import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { formatAgo } from "@/lib/format";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
+import { AskNews } from "@/plugins/news/AskNews";
+import { ListenButton } from "@/plugins/news/Listen";
 import { NewsFeed } from "@/plugins/news/NewsFeed";
 import { NewsRefreshButtons } from "@/plugins/news/RefreshButton";
 import { getDigest } from "@/plugins/news/digest";
@@ -30,7 +32,8 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
   const items = listItems({ view, sourceId, category: category || undefined, maxAgeDays: prefs.maxAgeDays, limit: NEWS_PAGE });
   const c = counts();
   const digest = view === "foryou" && !sourceId ? getDigest() : null;
-  const byId = new Map((digest?.picks ?? []).flatMap((p) => { const it = getItem(p.id); return it ? [[p.id, it] as const] : []; }));
+  const byId = new Map([...(digest?.picks ?? []).map((p) => p.id), ...(digest?.themes ?? []).flatMap((th) => th.ids)].flatMap((id) => { const it = getItem(id); return it ? [[id, it] as const] : []; }));
+  const spoken = digest ? [digest.overview, ...digest.themes.map((th) => `${th.title}. ${th.summary}`), ...digest.picks.flatMap((p) => { const it = byId.get(p.id); return it ? [`${it.title}. ${p.why}`] : []; })].join("\n\n") : "";
   const labels: Record<NewsView, string> = { foryou: t("For you"), latest: t("Latest"), saved: t("Saved"), hidden: t("Hidden") };
   const count: Record<NewsView, number | null> = { foryou: c.unread, latest: null, saved: c.saved, hidden: c.hidden };
   const href = (v: NewsView, s?: number, c?: string) => `/news?view=${v}${s ? `&source=${s}` : ""}${c ? `&category=${encodeURIComponent(c)}` : ""}`;
@@ -77,12 +80,33 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
       </div>
 
       <div className="space-y-3">
+        {isInstalled("llm") && <AskNews />}
         {digest && (
           <section className="card space-y-2 border-indigo-200 bg-indigo-50 p-4 text-sm dark:border-indigo-900 dark:bg-indigo-950/40">
             <h2 className="text-xs font-semibold text-indigo-700 uppercase dark:text-indigo-300">
-              {t("Overview")} · {formatAgo(digest.at)}
+              {t("Overview")} · {formatAgo(digest.at)} <span className="ml-2 normal-case"><ListenButton text={spoken} lang={prefs.language === "en" ? "en" : "de"} label={t("Listen to the briefing")} /></span>
             </h2>
             <p>{digest.overview}</p>
+            {digest.themes.length > 0 && (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {digest.themes.map((th) => (
+                  <div key={th.title} className="rounded-lg bg-white/70 p-3 dark:bg-zinc-900/60">
+                    <p className="font-medium">{th.title}</p>
+                    <p className="text-zinc-700 dark:text-zinc-300">{th.summary}</p>
+                    <p className="mt-1 flex flex-wrap gap-1">
+                      {th.ids.map((id, k) => {
+                        const it = byId.get(id);
+                        return it ? (
+                          <a key={id} href={it.url} target="_blank" rel="noreferrer noopener" title={`${it.sourceName}: ${it.title}`} className="rounded bg-indigo-100 px-1.5 py-0.5 text-[11px] text-indigo-800 hover:underline dark:bg-indigo-950 dark:text-indigo-200">
+                            [{k + 1}] {it.sourceName}
+                          </a>
+                        ) : null;
+                      })}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
             <ul className="list-disc space-y-0.5 pl-5">
               {digest.picks.map((p) => {
                 const it = byId.get(p.id);
