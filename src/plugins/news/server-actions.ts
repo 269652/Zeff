@@ -67,12 +67,12 @@ export async function newsReadAction(id: number): Promise<{ ok: boolean; text?: 
 
 
 /** The next page of a view (infinite scroll): items with how old they are, as the page shows them. */
-export async function newsMoreAction(view: string, sourceId: number | null, category: string, offset: number): Promise<{ items: import("./shared").NewsItem[]; ago: Record<number, string>; done: boolean }> {
+export async function newsMoreAction(view: string, sourceId: number | null, category: string, offset: number, term = ""): Promise<{ items: import("./shared").NewsItem[]; ago: Record<number, string>; done: boolean }> {
   guard();
   const { formatAgo } = await import("@/lib/format");
   const { getPrefs } = await import("./store");
   const v = (["foryou", "latest", "saved", "hidden"] as string[]).includes(view) ? (view as NewsView) : "foryou";
-  const items = listItems({ view: v, sourceId: sourceId ?? undefined, category: category || undefined, maxAgeDays: getPrefs().maxAgeDays, limit: NEWS_PAGE, offset: Math.max(0, Math.floor(offset)) });
+  const items = listItems({ view: v, sourceId: sourceId ?? undefined, category: category || undefined, term: term || undefined, maxAgeDays: getPrefs().maxAgeDays, limit: NEWS_PAGE, offset: Math.max(0, Math.floor(offset)) });
   return { items, ago: Object.fromEntries(items.map((i) => [i.id, formatAgo(i.publishedAt)])), done: items.length < NEWS_PAGE };
 }
 
@@ -303,6 +303,7 @@ export async function savePrefsFormAction(fd: FormData): Promise<void> {
       prefetch: fd.get("prefetch") === "on",
       maxAgeDays: clamp(Number(str(fd, "maxAgeDays")), 1, 30, 7),
       perSource: clamp(Number(str(fd, "perSource")), 5, 100, 25),
+      perRun: clamp(Number(str(fd, "perRun")), 10, 1000, 150),
       keepDays: clamp(Number(str(fd, "keepDays")), 3, 365, 30),
     };
     setPrefs(patch);

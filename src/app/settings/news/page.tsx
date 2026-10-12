@@ -58,7 +58,11 @@ export default async function NewsSettingsPage({ searchParams }: { searchParams:
               <textarea name="mutes" rows={2} defaultValue={prefs.mutes.join("\n")} className={field} placeholder={"Horoskop\nPromi"} />
               <span className="block text-xs text-zinc-500">{t("Items with one of these words are left out.")}</span>
             </label>
-            <div className="grid gap-3 sm:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-5">
+              <label className="space-y-1">
+                <span className="font-medium">{t("Feeds per round")}</span>
+                <input type="number" name="perRun" min={10} max={1000} defaultValue={prefs.perRun} className={field} title={t("A round fetches this many feeds, the longest-unfetched first; the rest follow in the next rounds")} />
+              </label>
               <label className="space-y-1">
                 <span className="font-medium">{t("Language of the searches")}</span>
                 <select name="language" defaultValue={prefs.language} className={field}>

@@ -1,11 +1,28 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { ListenButton } from "./Listen";
 import { newsReadAction, newsSourceAction, newsStateAction, newsTopicAction, newsVoteAction } from "./server-actions";
 import type { NewsItem } from "./shared";
+
+/** Cards that were on screen are reported in batches (every few seconds, and when the page goes away). */
+const seenQueue = new Set<number>();
+let seenTimer: ReturnType<typeof setTimeout> | null = null;
+function flushSeen() {
+  seenTimer = null;
+  if (!seenQueue.size) return;
+  const ids = [...seenQueue];
+  seenQueue.clear();
+  void fetch("/api/news/seen", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids }), keepalive: true }).catch(() => undefined);
+}
+function reportSeen(id: number) {
+  seenQueue.add(id);
+  seenTimer ??= setTimeout(flushSeen, 3000);
+}
+if (typeof window !== "undefined") window.addEventListener("pagehide", flushSeen);
 
 /** The pages of the cards in view are looked at three at a time (a route: server actions would wait in one queue). */
 const waiting: (() => void)[] = [];
@@ -53,6 +70,24 @@ export function NewsCard({ item, ago, showImage, onChange, onDrop }: { item: New
       toast(t("No more searches for “{topic}”.", { topic }), { action: { label: t("Undo"), run: () => void newsTopicAction(topic, "back").then(() => window.location.reload()) } });
     });
   const card = useRef<HTMLElement>(null);
+  // On screen for a moment (more than half of it, a second): seen — a fresh feed puts it last.
+  useEffect(() => {
+    const el = card.current;
+    if (!el || item.seen) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const io = new IntersectionObserver(
+      ([e]) => {
+        clearTimeout(timer);
+        if (e?.isIntersecting) timer = setTimeout(() => reportSeen(item.id), 1000);
+      },
+      { threshold: 0.6 },
+    );
+    io.observe(el);
+    return () => {
+      clearTimeout(timer);
+      io.disconnect();
+    };
+  }, [item.id, item.seen]);
   // A picture to look for, or no summary of its own (a feed that only links): the page is read for it, once.
   const wantsPicture = (showImage && !item.image && !item.imageChecked) || (!item.summary && !item.hasContent);
   // No picture known yet: when the card comes into view, its page is looked at (once; the answer is kept).
@@ -114,6 +149,16 @@ export function NewsCard({ item, ago, showImage, onChange, onDrop }: { item: New
           <div className="max-h-96 overflow-auto rounded border border-zinc-200 bg-zinc-50 p-3 text-sm leading-relaxed whitespace-pre-line dark:border-zinc-700 dark:bg-zinc-900">
             {reader.busy ? t("Reading the article …") : reader.error ? <span className="text-red-600 dark:text-red-400">{reader.error}</span> : reader.text}
           </div>
+        )}
+        {item.terms.length > 0 && (
+          <p className="flex flex-wrap items-center gap-1 text-[11px]">
+            <span aria-hidden>🧭</span>
+            {item.terms.map((term) => (
+              <Link key={term} href={`/news/explore?${new URLSearchParams({ topic: term })}`} className="rounded-full border border-zinc-200 px-2 py-0.5 text-zinc-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-indigo-700 dark:hover:bg-indigo-950 dark:hover:text-indigo-200" title={t("Explore “{term}”", { term })}>
+                {term}
+              </Link>
+            ))}
+          </p>
         )}
         {item.reasons.length > 0 && (
           <p className="flex flex-wrap gap-1 text-[11px] text-zinc-500">

@@ -21,6 +21,10 @@ export type NewsSyncDeps = {
   fetchArticle?: (url: string) => Promise<Article>;
   /** Looks for new feeds by itself (default: the auto-discovery, when it is on). */
   discoverFeeds?: () => Promise<number>;
+  /** Looks for new feeds because fresh news run low (default: the low-news discovery, when it is on). */
+  discoverWhenLow?: () => Promise<number>;
+  /** (internal) the round after a discovery fetches the new feeds and doesn't search again. */
+  noLow?: boolean;
   /** After the sync: the AI overview (default: when the preference is on). */
   digest?: () => Promise<void>;
 };
@@ -91,7 +95,10 @@ export async function syncNews(deps: NewsSyncDeps = {}): Promise<{ ok: boolean; 
   const nowMs = (deps.now ?? Date.now)();
   // What you keep disliking is paused by itself (and says so); paused ones and ones that keep failing (tried once a day) are left out.
   const paused = pauseDisliked();
-  const sources = listSources().filter((s) => s.enabled && dueForFetch(s, (deps.now ?? Date.now)()));
+  // A round fetches a part of the feeds: the ones fetched longest ago (never fetched first), `perRun` of them — a steady trickle
+  // of new things all day instead of one wave; the rest are next in line.
+  const due = listSources().filter((s) => s.enabled && dueForFetch(s, (deps.now ?? Date.now)()));
+  const sources = [...due].sort((a, b) => (a.lastAt ?? "").localeCompare(b.lastAt ?? "")).slice(0, Math.max(10, getPrefs().perRun));
   const topics = prefs.topicSearch ? [...prefs.interests].sort((a, b) => b.weight - a.weight).slice(0, 8) : [];
   if (!sources.length && !topics.length) return { ok: true, message: "No sources and no interests yet — add some under Settings → News." };
 
@@ -148,7 +155,17 @@ export async function syncNews(deps: NewsSyncDeps = {}): Promise<{ ok: boolean; 
       digestNote = ` · overview failed (${e instanceof Error ? e.message : String(e)})`.slice(0, 160);
     }
   }
+  // Fresh news running low: look for new feeds now and fetch them straight away — the stream shouldn't run dry.
+  let foundLow = 0;
+  if (!deps.noLow) {
+    try {
+      foundLow = await (deps.discoverWhenLow ?? (async () => (await import("./auto-discover")).discoverWhenLow()))();
+    } catch {
+      // finding is a bonus
+    }
+    if (foundLow > 0) await syncNews({ ...deps, noLow: true, discoverFeeds: async () => 0 });
+  }
   const ok = failed.length < jobs.length;
   const failNote = failed.length ? ` — ${failed.length} failed: ${failed.slice(0, 3).join("; ").slice(0, 300)}${failed.length > 3 ? " …" : ""}` : "";
-  return { ok, message: `${added} new from ${jobs.length - failed.length} of ${jobs.length} sources${unchanged ? ` (${unchanged} unchanged)` : ""}${discovered ? `, ${discovered} new feeds found` : ""}${paused.length ? `, paused: ${paused.slice(0, 3).join(", ")}` : ""}${read ? `, ${read} read in full` : ""}${failNote}${digestNote}` };
+  return { ok, message: `${added} new from ${jobs.length - failed.length} of ${jobs.length} sources${sources.length < due.length ? ` (this round; ${due.length - sources.length} more next)` : ""}${unchanged ? ` (${unchanged} unchanged)` : ""}${discovered ? `, ${discovered} new feeds found` : ""}${paused.length ? `, paused: ${paused.slice(0, 3).join(", ")}` : ""}${foundLow ? `, ${foundLow} new feeds found (fresh news were running low)` : ""}${read ? `, ${read} read in full` : ""}${failNote}${digestNote}` };
 }

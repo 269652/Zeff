@@ -652,3 +652,137 @@ test("new items since the page loaded are counted (the page says '5 new'); auto-
   assert.ok(asked.length > 0 && asked.every((t) => /frische|meldung/i.test(t)), `looked for ${asked.join(", ")}`);
   s.setPrefs({ autoDiscover: false });
 });
+
+test("explore: headlines name things, things named together are related, what is rising shows up, and what is out there is far from what you read", async () => {
+  const { keyTerms, buildIndex, trending, related, wild, layout } = await import("@/plugins/news/explore-core");
+  assert.ok(keyTerms("Elon Musk kündigt neue Rakete von SpaceX an").includes("Elon Musk"));
+  assert.ok(keyTerms("Deutsche Bahn: Streik der GDL legt Fernverkehr lahm").includes("Deutsche Bahn"));
+  assert.ok(!keyTerms("Neue Meldung über das Wetter").some((t) => /^neue$/i.test(t)), "common capitalised words name nothing");
+  const now = Date.now();
+  const mk = (id: number, title: string, hoursAgo: number, source = "S") => ({ id, title, summary: "", publishedAt: new Date(now - hoursAgo * 3600e3).toISOString(), sourceName: source });
+  const items = [
+    ...Array.from({ length: 5 }, (_, i) => mk(i + 1, `Elon Musk und SpaceX: Starship Test ${i}`, 2 + i, i % 2 ? "A" : "B")),
+    mk(10, "Elon Musk kauft Tesla Aktien nach", 30),
+    mk(11, "Tesla Aktien fallen deutlich", 40),
+    mk(12, "Tesla Aktien steigen wieder an", 50),
+    ...Array.from({ length: 4 }, (_, i) => mk(20 + i, `Axolotl Forschung in Mexiko ${i}`, 60 + i)),
+    ...Array.from({ length: 40 }, (_, i) => mk(100 + i, `Allgemeine Meldung Nummer ${i} ohne besonderen Namen`, 10 + i)),
+  ];
+  const ix = buildIndex(items);
+  const rising = trending(ix, now).map((b) => b.term);
+  assert.ok(rising.includes("Elon Musk") || rising.includes("SpaceX"), `rising: ${rising.join(", ")}`);
+  const rel = related(ix, "Elon Musk").map((b) => b.term);
+  assert.ok(rel.includes("SpaceX") && rel.includes("Starship"), `related: ${rel.join(", ")}`);
+  assert.ok(!rel.includes("Elon Musk") && !rel.includes("Musk"), "not itself, not its own words");
+  const out = wild(ix, ["Elon Musk"], 1).map((b) => b.term);
+  assert.ok(out.some((t) => /axolotl|mexiko/i.test(t)), `out there: ${out.join(", ")}`);
+  assert.ok(!out.some((t) => /spacex|starship|tesla/i.test(t)), "not near what you read");
+  assert.deepEqual(wild(ix, ["Elon Musk"], 1).map((b) => b.term), out, "the same seed, the same bubbles");
+  const spots = layout(["a", "b", "c", "d", "e", "f"]);
+  assert.ok(spots.every((p) => p.x > 0 && p.x < 100 && p.y > 0 && p.y < 100));
+  assert.equal(new Set(spots.map((p) => `${p.x},${p.y}`)).size, 6, "no two bubbles in one place");
+});
+
+test("what you have seen goes to the end of the feed; a feed round fetches only a part of the feeds, the longest-unfetched first", async () => {
+  const s = await import("@/plugins/news/store");
+  const { syncNews } = await import("@/plugins/news/sync");
+  for (const x of s.listSources()) s.removeSource(x.id);
+  await wipe();
+  s.setPrefs({ interests: [], mutes: [], useProfile: false, useWork: false, diversity: false, topicSearch: false, prefetch: false, autoDiscover: false, perRun: 10 });
+  const src = s.addSource({ name: "Seen", url: "https://seen.example/rss" });
+  const now = Date.now();
+  s.addItems({ id: src.id, name: "Seen" }, [0, 1, 2].map((i) => ({ guid: `s${i}`, url: `https://seen.example/${i}`, title: `Meldung ${["Eins", "Zwei", "Drei"][i]} zur Lage`, summary: "", publishedAt: new Date(now - i * 3600e3).toISOString() })));
+  const order = () => s.listItems({ view: "latest", sourceId: src.id }).map((i) => i.title.split(" ")[1]);
+  assert.deepEqual(order(), ["Eins", "Zwei", "Drei"]);
+  const first = s.listItems({ view: "latest", sourceId: src.id })[0];
+  assert.equal(s.markSeen([first.id, first.id, -4, 99999]), 1);
+  assert.deepEqual(order(), ["Zwei", "Drei", "Eins"], "the seen one is last now, in Latest …");
+  s.rescore(() => ({ prefs: s.getPrefs(), work: [], sourceWeight: 1, sourceVotes: 0 }));
+  assert.equal(s.listItems({ view: "foryou", sourceId: src.id }).at(-1)!.title.split(" ")[1], "Eins", "… and in For you");
+  assert.equal(s.listItems({ view: "latest", sourceId: src.id }).find((i) => i.id === first.id)!.seen, true);
+
+  // Rotation: 25 feeds, 10 a round.
+  for (const x of s.listSources()) s.removeSource(x.id);
+  for (let i = 0; i < 25; i++) s.addSource({ name: `F${String(i).padStart(2, "0")}`, url: `https://rot.example/${i}` });
+  const asked: string[] = [];
+  const run = async () => (asked.length = 0, await syncNews({ now: () => now, fetchFeed: async (u) => (asked.push(u), { text: null }) }));
+  await run();
+  const r1 = [...asked];
+  assert.equal(r1.length, 10);
+  await run();
+  const r2 = [...asked];
+  assert.equal(r2.length, 10);
+  assert.ok(r2.every((u) => !r1.includes(u)), "the next round is other feeds");
+  await run();
+  const r3 = [...asked];
+  assert.equal(r3.length, 10, "always a round's worth: the five never fetched, then the longest-ago");
+  assert.ok(new Set([...r1, ...r2, ...r3.slice(0, 5)]).size === 25, "every feed has had its turn after three rounds");
+  assert.match((await run()).message, /\(this round; \d+ more next\)/);
+});
+
+test("Explore: the items about a thing, and the headline's names", async () => {
+  const s = await import("@/plugins/news/store");
+  for (const x of s.listSources()) s.removeSource(x.id);
+  await wipe();
+  const src = s.addSource({ name: "Hop", url: "https://hop.example/rss" });
+  const now = new Date().toISOString();
+  s.addItems({ id: src.id, name: "Hop" }, [
+    { guid: "1", url: "https://hop.example/1", title: "Elon Musk startet Starship erneut", summary: "", publishedAt: now },
+    { guid: "2", url: "https://hop.example/2", title: "Bundesliga: Spieltag im Überblick", summary: "Mit Elon Musk hat das nichts zu tun", publishedAt: now },
+    { guid: "3", url: "https://hop.example/3", title: "Wetter bleibt mild", summary: "", publishedAt: now },
+  ]);
+  assert.equal(s.listItems({ view: "latest", term: "elon musk" }).length, 2, "headline or summary");
+  assert.ok(s.listItems({ view: "latest", term: "Starship" }).length === 1);
+  const musk = s.listItems({ view: "latest", term: "Starship" })[0];
+  assert.ok(musk.terms.includes("Elon Musk"), "its names are bubbles to hop to");
+});
+
+test("fresh news running low: it goes looking for feeds on what you care about — interests, what you liked, what it knows about you — at most every two hours, and the new feeds are fetched straight away", async () => {
+  const s = await import("@/plugins/news/store");
+  const { discoverWhenLow, discoveries, wantedTopics, LOW_UNSEEN } = await import("@/plugins/news/auto-discover");
+  const { syncNews } = await import("@/plugins/news/sync");
+  const { setPref } = await import("@/lib/prefs");
+  for (const x of s.listSources()) s.removeSource(x.id);
+  await wipe();
+  setPref("news:discoveries", []);
+  setPref("news:lowdiscover-at", 0);
+  s.setPrefs({ interests: [{ term: "Mathematik", weight: 2 }], autoDiscover: true, useProfile: true, mutes: [], topicSearch: false, prefetch: false, perRun: 150 });
+  const profile = async () => [{ term: "Kubernetes", weight: 1, why: "ticket: PROJ-364" }, { term: "Rennrad", weight: 0.8, why: "you: Nadines Hobby" }];
+  const wanted = (await wantedTopics({ profile })).map((w) => w.term);
+  assert.deepEqual(wanted.slice(0, 3), ["Mathematik", "Kubernetes", "Rennrad"], "interests first, then what it knows about you");
+  const asked: string[] = [];
+  const sug = (domain: string, topic: string) => ({ feed: { url: `https://${domain}/feed`, title: domain, items: 9, newest: new Date().toISOString(), sample: [] }, topic, domain, via: "news" as const, why: `Schreibt über ${topic}` });
+  const find = async (topic: string) => (asked.push(topic), [sug(`${topic.toLowerCase()}-1.example`, topic), sug(`${topic.toLowerCase()}-2.example`, topic), sug(`${topic.toLowerCase()}-3.example`, topic), sug(`${topic.toLowerCase()}-4.example`, topic)]);
+  const now = Date.now();
+  // Plenty unseen: nothing.
+  assert.equal(await discoverWhenLow({ now: () => now, find, profile, unseen: () => LOW_UNSEEN + 1 }), 0);
+  // Running low: three things, three feeds each.
+  assert.equal(await discoverWhenLow({ now: () => now, find, profile, unseen: () => 5 }), 9);
+  assert.deepEqual(asked, ["Mathematik", "Kubernetes", "Rennrad"]);
+  assert.ok(discoveries().every((d) => d.reason === "low"));
+  // Not again within two hours; later it takes the next three.
+  assert.equal(await discoverWhenLow({ now: () => now + 3600e3, find, profile, unseen: () => 5 }), 0, "too soon");
+  asked.length = 0;
+  await discoverWhenLow({ now: () => now + 3 * 3600e3, find, profile, unseen: () => 5 });
+  assert.ok(asked.length > 0 && asked[0] === "Mathematik", "another turn through what it cares about");
+  // Off: never.
+  s.setPrefs({ autoDiscover: false });
+  assert.equal(await discoverWhenLow({ now: () => now + 9 * 3600e3, find, profile, unseen: () => 0 }), 0);
+
+  // In the sync: found → the new feeds are fetched in a second round, the message says so.
+  for (const x of s.listSources()) s.removeSource(x.id);
+  s.setPrefs({ autoDiscover: true });
+  setPref("news:lowdiscover-at", 0);
+  setPref("news:discoveries", []);
+  const added = s.addSource({ name: "Old", url: "https://old.example/rss" });
+  const fetched: string[] = [];
+  const feed = `<rss><channel><item><title>Frisch gefunden</title><link>https://new.example/1</link><pubDate>${new Date().toUTCString()}</pubDate></item></channel></rss>`;
+  const r = await syncNews({
+    fetchFeed: async (u) => (fetched.push(u), { text: feed }),
+    discoverFeeds: async () => 0,
+    discoverWhenLow: async () => (s.addSource({ name: "Neu", url: "https://neu.example/feed", category: "Discovered" }), 1),
+  });
+  assert.ok(fetched.includes("https://neu.example/feed"), "the new feed was fetched in the same sync");
+  assert.match(r.message, /1 new feeds found \(fresh news were running low\)/);
+  void added;
+});

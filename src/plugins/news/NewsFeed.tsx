@@ -66,12 +66,13 @@ const height = (i: NewsItem, image: boolean) => 150 + (image && i.image ? 190 : 
  * The news as a masonry (cards in columns, each in the shortest) that loads more as you scroll, with a
  * button back to the top. Cards update in place when you vote, save or hide; the first page comes from the server.
  */
-export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, showImages, done: initialDone }: { initial: NewsItem[]; ago: Record<number, string>; view: NewsView; sourceId: number | null; category: string; showImages: boolean; done: boolean }) {
+export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, term = "", showImages, done: initialDone }: { initial: NewsItem[]; ago: Record<number, string>; view: NewsView; sourceId: number | null; category: string; term?: string; showImages: boolean; done: boolean }) {
   const t = useT();
   const [items, setItems] = useState(initial);
   const [ago, setAgo] = useState(initialAgo);
   const [done, setDone] = useState(initialDone);
   const [loading, setLoading] = useState(false);
+  const [searchingFeeds, setSearchingFeeds] = useState(false);
   const [cols, setCols] = useState(2);
   const [top, setTop] = useState(false);
   const [wide, setWide] = useState(true);
@@ -102,7 +103,7 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, s
     busy.current = true;
     setLoading(true);
     try {
-      const r = await newsMoreAction(view, sourceId, category, offset.current);
+      const r = await newsMoreAction(view, sourceId, category, offset.current, term);
       offset.current += r.items.length;
       setItems((cur) => {
         const have = new Set(cur.map((i) => i.id));
@@ -116,7 +117,7 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, s
       busy.current = false;
       setLoading(false);
     }
-  }, [view, sourceId, category, done]);
+  }, [view, sourceId, category, term, done]);
 
   // Infinite scroll: the sentinel under the cards comes into view → the next page. Back to top: shown once scrolled down.
   useEffect(() => {
@@ -175,13 +176,24 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, s
         // offline: later
       }
     };
-    const timer = setInterval(poll, 90_000);
+    const timer = setInterval(poll, 60_000);
     const first = setTimeout(poll, 5000);
     return () => {
       clearInterval(timer);
       clearTimeout(first);
     };
   }, []);
+
+  // The end of the feed: fresh news are running out — Zeff goes looking for new feeds (the sync fetches them, "N new" says when).
+  const lowAsked = useRef(false);
+  useEffect(() => {
+    if (!done || lowAsked.current || term) return;
+    lowAsked.current = true;
+    void fetch("/api/news/low", { method: "POST" })
+      .then((r) => r.json() as Promise<{ searching?: boolean }>)
+      .then((j) => setSearchingFeeds(!!j.searching))
+      .catch(() => undefined);
+  }, [done, term]);
 
   const patch = (id: number, p: Partial<NewsItem>) =>
     setItems((cur) => cur.flatMap((i) => (i.id !== id ? [i] : view !== "hidden" && p.state === "hidden" ? [] : view === "saved" && p.state && p.state !== "saved" ? [] : [{ ...i, ...p }])));
@@ -221,7 +233,7 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, s
         </div>
       )}
       <div ref={sentinel} className="py-4 text-center text-xs text-zinc-500">
-        {loading ? t("Loading more …") : done ? (items.length ? t("That's all for now.") : "") : <button type="button" className="btn btn-sm" onClick={() => void more()}>{t("Load more")}</button>}
+        {loading ? t("Loading more …") : done ? (searchingFeeds ? t("You've seen it all — looking for new sources for you …") : items.length ? t("That's all for now.") : "") : <button type="button" className="btn btn-sm" onClick={() => void more()}>{t("Load more")}</button>}
       </div>
       {top && (
         <button

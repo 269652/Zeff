@@ -75,6 +75,9 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
           </div>
         )}
         <NewsRefreshButtons digest={prefs.digest} />
+        <Link href="/news/explore" className="btn btn-sm w-full text-center" title={t("Hop from thing to thing through the news")}>
+          🧭 {t("Explore")}
+        </Link>
         <Link href="/settings/news" className="btn btn-sm w-full text-center">
           {t("News settings")}
         </Link>

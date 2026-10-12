@@ -2,6 +2,7 @@ import { getSqlite } from "@/db";
 import { getPref, setPref } from "@/lib/prefs";
 import { DEFAULT_PREFS, diversify, normalizeUrl, scoreItem, snippetOf, titleKey, tokens, type NewsItem, type NewsPrefs, type NewsSource, type NewsState, type ScoreContext } from "./shared";
 import type { FeedItem } from "./feed";
+import { keyTerms, type ExploreItem } from "./explore-core";
 
 /**
  * News: the sources, the items fetched from them, what you made of them (read, saved, hidden, liked,
@@ -19,6 +20,7 @@ function db() {
   // Pictures and whole articles: columns added later.
   const cols = (d.prepare("pragma table_info(news_items)").all() as { name: string }[]).map((c) => c.name);
   if (!cols.includes("image")) d.exec("alter table news_items add column image text not null default ''");
+  if (!cols.includes("seen_at")) d.exec("alter table news_items add column seen_at text");
   if (!cols.includes("content")) d.exec("alter table news_items add column content text not null default ''");
   const scols = (d.prepare("pragma table_info(news_sources)").all() as { name: string }[]).map((c) => c.name);
   for (const [name, def] of [["category", "text not null default ''"], ["lang", "text not null default ''"], ["etag", "text"], ["modified", "text"], ["fails", "integer not null default 0"]] as const) if (!scols.includes(name)) d.exec(`alter table news_sources add column ${name} ${def}`);
@@ -148,6 +150,11 @@ export function pauseDisliked(threshold = -3): string[] {
   return rows.map((r) => r.name);
 }
 
+/** How many unseen, visible items there are (what is left to read before the feed runs dry). */
+export function unseenCount(maxAgeDays: number): number {
+  return (db().prepare("select count(*) n from news_items i left join news_sources s on s.id = i.source_id where i.seen_at is null and i.state = 'new' and i.score > -50 and i.published_at > ? and (i.source_id is null or s.enabled = 1)").get(new Date(Date.now() - maxAgeDays * 864e5).toISOString()) as { n: number }).n;
+}
+
 /** How many visible items were fetched after `sinceIso` (the page shows "N new"). */
 export function countNewSince(sinceIso: string): number {
   return (db().prepare("select count(*) n from news_items i left join news_sources s on s.id = i.source_id where i.fetched_at > ? and i.state = 'new' and i.score > -50 and (i.source_id is null or s.enabled = 1)").get(sinceIso) as { n: number }).n;
@@ -182,9 +189,9 @@ export function prune(keepDays: number): number {
   return db().prepare("delete from news_items where state != 'saved' and published_at < ?").run(new Date(Date.now() - keepDays * 864e5).toISOString()).changes;
 }
 
-type IRow = { id: number; category: string; source_id: number | null; source_name: string; url: string; title: string; summary: string; image: string; has_content: number; published_at: string; state: string; vote: number; score: number; reasons: string };
+type IRow = { id: number; seen: number; category: string; source_id: number | null; source_name: string; url: string; title: string; summary: string; image: string; has_content: number; published_at: string; state: string; vote: number; score: number; reasons: string };
 /** The columns of a list (not the whole articles: only whether one is kept). */
-const ICOLS = "i.id, coalesce(s.category, '') as category, i.source_id, i.source_name, i.url, i.title, i.summary, i.image, length(i.content) > 1 as has_content, i.published_at, i.state, i.vote, i.score, i.reasons";
+const ICOLS = "i.id, i.seen_at is not null as seen, coalesce(s.category, '') as category, i.source_id, i.source_name, i.url, i.title, i.summary, i.image, length(i.content) > 1 as has_content, i.published_at, i.state, i.vote, i.score, i.reasons";
 const IFROM = "news_items i left join news_sources s on s.id = i.source_id";
 const toItem = (r: IRow): NewsItem => ({
   id: r.id,
@@ -193,6 +200,8 @@ const toItem = (r: IRow): NewsItem => ({
   url: r.url,
   title: r.title,
   summary: r.summary,
+  seen: !!r.seen,
+  terms: keyTerms(r.title).slice(0, 3),
   category: r.category,
   image: r.image === "-" ? "" : r.image,
   imageChecked: r.image !== "",
@@ -213,7 +222,7 @@ const toItem = (r: IRow): NewsItem => ({
 export type NewsView = "foryou" | "latest" | "saved" | "hidden";
 
 /** The items of a view: For you (best first, nothing hidden or muted), Latest (by date), Saved, Hidden. */
-export function listItems(opts: { view?: NewsView; sourceId?: number; category?: string; limit?: number; offset?: number; maxAgeDays?: number } = {}): NewsItem[] {
+export function listItems(opts: { view?: NewsView; sourceId?: number; category?: string; term?: string; limit?: number; offset?: number; maxAgeDays?: number } = {}): NewsItem[] {
   const view = opts.view ?? "foryou";
   const where: string[] = [];
   const args: (string | number)[] = [];
@@ -228,15 +237,24 @@ export function listItems(opts: { view?: NewsView; sourceId?: number; category?:
     where.push("i.source_id = ?");
     args.push(opts.sourceId);
   }
+  if (opts.term) {
+    // About a thing (Explore): its words in the headline or the summary.
+    where.push("(lower(i.title) like ? or lower(i.summary) like ?)");
+    args.push(`%${opts.term.toLowerCase()}%`, `%${opts.term.toLowerCase()}%`);
+  }
   if (opts.category) {
     where.push("s.category = ?");
     args.push(opts.category);
   }
-  const order = view === "foryou" ? "i.score desc, i.published_at desc" : "i.published_at desc";
+  // What you have seen goes last (in For you and Latest): the feed is always new things first.
+  const unseenFirst = view === "foryou" || view === "latest" ? "i.seen_at is not null, " : "";
+  const order = view === "foryou" ? `${unseenFirst}i.score desc, i.published_at desc` : `${unseenFirst}i.published_at desc`;
   const sql = `select ${ICOLS} from ${IFROM} where ${where.map((w) => `(${w})`).join(" and ")} order by ${order}, i.id desc limit ? offset ?`;
   // For you is mixed (diversify) — the mix is made of the best 600 and then paged, so a page continues the one before.
   if (view === "foryou" && getPrefs().diversity) {
-    const mixed = diversify((db().prepare(sql).all(...args, 600, 0) as IRow[]).map(toItem));
+    const all = (db().prepare(sql).all(...args, 600, 0) as IRow[]).map(toItem);
+    // The unseen are mixed, then the seen (also mixed) after them.
+    const mixed = [...diversify(all.filter((i) => !i.seen)), ...diversify(all.filter((i) => i.seen))];
     const from = opts.offset ?? 0;
     return mixed.slice(from, from + (opts.limit ?? 60));
   }
@@ -270,6 +288,18 @@ export function getItem(id: number): NewsItem | null {
 
 /** What is kept in `content` when the page couldn't be read (so it isn't tried again with every fetch). */
 export const UNREADABLE = "\u0001";
+
+/** Items that have been on screen: from now on a fresh feed puts them last. */
+export function markSeen(ids: number[]): number {
+  const list = ids.filter((n) => Number.isInteger(n) && n > 0).slice(0, 200);
+  if (!list.length) return 0;
+  return db().prepare(`update news_items set seen_at = ? where seen_at is null and id in (${list.map(() => "?").join(",")})`).run(now(), ...list).changes;
+}
+
+/** The recent items for the Explore map (headlines and short texts only). */
+export function recentForExplore(days = 3, limit = 4000): ExploreItem[] {
+  return (db().prepare("select i.id, i.title, i.summary, i.published_at, i.source_name from news_items i left join news_sources s on s.id = i.source_id where i.state != 'hidden' and i.score > -50 and i.published_at > ? and (i.source_id is null or s.enabled = 1) order by i.published_at desc limit ?").all(new Date(Date.now() - days * 864e5).toISOString(), limit) as { id: number; title: string; summary: string; published_at: string; source_name: string }[]).map((r) => ({ id: r.id, title: r.title, summary: r.summary, publishedAt: r.published_at, sourceName: r.source_name }));
+}
 
 /** The kept whole article of an item ("" if none, UNREADABLE if its page couldn't be read). */
 export function getContent(id: number): { content: string; url: string; title: string } | null {

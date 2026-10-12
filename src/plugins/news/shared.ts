@@ -43,6 +43,10 @@ export type NewsItem = {
   state: NewsState;
   vote: -1 | 0 | 1;
   score: number;
+  /** What it is about (people, places, companies, topics): each a bubble to hop to in Explore. */
+  terms: string[];
+  /** It has been on screen already (a fresh feed puts what you have seen last). */
+  seen: boolean;
   /** The category of its source ("" for a search or one you added). */
   category: string;
   /** Why it is up here: "AI ×2", "fresh", "you liked similar …". */
@@ -78,11 +82,13 @@ export type NewsPrefs = {
   maxAgeDays: number;
   /** Most items kept per source and fetch. */
   perSource: number;
+  /** How many feeds one round fetches (the rest come in the next rounds, least recently fetched first) — a steady trickle instead of one big wave. */
+  perRun: number;
   /** How long read items are kept (saved ones always). */
   keepDays: number;
 };
 
-export const DEFAULT_PREFS: NewsPrefs = { interests: [], mutes: [], language: "de", topicSearch: true, useWork: true, useProfile: true, diversity: true, digest: false, autoDiscover: true, images: true, prefetch: true, maxAgeDays: 7, perSource: 25, keepDays: 30 };
+export const DEFAULT_PREFS: NewsPrefs = { interests: [], mutes: [], language: "de", topicSearch: true, useWork: true, useProfile: true, diversity: true, digest: false, autoDiscover: true, images: true, prefetch: true, maxAgeDays: 7, perSource: 25, perRun: 150, keepDays: 30 };
 
 export type Preset = { name: string; url: string; about: string; lang: "de" | "en" };
 
