@@ -21,6 +21,7 @@ export const llmTasks = (t: T = translator("en")) =>
     { id: "people-dates", label: t("People's dates"), what: t("Finds birthdays, anniversaries and other important dates of your people in the knowledge and in your messages (People plugin).") },
     { id: "people-normalize", label: t("People matching"), what: t("Finds who is meant by the names in your todos — one person under all their names: aliases, new profiles for contacts, duplicates merged (People plugin).") },
     { id: "news-digest", label: t("News overview"), what: t("Sums up the best unread news of the day for you and says why each pick fits (News plugin).") },
+    { id: "news-feeds", label: t("News feed finder"), what: t("Names outlets, blogs and newsletters worth reading on a topic — Zeff then looks for their feeds and checks them (News plugin).") },
     { id: "reply-draft", label: t("Reply draft"), what: t("Writes the reply to a message (WhatsApp, mail, Teams) a todo is about — from the conversation.") },
     { id: "auto-actions", label: t("Auto actions"), what: t("Turns todos into ready-made actions (message, comment, mail, meeting, hand-over).") },
     { id: "worker", label: t("Worker"), what: t("Works on a todo (Work tab, ✨ To Copilot) — in the repo, with tools.") },

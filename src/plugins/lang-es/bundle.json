@@ -4043,5 +4043,19 @@
   "All languages": "Todos los idiomas",
   "Nothing in the catalog matches.": "Nada en el catálogo coincide.",
   "Add all {n}": "Añadir las {n}",
-  "{n} more — search to narrow it down, or add them all.": "{n} más: busca para acotar o añádelas todas."
+  "{n} more — search to narrow it down, or add them all.": "{n} más: busca para acotar o añádelas todas.",
+  "No feed found at that address.": "No se encontró ningún feed en esa dirección.",
+  "Name a topic, or add interests under What suits you first.": "Indica un tema o añade antes intereses en «Lo que te conviene».",
+  "Find new feeds by itself": "Encontrar feeds nuevos por sí mismo",
+  "Once a day Zeff searches the internet for feeds on two of your interests and adds the best few (category Discovered; you see what it added and can remove it). Interests and the AI's outlet names are sent out for the search.": "Una vez al día Zeff busca en internet feeds sobre dos de tus intereses y añade los mejores (categoría Discovered; ves lo añadido y puedes quitarlo). Para la búsqueda se envían al exterior los intereses y los nombres de medios de la IA.",
+  "Find feeds": "Buscar feeds",
+  "Zeff searches the internet for sources on a topic: who writes about it (from a news search), which outlets and blogs an AI knows — and checks each site's feeds. Nothing is added until you click.": "Zeff busca en internet fuentes sobre un tema: quién escribe sobre él (de una búsqueda de noticias), qué medios y blogs conoce una IA, y comprueba los feeds de cada sitio. No se añade nada hasta que hagas clic.",
+  "Found by itself": "Encontrado por sí mismo",
+  "News feed finder": "Buscador de feeds de noticias",
+  "Names outlets, blogs and newsletters worth reading on a topic — Zeff then looks for their feeds and checks them (News plugin).": "Nombra medios, blogs y boletines que merece la pena leer sobre un tema; Zeff busca después sus feeds y los comprueba (plugin Noticias).",
+  "A topic, e.g. quantum computing — or empty for my interests": "Un tema, p. ej. computación cuántica, o vacío para mis intereses",
+  "Searching the internet …": "Buscando en internet …",
+  "Looking up who writes about it, asking the AI for outlets, and checking each site's feeds — about 20 seconds.": "Averigua quién escribe sobre ello, pregunta a la IA por medios y comprueba los feeds de cada sitio: unos 20 segundos.",
+  "Found nothing new for that.": "No se encontró nada nuevo sobre eso.",
+  "suggested by the AI": "sugerido por la IA"
 }

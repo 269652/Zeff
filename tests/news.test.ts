@@ -375,3 +375,85 @@ test("topic packs: every topic gives a news search in two languages (and Bing, M
   assert.ok(feeds.some((f) => /bing\.com\/news\/search\?q=.*format=rss/.test(f.url)));
   assert.ok(feeds.some((f) => /medium\.com\/feed\/tag\//.test(f.url)));
 });
+
+const feedXml = (title: string, n = 4) => `<rss><channel><title>${title}</title>${Array.from({ length: n }, (_, i) => `<item><title>Beitrag ${i}</title><link>https://x.example/${i}</link><pubDate>${new Date(Date.now() - i * 3600e3).toUTCString()}</pubDate></item>`).join("")}</channel></rss>`;
+
+test("discovery: an address that is a feed, a page that announces its feeds, the usual paths, the well-known places — only feeds with items count", async () => {
+  const { discoverFeeds, feedLinksIn, knownPlaces, isPublicUrl } = await import("@/plugins/news/discover");
+  const pages: Record<string, string> = {
+    "https://blog.example/feed.xml": feedXml("Blog"),
+    "https://site.example/": `<html><head><link rel="alternate" type="application/atom+xml" title="Atom" href="/atom/all.xml"><link rel="stylesheet" href="/x.css"></head></html>`,
+    "https://site.example/atom/all.xml": feedXml("Site Atom"),
+    "https://plain.example/": "<html></html>",
+    "https://plain.example/rss.xml": feedXml("Plain RSS", 5),
+    "https://www.reddit.com/r/rust/.rss": feedXml("rust"),
+  };
+  const get = async (url: string) => {
+    if (!(url in pages)) throw new Error("HTTP 404");
+    return { text: pages[url], url };
+  };
+  assert.equal((await discoverFeeds("https://blog.example/feed.xml", { get }))[0].title, "Blog", "the address is the feed");
+  assert.equal((await discoverFeeds("site.example", { get }))[0].url, "https://site.example/atom/all.xml", "the page says where it is");
+  assert.equal((await discoverFeeds("https://plain.example", { get }))[0].url, "https://plain.example/rss.xml", "the usual path");
+  assert.equal((await discoverFeeds("https://www.reddit.com/r/rust", { get }))[0].url, "https://www.reddit.com/r/rust/.rss", "a subreddit");
+  assert.deepEqual(await discoverFeeds("https://nothing.example", { get }), []);
+  assert.deepEqual(feedLinksIn(pages["https://site.example/"], "https://site.example/"), ["https://site.example/atom/all.xml"]);
+  assert.deepEqual(knownPlaces(new URL("https://github.com/vercel/next.js")), ["https://github.com/vercel/next.js/releases.atom", "https://github.com/vercel/next.js/commits.atom"]);
+  assert.deepEqual(knownPlaces(new URL("https://foo.substack.com/p/x")), ["https://foo.substack.com/feed"]);
+  // Only the public web.
+  for (const bad of ["http://localhost:3000/feed", "http://192.168.1.5/rss", "http://10.0.0.1/", "file:///etc/passwd", "https://intranet.local/x"]) assert.equal(isPublicUrl(bad), false, bad);
+  assert.deepEqual(await discoverFeeds("http://localhost:9444", { get }), []);
+});
+
+test("the feed finder: a topic's news names its publishers, an AI names outlets, their sites are searched — only working feeds come back, with why", async () => {
+  const { findFeeds, publishersOf } = await import("@/plugins/news/finder");
+  const googleXml = `<rss><channel>${[["https://www.quantamagazine.org", "Quanta Magazine"], ["https://www.quantamagazine.org", "Quanta Magazine"], ["https://news.google.com", "Google"], ["https://dead.example", "Dead News"], ["https://phys.example", "Phys"]]
+    .map(([u, n], i) => `<item><title>T${i}</title><link>https://news.google.com/rss/articles/x${i}</link><source url="${u}">${n}</source></item>`).join("")}</channel></rss>`;
+  assert.deepEqual(publishersOf(googleXml).map((p) => [p.host, p.count]), [["quantamagazine.org", 2], ["dead.example", 1], ["phys.example", 1]], "aggregators out, most mentioned first");
+  const asked: string[] = [];
+  const get = async (url: string) => {
+    asked.push(url);
+    if (url.startsWith("https://news.google.com/rss/search")) return { text: googleXml, url };
+    if (url === "https://quantamagazine.org/feed" || url === "https://quantamagazine.org/feed/") return { text: feedXml("Quanta"), url };
+    if (url === "https://phys.example/rss.xml") return { text: feedXml("Phys", 6), url };
+    if (url === "https://blog.ai-picked.example/feed") return { text: feedXml("AI pick", 5), url };
+    throw new Error("HTTP 404");
+  };
+  const ask = async () => ({ outlets: [{ name: "AI Pick", domain: "https://blog.ai-picked.example/", why: "Du liest über Mathematik." }, { name: "Intern", domain: "localhost" }, { name: "Quanta", domain: "quantamagazine.org", why: "Mathematik, gut erklärt" }] });
+  const found = await findFeeds("Mathematik", { get, ask, have: new Set(["already.example"]), profile: ["TypeScript"] });
+  const by = Object.fromEntries(found.map((s) => [s.domain, s]));
+  assert.ok(by["blog.ai-picked.example"] && by["quantamagazine.org"] && by["phys.example"], Object.keys(by).join());
+  assert.ok(!by["dead.example"], "a publisher without a feed that answers isn't suggested");
+  assert.equal(by["blog.ai-picked.example"].via, "ai");
+  assert.equal(by["quantamagazine.org"].why, "Mathematik, gut erklärt", "the AI's reason is kept");
+  assert.equal(found[0].via, "ai", "the AI's picks first");
+  assert.ok(!asked.some((u) => /localhost/.test(u)), "no local address is ever asked");
+  // Without an AI the news route alone still finds feeds.
+  const noAi = await findFeeds("Mathematik", { get, ask: async () => { throw new Error("no llm"); } });
+  assert.ok(noAi.some((s) => s.domain === "phys.example"));
+  // Ones you have are not suggested again.
+  assert.ok(!(await findFeeds("Mathematik", { get, ask, have: new Set(["phys.example"]) })).some((s) => s.domain === "phys.example"));
+});
+
+test("finding feeds by itself: once a day, for a couple of your interests, the best few are added and logged — and nothing when it is off", async () => {
+  const s = await import("@/plugins/news/store");
+  const { autoDiscover, discoveries } = await import("@/plugins/news/auto-discover");
+  const { setPref } = await import("@/lib/prefs");
+  for (const x of s.listSources()) s.removeSource(x.id);
+  setPref("news:autodiscover-at", 0);
+  const sug = (domain: string, topic: string) => ({ feed: { url: `https://${domain}/feed`, title: domain, items: 9, newest: new Date().toISOString(), sample: [] }, topic, domain, via: "news" as const, why: `Schreibt über ${topic}` });
+  const find = async (topic: string) => [sug(`a-${topic.length}.example`, topic), sug(`b-${topic.length}.example`, topic), sug(`c-${topic.length}.example`, topic)];
+  s.setPrefs({ autoDiscover: false, interests: [{ term: "Mathematik", weight: 2 }, { term: "Segeln", weight: 1 }] });
+  assert.equal(await autoDiscover({ find }), 0, "off: nothing");
+  s.setPrefs({ autoDiscover: true });
+  const now = Date.now();
+  assert.equal(await autoDiscover({ now: () => now, find }), 4, "two topics, two feeds each");
+  const added = s.listSources();
+  assert.equal(added.length, 4);
+  assert.ok(added.every((x) => x.category === "Discovered"));
+  assert.equal(discoveries().length, 4);
+  assert.match(discoveries()[0].why, /Schreibt über/);
+  assert.equal(await autoDiscover({ now: () => now + 3600e3, find }), 0, "not again within the day");
+  assert.ok((await autoDiscover({ now: () => now + 2 * 864e5, find })) >= 0, "the next day it looks again");
+  s.setPrefs({ autoDiscover: false });
+});

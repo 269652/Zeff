@@ -7,6 +7,8 @@ import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { addSourceFormAction, forgetLearningFormAction, removeSourceFormAction, savePrefsFormAction, updateSourceFormAction } from "@/plugins/news/server-actions";
 import { CatalogBrowser } from "@/plugins/news/CatalogBrowser";
+import { discoveries } from "@/plugins/news/auto-discover";
+import { FeedFinder } from "@/plugins/news/FeedFinder";
 import { formatInterests } from "@/plugins/news/shared";
 import { getPrefs, listSources } from "@/plugins/news/store";
 
@@ -91,6 +93,13 @@ export default async function NewsSettingsPage({ searchParams }: { searchParams:
               </span>
             </label>
             <label className="flex items-start gap-2">
+              <input type="checkbox" name="autoDiscover" defaultChecked={prefs.autoDiscover} className="mt-1" />
+              <span>
+                {t("Find new feeds by itself")}
+                <span className="block text-xs text-zinc-500">{t("Once a day Zeff searches the internet for feeds on two of your interests and adds the best few (category Discovered; you see what it added and can remove it). Interests and the AI's outlet names are sent out for the search.")}</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2">
               <input type="checkbox" name="images" defaultChecked={prefs.images} className="mt-1" />
               <span>
                 {t("Show pictures")}
@@ -169,6 +178,24 @@ export default async function NewsSettingsPage({ searchParams }: { searchParams:
           </form>
           <p className="text-xs text-zinc-500">{t("Any RSS or Atom address works — most news sites, blogs, YouTube channels and subreddits (add .rss to the address) have one.")}</p>
 
+        </section>
+
+        <section className="card space-y-3 p-4">
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Find feeds")}</h2>
+          <p className="text-xs text-zinc-500">{t("Zeff searches the internet for sources on a topic: who writes about it (from a news search), which outlets and blogs an AI knows — and checks each site's feeds. Nothing is added until you click.")}</p>
+          <FeedFinder />
+          {discoveries().length > 0 && (
+            <div className="space-y-1">
+              <p className="text-xs font-semibold text-zinc-500 uppercase">{t("Found by itself")}</p>
+              <ul className="space-y-0.5 text-xs text-zinc-600 dark:text-zinc-300">
+                {discoveries().slice(0, 8).map((d) => (
+                  <li key={d.url}>
+                    <strong>{d.name}</strong> — {d.topic}: {d.why}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
 
         <CatalogBrowser have={have} lang={sp.lang ?? ""} q={sp.q ?? ""} />

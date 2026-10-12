@@ -17,6 +17,8 @@ export type NewsSyncDeps = {
   now?: () => number;
   /** An article's page read (default: the reader; tests give their own). */
   fetchArticle?: (url: string) => Promise<Article>;
+  /** Looks for new feeds by itself (default: the auto-discovery, when it is on). */
+  discoverFeeds?: () => Promise<number>;
   /** After the sync: the AI overview (default: when the preference is on). */
   digest?: () => Promise<void>;
 };
@@ -74,6 +76,13 @@ export async function rescoreAll(opts: { work?: () => string[]; nowMs?: number }
 }
 
 export async function syncNews(deps: NewsSyncDeps = {}): Promise<{ ok: boolean; message: string }> {
+  // New feeds found by itself first (once a day), so they are fetched in this very sync.
+  let discovered = 0;
+  try {
+    discovered = await (deps.discoverFeeds ?? (async () => (await import("./auto-discover")).autoDiscover()))();
+  } catch {
+    // finding is a bonus; the sync goes on
+  }
   const prefs = getPrefs();
   const fetchFeed = deps.fetchFeed ?? (deps.fetchText ? async (u: string) => ({ text: await deps.fetchText!(u) as string | null }) : defaultFetchFeed);
   const nowMs = (deps.now ?? Date.now)();
@@ -137,5 +146,5 @@ export async function syncNews(deps: NewsSyncDeps = {}): Promise<{ ok: boolean; 
   }
   const ok = failed.length < jobs.length;
   const failNote = failed.length ? ` — ${failed.length} failed: ${failed.slice(0, 3).join("; ").slice(0, 300)}${failed.length > 3 ? " …" : ""}` : "";
-  return { ok, message: `${added} new from ${jobs.length - failed.length} of ${jobs.length} sources${unchanged ? ` (${unchanged} unchanged)` : ""}${read ? `, ${read} read in full` : ""}${failNote}${digestNote}` };
+  return { ok, message: `${added} new from ${jobs.length - failed.length} of ${jobs.length} sources${unchanged ? ` (${unchanged} unchanged)` : ""}${discovered ? `, ${discovered} new feeds found` : ""}${read ? `, ${read} read in full` : ""}${failNote}${digestNote}` };
 }

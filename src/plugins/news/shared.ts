@@ -62,6 +62,8 @@ export type NewsPrefs = {
   useWork: boolean;
   /** An AI overview of the best items (needs the LLM plugin). */
   digest: boolean;
+  /** Zeff looks for new feeds by itself (once a day, for your interests) and adds the best few. */
+  autoDiscover: boolean;
   /** Show each item's picture (the pictures are loaded from their sites by your browser). */
   images: boolean;
   /** After each fetch, read the whole text of the best unread items so they open at once. */
@@ -74,7 +76,7 @@ export type NewsPrefs = {
   keepDays: number;
 };
 
-export const DEFAULT_PREFS: NewsPrefs = { interests: [], mutes: [], language: "de", topicSearch: true, useWork: true, digest: false, images: true, prefetch: true, maxAgeDays: 7, perSource: 25, keepDays: 30 };
+export const DEFAULT_PREFS: NewsPrefs = { interests: [], mutes: [], language: "de", topicSearch: true, useWork: true, digest: false, autoDiscover: false, images: true, prefetch: true, maxAgeDays: 7, perSource: 25, keepDays: 30 };
 
 export type Preset = { name: string; url: string; about: string; lang: "de" | "en" };
 

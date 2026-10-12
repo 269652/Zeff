@@ -6,7 +6,7 @@ import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { NEWS_PAGE, parseInterests, parseMutes, PRESETS, type NewsPrefs, type NewsState } from "./shared";
-import { addSource, addSources, forgetLearning, getContent, listItems, removeSource, setContent, setPrefs, setState, UNREADABLE, updateSource, vote, type NewsView } from "./store";
+import { addSource, addSources, forgetLearning, getContent, getPrefs, listItems, listSources, removeSource, setContent, setPrefs, setState, UNREADABLE, updateSource, vote, type NewsView } from "./store";
 
 /** The News plugin's server actions: the cards' buttons return a result; the settings forms go back to their page with what came of it. */
 
@@ -101,15 +101,52 @@ export async function newsDigestAction(): Promise<Result> {
   }
 }
 
+/** An address (a feed, or any website): the feed behind it is found and added. */
 export async function addSourceFormAction(fd: FormData): Promise<void> {
   try {
     guard();
-    addSource({ name: str(fd, "name"), url: str(fd, "url") });
+    const url = str(fd, "url");
+    const found = await (await import("./discover")).discoverFeeds(url);
+    if (!found.length) throw new Error(t("No feed found at that address."));
+    addSource({ name: str(fd, "name") || found[0].title, url: found[0].url, category: "Added" });
   } catch (e) {
     back({ error: errorMessage(e) });
   }
   revalidatePath("/settings/news");
   back({ ok: t("Source added.") });
+}
+
+type Found = { url: string; title: string; items: number; newest: string; sample: string[]; domain: string; via: string; why: string; topic: string };
+
+/** The feed finder: feeds worth reading on a topic (news search + the AI's outlets, each checked) — or, without a topic, for your top interests. */
+export async function findFeedsAction(topic: string): Promise<{ ok: boolean; found: Found[]; error?: string }> {
+  try {
+    guard();
+    const { findFeeds } = await import("./finder");
+    const prefs = getPrefs();
+    const have = new Set(listSources().map((s) => { try { return new URL(s.url).hostname.replace(/^www\./, ""); } catch { return ""; } }));
+    const { workWords } = await import("./sync");
+    const profile = [...prefs.interests.map((i) => i.term), ...(await workWords(10))];
+    const topics = topic.trim() ? [topic.trim()] : [...prefs.interests].sort((a, b) => b.weight - a.weight).slice(0, 3).map((i) => i.term);
+    if (!topics.length) throw new Error(t("Name a topic, or add interests under What suits you first."));
+    const all: Found[] = [];
+    for (const tp of topics) for (const s of await findFeeds(tp, { have, profile, language: prefs.language, limit: 12 })) if (!all.some((x) => x.url === s.feed.url)) all.push({ ...s.feed, domain: s.domain, via: s.via, why: s.why, topic: tp });
+    return { ok: true, found: all };
+  } catch (e) {
+    return { ok: false, found: [], error: errorMessage(e) };
+  }
+}
+
+/** A found feed, added (category "Discovered"). */
+export async function addFoundFeedAction(url: string, name: string): Promise<Result> {
+  try {
+    guard();
+    addSource({ name: name.slice(0, 80) || url, url, category: "Discovered", lang: getPrefs().language === "any" ? "" : getPrefs().language });
+    revalidatePath("/settings/news");
+    return { ok: true, message: t("Source added.") };
+  } catch (e) {
+    return { ok: false, error: errorMessage(e) };
+  }
 }
 
 /** The whole starter pack (about fifty well-known feeds across topics and languages), one click. */
@@ -201,6 +238,7 @@ export async function savePrefsFormAction(fd: FormData): Promise<void> {
       topicSearch: fd.get("topicSearch") === "on",
       useWork: fd.get("useWork") === "on",
       digest: fd.get("digest") === "on",
+      autoDiscover: fd.get("autoDiscover") === "on",
       images: fd.get("images") === "on",
       prefetch: fd.get("prefetch") === "on",
       maxAgeDays: clamp(Number(str(fd, "maxAgeDays")), 1, 30, 7),
