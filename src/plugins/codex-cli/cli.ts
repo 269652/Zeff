@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { AiAnswer } from "@/lib/ai/shared";
+import { npmToolDirs } from "@/lib/node-tools";
 
 /** How to start OpenAI's Codex CLI (ChatGPT): a program and the arguments before ours. */
 export type CodexCommand = { command: string; args: string[]; where: string };
@@ -17,7 +18,8 @@ export function findCodexCli(): CodexCommand | null {
   const own = process.env.CODEX_CLI?.trim();
   if (own && fs.existsSync(/*turbopackIgnore: true*/ own)) return /\.(c|m)?js$/.test(own) ? { command: process.execPath, args: [own], where: own } : { command: own, args: [], where: own };
   const exe = process.platform === "win32" ? "codex.exe" : "codex";
-  for (const dir of (process.env.PATH ?? "").split(path.delimiter).filter(Boolean)) {
+  // (+ Zeff's own npm folder, where the setup installs it)
+  for (const dir of [...(process.env.PATH ?? "").split(path.delimiter).filter(Boolean), ...npmToolDirs()]) {
     const pkgDir = path.join(dir, "node_modules", "@openai", "codex");
     try {
       const pkg = JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ path.join(pkgDir, "package.json"), "utf8")) as { bin?: string | Record<string, string> };

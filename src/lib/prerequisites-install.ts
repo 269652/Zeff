@@ -6,9 +6,10 @@ import type { PrereqId } from "@/lib/prerequisites-shared";
  * The pure part is the plan — which command installs which program; the rest runs it, one program at a
  * time, and keeps what happened so the page can poll it. No Node is needed for any of it: Claude and uv
  * come from their own installers (a PowerShell / shell script, no admin), Copilot from winget / Homebrew.
- * The AI CLIs still need a sign-in of their own afterwards (the page says so). Codex needs npm — by hand.
+ * The AI CLIs still need a sign-in of their own afterwards (the page says so). Codex needs npm: Zeff downloads the portable Node (with npm) into its own folder for it (node-tools.ts).
  */
-export type InstallPlan = { name: string; command: string; args: string[] };
+/** `custom`: not a command but Zeff's own routine (Codex: the portable Node + npm). */
+export type InstallPlan = { name: string; command: string; args: string[]; custom?: "codex" };
 
 const WINGET_IDS: Partial<Record<PrereqId, string>> = {
   browser: "Google.Chrome",
@@ -33,6 +34,7 @@ const BREW_ARGS: Partial<Record<PrereqId, string[]>> = {
 
 /** The command that installs `id` on this system, or null (no package manager, or not something we install). */
 export function installPlan(id: PrereqId, platform: string, has: (command: string) => boolean): InstallPlan | null {
+  if (id === "codex") return { name: "Node + npm", command: "", args: [], custom: "codex" };
   const script = SCRIPTS[id];
   if (script && platform === "win32" && has("powershell")) return { name: "PowerShell", command: "powershell", args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script.win] };
   if (script && (platform === "darwin" || platform === "linux") && has("sh")) return { name: "sh", command: "sh", args: ["-c", script.unix] };
@@ -85,5 +87,9 @@ export function startInstall(id: PrereqId, deps: { plan: InstallPlan | null; fou
 /** Waits for the queue (tests). */
 export const installsSettled = () => Promise.resolve(g.__zeffInstallQueue).catch(() => undefined);
 
-const defaultRun = (p: InstallPlan): Promise<{ ok: boolean; out: string }> =>
+const defaultRun = async (p: InstallPlan): Promise<{ ok: boolean; out: string }> => {
+  if (p.custom === "codex") return (await import("./node-tools")).installCodex();
+  return runCommand(p);
+};
+const runCommand = (p: InstallPlan): Promise<{ ok: boolean; out: string }> =>
   new Promise((resolve) => execFile(p.command, p.args, { timeout: 20 * 60000, windowsHide: true, maxBuffer: 8_000_000 }, (err, stdout, stderr) => resolve({ ok: !err, out: `${stdout}\n${stderr}`.trim().slice(-400) })));

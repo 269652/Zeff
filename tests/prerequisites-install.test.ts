@@ -10,7 +10,7 @@ test("Windows installs Chrome, Git and Poppler with winget (silently, accepting 
     assert.ok(p.args.includes(wid) && p.args.includes("--silent") && p.args.includes("--accept-package-agreements"), id);
   }
   assert.ok(installPlan("copilot", "win32", has)!.args.includes("GitHub.Copilot"));
-  assert.equal(installPlan("codex", "win32", has), null, "Codex needs npm: by hand");
+  assert.equal(installPlan("codex", "win32", () => false)!.custom, "codex", "Codex: Zeff's own routine, no package manager needed");
   // Claude and uv come from their own installers — no winget, no Node, no admin.
   const ps = installPlan("claude", "win32", (c) => c === "powershell")!;
   assert.equal(ps.command, "powershell");
