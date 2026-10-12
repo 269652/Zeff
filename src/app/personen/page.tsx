@@ -57,30 +57,6 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
         </form>
         {sp.error && <p className="alert-error text-sm">{sp.error}</p>}
         {sp.added && <p className="alert-ok text-sm">{t("Added ✓")}</p>}
-        {people.length > 0 &&
-          (progress ? (
-            <p className="text-sm text-zinc-500">
-              <span className="mr-2 inline-block size-2 animate-pulse rounded-full bg-amber-500" />
-              {t("Searching dates… {done} of {total} · {found} found", { done: progress.done, total: progress.total, found: progress.found })}
-            </p>
-          ) : (
-            <form action={findAllDatesFormAction}>
-              <button className="btn btn-sm" title={t("For everyone without a birthday: in the facts and (with the LLM plugin) by AI in the knowledge and the messages")}>
-                {t("Find dates for everyone")}
-              </button>
-            </form>
-          ))}
-        {sp.searching && !progress && <p className="text-xs text-zinc-500">{t("Search done — suggestions are at the top right.")}</p>}
-        {people.length > 1 && (
-          <form action={normalizePeopleFormAction}>
-            <button
-              className="btn btn-sm"
-              title={t("The AI looks at who the names in your todos are: new names become aliases, contacts get profiles, duplicates are merged. It also runs after each briefing.")}
-            >
-              {t("Match names (AI)")}
-            </button>
-          </form>
-        )}
         <Link href="/personen/compile" className="btn btn-sm w-full text-center" title={t("A summary of every person: what connects you, the key facts, the fun facts")}>
           {t("Compile summaries")}
         </Link>
@@ -94,9 +70,33 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
             const [c, u, k] = sp.imported.split(",").map(Number);
             return <p className="alert-ok text-sm">{t("{c} new people, {u} updated — from {k} contacts of the last 14 days", { c: c || 0, u: u || 0, k: k || 0 })}</p>;
           })()}
+        {people.length > 0 &&
+          (progress ? (
+            <p className="text-sm text-zinc-500">
+              <span className="mr-2 inline-block size-2 animate-pulse rounded-full bg-amber-500" />
+              {t("Searching dates… {done} of {total} · {found} found", { done: progress.done, total: progress.total, found: progress.found })}
+            </p>
+          ) : (
+            <form action={findAllDatesFormAction}>
+              <button className="btn btn-sm w-full" title={t("For everyone without a birthday: in the facts and (with the LLM plugin) by AI in the knowledge and the messages")}>
+                {t("Find dates for everyone")}
+              </button>
+            </form>
+          ))}
+        {sp.searching && !progress && <p className="text-xs text-zinc-500">{t("Search done — suggestions are at the top right.")}</p>}
+        {people.length > 1 && (
+          <form action={normalizePeopleFormAction}>
+            <button
+              className="btn btn-sm w-full"
+              title={t("The AI looks at who the names in your todos are: new names become aliases, contacts get profiles, duplicates are merged. It also runs after each briefing.")}
+            >
+              {t("Match names (AI)")}
+            </button>
+          </form>
+        )}
         {people.length > 0 && (
           <form action={linkJiraAccountsFormAction}>
-            <button className="btn btn-sm" title={t("Ties Jira users to the profiles by their names (as the briefing lists them on the tickets) — so @-mentions in notes synced to Jira point to the right person. No AI; names that fit two users aren't guessed.")}>
+            <button className="btn btn-sm w-full" title={t("Ties Jira users to the profiles by their names (as the briefing lists them on the tickets) — so @-mentions in notes synced to Jira point to the right person. No AI; names that fit two users aren't guessed.")}>
               {t("Link Jira accounts")}
             </button>
           </form>

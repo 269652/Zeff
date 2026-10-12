@@ -78,7 +78,7 @@ export default async function CompilePage({ searchParams }: { searchParams: Prom
                 </Link>
                 <form action={compileOneFormAction}>
                   <input type="hidden" name="id" value={p.id} />
-                  <button className="text-xs text-indigo-600 hover:underline disabled:opacity-40 dark:text-indigo-400" disabled={running} title={t("Compile just this person (again)")}>
+                  <button className="btn btn-sm" disabled={running} title={t("Compile just this person (again)")}>
                     {p.compiled ? t("Compile again") : t("Compile")}
                   </button>
                 </form>
