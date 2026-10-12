@@ -5,7 +5,6 @@ import { useT } from "@/components/I18nProvider";
 import { Fragment, useState, useTransition } from "react";
 import { deferTodoAction, runTodoOpsAction, setTodoStatusAction, suggestTodoActionsAction } from "@/plugins/todos/server-actions";
 import {
-  agentInstruction,
   opsButton,
   opTitle,
   sourcesOf,
@@ -31,7 +30,6 @@ import { toast } from "../Toaster";
 import { TodoAlternatives } from "./TodoAlternatives";
 import { AreaToggle, ContextList, ContextToggle, useContextItems } from "./TodoSources";
 import { RunningSpinner } from "../RunningSpinner";
-import { useAgentInstructions } from "../AgentInstructions";
 import { TodoPlan } from "./TodoPlan";
 import { TodoRefs } from "./TodoRefs";
 import { PersonText } from "@/plugins/people/PersonMention";
@@ -163,7 +161,6 @@ export function TodoItem({
   const knowledgeEntities = todo.knowledge ? entitiesFor(todo.knowledge.entities, knowledgePages) : [];
   const knowledge = knowledgeOn && (knowledgePages.length || knowledgeEntities.length) ? { pages: knowledgePages, entities: knowledgeEntities } : null;
   const [, startDefer] = useTransition();
-  const instructions = useAgentInstructions();
   const set = (next: TodoStatus) => {
     const before = status;
     setStatus(next);
@@ -248,7 +245,7 @@ export function TodoItem({
           <Linked text={todo.text} cards={cards} mrs={todo.links?.mrs} />
         </span>
         <span className="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-zinc-400">
-          <CopyButton text={agentInstruction(todo, instructions)} className="font-mono hover:text-indigo-600 hover:underline dark:hover:text-indigo-400" title={t("Copy “{text}” — for Copilot / Claude Code", { text: agentInstruction(todo, instructions) })}>
+          <CopyButton text={todo.ref} className="font-mono hover:text-indigo-600 hover:underline dark:hover:text-indigo-400" title={t("Copy “{text}” — for Copilot / Claude Code", { text: todo.ref })}>
             {todo.ref}
           </CopyButton>
           {/* Linked to more than one ticket (the same thing on both): all of them, the main one first. */}

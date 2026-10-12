@@ -8,7 +8,7 @@ import { listRepos, repoForTicket, type RepoView } from "@/lib/repos";
 import { execFile } from "node:child_process";
 import { logPath } from "./log";
 import { applyOutcome, normalizeResult } from "./outcome";
-import { pump, slug } from "./runner";
+import { pump } from "./runner";
 import { workModeOf, workRef, type WorkMode } from "./shared";
 import { createRun, getRun, runsByStatus, updateRun } from "./store";
 import { quarterHours, suggestEntry, unsuggestedRuns, unsuggestedTimes } from "./suggestions";
@@ -60,11 +60,20 @@ export function startAgentWork(v: { todo: string; agent?: string; note?: string 
   return { run: getRun(r.id)!, resumed: false, todo: t };
 }
 
+/**
+ * The pattern for a new branch: the Jira ticket key, then a few words the AGENT picks for the code
+ * change it actually makes (feature/PROJ-364-footer-link-indent) — not the todo's or ticket's title,
+ * which isn't necessarily the change.
+ */
+export function newBranchName(t: Pick<TodoView, "ticket" | "kind">): string {
+  return `${t.kind === "fix" ? "fix" : "feature"}/${t.ticket}-<short-change>`;
+}
+
 /** Where code work on a todo goes: the ticket's repo (Repos page), its default branch, and a feature branch name to use. */
 export async function workplaceOf(t: Pick<TodoView, "ticket" | "kind" | "text">): Promise<{ repo: RepoView | null; base: string; branch: string; existing: string | null }> {
   const repo = repoForTicket(t.ticket)?.repo ?? null;
   const base = repo ? ((await tryGit(repo.path, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])) || "origin/main").replace(/^origin\//, "") : "main";
-  return { repo, base, branch: `${t.kind === "fix" ? "fix" : "feature"}/${t.ticket}-${slug(t.text) || "work"}`, existing: repo ? await existingBranch(repo.path, t.ticket, base) : null };
+  return { repo, base, branch: newBranchName(t), existing: repo ? await existingBranch(repo.path, t.ticket, base) : null };
 }
 
 /**
