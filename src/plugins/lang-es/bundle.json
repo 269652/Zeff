@@ -3771,6 +3771,8 @@
   "related": "relacionado",
   "{run} ran {n} min longer than reported on {todo}": "{run} duró {n} min más de lo informado en {todo}",
   "Unreported time of {run}": "Tiempo no informado de {run}",
+  "still open": "aún abierto",
+  "Todos ticked off today and time tracked on todos today, by ticket — adjust the hours and the words, then add them as entries.": "Todos marcados hoy y tiempo registrado hoy en todos, por ticket — ajusta las horas y el texto y añádelos como entradas.",
   "Possible questions": "Posibles preguntas",
   "No answer found": "No se encontró respuesta",
   "Answered from the knowledge base": "Respondido desde la base de conocimiento",

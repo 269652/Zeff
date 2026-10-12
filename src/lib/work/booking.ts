@@ -20,7 +20,7 @@ import { suggestedEvidence } from "./suggestions";
 import { workRef } from "./shared";
 import { listTodoTimes, markTimeBooked } from "./todo-time";
 
-const { todos, workRuns } = schema;
+const { todos, workRuns, todoTime } = schema;
 
 /** Booked time: quarter hours, rounded up — at least one. */
 const quarters = (ms: number) => Math.max(0.25, Math.ceil(ms / 900000) * 0.25);
@@ -52,7 +52,8 @@ export type DoneToday = {
   summary: string | null;
   job: { id: number; number: string; name: string } | null;
   todoIds: number[];
-  todos: { ref: string; text: string }[];
+  /** `done`: ticked off — else only time was tracked on it today (it stays open). */
+  todos: { ref: string; text: string; done: boolean }[];
   /** All the time of the todos and the ones related to them (quarter hours, rounded up on the total) plus a quarter per todo done by hand. */
   hours: number;
   description: string;
@@ -102,12 +103,13 @@ export function relatedTodoIds(todoId: number): number[] {
  * durations; a todo done by hand gets a quarter. A run a record was made in is never counted
  * besides it. `runs`: the group's finished runs not booked or suggested.
  */
-export function groupTime(list: { id: number; text: string }[], runs: (typeof workRuns.$inferSelect)[], suggested: ReturnType<typeof suggestedEvidence>) {
+export function groupTime(list: { id: number; text: string }[], runs: (typeof workRuns.$inferSelect)[], suggested: ReturnType<typeof suggestedEvidence>, own: Set<number> = new Set()) {
   const ids = list.map((todo) => todo.id);
   const related = new Set(ids.flatMap(relatedTodoIds));
-  // Not the ones marked not to be booked (-1) — and not the group's own, which are in it anyway.
+  // Not the ones marked not to be booked (-1) — and not the group's own, which are in it anyway — nor those with time tracked
+  // today (`own`): they're in their ticket's group of their own, their time isn't counted twice.
   const extra = related.size
-    ? getDb().select({ id: todos.id, entryId: todos.entryId }).from(todos).where(inArray(todos.id, [...related])).all().filter((r) => r.entryId !== -1 && !ids.includes(r.id)).map((r) => r.id)
+    ? getDb().select({ id: todos.id, entryId: todos.entryId }).from(todos).where(inArray(todos.id, [...related])).all().filter((r) => r.entryId !== -1 && !ids.includes(r.id) && !own.has(r.id)).map((r) => r.id)
     : [];
   const everything = listTodoTimes([...ids, ...extra]);
   const records = everything.filter((r) => r.entryId == null && !suggested.timeIds.has(r.id));
@@ -135,20 +137,36 @@ export function groupTime(list: { id: number; text: string }[], runs: (typeof wo
   return { lines, hours, timeIds: records.map((r) => r.id), counted, byHand, records };
 }
 
+/** The todos with unbooked time tracked today that no suggestion covers. */
+function trackedTodayIds(suggested: ReturnType<typeof suggestedEvidence>, today = isoDate(new Date())): Set<number> {
+  return new Set(
+    getDb()
+      .select({ todoId: todoTime.todoId, id: todoTime.id, at: todoTime.at })
+      .from(todoTime)
+      .where(isNull(todoTime.entryId))
+      .all()
+      .filter((r) => !suggested.timeIds.has(r.id) && isoDate(new Date(r.at)) === today)
+      .map((r) => r.todoId),
+  );
+}
+
 /**
- * The todos done today and not booked yet, by ticket — each an entry to book: the time reported
- * on them and the todos related to them (records; else the workers' runs; a quarter hour for
- * each done by hand), their lines (the entry lines and notes, else the todos' texts) as the
- * description, the ticket's job.
+ * The todos done today and the ones time was tracked on today (still open), not booked yet, by
+ * ticket — each an entry to book: the time reported on them and the todos related to them
+ * (records; else the workers' runs; a quarter hour for each done by hand), their lines (the entry
+ * lines and notes, else the todos' texts) as the description, the ticket's job.
  */
 export function doneToday(): DoneToday[] {
   const today = isoDate(new Date());
+  // What an agent suggested a booking for already (a shadow row of its own): not here again.
+  const suggested = suggestedEvidence();
   const done = listTodos({ status: "done" }).filter(
     (todo) => todo.doneAt && isoDate(new Date(todo.doneAt)) === today,
   );
-  if (!done.length) return [];
-  // What an agent suggested a booking for already (a shadow row of its own): not here again.
-  const suggested = suggestedEvidence();
+  // Time tracked on a todo today — whatever its state: the todo goes in with the time (it stays open).
+  const trackedIds = trackedTodayIds(suggested, today);
+  const tracked = [...todosByIds([...trackedIds]).values()].filter((todo) => !done.some((d) => d.id === todo.id) && todo.status !== "dismissed" && !todo.byWorker);
+  if (!done.length && !tracked.length) return [];
   const unbooked = new Set(
     getDb()
       .select({ id: todos.id })
@@ -157,21 +175,22 @@ export function doneToday(): DoneToday[] {
         and(
           inArray(
             todos.id,
-            done.map((todo) => todo.id),
+            [...done, ...tracked].map((todo) => todo.id),
           ),
           isNull(todos.entryId),
         ),
       )
       .all()
       .map((r) => r.id)
-      .filter((id) => !suggested.todoIds.has(id)),
+      .filter((id) => !suggested.todoIds.has(id) || trackedIds.has(id)),
   );
+  // (The runs are the done todos' — an open todo is counted by its records.)
   const runs = getDb()
     .select()
     .from(workRuns)
     .where(
       and(
-        inArray(workRuns.todoId, [...unbooked]),
+        inArray(workRuns.todoId, [...unbooked].filter((id) => done.some((d) => d.id === id))),
         eq(workRuns.status, "done"),
         isNull(workRuns.entryId),
       ),
@@ -179,12 +198,12 @@ export function doneToday(): DoneToday[] {
     .all()
     .filter((r) => !suggested.runIds.has(r.id));
   const byTicket = new Map<string, typeof done>();
-  for (const todo of done)
+  for (const todo of [...done, ...tracked])
     if (unbooked.has(todo.id))
       byTicket.set(todo.ticket, [...(byTicket.get(todo.ticket) ?? []), todo]);
   return [...byTicket.entries()].map(([ticket, list]) => {
     const theirs = runs.filter((r) => list.some((todo) => todo.id === r.todoId));
-    const time = groupTime(list, theirs, suggested);
+    const time = groupTime(list, theirs, suggested, trackedIds);
     const lines = [
       ...new Set([
         ...theirs
@@ -202,7 +221,7 @@ export function doneToday(): DoneToday[] {
       summary: getJiraTicket(ticket)?.summary ?? null,
       job: job ? { id: job.id, number: job.number, name: job.name } : null,
       todoIds: list.map((todo) => todo.id),
-      todos: list.map((todo) => ({ ref: todoRef(todo.id), text: todo.text })),
+      todos: list.map((todo) => ({ ref: todoRef(todo.id), text: todo.text, done: todo.status === "done" })),
       hours: time.hours,
       description: text.length > 200 ? `${text.slice(0, 199)}…` : text,
       time: time.lines,
@@ -306,14 +325,16 @@ export function bookDoneToday(v: {
   context?: boolean;
 }): { entryId: number | null; hours: number; todoIds: number[] } {
   const ids = [...new Set(v.todoIds.map(Number).filter(Number.isInteger))];
-  const open = getDb()
-    .select({ id: todos.id })
+  const found = getDb()
+    .select({ id: todos.id, status: todos.status })
     .from(todos)
     .where(
       and(inArray(todos.id, ids.length ? ids : [-1]), isNull(todos.entryId)),
     )
-    .all()
-    .map((r) => r.id);
+    .all();
+  const open = found.map((r) => r.id);
+  // Only the ticked-off ones are booked as todos — one with only time tracked stays open (more time can come); its time is booked.
+  const closed = found.filter((r) => r.status === "done").map((r) => r.id);
   if (!open.length)
     throw new ValidationError(t("Nothing left to book — booked already?"));
   // The time these todos (and the ones related to them) have reported: booked with the entry.
@@ -321,15 +342,16 @@ export function bookDoneToday(v: {
   const suggested = suggestedEvidence();
   const time = groupTime(
     group,
-    getDb().select().from(workRuns).where(and(inArray(workRuns.todoId, open), eq(workRuns.status, "done"), isNull(workRuns.entryId))).all().filter((r) => !suggested.runIds.has(r.id)),
+    getDb().select().from(workRuns).where(and(inArray(workRuns.todoId, closed.length ? closed : [-1]), eq(workRuns.status, "done"), isNull(workRuns.entryId))).all().filter((r) => !suggested.runIds.has(r.id)),
     suggested,
+    trackedTodayIds(suggested),
   );
   if (v.skip) {
     markTimeBooked(time.timeIds, -1);
     getDb()
       .update(todos)
       .set({ entryId: -1 })
-      .where(inArray(todos.id, open))
+      .where(inArray(todos.id, closed.length ? closed : [-1]))
       .run();
     return { entryId: null, hours: 0, todoIds: open };
   }
@@ -355,14 +377,14 @@ export function bookDoneToday(v: {
   getDb()
     .update(todos)
     .set({ entryId: entry.id })
-    .where(inArray(todos.id, open))
+    .where(inArray(todos.id, closed.length ? closed : [-1]))
     .run();
   markTimeBooked(time.timeIds, entry.id);
   if (v.context !== false) attachTodoContext(entry.id, v.ticket, open);
   getDb()
     .update(workRuns)
     .set({ entryId: entry.id })
-    .where(and(inArray(workRuns.todoId, open), isNull(workRuns.entryId)))
+    .where(and(inArray(workRuns.todoId, closed.length ? closed : [-1]), isNull(workRuns.entryId)))
     .run();
   return { entryId: entry.id, hours: round2(v.hours), todoIds: open };
 }

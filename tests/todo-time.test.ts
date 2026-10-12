@@ -115,10 +115,12 @@ test("the time of related todos (same ticket, follow-up chain, session side todo
   addTodoTime({ todoId: unrelated.id, minutes: 200, note: "elsewhere", by: "Copilot" });
   await finishToday(a.id);
   const group = doneToday().find((g) => g.ticket === "TT-3")!;
-  assert.deepEqual(group.todoIds, [a.id]);
-  // 20 + 10 + 7 + 15 = 52 min → 1 h (quarter-hour rounding on the TOTAL, not per record).
-  assert.equal(group.hours, 1);
-  assert.equal(group.time.filter((l) => l.kind === "record").length, 4);
+  // The sibling has time tracked today: it's in the group itself (still open); the side todo on the other ticket has its own group.
+  assert.deepEqual(group.todoIds, [a.id, b.id]);
+  // 20 + 10 + 7 = 37 min → 0.75 h (quarter-hour rounding up on the TOTAL, not per record).
+  assert.equal(group.hours, 0.75);
+  assert.equal(group.time.filter((l) => l.kind === "record").length, 3);
+  assert.deepEqual(doneToday().find((g) => g.ticket === "TT-3B")?.todoIds.sort(), [other.id, unrelated.id].sort());
   assert.ok(group.time.every((l) => l.todo !== `T-${unrelated.id}`));
   assert.match(group.description, /main work/);
 });

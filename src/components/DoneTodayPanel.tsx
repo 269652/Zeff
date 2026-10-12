@@ -38,7 +38,7 @@ function Suggestion({ s }: { s: DoneToday }) {
           )}
         </div>
         <input className="input text-sm" value={text} onChange={(e) => setText(e.target.value)} aria-label={t("Description for {ticket}", { ticket: s.ticket })} />
-        <div className="text-xs text-zinc-400">{s.todos.map((td) => `${td.ref} ${td.text}`).join(" · ")}</div>
+        <div className="text-xs text-zinc-400">{s.todos.map((td) => `${td.ref} ${td.text}${td.done ? "" : ` (${t("still open")})`}`).join(" · ")}</div>
         {/* What the hours add up from: the records agents and you reported, else runs' durations. */}
         {s.time.some((l) => l.kind !== "gap") && (
           <div className="text-xs text-zinc-500" title={s.time.filter((l) => l.kind !== "gap").map((l) => `${l.todo} ${formatMinutes(l.minutes)}${l.by ? ` (${l.by})` : ""}${l.note ? ` — ${l.note}` : ""}`).join("\n")}>
@@ -93,8 +93,9 @@ function Suggestion({ s }: { s: DoneToday }) {
 }
 
 /**
- * Todos done today, by ticket, as entries to add: the time the workers took (a quarter hour for
- * each done by hand), adjustable in quarters, the words editable — added with a click.
+ * Todos done today and the ones time was tracked on, by ticket, as entries to add: the time
+ * reported (a quarter hour for each done by hand), adjustable in quarters, the words editable —
+ * added with a click.
  */
 export function DoneTodayPanel({ items }: { items: DoneToday[] }) {
   const t = useT();
@@ -102,7 +103,7 @@ export function DoneTodayPanel({ items }: { items: DoneToday[] }) {
   return (
     <section className="card p-4">
       <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Done today")}</h2>
-      <p className="text-xs text-zinc-500">{t("Todos ticked off today, by ticket — adjust the hours and the words, then add them as entries.")}</p>
+      <p className="text-xs text-zinc-500">{t("Todos ticked off today and time tracked on todos today, by ticket — adjust the hours and the words, then add them as entries.")}</p>
       <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
         {items.map((s) => (
           <Suggestion key={s.ticket} s={s} />
