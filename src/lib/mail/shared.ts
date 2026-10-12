@@ -37,5 +37,11 @@ export const mailLink = (key: string) => `zeff:mail:${key}`;
 /** The mail a link points at ("zeff:mail:<key>", or a todo's ref "mail:<key>"), or null. */
 export const mailKeyOfLink = (url: string) => /^(?:zeff:)?mail:(.+)$/.exec(url.trim())?.[1] ?? null;
 
+/** The mail's conversation in Outlook on the web — null for a chat's message or a Gmail thread. */
+export const outlookLink = (m: Pick<MailView, "convId" | "folder">): string | null =>
+  !m.convId || isChatFolder(m.folder) || isChatConv(m.convId) || m.convId.startsWith("gmail:")
+    ? null
+    : `https://outlook.office.com/mail/inbox/id/${encodeURIComponent(m.convId)}`;
+
 /** Who wrote it, as shown. */
 export const mailSender = (m: Pick<MailView, "fromName" | "fromEmail">) => m.fromName ?? m.fromEmail ?? "Mail";

@@ -3771,6 +3771,7 @@
   "related": "relacionado",
   "{run} ran {n} min longer than reported on {todo}": "{run} duró {n} min más de lo informado en {todo}",
   "Unreported time of {run}": "Tiempo no informado de {run}",
+  "Open in Outlook": "Abrir en Outlook",
   "There is a booking suggestion for it today already — or it has no ticket.": "Hoy ya hay una sugerencia de reserva para él — o no tiene ticket.",
   "{ref} suggested — in the Weekly report you can take it over.": "{ref} sugerido — puedes aceptarlo en el informe semanal.",
   "Worked on {ref}": "Trabajado en {ref}",
