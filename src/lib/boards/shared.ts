@@ -736,7 +736,7 @@ export const BOARD_RESULT_SCHEMA = {
               properties: {
                 q: { type: "string", description: "Die Frage, kurz." },
                 a: { type: "string", description: "Die Antwort — nur, wenn die Daten (Kommentare, Mails, Chats, Git, Notizen) sie hergeben, mit Namen und Daten; sonst weglassen. Nichts raten." },
-                search: { type: "string", description: "Wenn die Antwort in der Wissensbasis (Dokumentation: Systeme, Abläufe, Begriffe, Zuständigkeiten) stehen dürfte und die Daten sie nicht hergeben: 2–5 Suchwörter dafür. Zeff sucht dort nach und beantwortet die Frage damit. Sonst weglassen." },
+                search: { type: "string", description: "Wenn die Antwort irgendwo in Zeffs Daten stehen dürfte (Wissensbasis/Dokumentation, Mails, Teams, GitLab, Jira-Kommentare, Notizen) und der Prompt sie nicht hergibt: 2–5 Suchwörter dafür. Zeff sucht überall nach und beantwortet die Frage damit. Sonst weglassen." },
               },
             },
           },

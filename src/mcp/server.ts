@@ -288,6 +288,28 @@ export function registerZeffTools(server: McpServer): void {
   );
 
   server.registerTool(
+    "search_context",
+    {
+      title: "Search everything Zeff keeps",
+      description:
+        "Missing context? Look through everything Zeff has: the knowledge base (Confluence, notes), mails, Teams messages, GitLab comments and merge requests, Jira tickets and their comments, the user's context notes and facts, and todos. " +
+        "Hits come with a reference ([mail:…], [teams:…], [jira-comment:…], T-12 …) and the passage found. Use it before guessing who decided what, what a question was about or how something works — " +
+        "and before asking the user. German and English words both work; 2–5 specific words find more than a sentence.",
+      inputSchema: z.object({
+        query: z.string().min(2).describe("What to look for — words that stand in the texts: names, systems, ticket keys."),
+        where: z.array(z.enum(["knowledge", "mails", "teams", "gitlab", "jira", "notes", "facts", "todos"])).optional().describe("Only look in these sources (default: all)."),
+      }),
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    async (args) =>
+      run(async () => {
+        const { retrieve } = await import("@/lib/rag");
+        const r = await retrieve([{ query: args.query, where: args.where }], { perSource: 4, maxChars: 9000 });
+        return ok(r.hits.length ? r.text : `Nothing found for "${args.query}"${args.where?.length ? ` in ${args.where.join(", ")}` : ""} — try other words, or ask the user.`);
+      }),
+  );
+
+  server.registerTool(
     "add_knowledge",
     {
       title: "Add to the knowledge base",
