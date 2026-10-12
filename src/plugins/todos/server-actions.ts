@@ -206,6 +206,19 @@ export async function addTodoTimeAction(todoId: number, minutes: number, note: s
   }
 }
 
+/** "Worked on it": a booking suggestion for the todo (its ticket, its recorded time) — the todo stays open. */
+export async function workedOnTodoAction(todoId: number): Promise<ActionState> {
+  try {
+    const { suggestWorkedOn, suggestionRef } = await import("@/lib/work/suggestions");
+    const made = suggestWorkedOn([Number(todoId)], { reportedBy: "Du" });
+    revalidateAll();
+    if (!made.length) return { ok: true, message: t("There is a booking suggestion for it today already — or it has no ticket.") };
+    return { ok: true, message: t("{ref} suggested — in the Weekly report you can take it over.", { ref: suggestionRef(made[0].id) }) };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
 /** A time record taken away — while no booking or suggestion covers it. */
 export async function deleteTodoTimeAction(id: number): Promise<ActionState> {
   try {

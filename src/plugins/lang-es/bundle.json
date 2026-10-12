@@ -3771,6 +3771,10 @@
   "related": "relacionado",
   "{run} ran {n} min longer than reported on {todo}": "{run} duró {n} min más de lo informado en {todo}",
   "Unreported time of {run}": "Tiempo no informado de {run}",
+  "There is a booking suggestion for it today already — or it has no ticket.": "Hoy ya hay una sugerencia de reserva para él — o no tiene ticket.",
+  "{ref} suggested — in the Weekly report you can take it over.": "{ref} sugerido — puedes aceptarlo en el informe semanal.",
+  "Worked on {ref}": "Trabajado en {ref}",
+  "Worked on it — suggests a booking for it in the Weekly report (the todo stays open)": "Trabajado en ello — sugiere una reserva en el informe semanal (el todo sigue abierto)",
   "Added to the hours.": "Añadido a las horas.",
   "add {n} min": "añadir {n} min",
   "Report the time you spent on a todo (todo, minutes or hours, note, agent) — one record each, a todo can have many; they flow into its booking.": "Informa del tiempo dedicado a una tarea (todo, minutos u horas, note, agent) — un registro cada vez, una tarea puede tener varios; pasan a su registro de horas."

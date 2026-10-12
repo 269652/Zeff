@@ -25,6 +25,7 @@ import { entitiesFor, pagesFor } from "@/plugins/knowledge/shared";
 import { TodoKnowledgeList, TodoKnowledgePreview } from "@/plugins/knowledge/TodoKnowledge";
 import { DueBadge } from "./DueBadge";
 import { FlagButton } from "./FlagButton";
+import { WorkedOnButton } from "./WorkedOnButton";
 import { TicketLink } from "../TicketLink";
 import { toast } from "../Toaster";
 import { TodoAlternatives } from "./TodoAlternatives";
@@ -423,6 +424,7 @@ export function TodoItem({
         {/* What comes after it — last, under its actions. */}
         <TodoPlan t={{ planned: todo.planned, status }} />
       </div>
+      {!closed && todo.ticket && <WorkedOnButton todoId={todo.id} todoRef={todo.ref} />}
       {!closed && <FlagButton todoId={todo.id} todoRef={todo.ref} flagged={!!todo.flaggedAt} />}
       {!closed && (
         <button
