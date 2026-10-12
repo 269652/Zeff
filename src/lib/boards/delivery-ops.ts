@@ -120,6 +120,53 @@ export async function deliveryOpsFor(t: TodoView, opts: { delivering?: Set<strin
   return openMrOps(f, t, name);
 }
 
+/** The branch a todo's own work was done on (its latest run's — an agent's; a worker's own worktree branch zeff/… doesn't count) and the repo that has it. */
+function workBranchOf(t: TodoView): { name: string; repo: RepoView } | null {
+  const run = getDb()
+    .select({ branch: schema.workRuns.branch, repo: schema.workRuns.repo })
+    .from(schema.workRuns)
+    .where(and(eq(schema.workRuns.todoId, t.id), isNotNull(schema.workRuns.branch), isNotNull(schema.workRuns.repo)))
+    .orderBy(desc(schema.workRuns.id))
+    .get();
+  const name = run?.branch?.replace(/^origin\//, "") ?? "";
+  if (!run || !name || name.startsWith("zeff/")) return null;
+  const repo = listRepos().find((r) => r.path === run.repo);
+  return repo?.ok ? { name, repo } : null;
+}
+
+/**
+ * What the branch a todo's work was done on needs next — worked out from git, without AI:
+ * - it exists here but isn't pushed (or has commits that aren't): a push action;
+ * - it's on the remote with commits of its own, GitLab has no merge request for it and the repo
+ *   has a GitLab project: an "open merge request" action.
+ * The push action of a branch that has been pushed meanwhile goes. `remove`: ops to take away.
+ */
+async function workBranchOps(t: TodoView, open: TodoView[], mrs: GitlabItemView[]): Promise<{ add: TodoOp[]; remove: TodoOp[] }> {
+  const found = workBranchOf(t);
+  if (!found) return { add: [], remove: [] };
+  const { name, repo } = found;
+  const main = (await tryGit(repo.path, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])) || "origin/main";
+  const base = main.replace(/^origin\//, "");
+  const local = !!(await tryGit(repo.path, ["rev-parse", "--verify", "--quiet", `refs/heads/${name}`]));
+  const remote = !!(await tryGit(repo.path, ["rev-parse", "--verify", "--quiet", `refs/remotes/origin/${name}`]));
+  if (!local && !remote) return { add: [], remove: [] };
+  const ahead = Number((await tryGit(repo.path, ["rev-list", "--count", `${main}..${local ? name : `origin/${name}`}`])) || 0);
+  const unpushed = local && (!remote || Number((await tryGit(repo.path, ["rev-list", "--count", `origin/${name}..${name}`])) || 0) > 0);
+  const pushOf = (o: TodoOp) => o.type === "git-push" && o.branch === name && o.remote === name;
+  // A push action we gave it, and the branch is on the remote now: done.
+  const remove = remote && !unpushed ? t.ops.filter(pushOf) : [];
+  const title = `${t.ticket}: ${getJiraTicket(t.ticket)?.summary ?? t.text}`.slice(0, 250);
+  const description = `${t.ref} · ${t.text}`;
+  const add: TodoOp[] = [];
+  if (ahead > 0 && unpushed && !open.some((x) => x.ops.some(pushOf))) add.push({ type: "git-push", repo: repo.path, branch: name, remote: name, target: base, title, description });
+  const delivers = (o: TodoOp) => (o.type === "gitlab-open-mr" && o.source === name) || (o.type === "gitlab-merge" && o.source === name);
+  const hasMr = mrs.some((m) => m.branch === name && !/closed/i.test(m.state ?? "") && m.project === repo.gitlabProject);
+  if (ahead > 0 && remote && !unpushed && repo.gitlabProject && !hasMr && !open.some((x) => x.ops.some(delivers))) {
+    add.push({ type: "gitlab-open-mr", repo: repo.path, project: repo.gitlabProject, source: name, target: base, title, description });
+  }
+  return { add, remove };
+}
+
 /**
  * Open todos that ask for a delivery (a merge request opened, a branch merged) but have no
  * button: given its operations. (The Ticket-Lage and plans write them as text; this makes them
@@ -137,6 +184,20 @@ export async function attachOpenMrOps(): Promise<number> {
     setTodoOps(t.id, ops);
     for (const o of ops) if ("source" in o) delivering.add(o.source);
     n++;
+  }
+  // The work's branch: pushed when it isn't, a merge request opened when it's there and has none.
+  const mrs = listGitlabItems({ kind: "mr", limit: 500 });
+  for (const t of listTodos({ status: "open" })) {
+    const { add, remove } = await workBranchOps(t, listTodos({ status: "open" }), mrs);
+    if (!add.length && !remove.length) continue;
+    setTodoOps(t.id, [...t.ops.filter((o) => !remove.includes(o)), ...add]);
+    n++;
+  }
+  // The work's branches and merge requests as context of their todos (links) — again after a run rewrote the todos.
+  try {
+    (await import("@/lib/work/branch-context")).linkBranchContext(listTodos({ status: "open" }).map((x) => x.id));
+  } catch {
+    // without the links, then
   }
   return n;
 }

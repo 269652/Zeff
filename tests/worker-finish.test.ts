@@ -100,3 +100,15 @@ test("a worker's branch is shown as context even before GitLab has synced it —
   assert.equal(getDb().select().from(schema.gitlabItems).all().find((i) => i.key === "branch:grp/proj:feature/WF-4-setting")!.state, null);
   assert.equal(linkBranchContext([parent.id]), 0);
 });
+
+test("the briefing run keeps a todo's branch and merge request context when it rewrites the todo — and links them again", async () => {
+  const { reconcileTodos, getTodo, addTodoContext } = await import("@/lib/boards/store");
+  const t = await mk("WF-5", "Migrationslogik umbauen");
+  addTodoContext(t.id, ["teams:19:x|1", "gitlab:branch:grp/proj:feature/WF-5-x", "gitlab:mr:grp/proj!9"], "", "Zeff");
+  reconcileTodos({ tickets: [{ key: "WF-5", resolved: [], todos: [{ id: t.id, text: "Migrationslogik fertigstellen", kind: "implement", owner: "me", refs: ["teams:19:x|2"] }] }] } as never, 1);
+  const refs = getTodo(t.id)!.refs;
+  assert.ok(refs.includes("teams:19:x|2"), "what the AI cites");
+  assert.ok(refs.includes("gitlab:branch:grp/proj:feature/WF-5-x"), "the branch stays");
+  assert.ok(refs.includes("gitlab:mr:grp/proj!9"), "the merge request stays");
+  assert.ok(!refs.includes("teams:19:x|1"), "other citations are the AI's to change");
+});

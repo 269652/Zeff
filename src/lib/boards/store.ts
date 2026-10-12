@@ -829,12 +829,15 @@ export function reconcileTodos(result: BoardResult, runId: number): { added: num
         if (td.id && open.has(td.id)) {
           // Kept: its operations stay as they are (the auto-actions', a delivery's) — and with
           // Zeff's own delivery steps, its kind and owner too (the AI doesn't know them).
-          const before = tx.select({ ops: todos.ops, kind: todos.kind, owner: todos.owner }).from(todos).where(eq(todos.id, td.id)).get();
+          const before = tx.select({ ops: todos.ops, kind: todos.kind, owner: todos.owner, refs: todos.refs }).from(todos).where(eq(todos.id, td.id)).get();
           const had = cleanOps(parse<unknown[]>(before?.ops ?? "[]", []), ticket);
           const delivery = had.some((o) => (DELIVERY_OP_TYPES as readonly string[]).includes(o.type));
           const keep = delivery ? { ops: before!.ops, kind: before!.kind, owner: before!.owner } : { ops: before?.ops ?? "[]" };
           // Its plan: the new one, else the one it has.
-          tx.update(todos).set({ ...values, ...keep, ...(plan.length ? { planned: JSON.stringify(plan) } : {}) }).where(eq(todos.id, td.id)).run();
+          // What it cites is the AI's to change — the work's branch and merge request, which Zeff linked itself, stay.
+          const own = parse<string[]>(before?.refs ?? "[]", []).filter((r) => /^gitlab:(branch|mr):/.test(r));
+          const refs = JSON.stringify([...new Set([...(JSON.parse(values.refs) as string[]), ...own])]);
+          tx.update(todos).set({ ...values, refs, ...keep, ...(plan.length ? { planned: JSON.stringify(plan) } : {}) }).where(eq(todos.id, td.id)).run();
           open.delete(td.id);
           out.kept++;
         } else {
