@@ -123,6 +123,12 @@ export async function normalizePeople(): Promise<NormalizeResult> {
   if (flag.__zeffPeopleNormalize) return { ok: false, aliases: 0, created: 0, merged: 0, relations: 0, error: "already running" };
   flag.__zeffPeopleNormalize = true;
   try {
+    // Jira users tied to profiles by name — no AI needed (so they're there for the @-mentions).
+    try {
+      (await import("./accounts")).linkJiraAccounts();
+    } catch {
+      // without accounts, then
+    }
     const people = listPeople();
     // The todos: open ones, and those of the last 30 days.
     const since = new Date(Date.now() - 30 * 864e5).toISOString();

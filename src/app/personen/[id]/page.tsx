@@ -100,6 +100,21 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
           <h1 className="text-lg font-semibold break-words">{p.name}</h1>
         </div>
         {p.aliases.length > 0 && <p className="text-xs text-zinc-500">{t("Also: {names}", { names: p.aliases.join(", ") })}</p>}
+        {(p.accounts.length > 0 || p.emails.length > 0 || p.whatsapp) && (
+          <ul className="flex flex-wrap gap-1.5 text-xs" aria-label={t("Linked accounts")}>
+            {p.accounts.map((a) => (
+              <li key={`${a.kind}:${a.value}`} className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100" title={t("Jira user — @-mentions of {name} in notes synced to Jira point to it", { name: p.name })}>
+                Jira <span className="font-mono">~{a.value}</span>
+              </li>
+            ))}
+            {p.emails.map((e) => (
+              <li key={e} className="rounded-full border border-zinc-200 px-2 py-0.5 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">
+                {e}
+              </li>
+            ))}
+            {p.whatsapp && <li className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100">WhatsApp {p.whatsapp}</li>}
+          </ul>
+        )}
         {sp.error && <p className="alert-error text-sm">{sp.error}</p>}
         {sp.saved && <p className="alert-ok text-sm">{t("Saved ✓")}</p>}
         {sp.found !== undefined && (
@@ -118,6 +133,10 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
             <label className="block">
               <span className="label">{t("Also called (comma-separated)")}</span>
               <input name="aliases" defaultValue={p.aliases.join(", ")} className="input" />
+            </label>
+            <label className="block">
+              <span className="label">{t("Jira usernames (comma-separated) — for @-mentions in Jira comments")}</span>
+              <input name="jiraAccounts" defaultValue={p.accounts.filter((a) => a.kind === "jira").map((a) => a.value).join(", ")} className="input font-mono text-xs" placeholder="chrlorenz1" />
             </label>
             <label className="block">
               <span className="label">{t("WhatsApp chat (its name)")}</span>

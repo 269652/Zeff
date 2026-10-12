@@ -362,6 +362,9 @@ export type TodoUserNote = {
   /** Your instruction to a worker (✨) — not a plain note — and the run that carries it out. */
   kind?: "instruction";
   run?: number;
+  /** Synced to its ticket in Jira as this comment — and what it said then (to spot a later edit). */
+  jiraCommentId?: string;
+  jiraHash?: string;
 };
 
 /** A todo's GitLab links: merge requests by ref, comments by key ("note:123"). */

@@ -1,8 +1,9 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
+import { MentionTextarea } from "../MentionTextarea";
 import { rich } from "@/lib/i18n/rich";
-import { removeTodoNoteAction } from "@/plugins/todos/server-actions";
+import { removeTodoNoteAction, syncNoteToJiraAction, updateTodoNoteAction } from "@/plugins/todos/server-actions";
 import type { TodoUserNote } from "@/lib/boards/shared";
 import { NoteIcon, SparkIcon } from "../icons";
 import { toast } from "../Toaster";
@@ -48,6 +49,12 @@ export function NoteBadge({ n, className = "" }: { n: TodoUserNote; className?: 
 export function NoteDetails({ n, todoId }: { n: TodoUserNote; todoId?: number }) {
   const t = useT();
   const [pending, start] = useTransition();
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(n.text);
+  // Yours (not a run's report or an instruction), on a todo: it can be changed, and put on Jira.
+  const mine = todoId !== undefined && !n.by && n.kind !== "instruction" && !n.from;
+  const onJira = !!n.jiraCommentId;
+  const edited = onJira && !editing;
   return (
     <div className="space-y-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex items-center justify-between gap-2 text-xs text-zinc-500">
@@ -83,9 +90,56 @@ export function NoteDetails({ n, todoId }: { n: TodoUserNote; todoId?: number })
           </button>
         )}
       </div>
-      <p className="leading-relaxed whitespace-pre-line text-zinc-700 dark:text-zinc-300">
-        <TodoRefs text={n.text} />
-      </p>
+      {editing ? (
+        <div className="space-y-1.5">
+          <MentionTextarea autoFocus rows={4} className="input w-full resize-y text-sm" value={text} onChange={setText} disabled={pending} aria-label={t("Edit the text")} />
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              disabled={pending || !text.trim()}
+              onClick={() =>
+                start(async () => {
+                  const r = await updateTodoNoteAction(todoId!, n.at, text);
+                  if (r?.ok) setEditing(false);
+                  else toast(r?.error ?? t("Didn't work."), { tone: "error" });
+                })
+              }
+            >
+              {pending ? "…" : t("Save")}
+            </button>
+            <button type="button" className="btn btn-sm" disabled={pending} onClick={() => (setText(n.text), setEditing(false))}>
+              {t("Cancel")}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p className="leading-relaxed whitespace-pre-line text-zinc-700 dark:text-zinc-300">
+          <TodoRefs text={n.text} />
+        </p>
+      )}
+      {mine && !editing && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <button type="button" className="font-medium text-zinc-500 hover:text-indigo-600 disabled:opacity-40" disabled={pending} onClick={() => (setText(n.text), setEditing(true))}>
+            {t("Edit")}
+          </button>
+          <button
+            type="button"
+            className="font-medium text-indigo-600 hover:underline disabled:opacity-40 dark:text-indigo-400"
+            disabled={pending}
+            title={edited ? t("Updates the comment on the ticket in Jira if the note changed — people you tagged (@) are mentioned there") : t("Puts the note on the todo's Jira ticket as a comment — people you tagged (@) are mentioned there")}
+            onClick={() =>
+              start(async () => {
+                const r = await syncNoteToJiraAction(todoId!, n.at);
+                toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" });
+              })
+            }
+          >
+            {pending ? "…" : onJira ? t("Sync to Jira again") : t("Sync to Jira")}
+          </button>
+          {onJira && <span className="text-emerald-600 dark:text-emerald-400">{t("✓ on Jira")}</span>}
+        </div>
+      )}
       {n.url && (
         <a href={n.url} target="_blank" rel="noreferrer" className="block font-mono text-xs text-indigo-600 hover:underline dark:text-indigo-400">
           {n.urlLabel ?? n.url} ↗

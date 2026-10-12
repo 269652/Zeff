@@ -4,7 +4,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { findAllProgress } from "@/plugins/people/dates";
-import { createPersonFormAction, dateFormAction, findAllDatesFormAction, normalizePeopleFormAction, updatePersonFormAction } from "@/plugins/people/server-actions";
+import { createPersonFormAction, dateFormAction, findAllDatesFormAction, linkJiraAccountsFormAction, normalizePeopleFormAction, updatePersonFormAction } from "@/plugins/people/server-actions";
 import { dateKindLabels, dateText, inDaysText, upcomingShort, upcomingTitle } from "@/plugins/people/shared";
 import { contactsOf, listPeople, proposedDates, upcoming, whatsappChats } from "@/plugins/people/store";
 import { formatAgo } from "@/lib/format";
@@ -31,7 +31,7 @@ async function knowledgeSuggestions(taken: Set<string>) {
  * up next and when you last heard from them; the dates found waiting for you; people to add from
  * the knowledge and your WhatsApp chats.
  */
-export default async function PeoplePage({ searchParams }: { searchParams: Promise<{ error?: string; added?: string; searching?: string; matched?: string }> }) {
+export default async function PeoplePage({ searchParams }: { searchParams: Promise<{ error?: string; added?: string; searching?: string; matched?: string; linked?: string }> }) {
   await connection();
   if (!isInstalled("people")) return <PluginNotInstalled id="people" />;
   const sp = await searchParams;
@@ -80,6 +80,14 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
             </button>
           </form>
         )}
+        {people.length > 0 && (
+          <form action={linkJiraAccountsFormAction}>
+            <button className="btn btn-sm" title={t("Ties Jira users to the profiles by their names (as the briefing lists them on the tickets) — so @-mentions in notes synced to Jira point to the right person. No AI; names that fit two users aren't guessed.")}>
+              {t("Link Jira accounts")}
+            </button>
+          </form>
+        )}
+        {sp.linked !== undefined && <p className="alert-ok text-sm">{sp.linked === "0" ? t("No new Jira accounts found.") : t("{n} Jira accounts linked.", { n: sp.linked })}</p>}
         {sp.matched !== undefined &&
           (() => {
             const [a, c, m, r] = sp.matched.split(",").map(Number);
@@ -158,6 +166,11 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
                     </form>
                     <Link href={`/personen/${p.id}`} className="min-w-0 flex-1">
                       <span className="block truncate font-medium hover:underline">{p.name}</span>
+                      {(p.aliases.length > 0 || p.accounts.length > 0) && (
+                        <span className="block truncate text-xs text-zinc-500" title={[...p.aliases, ...p.accounts.map((a) => `Jira ~${a.value}`)].join(" · ")}>
+                          {[...p.aliases, ...p.accounts.map((a) => `~${a.value}`)].join(" · ")}
+                        </span>
+                      )}
                       <span className="block truncate text-xs text-zinc-500">
                         {next ? `${upcomingShort(next, t)} ${inDaysText(next.inDays, next.on, t)}` : t("no date coming up")}
                         {last ? ` · ${t("last {ago}", { ago: formatAgo(last.at) })}` : ""}

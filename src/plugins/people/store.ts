@@ -2,7 +2,7 @@ import { getSqlite } from "@/db";
 import { emitChange } from "@/lib/events";
 import { isChatFolder } from "@/lib/mail/shared";
 import { t } from "@/lib/i18n/server";
-import { daysBetween, isDateKind, isoDay, nextOccurrence, type DateKind, type Person, type PersonDate, type Upcoming } from "./shared";
+import { daysBetween, isDateKind, isoDay, nextOccurrence, type DateKind, type Person, type PersonAccount, type PersonDate, type Upcoming } from "./shared";
 
 /**
  * People (the Personen plugin): a profile per person you care about — your notes, their dates
@@ -19,6 +19,8 @@ function db() {
     create table if not exists people_reminded (date_id integer not null references people_dates(id) on delete cascade, occurrence text not null, done_at text not null, primary key (date_id, occurrence));
     create table if not exists people_relations (id integer primary key autoincrement, person_id integer not null references people(id) on delete cascade, rel text not null, other_id integer not null default 0, evidence text not null default '', source text not null default 'ai', created_at text not null, unique (person_id, rel, other_id));
   `);
+  // Linked accounts (Jira usernames): a column added later.
+  if (!(d.prepare("pragma table_info(people)").all() as { name: string }[]).some((c) => c.name === "accounts")) d.exec("alter table people add column accounts text not null default '[]'");
   return d;
 }
 
@@ -32,13 +34,14 @@ const parse = <T>(s: string, d: T): T => {
 const now = () => new Date().toISOString();
 const changed = () => emitChange("todos");
 
-type PRow = { id: number; name: string; aliases: string; note: string; whatsapp: string; emails: string; entity_id: number | null; starred: number; created_at: string; updated_at: string };
+type PRow = { id: number; name: string; aliases: string; accounts?: string; note: string; whatsapp: string; emails: string; entity_id: number | null; starred: number; created_at: string; updated_at: string };
 type DRow = { id: number; person_id: number; kind: string; label: string; day: number; month: number; year: number | null; yearly: number; remind_days: number; source: string; source_text: string; confirmed: number };
 
 const toPerson = (r: PRow): Person => ({
   id: r.id,
   name: r.name,
   aliases: parse<string[]>(r.aliases, []),
+  accounts: parse<unknown[]>(r.accounts ?? "[]", []).flatMap((a) => (a && typeof a === "object" && (a as PersonAccount).kind === "jira" && typeof (a as PersonAccount).value === "string" ? [{ kind: "jira" as const, value: (a as PersonAccount).value }] : [])),
   note: r.note,
   whatsapp: r.whatsapp,
   emails: parse<string[]>(r.emails, []),
@@ -89,7 +92,7 @@ export function createPerson(v: { name: string; aliases?: string[]; whatsapp?: s
   return Number(r.lastInsertRowid);
 }
 
-export function updatePerson(id: number, patch: { name?: string; aliases?: string[]; note?: string; whatsapp?: string; emails?: string[]; entityId?: number | null; starred?: boolean }): void {
+export function updatePerson(id: number, patch: { name?: string; aliases?: string[]; accounts?: PersonAccount[]; note?: string; whatsapp?: string; emails?: string[]; entityId?: number | null; starred?: boolean }): void {
   const sets: string[] = [];
   const args: unknown[] = [];
   const set = (col: string, v: unknown) => (sets.push(`${col} = ?`), args.push(v));
@@ -98,6 +101,7 @@ export function updatePerson(id: number, patch: { name?: string; aliases?: strin
     set("name", patch.name.trim().slice(0, 120));
   }
   if (patch.aliases !== undefined) set("aliases", JSON.stringify(clean(patch.aliases)));
+  if (patch.accounts !== undefined) set("accounts", JSON.stringify(patch.accounts.slice(0, 10)));
   if (patch.note !== undefined) set("note", patch.note.slice(0, 20000));
   if (patch.whatsapp !== undefined) set("whatsapp", patch.whatsapp.trim());
   if (patch.emails !== undefined) set("emails", JSON.stringify(clean(patch.emails)));
@@ -107,6 +111,29 @@ export function updatePerson(id: number, patch: { name?: string; aliases?: strin
   set("updated_at", now());
   db().prepare(`update people set ${sets.join(", ")} where id = ?`).run(...args, id);
   changed();
+}
+
+/** A linked account added (once; matched ignoring case). Whether it was new. */
+export function addAccount(id: number, kind: "jira", value: string): boolean {
+  const p = getPerson(id);
+  const v = value.trim().replace(/^@/, "");
+  if (!p || !v || p.accounts.some((a) => a.kind === kind && a.value.toLowerCase() === v.toLowerCase())) return false;
+  db().prepare("update people set accounts = ?, updated_at = ? where id = ?").run(JSON.stringify([...p.accounts, { kind, value: v }]), now(), id);
+  changed();
+  return true;
+}
+
+export function removeAccount(id: number, kind: "jira", value: string): void {
+  const p = getPerson(id);
+  if (!p) return;
+  db().prepare("update people set accounts = ?, updated_at = ? where id = ?").run(JSON.stringify(p.accounts.filter((a) => !(a.kind === kind && a.value.toLowerCase() === value.trim().toLowerCase()))), now(), id);
+  changed();
+}
+
+/** Who has this account (e.g. the Jira user "chrlorenz1"). */
+export function personByAccount(kind: "jira", value: string): Person | null {
+  const v = value.trim().toLowerCase();
+  return listPeople().find((p) => p.accounts.some((a) => a.kind === kind && a.value.toLowerCase() === v)) ?? null;
 }
 
 export function deletePerson(id: number): void {
@@ -308,6 +335,7 @@ export function mergePeople(keepId: number, dropId: number): void {
       aliases: clean([...keep.aliases, drop.name, ...drop.aliases, ...(drop.whatsapp && drop.whatsapp !== keep.whatsapp && keep.whatsapp ? [drop.whatsapp] : [])]).filter((a) => a.toLowerCase() !== keep.name.toLowerCase()),
       emails: clean([...keep.emails, ...drop.emails]),
       whatsapp: keep.whatsapp || drop.whatsapp,
+      accounts: [...keep.accounts, ...drop.accounts.filter((a) => !keep.accounts.some((k) => k.kind === a.kind && k.value.toLowerCase() === a.value.toLowerCase()))],
       note: [keep.note, drop.note].filter((n) => n.trim()).join("\n\n"),
       entityId: keep.entityId ?? drop.entityId,
       starred: keep.starred || drop.starred,

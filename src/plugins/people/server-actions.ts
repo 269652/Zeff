@@ -48,6 +48,7 @@ export async function updatePersonFormAction(fd: FormData): Promise<void> {
       note: fd.has("note") ? String(fd.get("note") ?? "") : undefined,
       whatsapp: fd.has("whatsapp") ? str(fd, "whatsapp") : undefined,
       emails: fd.has("emails") ? list(str(fd, "emails")) : undefined,
+      accounts: fd.has("jiraAccounts") ? list(str(fd, "jiraAccounts")).map((v) => ({ kind: "jira" as const, value: v.replace(/^[@~]/, "") })) : undefined,
       starred: fd.has("starred") ? fd.get("starred") === "1" : undefined,
     });
   } catch (e) {
@@ -55,6 +56,19 @@ export async function updatePersonFormAction(fd: FormData): Promise<void> {
   }
   revalidatePath("/personen", "layout");
   back(str(fd, "to") || `/personen/${id}`, { saved: "1" });
+}
+
+/** "Link Jira accounts": Jira users tied to profiles by their names (no AI) — now. */
+export async function linkJiraAccountsFormAction(): Promise<void> {
+  let n = 0;
+  try {
+    guard();
+    n = (await import("./accounts")).linkJiraAccounts();
+  } catch (e) {
+    back("/personen", { error: errorMessage(e) });
+  }
+  revalidatePath("/personen", "layout");
+  back("/personen", { linked: String(n) });
 }
 
 /** "Match names": the AI looks at who the names in your todos are — aliases, new profiles for contacts, duplicates merged — now (it also runs after each briefing). */

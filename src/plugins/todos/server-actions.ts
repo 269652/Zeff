@@ -219,6 +219,49 @@ export async function workedOnTodoAction(todoId: number): Promise<ActionState> {
   }
 }
 
+/** Your note on a todo changed. */
+export async function updateTodoNoteAction(todoId: number, at: string, text: string): Promise<ActionState> {
+  try {
+    const { updateTodoUserNote } = await import("@/lib/boards/store");
+    updateTodoUserNote(Number(todoId), String(at), String(text ?? ""));
+    revalidateAll();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** Your note put on the todo's Jira ticket as a comment (edited there when the note changed since); tagged people become Jira mentions. */
+export async function syncNoteToJiraAction(todoId: number, at: string): Promise<ActionState> {
+  try {
+    const { syncNoteToJira } = await import("@/lib/jira/note-sync");
+    const r = await syncNoteToJira(Number(todoId), String(at));
+    revalidateAll();
+    const hint = r.noAccount.length ? ` ${t("No Jira account linked for {names} — written out, not mentioned.", { names: r.noAccount.join(", ") })}` : "";
+    const what = r.state === "posted" ? t("Note put on Jira as a comment.") : r.state === "updated" ? t("The comment on Jira is updated.") : t("The comment on Jira is as the note is.");
+    return { ok: true, message: `${what}${hint}` };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** People for @-tagging (the People plugin): by name, alias or Jira username — with their Jira account, if linked. */
+export async function searchPeopleAction(q: string): Promise<{ id: number; name: string; jira: string | null }[]> {
+  try {
+    if (!(await import("@/plugins/state")).isInstalled("people")) return [];
+    const { listPeople } = await import("@/plugins/people/store");
+    const w = String(q ?? "").trim().toLowerCase();
+    return listPeople()
+      .map((p) => ({ p, forms: [p.name, ...p.aliases, ...p.accounts.map((a) => a.value)].map((f) => f.toLowerCase()) }))
+      .filter(({ forms }) => !w || forms.some((f) => f.startsWith(w) || f.split(/\s+/).some((x) => x.startsWith(w))))
+      .sort((a, b) => Number(b.forms.some((f) => f.startsWith(w))) - Number(a.forms.some((f) => f.startsWith(w))) || Number(b.p.starred) - Number(a.p.starred))
+      .slice(0, 8)
+      .map(({ p }) => ({ id: p.id, name: p.name, jira: p.accounts.find((a) => a.kind === "jira")?.value ?? null }));
+  } catch {
+    return [];
+  }
+}
+
 /** A context item taken out of a todo by hand — it stays out. */
 export async function dismissTodoContextAction(todoId: number, ref: string): Promise<ActionState> {
   try {

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { addTodoNoteAction, draftReplyAction, instructTodoAction, openReplyTargetAction, suggestTodoActionsAction } from "@/plugins/todos/server-actions";
 import type { ReplyTarget } from "@/lib/boards/reply-draft";
+import { MentionTextarea } from "../MentionTextarea";
 import { NoteIcon, SparkIcon } from "../icons";
 import { toast } from "../Toaster";
 import { useT } from "@/components/I18nProvider";
@@ -160,14 +161,14 @@ export function TodoQuickPanel({ todoId, todoRef, panel, onClose, time }: { todo
           ))}
         </span>
       )}
-      <textarea
+      <MentionTextarea
         autoFocus
         rows={ai ? 3 : 2}
         className="input w-full resize-y text-sm"
-        placeholder={ai ? t("What should Copilot do on {ref}? (e.g. “Check whether this is already done on the branch”)", { ref: todoRef }) : t("Note on {ref} — what you know, what applies, what's already settled…", { ref: todoRef })}
+        placeholder={ai ? t("What should Copilot do on {ref}? (e.g. “Check whether this is already done on the branch”)", { ref: todoRef }) : t("Note on {ref} — what you know, what applies, what's already settled… (@ tags people)", { ref: todoRef })}
         value={text}
         disabled={pending}
-        onChange={(e) => setText(e.target.value)}
+        onChange={setText}
         onKeyDown={(e) => {
           if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
             e.preventDefault();

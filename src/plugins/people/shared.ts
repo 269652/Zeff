@@ -35,10 +35,15 @@ export type PersonDate = {
   confirmed: boolean;
 };
 
+/** An account of a person somewhere else — which Jira user they are (for @-mentions in comments synced to Jira). */
+export type PersonAccount = { kind: "jira"; value: string };
+
 export type Person = {
   id: number;
   name: string;
   aliases: string[];
+  /** Their linked accounts (Jira usernames). */
+  accounts: PersonAccount[];
   note: string;
   /** The WhatsApp chat (its name) — their messages. */
   whatsapp: string;

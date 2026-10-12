@@ -4,7 +4,7 @@ import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { emitChange } from "@/lib/events";
 import type { BoardRun, BoardSettings, Todo } from "@/db/schema";
-import { NotFoundError } from "@/lib/errors";
+import { NotFoundError, ValidationError } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { resolveRefs, unresolveRefs } from "@/lib/resolved";
 import { cleanOps, cleanPlan, DELIVERY_OP_TYPES, dueDay, isTodoKind, parseTodoRef, todoRef, type BoardResult, type BoardRunView, type BoardTicket, type TodoOp, type TodoPath, type TodoStatus, type TodoStep, type TodoView } from "./shared";
@@ -732,6 +732,27 @@ export function addTodoInstruction(id: number, text: string, runId: number): voi
   if (!t || !note) return;
   const n: TodoView["userNotes"][number] = { at: new Date().toISOString(), text: note, kind: "instruction", run: runId };
   getDb().update(todos).set({ userNotes: JSON.stringify([...t.userNotes, n]), updatedAt: new Date().toISOString() }).where(eq(todos.id, id)).run();
+  emitChange("todos");
+}
+
+/** Your note changed (it stays where it is; a note already on Jira is edited there at the next sync). */
+export function updateTodoUserNote(id: number, at: string, text: string): TodoView {
+  const todo = getTodo(id);
+  if (!todo) throw new NotFoundError(t("Todo {ref} not found.", { ref: todoRef(id) }));
+  const body = text.trim().slice(0, 4000);
+  if (!body) throw new ValidationError(t("The note is empty."));
+  if (!todo.userNotes.some((n) => n.at === at)) throw new NotFoundError(t("That note isn't there any more."));
+  getDb().update(todos).set({ userNotes: JSON.stringify(todo.userNotes.map((n) => (n.at === at ? { ...n, text: body } : n))), updatedAt: new Date().toISOString() }).where(eq(todos.id, id)).run();
+  emitChange("todos");
+  return getTodo(id)!;
+}
+
+/** A note's comment on Jira, as it is now (its address becomes the note's link). */
+export function markNoteSynced(id: number, at: string, v: { commentId: string; hash: string; url: string | null }): void {
+  const todo = getTodo(id);
+  if (!todo) return;
+  const notes = todo.userNotes.map((n) => (n.at === at ? { ...n, jiraCommentId: v.commentId, jiraHash: v.hash, ...(v.url ? { url: v.url, urlLabel: "Jira" } : {}) } : n));
+  getDb().update(todos).set({ userNotes: JSON.stringify(notes) }).where(eq(todos.id, id)).run();
   emitChange("todos");
 }
 
