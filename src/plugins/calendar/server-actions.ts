@@ -7,6 +7,23 @@ import type { SeriesScope } from "@/lib/calendar/ir-shared";
 
 /** The Kalender app: its server actions (each answers an ActionState). */
 
+/**
+ * An appointment a todo proposes, dragged or resized in the calendar: its action gets the new start and length
+ * (the todo and its other actions stay as they are). Nothing is entered in a calendar by this.
+ */
+export async function moveProposedEventAction(todoId: number, index: number, start: string, end: string): Promise<ActionState> {
+  try {
+    const minutes = Math.round((Date.parse(`${String(end).slice(0, 16)}:00`) - Date.parse(`${String(start).slice(0, 16)}:00`)) / 60000);
+    if (!(minutes > 0)) return { ok: false, error: t("The end has to be after the start.") };
+    const { moveCalendarOp } = await import("@/lib/boards/store");
+    moveCalendarOp(Number(todoId), Number(index), String(start).slice(0, 16), minutes);
+    revalidateAll();
+    return { ok: true, message: t("Appointment moved — it is entered when you run the todo's action.") };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
 const off = async () => (!(await import("@/plugins/state")).isInstalled("calendar") ? t("Calendar is not installed (Menu → Plugins).") : null);
 const run = async (fn: () => Promise<string> | string): Promise<ActionState> => {
   try {

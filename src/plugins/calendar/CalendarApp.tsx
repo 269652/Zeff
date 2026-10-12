@@ -13,7 +13,7 @@ import { EventDetails } from "./EventDetails";
 import { EventEditor, ScopeChoice, type EditorInit } from "./EventEditor";
 import { MiniMonth } from "./MiniMonth";
 import { MonthGrid } from "./MonthGrid";
-import { saveEventAction, syncCalendarsAction, updateCalendarAction } from "./server-actions";
+import { moveProposedEventAction, saveEventAction, syncCalendarsAction, updateCalendarAction } from "./server-actions";
 import { TimeGrid } from "./TimeGrid";
 import { itemOn, local, minutesOf, plus, stepDay, viewLabels, VIEWS, viewRange, viewTitle, ymd, type Item, type ViewKind } from "./view-shared";
 
@@ -26,6 +26,9 @@ const shortcuts = (t: T): [string, string][] => [
   ["N", t("New event")],
   ["Esc", t("Close")],
 ];
+
+/** The actions that are an appointment and can be moved by dragging (their start and length are in the action). */
+const MOVABLE_PROPOSALS = new Set(["calendar-event", "gcal-event", "calendar-entry"]);
 
 const two = (n: number) => String(n).padStart(2, "0");
 const clock = () => {
@@ -100,7 +103,8 @@ export function CalendarApp({
           const cal = byId.get(e.calendarId);
           return { id, title: e.title, start: moved[id]?.start ?? e.start, end: moved[id]?.end ?? e.end, allDay: e.allDay, color: cal?.color ?? "#7A869A", editable: cal?.source === "zeff", event: e, calendar: cal };
         }),
-      ...(showProposed ? proposed.map((p, i): Item => ({ id: `p${i}`, title: p.title, start: p.start, end: p.end, allDay: false, color: "#6366F1", editable: false, proposed: p })) : []),
+      // An appointment a todo proposes can be dragged like one of Zeff's own: its action gets the new time.
+      ...(showProposed ? proposed.map((p, i): Item => ({ id: `p${i}`, title: p.title, start: moved[`p${i}`]?.start ?? p.start, end: moved[`p${i}`]?.end ?? p.end, allDay: false, color: "#6366F1", editable: MOVABLE_PROPOSALS.has(p.type), proposed: p })) : []),
     ],
     [events, proposed, shown, showProposed, byId, moved],
   );
@@ -145,7 +149,18 @@ export function CalendarApp({
       done(r);
     });
   };
+  /** A proposed appointment dragged or resized: shown where it went, saved in the todo's action. */
+  const moveProposed = (it: Item, s: string, e: string) => {
+    const p = it.proposed!;
+    setMoved((m) => ({ ...m, [it.id]: { start: s, end: e } }));
+    start(async () => {
+      const r = await moveProposedEventAction(p.todoId, p.index, s, e);
+      if (!r?.ok) setMoved((m) => Object.fromEntries(Object.entries(m).filter(([k]) => k !== it.id)));
+      done(r);
+    });
+  };
   const move = (it: Item, s: string, e: string) => {
+    if (it.proposed && it.editable) return moveProposed(it, s, e);
     if (!it.editable || !it.event) return;
     if (it.event.occurrence) setMoving({ item: it, start: s, end: e });
     else save(it, s, e);

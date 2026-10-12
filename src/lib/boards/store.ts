@@ -1025,3 +1025,25 @@ export function closeTodosOfDoneTickets(tickets: string[]): number {
     .returning()
     .all().length;
 }
+
+/** The actions that are an appointment: one in Outlook, in Google Calendar, in Zeff's own calendar. */
+const APPOINTMENT_OPS = ["calendar-event", "gcal-event", "calendar-entry"];
+
+/**
+ * An appointment a todo proposes, moved (dragged in the calendar): its action gets the new start
+ * ("YYYY-MM-DDTHH:MM") and length — nothing else on the todo changes, it stays the AI's suggestion.
+ */
+export function moveCalendarOp(todoId: number, index: number, start: string, minutes: number): TodoView {
+  const todo = getTodo(todoId);
+  if (!todo) throw new NotFoundError(t("Todo {ref} not found.", { ref: todoRef(todoId) }));
+  if (todo.status !== "open") throw new ValidationError(t("{ref} isn't open any more.", { ref: todo.ref }));
+  const op = todo.ops[index];
+  if (!op || !APPOINTMENT_OPS.includes(op.type)) throw new ValidationError(t("That isn't an appointment."));
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(start) || Number.isNaN(Date.parse(`${start}:00`))) throw new ValidationError(t("That isn't a time (YYYY-MM-DDTHH:MM)."));
+  const length = Math.round(Number(minutes));
+  if (!(length >= 5 && length <= 1440)) throw new ValidationError(t("The length: 5 to 1440 minutes."));
+  const ops = todo.ops.map((o, i) => (i === index ? { ...o, start, minutes: length } : o));
+  getDb().update(todos).set({ ops: JSON.stringify(ops), updatedAt: new Date().toISOString() }).where(eq(todos.id, todoId)).run();
+  emitChange("todos");
+  return getTodo(todoId)!;
+}

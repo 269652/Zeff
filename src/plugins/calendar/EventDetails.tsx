@@ -100,12 +100,12 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
               {e?.recurrence && <p className="text-xs text-zinc-500">↻ {describeRecurrence(e.recurrence, e.start, t)}</p>}
             </div>
             <div className="flex shrink-0 gap-0.5">
-              {item.editable && (
+              {item.editable && !item.proposed && (
                 <button type="button" className="icon-btn" onClick={onEdit} aria-label={t("Edit")} title={t("Edit (E)")}>
                   ✎
                 </button>
               )}
-              {item.editable && (
+              {item.editable && !item.proposed && (
                 <button type="button" className="icon-btn" disabled={pending} onClick={() => (series ? setAsking(true) : remove())} aria-label={t("Delete")} title={t("Delete")}>
                   🗑
                 </button>
