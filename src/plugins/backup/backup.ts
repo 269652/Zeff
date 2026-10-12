@@ -204,6 +204,8 @@ export function runBackup(label = ""): Promise<{ ok: boolean; message: string; f
         ...(old.length ? [t("{n} old ones removed", { n: old.length })] : []),
       ].join(" · ");
       updateAppSettings({ backupLastAt: new Date().toISOString(), backupLastOk: true, backupLastResult: message });
+      // Extensions that keep a copy elsewhere (Google Drive): now, not at their next turn.
+      void import("@/plugins/google-drive/after").then((m) => m.afterBackup()).catch(() => {});
       return { ok: true, message, file };
     } catch (e) {
       const message = errorMessage(e);
@@ -217,6 +219,29 @@ export function runBackup(label = ""): Promise<{ ok: boolean; message: string; f
   });
   running.set(account, run);
   return run;
+}
+
+/** This account's files in the backup folder — its backup ZIPs and their config ZIPs (nothing half written, no other account's). */
+export function accountBackupFiles(dir = backupDir()): { name: string; path: string; size: number; encrypted: boolean | null; config: boolean }[] {
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir);
+  } catch {
+    return [];
+  }
+  const backups = prefix("backup");
+  const configs = prefix("config");
+  return names
+    .filter((n) => n.endsWith(".zip") && (n.startsWith(backups) || n.startsWith(configs)))
+    .flatMap((n) => {
+      const file = path.join(dir, n);
+      try {
+        const st = fs.statSync(file);
+        return st.isFile() ? [{ name: n, path: file, size: st.size, encrypted: encryptedZip(file), config: n.startsWith(configs) }] : [];
+      } catch {
+        return [];
+      }
+    });
 }
 
 /** Whether a backup is due: on, and the last one (or none) at least the interval ago. */

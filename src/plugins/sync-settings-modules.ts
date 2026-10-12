@@ -20,6 +20,7 @@ import { syncSettings as knowledge } from "./knowledge/sync-settings";
 import { syncSettings as keep } from "./keep/sync-settings";
 import { syncSettings as documents } from "./documents/sync-settings";
 import { syncSettings as googleCalendar } from "./google-calendar/sync-settings";
+import { syncSettings as googleDrive } from "./google-drive/sync-settings";
 
 /** Each plugin's settings module for the Sync settings page — the plugins that bring a sync. */
 const MODULES: Partial<Record<PluginId, PluginSyncSettings>> = {
@@ -36,6 +37,7 @@ const MODULES: Partial<Record<PluginId, PluginSyncSettings>> = {
   signal,
   keep,
   "google-calendar": googleCalendar,
+  "google-drive": googleDrive,
   "outlook-calendar": outlookCalendar,
   gitlab,
   chrono,
@@ -54,7 +56,7 @@ export function installedSyncSettings(): { plugin: PluginManifest; settings: Req
   for (const plugin of PLUGINS) {
     const m = on.has(plugin.id) ? MODULES[plugin.id] : undefined;
     if (!m) continue;
-    const intervals = (m.intervals ?? []).filter((i) => !seen.has(i.key));
+    const intervals = (m.intervals ?? []).filter((i) => !seen.has(i.key) && stepExtensionOk(i.key));
     // A step an extension brings (Keep's Notiz-Durchsicht) only while it's on.
     const follows = (m.follows ?? []).filter((f) => !seen.has(f.key) && stepExtensionOk(f.key));
     for (const x of [...intervals, ...follows]) seen.add(x.key);

@@ -1062,6 +1062,55 @@ export const workRuns = sqliteTable(
   (t) => [index("work_runs_todo_idx").on(t.todoId), index("work_runs_status_idx").on(t.status)],
 );
 
+/**
+ * The Google Drive plugin's connection (one row, id 1; per account): your own OAuth client, the
+ * tokens it got, and how the syncs behave. What it does is off until you set it up and connect.
+ */
+export const googleDrive = sqliteTable("google_drive", {
+  id: integer("id").primaryKey(),
+  clientId: text("client_id").notNull().default(""),
+  clientSecret: text("client_secret").notNull().default(""),
+  refreshToken: text("refresh_token").notNull().default(""),
+  accessToken: text("access_token").notNull().default(""),
+  /** Access token expiry as epoch milliseconds. */
+  expiresAt: integer("expires_at").notNull().default(0),
+  /** What Google granted: "drive.file" (only files Zeff made) or full Drive access (to read files you add). */
+  scope: text("scope").notNull().default(""),
+  email: text("email").notNull().default(""),
+  connectedAt: text("connected_at"),
+  /** The Drive folder Zeff keeps things in ("" = Zeff's own name for it); its subfolders' ids once made. */
+  folderName: text("folder_name").notNull().default(""),
+  rootFolderId: text("root_folder_id").notNull().default(""),
+  backupsFolderId: text("backups_folder_id").notNull().default(""),
+  documentsFolderId: text("documents_folder_id").notNull().default(""),
+  /** Backups: what the local retention removes goes from Drive too. */
+  mirrorBackupRetention: integer("mirror_backup_retention", { mode: "boolean" }).notNull().default(true),
+  /** Backups: also those without a password (the whole database, readable by anyone with the file). */
+  uploadUnencrypted: integer("upload_unencrypted", { mode: "boolean" }).notNull().default(false),
+  /** Documents: files you add to the Drive folder come to Zeff (needs full Drive access) — off by default. */
+  pullDocuments: integer("pull_documents", { mode: "boolean" }).notNull().default(false),
+});
+
+/** What of Zeff's is in Drive: a backup file, a document — and the Drive file it is. */
+export const googleDriveFiles = sqliteTable(
+  "google_drive_files",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    /** "backup" (key: the file's name) or "document" (key: "doc:<id>"). */
+    kind: text("kind").notNull(),
+    key: text("key").notNull(),
+    driveId: text("drive_id").notNull(),
+    /** Drive's version of it: the content's md5, else its modified time (a Google Doc). */
+    version: text("version").notNull().default(""),
+    size: integer("size").notNull().default(0),
+    /** Where it came from: pushed (Zeff → Drive) or pulled (Drive → Zeff). */
+    origin: text("origin").notNull().default("push"),
+    syncedAt: text("synced_at").notNull(),
+  },
+  (t) => [uniqueIndex("google_drive_files_drive").on(t.driveId), index("google_drive_files_key").on(t.kind, t.key)],
+);
+
+
 export type Job = typeof jobs.$inferSelect;
 export type NewJob = typeof jobs.$inferInsert;
 export type Project = typeof projects.$inferSelect;
@@ -1071,6 +1120,7 @@ export type NewTimeEntry = typeof timeEntries.$inferInsert;
 export type EntryType = string;
 export type EntryTypeRow = typeof entryTypes.$inferSelect;
 export type CalendarConnection = typeof calendarConnections.$inferSelect;
+export type GoogleDriveRow = typeof googleDrive.$inferSelect;
 export type WorkSchedule = typeof workSchedule.$inferSelect;
 export type Absence = typeof absences.$inferSelect;
 export type Pause = typeof pauses.$inferSelect;

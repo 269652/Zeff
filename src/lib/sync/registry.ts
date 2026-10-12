@@ -120,8 +120,8 @@ async function lastAndCurrentWeeks(): Promise<string[]> {
 export const jiraLastSyncAt = () => recordedOr("jira", jiraTickets.syncedAt).lastAt;
 
 /** When a step last ran, however it was started. */
-export const lastSyncOf = (key: "calendar" | "chrono" | "punch" | "whatsapp" | "signal" | "keep" | "gcalendar") =>
-  (key === "calendar" || key === "whatsapp" || key === "signal" || key === "keep" || key === "gcalendar" ? recorded(key) : recordedOr(key, key === "chrono" ? chronoEntries.pulledAt : punchDays.pulledAt)).lastAt;
+export const lastSyncOf = (key: "calendar" | "chrono" | "punch" | "whatsapp" | "signal" | "keep" | "gcalendar" | "drivebackup" | "drivedocs") =>
+  (key === "calendar" || key === "whatsapp" || key === "signal" || key === "keep" || key === "gcalendar" || key === "drivebackup" || key === "drivedocs" ? recorded(key) : recordedOr(key, key === "chrono" ? chronoEntries.pulledAt : punchDays.pulledAt)).lastAt;
 
 /** Each step: how it runs, what it last did, when it runs by itself. All only read from elsewhere. */
 const STEPS: Record<SyncKey, Step> = {
@@ -195,6 +195,23 @@ const STEPS: Record<SyncKey, Step> = {
     run: async () => (await import("@/plugins/google-calendar/sync")).syncGoogleCalendar(),
     busy: () => flag("__zeffGcalSyncing"),
     schedule: () => ({ everyMinutes: stepMinutes("gcalendar"), lastAt: recorded("gcalendar").lastAt, window: t("while the automation Chrome runs") }),
+  },
+  // The Google Drive plugin's extensions for Backups and Documents (there while they're on):
+  drivebackup: {
+    label: "Backups → Google Drive",
+    href: "/google-drive",
+    get what() { return t("Your backups, copied to Google Drive as they are made (encrypted ones; what the retention removes goes from Drive too, if set)"); },
+    run: async () => (await import("@/plugins/google-drive/sync")).syncBackups(),
+    busy: () => flag("__zeffDriveBackup"),
+    schedule: () => ({ everyMinutes: stepMinutes("drivebackup"), lastAt: recorded("drivebackup").lastAt }),
+  },
+  drivedocs: {
+    label: "Documents ↔ Google Drive",
+    href: "/google-drive",
+    get what() { return t("Your documents, copied to Google Drive — and, if you set so, what you add to its Documents folder comes into Zeff"); },
+    run: async () => (await import("@/plugins/google-drive/sync")).syncDocuments(),
+    busy: () => flag("__zeffDriveDocs"),
+    schedule: () => ({ everyMinutes: stepMinutes("drivedocs"), lastAt: recorded("drivedocs").lastAt }),
   },
   gitlab: {
     label: "GitLab",
