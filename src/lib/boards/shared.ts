@@ -729,7 +729,7 @@ export const BOARD_RESULT_SCHEMA = {
           questions: {
             type: "array",
             description:
-              "Mögliche Fragen, die jemand zu diesem Ticket stellen würde und die die Lage nicht schon klärt (z. B. „Was für Kritik?“, „Warum vier MRs?“, „Wer entscheidet?“) — höchstens 4, sonst leer.",
+              "Mögliche Fragen, die jemand zu diesem Ticket stellen würde und die die Lage nicht schon klärt — vor allem zu JEDEM der flags und zu jeder Aussage in lead/summary, die etwas andeutet, ohne es zu sagen (z. B. flag „Rückfrage seit 07.10. offen“ → „Was für eine Rückfrage?“; „Kritik an 4 MRs“ → „Was für Kritik?“) — höchstens 5, sonst leer.",
             items: {
               type: "object",
               required: ["q"],

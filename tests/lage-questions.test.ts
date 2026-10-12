@@ -58,3 +58,16 @@ test("a failing knowledge search or AI leaves the questions as they are — the 
   await answerOpenQuestions(result, { search: async () => { throw new Error("down"); }, ask: async () => { throw new Error("no"); } });
   assert.equal((result as { tickets: { questions: { a?: string }[] }[] }).tickets[0].questions[0].a, undefined);
 });
+
+test("every flag and every vague statement is a reason for a question: the instructions say so, and the flags come before the questions in the answer", async () => {
+  const { BOARD_RESULT_SCHEMA } = await import("@/lib/boards/shared");
+  const { INSTRUCTIONS } = await import("@/lib/boards/collect");
+  const props = BOARD_RESULT_SCHEMA.properties.tickets.items.properties as unknown as Record<string, { description?: string }>;
+  const order = Object.keys(props);
+  assert.ok(order.indexOf("flags") < order.indexOf("questions"), "the model writes the flags first, then asks about them");
+  assert.match(props.questions.description ?? "", /flags/i);
+  const bullet = /- questions:[\s\S]*?(?=\n  - |\n- )/.exec(INSTRUCTIONS)?.[0] ?? "";
+  assert.match(bullet, /flags/i);
+  assert.match(bullet, /Rückfrage/); // the example: "Rückfrage seit 07.10. offen" → "Was für eine Rückfrage?"
+  assert.match(bullet, /JEDEM/); // each flag, not just some
+});
