@@ -87,7 +87,8 @@ export async function checkLogin(service: ServiceId): Promise<{ state: LoginStat
     try {
       const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
       const out = await runStdioSession(
-        { command: process.execPath, args: [driverPath(tool[0])], env: automationEnv(), label: `${SERVICE_LABELS[service]} status` },
+        // (Punch's driver gets its address and login too — its status check doesn't sign anyone in.)
+        { command: process.execPath, args: [driverPath(tool[0])], env: { ...automationEnv(), ...(service === "punch" ? (await import("@/plugins/punch/login")).punchLoginEnv() : {}) }, label: `${SERVICE_LABELS[service]} status` },
         async (call) => resultToPayload(await call(tool[1], {})),
         45000,
       );
