@@ -3,12 +3,16 @@ import { jiraCommentUrl } from "@/lib/boards/shared";
 import { getTodo, markNoteSynced } from "@/lib/boards/store";
 import { ValidationError, errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
-import { mentionsToJira } from "@/plugins/people/accounts";
+import { linkJiraAccounts, mentionsToJira } from "@/plugins/people/accounts";
 import { resultToPayload, runStdioSession } from "./mcp-client";
 import { getJiraTicket } from "./store";
 import { getJiraSyncConfig } from "./sync";
 
-export type NoteSyncResult = { state: "posted" | "updated" | "unchanged"; commentId: string; url: string | null; noAccount: string[] };
+/** posted: a new comment · updated: the note changed, the comment with it · synced: nothing changed, the comment was written again as it should be · reposted: the comment was gone from Jira, made again. */
+export type NoteSyncResult = { state: "posted" | "updated" | "synced" | "reposted"; commentId: string; url: string | null; noAccount: string[] };
+
+/** What Jira says about a comment that isn't there (any more). */
+const GONE = /not found|does not exist|doesn'?t exist|no such|404|existiert nicht|nicht gefunden/i;
 
 /** What the sync needs from Jira: one comment posted (its id back), one edited. */
 export type NoteSyncDeps = {
@@ -60,24 +64,40 @@ export async function syncNoteToJira(todoId: number, at: string, deps?: NoteSync
   if (!todo.ticket) throw new ValidationError(t("{ref} has no ticket — there's nothing to comment on.", { ref: todo.ref }));
   const ticket = getJiraTicket(todo.ticket);
   if (!ticket || ticket.boardId == null) throw new ValidationError(t("{ticket} isn't on a Jira board Zeff syncs.", { ticket: todo.ticket }));
+  // Jira users Zeff knows by name but hasn't tied to a profile yet: tied now, so a tag becomes a real mention.
+  try {
+    linkJiraAccounts();
+  } catch {
+    // without the link, the name is written out
+  }
   const { text, noAccount } = mentionsToJira(note.text);
   const hash = createHash("sha1").update(text).digest("hex");
   const sync = async (d: NoteSyncDeps): Promise<NoteSyncResult> => {
+    const post = async () => {
+      const id = await d.post(ticket.key, text);
+      if (!id) throw new ValidationError(t("Jira didn't say which comment it made — nothing is marked as synced."));
+      return id;
+    };
     let commentId = note.jiraCommentId ?? null;
-    let state: NoteSyncResult["state"] = "unchanged";
+    let state: NoteSyncResult["state"];
     if (!commentId) {
-      commentId = await d.post(ticket.key, text);
-      if (!commentId) throw new ValidationError(t("Jira didn't say which comment it made — nothing is marked as synced."));
+      commentId = await post();
       state = "posted";
-    } else if (note.jiraHash !== hash) {
-      await d.edit(ticket.key, commentId, text);
-      state = "updated";
+    } else {
+      // Always written again (idempotent): that repairs a comment that was posted wrong, edited on Jira, or never finished.
+      try {
+        await d.edit(ticket.key, commentId, text);
+        state = note.jiraHash === hash ? "synced" : "updated";
+      } catch (e) {
+        if (!GONE.test(errorMessage(e))) throw e;
+        commentId = await post(); // deleted on Jira: made again
+        state = "reposted";
+      }
     }
     const url = ticket.url ? jiraCommentUrl(ticket.url, commentId) : null;
-    if (state !== "unchanged" || !note.url) markNoteSynced(todoId, at, { commentId, hash, url });
+    markNoteSynced(todoId, at, { commentId, hash, url });
     return { state, commentId, url, noAccount };
   };
-  if (note.jiraCommentId && note.jiraHash === hash) return { state: "unchanged", commentId: note.jiraCommentId, url: note.url ?? null, noAccount };
   try {
     return deps ? await sync(deps) : await viaJira(sync);
   } catch (e) {

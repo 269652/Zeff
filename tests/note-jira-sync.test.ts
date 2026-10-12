@@ -92,12 +92,14 @@ test("a note is synced to the todo's Jira ticket as a comment — mentions trans
   assert.equal(synced.jiraCommentId, "10001");
   assert.equal(synced.url, "https://jira.example/browse/NS-3?focusedCommentId=10001&page=com.atlassian.jira.plugin.system.issuetabpanels%3Acomment-tabpanel#comment-10001");
 
-  assert.equal((await syncNoteToJira(todo.id, note.at, deps)).state, "unchanged");
-  assert.equal(calls.length, 1, "not twice");
+  // Again (nothing changed): the comment is written again as it should be — idempotent, it repairs whatever is on Jira.
+  assert.equal((await syncNoteToJira(todo.id, note.at, deps)).state, "synced");
+  assert.deepEqual(calls[1], { op: "edit", ticket: "NS-3", id: "10001", body: "[~chrlorenz1] bitte die Navigation-Story prüfen" });
+  assert.equal(calls.length, 2, "one edit, no second comment");
 
   updateTodoUserNote(todo.id, note.at, "@Christopher Lorenz bitte jetzt auch die Pipeline prüfen");
   assert.equal((await syncNoteToJira(todo.id, note.at, deps)).state, "updated");
-  assert.deepEqual(calls[1], { op: "edit", ticket: "NS-3", id: "10001", body: "[~chrlorenz1] bitte jetzt auch die Pipeline prüfen" });
+  assert.deepEqual(calls[2], { op: "edit", ticket: "NS-3", id: "10001", body: "[~chrlorenz1] bitte jetzt auch die Pipeline prüfen" });
 
   addTodoAiNote(todo.id, { text: "Report", by: "W-1 · Claude" });
   const report = getTodo(todo.id)!.userNotes.find((n) => n.by)!;
@@ -110,4 +112,49 @@ test("only a ticket Zeff knows from a Jira board can be synced to", async () => 
   await assert.rejects(syncNoteToJira(todo.id, note.at, { post: async () => "1", edit: async () => {} }), /Jira board/i);
   const none = await todoWithNote("", "Ohne Ticket");
   await assert.rejects(syncNoteToJira(none.todo.id, none.note.at, { post: async () => "1", edit: async () => {} }), /ticket/i);
+});
+
+test("a tagged person whose Jira user Zeff knows by name but hasn't linked yet is linked when the note is synced — and a comment already posted as plain text is edited to the mention", async () => {
+  await board("NS-4");
+  await jiraRun(["Anna Verlinkt (averlinkt)"]);
+  const { createPerson, getPerson } = await import("@/plugins/people/store");
+  const { syncNoteToJira } = await import("@/lib/jira/note-sync");
+  const { getTodo } = await import("@/lib/boards/store");
+  const anna = createPerson({ name: "Anna Verlinkt" });
+  assert.deepEqual(getPerson(anna)!.accounts, []);
+  const { todo, note } = await todoWithNote("NS-4", "@Anna Verlinkt bitte testen");
+  const calls: { op: string; body: string }[] = [];
+  const deps = { post: async (_t: string, body: string) => (calls.push({ op: "add", body }), "20001"), edit: async (_t: string, _id: string, body: string) => void calls.push({ op: "edit", body }) };
+  const r = await syncNoteToJira(todo.id, note.at, deps);
+  assert.deepEqual(calls, [{ op: "add", body: "[~averlinkt] bitte testen" }]);
+  assert.deepEqual(r.noAccount, []);
+  assert.deepEqual(getPerson(anna)!.accounts, [{ kind: "jira", value: "averlinkt" }]);
+  assert.equal(getTodo(todo.id)!.userNotes[0].jiraCommentId, "20001");
+
+  // Posted earlier as plain words (no account was known then): syncing again edits the comment.
+  const { updateTodoUserNote, markNoteSynced } = await import("@/lib/boards/store");
+  const old = await todoWithNote("NS-4", "@Anna Verlinkt noch eine Notiz");
+  markNoteSynced(old.todo.id, old.note.at, { commentId: "20002", hash: "plain-words-hash", url: null });
+  assert.equal((await syncNoteToJira(old.todo.id, old.note.at, deps)).state, "updated");
+  assert.deepEqual(calls[1], { op: "edit", body: "[~averlinkt] noch eine Notiz" });
+  void updateTodoUserNote;
+});
+
+test("a comment that is gone from Jira is made again; any other failure is reported and nothing is marked", async () => {
+  await board("NS-5");
+  const { syncNoteToJira } = await import("@/lib/jira/note-sync");
+  const { getTodo } = await import("@/lib/boards/store");
+  const { todo, note } = await todoWithNote("NS-5", "Eine Notiz für Jira");
+  let next = 30000;
+  const base = { post: async () => String(++next) };
+  await syncNoteToJira(todo.id, note.at, { ...base, edit: async () => {} });
+  const first = getTodo(todo.id)!.userNotes[0].jiraCommentId;
+  assert.equal(first, "30001");
+  // Someone deleted the comment on Jira: the edit finds nothing — the note is posted again, its new id kept.
+  const r = await syncNoteToJira(todo.id, note.at, { ...base, edit: async () => { throw new Error("Comment 30001 does not exist (404 Not Found)"); } });
+  assert.equal(r.state, "reposted");
+  assert.equal(getTodo(todo.id)!.userNotes[0].jiraCommentId, "30002");
+  // Another failure (Jira down): reported, the note keeps what it had.
+  await assert.rejects(syncNoteToJira(todo.id, note.at, { ...base, edit: async () => { throw new Error("connection refused"); } }), /connection refused/);
+  assert.equal(getTodo(todo.id)!.userNotes[0].jiraCommentId, "30002");
 });

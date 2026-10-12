@@ -238,7 +238,14 @@ export async function syncNoteToJiraAction(todoId: number, at: string): Promise<
     const r = await syncNoteToJira(Number(todoId), String(at));
     revalidateAll();
     const hint = r.noAccount.length ? ` ${t("No Jira account linked for {names} — written out, not mentioned.", { names: r.noAccount.join(", ") })}` : "";
-    const what = r.state === "posted" ? t("Note put on Jira as a comment.") : r.state === "updated" ? t("The comment on Jira is updated.") : t("The comment on Jira is as the note is.");
+    const what =
+      r.state === "posted"
+        ? t("Note put on Jira as a comment.")
+        : r.state === "updated"
+          ? t("The comment on Jira is updated.")
+          : r.state === "reposted"
+            ? t("The comment was gone from Jira — the note is posted again.")
+            : t("The comment on Jira is as the note is.");
     return { ok: true, message: `${what}${hint}` };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
@@ -250,6 +257,8 @@ export async function searchPeopleAction(q: string): Promise<{ id: number; name:
   try {
     if (!(await import("@/plugins/state")).isInstalled("people")) return [];
     const { listPeople } = await import("@/plugins/people/store");
+    // Jira users Zeff knows by name are tied to the profiles first (so "no Jira account" is true).
+    (await import("@/plugins/people/accounts")).linkJiraAccounts();
     const w = String(q ?? "").trim().toLowerCase();
     return listPeople()
       .map((p) => ({ p, forms: [p.name, ...p.aliases, ...p.accounts.map((a) => a.value)].map((f) => f.toLowerCase()) }))
