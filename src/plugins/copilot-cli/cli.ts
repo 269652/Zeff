@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { AiAnswer } from "@/lib/ai/shared";
+import { toolDirs } from "@/lib/prerequisites-shared";
 
 /** How to start the Copilot CLI: a program and the arguments before ours. */
 export type CopilotCommand = { command: string; args: string[]; where: string };

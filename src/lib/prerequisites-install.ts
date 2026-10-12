@@ -4,8 +4,9 @@ import type { PrereqId } from "@/lib/prerequisites-shared";
 /**
  * Installing what a PC lacks, by itself (Windows: winget, which every Windows 10/11 has; a Mac: Homebrew).
  * The pure part is the plan — which command installs which program; the rest runs it, one program at a
- * time, and keeps what happened so the page can poll it. The AI CLIs aren't installed here: they need
- * a sign-in of their own, so the page tells how.
+ * time, and keeps what happened so the page can poll it. No Node is needed for any of it: Claude and uv
+ * come from their own installers (a PowerShell / shell script, no admin), Copilot from winget / Homebrew.
+ * The AI CLIs still need a sign-in of their own afterwards (the page says so). Codex needs npm — by hand.
  */
 export type InstallPlan = { name: string; command: string; args: string[] };
 
@@ -14,16 +15,27 @@ const WINGET_IDS: Partial<Record<PrereqId, string>> = {
   git: "Git.Git",
   uv: "astral-sh.uv",
   poppler: "oschwartz10612.Poppler",
+  copilot: "GitHub.Copilot",
 };
+/** The vendors' own installers, for programs without a (reliable) package: no admin, no package manager. */
+const SCRIPTS: Partial<Record<PrereqId, { win: string; unix: string }>> = {
+  claude: { win: "irm https://claude.ai/install.ps1 | iex", unix: "curl -fsSL https://claude.ai/install.sh | bash" },
+  uv: { win: "irm https://astral.sh/uv/install.ps1 | iex", unix: "curl -LsSf https://astral.sh/uv/install.sh | sh" },
+};
+
 const BREW_ARGS: Partial<Record<PrereqId, string[]>> = {
   browser: ["install", "--cask", "google-chrome"],
   git: ["install", "git"],
   uv: ["install", "uv"],
   poppler: ["install", "poppler"],
+  copilot: ["install", "copilot-cli"],
 };
 
 /** The command that installs `id` on this system, or null (no package manager, or not something we install). */
 export function installPlan(id: PrereqId, platform: string, has: (command: string) => boolean): InstallPlan | null {
+  const script = SCRIPTS[id];
+  if (script && platform === "win32" && has("powershell")) return { name: "PowerShell", command: "powershell", args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script.win] };
+  if (script && (platform === "darwin" || platform === "linux") && has("sh")) return { name: "sh", command: "sh", args: ["-c", script.unix] };
   if (platform === "win32") {
     const wid = WINGET_IDS[id];
     if (!wid || !has("winget")) return null;
