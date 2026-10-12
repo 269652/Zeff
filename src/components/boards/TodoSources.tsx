@@ -7,7 +7,10 @@ import { SourceBadge, SourceDetails } from "../SourceBadge";
 import { entityWhoWhen } from "@/lib/entities-shared";
 import { HoverCard } from "../HoverCard";
 import { CollapseIcon, ExpandIcon, NoteIcon, SparkIcon } from "../icons";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
+import { dismissTodoContextAction } from "@/plugins/todos/server-actions";
+import { toast } from "../Toaster";
 import { latestPerKind, ShowMoreToggle } from "../ShowMore";
 import { useT } from "../I18nProvider";
 import type { T } from "@/lib/i18n/shared";
@@ -127,6 +130,32 @@ export function ContextToggle({ items, unread, open, onToggle }: { items: Item[]
   return open ? toggle : <HoverCard card={<ContextPreview items={items} unread={unread} />}>{toggle}</HoverCard>;
 }
 
+/** Take one context item out of a todo (×): it stays out — nothing cites it back in; only you do. */
+function DismissContext({ todoId, refKey }: { todoId: number; refKey: string }) {
+  const t = useT();
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  return (
+    <button
+      type="button"
+      className="icon-btn shrink-0 text-base opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+      disabled={pending}
+      title={t("Dismiss — takes it out of this todo's context for good")}
+      aria-label={t("Dismiss this context item")}
+      onClick={(e) => {
+        e.stopPropagation();
+        start(async () => {
+          const r = await dismissTodoContextAction(todoId, refKey);
+          if (r?.ok) router.refresh();
+          else toast(r?.error ?? t("Didn't work."), { tone: "error" });
+        });
+      }}
+    >
+      ×
+    </button>
+  );
+}
+
 /** The context itself: of each kind the latest three — the rest behind "Show more"; hover one for all of it. */
 export function ContextList({ items, todoId }: { items: Item[]; todoId?: number }) {
   const [all, setAll] = useState(false);
@@ -145,7 +174,7 @@ export function ContextList({ items, todoId }: { items: Item[]; todoId?: number 
         return (
           <HoverCard
             key={sourceKey(s)}
-            className="gap-1.5 sm:max-w-md"
+            className="group gap-1.5 sm:max-w-md"
             card={
               <div>
                 <SourceDetails entity={s} />
@@ -155,6 +184,7 @@ export function ContextList({ items, todoId }: { items: Item[]; todoId?: number 
           >
             <SourceBadge entity={s} className="min-w-0" resolved={synced?.resolved || undefined} />
             {synced && <SyncedMark s={synced} />}
+            {todoId !== undefined && <DismissContext todoId={todoId} refKey={sourceKey(s)} />}
           </HoverCard>
         );
       })}

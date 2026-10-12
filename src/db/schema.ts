@@ -384,6 +384,30 @@ export const todoTime = sqliteTable(
 );
 export type TodoTime = typeof todoTime.$inferSelect;
 
+/**
+ * What belongs to a todo, recorded on its own — not derived from its text, operations or runs, and
+ * not rewritten when a briefing run rewrites the todo. `branch`: the feature branch its work is on
+ * (`value`: the branch name, `repo`: the repo's folder) — its GitLab branch and merge request are
+ * context of the todo, always. `dismissed`: a context item (`value`: its ref) taken out by hand —
+ * it stays out, whoever cites it again.
+ */
+export const todoLinks = sqliteTable(
+  "todo_links",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    todoId: integer("todo_id").notNull(),
+    /** branch | dismissed */
+    kind: text("kind").notNull(),
+    value: text("value").notNull(),
+    repo: text("repo"),
+    /** Who recorded it: run (a worker's or agent's), plan (a delivery), you. */
+    source: text("source").notNull().default(""),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [uniqueIndex("todo_links_unique_idx").on(t.todoId, t.kind, t.value), index("todo_links_todo_idx").on(t.todoId)],
+);
+export type TodoLink = typeof todoLinks.$inferSelect;
+
 export const teamsMessages = sqliteTable(
   "teams_messages",
   {

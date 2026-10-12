@@ -3771,6 +3771,8 @@
   "related": "relacionado",
   "{run} ran {n} min longer than reported on {todo}": "{run} duró {n} min más de lo informado en {todo}",
   "Unreported time of {run}": "Tiempo no informado de {run}",
+  "Dismiss — takes it out of this todo's context for good": "Descartar — lo quita del contexto de este todo para siempre",
+  "Dismiss this context item": "Descartar este contexto",
   "Once {ref} is ticked off: test by hand first — then the delivery: {text}": "Cuando {ref} esté marcado: primero probar a mano — luego la entrega: {text}",
   "Ask the ticket": "Preguntar al ticket",
   "Dismiss — takes it out of the ticket's context": "Descartar — lo quita del contexto del ticket",

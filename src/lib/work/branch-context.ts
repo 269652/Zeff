@@ -1,7 +1,7 @@
-import { eq, inArray, or } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { TodoOp, TodoView } from "@/lib/boards/shared";
-import { addTodoContext, getTodo } from "@/lib/boards/store";
+import { getTodo, recordBranch } from "@/lib/boards/store";
 import { listRepos } from "@/lib/repos";
 import { repoWebUrl } from "./remote";
 
@@ -69,11 +69,11 @@ function noteBranch(repoPath: string, name: string): void {
 }
 
 /**
- * A todo's feature branch and merge request as context — linked: the branches its work made (its
- * runs') and its delivery names (also in its follow-ups), and the merge requests from them, as
- * GitLab items in the todo's context, each once. A branch GitLab hasn't synced yet is noted from
- * what Zeff knows (marked "not pushed"; the sync replaces it). The GitLab sync calls this again,
- * so a merge request that appears later joins. How many were added.
+ * Record which branches a todo's work is on — from its runs, its delivery operations and its
+ * follow-ups — as a relation of its own (todo_links): its GitLab branch and merge request are
+ * its context from then on, whatever happens to the todo (see linkedRefs in the store). A branch
+ * GitLab hasn't synced yet is noted from what Zeff knows (marked "not pushed"; the sync replaces
+ * it). Called when work finishes and after each GitLab sync. How many relations were new.
  */
 export function linkBranchContext(todoIds: number[]): number {
   let added = 0;
@@ -81,30 +81,19 @@ export function linkBranchContext(todoIds: number[]): number {
     const todo = getTodo(id);
     if (!todo || todo.status !== "open") continue;
     const ids = family(id);
-    const names = new Set<string>();
+    const found = new Map<string, string | null>();
     for (const m of ids) {
       const t = m === id ? todo : getTodo(m);
-      if (t) for (const n of branchNamesOf(t)) if (shown(n)) names.add(n);
+      if (t) for (const n of branchNamesOf(t)) if (shown(n)) found.set(n, found.get(n) ?? null);
     }
     const runs = getDb().select({ repo: workRuns.repo, branch: workRuns.branch }).from(workRuns).where(inArray(workRuns.todoId, ids)).all().filter((r) => r.repo && r.branch);
     for (const r of runs) {
       const name = r.branch!.replace(/^origin\//, "");
       if (!shown(name)) continue;
-      names.add(name);
+      found.set(name, r.repo);
       noteBranch(r.repo!, name);
     }
-    if (!names.size) continue;
-    const items = getDb()
-      .select({ key: gitlabItems.key, kind: gitlabItems.kind })
-      .from(gitlabItems)
-      .where(or(inArray(gitlabItems.branch, [...names]), inArray(gitlabItems.ref, [...names])))
-      .all()
-      .filter((i) => i.kind === "branch" || i.kind === "mr");
-    const refs = items.map((i) => `gitlab:${i.key}`).filter((r) => !todo.refs.includes(r));
-    if (!refs.length) continue;
-    addTodoContext(id, refs, "", "Zeff");
-    added += refs.length;
+    for (const [name, repo] of found) if (recordBranch(id, name, repo, "run")) added++;
   }
   return added;
 }
-

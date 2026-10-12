@@ -9,7 +9,7 @@ import { t } from "@/lib/i18n/server";
 import { resolveRefs, unresolveRefs } from "@/lib/resolved";
 import { cleanOps, cleanPlan, DELIVERY_OP_TYPES, dueDay, isTodoKind, parseTodoRef, todoRef, type BoardResult, type BoardRunView, type BoardTicket, type TodoOp, type TodoPath, type TodoStatus, type TodoStep, type TodoView } from "./shared";
 
-const { boardSettings, boardRuns, todos } = schema;
+const { boardSettings, boardRuns, todos, todoLinks, gitlabItems } = schema;
 
 export function getBoardSettings(): BoardSettings {
   const db = getDb();
@@ -127,7 +127,24 @@ const relatedRefsOf = (r: Todo) => parse<string[]>(r.mailRefs, []).filter((k) =>
 /** The mails related to a todo (by the mail relation run). */
 const mailRefsOf = (r: Todo) => relatedRefsOf(r).filter((k) => k.startsWith("mail:"));
 
-const toTodo = (r: Todo): TodoView => ({
+/**
+ * What a todo has recorded on its own (the todo_links): the feature branches its work is on — their GitLab
+ * branch and merge requests are its context, derived here, so nothing that rewrites the todo can drop them —
+ * and the context items you took out by hand (they stay out).
+ */
+function linksOf(id: number): { branchRefs: string[]; dismissed: Set<string> } {
+  const rows = getDb().select().from(todoLinks).where(eq(todoLinks.todoId, id)).all();
+  const names = rows.filter((l) => l.kind === "branch").map((l) => l.value);
+  const items = names.length
+    ? getDb().select({ key: gitlabItems.key, kind: gitlabItems.kind }).from(gitlabItems).where(or(inArray(gitlabItems.branch, names), inArray(gitlabItems.ref, names))).all().filter((i) => i.kind === "branch" || i.kind === "mr")
+    : [];
+  return { branchRefs: items.map((i) => `gitlab:${i.key}`), dismissed: new Set(rows.filter((l) => l.kind === "dismissed").map((l) => l.value)) };
+}
+
+const toTodo = (r: Todo): TodoView => {
+  const { branchRefs, dismissed } = linksOf(r.id);
+  const shown = (refs: string[]) => refs.filter((k) => !dismissed.has(k));
+  return {
   id: r.id,
   ref: todoRef(r.id),
   due: r.due ?? null,
@@ -139,8 +156,8 @@ const toTodo = (r: Todo): TodoView => ({
   status: r.status === "done" || r.status === "dismissed" ? r.status : "open",
   source: r.source,
   // What it came from (the Ticket-Lage's pick), then the mails and notes related to it.
-  refs: [...new Set([...parse<string[]>(r.refs, []), ...relatedRefsOf(r)])],
-  mailRefs: mailRefsOf(r),
+  refs: [...new Set(shown([...parse<string[]>(r.refs, []), ...relatedRefsOf(r), ...branchRefs]))],
+  mailRefs: shown(mailRefsOf(r)),
   autoOpsWhy: r.autoOpsWhy ?? null,
   note: r.note,
   draft: r.draft,
@@ -161,7 +178,38 @@ const toTodo = (r: Todo): TodoView => ({
   createdAt: iso(r.createdAt),
   updatedAt: iso(r.updatedAt),
   doneAt: r.doneAt && iso(r.doneAt),
-});
+  };
+};
+
+/** Record that a todo's work is on this branch (once; the repo's folder helps to find it). Whether it was new. */
+export function recordBranch(todoId: number, branch: string, repo: string | null, source: string): boolean {
+  const value = branch.replace(/^origin\//, "").trim();
+  if (!value) return false;
+  const r = getDb().insert(todoLinks).values({ todoId, kind: "branch", value, repo, source, createdAt: new Date().toISOString() }).onConflictDoNothing().run();
+  if (r.changes) emitChange("todos");
+  return r.changes > 0;
+}
+
+/** The branches recorded for a todo. */
+export function todoBranches(todoId: number) {
+  return getDb().select().from(todoLinks).where(and(eq(todoLinks.todoId, todoId), eq(todoLinks.kind, "branch"))).orderBy(todoLinks.id).all();
+}
+
+/**
+ * Take a context item out of a todo by hand: gone from its context, and it stays gone — whoever
+ * cites it again (a briefing run, a relation step, a sync).
+ */
+export function dismissTodoContext(todoId: number, ref: string): void {
+  const value = ref.trim();
+  if (!value) return;
+  getDb().insert(todoLinks).values({ todoId, kind: "dismissed", value, source: "you", createdAt: new Date().toISOString() }).onConflictDoNothing().run();
+  const row = getDb().select({ refs: todos.refs, mailRefs: todos.mailRefs }).from(todos).where(eq(todos.id, todoId)).get();
+  if (row) {
+    const drop = (json: string) => JSON.stringify(parse<string[]>(json, []).filter((k) => k !== value));
+    getDb().update(todos).set({ refs: drop(row.refs), mailRefs: drop(row.mailRefs), updatedAt: new Date().toISOString() }).where(eq(todos.id, todoId)).run();
+  }
+  emitChange("todos");
+}
 
 /** Todos, oldest first: of a ticket, in a state ("all": any). */
 /**
@@ -175,8 +223,9 @@ function setRelatedRefs(prefix: "mail:" | "keep:" | "doc:", picks: Map<number, s
     for (const [id, refs] of picks) {
       const row = tx.select({ mailRefs: todos.mailRefs }).from(todos).where(eq(todos.id, id)).get();
       if (!row) continue;
-      const others = parse<string[]>(row.mailRefs, []).filter((k) => typeof k === "string" && !k.startsWith(prefix));
-      const json = JSON.stringify([...others, ...[...new Set(refs.filter((r) => r.startsWith(prefix)))].slice(0, 10)]);
+      // Added to what it's related to already — that stays until you dismiss it.
+      const had = parse<string[]>(row.mailRefs, []).filter((k) => typeof k === "string");
+      const json = JSON.stringify([...new Set([...had, ...refs.filter((r) => r.startsWith(prefix))])].slice(-40));
       const r = tx.update(todos).set({ mailRefs: json }).where(and(eq(todos.id, id), sql`${todos.mailRefs} <> ${json}`)).run();
       changed += r.changes;
     }
@@ -834,9 +883,8 @@ export function reconcileTodos(result: BoardResult, runId: number): { added: num
           const delivery = had.some((o) => (DELIVERY_OP_TYPES as readonly string[]).includes(o.type));
           const keep = delivery ? { ops: before!.ops, kind: before!.kind, owner: before!.owner } : { ops: before?.ops ?? "[]" };
           // Its plan: the new one, else the one it has.
-          // What it cites is the AI's to change — the work's branch and merge request, which Zeff linked itself, stay.
-          const own = parse<string[]>(before?.refs ?? "[]", []).filter((r) => /^gitlab:(branch|mr):/.test(r));
-          const refs = JSON.stringify([...new Set([...(JSON.parse(values.refs) as string[]), ...own])]);
+          // What it cites is added to its context — what's there stays until you dismiss it.
+          const refs = JSON.stringify([...new Set([...parse<string[]>(before?.refs ?? "[]", []), ...(JSON.parse(values.refs) as string[])])].slice(-40));
           tx.update(todos).set({ ...values, refs, ...keep, ...(plan.length ? { planned: JSON.stringify(plan) } : {}) }).where(eq(todos.id, td.id)).run();
           open.delete(td.id);
           out.kept++;

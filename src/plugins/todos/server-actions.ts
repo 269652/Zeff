@@ -219,6 +219,18 @@ export async function workedOnTodoAction(todoId: number): Promise<ActionState> {
   }
 }
 
+/** A context item taken out of a todo by hand — it stays out. */
+export async function dismissTodoContextAction(todoId: number, ref: string): Promise<ActionState> {
+  try {
+    const { dismissTodoContext } = await import("@/lib/boards/store");
+    dismissTodoContext(Number(todoId), String(ref ?? ""));
+    revalidateAll();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
 /** A question to a ticket: answered from what Zeff has on it, kept as the ticket's context (until dismissed). */
 export async function askTicketAction(ticket: string, question: string): Promise<{ ok: boolean; item?: import("@/lib/boards/ticket-chat").ChatItem; error?: string }> {
   try {

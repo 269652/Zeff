@@ -51,14 +51,15 @@ test("a worker's feature branch and its merge request join the todo's context, l
     { type: "gitlab-open-mr", repo: "C:/r", project: "grp/proj", source: "feature/WF-3-source-db", target: "main", title: "t", description: "d" },
   ];
   addTestedDelivery({ from: t, workRunId: null, source: "Follow-up from W-63", branch: "feature/WF-3-source-db", delivery: { text: "Deliver", ops: ops as never } });
-  assert.equal(linkBranchContext([t.id]), 0); // not pushed yet: nothing to link
+  assert.equal(linkBranchContext([t.id]), 1); // the relation is recorded at once …
+  assert.deepEqual(getTodo(t.id)!.refs.filter((r) => r.startsWith("gitlab:")), []); // … there's nothing of it on GitLab to show yet
   const at = new Date().toISOString();
   const db = getDb();
   db.insert(schema.gitlabItems).values({ key: "branch:grp/proj:feature/WF-3-source-db", kind: "branch", project: "grp/proj", projectUrl: "u", ref: "feature/WF-3-source-db", title: "feature/WF-3-source-db", body: "", url: "https://git/b", syncedAt: at, branch: "feature/WF-3-source-db" } as never).run();
   db.insert(schema.gitlabItems).values({ key: "mr:grp/proj!7", kind: "mr", project: "grp/proj", projectUrl: "u", ref: "!7", title: "WF-3: Source-DB", body: "", url: "https://git/mr7", syncedAt: at, branch: "feature/WF-3-source-db" } as never).run();
   db.insert(schema.gitlabItems).values({ key: "mr:grp/proj!8", kind: "mr", project: "grp/proj", projectUrl: "u", ref: "!8", title: "other", body: "", url: "https://git/mr8", syncedAt: at, branch: "feature/other" } as never).run();
-  assert.equal(linkBranchContext([t.id]), 2);
-  const refs = getTodo(t.id)!.refs;
+  const refs = getTodo(t.id)!.refs; // … and once GitLab has it, it's context
+
   assert.ok(refs.includes("gitlab:branch:grp/proj:feature/WF-3-source-db"));
   assert.ok(refs.includes("gitlab:mr:grp/proj!7"));
   assert.ok(!refs.includes("gitlab:mr:grp/proj!8"));
@@ -101,7 +102,7 @@ test("a worker's branch is shown as context even before GitLab has synced it —
   assert.equal(linkBranchContext([parent.id]), 0);
 });
 
-test("the briefing run keeps a todo's branch and merge request context when it rewrites the todo — and links them again", async () => {
+test("the briefing run keeps a todo's context — the branch and merge request included — when it rewrites the todo", async () => {
   const { reconcileTodos, getTodo, addTodoContext } = await import("@/lib/boards/store");
   const t = await mk("WF-5", "Migrationslogik umbauen");
   addTodoContext(t.id, ["teams:19:x|1", "gitlab:branch:grp/proj:feature/WF-5-x", "gitlab:mr:grp/proj!9"], "", "Zeff");
@@ -110,5 +111,5 @@ test("the briefing run keeps a todo's branch and merge request context when it r
   assert.ok(refs.includes("teams:19:x|2"), "what the AI cites");
   assert.ok(refs.includes("gitlab:branch:grp/proj:feature/WF-5-x"), "the branch stays");
   assert.ok(refs.includes("gitlab:mr:grp/proj!9"), "the merge request stays");
-  assert.ok(!refs.includes("teams:19:x|1"), "other citations are the AI's to change");
+  assert.ok(refs.includes("teams:19:x|1"), "earlier context stays until you dismiss it");
 });
