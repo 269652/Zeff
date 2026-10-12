@@ -1,7 +1,7 @@
 "use client";
 
 import { ChatIcon } from "@/components/MailBadge";
-import { mergeJiraNotes, sourceKey, type SyncedComment, type TodoSource, type TodoUserNote, type TodoView } from "@/lib/boards/shared";
+import { mergeJiraNotes, sourceKey, todoRef, type SyncedComment, type TodoSource, type TodoUserNote, type TodoView } from "@/lib/boards/shared";
 import { NoteBadge, NoteRow } from "./NoteBadge";
 import { DismissButton } from "../DismissButton";
 import { SourceBadge, SourceDetails } from "../SourceBadge";
@@ -33,6 +33,26 @@ function SyncedMark({ s }: { s: SyncedComment }) {
     <span className="shrink-0 self-center text-[11px] font-medium whitespace-nowrap text-sky-700 dark:text-sky-400" title={title}>
       {text}
     </span>
+  );
+}
+
+/** A Jira comment Zeff wrote — the action of a todo: its mark beside the badge. */
+function PostedMark({ by }: { by: { todoId: number; text: string } }) {
+  const t = useT();
+  return (
+    <span className="shrink-0 self-center text-[11px] font-medium whitespace-nowrap text-sky-700 dark:text-sky-400" title={t("Posted by Zeff as the action of {ref}: {text}", { ref: todoRef(by.todoId), text: by.text })}>
+      ✓ {todoRef(by.todoId)}
+    </span>
+  );
+}
+
+/** Below a Jira comment Zeff wrote: which todo's action it was. */
+function PostedNote({ by }: { by: { todoId: number; text: string } }) {
+  const t = useT();
+  return (
+    <p className="mt-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100">
+      ✓ {t("Posted by Zeff — the action of {ref}", { ref: todoRef(by.todoId) })}: {by.text}
+    </p>
   );
 }
 
@@ -140,6 +160,7 @@ export function ContextList({ items, todoId }: { items: Item[]; todoId?: number 
       {shown.map((it) => {
         if ("n" in it) return <NoteRow key={`note:${it.n.from ?? ""}:${it.n.at}`} n={it.n} jira={it.jira} todoId={todoId} />;
         const s = it.s;
+        const posted = s.source === "jira-comment" ? s.comment.postedBy : undefined;
         const synced = s.source === "jira-comment" || s.source === "keep" || s.source === "fact" || s.source === "document" ? undefined : s.synced;
         return (
           <HoverCard
@@ -149,11 +170,13 @@ export function ContextList({ items, todoId }: { items: Item[]; todoId?: number 
               <div>
                 <SourceDetails entity={s} />
                 {synced && <SyncedNote s={synced} />}
+                {posted && <PostedNote by={posted} />}
               </div>
             }
           >
             <SourceBadge entity={s} className="min-w-0" resolved={synced?.resolved || undefined} />
             {synced && <SyncedMark s={synced} />}
+            {posted && <PostedMark by={posted} />}
             {todoId !== undefined && <DismissButton onDismiss={() => dismissTodoContextAction(todoId, sourceKey(s))} title={t("Dismiss — takes it out of this todo's context for good")} label={t("Dismiss this context item")} />}
           </HoverCard>
         );

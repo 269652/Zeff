@@ -466,6 +466,8 @@ export type JiraCommentView = {
   text: string;
   url: string | null;
   resolved: boolean;
+  /** Zeff wrote it: the todo whose action posted it (and what that todo said). */
+  postedBy?: { todoId: number; text: string };
 };
 
 /** A Teams message (or GitLab item) Zeff posted to Jira as a comment ("Sync to Jira" of its context item). */

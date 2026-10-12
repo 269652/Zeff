@@ -5,7 +5,7 @@ import type { DocView } from "@/plugins/documents/shared";
 import { noteBriefsByRefs } from "@/plugins/keep/boards";
 import type { KeepNoteBrief } from "@/plugins/keep/shared";
 import { isNotNull } from "drizzle-orm";
-import { getDb, schema } from "@/db";
+import { getDb, getSqlite, schema } from "@/db";
 import { gitlabLinkKey } from "@/lib/gitlab/shared";
 import { conversationsOf, gitlabItemsByKeys } from "@/lib/gitlab/store";
 import { commentsByIds } from "@/lib/jira/comments";
@@ -67,6 +67,23 @@ export function syncedContexts(): {
  * synced to Jira; so is the message itself, when a todo names it. Refs that point at nothing
  * known are left out.
  */
+/**
+ * The todo whose action posted a Jira comment: its "done" event says "Comment posted on <ticket>" a moment
+ * after the comment was made (the action's own todo is done by then, its operations gone). Null when no todo did.
+ */
+export function postedFrom(ticket: string, commentAt: string): { todoId: number; text: string } | undefined {
+  const from = Date.parse(commentAt);
+  if (!ticket || !Number.isFinite(from)) return undefined;
+  try {
+    const rows = getSqlite()
+      .prepare("select todo_id, text, at from todo_events where event = 'done' and ticket = ? and note like '%Comment posted on%' and at >= ? and at <= ? order by at limit 1")
+      .all(ticket, new Date(from - 5000).toISOString(), new Date(from + 90000).toISOString()) as { todo_id: number; text: string }[];
+    return rows[0] ? { todoId: rows[0].todo_id, text: rows[0].text } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function todoSources(
   todos: TodoView[],
   tickets: BoardTicket[],
@@ -199,6 +216,7 @@ export function todoSources(
       text: c?.text ?? "",
       url: url ? jiraCommentUrl(url, id) : null,
       resolved: done.has(id),
+      ...(c?.at && ticket ? (() => { const p = postedFrom(ticket, c.at); return p ? { postedBy: p } : {}; })() : {}),
     };
     // Just the comment — the Ticket-Lage picks the ones that matter (by content), not the whole ticket.
     out[`jira-comment:${id}`] = { source: "jira-comment", comment };

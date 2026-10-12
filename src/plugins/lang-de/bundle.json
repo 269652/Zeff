@@ -3996,5 +3996,7 @@
   "News overview": "Nachrichten-Überblick",
   "Sums up the best unread news of the day for you and says why each pick fits (News plugin).": "Fasst die besten ungelesenen Nachrichten des Tages für dich zusammen und sagt, warum jede passt (News-Plugin).",
   "The news from your sources and searches for your interests — fetched, scored for you, old items removed (public feeds; nothing of yours is sent)": "Die Nachrichten aus deinen Quellen und Suchen zu deinen Interessen – abgeholt, für dich bewertet, Altes entfernt (öffentliche Feeds; nichts von dir wird gesendet)",
-  "always": "immer"
+  "always": "immer",
+  "Posted by Zeff as the action of {ref}: {text}": "Von Zeff gepostet als Aktion von {ref}: {text}",
+  "Posted by Zeff — the action of {ref}": "Von Zeff gepostet – die Aktion von {ref}"
 }
