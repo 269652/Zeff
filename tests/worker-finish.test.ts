@@ -64,3 +64,39 @@ test("a worker's feature branch and its merge request join the todo's context, l
   assert.ok(!refs.includes("gitlab:mr:grp/proj!8"));
   assert.equal(linkBranchContext([t.id]), 0); // once
 });
+
+test("a worker's branch is shown as context even before GitLab has synced it — from its run and its follow-ups; the real sync takes over", async () => {
+  const fs = await import("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const { execFileSync } = await import("node:child_process");
+  const { getDb, schema } = await import("@/db");
+  const { saveRepo } = await import("@/lib/repos");
+  const { createRun } = await import("@/lib/work/store");
+  const { addFollowUp, getTodo } = await import("@/lib/boards/store");
+  const { linkBranchContext } = await import("@/lib/work/branch-context");
+  const { saveGitlabItems } = await import("@/lib/gitlab/store");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "zeff-repo-"));
+  execFileSync("git", ["init", "-q", dir]);
+  execFileSync("git", ["-C", dir, "remote", "add", "origin", "https://git.example.com/grp/proj.git"]);
+  saveRepo({ name: "proj", path: dir, gitlabProject: "grp/proj", boards: [], tickets: ["WF-4"], instructions: "", delivery: "mr" });
+  const parent = await mk("WF-4", "Implement the setting");
+  createRun({ ticket: "WF-4", todoId: parent.id, mode: "code", provider: "agent", model: "Claude Code", permissionMode: null, repo: dir, prompt: "x", branch: "feature/WF-4-setting" });
+  // The worker's internal worktree branch isn't a branch to show.
+  createRun({ ticket: "WF-4", todoId: parent.id, mode: "code", provider: "claude", model: "sonnet", permissionMode: null, repo: dir, prompt: "x", branch: "zeff/w9-internal" });
+  const child = addFollowUp({ ticket: "WF-4", text: "Test and verify by hand", kind: "test", parentId: parent.id, workRunId: null, source: "test" });
+
+  assert.equal(linkBranchContext([parent.id, child.id]), 2); // the parent's, and the follow-up of the parent's work
+  const row = getDb().select().from(schema.gitlabItems).all().find((i) => i.key === "branch:grp/proj:feature/WF-4-setting");
+  assert.ok(row, "a branch item is there");
+  assert.equal(row.kind, "branch");
+  assert.equal(row.url, "https://git.example.com/grp/proj/-/tree/feature/WF-4-setting");
+  assert.equal(row.state, "not pushed");
+  assert.ok(!getDb().select().from(schema.gitlabItems).all().some((i) => /zeff\/w9/.test(i.key)));
+  for (const id of [parent.id, child.id]) assert.ok(getTodo(id)!.refs.includes("gitlab:branch:grp/proj:feature/WF-4-setting"), `T-${id} has it`);
+
+  // The sync that sees it on GitLab replaces it (same key).
+  saveGitlabItems([{ key: "branch:grp/proj:feature/WF-4-setting", kind: "branch", project: "grp/proj", projectUrl: "https://git.example.com/grp/proj", ref: "feature/WF-4-setting", title: "feature/WF-4-setting", body: "", url: "https://git.example.com/grp/proj/-/tree/feature/WF-4-setting", branch: "feature/WF-4-setting", state: null } as never]);
+  assert.equal(getDb().select().from(schema.gitlabItems).all().find((i) => i.key === "branch:grp/proj:feature/WF-4-setting")!.state, null);
+  assert.equal(linkBranchContext([parent.id]), 0);
+});
