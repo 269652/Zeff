@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useT } from "@/components/I18nProvider";
 import { NewsCard } from "./NewsCard";
 import { newsMoreAction } from "./server-actions";
-import type { NewsItem } from "./shared";
+import { followSplit, type NewsItem } from "./shared";
 import type { NewsView } from "./store";
 
 /** The element that scrolls the page (the window may not: the app scrolls inside its own container). */
@@ -59,8 +59,11 @@ function Ghost({ item, showImage }: { item: NewsItem; showImage: boolean }) {
   );
 }
 
+/** A card of the feed; one that came in by following a topic says which. */
+type FItem = NewsItem & { fromTopic?: string };
+
 /** About how tall a card is (to put the next one in the shortest column). */
-const height = (i: NewsItem, image: boolean) => 150 + (image && i.image ? 190 : 0) + Math.min(80, i.summary.length / 3) + i.title.length / 2;
+const height = (i: FItem, image: boolean) => 150 + (image && i.image ? 190 : 0) + Math.min(80, i.summary.length / 3) + i.title.length / 2;
 
 /**
  * The news as a masonry (cards in columns, each in the shortest) that loads more as you scroll, with a
@@ -68,7 +71,12 @@ const height = (i: NewsItem, image: boolean) => 150 + (image && i.image ? 190 : 
  */
 export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, term = "", showImages, done: initialDone }: { initial: NewsItem[]; ago: Record<number, string>; view: NewsView; sourceId: number | null; category: string; term?: string; showImages: boolean; done: boolean }) {
   const t = useT();
-  const [items, setItems] = useState(initial);
+  const [items, setItems] = useState<FItem[]>(initial);
+  // Following a topic from a card's chip: the topic's news come in right below that card and go on loading as you scroll, until you
+  // pick another chip, stop, or the topic runs out — then the feed carries on where it was (what was below the card waits in `stash`).
+  const stash = useRef<FItem[]>([]);
+  const topicRef = useRef<{ term: string; offset: number; done: boolean } | null>(null);
+  const [topic, setTopic] = useState<string | null>(null);
   const [ago, setAgo] = useState(initialAgo);
   const [done, setDone] = useState(initialDone);
   const [loading, setLoading] = useState(false);
@@ -98,8 +106,70 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
     return () => ro.disconnect();
   }, []);
 
+  /** The feed carries on where it was: what waited below the card comes back. */
+  const restoreStash = useCallback(() => {
+    const waiting = stash.current;
+    stash.current = [];
+    topicRef.current = null;
+    setTopic(null);
+    setItems((cur) => {
+      const have = new Set(cur.map((i) => i.id));
+      return [...cur, ...waiting.filter((i) => !have.has(i.id))];
+    });
+  }, []);
+
+  /** A page of a topic's news (newest, the unseen first), appended — and when it ends, the feed carries on. */
+  const loadTopic = useCallback(async () => {
+    const tp = topicRef.current;
+    if (!tp) return;
+    const r = await newsMoreAction("latest", null, "", tp.offset, tp.term);
+    tp.offset += r.items.length;
+    tp.done = r.done;
+    setAgo((cur) => ({ ...cur, ...r.ago }));
+    setItems((cur) => {
+      const have = new Set([...cur, ...stash.current].map((i) => i.id));
+      return [...cur, ...r.items.filter((i) => !have.has(i.id)).map((i) => ({ ...i, fromTopic: tp.term }))];
+    });
+    if (r.done) restoreStash();
+  }, [restoreStash]);
+
+  /** A chip was clicked on a card: the topic's news go in below that card (what was below waits), the feed stays where it is. */
+  const follow = async (term: string, anchorId: number) => {
+    if (busy.current) return;
+    busy.current = true;
+    setLoading(true);
+    try {
+      // What was below the card in the main feed waits; a topic block that was there is dropped (another topic replaces it).
+      const { base, rest } = followSplit(items, anchorId);
+      stash.current = [...rest, ...stash.current];
+      topicRef.current = { term, offset: 0, done: false };
+      setTopic(term);
+      setItems(base);
+      await loadTopic();
+    } catch {
+      restoreStash();
+    } finally {
+      busy.current = false;
+      setLoading(false);
+    }
+  };
+
   const more = useCallback(async () => {
-    if (busy.current || done) return;
+    if (busy.current) return;
+    if (topicRef.current && !topicRef.current.done) {
+      busy.current = true;
+      setLoading(true);
+      try {
+        await loadTopic();
+      } catch {
+        restoreStash();
+      } finally {
+        busy.current = false;
+        setLoading(false);
+      }
+      return;
+    }
+    if (done) return;
     busy.current = true;
     setLoading(true);
     try {
@@ -117,7 +187,7 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
       busy.current = false;
       setLoading(false);
     }
-  }, [view, sourceId, category, term, done]);
+  }, [view, sourceId, category, term, done, loadTopic, restoreStash]);
 
   // Infinite scroll: the sentinel under the cards comes into view → the next page. Back to top: shown once scrolled down.
   useEffect(() => {
@@ -205,6 +275,17 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
           ↑ {t("{n} new — show", { n: fresh })}
         </button>
       )}
+      {topic && (
+        <div className="sticky top-2 z-30 mx-auto flex w-fit items-center gap-2 rounded-full border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs text-indigo-900 shadow dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-100">
+          <span>🧭 {t("Following “{topic}”", { topic })}</span>
+          <a href={`/news/explore?${new URLSearchParams({ topic })}`} className="underline" title={t("Open it in Explore")}>
+            {t("Explore")} ↗
+          </a>
+          <button type="button" className="font-semibold hover:underline" onClick={restoreStash} title={t("Back to the feed")}>
+            ✕ {t("Stop")}
+          </button>
+        </div>
+      )}
       <div className="flex justify-end">
         <button type="button" className={`btn btn-sm ${focus ? "btn-primary" : ""}`} onClick={() => setFocus(!focus)} title={focus ? t("Back to the columns (Esc)") : t("One column to read, like a phone feed")} aria-pressed={focus}>
           {focus ? t("Leave focus") : t("Focus")}
@@ -216,7 +297,7 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
           {/* The middle column holds all the news, a little bigger. */}
           <div className="space-y-4" style={{ zoom: 1.06 }}>
             {items.map((it) => (
-              <NewsCard key={it.id} item={it} ago={ago[it.id] ?? ""} showImage={showImages} onChange={(p) => patch(it.id, p)} onDrop={drop} />
+              <NewsCard key={it.id} item={it} ago={ago[it.id] ?? ""} showImage={showImages} onChange={(p) => patch(it.id, p)} onDrop={drop} onFollow={(term) => void follow(term, it.id)} following={topic} />
             ))}
           </div>
           {wide && <FocusSide items={sides[1]} showImage={showImages} />}
@@ -226,14 +307,14 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
           {columns.map((col, k) => (
             <div key={k} className="min-w-0 flex-1 space-y-3">
               {col.map((it) => (
-                <NewsCard key={it.id} item={it} ago={ago[it.id] ?? ""} showImage={showImages} onChange={(p) => patch(it.id, p)} onDrop={drop} />
+                <NewsCard key={it.id} item={it} ago={ago[it.id] ?? ""} showImage={showImages} onChange={(p) => patch(it.id, p)} onDrop={drop} onFollow={(term) => void follow(term, it.id)} following={topic} />
               ))}
             </div>
           ))}
         </div>
       )}
       <div ref={sentinel} className="py-4 text-center text-xs text-zinc-500">
-        {loading ? t("Loading more …") : done ? (searchingFeeds ? t("You've seen it all — looking for new sources for you …") : items.length ? t("That's all for now.") : "") : <button type="button" className="btn btn-sm" onClick={() => void more()}>{t("Load more")}</button>}
+        {loading ? (topic ? t("Loading more about “{topic}” …", { topic }) : t("Loading more …")) : done && !topic ? (searchingFeeds ? t("You've seen it all — looking for new sources for you …") : items.length ? t("That's all for now.") : "") : <button type="button" className="btn btn-sm" onClick={() => void more()}>{t("Load more")}</button>}
       </div>
       {top && (
         <button

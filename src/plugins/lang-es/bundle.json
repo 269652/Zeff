@@ -4105,5 +4105,9 @@
   "{n} stories": "{n} noticias",
   "Nothing hangs together with this one in the recent news — here is what there is:": "Nada se relaciona con esto en las noticias recientes; esto es lo que hay:",
   "No stories about this in the kept news.": "No hay noticias sobre esto en las noticias guardadas.",
-  "You've seen it all — looking for new sources for you …": "Lo has visto todo: busco fuentes nuevas para ti …"
+  "You've seen it all — looking for new sources for you …": "Lo has visto todo: busco fuentes nuevas para ti …",
+  "More about “{term}” right here": "Más sobre «{term}» aquí mismo",
+  "Following “{topic}”": "Siguiendo «{topic}»",
+  "Open it in Explore": "Abrir en Explorar",
+  "Loading more about “{topic}” …": "Cargando más sobre «{topic}» …"
 }

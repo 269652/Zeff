@@ -305,5 +305,16 @@ export function diversify<T extends { id: number; title: string; score: number; 
   return out;
 }
 
+/**
+ * A chip was clicked on a card: the feed up to and including that card stays (`base`); what was below it in the main feed
+ * waits (`rest` — a block of followed-topic cards that was there is dropped, another topic replaces it). An anchor that
+ * isn't there any more (the card was hidden meanwhile) keeps the whole list and waits for nothing.
+ */
+export function followSplit<T extends { id: number; fromTopic?: string }>(items: T[], anchorId: number): { base: T[]; rest: T[] } {
+  const at = items.findIndex((i) => i.id === anchorId);
+  if (at < 0) return { base: items, rest: [] };
+  return { base: items.slice(0, at + 1), rest: items.slice(at + 1).filter((i) => !i.fromTopic) };
+}
+
 /** Items per page (infinite scroll loads this many at a time). */
 export const NEWS_PAGE = 24;

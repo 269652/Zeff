@@ -786,3 +786,23 @@ test("fresh news running low: it goes looking for feeds on what you care about â
   assert.match(r.message, /1 new feeds found \(fresh news were running low\)/);
   void added;
 });
+
+test("following a topic from a card's chip: the feed stays, what was below the card waits, an older topic block is replaced", async () => {
+  const { followSplit } = await import("@/plugins/news/shared");
+  type I = { id: number; fromTopic?: string };
+  const feed: I[] = [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }];
+  const first = followSplit(feed, 2);
+  assert.deepEqual(first.base.map((i) => i.id), [1, 2], "the feed up to the card stays");
+  assert.deepEqual(first.rest.map((i) => i.id), [3, 4], "what was below it waits");
+  // The topic's cards come in below card 2; the stash holds 3, 4. A chip on card 1 (above the block) picks another topic:
+  const withBlock: I[] = [...first.base, { id: 10, fromTopic: "a" }, { id: 11, fromTopic: "a" }];
+  const second = followSplit(withBlock, 1);
+  assert.deepEqual(second.base.map((i) => i.id), [1]);
+  assert.deepEqual(second.rest.map((i) => i.id), [2], "the old topic's cards are dropped, the main feed's card waits (the stash still has 3, 4)");
+  // A chip on a card inside the topic block: that block is cut there, nothing of the main feed is below it.
+  const inside = followSplit(withBlock, 10);
+  assert.deepEqual(inside.base.map((i) => i.id), [1, 2, 10]);
+  assert.deepEqual(inside.rest, []);
+  // A card that is gone: nothing changes.
+  assert.deepEqual(followSplit(feed, 99), { base: feed, rest: [] });
+});

@@ -46,7 +46,7 @@ async function peek(id: number): Promise<{ ok: boolean; image: string; hasConten
  * from and how old it is, a short text — or the whole article, read here — why it is up here, and the buttons that teach
  * Zeff your taste (👍 👎), keep it (save) or put it away (hide). `onChange` tells the feed what changed, so it updates in place.
  */
-export function NewsCard({ item, ago, showImage, onChange, onDrop }: { item: NewsItem; ago: string; showImage: boolean; onChange: (patch: Partial<NewsItem>) => void; /** The feed this card is from is off: all its cards leave. */ onDrop: (gone: (i: NewsItem) => boolean) => void }) {
+export function NewsCard({ item, ago, showImage, onChange, onDrop, onFollow, following }: { item: NewsItem & { fromTopic?: string }; ago: string; showImage: boolean; onChange: (patch: Partial<NewsItem>) => void; /** A name on the card was clicked: the feed follows that topic below this card (no navigation). */ onFollow?: (term: string) => void; /** The topic being followed now. */ following?: string | null; /** The feed this card is from is off: all its cards leave. */ onDrop: (gone: (i: NewsItem) => boolean) => void }) {
   const t = useT();
   const [pending, start] = useTransition();
   const [broken, setBroken] = useState(false);
@@ -122,7 +122,7 @@ export function NewsCard({ item, ago, showImage, onChange, onDrop }: { item: New
     });
   };
   return (
-    <article ref={card} className={`card overflow-hidden ${read ? "opacity-75" : ""} ${pending ? "opacity-50" : ""}`}>
+    <article ref={card} className={`card overflow-hidden ${item.fromTopic ? "border-l-4 border-l-indigo-400" : ""} ${read ? "opacity-75" : ""} ${pending ? "opacity-50" : ""}`}>
       {showImage && item.image && !broken && (
         // eslint-disable-next-line @next/next/no-img-element -- pictures of other sites, shown as they are (no optimiser on the way)
         <img src={item.image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken(true)} className="aspect-video w-full bg-zinc-100 object-cover dark:bg-zinc-800" />
@@ -144,6 +144,7 @@ export function NewsCard({ item, ago, showImage, onChange, onDrop }: { item: New
             {item.sourceName} · {ago}
           </p>
         </div>
+        {item.fromTopic && <p className="text-[11px] font-medium text-indigo-600 dark:text-indigo-400">↳ {item.fromTopic}</p>}
         {item.summary && !reader.open && <p className="line-clamp-4 text-sm text-zinc-600 dark:text-zinc-300">{item.summary}</p>}
         {reader.open && (
           <div className="max-h-96 overflow-auto rounded border border-zinc-200 bg-zinc-50 p-3 text-sm leading-relaxed whitespace-pre-line dark:border-zinc-700 dark:bg-zinc-900">
@@ -153,11 +154,19 @@ export function NewsCard({ item, ago, showImage, onChange, onDrop }: { item: New
         {item.terms.length > 0 && (
           <p className="flex flex-wrap items-center gap-1 text-[11px]">
             <span aria-hidden>🧭</span>
-            {item.terms.map((term) => (
-              <Link key={term} href={`/news/explore?${new URLSearchParams({ topic: term })}`} className="rounded-full border border-zinc-200 px-2 py-0.5 text-zinc-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-indigo-700 dark:hover:bg-indigo-950 dark:hover:text-indigo-200" title={t("Explore “{term}”", { term })}>
-                {term}
-              </Link>
-            ))}
+            {item.terms.map((term) => {
+              const cls = `rounded-full border px-2 py-0.5 ${following === term ? "border-indigo-400 bg-indigo-100 text-indigo-800 dark:border-indigo-600 dark:bg-indigo-950 dark:text-indigo-200" : "border-zinc-200 text-zinc-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-indigo-700 dark:hover:bg-indigo-950 dark:hover:text-indigo-200"}`;
+              // On the feed a chip follows the topic right here; without a feed to follow in (no handler) it opens Explore.
+              return onFollow ? (
+                <button key={term} type="button" className={cls} onClick={() => onFollow(term)} title={t("More about “{term}” right here", { term })}>
+                  {term}
+                </button>
+              ) : (
+                <Link key={term} href={`/news/explore?${new URLSearchParams({ topic: term })}`} className={cls} title={t("Explore “{term}”", { term })}>
+                  {term}
+                </Link>
+              );
+            })}
           </p>
         )}
         {item.reasons.length > 0 && (
