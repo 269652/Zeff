@@ -53,6 +53,7 @@ export function AiSettingsForm({
   const t = useT();
   const info = aiProviderInfo(t);
   const [state, action, pending] = useActionState<ActionState, FormData>(saveAiSettingsAction, null);
+  const [, startSave] = useTransition();
   const [chosen, setChosen] = useState<AiProvider>(provider);
   const card = (id: AiProvider, model: React.ReactNode) => (
     <label
@@ -85,7 +86,15 @@ export function AiSettingsForm({
     </label>
   );
   return (
-    <form action={action} className="space-y-4">
+    // Not <form action>: React resets such a form after its action — a controlled radio would go back to its first state (the card flips back, the next save sends the old one).
+    <form
+      className="space-y-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const data = new FormData(e.currentTarget);
+        startSave(() => action(data));
+      }}
+    >
       <div className="grid gap-3 md:grid-cols-2">
         {installed.includes("claude") && card(
           "claude",
