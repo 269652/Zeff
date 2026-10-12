@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { linkBranchContext } from "./branch-context";
 import { addTestedDelivery, deliversBranch, getTodo, listTodos, setTodoNeedsInput } from "@/lib/boards/store";
 import { parseTodoRef, todoRef } from "@/lib/boards/shared";
 import { NotFoundError, ValidationError } from "@/lib/errors";
@@ -214,8 +215,9 @@ export async function proposeAgentDelivery(t: TodoView, runId: number, v: { bran
   const ops = viaDirect ? direct : viaMr;
   const text = `Deliver ${name}: ${viaDirect ? `merge into ${base}` : `merge request into ${base}`}${commit?.type === "git-commit-branch" ? ` (${commit.files.length} file${commit.files.length === 1 ? "" : "s"} not committed yet)` : ""}`;
   // First tested by hand — the delivery (its buttons) comes once that's ticked off.
-  const test = addTestedDelivery({ from: t, workRunId: runId, source: `Follow-up from ${workRef(runId)}`, branch: name, delivery: { text, ops } });
-  return `${todoRef(test.id)}: test and verify by hand first — then the delivery shows up (${text})`;
+  addTestedDelivery({ from: t, workRunId: runId, source: `Follow-up from ${workRef(runId)}`, branch: name, delivery: { text, ops } });
+  linkBranchContext([t.id]);
+  return `${todoRef(t.id)}: once it's ticked off — test and verify by hand, then the delivery shows up (${text})`;
 }
 
 /** A line in the agent's log (what it's doing now). */

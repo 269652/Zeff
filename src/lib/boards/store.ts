@@ -407,26 +407,22 @@ function planAfter(from: TodoView, skip: TodoView["kind"][]): TodoPath[] {
 }
 
 /**
- * An implementation's delivery — after you've tested it: a todo to test and verify it by hand now
- * (no buttons: that's yours); its delivery (push → merge request, or merge into main) its planned
- * next step, which appears with its buttons once the test todo is ticked off. What was planned
- * after the implementation goes on after the delivery (minus the testing, review and merge it covers).
+ * An implementation's delivery — after you've tested it, and only once the implementation is
+ * ticked off: its plan ("Then") gets the test-and-verify-by-hand step (no buttons: that's yours)
+ * and behind it the delivery (push → merge request, or merge into main), which appears with its
+ * buttons once the test is ticked off. What was planned after the implementation goes on after
+ * the delivery (minus the testing, review and merge it covers). Nothing shows up in the lists
+ * before that — the worker only suggests the todo as done. The todo (with its plan now).
  */
 export function addTestedDelivery(v: { from: TodoView; workRunId: number | null; source: string; branch: string; delivery: { text: string; ops: TodoOp[] } }): TodoView {
+  const test: TodoStep = { text: `Test and verify by hand (${v.branch}): ${v.from.text}`.slice(0, 500), kind: "test", owner: "me", ops: [] };
   const step: TodoStep = { text: v.delivery.text, kind: "merge", owner: "me", ops: v.delivery.ops };
   // One way on: the delivery decides MR or direct merge, so plans that differed in that are alike now — the first stays.
   const rest = planAfter(v.from, ["test", "review", "merge"])[0];
-  const planned: TodoPath[] = [{ path: null, steps: [step, ...(rest?.steps ?? [])].slice(0, 6) }];
-  getDb().update(todos).set({ planned: "[]" }).where(eq(todos.id, v.from.id)).run();
-  return addFollowUp({
-    ticket: v.from.ticket,
-    text: `Test and verify by hand (${v.branch}): ${v.from.text}`.slice(0, 500),
-    kind: "test",
-    parentId: v.from.id,
-    workRunId: v.workRunId,
-    source: `${v.source} — tested first, then delivered`,
-    planned,
-  });
+  const planned: TodoPath[] = [{ path: null, steps: [test, step, ...(rest?.steps ?? [])].slice(0, 7) }];
+  getDb().update(todos).set({ planned: JSON.stringify(planned), updatedAt: new Date().toISOString() }).where(eq(todos.id, v.from.id)).run();
+  emitChange("todos");
+  return getTodo(v.from.id)!;
 }
 
 /** Whether an open todo delivers this branch — now (its operations) or once it's done (its planned steps'). */
@@ -707,7 +703,8 @@ export function markWorkerDone(id: number, by: string, note?: string | null): To
   if (!t) throw new NotFoundError(`Todo ${todoRef(id)} not found.`);
   // A worker's own todo needs no one to close it.
   if (t.byWorker) return setTodoStatus(id, "done", note?.trim() || `Erledigt von ${by}`);
-  const v: NonNullable<TodoView["workerDone"]> = { at: new Date().toISOString(), by: by.slice(0, 100), note: note?.trim().slice(0, 500) || null };
+  // Only a suggestion (a grey tick): ticking it off is yours.
+  const v: NonNullable<TodoView["workerDone"]> = { at: new Date().toISOString(), by: by.slice(0, 100), note: note?.trim().slice(0, 500) || null, suggested: true };
   getDb().update(todos).set({ workerDone: JSON.stringify(v), updatedAt: v.at }).where(eq(todos.id, id)).run();
   emitChange("todos");
   return getTodo(id)!;

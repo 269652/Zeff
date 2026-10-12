@@ -59,6 +59,13 @@ export async function syncGitlab({ background = false } = {}): Promise<{ ok: boo
     } catch {
       // without buttons, then
     }
+    // The feature branches and merge requests of the work on open todos (now synced): linked as their context.
+    try {
+      const { listTodos } = await import("@/lib/boards/store");
+      (await import("@/lib/work/branch-context")).linkBranchContext(listTodos({ status: "open" }).map((x) => x.id));
+    } catch {
+      // without the links, then
+    }
     clearAttention("login:gitlab");
     return record(true, t("{added} new · {total} in all", { added, total }));
   } catch (e) {

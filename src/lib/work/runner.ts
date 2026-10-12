@@ -15,6 +15,7 @@ import { COPILOT_MAX_PROMPT, findCopilotCli, runCopilot } from "@/plugins/copilo
 import { isAiProvider, type AiProvider } from "@/lib/ai/shared";
 import { asksForApproval, opsSettle, todoRef } from "@/lib/boards/shared";
 import type { TodoOp, TodoView } from "@/lib/boards/shared";
+import { linkBranchContext } from "./branch-context";
 import { addFollowUp, addTestedDelivery, addTodoInstruction, getTodo, handOverPlan, setTodoOps } from "@/lib/boards/store";
 import { commentOnMr, openGitlabMr, postGitlabReply } from "@/lib/gitlab/reply";
 import { runTodoOps } from "@/lib/ops";
@@ -665,8 +666,9 @@ Die Commits liegen auf ${r.branch} (dem gewählten Branch) - nichts wird von Zef
       ];
   const text = direct ? `Merge ${r.branch} into ${base} and push` : `Deliver ${r.branch}: push as ${remote}, merge request into ${base}`;
   // First tested by hand — the delivery (its buttons) comes once that's ticked off.
-  const test = addTestedDelivery({ from: todo, workRunId: r.id, source: `Follow-up from ${workRef(r.id)}`, branch: direct ? r.branch : remote, delivery: { text, ops } });
-  return `\n\n${t("Test first: {ref} — then the delivery: {text}", { ref: todoRef(test.id), text })}`;
+  addTestedDelivery({ from: todo, workRunId: r.id, source: `Follow-up from ${workRef(r.id)}`, branch: direct ? r.branch : remote, delivery: { text, ops } });
+  linkBranchContext([todo.id]);
+  return `\n\n${t("Once {ref} is ticked off: test by hand first — then the delivery: {text}", { ref: todoRef(todo.id), text })}`;
 }
 
 /** Runs being finished right now (finishing can wait for Copilot), so a second exit signal doesn't finish them twice. */

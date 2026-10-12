@@ -2,6 +2,7 @@ import type { WorkRun } from "@/db/schema";
 import { isTodoKind, todoRef, type TodoOp } from "@/lib/boards/shared";
 import { addFollowUp, addTodoAiNote, getTodo, listTodos, markWorkerDone, setTodoDraft, setTodoOps, setTodoStatus } from "@/lib/boards/store";
 import { pushedLink } from "./remote";
+import { linkBranchContext } from "./branch-context";
 import { runActions } from "./log";
 import { sameTodo } from "@/lib/boards/similar";
 
@@ -139,5 +140,7 @@ export function applyOutcome(run: WorkRun, res: WorkResult): { closed: number[];
   }
   // Its follow-ups by the same rules as the Ticket-Lage's: waiting ones to "Wartet auf andere", joint ones asking for a time.
   if (added.length) applyTodoRules();
+  // Its feature branch and merge request (as far as GitLab has them) go into the todo's context, linked.
+  linkBranchContext([run.todoId, ...done]);
   return { closed, marked, added, ...(dupes.length ? { dupes } : {}) };
 }
