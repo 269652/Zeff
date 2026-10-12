@@ -13,7 +13,8 @@ import { getJobByNumber } from "@/lib/jobs";
 import { getProject } from "@/lib/projects";
 import { isoDate } from "@/lib/week";
 import { attachTodoContext } from "./booking";
-import { workRef } from "./shared";
+import { workRef, type TimeRecord } from "./shared";
+import { listTodoTimes, markTimeBooked, markTimeSuggested, timesByIds } from "./todo-time";
 
 const { entrySuggestions, workRuns, todos } = schema;
 
@@ -34,6 +35,8 @@ export type SuggestionView = {
   createdAt: string;
   /** Evidence: the todos the work was on… */
   todos: { id: number; ref: string; text: string; status: string }[];
+  /** …the time records it adds up (what the agents reported on them)… */
+  times: TimeRecord[];
   /** …and the work runs it books (who, how long, what they reported). */
   runs: { id: number; ref: string; agent: string; minutes: number | null; outcome: string | null; entryLine: string | null; summary: string | null; startedAt: string | null; finishedAt: string | null }[];
 };
@@ -75,6 +78,7 @@ function toView(r: EntrySuggestion): SuggestionView {
   const todoIds = ids(r.todoIds);
   const runIds = ids(r.runIds);
   const ts = todosByIds(todoIds);
+  const times = timesByIds(ids(r.timeIds));
   // Only what's shown — not a run's prompt, result and git summary (large).
   const runs = runIds.length
     ? getDb()
@@ -101,6 +105,7 @@ function toView(r: EntrySuggestion): SuggestionView {
       const todo = ts.get(id);
       return todo ? [{ id, ref: todoRef(id), text: todo.text, status: todo.status }] : [];
     }),
+    times,
     runs: runs
       .sort((a, b) => (a.startedAt ?? "").localeCompare(b.startedAt ?? ""))
       .map((w) => ({
@@ -118,9 +123,9 @@ function toView(r: EntrySuggestion): SuggestionView {
 }
 
 /** The todos and runs some suggestion has already (open, taken over or skipped) — not suggested again. */
-export function suggestedEvidence(): { todoIds: Set<number>; runIds: Set<number> } {
-  const rows = getDb().select({ todoIds: entrySuggestions.todoIds, runIds: entrySuggestions.runIds }).from(entrySuggestions).all();
-  return { todoIds: new Set(rows.flatMap((r) => ids(r.todoIds))), runIds: new Set(rows.flatMap((r) => ids(r.runIds))) };
+export function suggestedEvidence(): { todoIds: Set<number>; runIds: Set<number>; timeIds: Set<number> } {
+  const rows = getDb().select({ todoIds: entrySuggestions.todoIds, runIds: entrySuggestions.runIds, timeIds: entrySuggestions.timeIds }).from(entrySuggestions).all();
+  return { todoIds: new Set(rows.flatMap((r) => ids(r.todoIds))), runIds: new Set(rows.flatMap((r) => ids(r.runIds))), timeIds: new Set(rows.flatMap((r) => ids(r.timeIds))) };
 }
 
 /** The finished runs on these todos that no booking or suggestion has yet — the work a new suggestion books. */
@@ -134,6 +139,12 @@ export function unsuggestedRuns(todoIds: number[]): number[] {
     .all()
     .map((r) => r.id)
     .filter((id) => !taken.has(id));
+}
+
+/** The time records on these todos that no booking or suggestion has yet. */
+export function unsuggestedTimes(todoIds: number[]): number[] {
+  const taken = suggestedEvidence().timeIds;
+  return listTodoTimes(todoIds, { open: true }).map((r) => r.id).filter((id) => !taken.has(id));
 }
 
 /**
@@ -152,6 +163,7 @@ export function suggestEntry(v: {
   reportedBy?: string | null;
   todoIds?: number[];
   runIds?: number[];
+  timeIds?: number[];
 }): SuggestionView {
   const hours = round2(Number(v.hours));
   if (!(hours > 0) || hours > 24) throw new ValidationError(t("Hours: more than 0, at most 24."));
@@ -161,6 +173,7 @@ export function suggestEntry(v: {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new ValidationError(t("Date: YYYY-MM-DD."));
   const todoIds = [...new Set((v.todoIds ?? []).filter((n) => Number.isInteger(n)))];
   const runIds = [...new Set([...(v.runIds ?? []), ...unsuggestedRuns(todoIds)])];
+  const timeIds = [...new Set([...(v.timeIds ?? []), ...unsuggestedTimes(todoIds)])];
   const now = new Date().toISOString();
   const row = getDb()
     .insert(entrySuggestions)
@@ -176,11 +189,13 @@ export function suggestEntry(v: {
       reportedBy: v.reportedBy?.trim() || "agent",
       todoIds: JSON.stringify(todoIds),
       runIds: JSON.stringify(runIds),
+      timeIds: JSON.stringify(timeIds),
       createdAt: now,
       updatedAt: now,
     })
     .returning()
     .get();
+  markTimeSuggested(timeIds, row.id);
   emitChange("work");
   return toView(row);
 }
@@ -253,7 +268,9 @@ export function updateSuggestion(
 
 /** Take an open suggestion back (made by mistake) — it's gone, its evidence free again. */
 export function withdrawSuggestion(id: number): SuggestionView {
-  const view = toView(requireOpen(id));
+  const row = requireOpen(id);
+  const view = toView(row);
+  markTimeSuggested(ids(row.timeIds), null);
   getDb().delete(entrySuggestions).where(eq(entrySuggestions.id, id)).run();
   emitChange("work");
   return view;
@@ -302,6 +319,7 @@ export function acceptSuggestion(id: number, edits: { hours?: number; descriptio
   );
   const todoIds = ids(r.todoIds);
   const runIds = ids(r.runIds);
+  markTimeBooked(ids(r.timeIds), entry.id);
   if (todoIds.length) {
     getDb().update(todos).set({ entryId: entry.id }).where(and(inArray(todos.id, todoIds), isNull(todos.entryId))).run();
     // Its context: here, or (context: false) by the caller once the booking is answered.

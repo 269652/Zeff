@@ -11,6 +11,7 @@ import { MailBadge, MailDetails } from "./MailBadge";
 import { JiraCommentBadge, JiraCommentDetails, JiraTicketBadge, JiraTicketDetails } from "./JiraBadges";
 import { TeamsMessageBadge, TeamsMessageDetails } from "./TeamsMessageBadge";
 import { TodoBadge, TodoDetails } from "./TodoBadge";
+import { TimeBadge, TimeDetails } from "./TimeBadge";
 import { WorkRunBadge, WorkRunDetails } from "./WorkRunBadge";
 import type { ReorderRow } from "./useReorder";
 import { useT } from "@/components/I18nProvider";
@@ -27,6 +28,7 @@ export function SourceBadge({ entity, resolved, ...rest }: { entity: Sourced; cl
   if (entity.source === "jira") return <JiraTicketBadge t={entity.ticket} {...rest} />;
   if (entity.source === "mail") return <MailBadge m={entity.mail} {...rest} />;
   if (entity.source === "work") return <WorkRunBadge r={entity.run} {...rest} />;
+  if (entity.source === "time") return <TimeBadge r={entity.time} className={rest.className} />;
   if (entity.source === "keep") return <KeepNoteBadge n={entity.note} {...rest} />;
   if (entity.source === "fact") return <FactBadge f={entity.fact} {...rest} />;
   if (entity.source === "document") return <DocBadge d={entity.doc} {...rest} />;
@@ -41,6 +43,7 @@ export function SourceDetails({ entity }: { entity: Sourced }) {
   if (entity.source === "jira") return <JiraTicketDetails t={entity.ticket} />;
   if (entity.source === "mail") return <MailDetails m={entity.mail} />;
   if (entity.source === "work") return <WorkRunDetails r={entity.run} />;
+  if (entity.source === "time") return <TimeDetails r={entity.time} />;
   if (entity.source === "keep") return <KeepNoteDetails n={entity.note} />;
   if (entity.source === "fact") return <FactDetails f={entity.fact} />;
   if (entity.source === "document") return <DocDetails d={entity.doc} />;

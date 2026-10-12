@@ -298,7 +298,7 @@ export function addSource(url: string, entity: Entity, opts: { entryId?: number;
     id = db
       .insert(contexts)
       .values({
-        kind: entity.source === "todo" || entity.source === "work" ? "note" : entity.source === "jira-comment" ? "jira" : entity.source === "mail" ? "email" : entity.source,
+        kind: entity.source === "todo" || entity.source === "work" || entity.source === "time" ? "note" : entity.source === "jira-comment" ? "jira" : entity.source === "mail" ? "email" : entity.source,
         title: null,
         author: author ?? null,
         body: "",

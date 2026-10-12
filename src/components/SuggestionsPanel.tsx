@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { acceptSuggestionAction, skipSuggestionAction } from "@/app/actions";
 import { formatDate, formatDateTime, formatHours, formatTime } from "@/lib/format";
 import type { SuggestionView } from "@/lib/work/suggestions";
+import { formatMinutes } from "@/lib/work/shared";
 import { ChevronIcon } from "./icons";
 import { toast } from "./Toaster";
 import { useT } from "@/components/I18nProvider";
@@ -25,6 +26,17 @@ function Evidence({ s }: { s: SuggestionView }) {
           <span className={todo.status === "open" ? "" : "text-zinc-400 line-through decoration-zinc-300"}>{todo.text}</span>
         </li>
       ))}
+      {s.times.map((r) => (
+        <li key={`m${r.id}`} className="flex gap-1.5">
+          <Link href={`/t/${r.todoId}`} className="shrink-0 font-mono text-violet-600 hover:underline dark:text-violet-400">
+            {r.todo}
+          </Link>
+          <span className="min-w-0">
+            {formatMinutes(r.minutes)}
+            {r.note && <> · {r.note}</>} — {r.source === "hand" ? t("You") : r.by} · {time(r.at)}
+          </span>
+        </li>
+      ))}
       {s.runs.map((r) => (
         <li key={`w${r.id}`} className="flex gap-1.5">
           <Link href={`/work?run=${r.id}`} className="shrink-0 font-mono text-violet-600 hover:underline dark:text-violet-400">
@@ -38,7 +50,7 @@ function Evidence({ s }: { s: SuggestionView }) {
           </span>
         </li>
       ))}
-      {!s.todos.length && !s.runs.length && <li className="text-zinc-400">{t("No evidence — only the agent's word.")}</li>}
+      {!s.todos.length && !s.runs.length && !s.times.length && <li className="text-zinc-400">{t("No evidence — only the agent's word.")}</li>}
     </ul>
   );
 }
@@ -56,7 +68,7 @@ function SuggestionRow({ s }: { s: SuggestionView }) {
       const r = accept ? await acceptSuggestionAction(s.id, { hours, description: text }) : await skipSuggestionAction(s.id);
       toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" });
     });
-  const evidence = s.todos.length + s.runs.length;
+  const evidence = s.todos.length + s.runs.length + s.times.length;
   return (
     <li className="rounded-md border border-dashed border-zinc-300 bg-zinc-50/60 p-3 dark:border-zinc-700 dark:bg-zinc-900/40">
       <div className="grid gap-2 sm:grid-cols-[1fr_auto]">

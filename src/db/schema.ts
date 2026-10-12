@@ -341,6 +341,8 @@ export const entrySuggestions = sqliteTable(
     todoIds: text("todo_ids").notNull().default("[]"),
     /** JSON [work run id]: the runs (with their logs and time) it books. */
     runIds: text("run_ids").notNull().default("[]"),
+    /** JSON [todo_time id]: the time records it covers (what the agents reported on the todos). */
+    timeIds: text("time_ids").notNull().default("[]"),
     /** open | accepted | skipped */
     status: text("status").notNull().default("open"),
     /** Taken over: the entry it became. */
@@ -350,6 +352,37 @@ export const entrySuggestions = sqliteTable(
   },
   (t) => [index("entry_suggestions_status_idx").on(t.status)],
 );
+
+/**
+ * Time reported on a todo: one record per stretch of work (an agent's, through the MCP or a
+ * worker's, or yours by hand) — a todo has many. They add up into the booking suggestion of
+ * the todos that belong together; booked, they are the entry's evidence.
+ */
+export const todoTime = sqliteTable(
+  "todo_time",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    todoId: integer("todo_id").notNull(),
+    minutes: integer("minutes").notNull(),
+    /** One line: what was done in that time. */
+    note: text("note").notNull().default(""),
+    /** Who: the agent's name, or "Du"/"You" by hand. */
+    reportedBy: text("reported_by").notNull().default("agent"),
+    /** The work run it happened in (an agent's, a worker's). */
+    runId: integer("run_id"),
+    /** agent | hand */
+    source: text("source").notNull().default("agent"),
+    /** When the work happened (ISO). */
+    at: text("at").notNull(),
+    createdAt: text("created_at").notNull(),
+    /** The suggestion (S-<id>) that covers it. */
+    suggestionId: integer("suggestion_id"),
+    /** The entry it was booked into; -1: not to be booked. */
+    entryId: integer("entry_id"),
+  },
+  (t) => [index("todo_time_todo_idx").on(t.todoId)],
+);
+export type TodoTime = typeof todoTime.$inferSelect;
 
 export const teamsMessages = sqliteTable(
   "teams_messages",
