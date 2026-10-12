@@ -457,3 +457,69 @@ test("finding feeds by itself: once a day, for a couple of your interests, the b
   assert.ok((await autoDiscover({ now: () => now + 2 * 864e5, find })) >= 0, "the next day it looks again");
   s.setPrefs({ autoDiscover: false });
 });
+
+test("what Zeff knows about you becomes terms (facts, todos, tickets) with where each came from — and lifts the headlines that match, saying why", async () => {
+  const { termsOf } = await import("@/plugins/news/profile");
+  const terms = termsOf({
+    facts: [{ subject: "Nadines Hobby", text: "Nadine fährt gern Rennrad und klettert am Wochenende" }],
+    todos: [{ ref: "T-132", text: "Migration der Datenbank auf Postgres prüfen" }, { ref: "T-140", text: "Postgres Migration testen und Bescheid geben" }],
+    tickets: [{ key: "PROJ-364", summary: "Startseite Titel Kubernetes Cluster" }],
+  });
+  const by = Object.fromEntries(terms.map((t) => [t.term.toLowerCase(), t]));
+  assert.equal(by["nadines hobby"].why, "you: Nadines Hobby");
+  assert.equal(by.postgres.why, "work: T-132", "the first todo that has the word");
+  assert.equal(by.kubernetes.why, "ticket: PROJ-364");
+  assert.ok(!by["prüfen"] && !by.bescheid, "words that are in every todo say nothing");
+  assert.ok(by.postgres.weight >= by.kubernetes.weight, "todos count a bit more than tickets");
+  const base: ScoreContext = { prefs: { interests: [], mutes: [] }, learned: new Map(), work: [], sourceWeight: 1, sourceVotes: 0, now: NOW };
+  const it = { title: "Neue Rennrad-Route im Harz", summary: "Postgres hat nichts damit zu tun", publishedAt: "2026-10-12T10:00:00Z" };
+  const plain = scoreItem(it, base);
+  const known = scoreItem(it, { ...base, profile: [{ term: "Rennrad", weight: 0.8, why: "you: Nadines Hobby" }] });
+  assert.ok(known.score > plain.score);
+  assert.ok(known.reasons.some((r) => r === "profile: Rennrad · you: Nadines Hobby"));
+});
+
+test("the mix: no run of one source, a story from three outlets only once at the top, and every seventh place from something unlike the last", async () => {
+  const { diversify } = await import("@/plugins/news/shared");
+  const mk = (id: number, source: string, category: string, title: string, score: number) => ({ id, sourceName: source, category, title, score });
+  const items = [
+    mk(1, "A", "Tech", "Neue Chips von Intel vorgestellt heute", 9),
+    mk(2, "A", "Tech", "Zweite Meldung von A über Prozessoren", 8.9),
+    mk(3, "A", "Tech", "Dritte Meldung von A über Speicher", 8.8),
+    mk(4, "B", "Tech", "Neue Chips von Intel vorgestellt heute", 8.7),
+    mk(5, "C", "Tech", "Intel stellt neue Chips vor heute", 8.6),
+    mk(6, "D", "Science", "Quantenphysik: ein neues Experiment gelingt", 5),
+    mk(7, "E", "Sport", "Bundesliga: Spieltag Ergebnisse im Überblick", 4),
+    mk(8, "F", "Tech", "Linux Kernel erscheint in neuer Version", 8.5),
+    mk(9, "G", "Tech", "Python bekommt ein neues Feature", 8.4),
+    mk(10, "H", "Tech", "Rust Compiler wird schneller", 8.3),
+  ];
+  const order = diversify(items).map((i) => i.id);
+  assert.equal(order[0], 1);
+  assert.notEqual(order[1], 2, "not the same source twice in a row while others are almost as good");
+  assert.ok(order.indexOf(4) > 3 && order.indexOf(5) > 3, "the same story from other outlets is pushed down");
+  assert.ok(order.slice(0, 7).some((id) => id === 6 || id === 7), "something from outside the usual early on");
+  assert.equal(order.length, items.length);
+  assert.deepEqual(diversify(items).map((i) => i.id), order, "the same every time");
+});
+
+test("For you is mixed when it is on, and pages continue the mix", async () => {
+  const s = await import("@/plugins/news/store");
+  for (const x of s.listSources()) s.removeSource(x.id);
+  const a = s.addSource({ name: "Mix A", url: "https://mix.example/a", category: "Tech" });
+  const b = s.addSource({ name: "Mix B", url: "https://mix.example/b", category: "Sport" });
+  s.setPrefs({ interests: [], mutes: [], diversity: true, useProfile: false, useWork: false });
+  const now = new Date().toISOString();
+  s.addItems({ id: a.id, name: "Mix A" }, Array.from({ length: 12 }, (_, i) => ({ guid: `a${i}`, url: `https://mix.example/a/${i}`, title: `Technikmeldung Nummer ${i} aus Quelle A ${"x".repeat(i)}`, summary: "", publishedAt: now })));
+  s.addItems({ id: b.id, name: "Mix B" }, Array.from({ length: 4 }, (_, i) => ({ guid: `b${i}`, url: `https://mix.example/b/${i}`, title: `Sportmeldung Nummer ${i} aus Quelle B ${"y".repeat(i)}`, summary: "", publishedAt: now })));
+  s.rescore(() => ({ prefs: s.getPrefs(), work: [], sourceWeight: 1, sourceVotes: 0 }));
+  const all = s.listItems({ view: "foryou", limit: 16 });
+  const firstFive = all.slice(0, 5).map((i) => i.sourceName);
+  assert.ok(firstFive.includes("Mix B"), "the other source comes up early, not after twelve of A");
+  const p1 = s.listItems({ view: "foryou", limit: 8 });
+  const p2 = s.listItems({ view: "foryou", limit: 8, offset: 8 });
+  assert.deepEqual([...p1, ...p2].map((i) => i.id), all.map((i) => i.id), "pages are the same mix");
+  s.setPrefs({ diversity: false });
+  assert.equal(s.listItems({ view: "foryou", limit: 16 }).length, 16);
+  s.setPrefs({ diversity: true, useProfile: true, useWork: true });
+});

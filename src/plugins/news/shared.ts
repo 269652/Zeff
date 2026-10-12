@@ -43,6 +43,8 @@ export type NewsItem = {
   state: NewsState;
   vote: -1 | 0 | 1;
   score: number;
+  /** The category of its source ("" for a search or one you added). */
+  category: string;
   /** Why it is up here: "AI ×2", "fresh", "you liked similar …". */
   reasons: string[];
 };
@@ -60,6 +62,10 @@ export type NewsPrefs = {
   topicSearch: boolean;
   /** Boost what your open todos and tickets are about. */
   useWork: boolean;
+  /** Also match what Zeff knows about you (facts, tickets): a headline about a thing you love or work on comes up without being an interest. */
+  useProfile: boolean;
+  /** Mix: no run of one source, no near-duplicates, now and then something from outside your usual. */
+  diversity: boolean;
   /** An AI overview of the best items (needs the LLM plugin). */
   digest: boolean;
   /** Zeff looks for new feeds by itself (once a day, for your interests) and adds the best few. */
@@ -76,7 +82,7 @@ export type NewsPrefs = {
   keepDays: number;
 };
 
-export const DEFAULT_PREFS: NewsPrefs = { interests: [], mutes: [], language: "de", topicSearch: true, useWork: true, digest: false, autoDiscover: false, images: true, prefetch: true, maxAgeDays: 7, perSource: 25, keepDays: 30 };
+export const DEFAULT_PREFS: NewsPrefs = { interests: [], mutes: [], language: "de", topicSearch: true, useWork: true, useProfile: true, diversity: true, digest: false, autoDiscover: false, images: true, prefetch: true, maxAgeDays: 7, perSource: 25, keepDays: 30 };
 
 export type Preset = { name: string; url: string; about: string; lang: "de" | "en" };
 
@@ -164,12 +170,17 @@ const includesTerm = (text: string, term: string): boolean => {
   return text.includes(t);
 };
 
+/** A term of what Zeff knows about you: its weight and where it came from ("work: T-12", "you: Rennrad"). */
+export type ProfileTerm = { term: string; weight: number; why: string };
+
 export type ScoreContext = {
   prefs: Pick<NewsPrefs, "interests" | "mutes">;
   /** What you liked / disliked before: word → score. */
   learned: Map<string, number>;
   /** Words of your open todos and tickets. */
   work: string[];
+  /** What Zeff knows about you, as terms with where each came from. */
+  profile?: ProfileTerm[];
   /** The source's weight and its votes. */
   sourceWeight: number;
   sourceVotes: number;
@@ -215,6 +226,13 @@ export function scoreItem(item: { title: string; summary: string; publishedAt: s
     reasons.push(`work: ${work.slice(0, 2).join(", ")}`);
   }
 
+  // What Zeff knows about you: facts, tickets, todos — a lift with the reason named.
+  const known = (ctx.profile ?? []).filter((p) => includesTerm(text, p.term));
+  if (known.length) {
+    score += Math.min(4, known.reduce((a, p) => a + p.weight * 1.2, 0));
+    for (const p of known.slice(0, 2)) reasons.push(`profile: ${p.term} · ${p.why}`);
+  }
+
   // The source you trust (and its votes) scales what is good about the item, not what isn't.
   const trust = Math.max(0.4, ctx.sourceWeight * (1 + Math.max(-0.5, Math.min(0.5, ctx.sourceVotes / 10))));
   score = score > 0 ? score * trust : score;
@@ -240,6 +258,45 @@ export function snippetOf(text: string, max = 320): string {
   if (out.length <= max) return out;
   const cut = out.slice(0, max);
   return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), max * 0.7))}…`;
+}
+
+/**
+ * The order of a feed for reading: by score, but mixed — no run of one source, no near-duplicate of what is just above
+ * (the same story from three outlets), no long stretch of one category, and every seventh place goes to something from
+ * outside what the last items were (exploration: the best of a category not seen lately). Deterministic for the same items.
+ */
+export function diversify<T extends { id: number; title: string; score: number; sourceName: string; category: string }>(items: T[]): T[] {
+  const pool = [...items];
+  const out: T[] = [];
+  const toks = new Map<number, Set<string>>();
+  const tok = (i: T) => toks.get(i.id) ?? (toks.set(i.id, new Set(tokens(i.title))), toks.get(i.id)!);
+  const same = (a: Set<string>, b: Set<string>) => {
+    if (a.size < 3 || b.size < 3) return false;
+    let n = 0;
+    for (const w of a) if (b.has(w)) n++;
+    return n / (a.size + b.size - n) >= 0.5;
+  };
+  while (pool.length) {
+    const explore = out.length > 0 && out.length % 7 === 6;
+    const lastCats = out.slice(-6).map((i) => i.category || i.sourceName);
+    let best = -Infinity;
+    let bestAt = 0;
+    for (let k = 0; k < Math.min(pool.length, 120); k++) {
+      const it = pool[k];
+      let eff = it.score;
+      eff -= 1.6 * out.slice(-4).filter((o) => o.sourceName === it.sourceName).length;
+      if (it.category) eff -= 0.9 * out.slice(-3).filter((o) => o.category === it.category).length;
+      const a = tok(it);
+      if (out.slice(-12).some((o) => same(a, tok(o)))) eff -= 5;
+      if (explore) eff = it.score > -50 && !lastCats.includes(it.category || it.sourceName) ? it.score + 2 : -Infinity;
+      if (eff > best) {
+        best = eff;
+        bestAt = k;
+      }
+    }
+    out.push(pool.splice(best === -Infinity ? 0 : bestAt, 1)[0]);
+  }
+  return out;
 }
 
 /** Items per page (infinite scroll loads this many at a time). */

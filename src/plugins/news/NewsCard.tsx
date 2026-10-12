@@ -99,7 +99,7 @@ export function NewsCard({ item, ago, showImage, onChange }: { item: NewsItem; a
           <p className="flex flex-wrap gap-1 text-[11px] text-zinc-500">
             {item.reasons.slice(0, 4).map((r) => (
               <span key={r} className="rounded bg-zinc-100 px-1.5 py-0.5 dark:bg-zinc-800">
-                {r.startsWith("like ") ? t("like {words}", { words: r.slice(5) }) : r.startsWith("work: ") ? t("your work: {words}", { words: r.slice(6) }) : r === "fresh" ? t("fresh") : r}
+                {r.startsWith("like ") ? t("like {words}", { words: r.slice(5) }) : r.startsWith("work: ") ? t("your work: {words}", { words: r.slice(6) }) : r.startsWith("profile: ") ? `✨ ${r.slice(9).replace(/^([^·]+) · (.*)$/, (_m, term: string, why: string) => `${term} (${why.replace(/^work: /, t("your work") + " ").replace(/^you: /, "").replace(/^ticket: /, t("ticket") + " ")})`)}` : r === "fresh" ? t("fresh") : r}
               </span>
             ))}
           </p>

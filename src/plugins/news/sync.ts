@@ -1,7 +1,7 @@
 import { parseFeed } from "./feed";
 import { fetchArticle, type Article } from "./reader";
 import { addItems, dueForFetch, fetchState, getPrefs, listSources, prune, recordFetch, rescore, setContent, setFetchState, UNREADABLE, withoutContent } from "./store";
-import { tokens, topicFeedUrl } from "./shared";
+import { tokens, topicFeedUrl, type ProfileTerm } from "./shared";
 
 /**
  * The News sync: every enabled source (and one Google News search per interest, if you want those)
@@ -14,6 +14,8 @@ export type NewsSyncDeps = {
   fetchFeed?: (url: string) => Promise<{ text: string | null }>;
   /** Words your open todos are about (default: read from the todos). */
   work?: () => string[];
+  /** What Zeff knows about you (default: facts, todos, tickets). */
+  profile?: () => ProfileTerm[];
   now?: () => number;
   /** An article's page read (default: the reader; tests give their own). */
   fetchArticle?: (url: string) => Promise<Article>;
@@ -65,13 +67,14 @@ async function pool<T>(list: T[], n: number, fn: (x: T) => Promise<void>): Promi
 }
 
 /** Everything recent scored again — after a sync, or when your interests, votes or sources changed. */
-export async function rescoreAll(opts: { work?: () => string[]; nowMs?: number } = {}): Promise<number> {
+export async function rescoreAll(opts: { work?: () => string[]; profile?: () => ProfileTerm[]; nowMs?: number } = {}): Promise<number> {
   const prefs = getPrefs();
   const work = prefs.useWork ? await (opts.work ? Promise.resolve(opts.work()) : workWords()) : [];
+  const profile = prefs.useProfile ? await (opts.profile ? Promise.resolve(opts.profile()) : (await import("./profile")).profileTerms()) : [];
   const byId = new Map(listSources().map((s) => [s.id, s]));
   return rescore((item) => {
     const s = item.sourceId ? byId.get(item.sourceId) : undefined;
-    return { prefs, work, sourceWeight: s?.weight ?? 1, sourceVotes: s?.votes ?? 0 };
+    return { prefs, work, profile, sourceWeight: s?.weight ?? 1, sourceVotes: s?.votes ?? 0 };
   }, opts.nowMs);
 }
 
@@ -119,7 +122,7 @@ export async function syncNews(deps: NewsSyncDeps = {}): Promise<{ ok: boolean; 
     }
   });
 
-  await rescoreAll({ work: deps.work, nowMs });
+  await rescoreAll({ work: deps.work, profile: deps.profile, nowMs });
   prune(prefs.keepDays);
 
   // Reading ahead: the best unread items' whole text, so they open at once (a page that can't be read is marked, not retried).

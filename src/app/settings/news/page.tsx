@@ -10,6 +10,7 @@ import { CatalogBrowser } from "@/plugins/news/CatalogBrowser";
 import { discoveries } from "@/plugins/news/auto-discover";
 import { FeedFinder } from "@/plugins/news/FeedFinder";
 import { formatInterests } from "@/plugins/news/shared";
+import { profileTerms } from "@/plugins/news/profile";
 import { getPrefs, listSources } from "@/plugins/news/store";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -25,6 +26,7 @@ export default async function NewsSettingsPage({ searchParams }: { searchParams:
   const sp = await searchParams;
   const prefs = getPrefs();
   const sources = listSources();
+  const profile = prefs.useProfile ? await profileTerms() : [];
   const have = new Set(sources.map((s) => s.url));
 
   return (
@@ -111,6 +113,21 @@ export default async function NewsSettingsPage({ searchParams }: { searchParams:
               <span>
                 {t("Read ahead")}
                 <span className="block text-xs text-zinc-500">{t("After each fetch Zeff reads the whole text of the best unread items from their pages, so they open here at once. Pages behind a paywall can't be read.")}</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2">
+              <input type="checkbox" name="useProfile" defaultChecked={prefs.useProfile} className="mt-1" />
+              <span>
+                {t("Use what Zeff knows about me")}
+                <span className="block text-xs text-zinc-500">{t("Your facts, open todos and tickets are matched against the headlines — a story about a hobby you noted, or the thing you work on, comes up without being an interest. Compared on this PC; nothing is sent.")}</span>
+                {profile.length > 0 && <span className="mt-1 block text-xs text-zinc-400">{t("Right now: {terms}", { terms: profile.slice(0, 14).map((p) => p.term).join(", ") })}</span>}
+              </span>
+            </label>
+            <label className="flex items-start gap-2">
+              <input type="checkbox" name="diversity" defaultChecked={prefs.diversity} className="mt-1" />
+              <span>
+                {t("Mix it up")}
+                <span className="block text-xs text-zinc-500">{t("No run of one source, the same story from several outlets only once near the top, and every seventh place from something unlike what came before — so the feed stays varied while it learns.")}</span>
               </span>
             </label>
             <label className="flex items-start gap-2">

@@ -237,6 +237,8 @@ export async function savePrefsFormAction(fd: FormData): Promise<void> {
       language: language === "en" || language === "any" ? language : "de",
       topicSearch: fd.get("topicSearch") === "on",
       useWork: fd.get("useWork") === "on",
+      useProfile: fd.get("useProfile") === "on",
+      diversity: fd.get("diversity") === "on",
       digest: fd.get("digest") === "on",
       autoDiscover: fd.get("autoDiscover") === "on",
       images: fd.get("images") === "on",

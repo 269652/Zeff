@@ -4057,5 +4057,12 @@
   "Searching the internet …": "Durchsuche das Internet …",
   "Looking up who writes about it, asking the AI for outlets, and checking each site's feeds — about 20 seconds.": "Schlägt nach, wer darüber schreibt, fragt die KI nach Medien und prüft die Feeds jeder Seite – etwa 20 Sekunden.",
   "Found nothing new for that.": "Dazu nichts Neues gefunden.",
-  "suggested by the AI": "von der KI vorgeschlagen"
+  "suggested by the AI": "von der KI vorgeschlagen",
+  "your work": "deine Arbeit",
+  "ticket": "Ticket",
+  "Use what Zeff knows about me": "Nutzen, was Zeff über mich weiß",
+  "Your facts, open todos and tickets are matched against the headlines — a story about a hobby you noted, or the thing you work on, comes up without being an interest. Compared on this PC; nothing is sent.": "Deine Fakten, offenen Todos und Tickets werden mit den Überschriften verglichen – eine Meldung zu einem notierten Hobby oder zu dem, woran du arbeitest, kommt hoch, ohne dass es ein Interesse sein muss. Der Vergleich läuft auf diesem PC; nichts wird gesendet.",
+  "Right now: {terms}": "Gerade: {terms}",
+  "Mix it up": "Durchmischen",
+  "No run of one source, the same story from several outlets only once near the top, and every seventh place from something unlike what came before — so the feed stays varied while it learns.": "Keine Reihe von einer Quelle, dieselbe Geschichte von mehreren Medien nur einmal weit oben und jeder siebte Platz von etwas, das sich von davor unterscheidet – so bleibt der Feed abwechslungsreich, während er lernt."
 }

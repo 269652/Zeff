@@ -1,6 +1,6 @@
 import { getSqlite } from "@/db";
 import { getPref, setPref } from "@/lib/prefs";
-import { DEFAULT_PREFS, normalizeUrl, scoreItem, snippetOf, titleKey, tokens, type NewsItem, type NewsPrefs, type NewsSource, type NewsState, type ScoreContext } from "./shared";
+import { DEFAULT_PREFS, diversify, normalizeUrl, scoreItem, snippetOf, titleKey, tokens, type NewsItem, type NewsPrefs, type NewsSource, type NewsState, type ScoreContext } from "./shared";
 import type { FeedItem } from "./feed";
 
 /**
@@ -156,9 +156,10 @@ export function prune(keepDays: number): number {
   return db().prepare("delete from news_items where state != 'saved' and published_at < ?").run(new Date(Date.now() - keepDays * 864e5).toISOString()).changes;
 }
 
-type IRow = { id: number; source_id: number | null; source_name: string; url: string; title: string; summary: string; image: string; has_content: number; published_at: string; state: string; vote: number; score: number; reasons: string };
+type IRow = { id: number; category: string; source_id: number | null; source_name: string; url: string; title: string; summary: string; image: string; has_content: number; published_at: string; state: string; vote: number; score: number; reasons: string };
 /** The columns of a list (not the whole articles: only whether one is kept). */
-const ICOLS = "id, source_id, source_name, url, title, summary, image, length(content) > 1 as has_content, published_at, state, vote, score, reasons";
+const ICOLS = "i.id, coalesce(s.category, '') as category, i.source_id, i.source_name, i.url, i.title, i.summary, i.image, length(i.content) > 1 as has_content, i.published_at, i.state, i.vote, i.score, i.reasons";
+const IFROM = "news_items i left join news_sources s on s.id = i.source_id";
 const toItem = (r: IRow): NewsItem => ({
   id: r.id,
   sourceId: r.source_id,
@@ -166,6 +167,7 @@ const toItem = (r: IRow): NewsItem => ({
   url: r.url,
   title: r.title,
   summary: r.summary,
+  category: r.category,
   image: r.image === "-" ? "" : r.image,
   imageChecked: r.image !== "",
   hasContent: !!r.has_content,
@@ -189,27 +191,33 @@ export function listItems(opts: { view?: NewsView; sourceId?: number; category?:
   const view = opts.view ?? "foryou";
   const where: string[] = [];
   const args: (string | number)[] = [];
-  if (view === "saved") where.push("state = 'saved'");
-  else if (view === "hidden") where.push("state = 'hidden'");
+  if (view === "saved") where.push("i.state = 'saved'");
+  else if (view === "hidden") where.push("i.state = 'hidden'");
   else {
-    where.push("state != 'hidden'", "score > -50", "published_at > ?");
+    where.push("i.state != 'hidden'", "i.score > -50", "i.published_at > ?");
     args.push(new Date(Date.now() - (opts.maxAgeDays ?? 7) * 864e5).toISOString());
   }
   if (opts.sourceId) {
-    where.push("source_id = ?");
+    where.push("i.source_id = ?");
     args.push(opts.sourceId);
   }
   if (opts.category) {
-    where.push("source_id in (select id from news_sources where category = ?)");
+    where.push("s.category = ?");
     args.push(opts.category);
   }
-  const order = view === "foryou" ? "score desc, published_at desc" : "published_at desc";
-  const rows = db().prepare(`select ${ICOLS} from news_items where ${where.map((w) => `(${w})`).join(" and ")} order by ${order}, id desc limit ? offset ?`).all(...args, opts.limit ?? 60, opts.offset ?? 0) as IRow[];
-  return rows.map(toItem);
+  const order = view === "foryou" ? "i.score desc, i.published_at desc" : "i.published_at desc";
+  const sql = `select ${ICOLS} from ${IFROM} where ${where.map((w) => `(${w})`).join(" and ")} order by ${order}, i.id desc limit ? offset ?`;
+  // For you is mixed (diversify) — the mix is made of the best 600 and then paged, so a page continues the one before.
+  if (view === "foryou" && getPrefs().diversity) {
+    const mixed = diversify((db().prepare(sql).all(...args, 600, 0) as IRow[]).map(toItem));
+    const from = opts.offset ?? 0;
+    return mixed.slice(from, from + (opts.limit ?? 60));
+  }
+  return (db().prepare(sql).all(...args, opts.limit ?? 60, opts.offset ?? 0) as IRow[]).map(toItem);
 }
 
 export function getItem(id: number): NewsItem | null {
-  const r = db().prepare(`select ${ICOLS} from news_items where id = ?`).get(id) as IRow | undefined;
+  const r = db().prepare(`select ${ICOLS} from ${IFROM} where i.id = ?`).get(id) as IRow | undefined;
   return r ? toItem(r) : null;
 }
 
