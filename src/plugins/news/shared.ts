@@ -82,7 +82,7 @@ export type NewsPrefs = {
   keepDays: number;
 };
 
-export const DEFAULT_PREFS: NewsPrefs = { interests: [], mutes: [], language: "de", topicSearch: true, useWork: true, useProfile: true, diversity: true, digest: false, autoDiscover: false, images: true, prefetch: true, maxAgeDays: 7, perSource: 25, keepDays: 30 };
+export const DEFAULT_PREFS: NewsPrefs = { interests: [], mutes: [], language: "de", topicSearch: true, useWork: true, useProfile: true, diversity: true, digest: false, autoDiscover: true, images: true, prefetch: true, maxAgeDays: 7, perSource: 25, keepDays: 30 };
 
 export type Preset = { name: string; url: string; about: string; lang: "de" | "en" };
 

@@ -8,6 +8,7 @@ import { isInstalled } from "@/plugins/state";
 import { AskNews } from "@/plugins/news/AskNews";
 import { ListenButton } from "@/plugins/news/Listen";
 import { NewsFeed } from "@/plugins/news/NewsFeed";
+import { StartNews } from "@/plugins/news/RefreshButton";
 import { NewsRefreshButtons } from "@/plugins/news/RefreshButton";
 import { getDigest } from "@/plugins/news/digest";
 import { NEWS_PAGE } from "@/plugins/news/shared";
@@ -126,7 +127,8 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
         {items.length === 0 ? (
           <div className="card space-y-2 p-6 text-sm text-zinc-500">
             {sources.length === 0 && prefs.interests.length === 0 ? (
-              <p>
+              <p className="space-y-2">
+                <StartNews />
                 {t("Nothing here yet. Pick some sources and say what interests you under")}{" "}
                 <Link href="/settings/news" className="text-indigo-600 hover:underline dark:text-indigo-400">
                   {t("News settings")}

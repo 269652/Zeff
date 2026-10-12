@@ -132,7 +132,8 @@ export function startSyncScheduler(): void {
   const syncTurn = async () => {
     // A plugin's job only while the plugin is installed.
     const { stepAvailable } = await import("@/plugins/state");
-    for (const job of quietAt() ? [] : jobs.filter((j) => stepAvailable(j.name))) {
+    // In the quiet hours (19:00–08:00) only the news goes on: public feeds, no load on anything, and it should be fresh in the morning.
+    for (const job of jobs.filter((j) => stepAvailable(j.name) && (!quietAt() || j.name === "news"))) {
       try {
         if (!due(job.settings())) continue;
         const r = await runStoppable(job.name, job.run);

@@ -132,6 +132,32 @@ export function addItems(source: { id: number | null; name: string }, items: Fee
   return added;
 }
 
+/** The words you liked most (headline words of liked items): implicit interests, strongest first. */
+export function learnedTop(limit = 10, min = 1): { term: string; score: number }[] {
+  return (db().prepare("select term, score from news_terms where score >= ? order by score desc, term limit ?").all(min, limit) as { term: string; score: number }[]);
+}
+
+/**
+ * Sources whose items you keep disliking are paused by themselves (net votes of −3 or worse): they stop coming, and the
+ * source says why — resume it in the settings if that was too quick. Returns the names paused.
+ */
+export function pauseDisliked(threshold = -3): string[] {
+  const d = db();
+  const rows = d.prepare("select id, name from news_sources where enabled = 1 and votes <= ?").all(threshold) as { id: number; name: string }[];
+  for (const r of rows) d.prepare("update news_sources set enabled = 0, last_error = ? where id = ?").run("paused by Zeff: you disliked its items", r.id);
+  return rows.map((r) => r.name);
+}
+
+/** How many visible items were fetched after `sinceIso` (the page shows "N new"). */
+export function countNewSince(sinceIso: string): number {
+  return (db().prepare("select count(*) n from news_items i left join news_sources s on s.id = i.source_id where i.fetched_at > ? and i.state = 'new' and i.score > -50 and (i.source_id is null or s.enabled = 1)").get(sinceIso) as { n: number }).n;
+}
+
+/** When the news were fetched last (a source's last fetch). */
+export function lastFetchAt(): string | null {
+  return (db().prepare("select max(last_at) m from news_sources").get() as { m: string | null }).m;
+}
+
 export function learnedTerms(): Map<string, number> {
   return new Map((db().prepare("select term, score from news_terms").all() as { term: string; score: number }[]).map((r) => [r.term, r.score]));
 }
@@ -194,7 +220,8 @@ export function listItems(opts: { view?: NewsView; sourceId?: number; category?:
   if (view === "saved") where.push("i.state = 'saved'");
   else if (view === "hidden") where.push("i.state = 'hidden'");
   else {
-    where.push("i.state != 'hidden'", "i.score > -50", "i.published_at > ?");
+    // (a paused or removed source's items are out of the lists; what you saved stays)
+    where.push("i.state != 'hidden'", "i.score > -50", "i.published_at > ?", "(i.source_id is null or s.enabled = 1)");
     args.push(new Date(Date.now() - (opts.maxAgeDays ?? 7) * 864e5).toISOString());
   }
   if (opts.sourceId) {

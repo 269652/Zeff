@@ -4071,5 +4071,18 @@
   "Listen": "Anhören",
   "Ask your news": "Frag deine Nachrichten",
   "e.g. What is new in quantum computing this week?": "z. B. Was gibt es diese Woche Neues zu Quantencomputern?",
-  "Reading the news …": "Lese die Nachrichten …"
+  "Reading the news …": "Lese die Nachrichten …",
+  "{source} paused — none of its news will show.": "{source} pausiert – seine Nachrichten werden nicht mehr gezeigt.",
+  "{source} removed.": "{source} entfernt.",
+  "No more searches for “{topic}”.": "Keine Suchen mehr nach „{topic}“.",
+  "Stop this feed …": "Diesen Feed stoppen …",
+  "The search “{topic}” brought this.": "Die Suche nach „{topic}“ hat das gebracht.",
+  "From {source}.": "Von {source}.",
+  "Stop this topic": "Dieses Thema beenden",
+  "Its news stop showing; you can resume it in the settings": "Seine Nachrichten werden nicht mehr gezeigt; in den Einstellungen kannst du es fortsetzen",
+  "Pause this feed": "Diesen Feed pausieren",
+  "Remove this feed": "Diesen Feed entfernen",
+  "Start with the starter pack": "Mit dem Starterpaket beginnen",
+  "{n} sources added — fetching their news in the background.": "{n} Quellen hinzugefügt – ihre Nachrichten werden im Hintergrund geholt.",
+  "{n} new — show": "{n} neu – anzeigen"
 }

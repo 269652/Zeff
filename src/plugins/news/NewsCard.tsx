@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { ListenButton } from "./Listen";
-import { newsReadAction, newsStateAction, newsVoteAction } from "./server-actions";
+import { newsReadAction, newsSourceAction, newsStateAction, newsTopicAction, newsVoteAction } from "./server-actions";
 import type { NewsItem } from "./shared";
 
 /** The pages of the cards in view are looked at three at a time (a route: server actions would wait in one queue). */
@@ -29,10 +29,29 @@ async function peek(id: number): Promise<{ ok: boolean; image: string; hasConten
  * from and how old it is, a short text — or the whole article, read here — why it is up here, and the buttons that teach
  * Zeff your taste (👍 👎), keep it (save) or put it away (hide). `onChange` tells the feed what changed, so it updates in place.
  */
-export function NewsCard({ item, ago, showImage, onChange }: { item: NewsItem; ago: string; showImage: boolean; onChange: (patch: Partial<NewsItem>) => void }) {
+export function NewsCard({ item, ago, showImage, onChange, onDrop }: { item: NewsItem; ago: string; showImage: boolean; onChange: (patch: Partial<NewsItem>) => void; /** The feed this card is from is off: all its cards leave. */ onDrop: (gone: (i: NewsItem) => boolean) => void }) {
   const t = useT();
   const [pending, start] = useTransition();
   const [broken, setBroken] = useState(false);
+  const [menu, setMenu] = useState(false);
+  // A topic search's card ("Google News: term") has no source of its own: its feed is the search.
+  const topic = !item.sourceId && item.sourceName.startsWith("Google News: ") ? item.sourceName.slice(13) : "";
+  const stop = (mode: "pause" | "remove") =>
+    start(async () => {
+      const r = await newsSourceAction(item.sourceId!, mode);
+      if (!r.ok) return void toast(r.error ?? t("Didn't work."), { tone: "error" });
+      setMenu(false);
+      onDrop((i) => i.sourceId === item.sourceId);
+      toast(mode === "pause" ? t("{source} paused — none of its news will show.", { source: item.sourceName }) : t("{source} removed.", { source: item.sourceName }), mode === "pause" ? { action: { label: t("Undo"), run: () => void newsSourceAction(item.sourceId!, "resume").then(() => window.location.reload()) } } : {});
+    });
+  const stopTopic = () =>
+    start(async () => {
+      const r = await newsTopicAction(topic, "stop");
+      if (!r.ok) return void toast(r.error ?? t("Didn't work."), { tone: "error" });
+      setMenu(false);
+      onDrop((i) => i.sourceName === item.sourceName);
+      toast(t("No more searches for “{topic}”.", { topic }), { action: { label: t("Undo"), run: () => void newsTopicAction(topic, "back").then(() => window.location.reload()) } });
+    });
   const card = useRef<HTMLElement>(null);
   // A picture to look for, or no summary of its own (a feed that only links): the page is read for it, once.
   const wantsPicture = (showImage && !item.image && !item.imageChecked) || (!item.summary && !item.hasContent);
@@ -126,10 +145,34 @@ export function NewsCard({ item, ago, showImage, onChange }: { item: NewsItem; a
           >
             🔖
           </button>
+          {(item.sourceId || topic) && (
+            <button type="button" className={btn(menu)} disabled={pending} title={t("Stop this feed …")} aria-expanded={menu} onClick={() => setMenu(!menu)}>
+              ⋯
+            </button>
+          )}
           <button type="button" className="btn btn-sm" disabled={pending} title={item.state === "hidden" ? t("Show again") : t("Hide")} onClick={() => run(() => newsStateAction(item.id, item.state === "hidden" ? "new" : "hidden"), { state: item.state === "hidden" ? "new" : "hidden" })}>
             {item.state === "hidden" ? "↩" : "✕"}
           </button>
         </div>
+        {menu && (
+          <div className="flex flex-wrap items-center gap-2 rounded border border-zinc-200 bg-zinc-50 p-2 text-xs dark:border-zinc-700 dark:bg-zinc-900">
+            <span className="text-zinc-600 dark:text-zinc-300">{topic ? t("The search “{topic}” brought this.", { topic }) : t("From {source}.", { source: item.sourceName })}</span>
+            {topic ? (
+              <button type="button" className="btn btn-sm" disabled={pending} onClick={stopTopic}>
+                {t("Stop this topic")}
+              </button>
+            ) : (
+              <>
+                <button type="button" className="btn btn-sm" disabled={pending} onClick={() => stop("pause")} title={t("Its news stop showing; you can resume it in the settings")}>
+                  {t("Pause this feed")}
+                </button>
+                <button type="button" className="btn btn-sm" disabled={pending} onClick={() => stop("remove")} title={t("Removes the source and its items (saved ones stay)")}>
+                  {t("Remove this feed")}
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </article>
   );

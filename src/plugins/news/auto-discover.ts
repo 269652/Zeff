@@ -1,6 +1,6 @@
 import { getPref, setPref } from "@/lib/prefs";
 import { findFeeds, type FinderDeps } from "./finder";
-import { addSource, getPrefs, listSources } from "./store";
+import { addSource, getPrefs, learnedTop, listSources } from "./store";
 
 /**
  * Finding feeds by itself: once a day (when it is on), for two of your interests — different ones each day — the finder
@@ -16,13 +16,16 @@ const DAY = 864e5;
 export async function autoDiscover(deps: { now?: () => number; find?: typeof findFeeds; finder?: FinderDeps; perTopic?: number; topics?: number } = {}): Promise<number> {
   const prefs = getPrefs();
   const nowMs = (deps.now ?? Date.now)();
-  if (!prefs.autoDiscover || !prefs.interests.length) return 0;
+  if (!prefs.autoDiscover) return 0;
+  // What to look for: your interests, and what you have liked (the words of the headlines you gave a 👍 — it adapts to you).
+  const wanted = [...prefs.interests.map((i) => ({ term: i.term, weight: i.weight })), ...learnedTop(8).filter((l) => !prefs.interests.some((i) => i.term.toLowerCase() === l.term)).map((l) => ({ term: l.term, weight: Math.min(3, l.score / 2) }))];
+  if (!wanted.length) return 0;
   const last = Number(getPref<number>("news:autodiscover-at", 0));
   if (nowMs - last < DAY * 0.9) return 0;
   setPref("news:autodiscover-at", nowMs); // (also when it finds nothing: tomorrow again, not at every sync)
 
   const day = Math.floor(nowMs / DAY);
-  const ranked = [...prefs.interests].sort((a, b) => b.weight - a.weight);
+  const ranked = wanted.sort((a, b) => b.weight - a.weight);
   const topics = Array.from({ length: Math.min(deps.topics ?? 2, ranked.length) }, (_, i) => ranked[(day * 2 + i) % ranked.length]);
   const hostOf = (u: string) => {
     try {

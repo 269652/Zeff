@@ -160,11 +160,39 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, s
     return [shuffled.filter((_, i) => i % 2 === 0).slice(0, 10), shuffled.filter((_, i) => i % 2 === 1).slice(0, 10)];
   }, [items]);
 
+  // A card's feed was switched off: all its cards leave.
+  const drop = (gone: (i: NewsItem) => boolean) => setItems((cur) => cur.filter((i) => !gone(i)));
+
+  // New items arrive in the background (the sync runs by itself): an open page says how many, and shows them on a click.
+  const loadedAt = useRef(new Date().toISOString());
+  const [fresh, setFresh] = useState(0);
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const r = await fetch(`/api/news/new?since=${encodeURIComponent(loadedAt.current)}`);
+        if (r.ok) setFresh(((await r.json()) as { count?: number }).count ?? 0);
+      } catch {
+        // offline: later
+      }
+    };
+    const timer = setInterval(poll, 90_000);
+    const first = setTimeout(poll, 5000);
+    return () => {
+      clearInterval(timer);
+      clearTimeout(first);
+    };
+  }, []);
+
   const patch = (id: number, p: Partial<NewsItem>) =>
     setItems((cur) => cur.flatMap((i) => (i.id !== id ? [i] : view !== "hidden" && p.state === "hidden" ? [] : view === "saved" && p.state && p.state !== "saved" ? [] : [{ ...i, ...p }])));
 
   return (
     <div ref={box} className="space-y-4">
+      {fresh > 0 && (
+        <button type="button" className="btn btn-primary btn-sm sticky top-2 z-30 mx-auto block shadow" onClick={() => window.location.reload()}>
+          ↑ {t("{n} new — show", { n: fresh })}
+        </button>
+      )}
       <div className="flex justify-end">
         <button type="button" className={`btn btn-sm ${focus ? "btn-primary" : ""}`} onClick={() => setFocus(!focus)} title={focus ? t("Back to the columns (Esc)") : t("One column to read, like a phone feed")} aria-pressed={focus}>
           {focus ? t("Leave focus") : t("Focus")}
@@ -176,7 +204,7 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, s
           {/* The middle column holds all the news, a little bigger. */}
           <div className="space-y-4" style={{ zoom: 1.06 }}>
             {items.map((it) => (
-              <NewsCard key={it.id} item={it} ago={ago[it.id] ?? ""} showImage={showImages} onChange={(p) => patch(it.id, p)} />
+              <NewsCard key={it.id} item={it} ago={ago[it.id] ?? ""} showImage={showImages} onChange={(p) => patch(it.id, p)} onDrop={drop} />
             ))}
           </div>
           {wide && <FocusSide items={sides[1]} showImage={showImages} />}
@@ -186,7 +214,7 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, s
           {columns.map((col, k) => (
             <div key={k} className="min-w-0 flex-1 space-y-3">
               {col.map((it) => (
-                <NewsCard key={it.id} item={it} ago={ago[it.id] ?? ""} showImage={showImages} onChange={(p) => patch(it.id, p)} />
+                <NewsCard key={it.id} item={it} ago={ago[it.id] ?? ""} showImage={showImages} onChange={(p) => patch(it.id, p)} onDrop={drop} />
               ))}
             </div>
           ))}

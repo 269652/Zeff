@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { before } from "node:test";
 import { parseFeed, decodeEntities, feedTitle } from "@/plugins/news/feed";
 import { formatInterests, normalizeUrl, parseInterests, parseMutes, scoreItem, titleKey, topicFeedUrl, type ScoreContext } from "@/plugins/news/shared";
 import { setupTempData } from "./helpers";
 
 setupTempData();
+
+// Finding feeds by itself is on by default; these tests must not go to the internet for it (the one that tests it turns it on).
+before(async () => {
+  (await import("@/plugins/news/store")).setPrefs({ autoDiscover: false });
+});
 
 const RSS = `<?xml version="1.0"?><rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/"><channel><title>Mein Feed</title>
 <image><title>Logo</title></image>
@@ -575,4 +580,75 @@ test("listening: long texts are read in pieces of sentences", async () => {
   assert.ok(parts.length > 3 && parts.every((p) => p.length <= 220 * 1.6), parts.map((p) => p.length).join());
   assert.equal(parts[parts.length - 1], "Noch ein Absatz.");
   assert.deepEqual(chunks(""), []);
+});
+
+const wipe = async () => (await import("@/db")).getSqlite().exec("delete from news_items; delete from news_terms");
+
+test("it adapts: a source whose items you keep disliking is paused by itself, one you like stays, paused sources' news leave the lists", async () => {
+  const s = await import("@/plugins/news/store");
+  for (const x of s.listSources()) s.removeSource(x.id);
+  await wipe();
+  const bad = s.addSource({ name: "Clickbait", url: "https://adapt.example/bad" });
+  const good = s.addSource({ name: "Gut", url: "https://adapt.example/good" });
+  const base = { summary: "", publishedAt: new Date().toISOString() };
+  s.addItems({ id: bad.id, name: "Clickbait" }, ["Skandal um Skandal Eins", "Skandal um Skandal Zwei", "Skandal um Skandal Drei", "Skandal um Skandal Vier"].map((title, i) => ({ ...base, guid: `b${i}`, url: `https://adapt.example/bad/${i}`, title })));
+  s.addItems({ id: good.id, name: "Gut" }, [{ ...base, guid: "g", url: "https://adapt.example/good/1", title: "Solide Analyse der Lage" }]);
+  s.setPrefs({ interests: [], mutes: [], useProfile: false, useWork: false, diversity: false });
+  s.rescore(() => ({ prefs: s.getPrefs(), work: [], sourceWeight: 1, sourceVotes: 0 }));
+  for (const it of s.listItems({ view: "latest", sourceId: bad.id })) s.vote(it.id, -1);
+  s.vote(s.listItems({ view: "latest", sourceId: good.id })[0].id, 1);
+  assert.deepEqual(s.pauseDisliked(), ["Clickbait"], "four dislikes: paused");
+  const paused = s.listSources().find((x) => x.id === bad.id)!;
+  assert.equal(paused.enabled, false);
+  assert.match(paused.lastError ?? "", /paused by Zeff/);
+  assert.equal(s.listSources().find((x) => x.id === good.id)!.enabled, true);
+  assert.deepEqual(s.pauseDisliked(), [], "only once");
+  assert.deepEqual(s.listItems({ view: "latest" }).map((i) => i.sourceName), ["Gut"], "its news are out of the lists");
+  // What you liked becomes something to look for.
+  assert.ok(s.learnedTop(5, 0.5).some((l) => l.term === "analyse" || l.term === "solide"), "the liked headline's words");
+  assert.ok(!s.learnedTop(5, -9).some((l) => l.term === "skandal" && l.score > 0), "disliked words aren't");
+});
+
+test("from a card: pausing a feed takes it out, resuming brings it back; stopping a topic search takes the interest out", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("news", true);
+  const s = await import("@/plugins/news/store");
+  const { newsSourceAction, newsTopicAction } = await import("@/plugins/news/server-actions");
+  for (const x of s.listSources()) s.removeSource(x.id);
+  await wipe();
+  const src = s.addSource({ name: "Card", url: "https://card.example/rss" });
+  s.addItems({ id: src.id, name: "Card" }, [{ guid: "c", url: "https://card.example/1", title: "Nur eine Meldung vom Feed", summary: "", publishedAt: new Date().toISOString() }]);
+  s.setPrefs({ interests: [{ term: "Segeln", weight: 2 }, { term: "Rennrad", weight: 1 }], mutes: [], useProfile: false, useWork: false, diversity: false });
+  s.rescore(() => ({ prefs: s.getPrefs(), work: [], sourceWeight: 1, sourceVotes: 0 }));
+  assert.equal(s.listItems({ view: "latest" }).length, 1);
+  await newsSourceAction(src.id, "pause"); // (outside a request Next's revalidation can't run — the change is made before it)
+  assert.equal(s.listItems({ view: "latest" }).length, 0);
+  await newsSourceAction(src.id, "resume");
+  assert.equal(s.listItems({ view: "latest" }).length, 1);
+  await newsTopicAction("segeln", "stop");
+  assert.deepEqual(s.getPrefs().interests.map((i) => i.term), ["Rennrad"]);
+  await newsTopicAction("Segeln", "back", 2);
+  assert.deepEqual(s.getPrefs().interests.map((i) => [i.term, i.weight]), [["Rennrad", 1], ["Segeln", 2]]);
+});
+
+test("new items since the page loaded are counted (the page says '5 new'); auto-discovery also looks for what you liked", async () => {
+  const s = await import("@/plugins/news/store");
+  const { autoDiscover } = await import("@/plugins/news/auto-discover");
+  const { setPref } = await import("@/lib/prefs");
+  for (const x of s.listSources()) s.removeSource(x.id);
+  await wipe();
+  const src = s.addSource({ name: "Fresh", url: "https://fresh.example/rss" });
+  const before = new Date(Date.now() - 1000).toISOString();
+  s.addItems({ id: src.id, name: "Fresh" }, [{ guid: "f", url: "https://fresh.example/1", title: "Frische Meldung vom Tag", summary: "", publishedAt: new Date().toISOString() }, { guid: "f2", url: "https://fresh.example/2", title: "Frische Meldung zum Wochenende", summary: "", publishedAt: new Date().toISOString() }]);
+  assert.equal(s.countNewSince(before), 2);
+  assert.equal(s.countNewSince(new Date(Date.now() + 60000).toISOString()), 0);
+  // No interests at all, but a liked headline: its words are what it looks for.
+  s.setPrefs({ interests: [], autoDiscover: true, useProfile: false });
+  for (const it of s.listItems({ view: "latest", sourceId: src.id })) s.vote(it.id, 1);
+  setPref("news:autodiscover-at", 0);
+  const asked: string[] = [];
+  const found = await autoDiscover({ find: async (topic) => (asked.push(topic), []) });
+  assert.equal(found, 0);
+  assert.ok(asked.length > 0 && asked.every((t) => /frische|meldung/i.test(t)), `looked for ${asked.join(", ")}`);
+  s.setPrefs({ autoDiscover: false });
 });

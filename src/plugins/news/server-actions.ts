@@ -89,6 +89,51 @@ export async function askNewsAction(question: string): Promise<{ ok: boolean; an
   }
 }
 
+/** From a card: pause the whole feed it is from (its items leave the lists), take it back, or remove it. */
+export async function newsSourceAction(sourceId: number, mode: string): Promise<Result> {
+  try {
+    guard();
+    if (mode === "pause") updateSource(Number(sourceId), { enabled: false });
+    else if (mode === "resume") updateSource(Number(sourceId), { enabled: true });
+    else if (mode === "remove") removeSource(Number(sourceId));
+    else throw new Error("Unknown action.");
+    return await done(true);
+  } catch (e) {
+    return { ok: false, error: errorMessage(e) };
+  }
+}
+
+/** From a card of a topic search ("Google News: term"): stop searching for that term (it leaves your interests); with `back`, take it back. */
+export async function newsTopicAction(term: string, mode: string, weight = 1): Promise<Result> {
+  try {
+    guard();
+    const prefs = getPrefs();
+    const clean = String(term).trim();
+    const rest = prefs.interests.filter((i) => i.term.toLowerCase() !== clean.toLowerCase());
+    if (mode === "stop") setPrefs({ interests: rest });
+    else if (mode === "back") setPrefs({ interests: [...rest, { term: clean, weight: Math.max(1, Math.min(3, Math.round(weight))) }] });
+    else throw new Error("Unknown action.");
+    return await done(true);
+  } catch (e) {
+    return { ok: false, error: errorMessage(e) };
+  }
+}
+
+/** The empty page's "Start": the starter pack on, the first fetch going in the background. */
+export async function newsStartAction(): Promise<Result> {
+  try {
+    guard();
+    const { starterFeeds } = await import("./catalog");
+    const n = addSources(starterFeeds());
+    const { startSync } = await import("@/lib/sync/registry");
+    startSync("news");
+    revalidatePath("/news");
+    return { ok: true, message: t("{n} sources added — fetching their news in the background.", { n }) };
+  } catch (e) {
+    return { ok: false, error: errorMessage(e) };
+  }
+}
+
 /** "Refresh": the sync, now. */
 export async function refreshNewsAction(): Promise<Result> {
   try {

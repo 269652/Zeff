@@ -1,6 +1,6 @@
 import { parseFeed } from "./feed";
 import { fetchArticle, type Article } from "./reader";
-import { addItems, dueForFetch, fetchState, getPrefs, listSources, prune, recordFetch, rescore, setContent, setFetchState, UNREADABLE, withoutContent } from "./store";
+import { addItems, dueForFetch, fetchState, getPrefs, listSources, pauseDisliked, prune, recordFetch, rescore, setContent, setFetchState, UNREADABLE, withoutContent } from "./store";
 import { tokens, topicFeedUrl, type ProfileTerm } from "./shared";
 
 /**
@@ -89,7 +89,8 @@ export async function syncNews(deps: NewsSyncDeps = {}): Promise<{ ok: boolean; 
   const prefs = getPrefs();
   const fetchFeed = deps.fetchFeed ?? (deps.fetchText ? async (u: string) => ({ text: await deps.fetchText!(u) as string | null }) : defaultFetchFeed);
   const nowMs = (deps.now ?? Date.now)();
-  // Paused ones and ones that keep failing (tried once a day) are left out.
+  // What you keep disliking is paused by itself (and says so); paused ones and ones that keep failing (tried once a day) are left out.
+  const paused = pauseDisliked();
   const sources = listSources().filter((s) => s.enabled && dueForFetch(s, (deps.now ?? Date.now)()));
   const topics = prefs.topicSearch ? [...prefs.interests].sort((a, b) => b.weight - a.weight).slice(0, 8) : [];
   if (!sources.length && !topics.length) return { ok: true, message: "No sources and no interests yet — add some under Settings → News." };
@@ -149,5 +150,5 @@ export async function syncNews(deps: NewsSyncDeps = {}): Promise<{ ok: boolean; 
   }
   const ok = failed.length < jobs.length;
   const failNote = failed.length ? ` — ${failed.length} failed: ${failed.slice(0, 3).join("; ").slice(0, 300)}${failed.length > 3 ? " …" : ""}` : "";
-  return { ok, message: `${added} new from ${jobs.length - failed.length} of ${jobs.length} sources${unchanged ? ` (${unchanged} unchanged)` : ""}${discovered ? `, ${discovered} new feeds found` : ""}${read ? `, ${read} read in full` : ""}${failNote}${digestNote}` };
+  return { ok, message: `${added} new from ${jobs.length - failed.length} of ${jobs.length} sources${unchanged ? ` (${unchanged} unchanged)` : ""}${discovered ? `, ${discovered} new feeds found` : ""}${paused.length ? `, paused: ${paused.slice(0, 3).join(", ")}` : ""}${read ? `, ${read} read in full` : ""}${failNote}${digestNote}` };
 }
