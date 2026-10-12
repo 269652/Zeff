@@ -17,28 +17,24 @@ const ICON: Record<string, string> = { text: "🔎", ticket: "🎫", todo: "☑"
 export function Omnibar({ chips, onChange }: { chips: OmniChip[]; onChange: (chips: OmniChip[]) => void }) {
   const t = useT();
   const [q, setQ] = useState("");
-  const [hits, setHits] = useState<Hit[]>([]);
+  // The last answer and the text it was for: while the text has moved on, the old hits stay and it says it is searching.
+  const [res, setRes] = useState<{ q: string; hits: Hit[] }>({ q: "", hits: [] });
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
-  const [busy, setBusy] = useState(false);
   const seq = useRef(0);
   const box = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (q.trim().length < 2) {
       seq.current++;
-      setHits([]);
-      setBusy(false);
       return;
     }
     const mine = ++seq.current;
-    setBusy(true);
     const timer = setTimeout(() => {
       void omniSearchAction(q).then((r) => {
         if (mine !== seq.current) return;
-        setHits(r);
+        setRes({ q, hits: r });
         setActive(0);
-        setBusy(false);
       });
     }, 180);
     return () => clearTimeout(timer);
@@ -52,10 +48,12 @@ export function Omnibar({ chips, onChange }: { chips: OmniChip[]; onChange: (chi
     return () => document.removeEventListener("mousedown", away);
   }, []);
 
+  const searching = q.trim().length >= 2;
+  const hits = searching ? res.hits : [];
+  const busy = searching && res.q !== q;
   const pick = (h: Hit) => {
     if (!chips.some((c) => c.key === h.key)) onChange([...chips, { key: h.key, kind: h.kind, title: h.title, todoIds: h.todoIds }]);
     setQ("");
-    setHits([]);
     setOpen(false);
   };
   const labels: Record<string, string> = {

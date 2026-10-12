@@ -70,7 +70,7 @@ export function CheckAllLoginsButton() {
 export function AutoCheckLogins() {
   const t = useT();
   const router = useRouter();
-  const [checking, setChecking] = useState(false);
+  const [checking, start] = useTransition();
   useEffect(() => {
     let skip = false;
     try {
@@ -80,9 +80,8 @@ export function AutoCheckLogins() {
       // checked every time, then
     }
     if (skip) return;
-    setChecking(true);
-    void checkAllLoginsAction().finally(() => {
-      setChecking(false);
+    start(async () => {
+      await checkAllLoginsAction().catch(() => undefined);
       router.refresh();
     });
   }, [router]);
