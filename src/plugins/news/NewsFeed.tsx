@@ -66,7 +66,7 @@ const height = (i: NewsItem, image: boolean) => 150 + (image && i.image ? 190 : 
  * The news as a masonry (cards in columns, each in the shortest) that loads more as you scroll, with a
  * button back to the top. Cards update in place when you vote, save or hide; the first page comes from the server.
  */
-export function NewsFeed({ initial, ago: initialAgo, view, sourceId, showImages, done: initialDone }: { initial: NewsItem[]; ago: Record<number, string>; view: NewsView; sourceId: number | null; showImages: boolean; done: boolean }) {
+export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, showImages, done: initialDone }: { initial: NewsItem[]; ago: Record<number, string>; view: NewsView; sourceId: number | null; category: string; showImages: boolean; done: boolean }) {
   const t = useT();
   const [items, setItems] = useState(initial);
   const [ago, setAgo] = useState(initialAgo);
@@ -102,7 +102,7 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, showImages,
     busy.current = true;
     setLoading(true);
     try {
-      const r = await newsMoreAction(view, sourceId, offset.current);
+      const r = await newsMoreAction(view, sourceId, category, offset.current);
       offset.current += r.items.length;
       setItems((cur) => {
         const have = new Set(cur.map((i) => i.id));
@@ -116,7 +116,7 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, showImages,
       busy.current = false;
       setLoading(false);
     }
-  }, [view, sourceId, done]);
+  }, [view, sourceId, category, done]);
 
   // Infinite scroll: the sentinel under the cards comes into view → the next page. Back to top: shown once scrolled down.
   useEffect(() => {

@@ -4028,5 +4028,20 @@
   "Back to the columns (Esc)": "Volver a las columnas (Esc)",
   "One column to read, like a phone feed": "Una columna para leer, como un feed del móvil",
   "Leave focus": "Salir del enfoque",
-  "Focus": "Enfoque"
+  "Focus": "Enfoque",
+  "{n} sources added.": "{n} fuentes añadidas.",
+  "Categories": "Categorías",
+  "Show everything": "Mostrar todo",
+  "No sources yet — add some from the catalog below, or just name your interests above.": "Aún no hay fuentes: añade algunas del catálogo de abajo o simplemente indica tus intereses arriba.",
+  "Your sources ({n}, {on} on)": "Tus fuentes ({n}, {on} activas)",
+  "Catalog": "Catálogo",
+  "{n} feeds in {c} categories": "{n} feeds en {c} categorías",
+  "Outlets checked against the live internet, and topic packs (a news search per topic). Add what you like — the more there is, the more there is to choose from and learn from.": "Medios comprobados en internet real y paquetes de temas (una búsqueda de noticias por tema). Añade lo que te guste: cuanto más haya, más hay para elegir y aprender.",
+  "Add the starter pack": "Añadir el paquete inicial",
+  "About fifty well-known sources across topics and languages ({n} not yet added).": "Unas cincuenta fuentes conocidas de varios temas e idiomas ({n} aún sin añadir).",
+  "Search the catalog …": "Buscar en el catálogo …",
+  "All languages": "Todos los idiomas",
+  "Nothing in the catalog matches.": "Nada en el catálogo coincide.",
+  "Add all {n}": "Añadir las {n}",
+  "{n} more — search to narrow it down, or add them all.": "{n} más: busca para acotar o añádelas todas."
 }

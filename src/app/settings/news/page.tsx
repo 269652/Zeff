@@ -5,8 +5,9 @@ import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { formatAgo } from "@/lib/format";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
-import { addPresetFormAction, addSourceFormAction, forgetLearningFormAction, removeSourceFormAction, savePrefsFormAction, updateSourceFormAction } from "@/plugins/news/server-actions";
-import { formatInterests, PRESETS } from "@/plugins/news/shared";
+import { addSourceFormAction, forgetLearningFormAction, removeSourceFormAction, savePrefsFormAction, updateSourceFormAction } from "@/plugins/news/server-actions";
+import { CatalogBrowser } from "@/plugins/news/CatalogBrowser";
+import { formatInterests } from "@/plugins/news/shared";
 import { getPrefs, listSources } from "@/plugins/news/store";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -16,14 +17,13 @@ export async function generateMetadata(): Promise<Metadata> {
 const field = "w-full rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
 
 /** Settings → News: the sources, what you are interested in and what you don't want, and how it personalises. */
-export default async function NewsSettingsPage({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
+export default async function NewsSettingsPage({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string; lang?: string; q?: string }> }) {
   await connection();
   if (!isInstalled("news")) return <PluginNotInstalled id="news" />;
   const sp = await searchParams;
   const prefs = getPrefs();
   const sources = listSources();
   const have = new Set(sources.map((s) => s.url));
-  const presets = PRESETS.filter((p) => !have.has(p.url));
 
   return (
     <div className="page">
@@ -117,7 +117,9 @@ export default async function NewsSettingsPage({ searchParams }: { searchParams:
 
         <section className="card space-y-3 p-4">
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Sources")}</h2>
-          {sources.length === 0 && <p className="text-sm text-zinc-500">{t("No sources yet — add some below, or just name your interests above.")}</p>}
+          {sources.length === 0 && <p className="text-sm text-zinc-500">{t("No sources yet — add some from the catalog below, or just name your interests above.")}</p>}
+          <details open={sources.length <= 12}>
+            <summary className="cursor-pointer text-sm font-medium">{t("Your sources ({n}, {on} on)", { n: sources.length, on: sources.filter((x) => x.enabled).length })}</summary>
           <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {sources.map((s) => (
               <li key={s.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-2 text-sm">
@@ -158,6 +160,7 @@ export default async function NewsSettingsPage({ searchParams }: { searchParams:
               </li>
             ))}
           </ul>
+          </details>
 
           <form action={addSourceFormAction} className="grid gap-2 text-sm sm:grid-cols-[1fr_2fr_auto]">
             <input name="name" placeholder={t("Name (optional)")} className={field} />
@@ -166,22 +169,9 @@ export default async function NewsSettingsPage({ searchParams }: { searchParams:
           </form>
           <p className="text-xs text-zinc-500">{t("Any RSS or Atom address works — most news sites, blogs, YouTube channels and subreddits (add .rss to the address) have one.")}</p>
 
-          {presets.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-xs font-semibold text-zinc-500 uppercase">{t("Suggestions")}</p>
-              <div className="flex flex-wrap gap-2">
-                {presets.map((p) => (
-                  <form key={p.url} action={addPresetFormAction}>
-                    <input type="hidden" name="url" value={p.url} />
-                    <button className="btn btn-sm" title={`${p.about} · ${p.lang.toUpperCase()}`}>
-                      + {p.name}
-                    </button>
-                  </form>
-                ))}
-              </div>
-            </div>
-          )}
         </section>
+
+        <CatalogBrowser have={have} lang={sp.lang ?? ""} q={sp.q ?? ""} />
 
         <section className="card space-y-2 p-4 text-sm">
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("How it learns")}</h2>

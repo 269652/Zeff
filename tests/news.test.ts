@@ -313,3 +313,65 @@ test("a card's look at its page: the picture, the summary and the text are kept;
   assert.equal((await peekItem(by(2).id, { fetchArticle })).ok, false);
   assert.equal(calls, before, "not fetched again");
 });
+
+test("the catalog: hundreds of checked outlets plus topic packs, unique, every starter-pack name in it, every category known", async () => {
+  const { ALL_FEEDS, CATALOG, STARTER_NAMES, starterFeeds, categoriesOf, CATEGORY_ORDER } = await import("@/plugins/news/catalog");
+  assert.ok(CATALOG.length >= 400, `${CATALOG.length} checked outlets`);
+  assert.ok(ALL_FEEDS.length >= 900, `${ALL_FEEDS.length} feeds in all`);
+  assert.equal(new Set(ALL_FEEDS.map((f) => f.url)).size, ALL_FEEDS.length, "no address twice");
+  assert.ok(ALL_FEEDS.every((f) => /^https?:\/\//.test(f.url) && f.name && f.category && f.lang));
+  const missing = STARTER_NAMES.filter((n) => !CATALOG.some((f) => f.name === n));
+  assert.deepEqual(missing, [], "the starter pack only has feeds that are in the catalog");
+  assert.equal(starterFeeds().length, STARTER_NAMES.length);
+  assert.ok(categoriesOf().every((c) => (CATEGORY_ORDER as readonly string[]).includes(c.category)));
+  assert.ok(new Set(ALL_FEEDS.map((f) => f.lang)).size >= 3, "several languages");
+});
+
+test("sources come with a category and language; many at once; a source that keeps failing is tried once a day; a category filters the items", async () => {
+  const s = await import("@/plugins/news/store");
+  for (const x of s.listSources()) s.removeSource(x.id);
+  const n = s.addSources([
+    { name: "A", url: "https://cat.example/a", category: "Tech", lang: "de" },
+    { name: "B", url: "https://cat.example/b", category: "Science", lang: "en" },
+  ]);
+  assert.equal(n, 2);
+  assert.equal(s.addSources([{ name: "A", url: "https://cat.example/a", category: "Tech", lang: "de" }]), 0, "the same address isn't added twice");
+  const [a, b] = s.listSources();
+  assert.deepEqual([a.category, a.lang, b.category], ["Tech", "de", "Science"]);
+  const base = { guid: "g", summary: "", publishedAt: new Date().toISOString() };
+  s.addItems({ id: a.id, name: "A" }, [{ ...base, guid: "1", url: "https://cat.example/a/1", title: "Nur Technik hier" }]);
+  s.addItems({ id: b.id, name: "B" }, [{ ...base, guid: "2", url: "https://cat.example/b/1", title: "Nur Wissenschaft hier" }]);
+  assert.deepEqual(s.listItems({ view: "latest", category: "Science" }).map((i) => i.title), ["Nur Wissenschaft hier"]);
+  // Failing: five in a row, then left alone for a day.
+  for (let i = 0; i < 5; i++) s.recordFetch(a.id, "HTTP 500");
+  const failing = s.listSources().find((x) => x.id === a.id)!;
+  assert.equal(failing.fails, 5);
+  assert.equal(s.dueForFetch(failing), false);
+  assert.equal(s.dueForFetch(failing, Date.now() + 2 * 864e5), true, "tried again after a day");
+  s.recordFetch(a.id, null);
+  assert.equal(s.listSources().find((x) => x.id === a.id)!.fails, 0, "a success starts over");
+});
+
+test("a feed that hasn't changed (304) costs nothing and isn't a failure; a source that keeps failing is skipped", async () => {
+  const s = await import("@/plugins/news/store");
+  const { syncNews } = await import("@/plugins/news/sync");
+  for (const x of s.listSources()) s.removeSource(x.id);
+  const same = s.addSource({ name: "Same", url: "https://same.example/rss" });
+  const dead = s.addSource({ name: "Dead", url: "https://dead.example/rss" });
+  for (let i = 0; i < 5; i++) s.recordFetch(dead.id, "HTTP 500");
+  s.setPrefs({ interests: [], mutes: [], topicSearch: false, useWork: false, digest: false, prefetch: false });
+  const asked: string[] = [];
+  const r = await syncNews({ fetchFeed: async (url) => (asked.push(url), { text: null }) });
+  assert.deepEqual(asked, ["https://same.example/rss"], "the dead one isn't asked");
+  assert.match(r.message, /0 new from 1 of 1 sources \(1 unchanged\)/);
+  assert.equal(s.listSources().find((x) => x.id === same.id)!.lastError, null);
+});
+
+test("topic packs: every topic gives a news search in two languages (and Bing, Medium)", async () => {
+  const { topicFeeds, TOPICS } = await import("@/plugins/news/topics");
+  const feeds = topicFeeds();
+  assert.ok(TOPICS.length >= 100 && feeds.length >= 450);
+  assert.ok(feeds.some((f) => /news\.google\.com\/rss\/search\?q=.*&hl=de/.test(f.url)));
+  assert.ok(feeds.some((f) => /bing\.com\/news\/search\?q=.*format=rss/.test(f.url)));
+  assert.ok(feeds.some((f) => /medium\.com\/feed\/tag\//.test(f.url)));
+});

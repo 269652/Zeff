@@ -20,6 +20,8 @@ function db() {
   const cols = (d.prepare("pragma table_info(news_items)").all() as { name: string }[]).map((c) => c.name);
   if (!cols.includes("image")) d.exec("alter table news_items add column image text not null default ''");
   if (!cols.includes("content")) d.exec("alter table news_items add column content text not null default ''");
+  const scols = (d.prepare("pragma table_info(news_sources)").all() as { name: string }[]).map((c) => c.name);
+  for (const [name, def] of [["category", "text not null default ''"], ["lang", "text not null default ''"], ["etag", "text"], ["modified", "text"], ["fails", "integer not null default 0"]] as const) if (!scols.includes(name)) d.exec(`alter table news_sources add column ${name} ${def}`);
   // Stub summaries (Hacker News's "Article URL: … Points: 8") kept before they were dropped: emptied, so the page's own text is used.
   if (!cleaned) {
     d.exec("update news_items set summary = '' where summary like 'Article URL:%' or summary like 'Comments URL:%'");
@@ -40,22 +42,25 @@ export function setPrefs(patch: Partial<NewsPrefs>): NewsPrefs {
   return next;
 }
 
-type SRow = { id: number; name: string; url: string; enabled: number; weight: number; votes: number; last_at: string | null; last_error: string | null; items: number };
-const toSource = (r: SRow): NewsSource => ({ id: r.id, name: r.name, url: r.url, enabled: !!r.enabled, weight: r.weight, votes: r.votes, lastAt: r.last_at, lastError: r.last_error, itemCount: r.items });
+type SRow = { id: number; name: string; url: string; enabled: number; weight: number; votes: number; last_at: string | null; last_error: string | null; items: number; category: string; lang: string; fails: number };
+const toSource = (r: SRow): NewsSource => ({ id: r.id, name: r.name, url: r.url, enabled: !!r.enabled, weight: r.weight, votes: r.votes, lastAt: r.last_at, lastError: r.last_error, itemCount: r.items, category: r.category, lang: r.lang, fails: r.fails });
 
 export function listSources(): NewsSource[] {
   return (db().prepare("select s.*, (select count(*) from news_items i where i.source_id = s.id) as items from news_sources s order by s.name collate nocase").all() as SRow[]).map(toSource);
 }
 
 /** A source added by address (http/https only). The same address twice is one source. */
-export function addSource(input: { name: string; url: string }): NewsSource {
+export function addSource(input: { name: string; url: string; category?: string; lang?: string }): NewsSource {
   const url = input.url.trim();
   if (!/^https?:\/\/\S+$/i.test(url)) throw new Error("The address must start with http:// or https://.");
   const d = db();
   const have = d.prepare("select id from news_sources where url = ?").get(url) as { id: number } | undefined;
-  if (have) return listSources().find((s) => s.id === have.id)!;
+  if (have) {
+    if (input.category) d.prepare("update news_sources set category = ?, lang = ? where id = ? and category = ''").run(input.category, input.lang ?? "", have.id);
+    return listSources().find((s) => s.id === have.id)!;
+  }
   const name = input.name.trim() || new URL(url).hostname.replace(/^www\./, "");
-  const id = Number(d.prepare("insert into news_sources (name, url, created_at) values (?, ?, ?)").run(name, url, now()).lastInsertRowid);
+  const id = Number(d.prepare("insert into news_sources (name, url, created_at, category, lang) values (?, ?, ?, ?, ?)").run(name, url, now(), input.category ?? "", input.lang ?? "").lastInsertRowid);
   return listSources().find((s) => s.id === id)!;
 }
 
@@ -73,9 +78,35 @@ export function removeSource(id: number): void {
   d.prepare("delete from news_sources where id = ?").run(id);
 }
 
+/** How a fetch went: a failure counts up (a source that keeps failing is left alone for a day), a success resets it. */
 export function recordFetch(id: number, error: string | null): void {
-  db().prepare("update news_sources set last_at = ?, last_error = ? where id = ?").run(now(), error ? error.slice(0, 300) : null, id);
+  db().prepare("update news_sources set last_at = ?, last_error = ?, fails = case when ? then fails + 1 else 0 end where id = ?").run(now(), error ? error.slice(0, 300) : null, error ? 1 : 0, id);
 }
+
+/** What the server told about the feed last time (ETag, Last-Modified): the next fetch asks "changed?" and gets a short "no". */
+export function fetchState(url: string): { etag: string | null; modified: string | null } {
+  return (db().prepare("select etag, modified from news_sources where url = ?").get(url) as { etag: string | null; modified: string | null } | undefined) ?? { etag: null, modified: null };
+}
+export function setFetchState(url: string, etag: string | null, modified: string | null): void {
+  db().prepare("update news_sources set etag = ?, modified = ? where url = ?").run(etag, modified, url);
+}
+
+/** Several sources at once (a catalog category, the starter pack). Returns how many were new. */
+export function addSources(list: { name: string; url: string; category?: string; lang?: string }[]): number {
+  const d = db();
+  let added = 0;
+  d.transaction(() => {
+    for (const f of list) {
+      const had = d.prepare("select 1 from news_sources where url = ?").get(f.url);
+      addSource(f);
+      if (!had) added++;
+    }
+  })();
+  return added;
+}
+
+/** Sources that keep failing: not tried every time, once a day. */
+export const dueForFetch = (s: Pick<NewsSource, "fails" | "lastAt">, nowMs: number = Date.now()): boolean => s.fails < 5 || !s.lastAt || nowMs - Date.parse(s.lastAt) > 864e5;
 
 /** Keeps new items (a link or headline already there is skipped). Returns how many were new. */
 export function addItems(source: { id: number | null; name: string }, items: FeedItem[]): number {
@@ -154,7 +185,7 @@ const toItem = (r: IRow): NewsItem => ({
 export type NewsView = "foryou" | "latest" | "saved" | "hidden";
 
 /** The items of a view: For you (best first, nothing hidden or muted), Latest (by date), Saved, Hidden. */
-export function listItems(opts: { view?: NewsView; sourceId?: number; limit?: number; offset?: number; maxAgeDays?: number } = {}): NewsItem[] {
+export function listItems(opts: { view?: NewsView; sourceId?: number; category?: string; limit?: number; offset?: number; maxAgeDays?: number } = {}): NewsItem[] {
   const view = opts.view ?? "foryou";
   const where: string[] = [];
   const args: (string | number)[] = [];
@@ -167,6 +198,10 @@ export function listItems(opts: { view?: NewsView; sourceId?: number; limit?: nu
   if (opts.sourceId) {
     where.push("source_id = ?");
     args.push(opts.sourceId);
+  }
+  if (opts.category) {
+    where.push("source_id in (select id from news_sources where category = ?)");
+    args.push(opts.category);
   }
   const order = view === "foryou" ? "score desc, published_at desc" : "published_at desc";
   const rows = db().prepare(`select ${ICOLS} from news_items where ${where.map((w) => `(${w})`).join(" and ")} order by ${order}, id desc limit ? offset ?`).all(...args, opts.limit ?? 60, opts.offset ?? 0) as IRow[];

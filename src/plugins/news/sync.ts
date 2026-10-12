@@ -1,6 +1,6 @@
 import { parseFeed } from "./feed";
 import { fetchArticle, type Article } from "./reader";
-import { addItems, getPrefs, listSources, prune, recordFetch, rescore, setContent, UNREADABLE, withoutContent } from "./store";
+import { addItems, dueForFetch, fetchState, getPrefs, listSources, prune, recordFetch, rescore, setContent, setFetchState, UNREADABLE, withoutContent } from "./store";
 import { tokens, topicFeedUrl } from "./shared";
 
 /**
@@ -10,6 +10,8 @@ import { tokens, topicFeedUrl } from "./shared";
  */
 export type NewsSyncDeps = {
   fetchText?: (url: string) => Promise<string>;
+  /** A feed fetched with what the server said last time (null text: not changed). Default: a real conditional GET. */
+  fetchFeed?: (url: string) => Promise<{ text: string | null }>;
   /** Words your open todos are about (default: read from the todos). */
   work?: () => string[];
   now?: () => number;
@@ -19,10 +21,23 @@ export type NewsSyncDeps = {
   digest?: () => Promise<void>;
 };
 
-const defaultFetch = async (url: string): Promise<string> => {
-  const r = await fetch(url, { headers: { "user-agent": "Zeff/1.0 (+news reader)", accept: "application/rss+xml, application/atom+xml, application/xml, text/xml, */*" }, signal: AbortSignal.timeout(20000), redirect: "follow" });
+/** A feed fetched with ETag / Last-Modified from last time: an unchanged one answers 304 and costs next to nothing. */
+const defaultFetchFeed = async (url: string): Promise<{ text: string | null }> => {
+  const state = fetchState(url);
+  const r = await fetch(url, {
+    headers: {
+      "user-agent": "Mozilla/5.0 (compatible; Zeff/1.0; news reader)",
+      accept: "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
+      ...(state.etag ? { "if-none-match": state.etag } : {}),
+      ...(state.modified ? { "if-modified-since": state.modified } : {}),
+    },
+    signal: AbortSignal.timeout(20000),
+    redirect: "follow",
+  });
+  if (r.status === 304) return { text: null };
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return (await r.text()).slice(0, 4_000_000);
+  setFetchState(url, r.headers.get("etag"), r.headers.get("last-modified"));
+  return { text: (await r.text()).slice(0, 4_000_000) };
 };
 
 /** The words your open todos are about: the ones that come up, 5+ letters. */
@@ -60,9 +75,10 @@ export async function rescoreAll(opts: { work?: () => string[]; nowMs?: number }
 
 export async function syncNews(deps: NewsSyncDeps = {}): Promise<{ ok: boolean; message: string }> {
   const prefs = getPrefs();
-  const fetchText = deps.fetchText ?? defaultFetch;
+  const fetchFeed = deps.fetchFeed ?? (deps.fetchText ? async (u: string) => ({ text: await deps.fetchText!(u) as string | null }) : defaultFetchFeed);
   const nowMs = (deps.now ?? Date.now)();
-  const sources = listSources().filter((s) => s.enabled);
+  // Paused ones and ones that keep failing (tried once a day) are left out.
+  const sources = listSources().filter((s) => s.enabled && dueForFetch(s, (deps.now ?? Date.now)()));
   const topics = prefs.topicSearch ? [...prefs.interests].sort((a, b) => b.weight - a.weight).slice(0, 8) : [];
   if (!sources.length && !topics.length) return { ok: true, message: "No sources and no interests yet — add some under Settings → News." };
 
@@ -73,9 +89,16 @@ export async function syncNews(deps: NewsSyncDeps = {}): Promise<{ ok: boolean; 
   ];
   let added = 0;
   const failed: string[] = [];
-  await pool(jobs, 4, async (job) => {
+  let unchanged = 0;
+  await pool(jobs, 8, async (job) => {
     try {
-      const items = parseFeed(await fetchText(job.url), new Date(nowMs).toISOString())
+      const got = await fetchFeed(job.url);
+      if (got.text === null) {
+        unchanged++;
+        if (job.id) recordFetch(job.id, null);
+        return;
+      }
+      const items = parseFeed(got.text, new Date(nowMs).toISOString())
         .filter((it) => Date.parse(it.publishedAt) >= since)
         .slice(0, prefs.perSource);
       added += addItems({ id: job.id, name: job.name }, items);
@@ -113,5 +136,6 @@ export async function syncNews(deps: NewsSyncDeps = {}): Promise<{ ok: boolean; 
     }
   }
   const ok = failed.length < jobs.length;
-  return { ok, message: `${added} new from ${jobs.length - failed.length} of ${jobs.length} sources${read ? `, ${read} read in full` : ""}${failed.length ? ` — failed: ${failed.join("; ").slice(0, 300)}` : ""}${digestNote}` };
+  const failNote = failed.length ? ` — ${failed.length} failed: ${failed.slice(0, 3).join("; ").slice(0, 300)}${failed.length > 3 ? " …" : ""}` : "";
+  return { ok, message: `${added} new from ${jobs.length - failed.length} of ${jobs.length} sources${unchanged ? ` (${unchanged} unchanged)` : ""}${read ? `, ${read} read in full` : ""}${failNote}${digestNote}` };
 }

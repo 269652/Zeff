@@ -17,6 +17,11 @@ export type NewsSource = {
   lastAt: string | null;
   lastError: string | null;
   itemCount: number;
+  /** From the catalog: its category ("World", "Tech" …) and language; "" for one you added. */
+  category: string;
+  lang: string;
+  /** Fetches in a row that failed (a source that keeps failing is tried only once a day). */
+  fails: number;
 };
 
 export type NewsState = "new" | "read" | "saved" | "hidden";

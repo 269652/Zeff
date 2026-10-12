@@ -18,21 +18,25 @@ export async function generateMetadata(): Promise<Metadata> {
 const VIEWS: NewsView[] = ["foryou", "latest", "saved", "hidden"];
 
 /** News: what your sources and interests brought, in the order that fits you; teach it with 👍 👎. */
-export default async function NewsPage({ searchParams }: { searchParams: Promise<{ view?: string; source?: string }> }) {
+export default async function NewsPage({ searchParams }: { searchParams: Promise<{ view?: string; source?: string; category?: string }> }) {
   await connection();
   if (!isInstalled("news")) return <PluginNotInstalled id="news" />;
   const sp = await searchParams;
   const view = (VIEWS as string[]).includes(sp.view ?? "") ? (sp.view as NewsView) : "foryou";
   const sourceId = Number(sp.source) || undefined;
+  const category = sp.category ?? "";
   const prefs = getPrefs();
   const sources = listSources();
-  const items = listItems({ view, sourceId, maxAgeDays: prefs.maxAgeDays, limit: NEWS_PAGE });
+  const items = listItems({ view, sourceId, category: category || undefined, maxAgeDays: prefs.maxAgeDays, limit: NEWS_PAGE });
   const c = counts();
   const digest = view === "foryou" && !sourceId ? getDigest() : null;
   const byId = new Map((digest?.picks ?? []).flatMap((p) => { const it = getItem(p.id); return it ? [[p.id, it] as const] : []; }));
   const labels: Record<NewsView, string> = { foryou: t("For you"), latest: t("Latest"), saved: t("Saved"), hidden: t("Hidden") };
   const count: Record<NewsView, number | null> = { foryou: c.unread, latest: null, saved: c.saved, hidden: c.hidden };
-  const href = (v: NewsView, s?: number) => `/news?view=${v}${s ? `&source=${s}` : ""}`;
+  const href = (v: NewsView, s?: number, c?: string) => `/news?view=${v}${s ? `&source=${s}` : ""}${c ? `&category=${encodeURIComponent(c)}` : ""}`;
+  // The enabled sources by category (a few hundred sources are too many to list one by one).
+  const byCategory = new Map<string, number>();
+  for (const s of sources.filter((x) => x.enabled)) byCategory.set(s.category || "Your own", (byCategory.get(s.category || "Your own") ?? 0) + 1);
 
   return (
     <div className="page">
@@ -40,28 +44,30 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
         <h1 className="text-lg font-semibold">{t("News")}</h1>
         <nav className="space-y-1 text-sm">
           {VIEWS.map((v) => (
-            <Link key={v} href={href(v)} className={`flex justify-between rounded px-2 py-1 ${v === view && !sourceId ? "bg-zinc-200 font-medium dark:bg-zinc-800" : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}>
+            <Link key={v} href={href(v)} className={`flex justify-between rounded px-2 py-1 ${v === view && !sourceId && !category ? "bg-zinc-200 font-medium dark:bg-zinc-800" : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}>
               <span>{labels[v]}</span>
               {count[v] ? <span className="tabular-nums">{count[v]}</span> : null}
             </Link>
           ))}
         </nav>
-        {sources.length > 0 && (
+        {byCategory.size > 0 && (
           <div className="space-y-1 text-sm">
-            <p className="text-xs font-semibold text-zinc-500 uppercase">{t("Sources")}</p>
-            {sources
-              .filter((s) => s.enabled)
-              .map((s) => (
-                <Link
-                  key={s.id}
-                  href={href(view === "foryou" ? "latest" : view, s.id)}
-                  className={`block truncate rounded px-2 py-1 ${s.id === sourceId ? "bg-zinc-200 font-medium dark:bg-zinc-800" : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}
-                  title={s.lastError ?? s.url}
-                >
-                  {s.lastError ? "⚠ " : ""}
-                  {s.name}
-                </Link>
-              ))}
+            <p className="text-xs font-semibold text-zinc-500 uppercase">{t("Categories")}</p>
+            {[...byCategory].map(([cat, n]) => (
+              <Link
+                key={cat}
+                href={href(view === "foryou" ? "latest" : view, undefined, cat === "Your own" ? "" : cat)}
+                className={`flex justify-between rounded px-2 py-1 ${cat === category ? "bg-zinc-200 font-medium dark:bg-zinc-800" : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}
+              >
+                <span className="truncate">{cat}</span>
+                <span className="tabular-nums">{n}</span>
+              </Link>
+            ))}
+            {(category || sourceId) && (
+              <Link href={href(view)} className="block px-2 py-1 text-xs text-indigo-600 hover:underline dark:text-indigo-400">
+                {t("Show everything")}
+              </Link>
+            )}
           </div>
         )}
         <NewsRefreshButtons digest={prefs.digest} />
@@ -108,7 +114,7 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
             )}
           </div>
         ) : (
-          <NewsFeed key={`${view}:${sourceId ?? 0}:${items[0]?.id ?? 0}`} initial={items} ago={Object.fromEntries(items.map((i) => [i.id, formatAgo(i.publishedAt)]))} view={view} sourceId={sourceId ?? null} showImages={prefs.images} done={items.length < NEWS_PAGE} />
+          <NewsFeed key={`${view}:${sourceId ?? 0}:${category}:${items[0]?.id ?? 0}`} initial={items} ago={Object.fromEntries(items.map((i) => [i.id, formatAgo(i.publishedAt)]))} view={view} sourceId={sourceId ?? null} category={category} showImages={prefs.images} done={items.length < NEWS_PAGE} />
         )}
       </div>
     </div>

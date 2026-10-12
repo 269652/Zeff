@@ -6,7 +6,7 @@ import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { NEWS_PAGE, parseInterests, parseMutes, PRESETS, type NewsPrefs, type NewsState } from "./shared";
-import { addSource, forgetLearning, getContent, listItems, removeSource, setContent, setPrefs, setState, UNREADABLE, updateSource, vote, type NewsView } from "./store";
+import { addSource, addSources, forgetLearning, getContent, listItems, removeSource, setContent, setPrefs, setState, UNREADABLE, updateSource, vote, type NewsView } from "./store";
 
 /** The News plugin's server actions: the cards' buttons return a result; the settings forms go back to their page with what came of it. */
 
@@ -67,12 +67,12 @@ export async function newsReadAction(id: number): Promise<{ ok: boolean; text?: 
 
 
 /** The next page of a view (infinite scroll): items with how old they are, as the page shows them. */
-export async function newsMoreAction(view: string, sourceId: number | null, offset: number): Promise<{ items: import("./shared").NewsItem[]; ago: Record<number, string>; done: boolean }> {
+export async function newsMoreAction(view: string, sourceId: number | null, category: string, offset: number): Promise<{ items: import("./shared").NewsItem[]; ago: Record<number, string>; done: boolean }> {
   guard();
   const { formatAgo } = await import("@/lib/format");
   const { getPrefs } = await import("./store");
   const v = (["foryou", "latest", "saved", "hidden"] as string[]).includes(view) ? (view as NewsView) : "foryou";
-  const items = listItems({ view: v, sourceId: sourceId ?? undefined, maxAgeDays: getPrefs().maxAgeDays, limit: NEWS_PAGE, offset: Math.max(0, Math.floor(offset)) });
+  const items = listItems({ view: v, sourceId: sourceId ?? undefined, category: category || undefined, maxAgeDays: getPrefs().maxAgeDays, limit: NEWS_PAGE, offset: Math.max(0, Math.floor(offset)) });
   return { items, ago: Object.fromEntries(items.map((i) => [i.id, formatAgo(i.publishedAt)])), done: items.length < NEWS_PAGE };
 }
 
@@ -112,13 +112,44 @@ export async function addSourceFormAction(fd: FormData): Promise<void> {
   back({ ok: t("Source added.") });
 }
 
+/** The whole starter pack (about fifty well-known feeds across topics and languages), one click. */
+export async function addStarterFormAction(): Promise<void> {
+  let n = 0;
+  try {
+    guard();
+    const { starterFeeds } = await import("./catalog");
+    n = addSources(starterFeeds());
+  } catch (e) {
+    back({ error: errorMessage(e) });
+  }
+  revalidatePath("/settings/news");
+  back({ ok: t("{n} sources added.", { n }) });
+}
+
+/** A category of the catalog (optionally only one language): all its feeds. */
+export async function addCategoryFormAction(fd: FormData): Promise<void> {
+  let n = 0;
+  try {
+    guard();
+    const { ALL_FEEDS } = await import("./catalog");
+    const category = str(fd, "category");
+    const lang = str(fd, "lang");
+    n = addSources(ALL_FEEDS.filter((f) => f.category === category && (!lang || f.lang === lang)));
+  } catch (e) {
+    back({ error: errorMessage(e) });
+  }
+  revalidatePath("/settings/news");
+  back({ ok: t("{n} sources added.", { n }) });
+}
+
 /** A starter source, one click. */
 export async function addPresetFormAction(fd: FormData): Promise<void> {
   try {
     guard();
-    const p = PRESETS.find((x) => x.url === str(fd, "url"));
+    const { ALL_FEEDS } = await import("./catalog");
+    const p = ALL_FEEDS.find((x) => x.url === str(fd, "url"));
     if (!p) throw new Error(t("Unknown source."));
-    addSource({ name: p.name, url: p.url });
+    addSource({ name: p.name, url: p.url, category: p.category, lang: p.lang });
   } catch (e) {
     back({ error: errorMessage(e) });
   }
