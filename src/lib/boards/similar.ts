@@ -24,6 +24,19 @@ export function wordOverlap(a: string, b: string): number {
 }
 
 /**
+ * Whether two todo texts say the same: mostly the same words — or one is a part of the other (all the words of
+ * the shorter among the longer's: "die Darstellung auf Live prüfen" in "… prüfen und Jens Bescheid geben").
+ */
+export function similarText(a: string, b: string): boolean {
+  if (wordOverlap(a, b) >= 0.5) return true;
+  const x = wordsOf(a);
+  const y = wordsOf(b);
+  const small = x.size <= y.size ? x : y;
+  const big = small === x ? y : x;
+  return small.size >= 4 && [...small].filter((w) => big.has(w)).length / small.size >= 0.85;
+}
+
+/**
  * An open todo a follow-up only repeats: about the same comments (all its long ids among the
  * other's — the !168 alone isn't enough), or mostly the same words.
  */
@@ -32,7 +45,7 @@ export function sameTodo(f: { text: string; target?: string | null; ops?: unknow
   return open.find((t) => {
     const theirs = idsOf(t);
     if (ids.length && ids.every((x) => theirs.has(x))) return true;
-    return wordOverlap(f.text, t.text) >= 0.5;
+    return similarText(f.text, t.text);
   });
 }
 
@@ -46,12 +59,14 @@ const messageOf = (o: TodoOp): { to: string; body: string } | null =>
  * the same source: two todos can come from one message), or mostly the same words.
  */
 export function duplicateTodo(c: { text: string; ops: TodoOp[] }, open: TodoView[]): TodoView | undefined {
+  return open.find((t) => repeatsByRecord(c, t) || similarText(c.text, t.text));
+}
+
+/** By what's on record, not the words: the same message to the same one, or the same long numbers (comments, merge requests) — on any ticket. */
+export function repeatsByRecord(c: { text: string; ops: TodoOp[] }, t: TodoView): boolean {
   const mine = c.ops.map(messageOf).filter((m): m is { to: string; body: string } => !!m);
+  for (const m of mine) for (const o of t.ops.map(messageOf)) if (o && o.to === m.to && wordOverlap(o.body, m.body) >= 0.6) return true;
   const ids = [...idsOf({ text: c.text, ops: c.ops })].filter((x) => !x.startsWith("!"));
-  return open.find((t) => {
-    for (const m of mine) for (const o of t.ops.map(messageOf)) if (o && o.to === m.to && wordOverlap(o.body, m.body) >= 0.6) return true;
-    const theirs = idsOf({ text: t.text, ops: t.ops });
-    if (ids.length && ids.every((x) => theirs.has(x))) return true;
-    return wordOverlap(c.text, t.text) >= 0.5;
-  });
+  const theirs = idsOf({ text: t.text, ops: t.ops });
+  return ids.length > 0 && ids.every((x) => theirs.has(x));
 }

@@ -1,5 +1,5 @@
 import { parseTodoKnowledge } from "@/plugins/knowledge/shared";
-import { duplicateTodo } from "./similar";
+import { duplicateTodo, repeatsByRecord, similarText } from "./similar";
 import { jiraNoteBody } from "@/plugins/people/accounts";
 import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
@@ -494,6 +494,57 @@ export function deliversBranch(t: TodoView, branch: string): boolean {
   return names(t.ops) || t.planned.some((p) => p.steps.some((s) => names(s.ops)));
 }
 
+/** How long a todo closed lately (done, or dismissed by you) counts as "made already" for what an AI or a worker would make again. */
+const RECENTLY_CLOSED_DAYS = 3;
+
+/**
+ * The todo a new one would only repeat — so whatever makes todos (the briefing, a worker's follow-ups, a plan's next
+ * step, the mail, note and document reviews) makes none twice: an open todo on the ticket with mostly the same words
+ * (or one that says what the new one says as a part), or the same message / numbers on record (any ticket); one that has
+ * it planned as a step (`planned`, default on); and with `closed`: one done or dismissed in the last days — what you have
+ * dealt with isn't made again. Undefined: it's new.
+ */
+export function existingTodoFor(
+  c: { ticket: string; text: string; ops?: unknown[]; target?: string | null },
+  opts: { closed?: boolean; planned?: boolean } = {},
+): TodoView | undefined {
+  const ticket = c.ticket.trim().toUpperCase();
+  const text = c.text.trim();
+  const ops = cleanOps(c.ops, ticket);
+  const onTicket = (t: TodoView) => (ticket ? t.ticket === ticket || t.alsoTickets.includes(ticket) : !t.ticket);
+  const open = listTodos({ status: "open" });
+  const byWords = open.find((t) => repeatsByRecord({ text, ops }, t) || (onTicket(t) && similarText(text, t.text)));
+  if (byWords) return byWords;
+  if (opts.planned !== false) {
+    const planned = open.find((t) => onTicket(t) && t.planned.some((p) => p.steps.some((s) => similarText(text, s.text))));
+    if (planned) return planned;
+  }
+  if (opts.closed) {
+    const since = new Date(Date.now() - RECENTLY_CLOSED_DAYS * 864e5).toISOString();
+    return listTodos({ status: "all" }).find((t) => t.status !== "open" && onTicket(t) && (t.doneAt ?? "") >= since && similarText(text, t.text));
+  }
+  return undefined;
+}
+
+/** What a repeated todo's new try brings to the one it repeats: the messages it came from are its sources too. */
+function addRefsTo(todo: TodoView, refs: string[]): void {
+  const fresh = refs.filter((r) => !todo.refs.includes(r));
+  if (!fresh.length || todo.status !== "open") return;
+  const row = getDb().select({ refs: todos.refs }).from(todos).where(eq(todos.id, todo.id)).get();
+  getDb().update(todos).set({ refs: JSON.stringify([...new Set([...parse<string[]>(row?.refs ?? "[]", []), ...fresh])].slice(-40)) }).where(eq(todos.id, todo.id)).run();
+}
+
+/** Steps planned behind a todo that repeats another: put onto that one, the ones it doesn't plan already. */
+function planOnto(todoId: number, steps: TodoStep[]): void {
+  const t = getTodo(todoId);
+  if (!t || t.status !== "open" || !steps.length) return;
+  const have = t.planned.flatMap((p) => p.steps);
+  const fresh = steps.filter((s) => !have.some((h) => similarText(h.text, s.text)));
+  if (!fresh.length) return;
+  const planned: TodoPath[] = t.planned.length ? [{ ...t.planned[0], steps: [...t.planned[0].steps, ...fresh].slice(0, 7) }, ...t.planned.slice(1)] : [{ path: null, steps: fresh.slice(0, 7) }];
+  getDb().update(todos).set({ planned: JSON.stringify(planned), updatedAt: new Date().toISOString() }).where(eq(todos.id, todoId)).run();
+}
+
 /**
  * A todo a work run left behind (a follow-up): on its ticket, mine, with its message drafted
  * and where it goes — and what it came from (the message it answers), so that's done with it.
@@ -517,6 +568,12 @@ export function addFollowUp(v: {
   planned?: TodoView["planned"];
   path?: string | null;
 }): TodoView {
+  // What a worker or a plan makes again isn't made: the todo it repeats is the answer (its plan takes what comes after).
+  const had = existingTodoFor({ ticket: v.ticket, text: v.text, ops: v.ops, target: v.target }, { closed: !!v.byWorker || /^Follow-up from/.test(v.source), planned: !/^Planned after/.test(v.source) });
+  if (had) {
+    if (had.status === "open") planOnto(had.id, v.planned?.flatMap((p) => p.steps) ?? []);
+    return had;
+  }
   emitChange("todos");
   const now = new Date().toISOString();
   const target = v.target?.trim() || null;
@@ -554,6 +611,8 @@ export function addFollowUp(v: {
  * when it's about one, else on none (ticket "") — with the mails it came from.
  */
 export function addMailTodo(v: { ticket: string; text: string; kind: string; owner?: "me" | "other"; refs: string[]; runId: number | null; due?: string | null }): TodoView {
+  const had = existingTodoFor({ ticket: v.ticket, text: v.text }, { closed: true });
+  if (had) return (addRefsTo(had, v.refs.filter((r) => r.startsWith("mail:") || r.startsWith("fact:"))), had);
   emitChange("todos");
   const now = new Date().toISOString();
   const row = getDb()
@@ -579,6 +638,8 @@ export function addMailTodo(v: { ticket: string; text: string; kind: string; own
 /** A todo from the Notiz-Durchsicht (Keep's extension): what a note asks of you, the notes as its source. */
 /** A todo from a document (the Dokument-Durchsicht): what the document asks of you, due when it says so; the document is its source. */
 export function addDocTodo(v: { ticket: string; text: string; kind: string; owner?: "me" | "other"; refs: string[]; runId: number | null; due?: string | null }): TodoView {
+  const had = existingTodoFor({ ticket: v.ticket, text: v.text }, { closed: true });
+  if (had) return (addRefsTo(had, v.refs.filter((r) => r.startsWith("doc:"))), had);
   emitChange("todos");
   const now = new Date().toISOString();
   const row = getDb()
@@ -602,6 +663,8 @@ export function addDocTodo(v: { ticket: string; text: string; kind: string; owne
 }
 
 export function addNoteTodo(v: { ticket: string; text: string; kind: string; owner?: "me" | "other"; refs: string[]; runId: number | null; due?: string | null }): TodoView {
+  const had = existingTodoFor({ ticket: v.ticket, text: v.text }, { closed: true });
+  if (had) return (addRefsTo(had, v.refs.filter((r) => r.startsWith("keep:"))), had);
   emitChange("todos");
   const now = new Date().toISOString();
   const row = getDb()
@@ -926,7 +989,11 @@ export function reconcileTodos(result: BoardResult, runId: number): { added: num
         } else {
           // Already open (here or on another ticket — the same message, the same numbers, the same
           // words): not made twice; what this one came from goes onto that one.
-          const dup = duplicateTodo({ text: values.text, ops: JSON.parse(values.ops) as TodoOp[] }, openAll);
+          const dup = duplicateTodo({ text: values.text, ops: JSON.parse(values.ops) as TodoOp[] }, openAll) ?? existingTodoFor({ ticket, text: values.text, ops: JSON.parse(values.ops) as unknown[] }, { closed: true });
+          if (dup && dup.status !== "open") {
+            out.kept++; // dealt with lately: not made again
+            continue;
+          }
           if (dup) {
             const own = dup.refs.filter((r) => !dup.mailRefs.includes(r)); // the related mails stay in their own column
             const refs = [...new Set([...own, ...(JSON.parse(values.refs) as string[])])].slice(0, 15);

@@ -53,8 +53,11 @@ test("what you dropped counts as there for the reviews, and a repeat is shown", 
   attributed("lage:4", () => setTodoStatus(other.id, "dismissed", "Laut Lauf überholt"));
   assert.ok(!droppedByYou().some((t) => t.id === other.id));
 
-  // Made anyway (before the fix, say): listed as proposed again.
-  const repeat = mail(again.text);
+  // Made again now? No — what you dropped is there for every way of making todos: the dropped one is the answer.
+  assert.equal(mail(again.text).id, first.id);
+  // Made anyway (before that, say): listed as proposed again.
+  const { getDb, schema } = await import("@/db");
+  const repeat = attributed("lage:3", () => getDb().insert(schema.todos).values({ ticket: "", text: again.text, kind: "other", owner: "me", status: "open", source: "Mail-Durchsicht", refs: JSON.stringify(["mail:b"]), runId: 3, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } as never).returning().get());
   const r = aiQuality(null).repeats.find((x) => x.id === repeat.id);
   assert.equal(r?.like.id, first.id);
 });

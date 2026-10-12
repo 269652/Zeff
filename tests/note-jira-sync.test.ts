@@ -10,7 +10,8 @@ async function board(ticket: string) {
 }
 async function todoWithNote(ticket: string, text: string) {
   const { addFollowUp, addTodoUserNote } = await import("@/lib/boards/store");
-  const t = addFollowUp({ ticket, text: "Todo", kind: "other", parentId: null as unknown as number, workRunId: null, source: "test" });
+  // (each todo its own words: todos that only repeat each other aren't made twice)
+  const t = addFollowUp({ ticket, text: `Aufgabe ${Math.random().toString(36).slice(2, 10)} ${Math.random().toString(36).slice(2, 10)}`, kind: "other", parentId: null as unknown as number, workRunId: null, source: "test" });
   return { todo: t, note: addTodoUserNote(t.id, text).userNotes[0] };
 }
 /** The Jira users as the briefing run lists them ("Name (username)") on a ticket's facts. */
