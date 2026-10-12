@@ -10,6 +10,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 const tools = (): [string, string][] => [
   ["report_time", t("Book hours on a job (jobNumber, hours, description, date?, ticket?, reportedBy?).")],
+  ["todo_time", t("Report the time you spent on a todo (todo, minutes or hours, note, agent) — one record each, a todo can have many; they flow into its booking.")],
   ["list_jobs", t("List job numbers, optionally filtered by a search term.")],
   ["create_job", t("Create a new job number.")],
   ["get_weekly_report", t("Hours per job and weekday for a week, plus all its entries.")],

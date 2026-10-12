@@ -146,6 +146,11 @@ test("without records the runs' durations count; a record and its run are never 
   assert.equal(g.time.filter((l) => l.kind === "run").length, 1);
   assert.equal(g.time.filter((l) => l.kind === "hand").length, 1);
   assert.equal(g.time.find((l) => l.kind === "run")!.minutes, 40);
+  // The live session's run took 3 h but only 25 min were reported on it: the rest is shown as a gap — not in the hours.
+  const gap = g.time.find((l) => l.kind === "gap")!;
+  assert.equal(gap.minutes, 155);
+  assert.equal(gap.todoId, withRecords.id);
+  assert.equal(g.hours, 1.5);
 });
 
 test("booking marks the records booked, links them as the entry's evidence and doesn't offer them again", async () => {

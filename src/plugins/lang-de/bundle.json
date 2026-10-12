@@ -3767,5 +3767,11 @@
   "Turn off": "Ausschalten",
   "Commands": "Befehle",
   "Plugin views": "Plugin-Ansichten",
-  "This plugin isn't in the plugins folder any more.": "Dieses Plugin ist nicht mehr im Plugin-Ordner."
+  "This plugin isn't in the plugins folder any more.": "Dieses Plugin ist nicht mehr im Plugin-Ordner.",
+  "related": "verwandt",
+  "{run} ran {n} min longer than reported on {todo}": "{run} lief {n} Min. länger, als auf {todo} gemeldet wurde",
+  "Unreported time of {run}": "Nicht gemeldete Zeit von {run}",
+  "Added to the hours.": "Zu den Stunden hinzugefügt.",
+  "add {n} min": "{n} Min. hinzufügen",
+  "Report the time you spent on a todo (todo, minutes or hours, note, agent) — one record each, a todo can have many; they flow into its booking.": "Melde die Zeit, die du an einem Todo gearbeitet hast (todo, Minuten oder Stunden, note, agent) — je ein Eintrag, ein Todo kann viele haben; sie fließen in seine Buchung."
 }

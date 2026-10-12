@@ -17,6 +17,7 @@ import { getJobByNumber } from "@/lib/jobs";
 import { isoDate } from "@/lib/week";
 import { sideTodos } from "./actions";
 import { suggestedEvidence } from "./suggestions";
+import { workRef } from "./shared";
 import { listTodoTimes, markTimeBooked } from "./todo-time";
 
 const { todos, workRuns } = schema;
@@ -32,10 +33,18 @@ export type TimeLine = {
   note: string;
   by: string;
   at: string | null;
-  kind: "record" | "run" | "hand";
+  /** gap: a run took longer than its records say — shown, not counted (you may add it). */
+  kind: "record" | "run" | "hand" | "gap";
   /** The record's id, or the run's. */
   id?: number;
+  /** The todo's id (to add the gap as a record). */
+  todoId?: number;
+  /** A record of a related todo (another one on the ticket or in the chain), not of the group's own. */
+  related?: boolean;
 };
+
+/** A run counts as under-reported when it took this many minutes more than its records say. */
+const GAP_MINUTES = 10;
 
 /** A ticket's todos done today, as one entry to book: on its job, their time, their lines. */
 export type DoneToday = {
@@ -102,7 +111,7 @@ export function groupTime(list: { id: number; text: string }[], runs: (typeof wo
     : [];
   const everything = listTodoTimes([...ids, ...extra]);
   const records = everything.filter((r) => r.entryId == null && !suggested.timeIds.has(r.id));
-  const lines: TimeLine[] = records.map((r) => ({ todo: r.todo, minutes: r.minutes, note: r.note, by: r.by, at: r.at, kind: "record", id: r.id }));
+  const lines: TimeLine[] = records.map((r) => ({ todo: r.todo, minutes: r.minutes, note: r.note, by: r.by, at: r.at, kind: "record", id: r.id, todoId: r.todoId, related: !ids.includes(r.todoId) }));
   const counted: (typeof runs) = [];
   const byHand: { id: number; text: string }[] = [];
   for (const todo of list) {
@@ -110,6 +119,13 @@ export function groupTime(list: { id: number; text: string }[], runs: (typeof wo
     const hasAgent = records.some((r) => r.todoId === todo.id && r.source === "agent");
     const made = new Set(everything.filter((r) => r.todoId === todo.id && r.runId != null).map((r) => r.runId));
     if (!hasAgent) counted.push(...mine.filter((r) => !made.has(r.id)));
+    // Records replace a todo's runs: where a run took clearly longer than its records say, that's shown (not counted).
+    else
+      for (const r of mine) {
+        const reported = everything.filter((x) => x.runId === r.id).reduce((a, x) => a + x.minutes, 0);
+        const took = Math.round((r.durationMs ?? 0) / 60000);
+        if (made.has(r.id) && took - reported >= GAP_MINUTES) lines.push({ todo: todoRef(todo.id), minutes: took - reported, note: workRef(r.id), by: r.model ?? r.provider, at: r.startedAt, kind: "gap", id: r.id, todoId: todo.id });
+      }
     if (!mine.length && !records.some((r) => r.todoId === todo.id)) byHand.push(todo);
   }
   for (const r of counted) lines.push({ todo: todoRef(r.todoId), minutes: Math.round((r.durationMs ?? 0) / 60000), note: r.entryLine?.trim() ?? "", by: r.model ?? r.provider, at: r.startedAt, kind: "run", id: r.id });

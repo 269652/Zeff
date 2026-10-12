@@ -3767,5 +3767,11 @@
   "Turn off": "Desactivar",
   "Commands": "Comandos",
   "Plugin views": "Vistas de plugins",
-  "This plugin isn't in the plugins folder any more.": "Este plugin ya no está en la carpeta de plugins."
+  "This plugin isn't in the plugins folder any more.": "Este plugin ya no está en la carpeta de plugins.",
+  "related": "relacionado",
+  "{run} ran {n} min longer than reported on {todo}": "{run} duró {n} min más de lo informado en {todo}",
+  "Unreported time of {run}": "Tiempo no informado de {run}",
+  "Added to the hours.": "Añadido a las horas.",
+  "add {n} min": "añadir {n} min",
+  "Report the time you spent on a todo (todo, minutes or hours, note, agent) — one record each, a todo can have many; they flow into its booking.": "Informa del tiempo dedicado a una tarea (todo, minutos u horas, note, agent) — un registro cada vez, una tarea puede tener varios; pasan a su registro de horas."
 }
