@@ -125,3 +125,24 @@ test("pushing a work branch is its own action: it runs alone (the other actions 
   assert.equal(opsSettle({ kind: "implement", owner: "me", text: "x", ops: [ops[1]] }), false);
   assert.equal(opsSettle({ kind: "merge", owner: "me", text: "x", ops: [ops[1]] }), true);
 });
+
+test("a delivery todo that names the branch carries the push and the merge request — the implement todo before it doesn't take the push — and its context shows the branch", async () => {
+  const { attachOpenMrOps } = await import("@/lib/boards/delivery-ops");
+  const { getTodo, addFollowUp } = await import("@/lib/boards/store");
+  const { getDb, schema } = await import("@/db");
+  const repo = repoWithBranch("feature/PU-9-delivery");
+  const work = await setup("PU-9", repo, "feature/PU-9-delivery", "agent", "grp/proj");
+  // (An earlier pass had given the implement todo its own push.)
+  const { setTodoOps } = await import("@/lib/boards/store");
+  setTodoOps(work.id, [...getTodo(work.id)!.ops, { type: "git-push", repo, branch: "feature/PU-9-delivery", remote: "feature/PU-9-delivery", target: "main", title: "t", description: "d" }]);
+  const test = addFollowUp({ ticket: "PU-9", text: "Manuell testen", kind: "test", parentId: work.id, workRunId: null, source: "test" });
+  const deliver = addFollowUp({ ticket: "PU-9", text: "Merge Request für feature/PU-9-delivery öffnen.", kind: "merge", parentId: test.id, workRunId: null, source: "Planned after test" });
+  getDb().insert(schema.gitlabItems).values({ key: "branch:grp/proj:feature/PU-9-delivery", kind: "branch", project: "grp/proj", projectUrl: "u", ref: "feature/PU-9-delivery", title: "feature/PU-9-delivery", body: "", url: "https://git/b", syncedAt: new Date().toISOString(), branch: "feature/PU-9-delivery" } as never).run();
+
+  await attachOpenMrOps();
+  assert.deepEqual(getTodo(deliver.id)!.ops.map((o) => o.type), ["git-push", "gitlab-open-mr"], "the delivery todo carries it");
+  assert.deepEqual(getTodo(work.id)!.ops.map((o) => o.type), ["jira-transition"], "the implement todo's own push goes — the delivery covers it");
+  // The branch is context of the delivery todo, though its text is all that names it.
+  assert.ok(getTodo(deliver.id)!.refs.includes("gitlab:branch:grp/proj:feature/PU-9-delivery"));
+  assert.ok(getTodo(work.id)!.refs.includes("gitlab:branch:grp/proj:feature/PU-9-delivery"));
+});

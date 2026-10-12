@@ -56,6 +56,8 @@ export async function setTodoStatusAction(id: number, status: "open" | "done" | 
     const { setTodoStatus } = await import("@/lib/boards/store");
     const { attributed } = await import("@/lib/boards/activity");
     attributed("you", () => setTodoStatus(id, status, status === "open" ? null : undefined));
+    // A step ticked off brings the next one (a delivery): its actions from git, at once — no AI.
+    if (status === "done") void import("@/lib/boards/delivery-ops").then((m) => m.attachOpenMrOps()).then(() => revalidateAll()).catch(() => {});
     revalidateAll();
     return { ok: true };
   } catch (err) {

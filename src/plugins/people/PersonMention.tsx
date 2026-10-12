@@ -65,6 +65,28 @@ export function TaggedText({ text, render = (s) => s }: { text: string; render?:
  * A name as a link to the person, with their hover card — or, inside another hover card (a note's), their card
  * as its sidebar: the two become one split view. `tagged`: an @-tag in a note — underlined solid.
  */
+/** The people tagged (@) in a text — each once, in the order they're named. */
+export function useTaggedPeople(text: string): { id: number; name: string }[] {
+  const matcher = useContext(Ctx);
+  return useMemo(() => {
+    if (!matcher || !text.includes("@")) return [];
+    const seen = new Map<number, { id: number; name: string }>();
+    for (const m of splitTags(text, matcher)) if (m.person && !seen.has(m.person.id)) seen.set(m.person.id, { id: m.person.id, name: m.person.name });
+    return [...seen.values()];
+  }, [matcher, text]);
+}
+
+/** The people a note names, one under the other — the sidebar of the note's hover card. */
+export function PeopleStack({ people }: { people: { id: number; name: string }[] }) {
+  return (
+    <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
+      {people.map((p) => (
+        <PersonCard key={p.id} id={p.id} name={p.name} flat />
+      ))}
+    </div>
+  );
+}
+
 export function PersonMention({ id, name, children, tagged = false }: { id: number; name: string; children: ReactNode; tagged?: boolean }) {
   const side = useHoverSide();
   const underline = tagged
@@ -77,11 +99,12 @@ export function PersonMention({ id, name, children, tagged = false }: { id: numb
         className={underline}
         onClick={(e) => e.stopPropagation()}
         onMouseEnter={() => {
-          side.setSide(<PersonCard id={id} name={name} flat />);
+          // The card shows everyone its text names already; else the one hovered.
+          if (!side.hasSide) side.setSide(<PersonCard id={id} name={name} flat />);
           side.open();
         }}
         onFocus={() => {
-          side.setSide(<PersonCard id={id} name={name} flat />);
+          if (!side.hasSide) side.setSide(<PersonCard id={id} name={name} flat />);
           side.open();
         }}
       >

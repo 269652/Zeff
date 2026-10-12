@@ -24,6 +24,9 @@ const MERGES = (text: string) => /(?<!\p{L})(mergen|einmergen)(?!\p{L})|\bmerge\
 /** A branch named in a todo's text (cut off as the AI may have: "feature/PROJ-454-kategorienbaum-und-…-der-m"). */
 const BRANCH_IN_TEXT = /\b((?:feature|fix|bugfix|hotfix|zeff)\/[A-Za-z0-9._\-/]+)/;
 
+/** The kinds of todo that do the work (a push of their branch is a convenience, not their delivery). */
+const WORK_KINDS: string[] = ["implement", "fix", "test"];
+
 /** What git and GitLab (as synced) know of a repo's branches — read once per repo. */
 type RepoFacts = { repo: RepoView & { gitlabProject: string }; main: string; base: string; branches: string[]; mrs: GitlabItemView[] };
 
@@ -154,11 +157,13 @@ async function workBranchOps(t: TodoView, open: TodoView[], mrs: GitlabItemView[
   const unpushed = local && (!remote || Number((await tryGit(repo.path, ["rev-list", "--count", `origin/${name}..${name}`])) || 0) > 0);
   const pushOf = (o: TodoOp) => o.type === "git-push" && o.branch === name && o.remote === name;
   // A push action we gave it, and the branch is on the remote now: done.
-  const remove = remote && !unpushed ? t.ops.filter(pushOf) : [];
+  // …or when another todo (a delivery) carries the push for that branch now.
+  const covered = open.some((x) => x.id !== t.id && !WORK_KINDS.includes(x.kind) && x.ops.some((o) => (o.type === "git-push" && o.branch === name) || (o.type === "gitlab-open-mr" && o.source === name)));
+  const remove = (remote && !unpushed) || (covered && WORK_KINDS.includes(t.kind)) ? t.ops.filter(pushOf) : [];
   const title = `${t.ticket}: ${getJiraTicket(t.ticket)?.summary ?? t.text}`.slice(0, 250);
   const description = `${t.ref} · ${t.text}`;
   const add: TodoOp[] = [];
-  if (ahead > 0 && unpushed && !open.some((x) => x.ops.some(pushOf))) add.push({ type: "git-push", repo: repo.path, branch: name, remote: name, target: base, title, description });
+  if (ahead > 0 && unpushed && !open.some((x) => x.ops.some(pushOf) || (x.id !== t.id && x.ops.some((o) => o.type === "gitlab-open-mr" && o.source === name)))) add.push({ type: "git-push", repo: repo.path, branch: name, remote: name, target: base, title, description });
   const delivers = (o: TodoOp) => (o.type === "gitlab-open-mr" && o.source === name) || (o.type === "gitlab-merge" && o.source === name);
   const hasMr = mrs.some((m) => m.branch === name && !/closed/i.test(m.state ?? "") && m.project === repo.gitlabProject);
   if (ahead > 0 && remote && !unpushed && repo.gitlabProject && !hasMr && !open.some((x) => x.ops.some(delivers))) {
@@ -175,7 +180,8 @@ async function workBranchOps(t: TodoView, open: TodoView[], mrs: GitlabItemView[
 export async function attachOpenMrOps(): Promise<number> {
   const open = listTodos({ status: "open" });
   // Branches an open todo delivers already.
-  const delivering = new Set(open.flatMap((t) => t.ops.flatMap((o) => ("source" in o ? [o.source] : "branch" in o ? [o.branch.replace(/^origin\//, "")] : []))));
+  // (A push on the todo of the work itself is only a convenience — the delivery todo that names the branch carries the real one.)
+  const delivering = new Set(open.filter((t) => !WORK_KINDS.includes(t.kind)).flatMap((t) => t.ops.flatMap((o) => ("source" in o ? [o.source] : "branch" in o ? [o.branch.replace(/^origin\//, "")] : []))));
   const facts = new Map<string, RepoFacts>();
   let n = 0;
   for (const t of open) {

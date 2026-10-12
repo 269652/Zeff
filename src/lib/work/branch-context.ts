@@ -37,6 +37,9 @@ function family(id: number): number[] {
   return [...out];
 }
 
+/** A branch named in a todo's text. */
+const BRANCH_IN_TEXT = /\b((?:feature|fix|bugfix|hotfix)\/[A-Za-z0-9._\-/]+)/;
+
 /** A branch of a work run that's worth showing: a feature or fix branch — not a worker's own worktree branch (zeff/…). */
 const shown = (name: string) => !!name && !name.startsWith("zeff/");
 
@@ -84,7 +87,11 @@ export function linkBranchContext(todoIds: number[]): number {
     const found = new Map<string, string | null>();
     for (const m of ids) {
       const t = m === id ? todo : getTodo(m);
-      if (t) for (const n of branchNamesOf(t)) if (shown(n)) found.set(n, found.get(n) ?? null);
+      if (!t) continue;
+      for (const n of branchNamesOf(t)) if (shown(n)) found.set(n, found.get(n) ?? null);
+      // A todo that names the branch in its words (a delivery: "Merge Request für feature/… öffnen").
+      const named = BRANCH_IN_TEXT.exec(t.text)?.[1]?.replace(/[.\-/]+$/, "");
+      if (named && shown(named)) found.set(named, found.get(named) ?? null);
     }
     const runs = getDb().select({ repo: workRuns.repo, branch: workRuns.branch }).from(workRuns).where(inArray(workRuns.todoId, ids)).all().filter((r) => r.repo && r.branch);
     for (const r of runs) {

@@ -5,7 +5,7 @@ import { MentionTextarea } from "../MentionTextarea";
 import { rich } from "@/lib/i18n/rich";
 import { removeTodoNoteAction, syncNoteToJiraAction, updateTodoNoteAction } from "@/plugins/todos/server-actions";
 import { noteSyncState, type TodoSource, type TodoUserNote } from "@/lib/boards/shared";
-import { TaggedText } from "@/plugins/people/PersonMention";
+import { PeopleStack, TaggedText, useTaggedPeople } from "@/plugins/people/PersonMention";
 import { NoteIcon, PencilIcon, SparkIcon } from "../icons";
 import { DismissButton } from "../DismissButton";
 import { HoverCard } from "../HoverCard";
@@ -121,9 +121,11 @@ export function NoteRow({ n, todoId, jira }: { n: TodoUserNote; todoId?: number;
   const own = todoId !== undefined && !n.from;
   const mine = own && !n.by && n.kind !== "instruction";
   const sync = noteSyncState(n);
+  // The people the note tags: all of them in the card's sidebar (a split view), whichever name is hovered.
+  const tagged = useTaggedPeople(n.text);
   return (
     <span className="flex flex-col items-start gap-1">
-      <HoverCard className="group gap-1.5 sm:max-w-md" card={<NoteDetails n={n} jira={jira} />}>
+      <HoverCard className="group gap-1.5 sm:max-w-md" card={<NoteDetails n={n} jira={jira} />} side={tagged.length ? <PeopleStack people={tagged} /> : undefined}>
         <NoteBadge n={n} jira={jira} className="min-w-0" />
         {mine && (
           <button type="button" className="icon-btn shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100" title={t("Edit the text")} aria-label={t("Edit the text")} onClick={() => (setText(n.text), setEditing(true))}>

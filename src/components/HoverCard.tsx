@@ -13,7 +13,7 @@ const SIDE_WIDTH = 340;
  * sidebar — instead of floating a second card on top of the first (a person named in a note) —
  * and open the card if it isn't open yet. Null outside any HoverCard.
  */
-const SideCtx = createContext<{ setSide: (node: ReactNode | null) => void; open: () => void } | null>(null);
+const SideCtx = createContext<{ setSide: (node: ReactNode | null) => void; open: () => void; /** The card has a sidebar of its own already (its `side` prop). */ hasSide: boolean } | null>(null);
 export const useHoverSide = () => useContext(SideCtx);
 
 /**
@@ -21,9 +21,10 @@ export const useHoverSide = () => useContext(SideCtx);
  * above when there's more room there — no taller than that room (it scrolls inside), kept in the
  * window. It stays while the pointer is on it, to click what's in it.
  */
-export function HoverCard({ card, children, width = 420, className = "" }: { card: ReactNode; children: ReactNode; width?: number; className?: string }) {
+export function HoverCard({ card, children, width = 420, className = "", side: sideProp }: { card: ReactNode; children: ReactNode; width?: number; className?: string; /** A sidebar beside the card, whenever it's open (the people a note names). */ side?: ReactNode }) {
   const [place, setPlace] = useState<Place | null>(null);
-  const [side, setSide] = useState<ReactNode | null>(null);
+  const [asked, setSide] = useState<ReactNode | null>(null);
+  const side = sideProp ?? asked;
   const ref = useRef<HTMLSpanElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -65,7 +66,8 @@ export function HoverCard({ card, children, width = 420, className = "" }: { car
       );
   };
   const show = () => later(locate, 250);
-  const api = useMemo(() => ({ setSide, open: () => later(locate, 0) }), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const hasSide = !!sideProp;
+  const api = useMemo(() => ({ setSide, open: () => later(locate, 0), hasSide }), [hasSide]); // eslint-disable-line react-hooks/exhaustive-deps
   const hide = () => later(() => setPlace(null), 150);
   const keep = () => timer.current && clearTimeout(timer.current);
 
