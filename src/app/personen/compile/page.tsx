@@ -3,11 +3,11 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { SubmitButton } from "@/components/SubmitButton";
-import { formatAgo } from "@/lib/format";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { compileProgress } from "@/plugins/people/compile";
 import { CompileProgress } from "@/plugins/people/CompileProgress";
+import { PersonSummaryDetails } from "@/plugins/people/SummaryView";
 import { compileAllFormAction, compileOneFormAction } from "@/plugins/people/server-actions";
 import { listPeople } from "@/plugins/people/store";
 
@@ -84,35 +84,7 @@ export default async function CompilePage({ searchParams }: { searchParams: Prom
                 </form>
               </div>
               {p.compiled ? (
-                <>
-                  {p.compiled.connection && (
-                    <section>
-                      <h3 className="label">{t("What connects you")}</h3>
-                      <p className="whitespace-pre-line text-zinc-700 dark:text-zinc-300">{p.compiled.connection}</p>
-                    </section>
-                  )}
-                  {p.compiled.keyFacts.length > 0 && (
-                    <section>
-                      <h3 className="label">{t("Key facts")}</h3>
-                      <ul className="list-disc space-y-0.5 pl-4 text-zinc-700 dark:text-zinc-300">
-                        {p.compiled.keyFacts.map((f, i) => (
-                          <li key={i}>{f}</li>
-                        ))}
-                      </ul>
-                    </section>
-                  )}
-                  {p.compiled.funFacts.length > 0 && (
-                    <section>
-                      <h3 className="label">{t("Fun facts")}</h3>
-                      <ul className="space-y-0.5 text-zinc-700 dark:text-zinc-300">
-                        {p.compiled.funFacts.map((f, i) => (
-                          <li key={i}>🎈 {f}</li>
-                        ))}
-                      </ul>
-                    </section>
-                  )}
-                  <p className="text-xs text-zinc-400">{t("Compiled {ago} from {n} things", { ago: formatAgo(Date.parse(p.compiled.at)), n: p.compiled.sources })}</p>
-                </>
+                <PersonSummaryDetails summary={p.compiled} />
               ) : (
                 <p className="text-zinc-400">{t("Not compiled yet.")}</p>
               )}

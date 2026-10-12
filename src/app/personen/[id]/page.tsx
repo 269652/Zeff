@@ -11,6 +11,7 @@ import { dateKindLabels, DATE_KINDS, dateText, daysBetween, inDaysText, isoDay, 
 import { contactsOf, datesOf, getPerson, listPeople, namesThem, relationsOf, rememberEntity } from "@/plugins/people/store";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { isInstalled } from "@/plugins/state";
+import { PersonSummaryDetails } from "@/plugins/people/SummaryView";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("Person") };
@@ -100,6 +101,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
           <h1 className="text-lg font-semibold break-words">{p.name}</h1>
         </div>
         {p.aliases.length > 0 && <p className="text-xs text-zinc-500">{t("Also: {names}", { names: p.aliases.join(", ") })}</p>}
+        {p.compiled && <PersonSummaryDetails summary={p.compiled} />}
         {(p.accounts.length > 0 || p.emails.length > 0 || p.whatsapp) && (
           <ul className="flex flex-wrap gap-1.5 text-xs" aria-label={t("Linked accounts")}>
             {p.accounts.map((a) => (

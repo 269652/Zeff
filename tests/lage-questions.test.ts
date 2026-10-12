@@ -71,3 +71,19 @@ test("every flag and every vague statement is a reason for a question: the instr
   assert.match(bullet, /Rückfrage/); // the example: "Rückfrage seit 07.10. offen" → "Was für eine Rückfrage?"
   assert.match(bullet, /JEDEM/); // each flag, not just some
 });
+
+test("the briefing sees what you noted on a ticket's todos — open or done lately — and is told a note that says something is settled settles it for the whole ticket", async () => {
+  const { addFollowUp, addTodoUserNote, setTodoStatus } = await import("@/lib/boards/store");
+  const { ticketBlock, INSTRUCTIONS } = await import("@/lib/boards/collect");
+  const open = addFollowUp({ ticket: "NT-1", text: "Pipeline prüfen, dann auf Test kontrollieren, dass der Titel stimmt", kind: "test", parentId: null as unknown as number, workRunId: null, source: "test" });
+  addTodoUserNote(open.id, "Habe ich heute auf Test geprüft: Titel blau, Zusatz grau, Icon da, Link öffnet im neuen Fenster.");
+  const done = addFollowUp({ ticket: "NT-1", text: "Mit Jens klären", kind: "clarify", parentId: null as unknown as number, workRunId: null, source: "test" });
+  addTodoUserNote(done.id, "Jens hat bestätigt, dass es so passt.");
+  setTodoStatus(done.id, "done");
+  const block = ticketBlock({ key: "NT-1", summary: "Bestellen blau" } as never, null);
+  assert.match(block, /MEINE NOTIZ[^\n]*Habe ich heute auf Test geprüft/);
+  assert.match(block, /erledigt[^\n]*Mit Jens klären[^\n]*MEINE NOTIZ[^\n]*Jens hat bestätigt/);
+  const rule = /MEINE NOTIZ[\s\S]*?(?=\n\n|$)/.exec(INSTRUCTIONS)?.[0] ?? "";
+  assert.match(rule, /ganze[ns]? Ticket/i);
+  assert.match(rule, /erledigt|getestet|geklärt/);
+});

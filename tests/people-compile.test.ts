@@ -84,3 +84,16 @@ test("one person failing doesn't stop the rest, and says who and why", async () 
   assert.equal(getPerson(anna)!.compiled, null);
   assert.equal(getPerson(berta)!.compiled?.connection, "ok");
 });
+
+test("a compiled summary is on the person's hover card", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("people", true); // (the card is only there with the plugin)
+  const { personCardAction } = await import("@/plugins/people/server-actions");
+  const { listPeople } = await import("@/plugins/people/store");
+  const julia = listPeople().find((p) => p.name === "Julia Freidank")!;
+  const card = await personCardAction(julia.id);
+  assert.match(card!.summary!.connection, /Navigation/);
+  assert.deepEqual(card!.summary!.keyFacts, ["Testet und nimmt Tickets ab", "Jira: julfreid"]);
+  const quiet = listPeople().find((p) => p.name === "Ruhiger Mensch")!;
+  assert.equal((await personCardAction(quiet.id))!.summary, null);
+});

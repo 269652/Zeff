@@ -152,6 +152,25 @@ function PersonCard({ id, name, flat = false }: { id: number; name: string; flat
       {data === null && <p className="text-zinc-400">{t("Nothing known about them yet.")}</p>}
       {data && (
         <>
+          {data.summary && (
+            <div className="space-y-1.5 rounded-md bg-zinc-50 p-2 dark:bg-zinc-800/50">
+              {data.summary.connection && <p className="line-clamp-4 whitespace-pre-line text-zinc-700 dark:text-zinc-200">{data.summary.connection}</p>}
+              {data.summary.keyFacts.length > 0 && (
+                <ul className="list-disc space-y-0.5 pl-4 text-zinc-600 dark:text-zinc-300">
+                  {data.summary.keyFacts.map((f, i) => (
+                    <li key={i}>{f}</li>
+                  ))}
+                </ul>
+              )}
+              {data.summary.funFacts.length > 0 && (
+                <ul className="space-y-0.5 text-zinc-600 dark:text-zinc-300">
+                  {data.summary.funFacts.map((f, i) => (
+                    <li key={i}>🎈 {f}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
           {data.dates.length > 0 && (
             <ul className="space-y-0.5">
               {data.dates.map((d, i) => (
@@ -195,7 +214,7 @@ function PersonCard({ id, name, flat = false }: { id: number; name: string; flat
               ))}
             </div>
           )}
-          {!data.dates.length && !data.facts.length && !data.relations.length && !data.note && !data.messages.length && !data.todos.length && <p className="text-zinc-400">{t("Nothing known about them yet.")}</p>}
+          {!data.summary && !data.dates.length && !data.facts.length && !data.relations.length && !data.note && !data.messages.length && !data.todos.length && <p className="text-zinc-400">{t("Nothing known about them yet.")}</p>}
         </>
       )}
     </div>

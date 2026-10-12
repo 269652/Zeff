@@ -244,6 +244,8 @@ export type PersonCardData = {
   name: string;
   aliases: string[];
   note: string;
+  /** The compiled summary (the Compile page), if there is one. */
+  summary: { connection: string; keyFacts: string[]; funFacts: string[]; at: string } | null;
   dates: { label: string; when: string }[];
   facts: { subject: string; text: string }[];
   /** "Mutter", "Tochter von Nadine", "Sohn: Max" — who they are to you / to others. */
@@ -282,6 +284,7 @@ export async function personCardAction(id: number): Promise<PersonCardData | nul
     name: p.name,
     aliases: p.aliases,
     note: p.note.slice(0, 400),
+    summary: p.compiled ? { connection: p.compiled.connection, keyFacts: p.compiled.keyFacts.slice(0, 5), funFacts: p.compiled.funFacts.slice(0, 4), at: p.compiled.at } : null,
     dates,
     facts: listFacts()
       .filter((f) => names(`${f.subject} ${f.text}`))
