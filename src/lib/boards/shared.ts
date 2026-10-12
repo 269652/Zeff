@@ -321,7 +321,8 @@ export type TodoView = {
   /** When you flagged it important (null: not flagged). */
   flaggedAt: string | null;
   /** A worker or agent reports it done (null: none did). It stays open — closing it is yours. */
-  workerDone: { at: string; by: string; note: string | null } | null;
+  /** `suggested`: the AI review only thinks it's done — a grey tick to confirm, nothing a worker did. */
+  workerDone: { at: string; by: string; note: string | null; suggested?: boolean } | null;
   /** A worker made it: it's on the "Worker" tab, not in your list — workers may close such todos themselves. */
   byWorker: boolean;
   /** Other tickets it's about too (linked: the same thing on two tickets); `ticket` is the main one. */

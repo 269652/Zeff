@@ -713,6 +713,22 @@ export function markWorkerDone(id: number, by: string, note?: string | null): To
   return getTodo(id)!;
 }
 
+/**
+ * The AI review thinks the todo is done: it only SUGGESTS it — the todo stays open, with a grey
+ * tick to confirm (ticking it closes it). A worker's own todo needs no one, it closes.
+ */
+export function suggestDone(id: number, by: string, note?: string | null): TodoView {
+  const t = getTodo(id);
+  if (!t) throw new NotFoundError(`Todo ${todoRef(id)} not found.`);
+  if (t.byWorker) return setTodoStatus(id, "done", note?.trim() || `Erledigt von ${by}`);
+  getDb().update(todos).set({ workerDone: suggestedDoneJson(by, note) }).where(eq(todos.id, id)).run();
+  emitChange("todos");
+  return getTodo(id)!;
+}
+
+const suggestedDoneJson = (by: string, note?: string | null) =>
+  JSON.stringify({ at: new Date().toISOString(), by: by.slice(0, 100), note: note?.trim().slice(0, 500) || null, suggested: true });
+
 /** An agent working on it waits for your answer — its question (null: it goes on). */
 export function setTodoNeedsInput(id: number, question: string | null): void {
   getDb().update(todos).set({ needsInput: question?.trim().slice(0, 2000) || null }).where(eq(todos.id, id)).run();
@@ -782,6 +798,13 @@ export function reconcileTodos(result: BoardResult, runId: number): { added: num
         if (!open.has(r.id)) continue;
         // Done: its plan goes on. Superseded (or not said): dropped, nothing follows from it.
         const done = r.done === true;
+        const byWorker = tx.select({ byWorker: todos.byWorker }).from(todos).where(eq(todos.id, r.id)).get()?.byWorker;
+        if (done && !byWorker) {
+          // Done is only suggested (grey tick) — you confirm it; its plan goes on then.
+          tx.update(todos).set({ workerDone: suggestedDoneJson("Ticket-Lage", `Done, per the briefing run: ${r.why}`), updatedAt: now, runId }).where(eq(todos.id, r.id)).run();
+          open.delete(r.id);
+          continue;
+        }
         tx.update(todos)
           .set({ status: done ? "done" : "dismissed", note: `${done ? "Done, per the briefing run" : "Outdated, per the briefing run"}: ${r.why}`.slice(0, 500), doneAt: now, updatedAt: now, runId })
           .where(eq(todos.id, r.id))

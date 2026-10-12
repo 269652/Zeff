@@ -190,6 +190,8 @@ export function TodoItem({
   const closed = status !== "open";
   // Proposed by the auto-actions review: folded behind "Show actions (n)" — they're suggestions.
   const proposed = todo.ops.length > 0 && !closed && !!todo.autoOpsWhy;
+  // Several actions (a delivery's commit, push, MR, merge): their notes fold behind the same toggle — the buttons stay.
+  const foldable = todo.ops.length > 1 && !closed && !proposed;
   const cameFrom = sourcesOf(todo.refs, sources);
   // Where a todo without a ticket came from: WhatsApp (Signal) when its messages are all that app's chats.
   const msgs = cameFrom.filter((s) => s.source === "mail");
@@ -199,7 +201,13 @@ export function TodoItem({
   // An agent on it asks you something and waits.
   const asking = !closed && todo.needsInput ? todo.needsInput : null;
   // A worker or agent says it's done: highlighted, still open - closing it is yours.
-  const reported = !closed && !asking && !!todo.workerDone;
+  const suggested = !closed && !asking && !!todo.workerDone?.suggested;
+  const reported = !closed && !asking && !!todo.workerDone && !suggested;
+  const suggestedTip = todo.workerDone
+    ? todo.workerDone.note
+      ? t("{by} suggests this is done: {note} — tick it to confirm", { by: todo.workerDone.by, note: todo.workerDone.note })
+      : t("{by} suggests this is done — tick it to confirm", { by: todo.workerDone.by })
+    : undefined;
   // What Zeff runs on a click — those that open in your browser (a mail draft, an appointment) are links of their own.
   const zeffOps = todo.ops.filter((o) => !actionHref(o));
   // New since you last looked: lightly highlighted till the mouse passes over it.
@@ -209,16 +217,16 @@ export function TodoItem({
   return (
     <li
       id={anchor ? `todo-${todo.id}` : undefined}
-      className={`group flex scroll-mt-24 items-start gap-2 rounded target:bg-amber-50 dark:target:bg-amber-950/40 ${asking ? "-mx-2 bg-amber-50 px-2 py-1.5 ring-1 ring-amber-300 dark:bg-amber-950/40 dark:ring-amber-800" : reported ? "-mx-2 bg-emerald-50 px-2 py-1.5 ring-1 ring-emerald-300 dark:bg-emerald-950/30 dark:ring-emerald-800" : running || doing ? "-mx-2 bg-indigo-50 px-2 py-1.5 ring-1 ring-indigo-200 dark:bg-indigo-950/40 dark:ring-indigo-900" : isFresh ? "-mx-2 bg-sky-50/80 px-2 py-1.5 ring-1 ring-sky-100 dark:bg-sky-950/30 dark:ring-sky-900/60" : todo.deferred && !closed ? "opacity-60 hover:opacity-100" : ""}`}
+      className={`group flex scroll-mt-24 items-start gap-2 rounded target:bg-amber-50 dark:target:bg-amber-950/40 ${asking ? "-mx-2 bg-amber-50 px-2 py-1.5 ring-1 ring-amber-300 dark:bg-amber-950/40 dark:ring-amber-800" : suggested ? "-mx-2 bg-zinc-100/80 px-2 py-1.5 ring-1 ring-zinc-200 dark:bg-zinc-800/40 dark:ring-zinc-700" : reported ? "-mx-2 bg-emerald-50 px-2 py-1.5 ring-1 ring-emerald-300 dark:bg-emerald-950/30 dark:ring-emerald-800" : running || doing ? "-mx-2 bg-indigo-50 px-2 py-1.5 ring-1 ring-indigo-200 dark:bg-indigo-950/40 dark:ring-indigo-900" : isFresh ? "-mx-2 bg-sky-50/80 px-2 py-1.5 ring-1 ring-sky-100 dark:bg-sky-950/30 dark:ring-sky-900/60" : todo.deferred && !closed ? "opacity-60 hover:opacity-100" : ""}`}
       onMouseEnter={fresh ? markSeen : undefined}
       title={asking ? t("The agent is waiting for you: {question}", { question: asking }) : running ? t("Being worked on (worker or agent)") : undefined}
     >
       <input
         type="checkbox"
-        className="mt-1 size-4 shrink-0 cursor-pointer accent-indigo-600 disabled:cursor-not-allowed disabled:opacity-40"
-        checked={closed}
+        className={`mt-1 size-4 shrink-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 ${suggested ? "accent-zinc-400" : "accent-indigo-600"}`}
+        checked={closed || suggested}
         disabled={running || doing}
-        title={running || doing ? t("Being worked on — once the run is done") : undefined}
+        title={running || doing ? t("Being worked on — once the run is done") : suggested ? suggestedTip : undefined}
         onChange={() => set(closed ? "open" : "done")}
         aria-label={closed ? t("{ref} open again", { ref: todo.ref }) : t("{ref} done", { ref: todo.ref })}
       />
@@ -286,6 +294,12 @@ export function TodoItem({
               · ✓ {t("{by}: reported done", { by: todo.workerDone.by.split(" · ")[0] })}
             </span>
           )}
+          {suggested && todo.workerDone && (
+            <span className="text-zinc-500" title={suggestedTip}>
+              {" "}
+              · ✓ {t("{by}: suggests done", { by: todo.workerDone.by.split(" · ")[0] })}
+            </span>
+          )}
           {todo.deferred && !closed && <span className="text-zinc-400"> · {t("deferred")}</span>}
           {todo.bubbledUp && !closed && <span className="text-amber-600 dark:text-amber-400" title={t("You had moved it down — it's back on top")}> · {t("back on top: {why}", { why: todo.bubbledUp })}</span>}
           {!closed && <TodoQuickButtons todoId={todo.id} panel={quick} onToggle={setQuick} canReply={todo.owner === "me" && [...todo.refs, ...todo.mailRefs].some((r) => r.startsWith("mail:") || r.startsWith("teams:"))} aiDisabled={!workOn ? t("Work isn't installed (Menu → Plugins)") : running || doing ? t("Being worked on — once the run is done") : undefined} />}
@@ -310,7 +324,7 @@ export function TodoItem({
         )}
         {todo.lastError && !closed && !running && !doing && <LastError text={todo.lastError} run={todo.lastErrorRun} />}
         {/* Its toggles in one row — context, proposed actions; each unfolds its area below the row, stacked. */}
-        {(context.items.length > 0 || proposed || knowledge) && (
+        {(context.items.length > 0 || proposed || foldable || knowledge) && (
           <span className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
             <ContextToggle
               items={context.items}
@@ -354,6 +368,11 @@ export function TodoItem({
                   </HoverCard>
                 );
               })()}
+            {foldable && (
+              <AreaToggle open={showActions} onToggle={() => setShowActions(!showActions)} label={showActions ? t("Hide actions ({n})", { n: todo.ops.length }) : t("Show actions ({n})", { n: todo.ops.length })} tone="indigo">
+                <span aria-hidden>⚡</span>
+              </AreaToggle>
+            )}
             {/* What the knowledge base has on it — as the Wissens-Zuordnung picked it. */}
             {knowledge &&
               (() => {
@@ -396,12 +415,14 @@ export function TodoItem({
               </span>
             )}
             <span className="flex items-center gap-2 max-sm:flex-col max-sm:items-start">
-              <OpChips
-                ops={todo.ops}
-                className="min-w-0 flex-1 items-stretch"
-                todoId={doing || running ? undefined : todo.id}
-                notes={todo.links?.notes}
-              />
+              {(!foldable || showActions) && (
+                <OpChips
+                  ops={todo.ops}
+                  className="min-w-0 flex-1 items-stretch"
+                  todoId={doing || running ? undefined : todo.id}
+                  notes={todo.links?.notes}
+                />
+              )}
               {zeffOps.length > 0 && <button
                 type="button"
                 className="btn btn-sm btn-primary shrink-0"
