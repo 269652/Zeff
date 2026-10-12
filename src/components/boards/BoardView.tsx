@@ -34,6 +34,7 @@ import { LinkPending } from "../LinkPending";
 import { UnseenActivityBadge } from "./ActivitySeen";
 import { FollowToggle } from "./FollowToggle";
 import { TodoItem } from "./TodoItem";
+import { Omnibar, type OmniChip } from "./Omnibar";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { useT } from "@/components/I18nProvider";
 
@@ -568,13 +569,13 @@ export function BoardView({
   // The todo lists' filter: by ticket, kind (what it asks for) or a word in its text.
   const [fTicket, setFTicket] = useState("");
   const [fKind, setFKind] = useState("");
-  const [fText, setFText] = useState("");
+  const [omniChips, setOmniChips] = useState<OmniChip[]>([]);
   const pool = tab === "done" ? doneList : tab === "worker" ? workerList : open;
   const passes = (t: TodoView) =>
     (!fTicket || (fTicket === "-" ? !t.ticket : t.ticket === fTicket || t.alsoTickets.includes(fTicket))) &&
     (!fKind || t.kind === fKind) &&
-    (!fText.trim() || `${t.ref} ${t.ticket} ${t.text} ${t.source ?? ""}`.toLowerCase().includes(fText.trim().toLowerCase()));
-  const filtering = !!(fTicket || fKind || fText.trim());
+    omniChips.every((c) => c.todoIds.includes(t.id));
+  const filtering = !!(fTicket || fKind || omniChips.length);
   const mine = ranked(open.filter((t) => t.owner === "me" && passes(t)));
   const waiting = ranked(open.filter((t) => t.owner === "other" && passes(t)));
   const doneShown = doneList.filter(passes);
@@ -673,7 +674,7 @@ export function BoardView({
                 </option>
               ))}
             </select>
-            <input value={fText} onChange={(e) => setFText(e.target.value)} placeholder="Suchen…" className="input w-40 py-1 text-xs" aria-label="Todos durchsuchen" />
+            <Omnibar chips={omniChips} onChange={setOmniChips} />
             {filtering && (
               <button
                 type="button"
@@ -681,7 +682,7 @@ export function BoardView({
                 onClick={() => {
                   setFTicket("");
                   setFKind("");
-                  setFText("");
+                  setOmniChips([]);
                 }}
               >
                 Filter löschen

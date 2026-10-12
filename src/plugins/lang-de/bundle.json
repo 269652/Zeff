@@ -3998,5 +3998,17 @@
   "The news from your sources and searches for your interests — fetched, scored for you, old items removed (public feeds; nothing of yours is sent)": "Die Nachrichten aus deinen Quellen und Suchen zu deinen Interessen – abgeholt, für dich bewertet, Altes entfernt (öffentliche Feeds; nichts von dir wird gesendet)",
   "always": "immer",
   "Posted by Zeff as the action of {ref}: {text}": "Von Zeff gepostet als Aktion von {ref}: {text}",
-  "Posted by Zeff — the action of {ref}": "Von Zeff gepostet – die Aktion von {ref}"
+  "Posted by Zeff — the action of {ref}": "Von Zeff gepostet – die Aktion von {ref}",
+  "Everything with this": "Alles dazu",
+  "Jira comments": "Jira-Kommentare",
+  "GitLab": "GitLab",
+  "Keep": "Keep",
+  "Facts": "Fakten",
+  "{n} todos": "{n} Todos",
+  "Remove this filter": "Diesen Filter entfernen",
+  "and …": "und …",
+  "Search todos, tickets, mails, comments, notes, people …": "Todos, Tickets, Mails, Kommentare, Notizen, Personen durchsuchen …",
+  "Search the todos and everything they are made of": "Die Todos und alles, woraus sie bestehen, durchsuchen",
+  "Searching …": "Suche …",
+  "Nothing found that a todo refers to.": "Nichts gefunden, worauf sich ein Todo bezieht."
 }
