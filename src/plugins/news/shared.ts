@@ -220,5 +220,20 @@ export function scoreItem(item: { title: string; summary: string; publishedAt: s
   return { score: Math.round(score * 100) / 100, reasons };
 }
 
+/** A feed's "summary" that is only a stub (Hacker News: "Article URL: … Comments URL: … Points: 8"): no summary at all. */
+export const isStubSummary = (s: string): boolean => /^\s*Article URL:/i.test(s) || /^\s*Comments URL:/i.test(s);
+
+/** The opening of an article as a card's summary: its first paragraphs, about 320 characters, cut at a word. */
+export function snippetOf(text: string, max = 320): string {
+  let out = "";
+  for (const p of text.split(/\n{2,}/)) {
+    out = out ? `${out} ${p}` : p;
+    if (out.length >= max * 0.6) break;
+  }
+  if (out.length <= max) return out;
+  const cut = out.slice(0, max);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), max * 0.7))}…`;
+}
+
 /** Items per page (infinite scroll loads this many at a time). */
 export const NEWS_PAGE = 24;

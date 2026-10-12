@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
-import { NEWS_PAGE, parseInterests, parseMutes, PRESETS, type NewsPrefs, type NewsState } from "./shared";
+import { NEWS_PAGE, snippetOf, parseInterests, parseMutes, PRESETS, type NewsPrefs, type NewsState } from "./shared";
 import { addSource, forgetLearning, getContent, listItems, removeSource, setContent, setPrefs, setState, UNREADABLE, updateSource, vote, type NewsView } from "./store";
 
 /** The News plugin's server actions: the cards' buttons return a result; the settings forms go back to their page with what came of it. */
@@ -71,17 +71,17 @@ export async function newsReadAction(id: number): Promise<{ ok: boolean; text?: 
  * A card without a picture came into view: its page is read (that also keeps the whole article, so "Read here" is
  * instant) and the picture taken from it. None found, or the page can't be read: remembered, not asked again.
  */
-export async function newsPeekAction(id: number): Promise<{ ok: boolean; image: string; hasContent: boolean }> {
+export async function newsPeekAction(id: number): Promise<{ ok: boolean; image: string; hasContent: boolean; summary: string }> {
   try {
     guard();
     const have = getContent(Number(id));
-    if (!have) return { ok: false, image: "", hasContent: false };
+    if (!have || have.content === UNREADABLE) return { ok: false, image: "", hasContent: false, summary: "" };
     const a = await (await import("./reader")).fetchArticle(have.url);
     setContent(Number(id), a.text, a.image);
-    return { ok: true, image: a.image, hasContent: true };
+    return { ok: true, image: a.image, hasContent: true, summary: snippetOf(a.text) };
   } catch {
     setContent(Number(id), UNREADABLE);
-    return { ok: false, image: "", hasContent: false };
+    return { ok: false, image: "", hasContent: false, summary: "" };
   }
 }
 

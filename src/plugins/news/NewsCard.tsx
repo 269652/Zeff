@@ -19,7 +19,8 @@ export function NewsCard({ item, ago, showImage, onChange }: { item: NewsItem; a
   const [pending, start] = useTransition();
   const [broken, setBroken] = useState(false);
   const card = useRef<HTMLElement>(null);
-  const wantsPicture = showImage && !item.image && !item.imageChecked;
+  // A picture to look for, or no summary of its own (a feed that only links): the page is read for it, once.
+  const wantsPicture = (showImage && !item.image && !item.imageChecked) || (!item.summary && !item.hasContent);
   // No picture known yet: when the card comes into view, its page is looked at (once; the answer is kept).
   useEffect(() => {
     const el = card.current;
@@ -27,7 +28,7 @@ export function NewsCard({ item, ago, showImage, onChange }: { item: NewsItem; a
     const io = new IntersectionObserver((e) => {
       if (!e.some((x) => x.isIntersecting)) return;
       io.disconnect();
-      peekQueue = peekQueue.then(() => newsPeekAction(item.id)).then((r) => onChange({ image: r.image, imageChecked: true, ...(r.hasContent ? { hasContent: true } : {}) }), () => undefined);
+      peekQueue = peekQueue.then(() => newsPeekAction(item.id)).then((r) => onChange({ image: r.image, imageChecked: true, ...(r.hasContent ? { hasContent: true } : {}), ...(r.summary ? { summary: r.summary } : {}) }), () => undefined);
     }, { rootMargin: "300px" });
     io.observe(el);
     return () => io.disconnect();

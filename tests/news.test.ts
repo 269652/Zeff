@@ -272,3 +272,21 @@ test("items kept before the pictures existed get one: a later fetch fills it in,
   s.setContent(get(2).id, "Text", "https://img.example/2.jpg");
   assert.equal(get(2).image, "https://img.example/2.jpg", "a picture found later still replaces the 'none'");
 });
+
+test("Hacker News's stub (\"Article URL: … Points: 8\") is no summary: the opening of the article takes its place once the page is read", async () => {
+  const { parseFeed } = await import("@/plugins/news/feed");
+  const { snippetOf } = await import("@/plugins/news/shared");
+  const s = await import("@/plugins/news/store");
+  const [it] = parseFeed(`<rss><channel><item><title>French supermarkets suffer refrigerator shutdown</title><link>https://www.rnz.co.nz/news/1865776/x</link><comments>https://news.ycombinator.com/item?id=1</comments><pubDate>Mon, 12 Oct 2026 08:00:00 GMT</pubDate><description><![CDATA[<p>Article URL: <a href="https://www.rnz.co.nz/news/1865776/x">https://www.rnz.co.nz/news/1865776/x</a></p><p>Comments URL: <a href="https://news.ycombinator.com/item?id=1">https://news.ycombinator.com/item?id=1</a></p><p>Points: 8</p><p># Comments: 1</p>]]></description></item></channel></rss>`);
+  assert.equal(it.summary, "");
+  const src = s.addSource({ name: "HN", url: "https://hn.example/rss" });
+  s.addItems({ id: src.id, name: "HN" }, [{ ...it, publishedAt: new Date().toISOString() }]);
+  const get = () => s.listItems({ view: "latest", sourceId: src.id, limit: 5 })[0];
+  assert.equal(get().summary, "");
+  const article = `${"Ein langer erster Absatz über den Ausfall der Kühlung in französischen Supermärkten nach dem Cyberangriff. ".repeat(2)}\n\nZweiter Absatz.`;
+  s.setContent(get().id, article);
+  assert.ok(get().summary.startsWith("Ein langer erster Absatz") && get().summary.length <= 330, "the opening of the article");
+  assert.equal(snippetOf("Kurz."), "Kurz.");
+  // A stub kept before it was dropped is emptied too.
+  assert.equal(snippetOf("a ".repeat(400)).endsWith("…"), true);
+});

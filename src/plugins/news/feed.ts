@@ -99,7 +99,9 @@ export function parseFeed(xml: string, nowIso: string = new Date().toISOString()
     const title = stripHtml(rawTag(body, "title"));
     const url = atom ? atomLink(body) : tag(body, "link") || decodeEntities(body.match(/<link\b[^>]*href=["']([^"']+)["']/i)?.[1] ?? "") || tag(body, "guid");
     if (!title || !/^https?:\/\//i.test(url)) continue;
-    const summary = stripHtml(rawTag(body, "description") || rawTag(body, "summary") || rawTag(body, "content:encoded") || rawTag(body, "content")).slice(0, 600);
+    const rawSummary = stripHtml(rawTag(body, "description") || rawTag(body, "summary") || rawTag(body, "content:encoded") || rawTag(body, "content")).slice(0, 600);
+    // Hacker News's "Article URL: … Comments URL: … Points: 8" says nothing: no summary — the page itself is read for one.
+    const summary = /^\s*(Article|Comments) URL:/i.test(rawSummary) ? "" : rawSummary;
     const when = tag(body, "pubDate") || tag(body, "published") || tag(body, "updated") || tag(body, "dc:date");
     // A feed that carries the whole article (content:encoded, Atom content) saves fetching the page.
     const full = paragraphs(rawTag(body, "content:encoded") || (atom ? rawTag(body, "content") : ""));

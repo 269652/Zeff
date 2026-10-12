@@ -1,6 +1,6 @@
 import { getSqlite } from "@/db";
 import { getPref, setPref } from "@/lib/prefs";
-import { DEFAULT_PREFS, normalizeUrl, scoreItem, titleKey, tokens, type NewsItem, type NewsPrefs, type NewsSource, type NewsState, type ScoreContext } from "./shared";
+import { DEFAULT_PREFS, normalizeUrl, scoreItem, snippetOf, titleKey, tokens, type NewsItem, type NewsPrefs, type NewsSource, type NewsState, type ScoreContext } from "./shared";
 import type { FeedItem } from "./feed";
 
 /**
@@ -20,8 +20,14 @@ function db() {
   const cols = (d.prepare("pragma table_info(news_items)").all() as { name: string }[]).map((c) => c.name);
   if (!cols.includes("image")) d.exec("alter table news_items add column image text not null default ''");
   if (!cols.includes("content")) d.exec("alter table news_items add column content text not null default ''");
+  // Stub summaries (Hacker News's "Article URL: … Points: 8") kept before they were dropped: emptied, so the page's own text is used.
+  if (!cleaned) {
+    d.exec("update news_items set summary = '' where summary like 'Article URL:%' or summary like 'Comments URL:%'");
+    cleaned = true;
+  }
   return d;
 }
+let cleaned = false;
 
 const now = () => new Date().toISOString();
 
@@ -183,6 +189,8 @@ export function getContent(id: number): { content: string; url: string; title: s
 export function setContent(id: number, content: string, image?: string): void {
   const d = db();
   d.prepare("update news_items set content = ? where id = ?").run(content, id);
+  // A card with no summary of its own gets the opening of the article.
+  if (content.length > 1) d.prepare("update news_items set summary = ? where id = ? and summary = ''").run(snippetOf(content), id);
   // The page was looked at: a picture found is kept; none found is remembered (not looked for again).
   if (image) d.prepare("update news_items set image = ? where id = ? and image in ('', '-')").run(image, id);
   else d.prepare("update news_items set image = '-' where id = ? and image = ''").run(id);
