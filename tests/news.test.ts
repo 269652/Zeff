@@ -290,3 +290,26 @@ test("Hacker News's stub (\"Article URL: … Points: 8\") is no summary: the ope
   // A stub kept before it was dropped is emptied too.
   assert.equal(snippetOf("a ".repeat(400)).endsWith("…"), true);
 });
+
+test("a card's look at its page: the picture, the summary and the text are kept; an unreadable page is remembered and not fetched again", async () => {
+  const s = await import("@/plugins/news/store");
+  const { peekItem } = await import("@/plugins/news/peek");
+  const src = s.addSource({ name: "Peek", url: "https://peek.example/rss" });
+  const base = { guid: "k", summary: "", publishedAt: new Date().toISOString() };
+  s.addItems({ id: src.id, name: "Peek" }, [{ ...base, guid: "1", url: "https://peek.example/1", title: "Lesbar" }, { ...base, guid: "2", url: "https://peek.example/2", title: "Gesperrt" }]);
+  const by = (n: number) => s.listItems({ view: "latest", sourceId: src.id, limit: 5 }).find((i) => i.url.endsWith(`/${n}`))!;
+  let calls = 0;
+  const fetchArticle = async (url: string) => {
+    calls++;
+    if (url.endsWith("/2")) throw new Error("paywall");
+    return { text: `${"Der Artikel beginnt hier und geht weiter. ".repeat(5)}\n\nEnde.`, image: "https://img.example/1.jpg", title: "t", url };
+  };
+  const ok = await peekItem(by(1).id, { fetchArticle });
+  assert.deepEqual([ok.ok, ok.image, ok.hasContent], [true, "https://img.example/1.jpg", true]);
+  assert.ok(ok.summary.startsWith("Der Artikel beginnt"));
+  assert.equal(by(1).image, "https://img.example/1.jpg");
+  assert.equal((await peekItem(by(2).id, { fetchArticle })).ok, false);
+  const before = calls;
+  assert.equal((await peekItem(by(2).id, { fetchArticle })).ok, false);
+  assert.equal(calls, before, "not fetched again");
+});

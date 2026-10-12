@@ -3,11 +3,25 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
-import { newsPeekAction, newsReadAction, newsStateAction, newsVoteAction } from "./server-actions";
+import { newsReadAction, newsStateAction, newsVoteAction } from "./server-actions";
 import type { NewsItem } from "./shared";
 
-/** Pictures are looked for one page at a time (a screenful of cards would otherwise fetch a screenful of sites at once). */
-let peekQueue: Promise<unknown> = Promise.resolve();
+/** The pages of the cards in view are looked at three at a time (a route: server actions would wait in one queue). */
+const waiting: (() => void)[] = [];
+let running = 0;
+async function peek(id: number): Promise<{ ok: boolean; image: string; hasContent: boolean; summary: string }> {
+  if (running >= 3) await new Promise<void>((go) => waiting.push(go));
+  running++;
+  try {
+    const r = await fetch("/api/news/peek", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) });
+    return (await r.json()) as { ok: boolean; image: string; hasContent: boolean; summary: string };
+  } catch {
+    return { ok: false, image: "", hasContent: false, summary: "" };
+  } finally {
+    running--;
+    waiting.shift()?.();
+  }
+}
 
 /**
  * One news item as a card: its picture, the headline (opens the article in a new tab and counts as read), where it is
@@ -28,8 +42,8 @@ export function NewsCard({ item, ago, showImage, onChange }: { item: NewsItem; a
     const io = new IntersectionObserver((e) => {
       if (!e.some((x) => x.isIntersecting)) return;
       io.disconnect();
-      peekQueue = peekQueue.then(() => newsPeekAction(item.id)).then((r) => onChange({ image: r.image, imageChecked: true, ...(r.hasContent ? { hasContent: true } : {}), ...(r.summary ? { summary: r.summary } : {}) }), () => undefined);
-    }, { rootMargin: "300px" });
+      void peek(item.id).then((r) => onChange({ image: r.image, imageChecked: true, ...(r.hasContent ? { hasContent: true } : {}), ...(r.summary ? { summary: r.summary } : {}) }));
+    }, { rootMargin: "1200px" });
     io.observe(el);
     return () => io.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per card

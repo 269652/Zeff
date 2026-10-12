@@ -93,7 +93,7 @@ export async function syncNews(deps: NewsSyncDeps = {}): Promise<{ ok: boolean; 
   // Reading ahead: the best unread items' whole text, so they open at once (a page that can't be read is marked, not retried).
   let read = 0;
   if (prefs.prefetch) {
-    await pool(withoutContent(12, prefs.maxAgeDays), 3, async (it) => {
+    await pool(withoutContent(30, prefs.maxAgeDays), 3, async (it) => {
       try {
         const a = await (deps.fetchArticle ?? ((u: string) => fetchArticle(u)))(it.url);
         setContent(it.id, a.text, a.image);
