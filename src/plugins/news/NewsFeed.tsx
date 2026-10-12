@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useT } from "@/components/I18nProvider";
 import { NewsCard } from "./NewsCard";
 import { newsMoreAction } from "./server-actions";
@@ -14,6 +14,49 @@ function scrollParent(el: HTMLElement | null): HTMLElement | null {
     if ((o === "auto" || o === "scroll") && p.scrollHeight > p.clientHeight) return p;
   }
   return null;
+}
+
+/** Focus mode is a preference of this browser (kept in localStorage, which may be blocked: then it just isn't kept). */
+const FOCUS_KEY = "zeff-news-focus";
+const FOCUS_EVENT = "zeff-news-focus";
+const subscribeFocus = (cb: () => void) => {
+  window.addEventListener(FOCUS_EVENT, cb);
+  window.addEventListener("storage", cb);
+  return () => {
+    window.removeEventListener(FOCUS_EVENT, cb);
+    window.removeEventListener("storage", cb);
+  };
+};
+const readFocus = () => {
+  try {
+    return localStorage.getItem(FOCUS_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
+const setFocus = (on: boolean) => {
+  try {
+    localStorage.setItem(FOCUS_KEY, on ? "1" : "0");
+  } catch {
+    // not kept, then
+  }
+  window.dispatchEvent(new Event(FOCUS_EVENT));
+};
+
+/** A blurred stand-in for a card in the side columns of focus mode: its picture and headline, nothing to click. */
+function Ghost({ item, showImage }: { item: NewsItem; showImage: boolean }) {
+  return (
+    <div className="card overflow-hidden">
+      {showImage && item.image && (
+        // eslint-disable-next-line @next/next/no-img-element -- a blurred stand-in of the same picture
+        <img src={item.image} alt="" loading="lazy" referrerPolicy="no-referrer" className="aspect-video w-full object-cover" />
+      )}
+      <div className="space-y-1 p-3">
+        <p className="line-clamp-3 text-sm font-medium">{item.title}</p>
+        <p className="text-xs text-zinc-500">{item.sourceName}</p>
+      </div>
+    </div>
+  );
 }
 
 /** About how tall a card is (to put the next one in the shortest column). */
@@ -31,6 +74,8 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, showImages,
   const [loading, setLoading] = useState(false);
   const [cols, setCols] = useState(2);
   const [top, setTop] = useState(false);
+  const [wide, setWide] = useState(true);
+  const focus = useSyncExternalStore(subscribeFocus, readFocus, () => false);
   const box = useRef<HTMLDivElement>(null);
   const sentinel = useRef<HTMLDivElement>(null);
   const busy = useRef(false);
@@ -42,7 +87,10 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, showImages,
     const el = box.current;
     if (!el) return;
     // Three columns, fewer only where it gets too narrow (a column wants about 240 px).
-    const fit = () => setCols(Math.max(1, Math.min(3, Math.floor((el.clientWidth + 12) / 252))));
+    const fit = () => {
+      setWide(el.clientWidth >= 900);
+      setCols(Math.max(1, Math.min(3, Math.floor((el.clientWidth + 12) / 252))));
+    };
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(el);
@@ -98,20 +146,52 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, showImages,
     return out;
   }, [items, cols, showImages]);
 
+  // Focus mode: Esc leaves it.
+  useEffect(() => {
+    if (!focus) return;
+    const key = (e: KeyboardEvent) => e.key === "Escape" && setFocus(false);
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [focus]);
+
+  // The side columns of focus mode: the same news, shuffled (by a fixed order of their ids, so it doesn't jump on a render), half each side.
+  const sides = useMemo(() => {
+    const shuffled = [...items].sort((a, b) => ((a.id * 2654435761) >>> 0) % 997 - ((b.id * 2654435761) >>> 0) % 997);
+    return [shuffled.filter((_, i) => i % 2 === 0).slice(0, 10), shuffled.filter((_, i) => i % 2 === 1).slice(0, 10)];
+  }, [items]);
+
   const patch = (id: number, p: Partial<NewsItem>) =>
     setItems((cur) => cur.flatMap((i) => (i.id !== id ? [i] : view !== "hidden" && p.state === "hidden" ? [] : view === "saved" && p.state && p.state !== "saved" ? [] : [{ ...i, ...p }])));
 
   return (
     <div ref={box} className="space-y-4">
-      <div className="flex items-start gap-3">
-        {columns.map((col, k) => (
-          <div key={k} className="min-w-0 flex-1 space-y-3">
-            {col.map((it) => (
+      <div className="flex justify-end">
+        <button type="button" className={`btn btn-sm ${focus ? "btn-primary" : ""}`} onClick={() => setFocus(!focus)} title={focus ? t("Back to the columns (Esc)") : t("One column to read, like a phone feed")} aria-pressed={focus}>
+          {focus ? t("Leave focus") : t("Focus")}
+        </button>
+      </div>
+      {focus ? (
+        <div className={wide ? "grid grid-cols-[1fr_minmax(0,34rem)_1fr] items-start gap-10" : ""}>
+          {wide && <FocusSide items={sides[0]} showImage={showImages} />}
+          {/* The middle column holds all the news, a little bigger. */}
+          <div className="space-y-4" style={{ zoom: 1.06 }}>
+            {items.map((it) => (
               <NewsCard key={it.id} item={it} ago={ago[it.id] ?? ""} showImage={showImages} onChange={(p) => patch(it.id, p)} />
             ))}
           </div>
-        ))}
-      </div>
+          {wide && <FocusSide items={sides[1]} showImage={showImages} />}
+        </div>
+      ) : (
+        <div className="flex items-start gap-3">
+          {columns.map((col, k) => (
+            <div key={k} className="min-w-0 flex-1 space-y-3">
+              {col.map((it) => (
+                <NewsCard key={it.id} item={it} ago={ago[it.id] ?? ""} showImage={showImages} onChange={(p) => patch(it.id, p)} />
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
       <div ref={sentinel} className="py-4 text-center text-xs text-zinc-500">
         {loading ? t("Loading more …") : done ? (items.length ? t("That's all for now.") : "") : <button type="button" className="btn btn-sm" onClick={() => void more()}>{t("Load more")}</button>}
       </div>
@@ -126,6 +206,17 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, showImages,
           ↑
         </button>
       )}
+    </div>
+  );
+}
+
+/** A side column of focus mode: blurred, smaller, out of the way — it stays in view (sticky) while the middle column scrolls. */
+function FocusSide({ items, showImage }: { items: NewsItem[]; showImage: boolean }) {
+  return (
+    <div aria-hidden className="pointer-events-none sticky top-2 max-h-[calc(100vh-6rem)] space-y-4 overflow-hidden opacity-60 select-none" style={{ filter: "blur(6px)", transform: "scale(0.94)" }}>
+      {items.map((it) => (
+        <Ghost key={it.id} item={it} showImage={showImage} />
+      ))}
     </div>
   );
 }
