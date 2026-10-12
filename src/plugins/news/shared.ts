@@ -45,6 +45,8 @@ export type NewsItem = {
   score: number;
   /** What it is about (people, places, companies, topics): each a bubble to hop to in Explore. */
   terms: string[];
+  /** The concrete story it belongs to ("Rücktritt Bärbel Bas"): the same label on every item about it (the AI's, or ""). */
+  story: string;
   /** It has been on screen already (a fresh feed puts what you have seen last). */
   seen: boolean;
   /** The category of its source ("" for a search or one you added). */
@@ -74,6 +76,8 @@ export type NewsPrefs = {
   digest: boolean;
   /** Zeff looks for new feeds by itself (once a day, for your interests) and adds the best few. */
   autoDiscover: boolean;
+  /** The AI tags the best headlines (names, topics, and the story each belongs to) — better chips, bubbles and threads. Headlines go to your AI. */
+  aiTags: boolean;
   /** Show each item's picture (the pictures are loaded from their sites by your browser). */
   images: boolean;
   /** After each fetch, read the whole text of the best unread items so they open at once. */
@@ -88,7 +92,7 @@ export type NewsPrefs = {
   keepDays: number;
 };
 
-export const DEFAULT_PREFS: NewsPrefs = { interests: [], mutes: [], language: "de", topicSearch: true, useWork: true, useProfile: true, diversity: true, digest: false, autoDiscover: true, images: true, prefetch: true, maxAgeDays: 7, perSource: 25, perRun: 150, keepDays: 30 };
+export const DEFAULT_PREFS: NewsPrefs = { interests: [], mutes: [], language: "de", topicSearch: true, useWork: true, useProfile: true, diversity: true, digest: false, autoDiscover: true, aiTags: true, images: true, prefetch: true, maxAgeDays: 7, perSource: 25, perRun: 150, keepDays: 30 };
 
 export type Preset = { name: string; url: string; about: string; lang: "de" | "en" };
 

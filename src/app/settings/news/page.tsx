@@ -135,6 +135,13 @@ export default async function NewsSettingsPage({ searchParams }: { searchParams:
               </span>
             </label>
             <label className="flex items-start gap-2">
+              <input type="checkbox" name="aiTags" defaultChecked={prefs.aiTags} className="mt-1" />
+              <span>
+                {t("AI tags and stories")}
+                <span className="block text-xs text-zinc-500">{t("The AI tags the best unseen headlines — people, places, companies, topics, and the story each belongs to — so the chips, bubbles and threads are meaningful (needs the LLM plugin; headlines go to the AI you chose). Without it the built-in tagger does what it can.")}</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2">
               <input type="checkbox" name="digest" defaultChecked={prefs.digest} className="mt-1" />
               <span>
                 {t("AI overview")}

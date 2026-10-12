@@ -11,6 +11,12 @@ export async function GET(req: Request) {
   if (!isInstalled("news")) return Response.json({ count: 0, syncing: false }, { status: 404 });
   const since = new URL(req.url).searchParams.get("since") ?? "";
   const { countNewSince, lastFetchAt, listSources } = await import("@/plugins/news/store");
+  // Tags: the corpus tagger runs after each fetch; an open page makes sure they are there (at most every ten minutes).
+  try {
+    await (await import("@/plugins/news/retag")).retagIfStale();
+  } catch {
+    // tags are a bonus
+  }
   const last = lastFetchAt();
   let syncing = false;
   if (listSources().some((s) => s.enabled) && (!last || Date.now() - Date.parse(last) > 30 * 60000)) {

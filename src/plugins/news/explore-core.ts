@@ -6,7 +6,7 @@ import { tokens } from "./shared";
  * the recent items. From it come the bubbles you hop between: what is rising now, what is related to the thing you are
  * on, and what is out there that you haven't looked at.
  */
-export type ExploreItem = { id: number; title: string; summary: string; publishedAt: string; sourceName: string };
+export type ExploreItem = { id: number; title: string; summary: string; publishedAt: string; sourceName: string; /** Its tags (the AI's or the corpus tagger's); without, the headline's own names. */ tags?: string[]; /** The story it belongs to. */ story?: string };
 export type Bubble = { term: string; count: number; weight: number; kind: "trend" | "related" | "yours" | "wild" };
 
 /** Words that are capitalised in German headlines (every noun) but name nothing in particular. */
@@ -44,7 +44,7 @@ export function buildIndex(items: ExploreItem[]): Index {
   const terms: Index["terms"] = new Map();
   const map: Index["items"] = new Map();
   for (const it of items) {
-    const ts = keyTerms(it.title, it.summary);
+    const ts = it.tags && it.tags.length ? it.tags : keyTerms(it.title, it.summary);
     map.set(it.id, { ...it, terms: ts.map((t) => t.toLowerCase()) });
     for (const t of ts) {
       const k = t.toLowerCase();

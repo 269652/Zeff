@@ -17,6 +17,8 @@ export type NewsSyncDeps = {
   /** What Zeff knows about you (default: facts, todos, tickets). */
   profile?: () => ProfileTerm[];
   now?: () => number;
+  /** The AI tagging of a batch (default: when the LLM plugin is there and the preference is on). */
+  aiTags?: () => Promise<void>;
   /** An article's page read (default: the reader; tests give their own). */
   fetchArticle?: (url: string) => Promise<Article>;
   /** Looks for new feeds by itself (default: the auto-discovery, when it is on). */
@@ -145,6 +147,14 @@ export async function syncNews(deps: NewsSyncDeps = {}): Promise<{ ok: boolean; 
         setContent(it.id, UNREADABLE);
       }
     });
+  }
+
+  // What each headline is about: the corpus tagger always, the AI (when there is one) for a batch of the best unseen ones.
+  try {
+    (await import("./retag")).retagAll();
+    await (deps.aiTags ?? (async () => void (await (await import("./retag")).aiTagBatch())))();
+  } catch {
+    // tags are a bonus; the sync goes on
   }
 
   let digestNote = "";

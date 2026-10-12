@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { ListenButton } from "./Listen";
-import { newsReadAction, newsSourceAction, newsStateAction, newsTopicAction, newsVoteAction } from "./server-actions";
+import { newsReadAction, newsSourceAction, newsStateAction, newsStoryAction, newsTopicAction, newsVoteAction } from "./server-actions";
 import type { NewsItem } from "./shared";
 
 /** Cards that were on screen are reported in batches (every few seconds, and when the page goes away). */
@@ -51,6 +51,14 @@ export function NewsCard({ item, ago, showImage, onChange, onDrop, onFollow, fol
   const [pending, start] = useTransition();
   const [broken, setBroken] = useState(false);
   const [menu, setMenu] = useState(false);
+  // The red thread: the story this item is part of (other reports, oldest first), opened under the card.
+  const [thread, setThread] = useState<{ open: boolean; busy: boolean; label: string; items: { id: number; title: string; url: string; sourceName: string; ago: string }[] }>({ open: false, busy: false, label: "", items: [] });
+  const toggleThread = () => {
+    if (thread.open) return setThread({ ...thread, open: false });
+    if (thread.items.length) return setThread({ ...thread, open: true });
+    setThread({ open: true, busy: true, label: "", items: [] });
+    void newsStoryAction(item.id).then((r) => setThread({ open: true, busy: false, label: r.label, items: r.items }));
+  };
   // A topic search's card ("Google News: term") has no source of its own: its feed is the search.
   const topic = !item.sourceId && item.sourceName.startsWith("Google News: ") ? item.sourceName.slice(13) : "";
   const stop = (mode: "pause" | "remove") =>
@@ -169,6 +177,40 @@ export function NewsCard({ item, ago, showImage, onChange, onDrop, onFollow, fol
             })}
           </p>
         )}
+        {item.story && (
+          <button type="button" className="text-left text-[11px] font-medium text-amber-700 hover:underline dark:text-amber-400" onClick={toggleThread} title={t("The story this belongs to — follow the thread")}>
+            🧵 {item.story}
+          </button>
+        )}
+        {thread.open && (
+          <div className="space-y-1 rounded border border-amber-200 bg-amber-50 p-2 text-xs dark:border-amber-900 dark:bg-amber-950/40">
+            {thread.busy ? (
+              <p className="text-zinc-500">{t("Following the thread …")}</p>
+            ) : thread.items.length <= 1 ? (
+              <p className="text-zinc-500">{t("Nothing else on this yet.")}</p>
+            ) : (
+              <>
+                <p className="font-semibold text-amber-800 dark:text-amber-300">🧵 {thread.label} · {t("{n} reports", { n: thread.items.length })}</p>
+                <ol className="space-y-1 border-l-2 border-amber-300 pl-3 dark:border-amber-800">
+                  {thread.items.map((x) => (
+                    <li key={x.id} className={x.id === item.id ? "font-medium" : ""}>
+                      <span className="text-zinc-500">{x.ago} · {x.sourceName}</span>
+                      <br />
+                      <a href={x.url} target="_blank" rel="noreferrer noopener" className="hover:underline">
+                        {x.title}
+                      </a>
+                    </li>
+                  ))}
+                </ol>
+                {onFollow && (
+                  <button type="button" className="btn btn-sm" onClick={() => onFollow(item.story ? `story:${item.story}` : (item.terms[0] ?? ""))}>
+                    {t("Follow this story in the feed")}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
         {item.reasons.length > 0 && (
           <p className="flex flex-wrap gap-1 text-[11px] text-zinc-500">
             {item.reasons.slice(0, 4).map((r) => (
@@ -198,6 +240,9 @@ export function NewsCard({ item, ago, showImage, onChange, onDrop, onFollow, fol
             onClick={() => run(() => newsStateAction(item.id, item.state === "saved" ? "read" : "saved"), { state: item.state === "saved" ? "read" : "saved" })}
           >
             🔖
+          </button>
+          <button type="button" className={btn(thread.open)} disabled={pending} onClick={toggleThread} title={t("Follow the thread: other reports on this story")}>
+            🧵
           </button>
           {(item.sourceId || topic) && (
             <button type="button" className={btn(menu)} disabled={pending} title={t("Stop this feed …")} aria-expanded={menu} onClick={() => setMenu(!menu)}>

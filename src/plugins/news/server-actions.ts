@@ -72,7 +72,7 @@ export async function newsMoreAction(view: string, sourceId: number | null, cate
   const { formatAgo } = await import("@/lib/format");
   const { getPrefs } = await import("./store");
   const v = (["foryou", "latest", "saved", "hidden"] as string[]).includes(view) ? (view as NewsView) : "foryou";
-  const items = listItems({ view: v, sourceId: sourceId ?? undefined, category: category || undefined, term: term || undefined, maxAgeDays: getPrefs().maxAgeDays, limit: NEWS_PAGE, offset: Math.max(0, Math.floor(offset)) });
+  const items = listItems({ view: v, sourceId: sourceId ?? undefined, category: category || undefined, term: term.startsWith("story:") ? undefined : term || undefined, story: term.startsWith("story:") ? term.slice(6) : undefined, maxAgeDays: getPrefs().maxAgeDays, limit: NEWS_PAGE, offset: Math.max(0, Math.floor(offset)) });
   return { items, ago: Object.fromEntries(items.map((i) => [i.id, formatAgo(i.publishedAt)])), done: items.length < NEWS_PAGE };
 }
 
@@ -132,6 +132,34 @@ export async function newsStartAction(): Promise<Result> {
   } catch (e) {
     return { ok: false, error: errorMessage(e) };
   }
+}
+
+/** What hangs together with a topic (bubbles to hop to) and the stories that run through it (red threads) — for the dive panel. */
+export async function newsRelatedAction(term: string): Promise<{ related: { term: string; count: number; weight: number }[]; stories: { label: string; count: number }[]; outlets: { name: string; count: number }[] }> {
+  guard();
+  const { exploreTopic } = await import("./explore");
+  const f = exploreTopic(String(term).slice(0, 80));
+  return { related: f.related.slice(0, 10).map((b) => ({ term: b.term, count: b.count, weight: b.weight })), stories: f.stories, outlets: f.outlets.slice(0, 4) };
+}
+
+/** The thread of an item: the story it is part of (the AI's label), or what else is about the same, oldest first. */
+export async function newsStoryAction(itemId: number): Promise<{ label: string; items: { id: number; title: string; url: string; sourceName: string; publishedAt: string; ago: string }[] }> {
+  guard();
+  const { formatAgo } = await import("@/lib/format");
+  const { getItem, itemsOfStory, relatedByTags } = await import("./store");
+  const it = getItem(Number(itemId));
+  if (!it) return { label: "", items: [] };
+  const list = it.story ? itemsOfStory(it.story, 30).filter((i) => i.id !== it.id) : relatedByTags(it, 5, 12);
+  return {
+    label: it.story || it.terms[0] || "",
+    items: [it, ...list].sort((a, b) => a.publishedAt.localeCompare(b.publishedAt)).map((i) => ({ id: i.id, title: i.title, url: i.url, sourceName: i.sourceName, publishedAt: i.publishedAt, ago: formatAgo(i.publishedAt) })),
+  };
+}
+
+/** "The story so far" for a topic or story: the AI sums up what the fetched news say (needs the LLM plugin). */
+export async function newsSoFarAction(term: string): Promise<{ ok: boolean; answer?: string; sources?: { n: number; id: number; title: string; url: string; sourceName: string }[]; error?: string }> {
+  const label = String(term).replace(/^story:/, "").slice(0, 80);
+  return askNewsAction(`Was ist der Stand zu „${label}“? Fasse die Entwicklung chronologisch zusammen.`);
 }
 
 /** "Refresh": the sync, now. */
@@ -299,6 +327,7 @@ export async function savePrefsFormAction(fd: FormData): Promise<void> {
       diversity: fd.get("diversity") === "on",
       digest: fd.get("digest") === "on",
       autoDiscover: fd.get("autoDiscover") === "on",
+      aiTags: fd.get("aiTags") === "on",
       images: fd.get("images") === "on",
       prefetch: fd.get("prefetch") === "on",
       maxAgeDays: clamp(Number(str(fd, "maxAgeDays")), 1, 30, 7),

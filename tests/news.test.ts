@@ -806,3 +806,86 @@ test("following a topic from a card's chip: the feed stays, what was below the c
   // A card that is gone: nothing changes.
   assert.deepEqual(followSplit(feed, 99), { base: feed, rest: [] });
 });
+
+test("the tagger names what headlines are about: known names and topics, names in a headline, acronyms — not common words", async () => {
+  const { tagCorpus } = await import("@/plugins/news/tagger");
+  const items = [
+    { id: 1, title: "Chemie-Nobelpreis geht an Henri Kagan und Kenso Soai", summary: "" },
+    { id: 2, title: "Elektroautos: Europas Autobauer holen auf, sagt Bundeskanzler Friedrich Merz", summary: "" },
+    { id: 3, title: "Cyberangriffe auf Supermärkte: Kühlung fällt aus", summary: "Der Angriff traf Frankreich" },
+    { id: 4, title: "Israeli strike on tent in Gaza kills three", summary: "" },
+    { id: 5, title: "U.S. and China agree on tariffs, says Donald Trump", summary: "" },
+    { id: 6, title: "Das Problem mit der Chance auf Besserung", summary: "Nutzer und Kritik" },
+    { id: 7, title: "Ein ruhiger Tag ohne besondere Namen", summary: "Die Zeit vergeht in Wien" },
+  ];
+  const tags = tagCorpus(items);
+  const names = (id: number) => (tags.get(id) ?? []).map((t) => t.name);
+  assert.ok(names(1).includes("Henri Kagan"), `a name with a given name in front: ${names(1)}`);
+  assert.ok(!names(1).includes("Kenso Soai"), "an unknown name only one headline has is not trusted — it needs company");
+  assert.ok(names(2).includes("Friedrich Merz") && names(2).some((n) => /^Elektroauto/.test(n)), `a known person, a topic from its plural: ${names(2)}`);
+  assert.ok(names(3).includes("Cyberangriff"), `a compound plural: ${names(3)}`);
+  assert.ok(!names(3).includes("Frankreich"), "the summary names nothing when the headline does");
+  assert.ok(names(4).includes("Gaza") && !names(4).includes("Streik"), `English 'strike' isn't a Streik: ${names(4)}`);
+  assert.ok(names(5).includes("USA") && names(5).includes("China") && names(5).includes("Donald Trump"), `U.S. is USA: ${names(5)}`);
+  assert.deepEqual(names(6), [], "common words name nothing");
+  assert.deepEqual(names(7), ["Wien"], "the summary fills in when the headline names nothing");
+});
+
+test("a word is a topic only when its stories hang together (a name in common), not when it is spread over unrelated ones", async () => {
+  const { tagCorpus } = await import("@/plugins/news/tagger");
+  const items = [
+    ...["Rücktritt von Bärbel Bas erschüttert die SPD", "Nach dem Rücktritt: Bärbel Bas äußert sich", "Rücktritt Bas: Was die SPD jetzt tut", "SPD nach Rücktritt in der Krise, Bärbel Bas schweigt"].map((title, i) => ({ id: i + 1, title, summary: "" })),
+    ...["Ein Problem mit dem Zug in Hamburg", "Problem bei Samsung Update", "Das Problem der Wohnungsnot in Wien", "Problem im Bundestag gelöst"].map((title, i) => ({ id: i + 10, title, summary: "" })),
+  ];
+  const tags = tagCorpus(items);
+  const all = (ids: number[]) => ids.flatMap((id) => (tags.get(id) ?? []).map((t) => t.name));
+  assert.ok(all([1, 2, 3, 4]).includes("Rücktritt"), `a topic that comes with the same names: ${all([1, 2, 3, 4])}`);
+  assert.ok(!all([10, 11, 12, 13]).includes("Problem"), "a common word is not");
+});
+
+test("tags are stored and shown: the corpus tagger after a sync, the AI's replace them and add the story; threads follow the story or the shared tags", async () => {
+  const s = await import("@/plugins/news/store");
+  const { retagAll, aiTagBatch, taggingPrompt } = await import("@/plugins/news/retag");
+  for (const x of s.listSources()) s.removeSource(x.id);
+  await wipe();
+  s.setPrefs({ aiTags: true, interests: [], mutes: [], useProfile: false, useWork: false, diversity: false });
+  const src = s.addSource({ name: "Tags", url: "https://tags.example/rss" });
+  const base = { summary: "", publishedAt: new Date().toISOString() };
+  s.addItems({ id: src.id, name: "Tags" }, [
+    { ...base, guid: "1", url: "https://tags.example/1", title: "Donald Trump kündigt Energie-Waffenruhe in der Ukraine an" },
+    { ...base, guid: "2", url: "https://tags.example/2", title: "Russland widerspricht Donald Trump: Ukraine Waffenruhe ein Trick?" },
+    { ...base, guid: "3", url: "https://tags.example/3", title: "Wetter: Goldener Oktober mit Schönheitsfehlern" },
+  ]);
+  s.rescore(() => ({ prefs: s.getPrefs(), work: [], sourceWeight: 1, sourceVotes: 0 }));
+  assert.ok(retagAll() >= 3);
+  const trump = s.listItems({ view: "latest", sourceId: src.id }).find((i) => /kündigt/.test(i.title))!;
+  assert.ok(trump.terms.includes("Donald Trump") && trump.terms.includes("Ukraine"), `stored tags: ${trump.terms}`);
+
+  // The AI: canonical names, topics, and one story label for both reports.
+  const prompts: string[] = [];
+  const n = await aiTagBatch({
+    ask: async (p) => {
+      prompts.push(p);
+      const list = s.untaggedByAi(40, 3);
+      return { items: list.map((it, i) => ({ n: i + 1, tags: /Trump|Russland/.test(it.title) ? ["Donald Trump", "Ukraine", "Waffenruhe"] : ["Herbstwetter"], story: /Trump|Russland/.test(it.title) ? "Energie-Waffenruhe Ukraine" : "" })) };
+    },
+  });
+  assert.equal(n, 3);
+  assert.match(prompts[0], /Meldung|Schlagworte/);
+  assert.match(taggingPrompt([{ n: 1, title: "T", summary: "S" }]), /1\. T — S/);
+  const items = s.listItems({ view: "latest", sourceId: src.id });
+  assert.ok(items.every((i) => i.terms.length > 0));
+  const story = items.filter((i) => i.story === "Energie-Waffenruhe Ukraine");
+  assert.equal(story.length, 2, "both reports carry the story label");
+  assert.equal(s.itemsOfStory("Energie-Waffenruhe Ukraine").length, 2);
+  // The corpus tagger doesn't overwrite what the AI wrote.
+  retagAll();
+  assert.ok(s.listItems({ view: "latest", sourceId: src.id }).find((i) => i.id === story[0].id)!.terms.includes("Waffenruhe"));
+  // Without a label the thread is found by shared tags.
+  s.setTags([{ id: story[0].id, tags: ["Donald Trump", "Ukraine"], story: "", src: "ai" }]);
+  const related = s.relatedByTags({ id: story[0].id, title: story[0].title, terms: ["Donald Trump", "Ukraine"] });
+  assert.ok(related.some((i) => i.id === story[1].id), "the other report on it");
+  assert.ok(!related.some((i) => /Wetter/.test(i.title)), "not the weather");
+  s.setPrefs({ aiTags: false });
+  assert.equal(await aiTagBatch({ ask: async () => ({ items: [] }) }), 0, "off: nothing is sent");
+});

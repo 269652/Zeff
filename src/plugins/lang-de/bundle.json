@@ -4109,5 +4109,19 @@
   "More about “{term}” right here": "Mehr zu „{term}“ gleich hier",
   "Following “{topic}”": "Folge „{topic}“",
   "Open it in Explore": "In Erkunden öffnen",
-  "Loading more about “{topic}” …": "Lade mehr zu „{topic}“ …"
+  "Loading more about “{topic}” …": "Lade mehr zu „{topic}“ …",
+  "The story this belongs to — follow the thread": "Die Geschichte, zu der das gehört – folge dem roten Faden",
+  "Following the thread …": "Folge dem roten Faden …",
+  "Nothing else on this yet.": "Dazu gibt es noch nichts weiter.",
+  "{n} reports": "{n} Berichte",
+  "Follow this story in the feed": "Diese Geschichte im Feed verfolgen",
+  "Follow the thread: other reports on this story": "Dem roten Faden folgen: weitere Berichte zu dieser Geschichte",
+  "AI tags and stories": "KI-Schlagworte und Geschichten",
+  "The AI tags the best unseen headlines — people, places, companies, topics, and the story each belongs to — so the chips, bubbles and threads are meaningful (needs the LLM plugin; headlines go to the AI you chose). Without it the built-in tagger does what it can.": "Die KI verschlagwortet die besten ungesehenen Überschriften – Personen, Orte, Unternehmen, Themen und die Geschichte, zu der sie gehören –, damit Chips, Blasen und rote Fäden sinnvoll sind (braucht das LLM-Plugin; Überschriften gehen an die gewählte KI). Ohne sie tut der eingebaute Tagger, was er kann.",
+  "Back to this step": "Zurück zu diesem Schritt",
+  "The AI sums up what the fetched news say — chronologically, with sources": "Die KI fasst zusammen, was die gesammelten Nachrichten sagen – chronologisch, mit Quellen",
+  "Story so far": "Stand der Dinge",
+  "Threads": "Fäden",
+  "Hops": "Sprünge",
+  "{n} stories together": "{n} Meldungen zusammen"
 }

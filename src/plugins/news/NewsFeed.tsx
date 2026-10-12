@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useT } from "@/components/I18nProvider";
+import { Cited, type Source } from "./AskNews";
 import { NewsCard } from "./NewsCard";
-import { newsMoreAction } from "./server-actions";
+import { newsMoreAction, newsRelatedAction, newsSoFarAction } from "./server-actions";
 import { followSplit, type NewsItem } from "./shared";
 import type { NewsView } from "./store";
 
@@ -77,6 +78,12 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
   const stash = useRef<FItem[]>([]);
   const topicRef = useRef<{ term: string; offset: number; done: boolean } | null>(null);
   const [topic, setTopic] = useState<string | null>(null);
+  // The dive panel: the trail of what was followed, what hangs together with the current topic (hop to it, in place), the stories
+  // that run through it (follow a thread), and "the story so far".
+  const anchor = useRef<number | null>(null);
+  const [trail, setTrail] = useState<string[]>([]);
+  const [dive, setDive] = useState<{ related: { term: string; count: number; weight: number }[]; stories: { label: string; count: number }[] } | null>(null);
+  const [sofar, setSofar] = useState<{ busy: boolean; answer?: string; sources?: Source[]; error?: string } | null>(null);
   const [ago, setAgo] = useState(initialAgo);
   const [done, setDone] = useState(initialDone);
   const [loading, setLoading] = useState(false);
@@ -112,6 +119,9 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
     stash.current = [];
     topicRef.current = null;
     setTopic(null);
+    setTrail([]);
+    setDive(null);
+    setSofar(null);
     setItems((cur) => {
       const have = new Set(cur.map((i) => i.id));
       return [...cur, ...waiting.filter((i) => !have.has(i.id))];
@@ -143,7 +153,11 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
       const { base, rest } = followSplit(items, anchorId);
       stash.current = [...rest, ...stash.current];
       topicRef.current = { term, offset: 0, done: false };
+      anchor.current = anchorId;
       setTopic(term);
+      setTrail((cur) => (cur[cur.length - 1] === term ? cur : [...cur, term].slice(-6)));
+      setSofar(null);
+      void newsRelatedAction(term.replace(/^story:/, "")).then((r) => setDive({ related: r.related, stories: r.stories })).catch(() => setDive(null));
       setItems(base);
       await loadTopic();
     } catch {
@@ -276,14 +290,80 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
         </button>
       )}
       {topic && (
-        <div className="sticky top-2 z-30 mx-auto flex w-fit items-center gap-2 rounded-full border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs text-indigo-900 shadow dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-100">
-          <span>🧭 {t("Following “{topic}”", { topic })}</span>
-          <a href={`/news/explore?${new URLSearchParams({ topic })}`} className="underline" title={t("Open it in Explore")}>
-            {t("Explore")} ↗
-          </a>
-          <button type="button" className="font-semibold hover:underline" onClick={restoreStash} title={t("Back to the feed")}>
-            ✕ {t("Stop")}
-          </button>
+        <div className="sticky top-2 z-30 mx-auto w-full max-w-3xl space-y-2 rounded-2xl border border-indigo-300 bg-indigo-50/95 px-4 py-2 text-xs text-indigo-900 shadow backdrop-blur dark:border-indigo-800 dark:bg-indigo-950/95 dark:text-indigo-100">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium">{topic.startsWith("story:") ? `🧵 ${topic.slice(6)}` : `🧭 ${t("Following “{topic}”", { topic })}`}</span>
+            {trail.length > 1 && (
+              <span className="flex flex-wrap items-center gap-1 text-indigo-700 dark:text-indigo-300">
+                {trail.map((x, i) => (
+                  <span key={`${x}${i}`} className="flex items-center gap-1">
+                    {i > 0 && <span aria-hidden>›</span>}
+                    {i === trail.length - 1 ? (
+                      <span className="font-semibold">{x.replace(/^story:/, "🧵 ")}</span>
+                    ) : (
+                      <button type="button" className="hover:underline" onClick={() => void follow(x, anchor.current ?? items[0]?.id ?? 0)} title={t("Back to this step")}>
+                        {x.replace(/^story:/, "🧵 ")}
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </span>
+            )}
+            <span className="flex-1" />
+            <button
+              type="button"
+              className="hover:underline"
+              onClick={() => {
+                setSofar({ busy: true });
+                void newsSoFarAction(topic).then((r) => setSofar(r.ok ? { busy: false, answer: r.answer, sources: r.sources } : { busy: false, error: r.error }));
+              }}
+              title={t("The AI sums up what the fetched news say — chronologically, with sources")}
+            >
+              📖 {t("Story so far")}
+            </button>
+            <a href={`/news/explore?${new URLSearchParams({ topic: topic.replace(/^story:/, "") })}`} className="underline" title={t("Open it in Explore")}>
+              {t("Explore")} ↗
+            </a>
+            <button type="button" className="font-semibold hover:underline" onClick={restoreStash} title={t("Back to the feed")}>
+              ✕ {t("Stop")}
+            </button>
+          </div>
+          {dive && (dive.related.length > 0 || dive.stories.length > 0) && (
+            <div className="space-y-1.5">
+              {dive.stories.length > 0 && (
+                <p className="flex flex-wrap items-center gap-1">
+                  <span className="text-indigo-600 dark:text-indigo-300">{t("Threads")}:</span>
+                  {dive.stories.map((st) => (
+                    <button key={st.label} type="button" className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100" onClick={() => void follow(`story:${st.label}`, anchor.current ?? items[0]?.id ?? 0)}>
+                      🧵 {st.label} <span className="opacity-60">{st.count}</span>
+                    </button>
+                  ))}
+                </p>
+              )}
+              {dive.related.length > 0 && (
+                <p className="flex flex-wrap items-center gap-1">
+                  <span className="text-indigo-600 dark:text-indigo-300">{t("Hops")}:</span>
+                  {dive.related.map((b) => (
+                    <button
+                      key={b.term}
+                      type="button"
+                      className="rounded-full border border-indigo-300 bg-white px-2 py-0.5 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-900 dark:hover:bg-indigo-800"
+                      style={{ fontSize: `${0.68 + b.weight * 0.18}rem` }}
+                      onClick={() => void follow(b.term, anchor.current ?? items[0]?.id ?? 0)}
+                      title={t("{n} stories together", { n: b.count })}
+                    >
+                      {b.term}
+                    </button>
+                  ))}
+                </p>
+              )}
+            </div>
+          )}
+          {sofar && (
+            <div className="rounded-lg bg-white/80 p-2 leading-relaxed dark:bg-zinc-900/70">
+              {sofar.busy ? <span className="text-zinc-500">{t("Reading the news …")}</span> : sofar.error ? <span className="text-red-600 dark:text-red-400">{sofar.error}</span> : <Cited text={sofar.answer ?? ""} sources={sofar.sources ?? []} />}
+            </div>
+          )}
         </div>
       )}
       <div className="flex justify-end">

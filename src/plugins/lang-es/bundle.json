@@ -4109,5 +4109,19 @@
   "More about “{term}” right here": "Más sobre «{term}» aquí mismo",
   "Following “{topic}”": "Siguiendo «{topic}»",
   "Open it in Explore": "Abrir en Explorar",
-  "Loading more about “{topic}” …": "Cargando más sobre «{topic}» …"
+  "Loading more about “{topic}” …": "Cargando más sobre «{topic}» …",
+  "The story this belongs to — follow the thread": "La historia a la que pertenece: sigue el hilo",
+  "Following the thread …": "Siguiendo el hilo …",
+  "Nothing else on this yet.": "Aún no hay nada más sobre esto.",
+  "{n} reports": "{n} informes",
+  "Follow this story in the feed": "Seguir esta historia en el feed",
+  "Follow the thread: other reports on this story": "Seguir el hilo: otros informes sobre esta historia",
+  "AI tags and stories": "Etiquetas y historias con IA",
+  "The AI tags the best unseen headlines — people, places, companies, topics, and the story each belongs to — so the chips, bubbles and threads are meaningful (needs the LLM plugin; headlines go to the AI you chose). Without it the built-in tagger does what it can.": "La IA etiqueta los mejores titulares sin ver (personas, lugares, empresas, temas y la historia a la que pertenecen) para que las etiquetas, burbujas e hilos tengan sentido (requiere el plugin LLM; los titulares van a la IA elegida). Sin ella, el etiquetador integrado hace lo que puede.",
+  "Back to this step": "Volver a este paso",
+  "The AI sums up what the fetched news say — chronologically, with sources": "La IA resume lo que dicen las noticias obtenidas, cronológicamente y con fuentes",
+  "Story so far": "Resumen hasta ahora",
+  "Threads": "Hilos",
+  "Hops": "Saltos",
+  "{n} stories together": "{n} noticias juntas"
 }

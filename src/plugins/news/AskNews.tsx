@@ -4,10 +4,10 @@ import { Fragment, useState, useTransition } from "react";
 import { useT } from "@/components/I18nProvider";
 import { askNewsAction } from "./server-actions";
 
-type Source = { n: number; id: number; title: string; url: string; sourceName: string };
+export type Source = { n: number; id: number; title: string; url: string; sourceName: string };
 
 /** The answer with its [1], [2] as small links to the sources (the ones that exist; others stay as text). */
-function Cited({ text, sources }: { text: string; sources: Source[] }) {
+export function Cited({ text, sources }: { text: string; sources: Source[] }) {
   return (
     <>
       {text.split(/(\[\d{1,2}\])/g).map((part, i) => {

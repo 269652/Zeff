@@ -20,6 +20,9 @@ function db() {
   // Pictures and whole articles: columns added later.
   const cols = (d.prepare("pragma table_info(news_items)").all() as { name: string }[]).map((c) => c.name);
   if (!cols.includes("image")) d.exec("alter table news_items add column image text not null default ''");
+  if (!cols.includes("tags")) d.exec("alter table news_items add column tags text not null default '[]'");
+  if (!cols.includes("story")) d.exec("alter table news_items add column story text not null default ''");
+  if (!cols.includes("tag_src")) d.exec("alter table news_items add column tag_src text not null default ''");
   if (!cols.includes("seen_at")) d.exec("alter table news_items add column seen_at text");
   if (!cols.includes("content")) d.exec("alter table news_items add column content text not null default ''");
   const scols = (d.prepare("pragma table_info(news_sources)").all() as { name: string }[]).map((c) => c.name);
@@ -189,9 +192,20 @@ export function prune(keepDays: number): number {
   return db().prepare("delete from news_items where state != 'saved' and published_at < ?").run(new Date(Date.now() - keepDays * 864e5).toISOString()).changes;
 }
 
-type IRow = { id: number; seen: number; category: string; source_id: number | null; source_name: string; url: string; title: string; summary: string; image: string; has_content: number; published_at: string; state: string; vote: number; score: number; reasons: string };
+/** An item's tags: the stored ones (the AI's or the corpus tagger's), else what the headline alone says. */
+function tagsOf(r: { tags?: string; title: string }): string[] {
+  try {
+    const t = JSON.parse(r.tags ?? "[]") as unknown;
+    if (Array.isArray(t) && t.length) return t.filter((x): x is string => typeof x === "string").slice(0, 4);
+  } catch {
+    // fall back
+  }
+  return keyTerms(r.title).slice(0, 3);
+}
+
+type IRow = { id: number; tags: string; story: string; tag_src: string; seen: number; category: string; source_id: number | null; source_name: string; url: string; title: string; summary: string; image: string; has_content: number; published_at: string; state: string; vote: number; score: number; reasons: string };
 /** The columns of a list (not the whole articles: only whether one is kept). */
-const ICOLS = "i.id, i.seen_at is not null as seen, coalesce(s.category, '') as category, i.source_id, i.source_name, i.url, i.title, i.summary, i.image, length(i.content) > 1 as has_content, i.published_at, i.state, i.vote, i.score, i.reasons";
+const ICOLS = "i.id, i.tags, i.story, i.tag_src, i.seen_at is not null as seen, coalesce(s.category, '') as category, i.source_id, i.source_name, i.url, i.title, i.summary, i.image, length(i.content) > 1 as has_content, i.published_at, i.state, i.vote, i.score, i.reasons";
 const IFROM = "news_items i left join news_sources s on s.id = i.source_id";
 const toItem = (r: IRow): NewsItem => ({
   id: r.id,
@@ -201,7 +215,8 @@ const toItem = (r: IRow): NewsItem => ({
   title: r.title,
   summary: r.summary,
   seen: !!r.seen,
-  terms: keyTerms(r.title).slice(0, 3),
+  terms: tagsOf(r),
+  story: r.story ?? "",
   category: r.category,
   image: r.image === "-" ? "" : r.image,
   imageChecked: r.image !== "",
@@ -222,7 +237,7 @@ const toItem = (r: IRow): NewsItem => ({
 export type NewsView = "foryou" | "latest" | "saved" | "hidden";
 
 /** The items of a view: For you (best first, nothing hidden or muted), Latest (by date), Saved, Hidden. */
-export function listItems(opts: { view?: NewsView; sourceId?: number; category?: string; term?: string; limit?: number; offset?: number; maxAgeDays?: number } = {}): NewsItem[] {
+export function listItems(opts: { view?: NewsView; sourceId?: number; category?: string; term?: string; story?: string; limit?: number; offset?: number; maxAgeDays?: number } = {}): NewsItem[] {
   const view = opts.view ?? "foryou";
   const where: string[] = [];
   const args: (string | number)[] = [];
@@ -236,6 +251,10 @@ export function listItems(opts: { view?: NewsView; sourceId?: number; category?:
   if (opts.sourceId) {
     where.push("i.source_id = ?");
     args.push(opts.sourceId);
+  }
+  if (opts.story) {
+    where.push("i.story = ?");
+    args.push(opts.story);
   }
   if (opts.term) {
     // About a thing (Explore): its words in the headline or the summary.
@@ -298,7 +317,62 @@ export function markSeen(ids: number[]): number {
 
 /** The recent items for the Explore map (headlines and short texts only). */
 export function recentForExplore(days = 3, limit = 4000): ExploreItem[] {
-  return (db().prepare("select i.id, i.title, i.summary, i.published_at, i.source_name from news_items i left join news_sources s on s.id = i.source_id where i.state != 'hidden' and i.score > -50 and i.published_at > ? and (i.source_id is null or s.enabled = 1) order by i.published_at desc limit ?").all(new Date(Date.now() - days * 864e5).toISOString(), limit) as { id: number; title: string; summary: string; published_at: string; source_name: string }[]).map((r) => ({ id: r.id, title: r.title, summary: r.summary, publishedAt: r.published_at, sourceName: r.source_name }));
+  return (db().prepare("select i.id, i.title, i.summary, i.tags, i.story, i.published_at, i.source_name from news_items i left join news_sources s on s.id = i.source_id where i.state != 'hidden' and i.score > -50 and i.published_at > ? and (i.source_id is null or s.enabled = 1) order by i.published_at desc limit ?").all(new Date(Date.now() - days * 864e5).toISOString(), limit) as { id: number; title: string; summary: string; tags: string; story: string; published_at: string; source_name: string }[]).map((r) => ({ id: r.id, title: r.title, summary: r.summary, publishedAt: r.published_at, sourceName: r.source_name, tags: tagsOf(r), story: r.story }));
+}
+
+/** The recent items as the tagger wants them (and whether the AI has tagged them already). */
+export function corpusForTagging(days = 7, limit = 6000): { id: number; title: string; summary: string; src: string }[] {
+  return (db().prepare("select id, title, summary, tag_src from news_items where published_at > ? order by published_at desc limit ?").all(new Date(Date.now() - days * 864e5).toISOString(), limit) as { id: number; title: string; summary: string; tag_src: string }[]).map((r) => ({ id: r.id, title: r.title, summary: r.summary, src: r.tag_src }));
+}
+
+/** Tags (and a story label) written for items; the AI's are not overwritten by the corpus tagger's. */
+export function setTags(entries: { id: number; tags: string[]; story?: string; src: "auto" | "ai" }[]): void {
+  const d = db();
+  const up = d.prepare("update news_items set tags = ?, tag_src = ?, story = case when ? != '' then ? else story end where id = ? and (tag_src != 'ai' or ? = 'ai')");
+  d.transaction(() => {
+    for (const e of entries) up.run(JSON.stringify(e.tags.slice(0, 4)), e.src, e.story ?? "", e.story ?? "", e.id, e.src);
+  })();
+}
+
+/** The best visible items the AI hasn't tagged yet (what the next AI batch takes). */
+export function untaggedByAi(limit: number, maxAgeDays: number): { id: number; title: string; summary: string }[] {
+  return db()
+    .prepare("select i.id, i.title, i.summary from news_items i left join news_sources s on s.id = i.source_id where i.tag_src != 'ai' and i.state != 'hidden' and i.score > -50 and i.published_at > ? and (i.source_id is null or s.enabled = 1) order by (i.seen_at is not null), i.score desc, i.published_at desc limit ?")
+    .all(new Date(Date.now() - maxAgeDays * 864e5).toISOString(), limit) as { id: number; title: string; summary: string }[];
+}
+
+/**
+ * Other items about the same thing as this one, for a thread when the AI has given no story label: items from the last days
+ * that share at least two of its tags (or one name and much of the headline), the closest first.
+ */
+export function relatedByTags(item: { id: number; title: string; terms: string[] }, days = 5, limit = 12): NewsItem[] {
+  const tags = item.terms.slice(0, 4);
+  if (!tags.length) return [];
+  const likes = tags.map(() => "i.tags like ?").join(" or ");
+  const rows = db()
+    .prepare(`select ${ICOLS} from ${IFROM} where i.id != ? and i.state != 'hidden' and i.published_at > ? and (${likes}) order by i.published_at desc limit 120`)
+    .all(item.id, new Date(Date.now() - days * 864e5).toISOString(), ...tags.map((t) => `%${JSON.stringify(t).slice(1, -1)}%`)) as IRow[];
+  const mine = new Set(tokens(item.title));
+  return rows
+    .map(toItem)
+    .map((it) => {
+      const shared = it.terms.filter((t) => tags.some((x) => x.toLowerCase() === t.toLowerCase())).length;
+      const other = new Set(tokens(it.title));
+      let n = 0;
+      for (const w of mine) if (other.has(w)) n++;
+      const jac = mine.size + other.size - n ? n / (mine.size + other.size - n) : 0;
+      return { it, shared, jac, score: shared * 2 + jac * 4 };
+    })
+    .filter((x) => x.shared >= 2 || (x.shared >= 1 && x.jac >= 0.25))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((x) => x.it);
+}
+
+/** The items of one story (the same label), newest first. */
+export function itemsOfStory(story: string, limit = 30): NewsItem[] {
+  if (!story.trim()) return [];
+  return (db().prepare(`select ${ICOLS} from ${IFROM} where i.story = ? and i.state != 'hidden' order by i.published_at desc limit ?`).all(story, limit) as IRow[]).map(toItem);
 }
 
 /** The kept whole article of an item ("" if none, UNREADABLE if its page couldn't be read). */
