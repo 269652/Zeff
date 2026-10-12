@@ -3899,5 +3899,9 @@
   "Install everything missing": "Instalar todo lo que falta",
   "Opening …": "Abriendo …",
   "Open all sign-in pages": "Abrir todas las páginas de inicio de sesión",
-  "Opens the sign-in page of every service that isn't signed in yet, each in its own tab — you sign in yourself": "Abre la página de inicio de sesión de cada servicio sin conectar, cada una en su pestaña: inicias sesión tú"
+  "Opens the sign-in page of every service that isn't signed in yet, each in its own tab — you sign in yourself": "Abre la página de inicio de sesión de cada servicio sin conectar, cada una en su pestaña: inicias sesión tú",
+  "The sign-in page opens in your browser — sign in there.": "La página de inicio de sesión se abre en tu navegador: inicia sesión allí.",
+  "Signing in …": "Iniciando sesión …",
+  "Waiting for the sign-in …": "Esperando el inicio de sesión …",
+  "Browser didn't open? Open the sign-in page": "¿No se abrió el navegador? Abre la página de inicio de sesión"
 }

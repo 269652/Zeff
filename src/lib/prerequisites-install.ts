@@ -61,7 +61,7 @@ export const installStates = (): InstallState[] => [...installs.values()];
  * Installs `id` in the background (queued behind any running install — winget allows one at a time).
  * `found` is asked afterwards: installed means the program is there now. Returns at once.
  */
-export function startInstall(id: PrereqId, deps: { plan: InstallPlan | null; found: () => boolean; run?: (p: InstallPlan) => Promise<{ ok: boolean; out: string }> }): InstallState {
+export function startInstall(id: PrereqId, deps: { plan: InstallPlan | null; found: () => boolean; /** Once it is installed (the AI CLIs: their sign-in starts). */ after?: () => void; run?: (p: InstallPlan) => Promise<{ ok: boolean; out: string }> }): InstallState {
   const running = installs.get(id);
   if (running?.state === "running") return running;
   const at = new Date().toISOString();
@@ -79,6 +79,7 @@ export function startInstall(id: PrereqId, deps: { plan: InstallPlan | null; fou
     .then(async () => {
       const r = await run(plan);
       const found = deps.found();
+      if (found) try { deps.after?.(); } catch { /* the install stands */ }
       installs.set(id, { id, state: found ? "done" : "failed", out: found ? "" : r.out.replace(/\s+/g, " ").slice(-200) || (r.ok ? "Installed, but Zeff didn't find it — restart Zeff." : "Failed."), at });
     });
   return s;

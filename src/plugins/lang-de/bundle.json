@@ -3899,5 +3899,9 @@
   "Install everything missing": "Alles Fehlende installieren",
   "Opening …": "Öffne …",
   "Open all sign-in pages": "Alle Anmeldeseiten öffnen",
-  "Opens the sign-in page of every service that isn't signed in yet, each in its own tab — you sign in yourself": "Öffnet die Anmeldeseite jedes noch nicht angemeldeten Dienstes in einem eigenen Tab – du meldest dich selbst an"
+  "Opens the sign-in page of every service that isn't signed in yet, each in its own tab — you sign in yourself": "Öffnet die Anmeldeseite jedes noch nicht angemeldeten Dienstes in einem eigenen Tab – du meldest dich selbst an",
+  "The sign-in page opens in your browser — sign in there.": "Die Anmeldeseite öffnet sich im Browser – melde dich dort an.",
+  "Signing in …": "Melde an …",
+  "Waiting for the sign-in …": "Warte auf die Anmeldung …",
+  "Browser didn't open? Open the sign-in page": "Browser nicht aufgegangen? Anmeldeseite öffnen"
 }

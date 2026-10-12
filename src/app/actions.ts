@@ -1249,15 +1249,47 @@ export async function installPrerequisiteAction(id: string): Promise<ActionState
     const rows = prerequisites();
     const todo = id === "all" ? rows.filter((r) => !r.found && installPlan(r.id, process.platform, hasCommand)) : rows.filter((r) => r.id === id && !r.found);
     if (!todo.length) return { ok: false, error: t("Nothing to install.") };
-    for (const r of todo) startInstall(r.id, { plan: installPlan(r.id, process.platform, hasCommand), found: () => !!(rows.length && prerequisites().find((x) => x.id === r.id)?.found) });
+    for (const r of todo) startInstall(r.id, { plan: installPlan(r.id, process.platform, hasCommand), found: () => !!(rows.length && prerequisites().find((x) => x.id === r.id)?.found), after: () => void signInAfterInstall(r.id) });
     return { ok: true, message: t("Installing {n} program(s) — this takes a few minutes.", { n: todo.length }) };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
 }
 
+/** A freshly installed AI CLI: its sign-in opens right away (the browser asks you to sign in). */
+async function signInAfterInstall(id: string): Promise<void> {
+  if (id !== "claude" && id !== "codex" && id !== "copilot") return;
+  (await import("@/lib/ai-login")).startAiLogin(id);
+}
+
 /** What the installs are doing (polled by the This PC list). */
 export async function installStatusAction(): Promise<{ id: string; state: string; out: string }[]> {
   const { installStates } = await import("@/lib/prerequisites-install");
   return installStates().map(({ id, state, out }) => ({ id, state, out }));
+}
+
+/** "Sign in" on the This PC list: the AI CLI's own login (opens the browser; Zeff never sees a password). */
+export async function aiLoginAction(provider: string): Promise<ActionState> {
+  try {
+    const { isAiProvider } = await import("@/lib/ai/shared");
+    if (!isAiProvider(provider)) return { ok: false, error: t("Unknown provider.") };
+    const { startAiLogin } = await import("@/lib/ai-login");
+    const s = startAiLogin(provider);
+    return s.state === "failed" ? { ok: false, error: s.out } : { ok: true, message: t("The sign-in page opens in your browser — sign in there.") };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** Where the AI CLIs' sign-ins are: running / done / failed (with the address when the browser didn't open), and whether each is signed in. */
+export async function aiLoginStatusAction(): Promise<{ provider: string; state: string; url: string | null; out: string; signedIn: boolean | null }[]> {
+  const { AI_PROVIDERS } = await import("@/lib/ai/shared");
+  const { aiSignedIn, loginStates, loginCommands } = await import("@/lib/ai-login");
+  const states = new Map(loginStates().map((s) => [s.provider, s]));
+  return Promise.all(
+    AI_PROVIDERS.filter((p) => loginCommands(p)).map(async (p) => {
+      const s = states.get(p);
+      return { provider: p, state: s?.state ?? "idle", url: s?.url ?? null, out: s?.out ?? "", signedIn: s?.state === "running" ? null : s?.state === "done" && !loginCommands(p)?.status ? true : await aiSignedIn(p) };
+    }),
+  );
 }

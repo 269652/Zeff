@@ -1,3 +1,4 @@
+import { AiSignIn } from "@/components/AiSignIn";
 import { InstallPrereq } from "@/components/InstallPrereq";
 import { t } from "@/lib/i18n/server";
 import { installPlan } from "@/lib/prerequisites-install";
@@ -34,6 +35,7 @@ export function ThisPc() {
               {r.found ? <p className="truncate text-xs text-zinc-400" title={r.found}>{r.found}</p> : <p className="text-xs text-red-600 dark:text-red-400">{r.howToGet}</p>}
             </div>
             {!r.found && installable(r.id) && <InstallPrereq id={r.id} />}
+            {r.found && (r.id === "claude" || r.id === "codex" || r.id === "copilot") && <AiSignIn provider={r.id} />}
           </li>
         ))}
       </ul>
