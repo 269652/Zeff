@@ -1,5 +1,6 @@
 import { parseFeed } from "./feed";
-import { addItems, getPrefs, listSources, prune, recordFetch, rescore } from "./store";
+import { fetchArticle, type Article } from "./reader";
+import { addItems, getPrefs, listSources, prune, recordFetch, rescore, setContent, UNREADABLE, withoutContent } from "./store";
 import { tokens, topicFeedUrl } from "./shared";
 
 /**
@@ -12,6 +13,8 @@ export type NewsSyncDeps = {
   /** Words your open todos are about (default: read from the todos). */
   work?: () => string[];
   now?: () => number;
+  /** An article's page read (default: the reader; tests give their own). */
+  fetchArticle?: (url: string) => Promise<Article>;
   /** After the sync: the AI overview (default: when the preference is on). */
   digest?: () => Promise<void>;
 };
@@ -87,6 +90,20 @@ export async function syncNews(deps: NewsSyncDeps = {}): Promise<{ ok: boolean; 
   await rescoreAll({ work: deps.work, nowMs });
   prune(prefs.keepDays);
 
+  // Reading ahead: the best unread items' whole text, so they open at once (a page that can't be read is marked, not retried).
+  let read = 0;
+  if (prefs.prefetch) {
+    await pool(withoutContent(12, prefs.maxAgeDays), 3, async (it) => {
+      try {
+        const a = await (deps.fetchArticle ?? ((u: string) => fetchArticle(u)))(it.url);
+        setContent(it.id, a.text, a.image);
+        read++;
+      } catch {
+        setContent(it.id, UNREADABLE);
+      }
+    });
+  }
+
   let digestNote = "";
   if (prefs.digest) {
     try {
@@ -96,5 +113,5 @@ export async function syncNews(deps: NewsSyncDeps = {}): Promise<{ ok: boolean; 
     }
   }
   const ok = failed.length < jobs.length;
-  return { ok, message: `${added} new from ${jobs.length - failed.length} of ${jobs.length} sources${failed.length ? ` — failed: ${failed.join("; ").slice(0, 300)}` : ""}${digestNote}` };
+  return { ok, message: `${added} new from ${jobs.length - failed.length} of ${jobs.length} sources${read ? `, ${read} read in full` : ""}${failed.length ? ` — failed: ${failed.join("; ").slice(0, 300)}` : ""}${digestNote}` };
 }

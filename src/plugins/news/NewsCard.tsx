@@ -1,39 +1,53 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
-import { newsStateAction, newsVoteAction } from "./server-actions";
+import { newsReadAction, newsStateAction, newsVoteAction } from "./server-actions";
 import type { NewsItem } from "./shared";
 
 /**
- * One news item: the headline (opens the article in a new tab and counts as read), where it is from and how old
- * it is, why it is up here, and the buttons that teach Zeff your taste — 👍 👎 — keep it (save) or put it away (hide).
+ * One news item as a card: its picture, the headline (opens the article in a new tab and counts as read), where it is
+ * from and how old it is, a short text — or the whole article, read here — why it is up here, and the buttons that teach
+ * Zeff your taste (👍 👎), keep it (save) or put it away (hide). `onChange` tells the feed what changed, so it updates in place.
  */
-export function NewsCard({ item, ago }: { item: NewsItem; ago: string }) {
+export function NewsCard({ item, ago, showImage, onChange }: { item: NewsItem; ago: string; showImage: boolean; onChange: (patch: Partial<NewsItem>) => void }) {
   const t = useT();
-  const router = useRouter();
   const [pending, start] = useTransition();
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>) =>
+  const [broken, setBroken] = useState(false);
+  const [reader, setReader] = useState<{ open: boolean; busy: boolean; text: string; error: string }>({ open: false, busy: false, text: "", error: "" });
+  const run = (fn: () => Promise<{ ok: boolean; error?: string }>, patch: Partial<NewsItem>) =>
     start(async () => {
       const r = await fn();
       if (!r.ok) toast(r.error ?? t("Didn't work."), { tone: "error" });
-      router.refresh();
+      else onChange(patch);
     });
   const read = item.state === "read";
   const btn = (on: boolean) => `btn btn-sm ${on ? "btn-primary" : ""}`;
+  const toggleReader = () => {
+    if (reader.open) return setReader({ ...reader, open: false });
+    if (reader.text) return setReader({ ...reader, open: true });
+    setReader({ open: true, busy: true, text: "", error: "" });
+    void newsReadAction(item.id).then((r) => {
+      setReader({ open: true, busy: false, text: r.text ?? "", error: r.ok ? "" : (r.error ?? t("Didn't work.")) });
+      if (r.ok) onChange({ hasContent: true, ...(item.state === "new" ? { state: "read" as const } : {}), ...(r.image && !item.image ? { image: r.image } : {}) });
+    });
+  };
   return (
-    <li className={`card space-y-1.5 p-4 ${read ? "opacity-70" : ""} ${pending ? "opacity-50" : ""}`}>
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
+    <article className={`card overflow-hidden ${read ? "opacity-75" : ""} ${pending ? "opacity-50" : ""}`}>
+      {showImage && item.image && !broken && (
+        // eslint-disable-next-line @next/next/no-img-element -- pictures of other sites, shown as they are (no optimiser on the way)
+        <img src={item.image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken(true)} className="aspect-video w-full bg-zinc-100 object-cover dark:bg-zinc-800" />
+      )}
+      <div className="space-y-2 p-4">
+        <div>
           <a
             href={item.url}
             target="_blank"
             rel="noreferrer noopener"
             className="font-medium hover:underline"
             onClick={() => {
-              if (item.state === "new") void newsStateAction(item.id, "read").then(() => router.refresh());
+              if (item.state === "new") void newsStateAction(item.id, "read").then(() => onChange({ state: "read" }));
             }}
           >
             {item.title}
@@ -42,31 +56,46 @@ export function NewsCard({ item, ago }: { item: NewsItem; ago: string }) {
             {item.sourceName} · {ago}
           </p>
         </div>
-        <div className="flex shrink-0 gap-1">
-          <button type="button" className={btn(item.vote === 1)} disabled={pending} title={t("More like this")} onClick={() => run(() => newsVoteAction(item.id, item.vote === 1 ? 0 : 1))}>
+        {item.summary && !reader.open && <p className="line-clamp-4 text-sm text-zinc-600 dark:text-zinc-300">{item.summary}</p>}
+        {reader.open && (
+          <div className="max-h-96 overflow-auto rounded border border-zinc-200 bg-zinc-50 p-3 text-sm leading-relaxed whitespace-pre-line dark:border-zinc-700 dark:bg-zinc-900">
+            {reader.busy ? t("Reading the article …") : reader.error ? <span className="text-red-600 dark:text-red-400">{reader.error}</span> : reader.text}
+          </div>
+        )}
+        {item.reasons.length > 0 && (
+          <p className="flex flex-wrap gap-1 text-[11px] text-zinc-500">
+            {item.reasons.slice(0, 4).map((r) => (
+              <span key={r} className="rounded bg-zinc-100 px-1.5 py-0.5 dark:bg-zinc-800">
+                {r.startsWith("like ") ? t("like {words}", { words: r.slice(5) }) : r.startsWith("work: ") ? t("your work: {words}", { words: r.slice(6) }) : r === "fresh" ? t("fresh") : r}
+              </span>
+            ))}
+          </p>
+        )}
+        <div className="flex flex-wrap items-center gap-1">
+          <button type="button" className={btn(reader.open)} disabled={pending} onClick={toggleReader} title={item.hasContent ? t("The whole article, read here") : t("Fetches the article and shows its text here")}>
+            {reader.open ? t("Close") : item.hasContent ? t("Read here") : t("Read")}
+          </button>
+          <span className="flex-1" />
+          <button type="button" className={btn(item.vote === 1)} disabled={pending} title={t("More like this")} onClick={() => run(() => newsVoteAction(item.id, item.vote === 1 ? 0 : 1), { vote: item.vote === 1 ? 0 : 1 })}>
             👍
           </button>
-          <button type="button" className={btn(item.vote === -1)} disabled={pending} title={t("Less like this")} onClick={() => run(() => newsVoteAction(item.id, item.vote === -1 ? 0 : -1))}>
+          <button type="button" className={btn(item.vote === -1)} disabled={pending} title={t("Less like this")} onClick={() => run(() => newsVoteAction(item.id, item.vote === -1 ? 0 : -1), { vote: item.vote === -1 ? 0 : -1 })}>
             👎
           </button>
-          <button type="button" className={btn(item.state === "saved")} disabled={pending} title={item.state === "saved" ? t("Not saved any more") : t("Save for later")} onClick={() => run(() => newsStateAction(item.id, item.state === "saved" ? "read" : "saved"))}>
+          <button
+            type="button"
+            className={btn(item.state === "saved")}
+            disabled={pending}
+            title={item.state === "saved" ? t("Not saved any more") : t("Save for later")}
+            onClick={() => run(() => newsStateAction(item.id, item.state === "saved" ? "read" : "saved"), { state: item.state === "saved" ? "read" : "saved" })}
+          >
             🔖
           </button>
-          <button type="button" className="btn btn-sm" disabled={pending} title={item.state === "hidden" ? t("Show again") : t("Hide")} onClick={() => run(() => newsStateAction(item.id, item.state === "hidden" ? "new" : "hidden"))}>
+          <button type="button" className="btn btn-sm" disabled={pending} title={item.state === "hidden" ? t("Show again") : t("Hide")} onClick={() => run(() => newsStateAction(item.id, item.state === "hidden" ? "new" : "hidden"), { state: item.state === "hidden" ? "new" : "hidden" })}>
             {item.state === "hidden" ? "↩" : "✕"}
           </button>
         </div>
       </div>
-      {item.summary && <p className="line-clamp-3 text-sm text-zinc-600 dark:text-zinc-300">{item.summary}</p>}
-      {item.reasons.length > 0 && (
-        <p className="flex flex-wrap gap-1 text-[11px] text-zinc-500">
-          {item.reasons.slice(0, 4).map((r) => (
-            <span key={r} className="rounded bg-zinc-100 px-1.5 py-0.5 dark:bg-zinc-800">
-              {r.startsWith("like ") ? t("like {words}", { words: r.slice(5) }) : r.startsWith("work: ") ? t("your work: {words}", { words: r.slice(6) }) : r === "fresh" ? t("fresh") : r}
-            </span>
-          ))}
-        </p>
-      )}
-    </li>
+    </article>
   );
 }

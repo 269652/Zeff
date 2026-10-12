@@ -5,10 +5,11 @@ import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { formatAgo } from "@/lib/format";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
-import { NewsCard } from "@/plugins/news/NewsCard";
+import { NewsFeed } from "@/plugins/news/NewsFeed";
 import { NewsRefreshButtons } from "@/plugins/news/RefreshButton";
 import { getDigest } from "@/plugins/news/digest";
-import { counts, getPrefs, listItems, listSources, type NewsView } from "@/plugins/news/store";
+import { NEWS_PAGE } from "@/plugins/news/shared";
+import { counts, getItem, getPrefs, listItems, listSources, type NewsView } from "@/plugins/news/store";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("News") };
@@ -25,10 +26,10 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
   const sourceId = Number(sp.source) || undefined;
   const prefs = getPrefs();
   const sources = listSources();
-  const items = listItems({ view, sourceId, maxAgeDays: prefs.maxAgeDays, limit: 80 });
+  const items = listItems({ view, sourceId, maxAgeDays: prefs.maxAgeDays, limit: NEWS_PAGE });
   const c = counts();
   const digest = view === "foryou" && !sourceId ? getDigest() : null;
-  const byId = new Map(items.map((i) => [i.id, i]));
+  const byId = new Map((digest?.picks ?? []).flatMap((p) => { const it = getItem(p.id); return it ? [[p.id, it] as const] : []; }));
   const labels: Record<NewsView, string> = { foryou: t("For you"), latest: t("Latest"), saved: t("Saved"), hidden: t("Hidden") };
   const count: Record<NewsView, number | null> = { foryou: c.unread, latest: null, saved: c.saved, hidden: c.hidden };
   const href = (v: NewsView, s?: number) => `/news?view=${v}${s ? `&source=${s}` : ""}`;
@@ -107,11 +108,7 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
             )}
           </div>
         ) : (
-          <ul className="space-y-3">
-            {items.map((it) => (
-              <NewsCard key={it.id} item={it} ago={formatAgo(it.publishedAt)} />
-            ))}
-          </ul>
+          <NewsFeed key={`${view}:${sourceId ?? 0}:${items[0]?.id ?? 0}`} initial={items} ago={Object.fromEntries(items.map((i) => [i.id, formatAgo(i.publishedAt)]))} view={view} sourceId={sourceId ?? null} showImages={prefs.images} done={items.length < NEWS_PAGE} />
         )}
       </div>
     </div>

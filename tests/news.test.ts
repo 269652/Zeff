@@ -172,3 +172,86 @@ test("the AI overview: the best unread items go in, its picks are kept with thei
   for (const it of s.listItems({ view: "latest" })) s.setState(it.id, "read");
   assert.equal(await buildDigest({ ask: async () => ({ overview: "x", picks: [] }) }), null);
 });
+
+const LONG = "Absatz mit genug Text, damit er als Artikeltext zählt und nicht als Beiwerk. ".repeat(3);
+
+test("feeds bring their pictures (media, enclosure, the first <img>) and, when they carry it, the whole article", async () => {
+  const { parseFeed } = await import("@/plugins/news/feed");
+  const xml = `<rss xmlns:media="http://search.yahoo.com/mrss/" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel>
+<item><title>A</title><link>https://x.example/a</link><media:thumbnail url="https://img.example/a.jpg"/></item>
+<item><title>B</title><link>https://x.example/b</link><enclosure url="https://img.example/b.png" type="image/png" length="1"/><enclosure url="https://x.example/b.mp3" type="audio/mpeg" length="1"/></item>
+<item><title>C</title><link>https://x.example/c</link><description><![CDATA[<p><img src="/pics/c.jpg"> Text</p>]]></description></item>
+<item><title>D</title><link>https://x.example/d</link><content:encoded><![CDATA[<p>${LONG.repeat(3)}</p><p>Zweiter Absatz.</p>]]></content:encoded></item>
+<item><title>E</title><link>https://x.example/e</link><media:content url="javascript:alert(1)" medium="image"/></item></channel></rss>`;
+  const by = Object.fromEntries(parseFeed(xml).map((i) => [i.title, i]));
+  assert.equal(by.A.image, "https://img.example/a.jpg");
+  assert.equal(by.B.image, "https://img.example/b.png");
+  assert.equal(by.C.image, undefined, "a relative picture has no base to be relative to here — only absolute ones are kept");
+  assert.match(by.D.content ?? "", /Absatz mit genug Text[\s\S]*\n\nZweiter Absatz\./);
+  assert.equal(by.E.image, undefined, "no script addresses");
+});
+
+const PAGE = `<html><head><title>Titel - Seite</title><meta property="og:image" content="/media/hero.jpg"><meta property="og:description" content="Kurzfassung"></head><body>
+<header><p>Menü Menü Menü Menü Menü Menü Menü Menü Menü Menü</p></header><nav><p>Navigation Navigation Navigation Navigation Navigation</p></nav>
+<article><h2>Zwischenüberschrift</h2><p>${LONG}</p><p>Wir verwenden Cookies, um Ihnen das beste Erlebnis zu bieten.</p><p>Zweiter echter Absatz mit ausreichend Länge für den Artikel hier.</p><p>kurz</p></article>
+<footer><p>Impressum und alle Rechte vorbehalten für diese Seite hier unten.</p></footer><script>var x = "<p>nicht lesen nicht lesen nicht lesen nicht lesen</p>"</script></body></html>`;
+
+test("the reader takes the article's paragraphs out of a page — no menus, scripts, cookie banners — and its picture", async () => {
+  const { extractArticle, fetchArticle } = await import("@/plugins/news/reader");
+  const a = extractArticle(PAGE, "https://site.example/news/1");
+  assert.match(a.text, /Zwischenüberschrift\n\nAbsatz mit genug Text/);
+  assert.match(a.text, /Zweiter echter Absatz/);
+  assert.doesNotMatch(a.text, /Menü|Navigation|Cookies|Impressum|nicht lesen|^kurz$/m);
+  assert.equal(a.image, "https://site.example/media/hero.jpg");
+  assert.equal(a.title, "Titel - Seite");
+  // A page with nothing to read says so.
+  await assert.rejects(fetchArticle("https://x.example/p", { fetchText: async () => ({ text: "<html><body><p>kurz</p></body></html>", url: "https://x.example/p", type: "text/html" }) }), /No readable text/);
+  await assert.rejects(fetchArticle("https://x.example/f.pdf", { fetchText: async () => ({ text: "%PDF", url: "https://x.example/f.pdf", type: "application/pdf" }) }), /Not a web page/);
+});
+
+test("a Google News link is resolved to the publisher's page first (the page's signature, then Google's own call)", async () => {
+  const { fetchArticle } = await import("@/plugins/news/reader");
+  const calls: string[] = [];
+  const a = await fetchArticle("https://news.google.com/rss/articles/CBMiABC?oc=5", {
+    fetchText: async (url, init) => {
+      calls.push(`${init?.method ?? "GET"} ${url}`);
+      if (url.startsWith("https://news.google.com/rss/articles/")) return { text: '<c-wiz data-n-a-sg="SIG" data-n-a-ts="1791829966"></c-wiz>', url, type: "text/html" };
+      if (url.includes("batchexecute")) {
+        assert.match(decodeURIComponent(init?.body ?? ""), /garturlreq[\s\S]*CBMiABC[\s\S]*1791829966[\s\S]*SIG/);
+        return { text: `)]}'\n\n${JSON.stringify([["wrb.fr", "Fbv4je", JSON.stringify(["garturlres", "https://www.leipzig.de/news/1", 1])]])}\n`, url, type: "text/plain" };
+      }
+      return { text: PAGE, url, type: "text/html" };
+    },
+  });
+  assert.equal(a.url, "https://www.leipzig.de/news/1");
+  assert.deepEqual(calls.map((c) => c.split(" ")[0]), ["GET", "POST", "GET"]);
+});
+
+test("paging: a view comes in pages by offset; the sync reads the best unread items ahead and marks pages it can't read", async () => {
+  const s = await import("@/plugins/news/store");
+  const { syncNews } = await import("@/plugins/news/sync");
+  for (const x of s.listSources()) s.removeSource(x.id);
+  const src = s.addSource({ name: "Paging", url: "https://paging.example/rss" });
+  s.setPrefs({ interests: [], mutes: [], topicSearch: false, useWork: false, digest: false, prefetch: true, maxAgeDays: 7 });
+  const nowMs = Date.now();
+  const xml = `<rss><channel>${Array.from({ length: 30 }, (_, i) => `<item><title>Meldung Nummer ${i} über Dinge ${"x".repeat(i)}</title><link>https://paging.example/${i}</link><pubDate>${new Date(nowMs - i * 3600e3).toUTCString()}</pubDate></item>`).join("")}</channel></rss>`;
+  const r = await syncNews({
+    now: () => nowMs,
+    fetchText: async () => xml,
+    fetchArticle: async (url) => {
+      if (url.endsWith("/3")) throw new Error("paywall");
+      return { text: "Der ganze Artikel.", image: "https://img.example/x.jpg", title: "t", url };
+    },
+  });
+  assert.match(r.message, /read in full/);
+  assert.equal(s.getContent(s.listItems({ view: "latest", sourceId: src.id, limit: 1 })[0].id)!.content, "Der ganze Artikel.");
+  const first = s.listItems({ view: "latest", sourceId: src.id, limit: 10 });
+  const second = s.listItems({ view: "latest", sourceId: src.id, limit: 10, offset: 10 });
+  assert.equal(new Set([...first, ...second].map((i) => i.id)).size, 20, "pages don't overlap");
+  assert.ok(first[0].hasContent && first[0].image === "https://img.example/x.jpg");
+  const failed = s.listItems({ view: "latest", sourceId: src.id, limit: 30 }).find((i) => i.url.endsWith("/3"))!;
+  assert.equal(failed.hasContent, false);
+  assert.equal(s.getContent(failed.id)!.content, s.UNREADABLE, "marked, not tried again with every fetch");
+  assert.ok(!s.withoutContent(30, 7).some((i) => i.id === failed.id));
+
+});

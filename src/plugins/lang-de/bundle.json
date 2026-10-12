@@ -4010,5 +4010,19 @@
   "Search todos, tickets, mails, comments, notes, people …": "Todos, Tickets, Mails, Kommentare, Notizen, Personen durchsuchen …",
   "Search the todos and everything they are made of": "Die Todos und alles, woraus sie bestehen, durchsuchen",
   "Searching …": "Suche …",
-  "Nothing found that a todo refers to.": "Nichts gefunden, worauf sich ein Todo bezieht."
+  "Nothing found that a todo refers to.": "Nichts gefunden, worauf sich ein Todo bezieht.",
+  "Reading the article …": "Lese den Artikel …",
+  "The whole article, read here": "Der ganze Artikel, hier gelesen",
+  "Fetches the article and shows its text here": "Holt den Artikel und zeigt seinen Text hier",
+  "Read here": "Hier lesen",
+  "Read": "Lesen",
+  "That item isn't there any more.": "Diese Meldung gibt es nicht mehr.",
+  "Show pictures": "Bilder anzeigen",
+  "Each item's picture is loaded by your browser from the news site it belongs to — that site sees you looked. Off: text only.": "Das Bild jeder Meldung lädt dein Browser von der Nachrichtenseite, zu der sie gehört – diese Seite sieht, dass du geschaut hast. Aus: nur Text.",
+  "Read ahead": "Vorab lesen",
+  "After each fetch Zeff reads the whole text of the best unread items from their pages, so they open here at once. Pages behind a paywall can't be read.": "Nach jedem Abruf liest Zeff den ganzen Text der besten ungelesenen Meldungen von ihren Seiten, damit sie hier sofort aufgehen. Seiten hinter einer Bezahlschranke lassen sich nicht lesen.",
+  "Loading more …": "Lade mehr …",
+  "That's all for now.": "Das war's vorerst.",
+  "Load more": "Mehr laden",
+  "Back to top": "Nach oben"
 }

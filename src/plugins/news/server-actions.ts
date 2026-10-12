@@ -5,8 +5,8 @@ import { redirect } from "next/navigation";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
-import { parseInterests, parseMutes, PRESETS, type NewsPrefs, type NewsState } from "./shared";
-import { addSource, forgetLearning, removeSource, setPrefs, setState, updateSource, vote } from "./store";
+import { NEWS_PAGE, parseInterests, parseMutes, PRESETS, type NewsPrefs, type NewsState } from "./shared";
+import { addSource, forgetLearning, getContent, listItems, removeSource, setContent, setPrefs, setState, UNREADABLE, updateSource, vote, type NewsView } from "./store";
 
 /** The News plugin's server actions: the cards' buttons return a result; the settings forms go back to their page with what came of it. */
 
@@ -45,6 +45,35 @@ export async function newsVoteAction(id: number, value: number): Promise<Result>
   } catch (e) {
     return { ok: false, error: errorMessage(e) };
   }
+}
+
+/** The whole article of an item: kept already, or read from its page now (and kept). */
+export async function newsReadAction(id: number): Promise<{ ok: boolean; text?: string; image?: string; url?: string; error?: string }> {
+  try {
+    guard();
+    const have = getContent(Number(id));
+    if (!have) throw new Error(t("That item isn't there any more."));
+    if (have.content.length > 1) return { ok: true, text: have.content, url: have.url };
+    const a = await (await import("./reader")).fetchArticle(have.url);
+    setContent(Number(id), a.text, a.image);
+    setState(Number(id), "read");
+    return { ok: true, text: a.text, image: a.image, url: have.url };
+  } catch (e) {
+    if (getContent(Number(id))?.content === "") setContent(Number(id), UNREADABLE);
+    return { ok: false, error: errorMessage(e) };
+  }
+}
+
+
+
+/** The next page of a view (infinite scroll): items with how old they are, as the page shows them. */
+export async function newsMoreAction(view: string, sourceId: number | null, offset: number): Promise<{ items: import("./shared").NewsItem[]; ago: Record<number, string>; done: boolean }> {
+  guard();
+  const { formatAgo } = await import("@/lib/format");
+  const { getPrefs } = await import("./store");
+  const v = (["foryou", "latest", "saved", "hidden"] as string[]).includes(view) ? (view as NewsView) : "foryou";
+  const items = listItems({ view: v, sourceId: sourceId ?? undefined, maxAgeDays: getPrefs().maxAgeDays, limit: NEWS_PAGE, offset: Math.max(0, Math.floor(offset)) });
+  return { items, ago: Object.fromEntries(items.map((i) => [i.id, formatAgo(i.publishedAt)])), done: items.length < NEWS_PAGE };
 }
 
 /** "Refresh": the sync, now. */
@@ -141,6 +170,8 @@ export async function savePrefsFormAction(fd: FormData): Promise<void> {
       topicSearch: fd.get("topicSearch") === "on",
       useWork: fd.get("useWork") === "on",
       digest: fd.get("digest") === "on",
+      images: fd.get("images") === "on",
+      prefetch: fd.get("prefetch") === "on",
       maxAgeDays: clamp(Number(str(fd, "maxAgeDays")), 1, 30, 7),
       perSource: clamp(Number(str(fd, "perSource")), 5, 100, 25),
       keepDays: clamp(Number(str(fd, "keepDays")), 3, 365, 30),

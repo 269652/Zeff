@@ -28,6 +28,10 @@ export type NewsItem = {
   url: string;
   title: string;
   summary: string;
+  /** A picture of it (address), or "". */
+  image: string;
+  /** The whole article is kept (read it here). */
+  hasContent: boolean;
   publishedAt: string;
   state: NewsState;
   vote: -1 | 0 | 1;
@@ -51,6 +55,10 @@ export type NewsPrefs = {
   useWork: boolean;
   /** An AI overview of the best items (needs the LLM plugin). */
   digest: boolean;
+  /** Show each item's picture (the pictures are loaded from their sites by your browser). */
+  images: boolean;
+  /** After each fetch, read the whole text of the best unread items so they open at once. */
+  prefetch: boolean;
   /** Items older than this aren't fetched or shown. */
   maxAgeDays: number;
   /** Most items kept per source and fetch. */
@@ -59,7 +67,7 @@ export type NewsPrefs = {
   keepDays: number;
 };
 
-export const DEFAULT_PREFS: NewsPrefs = { interests: [], mutes: [], language: "de", topicSearch: true, useWork: true, digest: false, maxAgeDays: 7, perSource: 25, keepDays: 30 };
+export const DEFAULT_PREFS: NewsPrefs = { interests: [], mutes: [], language: "de", topicSearch: true, useWork: true, digest: false, images: true, prefetch: true, maxAgeDays: 7, perSource: 25, keepDays: 30 };
 
 export type Preset = { name: string; url: string; about: string; lang: "de" | "en" };
 
@@ -201,3 +209,6 @@ export function scoreItem(item: { title: string; summary: string; publishedAt: s
   if (fresh > 1.4) reasons.push("fresh");
   return { score: Math.round(score * 100) / 100, reasons };
 }
+
+/** Items per page (infinite scroll loads this many at a time). */
+export const NEWS_PAGE = 24;

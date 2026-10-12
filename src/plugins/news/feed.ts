@@ -3,7 +3,7 @@
  * <item> / <entry> blocks and the few fields it needs, decodes entities and CDATA, strips the HTML out of
  * summaries. Pure; the fetching is in sync.ts.
  */
-export type FeedItem = { guid: string; url: string; title: string; summary: string; publishedAt: string };
+export type FeedItem = { guid: string; url: string; title: string; summary: string; publishedAt: string; /** A picture of it (address), if the feed has one. */ image?: string; /** The whole text, if the feed carries it (content:encoded, Atom content). */ content?: string };
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", ndash: "–", mdash: "—", hellip: "…", auml: "ä", ouml: "ö", uuml: "ü", Auml: "Ä", Ouml: "Ö", Uuml: "Ü", szlig: "ß", laquo: "«", raquo: "»", lsquo: "‘", rsquo: "’", ldquo: "“", rdquo: "”" };
 
@@ -27,6 +27,43 @@ export function stripHtml(html: string): string {
   return decodeEntities((/&lt;\/?[a-z]/i.test(raw) ? decodeEntities(raw) : raw).replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ").replace(/<br\s*\/?>|<\/p>|<\/li>/gi, " ").replace(/<[^>]+>/g, " "))
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/** HTML → plain text with its paragraphs kept (blank line between): block ends become line breaks first. */
+export function paragraphs(html: string): string {
+  const flat = unCdata(html)
+    .replace(/<(script|style|noscript|svg|iframe)[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<br\s*\/?>|<\/(p|div|h[1-6]|li|blockquote|tr)>/gi, "\n");
+  return decodeEntities(/&lt;\/?[a-z]/i.test(flat) ? decodeEntities(flat) : flat)
+    .replace(/<[^>]+>/g, " ")
+    .split(/\n+/)
+    .map((l) => l.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+/** An address that can be a picture: http(s) only, no data: or script. */
+const imageUrl = (raw: string | undefined, base?: string): string => {
+  if (!raw) return "";
+  try {
+    const u = new URL(decodeEntities(raw.trim()), base);
+    return u.protocol === "http:" || u.protocol === "https:" ? u.toString() : "";
+  } catch {
+    return "";
+  }
+};
+
+/** A feed item's picture: media:content / media:thumbnail, an image enclosure, else the first <img> of its text. */
+function itemImage(block: string): string {
+  for (const m of block.matchAll(/<media:(?:content|thumbnail)\b([^>]*)>/gi)) {
+    const a = m[1];
+    const url = a.match(/url=["']([^"']+)["']/i)?.[1];
+    if (url && (!/type=["']([^"']+)["']/i.test(a) || /type=["']image/i.test(a) || /medium=["']image/i.test(a) || m[0].toLowerCase().startsWith("<media:thumbnail"))) return imageUrl(url);
+  }
+  const enc = [...block.matchAll(/<enclosure\b([^>]*)>/gi)].map((m) => m[1]).find((a) => /type=["']image/i.test(a));
+  if (enc) return imageUrl(enc.match(/url=["']([^"']+)["']/i)?.[1]);
+  const html = decodeEntities(unCdata(rawTag(block, "content:encoded") || rawTag(block, "description") || rawTag(block, "content") || rawTag(block, "summary")));
+  return imageUrl(html.match(/<img\b[^>]*?\bsrc=["']([^"']+)["']/i)?.[1]);
 }
 
 /** The text of the first <tag> in a block (namespaces allowed: dc:date, content:encoded). */
@@ -64,7 +101,10 @@ export function parseFeed(xml: string, nowIso: string = new Date().toISOString()
     if (!title || !/^https?:\/\//i.test(url)) continue;
     const summary = stripHtml(rawTag(body, "description") || rawTag(body, "summary") || rawTag(body, "content:encoded") || rawTag(body, "content")).slice(0, 600);
     const when = tag(body, "pubDate") || tag(body, "published") || tag(body, "updated") || tag(body, "dc:date");
-    items.push({ guid: tag(body, "guid") || tag(body, "id") || url, url, title, summary, publishedAt: parseDate(when, nowIso) });
+    // A feed that carries the whole article (content:encoded, Atom content) saves fetching the page.
+    const full = paragraphs(rawTag(body, "content:encoded") || (atom ? rawTag(body, "content") : ""));
+    const image = itemImage(body);
+    items.push({ guid: tag(body, "guid") || tag(body, "id") || url, url, title, summary, publishedAt: parseDate(when, nowIso), ...(image ? { image } : {}), ...(full.length > 600 ? { content: full.slice(0, 40000) } : {}) });
   }
   return items.sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 }

@@ -91,6 +91,20 @@ export default async function NewsSettingsPage({ searchParams }: { searchParams:
               </span>
             </label>
             <label className="flex items-start gap-2">
+              <input type="checkbox" name="images" defaultChecked={prefs.images} className="mt-1" />
+              <span>
+                {t("Show pictures")}
+                <span className="block text-xs text-zinc-500">{t("Each item's picture is loaded by your browser from the news site it belongs to — that site sees you looked. Off: text only.")}</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2">
+              <input type="checkbox" name="prefetch" defaultChecked={prefs.prefetch} className="mt-1" />
+              <span>
+                {t("Read ahead")}
+                <span className="block text-xs text-zinc-500">{t("After each fetch Zeff reads the whole text of the best unread items from their pages, so they open here at once. Pages behind a paywall can't be read.")}</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2">
               <input type="checkbox" name="digest" defaultChecked={prefs.digest} className="mt-1" />
               <span>
                 {t("AI overview")}

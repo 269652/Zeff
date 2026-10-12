@@ -16,6 +16,10 @@ function db() {
     create index if not exists news_items_title on news_items (title_key);
     create table if not exists news_terms (term text primary key, score real not null);
   `);
+  // Pictures and whole articles: columns added later.
+  const cols = (d.prepare("pragma table_info(news_items)").all() as { name: string }[]).map((c) => c.name);
+  if (!cols.includes("image")) d.exec("alter table news_items add column image text not null default ''");
+  if (!cols.includes("content")) d.exec("alter table news_items add column content text not null default ''");
   return d;
 }
 
@@ -70,7 +74,7 @@ export function recordFetch(id: number, error: string | null): void {
 /** Keeps new items (a link or headline already there is skipped). Returns how many were new. */
 export function addItems(source: { id: number | null; name: string }, items: FeedItem[]): number {
   const d = db();
-  const insert = d.prepare("insert or ignore into news_items (source_id, source_name, guid, url, url_key, title, title_key, summary, published_at, fetched_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+  const insert = d.prepare("insert or ignore into news_items (source_id, source_name, guid, url, url_key, title, title_key, summary, published_at, fetched_at, image, content) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
   const sameStory = d.prepare("select 1 from news_items where title_key = ? and published_at > ?");
   let added = 0;
   d.transaction(() => {
@@ -78,7 +82,7 @@ export function addItems(source: { id: number | null; name: string }, items: Fee
       const key = titleKey(it.title);
       const since = new Date(Date.parse(it.publishedAt) - 3 * 864e5).toISOString();
       if (key.length > 12 && sameStory.get(key, since)) continue;
-      added += insert.run(source.id, source.name, it.guid, it.url, normalizeUrl(it.url), it.title, key, it.summary, it.publishedAt, now()).changes;
+      added += insert.run(source.id, source.name, it.guid, it.url, normalizeUrl(it.url), it.title, key, it.summary, it.publishedAt, now(), it.image ?? "", it.content ?? "").changes;
     }
   })();
   return added;
@@ -108,7 +112,9 @@ export function prune(keepDays: number): number {
   return db().prepare("delete from news_items where state != 'saved' and published_at < ?").run(new Date(Date.now() - keepDays * 864e5).toISOString()).changes;
 }
 
-type IRow = { id: number; source_id: number | null; source_name: string; url: string; title: string; summary: string; published_at: string; state: string; vote: number; score: number; reasons: string };
+type IRow = { id: number; source_id: number | null; source_name: string; url: string; title: string; summary: string; image: string; has_content: number; published_at: string; state: string; vote: number; score: number; reasons: string };
+/** The columns of a list (not the whole articles: only whether one is kept). */
+const ICOLS = "id, source_id, source_name, url, title, summary, image, length(content) > 1 as has_content, published_at, state, vote, score, reasons";
 const toItem = (r: IRow): NewsItem => ({
   id: r.id,
   sourceId: r.source_id,
@@ -116,6 +122,8 @@ const toItem = (r: IRow): NewsItem => ({
   url: r.url,
   title: r.title,
   summary: r.summary,
+  image: r.image,
+  hasContent: !!r.has_content,
   publishedAt: r.published_at,
   state: r.state as NewsState,
   vote: (r.vote > 0 ? 1 : r.vote < 0 ? -1 : 0) as 1 | 0 | -1,
@@ -132,7 +140,7 @@ const toItem = (r: IRow): NewsItem => ({
 export type NewsView = "foryou" | "latest" | "saved" | "hidden";
 
 /** The items of a view: For you (best first, nothing hidden or muted), Latest (by date), Saved, Hidden. */
-export function listItems(opts: { view?: NewsView; sourceId?: number; limit?: number; maxAgeDays?: number } = {}): NewsItem[] {
+export function listItems(opts: { view?: NewsView; sourceId?: number; limit?: number; offset?: number; maxAgeDays?: number } = {}): NewsItem[] {
   const view = opts.view ?? "foryou";
   const where: string[] = [];
   const args: (string | number)[] = [];
@@ -147,13 +155,34 @@ export function listItems(opts: { view?: NewsView; sourceId?: number; limit?: nu
     args.push(opts.sourceId);
   }
   const order = view === "foryou" ? "score desc, published_at desc" : "published_at desc";
-  const rows = db().prepare(`select * from news_items where ${where.map((w) => `(${w})`).join(" and ")} order by ${order} limit ?`).all(...args, opts.limit ?? 60) as IRow[];
+  const rows = db().prepare(`select ${ICOLS} from news_items where ${where.map((w) => `(${w})`).join(" and ")} order by ${order}, id desc limit ? offset ?`).all(...args, opts.limit ?? 60, opts.offset ?? 0) as IRow[];
   return rows.map(toItem);
 }
 
 export function getItem(id: number): NewsItem | null {
-  const r = db().prepare("select * from news_items where id = ?").get(id) as IRow | undefined;
+  const r = db().prepare(`select ${ICOLS} from news_items where id = ?`).get(id) as IRow | undefined;
   return r ? toItem(r) : null;
+}
+
+/** What is kept in `content` when the page couldn't be read (so it isn't tried again with every fetch). */
+export const UNREADABLE = "\u0001";
+
+/** The kept whole article of an item ("" if none, UNREADABLE if its page couldn't be read). */
+export function getContent(id: number): { content: string; url: string; title: string } | null {
+  return (db().prepare("select content, url, title from news_items where id = ?").get(id) as { content: string; url: string; title: string } | undefined) ?? null;
+}
+
+export function setContent(id: number, content: string, image?: string): void {
+  const d = db();
+  d.prepare("update news_items set content = ? where id = ?").run(content, id);
+  if (image) d.prepare("update news_items set image = ? where id = ? and image = ''").run(image, id);
+}
+
+/** The best items without their whole article yet (for reading ahead). */
+export function withoutContent(limit: number, maxAgeDays: number): { id: number; url: string }[] {
+  return db()
+    .prepare("select id, url from news_items where content = '' and state = 'new' and score > -50 and published_at > ? order by score desc limit ?")
+    .all(new Date(Date.now() - maxAgeDays * 864e5).toISOString(), limit) as { id: number; url: string }[];
 }
 
 export function setState(id: number, state: NewsState): void {
