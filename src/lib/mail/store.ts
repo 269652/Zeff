@@ -22,6 +22,10 @@ export type MailInput = {
   preview: string;
   receivedAt: string | null;
   unread: boolean;
+  /** The list shows attachments on it (Outlook, Gmail). */
+  hasAttachments?: boolean;
+  /** How the driver finds the message again to fetch its attachments (Outlook: the item id; Gmail: its id, msg-f:…). */
+  attachRef?: string;
   /** A chat (WhatsApp, Signal): written in a group. */
   group?: boolean;
   /** A chat, in a group: it mentions you or quotes your message. */
@@ -53,6 +57,12 @@ const keyOf = (m: MailInput) =>
   m.id ? `${m.convId}|${createHash("sha1").update(m.id).digest("hex").slice(0, 16)}` :
   `${m.convId}|${createHash("sha1").update(`${m.from}\n${m.subject}\n${m.preview}${isChatConv(m.convId) ? "" : `\n${m.receivedAt ?? ""}`}`).digest("hex").slice(0, 16)}`;
 
+/** What a mail needs to fetch its attachments later: Outlook gives an item id, Gmail's message id is it. */
+const attachRefOf = (m: MailInput) => (m.hasAttachments ? (m.attachRef ?? (m.convId.startsWith("gmail:") ? m.id : undefined)) : undefined) ?? null;
+
+/** The attachment facts of a list read, for a mail already kept (only what the list said). */
+const attachmentFields = (m: MailInput) => (m.hasAttachments === undefined ? {} : { hasAttachments: m.hasAttachments, ...(attachRefOf(m) ? { attachRef: attachRefOf(m) } : {}) });
+
 /** Keep the mails read — new ones added, known ones updated (read since?). How many were new, how many there are. */
 export function saveMails(list: MailInput[]): { added: number; total: number } {
   const db = getDb();
@@ -80,7 +90,7 @@ export function saveMails(list: MailInput[]): { added: number; total: number } {
       }
       if (known) {
         tx.update(emails)
-          .set({ unread: m.unread, syncedAt: now, ...(m.full ? { preview: m.preview.slice(0, 1000) } : {}), ...(m.group !== undefined ? { isGroup: m.group, toMe: !!m.toMe } : {}) })
+          .set({ unread: m.unread, syncedAt: now, ...attachmentFields(m), ...(m.full ? { preview: m.preview.slice(0, 1000) } : {}), ...(m.group !== undefined ? { isGroup: m.group, toMe: !!m.toMe } : {}) })
           .where(sql`${emails.key} = ${key}`)
           .run();
         continue;
@@ -99,6 +109,8 @@ export function saveMails(list: MailInput[]): { added: number; total: number } {
           syncedAt: now,
           isGroup: m.group ?? null,
           toMe: m.group === undefined ? null : !!m.toMe,
+          hasAttachments: m.hasAttachments ?? null,
+          attachRef: attachRefOf(m),
         })
         .run();
       added++;

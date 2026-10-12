@@ -1,11 +1,16 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { gitFailure } from "@/lib/git";
 import { t } from "@/lib/i18n/server";
 
 /** git in a folder: its output (trimmed), or throws with what git said. */
 export function git(cwd: string, args: string[], timeoutMs = 60000): string {
-  return execFileSync("git", args, { cwd, encoding: "utf8", timeout: timeoutMs, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }).trim();
+  try {
+    return execFileSync("git", args, { cwd, encoding: "utf8", timeout: timeoutMs, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }).trim();
+  } catch (e) {
+    throw gitFailure(e); // git not installed: says so (and what to do), not "spawnSync git ENOENT"
+  }
 }
 
 const tryGit = (cwd: string, args: string[]) => {

@@ -31,6 +31,19 @@ export type WorkRunBrief = {
   branch: string | null;
 };
 
+/** A time record on a todo (an agent's report of a stretch of work), as evidence of a booking. */
+export type TimeBrief = {
+  id: number;
+  ref: string;
+  todoId: number;
+  todo: string;
+  ticket: string;
+  minutes: number;
+  note: string;
+  by: string;
+  at: string;
+};
+
 /** A synced Teams message, a GitLab item, a Jira comment or ticket, or a board todo a link points at. */
 export type Entity =
   | { source: "teams"; teams: TeamsMessageView }
@@ -42,7 +55,9 @@ export type Entity =
   /** A todo, with what it came from (when known). */
   | { source: "todo"; todo: TodoView; from?: TodoSource[] }
   /** A run on a todo (an agent's through the MCP, or a Zeff worker's) — what it did and how long. */
-  | { source: "work"; run: WorkRunBrief };
+  | { source: "work"; run: WorkRunBrief }
+  /** A stretch of time reported on a todo — what an entry's hours add up from. */
+  | { source: "time"; time: TimeBrief };
 
 /**
  * Anything these helpers describe: a context item's linked source (Entity) or what a todo came from
@@ -57,6 +72,13 @@ export type EntityMap = Record<string, Entity>;
 export const todoLink = (id: number) => `zeff:todo:${id}`;
 /** A run's link (what a context item stores for it). */
 export const workLink = (id: number) => `zeff:work:${id}`;
+/** A time record's link (what a context item stores for it). */
+export const timeLink = (id: number) => `zeff:time:${id}`;
+/** The time record a link points at, or null. */
+export const timeIdOfLink = (url: string) => {
+  const m = /^zeff:time:(\d+)$/.exec(url.trim());
+  return m ? Number(m[1]) : null;
+};
 /** The run a link points at, or null. */
 export const workIdOfLink = (url: string) => {
   const m = /^zeff:work:(\d+)$/.exec(url.trim());
@@ -94,7 +116,9 @@ export const entityKey = (e: Sourced) =>
             ? `jira:${e.ticket.key}`
             : e.source === "work"
               ? `work:${e.run.id}`
-              : e.source === "keep"
+              : e.source === "time"
+                ? `time:${e.time.id}`
+                : e.source === "keep"
                 ? e.note.ref
                 : e.source === "fact"
                   ? e.fact.ref
@@ -110,6 +134,7 @@ export function entityWhoWhen(e: Sourced): { author: string | null; at: string |
   if (e.source === "jira-comment") return { author: e.comment.author || null, at: e.comment.at || null };
   if (e.source === "jira") return { author: null, at: null };
   if (e.source === "work") return { author: e.run.agent, at: e.run.finishedAt ?? e.run.startedAt };
+  if (e.source === "time") return { author: e.time.by, at: e.time.at };
   if (e.source === "keep") return { author: null, at: e.note.updatedAt };
   if (e.source === "fact") return { author: null, at: e.fact.updatedAt };
   if (e.source === "document") return { author: null, at: e.doc.createdAt };
@@ -125,6 +150,7 @@ export function entityHeadline(e: Sourced): string {
   if (e.source === "jira-comment") return `${e.comment.author || "Jira-Kommentar"} auf ${e.comment.ticket}`;
   if (e.source === "jira") return `${e.ticket.key} ${e.ticket.summary}`.trim();
   if (e.source === "work") return `${e.run.ref} · ${e.run.agent}${e.run.todoId ? ` an T-${e.run.todoId}` : ""}${e.run.minutes != null ? ` · ${e.run.minutes} min` : ""}`;
+  if (e.source === "time") return `${e.time.todo} · ${e.time.minutes} min${e.time.note ? ` · ${e.time.note}` : ""} — ${e.time.by}`;
   if (e.source === "keep") return `Notiz: ${noteHeadline(e.note)} (${e.note.where})`;
   if (e.source === "fact") return `Fakt: ${e.fact.subject}`;
   if (e.source === "document") return `Dokument: ${e.doc.name}`;
@@ -139,6 +165,7 @@ export function entityText(e: Sourced): string {
   if (e.source === "jira-comment") return e.comment.text;
   if (e.source === "jira") return [e.ticket.status, e.ticket.description].filter(Boolean).join(" — ");
   if (e.source === "work") return [e.run.entryLine, e.run.summary].filter(Boolean).join("\n\n");
+  if (e.source === "time") return e.time.note;
   if (e.source === "keep") return [e.note.title, e.note.text, e.note.labels.length ? `Labels: ${e.note.labels.join(", ")}` : ""].filter(Boolean).join("\n");
   if (e.source === "fact") return `${e.fact.subject}: ${e.fact.text}`;
   if (e.source === "document") return e.doc.abstract;
@@ -147,7 +174,7 @@ export function entityText(e: Sourced): string {
 
 /** Where it lives: "Teams" / "GitLab" / "Jira" / "Todo". */
 export const entitySourceLabel = (e: Sourced) =>
-  e.source === "teams" ? "Teams" : e.source === "gitlab" ? "GitLab" : e.source === "mail" ? "Mail" : e.source === "todo" ? "Todo" : e.source === "work" ? "Lauf" : e.source === "keep" ? "Notiz" : e.source === "fact" ? "Fakt" : e.source === "document" ? "Dokument" : "Jira";
+  e.source === "teams" ? "Teams" : e.source === "gitlab" ? "GitLab" : e.source === "mail" ? "Mail" : e.source === "todo" ? "Todo" : e.source === "work" ? "Lauf" : e.source === "time" ? "Zeit" : e.source === "keep" ? "Notiz" : e.source === "fact" ? "Fakt" : e.source === "document" ? "Dokument" : "Jira";
 
 /** Whether it's been dealt with (marked done here, resolved where it lives). */
 export const entityDone = (e: Sourced): boolean =>

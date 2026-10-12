@@ -100,6 +100,7 @@ function PersonCard({ id, name }: { id: number; name: string }) {
               ))}
             </ul>
           )}
+          {data.relations.length > 0 && <p className="font-medium text-zinc-700 dark:text-zinc-200">{data.relations.join(" · ")}</p>}
           {data.note && <p className="line-clamp-3 whitespace-pre-line text-zinc-600 dark:text-zinc-300">{data.note}</p>}
           {data.messages.length > 0 && (
             <div className="space-y-1">
@@ -124,7 +125,7 @@ function PersonCard({ id, name }: { id: number; name: string }) {
               ))}
             </div>
           )}
-          {!data.dates.length && !data.facts.length && !data.note && !data.messages.length && !data.todos.length && <p className="text-zinc-400">{t("Nothing known about them yet.")}</p>}
+          {!data.dates.length && !data.facts.length && !data.relations.length && !data.note && !data.messages.length && !data.todos.length && <p className="text-zinc-400">{t("Nothing known about them yet.")}</p>}
         </>
       )}
     </div>

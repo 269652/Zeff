@@ -1,0 +1,20 @@
+{
+  "$schema": "http://127.0.0.1:9333/ext/sdk/zeff-plugin.schema.json",
+  "id": "plugin-builder",
+  "name": "Plugin builder",
+  "version": "1.0.0",
+  "description": "Adds a /plugin command that sets a Work worker up to write a new Zeff plugin for you — Zeff extending itself.",
+  "author": "Zeff examples",
+  "apiVersion": 1,
+  "permissions": [],
+  "contributes": {
+    "workCommands": [
+      {
+        "id": "plugin",
+        "label": "plugin",
+        "description": "Have a worker write a new Zeff plugin",
+        "template": "Write a Zeff plugin that does this:\n\n<describe what it should add or change in Zeff>\n\nHow to go about it:\n1. Read Zeff's plugin docs as plain Markdown: http://127.0.0.1:9333/ext/raw/README first (it says where this computer's plugins folder is), then /ext/raw/manifest, /ext/raw/api, /ext/raw/panels and /ext/raw/hooks as needed. (If Zeff isn't on port 9333, use the address in my browser.)\n2. Create the plugin as a folder in that plugins folder, named like its id, with a zeff-plugin.json. Ask for the fewest permissions that work; say plainly if it needs \"exec\".\n3. Zeff loads it at once — no restart. Check it shows up under Menu → Plugins → External plugins without an error (\"Not loaded: …\"), and that its files are all there.\n4. Tell me what you made, what it asks for, and where I turn it on. Don't turn it on yourself."
+      }
+    ]
+  }
+}

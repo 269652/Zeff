@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import type { WorkRun } from "@/db/schema";
+import { gitFailure } from "@/lib/git";
 import { listRepos } from "@/lib/repos";
 import { workRef } from "./shared";
 import { t } from "@/lib/i18n/server";
@@ -15,7 +16,7 @@ import { t } from "@/lib/i18n/server";
 const gitAsync = (cwd: string, args: string[], timeoutMs = 120000) =>
   new Promise<string>((resolve, reject) =>
     execFile("git", args, { cwd, timeout: timeoutMs, windowsHide: true, maxBuffer: 64 * 1024 * 1024 }, (err, stdout, stderr) =>
-      err ? reject(new Error(String(stderr || err.message).trim().slice(0, 800))) : resolve(String(stdout)),
+      err ? reject(gitFailure(err, String(stderr || err.message).trim().slice(0, 800))) : resolve(String(stdout)),
     ),
   );
 

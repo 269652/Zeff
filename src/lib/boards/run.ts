@@ -9,7 +9,7 @@ import { BOARD_RESULT_SCHEMA, isAttention, TICKET_ACTION_TYPES, type BoardResult
 import { closeTodosOfDoneTickets, finishRun, getBoardSettings, lastGoodRun, reconcileTodos, startRun } from "./store";
 
 /** What a run is doing right now — one at a time across the server (actions and the scheduler are separate module copies). */
-const state = globalThis as { __zeffBoardRun?: { id: number; phase: "sync" | "jira" | "ai" | "saving" | "mailtodos" | "mails" | "notetodos" | "notes" | "knowledge" | "people" | "autoactions"; since: number; provider: string } | null };
+const state = globalThis as { __zeffBoardRun?: { id: number; phase: "sync" | "jira" | "ai" | "saving" | "mailtodos" | "mails" | "notetodos" | "notes" | "documents" | "docrelations" | "knowledge" | "people" | "autoactions"; since: number; provider: string } | null };
 
 /** The run going on in this server, and its step — null when none is. */
 export const boardRunState = () => state.__zeffBoardRun ?? null;
@@ -132,6 +132,16 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
         if (stepAvailable("noterelations")) {
           state.__zeffBoardRun = { id, phase: "notes", since: t0, provider };
           await syncAndWait("noterelations");
+        }
+        // The Documents plugin's extensions (while they're on): the documents gone through for todos, then which
+        // documents each todo is about.
+        if (stepAvailable("doctodos")) {
+          state.__zeffBoardRun = { id, phase: "documents", since: t0, provider };
+          await syncAndWait("doctodos");
+        }
+        if (stepAvailable("docrelations")) {
+          state.__zeffBoardRun = { id, phase: "docrelations", since: t0, provider };
+          await syncAndWait("docrelations");
         }
         // The Knowledge plugin's extension: which knowledge pages each todo needs (only those that fit).
         if (stepAvailable("knowledgerel")) {

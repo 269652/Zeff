@@ -1,3 +1,4 @@
+import { extWorkerMcpServers } from "@/lib/ext/work";
 import { execFile, spawn } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -1016,6 +1017,8 @@ async function startFrom(s: LiveStart): Promise<void> {
         "--disallowedTools",
         [...s.disallowedTools, ...NOT_HERE].join(","),
         ...(s.allowBypass ? ["--allow-dangerously-skip-permissions"] : []),
+        // External plugins' MCP servers (src/lib/ext): added to the project's and user's own.
+        ...(Object.keys(extWorkerMcpServers()).length ? ["--mcp-config", JSON.stringify({ mcpServers: extWorkerMcpServers() })] : []),
       ],
       cwd: s.cwd,
       resumeSession: s.resumeSession,

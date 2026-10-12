@@ -1,3 +1,4 @@
+import { listTodoTimes } from "@/lib/work/todo-time";
 import { desc, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { commentsOfTickets } from "@/lib/jira/comments";
@@ -202,6 +203,13 @@ function lastErrors(list: TodoView[]): Record<number, { text: string; run: numbe
   return out;
 }
 
+/** The time records of each todo that has any. */
+function todoTimes(list: TodoView[]): Record<number, import("@/lib/work/shared").TimeRecord[]> {
+  const out: Record<number, import("@/lib/work/shared").TimeRecord[]> = {};
+  for (const r of listTodoTimes(list.map((t) => t.id))) (out[r.todoId] ??= []).push(r);
+  return out;
+}
+
 /** The todos, each with its alternatives — what keeps its operations from running yet, and why its last run failed. */
 export const withAlternatives = (list: TodoView[]): TodoView[] => {
   // Each enricher: what it adds to the todos it has something for (by id) — merged into each todo.
@@ -211,6 +219,7 @@ export const withAlternatives = (list: TodoView[]): TodoView[] => {
     each(lastErrors(list), (e) => ({ lastError: e.text, lastErrorRun: e.run })),
     each(todoLinks(list), (links) => ({ links })),
     each(relatedNotes(list), (relatedNotes) => ({ relatedNotes })),
+    each(todoTimes(list), (time) => ({ time })),
     deferral(list),
   ];
   return list.map((t) => {

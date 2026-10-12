@@ -40,7 +40,9 @@ function linkedWords(c: ContextItem): Record<string, { heading: string; text: st
               ? e.ticket.key
               : e.source === "mail"
                 ? `„${e.mail.subject}“`
-                : e.source === "work"
+                : e.source === "time"
+                  ? `${e.time.todo}, ${e.time.minutes} min`
+                  : e.source === "work"
                   ? `${e.run.ref}${e.run.todoId ? ` an T-${e.run.todoId}` : ""}${e.run.minutes != null ? `, ${e.run.minutes} min` : ""}`
                   : e.comment.ticket;
     out[url] = {

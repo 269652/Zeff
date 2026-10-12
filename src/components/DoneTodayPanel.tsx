@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { bookDoneTodayAction } from "@/app/actions";
 import { formatHours } from "@/lib/format";
+import { formatMinutes } from "@/lib/work/shared";
 import type { DoneToday } from "@/lib/work/booking";
 import { toast } from "./Toaster";
 import { useT } from "@/components/I18nProvider";
@@ -37,6 +38,12 @@ function Suggestion({ s }: { s: DoneToday }) {
         </div>
         <input className="input text-sm" value={text} onChange={(e) => setText(e.target.value)} aria-label={t("Description for {ticket}", { ticket: s.ticket })} />
         <div className="text-xs text-zinc-400">{s.todos.map((td) => `${td.ref} ${td.text}`).join(" · ")}</div>
+        {/* What the hours add up from: the records agents and you reported, else runs' durations. */}
+        {s.time.length > 0 && (
+          <div className="text-xs text-zinc-500" title={s.time.map((l) => `${l.todo} ${formatMinutes(l.minutes)}${l.by ? ` (${l.by})` : ""}${l.note ? ` — ${l.note}` : ""}`).join("\n")}>
+            {s.time.map((l) => `${l.todo} ${formatMinutes(l.minutes)}${l.by ? ` (${l.by})` : l.kind === "hand" ? ` (${t("by hand")})` : ""}`).join(" · ")}
+          </div>
+        )}
       </div>
       <div className="flex items-center gap-2 self-center">
         <div className="inline-flex items-center rounded-md border border-zinc-300 dark:border-zinc-700" role="group" aria-label={t("Hours for {ticket}", { ticket: s.ticket })}>

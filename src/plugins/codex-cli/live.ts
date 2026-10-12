@@ -15,7 +15,7 @@ import { WORK_RESULT_SCHEMA, workRef, type AskAnswer, type ClaudeAsk, type Effor
 import type { LiveDriver, LiveOutcome, LiveStart } from "@/lib/work/live-driver";
 import { hostScript } from "@/plugins/claude-cli/live";
 import type { LiveView } from "@/plugins/copilot-cli/live-state";
-import { codexModels, findCodexCli } from "./cli";
+import { codexModels, codexSandboxState, findCodexCli } from "./cli";
 import { commandText, fileChangeInput, markCodexRun, type FileUpdate } from "./log";
 
 /**
@@ -159,7 +159,15 @@ export function codexModes(allowBypass: boolean): SessionMode[] {
   const t = (s: string) => s;
   const modes: SessionMode[] = [
     { id: "ask", label: t("Ask"), hint: t("Works in its folder; asks you before every command that isn't a known safe one, and before edits outside it.") },
-    { id: "agent", label: t("Auto"), hint: t("Works in its folder on its own; asks you only when it needs more (the network, other folders)."), tone: "warn" },
+    {
+      id: "agent",
+      label: t("Auto"),
+      // (Without Codex's Windows sandbox nothing runs "on its own": every command asks, as in Ask.)
+      hint: codexSandboxState() === "notConfigured" || codexSandboxState() === "updateRequired"
+        ? t("Meant to work in its folder on its own — but Codex's Windows sandbox isn't set up here, so it asks before every command, like Ask.")
+        : t("Works in its folder on its own; asks you only when it needs more (the network, other folders)."),
+      tone: "warn",
+    },
     { id: "read-only", label: t("Read only"), hint: t("Looks around and changes nothing — asks you when it wants to change something.") },
     { id: "full", label: t("Full access"), hint: t("No sandbox, never asks — only where nothing can go wrong."), tone: "danger" },
   ];

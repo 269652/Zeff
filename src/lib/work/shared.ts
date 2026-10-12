@@ -45,6 +45,30 @@ export const isActive = (s: WorkStatus) => s === "queued" || s === "running";
 /** A work run's reference: "W-12". */
 export const workRef = (id: number) => `W-${id}`;
 
+/** A time record on a todo (one stretch of work, as an agent or you reported it). */
+export type TimeRecord = {
+  id: number;
+  ref: string;
+  todoId: number;
+  /** The todo, "T-12". */
+  todo: string;
+  minutes: number;
+  /** One line: what was done. */
+  note: string;
+  /** Who: the agent's name, or "Du" for yours. */
+  by: string;
+  runId: number | null;
+  source: "agent" | "hand";
+  at: string;
+  /** The suggestion that covers it. */
+  suggestionId: number | null;
+  /** The entry it was booked into (-1: not to be booked). */
+  entryId: number | null;
+};
+export const timeRef = (id: number) => `TT-${id}`;
+/** "45 min", "1 h 15 min". */
+export const formatMinutes = (m: number) => (m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ""}`);
+
 /** Todos that are messages (a reply, a comment, a ticket change, a question), not work in a repo. */
 export const COMMS_KINDS: readonly TodoKind[] = ["reply", "comment", "update", "clarify"];
 

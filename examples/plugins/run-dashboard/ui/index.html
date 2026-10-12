@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Runs</title>
+  <link rel="stylesheet" href="/ext/sdk/zeff.css">
+  <style>
+    .start { margin-bottom: 16px; }
+    .start .input { flex: 1; }
+    tr.pinned td:first-child::before { content: "★ "; color: var(--zeff-warn); }
+    td a { cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>Runs</h1>
+  <p class="muted" id="hint"></p>
+  <form class="row start" id="start">
+    <input class="input" id="what" placeholder="What should a worker do? (starts a new session)" autocomplete="off">
+    <button class="btn btn-primary" id="go">Start</button>
+  </form>
+  <table>
+    <thead><tr><th>Run</th><th>Status</th><th>Ticket</th><th>Backend</th><th>Time</th><th>Cost</th><th></th></tr></thead>
+    <tbody id="runs"></tbody>
+  </table>
+
+  <script src="/ext/sdk/zeff.js"></script>
+  <script>
+    "use strict";
+    const $ = (id) => document.getElementById(id);
+    const cell = (text, cls) => { const td = document.createElement("td"); td.textContent = text ?? ""; if (cls) td.className = cls; return td; };
+    const TONE = { done: "ok", failed: "bad", running: "warn", queued: "muted", cancelled: "muted", interrupted: "warn" };
+    let pinned = [];
+
+    async function load() {
+      const runs = await zeff.work.runs.list({ limit: 25 });
+      // Pinned runs first — kept in the plugin's own storage.
+      runs.sort((a, b) => (pinned.includes(b.id) ? 1 : 0) - (pinned.includes(a.id) ? 1 : 0));
+      const body = $("runs");
+      body.replaceChildren(...runs.map((r) => {
+        const tr = document.createElement("tr");
+        if (pinned.includes(r.id)) tr.className = "pinned";
+        const link = document.createElement("a");
+        link.textContent = r.ref;
+        link.onclick = () => zeff.ui.openSession(r.id);
+        const first = document.createElement("td");
+        first.append(link);
+        const pin = document.createElement("button");
+        pin.className = "btn";
+        pin.textContent = pinned.includes(r.id) ? "Unpin" : "Pin";
+        pin.onclick = async () => {
+          pinned = pinned.includes(r.id) ? pinned.filter((x) => x !== r.id) : [...pinned, r.id];
+          await zeff.storage.set("pinned", pinned);
+          load();
+        };
+        const last = document.createElement("td");
+        last.append(pin);
+        tr.append(first, cell(r.status, TONE[r.status]), cell(r.ticket), cell(r.provider + (r.model ? ` · ${r.model}` : "")),
+          cell(r.durationMs ? `${Math.round(r.durationMs / 1000)} s` : ""), cell(r.costUsd != null ? `$${r.costUsd.toFixed(2)}` : ""), last);
+        return tr;
+      }));
+    }
+
+    $("start").onsubmit = async (e) => {
+      e.preventDefault();
+      const text = $("what").value.trim();
+      if (!text) return;
+      $("go").disabled = true;
+      try {
+        const { runId } = await zeff.work.sessions.start({ instruction: text });
+        $("what").value = "";
+        zeff.ui.openSession(runId);
+      } catch (err) {
+        zeff.ui.toast(err.message, "error");   // e.g. no work.write permission, or no backend set up
+      } finally {
+        $("go").disabled = false;
+      }
+    };
+
+    let timer;
+    zeff.on("change", ({ topic }) => {
+      if (topic !== "work") return;
+      clearTimeout(timer);
+      timer = setTimeout(() => load().catch(() => {}), 300);   // changes come in bursts
+    });
+
+    zeff.ready
+      .then(async (info) => {
+        $("hint").textContent = `Account ${info.account.name} · ${info.permissions.join(", ")}`;
+        pinned = (await zeff.storage.get("pinned")) || [];
+        await load();
+      })
+      .catch((err) => { $("hint").textContent = err.message; });
+  </script>
+</body>
+</html>

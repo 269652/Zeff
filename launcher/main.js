@@ -157,11 +157,22 @@ function buildMenu() {
     ...knowledges().map((k) => serviceMenu(k, [{ label: "Open knowledge", click: () => shell.openExternal(knowledgeUrl(k)) }, { type: "separator" }])),
     { type: "separator" },
     { label: "Open data folder", click: () => shell.openPath(state.paths.data) },
+    { label: "Open plugins folder", click: openPluginsFolder },
     { label: PLATFORM === "win32" ? "Start with Windows" : "Start at log in", type: "checkbox", checked: state.autostart, click: (item) => toggleAutostart(item.checked) },
     { label: `Set up https://${state.cfg.host}…`, click: () => machineSetup(true) },
     { type: "separator" },
     { label: "Quit Zeff", click: () => app.quit() },
   ]);
+}
+
+/**
+ * External plugins (docs/plugins): a folder in the data folder — made if it isn't there yet. The servers read
+ * the same place (ZEFF_PLUGINS_DIR from zeff-launcher.json's "env" overrides it for both).
+ */
+function openPluginsFolder() {
+  const dir = state.cfg.env?.ZEFF_PLUGINS_DIR ? path.resolve(state.cfg.env.ZEFF_PLUGINS_DIR) : path.join(state.paths.data, "plugins");
+  fs.mkdirSync(dir, { recursive: true });
+  shell.openPath(dir);
 }
 
 function showWindow() {
@@ -430,29 +441,38 @@ function unquarantine() {
   });
 }
 
+/** The pages a smoke test opens (https://zeff<path>) after the start page of each server. */
+const SMOKE_PAGES = ["/heute", "/todos", "/mail", "/kanban", "/plugins", "/sync-settings", "/auswerten", "/logins", "/feierabend", "/work", "/setup", "/jira", "/repos", "/documents", "/ext/docs", "/ext/docs/api", "/ext/raw/README", "/ext/sdk/zeff.js", "/ext/sdk/zeff-plugin.schema.json"];
+
+/** What a smoke page must show (its own content, not an error page): the plugin docs and what they serve. */
+const SMOKE_CONTENT = { "/ext/docs": "external plugins", "/ext/docs/api": "extension API", "/ext/raw/README": "# Zeff external plugins", "/ext/sdk/zeff.js": "window.zeff", "/ext/sdk/zeff-plugin.schema.json": "apiVersion" };
+
 /**
  * --smoke-test: the bundle as its user gets it, checked end to end — the servers start on the
  * bundled Node (native modules included), the certificate is made, and Zeff and the knowledge
- * server answer over https through the proxy, verified against Zeff's own CA. Then quit.
+ * server answer over https through the proxy, verified against Zeff's own CA, and the pages of SMOKE_PAGES render. Then quit.
  */
 async function runSmokeTest() {
   const deadline = Date.now() + 5 * 60 * 1000;
   const wanted = () => [zeff(), ...state.services.filter((s) => s.name === "Work"), ...(state.cfg.knowledge ? [activeKnowledge()] : [])];
-  const get = (host) =>
+  // The status — or, with `text`, { status, body } (the first 2 MB).
+  const get = (host, urlPath = "/", text = false) =>
     new Promise((resolve, reject) => {
       const req = https.get(
         {
           host: "127.0.0.1",
           port: state.httpsPorts.find((p) => p !== 443) ?? state.httpsPorts[0],
-          path: "/",
+          path: urlPath,
           servername: host,
           headers: { host },
           ca: new X509Certificate(fs.readFileSync(state.cert.caCer)).toString(), // PEM (Windows exports DER)
           timeout: 60000,
         },
         (res) => {
-          res.resume();
-          res.on("end", () => resolve(res.statusCode));
+          let body = "";
+          if (text) res.setEncoding("utf8").on("data", (d) => body.length < 2e6 && (body += d));
+          else res.resume();
+          res.on("end", () => resolve(text ? { status: res.statusCode, body } : res.statusCode));
         },
       );
       req.on("timeout", () => req.destroy(new Error("timeout")));
@@ -475,6 +495,17 @@ async function runSmokeTest() {
       const status = await get(host);
       log(`smoke test: https://${host}/ → ${status}`);
       if (!(status >= 200 && status < 400)) return failed(`https://${host}/ answered ${status}`);
+    }
+    // The pages Zeff's deploy script probes (scripts/deploy.mjs) and the ones a new bundle opens first: each renders — a missing file, a
+    // native module that doesn't load or a database that didn't migrate shows as a 500 here.
+    for (const page of SMOKE_PAGES) {
+      const { status, body } = await get(state.cfg.host, page, true);
+      log(`smoke test: https://${state.cfg.host}${page} → ${status}`);
+      if (!(status >= 200 && status < 400)) return failed(`https://${state.cfg.host}${page} answered ${status}`);
+      // A page that fails while it streams still answers 200: React leaves its error in the HTML (data-dgst, $RX).
+      if (/data-dgst=|\$RX\(/.test(body)) return failed(`https://${state.cfg.host}${page} rendered an error (see the server log)`);
+      const want = SMOKE_CONTENT[page];
+      if (want && !body.includes(want)) return failed(`https://${state.cfg.host}${page} doesn't contain "${want}"`);
     }
     log("smoke test passed");
     app.quit();
@@ -500,6 +531,9 @@ ipcMain.handle("do", async (_e, action, name) => {
       break;
     case "data":
       shell.openPath(state.paths.data);
+      break;
+    case "plugins":
+      openPluginsFolder();
       break;
     case "setup":
       await machineSetup(true);

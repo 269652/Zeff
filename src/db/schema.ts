@@ -302,6 +302,10 @@ export const emails = sqliteTable(
     isGroup: integer("is_group", { mode: "boolean" }),
     /** WhatsApp, in a group: to you — it mentions you or quotes your message (null: not known). */
     toMe: integer("to_me", { mode: "boolean" }),
+    /** The list shows attachments on it (null: not known — read before Zeff looked). */
+    hasAttachments: integer("has_attachments", { mode: "boolean" }),
+    /** How the driver finds the message again to fetch its attachments (Gmail: msg-f:<id>; Outlook: the item id). */
+    attachRef: text("attach_ref"),
   },
   (t) => [index("emails_received_idx").on(t.receivedAt), index("emails_conv_idx").on(t.convId)],
 );
@@ -337,6 +341,8 @@ export const entrySuggestions = sqliteTable(
     todoIds: text("todo_ids").notNull().default("[]"),
     /** JSON [work run id]: the runs (with their logs and time) it books. */
     runIds: text("run_ids").notNull().default("[]"),
+    /** JSON [todo_time id]: the time records it covers (what the agents reported on the todos). */
+    timeIds: text("time_ids").notNull().default("[]"),
     /** open | accepted | skipped */
     status: text("status").notNull().default("open"),
     /** Taken over: the entry it became. */
@@ -346,6 +352,37 @@ export const entrySuggestions = sqliteTable(
   },
   (t) => [index("entry_suggestions_status_idx").on(t.status)],
 );
+
+/**
+ * Time reported on a todo: one record per stretch of work (an agent's, through the MCP or a
+ * worker's, or yours by hand) — a todo has many. They add up into the booking suggestion of
+ * the todos that belong together; booked, they are the entry's evidence.
+ */
+export const todoTime = sqliteTable(
+  "todo_time",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    todoId: integer("todo_id").notNull(),
+    minutes: integer("minutes").notNull(),
+    /** One line: what was done in that time. */
+    note: text("note").notNull().default(""),
+    /** Who: the agent's name, or "Du"/"You" by hand. */
+    reportedBy: text("reported_by").notNull().default("agent"),
+    /** The work run it happened in (an agent's, a worker's). */
+    runId: integer("run_id"),
+    /** agent | hand */
+    source: text("source").notNull().default("agent"),
+    /** When the work happened (ISO). */
+    at: text("at").notNull(),
+    createdAt: text("created_at").notNull(),
+    /** The suggestion (S-<id>) that covers it. */
+    suggestionId: integer("suggestion_id"),
+    /** The entry it was booked into; -1: not to be booked. */
+    entryId: integer("entry_id"),
+  },
+  (t) => [index("todo_time_todo_idx").on(t.todoId)],
+);
+export type TodoTime = typeof todoTime.$inferSelect;
 
 export const teamsMessages = sqliteTable(
   "teams_messages",
@@ -1058,6 +1095,55 @@ export const workRuns = sqliteTable(
   (t) => [index("work_runs_todo_idx").on(t.todoId), index("work_runs_status_idx").on(t.status)],
 );
 
+/**
+ * The Google Drive plugin's connection (one row, id 1; per account): your own OAuth client, the
+ * tokens it got, and how the syncs behave. What it does is off until you set it up and connect.
+ */
+export const googleDrive = sqliteTable("google_drive", {
+  id: integer("id").primaryKey(),
+  clientId: text("client_id").notNull().default(""),
+  clientSecret: text("client_secret").notNull().default(""),
+  refreshToken: text("refresh_token").notNull().default(""),
+  accessToken: text("access_token").notNull().default(""),
+  /** Access token expiry as epoch milliseconds. */
+  expiresAt: integer("expires_at").notNull().default(0),
+  /** What Google granted: "drive.file" (only files Zeff made) or full Drive access (to read files you add). */
+  scope: text("scope").notNull().default(""),
+  email: text("email").notNull().default(""),
+  connectedAt: text("connected_at"),
+  /** The Drive folder Zeff keeps things in ("" = Zeff's own name for it); its subfolders' ids once made. */
+  folderName: text("folder_name").notNull().default(""),
+  rootFolderId: text("root_folder_id").notNull().default(""),
+  backupsFolderId: text("backups_folder_id").notNull().default(""),
+  documentsFolderId: text("documents_folder_id").notNull().default(""),
+  /** Backups: what the local retention removes goes from Drive too. */
+  mirrorBackupRetention: integer("mirror_backup_retention", { mode: "boolean" }).notNull().default(true),
+  /** Backups: also those without a password (the whole database, readable by anyone with the file). */
+  uploadUnencrypted: integer("upload_unencrypted", { mode: "boolean" }).notNull().default(false),
+  /** Documents: files you add to the Drive folder come to Zeff (needs full Drive access) — off by default. */
+  pullDocuments: integer("pull_documents", { mode: "boolean" }).notNull().default(false),
+});
+
+/** What of Zeff's is in Drive: a backup file, a document — and the Drive file it is. */
+export const googleDriveFiles = sqliteTable(
+  "google_drive_files",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    /** "backup" (key: the file's name) or "document" (key: "doc:<id>"). */
+    kind: text("kind").notNull(),
+    key: text("key").notNull(),
+    driveId: text("drive_id").notNull(),
+    /** Drive's version of it: the content's md5, else its modified time (a Google Doc). */
+    version: text("version").notNull().default(""),
+    size: integer("size").notNull().default(0),
+    /** Where it came from: pushed (Zeff → Drive) or pulled (Drive → Zeff). */
+    origin: text("origin").notNull().default("push"),
+    syncedAt: text("synced_at").notNull(),
+  },
+  (t) => [uniqueIndex("google_drive_files_drive").on(t.driveId), index("google_drive_files_key").on(t.kind, t.key)],
+);
+
+
 export type Job = typeof jobs.$inferSelect;
 export type NewJob = typeof jobs.$inferInsert;
 export type Project = typeof projects.$inferSelect;
@@ -1067,6 +1153,7 @@ export type NewTimeEntry = typeof timeEntries.$inferInsert;
 export type EntryType = string;
 export type EntryTypeRow = typeof entryTypes.$inferSelect;
 export type CalendarConnection = typeof calendarConnections.$inferSelect;
+export type GoogleDriveRow = typeof googleDrive.$inferSelect;
 export type WorkSchedule = typeof workSchedule.$inferSelect;
 export type Absence = typeof absences.$inferSelect;
 export type Pause = typeof pauses.$inferSelect;
@@ -1215,6 +1302,34 @@ export const calendarEvents = sqliteTable(
     updatedAt: text("updated_at").notNull(),
   },
   (t) => [uniqueIndex("calendar_events_key").on(t.calendarId, t.key), index("calendar_events_start").on(t.start)],
+);
+
+/**
+ * Mail attachments taken into the Documents store (src/lib/mail/attachments-sync.ts): one row per
+ * attachment of a mail — also the "seen already" list, so a sync never fetches the same one twice.
+ * status: done (a document, `docId`) | skipped (the rules said no, `error` says why) | failed
+ * (retried a few times) | none (a mail the list flagged but that has nothing to take; att_key "").
+ */
+export const mailAttachments = sqliteTable(
+  "mail_attachments",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    /** outlook | gmail */
+    source: text("source").notNull(),
+    /** emails.key */
+    mailKey: text("mail_key").notNull(),
+    /** "<name>|<size>" — what identifies an attachment of a mail across fetches. */
+    attKey: text("att_key").notNull(),
+    name: text("name").notNull().default(""),
+    mime: text("mime").notNull().default(""),
+    size: integer("size").notNull().default(0),
+    docId: integer("doc_id"),
+    status: text("status").notNull(),
+    error: text("error").notNull().default(""),
+    tries: integer("tries").notNull().default(0),
+    fetchedAt: text("fetched_at").notNull(),
+  },
+  (t) => [uniqueIndex("mail_attachments_key").on(t.source, t.mailKey, t.attKey), index("mail_attachments_doc").on(t.docId)],
 );
 
 /**

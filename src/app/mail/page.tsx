@@ -8,6 +8,9 @@ import { syncMailAction } from "@/app/actions";
 import { syncWhatsappAction } from "@/plugins/whatsapp/server-actions";
 import { syncSignalAction } from "@/plugins/signal/server-actions";
 import { MailFoldersForm } from "@/components/MailFoldersForm";
+import { FetchAttachmentsButton, MailAttachmentsOffer, MailAttachmentsSettings } from "@/components/MailAttachments";
+import { attachmentOfferOpen, attachmentSettings, attachmentTotals } from "@/lib/mail/attachments-store";
+import { installedAttachmentSources } from "@/lib/mail/attachments-sync";
 import { SyncSplitButton } from "@/components/SyncSplitButton";
 import { TodoRefs } from "@/components/boards/TodoRefs";
 import { getMailSettings, listMails, mailFolderCounts } from "@/lib/mail/store";
@@ -48,6 +51,9 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
   const counts = mailFolderCounts();
   const folder = sp.folder && sp.folder in counts ? sp.folder : undefined;
   const settings = getMailSettings();
+  // Mail attachments → Documents: its settings here, and the one-time notice until it is answered.
+  const attachOn = isInstalled("documents") && (outlook || gmail);
+  const attachments = attachOn ? attachmentSettings() : null;
   const mails = listMails({ q, folder, limit: 1500 });
   // By conversation (a chat, a mail thread) — newest first, its messages in order.
   const convs = new Map<string, MailView[]>();
@@ -69,6 +75,9 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
         {outlook && <MailFoldersForm folders={settings.folders} />}
       </div>
 
+      {attachOn && attachmentOfferOpen() && <MailAttachmentsOffer />}
+      {attachments && <MailAttachmentsSettings settings={attachments} sources={installedAttachmentSources()} folders={Object.keys(counts)} totals={attachmentTotals()} />}
+
 
       <div className="flex flex-wrap items-center justify-between gap-3">
       <nav className="flex rounded-md border border-zinc-200 p-0.5 text-sm dark:border-zinc-700" aria-label={t("Folders")}>
@@ -83,10 +92,11 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
           </Link>
         ))}
       </nav>
-      <form action="/mail" className="flex justify-end gap-2">
+      <form action="/mail" className="flex items-center justify-end gap-2">
         {folder && <input type="hidden" name="folder" value={folder} />}
-        <input name="q" defaultValue={q} className="input max-w-md" placeholder={t("Sender, subject, text…")} aria-label={t("Search messages")} />
-        <button type="submit" className="btn">{t("Search")}</button>
+        <input name="q" defaultValue={q} className="input min-w-0 max-w-md flex-1" placeholder={t("Sender, subject, text…")} aria-label={t("Search messages")} />
+        <button type="submit" className="btn shrink-0 whitespace-nowrap">{t("Search")}</button>
+        {attachments?.enabled && <FetchAttachmentsButton className="btn shrink-0 whitespace-nowrap" short />}
         <SyncSplitButton
           sources={[
             ...(outlook || gmail

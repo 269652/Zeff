@@ -74,6 +74,59 @@ export async function codexModels(): Promise<CodexModel[]> {
   return list;
 }
 
+/**
+ * Whether Codex's Windows sandbox is set up (its app-server's windowsSandbox/readiness). Without
+ * it a command can't run "in its folder on its own": Codex asks for every one, so Auto behaves like
+ * Ask. Only on Windows; "unknown" until asked (a warm cache for ten minutes, refreshed by the pages).
+ */
+export type CodexSandbox = "ready" | "notConfigured" | "updateRequired" | "unknown";
+const sandboxCache = globalThis as { __zeffCodexSandbox?: { at: number; state: CodexSandbox } };
+
+/** The last answer (sync, for the mode texts): unknown when never asked or not on Windows. */
+export const codexSandboxState = (): CodexSandbox => (process.platform === "win32" ? (sandboxCache.__zeffCodexSandbox?.state ?? "unknown") : "ready");
+
+export async function refreshCodexSandbox(): Promise<CodexSandbox> {
+  if (process.platform !== "win32") return "ready";
+  const hit = sandboxCache.__zeffCodexSandbox;
+  if (hit && Date.now() - hit.at < 600000) return hit.state;
+  const cli = findCodexCli();
+  if (!cli) return "unknown";
+  const state = await new Promise<CodexSandbox>((resolve) => {
+    const child = spawn(/*turbopackIgnore: true*/ cli.command, [...cli.args, "app-server"], { cwd: os.tmpdir(), stdio: ["pipe", "pipe", "ignore"], windowsHide: true });
+    let buf = "";
+    let done = false;
+    const end = (s: CodexSandbox) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      killTree(child);
+      resolve(s);
+    };
+    const timer = setTimeout(() => end("unknown"), 20000);
+    const send = (o: object) => child.stdin.write(`${JSON.stringify(o)}\n`);
+    child.stdin.on("error", () => {});
+    child.on("error", () => end("unknown"));
+    child.on("exit", () => end("unknown"));
+    child.stdout.on("data", (d) => {
+      buf += d;
+      for (let n = buf.indexOf("\n"); n >= 0; n = buf.indexOf("\n")) {
+        const line = buf.slice(0, n);
+        buf = buf.slice(n + 1);
+        try {
+          const j = JSON.parse(line) as { id?: number; result?: { status?: string } };
+          if (j.id === 1) send({ id: 2, method: "windowsSandbox/readiness" });
+          else if (j.id === 2) end(j.result?.status === "ready" || j.result?.status === "notConfigured" || j.result?.status === "updateRequired" ? j.result.status : "unknown");
+        } catch {
+          // not JSON: skipped
+        }
+      }
+    });
+    send({ id: 1, method: "initialize", params: { clientInfo: { name: "zeff", title: null, version: "0" }, capabilities: null } });
+  });
+  if (state !== "unknown") sandboxCache.__zeffCodexSandbox = { at: Date.now(), state };
+  return state;
+}
+
 type Schema = { type?: string | string[]; properties?: Record<string, Schema>; required?: string[]; items?: Schema; additionalProperties?: unknown; [k: string]: unknown };
 
 /**

@@ -224,7 +224,7 @@ export function moveCard(id: number, columnId: number, before: number | null): v
 }
 
 /** A card to another board of yours — into its first column, at the end. It keeps its ref (KB-…), so its todos and Lage go with it. */
-export function moveCardToBoard(id: number, boardId: number): void {
+export function moveCardToBoard(id: number, boardId: number, withSubtasks = false): void {
   const db = getDb();
   const card = db.select().from(cards).where(eq(cards.id, id)).get();
   if (!card) throw new NotFoundError("Die Karte gibt es nicht.");
@@ -234,12 +234,20 @@ export function moveCardToBoard(id: number, boardId: number): void {
   const col = db.select().from(columns).where(eq(columns.boardId, boardId)).orderBy(asc(columns.sort), asc(columns.id)).get();
   if (!col) throw new ValidationError(`„${target.name}“ hat keine Spalte.`);
   const sort = (db.select({ n: sql<number>`coalesce(max(sort), 0)` }).from(cards).where(eq(cards.columnId, col.id)).get()?.n ?? 0) + 1;
-  // Links stay within a board: a subtask leaves its parent, a parent's subtasks stay behind as cards of their own.
-  db.update(cards).set({ parentId: null }).where(eq(cards.parentId, id)).run();
+  // Links stay within a board: a subtask leaves its parent; a parent's subtasks either come along (each into the first column, after the parent, still linked to it) or stay behind as cards of their own.
+  const kids = withSubtasks ? db.select().from(cards).where(eq(cards.parentId, id)).orderBy(asc(cards.sort), asc(cards.id)).all() : [];
+  if (!withSubtasks) db.update(cards).set({ parentId: null }).where(eq(cards.parentId, id)).run();
   db.update(cards)
     .set({ boardId, columnId: col.id, sort, parentId: null, updatedAt: now(), doneAt: col.done ? (card.doneAt ?? now()) : null })
     .where(eq(cards.id, id))
     .run();
+  kids.forEach((kid, i) =>
+    db
+      .update(cards)
+      .set({ boardId, columnId: col.id, sort: sort + 1 + i, updatedAt: now(), doneAt: col.done ? (kid.doneAt ?? now()) : null })
+      .where(eq(cards.id, kid.id))
+      .run(),
+  );
   db.update(boards).set({ updatedAt: now() }).where(sql`${boards.id} in (${boardId}, ${card.boardId})`).run();
   changed();
 }

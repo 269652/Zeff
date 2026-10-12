@@ -1,0 +1,15 @@
+{
+  "$schema": "http://127.0.0.1:9333/ext/sdk/zeff-plugin.schema.json",
+  "id": "run-notifier",
+  "name": "Run notifier",
+  "version": "1.0.0",
+  "description": "Keeps a log of finished runs, and turns a failed run into a todo.",
+  "author": "Zeff examples",
+  "apiVersion": 1,
+  "permissions": ["exec", "todos.write"],
+  "contributes": {
+    "hooks": {
+      "work.run.finished": { "command": ["node", "./on-finished.mjs"], "timeoutMs": 8000 }
+    }
+  }
+}

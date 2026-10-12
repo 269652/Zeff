@@ -1,0 +1,276 @@
+{
+  "title": "Zeff plugin manifest (zeff-plugin.json)",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,39}$",
+      "description": "Also the plugin folder's name."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 60
+    },
+    "version": {
+      "default": "0.0.0",
+      "type": "string",
+      "maxLength": 30
+    },
+    "description": {
+      "default": "",
+      "type": "string",
+      "maxLength": 300
+    },
+    "author": {
+      "type": "string",
+      "maxLength": 100
+    },
+    "homepage": {
+      "type": "string",
+      "format": "uri"
+    },
+    "apiVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1,
+      "description": "The extension API version it was written for (this Zeff speaks up to 1)."
+    },
+    "permissions": {
+      "default": [],
+      "maxItems": 20,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "work.read",
+          "work.write",
+          "todos.read",
+          "todos.write",
+          "prompt",
+          "exec",
+          "network"
+        ]
+      }
+    },
+    "contributes": {
+      "type": "object",
+      "properties": {
+        "workerRules": {
+          "description": "Text files whose content is added to the rules of every Work worker. Needs the prompt permission.",
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            {
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          ]
+        },
+        "workCommands": {
+          "default": [],
+          "description": "Entries of the Work message box's \"/\" menu.",
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40,
+                "description": "What the \"/\" menu shows."
+              },
+              "description": {
+                "default": "",
+                "type": "string",
+                "maxLength": 200
+              },
+              "template": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000,
+                "description": "The text put into the message box when picked. May contain line breaks."
+              }
+            },
+            "required": [
+              "id",
+              "label",
+              "template"
+            ]
+          }
+        },
+        "workerMcpServers": {
+          "default": {},
+          "description": "MCP servers every Work worker gets (stdio: needs exec; http: needs network).",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,39}$"
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "command": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300,
+                    "description": "The program. \"node\" is the Node that runs Zeff; \"./x\" is relative to the plugin folder."
+                  },
+                  "args": {
+                    "default": [],
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 1000
+                    }
+                  },
+                  "env": {
+                    "default": {},
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 2000
+                    }
+                  }
+                },
+                "required": [
+                  "command"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "An http(s) MCP endpoint."
+                  },
+                  "headers": {
+                    "default": {},
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 2000
+                    }
+                  }
+                },
+                "required": [
+                  "url"
+                ]
+              }
+            ]
+          }
+        },
+        "workPanels": {
+          "default": [],
+          "description": "Views in Work, shown in a sandboxed frame.",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "entry": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "The panel's HTML page, relative to the plugin's ui/ folder."
+              },
+              "placement": {
+                "default": "tab",
+                "description": "\"tab\": a view of its own, linked in Work's sidebar. \"session\": a drawer beside a session, which gets that session's ids.",
+                "type": "string",
+                "enum": [
+                  "tab",
+                  "session"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "entry"
+            ]
+          }
+        },
+        "hooks": {
+          "default": {},
+          "description": "Programs Zeff runs when something happens. Needs the exec permission.",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "enum": [
+              "work.run.started",
+              "work.run.finished",
+              "work.changed",
+              "todos.changed"
+            ]
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "command": {
+                "minItems": 1,
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                "description": "Program and arguments, no shell. \"node\" is the Node that runs Zeff; \"./x\" is relative to the plugin folder."
+              },
+              "timeoutMs": {
+                "default": 5000,
+                "type": "integer",
+                "minimum": 200,
+                "maximum": 30000
+              }
+            },
+            "required": [
+              "command"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "apiVersion"
+  ]
+}

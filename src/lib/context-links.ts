@@ -3,7 +3,7 @@ import { mailsByKeys } from "./mail/store";
 import { todoSources } from "./boards/sources";
 import { lastGoodRun, todosByIds } from "./boards/store";
 import { sourcesOf } from "./boards/shared";
-import { jiraLinkOf, todoIdOfLink, workIdOfLink, type EntityMap, type WorkRunBrief } from "./entities-shared";
+import { jiraLinkOf, timeIdOfLink, todoIdOfLink, workIdOfLink, type EntityMap, type TimeBrief, type WorkRunBrief } from "./entities-shared";
 import { inArray } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { gitlabLinkKey } from "./gitlab/shared";
@@ -40,6 +40,14 @@ function workRuns(ids: number[]): Map<number, WorkRunBrief> {
   );
 }
 
+/** Time records by id, as evidence. */
+function timeRecords(ids: number[]): Map<number, TimeBrief> {
+  if (!ids.length) return new Map();
+  const rows = getDb().select().from(schema.todoTime).where(inArray(schema.todoTime.id, ids)).all();
+  const tickets = new Map(getDb().select({ id: schema.todos.id, ticket: schema.todos.ticket }).from(schema.todos).where(inArray(schema.todos.id, [...new Set(rows.map((r) => r.todoId))])).all().map((r) => [r.id, r.ticket]));
+  return new Map(rows.map((r) => [r.id, { id: r.id, ref: `TT-${r.id}`, todoId: r.todoId, todo: `T-${r.todoId}`, ticket: tickets.get(r.todoId) ?? "", minutes: r.minutes, note: r.note, by: r.reportedBy, at: r.at }]));
+}
+
 /**
  * Which of these links point at a synced Teams message, a GitLab item, a Jira comment or ticket
  * or a board todo — that message / item / ticket / todo, by link (a todo with what it came from).
@@ -55,8 +63,14 @@ export function resolveLinks(urls: string[]): EntityMap {
   const kept = commentsByIds([...jira.values()].flatMap((j) => (j.commentId ? [j.commentId] : [])));
   const done = resolvedCommentIds([...kept.keys()]);
   const runs = workRuns(list.flatMap((u) => workIdOfLink(u) ?? []));
+  const times = timeRecords(list.flatMap((u) => timeIdOfLink(u) ?? []));
   const out: EntityMap = {};
   for (const u of list) {
+    const time = times.get(timeIdOfLink(u) ?? -1);
+    if (time) {
+      out[u] = { source: "time", time };
+      continue;
+    }
     const run = runs.get(workIdOfLink(u) ?? -1);
     if (run) {
       out[u] = { source: "work", run };

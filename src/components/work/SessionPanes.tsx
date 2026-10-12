@@ -1,5 +1,6 @@
+import { extWorkPanels } from "@/lib/ext/work";
 import Link from "next/link";
-import { getTodo, listTodos } from "@/lib/boards/store";
+import { getTodo } from "@/lib/boards/store";
 import { todoRef } from "@/lib/boards/shared";
 import { getTicketCards } from "@/lib/jira/store";
 import { formatDateTime } from "@/lib/format";
@@ -14,7 +15,7 @@ import { SessionComposer } from "./SessionComposer";
 import type { ComposerOptions } from "@/lib/work/composer-shared";
 import { SessionThread, type SessionTurn } from "./SessionThread";
 import { SessionTabs } from "./SessionWorkspace";
-import { StopSessionButton, TodoSessionButton } from "./SessionActions";
+import { StopSessionButton } from "./SessionActions";
 import { SessionBranch } from "./SessionBranch";
 
 type Options = { tickets: { key: string; summary: string | null }[]; repos: { id: number; name: string; path: string }[]; providers: { id: string; label: string }[]; composer?: ComposerOptions; ticketRepos?: Record<string, string> };
@@ -122,7 +123,14 @@ export function SessionPane({ run, options }: { run: WorkRunView; options: Optio
           {active && <StopSessionButton runId={last.id} />}
         </div>
       </header>
-      <SessionTabs key={last.id} runId={last.id} git={!!last.cwd && !!last.repo} title={`${last.ticket ? `${last.ticket}: ` : ""}${todo?.text ?? ""}`.slice(0, 120)}>
+      <SessionTabs
+        key={last.id}
+        runId={last.id}
+        git={!!last.cwd && !!last.repo}
+        title={`${last.ticket ? `${last.ticket}: ` : ""}${todo?.text ?? ""}`.slice(0, 120)}
+        extPanels={extWorkPanels("session").map((x) => ({ id: x.id, plugin: x.plugin, entry: x.entry, title: x.title }))}
+        extContext={{ runId: last.id, ticket: last.ticket || undefined, todoId: run.todoId }}
+      >
         <SessionThread turns={turns} />
         <div className="pt-2">
           {last.session && last.status === "running" ? (
@@ -146,10 +154,9 @@ export function SessionPane({ run, options }: { run: WorkRunView; options: Optio
   );
 }
 
-/** A ticket: what it is, its sessions, its open todos (each to hand to a worker) — and a new session on it. */
+/** A ticket: what it is, its sessions — and a new session on it. */
 export function TicketPane({ ticket, data, options }: { ticket: string; data: SessionTicket | undefined; options: Options }) {
   const card = ticket ? getTicketCards([ticket])[ticket.toUpperCase()] : undefined;
-  const todos = listTodos({ status: "open" }).filter((x) => (x.ticket || "") === ticket || x.alsoTickets.includes(ticket));
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col gap-4">
       <header>
@@ -165,24 +172,6 @@ export function TicketPane({ ticket, data, options }: { ticket: string; data: Se
         {card && <p className="text-xs text-zinc-500">{[card.status, card.assignee, card.issueType].filter(Boolean).join(" · ")}</p>}
       </header>
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
-        <section className="space-y-1.5">
-          <h2 className="label">{t("Open todos ({n})", { n: todos.length })}</h2>
-          {todos.length ? (
-            <ul className="space-y-1.5">
-              {todos.map((x) => (
-                <li key={x.id} className="card flex items-start gap-3 p-3 text-sm">
-                  <Link href={`/t/${x.id}`} className="shrink-0 font-mono text-xs text-indigo-600 hover:underline dark:text-indigo-400">
-                    {todoRef(x.id)}
-                  </Link>
-                  <span className="min-w-0 flex-1">{x.text}</span>
-                  <TodoSessionButton todoId={x.id} />
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-zinc-500">{t("None.")}</p>
-          )}
-        </section>
         <section className="space-y-1.5">
           <h2 className="label">{t("Sessions ({n})", { n: data?.sessions.length ?? 0 })}</h2>
           <ul className="space-y-1">

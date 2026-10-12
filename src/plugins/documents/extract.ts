@@ -13,6 +13,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
+import { killTree, onAbort } from "@/lib/abort";
 import { t } from "@/lib/i18n/server";
 import { ensurePoppler } from "./poppler";
 import { documentSettings } from "./settings";
@@ -20,6 +21,12 @@ import type { DocKind } from "./shared";
 
 /** Not readable (yet): the reason, and what would help — not a failure to fix, a state to tell. */
 export class UnsupportedError extends Error {}
+
+/** In the fast lane: this one needs the slow one (the Claude CLI, a transcriber) — it waits for that. */
+export class NeedsSlowLane extends Error {}
+
+/** How long the Claude CLI may take for one file. */
+export const CLAUDE_READ_MS = 5 * 60000;
 
 const MAX_TEXT = 400000;
 
@@ -250,7 +257,7 @@ export function pdfText(buf: Buffer): string {
 // The Claude CLI: pictures, scanned PDFs
 // ---------------------------------------------------------------------------
 
-async function readWithClaude(file: string, name: string, extraPath?: string): Promise<string> {
+async function readWithClaude(file: string, name: string, extraPath?: string, timeoutMs = CLAUDE_READ_MS): Promise<string> {
   const { findClaudeCli, runClaude } = await import("@/plugins/claude-cli/cli");
   if (!findClaudeCli()) throw new UnsupportedError(t("The Claude CLI isn't installed — it reads pictures and scanned PDFs."));
   // A folder of its own for the one file: the AI may read there, nowhere else.
@@ -259,9 +266,9 @@ async function readWithClaude(file: string, name: string, extraPath?: string): P
     const copy = path.join(dir, `file${path.extname(name).toLowerCase()}`);
     fs.copyFileSync(file, copy);
     const r = await runClaude<{ text?: string }>(
-      `Lies die Datei ${copy} mit dem Read-Werkzeug (ein PDF mit mehr als 20 Seiten in Abschnitten). Gib ihren gesamten Inhalt als Text zurück, in der Sprache des Dokuments, ohne etwas hinzuzufügen oder zu kürzen: bei einem Dokument seinen vollständigen Text (Tabellen als Markdown-Tabellen); bei einem Bild erst den darin sichtbaren Text (OCR), dann in zwei, drei Sätzen, was es zeigt. Kannst du die Datei nicht lesen, gib genau den Text „UNREADABLE: “ und den Grund zurück.`,
+      `Lies die Datei ${copy} mit dem Read-Werkzeug (ein PDF mit mehr als 20 Seiten in Abschnitten). Antworte NUR mit dem Inhalt der Datei als Text — ohne Einleitung, ohne Kommentar, ohne Nachwort, in der Sprache des Dokuments, ohne etwas zu kürzen oder zusammenzufassen: bei einem Dokument sein vollständiger Text, Seite für Seite (Tabellen als Markdown-Tabellen); bei einem Bild erst der darin sichtbare Text (OCR), dann in zwei, drei Sätzen, was es zeigt. Kannst du die Datei nicht lesen, antworte genau mit „UNREADABLE: “ und dem Grund.`,
       { type: "object", properties: { text: { type: "string" } }, required: ["text"] },
-      { readDir: dir, timeoutMs: 8 * 60000, maxBudgetUsd: 1, extraPath },
+      { readDir: dir, timeoutMs, maxBudgetUsd: 1, extraPath, plain: true },
     );
     const text = (r.output?.text ?? "").trim();
     if (/^UNREADABLE:/i.test(text) || /pdftoppm|poppler/i.test(text)) {
@@ -285,7 +292,8 @@ function transcribe(file: string, name: string, command: string): Promise<string
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "zeff-audio-"));
   const cmd = command.replace(/\{file\}/g, file).replace(/\{dir\}/g, dir);
   return new Promise((resolve, reject) => {
-    execFile(cmd, { shell: true, timeout: 60 * 60000, maxBuffer: 32_000_000, windowsHide: true, cwd: dir }, (err, stdout, stderr) => {
+    const child = execFile(cmd, { shell: true, timeout: 60 * 60000, maxBuffer: 32_000_000, windowsHide: true, cwd: dir }, (err, stdout, stderr) => {
+      stopListening();
       try {
         const txt = fs.readdirSync(dir).find((f) => /\.(txt|srt|vtt)$/i.test(f));
         const text = txt ? decodeText(fs.readFileSync(path.join(dir, txt))) : stdout;
@@ -297,13 +305,20 @@ function transcribe(file: string, name: string, command: string): Promise<string
         fs.rmSync(dir, { recursive: true, force: true });
       }
     });
+    // Reading stopped (restarted / skipped): the transcriber and what it started end.
+    const stopListening = onAbort(() => killTree(child));
   });
 }
 
 // ---------------------------------------------------------------------------
 
-/** A document's text, by its kind. Throws UnsupportedError for what can't be read here (yet), any other error for a failure. */
-export async function extractText(file: string, name: string, kind: DocKind): Promise<string> {
+/**
+ * A document's text, by its kind. Throws UnsupportedError for what can't be read here (yet), any other error for a failure.
+ * `lane` "fast": only what is read right here (text, Office, a PDF with text) — what needs the Claude CLI or a
+ * transcriber throws NeedsSlowLane. "slow": everything. (Default "slow".)
+ */
+export async function extractText(file: string, name: string, kind: DocKind, opts: { lane?: "fast" | "slow"; timeoutMs?: number } = {}): Promise<string> {
+  const fast = opts.lane === "fast";
   let text = "";
   if (kind === "text") text = textFile(name, fs.readFileSync(file));
   else if (kind === "office") text = officeFile(name, fs.readFileSync(file));
@@ -311,6 +326,7 @@ export async function extractText(file: string, name: string, kind: DocKind): Pr
     text = pdfText(fs.readFileSync(file));
     // Nothing sensible in it (a scan, fonts without a plain text mapping): the Claude CLI looks.
     if (text.length < 40 || wordish(text) < 0.8) {
+      if (fast) throw new NeedsSlowLane();
       // The CLI's Read tool renders PDF pages with Poppler's pdftoppm: found, or installed now (if allowed).
       let dir: string;
       try {
@@ -318,15 +334,21 @@ export async function extractText(file: string, name: string, kind: DocKind): Pr
       } catch (e) {
         throw new UnsupportedError(e instanceof Error ? e.message : String(e));
       }
-      text = await readWithClaude(file, name, dir);
+      text = await readWithClaude(file, name, dir, opts.timeoutMs);
     }
-  } else if (kind === "image") text = await readWithClaude(file, name);
+  } else if (kind === "image") {
+    if (fast) throw new NeedsSlowLane();
+    text = await readWithClaude(file, name, undefined, opts.timeoutMs);
+  }
   else if (kind === "audio") {
     const command = documentSettings().transcriber.trim();
     if (!command) throw new UnsupportedError(t("Audio needs a transcriber: set a command (e.g. Whisper) under Documents → Settings."));
+    if (fast) throw new NeedsSlowLane();
     text = await transcribe(file, name, command);
   } else throw new UnsupportedError(t("This kind of file can't be read (text, Office files, PDFs, pictures and audio can)."));
   text = tidy(text).slice(0, MAX_TEXT);
   if (!text) throw new UnsupportedError(t("No text found in it."));
+  // A big PDF that gave a line or two: a note about the content, not the content — not kept as if it were.
+  if (kind === "pdf" && text.length < 120 && fs.statSync(file).size > 60_000) throw new Error(t("Only a short note came back instead of the document's text — click “Read again”."));
   return text;
 }

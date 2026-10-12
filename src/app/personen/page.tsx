@@ -4,7 +4,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { findAllProgress } from "@/plugins/people/dates";
-import { createPersonFormAction, dateFormAction, findAllDatesFormAction, updatePersonFormAction } from "@/plugins/people/server-actions";
+import { createPersonFormAction, dateFormAction, findAllDatesFormAction, normalizePeopleFormAction, updatePersonFormAction } from "@/plugins/people/server-actions";
 import { dateKindLabels, dateText, inDaysText, upcomingShort, upcomingTitle } from "@/plugins/people/shared";
 import { contactsOf, listPeople, proposedDates, upcoming, whatsappChats } from "@/plugins/people/store";
 import { formatAgo } from "@/lib/format";
@@ -31,7 +31,7 @@ async function knowledgeSuggestions(taken: Set<string>) {
  * up next and when you last heard from them; the dates found waiting for you; people to add from
  * the knowledge and your WhatsApp chats.
  */
-export default async function PeoplePage({ searchParams }: { searchParams: Promise<{ error?: string; added?: string; searching?: string }> }) {
+export default async function PeoplePage({ searchParams }: { searchParams: Promise<{ error?: string; added?: string; searching?: string; matched?: string }> }) {
   await connection();
   if (!isInstalled("people")) return <PluginNotInstalled id="people" />;
   const sp = await searchParams;
@@ -70,6 +70,22 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
             </form>
           ))}
         {sp.searching && !progress && <p className="text-xs text-zinc-500">{t("Search done — suggestions are at the top right.")}</p>}
+        {people.length > 1 && (
+          <form action={normalizePeopleFormAction}>
+            <button
+              className="btn btn-sm"
+              title={t("The AI looks at who the names in your todos are: new names become aliases, contacts get profiles, duplicates are merged. It also runs after each briefing.")}
+            >
+              {t("Match names (AI)")}
+            </button>
+          </form>
+        )}
+        {sp.matched !== undefined &&
+          (() => {
+            const [a, c, m, r] = sp.matched.split(",").map(Number);
+            return <p className="alert-ok text-sm">{t("{a} aliases, {c} new, {m} merged, {r} relations", { a: a || 0, c: c || 0, m: m || 0, r: r || 0 })}</p>;
+          })()}
+        <p className="text-xs text-zinc-400">{t("Two profiles that are one person? Open one: “Same person as …” merges it into the other.")}</p>
         {soon.length > 0 && (
           <section className="space-y-1">
             <h2 className="text-xs font-semibold text-zinc-500 uppercase">{t("Coming up")}</h2>

@@ -23,6 +23,20 @@ export async function register() {
     console.error("[boards] marking interrupted runs failed", e);
   }
   try {
+    // Documents a server that has gone left "being read": waiting again, and read — in every account that keeps documents.
+    const { listAccounts, withAccount } = await import("./db/accounts");
+    const { isInstalled } = await import("./plugins/state");
+    for (const a of listAccounts()) {
+      await withAccount(a.id, async () => {
+        if (!isInstalled("documents")) return;
+        const { readingDocuments } = await import("./plugins/documents/store");
+        if (readingDocuments().length) (await import("./plugins/documents/process")).startProcessing();
+      });
+    }
+  } catch (e) {
+    console.error("[documents] picking up the waiting documents failed", e);
+  }
+  try {
     const { keepCommentsFromRuns } = await import("./lib/jira/comments");
     keepCommentsFromRuns(); // once: the comments past runs read
   } catch (e) {
@@ -39,6 +53,12 @@ export async function register() {
     writeKnowledgeInstances(); // the launcher runs a knowledge server per account with the plugin
   } catch (e) {
     console.error("[knowledge] listing the knowledge servers failed", e);
+  }
+  try {
+    const { startExtWatcher } = await import("./lib/ext/work");
+    startExtWatcher(); // external plugins' work.changed / todos.changed events
+  } catch (e) {
+    console.error("[ext] starting the event watcher failed", e);
   }
   const { startSyncScheduler } = await import("./lib/sync-scheduler");
   startSyncScheduler();

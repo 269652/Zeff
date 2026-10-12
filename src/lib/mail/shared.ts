@@ -15,6 +15,9 @@ export type MailView = {
   resolvedAt: string | null;
 };
 
+/** Where a document came from: the mail an attachment was taken from (Documents list and detail show it). */
+export type DocOrigin = { mailKey: string; source: "outlook" | "gmail"; subject: string; from: string; receivedAt: string; file: string };
+
 /** The chat apps whose messages the sync keeps with the mails — each in a folder of its name. */
 export const CHAT_FOLDERS = ["WhatsApp", "Signal"] as const;
 export type ChatFolder = (typeof CHAT_FOLDERS)[number];

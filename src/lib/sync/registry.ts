@@ -120,8 +120,8 @@ async function lastAndCurrentWeeks(): Promise<string[]> {
 export const jiraLastSyncAt = () => recordedOr("jira", jiraTickets.syncedAt).lastAt;
 
 /** When a step last ran, however it was started. */
-export const lastSyncOf = (key: "calendar" | "chrono" | "punch" | "whatsapp" | "signal" | "keep" | "gcalendar") =>
-  (key === "calendar" || key === "whatsapp" || key === "signal" || key === "keep" || key === "gcalendar" ? recorded(key) : recordedOr(key, key === "chrono" ? chronoEntries.pulledAt : punchDays.pulledAt)).lastAt;
+export const lastSyncOf = (key: "calendar" | "chrono" | "punch" | "whatsapp" | "signal" | "keep" | "gcalendar" | "drivebackup" | "drivedocs") =>
+  (key === "calendar" || key === "whatsapp" || key === "signal" || key === "keep" || key === "gcalendar" || key === "drivebackup" || key === "drivedocs" ? recorded(key) : recordedOr(key, key === "chrono" ? chronoEntries.pulledAt : punchDays.pulledAt)).lastAt;
 
 /** Each step: how it runs, what it last did, when it runs by itself. All only read from elsewhere. */
 const STEPS: Record<SyncKey, Step> = {
@@ -196,6 +196,23 @@ const STEPS: Record<SyncKey, Step> = {
     busy: () => flag("__zeffGcalSyncing"),
     schedule: () => ({ everyMinutes: stepMinutes("gcalendar"), lastAt: recorded("gcalendar").lastAt, window: t("while the automation Chrome runs") }),
   },
+  // The Google Drive plugin's extensions for Backups and Documents (there while they're on):
+  drivebackup: {
+    label: "Backups → Google Drive",
+    href: "/google-drive",
+    get what() { return t("Your backups, copied to Google Drive as they are made (encrypted ones; what the retention removes goes from Drive too, if set)"); },
+    run: async () => (await import("@/plugins/google-drive/sync")).syncBackups(),
+    busy: () => flag("__zeffDriveBackup"),
+    schedule: () => ({ everyMinutes: stepMinutes("drivebackup"), lastAt: recorded("drivebackup").lastAt }),
+  },
+  drivedocs: {
+    label: "Documents ↔ Google Drive",
+    href: "/google-drive",
+    get what() { return t("Your documents, copied to Google Drive — and, if you set so, what you add to its Documents folder comes into Zeff"); },
+    run: async () => (await import("@/plugins/google-drive/sync")).syncDocuments(),
+    busy: () => flag("__zeffDriveDocs"),
+    schedule: () => ({ everyMinutes: stepMinutes("drivedocs"), lastAt: recorded("drivedocs").lastAt }),
+  },
   gitlab: {
     label: "GitLab",
     href: "/gitlab",
@@ -258,7 +275,7 @@ const STEPS: Record<SyncKey, Step> = {
     // The Lage itself: not while its run syncs first or relates the mails (their own steps show that).
     busy: () => {
       const r = (globalThis as { __zeffBoardRun?: { phase: string } | null }).__zeffBoardRun;
-      return !!r && r.phase !== "sync" && r.phase !== "mailtodos" && r.phase !== "mails" && r.phase !== "notetodos" && r.phase !== "notes" && r.phase !== "knowledge" && r.phase !== "autoactions";
+      return !!r && r.phase !== "sync" && r.phase !== "mailtodos" && r.phase !== "mails" && r.phase !== "notetodos" && r.phase !== "notes" && r.phase !== "documents" && r.phase !== "docrelations" && r.phase !== "knowledge" && r.phase !== "autoactions";
     },
     last: () => {
       const run = latestRun();
@@ -367,13 +384,42 @@ const STEPS: Record<SyncKey, Step> = {
     busy: () => flag("__zeffNoteRelations"),
     schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("noterelations").lastAt, window: t("workdays, with the briefing"), workdays: true }),
   },
+  // The Documents plugin's extensions for Todos (there while they're on):
+  doctodos: {
+    get label() { return t("Document review"); },
+    href: "/documents",
+    get what() { return t("Todos from your documents — what they ask of you: deadlines, bills, forms, open questions — new and changed ones, by the AI (after each briefing)"); },
+    run: async () => {
+      const r = await (await import("@/plugins/documents/review")).reviewDocumentsForTodos(
+        (globalThis as { __zeffBoardRun?: { id: number } | null }).__zeffBoardRun?.id ?? null,
+      );
+      return r.ok
+        ? { ok: true, message: `${t("{reviewed} documents reviewed, {added} new todos", { reviewed: r.reviewed, added: r.added })}${r.error ? ` (${r.error})` : ""}` }
+        : { ok: false, message: r.error ?? t("Failed.") };
+    },
+    busy: () => flag("__zeffDocTodos"),
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("doctodos").lastAt, window: t("workdays, with the briefing"), workdays: true }),
+  },
+  docrelations: {
+    get label() { return t("Document matching"); },
+    href: "/todos",
+    get what() { return t("Which documents each open todo is about — the AI reads them by content (after each briefing)"); },
+    run: async () => {
+      const r = await (await import("@/plugins/documents/relations")).relateDocuments();
+      return r.ok
+        ? { ok: true, message: `${t("{todos} todos, {changed} changed", { todos: r.todos, changed: r.changed })}${r.error ? ` (${r.error})` : ""}` }
+        : { ok: false, message: r.error ?? t("Failed.") };
+    },
+    busy: () => flag("__zeffDocRelations"),
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("docrelations").lastAt, window: t("workdays, with the briefing"), workdays: true }),
+  },
   peoplenorm: {
     get label() { return t("People matching"); },
     href: "/personen",
     get what() { return t("Who is meant by the names in your todos — aliases added, profiles for contacts made, duplicates merged (after each briefing)"); },
     run: async () => {
       const r = await (await import("@/plugins/people/normalize")).normalizePeople();
-      return r.ok ? { ok: true, message: t("{a} aliases, {c} new, {m} merged", { a: r.aliases, c: r.created, m: r.merged }) } : { ok: false, message: r.error ?? t("Failed.") };
+      return r.ok ? { ok: true, message: t("{a} aliases, {c} new, {m} merged, {r} relations", { a: r.aliases, c: r.created, m: r.merged, r: r.relations }) } : { ok: false, message: r.error ?? t("Failed.") };
     },
     busy: () => flag("__zeffPeopleNormalize"),
     schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("peoplenorm").lastAt, window: t("workdays, with the briefing"), workdays: true }),
@@ -500,7 +546,7 @@ export function startSyncAll(): { ok: boolean; message: string } {
     void (async () => {
       try {
         // The Mail-Durchsicht and -Zuordnung come with the Ticket-Lage (its last steps) — not twice.
-        for (const key of SYNC_KEYS.filter((k) => k !== "relations" && k !== "mailtodos" && k !== "autoactions" && k !== "boardlage" && k !== "knowledgerel" && k !== "peoplenorm" && k !== "notetodos" && k !== "noterelations" && stepAvailable(k))) {
+        for (const key of SYNC_KEYS.filter((k) => k !== "relations" && k !== "mailtodos" && k !== "autoactions" && k !== "boardlage" && k !== "knowledgerel" && k !== "peoplenorm" && k !== "notetodos" && k !== "noterelations" && k !== "doctodos" && k !== "docrelations" && stepAvailable(k))) {
           if (l.allStopped) break;
           l.all = key;
           await runStep(key);

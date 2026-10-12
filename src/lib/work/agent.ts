@@ -8,10 +8,11 @@ import { listRepos, repoForTicket, type RepoView } from "@/lib/repos";
 import { execFile } from "node:child_process";
 import { logPath } from "./log";
 import { applyOutcome, normalizeResult } from "./outcome";
-import { pump, slug } from "./runner";
+import { pump } from "./runner";
 import { workModeOf, workRef, type WorkMode } from "./shared";
 import { createRun, getRun, runsByStatus, updateRun } from "./store";
-import { quarterHours, suggestEntry, unsuggestedRuns } from "./suggestions";
+import { quarterHours, suggestEntry, unsuggestedRuns, unsuggestedTimes } from "./suggestions";
+import { addTodoTime, listTodoTimes, timesByIds } from "./todo-time";
 import { inArray } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 
@@ -59,11 +60,20 @@ export function startAgentWork(v: { todo: string; agent?: string; note?: string 
   return { run: getRun(r.id)!, resumed: false, todo: t };
 }
 
+/**
+ * The pattern for a new branch: the Jira ticket key, then a few words the AGENT picks for the code
+ * change it actually makes (feature/PROJ-364-footer-link-indent) — not the todo's or ticket's title,
+ * which isn't necessarily the change.
+ */
+export function newBranchName(t: Pick<TodoView, "ticket" | "kind">): string {
+  return `${t.kind === "fix" ? "fix" : "feature"}/${t.ticket}-<short-change>`;
+}
+
 /** Where code work on a todo goes: the ticket's repo (Repos page), its default branch, and a feature branch name to use. */
 export async function workplaceOf(t: Pick<TodoView, "ticket" | "kind" | "text">): Promise<{ repo: RepoView | null; base: string; branch: string; existing: string | null }> {
   const repo = repoForTicket(t.ticket)?.repo ?? null;
   const base = repo ? ((await tryGit(repo.path, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])) || "origin/main").replace(/^origin\//, "") : "main";
-  return { repo, base, branch: `${t.kind === "fix" ? "fix" : "feature"}/${t.ticket}-${slug(t.text) || "work"}`, existing: repo ? await existingBranch(repo.path, t.ticket, base) : null };
+  return { repo, base, branch: newBranchName(t), existing: repo ? await existingBranch(repo.path, t.ticket, base) : null };
 }
 
 /**
@@ -264,7 +274,10 @@ export async function finishAgentWork(v: {
   const res = normalizeResult({ outcome, summary: v.summary, entry: v.entry, completedTodos: outcome === "done" ? [t.id] : [], followUps: v.followUps ?? [] });
   if (!res) throw new ValidationError("A report (summary) is needed.");
   const finishedAt = now();
-  const durationMs = minutes > 0 ? Math.round(minutes * 60000) : run.startedAt ? Date.parse(finishedAt) - Date.parse(run.startedAt) : null;
+  const sinceStart = run.startedAt ? Date.parse(finishedAt) - Date.parse(run.startedAt) : null;
+  // What it reported on the way (todo_time) comes first: the minutes given now are the rest, since its last record.
+  const before = unsuggestedTimes([t.id]);
+  let durationMs = minutes > 0 ? Math.round(minutes * 60000) : sinceStart;
   note(run.id, `[${run.model ?? "Agent"}] finished (${res.outcome}): ${res.entry}`);
   updateRun(run.id, {
     status: "done",
@@ -275,6 +288,15 @@ export async function finishAgentWork(v: {
     durationMs,
     finishedAt,
   });
+  // The last stretch as a record like the others (with no minutes and no records, the run's own time).
+  const lastMinutes = minutes > 0 ? minutes : !before.length && durationMs ? Math.max(1, Math.round(durationMs / 60000)) : 0;
+  if (lastMinutes > 0) addTodoTime({ todoId: t.id, minutes: lastMinutes, note: res.entry || t.text, by: run.model ?? v.agent ?? "agent", source: "agent", runId: run.id });
+  // The run's time is what was reported in it, when something was.
+  const inRun = listTodoTimes([t.id]).filter((r) => r.runId === run.id).reduce((a, r) => a + r.minutes, 0);
+  if (inRun > 0) {
+    durationMs = inRun * 60000;
+    updateRun(run.id, { durationMs });
+  }
   const done = getRun(run.id)!;
   // Code on a branch: its delivery as the next todo (push → merge request, or merge into main) —
   // before the todo's ticked off, so what was planned after it goes on after the delivery.
@@ -291,10 +313,15 @@ export async function finishAgentWork(v: {
   // Its time, as a booking to take over (a shadow row in the Weekly report): the minutes it took,
   // its one line — with the todo and its runs as evidence. Nothing is booked yet.
   let suggestion: string | null = null;
-  if (durationMs && durationMs > 0) {
+  // Its hours: all the time reported on the todo not suggested yet (this last stretch included);
+  // with none before, the earlier runs' own time counts as well, as it did.
+  const timeIds = unsuggestedTimes([t.id]);
+  if (timeIds.length) {
     const runs = [...new Set([run.id, ...unsuggestedRuns([t.id])])];
-    const ms = runs.length > 1 ? getDb().select({ ms: workRuns.durationMs }).from(workRuns).where(inArray(workRuns.id, runs)).all().reduce((a, r) => a + (r.ms ?? 0), 0) : durationMs;
-    const s = suggestEntry({ hours: quarterHours(ms), description: res.entry || t.text, ticket: t.ticket, reportedBy: run.model ?? v.agent ?? "agent", todoIds: [t.id], runIds: runs });
+    const others = runs.filter((id) => id !== run.id);
+    const otherMs = !before.length && others.length ? getDb().select({ ms: workRuns.durationMs }).from(workRuns).where(inArray(workRuns.id, others)).all().reduce((a, r) => a + (r.ms ?? 0), 0) : 0;
+    const ms = timesByIds(timeIds).reduce((a, r) => a + r.minutes * 60000, 0) + otherMs;
+    const s = suggestEntry({ hours: quarterHours(ms), description: res.entry || t.text, ticket: t.ticket, reportedBy: run.model ?? v.agent ?? "agent", todoIds: [t.id], runIds: runs, timeIds });
     suggestion = `${s.ref} (${s.hours} h)`;
     note(run.id, `[Zeff] Entry suggested: ${suggestion} — “${s.description}”`);
   }

@@ -194,6 +194,30 @@ export async function addTodoNoteAction(todoId: number, text: string): Promise<A
   }
 }
 
+/** Time you spent on a todo, by hand: minutes and one line (a record like the agents'). */
+export async function addTodoTimeAction(todoId: number, minutes: number, note: string): Promise<ActionState> {
+  try {
+    const { addTodoTime } = await import("@/lib/work/todo-time");
+    addTodoTime({ todoId: Number(todoId), minutes: Number(minutes), note: String(note ?? ""), by: "Du", source: "hand" });
+    revalidateAll();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** A time record taken away — while no booking or suggestion covers it. */
+export async function deleteTodoTimeAction(id: number): Promise<ActionState> {
+  try {
+    const { deleteTodoTime } = await import("@/lib/work/todo-time");
+    deleteTodoTime(Number(id));
+    revalidateAll();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
 export async function removeTodoNoteAction(todoId: number, at: string): Promise<ActionState> {
   try {
     const { removeTodoUserNote } = await import("@/lib/boards/store");

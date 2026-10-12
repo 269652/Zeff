@@ -18,7 +18,7 @@ import type { T } from "@/lib/i18n/shared";
 const when = (iso: string | null) => (iso ? formatDateTime(iso) : "");
 
 /** A search hit: the message / item, and the link that points at it. */
-export type Picked = Exclude<Entity, { source: "jira" | "jira-comment" | "work" }> & { url: string };
+export type Picked = Exclude<Entity, { source: "jira" | "jira-comment" | "work" | "time" }> & { url: string };
 
 /** The GitLab sections' headings, by kind. */
 const gitlabSection = (t: T): Record<GitlabKind, string> => ({ comment: t("GitLab comments"), mr: t("Merge requests"), branch: t("Branches") });

@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
+import { MailAttachmentsOffer } from "@/components/MailAttachments";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
+import { attachmentOfferOpen, documentOrigins } from "@/lib/mail/attachments-store";
 import { listTodos } from "@/lib/boards/store";
 import { t } from "@/lib/i18n/server";
 import { documentSettings } from "@/plugins/documents/settings";
 import { DocumentsApp } from "@/plugins/documents/DocumentsApp";
-import { pollAbstracts, pullAbstracts, startProcessing } from "@/plugins/documents/process";
+import { pollAbstracts, pullAbstracts, readingStatus, startProcessing } from "@/plugins/documents/process";
 import { listDocuments, queuedDocuments, uncompiledDocuments } from "@/plugins/documents/store";
 import { isInstalled } from "@/plugins/state";
 
@@ -28,6 +30,7 @@ export default async function DocumentsPage() {
     if (uncompiledDocuments().length) pollAbstracts();
   }
   const todos = listTodos({ status: "open" }).map((x) => ({ id: x.id, ref: x.ref, text: x.text }));
+  const docs = listDocuments();
   return (
     <div className="page">
       <div className="page-aside">
@@ -38,7 +41,8 @@ export default async function DocumentsPage() {
           })}
         </p>
       </div>
-      <DocumentsApp docs={listDocuments()} todos={todos} settings={documentSettings()} knowledge={knowledge} />
+      {attachmentOfferOpen() && <MailAttachmentsOffer />}
+      <DocumentsApp docs={docs} reading={readingStatus()} origins={documentOrigins(docs.map((d) => d.id))} todos={todos} settings={documentSettings()} knowledge={knowledge} />
     </div>
   );
 }

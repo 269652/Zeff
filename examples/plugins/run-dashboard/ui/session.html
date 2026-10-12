@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Run details</title>
+  <link rel="stylesheet" href="/ext/sdk/zeff.css">
+  <style> pre { white-space: pre-wrap; margin: 0; } .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; } </style>
+</head>
+<body>
+  <h2 id="title">Run details</h2>
+  <div class="card kv" id="facts"></div>
+  <h3 style="margin-top:16px">Last steps</h3>
+  <div class="card"><pre id="steps" class="muted">…</pre></div>
+
+  <script src="/ext/sdk/zeff.js"></script>
+  <script>
+    "use strict";
+    const $ = (id) => document.getElementById(id);
+    let runId = null;
+
+    function fact(k, v) {
+      if (v == null || v === "") return [];
+      const a = document.createElement("span"); a.className = "muted"; a.textContent = k;
+      const b = document.createElement("span"); b.textContent = String(v);
+      return [a, b];
+    }
+
+    async function load() {
+      if (!runId) return;
+      const r = await zeff.work.runs.get(runId);
+      $("title").textContent = `${r.ref} · ${r.status}`;
+      $("facts").replaceChildren(
+        ...fact("Ticket", r.ticket), ...fact("Backend", r.provider + (r.model ? ` · ${r.model}` : "")),
+        ...fact("Branch", r.branch), ...fact("Outcome", r.outcome), ...fact("Turns", r.turns),
+        ...fact("Cost", r.costUsd != null ? `$${r.costUsd.toFixed(2)}` : null), ...fact("Changes", r.gitSummary),
+      );
+      const log = await zeff.work.runs.log(runId, 0);
+      const tail = log.lines.filter((l) => l.k === "tool" || l.k === "say").slice(-8);
+      $("steps").textContent = tail.map((l) => (l.k === "tool" ? `● ${l.tool}  ${l.text}` : l.text.slice(0, 200))).join("\n") || "(nothing yet)";
+    }
+
+    let timer;
+    zeff.on("change", ({ topic }) => {
+      if (topic !== "work") return;
+      clearTimeout(timer);
+      timer = setTimeout(() => load().catch(() => {}), 400);
+    });
+    // A session panel is told which session it is shown for.
+    zeff.ready.then((info) => { runId = info.context.runId; return load(); }).catch((err) => { $("steps").textContent = err.message; });
+  </script>
+</body>
+</html>

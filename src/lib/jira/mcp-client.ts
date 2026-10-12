@@ -1,6 +1,15 @@
 import { spawn } from "node:child_process";
 import { ABORTED, onAbort } from "@/lib/abort";
 import { t } from "@/lib/i18n/server";
+import { installCommand, resolveBareCommand } from "@/lib/prerequisites-shared";
+
+/** What to add to "cannot start": a program that isn't installed (ENOENT) — uvx is the Jira MCP server's, the one most PCs lack. */
+export function notFoundHint(command: string, e: unknown): string {
+  if ((e as { code?: string })?.code !== "ENOENT") return "";
+  const base = command.trim().split(/[\\/]/).pop()?.replace(/\.exe$/i, "") ?? "";
+  if (base === "uvx" || base === "uv") return ` ${t("uv isn't installed (or not on the PATH) — the Jira sync starts its MCP server with uvx. Install uv ({command}) and restart Zeff, or set JIRA_MCP_COMMAND to another command.", { command: installCommand("uv") })}`;
+  return ` ${t("The program \"{command}\" was not found — install it, or give its full path.", { command })}`;
+}
 
 export type McpStdioConfig = {
   command: string;
@@ -36,14 +45,14 @@ export function runStdioSession<T>(
   return new Promise<T>((resolve, reject) => {
     let child;
     try {
-      child = spawn(config.command, config.args, {
+      child = spawn(resolveBareCommand(config.command), config.args, {
         env: { ...process.env, ...config.env },
         cwd: config.cwd,
         stdio: ["pipe", "pipe", "pipe"],
         shell: false,
       });
     } catch (e) {
-      reject(new Error(t("Cannot start the {label} (\"{command}\"): {error}", { label, command: config.command, error: (e as Error).message })));
+      reject(new Error(t("Cannot start the {label} (\"{command}\"): {error}", { label, command: config.command, error: (e as Error).message }) + notFoundHint(config.command, e)));
       return;
     }
 
@@ -73,7 +82,7 @@ export function runStdioSession<T>(
       timeoutMs,
     );
 
-    child.on("error", (e) => fail(t("Cannot start the {label} (\"{command}\"): {error}", { label, command: config.command, error: e.message })));
+    child.on("error", (e) => fail(t("Cannot start the {label} (\"{command}\"): {error}", { label, command: config.command, error: e.message }) + notFoundHint(config.command, e)));
     // The driver gone mid-session (crashed, not on PATH): writing to it fails here — not as an
     // uncaught EPIPE that takes the server down.
     child.stdin.on("error", (e) => fail(`${t("{label}: its input closed ({error}).", { label, error: e.message })}${stderr ? ` stderr: ${stderr.slice(0, 400)}` : ""}`));

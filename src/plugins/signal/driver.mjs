@@ -28,7 +28,8 @@ import { withTabLock } from "../../../scripts/chrome-cdp.mjs";
 
 const CDP = (process.env.SIGNAL_CDP_ENDPOINT || "http://127.0.0.1:9339").replace(/\/$/, "");
 const PORT = /:(\d+)$/.exec(CDP)?.[1] ?? "9339";
-const EXE = process.env.SIGNAL_EXE || path.join(process.env.LOCALAPPDATA || "", "Programs", "signal-desktop", "Signal.exe");
+// Windows: Signal's usual install. macOS / Linux: no default - SIGNAL_EXE, or start Signal yourself with the port.
+const EXE = process.env.SIGNAL_EXE || (process.platform === "win32" ? path.join(process.env.LOCALAPPDATA || "", "Programs", "signal-desktop", "Signal.exe") : "");
 const log = (...a) => process.stderr.write(`[signal-mcp] ${a.join(" ")}\n`);
 const debug = (...a) => process.env.SIGNAL_DEBUG && log(...a);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -60,6 +61,7 @@ async function ensureSignal({ launch }) {
   if (await portUp()) return;
   if (signalRunning()) throw new Error(NO_PORT_ERROR);
   if (!launch) throw new Error(NOT_RUNNING);
+  if (!EXE) throw new Error(`Signal Desktop isn't running with its debug port. On this system start it yourself with --remote-debugging-port=${PORT} (e.g. signal-desktop --remote-debugging-port=${PORT}), or set SIGNAL_EXE to its program so Zeff can start it.`);
   if (!fs.existsSync(EXE)) throw new Error(`Signal Desktop isn't installed (${EXE}).`);
   log(`starting Signal with --remote-debugging-port=${PORT}`);
   spawn(EXE, ["--start-in-tray", `--remote-debugging-port=${PORT}`], { detached: true, stdio: "ignore", windowsHide: true }).unref();

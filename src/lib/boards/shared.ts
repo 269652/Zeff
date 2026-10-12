@@ -299,6 +299,8 @@ export type TodoView = {
   blockedBy?: string;
   /** The notes and run reports on related todos (the steps before it, ones about the same comments) — context too (filled in for the pages). */
   relatedNotes?: TodoUserNote[];
+  /** The time reported on it (an agent's records, yours) — in the order it happened (filled in for the pages). */
+  time?: import("@/lib/work/shared").TimeRecord[];
   /** The mails about its ticket since it came up (newest few) — context beside what it cites (filled in for the pages). */
   /** Its merge requests and the GitLab comments its operations are about, as links (filled in for the pages). */
   links?: TodoLinks;

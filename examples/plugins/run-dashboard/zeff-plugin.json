@@ -1,0 +1,31 @@
+{
+  "$schema": "http://127.0.0.1:9333/ext/sdk/zeff-plugin.schema.json",
+  "id": "run-dashboard",
+  "name": "Run dashboard",
+  "version": "1.0.0",
+  "description": "Recent Work runs at a glance, a way to start a session, “/” commands, and a session tab with the run's details.",
+  "author": "Zeff examples",
+  "apiVersion": 1,
+  "permissions": ["work.read", "work.write", "prompt"],
+  "contributes": {
+    "workerRules": "rules.md",
+    "workCommands": [
+      {
+        "id": "review",
+        "label": "review",
+        "description": "Review the changes on this branch — read only",
+        "template": "Review the changes on this branch for bugs, missing tests and unclear names. Don't change any code; list what you found, most important first."
+      },
+      {
+        "id": "explain",
+        "label": "explain",
+        "description": "Explain how a part of the code works",
+        "template": "Explain how this works, as if to a new colleague: what it does, where the entry points are, what to watch out for.\n\nWhat: "
+      }
+    ],
+    "workPanels": [
+      { "id": "runs", "title": "Runs", "entry": "index.html", "placement": "tab" },
+      { "id": "details", "title": "Run details", "entry": "session.html", "placement": "session" }
+    ]
+  }
+}

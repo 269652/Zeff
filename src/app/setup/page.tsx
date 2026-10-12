@@ -10,6 +10,7 @@ import { SetupDataRun } from "@/components/SetupDataRun";
 import { currentAccount } from "@/db/accounts";
 import { getPref } from "@/lib/prefs";
 import { SyncSettingsList } from "@/components/SyncSettingsList";
+import { ThisPc } from "@/components/ThisPc";
 import { PLUGIN_CATEGORY_LABELS, PLUGINS, type PluginCategory } from "@/plugins/catalog";
 import { catalogText } from "@/plugins/catalog-text";
 import { chosenPlugins, installedPlugins } from "@/plugins/state";
@@ -112,6 +113,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
 
       {step === "configure" && (
         <>
+          <ThisPc />
           <p className="text-sm text-zinc-600 dark:text-zinc-300">{t("The installed plugins with settings — go through them (each opens in a new tab), then continue.")}</p>
           <ul className="card divide-y divide-zinc-100 dark:divide-zinc-800">
             {PLUGINS.filter((p) => on.has(p.id) && p.settings).map((p) => (

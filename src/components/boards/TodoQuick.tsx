@@ -10,8 +10,10 @@ import type { T } from "@/lib/i18n/shared";
 import { saveDraft, useTodoDrafts } from "./todo-drafts";
 import { AttachPanel } from "@/plugins/documents/AttachPanel";
 import { usePluginOn } from "../PluginFlags";
+import { TodoTimePanel } from "./TodoTime";
+import type { TimeRecord } from "@/lib/work/shared";
 
-export type QuickPanel = "note" | "ai" | "reply" | "doc" | null;
+export type QuickPanel = "note" | "ai" | "reply" | "doc" | "time" | null;
 
 const ICON_BTN =
   "inline-flex size-5 items-center justify-center rounded align-middle text-zinc-400 hover:bg-zinc-100 hover:text-indigo-600 disabled:opacity-40 dark:hover:bg-zinc-800 dark:hover:text-indigo-400";
@@ -38,6 +40,19 @@ export function TodoQuickButtons({ todoId, panel, onToggle, aiDisabled, canReply
           </svg>
         </button>
       )}
+      <button
+        type="button"
+        className={`${ICON_BTN} ${panel === "time" ? "bg-zinc-100 text-indigo-600 dark:bg-zinc-800 dark:text-indigo-400" : ""}`}
+        title={t("Add time you spent on this todo")}
+        aria-label={t("Add time")}
+        aria-expanded={panel === "time"}
+        onClick={() => onToggle(panel === "time" ? null : "time")}
+      >
+        <svg viewBox="0 0 20 20" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <circle cx="10" cy="10" r="7" />
+          <path d="M10 6v4l2.5 2" />
+        </svg>
+      </button>
       <button
         type="button"
         className={`${ICON_BTN} relative ${panel === "note" ? "bg-zinc-100 text-indigo-600 dark:bg-zinc-800 dark:text-indigo-400" : ""}`}
@@ -88,13 +103,14 @@ export function TodoQuickButtons({ todoId, panel, onToggle, aiDisabled, canReply
 }
 
 /** The text field the buttons open: a note saved to the todo, or an instruction Copilot carries out. */
-export function TodoQuickPanel({ todoId, todoRef, panel, onClose }: { todoId: number; todoRef: string; panel: QuickPanel; onClose: () => void }) {
+export function TodoQuickPanel({ todoId, todoRef, panel, onClose, time }: { todoId: number; todoRef: string; panel: QuickPanel; onClose: () => void; time?: TimeRecord[] }) {
   const t = useT();
   const drafts = useTodoDrafts(todoId);
   const [pending, start] = useTransition();
   if (!panel) return null;
   if (panel === "reply") return <ReplyPanel todoId={todoId} onClose={onClose} />;
   if (panel === "doc") return <AttachPanel todoId={todoId} onClose={onClose} />;
+  if (panel === "time") return <TodoTimePanel todoId={todoId} time={time} onClose={onClose} />;
   const ai = panel === "ai";
   const text = drafts[panel];
   const setText = (v: string) => saveDraft(todoId, panel, v);

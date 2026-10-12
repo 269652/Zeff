@@ -5,7 +5,6 @@ import { useT } from "@/components/I18nProvider";
 import { Fragment, useState, useTransition } from "react";
 import { deferTodoAction, runTodoOpsAction, setTodoStatusAction, suggestTodoActionsAction } from "@/plugins/todos/server-actions";
 import {
-  agentInstruction,
   opsButton,
   opTitle,
   sourcesOf,
@@ -31,13 +30,13 @@ import { toast } from "../Toaster";
 import { TodoAlternatives } from "./TodoAlternatives";
 import { AreaToggle, ContextList, ContextToggle, useContextItems } from "./TodoSources";
 import { RunningSpinner } from "../RunningSpinner";
-import { useAgentInstructions } from "../AgentInstructions";
 import { TodoPlan } from "./TodoPlan";
 import { TodoRefs } from "./TodoRefs";
 import { PersonText } from "@/plugins/people/PersonMention";
 import { LastError } from "./LastError";
 import { TodoQuickButtons, TodoQuickPanel, type QuickPanel } from "./TodoQuick";
 import { useTodoNew } from "./todo-seen";
+import { formatMinutes } from "@/lib/work/shared";
 
 const TICKET_KEY = /\b([A-Z][A-Z0-9]+-\d+)\b/g;
 const LINK =
@@ -162,7 +161,6 @@ export function TodoItem({
   const knowledgeEntities = todo.knowledge ? entitiesFor(todo.knowledge.entities, knowledgePages) : [];
   const knowledge = knowledgeOn && (knowledgePages.length || knowledgeEntities.length) ? { pages: knowledgePages, entities: knowledgeEntities } : null;
   const [, startDefer] = useTransition();
-  const instructions = useAgentInstructions();
   const set = (next: TodoStatus) => {
     const before = status;
     setStatus(next);
@@ -247,7 +245,7 @@ export function TodoItem({
           <Linked text={todo.text} cards={cards} mrs={todo.links?.mrs} />
         </span>
         <span className="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-zinc-400">
-          <CopyButton text={agentInstruction(todo, instructions)} className="font-mono hover:text-indigo-600 hover:underline dark:hover:text-indigo-400" title={t("Copy “{text}” — for Copilot / Claude Code", { text: agentInstruction(todo, instructions) })}>
+          <CopyButton text={todo.ref} className="font-mono hover:text-indigo-600 hover:underline dark:hover:text-indigo-400" title={t("Copy “{text}” — for Copilot / Claude Code", { text: todo.ref })}>
             {todo.ref}
           </CopyButton>
           {/* Linked to more than one ticket (the same thing on both): all of them, the main one first. */}
@@ -267,6 +265,15 @@ export function TodoItem({
           <TodoMrLinks mrs={todo.links?.mrs} />
           {" "}· {todoKindLabels(t)[todo.kind]}
           <DueBadge todoId={todo.id} due={todo.due} closed={closed} />
+          {/* The time reported on it (agents', yours): a click opens the records. */}
+          {!!todo.time?.length && (
+            <>
+              {" · "}
+              <button type="button" className="hover:text-indigo-600 hover:underline dark:hover:text-indigo-400" onClick={() => setQuick(quick === "time" ? null : "time")} title={t("{n} time record(s) — click for them", { n: todo.time.length })}>
+                ⏱ {formatMinutes(todo.time.reduce((a, r) => a + r.minutes, 0))}
+              </button>
+            </>
+          )}
           {todo.path && <> · {t("Path “{path}”", { path: todo.path })}</>}
           {todo.flaggedAt && !closed && <span className="font-medium text-red-600 dark:text-red-400"> · {t("important")}</span>}
           {reported && todo.workerDone && (
@@ -282,7 +289,7 @@ export function TodoItem({
           {todo.bubbledUp && !closed && <span className="text-amber-600 dark:text-amber-400" title={t("You had moved it down — it's back on top")}> · {t("back on top: {why}", { why: todo.bubbledUp })}</span>}
           {!closed && <TodoQuickButtons todoId={todo.id} panel={quick} onToggle={setQuick} canReply={todo.owner === "me" && [...todo.refs, ...todo.mailRefs].some((r) => r.startsWith("mail:") || r.startsWith("teams:"))} aiDisabled={!workOn ? t("Work isn't installed (Menu → Plugins)") : running || doing ? t("Being worked on — once the run is done") : undefined} />}
         </span>
-        <TodoQuickPanel todoId={todo.id} todoRef={todo.ref} panel={closed ? null : quick} onClose={() => setQuick(null)} />
+        <TodoQuickPanel todoId={todo.id} todoRef={todo.ref} panel={closed && quick !== "time" ? null : quick} onClose={() => setQuick(null)} time={todo.time} />
         {todo.note ? (
           <span className="block text-xs text-zinc-400">
             <TodoRefs text={todo.note} />

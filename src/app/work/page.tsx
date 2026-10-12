@@ -1,3 +1,4 @@
+import { extWorkPanels } from "@/lib/ext/work";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
@@ -15,6 +16,7 @@ import { CLAUDE_MODELS } from "@/lib/ai/shared";
 import { llmChoice } from "@/plugins/llm/run";
 import { elevationAvailable } from "@/plugins/work-elevated/elevate";
 import { listRepos, repoForTicket } from "@/lib/repos";
+import { GitMissingNotice } from "@/components/GitMissingNotice";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("Work") };
@@ -64,9 +66,10 @@ export default async function WorkPage({
   return (
     <SidebarFrame
       storageKey="zeff-work-sidebar"
-      sidebar={<SessionSidebar tickets={tickets.filter((x) => x.sessions.length > 0)} selected={selected} showArchived={showArchived} archivedCount={archivedCount} />}
+      sidebar={<SessionSidebar tickets={tickets.filter((x) => x.sessions.length > 0)} selected={selected} showArchived={showArchived} archivedCount={archivedCount} extTabs={extWorkPanels("tab").map((x) => ({ id: x.id, title: x.title, plugin: x.pluginName, href: x.href }))} />}
       contentClassName="flex-col"
     >
+      <GitMissingNotice />
       <WorkFollow active={running > 0} />
       {run ? (
         <SessionPane run={toRunView(run)} options={options} />

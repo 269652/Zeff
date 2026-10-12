@@ -36,17 +36,20 @@ Use get_weekly_report to review a week.
 
 Todos: Zeff's Todos tab reads the user's Jira tickets and finds concrete todos on them (T-<id>). Before working on a ticket, list_todos with its key shows what's open.
 
+Time on a todo: REPORT IT AS YOU GO. A todo has many time records — call todo_time (todo, minutes, a one-line note, your name as agent) after each phase of the work (research, implementation, tests …), before you ask the user something and whenever you pause or stop: the minutes spent since your LAST record, honestly (waiting for the user doesn't count; no padding, no rounding up). Several calls per todo are expected and wanted. When the user books, the time of all related todos (same ticket, follow-ups, the todos a session touched) flows into ONE booking suggestion, with each record linked as evidence — so the records are how your time is tracked. Don't report the same stretch twice, and don't also add it up in report_time.
+
 Working on a todo (you're an agent — VS Code Copilot, Claude Code, …):
 1. Call start_todo with the todo and your name as agent IMMEDIATELY — as your very first step, before you read code, research, plan or ask anything. Research and looking around already count as working on it. Zeff then shows the todo as being worked on and you as a worker on its Work tab.
-2. Code changes go on a FEATURE BRANCH, never on main: start_todo tells you the repo and the branch — the ticket's EXISTING feature branch if it has one (continue on it), otherwise a new one (feature/<TICKET>-<words>, fix/… for bugs) that you create from the default branch in a separate worktree (git worktree add -b <branch> <folder> origin/main after a fetch). Commit there. Don't push to main and don't merge — Zeff does the delivery from your branch.
+2. Code changes go on a FEATURE BRANCH, never on main: start_todo tells you the repo and the branch — the ticket's EXISTING feature branch if it has one (continue on it), otherwise a new one: feature/<TICKET>-<short-change> (fix/… for bugs), where <TICKET> is the key of the Jira ticket the todo belongs to (e.g. PROJ-364) and <short-change> is 2–4 lowercase words (max ~30 characters) describing the code change you actually make (feature/PROJ-364-footer-link-indent) — NOT the ticket's or todo's title, which isn't necessarily the change. The ticket key must always be the prefix; never a name without it. You create it from the default branch in a separate worktree (git worktree add -b <branch> <folder> origin/main after a fetch). Commit there. Don't push to main and don't merge — Zeff does the delivery from your branch.
    Implement with STRICT TDD: first a test that fails for the right reason, then the smallest change that makes it pass, then tidy up — and run the affected suite at the end. What can only be checked by hand, name as open in your summary.
    Then call todo_context for everything Zeff knows about it (the ticket, comments, the Teams messages and mails it comes from, the user's notes, earlier runs) — read it before you start.
    Optionally call todo_progress with a short note now and then (what you're doing) — it's your log there.
+   Report your time with todo_time after each phase and before you ask the user (see "Time on a todo" above).
    Whenever you stop to ask the user something (a question, a decision, a confirmation, a review) — call todo_needs_input with the question FIRST, then ask. The todo then shows ❗ on Zeff's Todos and Work tabs so the user sees you're waiting. Once you have the answer and go on, call todo_progress (that clears the ❗) — finish_todo clears it too.
-3. When you're done — or stop — call finish_todo with: summary (it's shown on the todo as your comment — so ALWAYS a summary of what you did: first ONE sentence saying what is done now, then short bullets: what you changed, how you tested, what's still open and why, where it is — branch and commit), entry (ONE short line for the booking, same rules as report_time descriptions), minutes (how long the work took you, honestly), outcome (done / partial / blocked), branch (the feature branch you committed on — and repo, its folder, if Zeff doesn't know the ticket's repo) and followUps for what's left (replies, comments, ticket changes — with ready drafts).
+3. When you're done — or stop — call finish_todo with: summary (it's shown on the todo as your comment — so ALWAYS a summary of what you did: first ONE sentence saying what is done now, then short bullets: what you changed, how you tested, what's still open and why, where it is — branch and commit), entry (ONE short line for the booking, same rules as report_time descriptions), minutes (the time since your LAST todo_time record — all of it, if you reported none —, honestly), outcome (done / partial / blocked), branch (the feature branch you committed on — and repo, its folder, if Zeff doesn't know the ticket's repo) and followUps for what's left (replies, comments, ticket changes — with ready drafts).
    With a branch, Zeff creates a todo for the user to TEST AND VERIFY your work by hand first; once they've ticked it off, the delivery follows (push → merge request to main, or merge straight into main — one click each). Don't create test or delivery todos yourself, and say in your summary what the user should test.
-   finish_todo records your time as such a suggestion itself (its minutes and its entry line, with the todo and your run as evidence) — so give honest minutes and a good one-line entry, and do NOT also call report_time for that work (it would be suggested twice).
-Use report_time (with todos: ['T-12'] — they're reported done with it) for work you did without start_todo / finish_todo, and complete_todo to report a todo done that nobody needs to book time for. Reporting a todo done marks it (highlighted in Zeff) — it stays open; the user closes it.`;
+   finish_todo records those last minutes as one more time record on the todo (the entry line as its note) and suggests the booking itself — all the todo's records not suggested yet add up in it, with the todo and your run as evidence — so give honest minutes and a good one-line entry, and do NOT also call report_time for that work (it would be suggested twice).
+Use report_time (with todos: ['T-12'] — they're reported done with it) for work you did without start_todo / finish_todo (and without todo_time records), and complete_todo to report a todo done that nobody needs to book time for. Reporting a todo done marks it (highlighted in Zeff) — it stays open; the user closes it.`;
 
 // ---------------------------------------------------------------------------
 // Result helpers
@@ -216,6 +219,11 @@ export function registerZeffTools(server: McpServer): void {
           if (id === null || !getTodo(id)) unknown.push(ref);
           else known.push(id);
         }
+        // Time already reported on these todos (todo_time): attached as evidence, not added to the hours — the agent is told.
+        const { listTodoTimes } = await import("@/lib/work/todo-time");
+        const { formatMinutes } = await import("@/lib/work/shared");
+        const taken = (await import("@/lib/work/suggestions")).suggestedEvidence().timeIds;
+        const reported = listTodoTimes(known, { open: true }).filter((r) => !taken.has(r.id));
         // A suggestion, not a booking: the user takes it over in Zeff (with its evidence).
         const { suggestEntry } = await import("@/lib/work/suggestions");
         const s = suggestEntry({
@@ -246,6 +254,7 @@ export function registerZeffTools(server: McpServer): void {
             ` — "${s.description}". Not booked: the user takes it over in Zeff.` +
             (s.todos.length || s.runs.length ? ` Evidence: ${[...s.todos.map((t) => t.ref), ...s.runs.map((r) => r.ref)].join(", ")}.` : "") +
             (closed.length ? ` Reported done (still open for you to close): ${closed.join(", ")}.` : "") +
+            (reported.length ? ` Note: ${formatMinutes(reported.reduce((a, r) => a + r.minutes, 0))} was already reported on ${[...new Set(reported.map((r) => r.todo))].join(", ")} with todo_time (${reported.length} record(s)) — attached as evidence; your ${formatHours(s.hours)}h stand for the booking, so make sure it doesn't count that time twice (update_time_entry ${s.ref}).` : "") +
             (unknown.length ? ` Unknown todos (not linked): ${unknown.join(", ")}.` : ""),
         );
       }),
@@ -315,15 +324,19 @@ export function registerZeffTools(server: McpServer): void {
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
     async (args) =>
-      run(() => {
+      run(async () => {
         const off = pluginOff("todos");
         if (off) return off;
         const list = listTodos({ ticket: args.ticket, status: args.status ?? "open" });
         if (list.length === 0) return ok(`No ${args.status === "all" ? "" : `${args.status ?? "open"} `}todos${args.ticket ? ` on ${args.ticket}` : ""}.`);
+        const { timeTotals } = await import("@/lib/work/todo-time");
+        const { formatMinutes } = await import("@/lib/work/shared");
+        const tracked = timeTotals(list.map((t) => t.id));
         const lines = list.map(
           (t) =>
             `- ${t.ref} · ${[t.ticket, ...t.alsoTickets].join(" + ")} · ${t.kind}${t.owner === "other" ? " · waiting for others" : ""}${t.status !== "open" ? ` · ${t.status}` : ""}: ${t.text}` +
             (t.source ? ` (source: ${t.source})` : "") +
+            (tracked.get(t.id) ? ` [tracked: ${formatMinutes(tracked.get(t.id)!)}]` : "") +
             (t.note ? `\n  note: ${t.note}` : "") +
             t.userNotes.map((n) => `\n  ${n.by ? `report by ${n.by}${n.url ? ` (${n.url})` : ""}` : "the user's note (context — it takes precedence)"}: ${n.text.replace(/\n+/g, " ")}`).join(""),
         );
@@ -359,9 +372,9 @@ export function registerZeffTools(server: McpServer): void {
             (w.repo
               ? w.existing
                 ? `Code: repo ${w.repo.name} (${w.repo.path}). ${todo.ticket} has a feature branch already: ${w.existing} — continue on it (git fetch origin && git switch ${w.existing}, or a worktree of it if your checkout is busy). Commit there, don't push to ${w.base}, don't merge. Strict TDD: a failing test first, then the change, then the suite.\n`
-                : `Code: repo ${w.repo.name} (${w.repo.path}). No feature branch for ${todo.ticket} yet — create one off ${w.base} in a separate worktree: ${w.branch} (git fetch origin && git worktree add -b ${w.branch} ../${w.repo.name}-${todo.ticket} origin/${w.base}). Commit there, don't push to ${w.base}, don't merge. Strict TDD: a failing test first, then the change, then the suite.\n`
-              : `Code: Zeff knows no repo for ${todo.ticket} — work on a feature branch (${w.branch}) and pass branch and repo (its folder) to finish_todo. Strict TDD: a failing test first, then the change, then the suite.\n`) +
-            "Its full context (ticket, comments, Teams, mails, notes, earlier runs): todo_context. Notes as you go: todo_progress. Asking the user something: todo_needs_input with the question first (todo_progress clears it when you go on). When you're through: finish_todo with summary, entry, minutes, outcome and branch (that's what gets booked and delivered — don't call report_time for it)." +
+                : `Code: repo ${w.repo.name} (${w.repo.path}). No feature branch for ${todo.ticket} yet — create one off ${w.base} in a separate worktree. Name: ${w.branch} — replace <short-change> with 2–4 lowercase words (max ~30 characters) describing the code change you make, not the ticket's or todo's title; keep the ${todo.ticket} prefix (git fetch origin && git worktree add -b ${w.branch} ../${w.repo.name}-${todo.ticket} origin/${w.base}). Commit there, don't push to ${w.base}, don't merge. Strict TDD: a failing test first, then the change, then the suite.\n`
+              : `Code: Zeff knows no repo for ${todo.ticket} — work on a feature branch named ${w.branch} (keep the ${todo.ticket} prefix; <short-change> = 2–4 lowercase words for the code change you make, not the ticket's title) and pass branch and repo (its folder) to finish_todo. Strict TDD: a failing test first, then the change, then the suite.\n`) +
+            "Its full context (ticket, comments, Teams, mails, notes, earlier runs): todo_context. Notes as you go: todo_progress. Asking the user something: todo_needs_input with the question first (todo_progress clears it when you go on). YOUR TIME: todo_time with the minutes since your last record and a one-line note — after each phase, before you ask the user, when you pause (several records per todo; that's how your time is tracked). When you're through: finish_todo with summary, entry, minutes (since your last todo_time record), outcome and branch (that's what gets booked and delivered — don't call report_time for it)." +
             // The user's instructions and context (the LLM plugin's) — for every agent too.
             (preamble ? `\n\n${preamble}` : ""),
         );
@@ -411,6 +424,43 @@ export function registerZeffTools(server: McpServer): void {
   );
 
   server.registerTool(
+    "todo_time",
+    {
+      title: "Report time spent on a board todo",
+      description:
+        "Report the time you spent on a todo (T-<id>) — ONE record for one stretch of work: minutes since your last record, honestly, with a one-line note of what was done. " +
+        "Call it after each phase, before you ask the user something and when you pause or stop; a todo gets many records. When the user books, the time of all related todos " +
+        "(same ticket, follow-ups, the todos a session touched) flows into one booking suggestion with every record linked as evidence. Not a booking by itself.",
+      inputSchema: z.object({
+        todo: z.string().min(1).describe("The todo, e.g. 'T-12'."),
+        minutes: z.number().positive().max(1440).optional().describe("Minutes spent since your last record (1-1440)."),
+        hours: z.number().positive().max(24).optional().describe("Instead of minutes: hours as a decimal, e.g. 0.75."),
+        note: z.string().optional().describe("What was done in that time, ONE short line (<80 chars); no commit logs or file lists."),
+        agent: z.string().optional().describe("Who you are — e.g. 'Claude Code', 'VS Code Copilot'; a Zeff worker: its run, 'W-45'."),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    },
+    async (args) =>
+      run(async () => {
+        const off = pluginOff("work");
+        if (off) return off;
+        const id = parseTodoRef(args.todo);
+        const todo = id === null ? undefined : getTodo(id);
+        if (!todo) return fail(`"${args.todo}" isn't a todo — list_todos shows them (T-12).`);
+        const minutes = args.minutes ?? (args.hours !== undefined ? Math.round(args.hours * 60) : undefined);
+        if (minutes === undefined) return fail("Pass minutes (or hours) — the time you spent since your last record.");
+        const { addTodoTime, listTodoTimes } = await import("@/lib/work/todo-time");
+        const { formatMinutes } = await import("@/lib/work/shared");
+        const r = addTodoTime({ todoId: todo.id, minutes, note: args.note, by: args.agent, source: "agent" });
+        const open = listTodoTimes([todo.id], { open: true });
+        return ok(
+          `Recorded ${r.ref}: ${formatMinutes(r.minutes)} on ${todo.ref} (${r.by})${r.note ? ` — "${r.note}"` : ""}. ` +
+            `${todo.ref} has ${open.length} unbooked record(s), ${formatMinutes(open.reduce((a, x) => a + x.minutes, 0))} in all; the next one is the time since now.`,
+        );
+      }),
+  );
+
+  server.registerTool(
     "todo_needs_input",
     {
       title: "Mark a board todo as waiting for the user",
@@ -438,7 +488,7 @@ export function registerZeffTools(server: McpServer): void {
       title: "Finish working on a board todo",
       description:
         "Report on a todo you worked on (after start_todo): what you did, the line to book, how long it took. Zeff ends your run with it, ticks the todo off when it's done " +
-        "(and the comments it came from), keeps your follow-ups as new todos, and records the time as a booking suggestion (S-<id>, your minutes and entry line, the todo and your run as evidence) — the user takes it over. Don't also call report_time for this work.",
+        "(and the comments it came from), keeps your follow-ups as new todos, and records your minutes as one more time record on the todo and suggests the booking (S-<id>: all the todo's unsuggested time records, your entry line, the todo and your run as evidence) — the user takes it over. Don't also call report_time for this work.",
       inputSchema: z.object({
         todo: z.string().min(1).describe("The todo, e.g. 'T-12'."),
         summary: z
@@ -446,7 +496,7 @@ export function registerZeffTools(server: McpServer): void {
           .min(1)
           .describe("Your comment on the todo — always a summary of what you did: ONE sentence on what is done now, then short bullets: changed, tested, still open (and why), where (branch, commit). Markdown."),
         entry: z.string().min(1).describe("ONE short line for the time booking: what was done, not how (no commit/MR numbers, no file lists)."),
-        minutes: z.number().positive().describe("How long the work took, in minutes."),
+        minutes: z.number().positive().describe("The time since your last todo_time record, in minutes — all the work's time, if you reported none."),
         outcome: z.enum(["done", "partial", "blocked"]).optional().describe("done (default): the todo is finished; partial: some of it; blocked: you couldn't go on."),
         agent: z.string().optional().describe("Who you are (when you didn't call start_todo)."),
         branch: z.string().optional().describe("The feature branch you committed the work on — Zeff then creates the delivery todo (push → merge request, or merge into main)."),
@@ -474,7 +524,7 @@ export function registerZeffTools(server: McpServer): void {
         const r = await finishAgentWork(args);
         const mins = r.durationMs ? Math.round(r.durationMs / 60000) : args.minutes;
         return ok(
-          `W-${r.run.id} finished (${r.run.outcome}) — ${mins} min recorded${r.suggestion ? ` as booking suggestion ${r.suggestion}` : ""} ("${r.run.entryLine ?? ""}"); the user takes it over in Zeff.` +
+          `W-${r.run.id} finished (${r.run.outcome}) — ${mins} min recorded on the todo${r.suggestion ? ` as booking suggestion ${r.suggestion}` : ""} ("${r.run.entryLine ?? ""}"); the user takes it over in Zeff.` +
             (r.closed.length || r.marked.length ? ` Reported done: ${[...r.closed, ...r.marked].map((id) => todoRef(id)).join(", ")} (they stay open and are highlighted — the user closes them).` : "") +
             (r.added.length ? ` Follow-ups: ${r.added.map((id) => todoRef(id)).join(", ")}.` : "") +
             (r.delivery ? ` Delivery: ${r.delivery}.` : args.branch ? "" : " No branch given — if you changed code, tell the user which branch it's on."),

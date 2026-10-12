@@ -17,6 +17,7 @@ function db() {
     create table if not exists people_dates (id integer primary key autoincrement, person_id integer not null references people(id) on delete cascade, kind text not null default 'birthday', label text not null default '', day integer not null, month integer not null, year integer, yearly integer not null default 1, remind_days integer not null default 7, source text not null default 'manual', source_text text not null default '', confirmed integer not null default 1, created_at text not null);
     create index if not exists people_dates_person on people_dates (person_id);
     create table if not exists people_reminded (date_id integer not null references people_dates(id) on delete cascade, occurrence text not null, done_at text not null, primary key (date_id, occurrence));
+    create table if not exists people_relations (id integer primary key autoincrement, person_id integer not null references people(id) on delete cascade, rel text not null, other_id integer not null default 0, evidence text not null default '', source text not null default 'ai', created_at text not null, unique (person_id, rel, other_id));
   `);
   return d;
 }
@@ -109,6 +110,7 @@ export function updatePerson(id: number, patch: { name?: string; aliases?: strin
 }
 
 export function deletePerson(id: number): void {
+  db().prepare("delete from people_relations where other_id = ?").run(id);
   db().prepare("delete from people where id = ?").run(id);
   changed();
 }
@@ -314,6 +316,38 @@ export function mergePeople(keepId: number, dropId: number): void {
       const { id: _id, personId: _p, ...rest } = x;
       addDate(keep.id, rest);
     }
+    // Its relations — and those others have to it — move along (the same one twice: kept once).
+    d.prepare("update or ignore people_relations set person_id = ? where person_id = ?").run(keep.id, drop.id);
+    d.prepare("update or ignore people_relations set other_id = ? where other_id = ?").run(keep.id, drop.id);
+    d.prepare("delete from people_relations where person_id = ? and other_id = person_id").run(keep.id);
     deletePerson(drop.id);
   })();
+}
+
+// ---------------------------------------------------------------------------
+// Relations: who is who to whom — structured, derived by the AI from your contexts
+// ---------------------------------------------------------------------------
+
+export type PersonRelation = { id: number; personId: number; /** From your side: "meine Mutter", "Schwester von Lotte", "Vermieter". */ rel: string; /** The other profile (0: you). */ otherId: number; otherName: string | null; evidence: string; source: "ai" | "manual" };
+
+/** A person's relations: what they are to you / to others (out), and what others are to them (in). */
+export function relationsOf(personId: number): { out: PersonRelation[]; in: (PersonRelation & { personName: string })[] } {
+  type R = { id: number; person_id: number; rel: string; other_id: number; evidence: string; source: string; other_name: string | null; person_name: string };
+  const rows = (where: string) => db().prepare(`select r.*, o.name other_name, p.name person_name from people_relations r join people p on p.id = r.person_id left join people o on o.id = r.other_id where ${where} order by r.id`).all(personId) as R[];
+  const view = (r: R): PersonRelation => ({ id: r.id, personId: r.person_id, rel: r.rel, otherId: r.other_id, otherName: r.other_name, evidence: r.evidence, source: r.source === "manual" ? "manual" : "ai" });
+  return { out: rows("r.person_id = ?").map(view), in: rows("r.other_id = ?").map((r) => ({ ...view(r), personName: r.person_name })) };
+}
+
+/** A relation kept — the same (person, phrase, other) once. */
+export function addRelation(personId: number, rel: string, otherId: number, evidence = "", source: "ai" | "manual" = "ai"): boolean {
+  const phrase = rel.trim().slice(0, 60);
+  if (!phrase || personId === otherId || !getPerson(personId) || (otherId !== 0 && !getPerson(otherId))) return false;
+  const r = db().prepare("insert or ignore into people_relations (person_id, rel, other_id, evidence, source, created_at) values (?, ?, ?, ?, ?, ?)").run(personId, phrase, otherId, evidence.trim().slice(0, 300), source, now());
+  if (r.changes) changed();
+  return r.changes > 0;
+}
+
+export function deleteRelation(id: number): void {
+  db().prepare("delete from people_relations where id = ?").run(id);
+  changed();
 }
