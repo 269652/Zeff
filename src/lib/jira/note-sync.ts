@@ -1,9 +1,8 @@
-import { createHash } from "node:crypto";
 import { jiraCommentUrl } from "@/lib/boards/shared";
 import { getTodo, markNoteSynced } from "@/lib/boards/store";
 import { ValidationError, errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
-import { linkJiraAccounts, mentionsToJira } from "@/plugins/people/accounts";
+import { jiraNoteBody, linkJiraAccounts } from "@/plugins/people/accounts";
 import { resultToPayload, runStdioSession } from "./mcp-client";
 import { getJiraTicket } from "./store";
 import { getJiraSyncConfig } from "./sync";
@@ -70,8 +69,7 @@ export async function syncNoteToJira(todoId: number, at: string, deps?: NoteSync
   } catch {
     // without the link, the name is written out
   }
-  const { text, noAccount } = mentionsToJira(note.text);
-  const hash = createHash("sha1").update(text).digest("hex");
+  const { text, hash, noAccount } = jiraNoteBody(note.text);
   const sync = async (d: NoteSyncDeps): Promise<NoteSyncResult> => {
     const post = async () => {
       const id = await d.post(ticket.key, text);

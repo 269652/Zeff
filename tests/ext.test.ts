@@ -256,7 +256,16 @@ test("a hook gets the event on stdin, in its folder, with the API environment; a
   reg.setEnabled("hook-p", true);
   process.env.ZEFF_WORK_TOKEN = "must-not-reach-plugins";
   emitExtEvent("work.run.finished", { runId: 7, status: "done" });
-  for (let i = 0; i < 100 && !fs.existsSync(path.join(dir, "out.json")); i++) await new Promise((r) => setTimeout(r, 100));
+  // (Until the file is whole: it exists as soon as the hook opens it, a slow machine may show it half written.)
+  const written = () => {
+    try {
+      JSON.parse(fs.readFileSync(path.join(dir, "out.json"), "utf8"));
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  for (let i = 0; i < 150 && !written(); i++) await new Promise((r) => setTimeout(r, 100));
   const out = JSON.parse(fs.readFileSync(path.join(dir, "out.json"), "utf8")) as { stdin: { event: string; plugin: string; data: { runId: number } }; env: Record<string, unknown> };
   assert.equal(out.stdin.event, "work.run.finished");
   assert.equal(out.stdin.plugin, "hook-p");

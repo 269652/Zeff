@@ -3771,6 +3771,8 @@
   "related": "relacionado",
   "{run} ran {n} min longer than reported on {todo}": "{run} duró {n} min más de lo informado en {todo}",
   "Unreported time of {run}": "Tiempo no informado de {run}",
+  "Also on Jira as a comment (it shows here once the Jira sync has read it back)": "También en Jira como comentario (aparece aquí cuando la sincronización de Jira lo haya leído)",
+  "Changed since the last sync (the note, or who the people you tagged are) — sync again to update the comment on Jira": "Cambiado desde la última sincronización (la nota o quiénes son las personas etiquetadas) — sincroniza de nuevo para actualizar el comentario en Jira",
   "On both: your note here and its comment on Jira ({ticket}, {when})": "En ambos: tu nota aquí y su comentario en Jira ({ticket}, {when})",
   "Your note and its comment on Jira — {ticket}, {when}, by {author}": "Tu nota y su comentario en Jira — {ticket}, {when}, de {author}",
   "The note has changed since the last sync — sync again to update the comment on Jira": "La nota ha cambiado desde la última sincronización — sincroniza de nuevo para actualizar el comentario en Jira",

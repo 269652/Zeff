@@ -368,11 +368,13 @@ export type TodoUserNote = {
   jiraHash?: string;
   /** The note's text as it was last synced — to tell whether it has changed since. */
   jiraText?: string;
+  /** Filled in when the todo is read: what would go to Jira now differs from the comment there (the note changed, or who the people it tags are). */
+  jiraStale?: boolean;
 };
 
 /** Whether a note matches its comment on Jira: none (not synced / not a note to sync), synced, or changed since the last sync (also: synced before Zeff kept what was synced). */
-export const noteSyncState = (n: Pick<TodoUserNote, "text" | "jiraCommentId" | "jiraText" | "by" | "kind">): "none" | "synced" | "changed" =>
-  n.by || n.kind === "instruction" || !n.jiraCommentId ? "none" : n.jiraText === n.text ? "synced" : "changed";
+export const noteSyncState = (n: Pick<TodoUserNote, "text" | "jiraCommentId" | "jiraText" | "by" | "kind"> & { jiraStale?: boolean }): "none" | "synced" | "changed" =>
+  n.by || n.kind === "instruction" || !n.jiraCommentId ? "none" : n.jiraStale || n.jiraText !== n.text ? "changed" : "synced";
 
 /** A todo's GitLab links: merge requests by ref, comments by key ("note:123"). */
 export type TodoLinks = {

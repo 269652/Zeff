@@ -1,5 +1,6 @@
 import { parseTodoKnowledge } from "@/plugins/knowledge/shared";
 import { duplicateTodo } from "./similar";
+import { jiraNoteBody } from "@/plugins/people/accounts";
 import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { emitChange } from "@/lib/events";
@@ -141,6 +142,19 @@ function linksOf(id: number): { branchRefs: string[]; dismissed: Set<string> } {
   return { branchRefs: items.map((i) => `gitlab:${i.key}`), dismissed: new Set(rows.filter((l) => l.kind === "dismissed").map((l) => l.value)) };
 }
 
+/**
+ * A note synced to Jira, marked when what would go there now differs from the comment (its text with the people
+ * it tags as mentions is hashed, as at the sync) — the note changed, or who a tagged person is did. Others as they are.
+ */
+function withJiraStale(n: TodoView["userNotes"][number]): TodoView["userNotes"][number] {
+  if (!n.jiraCommentId || n.by || n.kind === "instruction") return n;
+  try {
+    return { ...n, jiraStale: jiraNoteBody(n.text).hash !== n.jiraHash };
+  } catch {
+    return n;
+  }
+}
+
 const toTodo = (r: Todo): TodoView => {
   const { branchRefs, dismissed } = linksOf(r.id);
   const shown = (refs: string[]) => refs.filter((k) => !dismissed.has(k));
@@ -169,7 +183,7 @@ const toTodo = (r: Todo): TodoView => {
   planned: cleanPlan(parse<unknown[]>(r.planned, []), r.ticket),
   path: r.path,
   needsInput: r.needsInput ?? null,
-  userNotes: parse<TodoView["userNotes"]>(r.userNotes, []).filter((n) => n && typeof n.text === "string"),
+  userNotes: parse<TodoView["userNotes"]>(r.userNotes, []).filter((n) => n && typeof n.text === "string").map(withJiraStale),
   deferredAt: r.deferredAt ?? null,
   flaggedAt: r.flaggedAt ?? null,
   workerDone: parse<TodoView["workerDone"]>(r.workerDone ?? "null", null),

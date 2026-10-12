@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { desc, eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { BoardTicket } from "@/lib/boards/shared";
@@ -66,6 +67,12 @@ export function linkJiraAccounts(): number {
     }
   }
   return linked;
+}
+
+/** A note as it goes to Jira: its words with the tagged people as mentions — and a hash of that (what a synced comment is compared by). */
+export function jiraNoteBody(raw: string, people?: Person[]): { text: string; hash: string; noAccount: string[] } {
+  const { text, noAccount } = mentionsToJira(raw, people);
+  return { text, hash: createHash("sha1").update(text).digest("hex"), noAccount };
 }
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

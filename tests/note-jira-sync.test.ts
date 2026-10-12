@@ -177,3 +177,27 @@ test("a note tells whether it still matches its comment on Jira: not synced, in 
   assert.equal(noteSyncState({ text: "alt", jiraCommentId: "1" }), "changed");
   assert.equal(noteSyncState({ text: "alt", by: "W-1" }), "none");
 });
+
+test("a note is out of sync when what would go to Jira differs from what is there — also when only the people it tags changed (an account was linked since)", async () => {
+  await board("NS-7");
+  const { createPerson, addAccount } = await import("@/plugins/people/store");
+  const { syncNoteToJira } = await import("@/lib/jira/note-sync");
+  const { getTodo } = await import("@/lib/boards/store");
+  const { noteSyncState } = await import("@/lib/boards/shared");
+  const paul = createPerson({ name: "Paul Spaeter" });
+  const { todo, note } = await todoWithNote("NS-7", "@Paul Spaeter bitte schauen");
+  const posts: string[] = [];
+  const deps = { post: async (_t: string, b: string) => (posts.push(b), "50001"), edit: async (_t: string, _i: string, b: string) => void posts.push(b) };
+  await syncNoteToJira(todo.id, note.at, deps);
+  assert.equal(posts[0], "Paul Spaeter bitte schauen", "no Jira account known then: written out");
+  assert.equal(noteSyncState(getTodo(todo.id)!.userNotes[0]), "synced");
+  // The note is the same; Paul's Jira user is known now: what would go to Jira is another text.
+  addAccount(paul, "jira", "paulspaet");
+  const stale = getTodo(todo.id)!.userNotes[0];
+  assert.equal(stale.text, "@Paul Spaeter bitte schauen");
+  assert.equal(stale.jiraStale, true);
+  assert.equal(noteSyncState(stale), "changed");
+  await syncNoteToJira(todo.id, note.at, deps);
+  assert.equal(posts[1], "[~paulspaet] bitte schauen");
+  assert.equal(noteSyncState(getTodo(todo.id)!.userNotes[0]), "synced");
+});

@@ -37,8 +37,11 @@ export function NoteBadge({ n, className = "", jira }: { n: TodoUserNote; classN
     <div className={`flex min-w-0 items-stretch overflow-hidden rounded-md border text-xs ${tone} ${className}`}>
       <span className="flex min-w-0 flex-1 items-center gap-2 py-1 pr-2 pl-1.5">
         {ai || n.kind === "instruction" ? <SparkIcon className={`size-4 shrink-0 ${ai ? "text-violet-600 dark:text-violet-400" : "text-indigo-600 dark:text-indigo-400"}`} /> : <NoteIcon className="size-4 shrink-0 text-indigo-600 dark:text-indigo-400" />}
-        {onJira && (
-          <span className="inline-flex shrink-0 items-center" title={t("On both: your note here and its comment on Jira ({ticket}, {when})", { ticket: onJira.ticket, when: when(onJira.at) })}>
+        {(onJira || n.jiraCommentId) && (
+          <span
+            className="inline-flex shrink-0 items-center"
+            title={onJira ? t("On both: your note here and its comment on Jira ({ticket}, {when})", { ticket: onJira.ticket, when: when(onJira.at) }) : t("Also on Jira as a comment (it shows here once the Jira sync has read it back)")}
+          >
             <JiraMark className="size-4 text-sky-600 dark:text-sky-400" />
           </span>
         )}
@@ -127,17 +130,16 @@ export function NoteRow({ n, todoId, jira }: { n: TodoUserNote; todoId?: number;
             <PencilIcon className="size-3.5" />
           </button>
         )}
-        {mine && (
+        {/* In sync, the Jira mark on the badge says it; the button is for a note that isn't on Jira yet or has changed since. */}
+        {mine && sync !== "synced" && (
           <button
             type="button"
-            className={`shrink-0 rounded px-1 text-xs font-medium hover:underline disabled:opacity-40 ${sync === "synced" ? "text-emerald-600 dark:text-emerald-400" : sync === "changed" ? "text-amber-600 dark:text-amber-400" : "text-indigo-600 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 dark:text-indigo-400"}`}
+            className={`shrink-0 rounded px-1 text-xs font-medium hover:underline disabled:opacity-40 ${sync === "changed" ? "text-amber-600 dark:text-amber-400" : "text-indigo-600 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 dark:text-indigo-400"}`}
             disabled={pending}
             title={
               sync === "changed"
-                ? t("The note has changed since the last sync — sync again to update the comment on Jira")
-                : sync === "synced"
-                  ? t("Matches the comment on Jira. Syncing again writes the comment again (it repairs it if it was changed there)")
-                  : t("Puts the note on the todo's Jira ticket as a comment — people you tagged (@) are mentioned there")
+                ? t("Changed since the last sync (the note, or who the people you tagged are) — sync again to update the comment on Jira")
+                : t("Puts the note on the todo's Jira ticket as a comment — people you tagged (@) are mentioned there")
             }
             onClick={() =>
               start(async () => {
@@ -146,7 +148,7 @@ export function NoteRow({ n, todoId, jira }: { n: TodoUserNote; todoId?: number;
               })
             }
           >
-            {pending ? "…" : sync === "synced" ? t("✓ on Jira") : sync === "changed" ? t("Sync again") : t("Sync to Jira")}
+            {pending ? "…" : sync === "changed" ? t("Sync again") : t("Sync to Jira")}
           </button>
         )}
         {own && <DismissButton onDismiss={() => removeTodoNoteAction(todoId!, n.at)} title={t("Dismiss — takes it out of this todo's context for good")} label={t("Dismiss this context item")} />}
