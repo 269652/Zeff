@@ -17,7 +17,13 @@ const LISTED = /^(.+?) \(([^()]+)\)$/;
  * latest briefing runs list on their tickets. A name two usernames go by isn't in it: not guessed.
  */
 export function jiraDirectory(): Map<string, string> {
+  return new Map([...jiraUsers()].map(([name, u]) => [name, u.user] as [string, string]));
+}
+
+/** The same with the name as Jira writes it: display name (lower case) → { name, username }. */
+export function jiraUsers(): Map<string, { name: string; user: string }> {
   const seen = new Map<string, Set<string>>();
+  const shown = new Map<string, string>();
   for (const run of getDb().select({ tickets: schema.boardRuns.tickets }).from(schema.boardRuns).where(eq(schema.boardRuns.status, "ok")).orderBy(desc(schema.boardRuns.id)).limit(12).all()) {
     let tickets: BoardTicket[] = [];
     try {
@@ -30,11 +36,12 @@ export function jiraDirectory(): Map<string, string> {
         const m = LISTED.exec(p.trim());
         if (!m) continue;
         const name = m[1].trim().toLowerCase();
+        if (!shown.has(name)) shown.set(name, m[1].trim());
         seen.set(name, (seen.get(name) ?? new Set()).add(m[2].trim()));
       }
     }
   }
-  return new Map([...seen].flatMap(([name, users]) => (users.size === 1 ? [[name, [...users][0]] as [string, string]] : [])));
+  return new Map([...seen].flatMap(([name, users]) => (users.size === 1 ? [[name, { name: shown.get(name) ?? name, user: [...users][0] }] as [string, { name: string; user: string }]] : [])));
 }
 
 /**

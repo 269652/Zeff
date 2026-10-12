@@ -58,6 +58,23 @@ export async function updatePersonFormAction(fd: FormData): Promise<void> {
   back(str(fd, "to") || `/personen/${id}`, { saved: "1" });
 }
 
+/** "Import from context": the people of the last 14 days of your mails, chats, Teams, Jira and GitLab, through the AI — now. */
+export async function importPeopleFormAction(): Promise<void> {
+  let result = "";
+  try {
+    guard();
+    const { importPeopleFromContext } = await import("./import");
+    const r = await importPeopleFromContext();
+    // Their Jira accounts, tied by name (no AI) — for the people just made too.
+    (await import("./accounts")).linkJiraAccounts();
+    result = `${r.created},${r.updated},${r.candidates}`;
+  } catch (e) {
+    back("/personen", { error: errorMessage(e) });
+  }
+  revalidatePath("/personen", "layout");
+  back("/personen", { imported: result });
+}
+
 /** "Link Jira accounts": Jira users tied to profiles by their names (no AI) — now. */
 export async function linkJiraAccountsFormAction(): Promise<void> {
   let n = 0;

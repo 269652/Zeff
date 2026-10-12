@@ -4,11 +4,12 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { findAllProgress } from "@/plugins/people/dates";
-import { createPersonFormAction, dateFormAction, findAllDatesFormAction, linkJiraAccountsFormAction, normalizePeopleFormAction, updatePersonFormAction } from "@/plugins/people/server-actions";
+import { createPersonFormAction, dateFormAction, findAllDatesFormAction, importPeopleFormAction, linkJiraAccountsFormAction, normalizePeopleFormAction, updatePersonFormAction } from "@/plugins/people/server-actions";
 import { dateKindLabels, dateText, inDaysText, upcomingShort, upcomingTitle } from "@/plugins/people/shared";
 import { contactsOf, listPeople, proposedDates, upcoming, whatsappChats } from "@/plugins/people/store";
 import { formatAgo } from "@/lib/format";
 import { isInstalled } from "@/plugins/state";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("People") };
@@ -31,7 +32,7 @@ async function knowledgeSuggestions(taken: Set<string>) {
  * up next and when you last heard from them; the dates found waiting for you; people to add from
  * the knowledge and your WhatsApp chats.
  */
-export default async function PeoplePage({ searchParams }: { searchParams: Promise<{ error?: string; added?: string; searching?: string; matched?: string; linked?: string }> }) {
+export default async function PeoplePage({ searchParams }: { searchParams: Promise<{ error?: string; added?: string; searching?: string; matched?: string; linked?: string; imported?: string }> }) {
   await connection();
   if (!isInstalled("people")) return <PluginNotInstalled id="people" />;
   const sp = await searchParams;
@@ -80,6 +81,16 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
             </button>
           </form>
         )}
+        <form action={importPeopleFormAction}>
+          <SubmitButton className="btn btn-primary btn-sm w-full" pendingText={t("Reading your context … (a minute or two)")} title={t("The AI goes through the last 14 days of your mails, WhatsApp and Signal chats, Teams, Jira and GitLab and makes a profile of every real person in them — with their other names, mail addresses, chats and Jira users. People you have get what's new about them.")}>
+            {t("Import from context (AI)")}
+          </SubmitButton>
+        </form>
+        {sp.imported !== undefined &&
+          (() => {
+            const [c, u, k] = sp.imported.split(",").map(Number);
+            return <p className="alert-ok text-sm">{t("{c} new people, {u} updated — from {k} contacts of the last 14 days", { c: c || 0, u: u || 0, k: k || 0 })}</p>;
+          })()}
         {people.length > 0 && (
           <form action={linkJiraAccountsFormAction}>
             <button className="btn btn-sm" title={t("Ties Jira users to the profiles by their names (as the briefing lists them on the tickets) — so @-mentions in notes synced to Jira point to the right person. No AI; names that fit two users aren't guessed.")}>
@@ -181,7 +192,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
               })}
             </ul>
           ) : (
-            <p className="text-sm text-zinc-500">{t("Nobody yet — add someone on the left, or take people over from the knowledge and WhatsApp below.")}</p>
+            <p className="text-sm text-zinc-500">{t("Nobody yet — import them from your context on the left (the AI reads the last 14 days), add someone by hand, or take people over from the knowledge and WhatsApp below.")}</p>
           )}
         </section>
 
