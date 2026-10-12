@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { bookDoneTodayAction } from "@/app/actions";
+import { addTodoTimeAction } from "@/plugins/todos/server-actions";
 import { formatHours } from "@/lib/format";
 import { formatMinutes } from "@/lib/work/shared";
 import type { DoneToday } from "@/lib/work/booking";
@@ -39,11 +40,36 @@ function Suggestion({ s }: { s: DoneToday }) {
         <input className="input text-sm" value={text} onChange={(e) => setText(e.target.value)} aria-label={t("Description for {ticket}", { ticket: s.ticket })} />
         <div className="text-xs text-zinc-400">{s.todos.map((td) => `${td.ref} ${td.text}`).join(" · ")}</div>
         {/* What the hours add up from: the records agents and you reported, else runs' durations. */}
-        {s.time.length > 0 && (
-          <div className="text-xs text-zinc-500" title={s.time.map((l) => `${l.todo} ${formatMinutes(l.minutes)}${l.by ? ` (${l.by})` : ""}${l.note ? ` — ${l.note}` : ""}`).join("\n")}>
-            {s.time.map((l) => `${l.todo} ${formatMinutes(l.minutes)}${l.by ? ` (${l.by})` : l.kind === "hand" ? ` (${t("by hand")})` : ""}`).join(" · ")}
+        {s.time.some((l) => l.kind !== "gap") && (
+          <div className="text-xs text-zinc-500" title={s.time.filter((l) => l.kind !== "gap").map((l) => `${l.todo} ${formatMinutes(l.minutes)}${l.by ? ` (${l.by})` : ""}${l.note ? ` — ${l.note}` : ""}`).join("\n")}>
+            {s.time
+              .filter((l) => l.kind !== "gap")
+              .map((l) => `${l.todo} ${formatMinutes(l.minutes)}${l.by ? ` (${l.by})` : l.kind === "hand" ? ` (${t("by hand")})` : ""}${l.related ? ` · ${t("related")}` : ""}`)
+              .join(" · ")}
           </div>
         )}
+        {/* A run took longer than what was reported on it: not in the hours — add it if it was work. */}
+        {s.time
+          .filter((l) => l.kind === "gap" && l.todoId !== undefined)
+          .map((l) => (
+            <div key={`gap-${l.id}`} className="flex flex-wrap items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
+              <span>{t("{run} ran {n} min longer than reported on {todo}", { run: l.note, n: l.minutes, todo: l.todo })}</span>
+              <button
+                type="button"
+                className="rounded border border-amber-300 px-1.5 py-px hover:bg-amber-50 dark:border-amber-800 dark:hover:bg-amber-950/40"
+                disabled={pending}
+                onClick={() =>
+                  start(async () => {
+                    const r = await addTodoTimeAction(l.todoId!, l.minutes, t("Unreported time of {run}", { run: l.note }));
+                    toast(r?.ok ? t("Added to the hours.") : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" });
+                    if (r?.ok) setHours((h) => Math.min(24, Math.round((h + l.minutes / 60) * 4) / 4));
+                  })
+                }
+              >
+                {t("add {n} min", { n: l.minutes })}
+              </button>
+            </div>
+          ))}
       </div>
       <div className="flex items-center gap-2 self-center">
         <div className="inline-flex items-center rounded-md border border-zinc-300 dark:border-zinc-700" role="group" aria-label={t("Hours for {ticket}", { ticket: s.ticket })}>

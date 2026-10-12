@@ -1,8 +1,8 @@
 import { and, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { EntrySuggestion } from "@/db/schema";
-import { todosByIds } from "@/lib/boards/store";
-import { todoRef } from "@/lib/boards/shared";
+import { listTodos, todosByIds } from "@/lib/boards/store";
+import { todoRef, type TodoView } from "@/lib/boards/shared";
 import { emitChange } from "@/lib/events";
 import { createEntry, getJobNumberForTicket } from "@/lib/entries";
 import { ValidationError } from "@/lib/errors";
@@ -205,8 +205,52 @@ export function getSuggestion(id: number): SuggestionView | undefined {
   return r ? toView(r) : undefined;
 }
 
-/** The open suggestions, oldest day first — the shadow rows to take over. */
+/**
+ * Suggest a booking for work on these todos, one per ticket (todos without a ticket are left out;
+ * the todo stays as it is — nothing is marked done). The hours: the time recorded on them and not
+ * booked yet, else a quarter hour to correct. A todo that has a suggestion of that day already
+ * (open, taken over or skipped) is not suggested again that day.
+ */
+export function suggestWorkedOn(todoIds: number[], opts: { date?: string; reportedBy?: string } = {}): SuggestionView[] {
+  const date = opts.date ?? isoDate(new Date());
+  const covered = new Set(
+    getDb()
+      .select({ todoIds: entrySuggestions.todoIds })
+      .from(entrySuggestions)
+      .where(eq(entrySuggestions.date, date))
+      .all()
+      .flatMap((r) => ids(r.todoIds)),
+  );
+  const byTicket = new Map<string, TodoView[]>();
+  for (const [id, todo] of todosByIds([...new Set(todoIds)])) {
+    if (covered.has(id) || !todo.ticket) continue;
+    byTicket.set(todo.ticket, [...(byTicket.get(todo.ticket) ?? []), todo]);
+  }
+  return [...byTicket.entries()].map(([ticket, group]) => {
+    const todoIds = group.map((g) => g.id);
+    const times = unsuggestedTimes(todoIds);
+    const minutes = timesByIds(times).reduce((sum, r) => sum + r.minutes, 0);
+    const first = oneLine(group[0].text);
+    return suggestEntry({
+      date,
+      hours: minutes > 0 ? quarterHours(minutes * 60000) : 0.25,
+      description: group.length > 1 ? `${first} (+${group.length - 1})` : first,
+      ticket,
+      reportedBy: opts.reportedBy ?? "Zeff",
+      todoIds,
+    });
+  });
+}
+
+/** The open todos of yours due today get their booking suggestion — so the ticket doesn't have to be looked up. */
+export function suggestDueTodos(today = isoDate(new Date())): SuggestionView[] {
+  const due = listTodos({ status: "open" }).filter((t) => t.due === today && t.owner === "me" && !t.byWorker && t.ticket);
+  return due.length ? suggestWorkedOn(due.map((t) => t.id), { date: today }) : [];
+}
+
+/** The open suggestions, oldest day first — the shadow rows to take over (today's due todos included). */
 export function openSuggestions(): SuggestionView[] {
+  suggestDueTodos();
   return getDb()
     .select()
     .from(entrySuggestions)
@@ -218,6 +262,7 @@ export function openSuggestions(): SuggestionView[] {
 
 /** How many suggestions are open in a period (YYYY-MM-DD, inclusive) and their hours — counted, not built. */
 export function openSuggestionTotals(from: string, to: string): { count: number; hours: number } {
+  suggestDueTodos();
   const r = getDb()
     .select({ count: sql<number>`count(*)`, hours: sql<number>`coalesce(sum(${entrySuggestions.hours}), 0)` })
     .from(entrySuggestions)

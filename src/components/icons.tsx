@@ -141,6 +141,16 @@ export function FlagIcon({ className = "size-4", filled = false }: { className?:
   );
 }
 
+/** A clock: time spent (worked on it). */
+export function ClockIcon({ className = "size-4" }: { className?: string }) {
+  return (
+    <svg {...iconProps} className={className}>
+      <circle cx="10" cy="10" r="6.5" />
+      <path d="M10 6.5V10l2.5 1.5" />
+    </svg>
+  );
+}
+
 /** A cross: close it, take it away (done). */
 export function CloseIcon({ className = "size-4" }: { className?: string }) {
   return (

@@ -1,4 +1,4 @@
-import { isChatFolder, mailSender, type MailView } from "@/lib/mail/shared";
+import { isChatFolder, mailSender, outlookLink, type MailView } from "@/lib/mail/shared";
 import { ChevronIcon } from "./icons";
 import { ResolvedMark } from "./ResolvedMark";
 import { formatDateTime } from "@/lib/format";
@@ -64,6 +64,7 @@ export function MailBadge({ m, className = "", expanded = false, onToggle }: { m
 /** A mail in full, as Zeff has it: subject, sender, when, its first lines (the list's — it isn't opened). */
 export function MailDetails({ m }: { m: MailView }) {
   const t = useT();
+  const link = outlookLink(m);
   return (
     <div className={CARD}>
       <div className="flex items-center justify-between gap-2 text-xs text-zinc-500">
@@ -77,6 +78,11 @@ export function MailDetails({ m }: { m: MailView }) {
           : m.folder === "Signal"
           ? t("A message from your Signal chat — the whole chat is in Signal.")
           : t("The first lines, as the list shows them — the whole mail is in the mailbox.")}</p>
+      {link && (
+        <a href={link} target="_blank" rel="noopener noreferrer" className="inline-block text-xs font-medium text-sky-700 hover:underline dark:text-sky-400">
+          {t("Open in Outlook")} ↗
+        </a>
+      )}
     </div>
   );
 }

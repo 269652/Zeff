@@ -3767,5 +3767,19 @@
   "Turn off": "Ausschalten",
   "Commands": "Befehle",
   "Plugin views": "Plugin-Ansichten",
-  "This plugin isn't in the plugins folder any more.": "Dieses Plugin ist nicht mehr im Plugin-Ordner."
+  "This plugin isn't in the plugins folder any more.": "Dieses Plugin ist nicht mehr im Plugin-Ordner.",
+  "related": "verwandt",
+  "{run} ran {n} min longer than reported on {todo}": "{run} lief {n} Min. länger, als auf {todo} gemeldet wurde",
+  "Unreported time of {run}": "Nicht gemeldete Zeit von {run}",
+  "{by} suggests this is done: {note} — tick it to confirm": "{by} schlägt vor, dass das erledigt ist: {note} — abhaken zum Bestätigen",
+  "{by} suggests this is done — tick it to confirm": "{by} schlägt vor, dass das erledigt ist — abhaken zum Bestätigen",
+  "{by}: suggests done": "{by}: schlägt „erledigt“ vor",
+  "Open in Outlook": "In Outlook öffnen",
+  "There is a booking suggestion for it today already — or it has no ticket.": "Dafür gibt es heute schon einen Buchungsvorschlag — oder es hat kein Ticket.",
+  "{ref} suggested — in the Weekly report you can take it over.": "{ref} vorgeschlagen — im Wochenbericht kannst du ihn übernehmen.",
+  "Worked on {ref}": "An {ref} gearbeitet",
+  "Worked on it — suggests a booking for it in the Weekly report (the todo stays open)": "Daran gearbeitet — schlägt im Wochenbericht eine Buchung dafür vor (das Todo bleibt offen)",
+  "Added to the hours.": "Zu den Stunden hinzugefügt.",
+  "add {n} min": "{n} Min. hinzufügen",
+  "Report the time you spent on a todo (todo, minutes or hours, note, agent) — one record each, a todo can have many; they flow into its booking.": "Melde die Zeit, die du an einem Todo gearbeitet hast (todo, Minuten oder Stunden, note, agent) — je ein Eintrag, ein Todo kann viele haben; sie fließen in seine Buchung."
 }

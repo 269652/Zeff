@@ -13,7 +13,7 @@ import { extraBlock, getContextPrefs } from "./context-prefs";
 import { addFact } from "@/lib/facts";
 import { getPref, setPref } from "@/lib/prefs";
 import { duplicateTodo } from "./similar";
-import { addMailTodo, addTodoContext, droppedByYou, lastGoodRun, listTodos, setTodoDue, setTodoStatus } from "./store";
+import { addMailTodo, addTodoContext, droppedByYou, lastGoodRun, listTodos, setTodoDue, suggestDone } from "./store";
 import { isInstalled } from "@/plugins/state";
 import { isoDate } from "@/lib/week";
 import { pushTo } from "@/lib/collections";
@@ -422,16 +422,9 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
           return x ? [x.ref] : [];
         });
         addTodoContext(todo.id, [...refs, ...factRefs], u.note ?? "", "Mail-Durchsicht");
-        // Done: its planned steps come next (afterDone) — with the messages and facts as their context.
-        let next: TodoView[] = [];
-        if (u.done && todo.status === "open") {
-          setTodoStatus(todo.id, "done", (u.note ?? "").slice(0, 500) || "Laut neuer Nachricht erledigt.");
-          next = listTodos({ status: "open" }).filter((t) => t.parentId === todo.id);
-          for (const n of next) {
-            addTodoContext(n.id, [...refs, ...factRefs], "", "Mail-Durchsicht");
-            open.push(n);
-          }
-        }
+        // Done: only suggested (a grey tick on the todo) — once you confirm it, its planned steps come next.
+        const next: TodoView[] = [];
+        if (u.done && todo.status === "open") suggestDone(todo.id, "Mail-Durchsicht", (u.note ?? "").slice(0, 500) || "Laut neuer Nachricht erledigt.");
         // What follows from it: todos of their own (on its ticket), with the facts they need — a
         // planned step already there takes its deadline instead of a second todo.
         for (const f of u.followUps ?? []) {
