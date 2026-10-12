@@ -91,6 +91,8 @@ test("a compiled summary is on the person's hover card", async () => {
   const { personCardAction } = await import("@/plugins/people/server-actions");
   const { listPeople } = await import("@/plugins/people/store");
   const julia = listPeople().find((p) => p.name === "Julia Freidank")!;
+  const { compilePerson } = await import("@/plugins/people/compile");
+  await compilePerson(julia.id, { force: true, ask: async () => ({ connection: "Ihr arbeitet beide an der Navigation.", keyFacts: ["Testet und nimmt Tickets ab", "Jira: julfreid"], funFacts: ["Klettert gern"] }) });
   const card = await personCardAction(julia.id);
   assert.match(card!.summary!.connection, /Navigation/);
   assert.deepEqual(card!.summary!.keyFacts, ["Testet und nimmt Tickets ab", "Jira: julfreid"]);
