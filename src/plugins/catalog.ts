@@ -7,7 +7,7 @@
  * say, the work ones go and the rest stays. Client-safe (data only).
  */
 
-export const PLUGIN_IDS = ["zeiterfassung", "weekly-report", "monthly-report", "todos", "tickets", "kanban", "jira-lage", "work", "work-elevated", "auto-actions", "backup", "accounts", "knowledge", "people", "documents", "google-drive", "jira", "llm", "copilot-cli", "claude-cli", "codex-cli", "outlook-mail", "gmail", "whatsapp", "signal", "keep", "keep-write", "calendar", "google-calendar", "outlook-calendar", "teams", "gitlab", "chrono", "punch", "lang-en", "lang-de", "lang-es"] as const;
+export const PLUGIN_IDS = ["zeiterfassung", "weekly-report", "monthly-report", "todos", "tickets", "kanban", "jira-lage", "work", "work-elevated", "auto-actions", "backup", "accounts", "knowledge", "people", "news", "documents", "google-drive", "jira", "llm", "copilot-cli", "claude-cli", "codex-cli", "outlook-mail", "gmail", "whatsapp", "signal", "keep", "keep-write", "calendar", "google-calendar", "outlook-calendar", "teams", "gitlab", "chrono", "punch", "lang-en", "lang-de", "lang-es"] as const;
 export type PluginId = (typeof PLUGIN_IDS)[number];
 export const isPluginId = (v: unknown): v is PluginId => (PLUGIN_IDS as readonly unknown[]).includes(v);
 
@@ -259,6 +259,18 @@ export const PLUGINS: PluginManifest[] = [
     routes: ["/personen"],
     // Names in todos → people (aliases, new profiles, merges): with each briefing, through the AI.
     syncSteps: ["peoplenorm"],
+  },
+  {
+    id: "news",
+    name: "News",
+    description:
+      "Your news, gathered for you: the feeds you pick (Tagesschau, heise, Hacker News … or any RSS/Atom address) plus a search per interest. Everything is scored for you — your interests and how much each counts, words you mute, the sources you trust, how fresh it is, what you liked and disliked before and — if you want — what your open todos are about. Read, save, hide, like or dislike; with the LLM plugin an overview of the day. Public feeds only: nothing of yours is sent.",
+    category: "app",
+    defaultInstalled: false,
+    apps: [{ href: "/news", label: "News", short: "News", hint: "Your news, scored for you" }],
+    settings: { href: "/settings/news", what: "Sources, interests, muted words, how it learns" },
+    routes: ["/news", "/settings/news"],
+    syncSteps: ["news"],
   },
   {
     id: "documents",

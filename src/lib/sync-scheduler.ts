@@ -60,6 +60,8 @@ export function startSyncScheduler(): void {
     // Signal: while Signal Desktop runs — without its debug port the sync fails, so the menu tells you.
     { name: "signal", settings: () => ({ syncMinutes: stepMinutes("signal"), lastSyncAt: lastSyncOf("signal") }), run: whileSignalRuns },
     { name: "keep", settings: () => ({ syncMinutes: stepMinutes("keep"), lastSyncAt: lastSyncOf("keep") }), run: whileChromeRuns("keep") },
+    // News: public feeds — no Chrome needed.
+    { name: "news", settings: () => ({ syncMinutes: stepMinutes("news"), lastSyncAt: lastSyncOf("news") }), run: async () => startSync("news") },
     { name: "gcalendar", settings: () => ({ syncMinutes: stepMinutes("gcalendar"), lastSyncAt: lastSyncOf("gcalendar") }), run: whileChromeRuns("gcalendar") },
     // Google Drive (the extensions for Backups and Documents): through the sync menu's step — no Chrome needed.
     { name: "drivebackup", settings: () => ({ syncMinutes: stepMinutes("drivebackup"), lastSyncAt: lastSyncOf("drivebackup") }), run: async () => startSync("drivebackup") },

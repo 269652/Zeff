@@ -120,8 +120,8 @@ async function lastAndCurrentWeeks(): Promise<string[]> {
 export const jiraLastSyncAt = () => recordedOr("jira", jiraTickets.syncedAt).lastAt;
 
 /** When a step last ran, however it was started. */
-export const lastSyncOf = (key: "calendar" | "chrono" | "punch" | "whatsapp" | "signal" | "keep" | "gcalendar" | "drivebackup" | "drivedocs") =>
-  (key === "calendar" || key === "whatsapp" || key === "signal" || key === "keep" || key === "gcalendar" || key === "drivebackup" || key === "drivedocs" ? recorded(key) : recordedOr(key, key === "chrono" ? chronoEntries.pulledAt : punchDays.pulledAt)).lastAt;
+export const lastSyncOf = (key: "calendar" | "chrono" | "punch" | "whatsapp" | "signal" | "keep" | "gcalendar" | "drivebackup" | "drivedocs" | "news") =>
+  (key === "calendar" || key === "whatsapp" || key === "signal" || key === "keep" || key === "gcalendar" || key === "drivebackup" || key === "drivedocs" || key === "news" ? recorded(key) : recordedOr(key, key === "chrono" ? chronoEntries.pulledAt : punchDays.pulledAt)).lastAt;
 
 /** Each step: how it runs, what it last did, when it runs by itself. All only read from elsewhere. */
 const STEPS: Record<SyncKey, Step> = {
@@ -187,6 +187,14 @@ const STEPS: Record<SyncKey, Step> = {
     run: async () => (await import("@/plugins/keep/sync")).syncKeep(),
     busy: () => flag("__zeffKeepSyncing"),
     schedule: () => ({ everyMinutes: stepMinutes("keep"), lastAt: recorded("keep").lastAt, window: t("while the automation Chrome runs") }),
+  },
+  news: {
+    get label() { return t("News"); },
+    href: "/news",
+    get what() { return t("The news from your sources and searches for your interests — fetched, scored for you, old items removed (public feeds; nothing of yours is sent)"); },
+    run: async () => (await import("@/plugins/news/sync")).syncNews(),
+    busy: () => flag("__zeffNewsSyncing"),
+    schedule: () => ({ everyMinutes: stepMinutes("news"), lastAt: recorded("news").lastAt, window: t("always") }),
   },
   gcalendar: {
     label: "Google Calendar",
