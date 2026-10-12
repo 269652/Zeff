@@ -16,8 +16,11 @@ export function OpChips({
   className = "mt-1 items-start",
   todoId,
   notes = {},
+  indices,
 }: {
   ops: TodoView["ops"];
+  /** Where `ops` sit on the todo (when they're only some of its operations) — what editing or removing one refers to. */
+  indices?: number[];
   className?: string;
   /** Given: the texts (comment, reply, Teams message) can be edited here before they're sent. */
   todoId?: number;
@@ -27,7 +30,7 @@ export function OpChips({
   return (
     <span className={`flex flex-col gap-1 ${className}`}>
       {ops.map((o, i) => (
-        <OpChip key={i} op={o} index={i} todoId={todoId} note={"note" in o ? notes[o.note] : undefined} />
+        <OpChip key={i} op={o} index={indices?.[i] ?? i} todoId={todoId} note={"note" in o ? notes[o.note] : undefined} />
       ))}
     </span>
   );
@@ -115,8 +118,8 @@ function OpChip({
                 router.refresh();
               })
             }
-            title={t("Remove — without a note")}
-            aria-label={t("Remove the action")}
+            title={t("Dismiss — takes the action off the todo, without a note")}
+            aria-label={t("Dismiss the action")}
           >
             <CloseIcon className="size-3.5" />
           </button>

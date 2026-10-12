@@ -2,15 +2,14 @@
 
 import { ChatIcon } from "@/components/MailBadge";
 import { sourceKey, type SyncedComment, type TodoSource, type TodoUserNote, type TodoView } from "@/lib/boards/shared";
-import { NoteBadge, NoteDetails } from "./NoteBadge";
+import { NoteBadge, NoteRow } from "./NoteBadge";
+import { DismissButton } from "../DismissButton";
 import { SourceBadge, SourceDetails } from "../SourceBadge";
 import { entityWhoWhen } from "@/lib/entities-shared";
 import { HoverCard } from "../HoverCard";
 import { CollapseIcon, ExpandIcon, NoteIcon, SparkIcon } from "../icons";
-import { useRouter } from "next/navigation";
-import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { dismissTodoContextAction } from "@/plugins/todos/server-actions";
-import { toast } from "../Toaster";
 import { latestPerKind, ShowMoreToggle } from "../ShowMore";
 import { useT } from "../I18nProvider";
 import type { T } from "@/lib/i18n/shared";
@@ -130,45 +129,15 @@ export function ContextToggle({ items, unread, open, onToggle }: { items: Item[]
   return open ? toggle : <HoverCard card={<ContextPreview items={items} unread={unread} />}>{toggle}</HoverCard>;
 }
 
-/** Take one context item out of a todo (×): it stays out — nothing cites it back in; only you do. */
-function DismissContext({ todoId, refKey }: { todoId: number; refKey: string }) {
-  const t = useT();
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  return (
-    <button
-      type="button"
-      className="icon-btn shrink-0 text-base opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-      disabled={pending}
-      title={t("Dismiss — takes it out of this todo's context for good")}
-      aria-label={t("Dismiss this context item")}
-      onClick={(e) => {
-        e.stopPropagation();
-        start(async () => {
-          const r = await dismissTodoContextAction(todoId, refKey);
-          if (r?.ok) router.refresh();
-          else toast(r?.error ?? t("Didn't work."), { tone: "error" });
-        });
-      }}
-    >
-      ×
-    </button>
-  );
-}
-
 /** The context itself: of each kind the latest three — the rest behind "Show more"; hover one for all of it. */
 export function ContextList({ items, todoId }: { items: Item[]; todoId?: number }) {
+  const t = useT();
   const [all, setAll] = useState(false);
   const { shown, hidden } = latestPerKind(items, itemKind, all);
   return (
     <span className="flex flex-col items-start gap-1">
       {shown.map((it) => {
-        if ("n" in it)
-          return (
-            <HoverCard key={`note:${it.n.from ?? ""}:${it.n.at}`} className="gap-1.5 sm:max-w-md" card={<NoteDetails n={it.n} todoId={it.n.from ? undefined : todoId} />}>
-              <NoteBadge n={it.n} className="min-w-0" />
-            </HoverCard>
-          );
+        if ("n" in it) return <NoteRow key={`note:${it.n.from ?? ""}:${it.n.at}`} n={it.n} todoId={todoId} />;
         const s = it.s;
         const synced = s.source === "jira-comment" || s.source === "keep" || s.source === "fact" || s.source === "document" ? undefined : s.synced;
         return (
@@ -184,7 +153,7 @@ export function ContextList({ items, todoId }: { items: Item[]; todoId?: number 
           >
             <SourceBadge entity={s} className="min-w-0" resolved={synced?.resolved || undefined} />
             {synced && <SyncedMark s={synced} />}
-            {todoId !== undefined && <DismissContext todoId={todoId} refKey={sourceKey(s)} />}
+            {todoId !== undefined && <DismissButton onDismiss={() => dismissTodoContextAction(todoId, sourceKey(s))} title={t("Dismiss — takes it out of this todo's context for good")} label={t("Dismiss this context item")} />}
           </HoverCard>
         );
       })}

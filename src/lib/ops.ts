@@ -22,15 +22,19 @@ export type { NextTodo };
 export async function runTodoOps(
   todo: TodoView,
   note: (line: string) => void,
+  opts: { only?: number[] } = {},
 ): Promise<{ done: string[]; next: NextTodo[] }> {
   const done: string[] = [];
   const next: NextTodo[] = [];
   const inBrowser = todo.ops.filter((o) => actionHref(o));
-  let left = todo.ops.filter((o) => !actionHref(o));
+  // `only`: just these operations (by their place on the todo) — the others stay as they are.
+  const chosen = (i: number) => !opts.only || opts.only.includes(i);
+  const others = todo.ops.filter((o, i) => !actionHref(o) && !chosen(i));
+  let left = todo.ops.filter((o, i) => !actionHref(o) && chosen(i));
   const keep = () =>
     getDb()
       .update(schema.todos)
-      .set({ ops: JSON.stringify([...left, ...inBrowser]) })
+      .set({ ops: JSON.stringify([...others, ...left, ...inBrowser]) })
       .where(eq(schema.todos.id, todo.id))
       .run();
   try {
@@ -86,7 +90,7 @@ export async function runTodoOps(
  * Jira comment: no worker, no queue (only AI work goes through Work). Done when they are the todo
  * (a reply, a message); what's next (a delivery step) as a todo of its own. One at a time per todo.
  */
-export async function runTodoOpsNow(todoId: number): Promise<{ done: string[]; settled: boolean }> {
+export async function runTodoOpsNow(todoId: number, opts: { only?: number[] } = {}): Promise<{ done: string[]; settled: boolean }> {
   const store = await import("@/lib/boards/store");
   const { opsSettle, todoRef } = await import("@/lib/boards/shared");
   const todo = store.getTodo(todoId);
@@ -97,12 +101,14 @@ export async function runTodoOpsNow(todoId: number): Promise<{ done: string[]; s
   if (running.has(todoId)) throw new Error(t("{ref} is running already.", { ref: todo.ref }));
   running.add(todoId);
   try {
-    const { done, next } = await runTodoOps(todo, (line) => console.log(`[ops ${todo.ref}] ${line}`));
+    const { done, next } = await runTodoOps(todo, (line) => console.log(`[ops ${todo.ref}] ${line}`), opts);
     for (const n of next) {
       const f = store.addFollowUp({ ticket: todo.ticket, text: n.text, kind: "merge", parentId: todo.id, workRunId: null, source: `Next step after ${todo.ref}`, ops: n.ops, owner: n.owner });
       store.handOverPlan(todo.id, f.id, ["merge", "review"]);
     }
-    const settled = opsSettle(todo);
+    // Settled when what ran is the todo — and nothing else is left on it.
+    const ran = opts.only ? todo.ops.filter((_, i) => opts.only!.includes(i)) : todo.ops;
+    const settled = (!opts.only || ran.length === todo.ops.length) && opsSettle({ ...todo, ops: ran });
     if (settled) store.setTodoStatus(todo.id, "done", done.join("; ").slice(0, 500));
     return { done, settled };
   } finally {

@@ -103,3 +103,25 @@ test("once the branch is on the remote the push action goes and \"Open MR\" come
   assert.deepEqual(getTodo(t2.id)!.ops.map((o) => o.type), ["jira-transition"]);
   assert.deepEqual(getTodo(t3.id)!.ops.map((o) => o.type), ["jira-transition"]);
 });
+
+test("pushing a work branch is its own action: it runs alone (the other actions stay) and doesn't close the implement todo", async () => {
+  const { attachOpenMrOps } = await import("@/lib/boards/delivery-ops");
+  const { getTodo } = await import("@/lib/boards/store");
+  const { runTodoOpsNow } = await import("@/lib/ops");
+  const { opsSettle } = await import("@/lib/boards/shared");
+  const repo = repoWithBranch("feature/PU-8-own-action");
+  const todo = await setup("PU-8", repo, "feature/PU-8-own-action");
+  await attachOpenMrOps();
+  const ops = getTodo(todo.id)!.ops;
+  assert.deepEqual(ops.map((o) => o.type), ["jira-transition", "git-push"]);
+  // Only the push (index 1): it goes to the remote, the Jira transition stays on the todo.
+  const r = await runTodoOpsNow(todo.id, { only: [1] });
+  assert.equal(r.settled, false);
+  assert.equal(git(repo, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/feature/PU-8-own-action").length > 0, true);
+  const after = getTodo(todo.id)!;
+  assert.equal(after.status, "open");
+  assert.deepEqual(after.ops.map((o) => o.type), ["jira-transition"]);
+  // A push on its own doesn't make an implement todo done — a delivery todo it does.
+  assert.equal(opsSettle({ kind: "implement", owner: "me", text: "x", ops: [ops[1]] }), false);
+  assert.equal(opsSettle({ kind: "merge", owner: "me", text: "x", ops: [ops[1]] }), true);
+});

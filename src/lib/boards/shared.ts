@@ -182,7 +182,8 @@ export function opTitle(op: TodoOp, t: T): string {
  * answer): those stay open.
  */
 export function opsSettle(t: Pick<TodoView, "kind" | "owner" | "ops" | "text">): boolean {
-  if (t.ops.length && t.ops.every((o) => actionOf(o.type).delivery || o.type === "jira-create")) return true;
+  // A delivery's operations are the todo itself — but a push of the branch an implementation is on isn't: the work is still to do.
+  if (t.ops.length && t.ops.every((o) => actionOf(o.type).delivery || o.type === "jira-create")) return !["implement", "fix", "test"].includes(t.kind);
   // Talking in threads (replies, resolving, messages) is the work — unless the todo asks for
   // something none of them says (an approval asked for, with only threads resolved). A draft
   // opened in Outlook isn't sent yet: that's yours to tick off.

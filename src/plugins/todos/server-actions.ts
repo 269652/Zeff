@@ -70,10 +70,10 @@ export async function searchTodosAction(q: string): Promise<import("@/lib/boards
 }
 
 /** A todo's operations, run now by Zeff itself (a WhatsApp message, a note, a comment) — not through Work. */
-export async function runTodoOpsAction(todoId: number): Promise<ActionState> {
+export async function runTodoOpsAction(todoId: number, only?: number[]): Promise<ActionState> {
   try {
     const { runTodoOpsNow } = await import("@/lib/ops");
-    const r = await runTodoOpsNow(Number(todoId));
+    const r = await runTodoOpsNow(Number(todoId), { only: Array.isArray(only) ? only.map(Number).filter(Number.isInteger) : undefined });
     revalidateAll();
     return { ok: true, message: `${r.done.join(" · ")}${r.settled ? ` — ${t("done.")}` : ""}` };
   } catch (err) {

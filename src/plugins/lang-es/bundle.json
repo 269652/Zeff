@@ -3771,6 +3771,8 @@
   "related": "relacionado",
   "{run} ran {n} min longer than reported on {todo}": "{run} duró {n} min más de lo informado en {todo}",
   "Unreported time of {run}": "Tiempo no informado de {run}",
+  "Dismiss — takes the action off the todo, without a note": "Descartar — quita la acción del todo, sin nota",
+  "Dismiss the action": "Descartar la acción",
   "No Jira account linked for {names} — written out, not mentioned.": "Sin cuenta de Jira vinculada para {names} — escrito, no mencionado.",
   "Note put on Jira as a comment.": "Nota publicada en Jira como comentario.",
   "The comment on Jira is updated.": "El comentario en Jira está actualizado.",
