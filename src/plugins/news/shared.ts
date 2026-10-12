@@ -83,6 +83,14 @@ export const PRESETS: Preset[] = [
   { name: "The Verge", url: "https://www.theverge.com/rss/index.xml", about: "Tech", lang: "en" },
   { name: "BBC News", url: "https://feeds.bbci.co.uk/news/world/rss.xml", about: "World", lang: "en" },
   { name: "NPR", url: "https://feeds.npr.org/1001/rss.xml", about: "World", lang: "en" },
+  // Google News: its public headline feeds (not your personal "For you", which has no feed).
+  { name: "Google News · Top", url: "https://news.google.com/rss?hl=de&gl=DE&ceid=DE:de", about: "Google News", lang: "de" },
+  { name: "Google News · Technologie", url: "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=de&gl=DE&ceid=DE:de", about: "Google News", lang: "de" },
+  { name: "Google News · Wirtschaft", url: "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=de&gl=DE&ceid=DE:de", about: "Google News", lang: "de" },
+  { name: "Google News · Wissenschaft", url: "https://news.google.com/rss/headlines/section/topic/SCIENCE?hl=de&gl=DE&ceid=DE:de", about: "Google News", lang: "de" },
+  { name: "Google News · Sport", url: "https://news.google.com/rss/headlines/section/topic/SPORTS?hl=de&gl=DE&ceid=DE:de", about: "Google News", lang: "de" },
+  { name: "Google News · Top (EN)", url: "https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en", about: "Google News", lang: "en" },
+  { name: "Google News · Technology (EN)", url: "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=en-US&gl=US&ceid=US:en", about: "Google News", lang: "en" },
 ];
 
 /** The address of a Google News search for a term (an RSS feed). */
