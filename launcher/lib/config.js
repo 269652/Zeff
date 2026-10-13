@@ -29,6 +29,13 @@ const DEFAULTS = {
   /** Run the work host (scripts/work-host.mjs): Zeff's workers live there, so restarting Zeff's server (a deploy) doesn't cut them off. */
   workHost: true,
   workPort: 9334,
+  /**
+   * Run the sync host: a second Zeff server (ZEFF_ROLE=sync, from the build in .next-sync) that does the syncs, the
+   * scheduler and the briefing, so a deploy restarts only the pages — a sync goes on. Zeff's server hands its work
+   * to it while that build is there (npm run deploy makes it); else it does everything itself, as before.
+   */
+  syncHost: true,
+  syncPort: 9336,
   /** Manage the knowledge server too (and route https://knowledge.<host> to it). */
   knowledge: true,
   /** HTTPS ports on 127.0.0.1. 443 is best effort — something else may hold it (Linux: root only). */

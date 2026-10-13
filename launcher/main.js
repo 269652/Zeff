@@ -153,7 +153,7 @@ function buildMenu() {
     { label: "Status…", click: showWindow },
     { type: "separator" },
     serviceMenu(zeff()),
-    ...state.services.filter((s) => s.name === "Work").map((w) => serviceMenu(w)),
+    ...state.services.filter((s) => s.name === "Work" || s.name === "Sync").map((w) => serviceMenu(w)),
     ...knowledges().map((k) => serviceMenu(k, [{ label: "Open knowledge", click: () => shell.openExternal(knowledgeUrl(k)) }, { type: "separator" }])),
     { type: "separator" },
     { label: "Open data folder", click: () => shell.openPath(state.paths.data) },
@@ -298,6 +298,13 @@ async function start() {
   const tokenFile = path.join(paths.state, "work-token");
   if (!fs.existsSync(tokenFile)) fs.writeFileSync(tokenFile, require("node:crypto").randomBytes(24).toString("hex"), { mode: 0o600 });
   const workToken = fs.readFileSync(tokenFile, "utf8").trim();
+  // Zeff's server and the sync host share a token: only they may talk to each other (kept, like the work host's).
+  const syncTokenFile = path.join(paths.state, "sync-token");
+  if (!fs.existsSync(syncTokenFile)) fs.writeFileSync(syncTokenFile, require("node:crypto").randomBytes(24).toString("hex"), { mode: 0o600 });
+  const syncToken = fs.readFileSync(syncTokenFile, "utf8").trim();
+  // The sync host runs from a build of its own (.next-sync: a deploy swaps .next under the pages' server, not under it).
+  const syncDist = ".next-sync";
+  const syncMarker = path.join(paths.app, syncDist, "BUILD_ID");
   const env = {
     ...process.env,
     NODE_ENV: "production",
@@ -332,7 +339,17 @@ async function start() {
     if (cfg.autostartServers) s.start();
     return s;
   };
-  add(new Service(spec("Zeff", null, cfg.zeffPort)));
+  // Zeff's server hands its syncs and runs to the sync host while the host's build is there — else it does them itself.
+  const zeffSpec = spec("Zeff", null, cfg.zeffPort);
+  zeffSpec.env = () =>
+    cfg.syncHost && fs.existsSync(syncMarker)
+      ? { ...env, ZEFF_ROLE: "web", ZEFF_SYNC_HOST: `http://127.0.0.1:${cfg.syncPort}`, ZEFF_SYNC_TOKEN: syncToken }
+      : env;
+  add(new Service(zeffSpec));
+  if (cfg.syncHost) {
+    const hostSpec = spec("Sync", null, cfg.syncPort);
+    add(new Service({ ...hostSpec, env: { ...env, ZEFF_ROLE: "sync", ZEFF_SYNC_TOKEN: syncToken, ZEFF_DIST_DIR: syncDist }, buildMarker: syncMarker }));
+  }
   // The work host: plain Node, outside Next. A deploy restarts Zeff's server, not this — the workers it started go on.
   if (cfg.workHost) {
     const hostScript = path.join(paths.app, "scripts", "work-host.mjs");
@@ -454,7 +471,7 @@ const SMOKE_CONTENT = { "/ext/docs": "external plugins", "/ext/docs/api": "exten
  */
 async function runSmokeTest() {
   const deadline = Date.now() + 5 * 60 * 1000;
-  const wanted = () => [zeff(), ...state.services.filter((s) => s.name === "Work"), ...(state.cfg.knowledge ? [activeKnowledge()] : [])];
+  const wanted = () => [zeff(), ...state.services.filter((s) => s.name === "Work" || s.name === "Sync"), ...(state.cfg.knowledge ? [activeKnowledge()] : [])];
   // The status — or, with `text`, { status, body } (the first 2 MB).
   const get = (host, urlPath = "/", text = false) =>
     new Promise((resolve, reject) => {

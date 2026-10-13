@@ -16,19 +16,26 @@
  *      on the launcher's work host, not under the server that is restarted. A session started
  *      by the server itself (no host) would be killed with it: refused.
  *   7. the server checked: running from this checkout, the main pages load
+ *   The sync host (second server from the same code, from its own build folder .next-sync) is restarted only
+ *   when it has nothing to do — a sync or a briefing running there doesn't block the deploy of the pages and
+ *   isn't cut off by it. Busy: its new build waits in .next-sync-build (`--sync-only` takes it over later).
  * Flags: --wait (wait for runs instead of stopping), --knowledge (also build + restart the
- * knowledge servers), --skip-checks (no typecheck/lint/tests — only in an emergency).
+ * knowledge servers), --sync (also wait until the sync host is idle and restart it), --sync-only (no build:
+ * the host takes the build that waits), --no-sync (leave the sync host alone), --skip-checks (no
+ * typecheck/lint/tests — only in an emergency).
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
-import { LIVE, OLD, STAGE, clearStage, swapDists } from "./swap-dist.mjs";
+import { LIVE, OLD, STAGE, SYNC, clearStage, copyForSyncHost, swapDists } from "./swap-dist.mjs";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "..");
 const DATA = path.join(ROOT, "data");
 const LOCK = path.join(DATA, ".deploy.lock");
 const PORT = 9333;
+/** The sync host's port (launcher: syncPort): the syncs, the scheduler and the briefing run there, so restarting the pages doesn't touch them. */
+const SYNC_PORT = 9336;
 const PAGES = ["/", "/heute", "/todos", "/mail", "/kanban", "/plugins", "/sync-settings", "/auswerten", "/logins", "/feierabend"];
 const args = new Set(process.argv.slice(2));
 /** The work run this deploy is part of (a session's worker passes it down in its environment), if any. */
@@ -89,7 +96,7 @@ function hostedRuns() {
 }
 
 // 2./5. Runs active in any account. A work run on the work host doesn't count: it outlives the restart.
-function busyRuns() {
+function busyRuns({ skipBoards = false } = {}) {
   const hosted = hostedRuns();
   const Database = require("better-sqlite3");
   const dbs = [{ id: "default", file: path.join(DATA, "zeff.db") }];
@@ -103,7 +110,8 @@ function busyRuns() {
     if (!fs.existsSync(f)) continue;
     const db = new Database(f, { readonly: true });
     try {
-      for (const t of ["board_runs", "work_runs"])
+      // (The sync host's briefing runs are its own: they don't hold back the pages' server.)
+      for (const t of skipBoards ? ["work_runs"] : ["board_runs", "work_runs"])
         for (const r of db.prepare(`select id, status${t === "work_runs" ? ", provider" : ""} from ${t} where status in ('running','queued')`).all()) {
           if (OWN_RUN && t === "work_runs" && r.id === OWN_RUN.id && account === OWN_RUN.account) continue;
           // An agent's run (an outside Claude Code session on a todo, through the MCP) has no process in the server: a restart only fails its next call for a moment.
@@ -136,9 +144,32 @@ async function serverBusy() {
   }
 }
 
-async function waitIdle(what) {
+/**
+ * The sync host: whether it answers, and what it is doing (its /api/busy) — it keeps the syncs, the scheduler and
+ * the briefing, so while it runs those don't count for the pages' server.
+ */
+async function syncHost() {
+  try {
+    const r = await fetch(`http://127.0.0.1:${SYNC_PORT}/api/busy`, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return { up: false, busy: [] };
+    const j = await r.json();
+    return { up: true, busy: Array.isArray(j.busy) ? j.busy.map((b) => `Sync-Host: ${b}`) : [] };
+  } catch {
+    return { up: false, busy: [] };
+  }
+}
+
+/** `withHost`: the sync host's work counts too (it is about to be restarted). */
+async function busyNow({ withHost = false } = {}) {
+  const host = await syncHost();
+  const rows = busyRuns({ skipBoards: host.up && !withHost });
+  // The host restarts: its runs in the database (a briefing row says "running") and what it holds in memory.
+  return [...rows, ...(withHost ? host.busy : []), ...(await serverBusy())];
+}
+
+async function waitIdle(what, opts = {}) {
   for (let i = 0; ; i++) {
-    const busy = [...busyRuns(), ...(await serverBusy())];
+    const busy = await busyNow(opts);
     if (!busy.length) return;
     if (!args.has("--wait") && what === "before") fail(`Es läuft gerade etwas: ${busy.join(", ")}. Später noch einmal — oder mit --wait.`);
     if (i === 0) log(`Warte auf: ${busy.join(", ")} …`);
@@ -188,11 +219,51 @@ async function probe(url) {
   }
 }
 
+/**
+ * The sync host takes the build that waits in .next-sync-build — when it has nothing to do (`wait`: or once it
+ * hasn't). The launcher starts it again from the new build. False: it keeps its old build for now.
+ */
+async function swapSyncHost(wait) {
+  const host = await syncHost();
+  if (host.up) {
+    const busy = await busyNow({ withHost: true });
+    if (busy.length && !wait) {
+      log(`Der Sync-Host bleibt vorerst auf seinem alten Build — er arbeitet: ${busy.join(", ")}. Der neue wartet in ${SYNC.STAGE}; später: npm run deploy -- --sync-only`);
+      return false;
+    }
+    if (busy.length) await waitIdle("sync", { withHost: true });
+  }
+  const old = servers(new RegExp(`next.*start.*-p ${SYNC_PORT}`));
+  log(`Sync-Host: Neustart ${old.map((p) => p.ProcessId).join(", ") || "(keiner lief)"}`);
+  try {
+    await swapDists([ROOT], () => {
+      for (const p of old) spawnSync("taskkill", ["/PID", String(p.ProcessId), "/T", "/F"], { stdio: "ignore" });
+    }, SYNC);
+  } catch (e) {
+    fail(`${SYNC.STAGE} → ${SYNC.LIVE} ging nicht, alles ist zurück: ${e?.message ?? e}`);
+  }
+  log(`${SYNC.STAGE} → ${SYNC.LIVE} getauscht (der vorige Build liegt in ${SYNC.OLD}).`);
+  let up = false;
+  for (let i = 0; i < 40 && !up; i++) {
+    await sleep(3000);
+    up = (await syncHost()).up;
+  }
+  if (!up) fail(`Der Sync-Host antwortet nach 2 Minuten nicht auf :${SYNC_PORT} — der Launcher muss ihn starten (neu gestartet? data/logs/sync.log ansehen).`);
+  log("✓ Sync-Host läuft");
+  return true;
+}
+
 async function main() {
   // A session whose worker is a child of Zeff's server would be killed by the restart it asks for.
   if (OWN_RUN && !process.env.ZEFF_WORK_VIA_HOST) fail("Diese Work-Session läuft unter dem Zeff-Server selbst und würde mit dem Neustart beendet. Der Work-Host des Launchers (Tray → Work) muss laufen; starte die Session dann neu.");
   lock();
   log(`Checkout: ${ROOT}`);
+  if (args.has("--sync-only")) {
+    if (!fs.existsSync(path.join(ROOT, SYNC.STAGE, "BUILD_ID"))) fail(`In ${SYNC.STAGE} wartet kein Build für den Sync-Host (erst ein Deploy mit --sync oder ohne --no-sync).`);
+    await swapSyncHost(true);
+    log("✓ Sync-Host ausgerollt.");
+    return;
+  }
   await waitIdle("before");
   const apps = [ROOT, ...(args.has("--knowledge") ? [path.join(ROOT, "knowledge")] : [])];
   for (const app of apps) clearStage(app);
@@ -203,9 +274,17 @@ async function main() {
   } else log("⚠ Ohne Typecheck, Lint und Tests (--skip-checks).");
   build("Build", ROOT);
   if (args.has("--knowledge")) build("Build (Wissens-Server)", apps[1]);
+  // The sync host (once there is one, or with --sync the first time): its copy of the build, before the pages' swap moves it away.
+  const hostWanted = !args.has("--no-sync") && (args.has("--sync") || fs.existsSync(path.join(ROOT, SYNC.LIVE, "BUILD_ID")));
+  if (hostWanted) {
+    copyForSyncHost(ROOT);
+    log(`Build für den Sync-Host: ${SYNC.STAGE}`);
+  } else if (!args.has("--no-sync")) log("Kein Sync-Host eingerichtet (erst mit --sync; der Launcher muss dafür neu gestartet sein).");
 
   await waitIdle("after");
   if (!processes().some((p) => p.Name === "Zeff.exe")) fail("Der Launcher (Zeff.exe) läuft nicht — ohne ihn käme der Server nach dem Neustart nicht wieder. Gebaut ist; starte den Launcher, dann `npm run deploy -- --skip-checks`.");
+  // The sync host first: the pages' server, restarted next, then finds it (and hands its work over).
+  if (hostWanted) await swapSyncHost(args.has("--sync"));
   const old = servers(new RegExp(`next.*start.*-p ${PORT}`));
   const knowledge = args.has("--knowledge") ? servers(/next.*start knowledge/) : [];
   log(`Neustart: ${[...old, ...knowledge].map((p) => p.ProcessId).join(", ") || "(kein Server lief)"}`);

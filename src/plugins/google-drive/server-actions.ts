@@ -77,7 +77,7 @@ export async function syncDriveNowAction(step: string): Promise<ActionState> {
     const no = await installed();
     if (no) return no;
     if (step !== "drivebackup" && step !== "drivedocs") return { ok: false, error: t("Unknown step.") };
-    const r = (await import("@/lib/sync/registry")).startSync(step);
+    const r = await (await import("@/lib/sync/registry")).startSync(step);
     revalidatePath("/google-drive");
     return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
   } catch (err) {

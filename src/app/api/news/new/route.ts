@@ -21,7 +21,7 @@ export async function GET(req: Request) {
   let syncing = false;
   if (listSources().some((s) => s.enabled) && (!last || Date.now() - Date.parse(last) > 30 * 60000)) {
     const { startSync } = await import("@/lib/sync/registry");
-    syncing = startSync("news").ok;
+    syncing = (await startSync("news")).ok;
   }
   return Response.json({ count: Number.isFinite(Date.parse(since)) ? countNewSince(since) : 0, syncing, last });
 }

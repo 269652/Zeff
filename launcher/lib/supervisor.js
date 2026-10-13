@@ -104,7 +104,9 @@ class Service extends EventEmitter {
   }
 
   launch() {
-    const { node, args, cwd, env, logFile } = this.spec;
+    const { node, args, cwd, logFile } = this.spec;
+    // (A function: asked at each start — what the server is told can change between two starts.)
+    const env = typeof this.spec.env === "function" ? this.spec.env() : this.spec.env;
     rotate(logFile, 10 * 1024 * 1024);
     const fd = fs.openSync(logFile, "a");
     let child;

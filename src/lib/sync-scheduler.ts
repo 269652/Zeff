@@ -112,6 +112,7 @@ export function startSyncScheduler(): void {
     }
     // The syncs: the account you're in — for the whole turn, even if you switch meanwhile.
     try {
+      (await import("@/db/accounts")).reloadAccounts(); // a switch made by the web server
       await withAccount(activeAccountId(), syncTurn);
     } finally {
       setTimeout(tick, 60000).unref();

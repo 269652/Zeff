@@ -7,10 +7,11 @@ import { t } from "@/lib/i18n/server";
 
 /** "Sync now" on the Teams page: read Teams' own cache in the automation Chrome (read-only; opens Teams there if needed). */
 export async function syncTeamsAction(): Promise<ActionState> {
-  const { syncTeams } = await import("@/lib/teams/sync");
-  const r = await syncTeams();
+  // Through the Sync menu's step: on the sync host when there is one, stoppable from the menu.
+  const { syncAndWait } = await import("@/lib/sync/registry");
+  const r = await syncAndWait("teams");
   revalidateAll();
-  return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
+  return r.lastOk ? { ok: true, message: r.lastMessage ?? "" } : { ok: false, error: r.lastMessage ?? t("Failed.") };
 }
 
 /** Which of these links point at a synced Teams message — that message, by link (null when none). */

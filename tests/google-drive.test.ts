@@ -241,13 +241,13 @@ test("the Sync menu's steps run the syncs and record how they went; a backup tha
 
   // The Backups extension is off until it is turned on.
   assert.equal(stepAvailable("drivebackup"), false);
-  assert.equal(startSync("drivebackup").ok, false);
+  assert.equal((await startSync("drivebackup")).ok, false);
   setExtensionInstalled("google-drive:backup-sync", true);
   assert.equal(stepAvailable("drivebackup"), true);
 
   const { addDocument } = await import("@/plugins/documents/store");
   addDocument("late.txt", Buffer.from("added later"), "text/plain");
-  assert.equal(startSync("drivedocs").ok, true);
+  assert.equal((await startSync("drivedocs")).ok, true);
   await until("the documents step's record", () => !!record("drivedocs")?.lastAt);
   assert.equal(record("drivedocs")!.lastOk, true);
   assert.match(record("drivedocs")!.lastMessage ?? "", /1 uploaded/);

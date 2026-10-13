@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
-import { findAllDates, findDates } from "./dates";
+import { findDates } from "./dates";
 import { isDateKind, parseDayMonth } from "./shared";
 import { addDate, addRelation, createPerson, deleteDate, deletePerson, deleteRelation, getPerson, markReminded, mergePeople, updateDate, updatePerson } from "./store";
 
@@ -224,7 +224,7 @@ export async function findDatesFormAction(fd: FormData): Promise<void> {
 /** Dates for everyone without a birthday yet — in the background. */
 export async function findAllDatesFormAction(): Promise<void> {
   guard();
-  findAllDates();
+  await (await import("@/lib/host/commands")).findAllDatesAnywhere();
   revalidatePath("/personen");
   redirect("/personen?searching=1");
 }

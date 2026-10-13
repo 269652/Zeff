@@ -47,8 +47,8 @@ export async function trashGoogleNoteAction(id: string): Promise<Result> {
 export async function startBoardSyncAction(boardId: number): Promise<Result> {
   try {
     if (!isInstalled("keep-write")) return { ok: false, error: "\"Google Keep schreiben\" isn't installed (Menu → Plugins)." };
-    const { startBoardSync } = await import("./board-sync");
-    return startBoardSync(Number(boardId)) ? { ok: true, message: "Syncing with Google Keep …" } : { ok: false, error: "A board sync is already running — try again after it." };
+    const { startBoardSyncAnywhere } = await import("@/lib/host/commands");
+    return (await startBoardSyncAnywhere(Number(boardId))) ? { ok: true, message: "Syncing with Google Keep …" } : { ok: false, error: "A board sync is already running — try again after it." };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

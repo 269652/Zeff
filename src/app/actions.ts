@@ -775,10 +775,10 @@ export async function retryServiceAction(service: string): Promise<ActionState> 
     if (service === "keep") return await syncKeepAction();
     if (service === "gitlab") return await syncGitlabAction();
     if (service === "jira") {
-      const { syncFromJira } = await import("@/lib/jira/sync");
-      await syncFromJira();
+      const { syncAndWait } = await import("@/lib/sync/registry");
+      const r = await syncAndWait("jira");
       revalidateAll();
-      return { ok: true, message: t("Jira works again.") };
+      return r.lastOk ? { ok: true, message: t("Jira works again.") } : { ok: false, error: r.lastMessage ?? t("Failed.") };
     }
     if (service === "chrono" || service === "punch") {
       const msg = service === "chrono" ? await callChrono("chrono_status", {}) : await callPunch("punch_status", {});
@@ -913,26 +913,26 @@ export async function runSyncAction(key: string): Promise<ActionState> {
   const { isSyncKey } = await import("@/lib/sync/shared");
   if (!isSyncKey(key)) return { ok: false, error: t("Unknown sync.") };
   const { startSync } = await import("@/lib/sync/registry");
-  const r = startSync(key);
+  const r = await startSync(key);
   return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
 }
 
 /** Stop a sync that's running (Sync menu, a page's button) — and what it started. */
 export async function stopSyncAction(key: string): Promise<ActionState> {
   const { stopSync } = await import("@/lib/sync/registry");
-  return stopSync(String(key)) ? { ok: true, message: t("Stopping.") } : { ok: false, error: t("Not running.") };
+  return (await stopSync(String(key))) ? { ok: true, message: t("Stopping.") } : { ok: false, error: t("Not running.") };
 }
 
 /** Stop "Sync all" (the step it's on, and the rest). */
 export async function stopSyncAllAction(): Promise<ActionState> {
   const { stopSyncAll } = await import("@/lib/sync/registry");
-  return stopSyncAll() ? { ok: true, message: t("Stopping.") } : { ok: false, error: t("Not running.") };
+  return (await stopSyncAll()) ? { ok: true, message: t("Stopping.") } : { ok: false, error: t("Not running.") };
 }
 
 /** "Sync all": every step one after the other, in the background. */
 export async function runSyncAllAction(): Promise<ActionState> {
   const { startSyncAll } = await import("@/lib/sync/registry");
-  const r = startSyncAll();
+  const r = await startSyncAll();
   return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
 }
 

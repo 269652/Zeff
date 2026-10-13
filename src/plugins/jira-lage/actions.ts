@@ -10,8 +10,11 @@ export async function startBoardLageAction(opts: { all?: boolean } = {}): Promis
   try {
     if (!isInstalled("jira-lage")) return { ok: false, error: t("Jira briefing is not installed (Menu → Plugins).") };
     // The tickets you're in — or (on request) all, also those without you.
-    (await import("./board-lage")).setBoardLageScope(!!opts.all);
-    const r = (await import("@/lib/sync/registry")).startSync("boardlage");
+    // (The briefing runs on the sync host, when there is one: it is told the scope there.)
+    const { delegates } = await import("@/lib/host/role");
+    if (delegates()) await (await import("@/lib/host/client")).callHost("boardlage.scope", { all: !!opts.all });
+    else (await import("./board-lage")).setBoardLageScope(!!opts.all);
+    const r = await (await import("@/lib/sync/registry")).startSync("boardlage");
     revalidatePath("/kanban", "layout");
     return r.ok ? { ok: true, message: t("The board briefing is running — the cards fill in as parts are done.") } : { ok: false, error: r.message };
   } catch (err) {

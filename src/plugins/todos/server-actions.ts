@@ -9,9 +9,9 @@ import { revalidateAll, str, type ActionState } from "@/app/action-helpers";
 
 /** "Run now": the run starts in the background — the Todos page follows it. */
 export async function runBoardAction(): Promise<ActionState> {
-  const { startBoardRun } = await import("@/lib/boards/run");
+  const { startBoardRunAnywhere } = await import("@/lib/host/commands");
   // By hand: Jira synced first, then the analysis.
-  const r = startBoardRun({ syncJira: true });
+  const r = await startBoardRunAnywhere({ syncJira: true });
   revalidatePath("/todos");
   return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
 }
@@ -28,9 +28,9 @@ export async function saveBoardSettingsAction(_prev: ActionState, fd: FormData):
 
 /** Stop the Ticket-Lage's run ("Analyse now"). */
 export async function stopBoardRunAction(): Promise<ActionState> {
-  const { stopBoardRun } = await import("@/lib/boards/run");
+  const { stopBoardRunAnywhere } = await import("@/lib/host/commands");
   revalidatePath("/todos");
-  return stopBoardRun() ? { ok: true, message: t("The analysis is being stopped.") } : { ok: false, error: t("No analysis is running.") };
+  return (await stopBoardRunAnywhere()) ? { ok: true, message: t("The analysis is being stopped.") } : { ok: false, error: t("No analysis is running.") };
 }
 
 /** A todo done, dismissed, or open again. */
@@ -376,8 +376,8 @@ export async function runTodoAlternativeAction(todoId: number, label: string): P
 /** The Recap: a day's recap made (in the background) — the page follows it. */
 export async function startRecapAction(day: string): Promise<ActionState> {
   try {
-    const { startRecap } = await import("@/lib/boards/recap");
-    const r = startRecap(String(day));
+    const { startRecapAnywhere } = await import("@/lib/host/commands");
+    const r = await startRecapAnywhere(String(day));
     revalidateAll();
     return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
   } catch (err) {

@@ -19,6 +19,8 @@ import path from "node:path";
 export const LIVE = ".next";
 export const STAGE = ".next-build";
 export const OLD = ".next-old";
+/** The sync host's build (a second server from the same code, see lib/host/role.ts) swaps in its own folders: the deploy moves .next under the pages' server, never under the host. */
+export const SYNC = { LIVE: ".next-sync", STAGE: ".next-sync-build", OLD: ".next-sync-old" };
 const KEEP = new Set(["dev", "cache"]);
 const MARKER = "BUILD_ID";
 
@@ -41,15 +43,15 @@ function rename(from, to) {
  * Before the checks: what an earlier, failed deploy left in .next-build goes (all but the build
  * cache) — tsconfig.json includes .next-build/types, and stale route types would fail tsc.
  */
-export function clearStage(appDir) {
-  const stage = path.join(appDir, STAGE);
+export function clearStage(appDir, names = { STAGE }) {
+  const stage = path.join(appDir, names.STAGE);
   if (!fs.existsSync(stage)) return;
   for (const name of fs.readdirSync(stage)) if (name !== "cache") fs.rmSync(path.join(stage, name), { recursive: true, force: true, maxRetries: 5 });
 }
 
 /** A finished build in .next-build — or why not. */
-export function stagedProblem(appDir) {
-  const stage = path.join(appDir, STAGE);
+export function stagedProblem(appDir, names = { STAGE }) {
+  const stage = path.join(appDir, names.STAGE);
   return fs.existsSync(path.join(stage, MARKER)) ? null : `${path.relative(process.cwd(), stage) || stage}: kein fertiger Build (${MARKER} fehlt)`;
 }
 
@@ -57,9 +59,10 @@ export function stagedProblem(appDir) {
  * Swaps .next-build into .next for each app folder; stop() stops the old servers in between.
  * The build before last (.next-old) is removed first, while the old server still runs.
  */
-export async function swapDists(appDirs, stop) {
+export async function swapDists(appDirs, stop, names = { LIVE, STAGE, OLD }) {
+  const { LIVE, STAGE, OLD } = names;
   for (const app of appDirs) {
-    const problem = stagedProblem(app);
+    const problem = stagedProblem(app, names);
     if (problem) throw new Error(problem);
     fs.rmSync(path.join(app, OLD), { recursive: true, force: true, maxRetries: 5 });
   }
@@ -94,4 +97,21 @@ export async function swapDists(appDirs, stop) {
     }
     throw e;
   }
+}
+
+/**
+ * A copy of the finished build for the sync host: .next-build → .next-sync-build (what the web swap is about to
+ * move away). Not the build's cache. The host takes it over when it has nothing to do (see deploy.mjs).
+ */
+export function copyForSyncHost(appDir) {
+  const from = path.join(appDir, STAGE);
+  const to = path.join(appDir, SYNC.STAGE);
+  fs.rmSync(to, { recursive: true, force: true, maxRetries: 5 });
+  fs.mkdirSync(to, { recursive: true });
+  for (const name of fs.readdirSync(from)) {
+    if (name === "cache" || name === "dev" || name === MARKER) continue;
+    fs.cpSync(path.join(from, name), path.join(to, name), { recursive: true });
+  }
+  // The marker last: a half copy is never taken for a build.
+  fs.copyFileSync(path.join(from, MARKER), path.join(to, MARKER));
 }

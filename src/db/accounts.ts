@@ -86,6 +86,14 @@ function write(r: Registry): void {
 }
 
 export const listAccounts = (): Account[] => read().accounts;
+/**
+ * Read data/accounts.json again at the next question. The registry is kept in memory; a server that doesn't
+ * write it (the sync host) calls this to see the account the web server switched to.
+ */
+export const reloadAccounts = (): void => {
+  state.__zeffAccounts = undefined;
+};
+
 export const accountById = (id: string): Account | undefined => read().accounts.find((a) => a.id === id);
 
 /** Whether the Accounts plugin is installed — kept here, for all accounts alike (not in one's database). */

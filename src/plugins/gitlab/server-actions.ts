@@ -8,8 +8,9 @@ import { revalidateAll, str, type ActionState } from "@/app/action-helpers";
 
 /** "Sync now" on the GitLab page: GET requests to GitLab's API from a GitLab tab in the automation Chrome (opens one if needed). */
 export async function syncGitlabAction(): Promise<ActionState> {
-  const { syncGitlab } = await import("@/lib/gitlab/sync");
-  const r = await syncGitlab();
+  // Through the Sync menu's step: on the sync host when there is one, stoppable from the menu.
+  const { syncAndWait } = await import("@/lib/sync/registry");
+  const r = await syncAndWait("gitlab");
   revalidateAll();
   return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
 }

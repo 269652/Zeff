@@ -5,6 +5,22 @@
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs" || process.env.NEXT_PHASE === "phase-production-build") return;
+  // The sync host (see lib/host/role.ts) does only what the web server hands it: the scheduler and the runs.
+  // Resuming work runs, documents, the plugin event watcher … stay with the web server — twice would be wrong.
+  if (process.env.ZEFF_ROLE === "sync") {
+    try {
+      const { failInterruptedRuns } = await import("./lib/boards/store");
+      const { listAccounts, withAccount } = await import("./db/accounts");
+      // A board run or recap can't outlive the server that ran it — this one, now.
+      for (const a of listAccounts()) withAccount(a.id, failInterruptedRuns);
+    } catch (e) {
+      console.error("[sync host] marking interrupted runs failed", e);
+    }
+    const { startSyncScheduler } = await import("./lib/sync-scheduler");
+    startSyncScheduler();
+    console.log("[sync host] the scheduler and the runs are here now");
+    return;
+  }
   try {
     const { unifySources } = await import("./lib/contexts");
     const { copies, split, merged } = unifySources();
@@ -14,13 +30,18 @@ export async function register() {
   } catch (e) {
     console.error("[context] unifying linked sources failed", e);
   }
+  const { runsWork, delegates } = await import("./lib/host/role");
+  // A web server with a sync host: the briefing, the syncs and the recap run there, not here — so a restart of this
+  // server interrupts none of them (and doesn't fail their rows). It copies what the host is doing instead.
+  if (delegates()) (await import("./lib/host/mirror")).startHostMirror();
   try {
+    if (!runsWork()) throw new Error("skipped");
     const { failInterruptedRuns } = await import("./lib/boards/store");
     const { listAccounts, withAccount } = await import("./db/accounts");
     // A board run or recap can't outlive the server that ran it — in every account, not only the one you're in.
     for (const a of listAccounts()) withAccount(a.id, failInterruptedRuns);
   } catch (e) {
-    console.error("[boards] marking interrupted runs failed", e);
+    if (!(e instanceof Error && e.message === "skipped")) console.error("[boards] marking interrupted runs failed", e);
   }
   try {
     // Documents a server that has gone left "being read": waiting again, and read — in every account that keeps documents.
@@ -60,6 +81,8 @@ export async function register() {
   } catch (e) {
     console.error("[ext] starting the event watcher failed", e);
   }
-  const { startSyncScheduler } = await import("./lib/sync-scheduler");
-  startSyncScheduler();
+  if (runsWork()) {
+    const { startSyncScheduler } = await import("./lib/sync-scheduler");
+    startSyncScheduler();
+  }
 }

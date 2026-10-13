@@ -9,21 +9,11 @@ import { revalidateAll, str, type ActionState } from "@/app/action-helpers";
 /** Jira — its server actions (each answers an ActionState unless it says otherwise). */
 
 export async function syncJiraAction(): Promise<ActionState> {
-  const { syncFromJira } = await import("@/lib/jira/sync");
   try {
-    const r = await syncFromJira();
+    // Through the Sync menu's step: on the sync host when there is one.
+    const r = await (await import("@/lib/sync/registry")).syncAndWait("jira");
     revalidateAll();
-    return {
-      ok: true,
-      message: [
-        t("Synced {total} tickets — {mine} yours, {others} teammates' on your boards", { total: r.total, mine: r.mine, others: Math.max(0, r.total - r.mine) }),
-        ` (${t("{inserted} new, {updated} updated", { inserted: r.inserted, updated: r.updated })}`,
-        r.deactivated ? `, ${t("{n} dropped", { n: r.deactivated })}` : "",
-        ")",
-        r.titlesAdded ? `; ${t("+{n} titles", { n: r.titlesAdded })}` : "",
-        ".",
-      ].join(""),
-    };
+    return r.lastOk ? { ok: true, message: r.lastMessage ?? "" } : { ok: false, error: r.lastMessage ?? t("Failed.") };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

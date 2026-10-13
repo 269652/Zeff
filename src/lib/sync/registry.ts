@@ -13,6 +13,9 @@ import { ABORTED, sleep, withAbort } from "@/lib/abort";
 import { noteSyncResult } from "./health";
 import { stepMinutes } from "./intervals";
 
+import { callHost, HostDownError } from "@/lib/host/client";
+import { remoteResult } from "@/lib/host/commands";
+import { delegates } from "@/lib/host/role";
 /** Quiet hours: from 19:00 to 08:00 nothing syncs by itself (by hand it still does). */
 export const QUIET = { from: 19, to: 8 };
 export const quietAt = (at = new Date()) => at.getHours() >= QUIET.from || at.getHours() < QUIET.to;
@@ -41,8 +44,15 @@ export async function runStoppable<T>(key: string, fn: () => Promise<T>): Promis
   }
 }
 
-/** Stop a step that's running (and what it started). Whether there was one. */
-export function stopSync(key: string): boolean {
+/** Stop a step that's running (and what it started) — here, or on the sync host. Whether there was one. */
+export async function stopSync(key: string): Promise<boolean> {
+  if (!delegates()) return stopSyncHere(key);
+  const r = await remoteResult("sync.stop", { key });
+  return r.ok;
+}
+
+/** Stop a step that's running in this server (and what it started). Whether there was one. */
+export function stopSyncHere(key: string): boolean {
   const c = stops().get(key);
   STEPS[key as SyncKey]?.stop?.();
   if (!c) return !!STEPS[key as SyncKey]?.stop;
@@ -51,11 +61,16 @@ export function stopSync(key: string): boolean {
 }
 
 /** Stop "Sync all": the step it's on, and no further ones. */
-export function stopSyncAll(): boolean {
+export async function stopSyncAll(): Promise<boolean> {
+  if (!delegates()) return stopSyncAllHere();
+  return (await remoteResult("sync.stopAll", {})).ok;
+}
+
+export function stopSyncAllHere(): boolean {
   const l = live();
   if (l.all === undefined) return false;
   l.allStopped = true;
-  if (l.all) stopSync(l.all);
+  if (l.all) stopSyncHere(l.all);
   return true;
 }
 
@@ -535,14 +550,29 @@ async function runStep(key: SyncKey): Promise<void> {
 /** Run one step and wait for it (one already going: wait for that one). How it went. */
 export async function syncAndWait(key: SyncKey): Promise<Last> {
   const l = live();
+  if (!delegates()) return syncAndWaitHere(key);
+  try {
+    return await callHost<Last>("sync.wait", { key }, 45 * 60000);
+  } catch (e) {
+    if (e instanceof HostDownError) return { lastAt: null, lastOk: false, lastMessage: e.message };
+    throw e;
+  }
+}
+
+export async function syncAndWaitHere(key: SyncKey): Promise<Last> {
   if (l.running.has(key) || STEPS[key].busy?.()) {
     while (live().running.has(key) || STEPS[key].busy?.()) await sleep(1000);
   } else await runStep(key);
   return STEPS[key].last ? STEPS[key].last!() : recorded(key);
 }
 
-/** Start one step in the background. */
-export function startSync(key: SyncKey): { ok: boolean; message: string } {
+/** Start one step in the background (on the sync host, when there is one). */
+export async function startSync(key: SyncKey): Promise<{ ok: boolean; message: string }> {
+  return delegates() ? remoteResult("sync.start", { key }) : startSyncHere(key);
+}
+
+/** Start one step in the background, in this server. */
+export function startSyncHere(key: SyncKey): { ok: boolean; message: string } {
   // Kept in the account it was started in — whichever is switched to while it runs.
   return inThisAccount(() => {
     if (!stepAvailable(key)) return { ok: false, message: t("{step}: not installed (Menu → Plugins).", { step: STEPS[key].label }) };
@@ -556,7 +586,11 @@ export function startSync(key: SyncKey): { ok: boolean; message: string } {
  * "Sync all": every step, one after the other (the drivers share one Chrome) — the Ticket-Lage
  * last, as it reads what the others brought.
  */
-export function startSyncAll(): { ok: boolean; message: string } {
+export async function startSyncAll(): Promise<{ ok: boolean; message: string }> {
+  return delegates() ? remoteResult("sync.startAll", {}) : startSyncAllHere();
+}
+
+export function startSyncAllHere(): { ok: boolean; message: string } {
   // Kept in the account it was started in — whichever is switched to while it runs.
   return inThisAccount(() => {
     const l = live();

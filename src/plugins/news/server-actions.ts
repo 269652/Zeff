@@ -245,10 +245,11 @@ export async function refreshStatusAction(): Promise<import("./refresh").Refresh
 export async function refreshNewsAction(): Promise<Result> {
   try {
     guard();
-    const r = await (await import("./sync")).syncNews();
+    // Through the Sync menu's step: on the sync host when there is one.
+    const r = await (await import("@/lib/sync/registry")).syncAndWait("news");
     revalidatePath("/news");
     revalidatePath("/settings/news");
-    return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
+    return r.lastOk ? { ok: true, message: r.lastMessage ?? "" } : { ok: false, error: r.lastMessage ?? t("Failed.") };
   } catch (e) {
     return { ok: false, error: errorMessage(e) };
   }
