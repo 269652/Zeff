@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useT } from "@/components/I18nProvider";
+import { toast } from "@/components/Toaster";
 import { Cited, type Source } from "./AskNews";
 import { NewsCard } from "./NewsCard";
 import { newsMoreAction, newsRelatedAction, newsSoFarAction } from "./server-actions";
@@ -84,6 +85,8 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
   const [trail, setTrail] = useState<string[]>([]);
   const [dive, setDive] = useState<{ related: { term: string; count: number; weight: number }[]; stories: { label: string; count: number }[] } | null>(null);
   const [sofar, setSofar] = useState<{ busy: boolean; answer?: string; sources?: Source[]; error?: string } | null>(null);
+  // "More like this": what the AI made of the article (why it is for you, the searches) while the finds come in below the card.
+  const [like, setLike] = useState<{ title: string; busy: boolean; angle?: string; queries?: { q: string; why: string }[]; usedAi?: boolean; sourcesAdded?: number } | null>(null);
   const [ago, setAgo] = useState(initialAgo);
   const [done, setDone] = useState(initialDone);
   const [loading, setLoading] = useState(false);
@@ -122,6 +125,7 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
     setTrail([]);
     setDive(null);
     setSofar(null);
+    setLike(null);
     setItems((cur) => {
       const have = new Set(cur.map((i) => i.id));
       return [...cur, ...waiting.filter((i) => !have.has(i.id))];
@@ -161,6 +165,39 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
       setItems(base);
       await loadTopic();
     } catch {
+      restoreStash();
+    } finally {
+      busy.current = false;
+      setLoading(false);
+    }
+  };
+
+  /** "More like this" on a card: the article is read, the AI looks at what you like and know, the internet is searched — the finds open below the card. */
+  const moreLike = async (itemId: number, anchorId: number, title: string) => {
+    if (busy.current) return;
+    busy.current = true;
+    setLoading(true);
+    try {
+      const { base, rest } = followSplit(items, anchorId);
+      stash.current = [...rest, ...stash.current];
+      topicRef.current = { term: `like:${itemId}`, offset: 0, done: false };
+      anchor.current = anchorId;
+      setTopic(`like:${itemId}`);
+      setDive(null);
+      setSofar(null);
+      setLike({ title, busy: true });
+      setItems(base);
+      const res = await fetch("/api/news/similar", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: itemId }) });
+      const j = (await res.json()) as { ok: boolean; error?: string; angle?: string; queries?: { q: string; why: string }[]; usedAi?: boolean; sourcesAdded?: number; found?: number };
+      if (!j.ok) {
+        toast(j.error ?? t("Didn't work."), { tone: "error" });
+        restoreStash();
+        return;
+      }
+      setLike({ title, busy: false, angle: j.angle, queries: j.queries, usedAi: j.usedAi, sourcesAdded: j.sourcesAdded });
+      await loadTopic();
+    } catch {
+      toast(t("Didn't work."), { tone: "error" });
       restoreStash();
     } finally {
       busy.current = false;
@@ -292,7 +329,7 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
       {topic && (
         <div className="sticky top-2 z-30 mx-auto w-full max-w-3xl space-y-2 rounded-2xl border border-indigo-300 bg-indigo-50/95 px-4 py-2 text-xs text-indigo-900 shadow backdrop-blur dark:border-indigo-800 dark:bg-indigo-950/95 dark:text-indigo-100">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium">{topic.startsWith("story:") ? `🧵 ${topic.slice(6)}` : `🧭 ${t("Following “{topic}”", { topic })}`}</span>
+            <span className="font-medium">{topic.startsWith("like:") ? `✨ ${t("More like “{title}”", { title: (like?.title ?? "").slice(0, 50) })}` : topic.startsWith("story:") ? `🧵 ${topic.slice(6)}` : `🧭 ${t("Following “{topic}”", { topic })}`}</span>
             {trail.length > 1 && (
               <span className="flex flex-wrap items-center gap-1 text-indigo-700 dark:text-indigo-300">
                 {trail.map((x, i) => (
@@ -314,6 +351,7 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
               type="button"
               className="hover:underline"
               onClick={() => {
+                if (topic.startsWith("like:")) return;
                 setSofar({ busy: true });
                 void newsSoFarAction(topic).then((r) => setSofar(r.ok ? { busy: false, answer: r.answer, sources: r.sources } : { busy: false, error: r.error }));
               }}
@@ -328,6 +366,28 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
               ✕ {t("Stop")}
             </button>
           </div>
+          {like && (
+            <div className="space-y-1.5">
+              {like.busy ? (
+                <p className="text-indigo-700 dark:text-indigo-300">{t("Reading the article, thinking about what you like and know, searching the internet … (up to a minute)")}</p>
+              ) : (
+                <>
+                  {like.angle && <p className="leading-relaxed">{like.angle}</p>}
+                  {like.queries && like.queries.length > 0 && (
+                    <p className="flex flex-wrap items-center gap-1">
+                      <span className="text-indigo-600 dark:text-indigo-300">{like.usedAi ? t("Searched") : t("Searched (the article's own terms)")}:</span>
+                      {like.queries.map((x) => (
+                        <button key={x.q} type="button" className="rounded-full border border-indigo-300 bg-white px-2 py-0.5 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-900 dark:hover:bg-indigo-800" title={x.why} onClick={() => void follow(x.q, anchor.current ?? items[0]?.id ?? 0)}>
+                          {x.q}
+                        </button>
+                      ))}
+                    </p>
+                  )}
+                  {(like.sourcesAdded ?? 0) > 0 && <p className="text-indigo-600 dark:text-indigo-300">{t("{n} new sources found around this topic — their news come in with the next fetch.", { n: like.sourcesAdded })}</p>}
+                </>
+              )}
+            </div>
+          )}
           {dive && (dive.related.length > 0 || dive.stories.length > 0) && (
             <div className="space-y-1.5">
               {dive.stories.length > 0 && (
@@ -377,7 +437,7 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
           {/* The middle column holds all the news, a little bigger. */}
           <div className="space-y-4" style={{ zoom: 1.06 }}>
             {items.map((it) => (
-              <NewsCard key={it.id} item={it} ago={ago[it.id] ?? ""} showImage={showImages} onChange={(p) => patch(it.id, p)} onDrop={drop} onFollow={(term) => void follow(term, it.id)} following={topic} />
+              <NewsCard key={it.id} item={it} ago={ago[it.id] ?? ""} showImage={showImages} onChange={(p) => patch(it.id, p)} onDrop={drop} onFollow={(term) => void follow(term, it.id)} following={topic} onMoreLike={() => void moreLike(it.id, it.id, it.title)} />
             ))}
           </div>
           {wide && <FocusSide items={sides[1]} showImage={showImages} />}
@@ -387,7 +447,7 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
           {columns.map((col, k) => (
             <div key={k} className="min-w-0 flex-1 space-y-3">
               {col.map((it) => (
-                <NewsCard key={it.id} item={it} ago={ago[it.id] ?? ""} showImage={showImages} onChange={(p) => patch(it.id, p)} onDrop={drop} onFollow={(term) => void follow(term, it.id)} following={topic} />
+                <NewsCard key={it.id} item={it} ago={ago[it.id] ?? ""} showImage={showImages} onChange={(p) => patch(it.id, p)} onDrop={drop} onFollow={(term) => void follow(term, it.id)} following={topic} onMoreLike={() => void moreLike(it.id, it.id, it.title)} />
               ))}
             </div>
           ))}

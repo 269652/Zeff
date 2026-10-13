@@ -4127,5 +4127,11 @@
   "Fetches every source; if there are fewer than 200 unseen cards, adds sources until there are": "Obtiene cada fuente; si hay menos de 200 tarjetas sin ver, añade fuentes hasta que las haya",
   "Refreshing …": "Actualizando …",
   "{unseen} of {target} unseen cards": "{unseen} de {target} tarjetas sin ver",
-  "{n} sources added": "{n} fuentes añadidas"
+  "{n} sources added": "{n} fuentes añadidas",
+  "More like this: the AI reads it, thinks about what you like and know, searches the internet and puts the best finds below": "Más como esto: la IA lo lee, piensa en lo que te gusta y sabes, busca en internet y pone debajo lo mejor",
+  "More like “{title}”": "Más como «{title}»",
+  "Reading the article, thinking about what you like and know, searching the internet … (up to a minute)": "Leyendo el artículo, pensando en lo que te gusta y sabes, buscando en internet … (hasta un minuto)",
+  "Searched": "Buscado",
+  "Searched (the article's own terms)": "Buscado (términos del propio artículo)",
+  "{n} new sources found around this topic — their news come in with the next fetch.": "{n} fuentes nuevas encontradas sobre este tema: sus noticias llegan con la próxima obtención."
 }

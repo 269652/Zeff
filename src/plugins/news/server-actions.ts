@@ -72,7 +72,7 @@ export async function newsMoreAction(view: string, sourceId: number | null, cate
   const { formatAgo } = await import("@/lib/format");
   const { getPrefs } = await import("./store");
   const v = (["foryou", "latest", "saved", "hidden"] as string[]).includes(view) ? (view as NewsView) : "foryou";
-  const items = listItems({ view: v, sourceId: sourceId ?? undefined, category: category || undefined, term: term.startsWith("story:") ? undefined : term || undefined, story: term.startsWith("story:") ? term.slice(6) : undefined, maxAgeDays: getPrefs().maxAgeDays, limit: NEWS_PAGE, offset: Math.max(0, Math.floor(offset)) });
+  const items = listItems({ view: v, sourceId: sourceId ?? undefined, category: category || undefined, likeOf: term.startsWith("like:") ? Number(term.slice(5)) || undefined : undefined, term: term.startsWith("story:") || term.startsWith("like:") ? undefined : term || undefined, story: term.startsWith("story:") ? term.slice(6) : undefined, maxAgeDays: getPrefs().maxAgeDays, limit: NEWS_PAGE, offset: Math.max(0, Math.floor(offset)) });
   return { items, ago: Object.fromEntries(items.map((i) => [i.id, formatAgo(i.publishedAt)])), done: items.length < NEWS_PAGE };
 }
 

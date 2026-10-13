@@ -21,6 +21,7 @@ function db() {
   // Pictures and whole articles: columns added later.
   const cols = (d.prepare("pragma table_info(news_items)").all() as { name: string }[]).map((c) => c.name);
   if (!cols.includes("image")) d.exec("alter table news_items add column image text not null default ''");
+  d.exec("create table if not exists news_similar (item_id integer not null, like_of integer not null, score real not null, why text not null default '', at text not null, primary key (item_id, like_of))");
   if (!cols.includes("tags")) d.exec("alter table news_items add column tags text not null default '[]'");
   if (!cols.includes("story")) d.exec("alter table news_items add column story text not null default ''");
   if (!cols.includes("tag_src")) d.exec("alter table news_items add column tag_src text not null default ''");
@@ -243,8 +244,12 @@ const toItem = (r: IRow): NewsItem => ({
 export type NewsView = "foryou" | "latest" | "saved" | "hidden";
 
 /** The items of a view: For you (best first, nothing hidden or muted), Latest (by date), Saved, Hidden. */
-export function listItems(opts: { view?: NewsView; sourceId?: number; category?: string; term?: string; story?: string; limit?: number; offset?: number; maxAgeDays?: number } = {}): NewsItem[] {
+export function listItems(opts: { view?: NewsView; sourceId?: number; category?: string; term?: string; story?: string; likeOf?: number; limit?: number; offset?: number; maxAgeDays?: number } = {}): NewsItem[] {
   const view = opts.view ?? "foryou";
+  // "More like this": what was found for an item, the closest first (what you have seen after).
+  if (opts.likeOf) {
+    return (db().prepare(`select ${ICOLS} from ${IFROM} join news_similar sm on sm.item_id = i.id where sm.like_of = ? and i.state != 'hidden' order by (i.seen_at is not null), sm.score desc, i.published_at desc limit ? offset ?`).all(opts.likeOf, opts.limit ?? 60, opts.offset ?? 0) as IRow[]).map(toItem);
+  }
   const where: string[] = [];
   const args: (string | number)[] = [];
   if (view === "saved") where.push("i.state = 'saved'");
@@ -392,6 +397,35 @@ export function relatedByTags(item: { id: number; title: string; terms: string[]
 export function itemsOfStory(story: string, limit = 30): NewsItem[] {
   if (!story.trim()) return [];
   return (db().prepare(`select ${ICOLS} from ${IFROM} where i.story = ? and i.state != 'hidden' order by i.published_at desc limit ?`).all(story, limit) as IRow[]).map(toItem);
+}
+
+/** The items for these addresses (id by address) — what was just added from a search. */
+export function idsByUrls(urls: string[]): Map<string, number> {
+  const d = db();
+  const get = d.prepare("select id from news_items where url_key = ?");
+  const out = new Map<string, number>();
+  for (const u of urls) {
+    const r = get.get(normalizeUrl(u)) as { id: number } | undefined;
+    if (r) out.set(u, r.id);
+  }
+  return out;
+}
+
+/** What was found for "More like this" on an item: its matches with how close each is. */
+export function setSimilar(likeOf: number, entries: { id: number; score: number; why: string }[]): void {
+  const d = db();
+  d.prepare("delete from news_similar where like_of = ?").run(likeOf);
+  const ins = d.prepare("insert or replace into news_similar (item_id, like_of, score, why, at) values (?, ?, ?, ?, ?)");
+  d.transaction(() => {
+    for (const e of entries) ins.run(e.id, likeOf, e.score, e.why, now());
+  })();
+}
+
+/** The reasons shown on items ("like: …"), unless they have better ones already. */
+export function setReasons(ids: number[], reasons: string[]): void {
+  const d = db();
+  const up = d.prepare("update news_items set reasons = ? where id = ? and reasons = '[]'");
+  for (const id of ids) up.run(JSON.stringify(reasons), id);
 }
 
 /** The kept whole article of an item ("" if none, UNREADABLE if its page couldn't be read). */

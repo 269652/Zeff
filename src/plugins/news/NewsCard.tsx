@@ -46,7 +46,7 @@ async function peek(id: number): Promise<{ ok: boolean; image: string; hasConten
  * from and how old it is, a short text — or the whole article, read here — why it is up here, and the buttons that teach
  * Zeff your taste (👍 👎), keep it (save) or put it away (hide). `onChange` tells the feed what changed, so it updates in place.
  */
-export function NewsCard({ item, ago, showImage, onChange, onDrop, onFollow, following }: { item: NewsItem & { fromTopic?: string }; ago: string; showImage: boolean; onChange: (patch: Partial<NewsItem>) => void; /** A name on the card was clicked: the feed follows that topic below this card (no navigation). */ onFollow?: (term: string) => void; /** The topic being followed now. */ following?: string | null; /** The feed this card is from is off: all its cards leave. */ onDrop: (gone: (i: NewsItem) => boolean) => void }) {
+export function NewsCard({ item, ago, showImage, onChange, onDrop, onFollow, following, onMoreLike }: { item: NewsItem & { fromTopic?: string }; ago: string; showImage: boolean; onChange: (patch: Partial<NewsItem>) => void; /** A name on the card was clicked: the feed follows that topic below this card (no navigation). */ onFollow?: (term: string) => void; /** The topic being followed now. */ following?: string | null; /** The feed this card is from is off: all its cards leave. */ onDrop: (gone: (i: NewsItem) => boolean) => void; /** More like this: the AI reads it, looks at what you like and know, searches the internet — the finds open below this card. */ onMoreLike?: () => void }) {
   const t = useT();
   const [pending, start] = useTransition();
   const [broken, setBroken] = useState(false);
@@ -241,6 +241,11 @@ export function NewsCard({ item, ago, showImage, onChange, onDrop, onFollow, fol
           >
             🔖
           </button>
+          {onMoreLike && (
+            <button type="button" className={btn(following === `like:${item.id}`)} disabled={pending} onClick={onMoreLike} title={t("More like this: the AI reads it, thinks about what you like and know, searches the internet and puts the best finds below")}>
+              ✨ {t("More like this")}
+            </button>
+          )}
           <button type="button" className={btn(thread.open)} disabled={pending} onClick={toggleThread} title={t("Follow the thread: other reports on this story")}>
             🧵
           </button>

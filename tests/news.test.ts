@@ -1041,3 +1041,54 @@ test("Refresh: every source is fetched; with fewer than 200 unseen cards sources
   assert.deepEqual(calls2, ["all"]);
   assert.match(r2.message, /20 new items — 20 unseen cards \(the sources have no more fresh news right now\)/);
 });
+
+test("More like this: the AI reads the article next to what you like and know, searches go out, the best finds become cards below it, new sources are found around the topic", async () => {
+  const s = await import("@/plugins/news/store");
+  const { moreLikeThis, similarPrompt } = await import("@/plugins/news/similar");
+  for (const x of s.listSources()) s.removeSource(x.id);
+  await wipe();
+  s.setPrefs({ interests: [{ term: "Segeln", weight: 2 }], mutes: [], useProfile: false, useWork: false, autoDiscover: false });
+  const src = s.addSource({ name: "Seg", url: "https://seg.example/rss" });
+  const now = new Date().toISOString();
+  s.addItems({ id: src.id, name: "Seg" }, [{ guid: "1", url: "https://seg.example/1", title: "Vendée Globe: Skipper kämpft mit Sturm im Südatlantik", summary: "Die Einhandsegler erreichen Kap Hoorn", publishedAt: now }]);
+  const item = s.listItems({ view: "latest", sourceId: src.id })[0];
+  const prompts: string[] = [];
+  const searched: string[] = [];
+  const hit = (title: string, summary: string, n: number) => ({ guid: `h${n}`, url: `https://web.example/${n}`, title, summary, publishedAt: now });
+  const r = await moreLikeThis(item.id, {
+    read: async () => ({ title: item.title, text: "Die Einhandsegler der Vendée Globe erreichen Kap Hoorn. Der Skipper kämpft mit Sturm und Wellen im Südatlantik. Seine Freundin Nadine wartet an Land.", url: item.url }),
+    profile: async () => ["Interessen: Segeln (wichtig)", "Eine Person, die sie kennt und die im Artikel vorkommt: Nadine (Rennrad) — gemeinsame Törns"],
+    ask: async (p) => (prompts.push(p), { angle: "Du segelst gern, und Nadine kommt vor.", queries: [{ q: "Vendée Globe Kap Hoorn", why: "mehr zum Rennen" }, { q: "Einhandsegler Sturm Südatlantik", why: "Gefahren" }], keep: ["Segler", "Skipper"], avoid: ["Aktien"] }),
+    search: async (q) => (searched.push(q), [hit("Vendée Globe: Zweiter Skipper rundet Kap Hoorn im Sturm", "Der Segler kämpft mit Wellen", 1), hit("Aktien fallen: Skipper Fonds verliert", "Börse aktuell", 2), hit("Kap Hoorn Rekord für Einhandsegler", "Vendée Globe Feld", 3)]),
+    find: async () => [{ domain: "segeln.example", feed: { url: "https://segeln.example/feed", title: "Segeln Magazin" }, why: "Segeln" }],
+  });
+  assert.ok(r.ok && r.usedAi, JSON.stringify(r));
+  assert.match(prompts[0], /Vendée Globe[\s\S]*Segeln \(wichtig\)[\s\S]*Nadine/, "the article and what is known about you go to the AI");
+  assert.deepEqual(searched.sort(), ["Einhandsegler Sturm Südatlantik", "Vendée Globe Kap Hoorn"], "the AI's searches go out");
+  assert.equal(r.angle, "Du segelst gern, und Nadine kommt vor.");
+  assert.equal(r.sourcesAdded, 1);
+  assert.ok(s.listSources().some((x) => x.url === "https://segeln.example/feed" && x.category === "Discovered"));
+  // The finds, closest first; what doesn't fit (Aktien) is last or out.
+  const finds = s.listItems({ view: "latest", likeOf: item.id });
+  assert.ok(finds.length >= 2);
+  const titles = finds.map((f) => f.title);
+  assert.match(titles[0], /Kap Hoorn/);
+  assert.ok(titles.findIndex((t) => /Aktien/.test(t)) === -1 || titles.findIndex((t) => /Aktien/.test(t)) > 0, "the odd one out is not first");
+  assert.ok(finds[0].reasons.some((x) => /^like:/.test(x)), "says what it is like");
+  assert.equal(s.listItems({ view: "latest", likeOf: item.id, limit: 1, offset: 1 }).length, 1, "pages");
+
+  // Without an AI: the article's own terms are searched.
+  searched.length = 0;
+  const r2 = await moreLikeThis(item.id, {
+    read: async () => ({ title: "Vendée Globe: Skipper kämpft mit Sturm", text: "Vendée Globe Skipper Kap Hoorn Einhandsegler Vendée Globe Sturm Kap Hoorn", url: item.url }),
+    profile: async () => [],
+    ask: async () => { throw new Error("no llm"); },
+    search: async (q) => (searched.push(q), [hit(`Mehr zu ${q}`, "Vendée Globe", 10 + searched.length)]),
+    find: async () => [],
+  });
+  assert.ok(r2.ok && !r2.usedAi && r2.queries.length > 0, JSON.stringify(r2));
+  assert.ok(searched.length > 0);
+  assert.match(similarPrompt({ title: "T", text: "X" }, []), /\(nichts bekannt\)/);
+  const bad = await moreLikeThis(999999, { read: async () => { throw new Error("That item isn't there any more."); } });
+  assert.equal(bad.ok, false);
+});
