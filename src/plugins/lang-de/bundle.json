@@ -4209,5 +4209,6 @@
   "Not read yet — the next Knowledge assignment does it, or read them now.": "Noch nicht gelesen – die nächste Wissens-Zuordnung macht das, oder jetzt lesen.",
   "The knowledge names no systems for this repo.": "Das Wissen nennt keine Systeme für dieses Repo.",
   "Reading…": "Liest …",
-  "Read the systems of {n} repos from the knowledge.": "Die Systeme von {n} Repos aus dem Wissen gelesen."
+  "Read the systems of {n} repos from the knowledge.": "Die Systeme von {n} Repos aus dem Wissen gelesen.",
+  "What a todo shows under its text, and which kinds of knowledge count": "Was ein Todo unter seinem Text zeigt und welche Arten von Wissen zählen"
 }

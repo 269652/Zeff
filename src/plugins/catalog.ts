@@ -230,7 +230,6 @@ export const PLUGINS: PluginManifest[] = [
   {
     id: "knowledge",
     name: "Knowledge",
-    settings: { href: "/settings/todos", what: "What a todo shows, and which kinds of knowledge count" },
     description: "Knowledge from Confluence: the knowledge server (knowledge/, a server of its own) compiles the pages with Copilot into a searchable knowledge graph. Here you ask it in a chat; on todos the “Knowledge” toggle shows the matching pages, and agents search it (MCP).",
     category: "app",
     defaultInstalled: false,

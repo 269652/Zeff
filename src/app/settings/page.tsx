@@ -78,6 +78,11 @@ export default async function SettingsPage() {
         <Link href="/privacy" className="btn btn-sm w-full text-center">
           {t("What leaves this PC")}
         </Link>
+        {isInstalled("todos") && (
+          <Link href="/settings/todos" className="btn btn-sm w-full text-center" title={t("What a todo shows under its text, and which kinds of knowledge count")}>
+            {t("Todo settings")}
+          </Link>
+        )}
         {/* The plugins' own settings pages: under Settings, one each. */}
         {PLUGINS.filter((p) => installedPlugins().has(p.id) && p.settings?.href.startsWith("/settings/")).map((p) => (
           <Link key={p.id} href={p.settings!.href} className="btn btn-sm w-full text-center" title={p.settings!.what}>
