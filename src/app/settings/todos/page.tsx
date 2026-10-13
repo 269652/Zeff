@@ -1,0 +1,88 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { connection } from "next/server";
+import { SubmitButton } from "@/components/SubmitButton";
+import { t } from "@/lib/i18n/server";
+import { AREAS, KNOWLEDGE_KINDS } from "@/lib/todo-display";
+import { getTodoDisplayOff } from "@/lib/todo-display-store";
+import { saveTodoDisplayFormAction } from "@/plugins/todos/server-actions";
+import { isInstalled } from "@/plugins/state";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: t("Todo settings") };
+}
+
+/** Settings → Todos: what a todo shows under its text, and which kinds of knowledge are worth showing there. */
+export default async function TodoSettingsPage() {
+  await connection();
+  const off = new Set(getTodoDisplayOff());
+  const areas: Record<(typeof AREAS)[number], { label: string; hint: string }> = {
+    context: { label: t("Context"), hint: t("The mails, messages, tickets and comments a todo comes from.") },
+    actions: { label: t("Actions"), hint: t("The actions the auto-actions review proposes. Off: they stay hidden (actions you added yourself are always shown).") },
+    knowledge: { label: t("Knowledge"), hint: t("What the knowledge base has on it. Needs the Knowledge plugin.") },
+  };
+  const kinds: Record<(typeof KNOWLEDGE_KINDS)[number], { label: string; hint: string }> = {
+    confluence: { label: t("Confluence"), hint: t("Pages of the extranet: how a system works, who does what, the addresses.") },
+    keep: { label: t("Keep notes"), hint: t("Your notes from Google Keep.") },
+    fact: { label: t("Facts and notes"), hint: t("What Zeff learned about you and your work, and the notes on the Context page.") },
+    doc: { label: t("Documents"), hint: t("The documents you added.") },
+    todo: { label: t("Todos"), hint: t("Other todos — they are on the board already.") },
+    jira: { label: t("Jira tickets"), hint: t("Tickets — a todo shows its own as context.") },
+    mail: { label: t("Mails and messages"), hint: t("Mails, Teams and chat messages — context already.") },
+    gitlab: { label: t("GitLab"), hint: t("Merge requests and their comments — context already.") },
+    work: { label: t("Work records"), hint: t("Time entries, runs, recaps and weekly reports.") },
+  };
+  return (
+    <div className="page">
+      <div className="page-aside">
+        <Link href="/settings" className="text-sm text-zinc-500 hover:underline">
+          ← {t("Settings")}
+        </Link>
+        <h1 className="text-lg font-semibold">{t("Todo settings")}</h1>
+        <p className="text-sm text-zinc-500">{t("What a todo shows under its text, and what is worth showing as knowledge.")}</p>
+      </div>
+      <form action={saveTodoDisplayFormAction} className="space-y-4">
+        <section className="card space-y-3 p-4">
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Show on a todo")}</h2>
+          {AREAS.map((a) => (
+            <label key={a} className="flex items-start gap-2 text-sm">
+              <input type="checkbox" name={`area:${a}`} defaultChecked={!off.has(`area:${a}`)} className="mt-1" disabled={a === "knowledge" && !isInstalled("knowledge")} />
+              <span>
+                <span className="font-medium">{areas[a].label}</span>
+                <span className="block text-xs text-zinc-500">{areas[a].hint}</span>
+              </span>
+            </label>
+          ))}
+        </section>
+        <section className="card space-y-3 p-4">
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("What counts as knowledge")}</h2>
+          <p className="text-xs text-zinc-500">{t("Knowledge should be what Zeff learned or found out — not what a todo shows as context anyway. Unticked kinds are left out when the knowledge is assigned and are hidden in the todos right away; ticking one again picks it up with the next assignment.")}</p>
+          {KNOWLEDGE_KINDS.map((k) => (
+            <label key={k} className="flex items-start gap-2 text-sm">
+              <input type="checkbox" name={`kind:${k}`} defaultChecked={!off.has(`kind:${k}`)} className="mt-1" />
+              <span>
+                <span className="font-medium">{kinds[k].label}</span>
+                <span className="block text-xs text-zinc-500">{kinds[k].hint}</span>
+              </span>
+            </label>
+          ))}
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" name="entities" defaultChecked={!off.has("entities")} className="mt-1" />
+            <span>
+              <span className="font-medium">{t("Concepts")}</span>
+              <span className="block text-xs text-zinc-500">{t("Terms, systems and people the knowledge base explains (the small chips).")}</span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" name="links" defaultChecked={!off.has("links")} className="mt-1" />
+            <span>
+              <span className="font-medium">{t("System addresses")}</span>
+              <span className="block text-xs text-zinc-500">{t("The Test, Stage and Prod addresses of the system a todo is about.")}</span>
+            </span>
+          </label>
+        </section>
+        <SubmitButton className="btn btn-primary">{t("Save")}</SubmitButton>
+      </form>
+    </div>
+  );
+}

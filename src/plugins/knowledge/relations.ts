@@ -10,6 +10,8 @@ import { emitChange } from "@/lib/events";
 import { getJiraTicket } from "@/lib/jira/store";
 import { getLanguage, t } from "@/lib/i18n/server";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
+import { getTodoDisplayOff } from "@/lib/todo-display-store";
+import { kindOfPage, kindOn } from "@/lib/todo-display";
 import { entitiesFor, parseTodoKnowledge, type KnowledgeEntity, type KnowledgePage, type TodoKnowledge, type TodoLink } from "./shared";
 
 export type { TodoKnowledge } from "./shared";
@@ -77,14 +79,15 @@ export function relateKnowledge(): Promise<KnowledgeRelationResult> {
     // Not knowledge for a todo: the todo itself, its own ticket (Show context has it) and the other
     // open todos (they're on the board) — the knowledge holds all of them, so they'd always match.
     const openTodos = new Set(listTodos({ status: "open" }).map((t) => `zeff:todo:${t.id}`));
-    const notKnowledge = (t: TodoView, p: KnowledgePage) => p.id === `zeff:todo:${t.id}` || openTodos.has(p.id) || (!!t.ticket && p.id === `zeff:jira:${t.ticket}`);
+    const off = getTodoDisplayOff();
+    const notKnowledge = (t: TodoView, p: KnowledgePage) => !kindOn(off, kindOfPage(p)) || p.id === `zeff:todo:${t.id}` || openTodos.has(p.id) || (!!t.ticket && p.id === `zeff:jira:${t.ticket}`);
     const candidates = new Map<number, { pages: KnowledgePage[]; entities: KnowledgeEntity[]; links: TodoLink[] }>();
     for (const t of due) {
       const summary = t.ticket ? (getJiraTicket(t.ticket)?.summary ?? "") : "";
-      const r = await knowledgeRelated([t.text, summary].filter(Boolean).join(" — "), t.ticket || null, cp.numbers.candidates + 4).catch(() => null);
+      const r = await knowledgeRelated([t.text, summary].filter(Boolean).join(" — "), t.ticket || null, cp.numbers.candidates * 3 + 4).catch(() => null);
       const pages = (r?.pages ?? []).filter((p) => !notKnowledge(t, p)).slice(0, cp.numbers.candidates);
-      const links = (await knowledgeLinks([t.text, summary].filter(Boolean).join(" — "), t.ticket || null, 24).catch(() => [])).map((l) => ({ env: l.env, label: l.label, url: l.url, page: l.pageTitle }));
-      candidates.set(t.id, { pages, entities: entitiesFor(r?.entities ?? [], []), links });
+      const links = off.includes("links") ? [] : (await knowledgeLinks([t.text, summary].filter(Boolean).join(" — "), t.ticket || null, 24).catch(() => [])).map((l) => ({ env: l.env, label: l.label, url: l.url, page: l.pageTitle }));
+      candidates.set(t.id, { pages, entities: off.includes("entities") ? [] : entitiesFor(r?.entities ?? [], []), links });
     }
     const now = new Date().toISOString();
     const save = (t: TodoView, pages: KnowledgePage[], entities: KnowledgeEntity[], links: TodoLink[] = []) =>

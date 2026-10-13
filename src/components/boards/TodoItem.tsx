@@ -22,6 +22,8 @@ import { HoverCard } from "../HoverCard";
 import { BookIcon, SparkIcon, ToBottomIcon, ToTopIcon } from "../icons";
 import { usePluginOn } from "../PluginFlags";
 import { entitiesFor, pagesFor } from "@/plugins/knowledge/shared";
+import { useTodoDisplayOff } from "@/components/PluginFlags";
+import { areaOn, kindOfPage, kindOn } from "@/lib/todo-display";
 import { TodoKnowledgeList, TodoKnowledgePreview } from "@/plugins/knowledge/TodoKnowledge";
 import { DueBadge } from "./DueBadge";
 import { FlagButton } from "./FlagButton";
@@ -160,10 +162,11 @@ export function TodoItem({
   const [showKnowledge, setShowKnowledge] = useState(false);
   const knowledgeOn = usePluginOn("knowledge");
   // The knowledge the Wissens-Zuordnung picked for it (only what fits) — none: no toggle.
-  const knowledgePages = todo.knowledge ? pagesFor(todo.knowledge.pages, todo.id) : [];
-  const knowledgeEntities = todo.knowledge ? entitiesFor(todo.knowledge.entities, knowledgePages) : [];
-  const knowledgeLinks = todo.knowledge?.links ?? [];
-  const knowledge = knowledgeOn && (knowledgePages.length || knowledgeEntities.length || knowledgeLinks.length) ? { pages: knowledgePages, entities: knowledgeEntities, links: knowledgeLinks } : null;
+  const off = useTodoDisplayOff();
+  const knowledgePages = todo.knowledge ? pagesFor(todo.knowledge.pages, todo.id).filter((p) => kindOn(off, kindOfPage(p))) : [];
+  const knowledgeEntities = todo.knowledge && !off.includes("entities") ? entitiesFor(todo.knowledge.entities, knowledgePages) : [];
+  const knowledgeLinks = off.includes("links") ? [] : (todo.knowledge?.links ?? []);
+  const knowledge = knowledgeOn && areaOn(off, "knowledge") && (knowledgePages.length || knowledgeEntities.length || knowledgeLinks.length) ? { pages: knowledgePages, entities: knowledgeEntities, links: knowledgeLinks } : null;
   const [, startDefer] = useTransition();
   const set = (next: TodoStatus) => {
     const before = status;
@@ -192,9 +195,10 @@ export function TodoItem({
   };
   const closed = status !== "open";
   // Proposed by the auto-actions review: folded behind "Show actions (n)" — they're suggestions.
-  const proposed = todo.ops.length > 0 && !closed && !!todo.autoOpsWhy;
+  const proposedAll = todo.ops.length > 0 && !closed && !!todo.autoOpsWhy;
+  const proposed = proposedAll && areaOn(off, "actions");
   // Several actions (a delivery's commit, push, MR, merge): their notes fold behind the same toggle — the buttons stay.
-  const foldable = todo.ops.length > 1 && !closed && !proposed;
+  const foldable = todo.ops.length > 1 && !closed && !proposedAll;
   const cameFrom = sourcesOf(todo.refs, sources);
   // Where a todo without a ticket came from: WhatsApp (Signal) when its messages are all that app's chats.
   const msgs = cameFrom.filter((s) => s.source === "mail");
@@ -337,10 +341,10 @@ export function TodoItem({
         )}
         {todo.lastError && !closed && !running && !doing && <LastError text={todo.lastError} run={todo.lastErrorRun} />}
         {/* Its toggles in one row — context, proposed actions; each unfolds its area below the row, stacked. */}
-        {(context.items.length > 0 || proposed || foldable || knowledge) && (
+        {((context.items.length > 0 && areaOn(off, "context")) || proposed || foldable || knowledge) && (
           <span className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
             <ContextToggle
-              items={context.items}
+              items={areaOn(off, "context") ? context.items : []}
               unread={context.unread}
               open={showContext}
               onToggle={() => {
@@ -351,7 +355,7 @@ export function TodoItem({
             {proposed &&
               (() => {
                 const toggle = (
-                  <AreaToggle open={showActions} onToggle={() => setShowActions(!showActions)} label={showActions ? t("Hide actions ({n})", { n: todo.ops.length }) : t("Show actions ({n})", { n: todo.ops.length })} tone="violet">
+                  <AreaToggle open={showActions} onToggle={() => setShowActions(!showActions)} label={t("Actions ({n})", { n: todo.ops.length })} tone="violet">
                     <SparkIcon className="size-3.5" />
                   </AreaToggle>
                 );
@@ -382,7 +386,7 @@ export function TodoItem({
                 );
               })()}
             {foldable && (
-              <AreaToggle open={showActions} onToggle={() => setShowActions(!showActions)} label={showActions ? t("Hide actions ({n})", { n: todo.ops.length }) : t("Show actions ({n})", { n: todo.ops.length })} tone="indigo">
+              <AreaToggle open={showActions} onToggle={() => setShowActions(!showActions)} label={t("Actions ({n})", { n: todo.ops.length })} tone="indigo">
                 <span aria-hidden>⚡</span>
               </AreaToggle>
             )}
@@ -390,7 +394,7 @@ export function TodoItem({
             {knowledge &&
               (() => {
                 const toggle = (
-                  <AreaToggle open={showKnowledge} onToggle={() => setShowKnowledge(!showKnowledge)} label={showKnowledge ? t("Hide knowledge ({n})", { n: knowledge.pages.length + knowledge.entities.length + knowledge.links.length }) : t("Show knowledge ({n})", { n: knowledge.pages.length + knowledge.entities.length + knowledge.links.length })} tone="emerald">
+                  <AreaToggle open={showKnowledge} onToggle={() => setShowKnowledge(!showKnowledge)} label={t("Knowledge ({n})", { n: knowledge.pages.length + knowledge.entities.length + knowledge.links.length })} tone="emerald">
                     <BookIcon className="size-3.5" />
                   </AreaToggle>
                 );
@@ -409,12 +413,12 @@ export function TodoItem({
             <TodoKnowledgeList k={knowledge} todoId={todo.id} />
           </div>
         )}
-        {showContext && context.items.length > 0 && (
+        {showContext && areaOn(off, "context") && context.items.length > 0 && (
           <span className="mt-1.5 block">
             <ContextList items={context.items} todoId={todo.id} />
           </span>
         )}
-        {todo.ops.length > 0 && !closed && (!proposed || showActions) && (
+        {todo.ops.length > 0 && !closed && (proposedAll ? proposed && showActions : true) && (
           <span className="mt-1.5 flex flex-col gap-1.5">
             {/* Proposed by the auto-actions review: said so, and why. */}
             {proposed && (

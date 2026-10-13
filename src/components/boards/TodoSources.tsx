@@ -136,11 +136,7 @@ export function ContextToggle({ items, unread, open, onToggle }: { items: Item[]
       open={open}
       onToggle={onToggle}
       label={
-        open
-          ? t("Hide context ({n})", { n: items.length })
-          : unread > 0
-            ? t("Show context ({n} · {unread} new)", { n: items.length, unread })
-            : t("Show context ({n})", { n: items.length })
+        unread > 0 && !open ? t("Context ({n} · {unread} new)", { n: items.length, unread }) : t("Context ({n})", { n: items.length })
       }
       title={unread > 0 && !open ? t("New since you last opened them") : undefined}
     >

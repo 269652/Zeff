@@ -56,6 +56,7 @@ import { SetupGate } from "@/components/SetupGate";
 import { getAppSettings } from "@/lib/ai";
 import { MainArea } from "@/components/MainArea";
 import { PluginFlagsProvider } from "@/components/PluginFlags";
+import { getTodoDisplayOff } from "@/lib/todo-display-store";
 import { PeopleProvider } from "@/plugins/people/PersonMention";
 import { I18nProvider } from "@/components/I18nProvider";
 import { applyLanguage, t } from "@/lib/i18n/server";
@@ -99,7 +100,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           />
           {!setupPending && <AttentionBar items={attention} />}
           <MainArea>
-            <PluginFlagsProvider installed={[...installedPlugins()]}>
+            <PluginFlagsProvider installed={[...installedPlugins()]} off={getTodoDisplayOff()}>
               <AgentInstructionsProvider templates={getWorkSettings().agentInstructions}>
                 <SetupGate pending={setupPending} allowed={setupPages()} account={installedPlugins().has("accounts") ? currentAccount().name : undefined}>
                   {/* People named in texts (todos) as links with hover cards — with the People plugin. */}

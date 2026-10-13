@@ -516,3 +516,12 @@ export async function omniSearchAction(q: string): Promise<{ key: string; kind: 
     return [];
   }
 }
+
+/** Settings → Todos: which toggles a todo shows and which kinds of knowledge go into it (what's unticked is off). */
+export async function saveTodoDisplayFormAction(fd: FormData): Promise<void> {
+  const { AREAS, KNOWLEDGE_KINDS } = await import("@/lib/todo-display");
+  const { setTodoDisplayOff } = await import("@/lib/todo-display-store");
+  const ids = [...AREAS.map((a) => `area:${a}`), ...KNOWLEDGE_KINDS.map((k) => `kind:${k}`), "entities", "links"];
+  setTodoDisplayOff(ids.filter((id) => fd.get(id) !== "on"));
+  revalidateAll();
+}
