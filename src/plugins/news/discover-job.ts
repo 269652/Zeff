@@ -28,7 +28,7 @@ const SCHEMA = { type: "object", properties: { queries: { type: "array", items: 
 export function planPrompt(taste: Pick<Taste, "text" | "likes" | "avoids">, interests: string[], recent: string[]): string {
   return [
     "Du planst die Suche nach neuen Nachrichten für eine Person. Unten steht eine Beschreibung ihres Nachrichten-Geschmacks.",
-    "Gib 6–8 Suchanfragen (2–5 Wörter) für eine Nachrichtensuche: die Hauptthemen aus verschiedenen Blickwinkeln und 2–3 Nachbarthemen, die sie überraschen und trotzdem interessieren könnten. Keine Anfragen, die schon zu den letzten gehörten.",
+    "Gib 6–8 konkrete Suchanfragen (2–5 Wörter, gern englisch, wenn sie englische Quellen mag) für eine Nachrichtensuche — nach Forschung und Berichten, nie nach Produkten, Shopping oder Werbung: die Hauptthemen aus verschiedenen Blickwinkeln und 2–3 Nachbarthemen, die sie überraschen und trotzdem interessieren könnten. Keine Anfragen, die schon zu den letzten gehörten.",
     "",
     `Beschreibung: ${taste.text || "(noch keine)"}`,
     `Mag: ${taste.likes.join(", ") || "-"}; ausdrückliche Interessen: ${interests.join(", ") || "-"}`,
@@ -129,8 +129,8 @@ async function run(deps: DiscoverDeps): Promise<DiscoverStatus> {
     // tags are a bonus
   }
   const scored = matchTaste(taste, unreadForMatching(Math.max(prefs.maxAgeDays, 7)));
-  const best = scored.filter((s) => s.score > 0.05).slice(0, 120);
-  const keep = best.length >= 20 ? best : scored.slice(0, 40);
+  const best = scored.filter((s) => s.score > 0.1).slice(0, 120);
+  const keep = best;
   setSimilar(-1, keep.map((s) => ({ id: s.id, score: Math.max(0.001, s.score), why: "" })));
   return set({
     running: false,

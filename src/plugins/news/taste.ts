@@ -43,9 +43,9 @@ const SCHEMA = {
   type: "object",
   properties: {
     description: { type: "string", description: "Die fortgeschriebene Beschreibung, was die Person gern liest — höchstens 900 Zeichen, Fließtext in der Du-Form." },
-    likes: { type: "array", items: { type: "string" }, description: "Bis zu 12 Begriffe/Themen/Namen, die die Person mag." },
+    likes: { type: "array", items: { type: "string" }, description: "Bis zu 16 konkrete Fachbegriffe/Themen/Namen, die die Person mag — jeweils auf Deutsch UND Englisch (Artikel sind oft englisch), keine allgemeinen Wörter wie Technologie oder Gesundheit." },
     avoids: { type: "array", items: { type: "string" }, description: "Bis zu 8 Begriffe/Themen, die sie meiden will." },
-    queries: { type: "array", items: { type: "string" }, description: "Bis zu 6 Suchanfragen (2–5 Wörter), mit denen sich neue passende Quellen und Artikel finden lassen." },
+    queries: { type: "array", items: { type: "string" }, description: "Bis zu 6 konkrete Suchanfragen (2–5 Wörter) nach Forschung/Berichten zu den Themen — keine Produkt-, Shopping- oder Werbe-Begriffe." },
   },
   required: ["description", "likes", "avoids", "queries"],
 };
@@ -56,7 +56,7 @@ export function tastePrompt(current: Taste, signals: Signal[], profile: string[]
   return [
     "Du führst eine kurze Beschreibung davon, was eine Person gern liest — ihr Nachrichten-Geschmack. Sie wächst mit jedem Artikel, den die Person mit 👍 oder Merken markiert (oder mit 👎 ablehnt).",
     "Schreibe die Beschreibung fort: neue Vorlieben aufnehmen, Vages schärfen, Widersprüche auflösen, Muster erkennen (Themen, Tonfall, Tiefe, Regionen, Quellenarten) — nicht jeden Artikel einzeln erwähnen. Höchstens 900 Zeichen, Fließtext, Du-Form. Was die Person selbst geschrieben hat, bleibt erhalten, außer es widerspricht den Signalen.",
-    "Gib außerdem likes (bis 12 Begriffe), avoids (bis 8) und queries (bis 6 Suchanfragen, 2–5 Wörter, auch Nachbarthemen) heraus. Nutze nur, was unten steht.",
+    "Gib außerdem likes (bis 16 konkrete Begriffe, deutsch und englisch), avoids (bis 8) und queries (bis 6 Suchanfragen, 2–5 Wörter, auch Nachbarthemen) heraus. Nutze nur, was unten steht.",
     "",
     `Bisherige Beschreibung: ${current.text || "(noch keine)"}`,
     `Bisherige Begriffe, die sie mag: ${current.likes.join(", ") || "(keine)"}; meiden: ${current.avoids.join(", ") || "(keine)"}`,
@@ -162,7 +162,9 @@ export function matchTaste(taste: Pick<Taste, "text" | "likes" | "avoids">, item
     .map((i) => {
       const text = `${i.title} ${i.summary} ${(i.terms ?? []).join(" ")}`.toLowerCase();
       let s = cosine(a.vectors.get(i.id) ?? new Map(), target);
-      for (const l of likes) if (text.includes(l)) s += 0.07;
+      let hits = 0;
+      for (const l of likes) if (text.includes(l)) hits++;
+      s += Math.min(0.2, hits * 0.05) * (hits >= 2 ? 1 : 0.5);
       for (const l of avoids) if (text.includes(l)) s -= 0.15;
       return { id: i.id, score: s };
     })
