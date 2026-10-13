@@ -4169,5 +4169,7 @@
   "Open todos that repeat an older one (the same message or numbers, mostly the same words) merged into the oldest, which keeps its id - the gate does the same for every new todo (after each briefing)": "Los todos abiertos que repiten uno más antiguo (el mismo mensaje o números, casi las mismas palabras) se fusionan en el más antiguo, que conserva su ID; la puerta hace lo mismo con cada todo nuevo (tras cada resumen)",
   "{n} duplicates merged": "{n} duplicados fusionados",
   "No duplicates.": "Sin duplicados.",
-  "{ref} says the same already - merged into it.": "{ref} ya dice lo mismo: fusionado en él."
+  "{ref} says the same already - merged into it.": "{ref} ya dice lo mismo: fusionado en él.",
+  "Searches the web and new sources for what you like, matches the unread news again and pours what it finds in at the top": "Busca en la web y en fuentes nuevas lo que te gusta, vuelve a comparar las noticias sin leer y deja entrar lo encontrado arriba",
+  "Nothing here yet — Refresh looks for what matches your taste.": "Aún nada aquí: Actualizar busca lo que encaja con tu gusto."
 }

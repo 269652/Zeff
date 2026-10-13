@@ -82,6 +82,19 @@ async function run(deps: DiscoverDeps): Promise<DiscoverStatus> {
   queries = [...new Set(queries)].slice(0, 12);
   setPref("news:discover-queries", [...queries, ...recent].slice(0, 30));
 
+  // The matches go into the Discover view as soon as there are some, again after each step — an open feed picks them up while it runs.
+  let matched = 0;
+  const match = () => {
+    const scored = matchTaste(taste, unreadForMatching(Math.max(prefs.maxAgeDays, 7)));
+    // Relative to the best match (a long description is only ever a little "close" to a short headline): the better part of the field, 40–150 cards.
+    const top = scored[0]?.score ?? 0;
+    const floor = Math.max(0.015, top * 0.3);
+    const keep = scored.filter((x, i) => x.score > 0 && (x.score >= floor || i < 40)).slice(0, 150);
+    setSimilar(-1, keep.map((s) => ({ id: s.id, score: Math.max(0.001, s.score), why: "" })));
+    matched = keep.length;
+    set({ matched });
+  };
+
   // 3. The web.
   set({ phase: "Searching the web …" });
   const langs = [...new Set(["en", prefs.language === "any" ? "de" : prefs.language])];
@@ -95,6 +108,7 @@ async function run(deps: DiscoverDeps): Promise<DiscoverStatus> {
     }),
   );
   set({ web });
+  if (web) match();
 
   // 4. New sources around the best searches, fetched at once.
   set({ phase: "Finding new sources …" });
@@ -129,17 +143,12 @@ async function run(deps: DiscoverDeps): Promise<DiscoverStatus> {
   } catch {
     // tags are a bonus
   }
-  const scored = matchTaste(taste, unreadForMatching(Math.max(prefs.maxAgeDays, 7)));
-  // Relative to the best match (a long description is only ever a little "close" to a short headline): the better part of the field, 40–150 cards.
-  const top = scored[0]?.score ?? 0;
-  const floor = Math.max(0.015, top * 0.3);
-  const keep = scored.filter((x, i) => x.score > 0 && (x.score >= floor || i < 40)).slice(0, 150);
-  setSimilar(-1, keep.map((s) => ({ id: s.id, score: Math.max(0.001, s.score), why: "" })));
+  match();
   return set({
     running: false,
     phase: "",
-    matched: keep.length,
+    matched,
     finishedAt: new Date().toISOString(),
-    message: `${keep.length} matching cards${sourcesAdded ? `, ${sourcesAdded} new sources` : ""}${web ? `, ${web} found on the web` : ""}`,
+    message: `${matched} matching cards${sourcesAdded ? `, ${sourcesAdded} new sources` : ""}${web ? `, ${web} found on the web` : ""}`,
   });
 }

@@ -6,7 +6,7 @@ import { toast } from "@/components/Toaster";
 import { Cited, type Source } from "./AskNews";
 import { MagicStage, type Box } from "./MagicStage";
 import { NewsCard } from "./NewsCard";
-import { newsMoreAction, newsRelatedAction, newsSoFarAction } from "./server-actions";
+import { discoverStatusAction, newsMoreAction, newsRelatedAction, newsSoFarAction, startDiscoverAction } from "./server-actions";
 import { followSplit, type NewsItem } from "./shared";
 import type { NewsView } from "./store";
 
@@ -103,6 +103,43 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
   const busy = useRef(false);
   const offset = useRef(initial.length);
   const pagesRead = useRef(0);
+  // Discover's Refresh: the job runs in the background; what it finds is poured in at the top while it goes.
+  const [refreshing, setRefreshing] = useState<string | null>(null);
+  const pour = useCallback(async () => {
+    const r = await newsMoreAction("discover", null, "", 0);
+    setAgo((cur) => ({ ...cur, ...r.ago }));
+    let added = 0;
+    setItems((cur) => {
+      const have = new Set(cur.map((i) => i.id));
+      const fresh = r.items.filter((i) => !have.has(i.id));
+      added = fresh.length;
+      return fresh.length ? [...fresh, ...cur] : cur;
+    });
+    return added;
+  }, []);
+  const refreshDiscover = async () => {
+    const started = await startDiscoverAction();
+    if (!started.ok) return void toast(started.error ?? t("Didn't work."), { tone: "error" });
+    setRefreshing(t("Starting …"));
+    let seen = -1;
+    for (let round = 0; round < 400; round++) {
+      await new Promise((ok) => setTimeout(ok, 2500));
+      const st = await discoverStatusAction().catch(() => null);
+      if (!st) continue;
+      if (st.matched !== seen) {
+        seen = st.matched;
+        await pour().catch(() => undefined);
+      }
+      if (!st.running) {
+        await pour().catch(() => undefined);
+        setRefreshing(null);
+        toast(st.message || t("Done."));
+        return;
+      }
+      setRefreshing(st.phase || t("Discovering …"));
+    }
+    setRefreshing(null);
+  };
   const scroller = useRef<HTMLElement | null>(null);
 
   // Columns by the width.
@@ -439,6 +476,15 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
               {sofar.busy ? <span className="text-zinc-500">{t("Reading the news …")}</span> : sofar.error ? <span className="text-red-600 dark:text-red-400">{sofar.error}</span> : <Cited text={sofar.answer ?? ""} sources={sofar.sources ?? []} />}
             </div>
           )}
+        </div>
+      )}
+      {view === "discover" && (
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="button" className="btn btn-sm bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:from-violet-600 hover:to-fuchsia-600" disabled={refreshing !== null} onClick={() => void refreshDiscover()} title={t("Searches the web and new sources for what you like, matches the unread news again and pours what it finds in at the top")}>
+            ↻ {refreshing !== null ? t("Refreshing …") : t("Refresh")}
+          </button>
+          {refreshing !== null && <span className="text-xs text-zinc-500">{refreshing}</span>}
+          {items.length === 0 && refreshing === null && <span className="text-xs text-zinc-500">{t("Nothing here yet — Refresh looks for what matches your taste.")}</span>}
         </div>
       )}
       <div className="flex justify-end">

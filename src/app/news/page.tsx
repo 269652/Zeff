@@ -144,7 +144,7 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
           </section>
         )}
 
-        {items.length === 0 ? (
+        {items.length === 0 && view !== "discover" ? (
           <div className="card space-y-2 p-6 text-sm text-zinc-500">
             {sources.length === 0 && prefs.interests.length === 0 ? (
               <p className="space-y-2">

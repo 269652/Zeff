@@ -4169,5 +4169,7 @@
   "Open todos that repeat an older one (the same message or numbers, mostly the same words) merged into the oldest, which keeps its id - the gate does the same for every new todo (after each briefing)": "Offene Todos, die ein älteres wiederholen (gleiche Nachricht oder Nummern, überwiegend gleiche Wörter), werden in das älteste zusammengeführt, das seine ID behält — das Gate macht dasselbe bei jedem neuen Todo (nach jeder Lage)",
   "{n} duplicates merged": "{n} Duplikate zusammengeführt",
   "No duplicates.": "Keine Duplikate.",
-  "{ref} says the same already - merged into it.": "{ref} sagt schon dasselbe — hineingeführt."
+  "{ref} says the same already - merged into it.": "{ref} sagt schon dasselbe — hineingeführt.",
+  "Searches the web and new sources for what you like, matches the unread news again and pours what it finds in at the top": "Durchsucht Web und neue Quellen nach dem, was du magst, gleicht die ungelesenen News erneut ab und lässt Funde oben einströmen",
+  "Nothing here yet — Refresh looks for what matches your taste.": "Noch nichts hier — „Aktualisieren“ sucht, was zu deinem Geschmack passt."
 }
