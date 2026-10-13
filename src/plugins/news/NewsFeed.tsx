@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { Cited, type Source } from "./AskNews";
+import { MagicStage, type Box } from "./MagicStage";
 import { NewsCard } from "./NewsCard";
 import { newsMoreAction, newsRelatedAction, newsSoFarAction } from "./server-actions";
 import { followSplit, type NewsItem } from "./shared";
@@ -86,6 +87,8 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
   const [dive, setDive] = useState<{ related: { term: string; count: number; weight: number }[]; stories: { label: string; count: number }[] } | null>(null);
   const [sofar, setSofar] = useState<{ busy: boolean; answer?: string; sources?: Source[]; error?: string } | null>(null);
   // "More like this": what the AI made of the article (why it is for you, the searches) while the finds come in below the card.
+  const [stage, setStage] = useState<{ item: NewsItem; from: Box; done: boolean } | null>(null);
+  const endStage = useCallback(() => setStage(null), []);
   const [like, setLike] = useState<{ title: string; busy: boolean; angle?: string; queries?: { q: string; why: string }[]; usedAi?: boolean; sourcesAdded?: number } | null>(null);
   const [ago, setAgo] = useState(initialAgo);
   const [done, setDone] = useState(initialDone);
@@ -173,10 +176,16 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
   };
 
   /** "More like this" on a card: the article is read, the AI looks at what you like and know, the internet is searched — the finds open below the card. */
-  const moreLike = async (itemId: number, anchorId: number, title: string) => {
+  const moreLike = async (it: NewsItem & { fromTopic?: string }) => {
+    const itemId = it.id;
+    const anchorId = it.id;
+    const title = it.title;
     if (busy.current) return;
     busy.current = true;
     setLoading(true);
+    // The card flies to the middle of the screen and sparkles until the finds are in (see MagicStage).
+    const rect = document.getElementById(`news-card-${itemId}`)?.getBoundingClientRect();
+    if (rect) setStage({ item: it, from: { left: rect.left, top: rect.top, width: rect.width, height: rect.height }, done: false });
     try {
       const { base, rest } = followSplit(items, anchorId);
       stash.current = [...rest, ...stash.current];
@@ -202,6 +211,8 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
     } finally {
       busy.current = false;
       setLoading(false);
+      // The finds are in (or it failed): the card glides back.
+      setStage((s) => (s ? { ...s, done: true } : s));
     }
   };
 
@@ -321,6 +332,7 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
 
   return (
     <div ref={box} className="space-y-4">
+      {stage && <MagicStage item={stage.item} from={stage.from} done={stage.done} onGone={endStage} showImage={showImages} />}
       {fresh > 0 && (
         <button type="button" className="btn btn-primary btn-sm sticky top-2 z-30 mx-auto block shadow" onClick={() => window.location.reload()}>
           ↑ {t("{n} new — show", { n: fresh })}
@@ -437,7 +449,7 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
           {/* The middle column holds all the news, a little bigger. */}
           <div className="space-y-4" style={{ zoom: 1.06 }}>
             {items.map((it) => (
-              <NewsCard key={it.id} item={it} ago={ago[it.id] ?? ""} showImage={showImages} onChange={(p) => patch(it.id, p)} onDrop={drop} onFollow={(term) => void follow(term, it.id)} following={topic} onMoreLike={() => void moreLike(it.id, it.id, it.title)} />
+              <NewsCard key={it.id} item={it} ago={ago[it.id] ?? ""} showImage={showImages} onChange={(p) => patch(it.id, p)} onDrop={drop} onFollow={(term) => void follow(term, it.id)} following={topic} onMoreLike={() => void moreLike(it)} />
             ))}
           </div>
           {wide && <FocusSide items={sides[1]} showImage={showImages} />}
@@ -447,7 +459,7 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
           {columns.map((col, k) => (
             <div key={k} className="min-w-0 flex-1 space-y-3">
               {col.map((it) => (
-                <NewsCard key={it.id} item={it} ago={ago[it.id] ?? ""} showImage={showImages} onChange={(p) => patch(it.id, p)} onDrop={drop} onFollow={(term) => void follow(term, it.id)} following={topic} onMoreLike={() => void moreLike(it.id, it.id, it.title)} />
+                <NewsCard key={it.id} item={it} ago={ago[it.id] ?? ""} showImage={showImages} onChange={(p) => patch(it.id, p)} onDrop={drop} onFollow={(term) => void follow(term, it.id)} following={topic} onMoreLike={() => void moreLike(it)} />
               ))}
             </div>
           ))}

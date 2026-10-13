@@ -130,7 +130,7 @@ export function NewsCard({ item, ago, showImage, onChange, onDrop, onFollow, fol
     });
   };
   return (
-    <article ref={card} className={`card overflow-hidden ${item.fromTopic ? "border-l-4 border-l-indigo-400" : ""} ${read ? "opacity-75" : ""} ${pending ? "opacity-50" : ""}`}>
+    <article ref={card} id={`news-card-${item.id}`} className={`card overflow-hidden ${item.fromTopic ? "border-l-4 border-l-indigo-400" : ""} ${read ? "opacity-75" : ""} ${pending ? "opacity-50" : ""}`}>
       {showImage && item.image && !broken && (
         // eslint-disable-next-line @next/next/no-img-element -- pictures of other sites, shown as they are (no optimiser on the way)
         <img src={item.image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken(true)} className="aspect-video w-full bg-zinc-100 object-cover dark:bg-zinc-800" />
