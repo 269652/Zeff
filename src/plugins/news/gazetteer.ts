@@ -7,17 +7,17 @@ export type Kind = "place" | "org" | "company" | "person" | "topic";
 
 const rows: [Kind, string, ...string[]][] = [
   // Countries and regions
-  ["place", "Deutschland", "Germany", "German", "Bundesrepublik"], ["place", "USA", "United States", "US", "Vereinigte Staaten", "America", "Amerika"], ["place", "China", "Chinese", "Chinas"],
-  ["place", "Russland", "Russia", "Russian", "Russlands"], ["place", "Ukraine", "Ukrainian", "Ukraines"], ["place", "Israel", "Israeli"], ["place", "Gaza"], ["place", "Iran"], ["place", "Irak", "Iraq"],
+  ["place", "Deutschland", "Germany", "German", "Bundesrepublik", "Alemania", "Allemagne"], ["place", "USA", "United States", "US", "Vereinigte Staaten", "America", "Amerika", "Estados Unidos", "EE.UU.", "États-Unis", "Etats-Unis"], ["place", "China", "Chinese", "Chinas", "Chine"],
+  ["place", "Russland", "Russia", "Russian", "Russlands", "Rusia", "Russie"], ["place", "Ukraine", "Ukrainian", "Ukraines", "Ucrania"], ["place", "Israel", "Israeli"], ["place", "Gaza"], ["place", "Iran", "Irán"], ["place", "Irak", "Iraq"],
   ["place", "Syrien", "Syria"], ["place", "Türkei", "Turkey", "Türkiye"], ["place", "Indien", "India"], ["place", "Japan"], ["place", "Südkorea", "South Korea"], ["place", "Nordkorea", "North Korea"],
-  ["place", "Taiwan"], ["place", "Frankreich", "France"], ["place", "Italien", "Italy"], ["place", "Spanien", "Spain"], ["place", "Großbritannien", "Britain", "United Kingdom", "UK", "England"],
+  ["place", "Taiwan"], ["place", "Frankreich", "France", "Francia"], ["place", "Italien", "Italy", "Italia", "Italie"], ["place", "Spanien", "Spain", "España", "Espagne"], ["place", "Großbritannien", "Britain", "United Kingdom", "UK", "England", "Reino Unido", "Royaume-Uni"],
   ["place", "Polen", "Poland"], ["place", "Österreich", "Austria"], ["place", "Schweiz", "Switzerland"], ["place", "Niederlande", "Netherlands"], ["place", "Brasilien", "Brazil"],
   ["place", "Mexiko", "Mexico"], ["place", "Kanada", "Canada"], ["place", "Australien", "Australia"], ["place", "Afrika", "Africa"], ["place", "Europa", "Europe"], ["place", "Asien", "Asia"],
-  ["place", "Nahost", "Middle East", "Naher Osten"], ["place", "Venezuela"], ["place", "Argentinien", "Argentina"], ["place", "Ägypten", "Egypt"], ["place", "Saudi-Arabien", "Saudi Arabia"],
+  ["place", "Nahost", "Middle East", "Naher Osten", "Oriente Medio", "Moyen-Orient"], ["place", "Venezuela"], ["place", "Argentinien", "Argentina"], ["place", "Ägypten", "Egypt"], ["place", "Saudi-Arabien", "Saudi Arabia"],
   ["place", "Berlin"], ["place", "München", "Munich"], ["place", "Hamburg"], ["place", "Brüssel", "Brussels"], ["place", "Washington"], ["place", "London"], ["place", "Paris"], ["place", "Moskau", "Moscow"],
   ["place", "Peking", "Beijing"], ["place", "Kiew", "Kyiv", "Kiev"], ["place", "Jerusalem"], ["place", "Wien", "Vienna"], ["place", "Zürich", "Zurich"], ["place", "New York"], ["place", "Silicon Valley"],
   // Organisations
-  ["org", "EU", "Europäische Union", "European Union"], ["org", "NATO", "Nato"], ["org", "UN", "UNO", "Vereinte Nationen", "United Nations"], ["org", "WHO", "Weltgesundheitsorganisation"],
+  ["org", "EU", "Europäische Union", "European Union", "Unión Europea", "Union européenne", "UE"], ["org", "NATO", "Nato", "OTAN"], ["org", "UN", "UNO", "Vereinte Nationen", "United Nations", "ONU", "Naciones Unidas", "Nations unies"], ["org", "WHO", "Weltgesundheitsorganisation"],
   ["org", "Bundesregierung"], ["org", "Bundestag"], ["org", "Bundesrat"], ["org", "Bundesverfassungsgericht"], ["org", "EZB", "ECB", "Europäische Zentralbank"], ["org", "Fed", "Federal Reserve"],
   ["org", "IWF", "IMF"], ["org", "OPEC"], ["org", "WTO"], ["org", "G7"], ["org", "G20"], ["org", "NASA"], ["org", "ESA"], ["org", "CDU"], ["org", "CSU"], ["org", "SPD"], ["org", "FDP"], ["org", "AfD"],
   ["org", "Grüne", "Greens"], ["org", "Linke"], ["org", "BSW"], ["org", "Hamas"], ["org", "Hisbollah", "Hezbollah"], ["org", "Taliban"], ["org", "Kreml", "Kremlin"], ["org", "Pentagon"], ["org", "FBI"], ["org", "CIA"],
@@ -32,13 +32,13 @@ const rows: [Kind, string, ...string[]][] = [
   ["company", "Boeing"], ["company", "Airbus"], ["company", "Shell"], ["company", "Rheinmetall"], ["company", "Huawei"], ["company", "Xiaomi"], ["company", "ByteDance"], ["company", "Alibaba"], ["company", "Tencent"],
   ["company", "ChatGPT"], ["company", "Gemini"], ["company", "Claude"], ["company", "Copilot"], ["company", "iPhone"], ["company", "Android"], ["company", "Windows"], ["company", "Linux"], ["company", "GitHub"],
   // People in the news
-  ["person", "Donald Trump", "Trump"], ["person", "Joe Biden", "Biden"], ["person", "Kamala Harris", "Harris"], ["person", "Wladimir Putin", "Vladimir Putin", "Putin"], ["person", "Wolodymyr Selenskyj", "Volodymyr Zelensky", "Selenskyj", "Zelensky", "Zelenskyy", "Zelenskiy"],
+  ["person", "Donald Trump", "Trump"], ["person", "Joe Biden", "Biden"], ["person", "Kamala Harris", "Harris"], ["person", "Wladimir Putin", "Vladimir Putin", "Putin"], ["person", "Wolodymyr Selenskyj", "Volodymyr Zelensky", "Selenskyj", "Zelensky", "Zelenskyy", "Zelenskiy", "Zelenski", "Zelenskyi", "Selenski"],
   ["person", "Olaf Scholz", "Scholz"], ["person", "Friedrich Merz", "Merz"], ["person", "Robert Habeck", "Habeck"], ["person", "Annalena Baerbock", "Baerbock"], ["person", "Christian Lindner", "Lindner"],
   ["person", "Alice Weidel", "Weidel"], ["person", "Emmanuel Macron", "Macron"], ["person", "Xi Jinping", "Xi"], ["person", "Benjamin Netanjahu", "Benjamin Netanyahu", "Netanjahu", "Netanyahu"],
   ["person", "Ursula von der Leyen", "von der Leyen"], ["person", "Elon Musk", "Musk"], ["person", "Sam Altman", "Altman"], ["person", "Mark Zuckerberg", "Zuckerberg"], ["person", "Jeff Bezos", "Bezos"],
   ["person", "Tim Cook"], ["person", "Satya Nadella", "Nadella"], ["person", "Jensen Huang"], ["person", "Papst Franziskus", "Pope Francis"], ["person", "König Charles", "King Charles"],
   // Topics (evergreen)
-  ["topic", "Künstliche Intelligenz", "KI", "AI", "Artificial Intelligence"], ["topic", "Klimawandel", "Klimakrise", "Klimaschutz", "Climate Change", "Climate"], ["topic", "Inflation"], ["topic", "Rezession", "Recession"],
+  ["topic", "Künstliche Intelligenz", "KI", "AI", "Artificial Intelligence", "Inteligencia Artificial", "IA", "Intelligence artificielle"], ["topic", "Klimawandel", "Klimakrise", "Klimaschutz", "Climate Change", "Climate"], ["topic", "Inflation"], ["topic", "Rezession", "Recession"],
   ["topic", "Cyberangriff", "Cyberattack", "Cyber attack", "Cyber-attack", "Hackerangriff", "Cyber-Angriff"], ["topic", "Datenschutz", "Privacy"], ["topic", "Quantencomputer", "Quantum Computing"], ["topic", "Elektroauto", "Electric Vehicle", "EV"],
   ["topic", "Wahl", "Election"], ["topic", "Krieg", "War"], ["topic", "Streik"], ["topic", "Migration", "Immigration"], ["topic", "Energiewende"], ["topic", "Rente", "Pension"], ["topic", "Bitcoin"], ["topic", "Krypto", "Crypto"],
 ];

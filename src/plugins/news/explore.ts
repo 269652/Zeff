@@ -1,4 +1,4 @@
-import { buildIndex, related, trending, wild, type Bubble, type Index } from "./explore-core";
+import { buildIndex, normKey, related, trending, wild, type Bubble, type Index } from "./explore-core";
 import { getPrefs, learnedTop, recentForExplore } from "./store";
 
 /**
@@ -22,7 +22,7 @@ export function yoursBubbles(ix: Index, limit = 8): Bubble[] {
   const mine = [...prefs.interests.map((i) => i.term), ...learnedTop(6).map((l) => l.term)];
   const seen = new Set<string>();
   return mine.flatMap((term): Bubble[] => {
-    const k = term.toLowerCase();
+    const k = normKey(term);
     if (seen.has(k)) return [];
     seen.add(k);
     // A term of yours matches the news as a word in headlines: count the items (any term containing it).
@@ -44,9 +44,9 @@ export function exploreHome(nowMs: number = Date.now(), seed: number = Math.floo
 /** The field round one thing: its related bubbles, how much news names it, which outlets cover it most. */
 export function exploreTopic(term: string, nowMs: number = Date.now()): { count: number; related: Bubble[]; outlets: { name: string; count: number }[]; stories: { label: string; count: number }[] } {
   const ix = exploreIndex(nowMs);
-  const here = ix.terms.get(term.toLowerCase());
-  const mine = new Set(yoursBubbles(ix, 12).map((b) => b.term.toLowerCase()));
-  const rel = related(ix, term, 12).map((b) => (mine.has(b.term.toLowerCase()) ? { ...b, kind: "yours" as const } : b));
+  const here = ix.terms.get(normKey(term));
+  const mine = new Set(yoursBubbles(ix, 12).map((b) => normKey(b.term)));
+  const rel = related(ix, term, 12).map((b) => (mine.has(normKey(b.term)) ? { ...b, kind: "yours" as const } : b));
   const outlets = new Map<string, number>();
   for (const id of here?.items ?? []) {
     const name = ix.items.get(id)!.sourceName;

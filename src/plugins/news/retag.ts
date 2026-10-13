@@ -1,5 +1,6 @@
-import { corpusForTagging, getPrefs, setTags, untaggedByAi } from "./store";
-import { tagCorpus } from "./tagger";
+import { clusterStories } from "./cluster";
+import { analyze } from "./keyphrase";
+import { corpusForTagging, getPrefs, setStories, setTags, untaggedByAi } from "./store";
 
 /**
  * Tags for the kept items, two layers:
@@ -10,14 +11,27 @@ import { tagCorpus } from "./tagger";
  *     it, across sources). The AI's tags replace the corpus tagger's for those items and are kept.
  */
 
-/** The corpus tagger over the recent items; the AI's tags are left as they are. Returns how many items were tagged. */
+/**
+ * The text analytics over the recent items (no AI): keyphrase tags with a normalisation pass, and the stories — reports grouped by
+ * content. The AI's tags are left as they are. Returns how many items were tagged.
+ */
 export function retagAll(): number {
   const items = corpusForTagging(7, 6000);
   if (!items.length) return 0;
-  const tags = tagCorpus(items);
-  const entries = items.filter((i) => i.src !== "ai").map((i) => ({ id: i.id, tags: (tags.get(i.id) ?? []).map((t) => t.name), src: "auto" as const }));
-  setTags(entries);
-  return entries.length;
+  const a = analyze(items);
+  setTags(items.filter((i) => i.src !== "ai").map((i) => ({ id: i.id, tags: (a.tags.get(i.id) ?? []).map((t) => t.name), src: "auto" as const })));
+  // Stories: a label per cluster (made unique by the day when two share one); items in none lose their old label.
+  const stories = clusterStories(items.map((i) => ({ id: i.id, at: i.at })), a.vectors, a.tags);
+  const label = new Map<number, string>();
+  const used = new Map<string, number>();
+  for (const s of stories) {
+    const n = (used.get(s.label) ?? 0) + 1;
+    used.set(s.label, n);
+    const name = n === 1 ? s.label : `${s.label} (${s.lastAt.slice(5, 10).replace("-", ".")}.)`;
+    for (const id of s.items) label.set(id, name);
+  }
+  setStories(items.map((i) => ({ id: i.id, story: label.get(i.id) ?? "" })));
+  return items.length;
 }
 
 type Tagging = { items?: { n?: number; tags?: unknown; story?: unknown }[] };

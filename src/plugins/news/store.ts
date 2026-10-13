@@ -331,8 +331,8 @@ export function recentForExplore(days = 3, limit = 4000): ExploreItem[] {
 }
 
 /** The recent items as the tagger wants them (and whether the AI has tagged them already). */
-export function corpusForTagging(days = 7, limit = 6000): { id: number; title: string; summary: string; src: string }[] {
-  return (db().prepare("select id, title, summary, tag_src from news_items where published_at > ? order by published_at desc limit ?").all(new Date(Date.now() - days * 864e5).toISOString(), limit) as { id: number; title: string; summary: string; tag_src: string }[]).map((r) => ({ id: r.id, title: r.title, summary: r.summary, src: r.tag_src }));
+export function corpusForTagging(days = 7, limit = 6000): { id: number; title: string; summary: string; src: string; at: string }[] {
+  return (db().prepare("select id, title, summary, tag_src, published_at from news_items where published_at > ? order by published_at desc limit ?").all(new Date(Date.now() - days * 864e5).toISOString(), limit) as { id: number; title: string; summary: string; tag_src: string; published_at: string }[]).map((r) => ({ id: r.id, title: r.title, summary: r.summary, src: r.tag_src, at: r.published_at }));
 }
 
 /** Tags (and a story label) written for items; the AI's are not overwritten by the corpus tagger's. */
@@ -341,6 +341,15 @@ export function setTags(entries: { id: number; tags: string[]; story?: string; s
   const up = d.prepare("update news_items set tags = ?, tag_src = ?, story = case when ? != '' then ? else story end where id = ? and (tag_src != 'ai' or ? = 'ai')");
   d.transaction(() => {
     for (const e of entries) up.run(JSON.stringify(e.tags.slice(0, 4)), e.src, e.story ?? "", e.story ?? "", e.id, e.src);
+  })();
+}
+
+/** Story labels written for items (the clusters'): an item in no story loses its old label — unless the AI gave it one. */
+export function setStories(entries: { id: number; story: string }[]): void {
+  const d = db();
+  const up = d.prepare("update news_items set story = ? where id = ? and (tag_src != 'ai' or ? != '' or story = '')");
+  d.transaction(() => {
+    for (const e of entries) up.run(e.story, e.id, e.story);
   })();
 }
 

@@ -807,40 +807,104 @@ test("following a topic from a card's chip: the feed stays, what was below the c
   assert.deepEqual(followSplit(feed, 99), { base: feed, rest: [] });
 });
 
-test("the tagger names what headlines are about: known names and topics, names in a headline, acronyms — not common words", async () => {
-  const { tagCorpus } = await import("@/plugins/news/tagger");
-  const items = [
-    { id: 1, title: "Chemie-Nobelpreis geht an Henri Kagan und Kenso Soai", summary: "" },
-    { id: 2, title: "Elektroautos: Europas Autobauer holen auf, sagt Bundeskanzler Friedrich Merz", summary: "" },
-    { id: 3, title: "Cyberangriffe auf Supermärkte: Kühlung fällt aus", summary: "Der Angriff traf Frankreich" },
-    { id: 4, title: "Israeli strike on tent in Gaza kills three", summary: "" },
-    { id: 5, title: "U.S. and China agree on tariffs, says Donald Trump", summary: "" },
-    { id: 6, title: "Das Problem mit der Chance auf Besserung", summary: "Nutzer und Kritik" },
-    { id: 7, title: "Ein ruhiger Tag ohne besondere Namen", summary: "Die Zeit vergeht in Wien" },
-  ];
-  const tags = tagCorpus(items);
-  const names = (id: number) => (tags.get(id) ?? []).map((t) => t.name);
-  assert.ok(names(1).includes("Henri Kagan"), `a name with a given name in front: ${names(1)}`);
-  assert.ok(!names(1).includes("Kenso Soai"), "an unknown name only one headline has is not trusted — it needs company");
-  assert.ok(names(2).includes("Friedrich Merz") && names(2).some((n) => /^Elektroauto/.test(n)), `a known person, a topic from its plural: ${names(2)}`);
-  assert.ok(names(3).includes("Cyberangriff"), `a compound plural: ${names(3)}`);
-  assert.ok(!names(3).includes("Frankreich"), "the summary names nothing when the headline does");
-  assert.ok(names(4).includes("Gaza") && !names(4).includes("Streik"), `English 'strike' isn't a Streik: ${names(4)}`);
-  assert.ok(names(5).includes("USA") && names(5).includes("China") && names(5).includes("Donald Trump"), `U.S. is USA: ${names(5)}`);
-  assert.deepEqual(names(6), [], "common words name nothing");
-  assert.deepEqual(names(7), ["Wien"], "the summary fills in when the headline names nothing");
+/** A small corpus with several stories, languages and plenty of ordinary headlines around them. */
+const corpus = (() => {
+  const docs: { id: number; title: string; summary: string; at: string }[] = [];
+  const at = (h: number) => new Date(Date.now() - h * 3600e3).toISOString();
+  let id = 1;
+  const add = (title: string, h: number, summary = "") => docs.push({ id: id++, title, summary, at: at(h) });
+  // One story, many reports (and a Spanish one, in other words).
+  ["Bärbel Bas kündigt Rücktritt an", "Rücktritt von Bärbel Bas erschüttert die SPD", "Nach dem Rücktritt: Bärbel Bas äußert sich", "SPD nach Rücktritt in der Krise, Bärbel Bas schweigt", "Koalition nach Bas Rücktritt unter Druck, sagt Friedrich Merz"].forEach((t, i) => add(t, 5 + i));
+  ["Russland widerspricht Donald Trump bei der Energie-Waffenruhe", "Trump kündigt Energie-Waffenruhe für die Ukraine an", "Rusia considera la tregua energética de Trump una trampa", "Russia says Trump energy ceasefire for Ukraine is a trick"].forEach((t, i) => add(t, 8 + i));
+  ["Walter White Jr: Schauspieler RJ Mitte stirbt mit 34", "RJ Mitte ist tot: Breaking Bad Schauspieler gestorben", "Breaking Bad star RJ Mitte dies aged 34"].forEach((t, i) => add(t, 12 + i));
+  // Ordinary headlines with common words in unrelated stories.
+  const filler = ["Das Problem mit dem Zug in Hamburg", "Problem bei Samsung Update", "Ein Problem im Bundestag gelöst", "Chance auf Besserung bei Werder Bremen", "Chance für den Mittelstand in Wien", "Die Chance der Kommunen nach der Reform"];
+  filler.forEach((t, i) => add(t, 20 + i));
+  for (let i = 0; i < 60; i++) add(`Ein ruhiger Tag ${i} ohne besondere Meldung aus ${["Leipzig", "Dresden", "Kiel", "Trier", "Bonn"][i % 5]}`, 30 + i);
+  return docs;
+})();
+
+test("text analytics: tags are names and real topics — a last name's full name, a topic word that comes with the same names — not common words", async () => {
+  const { analyze } = await import("@/plugins/news/keyphrase");
+  const a = analyze(corpus);
+  const names = (id: number) => (a.tags.get(id) ?? []).map((t) => t.name);
+  const first = names(1).concat(names(2), names(3), names(4));
+  assert.ok(first.includes("Bärbel Bas"), `a name: ${first}`);
+  assert.ok(first.includes("Rücktritt"), `a topic word whose stories share a name: ${first}`);
+  const common = [...a.tags.entries()].filter(([i]) => i >= 13 && i <= 18).flatMap(([, t]) => t.map((x) => x.name));
+  assert.ok(!common.includes("Problem") && !common.includes("Chance"), `common words name nothing: ${common}`);
+  assert.ok(a.vectors.get(1)!.size > 0, "every document has a TF-IDF vector");
 });
 
-test("a word is a topic only when its stories hang together (a name in common), not when it is spread over unrelated ones", async () => {
-  const { tagCorpus } = await import("@/plugins/news/tagger");
+test("normalisation: one tag for what is written differently — languages, spellings, a last name and its full name, a suffix", async () => {
+  const { analyze } = await import("@/plugins/news/keyphrase");
+  const { normalizeTags, flat, editDistance } = await import("@/plugins/news/normalize");
+  const a = analyze(corpus);
+  const russia = corpus.filter((d) => /Russland|Rusia|Russia/.test(d.title)).flatMap((d) => (a.tags.get(d.id) ?? []).map((t) => t.name));
+  assert.ok(russia.filter((n) => /^(Russland|Rusia|Russia)$/.test(n)).every((n) => n === "Russland"), `Rusia, Russia and Russland are one: ${russia}`);
+  assert.equal(flat("Saudi-Arabien"), flat("Saudi Arabien"));
+  assert.equal(flat("Café Müller"), "cafemuller");
+  assert.equal(editDistance("champion league", "champions league", 2), 1);
+
+  // The merges on their own: a last name with its full name, a suffix, near spellings.
+  const term = (key: string, name: string, score = 1) => ({ key, name, score, kind: "name" as const });
+  const tags = new Map([
+    [1, [term("robert hall", "Robert Hall"), term("hall", "Hall")]],
+    [2, [term("robert hall", "Robert Hall"), term("hall", "Hall")]],
+    [3, [term("robert hall", "Robert Hall")]],
+    [4, [term("walter white", "Walter White"), term("walter white jr", "Walter White Jr")]],
+    [5, [term("walter white", "Walter White"), term("walter white jr", "Walter White Jr")]],
+    [6, [term("walter white", "Walter White")]],
+    [7, [term("champions league", "Champions League")]],
+    [8, [term("champions league", "Champions League")]],
+    [9, [term("champion league", "Champion League")]],
+    [10, [term("champion league", "Champion League")]],
+    [11, [{ ...term("intelligence", "intelligence", 0.5), kind: "word" as const }]],
+  ]);
+  const df = new Map(Object.entries({ "robert hall": 3, hall: 2, "walter white": 3, "walter white jr": 2, "champions league": 2, "champion league": 2, intelligence: 1 }));
+  const display = new Map([...tags.values()].flat().map((t) => [t.key, t.name]));
+  const n = normalizeTags(tags, df, display);
+  assert.deepEqual(n.tags.get(1)!.map((t) => t.name), ["Robert Hall"], "the last name is the full name");
+  assert.deepEqual(n.tags.get(4)!.map((t) => t.name), ["Walter White"], "a suffix is dropped");
+  assert.equal(new Set([...n.tags.get(7)!, ...n.tags.get(9)!].map((t) => t.key)).size, 1, "near spellings are one");
+  assert.deepEqual(n.tags.get(11), [], "a part of a known phrase isn't a tag");
+});
+
+test("stories: reports about the same thing are grouped by content — in other words and languages too — and a name alone is no story", async () => {
+  const { analyze } = await import("@/plugins/news/keyphrase");
+  const { clusterStories } = await import("@/plugins/news/cluster");
+  const a = analyze(corpus);
+  const stories = clusterStories(corpus.map((d) => ({ id: d.id, at: d.at })), a.vectors, a.tags);
+  const of = (id: number) => stories.find((s) => s.items.includes(id));
+  const bas = of(1)!;
+  assert.ok(bas && [1, 2, 3, 4, 5].filter((i) => bas.items.includes(i)).length >= 4, `the resignation reports are one story: ${JSON.stringify(stories.map((s) => [s.label, s.items]))}`);
+  assert.match(bas.label, /Bärbel Bas|Rücktritt/);
+  const mitte = of(11)!;
+  assert.ok(mitte && [10, 11, 12].filter((i) => mitte.items.includes(i)).length >= 2, "the RJ Mitte reports are one");
+  assert.ok(!of(13), "an unrelated Problem headline is in no story");
+});
+
+test("the graph: things named together are linked, communities find the worlds", async () => {
+  const { buildGraph, louvain } = await import("@/plugins/news/graph");
+  // Two cliques joined by one weak link.
+  const edges: [number, number, number][] = [[0, 1, 5], [1, 2, 5], [0, 2, 5], [3, 4, 5], [4, 5, 5], [3, 5, 5], [2, 3, 1]];
+  const c = louvain(6, edges);
+  assert.equal(c[0], c[1]);
+  assert.equal(c[1], c[2]);
+  assert.equal(c[3], c[4]);
+  assert.equal(c[4], c[5]);
+  assert.notEqual(c[0], c[3], "two worlds");
   const items = [
-    ...["Rücktritt von Bärbel Bas erschüttert die SPD", "Nach dem Rücktritt: Bärbel Bas äußert sich", "Rücktritt Bas: Was die SPD jetzt tut", "SPD nach Rücktritt in der Krise, Bärbel Bas schweigt"].map((title, i) => ({ id: i + 1, title, summary: "" })),
-    ...["Ein Problem mit dem Zug in Hamburg", "Problem bei Samsung Update", "Das Problem der Wohnungsnot in Wien", "Problem im Bundestag gelöst"].map((title, i) => ({ id: i + 10, title, summary: "" })),
+    ...Array.from({ length: 5 }, () => ["Trump", "Putin", "Ukraine"]),
+    ...Array.from({ length: 5 }, () => ["Bas", "SPD", "Rücktritt"]),
+    ...Array.from({ length: 30 }, (_, i) => [i % 2 ? "Berlin" : "Hamburg", `Ort${i}`]),
+    ["Trump", "Berlin"], ["SPD", "Berlin"], ["Bas", "Berlin"],
   ];
-  const tags = tagCorpus(items);
-  const all = (ids: number[]) => ids.flatMap((id) => (tags.get(id) ?? []).map((t) => t.name));
-  assert.ok(all([1, 2, 3, 4]).includes("Rücktritt"), `a topic that comes with the same names: ${all([1, 2, 3, 4])}`);
-  assert.ok(!all([10, 11, 12, 13]).includes("Problem"), "a common word is not");
+  const g = buildGraph(items);
+  const near = (t: string) => g.neighbors[g.index.get(t)!].map((n) => g.keys[n.to]);
+  assert.ok(near("Trump").includes("Putin") && near("Trump").includes("Ukraine"));
+  assert.equal(g.community[g.index.get("Trump")!], g.community[g.index.get("Putin")!]);
+  assert.notEqual(g.community[g.index.get("Trump")!], g.community[g.index.get("SPD")!], "politics of two countries are two worlds");
 });
 
 test("tags are stored and shown: the corpus tagger after a sync, the AI's replace them and add the story; threads follow the story or the shared tags", async () => {

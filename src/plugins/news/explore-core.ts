@@ -1,3 +1,6 @@
+import { buildGraph, type Graph } from "./graph";
+import { flat } from "./normalize";
+import { stemDe } from "./nlp";
 import { tokens } from "./shared";
 
 /**
@@ -6,6 +9,9 @@ import { tokens } from "./shared";
  * the recent items. From it come the bubbles you hop between: what is rising now, what is related to the thing you are
  * on, and what is out there that you haven't looked at.
  */
+/** The key of a tag: accents, case and hyphens out, each word stemmed — "Supermärkte", "Supermärkten" and "supermarkte" are one thing. */
+export const normKey = (t: string): string => t.split(/[\s-]+/).filter(Boolean).map((w) => stemDe(flat(w))).join(" ");
+
 export type ExploreItem = { id: number; title: string; summary: string; publishedAt: string; sourceName: string; /** Its tags (the AI's or the corpus tagger's); without, the headline's own names. */ tags?: string[]; /** The story it belongs to. */ story?: string };
 export type Bubble = { term: string; count: number; weight: number; kind: "trend" | "related" | "yours" | "wild" };
 
@@ -38,22 +44,30 @@ export type Index = {
   /** term (lower) → display form, the item ids that name it. */
   terms: Map<string, { display: string; items: Set<number> }>;
   items: Map<number, ExploreItem & { terms: string[] }>;
+  /** The graph of things named together, with its communities (Louvain). */
+  graph: Graph;
 };
 
 export function buildIndex(items: ExploreItem[]): Index {
   const terms: Index["terms"] = new Map();
   const map: Index["items"] = new Map();
+  // (a tag is shown the way most items write it)
+  const shown = new Map<string, Map<string, number>>();
   for (const it of items) {
     const ts = it.tags && it.tags.length ? it.tags : keyTerms(it.title, it.summary);
-    map.set(it.id, { ...it, terms: ts.map((t) => t.toLowerCase()) });
+    map.set(it.id, { ...it, terms: [...new Set(ts.map(normKey))] });
     for (const t of ts) {
-      const k = t.toLowerCase();
+      const k = normKey(t);
       const cur = terms.get(k);
+      const seen = (shown.get(k) ?? shown.set(k, new Map()).get(k)!);
+      seen.set(t, (seen.get(t) ?? 0) + 1);
       if (cur) cur.items.add(it.id);
       else terms.set(k, { display: t, items: new Set([it.id]) });
     }
   }
-  return { terms, items: map };
+  for (const [k, forms] of shown) terms.get(k)!.display = [...forms].sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)[0][0];
+  const graph = buildGraph([...map.values()].map((i) => i.terms));
+  return { terms, items: map, graph };
 }
 
 const cap = (n: number, max: number) => Math.max(0.15, Math.min(1, n / max));
@@ -77,14 +91,28 @@ export function trending(ix: Index, nowMs: number, limit = 14): Bubble[] {
 
 /** What hangs together with a term: the other things its stories name, by how often together relative to how common each is. */
 export function related(ix: Index, term: string, limit = 12): Bubble[] {
-  const here = ix.terms.get(term.toLowerCase());
+  const key = normKey(term);
+  const here = ix.terms.get(key);
   if (!here) return [];
+  // From the graph: the strongest neighbours (lift × how often together) — not the term's own words, not what is in every story.
+  const node = ix.graph.index.get(key);
+  if (node !== undefined) {
+    const mine = key;
+    const picked = ix.graph.neighbors[node]
+      .map((n) => ({ t: ix.graph.keys[n.to], c: n.co, s: n.strength }))
+      .filter((n) => !n.t.includes(mine) && !mine.includes(n.t) && (ix.terms.get(n.t)?.items.size ?? 0) <= ix.items.size * 0.15)
+      .slice(0, limit);
+    if (picked.length) {
+      const max = picked[0].s || 1;
+      return picked.map((n) => ({ term: ix.terms.get(n.t)?.display ?? n.t, count: n.c, weight: cap(n.s, max), kind: "related" as const }));
+    }
+  }
   const co = new Map<string, number>();
-  for (const id of here.items) for (const t of ix.items.get(id)!.terms) if (t !== term.toLowerCase()) co.set(t, (co.get(t) ?? 0) + 1);
+  for (const id of here.items) for (const t of ix.items.get(id)!.terms) if (t !== key) co.set(t, (co.get(t) ?? 0) + 1);
   const scored = [...co].flatMap(([t, c]) => {
     const other = ix.terms.get(t)!;
     // Not the term's own words again ("klimaschutz" under "Klimaschutz Gesetz"), nor a thing that is in every story.
-    if (t.includes(term.toLowerCase()) || term.toLowerCase().includes(t) || other.items.size > ix.items.size * 0.15) return [];
+    if (t.includes(key) || key.includes(t) || other.items.size > ix.items.size * 0.15) return [];
     return [{ t, c, score: c / Math.sqrt(here.items.size * other.items.size) + c * 0.01 }];
   });
   const top = scored.sort((a, b) => b.score - a.score).slice(0, limit);
@@ -94,7 +122,9 @@ export function related(ix: Index, term: string, limit = 12): Bubble[] {
 
 /** Things out there that are not near what you read: named by a few items (3–8), not related to what you give. */
 export function wild(ix: Index, near: string[], seed: number, limit = 8): Bubble[] {
-  const nearKeys = new Set(near.map((n) => n.toLowerCase()));
+  const nearKeys = new Set(near.map(normKey));
+  // The communities your things are in: out there is another world.
+  const nearWorlds = new Set([...nearKeys].flatMap((k) => (ix.graph.index.has(k) ? [ix.graph.community[ix.graph.index.get(k)!]] : [])));
   const nearItems = new Set<number>();
   for (const n of nearKeys) for (const id of ix.terms.get(n)?.items ?? []) nearItems.add(id);
   const pool = [...ix.terms.entries()].filter(([k, v]) => {
@@ -102,6 +132,8 @@ export function wild(ix: Index, near: string[], seed: number, limit = 8): Bubble
     if (c < 3 || c > 8 || nearKeys.has(k)) return false;
     let overlap = 0;
     for (const id of v.items) if (nearItems.has(id)) overlap++;
+    const node = ix.graph.index.get(k);
+    if (node !== undefined && nearWorlds.has(ix.graph.community[node])) return false;
     return overlap / c < 0.25;
   });
   // A seeded shuffle: the same for a while, different later.
