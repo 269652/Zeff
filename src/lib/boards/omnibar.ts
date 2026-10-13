@@ -82,13 +82,13 @@ export async function omniSearch(q: string, todos: TodoView[], deps: OmniDeps = 
   const sourceWords = words.filter((w) => w.length >= 3);
   if (sourceWords.length) {
     for (const [source, search] of Object.entries(searchers)) {
+      if (source === "todos") continue;
       let found: Candidate[] = [];
       try {
         found = await search(sourceWords, q);
       } catch {
         found = [];
       }
-      if (source === "todos") continue;
       for (const c of found.sort((a, b) => b.score - a.score).slice(0, 60)) {
         if (c.score < Math.min(sourceWords.length, 2)) continue;
         const todoIds = citing(todos, c.ref);

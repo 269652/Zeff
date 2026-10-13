@@ -500,23 +500,6 @@ export async function removeTodoOpAction(todoId: number, index: number): Promise
   }
 }
 
-/**
- * The todo omnibar: what a typed text names — tickets, mails, messages, comments, notes, documents, people, the
- * todos' own words — each with the todos it belongs to (picking one filters the lists to them).
- */
-export async function omniSearchAction(q: string): Promise<{ key: string; kind: string; title: string; sub: string; todoIds: number[] }[]> {
-  try {
-    const { listTodos } = await import("@/lib/boards/store");
-    const { omniSearch } = await import("@/lib/boards/omnibar");
-    const { isInstalled } = await import("@/plugins/state");
-    const todos = listTodos({ status: "all" }).filter((todo) => todo.status !== "dismissed");
-    const people = isInstalled("people") ? (await import("@/plugins/people/store")).listPeople().map((p) => ({ id: p.id, name: p.name, aliases: p.aliases })) : [];
-    return await omniSearch(String(q ?? "").slice(0, 200), todos, { people });
-  } catch {
-    return [];
-  }
-}
-
 /** Settings → Todos: which toggles a todo shows and which kinds of knowledge go into it (what's unticked is off). */
 export async function saveTodoDisplayFormAction(fd: FormData): Promise<void> {
   const { AREAS, KNOWLEDGE_KINDS } = await import("@/lib/todo-display");

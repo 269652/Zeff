@@ -12,7 +12,6 @@ import type { ActionDone } from "@/lib/boards/actions";
 import {
   attentionLabels,
   ATTENTIONS,
-  TODO_KIND_LABELS,
   type Attention,
   type BoardRunView,
   type BoardTicket,
@@ -566,16 +565,11 @@ export function BoardView({
       (x, y) =>
         down(x) - down(y) || (rank.get(x.ticket) ?? 99) - (rank.get(y.ticket) ?? 99) || x.id - y.id,
     );
-  // The todo lists' filter: by ticket, kind (what it asks for) or a word in its text.
-  const [fTicket, setFTicket] = useState("");
-  const [fKind, setFKind] = useState("");
+  // The todo lists' filter: the omnibar's chips.
   const [omniChips, setOmniChips] = useState<OmniChip[]>([]);
-  const pool = tab === "done" ? doneList : tab === "worker" ? workerList : open;
   const passes = (t: TodoView) =>
-    (!fTicket || (fTicket === "-" ? !t.ticket : t.ticket === fTicket || t.alsoTickets.includes(fTicket))) &&
-    (!fKind || t.kind === fKind) &&
     omniChips.every((c) => c.todoIds.includes(t.id));
-  const filtering = !!(fTicket || fKind || omniChips.length);
+  const filtering = omniChips.length > 0;
   const mine = ranked(open.filter((t) => t.owner === "me" && passes(t)));
   const waiting = ranked(open.filter((t) => t.owner === "other" && passes(t)));
   const doneShown = doneList.filter(passes);
@@ -658,30 +652,12 @@ export function BoardView({
         </div>
         {tab !== "activity" && (
           <div className="flex flex-wrap items-center gap-2" role="search" aria-label="Todos filtern">
-            <select value={fTicket} onChange={(e) => setFTicket(e.target.value)} className="input w-auto py-1 text-xs" aria-label="Nach Ticket filtern">
-              <option value="">Alle Tickets</option>
-              {[...new Set(pool.map((t) => t.ticket))].sort().map((k) => (
-                <option key={k} value={k || "-"}>
-                  {k || "Ohne Ticket"}
-                </option>
-              ))}
-            </select>
-            <select value={fKind} onChange={(e) => setFKind(e.target.value)} className="input w-auto py-1 text-xs" aria-label="Nach Art filtern">
-              <option value="">Alle Arten</option>
-              {[...new Set(pool.map((t) => t.kind))].map((k) => (
-                <option key={k} value={k}>
-                  {TODO_KIND_LABELS[k]}
-                </option>
-              ))}
-            </select>
             <Omnibar chips={omniChips} onChange={setOmniChips} />
             {filtering && (
               <button
                 type="button"
                 className="text-xs text-indigo-600 hover:underline dark:text-indigo-400"
                 onClick={() => {
-                  setFTicket("");
-                  setFKind("");
                   setOmniChips([]);
                 }}
               >

@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
-import { omniSearchAction } from "@/plugins/todos/server-actions";
 
 export type OmniChip = { key: string; kind: string; title: string; todoIds: number[] };
 type Hit = OmniChip & { sub: string };
@@ -30,14 +29,21 @@ export function Omnibar({ chips, onChange }: { chips: OmniChip[]; onChange: (chi
       return;
     }
     const mine = ++seq.current;
+    const ctl = new AbortController();
     const timer = setTimeout(() => {
-      void omniSearchAction(q).then((r) => {
-        if (mine !== seq.current) return;
-        setRes({ q, hits: r });
-        setActive(0);
-      });
-    }, 180);
-    return () => clearTimeout(timer);
+      fetch(`/api/todos/omni?q=${encodeURIComponent(q)}`, { signal: ctl.signal })
+        .then((r) => (r.ok ? (r.json() as Promise<{ hits: Hit[] }>) : { hits: [] }))
+        .catch(() => ({ hits: [] as Hit[] }))
+        .then((r) => {
+          if (mine !== seq.current) return;
+          setRes({ q, hits: r.hits });
+          setActive(0);
+        });
+    }, 120);
+    return () => {
+      clearTimeout(timer);
+      ctl.abort();
+    };
   }, [q]);
 
   useEffect(() => {
