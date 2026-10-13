@@ -1,6 +1,6 @@
 "use client";
 
-import { actionHref, actionOf } from "@/plugins/actions/catalog";
+import { actionHref } from "@/plugins/actions/catalog";
 import { useT } from "@/components/I18nProvider";
 import { Fragment, useState, useTransition } from "react";
 import { deferTodoAction, runTodoOpsAction, setTodoStatusAction, suggestTodoActionsAction } from "@/plugins/todos/server-actions";
@@ -152,6 +152,8 @@ export function TodoItem({
   }
   const [, start] = useTransition();
   const [doing, startDoing] = useTransition();
+  // Which action's button was pressed (each action has its own).
+  const [doingAt, setDoingAt] = useState<number | null>(null);
   const [quick, setQuick] = useState<QuickPanel>(null);
   const [showActions, setShowActions] = useState(false);
   const [showContext, setShowContext] = useState(false);
@@ -209,14 +211,8 @@ export function TodoItem({
       ? t("{by} suggests this is done: {note} — tick it to confirm", { by: todo.workerDone.by, note: todo.workerDone.note })
       : t("{by} suggests this is done — tick it to confirm", { by: todo.workerDone.by })
     : undefined;
-  // What Zeff runs on a click — those that open in your browser (a mail draft, an appointment) are links of their own.
-  const zeffOps = todo.ops.filter((o) => !actionHref(o));
-  // The delivery actions (commit, push, merge request, merge) are a group of their own beside the others (a hand-over to a worker, a Jira change …).
-  const isDelivery = (o: (typeof todo.ops)[number]) => !!actionOf(o.type).delivery;
-  const split = todo.ops.some(isDelivery) && todo.ops.some((o) => !isDelivery(o));
-  const opGroups: { idx: number[] }[] = split
-    ? [{ idx: todo.ops.flatMap((o, i) => (isDelivery(o) ? [] : [i])) }, { idx: todo.ops.flatMap((o, i) => (isDelivery(o) ? [i] : [])) }]
-    : [{ idx: todo.ops.map((_, i) => i) }];
+  // Every action has its own button: a hand-over to a worker keeps running while a reply is posted, a push is no part of either.
+  const opGroups: { idx: number[] }[] = todo.ops.map((_, i) => ({ idx: [i] }));
   // New since you last looked: lightly highlighted till the mouse passes over it.
   const [fresh, markSeen] = useTodoNew(todo.id, todo.createdAt);
   // (A worker's own todo is quiet: never "new".)
@@ -440,17 +436,19 @@ export function TodoItem({
                     <button
                       type="button"
                       className="btn btn-sm btn-primary shrink-0"
-                      disabled={doing || running || !!todo.blockedBy}
+                      disabled={doing || (running && runOps.some((o) => o.type === "work-instruct")) || !!todo.blockedBy}
                       title={todo.blockedBy ? t("Waiting: {what} — the GitLab sync notices once it's ready", { what: todo.blockedBy }) : t("Zeff does it itself, no AI: {ops}", { ops: runOps.map((o) => opTitle(o, t)).join(" · ") })}
                       onClick={() =>
                         startDoing(async () => {
-                          // Zeff runs them right now (no worker, no Work tab) — just this group's.
+                          // Zeff runs it right now (no worker, no Work tab) — just this action.
+                          setDoingAt(gi);
                           const r = await runTodoOpsAction(todo.id, opGroups.length > 1 ? runnable : undefined);
+                          setDoingAt(null);
                           toast(r?.ok ? `${todo.ref}: ${r.message}` : `${todo.ref}: ${r?.error ?? t("Didn't work.")}`, { tone: r?.ok ? "ok" : "error" });
                         })
                       }
                     >
-                      {doing || running ? t("running…") : opsButton(runOps, t)}
+                      {(doing && doingAt === gi) || (running && runOps.some((o) => o.type === "work-instruct")) ? t("running…") : opsButton(runOps, t)}
                     </button>
                   )}
                 </span>
