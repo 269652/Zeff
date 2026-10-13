@@ -7,7 +7,7 @@ import { activityNewsIds } from "@/lib/boards/activity";
 import { getWorkSettings } from "@/lib/work/store";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { SiteHeader, type MenuGroup } from "@/components/SiteHeader";
+import { SiteHeader, type MenuGroup, type MenuLink } from "@/components/SiteHeader";
 import { PLUGINS } from "@/plugins/catalog";
 import { catalogText } from "@/plugins/catalog-text";
 import { installedPlugins } from "@/plugins/state";
@@ -16,9 +16,25 @@ import { inOrder } from "@/lib/layout-shared";
 import { tabsWithMenu } from "@/plugins/tab-menus";
 import { currentAccount, listAccounts } from "@/db/accounts";
 
+/** Settings in the menu: the general ones, and the settings page of every installed plugin (language bundles: chosen in Settings itself). */
+const settingsGroup = (): MenuGroup => {
+  const on = installedPlugins();
+  const nav = new Map(PLUGINS.flatMap((p) => (p.nav ?? []).map((n) => [n.href, n] as const)));
+  const items: MenuLink[] = [{ href: "/preferences", label: t("General"), hint: t("AI provider, language, backups") }];
+  if (on.has("todos")) items.push({ href: "/settings/todos", label: t("Todos"), hint: t("What a todo shows, and which kinds of knowledge count") });
+  for (const p of PLUGINS) {
+    if (!on.has(p.id) || p.category === "language" || !p.settings) continue;
+    const href = p.settings.href;
+    if (items.some((i) => i.href.split("#")[0] === href.split("#")[0])) continue;
+    const n = nav.get(href);
+    items.push({ href, label: n ? catalogText(t, n.label) : catalogText(t, p.name), hint: catalogText(t, p.settings.what) });
+  }
+  return { id: "settings", name: t("Settings"), items };
+};
 /** The installed plugins' menu entries: each plugin's pages and its settings page, under its name (its apps are under "Apps"). */
 const pluginGroups = (): MenuGroup[] => {
   const on = installedPlugins();
+  const settingsHrefs = new Set(settingsGroup().items.map((i) => i.href));
   const appHrefs = new Set(allApps().map((a) => a.href));
   // Zeiterfassung's pages (Jobs, Projects …) first, then connectors and time-sheet systems, the applications' pages (Repos) after.
   const rank = { connector: 1, timesheet: 2, ai: 3, app: 4, system: 5, language: 6 } as const;
@@ -29,8 +45,8 @@ const pluginGroups = (): MenuGroup[] => {
     .sort((a, b) => (a.id === "zeiterfassung" ? 0 : rank[a.category]) - (b.id === "zeiterfassung" ? 0 : rank[b.category]))
     .map((p) => {
       const nav = (p.nav ?? []).filter((n) => !appHrefs.has(n.href)).map((n) => ({ ...n, label: catalogText(t, n.label), hint: catalogText(t, n.hint) }));
-      const settings = p.settings && !nav.some((n) => n.href === p.settings!.href) ? [{ href: p.settings.href, label: t("Settings"), hint: catalogText(t, p.settings.what) }] : [];
-      const items = inOrder([...nav, ...settings].filter((n) => !seen.has(n.href)), (n) => n.href, order);
+      // (the settings pages are under Settings — settingsGroup)
+      const items = inOrder(nav.filter((n) => !seen.has(n.href) && !settingsHrefs.has(n.href)), (n) => n.href, order);
       for (const n of items) seen.add(n.href);
       return { id: p.id, name: catalogText(t, p.name), items };
     })
@@ -92,6 +108,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             waiting={attention.flatMap((a) => (a.kind === "question" && a.href?.startsWith("/work") ? [{ href: "/work", title: a.title }] : []))}
             apps={allApps().map((a) => ({ href: a.href, label: a.label, hint: a.hint, place: a.place }))}
             pluginGroups={pluginGroups()}
+            settingsGroup={settingsGroup()}
             hidden={getMenuPrefs().hidden}
             order={getMenuPrefs().order}
             tabs={headerTabs()}

@@ -58,6 +58,7 @@ export function SiteHeader({
   waiting = [],
   apps = [],
   pluginGroups = [],
+  settingsGroup,
   hidden = [],
   order = [],
   tabs = [],
@@ -77,13 +78,15 @@ export function SiteHeader({
   bare?: boolean;
   /** Each installed plugin's pages and settings — expandable. */
   pluginGroups?: MenuGroup[];
+  /** Settings, folded open: Zeff's own and every installed plugin's settings page. */
+  settingsGroup?: MenuGroup;
   tabs?: HeaderTab[];
   account?: { current: AccountChip; list: AccountChip[] };
 }) {
   const t = useT();
   // The menu: the apps, the installed plugins' pages (a group each), then Zeff's own.
-  const zeff = inOrder(menuEntries(t), (l) => l.href, order);
-  const menu = [...apps.filter((a) => a.place === "menu"), ...pluginGroups.flatMap((g) => g.items), ...zeff];
+  const zeff = inOrder(menuEntries(t), (l) => l.href, order).filter((l) => !(settingsGroup && l.href === "/preferences"));
+  const menu = [...apps.filter((a) => a.place === "menu"), ...pluginGroups.flatMap((g) => g.items), ...(settingsGroup?.items ?? []), ...zeff];
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -181,7 +184,7 @@ export function SiteHeader({
   const isAt = (href: string) => pathname === href.split("#")[0] || pathname.startsWith(`${href.split("#")[0]}/`);
   const inMenu = menu.find((l) => isAt(l.href));
   // The plugin you're on: its group open.
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(pluginGroups.filter((g) => g.items.some((i) => isAt(i.href))).map((g) => g.id)));
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set([...pluginGroups, ...(settingsGroup ? [settingsGroup] : [])].filter((g) => g.items.some((i) => isAt(i.href))).map((g) => g.id)));
   const toggle = (id: string) =>
     setExpanded((s) => {
       const n = new Set(s);
@@ -224,6 +227,42 @@ export function SiteHeader({
           <span className="block text-sm font-medium">{l.label}</span>
           <span className={`block text-xs ${active ? "text-zinc-300 dark:text-zinc-600" : "text-zinc-500 dark:text-zinc-400"}`}>{l.hint}</span>
         </Link>
+      </li>
+    );
+  };
+  /** A group of entries folded under a name (a plugin's, or Settings'); `movable`: its place among the plugins' groups can be changed. */
+  const group = (g0: MenuGroup, movable: boolean) => {
+    const g = editing ? g0 : { ...g0, items: g0.items.filter((i) => !isHidden(i.href)) };
+    if (!g.items.length) return null;
+    if (g.items.length === 1 && !editing && movable) return item({ ...g.items[0], label: g.items[0].label === "Settings" || g.items[0].label === t("Settings") ? g.name : g.items[0].label });
+    return (
+      <li
+        key={g.id}
+        {...(movable ? dnd("groups", pluginGroups.map((x) => `group:${x.id}`), `group:${g.id}`) : {})}
+        className={editing && movable ? `flex flex-wrap items-center rounded-md ${dropMark(`group:${g.id}`)}` : undefined}
+      >
+        {editing && movable && <span className="pl-3">{arrows(g.name, pluginGroups.map((x) => `group:${x.id}`), pluginGroups.findIndex((x) => x.id === g.id))}</span>}
+                      <button
+                        type="button"
+                        onClick={() => toggle(g.id)}
+                        aria-expanded={expanded.has(g.id)}
+                        className={`flex ${editing && movable ? "min-w-0 flex-1" : "w-full"} cursor-pointer items-center justify-between rounded-md px-3 py-1.5 text-left text-sm font-medium transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:hover:bg-zinc-800`}
+                      >
+                        {g.name}
+                        <ChevronIcon open={expanded.has(g.id)} className="size-3.5 text-zinc-400" />
+                      </button>
+                      {(expanded.has(g.id) || editing) && (
+                        <ul className="w-full space-y-0.5">
+                          {g.items.map((l, i) =>
+                            item(
+                              l,
+                              true,
+                              g.items.map((x) => x.href),
+                              i,
+                            ),
+                          )}
+                        </ul>
+                      )}
       </li>
     );
   };
@@ -429,48 +468,9 @@ export function SiteHeader({
                       return inMenuApps.length ? inMenuApps.map((l) => item(l)) : <li className="px-3 py-1 text-xs text-zinc-400">{t("All apps are in the header.")}</li>;
                     })()}
                 {pluginGroups.length > 0 && heading(t("Plugins"))}
-                {pluginGroups
-                  .map((g) => (editing ? g : { ...g, items: g.items.filter((i) => !isHidden(i.href)) }))
-                  .filter((g) => g.items.length)
-                  .map((g) =>
-                  g.items.length === 1 && !editing ? (
-                    item({ ...g.items[0], label: g.items[0].label === "Settings" || g.items[0].label === t("Settings") ? g.name : g.items[0].label })
-                  ) : (
-                    <li
-                      key={g.id}
-                      {...dnd(
-                        "groups",
-                        pluginGroups.map((x) => `group:${x.id}`),
-                        `group:${g.id}`,
-                      )}
-                      className={editing ? `flex flex-wrap items-center rounded-md ${dropMark(`group:${g.id}`)}` : undefined}
-                    >
-                      {editing && <span className="pl-3">{arrows(g.name, pluginGroups.map((x) => `group:${x.id}`), pluginGroups.indexOf(g))}</span>}
-                      <button
-                        type="button"
-                        onClick={() => toggle(g.id)}
-                        aria-expanded={expanded.has(g.id)}
-                        className={`flex ${editing ? "min-w-0 flex-1" : "w-full"} cursor-pointer items-center justify-between rounded-md px-3 py-1.5 text-left text-sm font-medium transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:hover:bg-zinc-800`}
-                      >
-                        {g.name}
-                        <ChevronIcon open={expanded.has(g.id)} className="size-3.5 text-zinc-400" />
-                      </button>
-                      {(expanded.has(g.id) || editing) && (
-                        <ul className="w-full space-y-0.5">
-                          {g.items.map((l, i) =>
-                            item(
-                              l,
-                              true,
-                              g.items.map((x) => x.href),
-                              i,
-                            ),
-                          )}
-                        </ul>
-                      )}
-                    </li>
-                  ),
-                )}
+                {pluginGroups.map((g) => group(g, true))}
                 {heading("Zeff")}
+                {settingsGroup && group(settingsGroup, false)}
                 {editing
                   ? zeff.map((l, i) =>
                       item(
