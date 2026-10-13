@@ -4,7 +4,8 @@
  * or person runs it):
  *   1. a lock (data/.deploy.lock): never two deploys at once
  *   2. no Ticket-Lage or work run active in any account (else: stop — or wait, with --wait);
- *      work runs on the launcher's work host don't count: they outlive the restart
+ *      work runs on the launcher's work host don't count: they outlive the restart; nor do an
+ *      agent's runs (an outside session through the MCP: nothing of it lives in the server)
  *   3. typecheck, lint (errors), tests (npm test)
  *   4. next build (+ the knowledge server's with --knowledge) — into .next-build, while the
  *      server keeps serving .next undisturbed
@@ -103,8 +104,10 @@ function busyRuns() {
     const db = new Database(f, { readonly: true });
     try {
       for (const t of ["board_runs", "work_runs"])
-        for (const r of db.prepare(`select id, status from ${t} where status in ('running','queued')`).all()) {
+        for (const r of db.prepare(`select id, status${t === "work_runs" ? ", provider" : ""} from ${t} where status in ('running','queued')`).all()) {
           if (OWN_RUN && t === "work_runs" && r.id === OWN_RUN.id && account === OWN_RUN.account) continue;
+          // An agent's run (an outside Claude Code session on a todo, through the MCP) has no process in the server: a restart only fails its next call for a moment.
+          if (t === "work_runs" && r.status === "running" && r.provider === "agent") continue;
           // A worker on the launcher's work host outlives the restart (the host reports its end).
           if (t === "work_runs" && r.status === "running" && hosted.has(`${account}:${r.id}`)) continue;
           // An administrator session runs under its own host (scripts/work-session-host.mjs): it outlives it too.
