@@ -6,7 +6,7 @@ import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { NEWS_PAGE, parseInterests, parseMutes, PRESETS, type NewsPrefs, type NewsState } from "./shared";
-import { addSource, addSources, forgetLearning, getContent, getPrefs, listItems, listSources, removeSource, setContent, setPrefs, setState, UNREADABLE, updateSource, vote, type NewsView } from "./store";
+import { addSource, addSources, forgetLearning, getContent, getItem, getPrefs, listItems, listSources, removeSource, setContent, setPrefs, setState, UNREADABLE, updateSource, vote, type NewsView } from "./store";
 
 /** The News plugin's server actions: the cards' buttons return a result; the settings forms go back to their page with what came of it. */
 
@@ -29,7 +29,11 @@ export async function newsStateAction(id: number, state: string): Promise<Result
   try {
     guard();
     if (!["new", "read", "saved", "hidden"].includes(state)) throw new Error("Unknown state.");
+    const before = getItem(Number(id));
     setState(Number(id), state as NewsState);
+    // Saving is a signal for the taste description (taking it back withdraws it).
+    if (before && state === "saved") (await import("./taste")).recordSignal(before, "save"), (await import("./taste")).scheduleTasteUpdate();
+    else if (before && before.state === "saved") (await import("./taste")).withdrawSignal(before.id, "save");
     return await done(false);
   } catch (e) {
     return { ok: false, error: errorMessage(e) };
@@ -40,7 +44,19 @@ export async function newsStateAction(id: number, state: string): Promise<Result
 export async function newsVoteAction(id: number, value: number): Promise<Result> {
   try {
     guard();
-    vote(Number(id), value > 0 ? 1 : value < 0 ? -1 : 0);
+    const v = value > 0 ? 1 : value < 0 ? -1 : 0;
+    const item = getItem(Number(id));
+    vote(Number(id), v);
+    // A 👍 or 👎 is a signal for the taste description (taking it back withdraws it).
+    if (item) {
+      const taste = await import("./taste");
+      taste.withdrawSignal(item.id, "like");
+      taste.withdrawSignal(item.id, "dislike");
+      if (v !== 0) {
+        taste.recordSignal(item, v > 0 ? "like" : "dislike");
+        taste.scheduleTasteUpdate();
+      }
+    }
     return await done(true);
   } catch (e) {
     return { ok: false, error: errorMessage(e) };
@@ -71,7 +87,7 @@ export async function newsMoreAction(view: string, sourceId: number | null, cate
   guard();
   const { formatAgo } = await import("@/lib/format");
   const { getPrefs } = await import("./store");
-  const v = (["foryou", "latest", "saved", "hidden"] as string[]).includes(view) ? (view as NewsView) : "foryou";
+  const v = (["foryou", "latest", "saved", "hidden", "discover"] as string[]).includes(view) ? (view as NewsView) : "foryou";
   const items = listItems({ view: v, sourceId: sourceId ?? undefined, category: category || undefined, likeOf: term.startsWith("like:") ? Number(term.slice(5)) || undefined : undefined, term: term.startsWith("story:") || term.startsWith("like:") ? undefined : term || undefined, story: term.startsWith("story:") ? term.slice(6) : undefined, maxAgeDays: getPrefs().maxAgeDays, limit: NEWS_PAGE, offset: Math.max(0, Math.floor(offset)) });
   return { items, ago: Object.fromEntries(items.map((i) => [i.id, formatAgo(i.publishedAt)])), done: items.length < NEWS_PAGE };
 }
@@ -160,6 +176,59 @@ export async function newsStoryAction(itemId: number): Promise<{ label: string; 
 export async function newsSoFarAction(term: string): Promise<{ ok: boolean; answer?: string; sources?: { n: number; id: number; title: string; url: string; sourceName: string }[]; error?: string }> {
   const label = String(term).replace(/^story:/, "").slice(0, 80);
   return askNewsAction(`Was ist der Stand zu „${label}“? Fasse die Entwicklung chronologisch zusammen.`);
+}
+
+/** Discover: from the written taste description — new sources and searches, then everything unread matched against it. Background; the status says where it is. */
+export async function startDiscoverAction(): Promise<Result & { status?: import("./discover-job").DiscoverStatus }> {
+  try {
+    guard();
+    const r = (await import("./discover-job")).startDiscover();
+    return { ok: true, status: r.status };
+  } catch (e) {
+    return { ok: false, error: errorMessage(e) };
+  }
+}
+
+export async function discoverStatusAction(): Promise<import("./discover-job").DiscoverStatus> {
+  guard();
+  return (await import("./discover-job")).getDiscoverStatus();
+}
+
+/** Your own version of the taste description (the AI continues from it). */
+export async function saveTasteFormAction(fd: FormData): Promise<void> {
+  try {
+    guard();
+    (await import("./taste")).setTaste({ text: String(fd.get("taste") ?? "").trim().slice(0, 1200), edited: true });
+  } catch (e) {
+    back({ error: errorMessage(e) });
+  }
+  revalidatePath("/settings/news");
+  back({ ok: t("Saved.") });
+}
+
+/** The queued likes and saves go through the AI now (in the background). */
+export async function updateTasteFormAction(): Promise<void> {
+  try {
+    guard();
+    const taste = await import("./taste");
+    taste.seedFromHistory();
+    void taste.updateTaste().catch(() => undefined);
+  } catch (e) {
+    back({ error: errorMessage(e) });
+  }
+  revalidatePath("/settings/news");
+  back({ ok: t("Updating the description from your likes — a moment.") });
+}
+
+export async function forgetTasteFormAction(): Promise<void> {
+  try {
+    guard();
+    (await import("./taste")).setTaste({ text: "", likes: [], avoids: [], queries: [], updatedAt: null, pending: [], edited: false });
+  } catch (e) {
+    back({ error: errorMessage(e) });
+  }
+  revalidatePath("/settings/news");
+  back({ ok: t("The description is gone — it grows again from what you like.") });
 }
 
 /** "Refresh": fetch everything, and add sources until there are at least 200 unseen cards — in the background; the status says where it is. */

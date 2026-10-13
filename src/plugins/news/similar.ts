@@ -112,7 +112,7 @@ export async function profileLines(articleText: string): Promise<string[]> {
   return lines;
 }
 
-async function defaultSearch(query: string): Promise<FeedItem[]> {
+export async function defaultSearch(query: string): Promise<FeedItem[]> {
   const prefs = getPrefs();
   const urls = [topicFeedUrl(query, prefs.language, Math.max(3, prefs.maxAgeDays)), `https://www.bing.com/news/search?q=${encodeURIComponent(query)}&format=rss&mkt=${prefs.language === "en" ? "en-US" : "de-DE"}`];
   const out: FeedItem[] = [];

@@ -5,13 +5,14 @@ import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { formatAgo } from "@/lib/format";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
-import { addSourceFormAction, forgetLearningFormAction, removeSourceFormAction, savePrefsFormAction, updateSourceFormAction } from "@/plugins/news/server-actions";
+import { addSourceFormAction, forgetLearningFormAction, forgetTasteFormAction, saveTasteFormAction, updateTasteFormAction, removeSourceFormAction, savePrefsFormAction, updateSourceFormAction } from "@/plugins/news/server-actions";
 import { CatalogBrowser } from "@/plugins/news/CatalogBrowser";
 import { discoveries } from "@/plugins/news/auto-discover";
 import { FeedFinder } from "@/plugins/news/FeedFinder";
 import { formatInterests } from "@/plugins/news/shared";
 import { profileTerms } from "@/plugins/news/profile";
 import { getPrefs, listSources } from "@/plugins/news/store";
+import { getTaste } from "@/plugins/news/taste";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("News settings") };
@@ -27,6 +28,7 @@ export default async function NewsSettingsPage({ searchParams }: { searchParams:
   const prefs = getPrefs();
   const sources = listSources();
   const profile = prefs.useProfile ? await profileTerms() : [];
+  const taste = getTaste();
   const have = new Set(sources.map((s) => s.url));
 
   return (
@@ -224,6 +226,39 @@ export default async function NewsSettingsPage({ searchParams }: { searchParams:
               </ul>
             </div>
           )}
+        </section>
+
+        <section id="taste" className="card space-y-3 p-4">
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">✨ {t("Your taste")}</h2>
+          <p className="text-xs text-zinc-500">
+            {t("A written description of what you like to read. Zeff keeps it: every article you like (👍), save (🔖) or reject (👎) is fed to the AI with the description, which rewrites it. Discover uses it to look for new sources and to pick what matches from the unread news. You can edit it — the AI continues from your version.")}
+          </p>
+          <form action={saveTasteFormAction} className="space-y-2">
+            <textarea name="taste" rows={6} defaultValue={taste.text} placeholder={t("Nothing written yet — like or save a few articles, then press Update.")} className={field} />
+            <div className="flex flex-wrap items-center gap-2">
+              <button className="btn btn-primary btn-sm">{t("Save my version")}</button>
+              <span className="text-xs text-zinc-500">
+                {taste.updatedAt ? t("Updated {ago}", { ago: formatAgo(taste.updatedAt) }) : t("not written yet")}
+                {taste.pending.length > 0 && ` · ${t("{n} signals waiting to be taken in", { n: taste.pending.length })}`}
+              </span>
+            </div>
+          </form>
+          {(taste.likes.length > 0 || taste.avoids.length > 0) && (
+            <p className="text-xs text-zinc-600 dark:text-zinc-300">
+              {taste.likes.length > 0 && <span>{t("Likes")}: {taste.likes.join(", ")}. </span>}
+              {taste.avoids.length > 0 && <span>{t("Avoids")}: {taste.avoids.join(", ")}.</span>}
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <form action={updateTasteFormAction}>
+              <button className="btn btn-sm" title={t("Takes in the likes and saves not yet in the description (and the ones from before this existed)")}>
+                {t("Update from my likes now")}
+              </button>
+            </form>
+            <form action={forgetTasteFormAction}>
+              <button className="btn btn-sm">{t("Forget the description")}</button>
+            </form>
+          </div>
         </section>
 
         <CatalogBrowser have={have} lang={sp.lang ?? ""} q={sp.q ?? ""} />

@@ -1092,3 +1092,97 @@ test("More like this: the AI reads the article next to what you like and know, s
   const bad = await moreLikeThis(999999, { read: async () => { throw new Error("That item isn't there any more."); } });
   assert.equal(bad.ok, false);
 });
+
+test("the taste description: signals are queued, the AI rewrites the description from them, without an AI it is built from tags", async () => {
+  const s = await import("@/plugins/news/store");
+  const { getTaste, setTaste, recordSignal, withdrawSignal, updateTaste, seedFromHistory } = await import("@/plugins/news/taste");
+  for (const x of s.listSources()) s.removeSource(x.id);
+  await wipe();
+  setTaste({ text: "", likes: [], avoids: [], queries: [], updatedAt: null, pending: [], edited: false });
+  const src = s.addSource({ name: "Taste", url: "https://taste.example/rss" });
+  const now = new Date().toISOString();
+  s.addItems({ id: src.id, name: "Taste" }, [
+    { guid: "1", url: "https://taste.example/1", title: "Neue Studie zu Quantencomputern", summary: "Fehlerkorrektur gelingt", publishedAt: now },
+    { guid: "2", url: "https://taste.example/2", title: "Segeln: Einhandregatta im Suedatlantik", summary: "", publishedAt: now },
+    { guid: "3", url: "https://taste.example/3", title: "Promi-Skandal am Wochenende", summary: "", publishedAt: now },
+  ]);
+  const all = s.listItems({ view: "latest", sourceId: src.id });
+  const [a, b, c] = ["Quantencomputern", "Segeln", "Promi"].map((w) => all.find((i) => i.title.includes(w))!);
+  recordSignal({ ...a, terms: ["Quantencomputer"] }, "like");
+  recordSignal({ ...a, terms: ["Quantencomputer"] }, "like");
+  recordSignal({ ...b, terms: ["Segeln"] }, "save");
+  recordSignal({ ...c, terms: ["Promi"] }, "dislike");
+  assert.equal(getTaste().pending.length, 3, "the same like twice is one");
+  withdrawSignal(c.id, "dislike");
+  assert.equal(getTaste().pending.length, 2);
+  recordSignal({ ...c, terms: ["Promi"] }, "dislike");
+
+  const prompts: string[] = [];
+  const n = await updateTaste({
+    ask: async (p) => (prompts.push(p), { description: "Du liest gern ueber Quantenphysik und Segeln.", likes: ["Quantencomputer", "Segeln"], avoids: ["Promi"], queries: ["Einhandsegeln"] }),
+  });
+  assert.equal(n, 3);
+  assert.match(prompts[0], /Quantencomputern/);
+  assert.match(prompts[0], /Promi/);
+  const t1 = getTaste();
+  assert.match(t1.text, /Quantenphysik/);
+  assert.deepEqual([t1.pending.length, t1.likes.length, t1.avoids], [0, 2, ["Promi"]]);
+
+  setTaste({ text: "Ich lese gern Hintergruende.", edited: true });
+  recordSignal({ ...a, terms: ["Quantencomputer"] }, "save");
+  await updateTaste({ ask: async (p) => (prompts.push(p), { description: "Neu.", likes: [], avoids: [], queries: [] }) });
+  assert.match(prompts[1], /Ich lese gern Hintergruende\./);
+
+  setTaste({ text: "", likes: [], avoids: [], queries: [], updatedAt: null, pending: [], edited: false });
+  s.vote(a.id, 1);
+  s.setState(b.id, "saved");
+  assert.equal(seedFromHistory(), 2);
+  assert.equal(seedFromHistory(), 0, "only once");
+});
+
+test("matching: close unread items score up, nothing without a taste", async () => {
+  const { matchTaste } = await import("@/plugins/news/taste");
+  const taste = { text: "Du liest gern ueber Quantencomputer, Fehlerkorrektur und Physik.", likes: ["Quantencomputer", "Physik"], avoids: ["Promi"] };
+  const items = [
+    { id: 1, title: "Fehlerkorrektur: Quantencomputer rechnen stabiler", summary: "Physiker zeigen einen Durchbruch" },
+    { id: 2, title: "Promi-Skandal am Wochenende", summary: "" },
+    ...Array.from({ length: 20 }, (_, i) => ({ id: 10 + i, title: `Ein ruhiger Tag ${i} ohne besondere Meldung`, summary: "" })),
+  ];
+  assert.equal(matchTaste(taste, items)[0].id, 1);
+  assert.deepEqual(matchTaste({ text: "", likes: [], avoids: [] }, items), []);
+});
+
+test("Discover: planned searches, web, new sources, matching into the Discover view", async () => {
+  const s = await import("@/plugins/news/store");
+  const { startDiscover } = await import("@/plugins/news/discover-job");
+  const { setTaste } = await import("@/plugins/news/taste");
+  for (const x of s.listSources()) s.removeSource(x.id);
+  await wipe();
+  s.setPrefs({ interests: [], mutes: [], useProfile: false, useWork: false, autoDiscover: false, diversity: false });
+  setTaste({ text: "Du liest gern ueber Quantencomputer und Fehlerkorrektur.", likes: ["Quantencomputer", "Fehlerkorrektur"], avoids: ["Promi"], queries: [], pending: [], updatedAt: new Date().toISOString(), edited: false });
+  const src = s.addSource({ name: "Unread", url: "https://unread.example/rss" });
+  const now = new Date().toISOString();
+  s.addItems({ id: src.id, name: "Unread" }, [
+    { guid: "u1", url: "https://unread.example/1", title: "Fehlerkorrektur macht Quantencomputer praktisch", summary: "Forscher berichten", publishedAt: now },
+    { guid: "u2", url: "https://unread.example/2", title: "Promi-Skandal: Das Neueste vom Wochenende", summary: "", publishedAt: now },
+    ...Array.from({ length: 24 }, (_, i) => ({ guid: `f${i}`, url: `https://unread.example/f${i}`, title: `Gemeinde ${i} beschliesst neuen Haushalt ${"x".repeat(i)}`, summary: "", publishedAt: now })),
+  ]);
+  const searched: string[] = [];
+  const done = await startDiscover({
+    ask: async () => ({ queries: ["Quantencomputer Durchbruch", "Photonik Chips"] }),
+    search: async (q) => (searched.push(q), [{ guid: `w${q}`, url: `https://web.example/${encodeURIComponent(q)}`, title: `${q}: Quantencomputer Fehlerkorrektur im Labor`, summary: "Physiker", publishedAt: now }]),
+    find: async (q) => [{ domain: "quantum.example", feed: { url: "https://quantum.example/feed", title: "Quantum Blog" }, why: q }],
+    sync: async () => ({ ok: true, message: "" }),
+  }).promise;
+  assert.equal(done.running, false);
+  assert.deepEqual(searched.sort(), ["Photonik Chips", "Quantencomputer Durchbruch"]);
+  assert.equal(done.web, 2);
+  assert.ok(s.listSources().some((x) => x.url === "https://quantum.example/feed"));
+  assert.ok(done.matched > 0, done.message);
+  const view = s.listItems({ view: "discover" });
+  assert.ok(view.length > 0 && /Quantencomputer/.test(view[0].title));
+  assert.ok(s.counts().discover > 0);
+  setTaste({ text: "", likes: [], avoids: [], queries: [], pending: [], updatedAt: null, edited: false });
+  const none = await startDiscover({ ask: async () => ({ queries: [] }) }).promise;
+  assert.match(none.message, /Like or save a few articles first/);
+});

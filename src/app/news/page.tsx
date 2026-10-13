@@ -11,6 +11,8 @@ import { NewsFeed } from "@/plugins/news/NewsFeed";
 import { StartNews } from "@/plugins/news/RefreshButton";
 import { NewsRefreshButtons } from "@/plugins/news/RefreshButton";
 import { getDigest } from "@/plugins/news/digest";
+import { DiscoverButton } from "@/plugins/news/DiscoverButton";
+import { getTaste } from "@/plugins/news/taste";
 import { NEWS_PAGE } from "@/plugins/news/shared";
 import { counts, getItem, getPrefs, listItems, listSources, type NewsView } from "@/plugins/news/store";
 
@@ -18,7 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("News") };
 }
 
-const VIEWS: NewsView[] = ["foryou", "latest", "saved", "hidden"];
+const VIEWS: NewsView[] = ["foryou", "discover", "latest", "saved", "hidden"];
 
 /** News: what your sources and interests brought, in the order that fits you; teach it with 👍 👎. */
 export default async function NewsPage({ searchParams }: { searchParams: Promise<{ view?: string; source?: string; category?: string }> }) {
@@ -35,8 +37,9 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
   const digest = view === "foryou" && !sourceId ? getDigest() : null;
   const byId = new Map([...(digest?.picks ?? []).map((p) => p.id), ...(digest?.themes ?? []).flatMap((th) => th.ids)].flatMap((id) => { const it = getItem(id); return it ? [[id, it] as const] : []; }));
   const spoken = digest ? [digest.overview, ...digest.themes.map((th) => `${th.title}. ${th.summary}`), ...digest.picks.flatMap((p) => { const it = byId.get(p.id); return it ? [`${it.title}. ${p.why}`] : []; })].join("\n\n") : "";
-  const labels: Record<NewsView, string> = { foryou: t("For you"), latest: t("Latest"), saved: t("Saved"), hidden: t("Hidden") };
-  const count: Record<NewsView, number | null> = { foryou: c.unread, latest: null, saved: c.saved, hidden: c.hidden };
+  const labels: Record<NewsView, string> = { foryou: t("For you"), discover: `✨ ${t("Discover")}`, latest: t("Latest"), saved: t("Saved"), hidden: t("Hidden") };
+  const count: Record<NewsView, number | null> = { foryou: c.unread, discover: c.discover, latest: null, saved: c.saved, hidden: c.hidden };
+  const taste = view === "discover" ? getTaste() : null;
   const href = (v: NewsView, s?: number, c?: string) => `/news?view=${v}${s ? `&source=${s}` : ""}${c ? `&category=${encodeURIComponent(c)}` : ""}`;
   // The enabled sources by category (a few hundred sources are too many to list one by one).
   const byCategory = new Map<string, number>();
@@ -74,6 +77,7 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
             )}
           </div>
         )}
+        <DiscoverButton />
         <NewsRefreshButtons digest={prefs.digest} />
         <Link href="/news/explore" className="btn btn-sm w-full text-center" title={t("Hop from thing to thing through the news")}>
           🧭 {t("Explore")}
@@ -84,6 +88,19 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
       </div>
 
       <div className="space-y-3">
+        {taste && (
+          <section className="card space-y-1.5 border-violet-200 bg-violet-50 p-4 text-sm dark:border-violet-900 dark:bg-violet-950/40">
+            <h2 className="text-xs font-semibold text-violet-700 uppercase dark:text-violet-300">✨ {t("Your taste")}</h2>
+            {taste.text ? <p className="leading-relaxed">{taste.text}</p> : <p className="text-zinc-500">{t("Nothing written yet — like or save a few articles, then press Discover.")}</p>}
+            <p className="text-xs text-zinc-500">
+              {t("Written by Zeff from what you like and save.")}{" "}
+              <Link href="/settings/news#taste" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                {t("Read and edit it")}
+              </Link>
+              {taste.pending.length > 0 && ` · ${t("{n} signals waiting to be taken in", { n: taste.pending.length })}`}
+            </p>
+          </section>
+        )}
         {isInstalled("llm") && <AskNews />}
         {digest && (
           <section className="card space-y-2 border-indigo-200 bg-indigo-50 p-4 text-sm dark:border-indigo-900 dark:bg-indigo-950/40">

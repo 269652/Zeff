@@ -241,11 +241,13 @@ const toItem = (r: IRow): NewsItem => ({
   })(),
 });
 
-export type NewsView = "foryou" | "latest" | "saved" | "hidden";
+export type NewsView = "foryou" | "latest" | "saved" | "hidden" | "discover";
 
 /** The items of a view: For you (best first, nothing hidden or muted), Latest (by date), Saved, Hidden. */
 export function listItems(opts: { view?: NewsView; sourceId?: number; category?: string; term?: string; story?: string; likeOf?: number; limit?: number; offset?: number; maxAgeDays?: number } = {}): NewsItem[] {
   const view = opts.view ?? "foryou";
+  // Discover: what was found for the taste description (like_of −1).
+  if (view === "discover") opts = { ...opts, likeOf: -1 };
   // "More like this": what was found for an item, the closest first (what you have seen after).
   if (opts.likeOf) {
     return (db().prepare(`select ${ICOLS} from ${IFROM} join news_similar sm on sm.item_id = i.id where sm.like_of = ? and i.state != 'hidden' order by (i.seen_at is not null), sm.score desc, i.published_at desc limit ? offset ?`).all(opts.likeOf, opts.limit ?? 60, opts.offset ?? 0) as IRow[]).map(toItem);
@@ -428,6 +430,20 @@ export function setReasons(ids: number[], reasons: string[]): void {
   for (const id of ids) up.run(JSON.stringify(reasons), id);
 }
 
+/** What you liked, saved and rejected before (the newest first): the first signals of the taste description. */
+export function tasteSignals(limit = 24): { id: number; kind: "like" | "save" | "dislike"; title: string; summary: string; tags: string[]; at: string }[] {
+  const rows = db().prepare("select id, title, summary, tags, vote, state, published_at from news_items where vote != 0 or state = 'saved' order by published_at desc limit ?").all(limit) as { id: number; title: string; summary: string; tags: string; vote: number; state: string; published_at: string }[];
+  return rows.map((r) => ({ id: r.id, kind: (r.vote < 0 ? "dislike" : r.vote > 0 ? "like" : "save") as "like" | "save" | "dislike", title: r.title, summary: r.summary.slice(0, 300), tags: tagsOf(r).slice(0, 4), at: r.published_at }));
+}
+
+/** The unseen items still to read (what Discover matches the taste against). */
+export function unreadForMatching(days: number, limit = 3000): { id: number; title: string; summary: string; terms: string[] }[] {
+  const rows = db()
+    .prepare("select i.id, i.title, i.summary, i.tags from news_items i left join news_sources s on s.id = i.source_id where i.seen_at is null and i.state = 'new' and i.score > -50 and i.published_at > ? and (i.source_id is null or s.enabled = 1) order by i.published_at desc limit ?")
+    .all(new Date(Date.now() - days * 864e5).toISOString(), limit) as { id: number; title: string; summary: string; tags: string }[];
+  return rows.map((r) => ({ id: r.id, title: r.title, summary: r.summary, terms: tagsOf(r) }));
+}
+
 /** The kept whole article of an item ("" if none, UNREADABLE if its page couldn't be read). */
 export function getContent(id: number): { content: string; url: string; title: string } | null {
   return (db().prepare("select content, url, title from news_items where id = ?").get(id) as { content: string; url: string; title: string } | undefined) ?? null;
@@ -477,7 +493,7 @@ export function vote(id: number, value: -1 | 0 | 1): void {
   })();
 }
 
-export function counts(): { foryou: number; saved: number; hidden: number; unread: number } {
+export function counts(): { foryou: number; saved: number; hidden: number; unread: number; discover: number } {
   const d = db();
   const n = (sql: string, ...a: unknown[]) => (d.prepare(sql).get(...a) as { n: number }).n;
   const since = new Date(Date.now() - getPrefs().maxAgeDays * 864e5).toISOString();
@@ -485,6 +501,7 @@ export function counts(): { foryou: number; saved: number; hidden: number; unrea
     foryou: n("select count(*) n from news_items where state != 'hidden' and score > -50 and published_at > ?", since),
     saved: n("select count(*) n from news_items where state = 'saved'"),
     hidden: n("select count(*) n from news_items where state = 'hidden'"),
+    discover: n("select count(*) n from news_similar sm join news_items i on i.id = sm.item_id where sm.like_of = -1 and i.seen_at is null and i.state = 'new'"),
     unread: n("select count(*) n from news_items where state = 'new' and score > -50 and published_at > ?", since),
   };
 }
