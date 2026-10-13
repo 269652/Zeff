@@ -8,6 +8,8 @@ import { connection } from "next/server";
 import { GitMissingNotice } from "@/components/GitMissingNotice";
 import { RepoForm } from "@/components/RepoForm";
 import { listRepos, repoChoices } from "@/lib/repos";
+import { getRepoSystems } from "@/plugins/knowledge/repo-systems-store";
+import { RepoSystemsButton } from "@/components/RepoSystemsButton";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("Repos") };
@@ -18,6 +20,31 @@ export async function generateMetadata(): Promise<Metadata> {
  * boards (and single tickets) whose work goes there. A ticket's work goes to the repo that names
  * it, else its board's, else the one its merge requests are in.
  */
+/** The repo's systems the AI read from the knowledge: every todo going to this repo shows them (Knowledge → Prod / Test / Dev). */
+function RepoSystems({ repoId }: { repoId: number }) {
+  const v = getRepoSystems(repoId);
+  return (
+    <div className="space-y-1 text-sm">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="label !mb-0">{t("Systems (from the knowledge)")}</span>
+        <RepoSystemsButton />
+      </div>
+      {!v && <p className="text-xs text-zinc-500">{t("Not read yet — the next Knowledge assignment does it, or read them now.")}</p>}
+      {v && !v.systems.length && <p className="text-xs text-zinc-500">{t("The knowledge names no systems for this repo.")}</p>}
+      {v?.systems.map((s) => (
+        <div key={s.url} className="flex flex-wrap items-baseline gap-x-2 text-xs">
+          <span className="w-12 font-semibold text-zinc-500 uppercase">{s.env}</span>
+          <a href={s.url} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline dark:text-indigo-400">
+            {s.label ? `${s.label} · ` : ""}
+            {s.url}
+          </a>
+          <span className="text-zinc-400">{s.page}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default async function ReposPage() {
   await connection();
   // A plugin's page: there while it's installed.
@@ -56,6 +83,7 @@ export default async function ReposPage() {
               {r.tickets.length ? ` · ${r.tickets.join(", ")}` : ""}
             </span>
           </header>
+          <RepoSystems repoId={r.id} />
           <RepoForm repo={r} choices={choices} />
         </section>
       ))}

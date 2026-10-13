@@ -4204,5 +4204,10 @@
   "What counts as knowledge": "Qué cuenta como conocimiento",
   "What the knowledge base has on it. Needs the Knowledge plugin.": "Lo que la base de conocimiento tiene sobre ella. Requiere el plugin Conocimiento.",
   "Work records": "Registros de trabajo",
-  "Your notes from Google Keep.": "Tus notas de Google Keep."
+  "Your notes from Google Keep.": "Tus notas de Google Keep.",
+  "Systems (from the knowledge)": "Sistemas (del conocimiento)",
+  "Not read yet — the next Knowledge assignment does it, or read them now.": "Aún no leídos: la próxima asignación de conocimiento lo hace, o léelos ahora.",
+  "The knowledge names no systems for this repo.": "El conocimiento no nombra sistemas para este repo.",
+  "Reading…": "Leyendo…",
+  "Read the systems of {n} repos from the knowledge.": "Sistemas de {n} repos leídos del conocimiento."
 }

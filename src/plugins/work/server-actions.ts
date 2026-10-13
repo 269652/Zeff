@@ -263,6 +263,18 @@ export async function saveRepoAction(_prev: ActionState, fd: FormData): Promise<
   }
 }
 
+/** The repos' systems (Prod, Test/Stage, Dev) read from the knowledge again by the AI — all of them. */
+export async function readRepoSystemsAction(): Promise<ActionState> {
+  try {
+    const { relateRepoSystems } = await import("@/plugins/knowledge/repo-systems");
+    const r = await relateRepoSystems(true);
+    revalidateAll();
+    return r.failed && !r.read ? { ok: false, error: t("The AI didn't answer.") } : { ok: true, message: t("Read the systems of {n} repos from the knowledge.", { n: r.read }) };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
 export async function deleteRepoAction(id: number): Promise<ActionState> {
   try {
     const { deleteRepo } = await import("@/lib/repos");

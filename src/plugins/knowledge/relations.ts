@@ -12,6 +12,7 @@ import { getLanguage, t } from "@/lib/i18n/server";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { getTodoDisplayOff } from "@/lib/todo-display-store";
 import { kindOfPage, kindOn } from "@/lib/todo-display";
+import { relateRepoSystems } from "./repo-systems";
 import { entitiesFor, parseTodoKnowledge, type KnowledgeEntity, type KnowledgePage, type TodoKnowledge, type TodoLink } from "./shared";
 
 export type { TodoKnowledge } from "./shared";
@@ -63,6 +64,8 @@ export function relateKnowledge(): Promise<KnowledgeRelationResult> {
   const run = (async (): Promise<KnowledgeRelationResult> => {
     const cp = getContextPrefs().knowledge;
     const db = getDb();
+    // The systems (Prod, Test/Stage, Dev) are read once per repo, from the knowledge — not per todo.
+    await relateRepoSystems().catch((e) => console.error("[knowledge-repo-systems]", errorMessage(e)));
     const stored = new Map(db.select({ id: schema.todos.id, knowledge: schema.todos.knowledge }).from(schema.todos).all().map((r) => [r.id, parseTodoKnowledge(r.knowledge)]));
     // New or changed since their last assignment — the newest first, at most as many as set.
     const due = listTodos({ status: "open" })
@@ -75,7 +78,7 @@ export function relateKnowledge(): Promise<KnowledgeRelationResult> {
       .slice(0, cp.numbers.maxTodos);
     if (!due.length) return { ok: true, todos: 0, assigned: 0 };
 
-    const { knowledgeRelated, knowledgeLinks } = await import("./client");
+    const { knowledgeRelated } = await import("./client");
     // Not knowledge for a todo: the todo itself, its own ticket (Show context has it) and the other
     // open todos (they're on the board) — the knowledge holds all of them, so they'd always match.
     const openTodos = new Set(listTodos({ status: "open" }).map((t) => `zeff:todo:${t.id}`));
@@ -86,7 +89,7 @@ export function relateKnowledge(): Promise<KnowledgeRelationResult> {
       const summary = t.ticket ? (getJiraTicket(t.ticket)?.summary ?? "") : "";
       const r = await knowledgeRelated([t.text, summary].filter(Boolean).join(" — "), t.ticket || null, cp.numbers.candidates * 3 + 4).catch(() => null);
       const pages = (r?.pages ?? []).filter((p) => !notKnowledge(t, p)).slice(0, cp.numbers.candidates);
-      const links = off.includes("links") ? [] : (await knowledgeLinks([t.text, summary].filter(Boolean).join(" — "), t.ticket || null, 24).catch(() => [])).map((l) => ({ env: l.env, label: l.label, url: l.url, page: l.pageTitle }));
+      const links: TodoLink[] = [];
       candidates.set(t.id, { pages, entities: off.includes("entities") ? [] : entitiesFor(r?.entities ?? [], []), links });
     }
     const now = new Date().toISOString();
