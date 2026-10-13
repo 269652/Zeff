@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import type { ActionState } from "@/app/action-helpers";
 import { minutesText } from "@/plugins/sync-settings";
-import { currentLocale } from "@/lib/format";
+import { formatFull } from "@/lib/format";
 import { useT } from "@/components/I18nProvider";
 
 /**
@@ -60,7 +60,7 @@ export function SyncControls({
           ) : state?.ok ? (
             <span className="text-emerald-600 dark:text-emerald-400">{t("Synced: {message}", { message: state.message ?? "" })}</span>
           ) : last ? (
-            <span className={last.ok ? "text-zinc-500" : "text-amber-700 dark:text-amber-400"} title={new Date(last.at).toLocaleString(currentLocale())}>
+            <span className={last.ok ? "text-zinc-500" : "text-amber-700 dark:text-amber-400"} title={formatFull(last.at)}>
               {t("Last sync {ago}: {result}", { ago: last.ago, result: last.result })}
             </span>
           ) : (

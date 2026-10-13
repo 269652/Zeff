@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/EmptyState";
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
 import { headers } from "next/headers";
@@ -302,7 +303,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
               })}
             </ul>
           ) : (
-            <p className="text-sm text-zinc-500">{t("No date yet — enter one or let Zeff search (“Find dates”).")}</p>
+            <EmptyState>{t("No date yet — enter one or let Zeff search (“Find dates”).")}</EmptyState>
           )}
           <form action={addDateFormAction} className="flex flex-wrap items-end gap-2 border-t border-zinc-200 pt-3 text-sm dark:border-zinc-800">
             <input type="hidden" name="personId" value={p.id} />
@@ -399,7 +400,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-zinc-500">{t("No messages — enter the WhatsApp chat or the mail addresses above.")}</p>
+            <EmptyState>{t("No messages — enter the WhatsApp chat or the mail addresses above.")}</EmptyState>
           )}
         </Card>
 
@@ -418,7 +419,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-zinc-500">{t("No open todo names them.")}</p>
+              <EmptyState>{t("No open todo names them.")}</EmptyState>
             )}
           </Card>
         )}

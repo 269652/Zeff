@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingRow } from "@/components/Spinner";
 import { FormError } from "@/components/FormError";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -214,7 +215,7 @@ export function BoardRunControls({
                 />
               ))}
               {!steps && (
-                <li className="px-3 py-3 text-sm text-zinc-500">{t("Loading…")}</li>
+                <LoadingRow>{t("Loading…")}</LoadingRow>
               )}
             </ul>
           </div>

@@ -1,9 +1,10 @@
 "use client";
 
+import { confirmAction } from "@/components/confirm";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
-import { toast } from "@/components/Toaster";
+import { useEffect, useRef, useState } from "react";
+import { useAction } from "@/components/useAction";
 import { useT } from "@/components/I18nProvider";
 import { addCardTodoAction, setTodoStatusAction } from "@/plugins/todos/server-actions";
 import { CloseIcon, PencilIcon } from "@/components/icons";
@@ -60,26 +61,17 @@ const STRIPE: Record<string, string> = {
  */
 function Card({ c, lage, todosOn, parent, kids, onOpen, onDragStart, onDragEnd, dragging }: { c: CardView; lage?: CardLage; /** The Todos plugin is installed: the card has a checklist. */ todosOn: boolean; /** The card it is a subtask of. */ parent?: CardView; /** Its subtasks, done of all. */ kids?: { done: number; total: number }; onOpen: () => void; onDragStart: (e: React.DragEvent) => void; onDragEnd: () => void; dragging: boolean }) {
   const t = useT();
-  const router = useRouter();
   const [expanded, setExpanded] = useState(false);
-  const [pending, start] = useTransition();
+  const { run, pending } = useAction({ quiet: true });
   const [newTodo, setNewTodo] = useState("");
   const addTodo = () => {
     const text = newTodo.trim();
     if (!text) return;
     setNewTodo("");
-    start(async () => {
-      const r = await addCardTodoAction(c.ref, text);
-      if (!r?.ok) toast(r?.error ?? "Ging nicht.", { tone: "error" });
-      router.refresh();
-    });
+    void run(() => addCardTodoAction(c.ref, text));
   };
   const tick = (id: number, done: boolean) =>
-    start(async () => {
-      const r = await setTodoStatusAction(id, done ? "done" : "open");
-      if (!r?.ok) toast(r?.error ?? "Ging nicht.", { tone: "error" });
-      router.refresh();
-    });
+    void run(() => setTodoStatusAction(id, done ? "done" : "open"));
   return (
     // A div that acts as a button: the todos opened in it have checkboxes of their own.
     <div
@@ -256,7 +248,7 @@ function CardPanel({ c, lage, people, columns, boards, parent, subtasks, onOpenC
                     const b = boards.find((x) => x.id === Number(e.target.value));
                     if (!b) return;
                     if (subtasks.length) setMoveTo(b);
-                    else if (confirm(t("Move the card to “{name}”?", { name: b.name }))) run(() => moveCardToBoardAction(c.id, b.id), onClose);
+                    else if (confirmAction(t("Move the card to “{name}”?", { name: b.name }))) run(() => moveCardToBoardAction(c.id, b.id), onClose);
                   }}
                 >
                   <option value="">{t("Move to …")}</option>
@@ -355,7 +347,7 @@ function CardPanel({ c, lage, people, columns, boards, parent, subtasks, onOpenC
             type="button"
             className="btn btn-danger ml-auto"
             onClick={() => {
-              if (confirm(t("Delete {ref} “{title}”?", { ref: c.ref, title: c.title }))) run(() => deleteCardAction(c.id), onClose);
+              if (confirmAction(t("Delete {ref} “{title}”?", { ref: c.ref, title: c.title }))) run(() => deleteCardAction(c.id), onClose);
             }}
           >
             {t("Delete")}
@@ -489,7 +481,7 @@ function ColumnHead({ col, first, last, run }: { col: ColumnView; first: boolean
           <button
             type="button"
             className="block w-full rounded px-2 py-1 text-left text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950"
-            onClick={() => confirm(t("Delete the column “{name}”?", { name: col.name })) && run(() => deleteColumnAction(col.id))}
+            onClick={() => confirmAction(t("Delete the column “{name}”?", { name: col.name })) && run(() => deleteColumnAction(col.id))}
           >
             {t("Delete column")}
           </button>
@@ -554,7 +546,7 @@ export function OwnBoard({ board, lage = {}, todosOn = false, otherBoards = [], 
   const [drag, setDrag] = useState<number | null>(null);
   const [drop, setDrop] = useState<{ col: number; before: number | null } | null>(null);
   const [filter, setFilter] = useState("");
-  const [, start] = useTransition();
+  const { run } = useAction<Result>();
   const [newCol, setNewCol] = useState("");
   const [editingName, setEditingName] = useState(false);
   const bodies = useRef(new Map<number, HTMLDivElement>());
@@ -564,17 +556,6 @@ export function OwnBoard({ board, lage = {}, todosOn = false, otherBoards = [], 
     setShownFor(board);
     setCols(board.columns);
   }
-
-  const run = (fn: () => Promise<Result>, after?: () => void) =>
-    start(async () => {
-      const r = await fn();
-      if (!r.ok) toast(r.error ?? t("That didn't work."), { tone: "error" });
-      else {
-        if (r.message) toast(r.message, { tone: "ok" });
-        after?.();
-      }
-      router.refresh();
-    });
 
   const where = (e: React.DragEvent, colId: number) => {
     const body = bodies.current.get(colId);

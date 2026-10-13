@@ -13,11 +13,8 @@ import { CONTEXT_KIND_STYLE } from "./contextKindStyle";
 import { GitlabResolve, STATE_STYLE } from "./GitlabItemBadge";
 import { Markdown } from "./Markdown";
 import { base64File, pasteToken } from "./MarkdownPasteField";
-import { currentLocale, formatDate, formatTime } from "@/lib/format";
+import { formatDayTime, formatFull } from "@/lib/format";
 import { useT } from "@/components/I18nProvider";
-
-const when = (iso: string | null) =>
-  iso ? `${formatDate(iso)}, ${formatTime(iso)}` : "";
 
 /** One item: what and where, who and when, its text as Markdown (long ones fold) — and what to do with it. */
 function GitlabItemCard({ item, prefixes }: { item: GitlabItemView; prefixes: Set<string> }) {
@@ -65,7 +62,7 @@ function GitlabItemCard({ item, prefixes }: { item: GitlabItemView; prefixes: Se
         <span className={`rounded px-1.5 py-0.5 font-medium ${CONTEXT_KIND_STYLE.gitlab}`}>{gitlabKindLabels(t)[item.kind]}</span>
         <span className="font-mono">{item.project.split("/").pop()}</span>
         {item.author && <span className="font-medium text-zinc-700 dark:text-zinc-200">{item.author}</span>}
-        {at && <span title={new Date(at).toLocaleString(currentLocale())}>{when(at)}</span>}
+        {at && <span title={formatFull(at)}>{formatDayTime(at)}</span>}
         {item.state && <span className={`rounded px-1.5 py-0.5 font-medium ${STATE_STYLE(item.state)}`}>{item.state}</span>}
         <span className="ml-auto flex items-center gap-2">
           <GitlabResolve item={item} />

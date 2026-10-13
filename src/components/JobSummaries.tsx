@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/EmptyState";
 import type { EntryTypeDef } from "@/lib/entry-types-shared";
 import { formatHours } from "@/lib/format";
 import type { TicketCard } from "@/lib/jira/ticket-card-shared";
@@ -32,7 +33,7 @@ export function JobSummaries({
   types: Record<string, EntryTypeDef>;
   tickets: Record<string, TicketCard>;
 }) {
-  if (jobs.length === 0) return <p className="py-4 text-center text-sm text-zinc-500">{t("No time booked in this month.")}</p>;
+  if (jobs.length === 0) return <EmptyState variant="centered">{t("No time booked in this month.")}</EmptyState>;
   return (
     <div className="space-y-3">
       {jobs.map((j) => (

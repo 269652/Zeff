@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmAction } from "@/components/confirm";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { rich } from "@/lib/i18n/rich";
@@ -7,7 +8,7 @@ import { importConfigAction, restoreBackupAction, runBackupAction, saveBackupSet
 import { pickFolderAction } from "@/app/actions";
 import type { BackupFile, BackupSettingsView } from "./backup";
 import { toast } from "@/components/Toaster";
-import { formatDate, formatTime } from "@/lib/format";
+import { formatDayTime } from "@/lib/format";
 import { useT } from "@/components/I18nProvider";
 import type { T } from "@/lib/i18n/shared";
 
@@ -20,7 +21,7 @@ const intervals = (t: T) =>
     [168, t("weekly")],
   ] as const;
 
-const when = (iso: string) => `${formatDate(iso, { year: true })}, ${formatTime(iso)}`;
+const when = (iso: string) => formatDayTime(iso, { year: true });
 const mb = (n: number) => `${(n / 1048576).toFixed(1)} MB`;
 const tierLabels = (t: T) => ({ daily: t("daily"), weekly: t("weekly"), monthly: t("monthly"), manual: t("by hand") });
 
@@ -229,7 +230,7 @@ export function BackupSettings({ s, backups }: { s: BackupSettingsView; backups:
     start(async () => {
       const f = configFile.current?.files?.[0];
       if (!f) return;
-      if (!confirm(t("Take the settings and configuration from {file} into this account? The data stays.", { file: f.name }))) return;
+      if (!confirmAction(t("Take the settings and configuration from {file} into this account? The data stays.", { file: f.name }))) return;
       const fd = new FormData();
       fd.set("file", f);
       if (configPassword) fd.set("password", configPassword);

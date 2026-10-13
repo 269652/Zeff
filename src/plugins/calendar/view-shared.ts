@@ -3,6 +3,7 @@
  * appointment of a calendar, a todo's proposed one), side-by-side lanes for overlaps, dates and
  * times as they're written, snapping. Client-safe.
  */
+import { pad2 as two } from "@/lib/text";
 import type { CalendarEventView, CalendarView, ProposedEvent } from "@/lib/calendar/ir-shared";
 import { addDays, weekdayOf } from "@/lib/calendar/recurrence";
 import { currentLocale, formatDate } from "@/lib/format";
@@ -34,7 +35,6 @@ export type Item = {
   proposed?: ProposedEvent;
 };
 
-const two = (n: number) => String(n).padStart(2, "0");
 export const local = (s: string) => new Date(s.length === 10 ? `${s}T00:00:00` : `${s.slice(0, 16)}:00`);
 export const ymd = (d: Date) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
 export const stampAt = (day: string, minutes: number) => `${day}T${two(Math.floor(minutes / 60))}:${two(minutes % 60)}`;

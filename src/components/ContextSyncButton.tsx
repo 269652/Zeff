@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmAction } from "@/components/confirm";
 import { FormError } from "@/components/FormError";
 import { useState, useTransition } from "react";
 import { syncContextsToJiraAction } from "@/app/actions";
@@ -48,7 +49,7 @@ export function ContextSyncButton({
               : where
                 ? t("Post {n} context items to {tickets} as Jira comments, with their links and files?", { n: ids.length, tickets: where })
                 : t("Post {n} context items as Jira comments, with their links and files?", { n: ids.length });
-          if (!confirm(question)) return;
+          if (!confirmAction(question)) return;
           startTransition(async () => setState(await syncContextsToJiraAction(ids)));
         }}
         title={title ?? t("Post each item as a comment on its Jira ticket (edits update that comment) and attach its files")}

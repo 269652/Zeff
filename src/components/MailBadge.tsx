@@ -5,7 +5,6 @@ import { formatDateTime } from "@/lib/format";
 import type { T } from "@/lib/i18n/shared";
 import { useT } from "@/components/I18nProvider";
 
-const when = (iso: string) => formatDateTime(iso);
 
 /** "Mail", or the chat app ("WhatsApp", "Signal") for a chat's message (the mail sync reads those too). */
 const kindOf = (m: Pick<MailView, "folder">, t: T) => (isChatFolder(m.folder) ? m.folder : t("Mail"));
@@ -44,7 +43,7 @@ export function MailBadge({ m, className = "", expanded = false, onToggle }: { m
       {chat ? <ChatIcon className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" /> : <MailIcon className="size-4 shrink-0 text-sky-600 dark:text-sky-400" />}
       <ResolvedMark done={!!m.resolvedAt} />
       <span className="shrink-0 font-medium">{mailSender(m)}</span>
-      <span className={`shrink-0 ${chat ? "text-emerald-700/80 dark:text-emerald-300/80" : "text-sky-700/80 dark:text-sky-300/80"}`}>{kindOf(m, t)} · {when(m.receivedAt)}</span>
+      <span className={`shrink-0 ${chat ? "text-emerald-700/80 dark:text-emerald-300/80" : "text-sky-700/80 dark:text-sky-300/80"}`}>{kindOf(m, t)} · {formatDateTime(m.receivedAt)}</span>
       <span className={`min-w-0 truncate ${chat ? "text-emerald-900/70 dark:text-emerald-100/70" : "text-sky-900/70 dark:text-sky-100/70"}`}>{m.subject}</span>
     </>
   );
@@ -68,7 +67,7 @@ export function MailDetails({ m }: { m: MailView }) {
   return (
     <div className={CARD}>
       <div className="flex items-center justify-between gap-2 text-xs text-zinc-500">
-        <span>{kindOf(m, t)} · {when(m.receivedAt)}{m.unread ? ` · ${t("unread")}` : ""}</span>
+        <span>{kindOf(m, t)} · {formatDateTime(m.receivedAt)}{m.unread ? ` · ${t("unread")}` : ""}</span>
         <span title={m.fromEmail ?? undefined}>{mailSender(m)}</span>
       </div>
       <p className="font-medium text-zinc-800 dark:text-zinc-100">{m.subject}</p>

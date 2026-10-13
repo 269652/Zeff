@@ -8,7 +8,7 @@ import type { ActionState } from "@/app/action-helpers";
 import { minutesText } from "@/plugins/sync-settings";
 import { SyncIcon } from "./icons";
 import { toast } from "./Toaster";
-import { currentLocale } from "@/lib/format";
+import { formatFull } from "@/lib/format";
 import { useT } from "@/components/I18nProvider";
 
 export type SyncSource = {
@@ -95,7 +95,7 @@ export function SyncSplitButton({ sources }: { sources: SyncSource[] }) {
                   {pending && running === s.key ? t("Syncing…") : t("Now")}
                 </button>
               </div>
-              <p className={`text-xs ${!s.last ? "text-zinc-500" : s.last.ok ? "text-zinc-500" : "text-amber-700 dark:text-amber-400"}`} title={s.last ? new Date(s.last.at).toLocaleString(currentLocale()) : undefined}>
+              <p className={`text-xs ${!s.last ? "text-zinc-500" : s.last.ok ? "text-zinc-500" : "text-amber-700 dark:text-amber-400"}`} title={s.last ? formatFull(s.last.at) : undefined}>
                 {s.last ? t("Last {ago}: {result}", { ago: s.last.ago, result: s.last.result }) : t("Not synced yet.")}
               </p>
               <p className="text-xs text-zinc-400">

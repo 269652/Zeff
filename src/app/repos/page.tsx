@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/EmptyState";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
@@ -9,6 +10,7 @@ import { GitMissingNotice } from "@/components/GitMissingNotice";
 import { RepoForm } from "@/components/RepoForm";
 import { listRepos, repoChoices } from "@/lib/repos";
 import { getRepoSystems } from "@/plugins/knowledge/repo-systems-store";
+import { Markdown } from "@/components/Markdown";
 import { RepoSystemsButton } from "@/components/RepoSystemsButton";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -29,18 +31,8 @@ function RepoSystems({ repoId }: { repoId: number }) {
         <span className="label !mb-0">{t("Systems (from the knowledge)")}</span>
         <RepoSystemsButton />
       </div>
-      {!v && <p className="text-xs text-zinc-500">{t("Not read yet — the next Knowledge assignment does it, or read them now.")}</p>}
-      {v && !v.systems.length && <p className="text-xs text-zinc-500">{t("The knowledge names no systems for this repo.")}</p>}
-      {v?.systems.map((s) => (
-        <div key={s.url} className="flex flex-wrap items-baseline gap-x-2 text-xs">
-          <span className="w-12 font-semibold text-zinc-500 uppercase">{s.env}</span>
-          <a href={s.url} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            {s.label ? `${s.label} · ` : ""}
-            {s.url}
-          </a>
-          <span className="text-zinc-400">{s.page}</span>
-        </div>
-      ))}
+      {!v?.summary && <p className="text-xs text-zinc-500">{v ? t("The knowledge names no systems for this repo.") : t("Not read yet — the next Knowledge assignment does it, or read them now.")}</p>}
+      {v?.summary && <Markdown text={v.summary} className="!text-xs" />}
     </div>
   );
 }
@@ -90,7 +82,7 @@ export default async function ReposPage() {
 
       <section className="card space-y-3 p-4">
         <h2 className="text-sm font-semibold text-zinc-500 uppercase">{repos.length ? t("Add another repo") : t("Add a repo")}</h2>
-        {!choices.projects.length && <p className="text-sm text-zinc-500">{t("No GitLab projects synced yet — the GitLab tab syncs them; the folder works without one too.")}</p>}
+        {!choices.projects.length && <EmptyState>{t("No GitLab projects synced yet — the GitLab tab syncs them; the folder works without one too.")}</EmptyState>}
         <RepoForm key={repos.length} choices={choices} />
       </section>
     </div>

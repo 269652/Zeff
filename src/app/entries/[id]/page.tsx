@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/EmptyState";
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
 import { rich } from "@/lib/i18n/rich";
@@ -172,7 +173,7 @@ function ContextSection({
           <ContextCard key={c.id} item={c} entryId={entryId} tickets={tickets} entities={entities} />
         ))}
         {items.length === 0 && (
-          <p className="text-sm text-zinc-500">{t("Nothing yet — search Teams and GitLab above for what colleagues wrote about this work, or write a note.")}</p>
+          <EmptyState>{t("Nothing yet — search Teams and GitLab above for what colleagues wrote about this work, or write a note.")}</EmptyState>
         )}
         <EntryContextAdders
           noteAction={createContextAction.bind(null, entryId)}

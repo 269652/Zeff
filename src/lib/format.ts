@@ -64,6 +64,32 @@ export function formatDateTime(d: Date | string | number, now = Date.now()): str
   return `${formatDate(date, { weekday: false, year })}, ${formatTime(date)}`;
 }
 
+/** "Mon 12 Oct, 14:05" — the weekday too (with `year`: "Mon 12 Oct 2026, 14:05"). */
+export function formatDayTime(d: Date | string | number, opts: { year?: boolean } = {}): string {
+  return `${formatDate(d, opts)}, ${formatTime(d)}`;
+}
+
+/** In a list: the time when it is today, else the date ("14:05" / "Mon 12 Oct"). */
+export function formatSmart(d: Date | string | number): string {
+  const date = toDate(d);
+  return new Date().toDateString() === date.toDateString() ? formatTime(date) : formatDate(date);
+}
+
+/** "Monday, 12 October" — a day heading. A YYYY-MM-DD is a local day. */
+export function formatLongDay(d: Date | string | number): string {
+  return toDate(d).toLocaleDateString(currentLocale(), { weekday: "long", day: "numeric", month: "long" });
+}
+
+/** The full date and time in the locale's own style (a tooltip). */
+export function formatFull(d: Date | string | number): string {
+  return toDate(d).toLocaleString(currentLocale());
+}
+
+/** An amount in US dollars ("$1.23"). */
+export function formatUsd(n: number): string {
+  return n.toLocaleString(currentLocale(), { style: "currency", currency: "USD" });
+}
+
 /** A span of time in words: "45 min", "3 h", "2 days". */
 export function formatDuration(ms: number): string {
   const { t } = cur();

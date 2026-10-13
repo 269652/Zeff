@@ -1,4 +1,5 @@
 import { decodeBody, decodeEntities, feedTitle, parseFeed } from "./feed";
+import { newsFetch } from "./http";
 
 /**
  * Feed discovery: from a website (or a profile on one) to the feeds it offers — the ones its pages announce
@@ -27,11 +28,9 @@ export function isPublicUrl(raw: string): boolean {
   }
 }
 
-const UA = "Mozilla/5.0 (compatible; Zeff/1.0; feed discovery)";
-
 const defaultGet: NonNullable<DiscoverDeps["get"]> = async (url) => {
   if (!isPublicUrl(url)) throw new Error("Not a public web address.");
-  const r = await fetch(url, { headers: { "user-agent": UA, accept: "text/html, application/rss+xml, application/atom+xml, application/xml, */*" }, signal: AbortSignal.timeout(15000), redirect: "follow" });
+  const r = await newsFetch(url, { headers: { accept: "text/html, application/rss+xml, application/atom+xml, application/xml, */*" } });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   if (!isPublicUrl(r.url)) throw new Error("Redirected to a non-public address.");
   return { text: await decodeBody(r, 2_000_000), url: r.url };

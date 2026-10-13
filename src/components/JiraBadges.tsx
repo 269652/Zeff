@@ -6,11 +6,10 @@ import type { JiraTicketBrief } from "@/lib/entities-shared";
 import { ChevronIcon } from "./icons";
 import { ResolvedMark } from "./ResolvedMark";
 import { ResolveToggle } from "./ResolveToggle";
-import { formatDate, formatDateTime, formatTime } from "@/lib/format";
+import { formatDateTime, formatDayTime } from "@/lib/format";
 import { useT } from "@/components/I18nProvider";
 
-const when = (iso: string) => formatDateTime(iso);
-const full = (iso: string) => `${formatDate(iso, { year: true })}, ${formatTime(iso)}`;
+const full = (iso: string) => formatDayTime(iso, { year: true });
 
 const CARD = "space-y-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-900";
 const BADGE = "flex min-w-0 items-stretch overflow-hidden rounded-md border border-jira-200 bg-jira-50 text-xs text-jira-950 dark:border-jira-900 dark:bg-jira-950/40 dark:text-jira-100";
@@ -43,7 +42,7 @@ export function JiraCommentBadge({ c, className = "", expanded = false, onToggle
         <span className="shrink-0 font-medium">{c.author || t("Jira comment")}</span>
         <span className="shrink-0 text-jira-700/80 max-sm:min-w-0 max-sm:shrink max-sm:truncate dark:text-jira-300/80">
           {c.ticket}
-          {c.at ? ` · ${when(c.at)}` : ""}
+          {c.at ? ` · ${formatDateTime(c.at)}` : ""}
         </span>
         {c.text && <span className="min-w-0 truncate text-jira-900/70 dark:text-jira-100/70">{c.text}</span>}
       </Body>

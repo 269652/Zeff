@@ -1,3 +1,4 @@
+import { isoDay } from "@/lib/text";
 import { formatDate } from "@/lib/format";
 import { translator, type T } from "@/lib/i18n/shared";
 
@@ -64,8 +65,7 @@ export type Person = {
 /** A date coming round: when (YYYY-MM-DD), in how many days, how old they turn. */
 export type Upcoming = { date: PersonDate; person: Pick<Person, "id" | "name">; on: string; inDays: number; turns: number | null };
 
-const pad = (n: number) => String(n).padStart(2, "0");
-export const isoDay = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+export { isoDay };
 
 /** "16.10." / "16.10.1996" / "1996-10-16" / "16. Oktober (1996)" → day, month, year; null when it isn't a date. */
 const MONTHS = ["januar", "februar", "märz", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "dezember"];

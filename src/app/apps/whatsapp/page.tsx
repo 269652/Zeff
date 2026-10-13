@@ -7,18 +7,12 @@ import type { MailView } from "@/lib/mail/shared";
 import { listMails } from "@/lib/mail/store";
 import { syncOverview } from "@/lib/sync/registry";
 import { agoText } from "@/lib/teams/time";
-import { formatDate, formatTime } from "@/lib/format";
+import { formatSmart } from "@/lib/format";
 import { isInstalled } from "@/plugins/state";
 import { HistoryButton } from "@/plugins/whatsapp/HistoryButton";
 import { pushTo } from "@/lib/collections";
 
 export const metadata: Metadata = { title: "WhatsApp" };
-
-const when = (iso: string) => {
-  const d = new Date(iso);
-  const today = new Date().toDateString() === d.toDateString();
-  return today ? formatTime(d) : formatDate(d);
-};
 
 /**
  * The WhatsApp app: your chats as Zeff has them (the WhatsApp sync reads them from WhatsApp Web —
@@ -57,7 +51,7 @@ export default async function WhatsappAppPage({ searchParams }: { searchParams: 
               <span className="flex items-baseline gap-2">
                 <span className={`truncate ${list[0].unread ? "font-semibold" : "font-medium"}`}>{chat}</span>
                 {list[0].unread && <span className="size-2 shrink-0 rounded-full bg-emerald-500" aria-label={t("unread")} />}
-                <span className="ml-auto shrink-0 text-xs text-zinc-400">{when(list[0].receivedAt)}</span>
+                <span className="ml-auto shrink-0 text-xs text-zinc-400">{formatSmart(list[0].receivedAt)}</span>
               </span>
               <span className="line-clamp-1 text-xs text-zinc-500">{list[0].preview}</span>
             </Link>
@@ -79,7 +73,7 @@ export default async function WhatsappAppPage({ searchParams }: { searchParams: 
                   <div className={`max-w-[75%] rounded-lg px-3 py-1.5 text-sm ${mine ? "bg-emerald-50 dark:bg-emerald-950/40" : "bg-zinc-100 dark:bg-zinc-800"}`}>
                     {!mine && m.fromName && m.fromName !== open && <div className="text-xs font-medium text-emerald-700 dark:text-emerald-400">{m.fromName}</div>}
                     <div className="whitespace-pre-line">{m.preview}</div>
-                    <div className="text-right text-[10px] text-zinc-400">{when(m.receivedAt)}</div>
+                    <div className="text-right text-[10px] text-zinc-400">{formatSmart(m.receivedAt)}</div>
                   </div>
                 </li>
               );

@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/EmptyState";
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
 import Link from "next/link";
@@ -195,7 +196,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
               })}
             </ul>
           ) : (
-            <p className="text-sm text-zinc-500">{t("Nobody yet — import them from your context on the left (the AI reads the last 14 days), add someone by hand, or take people over from the knowledge and WhatsApp below.")}</p>
+            <EmptyState>{t("Nobody yet — import them from your context on the left (the AI reads the last 14 days), add someone by hand, or take people over from the knowledge and WhatsApp below.")}</EmptyState>
           )}
         </section>
 

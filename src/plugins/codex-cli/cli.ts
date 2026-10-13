@@ -1,6 +1,6 @@
 import { execFile, spawn } from "node:child_process";
 import { ABORTED, killTree, onAbort } from "@/lib/abort";
-import { jsonIn } from "@/lib/ai/json";
+import { jsonIn, NoJsonError } from "@/lib/ai/json";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -264,7 +264,7 @@ export function runCodex<T>(prompt: string, schema: object, opts: { model?: stri
         try {
           output = unstrict(jsonIn(text), schema as Schema) as T;
         } catch {
-          return reject(new Error(`The Codex CLI answered with no JSON: ${text.slice(0, 600)}`));
+          return reject(new NoJsonError(`The Codex CLI answered with no JSON: ${text.slice(0, 600)}`));
         }
         resolve({ output, model: opts.model || null, costUsd: null, durationMs: Date.now() - started });
       }),

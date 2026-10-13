@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/EmptyState";
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
 import { rich } from "@/lib/i18n/rich";
@@ -51,7 +52,7 @@ export default async function TagsPage() {
       <section className="card p-4">
         <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">{t("All tags ({n})", { n: tags.length })}</h2>
         {tags.length === 0 ? (
-          <p className="py-4 text-center text-sm text-zinc-500">{t("No tags yet.")}</p>
+          <EmptyState variant="centered">{t("No tags yet.")}</EmptyState>
         ) : (
           <table className="table">
             <thead>

@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { SyncIntervalSelect } from "@/components/SyncIntervalSelect";
 import { syncOverview } from "@/lib/sync/registry";
-import { formatAgo, formatDate, formatTime } from "@/lib/format";
+import { formatAgo, formatDayTime } from "@/lib/format";
 import { installedSyncSettings } from "@/plugins/sync-settings-modules";
 import { t } from "@/lib/i18n/server";
 import { rich } from "@/lib/i18n/rich";
 import { catalogText } from "@/plugins/catalog-text";
 
-const at = (iso: string) => `${formatDate(iso)}, ${formatTime(iso)}`;
+const at = (iso: string) => formatDayTime(iso);
 
 /** Each installed plugin's syncs and how often they run by itself (its settings module) — the Sync settings page's and the setup's. */
 export function SyncSettingsList() {

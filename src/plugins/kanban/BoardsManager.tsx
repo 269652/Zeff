@@ -1,9 +1,10 @@
 "use client";
 
+import { EmptyState } from "@/components/EmptyState";
+import { confirmAction } from "@/components/confirm";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { toast } from "@/components/Toaster";
+import { useState } from "react";
+import { useAction } from "@/components/useAction";
 import { useT } from "@/components/I18nProvider";
 import { deleteBoardAction, moveBoardAction, updateBoardAction } from "./actions";
 import { boardDot } from "./colors";
@@ -64,7 +65,7 @@ function BoardRow({ b, first, last, run }: { b: Row; first: boolean; last: boole
           <button
             type="button"
             className="btn btn-sm btn-danger"
-            onClick={() => confirm(t("Delete the board “{name}” with all its {n} cards?", { name: b.name, n: b.cards })) && run(() => deleteBoardAction(b.id))}
+            onClick={() => confirmAction(t("Delete the board “{name}” with all its {n} cards?", { name: b.name, n: b.cards })) && run(() => deleteBoardAction(b.id))}
           >
             {t("Delete")}
           </button>
@@ -92,16 +93,8 @@ function BoardRow({ b, first, last, run }: { b: Row; first: boolean; last: boole
 /** All your boards — the archived ones too — to rename, colour, order, put in the Lage, archive or delete. */
 export function BoardsManager({ boards }: { boards: Row[] }) {
   const t = useT();
-  const router = useRouter();
-  const [, start] = useTransition();
-  const run = (fn: () => Promise<Result>) =>
-    start(async () => {
-      const r = await fn();
-      if (!r.ok) toast(r.error ?? t("That didn't work."), { tone: "error" });
-      else if (r.message && r.message !== t("Saved.")) toast(r.message, { tone: "ok" });
-      router.refresh();
-    });
-  if (!boards.length) return <p className="text-sm text-zinc-500">{t("No boards yet.")}</p>;
+  const { run } = useAction<Result>({ quiet: [t("Saved.")] });
+  if (!boards.length) return <EmptyState>{t("No boards yet.")}</EmptyState>;
   return (
     <ul className="space-y-3">
       {boards.map((b, i) => (

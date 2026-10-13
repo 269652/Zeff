@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { sleep } from "@/lib/abort";
 import { errorMessage } from "@/lib/errors";
 import { getPref, setPref } from "@/lib/prefs";
 import { boardNotesForSync, deletedForSync, forgetDeleted, importOwnNote, keepBoard, linkOwnNote, updateOwnNote, type SyncedNote } from "@/plugins/keep/boards";
@@ -94,7 +95,7 @@ async function syncBoard(boardId: number, label: string, state: State): Promise<
   const { syncKeep } = await import("@/plugins/keep/sync");
   let read = await syncKeep();
   for (let i = 0; i < 20 && !read.ok && /already running/i.test(read.message); i++) {
-    await new Promise((res) => setTimeout(res, 15000));
+    await sleep(15000);
     read = await syncKeep();
   }
   if (!read.ok) throw new Error(`Couldn't read Google Keep: ${read.message}`);

@@ -1,3 +1,4 @@
+import { truncate } from "@/lib/text";
 import type { JiraStatusCategory } from "@/db/schema";
 
 export type NormalizedTicket = {
@@ -151,7 +152,7 @@ function descriptionOf(v: unknown): string | null | undefined {
   if (typeof v !== "string") return null;
   const t = v.trim();
   if (!t) return null;
-  return t.length > DESCRIPTION_MAX ? t.slice(0, DESCRIPTION_MAX - 1).trimEnd() + "…" : t;
+  return truncate(t, DESCRIPTION_MAX);
 }
 
 /** Pull an array of issues out of the many container shapes tools return. */

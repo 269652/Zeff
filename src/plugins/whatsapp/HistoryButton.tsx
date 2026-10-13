@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmAction } from "@/components/confirm";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "@/components/Toaster";
@@ -19,7 +20,7 @@ export function HistoryButton({ chat }: { chat: string }) {
   const run = () => {
     const ask = t("Load the whole history of “{chat}”?", { chat });
     const how = t("For that the chat is opened in the automation Chrome (unread messages then count as read) and older messages are fetched from your phone — the phone has to be online. A long chat takes a few minutes.");
-    if (!confirm(`${ask}\n\n${how}`)) return;
+    if (!confirmAction(`${ask}\n\n${how}`)) return;
     start(async () => {
       const r = await pullWhatsappHistoryAction(chat);
       setResult(r.ok ? (r.message ?? "") : (r.error ?? t("That didn't work.")));

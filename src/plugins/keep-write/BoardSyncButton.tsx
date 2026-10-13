@@ -3,11 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "@/components/Toaster";
+import { formatDateTime } from "@/lib/format";
 import { boardSyncStatusAction, startBoardSyncAction } from "./server-actions";
 
 type Status = Awaited<ReturnType<typeof boardSyncStatusAction>>;
-
-const when = (iso: string) => new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 /**
  * "Sync to Google Keep" (Google Keep schreiben, beta): the board's notes made notes in Keep with
@@ -59,7 +58,7 @@ export function BoardSyncButton({ boardId, boardName, initial, linked }: { board
       </p>
       {!running && status.last && (
         <p className={`text-xs ${status.last.ok ? "text-zinc-500" : "text-red-600 dark:text-red-400"}`}>
-          Last sync {when(status.last.at)}: {status.last.message}
+          Last sync {formatDateTime(status.last.at)}: {status.last.message}
         </p>
       )}
     </div>

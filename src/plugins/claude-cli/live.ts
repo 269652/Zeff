@@ -1,10 +1,11 @@
 import { extWorkerMcpServers } from "@/lib/ext/work";
-import { execFile, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { currentAccountId, withAccount } from "@/db/accounts";
+import { killPid, sleep } from "@/lib/abort";
 import { emitChange } from "@/lib/events";
 import { t } from "@/lib/i18n/server";
 import { closeOnHost, killOnHost, spawnOnHost, workHostFeatures, writeToHost } from "@/lib/work/host";
@@ -541,7 +542,7 @@ function connect(l: Live): Promise<net.Socket> {
     const until = Date.now() + (l.cfg.elevated ? 180000 : 45000);
     let info = readInfo(l.files.info);
     while (!info && Date.now() < until && !l.exited) {
-      await new Promise((r) => setTimeout(r, 300));
+      await sleep(300);
       info = readInfo(l.files.info);
     }
     if (!info) throw new Error(t("The session isn't running (any more)."));
@@ -670,7 +671,7 @@ async function startProcess(l: Live, resume: boolean, first?: Record<string, unk
         break;
       } catch (e) {
         if (i >= 20 || !/started already/.test(String(e))) throw e;
-        await new Promise((r) => setTimeout(r, 500));
+        await sleep(500);
       }
     }
     saveCfg(l);
@@ -927,13 +928,7 @@ export function killClaude(runId: number) {
     // Over its socket (it kills its CLI's tree and ends) — and, ours (not elevated), its whole tree at once as well.
     if (l && !l.exited) void hostSend(l, { zeffHost: "kill" }).catch(() => {});
     if (info?.pid && !info.elevated && alive(info.pid)) {
-      if (process.platform === "win32") execFile("taskkill", ["/PID", String(info.pid), "/T", "/F"], { windowsHide: true }, () => {});
-      else
-        try {
-          process.kill(info.pid, "SIGTERM");
-        } catch {
-          // gone already
-        }
+      killPid(info.pid);
     }
   }
   if (l) l.closed = true;

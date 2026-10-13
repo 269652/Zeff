@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
+import { useAction } from "@/components/useAction";
 import type { RefreshStatus } from "./refresh";
 import { newsDigestAction, newsStartAction, refreshStatusAction, startRefreshAction } from "./server-actions";
 
@@ -87,21 +88,14 @@ export function NewsRefreshButtons({ digest }: { digest: boolean }) {
 /** The empty News page: one click starts with the starter pack and fetches in the background. */
 export function StartNews() {
   const t = useT();
-  const router = useRouter();
-  const [pending, start] = useTransition();
+  const { run, pending } = useAction({ done: t("Done."), fallback: t("Didn't work.") });
   return (
     <span className="mb-3 block">
       <button
         type="button"
         className="btn btn-primary btn-sm"
         disabled={pending}
-        onClick={() =>
-          start(async () => {
-            const r = await newsStartAction();
-            toast(r.ok ? (r.message ?? t("Done.")) : (r.error ?? t("Didn't work.")), { tone: r.ok ? "ok" : "error" });
-            router.refresh();
-          })
-        }
+        onClick={() => void run(() => newsStartAction())}
       >
         {pending ? t("Starting …") : t("Start with the starter pack")}
       </button>

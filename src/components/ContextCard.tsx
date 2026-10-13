@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmAction } from "@/components/confirm";
 import Link from "next/link";
 import { startTransition, useState, type ReactNode } from "react";
 import { deleteContextAction, unlinkContextAction, updateContextAction } from "@/app/actions";
@@ -116,7 +117,7 @@ function RemoveButton({ item, entryId, headline }: { item: ContextItem; entryId?
             : on
               ? t("Delete “{what}” everywhere (it's on {entries})?", { what: headline, entries: on })
               : t("Delete “{what}” everywhere?", { what: headline });
-        if (!confirm(question)) return;
+        if (!confirmAction(question)) return;
         const fd = new FormData();
         fd.set("id", String(item.id));
         startTransition(() => deleteContextAction(fd));

@@ -4,6 +4,7 @@
  * refresh the token when Drive says 401 and wait out rate limits and hiccups. Server only.
  */
 import fs from "node:fs";
+import { sleep } from "@/lib/abort";
 import { t } from "@/lib/i18n/server";
 import { accessToken } from "./oauth";
 
@@ -30,7 +31,6 @@ export class DriveError extends Error {
   }
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** One call, with the token; 401 → a fresh token once; 429/5xx and network errors → tried again a few times. */
 async function call(url: string, init: RequestInit & { retries?: number } = {}): Promise<Response> {

@@ -1,4 +1,5 @@
 import { decodeBody, parseFeed } from "./feed";
+import { newsFetch } from "./http";
 import { fetchArticle, type Article } from "./reader";
 import { addItems, dueForFetch, fetchState, getPrefs, listSources, pauseDisliked, prune, recordFetch, rescore, setContent, setFetchState, UNREADABLE, withoutContent } from "./store";
 import { tokens, topicFeedUrl, type ProfileTerm } from "./shared";
@@ -38,15 +39,13 @@ export type NewsSyncDeps = {
 /** A feed fetched with ETag / Last-Modified from last time: an unchanged one answers 304 and costs next to nothing. */
 const defaultFetchFeed = async (url: string): Promise<{ text: string | null }> => {
   const state = fetchState(url);
-  const r = await fetch(url, {
+  const r = await newsFetch(url, {
     headers: {
-      "user-agent": "Mozilla/5.0 (compatible; Zeff/1.0; news reader)",
       accept: "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
       ...(state.etag ? { "if-none-match": state.etag } : {}),
       ...(state.modified ? { "if-modified-since": state.modified } : {}),
     },
-    signal: AbortSignal.timeout(20000),
-    redirect: "follow",
+    timeoutMs: 20000,
   });
   if (r.status === 304) return { text: null };
   if (!r.ok) throw new Error(`HTTP ${r.status}`);

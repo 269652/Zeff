@@ -1,12 +1,13 @@
 "use client";
 
+import { EmptyState } from "@/components/EmptyState";
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { todoEventLabels, type TodoEventView } from "@/lib/boards/activity-shared";
 import { todoRef } from "@/lib/boards/shared";
 import { markActivitySeen, readActivitySeen } from "./ActivitySeen";
 import { TodoRefs } from "./TodoRefs";
-import { currentLocale, formatTime } from "@/lib/format";
+import { formatLongDay, formatTime } from "@/lib/format";
 import { useT } from "@/components/I18nProvider";
 import { rich } from "@/lib/i18n/rich";
 import type { T } from "@/lib/i18n/shared";
@@ -26,7 +27,7 @@ function dayLabel(key: string, t: T): string {
   const yesterday = new Date(Date.now() - 86400000).toLocaleDateString("sv-SE");
   if (key === today) return t("Today");
   if (key === yesterday) return t("Yesterday");
-  return new Date(`${key}T12:00:00`).toLocaleDateString(currentLocale(), { weekday: "long", day: "numeric", month: "long" });
+  return formatLongDay(key);
 }
 
 /**
@@ -77,7 +78,7 @@ export function ActivityList({ events }: { events: TodoEventView[] }) {
         ))}
         {unseen > 0 && <span className="ml-1 text-amber-700 dark:text-amber-300">{t("{n} new since you last looked", { n: unseen })}</span>}
       </div>
-      {days.length === 0 && <p className="text-sm text-zinc-500">{t("Nothing in the last two weeks.")}</p>}
+      {days.length === 0 && <EmptyState>{t("Nothing in the last two weeks.")}</EmptyState>}
       {days.map(([k, list]) => (
         <section key={k} className="space-y-1">
           <h3 className="text-xs font-semibold text-zinc-500 uppercase">{dayLabel(k, t)}</h3>

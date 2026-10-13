@@ -6,7 +6,7 @@ import { connection } from "next/server";
 import { FeierabendForm } from "@/components/FeierabendForm";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { proposeDay } from "@/lib/feierabend";
-import { currentLocale } from "@/lib/format";
+import { formatLongDay } from "@/lib/format";
 import { isInstalled } from "@/plugins/state";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -29,7 +29,7 @@ export default async function FeierabendPage() {
         <p className="text-sm text-zinc-500">
           {t(
             "{day} — the day as a booking suggestion: today's meetings, the agents' suggestions and the tickets you worked on (todos done, worker runs with their time). Check, adjust, book with one click — nothing is booked before.",
-            { day: new Date(`${p.date}T12:00:00`).toLocaleDateString(currentLocale(), { weekday: "long", day: "numeric", month: "long" }) },
+            { day: formatLongDay(p.date) },
           )}
         </p>
         <p className="text-xs text-zinc-400">

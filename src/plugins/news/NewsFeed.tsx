@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
+import { postJson } from "@/lib/post-json";
 import { Cited, type Source } from "./AskNews";
 import { MagicStage, type Box } from "./MagicStage";
 import { NewsCard } from "./NewsCard";
@@ -227,8 +228,7 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
       setSofar(null);
       setLike({ title, busy: true });
       setItems(base);
-      const res = await fetch("/api/news/similar", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: itemId }) });
-      const j = (await res.json()) as { ok: boolean; error?: string; angle?: string; queries?: { q: string; why: string }[]; usedAi?: boolean; sourcesAdded?: number; found?: number };
+      const j = await postJson<{ ok: boolean; error?: string; angle?: string; queries?: { q: string; why: string }[]; usedAi?: boolean; sourcesAdded?: number; found?: number }>("/api/news/similar", { id: itemId });
       if (!j.ok) {
         toast(j.error ?? t("Didn't work."), { tone: "error" });
         restoreStash();

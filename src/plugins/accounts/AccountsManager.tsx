@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmAction } from "@/components/confirm";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { createAccountAction, deleteAccountAction, switchAccountAction, updateAccountAction } from "@/plugins/accounts/server-actions";
@@ -124,7 +125,7 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
                         className="btn btn-sm text-red-600 dark:text-red-400"
                         disabled={pending}
                         onClick={() => {
-                          if (!confirm(t("Remove the account “{name}”? Its data is set aside ({dir}), not deleted.", { name: a.name, dir: "data\\accounts\\.deleted" }))) return;
+                          if (!confirmAction(t("Remove the account “{name}”? Its data is set aside ({dir}), not deleted.", { name: a.name, dir: "data\\accounts\\.deleted" }))) return;
                           start(async () => void done(await deleteAccountAction(a.id)));
                         }}
                       >

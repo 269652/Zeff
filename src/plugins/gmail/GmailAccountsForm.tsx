@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "@/components/EmptyState";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { openGmailAddAccountAction, saveGmailAccountsAction } from "@/plugins/gmail/server-actions";
@@ -41,7 +42,7 @@ export function GmailAccountsForm({ signedIn, configured }: { signedIn: SignedIn
           {t("The automation Chrome isn't running — which accounts are signed in there shows as soon as it runs (“Add account” starts it).")}
         </p>
       )}
-      {signedIn?.length === 0 && <p className="text-sm text-zinc-500">{t("No Google account is signed in in the automation Chrome — “Add account”.")}</p>}
+      {signedIn?.length === 0 && <EmptyState>{t("No Google account is signed in in the automation Chrome — “Add account”.")}</EmptyState>}
       <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
         {rows.map((r, i) => (
           <li key={r.account} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2.5">

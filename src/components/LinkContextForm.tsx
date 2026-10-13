@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "@/components/EmptyState";
 import { FormError } from "@/components/FormError";
 import { startTransition, useActionState, useState } from "react";
 import type { ActionState } from "@/app/action-helpers";
@@ -19,7 +20,7 @@ export function LinkContextForm({
   const [state, action, pending] = useActionState<ActionState, FormData>(serverAction, null);
   const [filter, setFilter] = useState("");
   const shown = options.filter((o) => o.label.toLowerCase().includes(filter.trim().toLowerCase()));
-  if (options.length === 0) return <p className="text-sm text-zinc-500">{t("No other context items yet.")}</p>;
+  if (options.length === 0) return <EmptyState>{t("No other context items yet.")}</EmptyState>;
   return (
     <form
       onSubmit={(e) => {

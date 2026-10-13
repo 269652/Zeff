@@ -5,7 +5,7 @@
  * installed by the package manager of the machine — winget (or scoop) on Windows, Homebrew on a Mac —
  * once: a failed try isn't repeated for a day, unless you click "Read again". Server only.
  */
-import { execFile } from "node:child_process";
+import { runCapture } from "@/lib/exec";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -67,11 +67,8 @@ export function hasCommand(command: string): boolean {
   return dirs.some((d) => exts.some((e) => fs.existsSync(/*turbopackIgnore: true*/ path.join(d, command + e))));
 }
 
-const run = (i: Installer): Promise<{ ok: boolean; out: string }> =>
-  new Promise((resolve) => {
-    // .cmd shims (scoop) need a shell; the others don't.
-    execFile(i.command, i.args, { timeout: 20 * 60000, windowsHide: true, maxBuffer: 8_000_000, shell: process.platform === "win32" && i.name === "scoop" }, (err, stdout, stderr) => resolve({ ok: !err, out: `${stdout}\n${stderr}`.trim().slice(-400) }));
-  });
+// .cmd shims (scoop) need a shell; the others don't.
+const run = (i: Installer): Promise<{ ok: boolean; out: string }> => runCapture(i.command, i.args, { timeout: 20 * 60000, shell: process.platform === "win32" && i.name === "scoop" });
 
 const state = globalThis as { __zeffPopplerInstall?: Promise<string | null> };
 

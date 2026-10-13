@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmAction } from "@/components/confirm";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { setPluginInstalledAction } from "@/app/actions";
@@ -19,7 +20,7 @@ export function PluginInstallButton({ id, installed, beta }: { id: PluginId; ins
       className={`btn btn-sm ${installed ? "" : "btn-primary"}`}
       disabled={pending}
       onClick={() =>
-        (installed || !beta || confirm(`${t("Beta: {warning}", { warning: catalogText(t, beta) })}\n\n${t("Install anyway?")}`)) &&
+        (installed || !beta || confirmAction(`${t("Beta: {warning}", { warning: catalogText(t, beta) })}\n\n${t("Install anyway?")}`)) &&
         start(async () => {
           const r = await setPluginInstalledAction(id, !installed);
           toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" });

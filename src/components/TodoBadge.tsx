@@ -5,12 +5,12 @@ import { todoKindLabels, type TodoSource, type TodoView } from "@/lib/boards/sha
 import { ChevronIcon } from "./icons";
 import { TodoSources } from "./boards/TodoSources";
 import { ResolveToggle } from "./ResolveToggle";
-import { formatDate, formatTime } from "@/lib/format";
+import { formatDate, formatDayTime } from "@/lib/format";
 import { useT } from "@/components/I18nProvider";
 import type { T } from "@/lib/i18n/shared";
 
 const day = (iso: string) => formatDate(iso, { weekday: false });
-const full = (iso: string) => `${formatDate(iso, { year: true })}, ${formatTime(iso)}`;
+const full = (iso: string) => formatDayTime(iso, { year: true });
 
 /** Where a todo is shown: the Todos page (its Done tab once it's closed) — brought into view there. */
 export const todoHref = (t: Pick<TodoView, "id" | "status">) => (t.status === "open" ? `/todos#todo-${t.id}` : `/todos?todos=done#todo-${t.id}`);

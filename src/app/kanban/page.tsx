@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/EmptyState";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { t } from "@/lib/i18n/server";
@@ -60,7 +61,7 @@ export default async function KanbanPage() {
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-zinc-500">{t("None yet — create one below.")}</p>
+          <EmptyState>{t("None yet — create one below.")}</EmptyState>
         )}
       </section>
       {others.length > 0 && (

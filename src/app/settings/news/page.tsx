@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/EmptyState";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
@@ -156,7 +157,7 @@ export default async function NewsSettingsPage({ searchParams }: { searchParams:
 
         <section className="card space-y-3 p-4">
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Sources")}</h2>
-          {sources.length === 0 && <p className="text-sm text-zinc-500">{t("No sources yet — add some from the catalog below, or just name your interests above.")}</p>}
+          {sources.length === 0 && <EmptyState>{t("No sources yet — add some from the catalog below, or just name your interests above.")}</EmptyState>}
           <details open={sources.length <= 12}>
             <summary className="cursor-pointer text-sm font-medium">{t("Your sources ({n}, {on} on)", { n: sources.length, on: sources.filter((x) => x.enabled).length })}</summary>
           <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">

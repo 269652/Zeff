@@ -1,3 +1,4 @@
+import { isoDay } from "@/lib/text";
 import { connection } from "next/server";
 import { t } from "@/lib/i18n/server";
 
@@ -15,7 +16,7 @@ export async function GET() {
   if (isInstalled("todos")) {
     const { listTodos } = await import("@/lib/boards/store");
     const now = new Date();
-    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const today = isoDay(now);
     for (const todo of listTodos({ status: "open" }))
       if (todo.owner === "me" && todo.due && todo.due <= today)
         items.push({

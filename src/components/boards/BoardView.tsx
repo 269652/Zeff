@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmAction } from "@/components/confirm";
 import type { MailView } from "@/lib/mail/shared";
 import { HoverCard } from "../HoverCard";
 import { SourceBadge, SourceDetails } from "../SourceBadge";
@@ -121,7 +122,7 @@ function TicketActionButton({
             action.type === "comment"
               ? `${t("Post this comment on {ticket}?", { ticket })}\n\n${action.comment}`
               : `${ticket}: ${action.label}?\n\n${action.why}`;
-          if (!window.confirm(ask)) return;
+          if (!confirmAction(ask)) return;
           start(async () => {
             const r = await runTicketActionAction(runId, ticket, idx);
             if (r?.ok) toast(r.message ?? t("{ticket}: done.", { ticket }));

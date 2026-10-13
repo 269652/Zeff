@@ -1,3 +1,4 @@
+import { pad2 as p } from "@/lib/text";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -149,7 +150,6 @@ function dataFiles(): ZipEntry[] {
 }
 
 const stamp = (d = new Date()) => {
-  const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 };
 

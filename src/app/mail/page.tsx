@@ -18,17 +18,11 @@ import { isChatFolder, type MailView } from "@/lib/mail/shared";
 import { agoText } from "@/lib/teams/time";
 import { syncOverview } from "@/lib/sync/registry";
 import { pushTo } from "@/lib/collections";
-import { formatDate, formatTime } from "@/lib/format";
+import { formatSmart } from "@/lib/format";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("Messages") };
 }
-
-const when = (iso: string) => {
-  const d = new Date(iso);
-  const today = new Date().toDateString() === d.toDateString();
-  return today ? formatTime(d) : formatDate(d);
-};
 
 /**
  * Nachrichten: your mails (Outlook, Gmail) and WhatsApp chats in one place, read in the automation
@@ -129,7 +123,7 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
                         <span className={`truncate ${unread ? "font-semibold" : "font-medium"}`}>{chat ? latest.subject : <TodoRefs text={latest.subject} />}</span>
                         {latest.folder !== "Posteingang" && <span className="shrink-0 rounded bg-zinc-100 px-1.5 text-[11px] text-zinc-500 dark:bg-zinc-800">{latest.folder}</span>}
                         {list.length > 1 && <span className="shrink-0 text-xs text-zinc-400 tabular-nums">{list.length}</span>}
-                        <span className="ml-auto shrink-0 text-xs text-zinc-400">{when(latest.receivedAt)}</span>
+                        <span className="ml-auto shrink-0 text-xs text-zinc-400">{formatSmart(latest.receivedAt)}</span>
                       </div>
                       <div className="truncate text-xs text-zinc-500">{people.slice(0, 4).join(", ")}{people.length > 4 ? ` +${people.length - 4}` : ""}</div>
                       <div className="line-clamp-1 text-xs text-zinc-600 group-open:hidden dark:text-zinc-400">
@@ -147,7 +141,7 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
                           <div className={`max-w-[85%] rounded-lg px-3 py-1.5 text-sm ${mine ? "bg-emerald-50 dark:bg-emerald-950/40" : "bg-zinc-100 dark:bg-zinc-800"}`}>
                             <div className="flex items-baseline gap-2 text-xs">
                               <span className="font-medium text-zinc-700 dark:text-zinc-200" title={m.fromEmail ?? undefined}>{m.fromName ?? m.fromEmail ?? "?"}</span>
-                              <span className="text-zinc-400">{when(m.receivedAt)}</span>
+                              <span className="text-zinc-400">{formatSmart(m.receivedAt)}</span>
                               {m.unread && <span className="text-zinc-400">· {t("unread")}</span>}
                             </div>
                             {!chat && m.subject !== latest.subject && <div className="text-xs font-medium"><TodoRefs text={m.subject} /></div>}

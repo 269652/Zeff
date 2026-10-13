@@ -1,9 +1,8 @@
-import { execFile } from "node:child_process";
+import { gitText } from "@/lib/git";
 import { listRepos, repoForTicket } from "@/lib/repos";
 
 /** git in a folder, asynchronously: its output (trimmed), or "" when it fails. */
-const git = (cwd: string, args: string[], timeout = 30000) =>
-  new Promise<string>((resolve) => execFile("git", args, { cwd, timeout, windowsHide: true, maxBuffer: 4 * 1024 * 1024 }, (err, out) => resolve(err ? "" : String(out).trim())));
+const git = (cwd: string, args: string[], timeout = 30000) => gitText(cwd, args, { timeout, maxBuffer: 4 * 1024 * 1024 });
 
 const stat = (s: string) =>
   s

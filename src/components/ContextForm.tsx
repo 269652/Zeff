@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmAction } from "@/components/confirm";
 import { FormError } from "@/components/FormError";
 import { startTransition, useId, useRef, useState, useTransition } from "react";
 import { deleteContextFileAction, fetchImagesAction } from "@/app/actions";
@@ -434,7 +435,7 @@ export function ContextFields({
                 aria-label={t("Remove {name}", { name: f.name })}
                 title={t("Remove {name}", { name: f.name })}
                 onClick={() => {
-                  if (!confirm(t("Remove {name}?", { name: f.name }))) return;
+                  if (!confirmAction(t("Delete {name}?", { name: f.name }))) return;
                   const fd = new FormData();
                   fd.set("id", String(f.id));
                   startTransition(() => deleteContextFileAction(fd));

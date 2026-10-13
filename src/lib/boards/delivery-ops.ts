@@ -4,15 +4,12 @@ import { getJiraTicket } from "@/lib/jira/store";
 import { listGitlabItems } from "@/lib/gitlab/store";
 import type { GitlabItemView } from "@/lib/gitlab/shared";
 import { listRepos, repoForTicket, type RepoView } from "@/lib/repos";
-import { execFile } from "node:child_process";
+import { gitText } from "@/lib/git";
 import { getTodo, listTodos, setTodoOps } from "./store";
 import type { TodoOp, TodoView } from "./shared";
 
 /** Git in a checkout, without blocking the server (a child process, awaited) — "" when it fails. */
-const tryGit = (cwd: string, args: string[]) =>
-  new Promise<string>((resolve) =>
-    execFile("git", args, { cwd, encoding: "utf8", timeout: 30000, windowsHide: true, maxBuffer: 64 * 1024 * 1024 }, (err, out) => resolve(err ? "" : String(out).trim())),
-  );
+const tryGit = (cwd: string, args: string[]) => gitText(cwd, args, { maxBuffer: 64 * 1024 * 1024 });
 
 /** "Merge Request für feature/… öffnen", "MR erstellen", "open a PR" — a todo that asks for one. */
 const OPENS_MR = (text: string) =>

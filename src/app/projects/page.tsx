@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/EmptyState";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
@@ -42,7 +43,7 @@ export default async function ProjectsPage() {
       <section className="card p-4">
         <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">{t("All projects ({n})", { n: projects.length })}</h2>
         {projects.length === 0 ? (
-          <p className="py-4 text-center text-sm text-zinc-500">{t("No projects yet.")}</p>
+          <EmptyState variant="centered">{t("No projects yet.")}</EmptyState>
         ) : (
           <div className="overflow-x-auto">
             <table className="table">

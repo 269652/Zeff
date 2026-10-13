@@ -3,6 +3,7 @@
  * Outlook): what the Kalender app, free times and booking see. Client-safe.
  */
 
+import { pad2 as two } from "@/lib/text";
 import type { Recurrence } from "./recurrence";
 
 export type CalendarSourceKind = "zeff" | "google" | "outlook";
@@ -73,7 +74,6 @@ export type ProposedEvent = {
 
 export const CALENDAR_COLORS = ["#4B99D2", "#C05476", "#55B080", "#DD7835", "#8E63CE", "#E4B429", "#3BA3A3", "#7A869A", "#0F6CBD"];
 
-const two = (n: number) => String(n).padStart(2, "0");
 /** A local date as "YYYY-MM-DD". */
 export const dayOf = (d: Date) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
 /** A local time as "YYYY-MM-DDTHH:MM". */

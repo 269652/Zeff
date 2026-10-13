@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/EmptyState";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
@@ -68,7 +69,7 @@ export default async function CompilePage({ searchParams }: { searchParams: Prom
       </div>
 
       <div className="space-y-3">
-        {people.length === 0 && <p className="text-sm text-zinc-500">{t("Nobody yet — add or import people on the People page first.")}</p>}
+        {people.length === 0 && <EmptyState>{t("Nobody yet — add or import people on the People page first.")}</EmptyState>}
         <ul className="grid gap-3 xl:grid-cols-2">
           {people.map((p) => (
             <li key={p.id} className="card space-y-2 p-4 text-sm">

@@ -39,8 +39,22 @@ export function onAbort(cb: () => void): () => void {
   return () => s.removeEventListener("abort", cb);
 }
 
+/** A process by its pid, with what it started on Windows (taskkill /T); elsewhere a plain signal (SIGTERM unless told). Gone already is fine. */
+export function killPid(pid: number, signal: NodeJS.Signals = "SIGTERM"): void {
+  if (process.platform === "win32") execFile("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true }, () => {});
+  else
+    try {
+      process.kill(pid, signal);
+    } catch {
+      // gone already
+    }
+}
+
 /** A process and what it started (the CLIs start more), ended. */
 export function killTree(child: ChildProcess): void {
-  if (child.pid && process.platform === "win32") execFile("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true }, () => {});
+  if (child.pid && process.platform === "win32") killPid(child.pid);
   else child.kill();
 }
+
+/** Wait this long. */
+export const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));

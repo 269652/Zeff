@@ -5,6 +5,7 @@
  * what the installed plugins offer (a comment, a message, a mail draft, an appointment, a hand-over
  * to a worker …). Complete and ready: one click runs them. Server only.
  */
+import { pad2 as two } from "@/lib/text";
 import { throwIfAborted } from "@/lib/abort";
 import { extraBlock } from "@/lib/boards/context-prefs";
 import { and, desc, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
@@ -117,7 +118,6 @@ type Window = { workdays: boolean; from: number; to: number };
 const WORK: Window = { workdays: true, from: 9, to: 17 };
 const PRIVATE: Window = { workdays: false, from: 8, to: 21 };
 
-const two = (n: number) => String(n).padStart(2, "0");
 const localStamp = (d: Date) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}T${two(d.getHours())}:${two(d.getMinutes())}`;
 
 /**
@@ -145,9 +145,9 @@ function placeAppointment(start: string, minutes: number, busy: { start: Date; e
 
 /** The addresses of the systems the todo is about (Test, Prod …), as the Wissens-Zuordnung found them in the knowledge: for comments and messages that point to the right one. */
 function systemsOf(t: TodoView): string[] {
-  const links = t.knowledge?.links ?? [];
-  const env = (e: string) => (e === "prod" ? "Prod" : e === "test" ? "Test" : e === "dev" ? "Dev" : "System");
-  return links.length ? [`Systeme (aus dem Wissen — nenne in Nachrichten und Kommentaren die passende Adresse): ${links.map((l) => `${env(l.env)}${l.label ? ` ${l.label}` : ""} ${l.url}`).join(" · ")}`] : [];
+  const repo = t.knowledge?.repo;
+  return repo ? [`Projekt ${repo.name} (aus dem Wissen — nenne in Nachrichten und Kommentaren die passende Adresse):
+${repo.summary}`] : [];
 }
 
 /** One todo for the prompt: the todo, its ticket, where it comes from, the notes on it. */

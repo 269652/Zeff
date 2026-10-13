@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { runCapture } from "./exec";
 import type { PrereqId } from "@/lib/prerequisites-shared";
 
 /**
@@ -94,4 +94,4 @@ const defaultRun = async (p: InstallPlan, onPhase: (text: string) => void): Prom
   return runCommand(p);
 };
 const runCommand = (p: InstallPlan): Promise<{ ok: boolean; out: string }> =>
-  new Promise((resolve) => execFile(p.command, p.args, { timeout: 20 * 60000, windowsHide: true, maxBuffer: 8_000_000 }, (err, stdout, stderr) => resolve({ ok: !err, out: `${stdout}\n${stderr}`.trim().slice(-400) })));
+  runCapture(p.command, p.args, { timeout: 20 * 60000 });

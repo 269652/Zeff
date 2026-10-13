@@ -6,16 +6,10 @@ import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { TodoRefs } from "@/components/boards/TodoRefs";
 import { getMailSettings, listMails, mailFolderCounts } from "@/lib/mail/store";
 import { agoText } from "@/lib/teams/time";
-import { formatDate, formatTime } from "@/lib/format";
+import { formatSmart } from "@/lib/format";
 import { isInstalled } from "@/plugins/state";
 
 export const metadata: Metadata = { title: "Gmail" };
-
-const when = (iso: string) => {
-  const d = new Date(iso);
-  const today = new Date().toDateString() === d.toDateString();
-  return today ? formatTime(d) : formatDate(d);
-};
 
 /**
  * The Gmail app: your Gmail accounts' mails as Zeff has them (the list's lines — the mail sync
@@ -71,7 +65,7 @@ export default async function GmailAppPage({ searchParams }: { searchParams: Pro
                     {m.fromName ?? m.fromEmail ?? "?"}
                   </span>
                   {!folder && Object.keys(counts).length > 1 && <span className="shrink-0 rounded bg-zinc-100 px-1.5 text-[11px] text-zinc-500 dark:bg-zinc-800">{m.folder.replace(/^Gmail · /, "")}</span>}
-                  <span className="ml-auto shrink-0 text-xs text-zinc-400">{when(m.receivedAt)}</span>
+                  <span className="ml-auto shrink-0 text-xs text-zinc-400">{formatSmart(m.receivedAt)}</span>
                 </div>
                 <div className={m.unread ? "font-medium" : ""}>
                   <TodoRefs text={m.subject} />

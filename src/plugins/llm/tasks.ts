@@ -17,10 +17,10 @@ export const llmTasks = (t: T = translator("en")) =>
     { id: "note-relations", label: t("Note matching"), what: t("Matches each todo with the notes it is about.") },
     { id: "doc-todos", label: t("Document review"), what: t("Finds what you have to do in new and changed documents (Documents plugin).") },
     { id: "doc-relations", label: t("Document matching"), what: t("Matches each todo with the documents it is about.") },
-    { id: "knowledge-relations", label: t("Knowledge matching"), what: t("Picks from the knowledge base's hits what really fits each todo.") },
+    { id: "knowledge-relations", idempotent: true, label: t("Knowledge matching"), what: t("Picks from the knowledge base's hits what really fits each todo.") },
     { id: "people-dates", label: t("People's dates"), what: t("Finds birthdays, anniversaries and other important dates of your people in the knowledge and in your messages (People plugin).") },
-    { id: "people-normalize", label: t("People matching"), what: t("Finds who is meant by the names in your todos — one person under all their names: aliases, new profiles for contacts, duplicates merged (People plugin).") },
-    { id: "news-digest", label: t("News overview"), what: t("Sums up the best unread news of the day for you and says why each pick fits (News plugin).") },
+    { id: "people-normalize", idempotent: true, label: t("People matching"), what: t("Finds who is meant by the names in your todos — one person under all their names: aliases, new profiles for contacts, duplicates merged (People plugin).") },
+    { id: "news-digest", idempotent: true, label: t("News overview"), what: t("Sums up the best unread news of the day for you and says why each pick fits (News plugin).") },
     { id: "news-feeds", label: t("News feed finder"), what: t("Names outlets, blogs and newsletters worth reading on a topic — Zeff then looks for their feeds and checks them (News plugin).") },
     { id: "reply-draft", label: t("Reply draft"), what: t("Writes the reply to a message (WhatsApp, mail, Teams) a todo is about — from the conversation.") },
     { id: "auto-actions", label: t("Auto actions"), what: t("Turns todos into ready-made actions (message, comment, mail, meeting, hand-over).") },
@@ -30,6 +30,13 @@ export const llmTasks = (t: T = translator("en")) =>
 export const LLM_TASKS = llmTasks();
 
 export type LlmTaskId = (typeof LLM_TASKS)[number]["id"];
+
+/**
+ * The tasks where identical input must give an equal answer (a repeat within minutes is answered
+ * from memory, see run.ts). Never the reviews of mail, notes and documents, nor anything where a
+ * second look may find more.
+ */
+export const IDEMPOTENT_TASKS: ReadonlySet<LlmTaskId> = new Set(LLM_TASKS.filter((t) => "idempotent" in t).map((t) => t.id));
 export const isLlmTask = (v: unknown): v is LlmTaskId => LLM_TASKS.some((t) => t.id === v);
 
 /** A task's own backend and model ("" = the default). */

@@ -8,12 +8,10 @@ import { Markdown } from "./Markdown";
 import { ResolvedMark } from "./ResolvedMark";
 import { ResolveToggle } from "./ResolveToggle";
 import { useIsClient } from "./useIsClient";
-import { currentLocale, formatDate, formatDateTime, formatTime } from "@/lib/format";
+import { formatDateTime, formatDayTime, formatFull } from "@/lib/format";
 import { useT } from "@/components/I18nProvider";
 
-const when = (iso: string) => formatDateTime(iso);
-const full = (iso: string) =>
-  `${formatDate(iso, { year: true })}, ${formatTime(iso)}`;
+const full = (iso: string) => formatDayTime(iso, { year: true });
 
 /**
  * The synced Teams messages these links point at, by link — looked up once per link (links
@@ -55,7 +53,7 @@ export function TeamsMessageBadge({
 }) {
   const t = useT();
   const who = m.senderName ?? t("message");
-  const at = new Date(m.sentAt).toLocaleString(currentLocale());
+  const at = formatFull(m.sentAt);
   const start = [m.subject, m.text].filter(Boolean).join(" — ");
   const what = (
     <>
@@ -68,7 +66,7 @@ export function TeamsMessageBadge({
       {/* Where and when — on a phone it gives way too (ellipsis). */}
       <span className="shrink-0 text-violet-700/80 max-sm:min-w-0 max-sm:shrink max-sm:truncate dark:text-violet-300/80">
         {m.place ? `${m.place} · ` : ""}
-        {when(m.sentAt)} · {teamsKindLabel(m, t)}
+        {formatDateTime(m.sentAt)} · {teamsKindLabel(m, t)}
       </span>
       {start && <span className="min-w-0 truncate text-violet-800/70 dark:text-violet-200/70">{start}</span>}
     </>

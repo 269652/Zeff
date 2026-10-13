@@ -5,6 +5,7 @@
  * Occurrences left out (moved, deleted one by one) are its exceptions (`exdates`). Client-safe.
  */
 
+import { pad2 as two } from "@/lib/text";
 import { currentLocale } from "@/lib/format";
 import { type T, translator } from "@/lib/i18n/shared";
 
@@ -26,7 +27,6 @@ export type Recurrence = {
 
 const SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-const two = (n: number) => String(n).padStart(2, "0");
 const ymd = (d: Date) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
 const stamp = (d: Date) => `${ymd(d)}T${two(d.getHours())}:${two(d.getMinutes())}`;
 const local = (s: string) => new Date(s.length === 10 ? `${s}T00:00:00` : `${s.slice(0, 16)}:00`);

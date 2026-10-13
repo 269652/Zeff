@@ -11,10 +11,9 @@ import { CONTEXT_KIND_STYLE } from "./contextKindStyle";
 import { Markdown } from "./Markdown";
 import { ResolveToggle } from "./ResolveToggle";
 import { useIsClient } from "./useIsClient";
-import { currentLocale, formatDate, formatTime } from "@/lib/format";
+import { formatDayTime, formatFull } from "@/lib/format";
 import { useT } from "@/components/I18nProvider";
 
-const when = (iso: string) => `${formatDate(iso)}, ${formatTime(iso)}`;
 
 /** One message: who, where, when, what — the text as Markdown (long ones fold) — and what to do with it. */
 function TeamsMessageCard({ m }: { m: TeamsMessageView }) {
@@ -48,7 +47,7 @@ function TeamsMessageCard({ m }: { m: TeamsMessageView }) {
         <span className={`rounded px-1.5 py-0.5 font-medium ${CONTEXT_KIND_STYLE.teams}`}>{teamsKindLabel(m, t)}</span>
         {m.senderName && <span className="font-medium text-zinc-700 dark:text-zinc-200">{m.senderName}</span>}
         {m.place && <span>{t("in {place}", { place: m.place })}</span>}
-        <span title={new Date(m.sentAt).toLocaleString(currentLocale())}>{when(m.sentAt)}</span>
+        <span title={formatFull(m.sentAt)}>{formatDayTime(m.sentAt)}</span>
         {m.kind === "mention" && m.isRead === false && <span className="rounded bg-violet-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">{t("unread")}</span>}
         <span className="ml-auto flex items-center gap-2">
           {m.inContext && <span className="rounded bg-emerald-100 px-1.5 py-0.5 font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">✓ {t("in Context")}</span>}

@@ -2,6 +2,7 @@
  * Breaks ("Pausen") as local "HH:MM" ranges. Server-free, so the Pause cell editor can
  * parse and preview input while typing and the server validates it the same way.
  */
+import { pad2 as pad } from "@/lib/text";
 import { translator, type T } from "@/lib/i18n/shared";
 
 const en = translator("en");
@@ -14,7 +15,6 @@ export type ParsedPauses = { ok: true; pauses: PauseRange[]; none?: boolean } | 
 /** Typed for "no break that day": 0, none, no break, keine (Pause), ohne (Pause). */
 const NO_BREAK = /^(?:0|none|no(?:\s*break)?|keine(?:\s*pause)?|ohne(?:\s*pause)?)$/i;
 
-const pad = (n: number) => String(n).padStart(2, "0");
 
 export function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);

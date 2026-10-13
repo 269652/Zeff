@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import { t } from "@/lib/i18n/server";
 import { findGit, installCommand } from "@/lib/prerequisites-shared";
 
@@ -28,4 +29,10 @@ export function gitFailure(err: unknown, message?: string): Error {
   if (e?.code === "ENOENT" && /\bgit\b/i.test(e.message ?? "git")) return new Error(gitMissingMessage());
   if (message !== undefined) return new Error(message);
   return err instanceof Error ? err : new Error(String(err));
+}
+
+/** git in a folder, asynchronously: its output (trimmed), or "" when it fails (also: not installed, timed out). */
+export function gitText(cwd: string, args: string[], opts: { timeout?: number; maxBuffer?: number } = {}): Promise<string> {
+  const { timeout = 30000, maxBuffer = 8 * 1024 * 1024 } = opts;
+  return new Promise<string>((resolve) => execFile("git", args, { cwd, encoding: "utf8", timeout, windowsHide: true, maxBuffer }, (err, out) => resolve(err ? "" : String(out).trim())));
 }

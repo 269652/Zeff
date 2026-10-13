@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "@/components/EmptyState";
 import { useMemo, useState } from "react";
 import { typeMapOf, type EntryTypeDef } from "@/lib/entry-types-shared";
 import type { TicketCard } from "@/lib/jira/ticket-card-shared";
@@ -141,7 +142,7 @@ export function ReportView({
   };
 
   if (report.days.length === 0) {
-    return <p className="py-4 text-center text-sm text-zinc-500">{t("No time booked in this week.")}</p>;
+    return <EmptyState variant="centered">{t("No time booked in this week.")}</EmptyState>;
   }
   const groupLabel = t("rewritten by your report rules");
 

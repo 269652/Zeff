@@ -1,3 +1,4 @@
+import { isoDay } from "@/lib/text";
 /**
  * Remembered open/closed state of the app's expandable sections (report days & lines,
  * collapsible panels). It lives in one cookie so the server renders every section the way
@@ -51,7 +52,7 @@ const KEEP_DAYS = 45;
 function isoDaysAgo(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return isoDay(d);
 }
 
 const encode = (entries: [string, 0 | 1][]) => encodeURIComponent(JSON.stringify(Object.fromEntries(entries)));

@@ -13,10 +13,11 @@ import { KeepBoardView } from "@/plugins/keep/KeepBoardView";
 import { KeepNav } from "@/plugins/keep/KeepNav";
 import { keepLabels, linkedKeepCount, listKeepNotes } from "@/plugins/keep/store";
 import { isInstalled } from "@/plugins/state";
+import { formatDate } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Google Keep" };
 
-const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("de-DE", { day: "numeric", month: "short", year: "numeric" }) : "");
+const day = (iso: string | null) => (iso ? formatDate(iso, { weekday: false, year: true }) : "");
 
 /**
  * Google Keep in Zeff: your Keep notes as Zeff has them (the Keep sync reads them in the account's

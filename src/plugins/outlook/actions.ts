@@ -3,6 +3,7 @@
  * plugin) or an appointment (the calendar plugin) filled in; you check it and send it yourself.
  * Client-safe.
  */
+import { pad2 as p } from "@/lib/text";
 import { formatDate, formatTime } from "@/lib/format";
 import { action, EN, str } from "../actions/types";
 
@@ -24,7 +25,6 @@ const localIso = (v: string, plusMinutes = 0) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(v.trim());
   if (!m) return "";
   const d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5] + plusMinutes);
-  const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:00`;
 };
 

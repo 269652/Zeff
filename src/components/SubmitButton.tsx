@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmAction } from "@/components/confirm";
 import { useFormStatus } from "react-dom";
 import { useT } from "@/components/I18nProvider";
 
@@ -42,7 +43,7 @@ export function SubmitButton({
       title={title}
       aria-label={label}
       onClick={(e) => {
-        if (confirmText && !window.confirm(confirmText)) e.preventDefault();
+        if (confirmText && !confirmAction(confirmText)) e.preventDefault();
       }}
     >
       {pending ? (pendingText ?? t("Saving…")) : children}

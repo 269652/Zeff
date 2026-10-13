@@ -434,8 +434,7 @@ export async function doneBrowserOpAction(todoId: number, index: number): Promis
     if (!todo || !op || !actionHref(op)) return { ok: false, error: t("That action isn't on the todo (any more).") };
     const left = todo.ops.filter((_, i) => i !== Number(index));
     getDb().update(schema.todos).set({ ops: JSON.stringify(left) }).where(eq(schema.todos.id, todo.id)).run();
-    const { formatDate, formatTime } = await import("@/lib/format");
-    const when = (iso: string) => `${formatDate(iso)}, ${formatTime(iso)}`;
+    const { formatDayTime: when } = await import("@/lib/format");
     const what =
       op.type === "calendar-event"
         ? op.attendees

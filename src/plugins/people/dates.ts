@@ -99,13 +99,13 @@ async function evidence(p: Person): Promise<string[]> {
 export async function datesWithAi(p: Person): Promise<number> {
   const found = await evidence(p);
   if (!found.length) return 0;
-  const { llm } = await import("@/plugins/llm/run");
+  const { runAi } = await import("@/lib/ai");
   const prompt = `Finde die wichtigen Daten einer Person meines Lebens: ihren Geburtstag, Jahrestage (Hochzeit, Kennenlernen …) und andere Daten, die man sich merken sollte. Die Person: ${p.name}${p.aliases.length ? ` (auch: ${p.aliases.join(", ")})` : ""}.
 Unten steht, was meine Wissensbasis, meine Fakten und meine Nachrichten über sie sagen (je Zeile mit Quelle). Nimm NUR Daten, die dort ausdrücklich stehen und sicher DIESE Person betreffen — nichts erschließen, nichts raten (ein „morgen hat sie Geburtstag“ in einer Nachricht vom 15.10. heißt 16.10.; das darfst du ausrechnen). Termine, die nur einmal stattfinden (ein Arzttermin, eine Party), nur, wenn sie noch kommen. Zu jedem Datum die belegende Stelle als quote. Nichts gefunden: eine leere Liste. Nur JSON nach diesem Schema:
 ${JSON.stringify(SCHEMA)}
 
 ${found.join("\n")}`;
-  const r = await llm<Answer>("people-dates", prompt, SCHEMA, { timeoutMs: 240000 });
+  const r = await runAi<Answer>(prompt, SCHEMA, { task: "people-dates", timeoutMs: 240000 });
   let n = 0;
   for (const x of r.output?.dates ?? []) {
     const kind = isDateKind(x.kind) ? x.kind : "other";

@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/EmptyState";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
@@ -47,7 +48,7 @@ export default async function JobsPage() {
           {chronoOn && <ChronoJobsSyncButton count={jobs.length} />}
         </div>
         {jobs.length === 0 ? (
-          <p className="py-4 text-center text-sm text-zinc-500">{t("No jobs yet.")}</p>
+          <EmptyState variant="centered">{t("No jobs yet.")}</EmptyState>
         ) : (
           <div className="overflow-x-auto">
             <table className="table">

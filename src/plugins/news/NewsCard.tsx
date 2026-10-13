@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
+import { postJson } from "@/lib/post-json";
 import { ListenButton } from "./Listen";
 import { newsReadAction, newsSourceAction, newsStateAction, newsStoryAction, newsTopicAction, newsVoteAction } from "./server-actions";
 import type { NewsItem } from "./shared";
@@ -15,7 +16,7 @@ function flushSeen() {
   if (!seenQueue.size) return;
   const ids = [...seenQueue];
   seenQueue.clear();
-  void fetch("/api/news/seen", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids }), keepalive: true }).catch(() => undefined);
+  void postJson("/api/news/seen", { ids }, { keepalive: true }).catch(() => undefined);
 }
 function reportSeen(id: number) {
   seenQueue.add(id);
@@ -30,8 +31,7 @@ async function peek(id: number): Promise<{ ok: boolean; image: string; hasConten
   if (running >= 3) await new Promise<void>((go) => waiting.push(go));
   running++;
   try {
-    const r = await fetch("/api/news/peek", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) });
-    return (await r.json()) as { ok: boolean; image: string; hasContent: boolean; summary: string };
+    return await postJson<{ ok: boolean; image: string; hasContent: boolean; summary: string }>("/api/news/peek", { id });
   } catch {
     return { ok: false, image: "", hasContent: false, summary: "" };
   } finally {

@@ -1,10 +1,11 @@
+import { EmptyState } from "@/components/EmptyState";
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
 import Link from "next/link";
 import { connection } from "next/server";
 import { daysUntil, dueText, dueTone } from "@/lib/boards/due-shared";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
-import { currentLocale, formatHours, formatTime } from "@/lib/format";
+import { formatHours, formatLongDay, formatTime } from "@/lib/format";
 import type { TodoView } from "@/lib/boards/shared";
 import { remindedFormAction } from "@/plugins/people/server-actions";
 import { inDaysText, upcomingTitle } from "@/plugins/people/shared";
@@ -38,7 +39,6 @@ function Card({ title, href, count, children }: { title: string; href?: string; 
   );
 }
 
-const Empty = ({ children }: { children: React.ReactNode }) => <p className="text-sm text-zinc-400">{children}</p>;
 
 /** Everything the page shows, gathered (outside the render: the clock is read here). */
 async function heuteData() {
@@ -183,7 +183,7 @@ export default async function HeutePage() {
     <div className="page">
       <div className="page-aside">
         <h1 className="text-lg font-semibold">{t("Today")}</h1>
-        <p className="text-sm text-zinc-500">{today.toLocaleDateString(currentLocale(), { weekday: "long", day: "numeric", month: "long" })}</p>
+        <p className="text-sm text-zinc-500">{formatLongDay(today)}</p>
         {run?.result?.lede && (
           <div className="space-y-1">
             <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{run.result.lede}</p>
@@ -303,11 +303,11 @@ export default async function HeutePage() {
               {flagged.map((x) => todo(x, <span className="shrink-0 text-xs text-red-600 dark:text-red-400">{t("important")}</span>))}
             </ul>
           ) : (
-            <Empty>
+            <EmptyState faint>
               {mine.length === 1
                 ? t("Nothing due in the next three days. 1 todo open.")
                 : t("Nothing due in the next three days. {n} todos open.", { n: mine.length })}
-            </Empty>
+            </EmptyState>
           )}
         </Card>
 
@@ -329,7 +329,7 @@ export default async function HeutePage() {
                 })}
               </ul>
             ) : (
-              <Empty>{t("No meetings today.")}</Empty>
+              <EmptyState faint>{t("No meetings today.")}</EmptyState>
             )}
           </Card>
         )}
@@ -352,7 +352,7 @@ export default async function HeutePage() {
                 ))}
               </ul>
             ) : (
-              <Empty>{t("Nobody is waiting for you.")}</Empty>
+              <EmptyState faint>{t("Nobody is waiting for you.")}</EmptyState>
             )}
           </Card>
         )}
@@ -361,7 +361,7 @@ export default async function HeutePage() {
           {waiting.length ? (
             <ul className="space-y-1.5">{waiting.slice(0, 10).map((x) => todo(x, <span className="shrink-0 text-xs text-zinc-400">⏳ {ago(x.createdAt, now)}</span>))}</ul>
           ) : (
-            <Empty>{t("Nothing has been waiting longer than three days.")}</Empty>
+            <EmptyState faint>{t("Nothing has been waiting longer than three days.")}</EmptyState>
           )}
         </Card>
       </div>

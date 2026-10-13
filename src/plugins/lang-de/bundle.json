@@ -1,6 +1,7 @@
 {
   "Add time": "Zeit eintragen",
   "Add time you spent on this todo": "Zeit eintragen, die du an diesem Todo gearbeitet hast",
+  "Delete {name}?": "{name} löschen?",
   "Delete this time record": "Diesen Zeiteintrag löschen",
   "Delete {ref}": "{ref} löschen",
   "min": "Min.",
@@ -2446,7 +2447,6 @@
   "Remove — ask each time again": "Entfernen — wieder jedes Mal fragen",
   "Remove — without a note": "Entfernen — ohne Notiz",
   "Remove {name}": "{name} entfernen",
-  "Remove {name}?": "{name} entfernen?",
   "Remove {name}? (Its folder stays as it is.)": "{name} entfernen? (Sein Ordner bleibt, wie er ist.)",
   "Remove {tag}": "{tag} entfernen",
   "Remove a quarter hour": "Eine Viertelstunde abziehen",

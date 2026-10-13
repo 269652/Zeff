@@ -2,6 +2,7 @@
  * Synced Teams messages — the parts pages, forms and the server share. No DB access here
  * (client-safe).
  */
+import { isoDay } from "@/lib/text";
 import { htmlToMarkdown } from "../html-to-markdown";
 import { type T, translator } from "@/lib/i18n/shared";
 
@@ -79,5 +80,5 @@ export function teamsLinkKey(url: string | null | undefined): string | null {
 /** The local day ("2026-10-06") a message was sent. */
 export function teamsDay(sentAt: string): string {
   const d = new Date(sentAt);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return isoDay(d);
 }

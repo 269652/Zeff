@@ -1,6 +1,7 @@
 {
   "Add time": "Añadir tiempo",
   "Add time you spent on this todo": "Añade el tiempo que dedicaste a esta tarea",
+  "Delete {name}?": "¿Eliminar {name}?",
   "Delete this time record": "Eliminar este registro de tiempo",
   "Delete {ref}": "Eliminar {ref}",
   "min": "min",
@@ -2446,7 +2447,6 @@
   "Remove — ask each time again": "Quitar: volver a preguntar cada vez",
   "Remove — without a note": "Quitar — sin nota",
   "Remove {name}": "Quitar {name}",
-  "Remove {name}?": "¿Quitar {name}?",
   "Remove {name}? (Its folder stays as it is.)": "¿Quitar {name}? (Su carpeta se queda como está.)",
   "Remove {tag}": "Quitar {tag}",
   "Remove a quarter hour": "Quitar un cuarto de hora",

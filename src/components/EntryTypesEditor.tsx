@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmAction } from "@/components/confirm";
 import { FormError } from "@/components/FormError";
 import { useState, useTransition } from "react";
 import { createEntryTypeAction, deleteEntryTypeAction, saveEntryTypesAction } from "@/app/actions";
@@ -81,7 +82,7 @@ export function EntryTypesEditor({ types, usage }: { types: EntryTypeDef[]; usag
                         disabled={pending || used > 0}
                         title={used > 0 ? t("{n} entries use it — change them first", { n: used }) : t("Delete this type")}
                         onClick={() => {
-                          if (window.confirm(t("Delete the type {type}?", { type: r.label }))) run(() => deleteEntryTypeAction(r.key));
+                          if (confirmAction(t("Delete the type {type}?", { type: r.label }))) run(() => deleteEntryTypeAction(r.key));
                         }}
                       >
                         {t("Delete")}

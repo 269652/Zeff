@@ -3,11 +3,11 @@
  * calendars (Kalender's extension: entered on your click) or in Google Calendar (its extension: the
  * click opens Google's form, filled in; you save it). Client-safe.
  */
-import { formatDate, formatTime } from "@/lib/format";
+import { pad2 as two } from "@/lib/text";
+import { formatDayTime } from "@/lib/format";
 import type { T } from "@/lib/i18n/shared";
 import { action, EN, str } from "../actions/types";
 
-const two = (n: number) => String(n).padStart(2, "0");
 /** "2026-10-13 10:00" / "2026-10-13T10:00" → local "2026-10-13T10:00" (null: not a time); plus minutes. */
 export const localStamp = (v: string, plus = 0): string | null => {
   const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(v.trim());
@@ -16,7 +16,7 @@ export const localStamp = (v: string, plus = 0): string | null => {
   return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}T${two(d.getHours())}:${two(d.getMinutes())}`;
 };
 const minutesOf = (v: unknown) => Math.min(600, Math.max(15, Math.round(Number(str(v)) || 30)));
-const when = (start: string, minutes: number, t: T) => `${formatDate(start)}, ${formatTime(start)} · ${t("{n} min", { n: minutes })}`;
+const when = (start: string, minutes: number, t: T) => `${formatDayTime(start)} · ${t("{n} min", { n: minutes })}`;
 /** Google's form takes times as "20261013T100000" (local, in the time zone given). */
 const gdate = (stamp: string) => stamp.replace(/[-:]/g, "") + "00";
 

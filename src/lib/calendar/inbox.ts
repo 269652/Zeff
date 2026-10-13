@@ -1,3 +1,4 @@
+import { isoDay } from "@/lib/text";
 import fs from "node:fs";
 import path from "node:path";
 import type { GraphEvent } from "./meetings";
@@ -116,7 +117,7 @@ export function replaceInboxWeeks(weeks: { weekStartIso: string; events: unknown
   const sunday = (monday: string) => {
     const [y, m, d] = monday.split("-").map(Number);
     const s = new Date(y, m - 1, d + 6);
-    return `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, "0")}-${String(s.getDate()).padStart(2, "0")}`;
+    return isoDay(s);
   };
   const ranges = weeks.map((w) => [w.weekStartIso, sunday(w.weekStartIso)]);
   const synced = (e: GraphEvent) => {

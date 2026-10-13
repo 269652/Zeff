@@ -2,6 +2,7 @@
  * Context items (a colleague's message, a Teams message, a Jira comment) — the parts the
  * forms and cards share with the server. No DB access here (client-safe).
  */
+import { isoDay } from "@/lib/text";
 import { translator, type T } from "@/lib/i18n/shared";
 import { imageTargets, mapImageTargets, markdownToPlain, normalizeListIndent } from "./markdown";
 
@@ -92,7 +93,7 @@ export function describeTeamsLink(url: string | null | undefined): { place: stri
     let date: string | null = null;
     if (Number.isFinite(created) && created > 1e12) {
       const d = new Date(created);
-      date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      date = isoDay(d);
     }
     return { place, date };
   } catch {

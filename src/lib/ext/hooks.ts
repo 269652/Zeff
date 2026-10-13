@@ -1,6 +1,7 @@
-import { execFile, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import path from "node:path";
 import { currentAccountId } from "@/db/accounts";
+import { killPid } from "@/lib/abort";
 import { tokenFor } from "./token";
 import { enabledPlugins, type ExtPlugin } from "./registry";
 import type { ExtEvent } from "./manifest";
@@ -48,13 +49,7 @@ export function extEnv(p: ExtPlugin, extra: Record<string, string> = {}): Record
 
 function killTree(pid: number | undefined): void {
   if (!pid) return;
-  if (process.platform === "win32") execFile("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true }, () => {});
-  else
-    try {
-      process.kill(pid, "SIGKILL");
-    } catch {
-      // gone already
-    }
+  killPid(pid, "SIGKILL");
 }
 
 const record = (r: HookRun) => {

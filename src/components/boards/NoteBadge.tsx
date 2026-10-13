@@ -14,7 +14,6 @@ import { TodoRefs } from "./TodoRefs";
 import { formatDateTime } from "@/lib/format";
 import { useT } from "@/components/I18nProvider";
 
-const when = (iso: string) => formatDateTime(iso);
 
 /** Jira's mark: the entry is on Jira too. */
 function JiraMark({ className = "" }: { className?: string }) {
@@ -40,7 +39,7 @@ export function NoteBadge({ n, className = "", jira }: { n: TodoUserNote; classN
         {(onJira || n.jiraCommentId) && (
           <span
             className="inline-flex shrink-0 items-center"
-            title={onJira ? t("On both: your note here and its comment on Jira ({ticket}, {when})", { ticket: onJira.ticket, when: when(onJira.at) }) : t("Also on Jira as a comment (it shows here once the Jira sync has read it back)")}
+            title={onJira ? t("On both: your note here and its comment on Jira ({ticket}, {when})", { ticket: onJira.ticket, when: formatDateTime(onJira.at) }) : t("Also on Jira as a comment (it shows here once the Jira sync has read it back)")}
           >
             <JiraMark className="size-4 text-sky-600 dark:text-sky-400" />
           </span>
@@ -52,7 +51,7 @@ export function NoteBadge({ n, className = "", jira }: { n: TodoUserNote; classN
                 : t("Your instruction")
               : t("Your note"))}</span>
         {n.from && <span className="shrink-0 font-mono opacity-70">{t("on T-{id}", { id: n.from })}</span>}
-        <span className="shrink-0 opacity-70">{when(n.at)}</span>
+        <span className="shrink-0 opacity-70">{formatDateTime(n.at)}</span>
         <span className="min-w-0 truncate opacity-80">
           <TaggedText text={n.text.replace(/\s+/g, " ")} render={(s) => <TodoRefs text={s} />} />
         </span>
@@ -80,7 +79,7 @@ export function NoteDetails({ n, jira }: { n: TodoUserNote; todoId?: number; jir
               ? t("Your instruction to W-{run}", { run: n.run })
               : t("Your instruction")
             : t("Your note")}{" "}
-        · {when(n.at)}
+        · {formatDateTime(n.at)}
         {n.from && (
           <>
             {" · "}
@@ -96,7 +95,7 @@ export function NoteDetails({ n, jira }: { n: TodoUserNote; todoId?: number; jir
       {onJira && (
         <p className="flex items-center gap-1.5 text-xs text-sky-700 dark:text-sky-300">
           <JiraMark className="size-3.5 shrink-0" />
-          {t("Your note and its comment on Jira — {ticket}, {when}, by {author}", { ticket: onJira.ticket, when: when(onJira.at), author: onJira.author })}
+          {t("Your note and its comment on Jira — {ticket}, {when}, by {author}", { ticket: onJira.ticket, when: formatDateTime(onJira.at), author: onJira.author })}
         </p>
       )}
       {n.url && (

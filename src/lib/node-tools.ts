@@ -1,6 +1,6 @@
-import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { runCapture } from "./exec";
 import { zeffUserDir } from "../../scripts/browser-find.mjs";
 
 /**
@@ -36,7 +36,7 @@ export const nodeLayout = (home: string, platform: string = process.platform) =>
 
 type Run = (command: string, args: string[], env?: Record<string, string>) => Promise<{ ok: boolean; out: string }>;
 const run: Run = (command, args, env) =>
-  new Promise((resolve) => execFile(command, args, { timeout: 15 * 60000, windowsHide: true, maxBuffer: 8_000_000, env: { ...process.env, ...env } }, (err, stdout, stderr) => resolve({ ok: !err, out: `${stdout}\n${stderr}`.trim().slice(-400) })));
+  runCapture(command, args, { timeout: 15 * 60000, env: { ...env } });
 
 export type NodeDeps = {
   fetchJson?: (url: string) => Promise<unknown>;

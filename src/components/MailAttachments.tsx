@@ -1,5 +1,6 @@
 "use client";
 
+import { Spinner } from "@/components/Spinner";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { answerAttachmentOfferAction, fetchAttachmentsNowAction, saveAttachmentSettingsAction } from "@/app/mail-attachment-actions";
@@ -115,7 +116,7 @@ export function FetchAttachmentsButton({ className = "btn btn-sm", short = false
         }
       }}
     >
-      {running && <span className="mr-1.5 inline-block size-3 animate-spin rounded-full border-2 border-current border-t-transparent align-[-1px]" aria-hidden />}
+      {running && <Spinner className="mr-1.5 inline-block size-3 align-[-1px]" />}
       {label}
     </button>
   );

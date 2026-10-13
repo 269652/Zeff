@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "@/components/EmptyState";
 import { useState, useTransition } from "react";
 import { importMeetingsAction } from "@/plugins/outlook-calendar/server-actions";
 import { setMeetingExcludedAction } from "@/app/actions";
@@ -100,7 +101,7 @@ export function MeetingImportForm({
     return <p className="text-sm text-zinc-500">{t("Create a job first — meetings are booked on a job number.")}</p>;
   }
   if (rows.length === 0) {
-    return <p className="py-4 text-center text-sm text-zinc-500">{t("No finished meetings to import in this week.")}</p>;
+    return <EmptyState variant="centered">{t("No finished meetings to import in this week.")}</EmptyState>;
   }
 
   return (

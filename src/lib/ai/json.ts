@@ -1,5 +1,8 @@
 /** Reading the JSON a model answered with — shared by every backend that gets its answer as text. */
 
+/** A CLI answered, but there was no JSON in what it said (not a timeout, not an abort, not a failed exit) — the one failure worth a second try. */
+export class NoJsonError extends Error {}
+
 /** The first JSON object in a text (an answer wrapped in prose or a ```json fence included). */
 export function jsonIn(text: string): unknown {
   const start = text.indexOf("{");

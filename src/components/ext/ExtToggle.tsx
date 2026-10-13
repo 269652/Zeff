@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmAction } from "@/components/confirm";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { useT } from "@/components/I18nProvider";
@@ -22,7 +23,7 @@ export function ExtToggle({ id, name, enabled, permissions }: { id: string; name
       onClick={() => {
         if (!enabled) {
           const list = permissions.length ? permissions.map((p) => `• ${p}`).join("\n") : t("(nothing special)");
-          if (!confirm(`${t("Turn on “{name}”? It may:", { name })}\n\n${list}\n\n${t("Only turn on plugins you trust.")}`)) return;
+          if (!confirmAction(`${t("Turn on “{name}”? It may:", { name })}\n\n${list}\n\n${t("Only turn on plugins you trust.")}`)) return;
         }
         start(async () => {
           const r = await setExtPluginEnabledAction(id, !enabled);

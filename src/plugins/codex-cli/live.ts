@@ -1,9 +1,10 @@
-import { execFile, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import type net from "node:net";
 import path from "node:path";
 import { currentAccountId, withAccount } from "@/db/accounts";
+import { killPid } from "@/lib/abort";
 import { emitChange } from "@/lib/events";
 import { t } from "@/lib/i18n/server";
 import { closeOnHost, killOnHost, spawnOnHost, workHostFeatures, writeToHost } from "@/lib/work/host";
@@ -984,13 +985,7 @@ export function killCodex(runId: number) {
     const info = readHostInfo(files.info);
     if (l && !l.exited) void hostSend(l, { zeffHost: "kill" }).catch(() => {});
     if (info?.pid && pidAlive(info.pid)) {
-      if (process.platform === "win32") execFile("taskkill", ["/PID", String(info.pid), "/T", "/F"], { windowsHide: true }, () => {});
-      else
-        try {
-          process.kill(info.pid, "SIGTERM");
-        } catch {
-          // gone already
-        }
+      killPid(info.pid);
     }
   }
   if (l) l.closed = true;

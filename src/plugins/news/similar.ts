@@ -1,4 +1,5 @@
 import { decodeBody, parseFeed, type FeedItem } from "./feed";
+import { newsFetch } from "./http";
 import { analyze, cosine } from "./keyphrase";
 import { fetchArticle } from "./reader";
 import { topicFeedUrl } from "./shared";
@@ -119,7 +120,7 @@ export async function defaultSearch(query: string, langs: string[] = [getPrefs()
   await Promise.all(
     urls.map(async (u) => {
       try {
-        const r = await fetch(u, { headers: { "user-agent": "Mozilla/5.0 (compatible; Zeff/1.0)" }, signal: AbortSignal.timeout(15000) });
+        const r = await newsFetch(u);
         if (r.ok) out.push(...parseFeed(await decodeBody(r)).slice(0, 25));
       } catch {
         // that search didn't answer

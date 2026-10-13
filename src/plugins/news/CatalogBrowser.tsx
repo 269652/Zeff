@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/EmptyState";
 import { t } from "@/lib/i18n/server";
 import { ALL_FEEDS, categoriesOf, LANGUAGES, starterFeeds } from "./catalog";
 import { addCategoryFormAction, addPresetFormAction, addStarterFormAction } from "./server-actions";
@@ -50,7 +51,7 @@ export function CatalogBrowser({ have, lang, q }: { have: Set<string>; lang: str
       </div>
 
       <div className="space-y-2">
-        {cats.length === 0 && <p className="text-sm text-zinc-500">{t("Nothing in the catalog matches.")}</p>}
+        {cats.length === 0 && <EmptyState>{t("Nothing in the catalog matches.")}</EmptyState>}
         {cats.map(({ category }) => {
           const feeds = matches.filter((f) => f.category === category);
           const todo = feeds.filter((f) => !have.has(f.url)).length;

@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { disconnectDriveAction, saveDriveClientAction, saveDriveSettingsAction, syncDriveNowAction } from "./server-actions";
 import type { ActionState } from "@/app/action-helpers";
 import { toast } from "@/components/Toaster";
-import { formatDate, formatTime } from "@/lib/format";
+import { useAction } from "@/components/useAction";
+import { formatDayTime } from "@/lib/format";
 import { useT } from "@/components/I18nProvider";
 
 export type DriveStepView = { key: "drivebackup" | "drivedocs"; name: string; on: boolean; lastAt: string | null; lastOk: boolean | null; lastMessage: string | null };
@@ -26,14 +26,13 @@ export type DriveView = {
   documentsInDrive: number;
 };
 
-const when = (iso: string) => `${formatDate(iso, { year: true })}, ${formatTime(iso)}`;
+const when = (iso: string) => formatDayTime(iso, { year: true });
 const link = "text-indigo-600 hover:underline dark:text-indigo-400";
 
 /** The Google Drive page: the few steps to get an OAuth client, signing in, what syncs, and the syncs now. */
 export function GoogleDriveSettings({ s, steps, error, justConnected, redirectUri }: { s: DriveView; steps: DriveStepView[]; error: string | null; justConnected: boolean; /** What Google sends you back to (to register with the client). */ redirectUri: string }) {
   const t = useT();
-  const router = useRouter();
-  const [pending, start] = useTransition();
+  const { run, pending } = useAction<ActionState>({ done: t("Done."), fallback: t("Didn't work.") });
   const [clientId, setClientId] = useState(s.clientId);
   const [secret, setSecret] = useState("");
   const [folderName, setFolderName] = useState(s.folderName);
@@ -46,14 +45,6 @@ export function GoogleDriveSettings({ s, steps, error, justConnected, redirectUr
     // (once, as the page opens)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const run = (what: () => Promise<ActionState>, after?: () => void) =>
-    start(async () => {
-      const r = await what();
-      toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" });
-      if (r?.ok) after?.();
-      router.refresh();
-    });
 
   const needsReconnect = s.connected && pull && !s.fullAccess;
 

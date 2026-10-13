@@ -1,3 +1,4 @@
+import { isoDay } from "@/lib/text";
 /**
  * The Recap (what you did on a day) — client-safe: what was gathered for the day, what the AI made of it,
  * and the schema its answer must keep to.
@@ -68,8 +69,7 @@ export function previousWorkday(from = new Date()): string {
   return isoDay(d);
 }
 
-/** A local date as YYYY-MM-DD. */
-export const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+export { isoDay };
 
 /** The workday before / after a YYYY-MM-DD day. */
 export function shiftWorkday(day: string, by: 1 | -1): string {

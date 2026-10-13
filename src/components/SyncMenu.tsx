@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingRow, Spinner } from "@/components/Spinner";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -49,7 +50,7 @@ function NextRing({ s }: { s: SyncView }) {
 /** The ring (or a spinner while it runs, a dashed circle when only by hand) — its tooltip says when. */
 function StepMark({ s }: { s: SyncView }) {
   const t = useT();
-  if (s.running) return <span className="block size-[18px] animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" aria-label={t("Syncing")} />;
+  if (s.running) return <Spinner tone="indigo" label={t("Syncing")} className="block size-[18px]" />;
   if (!s.everyMinutes || !s.nextAt)
     return <span className="block size-[18px] rounded-full border-2 border-dashed border-zinc-300 dark:border-zinc-600" title={t("Only by hand")} aria-label={t("Only by hand")} />;
   const label = s.window
@@ -212,7 +213,7 @@ export function SyncMenu() {
             {(data?.steps ?? []).map((s) => (
               <SyncStepRow key={s.key} s={s} disabled={!!data?.all.running} onRun={() => go(() => runSyncAction(s.key))} onStop={() => go(() => stopSyncAction(s.key))} onNavigate={() => setOpen(false)} />
             ))}
-            {!data && <li className="px-3 py-3 text-sm text-zinc-500">{t("Loading…")}</li>}
+            {!data && <LoadingRow>{t("Loading…")}</LoadingRow>}
           </ul>
           <div className="flex shrink-0 justify-between gap-3 border-t border-zinc-200 px-3 py-2 text-xs dark:border-zinc-800">
             <Link href="/sync-settings" className="text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setOpen(false)}>

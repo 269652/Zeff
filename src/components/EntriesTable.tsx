@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/EmptyState";
 import Link from "next/link";
 import { deleteEntryAction } from "@/app/actions";
 import { contextBriefs } from "@/lib/contexts";
@@ -35,7 +36,7 @@ export function EntriesTable({
   showProject?: boolean;
 }) {
   if (entries.length === 0) {
-    return <p className="py-4 text-center text-sm text-zinc-500">{t("No entries.")}</p>;
+    return <EmptyState variant="centered">{t("No entries.")}</EmptyState>;
   }
   const projectColumn = !showJob && showProject && entries.some((e) => e.project);
   const types = entryTypeMap();

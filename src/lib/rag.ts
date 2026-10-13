@@ -1,3 +1,4 @@
+import { clip as flatClip } from "@/lib/text";
 import { desc, like, or, type SQL } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 
@@ -37,10 +38,7 @@ const NEEDS_PROPERTY = {
 
 const STOP = new Set("der die das den dem des und oder ist sind war was wer wie wo wann warum für ein eine einer einen mit von zum zur nicht auch bei aus nach über the and for with that this what who how why are was were you your".split(" "));
 export const wordsOf = (q: string) => [...new Set(q.toLowerCase().split(/[^\p{L}\p{N}_]+/u).filter((w) => w.length >= 3 && !STOP.has(w)))].slice(0, 6);
-const clip = (s: string | null | undefined, n: number) => {
-  const flat = (s ?? "").replace(/[⟦⟧]/g, "").replace(/\s+/g, " ").trim();
-  return flat.length > n ? `${flat.slice(0, n)}…` : flat;
-};
+const clip = (s: string | null | undefined, n: number) => flatClip((s ?? "").replace(/[⟦⟧]/g, ""), n);
 
 export type Candidate = RagHit & { score: number };
 type Searcher = (words: string[], q: string) => Promise<Candidate[]> | Candidate[];

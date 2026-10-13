@@ -166,7 +166,8 @@ export function TodoItem({
   const knowledgePages = todo.knowledge ? pagesFor(todo.knowledge.pages, todo.id).filter((p) => kindOn(off, kindOfPage(p))) : [];
   const knowledgeEntities = todo.knowledge && !off.includes("entities") ? entitiesFor(todo.knowledge.entities, knowledgePages) : [];
   const knowledgeLinks = off.includes("links") ? [] : (todo.knowledge?.links ?? []);
-  const knowledge = knowledgeOn && areaOn(off, "knowledge") && (knowledgePages.length || knowledgeEntities.length || knowledgeLinks.length) ? { pages: knowledgePages, entities: knowledgeEntities, links: knowledgeLinks } : null;
+  const knowledgeRepo = off.includes("links") ? undefined : todo.knowledge?.repo;
+  const knowledge = knowledgeOn && areaOn(off, "knowledge") && (knowledgePages.length || knowledgeEntities.length || knowledgeLinks.length || knowledgeRepo) ? { pages: knowledgePages, entities: knowledgeEntities, links: knowledgeLinks, repo: knowledgeRepo } : null;
   const [, startDefer] = useTransition();
   const set = (next: TodoStatus) => {
     const before = status;
@@ -394,7 +395,7 @@ export function TodoItem({
             {knowledge &&
               (() => {
                 const toggle = (
-                  <AreaToggle open={showKnowledge} onToggle={() => setShowKnowledge(!showKnowledge)} label={t("Knowledge ({n})", { n: knowledge.pages.length + knowledge.entities.length + knowledge.links.length })} tone="emerald">
+                  <AreaToggle open={showKnowledge} onToggle={() => setShowKnowledge(!showKnowledge)} label={t("Knowledge ({n})", { n: knowledge.pages.length + knowledge.entities.length + knowledge.links.length + (knowledge.repo ? 1 : 0) })} tone="emerald">
                     <BookIcon className="size-3.5" />
                   </AreaToggle>
                 );

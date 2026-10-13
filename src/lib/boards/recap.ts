@@ -1,5 +1,6 @@
+import { isoDay } from "@/lib/text";
 import { mailLink } from "@/lib/mail/shared";
-import { execFile } from "node:child_process";
+import { gitText } from "@/lib/git";
 import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { inThisAccount } from "@/db/accounts";
@@ -64,8 +65,7 @@ export function recapsOf(day: string): { latest: RecapView | null; good: RecapVi
 // What happened on the day
 // ---------------------------------------------------------------------------
 
-const git = (cwd: string, args: string[]) =>
-  new Promise<string>((resolve) => execFile("git", args, { cwd, timeout: 30000, windowsHide: true, maxBuffer: 8 * 1024 * 1024 }, (err, out) => resolve(err ? "" : String(out).trim())));
+const git = (cwd: string, args: string[]) => gitText(cwd, args);
 
 const KEY = /\b([A-Z][A-Z0-9]+-\d+)\b/;
 
@@ -74,7 +74,7 @@ function bounds(day: string): { from: Date; to: Date; next: string } {
   const [y, m, d] = day.split("-").map(Number);
   const from = new Date(y, m - 1, d);
   const to = new Date(y, m - 1, d + 1);
-  const next = `${to.getFullYear()}-${String(to.getMonth() + 1).padStart(2, "0")}-${String(to.getDate()).padStart(2, "0")}`;
+  const next = isoDay(to);
   return { from, to, next };
 }
 

@@ -1,8 +1,9 @@
 "use client";
 
+import { confirmAction } from "@/components/confirm";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState } from "react";
+import { useAction } from "@/components/useAction";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import type { T } from "@/lib/i18n/shared";
@@ -186,7 +187,12 @@ function NoteCard({ n, api, run, labelHref }: { n: BoardNote; api: Api; run: Run
           </div>
         </>
       ) : (
-        <div role="button" tabIndex={0} className="cursor-text space-y-1.5" onClick={() => !busy && setEditing(true)} onKeyDown={(e) => e.key === "Enter" && !busy && setEditing(true)}>
+        <div role="button" tabIndex={0} className="cursor-text space-y-1.5" onClick={() => !busy && setEditing(true)} onKeyDown={(e) => {
+            // Only the note itself (not a checkbox in it) opens on Enter or Space.
+            if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
+            e.preventDefault();
+            if (!busy) setEditing(true);
+          }}>
           {(n.title || n.pinned) && (
             <h2 className="flex items-baseline gap-2 font-medium">
               <span className="min-w-0 flex-1 break-words">{n.title}</span>
@@ -240,7 +246,7 @@ function NoteCard({ n, api, run, labelHref }: { n: BoardNote; api: Api; run: Run
             title={t("Delete")}
             aria-label={t("Delete")}
             onClick={() => {
-              if (!confirm(api.removeQuestion)) return;
+              if (!confirmAction(api.removeQuestion)) return;
               setBusy(true);
               void run(() => api.remove(n.id)).then(() => setBusy(false));
             }}
@@ -256,21 +262,13 @@ function NoteCard({ n, api, run, labelHref }: { n: BoardNote; api: Api; run: Run
 /** Notes like Keep's — one of your boards or Google Keep: write a note, see them (pinned first), edit, tick, colour, pin, archive. */
 export function KeepBoardView({ source, notes, archived, empty }: { source: NoteSource; notes: BoardNote[]; archived: boolean; empty: string }) {
   const t = useT();
-  const router = useRouter();
-  const [, start] = useTransition();
+  const { run: act } = useAction<Result>();
   const api = apiFor(source, t);
   const labelHref = source.kind === "google" ? source.labelHref : undefined;
-  const run: Run = (fn) =>
-    new Promise<boolean>((resolve) => {
-      if (api.google) toast(t("Writing to Google Keep … (about half a minute)"), { tone: "ok" });
-      start(async () => {
-        const r: Result = await fn().catch((e: unknown) => ({ ok: false, error: String((e as Error)?.message ?? e) }));
-        if (!r.ok) toast(r.error ?? t("That didn't work."), { tone: "error" });
-        else if (r.message) toast(r.message, { tone: "ok" });
-        router.refresh();
-        resolve(r.ok);
-      });
-    });
+  const run: Run = (fn) => {
+    if (api.google) toast(t("Writing to Google Keep … (about half a minute)"), { tone: "ok" });
+    return act(fn);
+  };
   const pinned = notes.filter((n) => n.pinned);
   const others = notes.filter((n) => !n.pinned);
   const card = (n: BoardNote) => <NoteCard key={`${n.id}:${n.updatedAt}:${n.color}:${n.pinned}:${n.archived}:${n.text}`} n={n} api={api} run={run} labelHref={labelHref} />;

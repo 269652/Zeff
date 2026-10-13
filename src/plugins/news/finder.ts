@@ -1,4 +1,5 @@
 import { discoverFeeds, isPublicUrl, type DiscoverDeps, type FoundFeed } from "./discover";
+import { newsFetch } from "./http";
 import { topicFeedUrl, type NewsPrefs } from "./shared";
 
 /**
@@ -92,7 +93,7 @@ export async function findFeeds(topic: string, deps: FinderDeps = {}): Promise<S
   const langs: ("de" | "en")[] = language === "any" ? ["de", "en"] : [language];
   for (const lang of langs) {
     try {
-      const xml = (await (get ?? (async (u: string) => ({ text: await (await fetch(u, { headers: { "user-agent": "Mozilla/5.0 (compatible; Zeff/1.0)" }, signal: AbortSignal.timeout(15000) })).text(), url: u })))(topicFeedUrl(q, lang, deps.maxAgeDays ?? 30))).text;
+      const xml = (await (get ?? (async (u: string) => ({ text: await (await newsFetch(u)).text(), url: u })))(topicFeedUrl(q, lang, deps.maxAgeDays ?? 30))).text;
       for (const p of publishersOf(xml)) if (!candidates.has(p.host)) candidates.set(p.host, { host: p.host, name: p.name, via: "news", why: "", weight: p.count });
     } catch {
       // that search didn't answer

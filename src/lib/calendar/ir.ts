@@ -5,6 +5,7 @@
  * read only this; Outlook's own record rides along (raw), so its features see it unchanged.
  * Server only.
  */
+import { pad2 as two } from "@/lib/text";
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, gt, gte, isNotNull, isNull, lt, or } from "drizzle-orm";
 import { getDb, schema } from "@/db";
@@ -282,7 +283,6 @@ const minutesBetween = (a: string, b: string) => Math.round((new Date(`${b.lengt
 const plus = (s: string, minutes: number) => {
   const d = new Date(`${s.length === 10 ? `${s}T00:00` : s.slice(0, 16)}:00`);
   d.setMinutes(d.getMinutes() + minutes);
-  const two = (n: number) => String(n).padStart(2, "0");
   const day = `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
   return s.length === 10 ? day : `${day}T${two(d.getHours())}:${two(d.getMinutes())}`;
 };
@@ -434,7 +434,6 @@ export function bookableGraphEvents(): GraphEvent[] {
 
 /** The busy times between two moments: timed appointments of busy calendars, not cancelled, not "free". */
 export function busyBetween(from: Date, to: Date): { start: Date; end: Date; title: string }[] {
-  const two = (n: number) => String(n).padStart(2, "0");
   const stamp = (d: Date) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}T${two(d.getHours())}:${two(d.getMinutes())}`;
   return eventsBetween(stamp(from), stamp(to), { busy: true })
     .filter((e) => !e.allDay && !e.cancelled && e.showAs !== "free" && e.response !== "declined")

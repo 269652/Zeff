@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/EmptyState";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
@@ -166,9 +167,9 @@ export default async function JiraPage({
           </div>
         </div>
         {tickets.length === 0 ? (
-          <p className="py-4 text-center text-sm text-zinc-500">
+          <EmptyState variant="centered">
             {mineOnly ? t("None of the synced tickets are assigned to you.") : t("No tickets yet. Sync from Jira, or paste issues JSON above.")}
-          </p>
+          </EmptyState>
         ) : (
           <div className="overflow-x-auto">
             <table className="table">

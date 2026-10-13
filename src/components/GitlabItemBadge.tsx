@@ -7,13 +7,12 @@ import { ChevronIcon } from "./icons";
 import { Markdown } from "./Markdown";
 import { ResolvedMark } from "./ResolvedMark";
 import { ResolveToggle } from "./ResolveToggle";
-import { formatDate, formatDateTime, formatTime } from "@/lib/format";
+import { formatDateTime, formatDayTime } from "@/lib/format";
 import type { T } from "@/lib/i18n/shared";
 import { useT } from "@/components/I18nProvider";
 
 const when = (iso: string | null) => (iso ? formatDateTime(iso) : "");
-const full = (iso: string) =>
-  `${formatDate(iso, { year: true })}, ${formatTime(iso)}`;
+const full = (iso: string) => formatDayTime(iso, { year: true });
 
 /** What a kind is, spelled out. */
 const kindNames = (t: T): Record<GitlabKind, string> => ({ mr: t("Merge request"), comment: t("Comment"), branch: t("Branch") });

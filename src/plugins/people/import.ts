@@ -1,3 +1,4 @@
+import { clip } from "@/lib/text";
 import { desc, gte } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { runAi } from "@/lib/ai";
@@ -49,10 +50,6 @@ const SYSTEMISH = /no-?reply|do-?not-?reply|notification|benachrichtigung|mailer
 const isPersonName = (name: string, me: Set<string>) => {
   const n = name.trim();
   return n.length >= 3 && /\p{L}{2}/u.test(n) && !SYSTEMISH.test(n) && !me.has(n.toLowerCase()) && !/^(ich|me|team|admin)$/i.test(n);
-};
-const clip = (s: string | null | undefined, n: number) => {
-  const flat = (s ?? "").replace(/\s+/g, " ").trim();
-  return flat.length > n ? `${flat.slice(0, n)}…` : flat;
 };
 
 /** Who and what came in over the last `days`, as lines for the AI: contacts first (counted), then some texts. */

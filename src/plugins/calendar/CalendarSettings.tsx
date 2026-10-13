@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmAction } from "@/components/confirm";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -98,7 +99,7 @@ export function CalendarSettings({
                       className="btn btn-sm text-red-600 dark:text-red-400"
                       disabled={pending}
                       onClick={() => {
-                        if (confirm(t("Delete the calendar “{name}” with all its events?", { name: c.name }))) start(async () => void done(await deleteCalendarAction(c.id)));
+                        if (confirmAction(t("Delete the calendar “{name}” with all its events?", { name: c.name }))) start(async () => void done(await deleteCalendarAction(c.id)));
                       }}
                     >
                       {t("Delete")}

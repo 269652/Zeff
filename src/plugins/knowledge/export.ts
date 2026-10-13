@@ -1,3 +1,4 @@
+import { isoDay } from "@/lib/text";
 import { getSqlite } from "@/db";
 import { currentAccount } from "@/db/accounts";
 import { weekFromDate } from "@/lib/week";
@@ -210,7 +211,7 @@ export function knowledgeDocs(zeffUrl: string, only?: "keep"): { account: string
   )) {
     const d = new Date(`${e.date}T00:00:00`);
     d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-    const monday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const monday = isoDay(d);
     pushTo(weeks, monday, `- ${e.date} · ${e.hours} h · ${e.number ?? "?"} ${e.name ?? ""}${e.ticket ? ` · ${e.ticket}` : ""}${e.type ? ` · ${e.type}` : ""}: ${clean(e.description)}`);
   }
   for (const [monday, lines] of weeks)

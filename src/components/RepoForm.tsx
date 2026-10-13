@@ -1,5 +1,7 @@
 "use client";
 
+import { EmptyState } from "@/components/EmptyState";
+import { confirmAction } from "@/components/confirm";
 import { FormError } from "@/components/FormError";
 import { useActionState, useState, useTransition } from "react";
 import { deleteRepoAction, saveRepoAction } from "@/plugins/work/server-actions";
@@ -88,7 +90,7 @@ export function RepoForm({ repo, choices, onDone }: { repo?: RepoView; choices: 
         {choices.boards.length ? (
           <div className="grid gap-1 sm:grid-cols-2">{enabled.map(board)}</div>
         ) : (
-          <p className="text-sm text-zinc-500">{t("No boards yet — sync them on the Jira tab.")}</p>
+          <EmptyState>{t("No boards yet — sync them on the Jira tab.")}</EmptyState>
         )}
         {others.length > 0 && (
           <details className="mt-1">
@@ -143,7 +145,7 @@ export function RepoForm({ repo, choices, onDone }: { repo?: RepoView; choices: 
             className="btn btn-sm text-red-700 dark:text-red-400"
             disabled={deleting}
             onClick={() => {
-              if (window.confirm(t("Remove {name}? (Its folder stays as it is.)", { name: repo.name }))) startDelete(async () => void (await deleteRepoAction(repo.id)));
+              if (confirmAction(t("Remove {name}? (Its folder stays as it is.)", { name: repo.name }))) startDelete(async () => void (await deleteRepoAction(repo.id)));
             }}
           >
             {t("Remove")}

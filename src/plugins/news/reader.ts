@@ -1,4 +1,5 @@
-import { decodeBody, decodeEntities, stripHtml } from "./feed";
+import { decodeEntities, stripHtml } from "./feed";
+import { fetchText, NEWS_BROWSER_UA } from "./http";
 
 /**
  * The reader: an article's page → its text (paragraphs, no HTML) and picture, so it can be read in Zeff without
@@ -8,7 +9,6 @@ import { decodeBody, decodeEntities, stripHtml } from "./feed";
  */
 export type Article = { text: string; image: string; title: string; url: string };
 
-const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
 const BOILERPLATE = /cookie|datenschutz|privacy policy|newsletter|abonnier|subscribe|alle rechte vorbehalten|all rights reserved|javascript|anmelden|jetzt lesen|werbung|advertisement|teilen auf|share on/i;
 
@@ -57,11 +57,8 @@ export type ReaderDeps = {
   fetchText?: (url: string, init?: { method?: string; body?: string; headers?: Record<string, string> }) => Promise<{ text: string; url: string; type: string }>;
 };
 
-const defaultFetch: NonNullable<ReaderDeps["fetchText"]> = async (url, init) => {
-  const r = await fetch(url, { method: init?.method ?? "GET", body: init?.body, headers: { "user-agent": UA, "accept-language": "de,en;q=0.8", ...(init?.headers ?? {}) }, signal: AbortSignal.timeout(20000), redirect: "follow" });
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return { text: await decodeBody(r, 3_000_000), url: r.url, type: r.headers.get("content-type") ?? "" };
-};
+const defaultFetch: NonNullable<ReaderDeps["fetchText"]> = (url, init) =>
+  fetchText(url, { method: init?.method, body: init?.body, ua: NEWS_BROWSER_UA, headers: { "accept-language": "de,en;q=0.8", ...(init?.headers ?? {}) }, timeoutMs: 20000, maxBytes: 3_000_000 });
 
 /** news.google.com/rss/articles/<id> → the publisher's address (Google's own batchexecute call, as its page makes). */
 export async function resolveGoogleNews(url: string, deps: ReaderDeps = {}): Promise<string | null> {

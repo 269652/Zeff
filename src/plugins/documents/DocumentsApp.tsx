@@ -1,5 +1,7 @@
 "use client";
 
+import { EmptyState } from "@/components/EmptyState";
+import { confirmAction } from "@/components/confirm";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { HoverCard } from "@/components/HoverCard";
@@ -145,7 +147,7 @@ export function DocumentsApp({ docs, reading, origins = {}, todos, settings, kno
       )}
 
       {docs.length === 0 ? (
-        <p className="py-4 text-center text-sm text-zinc-500">{t("No documents yet.")}</p>
+        <EmptyState variant="centered">{t("No documents yet.")}</EmptyState>
       ) : (
         <ul className="card divide-y divide-zinc-100 dark:divide-zinc-800">
           {docs.map((d) => (
@@ -185,7 +187,7 @@ export function DocumentsApp({ docs, reading, origins = {}, todos, settings, kno
                   className="btn btn-sm text-red-600 dark:text-red-400"
                   disabled={pending}
                   onClick={() => {
-                    if (confirm(t("Delete “{name}”?", { name: d.name }))) start(async () => void done(await deleteDocumentAction(d.id)));
+                    if (confirmAction(t("Delete “{name}”?", { name: d.name }))) start(async () => void done(await deleteDocumentAction(d.id)));
                   }}
                 >
                   {t("Delete")}

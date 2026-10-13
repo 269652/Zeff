@@ -32,13 +32,13 @@ import { gitlabCommentsByTicket } from "@/lib/gitlab/store";
 import { mailsForTickets } from "@/lib/mail/store";
 import { getTicketCards } from "@/lib/jira/store";
 import { resolvedCommentIds } from "@/lib/resolved";
-import { currentLocale, formatDate, formatTime } from "@/lib/format";
+import { formatDayTime, formatLongDay, formatUsd } from "@/lib/format";
 import { t } from "@/lib/i18n/server";
 
 
 /** A run's time (stored as UTC "YYYY-MM-DD HH:MM:SS") in local words. */
 const when = (utc: string | null) =>
-  utc ? `${formatDate(`${utc.replace(" ", "T")}Z`)}, ${formatTime(`${utc.replace(" ", "T")}Z`)}` : "";
+  utc ? formatDayTime(`${utc.replace(" ", "T")}Z`) : "";
 const minutes = (ms: number | null) => (ms ? `${Math.floor(ms / 60000)}:${String(Math.round((ms % 60000) / 1000)).padStart(2, "0")} min` : "");
 
 /**
@@ -89,7 +89,7 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
               <span>{t("As of: {when}", { when: when(shown.finishedAt ?? shown.startedAt) })}</span>
               {shown.model && <span>{shown.model}</span>}
               {shown.durationMs ? <span>{minutes(shown.durationMs)}</span> : null}
-              {shown.costUsd != null && <span>≈ {shown.costUsd.toLocaleString(currentLocale(), { style: "currency", currency: "USD" })}</span>}
+              {shown.costUsd != null && <span>≈ {formatUsd(shown.costUsd)}</span>}
               <span>{analyzed === 1 ? t("1 ticket analyzed") : t("{n} tickets analyzed", { n: analyzed })}</span>
             </p>
           )}
@@ -172,7 +172,7 @@ function ViewTabs({ view }: { view: "lage" | "recap" }) {
 
 const dayLabel = (day: string) => {
   const [y, m, d] = day.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString(currentLocale(), { weekday: "long", day: "numeric", month: "long" });
+  return formatLongDay(new Date(y, m - 1, d));
 };
 
 /**
@@ -216,7 +216,7 @@ function RecapPage({ day }: { day: string }) {
               <span>{t("As of: {when}", { when: when(shown.finishedAt ?? shown.startedAt) })}</span>
               {shown.model && <span>{shown.model}</span>}
               {shown.durationMs ? <span>{minutes(shown.durationMs)}</span> : null}
-              {shown.costUsd != null && <span>≈ {shown.costUsd.toLocaleString(currentLocale(), { style: "currency", currency: "USD" })}</span>}
+              {shown.costUsd != null && <span>≈ {formatUsd(shown.costUsd)}</span>}
             </p>
           )}
         </div>

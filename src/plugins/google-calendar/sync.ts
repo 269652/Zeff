@@ -3,6 +3,7 @@
  * account's automation Chrome) and written into Zeff's calendar model — each Google calendar one of
  * Zeff's, the weeks read replacing what was there (moved and deleted ones go). Server only.
  */
+import { isoDay } from "@/lib/text";
 import { clearAttention, needsSignIn, raiseLogin } from "@/lib/attention";
 import { ensureCalendar, replaceEvents, type EventInput } from "@/lib/calendar/ir";
 import { errorMessage } from "@/lib/errors";
@@ -48,7 +49,7 @@ export async function syncGoogleCalendar({ background = false } = {}): Promise<{
     // The weeks read: from their Monday, so many weeks on.
     const to = new Date(`${data.from}T00:00:00`);
     to.setDate(to.getDate() + 7 * s.weeks);
-    const range = { from: data.from, to: `${to.getFullYear()}-${String(to.getMonth() + 1).padStart(2, "0")}-${String(to.getDate()).padStart(2, "0")}` };
+    const range = { from: data.from, to: isoDay(to) };
     let events = 0;
     for (const c of data.calendars) {
       const cal = ensureCalendar(`google:${c.id}`, { source: "google", name: c.name, color: /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : undefined, visible: c.shown, busy: !NOT_BUSY.test(c.id) });

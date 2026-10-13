@@ -9,7 +9,7 @@ import { getMailSettings } from "@/lib/mail/store";
 import { SYNC_KEYS, type SyncKey, type SyncOverview, type SyncView } from "./shared";
 import { stepAvailable } from "@/plugins/state";
 import { inThisAccount } from "@/db/accounts";
-import { ABORTED, withAbort } from "@/lib/abort";
+import { ABORTED, sleep, withAbort } from "@/lib/abort";
 import { noteSyncResult } from "./health";
 import { stepMinutes } from "./intervals";
 
@@ -273,7 +273,7 @@ const STEPS: Record<SyncKey, Step> = {
       const r = startBoardRun();
       if (!r.ok) return r;
       // It runs in the background: wait for it, so "Sync all" ends when it does.
-      while (boardRunState()) await new Promise((res) => setTimeout(res, 2000));
+      while (boardRunState()) await sleep(2000);
       const run = latestRun();
       return run?.status === "ok" ? { ok: true, message: t("Briefing updated.") } : { ok: false, message: run?.error ?? t("The run failed.") };
     },
@@ -536,7 +536,7 @@ async function runStep(key: SyncKey): Promise<void> {
 export async function syncAndWait(key: SyncKey): Promise<Last> {
   const l = live();
   if (l.running.has(key) || STEPS[key].busy?.()) {
-    while (live().running.has(key) || STEPS[key].busy?.()) await new Promise((r) => setTimeout(r, 1000));
+    while (live().running.has(key) || STEPS[key].busy?.()) await sleep(1000);
   } else await runStep(key);
   return STEPS[key].last ? STEPS[key].last!() : recorded(key);
 }

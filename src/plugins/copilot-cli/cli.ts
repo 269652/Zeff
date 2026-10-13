@@ -1,6 +1,6 @@
 import { execFile, spawn } from "node:child_process";
 import { ABORTED, killTree, onAbort } from "@/lib/abort";
-import { jsonIn } from "@/lib/ai/json";
+import { jsonIn, NoJsonError } from "@/lib/ai/json";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -136,7 +136,7 @@ ${JSON.stringify(schema)}`;
           } catch {
             // not kept, then
           }
-          reject(new Error(`The Copilot CLI answered without valid JSON (${(e as Error).message}; the answer: ${kept}): ${stdout.trim().slice(0, 300)}`));
+          reject(new NoJsonError(`The Copilot CLI answered without valid JSON (${(e as Error).message}; the answer: ${kept}): ${stdout.trim().slice(0, 300)}`));
         }
       }),
     );

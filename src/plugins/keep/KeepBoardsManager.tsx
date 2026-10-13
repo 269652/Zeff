@@ -1,9 +1,11 @@
 "use client";
 
+import { EmptyState } from "@/components/EmptyState";
+import { confirmAction } from "@/components/confirm";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { toast } from "@/components/Toaster";
+import { useState } from "react";
+import { useAction } from "@/components/useAction";
 import { useT } from "@/components/I18nProvider";
 import { boardDot } from "@/plugins/kanban/colors";
 import { BOARD_COLORS } from "@/plugins/kanban/shared";
@@ -65,7 +67,7 @@ function BoardRow({ b, first, last, run }: { b: Row; first: boolean; last: boole
           <button
             type="button"
             className="btn btn-sm btn-danger"
-            onClick={() => confirm(t("Delete the board “{name}” with all its {n} notes?", { name: b.name, n: b.notes })) && run(() => deleteKeepBoardAction(b.id))}
+            onClick={() => confirmAction(t("Delete the board “{name}” with all its {n} notes?", { name: b.name, n: b.notes })) && run(() => deleteKeepBoardAction(b.id))}
           >
             {t("Delete")}
           </button>
@@ -103,16 +105,9 @@ function BoardRow({ b, first, last, run }: { b: Row; first: boolean; last: boole
 export function KeepBoardsManager({ boards }: { boards: Row[] }) {
   const t = useT();
   const router = useRouter();
-  const [pending, start] = useTransition();
+  const { run, pending } = useAction<Result>({ quiet: [t("Saved.")] });
   const [name, setName] = useState("");
   const [color, setColor] = useState("amber");
-  const run = (fn: () => Promise<Result>) =>
-    start(async () => {
-      const r = await fn();
-      if (!r.ok) toast(r.error ?? t("That didn't work."), { tone: "error" });
-      else if (r.message && r.message !== t("Saved.")) toast(r.message, { tone: "ok" });
-      router.refresh();
-    });
   return (
     <div className="space-y-3">
       {boards.length ? (
@@ -122,17 +117,13 @@ export function KeepBoardsManager({ boards }: { boards: Row[] }) {
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-zinc-500">{t("No boards of your own yet.")}</p>
+        <EmptyState>{t("No boards of your own yet.")}</EmptyState>
       )}
       <form
         className="card flex flex-wrap items-end gap-3 p-4"
         onSubmit={(e) => {
           e.preventDefault();
-          start(async () => {
-            const r = await createKeepBoardAction({ name, color });
-            if (!r.ok) return void toast(r.error ?? t("That didn't work."), { tone: "error" });
-            router.push(`/keep/${r.id}`);
-          });
+          void run(() => createKeepBoardAction({ name, color }), (r) => router.push(`/keep/${r.id}`));
         }}
       >
         <label className="block min-w-48 flex-1 text-sm">

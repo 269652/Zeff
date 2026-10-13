@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { syncOutlookAction } from "@/plugins/outlook-calendar/server-actions";
-import { currentLocale, formatDateTime } from "@/lib/format";
+import { formatDateTime, formatFull } from "@/lib/format";
 import type { ActionState } from "@/app/action-helpers";
 import { useT } from "@/components/I18nProvider";
 
@@ -17,7 +17,7 @@ export function OutlookSyncButton({ week, syncedAt }: { week: string; syncedAt: 
       {state?.error && <span className="text-red-600 dark:text-red-400">{state.error}</span>}
       {state?.ok && state.message && <span className="text-emerald-600 dark:text-emerald-400">{state.message}</span>}
       {!state && synced && (
-        <span className="text-zinc-400" title={synced.toLocaleString(currentLocale())}>
+        <span className="text-zinc-400" title={formatFull(synced)}>
           {t("Synced {at}", { at: formatDateTime(synced) })}
         </span>
       )}

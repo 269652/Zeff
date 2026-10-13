@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmAction } from "@/components/confirm";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { runTodoAlternativeAction } from "@/plugins/todos/server-actions";
@@ -47,7 +48,7 @@ export function TodoAlternatives({
             onClick={() => {
               if (
                 a.ops.some((o) => o.type === "git-merge-main") &&
-                !window.confirm(`${a.title}?`)
+                !confirmAction(`${a.title}?`)
               )
                 return;
               start(async () => {

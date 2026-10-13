@@ -179,7 +179,7 @@ export function runBoardLage(opts: { force?: boolean; all?: boolean } = {}): Pro
     if (cur.length) batches.push(cur);
     const me = myJiraName();
     const today = new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-    const { llm } = await import("@/plugins/llm/run");
+    const { runAi } = await import("@/lib/ai");
     const save = getSqlite().prepare(
       "insert into ticket_lage (key, hash, result, model, analyzed_at) values (?, ?, ?, ?, ?) on conflict(key) do update set hash = excluded.hash, result = excluded.result, model = excluded.model, analyzed_at = excluded.analyzed_at",
     );
@@ -189,7 +189,7 @@ export function runBoardLage(opts: { force?: boolean; all?: boolean } = {}): Pro
     const one = async (batch: typeof blocks): Promise<void> => {
       try {
         const prompt = `${instructions(me, today)}\n\n# Tickets (${batch.length})\n\n${batch.map((b) => b.text).join("\n\n")}`;
-        const r = await llm<{ tickets: BoardLage[] }>("board-lage", prompt, SCHEMA, { timeoutMs: 360000 });
+        const r = await runAi<{ tickets: BoardLage[] }>(prompt, SCHEMA, { task: "board-lage", timeoutMs: 360000 });
         const byKey = new Map((r.output?.tickets ?? []).map((t) => [t.key?.toUpperCase(), t]));
         for (const b of batch) {
           const t = byKey.get(b.issue.key.toUpperCase());
