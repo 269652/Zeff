@@ -1,4 +1,5 @@
 import { mailsByKeys } from "@/lib/mail/store";
+import { notificationOf } from "./notification-mails";
 import { factsByRefs, type FactView } from "@/lib/facts";
 import { docsByRefs } from "@/plugins/documents/store";
 import type { DocView } from "@/plugins/documents/shared";
@@ -109,6 +110,9 @@ export function todoSources(
     ...originals.filter((r) => r.startsWith("teams:")).map((r) => r.slice(6)),
   ]);
   const mails = mailsByKeys(of("mail:"));
+  // Mails that only announce a GitLab or Jira comment Zeff has synced: the comment stands in for the mail.
+  const announced = new Map([...mails].map(([k, m]) => [k, notificationOf(m)] as const));
+  const announcedJira = commentsByIds([...announced.values()].flatMap((a) => (a.jira ? [a.jira] : [])));
   // Notes (Google Keep plugin): a note a todo came from or is related to.
   const notes = refs.some((r) => r.startsWith("keep:")) ? noteBriefsByRefs(refs) : new Map<string, KeepNoteBrief>();
   // Facts of yours (found in your messages): what a todo needs to know.
@@ -118,6 +122,7 @@ export function todoSources(
   const gitlab = gitlabItemsByKeys([
     ...of("gitlab:"),
     ...originals.filter((r) => r.startsWith("gitlab:")).map((r) => r.slice(7)),
+    ...[...announced.values()].flatMap((a) => (a.gitlab ? [a.gitlab] : [])),
   ]);
   const done = resolvedCommentIds([
     ...ids,
@@ -152,6 +157,14 @@ export function todoSources(
   };
   const entity = (ref: string): TodoSource | null => {
     if (ref.startsWith("mail:")) {
+      const note = announced.get(ref.slice(5));
+      const g = note?.gitlab ? gitlab.get(note.gitlab) : undefined;
+      if (g) return entity(`gitlab:${g.key}`);
+      const c = note?.jira ? announcedJira.get(note.jira) : undefined;
+      if (c) {
+        const url = urlOf(c.ticket);
+        return { source: "jira-comment", comment: { id: c.id, ticket: c.ticket, author: c.author, at: c.at, text: c.body, url: url ? jiraCommentUrl(url, c.id) : null, resolved: done.has(c.id) } };
+      }
       const m = mails.get(ref.slice(5));
       return m ? { source: "mail", mail: m, synced: syncedOf(ref) } : null;
     }
