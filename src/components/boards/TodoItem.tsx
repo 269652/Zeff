@@ -227,7 +227,7 @@ export function TodoItem({
       <input
         type="checkbox"
         className={`mt-1 size-4 shrink-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 ${suggested ? "accent-zinc-400" : "accent-indigo-600"}`}
-        checked={closed || suggested}
+        checked={status === "done" || suggested}
         disabled={running || doing}
         title={running || doing ? t("Being worked on — once the run is done") : suggested ? suggestedTip : undefined}
         onChange={() => set(closed ? "open" : "done")}
@@ -256,6 +256,7 @@ export function TodoItem({
           )}
           <Linked text={todo.text} cards={cards} mrs={todo.links?.mrs} />
         </span>
+        {status === "dismissed" && <span className="ml-2 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 uppercase dark:bg-zinc-800 dark:text-zinc-400">{t("Dismissed")}</span>}
         <span className="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-zinc-400">
           <CopyButton text={todo.ref} className="font-mono hover:text-indigo-600 hover:underline dark:hover:text-indigo-400" title={t("Copy “{text}” — for Copilot / Claude Code", { text: todo.ref })}>
             {todo.ref}
