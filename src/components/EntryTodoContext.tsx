@@ -7,7 +7,7 @@ import { useT } from "@/components/I18nProvider";
 
 const todoRef = (id: number) => `T-${id}`;
 
-/** In the entries table: the todos' context behind its toggle ("Show context (N)", hover for the newest). */
+/** In the entries table: the todos' context behind its toggle ("Context (N)", hover for the newest). */
 export function EntryTodoContextToggle({ ctx }: { ctx: EntryTodoContext }) {
   return <TodoSources list={ctx.sources} notes={ctx.notes} />;
 }

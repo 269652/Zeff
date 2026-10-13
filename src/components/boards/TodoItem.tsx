@@ -195,7 +195,7 @@ export function TodoItem({
     });
   };
   const closed = status !== "open";
-  // Proposed by the auto-actions review: folded behind "Show actions (n)" — they're suggestions.
+  // Proposed by the auto-actions review: folded behind "Actions (n)" — they're suggestions.
   const proposedAll = todo.ops.length > 0 && !closed && !!todo.autoOpsWhy;
   const proposed = proposedAll && areaOn(off, "actions");
   // Several actions (a delivery's commit, push, MR, merge): their notes fold behind the same toggle — the buttons stay.

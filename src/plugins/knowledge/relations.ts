@@ -57,7 +57,7 @@ const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s
 /**
  * The Wissens-Zuordnung (after the Ticket-Lage): for each open todo that's new or changed since
  * its last one, the knowledge server's full-text candidates — and the AI keeps only those that
- * really fit. Stored on the todo: "Show knowledge" shows just them.
+ * really fit. Stored on the todo: the "Knowledge" toggle shows just them.
  */
 export function relateKnowledge(): Promise<KnowledgeRelationResult> {
   if (state.__zeffKnowledgeRelations) return state.__zeffKnowledgeRelations;

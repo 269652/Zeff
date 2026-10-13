@@ -97,7 +97,7 @@ export function useContextItems(list: TodoSource[], notes: TodoUserNote[], todoI
   return { items, unread, markSeen };
 }
 
-/** A toggle in a todo's row of toggles ("Show context", "Show actions"): it unfolds its area below the row. */
+/** A toggle in a todo's row of toggles ("Context", "Actions", "Knowledge"): it unfolds its area below the row. */
 export function AreaToggle({ open, onToggle, label, tone = "indigo", title, children }: { open: boolean; onToggle: () => void; label: string; tone?: "indigo" | "violet" | "emerald"; title?: string; children?: React.ReactNode }) {
   const color = tone === "violet" ? "text-violet-700 dark:text-violet-300" : tone === "emerald" ? "text-emerald-700 dark:text-emerald-300" : "text-indigo-600 dark:text-indigo-400";
   return (
@@ -109,27 +109,43 @@ export function AreaToggle({ open, onToggle, label, tone = "indigo", title, chil
   );
 }
 
-/** What a closed context holds, at a glance (the toggle's hovercard): the newest few, the rest counted. */
-function ContextPreview({ items, unread }: { items: Item[]; unread: number }) {
+/**
+ * What a closed context holds, at a glance (the toggle's hovercard): the newest few, the rest counted.
+ * `group`: only that kind (the icon under the pointer — Mail, WhatsApp …); none: all of it.
+ */
+function ContextPreview({ items, unread, group }: { items: Item[]; unread: number; group?: string | null }) {
   const t = useT();
-  const shown = items.slice(0, 6);
+  const kind = group ? CONTEXT_GROUPS.find((g) => g.group === group) : undefined;
+  items = kind ? items.filter((it) => groupOf(itemKind(it).kind) === kind.group) : items;
+  const shown = items.slice(0, kind ? 8 : 6);
   return (
     <div className="space-y-1.5 overflow-hidden rounded-lg border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 text-xs">
-      <p className="font-medium text-zinc-600 dark:text-zinc-300">
-        {items.length === 1 ? t("Context — 1 item") : t("Context — {n} items", { n: items.length })}
-        {unread > 0 && `, ${t("{n} new", { n: unread })}`}
+      <p className="flex items-center gap-1.5 font-medium text-zinc-600 dark:text-zinc-300">
+        {kind?.icon}
+        <span>
+          {kind
+            ? items.length === 1
+              ? t("{kind} — 1 item", { kind: kind.label(t) })
+              : t("{kind} — {n} items", { kind: kind.label(t), n: items.length })
+            : items.length === 1
+              ? t("Context — 1 item")
+              : t("Context — {n} items", { n: items.length })}
+          {!kind && unread > 0 && `, ${t("{n} new", { n: unread })}`}
+        </span>
       </p>
       <span className="flex min-w-0 flex-col items-stretch gap-1">
         {shown.map((it) => ("n" in it ? <NoteBadge key={`note:${it.n.from ?? ""}:${it.n.at}`} n={it.n} className="max-w-full min-w-0" /> : <SourceBadge key={sourceKey(it.s)} entity={it.s} className="max-w-full min-w-0" />))}
       </span>
-      {items.length > shown.length && <p className="text-zinc-500">{t("… and {n} more — click for all", { n: items.length - shown.length })}</p>}
+      {items.length > shown.length && <p className="text-zinc-500">{kind ? t("… and {n} more — click for the whole context", { n: items.length - shown.length }) : t("… and {n} more — click for all", { n: items.length - shown.length })}</p>}
     </div>
   );
 }
 
-/** The context toggle: "Show context (12 · 3 neu)" and its kinds as small icons with numbers; hover it for the newest. */
+/** The context toggle: "Context (12 · 3 new)" and its kinds as small icons with numbers; hover it for the newest — an icon for just its kind (the mail icon: the mails). */
 export function ContextToggle({ items, unread, open, onToggle }: { items: Item[]; unread: number; open: boolean; onToggle: () => void }) {
   const t = useT();
+  // The kind whose icon the pointer is on: the hovercard shows just that kind (none: all).
+  const [group, setGroup] = useState<string | null>(null);
   if (!items.length) return null;
   const toggle = (
     <AreaToggle
@@ -140,10 +156,10 @@ export function ContextToggle({ items, unread, open, onToggle }: { items: Item[]
       }
       title={unread > 0 && !open ? t("New since you last opened them") : undefined}
     >
-      <ContextCounts items={items} />
+      <ContextCounts items={items} onHover={setGroup} />
     </AreaToggle>
   );
-  return open ? toggle : <HoverCard card={<ContextPreview items={items} unread={unread} />}>{toggle}</HoverCard>;
+  return open ? toggle : <HoverCard card={<ContextPreview items={items} unread={unread} group={group} />}>{toggle}</HoverCard>;
 }
 
 /** The context itself: of each kind the latest three — the rest behind "Show more"; hover one for all of it. */
@@ -273,7 +289,7 @@ const CONTEXT_GROUPS: { group: string; label: (t: T) => string; icon: React.Reac
 const groupOf = (kind: string) => (kind.startsWith("gitlab") ? "gitlab" : kind.startsWith("jira") ? "jira" : kind);
 
 /** How much of each kind of context there is: small icons with numbers (5 Teams, 4 Mail, 3 Jira …). */
-function ContextCounts({ items }: { items: Item[] }) {
+function ContextCounts({ items, onHover }: { items: Item[]; onHover?: (group: string | null) => void }) {
   const t = useT();
   const counts = new Map<string, number>();
   for (const it of items) {
@@ -285,7 +301,7 @@ function ContextCounts({ items }: { items: Item[] }) {
   return (
     <span className="ml-1.5 flex items-center gap-2 font-normal text-zinc-500 dark:text-zinc-400">
       {shown.map((g) => (
-        <span key={g.group} className="flex items-center gap-0.5 tabular-nums" title={`${counts.get(g.group)} ${g.label(t)}`}>
+        <span key={g.group} className="flex items-center gap-0.5 tabular-nums" title={`${counts.get(g.group)} ${g.label(t)}`} onMouseEnter={() => onHover?.(g.group)} onMouseLeave={() => onHover?.(null)}>
           {g.icon}
           {counts.get(g.group)}
         </span>
