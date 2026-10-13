@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { addTodoNoteAction, draftReplyAction, instructTodoAction, openReplyTargetAction, suggestTodoActionsAction } from "@/plugins/todos/server-actions";
 import type { ReplyTarget } from "@/lib/boards/reply-draft";
@@ -236,7 +237,7 @@ function ReplyPanel({ todoId, onClose }: { todoId: number; onClose: () => void }
   return (
     <div className="mt-1.5 space-y-1.5 rounded-md border border-zinc-200 p-2 dark:border-zinc-700">
       {pending && !text && <p className="text-sm text-zinc-500">{t("The AI is drafting the reply from the history…")}</p>}
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <FormError as="p">{error}</FormError>}
       {(text || !pending) && (
         <textarea
           rows={Math.min(10, Math.max(3, text.split("\n").length + 1))}

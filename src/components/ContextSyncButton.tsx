@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import { useState, useTransition } from "react";
 import { syncContextsToJiraAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
@@ -54,7 +55,7 @@ export function ContextSyncButton({
       >
         {pending ? t("Syncing…") : (label ?? t("Sync to Jira"))}
       </button>
-      {state?.error && <span className="text-xs text-red-600 dark:text-red-400">{state.error}</span>}
+      {state?.error && <FormError className="text-xs">{state.error}</FormError>}
       {state?.ok && state.message && !small && <span className="text-xs text-emerald-600 dark:text-emerald-400">{state.message}</span>}
     </span>
   );

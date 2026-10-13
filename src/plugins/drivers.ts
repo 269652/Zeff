@@ -27,3 +27,13 @@ export function automationEnv(): Record<string, string> {
 /** The automation Chrome's debug endpoint for one service (its own env setting first), of the account this runs for. */
 export const automationCdp = (service: "chrono" | "teams" | "gitlab" | "outlook" | "gmail" | "whatsapp" | "keep" = "chrono") =>
   (service !== "chrono" && process.env[`${service.toUpperCase()}_CDP_ENDPOINT`]) || process.env.CHRONO_CDP_ENDPOINT || accountChrome().endpoint;
+
+/** Whether a Chrome debug endpoint answers (its /json/version) — nothing is started for it. */
+export const cdpUp = (endpoint: string, timeoutMs = 3000): Promise<boolean> =>
+  fetch(`${endpoint.replace(/\/+$/, "")}/json/version`, { signal: AbortSignal.timeout(timeoutMs) })
+    .then((r) => r.ok)
+    .catch(() => false);
+
+/** Whether the automation Chrome of this account runs (the endpoint of one service, as `automationCdp`). */
+export const automationUp = (service?: Parameters<typeof automationCdp>[0], timeoutMs?: number): Promise<boolean> =>
+  cdpUp(automationCdp(service), timeoutMs);

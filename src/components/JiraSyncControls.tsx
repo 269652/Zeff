@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import { useActionState } from "react";
 import { importJiraAction, syncJiraAction } from "@/plugins/jira/server-actions";
 import type { ActionState } from "@/app/action-helpers";
@@ -26,7 +27,7 @@ export function JiraSyncControls({ configured, ui }: { configured: boolean; ui: 
             })}
           </span>
         )}
-        {syncState?.error && <span className="text-sm text-red-600 dark:text-red-400">{syncState.error}</span>}
+        {syncState?.error && <FormError>{syncState.error}</FormError>}
         {syncState?.ok && <span className="text-sm text-emerald-600 dark:text-emerald-400">{syncState.message}</span>}
       </div>
 
@@ -41,7 +42,7 @@ export function JiraSyncControls({ configured, ui }: { configured: boolean; ui: 
           />
           <div className="flex flex-wrap items-center gap-3">
             <SubmitButton className="btn" pendingText={t("Importing…")}>{t("Import pasted")}</SubmitButton>
-            {importState?.error && <span className="text-sm text-red-600 dark:text-red-400">{importState.error}</span>}
+            {importState?.error && <FormError>{importState.error}</FormError>}
             {importState?.ok && <span className="text-sm text-emerald-600 dark:text-emerald-400">{importState.message}</span>}
           </div>
         </form>

@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import { useActionState, useState, useTransition } from "react";
 import { deleteRepoAction, saveRepoAction } from "@/plugins/work/server-actions";
 import type { ActionState } from "@/app/action-helpers";
@@ -149,7 +150,7 @@ export function RepoForm({ repo, choices, onDone }: { repo?: RepoView; choices: 
           </button>
         )}
         {state?.ok && <span className="text-sm text-emerald-600 dark:text-emerald-400">{state.message}</span>}
-        {state && !state.ok && <span className="text-sm text-red-600 dark:text-red-400">{state.error}</span>}
+        {state && !state.ok && <FormError>{state.error}</FormError>}
       </div>
     </form>
   );

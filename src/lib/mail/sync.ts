@@ -1,4 +1,4 @@
-import { automationCdp, automationEnv, driverPath } from "@/plugins/drivers";
+import { automationEnv, automationUp, driverPath } from "@/plugins/drivers";
 import { clearAttention, needsSignIn, raiseLogin } from "@/lib/attention";
 import { sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
@@ -21,9 +21,7 @@ function record(ok: boolean, message: string): { ok: boolean; message: string } 
 
 /** Whether the automation Chrome runs — the background sync never starts it (it opens a mail tab there, though). */
 async function chromeUp(): Promise<boolean> {
-  return fetch(`${automationCdp("outlook")}/json/version`, { signal: AbortSignal.timeout(3000) })
-    .then((r) => r.ok)
-    .catch(() => false);
+  return automationUp("outlook");
 }
 
 type Source = "outlook" | "gmail" | "whatsapp" | "signal";

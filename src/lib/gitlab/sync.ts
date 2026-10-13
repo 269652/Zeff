@@ -1,4 +1,4 @@
-import { automationCdp, automationEnv, driverPath } from "@/plugins/drivers";
+import { automationEnv, automationUp, driverPath } from "@/plugins/drivers";
 import { clearAttention, needsSignIn, raiseLogin } from "@/lib/attention";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
@@ -18,9 +18,7 @@ function record(ok: boolean, message: string): { ok: boolean; message: string } 
 
 /** Whether the automation Chrome runs — the background sync never starts it (it opens a GitLab tab there, though). */
 async function chromeUp(): Promise<boolean> {
-  return fetch(`${automationCdp("gitlab")}/json/version`, { signal: AbortSignal.timeout(3000) })
-    .then((r) => r.ok)
-    .catch(() => false);
+  return automationUp("gitlab");
 }
 
 /**

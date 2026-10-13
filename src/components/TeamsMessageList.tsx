@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { rich } from "@/lib/i18n/rich";
@@ -82,7 +83,7 @@ function TeamsMessageCard({ m }: { m: TeamsMessageView }) {
             <button type="button" className="btn btn-sm" disabled={pending} onClick={addAsContext} title={t("Keep it as a context item (from Teams, with its link), to link to entries")}>
               {pending ? t("Adding…") : t("Add as context")}
             </button>
-            {added && <span className="text-xs text-red-600 dark:text-red-400">{added}</span>}
+            {added && <FormError className="text-xs">{added}</FormError>}
           </>
         )}
       </footer>

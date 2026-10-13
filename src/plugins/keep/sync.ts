@@ -1,7 +1,7 @@
 import { clearAttention, needsSignIn, raiseLogin } from "@/lib/attention";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
-import { automationCdp, automationEnv, driverPath } from "@/plugins/drivers";
+import { automationEnv, automationUp, driverPath } from "@/plugins/drivers";
 import { keepSettings, saveKeepNotes, type KeepNote } from "./store";
 
 /** One Keep sync at a time across the whole server (actions and the scheduler are separate module copies). */
@@ -9,9 +9,7 @@ const flag = globalThis as { __zeffKeepSyncing?: boolean };
 
 /** Whether the automation Chrome runs — the background sync never starts it. */
 async function chromeUp(): Promise<boolean> {
-  return fetch(`${automationCdp("keep")}/json/version`, { signal: AbortSignal.timeout(3000) })
-    .then((r) => r.ok)
-    .catch(() => false);
+  return automationUp("keep");
 }
 
 /**

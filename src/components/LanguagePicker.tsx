@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { setLanguageAction } from "@/app/actions";
@@ -35,7 +36,7 @@ export function LanguagePicker({ available }: { available: Lang[] }) {
           </option>
         ))}
       </select>
-      {error && <span className="text-sm text-red-600 dark:text-red-400">{error}</span>}
+      {error && <FormError>{error}</FormError>}
     </div>
   );
 }

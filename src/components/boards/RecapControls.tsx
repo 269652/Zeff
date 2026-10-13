@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { startRecapAction } from "@/plugins/todos/server-actions";
@@ -56,7 +57,7 @@ export function RecapControls({ day, running, phase, since, provider, again }: {
       >
         {running || pending ? t("Running…") : again ? t("Summarize again") : t("Summarize")}
       </button>
-      {error && <span className="text-sm text-red-600 dark:text-red-400">{error}</span>}
+      {error && <FormError>{error}</FormError>}
     </div>
   );
 }

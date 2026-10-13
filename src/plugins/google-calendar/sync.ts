@@ -8,7 +8,7 @@ import { ensureCalendar, replaceEvents, type EventInput } from "@/lib/calendar/i
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { getPref } from "@/lib/prefs";
-import { automationCdp, automationEnv, driverPath } from "@/plugins/drivers";
+import { automationEnv, automationUp, driverPath } from "@/plugins/drivers";
 
 export type GoogleCalendarSettings = { account: string; weeks: number };
 export const googleCalendarSettings = (): GoogleCalendarSettings => ({ account: "0", weeks: 5, ...getPref<Partial<GoogleCalendarSettings>>("plugin:google-calendar", {}) });
@@ -28,9 +28,7 @@ type Read = {
 const NOT_BUSY = /birthdays@|tasks@|holiday@|#holiday@|#contacts@|\.v\.calendar\.google\.com$/i;
 
 async function chromeUp(): Promise<boolean> {
-  return fetch(`${automationCdp("chrono")}/json/version`, { signal: AbortSignal.timeout(3000) })
-    .then((r) => r.ok)
-    .catch(() => false);
+  return automationUp("chrono");
 }
 
 export async function syncGoogleCalendar({ background = false } = {}): Promise<{ ok: boolean; message: string }> {

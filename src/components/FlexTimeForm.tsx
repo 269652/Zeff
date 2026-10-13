@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import { useState, useTransition } from "react";
 import { saveFlexTimeAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
@@ -64,7 +65,7 @@ export function FlexTimeForm({ flex, jobs }: { flex: FlexTime; jobs: { number: s
         <button type="submit" className="btn btn-primary" disabled={pending}>
           {pending ? t("Saving…") : t("Save flex time")}
         </button>
-        {state?.error && <span className="text-sm text-red-600 dark:text-red-400">{state.error}</span>}
+        {state?.error && <FormError>{state.error}</FormError>}
         {state?.ok && state.message && <span className="text-sm text-emerald-600 dark:text-emerald-400">{state.message}</span>}
       </div>
     </form>

@@ -22,10 +22,8 @@ export type SignedInGmail = { email: string; name: string; number: number };
 
 /** The Google accounts signed in in the account's automation Chrome — null: Chrome isn't running (or didn't answer). */
 export async function signedInGmailAccounts(): Promise<SignedInGmail[] | null> {
-  const { automationCdp, automationEnv, driverPath } = await import("@/plugins/drivers");
-  const up = await fetch(`${automationCdp("gmail")}/json/version`, { signal: AbortSignal.timeout(2500) })
-    .then((r) => r.ok)
-    .catch(() => false);
+  const { automationEnv, automationUp, driverPath } = await import("@/plugins/drivers");
+  const up = await automationUp("gmail", 2500);
   if (!up) return null;
   try {
     const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");

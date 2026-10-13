@@ -4210,5 +4210,7 @@
   "The knowledge names no systems for this repo.": "El conocimiento no nombra sistemas para este repo.",
   "Reading…": "Leyendo…",
   "Read the systems of {n} repos from the knowledge.": "Sistemas de {n} repos leídos del conocimiento.",
-  "What a todo shows under its text, and which kinds of knowledge count": "Lo que muestra un todo bajo su texto y qué tipos de conocimiento cuentan"
+  "What a todo shows under its text, and which kinds of knowledge count": "Lo que muestra un todo bajo su texto y qué tipos de conocimiento cuentan",
+  "General": "General",
+  "AI provider, language, backups": "Proveedor de IA, idioma, copias de seguridad"
 }

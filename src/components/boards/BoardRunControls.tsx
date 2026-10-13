@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { runBoardAction, stopBoardRunAction } from "@/plugins/todos/server-actions";
@@ -220,7 +221,7 @@ export function BoardRunControls({
         )}
       </div>
       {error && (
-        <span className="text-sm text-red-600 dark:text-red-400">{error}</span>
+        <FormError>{error}</FormError>
       )}
     </div>
   );

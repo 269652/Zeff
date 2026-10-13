@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import { useState, useTransition } from "react";
 import { setTicketTagsAction } from "@/app/actions";
 import { useT } from "@/components/I18nProvider";
@@ -25,7 +26,7 @@ export function TicketTagsEditor({ ticketKey, tags, allTags }: { ticketKey: stri
           })
         }
       />
-      {error && <div className="mt-0.5 text-xs text-red-600 dark:text-red-400">{error}</div>}
+      {error && <FormError as="div" className="mt-0.5 text-xs">{error}</FormError>}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import { useActionState } from "react";
 import { createTagAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
@@ -16,7 +17,7 @@ export function CreateTagForm() {
         <input id="name" name="name" className="input" placeholder={t("regression")} required />
       </div>
       <SubmitButton className="btn btn-primary" pendingText={t("Adding…")}>{t("Add tag")}</SubmitButton>
-      {state?.error && <span className="self-center text-sm text-red-600 dark:text-red-400">{state.error}</span>}
+      {state?.error && <FormError className="self-center text-sm">{state.error}</FormError>}
       {state?.ok && state.message && <span className="self-center text-sm text-emerald-600 dark:text-emerald-400">{state.message}</span>}
     </form>
   );

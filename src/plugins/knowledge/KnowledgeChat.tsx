@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { askKnowledgeAction } from "@/plugins/knowledge/server-actions";
 import { useT } from "@/components/I18nProvider";
@@ -118,7 +119,7 @@ export function KnowledgeChat() {
           ),
         )}
         {pending && <p className="text-sm text-zinc-500">{t("Searching and answering …")}</p>}
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <FormError as="p">{error}</FormError>}
         <div ref={end} />
       </div>
       <form

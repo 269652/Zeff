@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import { useState, useTransition } from "react";
 import { addContextSourceAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
@@ -27,7 +28,7 @@ export function EntrySourceAdder({ entryId, ticket, linked }: { entryId: number;
         }
       />
       {pending && <p className="text-xs text-zinc-500">{t("Adding…")}</p>}
-      {!pending && state?.error && <p className="text-xs text-red-600 dark:text-red-400">{state.error}</p>}
+      {!pending && state?.error && <FormError as="p" className="text-xs">{state.error}</FormError>}
     </div>
   );
 }

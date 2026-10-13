@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import { useActionState } from "react";
 import { syncBoardsAction } from "@/plugins/jira/server-actions";
 import type { ActionState } from "@/app/action-helpers";
@@ -16,7 +17,7 @@ export function BoardSyncControls() {
           {t("Sync boards")}
         </SubmitButton>
       </form>
-      {state?.error && <span className="text-sm text-red-600 dark:text-red-400">{state.error}</span>}
+      {state?.error && <FormError>{state.error}</FormError>}
       {state?.ok && <span className="text-sm text-emerald-600 dark:text-emerald-400">{state.message}</span>}
     </div>
   );

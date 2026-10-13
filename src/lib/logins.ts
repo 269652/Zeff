@@ -1,7 +1,7 @@
 import { currentAccountId, accountChrome } from "@/db/accounts";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
-import { automationCdp, automationEnv, driverPath, type DriverId } from "@/plugins/drivers";
+import { automationEnv, automationUp, driverPath, type DriverId } from "@/plugins/drivers";
 import { PLUGINS } from "@/plugins/catalog";
 import { installedPlugins, stepAvailable } from "@/plugins/state";
 import { listAttention, SERVICE_LABELS, type ServiceId } from "./attention";
@@ -71,9 +71,7 @@ function classify(out: unknown): { state: LoginState; detail: string } {
 }
 
 async function chromeUp(): Promise<boolean> {
-  return fetch(`${automationCdp()}/json/version`, { signal: AbortSignal.timeout(2500) })
-    .then((r) => r.ok)
-    .catch(() => false);
+  return automationUp(undefined, 2500);
 }
 
 /** Ask a service's driver whether it's signed in — read-only: no tab opened, Chrome not started. */

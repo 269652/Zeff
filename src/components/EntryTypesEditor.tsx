@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import { useState, useTransition } from "react";
 import { createEntryTypeAction, deleteEntryTypeAction, saveEntryTypesAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
@@ -103,7 +104,7 @@ export function EntryTypesEditor({ types, usage }: { types: EntryTypeDef[]; usag
         >
           {pending ? t("Saving…") : changed.length ? (changed.length === 1 ? t("Save 1 change") : t("Save {n} changes", { n: changed.length })) : t("Saved")}
         </button>
-        {state?.error && <span className="text-sm text-red-600 dark:text-red-400">{state.error}</span>}
+        {state?.error && <FormError>{state.error}</FormError>}
         {state?.ok && state.message && <span className="text-sm text-emerald-600 dark:text-emerald-400">{state.message}</span>}
       </div>
 

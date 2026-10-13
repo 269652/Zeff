@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import { startTransition, useActionState, useState } from "react";
 import { saveReportSettingsAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
@@ -235,7 +236,7 @@ export function ReportSettingsForm({
         <SubmitButton className="btn btn-sm" pendingText={t("Tagging…")} pending={pending} name="apply" value="1">
           {t("Save & tag existing entries")}
         </SubmitButton>
-        {state?.error && <span className="text-sm text-red-600 dark:text-red-400">{state.error}</span>}
+        {state?.error && <FormError>{state.error}</FormError>}
         {state?.ok && state.message && <span className="text-sm text-emerald-600 dark:text-emerald-400">{state.message}</span>}
       </div>
 

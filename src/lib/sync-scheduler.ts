@@ -14,13 +14,7 @@ import { ABORTED } from "./abort";
 
 /** The automation Chrome is running (its debug port answers) — the Chrono, Punch and Outlook drivers would start it otherwise. */
 async function chromeUp(): Promise<boolean> {
-  const cdp = (await import("@/plugins/drivers")).automationCdp();
-  try {
-    const r = await fetch(`${cdp.replace(/\/+$/, "")}/json/version`, { signal: AbortSignal.timeout(2000) });
-    return r.ok;
-  } catch {
-    return false;
-  }
+  return (await import("@/plugins/drivers")).automationUp(undefined, 2000);
 }
 
 /** A step through the sync menu's registry — only while the automation Chrome runs (nothing is started for it). */

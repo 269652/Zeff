@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import { useT } from "@/components/I18nProvider";
 import type { T } from "@/lib/i18n/shared";
 import { cleanSnippet, ENV_LABELS, entitiesFor, pagePlace, pageSource, pagesFor, snippetParts, type KnowledgeEntity, type KnowledgePage, type PageSource, type TodoLink } from "./shared";
@@ -51,7 +52,7 @@ function PageRow({ p }: { p: KnowledgePage }) {
 export function TodoKnowledgeList({ k, todoId }: { k: Loaded; todoId?: number }) {
   const t = useT();
   if (!k) return <p className="text-xs text-zinc-500">{t("Searching the knowledge …")}</p>;
-  if ("error" in k) return <p className="text-xs text-red-600 dark:text-red-400">{k.error}</p>;
+  if ("error" in k) return <FormError as="p" className="text-xs">{k.error}</FormError>;
   const pages = pagesFor(k.pages, todoId);
   const entities = entitiesFor(k.entities, pages);
   const links = k.links ?? [];

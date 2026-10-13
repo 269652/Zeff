@@ -1,5 +1,6 @@
 import { execFile, spawn } from "node:child_process";
 import { ABORTED, killTree, onAbort } from "@/lib/abort";
+import { jsonIn } from "@/lib/ai/json";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -261,7 +262,7 @@ export function runCodex<T>(prompt: string, schema: object, opts: { model?: stri
         }
         let output: T;
         try {
-          output = unstrict(JSON.parse(text), schema as Schema) as T;
+          output = unstrict(jsonIn(text), schema as Schema) as T;
         } catch {
           return reject(new Error(`The Codex CLI answered with no JSON: ${text.slice(0, 600)}`));
         }

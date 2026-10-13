@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { cdpUp } from "@/plugins/drivers";
 
 /**
  * Signal Desktop as the Signal plugin reaches it (server only): over its debug port — Signal started
@@ -10,9 +11,7 @@ export const signalCdp = () => (process.env.SIGNAL_CDP_ENDPOINT || `http://127.0
 
 /** Whether Signal answers on its debug port. */
 export const signalUp = (): Promise<boolean> =>
-  fetch(`${signalCdp()}/json/version`, { signal: AbortSignal.timeout(2500) })
-    .then((r) => r.ok)
-    .catch(() => false);
+  cdpUp(signalCdp(), 2500);
 
 /** Whether Signal Desktop runs at all (with the port or without). */
 export const signalRunning = (): Promise<boolean> =>

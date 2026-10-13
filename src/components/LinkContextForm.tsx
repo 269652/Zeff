@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import { startTransition, useActionState, useState } from "react";
 import type { ActionState } from "@/app/action-helpers";
 import { SubmitButton } from "./SubmitButton";
@@ -42,7 +43,7 @@ export function LinkContextForm({
       <SubmitButton className="btn btn-sm" pendingText={t("Linking…")} pending={pending}>
         {t("Link")}
       </SubmitButton>
-      {state?.error && <span className="text-sm text-red-600 dark:text-red-400">{state.error}</span>}
+      {state?.error && <FormError>{state.error}</FormError>}
       {state?.ok && state.message && <span className="text-sm text-emerald-600 dark:text-emerald-400">{state.message}</span>}
     </form>
   );

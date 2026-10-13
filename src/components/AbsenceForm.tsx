@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import { useActionState } from "react";
 import { createAbsenceAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
@@ -38,7 +39,7 @@ export function AbsenceForm({ defaultDate }: { defaultDate: string }) {
       </div>
       <div className="flex items-end sm:col-span-6">
         <SubmitButton className="btn btn-primary" pendingText={t("Adding…")}>{t("Add absence")}</SubmitButton>
-        {state?.error && <span className="ml-3 self-center text-sm text-red-600 dark:text-red-400">{state.error}</span>}
+        {state?.error && <FormError className="ml-3 self-center text-sm">{state.error}</FormError>}
         {state?.ok && state.message && <span className="ml-3 self-center text-sm text-emerald-600 dark:text-emerald-400">{state.message}</span>}
       </div>
     </form>

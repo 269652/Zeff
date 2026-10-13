@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import Link from "next/link";
 import { useActionState } from "react";
 import { saveBoardSettingsAction } from "@/plugins/todos/server-actions";
@@ -54,7 +55,7 @@ export function BoardSettingsForm({ jql, autoMinutes, boards, ai }: { jql: strin
         <SubmitButton className="btn btn-sm" pendingText={t("Saving…")} pending={pending}>
           {t("Save")}
         </SubmitButton>
-        {state?.error && <span className="text-sm text-red-600 dark:text-red-400">{state.error}</span>}
+        {state?.error && <FormError>{state.error}</FormError>}
         {state?.ok && state.message && <span className="text-sm text-emerald-600 dark:text-emerald-400">{state.message}</span>}
       </div>
     </form>

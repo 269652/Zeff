@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import { useActionState } from "react";
 import { deleteTagAction, renameTagAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
@@ -17,7 +18,7 @@ export function TagRow({ id, name, count }: { id: number; name: string; count: n
           <span className="text-zinc-400">#</span>
           <input name="name" defaultValue={name} className="input w-44" />
           <SubmitButton className="btn btn-sm" pendingText="…">{t("Save")}</SubmitButton>
-          {state?.error && <span className="text-xs text-red-600 dark:text-red-400">{state.error}</span>}
+          {state?.error && <FormError className="text-xs">{state.error}</FormError>}
         </form>
       </td>
       <td className="num">{count}</td>

@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import { useActionState } from "react";
 import { readRepoSystemsAction } from "@/plugins/work/server-actions";
 import type { ActionState } from "@/app/action-helpers";
@@ -15,7 +16,7 @@ export function RepoSystemsButton() {
       <SubmitButton className="btn btn-secondary !py-0.5 text-xs" pendingText={t("Reading…")}>
         {t("Read again")}
       </SubmitButton>
-      {state?.ok === false && <span className="text-xs text-red-600 dark:text-red-400">{state.error}</span>}
+      {state?.ok === false && <FormError className="text-xs">{state.error}</FormError>}
       {state?.ok && state.message && <span className="text-xs text-zinc-500">{state.message}</span>}
     </form>
   );

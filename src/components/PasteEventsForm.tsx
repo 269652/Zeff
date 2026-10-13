@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import { useActionState } from "react";
 import { pasteEventsAction } from "@/plugins/outlook-calendar/server-actions";
 import type { ActionState } from "@/app/action-helpers";
@@ -19,7 +20,7 @@ export function PasteEventsForm() {
       />
       <div className="flex items-center gap-3">
         <SubmitButton className="btn" pendingText={t("Loading…")}>{t("Load pasted meetings")}</SubmitButton>
-        {state?.error && <span className="text-sm text-red-600 dark:text-red-400">{state.error}</span>}
+        {state?.error && <FormError>{state.error}</FormError>}
         {state?.ok && state.message && <span className="text-sm text-emerald-600 dark:text-emerald-400">{state.message}</span>}
       </div>
     </form>

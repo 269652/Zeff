@@ -1,5 +1,6 @@
 "use client";
 
+import { FormError } from "@/components/FormError";
 import { startTransition, useId, useRef, useState, useTransition } from "react";
 import { deleteContextFileAction, fetchImagesAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
@@ -592,7 +593,7 @@ export function ContextForm({
             {t("Cancel")}
           </button>
         )}
-        {state?.error && <span className="text-sm text-red-600 dark:text-red-400">{state.error}</span>}
+        {state?.error && <FormError>{state.error}</FormError>}
         {state?.ok && state.message && !onDone && <span className="text-sm text-emerald-600 dark:text-emerald-400">{state.message}</span>}
       </div>
     </form>
