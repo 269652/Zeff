@@ -126,7 +126,6 @@ export async function listAttention(): Promise<Attention[]> {
   // Live Claude sessions: what they ask (a permission, a plan, a question), and a finished turn waiting for your next message.
   // Live sessions (any provider's): what they ask, and a finished turn waiting for your next message.
   const { liveDrivers, askTitle } = await import("@/lib/work/live-driver");
-  const { t } = await import("@/lib/i18n/server");
   const claude = liveDrivers().flatMap((d) => d.runIds()).flatMap((runId): Attention[] => {
     const v = liveDrivers()
       .find((d) => d.runIds().includes(runId))
