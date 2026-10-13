@@ -177,3 +177,32 @@ export function systemLinks(text: string, ticket?: string | null, limit = 40): S
   const rank = { prod: 0, test: 1, dev: 2, other: 3 } as const;
   return out.sort((a, b) => rank[a.env] - rank[b.env]).slice(0, limit);
 }
+
+export type RepoSource = { id: string; title: string; space: string; url: string; summary: string | null; lines: string[] };
+
+/**
+ * What the knowledge holds about a project, as raw material for a summary: for each search term (its name, repository,
+ * Jira projects …) the best pages — Zeff's own sources left out — each with its abstract and the lines that carry a web
+ * address (the label stands in front of it: "Staging | https://…"). No AI: the caller decides what belongs.
+ */
+export function repoSources(terms: string[], limit = 14): RepoSource[] {
+  const pages = new Map<string, PageHit & { hits: number }>();
+  for (const term of terms) {
+    for (const p of searchPages(term, 8)) {
+      if (/^zeff:/.test(p.id)) continue;
+      const have = pages.get(p.id);
+      pages.set(p.id, { ...p, hits: (have?.hits ?? 0) + 1, score: Math.max(p.score, have?.score ?? 0) });
+    }
+  }
+  // Found by several terms first (the name AND the project), then by score.
+  const best = [...pages.values()].sort((a, b) => b.hits - a.hits || b.score - a.score).slice(0, limit);
+  return best.map((p) => {
+    const body = (db().prepare("select body from pages where id = ?").get(p.id) as { body: string } | undefined)?.body ?? "";
+    const lines = body
+      .split("\n")
+      .filter((l) => /https?:\/\//.test(l) && !/mailto:/.test(l))
+      .map((l) => l.replace(/\s+/g, " ").trim().slice(0, 240))
+      .slice(0, 30);
+    return { id: p.id, title: p.title, space: p.space, url: p.url, summary: p.summary, lines };
+  });
+}

@@ -32,3 +32,21 @@ test("system links: environments from the labels and hosts, documentation left o
   );
   assert.equal(links[0].pageTitle, "PROJ Bundle");
 });
+
+/** The raw material for a project's summary: the pages found by its terms with their address lines — Zeff's own sources left out. */
+test("repo sources: pages by several terms, their address lines, no Zeff pages", async () => {
+  process.env.KNOWLEDGE_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "zeff-k-"));
+  const { db } = await import("../knowledge/lib/db");
+  const { repoSources } = await import("../knowledge/lib/search");
+  const d = db();
+  const add = (id: string, title: string, body: string) => {
+    d.prepare("insert into pages (id, space, title, url, body, fetched_at) values (?, 'S', ?, 'https://wiki/x', ?, '2026-01-01')").run(id, title, body);
+    const c = d.prepare("insert into chunks (page_id, idx, heading, text) values (?, 0, '', ?)").run(id, body);
+    d.prepare("insert into chunks_fts (title, heading, text, concepts, chunk_id, page_id) values (?, '', ?, '', ?, ?)").run(title, body, c.lastInsertRowid, id);
+  };
+  add("r1", "Relaunch Bundle", "Relaunch project.\nProduction | https://www.relaunch.example\nNo link here");
+  add("zeff:todo:1", "Relaunch todo", "Relaunch https://zeff.example/todo");
+  const pages = repoSources(["Relaunch"]);
+  assert.deepEqual(pages.map((p) => p.id), ["r1"]);
+  assert.deepEqual(pages[0].lines, ["Production | https://www.relaunch.example"]);
+});

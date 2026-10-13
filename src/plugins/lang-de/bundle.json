@@ -4215,5 +4215,13 @@
   "Read the systems of {n} repos from the knowledge.": "Die Systeme von {n} Repos aus dem Wissen gelesen.",
   "What a todo shows under its text, and which kinds of knowledge count": "Was ein Todo unter seinem Text zeigt und welche Arten von Wissen zählen",
   "General": "Allgemein",
-  "AI provider, language, backups": "KI-Anbieter, Sprache, Backups"
+  "AI provider, language, backups": "KI-Anbieter, Sprache, Backups",
+  "Repo summaries": "Repo-Zusammenfassungen",
+  "A todo shows what the knowledge says about its repo: the Prod, Test and Dev addresses and what the project is. First the AI reads the pages found about the repo and picks the addresses by these rules (German, like all Zeff prompts; the answer format and the pages are added automatically). A change takes effect with the next Knowledge relation, or “Read again” on the Repos page.": "Ein Todo zeigt, was die Wissensbasis über sein Repo weiß: die Prod-, Test- und Dev-Adressen und was das Projekt ist. Zuerst liest die KI die zum Repo gefundenen Seiten und wählt die Adressen nach diesen Regeln aus (deutsch, wie alle Zeff-Prompts; Antwortformat und Seiten kommen automatisch dazu). Eine Änderung wirkt bei der nächsten Wissens-Zuordnung oder mit „Neu lesen“ auf der Repos-Seite.",
+  "Rules for picking the addresses": "Regeln für die Auswahl der Adressen",
+  "Restore the built-in rules": "Eingebaute Regeln wiederherstellen",
+  "Environment": "Umgebung",
+  "Prod": "Prod",
+  "Test / Stage": "Test / Stage",
+  "Dev": "Dev"
 }

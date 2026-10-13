@@ -1,5 +1,5 @@
 import { parseTodoKnowledge, type TodoKnowledge } from "@/plugins/knowledge/shared";
-import { systemsForTicket } from "@/plugins/knowledge/repo-systems-store";
+import { summaryForTicket } from "@/plugins/knowledge/repo-systems-store";
 import { repeatsByRecord, similarText } from "./similar";
 import { absorb, mergeInto } from "./merge";
 import { jiraNoteBody } from "@/plugins/people/accounts";
@@ -157,11 +157,11 @@ function withJiraStale(n: TodoView["userNotes"][number]): TodoView["userNotes"][
   }
 }
 
-/** The systems of the repo the todo's ticket goes to (Prod, Test/Stage, Dev) join its knowledge — read once per repo, not per todo. */
+/** The summary of the repo the todo's ticket goes to (its deployments, what the knowledge says) joins its knowledge — written once per repo, not per todo. */
 function withRepoSystems(k: TodoKnowledge | null, ticket: string | null): TodoKnowledge | null {
-  const systems = systemsForTicket(ticket);
-  if (!systems.length) return k;
-  return { at: k?.at ?? "", pages: k?.pages ?? [], entities: k?.entities ?? [], links: systems };
+  const repo = summaryForTicket(ticket);
+  if (!repo) return k;
+  return { at: k?.at ?? "", pages: k?.pages ?? [], entities: k?.entities ?? [], links: k?.links, repo };
 }
 
 const toTodo = (r: Todo): TodoView => {

@@ -54,7 +54,10 @@ export type TodoLink = { env: "prod" | "test" | "dev" | "other"; label: string; 
 export const ENV_LABELS: Record<TodoLink["env"], string> = { prod: "Prod", test: "Test", dev: "Dev", other: "" };
 
 /** What the Wissens-Zuordnung picked for a todo: the pages and entities that fit it, the systems' addresses — when. */
-export type TodoKnowledge = { at: string; pages: KnowledgePage[]; entities: KnowledgeEntity[]; links?: TodoLink[] };
+export type TodoKnowledge = { at: string; pages: KnowledgePage[]; entities: KnowledgeEntity[]; links?: TodoLink[]; repo?: RepoSummary };
+
+/** What the knowledge says about the repo a todo's work goes to: Markdown (a table of the deployments with their links …). */
+export type RepoSummary = { name: string; summary: string };
 
 /** A todo's stored knowledge (its column), or null. */
 export const parseTodoKnowledge = (raw: string | null | undefined): TodoKnowledge | null => {

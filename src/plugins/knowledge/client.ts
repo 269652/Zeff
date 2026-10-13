@@ -30,6 +30,9 @@ export const knowledgeRelated = (text: string, ticket: string | null, limit = 5)
 /** The addresses of the systems a piece of work is about (test, prod …) from the pages that are about it. */
 export const knowledgeLinks = (text: string, ticket: string | null, limit = 40) =>
   call<{ links: { env: "prod" | "test" | "dev" | "other"; label: string; url: string; pageTitle: string }[] }>("/api/links", { method: "POST", body: { text, ticket, limit } }).then((r) => r.links);
+/** What the knowledge holds about a project (search terms → pages with their abstract and address lines), raw material for a summary. */
+export const knowledgeRepoSources = (terms: string[], limit = 14) =>
+  call<{ pages: { id: string; title: string; space: string; url: string; summary: string | null; lines: string[] }[] }>("/api/repo-sources", { method: "POST", body: { terms, limit } }).then((r) => r.pages);
 export const knowledgeAsk = (question: string, history: KnowledgeTurn[]) => call<KnowledgeAnswer>("/api/ask", { method: "POST", body: { question, history }, timeoutMs: 360000 });
 /** Pages by id: compiled in their current version, their abstract and concepts (the Documents plugin's hover cards). */
 export const knowledgePages = (ids: string[]) =>

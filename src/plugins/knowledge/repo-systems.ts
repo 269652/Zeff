@@ -1,68 +1,102 @@
-import { runAi } from "@/lib/ai";
+import { aiChoice, runAi } from "@/lib/ai";
 import { errorMessage } from "@/lib/errors";
 import { emitChange } from "@/lib/events";
+import { getLanguage, t } from "@/lib/i18n/server";
 import { listJiraBoards } from "@/lib/jira/store";
 import { listRepos, type RepoView } from "@/lib/repos";
-import { basisOf, getRepoSystems, setRepoSystems } from "./repo-systems-store";
-import type { TodoLink } from "./shared";
+import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
+import { DEFAULT_PICK_PROMPT } from "./repo-prompt";
+import { fitSources, PICK_SCHEMA, systemsTable, verifyPicks } from "./repo-picks";
+import { basisOf, getPickPrompt, getRepoSystems, setRepoSystems, type RepoPick } from "./repo-systems-store";
 
 const MAX_AGE_MS = 7 * 24 * 3600 * 1000;
 
-const SCHEMA = {
-  type: "object",
-  properties: {
-    systems: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: { i: { type: "integer" }, env: { type: "string", enum: ["prod", "test", "dev"] }, label: { type: "string" } },
-        required: ["i", "env", "label"],
-      },
-    },
-  },
-  required: ["systems"],
-};
-type Answer = { systems?: { i?: number; env?: string; label?: string }[] };
+const SUMMARY_SCHEMA = { type: "object", properties: { intro: { type: "string" }, notes: { type: "string" } }, required: ["intro", "notes"] };
+type SummaryAnswer = { intro?: string; notes?: string };
 
-const INSTRUCTIONS = `Du ordnest einem Code-Repo die Adressen seiner laufenden Systeme zu (Produktion, Test/Staging/Integration, Entwicklung). Unten stehen das Repo (Name, GitLab-Projekt, Jira-Boards/Projekte) und Kandidaten [i] — Web-Adressen aus den Seiten der Wissensbasis, mit Beschriftung und Seitentitel. Wähle NUR die Adressen, unter denen die Anwendung dieses Repos selbst erreichbar ist (die Website/App, ihr Backend/CMS, ihre Test-/Staging-/Integrationsumgebung) — keine Dokumentation, keine Werkzeuge (GitLab, Jira, Wiki, Composer, Docker, PHP …), keine Fremdsysteme, keine Systeme eines anderen Projekts. Gib zu jeder gewählten Adresse die Umgebung: prod (Produktion/Live), test (Test, Staging, Stage, Integration, Abnahme) oder dev (Entwicklung, DDEV, lokal), und eine kurze Beschriftung (z. B. „Staging“, „Produktion“). Lieber eine Adresse weglassen als eine fremde nehmen; passt nichts, gib eine leere Liste.`;
+const LANGUAGE_NAMES = { de: "Deutsch", en: "Englisch", es: "Spanisch" } as const;
 
-/** What the knowledge is searched with for a repo: its name, GitLab project, boards (and their Jira projects) and tickets. */
-function queryOf(r: RepoView): string {
+/** The second stage: the words around the table of systems (which the first stage picked and the code sets). */
+const SUMMARY_INSTRUCTIONS = `Du schreibst für ein Projekt (ein Code-Repo samt Jira-Projekten) eine knappe Beschreibung aus Auszügen der Wissensbasis. Wer an einem Ticket dieses Projekts arbeitet, sieht sie neben seinem Todo: sie soll ihm sagen, was das Projekt ist. Die Tabelle seiner Systeme (Prod, Test, Dev) wird getrennt eingefügt — wiederhole sie nicht.
+
+Antworte mit:
+- "intro": ein bis zwei Sätze, was das Projekt ist (Kunde/Produkt, Technik) — nur was die Quellen sagen.
+- "notes": optional ein paar Markdown-Stichpunkte mit Wichtigem für die Arbeit (Zugänge — nie Passwörter oder Tokens —, Besonderheiten, Ansprechpartner), nur wenn die Quellen es hergeben; sonst ein leerer Text.
+Erfinde nichts. Gehört eine Seite zu einem anderen Projekt (siehe die anderen Projekte unten), lass sie weg.`;
+
+/** What the knowledge is searched with for a repo: one term each for its name, GitLab project, boards and Jira projects. */
+function termsOf(r: RepoView): string[] {
   const boards = listJiraBoards().filter((b) => r.boards.includes(b.id));
   const words = [r.name, r.gitlabProject?.split("/").slice(-2).join(" "), ...boards.flatMap((b) => [b.name, b.projectKey ?? ""]), ...r.tickets.map((k) => k.split("-")[0])];
-  return [...new Set(words.filter((w): w is string => !!w && w.trim().length > 1))].join(" ");
+  return [...new Set(words.filter((w): w is string => !!w && w.trim().length > 1).map((w) => w.trim()))].slice(0, 12);
 }
 
-/** One repo's systems read from the knowledge by the AI (and stored); null when there's nothing to go by. */
-async function readRepo(r: RepoView): Promise<TodoLink[] | null> {
-  const { knowledgeLinks } = await import("./client");
-  const query = queryOf(r);
-  const ticket = r.tickets[0] ?? null;
-  const links = (await knowledgeLinks(query, ticket, 80)).filter((l) => l.env !== "other" || l.label);
-  if (!links.length) {
-    setRepoSystems(r.id, { at: new Date().toISOString(), basis: basisOf(r), systems: [] });
-    return [];
-  }
+/** A repo for the prompt: its name, GitLab project, Jira boards/projects. */
+function identityOf(r: RepoView): string {
   const boards = listJiraBoards().filter((b) => r.boards.includes(b.id));
-  const head = [`Repo: ${r.name}`, r.gitlabProject ? `GitLab: ${r.gitlabProject}` : "", boards.length ? `Jira: ${boards.map((b) => `${b.name}${b.projectKey ? ` (${b.projectKey})` : ""}`).join(", ")}` : ""].filter(Boolean).join("\n");
-  const list = links.map((l, i) => `[${i}] ${l.env === "other" ? "System" : l.env.toUpperCase()} ${l.label ? `„${l.label}“ ` : ""}${l.url} (Seite „${l.pageTitle}“)`).join("\n");
-  const answer = await runAi<Answer>(`${INSTRUCTIONS}\n\n${head}\n\nKandidaten:\n${list}`, SCHEMA, { task: "knowledge-relations", timeoutMs: 5 * 60000, maxBudgetUsd: 0.3 });
-  const picked = new Map<string, TodoLink>();
-  for (const s of answer.output?.systems ?? []) {
-    const l = links[Number(s.i)];
-    if (!l || (s.env !== "prod" && s.env !== "test" && s.env !== "dev")) continue;
-    picked.set(l.url, { env: s.env, label: (s.label ?? "").trim() || l.label, url: l.url, page: l.pageTitle });
+  return [r.name, r.gitlabProject ? `GitLab ${r.gitlabProject}` : "", boards.length ? `Jira ${boards.map((b) => `${b.name}${b.projectKey ? ` (${b.projectKey})` : ""}`).join(", ")}` : "", r.tickets.length ? `Tickets ${r.tickets.join(", ")}` : ""].filter(Boolean).join(" · ");
+}
+
+/** The knowledge's pages for a repo, as the picking stage reads them (see repo-picks.ts). */
+type Source = { id: string; title: string; space: string; url: string; summary: string | null; lines: string[] };
+
+/** The prompt budget: Copilot takes its prompt on stdin like the others, but keeps to the same shorter limit as the reviews. */
+const budgetOf = () => (aiChoice().provider === "copilot" ? COPILOT_MAX_PROMPT : 3 * COPILOT_MAX_PROMPT) - 9000;
+
+/** What the AI is told about the project and its neighbours (the same in both stages). */
+const headOf = (r: RepoView, repos: RepoView[]): string =>
+  [`Projekt: ${identityOf(r)}`, `Andere Projekte (nicht hierher gehörig): ${repos.filter((o) => o.id !== r.id).map(identityOf).join(" | ") || "(keine)"}`].join("\n");
+
+/**
+ * Stage 1 — the knowledge's pages about the repo go through the AI, which picks the addresses of its systems (your rules from
+ * Settings → Todos, else the built-in ones). Only addresses that stand word for word in the pages are kept.
+ */
+export async function pickSystems(r: RepoView, repos: RepoView[], pages: Source[], rules = getPickPrompt() || DEFAULT_PICK_PROMPT): Promise<RepoPick[]> {
+  const head = headOf(r, repos);
+  const sources = fitSources(head, pages, budgetOf(), 40);
+  if (!sources.length) return [];
+  const prompt = `${rules}\n\n${head}\n\nQuellen:\n${sources.join("\n\n")}`;
+  const answer = await runAi<{ systems?: unknown }>(prompt, PICK_SCHEMA, { task: "knowledge-relations", timeoutMs: 5 * 60000, maxBudgetUsd: 0.3 });
+  if (!answer.output) throw new Error("no answer");
+  return verifyPicks(answer.output, pages);
+}
+
+/** Stage 2 — what the project is, in a sentence or two, and a few notes (the AI); the table of the picked systems is set by the code. */
+async function writeSummary(r: RepoView, repos: RepoView[], pages: Source[], picks: RepoPick[]): Promise<string> {
+  let words: SummaryAnswer = {};
+  try {
+    const head = headOf(r, repos);
+    const found = picks.length ? `Gefundene Systeme (stehen schon in der Tabelle):\n${picks.map((p) => `- ${p.env}: ${p.label} ${p.url}`).join("\n")}\n\n` : "";
+    const prompt = `${SUMMARY_INSTRUCTIONS}\n\nSchreib auf ${LANGUAGE_NAMES[getLanguage()]}.\n\n${head}\n\n${found}Quellen:\n${fitSources(head + found, pages, budgetOf(), 6).join("\n\n")}`;
+    const answer = await runAi<SummaryAnswer>(prompt, SUMMARY_SCHEMA, { task: "knowledge-relations", timeoutMs: 5 * 60000, maxBudgetUsd: 0.3 });
+    words = answer.output ?? {};
+  } catch (e) {
+    // The picked systems are the point — they stay even when the words around them can't be written.
+    console.error("[knowledge-repo-systems] summary text", r.name, errorMessage(e));
   }
-  const rank = { prod: 0, test: 1, dev: 2, other: 3 } as const;
-  const systems = [...picked.values()].sort((a, b) => rank[a.env] - rank[b.env]);
-  setRepoSystems(r.id, { at: new Date().toISOString(), basis: basisOf(r), systems });
-  return systems;
+  const table = systemsTable(picks, { env: t("Environment"), system: t("System"), address: t("Address") }, { prod: t("Prod"), test: t("Test / Stage"), dev: t("Dev"), other: t("Other") });
+  return [words.intro?.trim(), table, words.notes?.trim()].filter(Boolean).join("\n\n");
+}
+
+/** One repo's summary written from the knowledge, nothing stored: the systems picked by the AI, then the words around them. */
+export async function composeRepo(r: RepoView, repos: RepoView[], rules?: string): Promise<{ summary: string; systems: RepoPick[]; pages: number }> {
+  const { knowledgeRepoSources } = await import("./client");
+  const pages = await knowledgeRepoSources(termsOf(r), 16);
+  if (!pages.length) return { summary: "", systems: [], pages: 0 };
+  const systems = await pickSystems(r, repos, pages, rules);
+  return { summary: await writeSummary(r, repos, pages, systems), systems, pages: pages.length };
+}
+
+/** One repo's summary written from the knowledge and stored. */
+async function readRepo(r: RepoView, repos: RepoView[]): Promise<void> {
+  const { summary, systems } = await composeRepo(r, repos);
+  setRepoSystems(r.id, { at: new Date().toISOString(), basis: basisOf(r, repos), summary, systems });
 }
 
 /**
- * The systems of every configured repo (Prod, Test/Stage, Dev), read from the knowledge by the AI — once per repo, not per
- * todo: every todo whose ticket goes to the repo shows them. Read again when the repo's name/project/boards changed or
- * after a week; `force` reads all.
+ * The summary of every configured repo (what it is, its deployments with their links), written from the knowledge by the AI —
+ * once per repo, not per todo: every todo whose ticket goes to the repo shows it. Written again when the repos changed or
+ * after a week; `force` writes all.
  */
 export async function relateRepoSystems(force = false): Promise<{ repos: number; read: number; failed: number }> {
   const repos = listRepos();
@@ -70,9 +104,9 @@ export async function relateRepoSystems(force = false): Promise<{ repos: number;
   let failed = 0;
   for (const r of repos) {
     const have = getRepoSystems(r.id);
-    if (!force && have && have.basis === basisOf(r) && Date.now() - Date.parse(have.at) < MAX_AGE_MS) continue;
+    if (!force && have && have.summary !== undefined && have.basis === basisOf(r, repos) && Date.now() - Date.parse(have.at) < MAX_AGE_MS) continue;
     try {
-      await readRepo(r);
+      await readRepo(r, repos);
       read++;
     } catch (e) {
       failed++;

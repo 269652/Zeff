@@ -505,5 +505,13 @@ export async function saveTodoDisplayFormAction(fd: FormData): Promise<void> {
   const { setTodoDisplayOff } = await import("@/lib/todo-display-store");
   const ids = [...AREAS.map((a) => `area:${a}`), ...KNOWLEDGE_KINDS.map((k) => `kind:${k}`), "entities", "links"];
   setTodoDisplayOff(ids.filter((id) => fd.get(id) !== "on"));
+  // The rules of the knowledge's picking stage (only on the form when the Knowledge plugin is installed): unchanged = the built-in ones.
+  const rules = fd.get("repoPrompt");
+  if (typeof rules === "string") {
+    const { DEFAULT_PICK_PROMPT } = await import("@/plugins/knowledge/repo-prompt");
+    const { setPickPrompt } = await import("@/plugins/knowledge/repo-systems-store");
+    const text = rules.replace(/\r\n/g, "\n").trim();
+    setPickPrompt(fd.get("resetRepoPrompt") || text === DEFAULT_PICK_PROMPT ? "" : text);
+  }
   revalidateAll();
 }

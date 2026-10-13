@@ -7,6 +7,8 @@ import { AREAS, KNOWLEDGE_KINDS } from "@/lib/todo-display";
 import { getTodoDisplayOff } from "@/lib/todo-display-store";
 import { saveTodoDisplayFormAction } from "@/plugins/todos/server-actions";
 import { isInstalled } from "@/plugins/state";
+import { DEFAULT_PICK_PROMPT } from "@/plugins/knowledge/repo-prompt";
+import { getPickPrompt } from "@/plugins/knowledge/repo-systems-store";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("Todo settings") };
@@ -81,6 +83,21 @@ export default async function TodoSettingsPage() {
             </span>
           </label>
         </section>
+        {isInstalled("knowledge") && (
+          <section className="card space-y-3 p-4">
+            <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Repo summaries")}</h2>
+            <p className="text-xs text-zinc-500">
+              {t("A todo shows what the knowledge says about its repo: the Prod, Test and Dev addresses and what the project is. First the AI reads the pages found about the repo and picks the addresses by these rules (German, like all Zeff prompts; the answer format and the pages are added automatically). A change takes effect with the next Knowledge relation, or “Read again” on the Repos page.")}
+            </p>
+            <label className="block text-sm">
+              <span className="font-medium">{t("Rules for picking the addresses")}</span>
+              <textarea name="repoPrompt" defaultValue={getPickPrompt() || DEFAULT_PICK_PROMPT} rows={14} spellCheck={false} className="input mt-1 w-full font-mono text-xs" />
+            </label>
+            <button type="submit" name="resetRepoPrompt" value="1" className="btn" disabled={!getPickPrompt()}>
+              {t("Restore the built-in rules")}
+            </button>
+          </section>
+        )}
         <SubmitButton className="btn btn-primary">{t("Save")}</SubmitButton>
       </form>
     </div>

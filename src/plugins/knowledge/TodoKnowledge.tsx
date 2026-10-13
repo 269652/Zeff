@@ -1,11 +1,12 @@
 "use client";
 
 import { FormError } from "@/components/FormError";
+import { Markdown } from "@/components/Markdown";
 import { useT } from "@/components/I18nProvider";
 import type { T } from "@/lib/i18n/shared";
-import { cleanSnippet, ENV_LABELS, entitiesFor, pagePlace, pageSource, pagesFor, snippetParts, type KnowledgeEntity, type KnowledgePage, type PageSource, type TodoLink } from "./shared";
+import { cleanSnippet, ENV_LABELS, entitiesFor, pagePlace, pageSource, pagesFor, snippetParts, type KnowledgeEntity, type KnowledgePage, type PageSource, type RepoSummary, type TodoLink } from "./shared";
 
-type Loaded = { pages: KnowledgePage[]; entities: KnowledgeEntity[]; links?: TodoLink[] } | { error: string } | null;
+type Loaded = { pages: KnowledgePage[]; entities: KnowledgeEntity[]; links?: TodoLink[]; repo?: RepoSummary } | { error: string } | null;
 
 const SOURCES: PageSource[] = ["confluence", "keep", "zeff"];
 const sourceLabel = (s: PageSource, t: T) => (s === "confluence" ? "Confluence" : s === "keep" ? "Keep" : t("From Zeff"));
@@ -56,10 +57,17 @@ export function TodoKnowledgeList({ k, todoId }: { k: Loaded; todoId?: number })
   const pages = pagesFor(k.pages, todoId);
   const entities = entitiesFor(k.entities, pages);
   const links = k.links ?? [];
-  if (!pages.length && !entities.length && !links.length) return <p className="text-xs text-zinc-500">{t("Nothing fitting in the knowledge.")}</p>;
+  const repo = k.repo;
+  if (!pages.length && !entities.length && !links.length && !repo) return <p className="text-xs text-zinc-500">{t("Nothing fitting in the knowledge.")}</p>;
   const groups = SOURCES.map((s) => ({ s, pages: pages.filter((p) => pageSource(p) === s) })).filter((g) => g.pages.length);
   return (
     <div className="flex min-w-0 flex-col gap-2 text-xs">
+      {repo && (
+        <section className="min-w-0 rounded-lg border border-emerald-200 bg-emerald-50/40 p-2 dark:border-emerald-900 dark:bg-emerald-950/20" aria-label={repo.name}>
+          <h4 className="mb-1 text-[10px] font-semibold tracking-wide text-emerald-700 uppercase dark:text-emerald-400">{repo.name}</h4>
+          <Markdown text={repo.summary} className="!text-xs [&_table]:w-full" />
+        </section>
+      )}
       {links.length > 0 && (
         <ul className="flex flex-wrap gap-1" aria-label={t("Systems")}>
           {links.map((l) => (

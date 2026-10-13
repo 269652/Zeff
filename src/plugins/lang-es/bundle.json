@@ -4215,5 +4215,13 @@
   "Read the systems of {n} repos from the knowledge.": "Sistemas de {n} repos leídos del conocimiento.",
   "What a todo shows under its text, and which kinds of knowledge count": "Lo que muestra un todo bajo su texto y qué tipos de conocimiento cuentan",
   "General": "General",
-  "AI provider, language, backups": "Proveedor de IA, idioma, copias de seguridad"
+  "AI provider, language, backups": "Proveedor de IA, idioma, copias de seguridad",
+  "Repo summaries": "Resúmenes de repos",
+  "A todo shows what the knowledge says about its repo: the Prod, Test and Dev addresses and what the project is. First the AI reads the pages found about the repo and picks the addresses by these rules (German, like all Zeff prompts; the answer format and the pages are added automatically). A change takes effect with the next Knowledge relation, or “Read again” on the Repos page.": "Un todo muestra lo que la base de conocimiento sabe de su repo: las direcciones de Prod, Test y Dev y qué es el proyecto. Primero la IA lee las páginas encontradas sobre el repo y elige las direcciones según estas reglas (en alemán, como todos los prompts de Zeff; el formato de respuesta y las páginas se añaden solos). Un cambio surte efecto con la próxima asignación de conocimiento o con «Leer de nuevo» en la página Repos.",
+  "Rules for picking the addresses": "Reglas para elegir las direcciones",
+  "Restore the built-in rules": "Restaurar las reglas integradas",
+  "Environment": "Entorno",
+  "Prod": "Prod",
+  "Test / Stage": "Test / Stage",
+  "Dev": "Dev"
 }
