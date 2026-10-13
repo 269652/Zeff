@@ -214,7 +214,7 @@ export function TodoItem({
   // Every action has its own button: a hand-over to a worker keeps running while a reply is posted, a push is no part of either.
   const opGroups: { idx: number[] }[] = todo.ops.map((_, i) => ({ idx: [i] }));
   // New since you last looked: lightly highlighted till the mouse passes over it.
-  const [fresh, markSeen] = useTodoNew(todo.id, todo.createdAt);
+  const [fresh, markSeen] = useTodoNew(todo.id, todo.createdAt, todo.mergedAt);
   // (A worker's own todo is quiet: never "new".)
   const isFresh = fresh && !todo.byWorker && !closed && !asking && !running && !doing;
   return (
@@ -277,6 +277,15 @@ export function TodoItem({
           <TodoMrLinks mrs={todo.links?.mrs} />
           {" "}· {todoKindLabels(t)[todo.kind]}
           <DueBadge todoId={todo.id} due={todo.due} closed={closed} />
+          {/* A repeat of it was merged into it since you looked (the Activity tab says which). */}
+          {!closed && todo.mergedAt && fresh && (
+            <>
+              {" · "}
+              <span className="text-violet-600 dark:text-violet-400" title={t("A duplicate of this todo was merged into it — the Activity tab has the details")}>
+                {t("⇄ merged")}
+              </span>
+            </>
+          )}
           {/* The time reported on it (agents', yours): a click opens the records. */}
           {!!todo.time?.length && (
             <>

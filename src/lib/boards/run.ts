@@ -165,6 +165,8 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
           await syncAndWait("peoplenorm");
         }
         throwIfAborted();
+        // The duplicates the steps above may have left (and any from before): merged into the oldest, before the actions look at them.
+        await syncAndWait("tododupes");
         // Last: the todos without a button get ready actions (with the mails related to them in their context).
         state.__zeffBoardRun = { id, phase: "autoactions", since: t0, provider };
         await syncAndWait("autoactions");

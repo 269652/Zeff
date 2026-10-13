@@ -4158,5 +4158,16 @@
   "Updating the description from your likes — a moment.": "Actualizando la descripción con tus me gusta: un momento.",
   "The description is gone — it grows again from what you like.": "La descripción ha desaparecido: vuelve a crecer con lo que te gusta.",
   "Thread": "Hilo",
-  "Systems": "Sistemas"
+  "Systems": "Sistemas",
+  "Merged duplicate, from: {note}": "Duplicado fusionado, de: {note}",
+  "Duplicate sweep": "Limpieza de duplicados",
+  "Duplicates among the open todos, merged into the oldest": "Duplicados entre los todos abiertos, fusionados en el más antiguo",
+  "⇄ merged": "⇄ fusionado",
+  "A duplicate of this todo was merged into it — the Activity tab has the details": "Se fusionó aquí un duplicado de este todo: los detalles están en la pestaña Actividad",
+  "{n} merged into open ones": "{n} fusionados en abiertos",
+  "Duplicate todos": "Todos duplicados",
+  "Open todos that repeat an older one (the same message or numbers, mostly the same words) merged into the oldest, which keeps its id - the gate does the same for every new todo (after each briefing)": "Los todos abiertos que repiten uno más antiguo (el mismo mensaje o números, casi las mismas palabras) se fusionan en el más antiguo, que conserva su ID; la puerta hace lo mismo con cada todo nuevo (tras cada resumen)",
+  "{n} duplicates merged": "{n} duplicados fusionados",
+  "No duplicates.": "Sin duplicados.",
+  "{ref} says the same already - merged into it.": "{ref} ya dice lo mismo: fusionado en él."
 }

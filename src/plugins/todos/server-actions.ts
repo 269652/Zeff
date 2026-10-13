@@ -44,7 +44,7 @@ export async function addCardTodoAction(ticket: string, text: string): Promise<A
     const { addManualTodo } = await import("@/lib/boards/store");
     const todo = addManualTodo({ ticket: k, text: body });
     revalidateAll();
-    return { ok: true, message: t("{ref} created.", { ref: todo.ref }) };
+    return { ok: true, message: todo.outcome === "merged" ? t("{ref} says the same already - merged into it.", { ref: todo.ref }) : t("{ref} created.", { ref: todo.ref }) };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

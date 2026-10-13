@@ -61,7 +61,7 @@ function db() {
 }
 
 const state = globalThis as unknown as { __zeffDocTodos?: Promise<DocTodosResult> | null };
-export type DocTodosResult = { ok: boolean; reviewed: number; added: number; batches: number; error?: string };
+export type DocTodosResult = { ok: boolean; reviewed: number; added: number; /** New todos that repeated an open one and were merged into it. */ merged?: number; batches: number; error?: string };
 
 /** The part of a document's text the AI reads. */
 export function excerpt(text: string): string {
@@ -114,6 +114,7 @@ export function reviewDocumentsForTodos(runId: number | null = null): Promise<Do
     }
 
     let added = 0;
+    let merged = 0;
     let failed = 0;
     let reviewed = theirs.length;
     for (const batch of batches) {
@@ -147,18 +148,22 @@ export function reviewDocumentsForTodos(runId: number | null = null): Promise<Do
         const refs = (td.refs ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).map((r) => (r.startsWith("doc:") ? r : `doc:${r}`)).filter((r) => known.has(r));
         if (!text || !refs.length) continue;
         const ticket = td.ticket?.trim().toUpperCase() ?? "";
-        if (duplicateTodo({ text, ops: [] }, open) || duplicateTodo({ text, ops: [] }, dropped)) continue;
+        // One you dropped isn't made again; one that repeats an open todo is merged into it (the gate).
+        if (!duplicateTodo({ text, ops: [] }, open) && duplicateTodo({ text, ops: [] }, dropped)) continue;
         const made = attributed(runId ? `lage:${runId}` : "documents", () =>
           addDocTodo({ ticket: tickets.includes(ticket) ? ticket : "", text, kind: isTodoKind(td.kind) ? td.kind : "other", owner: td.owner === "other" ? "other" : "me", refs, runId, due: td.due ?? null }),
         );
-        open.push(made);
-        added++;
+        if (made.outcome === "merged") merged++;
+        else if (!made.outcome) {
+          open.push(made);
+          added++;
+        }
       }
       mark(batch);
       reviewed += batch.length;
     }
-    if (added) emitChange("todos");
-    return { ok: failed < batches.length, reviewed, added, batches: batches.length, ...(failed ? { error: t("{failed} of {n} parts failed", { failed, n: batches.length }) } : {}) };
+    if (added || merged) emitChange("todos");
+    return { ok: failed < batches.length, reviewed, added, merged, batches: batches.length, ...(failed ? { error: t("{failed} of {n} parts failed", { failed, n: batches.length }) } : {}) };
   })()
     .catch((e): DocTodosResult => {
       console.error("[doc-todos]", errorMessage(e));

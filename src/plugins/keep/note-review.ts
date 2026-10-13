@@ -63,7 +63,7 @@ function db() {
 const versionOf = (n: NoteView) => n.updatedAt ?? n.createdAt ?? "";
 
 const state = globalThis as unknown as { __zeffNoteTodos?: Promise<NoteTodosResult> | null };
-export type NoteTodosResult = { ok: boolean; reviewed: number; added: number; batches: number; error?: string };
+export type NoteTodosResult = { ok: boolean; reviewed: number; added: number; /** New todos that repeated an open one and were merged into it. */ merged?: number; batches: number; error?: string };
 
 /** The notes to read now: edited lately, not read at this version, not empty. */
 function unread(): NoteView[] {
@@ -107,6 +107,7 @@ export function reviewNotesForTodos(runId: number | null = null): Promise<NoteTo
     }
 
     let added = 0;
+    let merged = 0;
     let failed = 0;
     let reviewed = theirs.length;
     for (const batch of batches) {
@@ -140,18 +141,22 @@ export function reviewNotesForTodos(runId: number | null = null): Promise<NoteTo
         const refs = (td.refs ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).map((r) => (r.startsWith("keep:") ? r : `keep:${r}`)).filter((r) => known.has(r));
         if (!text || !refs.length) continue;
         const ticket = td.ticket?.trim().toUpperCase() ?? "";
-        if (duplicateTodo({ text, ops: [] }, open) || duplicateTodo({ text, ops: [] }, dropped)) continue;
+        // One you dropped isn't made again; one that repeats an open todo is merged into it (the gate).
+        if (!duplicateTodo({ text, ops: [] }, open) && duplicateTodo({ text, ops: [] }, dropped)) continue;
         const t = attributed(runId ? `lage:${runId}` : "keep", () =>
           addNoteTodo({ ticket: tickets.includes(ticket) ? ticket : "", text, kind: isTodoKind(td.kind) ? td.kind : "other", owner: td.owner === "other" ? "other" : "me", refs, runId, due: td.due ?? null }),
         );
-        open.push(t);
-        added++;
+        if (t.outcome === "merged") merged++;
+        else if (!t.outcome) {
+          open.push(t);
+          added++;
+        }
       }
       mark(batch);
       reviewed += batch.length;
     }
-    if (added) emitChange("todos");
-    return { ok: failed < batches.length, reviewed, added, batches: batches.length, ...(failed ? { error: t("{failed} of {n} parts failed", { failed, n: batches.length }) } : {}) };
+    if (added || merged) emitChange("todos");
+    return { ok: failed < batches.length, reviewed, added, merged, batches: batches.length, ...(failed ? { error: t("{failed} of {n} parts failed", { failed, n: batches.length }) } : {}) };
   })()
     .catch((e): NoteTodosResult => {
       console.error("[note-todos]", errorMessage(e));

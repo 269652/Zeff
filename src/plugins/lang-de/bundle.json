@@ -4158,5 +4158,16 @@
   "Updating the description from your likes — a moment.": "Die Beschreibung wird aus deinen Likes aktualisiert — einen Moment.",
   "The description is gone — it grows again from what you like.": "Die Beschreibung ist weg — sie wächst wieder aus dem, was du magst.",
   "Thread": "Verlauf",
-  "Systems": "Systeme"
+  "Systems": "Systeme",
+  "Merged duplicate, from: {note}": "Duplikat zusammengeführt, aus: {note}",
+  "Duplicate sweep": "Duplikat-Bereinigung",
+  "Duplicates among the open todos, merged into the oldest": "Duplikate unter den offenen Todos, in das älteste zusammengeführt",
+  "⇄ merged": "⇄ zusammengeführt",
+  "A duplicate of this todo was merged into it — the Activity tab has the details": "Ein Duplikat dieses Todos wurde hier hineingeführt — Details im Tab Aktivität",
+  "{n} merged into open ones": "{n} in offene zusammengeführt",
+  "Duplicate todos": "Doppelte Todos",
+  "Open todos that repeat an older one (the same message or numbers, mostly the same words) merged into the oldest, which keeps its id - the gate does the same for every new todo (after each briefing)": "Offene Todos, die ein älteres wiederholen (gleiche Nachricht oder Nummern, überwiegend gleiche Wörter), werden in das älteste zusammengeführt, das seine ID behält — das Gate macht dasselbe bei jedem neuen Todo (nach jeder Lage)",
+  "{n} duplicates merged": "{n} Duplikate zusammengeführt",
+  "No duplicates.": "Keine Duplikate.",
+  "{ref} says the same already - merged into it.": "{ref} sagt schon dasselbe — hineingeführt."
 }

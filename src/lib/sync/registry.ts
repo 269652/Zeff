@@ -307,7 +307,7 @@ const STEPS: Record<SyncKey, Step> = {
       return r.ok
         ? {
             ok: true,
-            message: `${t("{reviewed} mails reviewed, {added} new todos", { reviewed: r.reviewed, added: r.added })}${r.updated ? `, ${t("{n} updated", { n: r.updated })}` : ""}${r.error ? ` (${r.error})` : ""}`,
+            message: `${t("{reviewed} mails reviewed, {added} new todos", { reviewed: r.reviewed, added: r.added })}${r.merged ? `, ${t("{n} merged into open ones", { n: r.merged })}` : ""}${r.updated ? `, ${t("{n} updated", { n: r.updated })}` : ""}${r.error ? ` (${r.error})` : ""}`,
           }
         : { ok: false, message: r.error ?? t("Failed.") };
     },
@@ -327,6 +327,18 @@ const STEPS: Record<SyncKey, Step> = {
     },
     busy: () => flag("__zeffAutoActions"),
     schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("autoactions").lastAt, window: t("workdays, with the briefing"), workdays: true }),
+  },
+  tododupes: {
+    get label() { return t("Duplicate todos"); },
+    href: "/todos",
+    get what() { return t("Open todos that repeat an older one (the same message or numbers, mostly the same words) merged into the oldest, which keeps its id - the gate does the same for every new todo (after each briefing)"); },
+    run: async () => {
+      const { mergeDuplicateTodos } = await import("@/lib/boards/dedupe");
+      const { attributed } = await import("@/lib/boards/activity");
+      const r = attributed("merge", () => mergeDuplicateTodos({ actor: "merge" }));
+      return { ok: true, message: r.merged ? t("{n} duplicates merged", { n: r.merged }) : t("No duplicates.") };
+    },
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("tododupes").lastAt, window: t("workdays, with the briefing"), workdays: true }),
   },
   boardlage: {
     get label() { return t("Board briefing"); },
@@ -373,7 +385,7 @@ const STEPS: Record<SyncKey, Step> = {
         (globalThis as { __zeffBoardRun?: { id: number } | null }).__zeffBoardRun?.id ?? null,
       );
       return r.ok
-        ? { ok: true, message: `${t("{reviewed} notes reviewed, {added} new todos", { reviewed: r.reviewed, added: r.added })}${r.error ? ` (${r.error})` : ""}` }
+        ? { ok: true, message: `${t("{reviewed} notes reviewed, {added} new todos", { reviewed: r.reviewed, added: r.added })}${r.merged ? `, ${t("{n} merged into open ones", { n: r.merged })}` : ""}${r.error ? ` (${r.error})` : ""}` }
         : { ok: false, message: r.error ?? t("Failed.") };
     },
     busy: () => flag("__zeffNoteTodos"),
@@ -402,7 +414,7 @@ const STEPS: Record<SyncKey, Step> = {
         (globalThis as { __zeffBoardRun?: { id: number } | null }).__zeffBoardRun?.id ?? null,
       );
       return r.ok
-        ? { ok: true, message: `${t("{reviewed} documents reviewed, {added} new todos", { reviewed: r.reviewed, added: r.added })}${r.error ? ` (${r.error})` : ""}` }
+        ? { ok: true, message: `${t("{reviewed} documents reviewed, {added} new todos", { reviewed: r.reviewed, added: r.added })}${r.merged ? `, ${t("{n} merged into open ones", { n: r.merged })}` : ""}${r.error ? ` (${r.error})` : ""}` }
         : { ok: false, message: r.error ?? t("Failed.") };
     },
     busy: () => flag("__zeffDocTodos"),
@@ -554,7 +566,7 @@ export function startSyncAll(): { ok: boolean; message: string } {
     void (async () => {
       try {
         // The Mail-Durchsicht and -Zuordnung come with the Ticket-Lage (its last steps) — not twice.
-        for (const key of SYNC_KEYS.filter((k) => k !== "relations" && k !== "mailtodos" && k !== "autoactions" && k !== "boardlage" && k !== "knowledgerel" && k !== "peoplenorm" && k !== "notetodos" && k !== "noterelations" && k !== "doctodos" && k !== "docrelations" && stepAvailable(k))) {
+        for (const key of SYNC_KEYS.filter((k) => k !== "relations" && k !== "mailtodos" && k !== "autoactions" && k !== "boardlage" && k !== "knowledgerel" && k !== "peoplenorm" && k !== "tododupes" && k !== "notetodos" && k !== "noterelations" && k !== "doctodos" && k !== "docrelations" && stepAvailable(k))) {
           if (l.allStopped) break;
           l.all = key;
           await runStep(key);

@@ -70,3 +70,11 @@ export function repeatsByRecord(c: { text: string; ops: TodoOp[] }, t: TodoView)
   const theirs = idsOf({ text: t.text, ops: t.ops });
   return ids.length > 0 && ids.every((x) => theirs.has(x));
 }
+
+/** Whether two operations do the same: identical, or the same message to the same one in nearly the same words. */
+export function sameOp(a: TodoOp, b: TodoOp): boolean {
+  if (JSON.stringify(a) === JSON.stringify(b)) return true;
+  const x = messageOf(a);
+  const y = messageOf(b);
+  return !!x && !!y && x.to === y.to && wordOverlap(x.body, y.body) >= 0.6;
+}

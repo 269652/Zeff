@@ -92,23 +92,13 @@ export function applyOutcome(run: WorkRun, res: WorkResult): { closed: number[];
     }
   }
 
-  // Follow-ups that only repeat an open todo are left out (their message becomes its operation).
-  const still = listTodos({ ticket: run.ticket, status: "open" });
-  const own = still.find((t) => t.id === run.todoId);
+  // A follow-up that only repeats an open todo is merged into it by the gate (addFollowUp: the oldest keeps its id,
+  // the history says the run) - never into the todo this run has just finished or closed: that one is the follow-up's
+  // reason ("Implement X" -> "Test X by hand"), not its twin. A merged one's message becomes the survivor's operation.
+  const own = getTodo(run.todoId);
   const folded: string[] = [];
   const dupes: string[] = [];
   for (const f of res.followUps) {
-    const same = sameTodo(f, [...still, ...listTodos({ ticket: run.ticket, status: "open" }).filter((t) => added.includes(t.id))]);
-    if (same) {
-      dupes.push(`${todoRef(same.id)}`);
-      // Its message: on the todo it repeats as the operation that sends it (first — before resolving
-      // the threads), else in the report.
-      const op = messageOp(f, run.ticket);
-      const now = getTodo(same.id);
-      if (op && now && !now.ops.some((o) => o.type === op.type)) setTodoOps(same.id, [op, ...now.ops]);
-      else if (f.draft && same.id === run.todoId && !op) folded.push(f.draft);
-      continue;
-    }
     const target = f.target?.trim() || null;
     const ticket = f.channel === "jira" && target && /^[A-Z][A-Z0-9]+-\d+$/i.test(target) ? target : run.ticket;
     const t = addFollowUp({
@@ -124,6 +114,16 @@ export function applyOutcome(run: WorkRun, res: WorkResult): { closed: number[];
       ops: f.ops,
       byWorker: true,
     });
+    if (t.outcome) {
+      dupes.push(todoRef(t.id));
+      // Its message: on the todo it repeats as the operation that sends it (first - before resolving
+      // the threads), else in the report.
+      const op = messageOp(f, run.ticket);
+      const now = getTodo(t.id);
+      if (op && now && !now.ops.some((o) => o.type === op.type)) setTodoOps(t.id, [op, ...now.ops]);
+      else if (f.draft && t.id === run.todoId && !op) folded.push(f.draft);
+      continue;
+    }
     added.push(t.id);
   }
   // Every run leaves its summary on its todo as a comment — open or done now — with where its pushed work is.

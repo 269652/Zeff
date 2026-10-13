@@ -967,8 +967,12 @@ export const todos = sqliteTable(
       .notNull()
       .default(sql`(CURRENT_TIMESTAMP)`),
     doneAt: text("done_at"),
+    /** Set: this todo was a duplicate and went into that one (the oldest keeps its id) - it is closed (dismissed) and every reference follows the survivor. */
+    mergedInto: integer("merged_into"),
+    /** When this todo last absorbed a duplicate: it counts as new again (the blue highlight) from then on. */
+    mergedAt: text("merged_at"),
   },
-  (t) => [index("todos_ticket_idx").on(t.ticket), index("todos_status_idx").on(t.status)],
+  (t) => [index("todos_ticket_idx").on(t.ticket), index("todos_status_idx").on(t.status), index("todos_merged_into_idx").on(t.mergedInto)],
 );
 
 /**
@@ -980,7 +984,7 @@ export const todoEvents = sqliteTable(
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
     todoId: integer("todo_id").notNull(),
-    /** created | done | dismissed | reopened */
+    /** created | done | dismissed | reopened | merged (a duplicate went into the todo, or the todo went into another) */
     event: text("event").notNull(),
     fromStatus: text("from_status"),
     /** The todo as it was then. */

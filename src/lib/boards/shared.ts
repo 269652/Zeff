@@ -328,6 +328,10 @@ export type TodoView = {
   byWorker: boolean;
   /** Other tickets it's about too (linked: the same thing on two tickets); `ticket` is the main one. */
   alsoTickets: string[];
+  /** Set: this todo was a duplicate and went into that one (it is closed; /t/<id> leads there). */
+  mergedInto?: number | null;
+  /** When it last absorbed a duplicate - new to you again from then. */
+  mergedAt?: string | null;
   /** The mails the mail relation run related to it ("mail:<key>") — in `refs` too, as context like the rest. */
   mailRefs: string[];
   /** Its operations were proposed by the auto-actions review — why they fit. */

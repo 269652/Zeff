@@ -119,9 +119,9 @@ export function ActivityList({ events }: { events: TodoEventView[] }) {
                             </span>
                           ),
                       })}
-                      {e.event !== "created" && e.openNow && e.event !== "reopened" && <> · {t("reopened")}</>}
+                      {e.event !== "created" && e.openNow && e.event !== "reopened" && e.event !== "merged" && <> · {t("reopened")}</>}
                     </div>
-                    {e.note && <div className="mt-0.5 text-xs whitespace-pre-line text-zinc-500 dark:text-zinc-400"><TodoRefs text={e.event === "created" ? t("Source: {note}", { note: e.note }) : e.note} /></div>}
+                    {e.note && <div className="mt-0.5 text-xs whitespace-pre-line text-zinc-500 dark:text-zinc-400"><TodoRefs text={e.event === "created" ? t("Source: {note}", { note: e.note }) : e.event === "merged" ? t("Merged duplicate, from: {note}", { note: e.note }) : e.note} /></div>}
                   </div>
                 </li>
               );

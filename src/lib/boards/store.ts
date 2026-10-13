@@ -1,7 +1,8 @@
 import { parseTodoKnowledge } from "@/plugins/knowledge/shared";
-import { duplicateTodo, repeatsByRecord, similarText } from "./similar";
+import { repeatsByRecord, similarText } from "./similar";
+import { absorb, mergeInto } from "./merge";
 import { jiraNoteBody } from "@/plugins/people/accounts";
-import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { emitChange } from "@/lib/events";
 import type { BoardRun, BoardSettings, Todo } from "@/db/schema";
@@ -192,6 +193,8 @@ const toTodo = (r: Todo): TodoView => {
   createdAt: iso(r.createdAt),
   updatedAt: iso(r.updatedAt),
   doneAt: r.doneAt && iso(r.doneAt),
+  mergedInto: r.mergedInto ?? null,
+  mergedAt: r.mergedAt && iso(r.mergedAt),
   };
 };
 
@@ -294,14 +297,14 @@ export function listTodos(opts: { ticket?: string; status?: TodoStatus | "all"; 
 /** These tickets' todos as the Todos page shows them: the open ones, and those closed in the last `days`. */
 export function boardTodos(tickets: string[], days = 7): TodoView[] {
   const since = new Date(Date.now() - days * 864e5).toISOString();
-  return listTodos({ status: "all", tickets }).filter((t) => !t.byWorker && (t.status === "open" || (t.doneAt ?? "") >= since));
+  return listTodos({ status: "all", tickets }).filter((t) => !t.byWorker && !t.mergedInto && (t.status === "open" || (t.doneAt ?? "") >= since));
 }
 
 /** The workers' own todos (the Todos page's "Worker" tab): the open ones, then those closed lately — newest first. */
 export function workerTodos(days = 14): TodoView[] {
   const since = new Date(Date.now() - days * 864e5).toISOString();
   return listTodos({ status: "all" })
-    .filter((t) => t.byWorker && (t.status === "open" || (t.doneAt ?? "") >= since))
+    .filter((t) => t.byWorker && !t.mergedInto && (t.status === "open" || (t.doneAt ?? "") >= since))
     .sort((a, b) => Number(b.status === "open") - Number(a.status === "open") || b.id - a.id);
 }
 
@@ -310,7 +313,7 @@ export function doneTodos(limit = 300): TodoView[] {
   return getDb()
     .select()
     .from(todos)
-    .where(and(inArray(todos.status, ["done", "dismissed"]), eq(todos.byWorker, false)))
+    .where(and(inArray(todos.status, ["done", "dismissed"]), eq(todos.byWorker, false), isNull(todos.mergedInto)))
     .orderBy(desc(todos.doneAt), desc(todos.id))
     .limit(limit)
     .all()
@@ -343,7 +346,7 @@ export function doneTodoTickets(limit = 300): { count: number; tickets: string[]
   const rows = getDb()
     .select({ ticket: todos.ticket })
     .from(todos)
-    .where(and(inArray(todos.status, ["done", "dismissed"]), eq(todos.byWorker, false)))
+    .where(and(inArray(todos.status, ["done", "dismissed"]), eq(todos.byWorker, false), isNull(todos.mergedInto)))
     .orderBy(desc(todos.doneAt), desc(todos.id))
     .limit(limit)
     .all();
@@ -506,13 +509,13 @@ const RECENTLY_CLOSED_DAYS = 3;
  */
 export function existingTodoFor(
   c: { ticket: string; text: string; ops?: unknown[]; target?: string | null },
-  opts: { closed?: boolean; planned?: boolean } = {},
+  opts: { closed?: boolean; planned?: boolean; skipId?: number | null } = {},
 ): TodoView | undefined {
   const ticket = c.ticket.trim().toUpperCase();
   const text = c.text.trim();
   const ops = cleanOps(c.ops, ticket);
   const onTicket = (t: TodoView) => (ticket ? t.ticket === ticket || t.alsoTickets.includes(ticket) : !t.ticket);
-  const open = listTodos({ status: "open" });
+  const open = listTodos({ status: "open" }).filter((t) => t.id !== opts.skipId);
   const byWords = open.find((t) => repeatsByRecord({ text, ops }, t) || (onTicket(t) && similarText(text, t.text)));
   if (byWords) return byWords;
   if (opts.planned !== false) {
@@ -521,7 +524,7 @@ export function existingTodoFor(
   }
   if (opts.closed) {
     const since = new Date(Date.now() - RECENTLY_CLOSED_DAYS * 864e5).toISOString();
-    return listTodos({ status: "all" }).find((t) => t.status !== "open" && onTicket(t) && (t.doneAt ?? "") >= since && similarText(text, t.text));
+    return listTodos({ status: "all" }).find((t) => t.status !== "open" && !t.mergedInto && onTicket(t) && (t.doneAt ?? "") >= since && similarText(text, t.text));
   }
   return undefined;
 }
@@ -543,6 +546,72 @@ function planOnto(todoId: number, steps: TodoStep[]): void {
   if (!fresh.length) return;
   const planned: TodoPath[] = t.planned.length ? [{ ...t.planned[0], steps: [...t.planned[0].steps, ...fresh].slice(0, 7) }, ...t.planned.slice(1)] : [{ path: null, steps: fresh.slice(0, 7) }];
   getDb().update(todos).set({ planned: JSON.stringify(planned), updatedAt: new Date().toISOString() }).where(eq(todos.id, todoId)).run();
+}
+
+/** A todo as a creation path hands it over to the gate. */
+export type TodoCandidate = {
+  ticket: string;
+  text: string;
+  kind?: string;
+  owner?: "me" | "other";
+  ops?: unknown[];
+  refs?: string[];
+  mailRefs?: string[];
+  due?: string | null;
+  draft?: string | null;
+  channel?: string | null;
+  target?: string | null;
+  planned?: TodoView["planned"];
+  runId?: number | null;
+  workRunId?: number | null;
+  byWorker?: boolean;
+  /** Where it comes from, in words (the history says it: "Mail-Durchsicht", "Follow-up from W-45"). */
+  source: string | null;
+  actor?: string | null;
+};
+
+/** What a creation path gets back: the todo, and what became of the candidate ("merged" into an older open todo; "known": it repeats one dealt with or planned - nothing made; none: a new todo). */
+export type Gated = TodoView & { outcome?: "merged" | "known" };
+
+/**
+ * THE gate every todo creation goes through before it inserts a row. A candidate that repeats open todos
+ * (the same message / numbers on record, or mostly the same words - on any ticket) makes no row: the OLDEST
+ * of them keeps its id and absorbs it (refs, operations, the earlier deadline, its wording as a note - see
+ * absorb), and any further open duplicates already there are merged into that oldest too. The survivor is
+ * touched (new to you again) and its history says what came from where. A candidate that repeats a todo planned
+ * as a step, or one done / dropped lately (`closed`), is "known": nothing is made, nothing merged into closed
+ * ones. `skipId`: a todo that never takes the candidate (a follow-up's parent that its run is closing - the
+ * follow-up exists because of it). Null: it's new, the caller inserts it.
+ */
+export function gateTodo(c: TodoCandidate, opts: { closed?: boolean; planned?: boolean; skipId?: number | null; anyTicket?: boolean } = {}): Gated | null {
+  const ticket = c.ticket.trim().toUpperCase();
+  const text = c.text.trim();
+  const ops = cleanOps(c.ops, ticket);
+  // The same message / numbers is the same anywhere; mostly the same words only on its own ticket - except the Ticket-Lage's
+  // (`anyTicket`: it says the same thing on two tickets, which then get linked on the todo).
+  const here = (t: TodoView) => (ticket ? t.ticket === ticket || t.alsoTickets.includes(ticket) : !t.ticket);
+  const same = listTodos({ status: "open" }).filter(
+    (t) => t.id !== opts.skipId && (repeatsByRecord({ text, ops }, t) || (similarText(text, t.text) && (here(t) || opts.anyTicket))),
+  );
+  if (same.length) {
+    const [oldest, ...rest] = same;
+    const actor = c.actor ?? (c.workRunId ? `work:${c.workRunId}` : c.runId ? `lage:${c.runId}` : null);
+    absorb(oldest.id, { ...c, ticket, text, ops, actor, from: c.source ?? "" });
+    for (const r of rest) mergeInto(oldest.id, r.id, actor);
+    // The same thing on another ticket: the tickets are linked on the todo (the original its main one).
+    if (ticket && oldest.ticket !== ticket && !oldest.alsoTickets.includes(ticket)) linkTodoTicket(oldest.id, ticket);
+    // A todo a worker made, wanted by you now: it comes onto your list.
+    if (oldest.byWorker && c.byWorker === false) getDb().update(todos).set({ byWorker: false }).where(eq(todos.id, oldest.id)).run();
+    emitChange("todos");
+    return { ...getTodo(oldest.id)!, outcome: "merged" };
+  }
+  const had = existingTodoFor({ ticket, text, ops, target: c.target }, opts);
+  if (!had) return null;
+  if (had.status === "open") {
+    planOnto(had.id, c.planned?.flatMap((p) => p.steps) ?? []);
+    addRefsTo(had, c.refs ?? []);
+  }
+  return { ...had, outcome: "known" };
 }
 
 /**
@@ -567,17 +636,19 @@ export function addFollowUp(v: {
   /** What comes after it (a planned step's rest), and the alternative path it's on. */
   planned?: TodoView["planned"];
   path?: string | null;
-}): TodoView {
-  // What a worker or a plan makes again isn't made: the todo it repeats is the answer (its plan takes what comes after).
-  const had = existingTodoFor({ ticket: v.ticket, text: v.text, ops: v.ops, target: v.target }, { closed: !!v.byWorker || /^Follow-up from/.test(v.source), planned: !/^Planned after/.test(v.source) });
-  if (had) {
-    if (had.status === "open") planOnto(had.id, v.planned?.flatMap((p) => p.steps) ?? []);
-    return had;
-  }
-  emitChange("todos");
-  const now = new Date().toISOString();
+}): Gated {
   const target = v.target?.trim() || null;
   const refs = target && /^(jira-comment|teams|gitlab):./.test(target) ? [target] : [];
+  // What a worker or a plan makes again isn't made: the todo it repeats absorbs it (its plan takes what comes after).
+  // Its parent - the todo its run has just marked done (or closed) - is the follow-up's reason, never its twin: that one isn't merged into.
+  const parent = v.parentId ? getTodo(v.parentId) : undefined;
+  const g = gateTodo(
+    { ticket: v.ticket, text: v.text, kind: v.kind, owner: v.owner, ops: v.ops, refs, draft: v.draft, channel: v.channel, target, planned: v.planned, workRunId: v.workRunId, byWorker: !!v.byWorker, source: v.source },
+    { closed: !!v.byWorker || /^Follow-up from/.test(v.source), planned: !/^Planned after/.test(v.source), skipId: parent && (parent.status !== "open" || parent.workerDone) ? parent.id : null },
+  );
+  if (g) return g;
+  emitChange("todos");
+  const now = new Date().toISOString();
   const row = getDb()
     .insert(todos)
     .values({
@@ -610,9 +681,9 @@ export function addFollowUp(v: {
  * A todo the Mail-Durchsicht found in a mail (a training to do, a form to fill in …): on a ticket
  * when it's about one, else on none (ticket "") — with the mails it came from.
  */
-export function addMailTodo(v: { ticket: string; text: string; kind: string; owner?: "me" | "other"; refs: string[]; runId: number | null; due?: string | null }): TodoView {
-  const had = existingTodoFor({ ticket: v.ticket, text: v.text }, { closed: true });
-  if (had) return (addRefsTo(had, v.refs.filter((r) => r.startsWith("mail:") || r.startsWith("fact:"))), had);
+export function addMailTodo(v: { ticket: string; text: string; kind: string; owner?: "me" | "other"; refs: string[]; runId: number | null; due?: string | null }): Gated {
+  const g = gateTodo({ ticket: v.ticket, text: v.text, kind: v.kind, owner: v.owner, refs: v.refs.filter((r) => r.startsWith("mail:") || r.startsWith("fact:")), due: v.due, runId: v.runId, byWorker: false, source: "Mail-Durchsicht" }, { closed: true });
+  if (g) return g;
   emitChange("todos");
   const now = new Date().toISOString();
   const row = getDb()
@@ -637,9 +708,9 @@ export function addMailTodo(v: { ticket: string; text: string; kind: string; own
 
 /** A todo from the Notiz-Durchsicht (Keep's extension): what a note asks of you, the notes as its source. */
 /** A todo from a document (the Dokument-Durchsicht): what the document asks of you, due when it says so; the document is its source. */
-export function addDocTodo(v: { ticket: string; text: string; kind: string; owner?: "me" | "other"; refs: string[]; runId: number | null; due?: string | null }): TodoView {
-  const had = existingTodoFor({ ticket: v.ticket, text: v.text }, { closed: true });
-  if (had) return (addRefsTo(had, v.refs.filter((r) => r.startsWith("doc:"))), had);
+export function addDocTodo(v: { ticket: string; text: string; kind: string; owner?: "me" | "other"; refs: string[]; runId: number | null; due?: string | null }): Gated {
+  const g = gateTodo({ ticket: v.ticket, text: v.text, kind: v.kind, owner: v.owner, refs: v.refs.filter((r) => r.startsWith("doc:")), due: v.due, runId: v.runId, byWorker: false, source: "Dokument-Durchsicht" }, { closed: true });
+  if (g) return g;
   emitChange("todos");
   const now = new Date().toISOString();
   const row = getDb()
@@ -662,9 +733,9 @@ export function addDocTodo(v: { ticket: string; text: string; kind: string; owne
   return toTodo(row);
 }
 
-export function addNoteTodo(v: { ticket: string; text: string; kind: string; owner?: "me" | "other"; refs: string[]; runId: number | null; due?: string | null }): TodoView {
-  const had = existingTodoFor({ ticket: v.ticket, text: v.text }, { closed: true });
-  if (had) return (addRefsTo(had, v.refs.filter((r) => r.startsWith("keep:"))), had);
+export function addNoteTodo(v: { ticket: string; text: string; kind: string; owner?: "me" | "other"; refs: string[]; runId: number | null; due?: string | null }): Gated {
+  const g = gateTodo({ ticket: v.ticket, text: v.text, kind: v.kind, owner: v.owner, refs: v.refs.filter((r) => r.startsWith("keep:")), due: v.due, runId: v.runId, byWorker: false, source: "Notiz-Durchsicht" }, { closed: true });
+  if (g) return g;
   emitChange("todos");
   const now = new Date().toISOString();
   const row = getDb()
@@ -694,6 +765,7 @@ export function addNoteTodo(v: { ticket: string; text: string; kind: string; own
  */
 export function addCalendarTodo(v: { text: string; due: string; ref: string; source: string }): TodoView | null {
   if (getDb().select({ id: todos.id }).from(todos).where(sql`${todos.refs} like ${`%"${v.ref}"%`}`).get()) return null;
+  // (No gate: each occurrence is its own todo on its own day - "Daily (09:00)" repeats by nature, and its ref says which.)
   emitChange("todos");
   const now = new Date().toISOString();
   const row = getDb()
@@ -704,7 +776,9 @@ export function addCalendarTodo(v: { text: string; due: string; ref: string; sou
   return toTodo(row);
 }
 
-export function addManualTodo(v: { ticket: string; text: string }): TodoView {
+export function addManualTodo(v: { ticket: string; text: string }): Gated {
+  const g = gateTodo({ ticket: v.ticket, text: v.text, byWorker: false, source: "From you", actor: "you" });
+  if (g) return g;
   emitChange("todos");
   const now = new Date().toISOString();
   const row = getDb()
@@ -716,7 +790,9 @@ export function addManualTodo(v: { ticket: string; text: string }): TodoView {
 }
 
 /** A todo for a work session (Work: a new session — on a ticket, or none): your instruction's first line. */
-export function addSessionTodo(v: { ticket: string; text: string }): TodoView {
+export function addSessionTodo(v: { ticket: string; text: string }): Gated {
+  const g = gateTodo({ ticket: v.ticket, text: v.text, byWorker: false, source: "Work-Session", actor: "you" });
+  if (g) return g;
   emitChange("todos");
   const now = new Date().toISOString();
   const row = getDb()
@@ -919,14 +995,12 @@ export function setTodoDraft(id: number, v: { draft: string | null; channel?: st
  * (numbered), one it found done or overtaken closed with its reason. Open ones it didn't
  * mention stay as they are. How many of each.
  */
-export function reconcileTodos(result: BoardResult, runId: number): { added: number; kept: number; closed: number } {
+export function reconcileTodos(result: BoardResult, runId: number): { added: number; kept: number; closed: number; merged: number } {
   emitChange("todos");
-  const out = { added: 0, kept: 0, closed: 0 };
+  const out = { added: 0, kept: 0, closed: 0, merged: 0 };
   const now = new Date().toISOString();
   const resolved: number[] = [];
   // (The Lage's own operations aren't taken: a todo's actions are the auto-actions step's.)
-  // What's open on any ticket: a new todo repeating one of them isn't made again.
-  const openAll = listTodos({ status: "open" });
   getDb().transaction((tx) => {
     for (const t of result.tickets) {
       const ticket = t.key.trim().toUpperCase();
@@ -987,24 +1061,18 @@ export function reconcileTodos(result: BoardResult, runId: number): { added: num
           open.delete(td.id);
           out.kept++;
         } else {
-          // Already open (here or on another ticket — the same message, the same numbers, the same
-          // words): not made twice; what this one came from goes onto that one.
-          const dup = duplicateTodo({ text: values.text, ops: JSON.parse(values.ops) as TodoOp[] }, openAll) ?? existingTodoFor({ ticket, text: values.text, ops: JSON.parse(values.ops) as unknown[] }, { closed: true });
-          if (dup && dup.status !== "open") {
-            out.kept++; // dealt with lately: not made again
+          // Already open (here or on another ticket - the same message, the same numbers, the same
+          // words): not made twice; the oldest of them takes this one in (the gate), its history says the run.
+          const g = gateTodo(
+            { ticket, text: values.text, kind: values.kind, owner: values.owner as "me" | "other", refs: JSON.parse(values.refs) as string[], due: dueDay(td.due), planned: plan, runId, byWorker: false, source: `Ticket-Lage #${runId}${values.source ? ` (${values.source})` : ""}` },
+            { closed: true, anyTicket: true },
+          );
+          if (g) {
+            if (g.outcome === "merged") out.merged++;
+            out.kept++; // already there (merged into it) or dealt with lately: not made again
             continue;
           }
-          if (dup) {
-            const own = dup.refs.filter((r) => !dup.mailRefs.includes(r)); // the related mails stay in their own column
-            const refs = [...new Set([...own, ...(JSON.parse(values.refs) as string[])])].slice(0, 15);
-            tx.update(todos).set({ refs: JSON.stringify(refs), updatedAt: now }).where(eq(todos.id, dup.id)).run();
-            // On another ticket: the two tickets are about the same thing — linked on the todo (the original its main one).
-            if (dup.ticket !== ticket) linkTodoTicket(dup.id, ticket, tx);
-            out.kept++;
-            continue;
-          }
-          const row = tx.insert(todos).values({ ticket, ...values, planned: JSON.stringify(plan) }).returning().get();
-          openAll.push(toTodo(row));
+          tx.insert(todos).values({ ticket, ...values, planned: JSON.stringify(plan) }).run();
           out.added++;
         }
       }

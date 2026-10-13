@@ -73,6 +73,7 @@ export function todoActivity(opts: { days?: number; limit?: number } = {}): Todo
     if (!actor) return { label: t("unknown"), title: t("Not attributed by Zeff (before the activity log, or a path without a sender)") };
     if (actor === "you") return { label: t("You") };
     if (actor === "jira") return { label: t("Jira sync"), title: t("The ticket is done in Jira") };
+    if (actor === "merge") return { label: t("Duplicate sweep"), title: t("Duplicates among the open todos, merged into the oldest") };
     if (actor === "plan") return { label: t("Plan"), title: t("A planned step (after the todo before it, or another path was taken)") };
     const agent = /^agent:(.*)$/.exec(actor);
     if (agent) return { label: agent[1]?.trim() ? t("Agent {name}", { name: agent[1].trim() }) : t("Agent"), title: t("Through Zeff's MCP server") };

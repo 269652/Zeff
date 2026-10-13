@@ -105,7 +105,7 @@ Unter „Was ich verworfen habe“ stehen Vorschläge, die ich nicht wollte (mit
 const SIGNAL_NOTE = "Einträge im Ordner „Signal“ sind ebenfalls keine Mails, sondern Signal-Chats — genauso zu lesen wie die WhatsApp-Chats (Betreff = Chat, Absender = wer schrieb, „Ich“ = ich selbst).";
 
 const state = globalThis as unknown as { __zeffMailTodos?: Promise<MailTodosResult> | null };
-export type MailTodosResult = { ok: boolean; reviewed: number; added: number; updated?: number; batches: number; error?: string };
+export type MailTodosResult = { ok: boolean; reviewed: number; added: number; /** New todos that repeated an open one and were merged into it. */ merged?: number; updated?: number; batches: number; error?: string };
 
 /** Words too common to tell a topic by (German, English, mail and chat filler). */
 const STOP = new Set(
@@ -381,6 +381,12 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
     }
 
     let added = 0;
+    let merged = 0;
+    // A todo the gate made (new) or took in (merged into an older open one); one it knows already is neither.
+    const counted = (t: { outcome?: string }) => {
+      if (!t.outcome) added++;
+      else if (t.outcome === "merged") merged++;
+    };
     let updated = 0;
     let failed = 0;
     let reviewed = theirs.length;
@@ -435,12 +441,13 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
             if (dueDay(f.due)) setTodoDue(planned.id, f.due!);
             continue;
           }
-          if (duplicateTodo({ text, ops: [] }, open) || duplicateTodo({ text, ops: [] }, dropped)) continue;
+          // One you dropped isn't made again; one that repeats an open todo is merged into it (the gate).
+          if (!duplicateTodo({ text, ops: [] }, open) && duplicateTodo({ text, ops: [] }, dropped)) continue;
           const t = attributed(runId ? `lage:${runId}` : "mail", () =>
             addMailTodo({ ticket: todo.ticket, text, kind: "other", owner: "me", refs: [...refs, ...factRefs], runId, due: f.due ?? null }),
           );
-          open.push(t);
-          added++;
+          if (!t.outcome) open.push(t);
+          counted(t);
         }
         updated++;
       }
@@ -456,12 +463,12 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
         const refs = (td.refs ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).map((r) => (r.startsWith("mail:") ? r : `mail:${r}`)).filter((r) => known.has(r));
         if (!text || !refs.length) continue;
         const ticket = td.ticket?.trim().toUpperCase() ?? "";
-        if (duplicateTodo({ text, ops: [] }, open) || (!refs.some((r) => must.has(r)) && duplicateTodo({ text, ops: [] }, dropped))) continue;
+        if (!duplicateTodo({ text, ops: [] }, open) && !refs.some((r) => must.has(r)) && duplicateTodo({ text, ops: [] }, dropped)) continue;
         const t = attributed(runId ? `lage:${runId}` : "mail", () =>
           addMailTodo({ ticket: tickets.includes(ticket) ? ticket : "", text, kind: isTodoKind(td.kind) ? td.kind : "other", owner: td.owner === "other" ? "other" : "me", refs, runId, due: td.due ?? null }),
         );
-        open.push(t);
-        added++;
+        if (!t.outcome) open.push(t);
+        counted(t);
       }
       // The must-do mails the AI left without a todo: one from Zeff itself — none is missed.
       const answered = new Set(
@@ -470,19 +477,20 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
       const mailOf = (key: string) => batch.find((m) => m.key === key) ?? getDb().select().from(emails).where(sql`${emails.key} = ${key}`).get();
       for (const left of mustDoLeftOut(batch, answered, open, mailOf)) {
         const t = attributed(runId ? `lage:${runId}` : "mail", () => addMailTodo({ ticket: "", text: left.text, kind: "other", owner: "me", refs: left.mails.map((m) => `mail:${m.key}`), runId }));
-        open.push(t);
-        added++;
+        if (!t.outcome) open.push(t);
+        counted(t);
       }
       markReviewed(batch.map((m) => m.key));
       reviewed += batch.length;
     }
-    if (added || updated) emitChange("todos");
+    if (added || merged || updated) emitChange("todos");
     // Your notes up to now are looked at (a failed run looks again next time).
     if (failed < batches.length) setPref("mailtodos:notes-at", startedAt);
     return {
       ok: failed < batches.length,
       reviewed,
       added,
+      merged,
       updated,
       batches: batches.length,
       ...(failed ? { error: `${failed} von ${batches.length} Teilen fehlgeschlagen` } : {}),
