@@ -102,6 +102,7 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
   const sentinel = useRef<HTMLDivElement>(null);
   const busy = useRef(false);
   const offset = useRef(initial.length);
+  const pagesRead = useRef(0);
   const scroller = useRef<HTMLElement | null>(null);
 
   // Columns by the width.
@@ -243,6 +244,8 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
       });
       setAgo((cur) => ({ ...cur, ...r.ago }));
       setDone(r.done);
+      // While you scroll, Zeff searches on in the background (every third page; the server keeps its own pace) — "N new" says when there is more.
+      if (view !== "discover" && ++pagesRead.current % 3 === 0) void fetch("/api/news/discover-bg", { method: "POST" }).catch(() => undefined);
     } catch {
       setDone(true);
     } finally {

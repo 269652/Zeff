@@ -120,6 +120,8 @@ export function NewsCard({ item, ago, showImage, onChange, onDrop, onFollow, fol
     });
   const read = item.state === "read";
   const btn = (on: boolean) => `btn btn-sm ${on ? "btn-primary" : ""}`;
+  const ico = (on: boolean) => `px-3 py-1 text-sm transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:hover:bg-zinc-800 ${on ? "bg-indigo-100 dark:bg-indigo-950" : ""}`;
+  const lnk = (on: boolean) => `rounded px-1 py-0.5 hover:bg-zinc-100 disabled:opacity-50 dark:hover:bg-zinc-800 ${on ? "font-semibold text-indigo-600 dark:text-indigo-300" : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`;
   const toggleReader = () => {
     if (reader.open) return setReader({ ...reader, open: false });
     if (reader.text) return setReader({ ...reader, open: true });
@@ -220,41 +222,48 @@ export function NewsCard({ item, ago, showImage, onChange, onDrop, onFollow, fol
             ))}
           </p>
         )}
-        <div className="flex flex-wrap items-center gap-1">
+        <div className="flex items-center gap-2 pt-1">
           <button type="button" className={btn(reader.open)} disabled={pending} onClick={toggleReader} title={item.hasContent ? t("The whole article, read here") : t("Fetches the article and shows its text here")}>
             {reader.open ? t("Close") : item.hasContent ? t("Read here") : t("Read")}
           </button>
-          {reader.open && reader.text && <ListenButton text={`${item.title}.\n\n${reader.text}`} lang="de" />}
+          {reader.open && reader.text && <ListenButton text={`${item.title}.
+
+${reader.text}`} lang="de" />}
           <span className="flex-1" />
-          <button type="button" className={btn(item.vote === 1)} disabled={pending} title={t("More like this")} onClick={() => run(() => newsVoteAction(item.id, item.vote === 1 ? 0 : 1), { vote: item.vote === 1 ? 0 : 1 })}>
-            👍
-          </button>
-          <button type="button" className={btn(item.vote === -1)} disabled={pending} title={t("Less like this")} onClick={() => run(() => newsVoteAction(item.id, item.vote === -1 ? 0 : -1), { vote: item.vote === -1 ? 0 : -1 })}>
-            👎
-          </button>
-          <button
-            type="button"
-            className={btn(item.state === "saved")}
-            disabled={pending}
-            title={item.state === "saved" ? t("Not saved any more") : t("Save for later")}
-            onClick={() => run(() => newsStateAction(item.id, item.state === "saved" ? "read" : "saved"), { state: item.state === "saved" ? "read" : "saved" })}
-          >
-            🔖
-          </button>
+          <span className="inline-flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
+            <button type="button" className={ico(item.vote === 1)} disabled={pending} title={t("More like this")} onClick={() => run(() => newsVoteAction(item.id, item.vote === 1 ? 0 : 1), { vote: item.vote === 1 ? 0 : 1 })}>
+              👍
+            </button>
+            <button type="button" className={`${ico(item.vote === -1)} border-l border-zinc-200 dark:border-zinc-700`} disabled={pending} title={t("Less like this")} onClick={() => run(() => newsVoteAction(item.id, item.vote === -1 ? 0 : -1), { vote: item.vote === -1 ? 0 : -1 })}>
+              👎
+            </button>
+            <button
+              type="button"
+              className={`${ico(item.state === "saved")} border-l border-zinc-200 dark:border-zinc-700`}
+              disabled={pending}
+              title={item.state === "saved" ? t("Not saved any more") : t("Save for later")}
+              onClick={() => run(() => newsStateAction(item.id, item.state === "saved" ? "read" : "saved"), { state: item.state === "saved" ? "read" : "saved" })}
+            >
+              🔖
+            </button>
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-zinc-100 pt-2 text-xs dark:border-zinc-800">
           {onMoreLike && (
-            <button type="button" className={btn(following === `like:${item.id}`)} disabled={pending} onClick={onMoreLike} title={t("More like this: the AI reads it, thinks about what you like and know, searches the internet and puts the best finds below")}>
+            <button type="button" className={lnk(following === `like:${item.id}`)} disabled={pending} onClick={onMoreLike} title={t("More like this: the AI reads it, thinks about what you like and know, searches the internet and puts the best finds below")}>
               ✨ {t("More like this")}
             </button>
           )}
-          <button type="button" className={btn(thread.open)} disabled={pending} onClick={toggleThread} title={t("Follow the thread: other reports on this story")}>
-            🧵
+          <button type="button" className={lnk(thread.open)} disabled={pending} onClick={toggleThread} title={t("Follow the thread: other reports on this story")}>
+            🧵 {t("Thread")}
           </button>
+          <span className="flex-1" />
           {(item.sourceId || topic) && (
-            <button type="button" className={btn(menu)} disabled={pending} title={t("Stop this feed …")} aria-expanded={menu} onClick={() => setMenu(!menu)}>
+            <button type="button" className={lnk(menu)} disabled={pending} title={t("Stop this feed …")} aria-expanded={menu} onClick={() => setMenu(!menu)}>
               ⋯
             </button>
           )}
-          <button type="button" className="btn btn-sm" disabled={pending} title={item.state === "hidden" ? t("Show again") : t("Hide")} onClick={() => run(() => newsStateAction(item.id, item.state === "hidden" ? "new" : "hidden"), { state: item.state === "hidden" ? "new" : "hidden" })}>
+          <button type="button" className={lnk(false)} disabled={pending} title={item.state === "hidden" ? t("Show again") : t("Hide")} onClick={() => run(() => newsStateAction(item.id, item.state === "hidden" ? "new" : "hidden"), { state: item.state === "hidden" ? "new" : "hidden" })}>
             {item.state === "hidden" ? "↩" : "✕"}
           </button>
         </div>
