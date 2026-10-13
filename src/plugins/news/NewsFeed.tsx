@@ -373,7 +373,7 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
   return (
     <div ref={box} className="space-y-4">
       {stage && <MagicStage item={stage.item} from={stage.from} done={stage.done} onGone={endStage} showImage={showImages} />}
-      {fresh > 0 && (
+      {fresh > 0 && view !== "discover" && (
         <button type="button" className="btn btn-primary btn-sm sticky top-2 z-30 mx-auto block shadow" onClick={() => window.location.reload()}>
           ↑ {t("{n} new — show", { n: fresh })}
         </button>

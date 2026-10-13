@@ -437,7 +437,7 @@ export function tasteSignals(limit = 24): { id: number; kind: "like" | "save" | 
 }
 
 /** The unseen items still to read (what Discover matches the taste against). */
-export function unreadForMatching(days: number, limit = 3000): { id: number; title: string; summary: string; terms: string[] }[] {
+export function unreadForMatching(days: number, limit = 20000): { id: number; title: string; summary: string; terms: string[] }[] {
   const rows = db()
     .prepare("select i.id, i.title, i.summary, i.tags from news_items i left join news_sources s on s.id = i.source_id where i.seen_at is null and i.state = 'new' and i.score > -50 and i.published_at > ? and (i.source_id is null or s.enabled = 1) order by i.published_at desc limit ?")
     .all(new Date(Date.now() - days * 864e5).toISOString(), limit) as { id: number; title: string; summary: string; tags: string }[];

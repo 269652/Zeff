@@ -84,12 +84,13 @@ async function run(deps: DiscoverDeps): Promise<DiscoverStatus> {
 
   // The matches go into the Discover view as soon as there are some, again after each step — an open feed picks them up while it runs.
   let matched = 0;
-  const match = () => {
-    const scored = matchTaste(taste, unreadForMatching(Math.max(prefs.maxAgeDays, 7)));
-    // Relative to the best match (a long description is only ever a little "close" to a short headline): the better part of the field, 40–150 cards.
+  // (In between the newest few thousand — quick; at the end everything unread that is kept.)
+  const match = (limit = 3000) => {
+    const scored = matchTaste(taste, unreadForMatching(Math.max(prefs.keepDays, prefs.maxAgeDays, 7), limit));
+    // Everything with something in common with the taste, the closest first (a long description is only ever a little "close" to a short headline, so the floor is a fraction of the best): thousands, not a hundred.
     const top = scored[0]?.score ?? 0;
-    const floor = Math.max(0.015, top * 0.3);
-    const keep = scored.filter((x, i) => x.score > 0 && (x.score >= floor || i < 40)).slice(0, 150);
+    const floor = Math.max(0.005, top * 0.06);
+    const keep = scored.filter((x, i) => x.score > 0 && (x.score >= floor || i < 200)).slice(0, 8000);
     setSimilar(-1, keep.map((s) => ({ id: s.id, score: Math.max(0.001, s.score), why: "" })));
     matched = keep.length;
     set({ matched });
@@ -143,7 +144,7 @@ async function run(deps: DiscoverDeps): Promise<DiscoverStatus> {
   } catch {
     // tags are a bonus
   }
-  match();
+  match(20000);
   return set({
     running: false,
     phase: "",
