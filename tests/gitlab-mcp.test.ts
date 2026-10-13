@@ -16,12 +16,12 @@ test("agents over MCP read a merge request's review comments and can't answer on
   const { registerZeffTools } = await import("@/mcp/server");
   const tools: Record<string, (a: Record<string, unknown>) => Promise<{ content: { text: string }[]; isError?: boolean }>> = {};
   registerZeffTools({ registerTool: (name: string, _c: unknown, fn: never) => void (tools[name] = fn) } as never);
-  for (const n of ["gitlab_mr_comments", "gitlab_reply", "gitlab_resolve", "gitlab_comment"]) assert.ok(tools[n], n);
-  const all = await tools.gitlab_mr_comments({ mr: "!179" });
+  for (const n of ["mr_comments", "mr_reply", "mr_resolve", "mr_comment"]) assert.ok(tools[n], n);
+  const all = await tools.mr_comments({ mr: "!179" });
   assert.match(all.content[0].text, /\[note:1\][\s\S]*File Check[\s\S]*\[note:2\]/);
-  const open = await tools.gitlab_mr_comments({ mr: "!179", unresolvedOnly: true });
+  const open = await tools.mr_comments({ mr: "!179", unresolvedOnly: true });
   assert.match(open.content[0].text, /note:1/);
   assert.doesNotMatch(open.content[0].text, /note:2/);
-  const bad = await tools.gitlab_reply({ note: "note:999", body: "x" });
+  const bad = await tools.mr_reply({ note: "note:999", body: "x" });
   assert.match(bad.content[0].text, /isn't among the synced/);
 });

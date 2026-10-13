@@ -49,7 +49,7 @@ Working on a todo (you're an agent — VS Code Copilot, Claude Code, …):
 3. When you're done — or stop — call finish_todo with: summary (it's shown on the todo as your comment — so ALWAYS a summary of what you did: first ONE sentence saying what is done now, then short bullets: what you changed, how you tested, what's still open and why, where it is — branch and commit), entry (ONE short line for the booking, same rules as report_time descriptions), minutes (the time since your LAST todo_time record — all of it, if you reported none —, honestly), outcome (done / partial / blocked), branch (the feature branch you committed on — and repo, its folder, if Zeff doesn't know the ticket's repo) and followUps for what's left (replies, comments, ticket changes — with ready drafts).
    With a branch, Zeff creates a todo for the user to TEST AND VERIFY your work by hand first; once they've ticked it off, the delivery follows (push → merge request to main, or merge straight into main — one click each). Don't create test or delivery todos yourself, and say in your summary what the user should test.
    finish_todo records those last minutes as one more time record on the todo (the entry line as its note) and suggests the booking itself — all the todo's records not suggested yet add up in it, with the todo and your run as evidence — so give honest minutes and a good one-line entry, and do NOT also call report_time for that work (it would be suggested twice).
-Merge request review comments: gitlab_mr_comments reads what the reviewers wrote on a merge request (with the note:<id> of each); after you dealt with a thread answer it with gitlab_reply (once per thread, short: what you changed and where) and, when it's settled, gitlab_resolve. gitlab_comment adds a comment outside any thread. They post in GitLab under the user's name — only for comments the todo or the user asks you to answer.
+Merge request review comments: mr_comments reads what the reviewers wrote on a merge request (with the note:<id> of each); after you dealt with a thread answer it with mr_reply (once per thread, short: what you changed and where) and, when it's settled, mr_resolve. mr_comment adds a comment outside any thread. They post in GitLab under the user's name — only for comments the todo or the user asks you to answer.
 Use report_time (with todos: ['T-12'] — they're reported done with it) for work you did without start_todo / finish_todo (and without todo_time records), and complete_todo to report a todo done that nobody needs to book time for. Reporting a todo done marks it (highlighted in Zeff) — it stays open; the user closes it.`;
 
 // ---------------------------------------------------------------------------
@@ -312,11 +312,11 @@ export function registerZeffTools(server: McpServer): void {
 
   // GitLab merge request comments: read what the reviewers wrote, answer in a thread (through Zeff's automation Chrome, as the user).
   server.registerTool(
-    "gitlab_mr_comments",
+    "mr_comments",
     {
       title: "Read merge request comments",
       description:
-        "The review comments on a merge request as Zeff has synced them: who wrote what, in which thread, whether the thread is resolved, with the key (note:<id>) to answer it with gitlab_reply. " +
+        "The review comments on a merge request as Zeff has synced them: who wrote what, in which thread, whether the thread is resolved, with the key (note:<id>) to answer it with mr_reply. " +
         "mr: the merge request's link, a comment's link (…#note_123), '!179', or words from its title. Read them before you change code a reviewer asked about — and answer each thread you dealt with.",
       inputSchema: z.object({
         mr: z.string().min(1).describe("A merge request or comment link, '!179', or words."),
@@ -342,11 +342,11 @@ export function registerZeffTools(server: McpServer): void {
   );
 
   server.registerTool(
-    "gitlab_reply",
+    "mr_reply",
     {
       title: "Answer a merge request comment",
       description:
-        "Post a reply in the thread of a merge request comment (note:<id> from gitlab_mr_comments, or its link) — it goes out in GitLab under the user's name, through Zeff's automation Chrome. " +
+        "Post a reply in the thread of a merge request comment (note:<id> from mr_comments, or its link) — it goes out in GitLab under the user's name, through Zeff's automation Chrome. " +
         "Reply once per thread, short and concrete: what you changed (and where — branch, commit) or the answer. Only for comments the todo or the user asks you to answer.",
       inputSchema: z.object({
         note: z.string().min(1).describe("note:<id> or the comment's link."),
@@ -360,7 +360,7 @@ export function registerZeffTools(server: McpServer): void {
         const { gitlabLinkKey } = await import("@/lib/gitlab/shared");
         const key = args.note.startsWith("note:") ? args.note : (gitlabLinkKey(args.note) ?? args.note);
         const item = gitlabItemsByKeys([key]).get(key);
-        if (!item || item.kind !== "comment") return fail(`The comment ${args.note} isn't among the synced ones — use a key from gitlab_mr_comments.`);
+        if (!item || item.kind !== "comment") return fail(`The comment ${args.note} isn't among the synced ones — use a key from mr_comments.`);
         const { postGitlabReply } = await import("@/lib/gitlab/reply");
         const r = await postGitlabReply(item.url, args.body);
         return ok(`Reply posted in ${item.ref} (${r.via === "api" ? "API" : "through the page"}): ${r.url}`);
@@ -368,7 +368,7 @@ export function registerZeffTools(server: McpServer): void {
   );
 
   server.registerTool(
-    "gitlab_resolve",
+    "mr_resolve",
     {
       title: "Resolve a merge request thread",
       description: "Resolve (or reopen) the thread of a merge request comment in GitLab. Resolve only what you dealt with and answered — the reviewer may want to see the answer first.",
@@ -384,7 +384,7 @@ export function registerZeffTools(server: McpServer): void {
         const { gitlabLinkKey } = await import("@/lib/gitlab/shared");
         const key = args.note.startsWith("note:") ? args.note : (gitlabLinkKey(args.note) ?? args.note);
         const item = gitlabItemsByKeys([key]).get(key);
-        if (!item || item.kind !== "comment") return fail(`The comment ${args.note} isn't among the synced ones — use a key from gitlab_mr_comments.`);
+        if (!item || item.kind !== "comment") return fail(`The comment ${args.note} isn't among the synced ones — use a key from mr_comments.`);
         const want = args.resolved !== false;
         const { resolveGitlabThread } = await import("@/lib/gitlab/reply");
         const r = await resolveGitlabThread(item.url, want);
@@ -394,10 +394,10 @@ export function registerZeffTools(server: McpServer): void {
   );
 
   server.registerTool(
-    "gitlab_comment",
+    "mr_comment",
     {
       title: "Comment on a merge request",
-      description: "A new comment on a merge request (not in a thread) — in GitLab under the user's name, through Zeff's automation Chrome. For answers in a review thread use gitlab_reply.",
+      description: "A new comment on a merge request (not in a thread) — in GitLab under the user's name, through Zeff's automation Chrome. For answers in a review thread use mr_reply.",
       inputSchema: z.object({
         project: z.string().min(1).describe("The project path, e.g. group/sub/project."),
         iid: z.number().int().min(1).describe("The merge request's number (179 for !179)."),

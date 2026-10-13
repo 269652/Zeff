@@ -43,6 +43,10 @@ const WRITES: Record<string, string[]> = {
   chrono_export: ["src/plugins/chrono/call.ts", "src/plugins/chrono/server-actions.ts"],
   punch_export: ["src/plugins/punch/call.ts", "src/plugins/punch/server-actions.ts"],
   keep_write: ["src/plugins/keep-write/write.ts"],
+  // The MCP tools an agent you started uses to answer review comments (they ask for it in their own words: the todo or you).
+  mr_reply: ["src/mcp/server.ts"],
+  mr_resolve: ["src/mcp/server.ts"],
+  mr_comment: ["src/mcp/server.ts"],
 };
 
 for (const [tool, allowed] of Object.entries(WRITES))
