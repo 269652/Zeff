@@ -112,15 +112,15 @@ export async function profileLines(articleText: string): Promise<string[]> {
   return lines;
 }
 
-export async function defaultSearch(query: string): Promise<FeedItem[]> {
+export async function defaultSearch(query: string, langs: string[] = [getPrefs().language]): Promise<FeedItem[]> {
   const prefs = getPrefs();
-  const urls = [topicFeedUrl(query, prefs.language, Math.max(3, prefs.maxAgeDays)), `https://www.bing.com/news/search?q=${encodeURIComponent(query)}&format=rss&mkt=${prefs.language === "en" ? "en-US" : "de-DE"}`];
+  const urls = langs.flatMap((l) => [topicFeedUrl(query, l as "de" | "en" | "any", Math.max(3, prefs.maxAgeDays)), `https://www.bing.com/news/search?q=${encodeURIComponent(query)}&format=rss&mkt=${l === "en" ? "en-US" : "de-DE"}`]);
   const out: FeedItem[] = [];
   await Promise.all(
     urls.map(async (u) => {
       try {
         const r = await fetch(u, { headers: { "user-agent": "Mozilla/5.0 (compatible; Zeff/1.0)" }, signal: AbortSignal.timeout(15000) });
-        if (r.ok) out.push(...parseFeed(await decodeBody(r)).slice(0, 15));
+        if (r.ok) out.push(...parseFeed(await decodeBody(r)).slice(0, 25));
       } catch {
         // that search didn't answer
       }

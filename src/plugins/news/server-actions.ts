@@ -18,9 +18,10 @@ function guard(): void {
   if (!isInstalled("news")) throw new Error(t("The News plugin is not installed (Menu → Plugins)."));
 }
 
-async function done(rescore: boolean): Promise<Result> {
+/** `refresh` false: the open feed keeps its cards (a refreshed page would re-key it and reshuffle everything under the reader's hand). */
+async function done(rescore: boolean, refresh = true): Promise<Result> {
   if (rescore) await (await import("./sync")).rescoreAll();
-  revalidatePath("/news");
+  if (refresh) revalidatePath("/news");
   return { ok: true };
 }
 
@@ -34,7 +35,7 @@ export async function newsStateAction(id: number, state: string): Promise<Result
     // Saving is a signal for the taste description (taking it back withdraws it).
     if (before && state === "saved") (await import("./taste")).recordSignal(before, "save"), (await import("./taste")).scheduleTasteUpdate();
     else if (before && before.state === "saved") (await import("./taste")).withdrawSignal(before.id, "save");
-    return await done(false);
+    return await done(false, false);
   } catch (e) {
     return { ok: false, error: errorMessage(e) };
   }
@@ -57,7 +58,7 @@ export async function newsVoteAction(id: number, value: number): Promise<Result>
         taste.scheduleTasteUpdate();
       }
     }
-    return await done(true);
+    return await done(true, false);
   } catch (e) {
     return { ok: false, error: errorMessage(e) };
   }

@@ -1186,3 +1186,19 @@ test("Discover: planned searches, web, new sources, matching into the Discover v
   const none = await startDiscover({ ask: async () => ({ queries: [] }) }).promise;
   assert.match(none.message, /Like or save a few articles first/);
 });
+
+test("a 👍 or a save in the feed is a signal for the taste description, and the action succeeds", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("news", true);
+  const s = await import("@/plugins/news/store");
+  const { getTaste, setTaste } = await import("@/plugins/news/taste");
+  const { newsVoteAction } = await import("@/plugins/news/server-actions");
+  await wipe();
+  setTaste({ text: "", likes: [], avoids: [], queries: [], pending: [], updatedAt: null, edited: false });
+  const src = s.addSource({ name: "Sig", url: "https://sig.example/rss" });
+  s.addItems({ id: src.id, name: "Sig" }, [{ guid: "1", url: "https://sig.example/1", title: "Etwas zum Merken", summary: "", publishedAt: new Date().toISOString() }]);
+  const it = s.listItems({ view: "latest", sourceId: src.id })[0];
+  const r = await newsVoteAction(it.id, 1);
+  assert.deepEqual(r, { ok: true }, JSON.stringify(r));
+  assert.deepEqual(getTaste().pending.map((p) => p.kind), ["like"]);
+});

@@ -23,12 +23,12 @@ export const getDiscoverStatus = (): DiscoverStatus => g.__zeffNewsDiscover ?? i
 const set = (p: Partial<DiscoverStatus>) => (g.__zeffNewsDiscover = { ...getDiscoverStatus(), ...p });
 
 type Plan = { queries?: string[] };
-const SCHEMA = { type: "object", properties: { queries: { type: "array", items: { type: "string" }, description: "6–8 Suchanfragen (2–5 Wörter) für eine Nachrichtensuche: die Hauptthemen und 2–3 Nachbarthemen, die überraschen dürfen." } }, required: ["queries"] };
+const SCHEMA = { type: "object", properties: { queries: { type: "array", items: { type: "string" }, description: "10–12 Suchanfragen (2–5 Wörter, deutsch und englisch gemischt) für eine Nachrichtensuche: die Hauptthemen und 2–3 Nachbarthemen, die überraschen dürfen." } }, required: ["queries"] };
 
 export function planPrompt(taste: Pick<Taste, "text" | "likes" | "avoids">, interests: string[], recent: string[]): string {
   return [
     "Du planst die Suche nach neuen Nachrichten für eine Person. Unten steht eine Beschreibung ihres Nachrichten-Geschmacks.",
-    "Gib 6–8 konkrete Suchanfragen (2–5 Wörter, gern englisch, wenn sie englische Quellen mag) für eine Nachrichtensuche — nach Forschung und Berichten, nie nach Produkten, Shopping oder Werbung: die Hauptthemen aus verschiedenen Blickwinkeln und 2–3 Nachbarthemen, die sie überraschen und trotzdem interessieren könnten. Keine Anfragen, die schon zu den letzten gehörten.",
+    "Gib 10–12 konkrete Suchanfragen (2–5 Wörter, gern englisch, wenn sie englische Quellen mag) für eine Nachrichtensuche — nach Forschung und Berichten, nie nach Produkten, Shopping oder Werbung: die Hauptthemen aus verschiedenen Blickwinkeln und 2–3 Nachbarthemen, die sie überraschen und trotzdem interessieren könnten. Keine Anfragen, die schon zu den letzten gehörten.",
     "",
     `Beschreibung: ${taste.text || "(noch keine)"}`,
     `Mag: ${taste.likes.join(", ") || "-"}; ausdrückliche Interessen: ${interests.join(", ") || "-"}`,
@@ -78,15 +78,16 @@ async function run(deps: DiscoverDeps): Promise<DiscoverStatus> {
   } catch {
     queries = [];
   }
-  if (!queries.length) queries = [...new Set([...taste.queries, ...taste.likes.slice(0, 5), ...interests])].filter((q) => !recent.includes(q)).slice(0, 8);
-  queries = [...new Set(queries)].slice(0, 8);
+  if (!queries.length) queries = [...new Set([...taste.queries, ...taste.likes.slice(0, 5), ...interests])].filter((q) => !recent.includes(q)).slice(0, 12);
+  queries = [...new Set(queries)].slice(0, 12);
   setPref("news:discover-queries", [...queries, ...recent].slice(0, 30));
 
   // 3. The web.
   set({ phase: "Searching the web …" });
-  const search = deps.search ?? (await import("./similar")).defaultSearch;
+  const langs = [...new Set(["en", prefs.language === "any" ? "de" : prefs.language])];
+  const search = deps.search ?? ((q: string) => import("./similar").then((m) => m.defaultSearch(q, langs)));
   let web = 0;
-  const cutoff = Date.now() - prefs.maxAgeDays * 2 * 864e5;
+  const cutoff = Date.now() - prefs.maxAgeDays * 3 * 864e5;
   await Promise.all(
     queries.map(async (q) => {
       const items = (await search(q).catch(() => [] as FeedItem[])).filter((it) => Date.parse(it.publishedAt) >= cutoff);
@@ -107,9 +108,9 @@ async function run(deps: DiscoverDeps): Promise<DiscoverStatus> {
         const have = new Set(listSources().map((s) => { try { return new URL(s.url).hostname.replace(/^www\./, ""); } catch { return ""; } }));
         return findFeeds(q, { have, profile: taste.likes.slice(0, 6), language: prefs.language, limit: 4 });
       });
-    for (const q of queries.slice(0, 3)) {
+    for (const q of queries.slice(0, 6)) {
       const sug = await find(q).catch(() => []);
-      sourcesAdded += addSources(sug.slice(0, 2).map((s) => ({ name: s.feed.title.slice(0, 80), url: s.feed.url, category: "Discovered", lang: prefs.language === "any" ? "" : prefs.language })));
+      sourcesAdded += addSources(sug.slice(0, 3).map((s) => ({ name: s.feed.title.slice(0, 80), url: s.feed.url, category: "Discovered", lang: prefs.language === "any" ? "" : prefs.language })));
     }
   } catch {
     // finding sources is a bonus
@@ -129,8 +130,8 @@ async function run(deps: DiscoverDeps): Promise<DiscoverStatus> {
     // tags are a bonus
   }
   const scored = matchTaste(taste, unreadForMatching(Math.max(prefs.maxAgeDays, 7)));
-  const best = scored.filter((s) => s.score > 0.1).slice(0, 120);
-  const keep = best;
+  const strong = scored.filter((s) => s.score > 0.1);
+  const keep = (strong.length >= 40 ? strong : scored.filter((s) => s.score > 0.06).slice(0, 40)).slice(0, 150);
   setSimilar(-1, keep.map((s) => ({ id: s.id, score: Math.max(0.001, s.score), why: "" })));
   return set({
     running: false,
