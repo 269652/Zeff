@@ -26,17 +26,29 @@ export async function runTodoOps(
 ): Promise<{ done: string[]; next: NextTodo[] }> {
   const done: string[] = [];
   const next: NextTodo[] = [];
-  const inBrowser = todo.ops.filter((o) => actionHref(o));
-  // `only`: just these operations (by their place on the todo) — the others stay as they are.
+  // `only`: just these operations (by their place on the todo) — the others (and the ones that open in your browser) stay as they are.
   const chosen = (i: number) => !opts.only || opts.only.includes(i);
-  const others = todo.ops.filter((o, i) => !actionHref(o) && !chosen(i));
   let left = todo.ops.filter((o, i) => !actionHref(o) && chosen(i));
-  const keep = () =>
-    getDb()
-      .update(schema.todos)
-      .set({ ops: JSON.stringify([...others, ...left, ...inBrowser]) })
-      .where(eq(schema.todos.id, todo.id))
-      .run();
+  // The ones that ran (or failed after being done): taken off the todo — and ONLY these. A run takes minutes (GitLab,
+  // Chrome); the todo's actions may change meanwhile (the auto-actions review proposes them anew, you edit one, a plan
+  // hands some over), so what's written back is the todo's CURRENT list minus the done ones, never the list as it was
+  // when the run began (that would put back what was taken away and drop what was added).
+  const ranOps: unknown[] = [];
+  const keep = () => {
+    const row = getDb().select({ ops: schema.todos.ops }).from(schema.todos).where(eq(schema.todos.id, todo.id)).get();
+    let now: unknown[] = [];
+    try {
+      const v = JSON.parse(row?.ops ?? "[]") as unknown;
+      now = Array.isArray(v) ? v : [];
+    } catch {
+      now = [];
+    }
+    for (const op of ranOps) {
+      const at = now.findIndex((x) => JSON.stringify(x) === JSON.stringify(op));
+      if (at >= 0) now.splice(at, 1);
+    }
+    getDb().update(schema.todos).set({ ops: JSON.stringify(now) }).where(eq(schema.todos.id, todo.id)).run();
+  };
   try {
     while (left.length) {
       const op = left[0];
@@ -49,9 +61,11 @@ export async function runTodoOps(
         while (left.length && left[0].type.startsWith("jira-")) run.push(left.shift() as JiraOp);
         try {
           done.push(...(await runJiraOps(run, note)));
+          ranOps.push(...run);
         } catch (e) {
           const ok = (e as { done?: string[] }).done ?? [];
           left = [...run.slice(ok.length), ...left]; // not done: back on the list
+          ranOps.push(...run.slice(0, ok.length));
           done.push(...ok);
           throw e;
         }
@@ -61,6 +75,7 @@ export async function runTodoOps(
       if (!runner) throw new Error(t("{action}: there's nothing to run it.", { action: opTitle(op, t) }));
       const r = await runner(op, { todo, note });
       left.shift();
+      ranOps.push(op);
       done.push(r.what);
       // What it left to know (a sent message): on the todo — its reference, its note.
       if (r.ref || r.todoNote) {
@@ -101,6 +116,7 @@ export async function runTodoOpsNow(todoId: number, opts: { only?: number[] } = 
   if (running.has(todoId)) throw new Error(t("{ref} is running already.", { ref: todo.ref }));
   running.add(todoId);
   try {
+    console.log(`[ops ${todo.ref}] start${opts.only ? ` (only ${opts.only.join(",")})` : ""}: ${todo.ops.map((o) => o.type).join(", ")}`);
     const { done, next } = await runTodoOps(todo, (line) => console.log(`[ops ${todo.ref}] ${line}`), opts);
     for (const n of next) {
       const f = store.addFollowUp({ ticket: todo.ticket, text: n.text, kind: "merge", parentId: todo.id, workRunId: null, source: `Next step after ${todo.ref}`, ops: n.ops, owner: n.owner });
