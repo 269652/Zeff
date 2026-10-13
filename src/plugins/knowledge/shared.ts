@@ -49,8 +49,12 @@ export const pagesFor = (pages: KnowledgePage[], todoId?: number): KnowledgePage
 export const entitiesFor = (entities: KnowledgeEntity[], pages: KnowledgePage[]): KnowledgeEntity[] =>
   entities.filter((e) => !["document", "ticket"].includes(e.type.toLowerCase()) && !pages.some((p) => p.title.toLowerCase().includes(e.name.toLowerCase())));
 
-/** What the Wissens-Zuordnung picked for a todo: the pages and entities that fit it — when. */
-export type TodoKnowledge = { at: string; pages: KnowledgePage[]; entities: KnowledgeEntity[] };
+/** The address of a system a todo is about (test, prod …), as the knowledge's pages give it. */
+export type TodoLink = { env: "prod" | "test" | "dev" | "other"; label: string; url: string; page: string };
+export const ENV_LABELS: Record<TodoLink["env"], string> = { prod: "Prod", test: "Test", dev: "Dev", other: "" };
+
+/** What the Wissens-Zuordnung picked for a todo: the pages and entities that fit it, the systems' addresses — when. */
+export type TodoKnowledge = { at: string; pages: KnowledgePage[]; entities: KnowledgeEntity[]; links?: TodoLink[] };
 
 /** A todo's stored knowledge (its column), or null. */
 export const parseTodoKnowledge = (raw: string | null | undefined): TodoKnowledge | null => {

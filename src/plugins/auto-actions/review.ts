@@ -143,6 +143,13 @@ function placeAppointment(start: string, minutes: number, busy: { start: Date; e
   return start;
 }
 
+/** The addresses of the systems the todo is about (Test, Prod …), as the Wissens-Zuordnung found them in the knowledge: for comments and messages that point to the right one. */
+function systemsOf(t: TodoView): string[] {
+  const links = t.knowledge?.links ?? [];
+  const env = (e: string) => (e === "prod" ? "Prod" : e === "test" ? "Test" : e === "dev" ? "Dev" : "System");
+  return links.length ? [`Systeme (aus dem Wissen — nenne in Nachrichten und Kommentaren die passende Adresse): ${links.map((l) => `${env(l.env)}${l.label ? ` ${l.label}` : ""} ${l.url}`).join(" · ")}`] : [];
+}
+
 /** One todo for the prompt: the todo, its ticket, where it comes from, the notes on it. */
 function todoBlock(t: TodoView, sources: ReturnType<typeof todoSources>, run: ReturnType<typeof lastGoodRun>): string {
   const tk = run?.tickets.find((x) => x.key === t.ticket);
@@ -162,6 +169,7 @@ function todoBlock(t: TodoView, sources: ReturnType<typeof todoSources>, run: Re
     ...(t.planned.length ? [`Danach geplant: ${t.planned[0].steps.map((s) => s.text).join(" → ")}`] : []),
     ...t.userNotes.slice(-3).map((n) => `${n.by ? `Bericht ${n.by}` : n.kind === "instruction" ? "Meine Anweisung" : "Meine Notiz"} (${n.at.slice(0, 10)}): ${plain(n.text, 400)}`),
     ...(t.note ? [`Notiz: ${plain(t.note, 200)}`] : []),
+    ...systemsOf(t),
     ...from.map(({ s, at }) => {
       const { author } = entityWhoWhen(s);
       return `- [${sourceRef(s)}] ${entitySourceLabel(s)} ${at.slice(0, 16).replace("T", " ")} ${author ?? ""}: ${plain(entityHeadline(s), 120)} — ${plain(entityText(s), 450)}`;

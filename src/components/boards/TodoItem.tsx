@@ -160,7 +160,8 @@ export function TodoItem({
   // The knowledge the Wissens-Zuordnung picked for it (only what fits) — none: no toggle.
   const knowledgePages = todo.knowledge ? pagesFor(todo.knowledge.pages, todo.id) : [];
   const knowledgeEntities = todo.knowledge ? entitiesFor(todo.knowledge.entities, knowledgePages) : [];
-  const knowledge = knowledgeOn && (knowledgePages.length || knowledgeEntities.length) ? { pages: knowledgePages, entities: knowledgeEntities } : null;
+  const knowledgeLinks = todo.knowledge?.links ?? [];
+  const knowledge = knowledgeOn && (knowledgePages.length || knowledgeEntities.length || knowledgeLinks.length) ? { pages: knowledgePages, entities: knowledgeEntities, links: knowledgeLinks } : null;
   const [, startDefer] = useTransition();
   const set = (next: TodoStatus) => {
     const before = status;
@@ -383,7 +384,7 @@ export function TodoItem({
             {knowledge &&
               (() => {
                 const toggle = (
-                  <AreaToggle open={showKnowledge} onToggle={() => setShowKnowledge(!showKnowledge)} label={showKnowledge ? t("Hide knowledge ({n})", { n: knowledge.pages.length + knowledge.entities.length }) : t("Show knowledge ({n})", { n: knowledge.pages.length + knowledge.entities.length })} tone="emerald">
+                  <AreaToggle open={showKnowledge} onToggle={() => setShowKnowledge(!showKnowledge)} label={showKnowledge ? t("Hide knowledge ({n})", { n: knowledge.pages.length + knowledge.entities.length + knowledge.links.length }) : t("Show knowledge ({n})", { n: knowledge.pages.length + knowledge.entities.length + knowledge.links.length })} tone="emerald">
                     <BookIcon className="size-3.5" />
                   </AreaToggle>
                 );

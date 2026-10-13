@@ -2,9 +2,9 @@
 
 import { useT } from "@/components/I18nProvider";
 import type { T } from "@/lib/i18n/shared";
-import { cleanSnippet, entitiesFor, pagePlace, pageSource, pagesFor, snippetParts, type KnowledgeEntity, type KnowledgePage, type PageSource } from "./shared";
+import { cleanSnippet, ENV_LABELS, entitiesFor, pagePlace, pageSource, pagesFor, snippetParts, type KnowledgeEntity, type KnowledgePage, type PageSource, type TodoLink } from "./shared";
 
-type Loaded = { pages: KnowledgePage[]; entities: KnowledgeEntity[] } | { error: string } | null;
+type Loaded = { pages: KnowledgePage[]; entities: KnowledgeEntity[]; links?: TodoLink[] } | { error: string } | null;
 
 const SOURCES: PageSource[] = ["confluence", "keep", "zeff"];
 const sourceLabel = (s: PageSource, t: T) => (s === "confluence" ? "Confluence" : s === "keep" ? "Keep" : t("From Zeff"));
@@ -54,10 +54,28 @@ export function TodoKnowledgeList({ k, todoId }: { k: Loaded; todoId?: number })
   if ("error" in k) return <p className="text-xs text-red-600 dark:text-red-400">{k.error}</p>;
   const pages = pagesFor(k.pages, todoId);
   const entities = entitiesFor(k.entities, pages);
-  if (!pages.length && !entities.length) return <p className="text-xs text-zinc-500">{t("Nothing fitting in the knowledge.")}</p>;
+  const links = k.links ?? [];
+  if (!pages.length && !entities.length && !links.length) return <p className="text-xs text-zinc-500">{t("Nothing fitting in the knowledge.")}</p>;
   const groups = SOURCES.map((s) => ({ s, pages: pages.filter((p) => pageSource(p) === s) })).filter((g) => g.pages.length);
   return (
     <div className="flex min-w-0 flex-col gap-2 text-xs">
+      {links.length > 0 && (
+        <ul className="flex flex-wrap gap-1" aria-label={t("Systems")}>
+          {links.map((l) => (
+            <li key={l.url}>
+              <a
+                href={l.url}
+                target="_blank"
+                rel="noreferrer"
+                title={`${l.url}${l.page ? ` — ${l.page}` : ""}`}
+                className={`rounded-full border px-2 py-0.5 text-[11px] hover:underline ${l.env === "prod" ? "border-rose-300 text-rose-700 dark:border-rose-800 dark:text-rose-300" : l.env === "test" ? "border-emerald-300 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300" : "border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"}`}
+              >
+                {[ENV_LABELS[l.env], l.label].filter(Boolean).join(" · ") || l.url}
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
       {groups.map((g) => (
         <section key={g.s} className="min-w-0">
           {groups.length > 1 && (

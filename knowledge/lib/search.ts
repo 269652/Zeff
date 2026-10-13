@@ -123,3 +123,57 @@ export function related(text: string, ticket?: string | null, limit = 5): { page
   const q = [ticket ?? "", text].join(" ");
   return { pages: searchPages(q, limit), entities: searchEntities(q, 4) };
 }
+
+export type SystemLink = { env: "prod" | "test" | "dev" | "other"; label: string; url: string; pageId: string; pageTitle: string; pageUrl: string };
+
+const ENV_WORDS: [SystemLink["env"], RegExp][] = [
+  ["prod", /\b(prod|production|produktion|produktiv|live|www)\b/i],
+  ["test", /\b(test|testing|staging|stage|stg|abnahme|uat|qa|int|integration|preview|preprod|pre-prod)\b/i],
+  ["dev", /\b(dev|develop|development|entwicklung|ddev|local|lokal)\b/i],
+];
+const envOf = (label: string, url: string): SystemLink["env"] => {
+  for (const [env, re] of ENV_WORDS) if (re.test(label)) return env;
+  const host = (() => {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return "";
+    }
+  })();
+  if (/(^|[.-])(test|staging|stage|stg|uat|qa|int|preview)([.-]|$)/i.test(host)) return "test";
+  if (/(^|[.-])(dev|ddev|docker|local)([.-]|$)/i.test(host)) return "dev";
+  return "other";
+};
+
+/**
+ * The addresses of a piece of work's systems (test, prod …): the lines with a web address from the pages that are about it —
+ * "Production | https://…", "Staging | https://…" — each with the environment its label (or host) says. No AI: the caller picks.
+ */
+export function systemLinks(text: string, ticket?: string | null, limit = 40): SystemLink[] {
+  const q = [ticket ?? "", text].join(" ");
+  const pages = new Map<string, { id: string; title: string; url: string }>();
+  for (const p of [...searchPages(q, 8), ...searchPages(`${q} Production Staging Test Dev URL`, 8)]) pages.set(p.id, p);
+  const out: SystemLink[] = [];
+  const seen = new Set<string>();
+  for (const p of pages.values()) {
+    if (/^zeff:/.test(p.id)) continue;
+    const body = (db().prepare("select body from pages where id = ?").get(p.id) as { body: string } | undefined)?.body ?? "";
+    let n = 0;
+    for (const line of body.split("\n")) {
+      const m = line.match(/https?:\/\/[^\s|)<>"]+/);
+      if (!m || /mailto:/.test(line)) continue;
+      const url = m[0].replace(/[.,;]+$/, "");
+      const label = line.slice(0, m.index).replace(/[|:()\-*•\s]+$/g, "").replace(/^[|:()\-*•\s]+/g, "").slice(0, 80);
+      const env = envOf(label, url);
+      // Environments only (and a few named systems with a label): documentation links and the like are no systems.
+      if (label.length > 40 || (env === "other" && (!label || /^(https?:|doku|doc|official|siehe|see|head over)/i.test(label)))) continue;
+      const key = `${env}|${url}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ env, label, url, pageId: p.id, pageTitle: p.title, pageUrl: p.url });
+      if (++n >= 14) break;
+    }
+  }
+  const rank = { prod: 0, test: 1, dev: 2, other: 3 } as const;
+  return out.sort((a, b) => rank[a.env] - rank[b.env]).slice(0, limit);
+}

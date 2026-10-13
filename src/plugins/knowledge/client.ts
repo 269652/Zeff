@@ -27,6 +27,9 @@ async function call<T>(path: string, init: { method?: "GET" | "POST"; body?: unk
 export const knowledgeStatus = () => call<KnowledgeStatus>("/api/status", { timeoutMs: 3000 });
 export const knowledgeSearch = (q: string, limit = 8) => call<{ pages: KnowledgePage[]; entities: KnowledgeEntity[] }>(`/api/search?q=${encodeURIComponent(q)}&limit=${limit}`);
 export const knowledgeRelated = (text: string, ticket: string | null, limit = 5) => call<{ pages: KnowledgePage[]; entities: KnowledgeEntity[] }>("/api/related", { method: "POST", body: { text, ticket, limit } });
+/** The addresses of the systems a piece of work is about (test, prod …) from the pages that are about it. */
+export const knowledgeLinks = (text: string, ticket: string | null, limit = 40) =>
+  call<{ links: { env: "prod" | "test" | "dev" | "other"; label: string; url: string; pageTitle: string }[] }>("/api/links", { method: "POST", body: { text, ticket, limit } }).then((r) => r.links);
 export const knowledgeAsk = (question: string, history: KnowledgeTurn[]) => call<KnowledgeAnswer>("/api/ask", { method: "POST", body: { question, history }, timeoutMs: 360000 });
 /** Pages by id: compiled in their current version, their abstract and concepts (the Documents plugin's hover cards). */
 export const knowledgePages = (ids: string[]) =>
