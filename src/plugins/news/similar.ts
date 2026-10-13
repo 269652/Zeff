@@ -2,7 +2,7 @@ import { decodeBody, parseFeed, type FeedItem } from "./feed";
 import { analyze, cosine } from "./keyphrase";
 import { fetchArticle } from "./reader";
 import { topicFeedUrl } from "./shared";
-import { addItems, addSources, getContent, getItem, getPrefs, idsByUrls, learnedTop, listSources, searchItems, setReasons, setSimilar } from "./store";
+import { addItems, addSources, corpusForTagging, getContent, getItem, getPrefs, idsByUrls, learnedTop, listSources, searchItems, setReasons, setSimilar } from "./store";
 
 /**
  * "More like this": the article is read, set next to what you like and what Zeff knows about you (your interests, the headlines
@@ -129,6 +129,22 @@ export async function defaultSearch(query: string, langs: string[] = [getPrefs()
   return out;
 }
 
+/**
+ * What is already kept and reads like an article (TF-IDF closeness over the last weeks' items, no tags): the closest first — the
+ * "More like this" and the thread both start from these, before anything is searched for.
+ */
+export function neighbours(article: { id?: number; title: string; text: string }, opts: { days?: number; limit?: number; minScore?: number } = {}): { id: number; score: number }[] {
+  const corpus = corpusForTagging(opts.days ?? 14, 6000).filter((c) => c.id !== article.id);
+  if (!corpus.length) return [];
+  const a = analyze([{ id: -1, title: article.title, summary: article.text.slice(0, 700) }, ...corpus.map((c) => ({ id: c.id, title: c.title, summary: c.summary }))]);
+  const target = a.vectors.get(-1) ?? new Map();
+  return corpus
+    .map((c) => ({ id: c.id, score: cosine(a.vectors.get(c.id) ?? new Map(), target) }))
+    .filter((x) => x.score >= (opts.minScore ?? 0.12))
+    .sort((x, y) => y.score - x.score)
+    .slice(0, opts.limit ?? 60);
+}
+
 /** The article's own key terms as searches (no AI): its best tags, the first two together, then each. */
 function termQueries(title: string, text: string): { q: string; why: string }[] {
   const a = analyze([{ id: 1, title, summary: text.slice(0, 400) }, { id: 2, title: "", summary: "" }]);
@@ -178,7 +194,7 @@ export async function moreLikeThis(itemId: number, deps: SimilarDeps = {}): Prom
     const fresh = [...found.values()].filter((f) => nowMs - Date.parse(f.item.publishedAt) < getPrefs().maxAgeDays * 2 * 864e5 && f.item.url !== own?.url);
     let added = 0;
     for (const q of new Set(fresh.map((f) => f.q))) added += addItems({ id: null, name: `More like this: ${q}` }, fresh.filter((f) => f.q === q).map((f) => f.item));
-    const local = useQueries.flatMap(({ q }) => searchItems(q, 8)).filter((i) => i.id !== itemId);
+    const local = [...useQueries.flatMap(({ q }) => searchItems(q, 8)), ...neighbours({ id: itemId, title: article.title, text: article.text }, { limit: 120 }).flatMap((n) => (getItem(n.id) ? [getItem(n.id)!] : []))].filter((i) => i.id !== itemId);
 
     // 3. Ranking: closeness to the article (TF-IDF cosine), words the AI expects, words that say "not it", and what you like.
     const candidates = new Map<string, { title: string; summary: string; url: string; q: string }>();
@@ -202,8 +218,8 @@ export async function moreLikeThis(itemId: number, deps: SimilarDeps = {}): Prom
         return { ...c, s };
       })
       .sort((x, y) => y.s - x.s);
-    const best = ranked.filter((r) => r.s > 0.04).slice(0, 25);
-    const top = best.length >= 6 ? best : ranked.slice(0, 12);
+    const best = ranked.filter((r) => r.s > 0.04).slice(0, 80);
+    const top = best.length >= 6 ? best : ranked.slice(0, 20);
     const ids = idsByUrls(top.map((t) => t.url));
     const entries = top.flatMap((t) => (ids.get(t.url) ? [{ id: ids.get(t.url)!, score: Math.max(0.001, t.s), why: t.q === "kept" ? "" : t.q }] : []));
     setSimilar(itemId, entries);

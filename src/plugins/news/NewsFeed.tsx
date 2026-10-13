@@ -6,7 +6,7 @@ import { toast } from "@/components/Toaster";
 import { Cited, type Source } from "./AskNews";
 import { MagicStage, type Box } from "./MagicStage";
 import { NewsCard } from "./NewsCard";
-import { discoverStatusAction, newsMoreAction, newsRelatedAction, newsSoFarAction, startDiscoverAction } from "./server-actions";
+import { discoverStatusAction, newsMoreAction, newsSoFarAction, startDiscoverAction } from "./server-actions";
 import { followSplit, type NewsItem } from "./shared";
 import type { NewsView } from "./store";
 
@@ -83,8 +83,6 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
   // The dive panel: the trail of what was followed, what hangs together with the current topic (hop to it, in place), the stories
   // that run through it (follow a thread), and "the story so far".
   const anchor = useRef<number | null>(null);
-  const [trail, setTrail] = useState<string[]>([]);
-  const [dive, setDive] = useState<{ related: { term: string; count: number; weight: number }[]; stories: { label: string; count: number }[] } | null>(null);
   const [sofar, setSofar] = useState<{ busy: boolean; answer?: string; sources?: Source[]; error?: string } | null>(null);
   // "More like this": what the AI made of the article (why it is for you, the searches) while the finds come in below the card.
   const [stage, setStage] = useState<{ item: NewsItem; from: Box; done: boolean } | null>(null);
@@ -163,8 +161,6 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
     stash.current = [];
     topicRef.current = null;
     setTopic(null);
-    setTrail([]);
-    setDive(null);
     setSofar(null);
     setLike(null);
     setItems((cur) => {
@@ -200,9 +196,7 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
       topicRef.current = { term, offset: 0, done: false };
       anchor.current = anchorId;
       setTopic(term);
-      setTrail((cur) => (cur[cur.length - 1] === term ? cur : [...cur, term].slice(-6)));
       setSofar(null);
-      void newsRelatedAction(term.replace(/^story:/, "")).then((r) => setDive({ related: r.related, stories: r.stories })).catch(() => setDive(null));
       setItems(base);
       await loadTopic();
     } catch {
@@ -230,7 +224,6 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
       topicRef.current = { term: `like:${itemId}`, offset: 0, done: false };
       anchor.current = anchorId;
       setTopic(`like:${itemId}`);
-      setDive(null);
       setSofar(null);
       setLike({ title, busy: true });
       setItems(base);
@@ -382,22 +375,6 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
         <div className="sticky top-2 z-30 mx-auto w-full max-w-3xl space-y-2 rounded-2xl border border-indigo-300 bg-indigo-50/95 px-4 py-2 text-xs text-indigo-900 shadow backdrop-blur dark:border-indigo-800 dark:bg-indigo-950/95 dark:text-indigo-100">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium">{topic.startsWith("like:") ? `✨ ${t("More like “{title}”", { title: (like?.title ?? "").slice(0, 50) })}` : topic.startsWith("story:") ? `🧵 ${topic.slice(6)}` : `🧭 ${t("Following “{topic}”", { topic })}`}</span>
-            {trail.length > 1 && (
-              <span className="flex flex-wrap items-center gap-1 text-indigo-700 dark:text-indigo-300">
-                {trail.map((x, i) => (
-                  <span key={`${x}${i}`} className="flex items-center gap-1">
-                    {i > 0 && <span aria-hidden>›</span>}
-                    {i === trail.length - 1 ? (
-                      <span className="font-semibold">{x.replace(/^story:/, "🧵 ")}</span>
-                    ) : (
-                      <button type="button" className="hover:underline" onClick={() => void follow(x, anchor.current ?? items[0]?.id ?? 0)} title={t("Back to this step")}>
-                        {x.replace(/^story:/, "🧵 ")}
-                      </button>
-                    )}
-                  </span>
-                ))}
-              </span>
-            )}
             <span className="flex-1" />
             <button
               type="button"
@@ -411,9 +388,6 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
             >
               📖 {t("Story so far")}
             </button>
-            <a href={`/news/explore?${new URLSearchParams({ topic: topic.replace(/^story:/, "") })}`} className="underline" title={t("Open it in Explore")}>
-              {t("Explore")} ↗
-            </a>
             <button type="button" className="font-semibold hover:underline" onClick={restoreStash} title={t("Back to the feed")}>
               ✕ {t("Stop")}
             </button>
@@ -437,37 +411,6 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
                   )}
                   {(like.sourcesAdded ?? 0) > 0 && <p className="text-indigo-600 dark:text-indigo-300">{t("{n} new sources found around this topic — their news come in with the next fetch.", { n: like.sourcesAdded })}</p>}
                 </>
-              )}
-            </div>
-          )}
-          {dive && (dive.related.length > 0 || dive.stories.length > 0) && (
-            <div className="space-y-1.5">
-              {dive.stories.length > 0 && (
-                <p className="flex flex-wrap items-center gap-1">
-                  <span className="text-indigo-600 dark:text-indigo-300">{t("Threads")}:</span>
-                  {dive.stories.map((st) => (
-                    <button key={st.label} type="button" className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100" onClick={() => void follow(`story:${st.label}`, anchor.current ?? items[0]?.id ?? 0)}>
-                      🧵 {st.label} <span className="opacity-60">{st.count}</span>
-                    </button>
-                  ))}
-                </p>
-              )}
-              {dive.related.length > 0 && (
-                <p className="flex flex-wrap items-center gap-1">
-                  <span className="text-indigo-600 dark:text-indigo-300">{t("Hops")}:</span>
-                  {dive.related.map((b) => (
-                    <button
-                      key={b.term}
-                      type="button"
-                      className="rounded-full border border-indigo-300 bg-white px-2 py-0.5 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-900 dark:hover:bg-indigo-800"
-                      style={{ fontSize: `${0.68 + b.weight * 0.18}rem` }}
-                      onClick={() => void follow(b.term, anchor.current ?? items[0]?.id ?? 0)}
-                      title={t("{n} stories together", { n: b.count })}
-                    >
-                      {b.term}
-                    </button>
-                  ))}
-                </p>
               )}
             </div>
           )}

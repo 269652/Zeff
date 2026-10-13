@@ -151,24 +151,17 @@ export async function newsStartAction(): Promise<Result> {
   }
 }
 
-/** What hangs together with a topic (bubbles to hop to) and the stories that run through it (red threads) — for the dive panel. */
-export async function newsRelatedAction(term: string): Promise<{ related: { term: string; count: number; weight: number }[]; stories: { label: string; count: number }[]; outlets: { name: string; count: number }[] }> {
-  guard();
-  const { exploreTopic } = await import("./explore");
-  const f = exploreTopic(String(term).slice(0, 80));
-  return { related: f.related.slice(0, 10).map((b) => ({ term: b.term, count: b.count, weight: b.weight })), stories: f.stories, outlets: f.outlets.slice(0, 4) };
-}
-
 /** The thread of an item: the story it is part of (the AI's label), or what else is about the same, oldest first. */
 export async function newsStoryAction(itemId: number): Promise<{ label: string; items: { id: number; title: string; url: string; sourceName: string; publishedAt: string; ago: string }[] }> {
   guard();
   const { formatAgo } = await import("@/lib/format");
-  const { getItem, itemsOfStory, relatedByTags } = await import("./store");
+  const { getItem, itemsOfStory, getContent } = await import("./store");
+  const { neighbours } = await import("./similar");
   const it = getItem(Number(itemId));
   if (!it) return { label: "", items: [] };
-  const list = it.story ? itemsOfStory(it.story, 30).filter((i) => i.id !== it.id) : relatedByTags(it, 5, 12);
+  const list = it.story ? itemsOfStory(it.story, 30).filter((i) => i.id !== it.id) : neighbours({ id: it.id, title: it.title, text: `${it.summary} ${getContent(it.id)?.content ?? ""}`.slice(0, 800) }, { days: 10, limit: 12, minScore: 0.2 }).flatMap((n) => (getItem(n.id) ? [getItem(n.id)!] : []));
   return {
-    label: it.story || it.terms[0] || "",
+    label: it.story || it.title.slice(0, 50),
     items: [it, ...list].sort((a, b) => a.publishedAt.localeCompare(b.publishedAt)).map((i) => ({ id: i.id, title: i.title, url: i.url, sourceName: i.sourceName, publishedAt: i.publishedAt, ago: formatAgo(i.publishedAt) })),
   };
 }

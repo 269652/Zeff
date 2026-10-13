@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
@@ -160,24 +159,6 @@ export function NewsCard({ item, ago, showImage, onChange, onDrop, onFollow, fol
           <div className="max-h-96 overflow-auto rounded border border-zinc-200 bg-zinc-50 p-3 text-sm leading-relaxed whitespace-pre-line dark:border-zinc-700 dark:bg-zinc-900">
             {reader.busy ? t("Reading the article …") : reader.error ? <span className="text-red-600 dark:text-red-400">{reader.error}</span> : reader.text}
           </div>
-        )}
-        {item.terms.length > 0 && (
-          <p className="flex flex-wrap items-center gap-1 text-[11px]">
-            <span aria-hidden>🧭</span>
-            {item.terms.map((term) => {
-              const cls = `rounded-full border px-2 py-0.5 ${following === term ? "border-indigo-400 bg-indigo-100 text-indigo-800 dark:border-indigo-600 dark:bg-indigo-950 dark:text-indigo-200" : "border-zinc-200 text-zinc-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-indigo-700 dark:hover:bg-indigo-950 dark:hover:text-indigo-200"}`;
-              // On the feed a chip follows the topic right here; without a feed to follow in (no handler) it opens Explore.
-              return onFollow ? (
-                <button key={term} type="button" className={cls} onClick={() => onFollow(term)} title={t("More about “{term}” right here", { term })}>
-                  {term}
-                </button>
-              ) : (
-                <Link key={term} href={`/news/explore?${new URLSearchParams({ topic: term })}`} className={cls} title={t("Explore “{term}”", { term })}>
-                  {term}
-                </Link>
-              );
-            })}
-          </p>
         )}
         {item.story && (
           <button type="button" className="text-left text-[11px] font-medium text-amber-700 hover:underline dark:text-amber-400" onClick={toggleThread} title={t("The story this belongs to — follow the thread")}>

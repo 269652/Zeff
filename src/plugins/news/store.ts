@@ -2,7 +2,6 @@ import { getSqlite } from "@/db";
 import { getPref, setPref } from "@/lib/prefs";
 import { DEFAULT_PREFS, diversify, normalizeUrl, scoreItem, snippetOf, titleKey, tokens, type NewsItem, type NewsPrefs, type NewsSource, type NewsState, type ScoreContext } from "./shared";
 import type { FeedItem } from "./feed";
-import { keyTerms, type ExploreItem } from "./explore-core";
 import { aliasesOf } from "./gazetteer";
 
 /**
@@ -207,7 +206,7 @@ function tagsOf(r: { tags?: string; title: string }): string[] {
   } catch {
     // fall back
   }
-  return keyTerms(r.title).slice(0, 3);
+  return [];
 }
 
 type IRow = { id: number; tags: string; story: string; tag_src: string; seen: number; category: string; source_id: number | null; source_name: string; url: string; title: string; summary: string; image: string; has_content: number; published_at: string; state: string; vote: number; score: number; reasons: string };
@@ -330,11 +329,6 @@ export function markSeen(ids: number[]): number {
   const list = ids.filter((n) => Number.isInteger(n) && n > 0).slice(0, 200);
   if (!list.length) return 0;
   return db().prepare(`update news_items set seen_at = ? where seen_at is null and id in (${list.map(() => "?").join(",")})`).run(now(), ...list).changes;
-}
-
-/** The recent items for the Explore map (headlines and short texts only). */
-export function recentForExplore(days = 3, limit = 4000): ExploreItem[] {
-  return (db().prepare("select i.id, i.title, i.summary, i.tags, i.story, i.published_at, i.source_name from news_items i left join news_sources s on s.id = i.source_id where i.state != 'hidden' and i.score > -50 and i.published_at > ? and (i.source_id is null or s.enabled = 1) order by i.published_at desc limit ?").all(new Date(Date.now() - days * 864e5).toISOString(), limit) as { id: number; title: string; summary: string; tags: string; story: string; published_at: string; source_name: string }[]).map((r) => ({ id: r.id, title: r.title, summary: r.summary, publishedAt: r.published_at, sourceName: r.source_name, tags: tagsOf(r), story: r.story }));
 }
 
 /** The recent items as the tagger wants them (and whether the AI has tagged them already). */
