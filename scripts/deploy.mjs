@@ -209,6 +209,38 @@ function processes() {
 }
 const servers = (pattern) => processes().filter((p) => p.Name === "node.exe" && pattern.test(p.CommandLine ?? ""));
 
+/**
+ * Whether the RUNNING launcher knows the Sync service (the sync host): its bundle's main.js has it, and the
+ * launcher was started after that file was last written (an Electron app reads it once, at its start).
+ * { ok: true | false | null (no launcher running), why }.
+ */
+function launcherKnowsSync() {
+  let main;
+  try {
+    const out = execFileSync(
+      "powershell",
+      ["-NoProfile", "-Command", "Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'Zeff.exe' } | ForEach-Object { [pscustomobject]@{ exe = $_.ExecutablePath; cmd = $_.CommandLine; start = $_.CreationDate.ToUniversalTime().ToString('o') } } | ConvertTo-Json -Compress"],
+      { encoding: "utf8" },
+    );
+    const list = JSON.parse(out || "[]");
+    // The main process (Electron's helpers carry --type=).
+    main = (Array.isArray(list) ? list : [list]).filter(Boolean).find((x) => !/--type=/.test(x.cmd ?? ""));
+  } catch {
+    return { ok: null, why: "" };
+  }
+  if (!main?.exe) return { ok: null, why: "" };
+  const file = path.join(path.dirname(main.exe), "resources", "app", "main.js");
+  if (!fs.existsSync(file)) return { ok: null, why: "" };
+  if (!/syncPort/.test(fs.readFileSync(file, "utf8")))
+    return {
+      ok: false,
+      why: `Das Launcher-Bundle (${file}) kennt den Sync-Dienst nicht — es ist älter als launcher/main.js. Die Launcher-Dateien ins Bundle kopieren (launcher/* nach ${path.dirname(file)}, wie scripts/dist.mjs es tut), den Launcher beenden (Tray → Beenden) und Zeff.exe neu starten.`,
+    };
+  if (fs.statSync(file).mtimeMs > Date.parse(main.start) + 2000)
+    return { ok: false, why: `Der Launcher läuft mit altem Code (sein Bundle ${file} wurde nach seinem Start aktualisiert). Beenden (Tray → Beenden) und Zeff.exe neu starten.` };
+  return { ok: true, why: "" };
+}
+
 async function probe(url) {
   try {
     const r = await fetch(url, { signal: AbortSignal.timeout(60000) });
@@ -248,7 +280,7 @@ async function swapSyncHost(wait) {
     await sleep(3000);
     up = (await syncHost()).up;
   }
-  if (!up) fail(`Der Sync-Host antwortet nach 2 Minuten nicht auf :${SYNC_PORT} — der Launcher muss ihn starten (neu gestartet? data/logs/sync.log ansehen).`);
+  if (!up) fail(`Der Sync-Host antwortet nach 2 Minuten nicht auf :${SYNC_PORT} — der Launcher muss ihn starten (neu gestartet? data/logs/sync.log ansehen).${launcherKnowsSync().why ? ` ${launcherKnowsSync().why}` : ""}`);
   log("✓ Sync-Host läuft");
   return true;
 }
@@ -258,6 +290,11 @@ async function main() {
   if (OWN_RUN && !process.env.ZEFF_WORK_VIA_HOST) fail("Diese Work-Session läuft unter dem Zeff-Server selbst und würde mit dem Neustart beendet. Der Work-Host des Launchers (Tray → Work) muss laufen; starte die Session dann neu.");
   lock();
   log(`Checkout: ${ROOT}`);
+  // The sync host needs a launcher that knows it — said BEFORE the build, not after two minutes of waiting for a host nobody starts.
+  if (!args.has("--no-sync") && (args.has("--sync") || args.has("--sync-only") || fs.existsSync(path.join(ROOT, SYNC.LIVE, "BUILD_ID")))) {
+    const l = launcherKnowsSync();
+    if (l.ok === false) fail(l.why);
+  }
   if (args.has("--sync-only")) {
     if (!fs.existsSync(path.join(ROOT, SYNC.STAGE, "BUILD_ID"))) fail(`In ${SYNC.STAGE} wartet kein Build für den Sync-Host (erst ein Deploy mit --sync oder ohne --no-sync).`);
     await swapSyncHost(true);
