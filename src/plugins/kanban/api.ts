@@ -18,6 +18,7 @@ const guard = <T>(fn: () => T): T => {
 };
 
 export const KANBAN_API: ApiContribution = {
+  events: { "kanban.changed": { description: "Something on your Kanban boards changed (no details; at most every half second)", topic: "kanban" } },
   permissions: () => ({
     "kanban.read": t("Read your Kanban boards and cards"),
     "kanban.write": t("Add, change, move and archive Kanban cards"),

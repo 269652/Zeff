@@ -1,6 +1,6 @@
 import { extensionPoint } from "@/lib/plugin-kit/extension-point";
-import { setPermissionCheck } from "@/lib/ext/manifest";
-import type { ApiContribution } from "./api-kit";
+import { setEventCheck, setPermissionCheck } from "@/lib/ext/manifest";
+import type { ApiContribution, ApiEvent } from "./api-kit";
 
 /** The `api.methods` extension point, on its own so a plugin's server.ts can register without loading the registry that loads all server.ts files. */
 export const apiPoint = extensionPoint<ApiContribution>("api.methods");
@@ -18,3 +18,9 @@ export function allPermissionIds(): string[] {
 
 // A manifest naming a permission nobody brings is refused (a typo) — but only once Zeff's own are registered.
 setPermissionCheck((p) => !apiPoint.all().some((c) => c.plugin === "core") || allPermissionIds().includes(p));
+
+/** Every event any plugin brings, installed or not, with the plugin that brings it. */
+export const allEvents = (): (ApiEvent & { id: string; plugin: string })[] => apiPoint.all().flatMap((c) => Object.entries(c.impl.events ?? {}).map(([id, e]) => ({ ...e, id, plugin: c.plugin })));
+
+// The same for the events a hook may name.
+setEventCheck((e) => !apiPoint.all().some((c) => c.plugin === "core") || allEvents().some((x) => x.id === e));

@@ -226,12 +226,7 @@
           "type": "object",
           "propertyNames": {
             "type": "string",
-            "enum": [
-              "work.run.started",
-              "work.run.finished",
-              "work.changed",
-              "todos.changed"
-            ]
+            "pattern": "^[a-z][a-z0-9]*(\\.[a-z0-9]+)+$"
           },
           "additionalProperties": {
             "type": "object",

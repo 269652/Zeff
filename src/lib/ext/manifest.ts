@@ -25,15 +25,17 @@ export const setPermissionCheck = (fn: (p: string) => boolean) => {
 };
 const permissionId = z.string().regex(/^[a-z][a-z0-9]*(\.[a-z0-9]+)*$/, "a permission id like work.read or exec").refine((p) => permissionCheck(p), "no plugin brings this permission");
 
-/** The events a hook can listen to (docs/plugins/hooks.md). */
-export const EVENTS = {
-  "work.run.started": "A Work run started working",
-  "work.run.finished": "A Work run ended (done, failed, stopped or interrupted)",
-  "work.changed": "Something in Work changed (no details; at most every half second)",
-  "todos.changed": "Something in the todos changed (no details; at most every half second)",
-} as const;
-export type ExtEvent = keyof typeof EVENTS;
-export const EVENT_IDS = Object.keys(EVENTS) as [ExtEvent, ...ExtEvent[]];
+/**
+ * The events a hook can listen to (docs/plugins/hooks.md). Like permissions they are brought by plugins
+ * (Work: work.run.started, work.run.finished, work.changed; Todos: todos.changed; Kanban: kanban.changed …).
+ */
+export type ExtEvent = string;
+let eventCheck: (e: string) => boolean = () => true;
+/** Set by lib/plugins/api-point.ts: whether some plugin brings the event. */
+export const setEventCheck = (fn: (e: string) => boolean) => {
+  eventCheck = fn;
+};
+const eventId = z.string().regex(/^[a-z][a-z0-9]*(\.[a-z0-9]+)+$/, "an event name like work.run.finished").refine((e) => eventCheck(e), "no plugin brings this event");
 
 /** Ids a plugin can't take: they're Zeff's own paths under /ext. */
 export const RESERVED_IDS = ["sdk", "docs", "view", "raw"];
@@ -93,7 +95,7 @@ const contributes = z.object({
   workCommands: z.array(command).max(50).default([]).describe('Entries of the Work message box\'s "/" menu.'),
   workerMcpServers: z.record(shortId, z.union([mcpStdio, mcpHttp])).default({}).describe("MCP servers every Work worker gets (stdio: needs exec; http: needs network)."),
   workPanels: z.array(panel).max(20).default([]).describe("Views in Work, shown in a sandboxed frame."),
-  hooks: z.partialRecord(z.enum(EVENT_IDS), hook).default({}).describe("Programs Zeff runs when something happens. Needs the exec permission."),
+  hooks: z.record(eventId, hook).default({}).describe("Programs Zeff runs when something happens. Needs the exec permission."),
 });
 
 export const manifestSchema = z

@@ -17,6 +17,11 @@ async function runInfo(id: number, full = false) {
 }
 
 export const WORK_API: ApiContribution = {
+  events: {
+    "work.run.started": { description: "A Work run started working" },
+    "work.run.finished": { description: "A Work run ended (done, failed, stopped or interrupted)" },
+    "work.changed": { description: "Something in Work changed (no details; at most every half second)", topic: "work" },
+  },
   permissions: () => ({
     "work.read": t("Read Work sessions, their logs and results"),
     "work.write": t("Start, continue and stop Work sessions"),

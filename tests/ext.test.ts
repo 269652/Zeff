@@ -314,11 +314,11 @@ test("the docs name every API method, event and permission; the examples are val
   const { setInstalled } = await import("@/plugins/state");
   setInstalled("kanban", true);
   const METHODS = apiMethods();
-  const { EVENT_IDS } = await import("@/lib/ext/manifest");
+  const { allEvents } = await import("@/lib/plugins/api-point");
   const { checkPluginFolder } = await import("@/lib/ext/check");
   const doc = (n: string) => fs.readFileSync(path.join(process.cwd(), "docs", "plugins", `${n}.md`), "utf8");
   for (const m of Object.keys(METHODS)) assert.ok(doc("api").includes(`\`${m}\``), `api.md doesn't document ${m}`);
-  for (const e of EVENT_IDS) assert.ok(doc("hooks").includes(`\`${e}\``), `hooks.md doesn't document ${e}`);
+  for (const e of allEvents()) assert.ok(doc("hooks").includes(`\`${e.id}\``), `hooks.md doesn't document ${e.id}`);
   for (const p of Object.keys(knownPermissions())) assert.ok(doc("manifest").includes(`\`${p}\``), `manifest.md doesn't document ${p}`);
   // Every method a panel's helper calls exists (the SDK is plain text: its call("…") names are checked here).
   const { SDK_JS } = await import("@/lib/ext/sdk");
@@ -431,4 +431,30 @@ test("the docs render in the app: no bold or code span runs over a line break (t
       assert.equal(line.split("`").length % 2, 1, `${file}:${i + 1}: a \` span runs over the line's end`);
     });
   }
+});
+
+test("a plugin's event reaches the hooks: Kanban's change becomes kanban.changed", async () => {
+  const reg = await import("@/lib/ext/registry");
+  const { startExtWatcher } = await import("@/lib/ext/work");
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("kanban", true);
+  const dir = write(
+    "hook-kanban",
+    { ...base, id: "hook-kanban", permissions: ["exec"], contributes: { hooks: { "kanban.changed": { command: ["node", "./hook.mjs"], timeoutMs: 5000 } } } },
+    { "hook.mjs": 'import fs from "node:fs"; fs.appendFileSync("seen.txt", process.env.ZEFF_EVENT + " ");' },
+  );
+  assert.ok(reg.scanPlugins(true).plugins.some((p) => p.id === "hook-kanban"), "a hook on an event a plugin brings is accepted");
+  reg.setEnabled("hook-kanban", true);
+  startExtWatcher();
+  const store = await import("@/plugins/kanban/store");
+  const b = store.createBoard({ name: "Hooked" });
+  store.createCard(store.getBoard(b).columns[0].id, "x");
+  const seen = path.join(dir, "seen.txt");
+  for (let i = 0; i < 40 && !fs.existsSync(seen); i++) await new Promise((r) => setTimeout(r, 100));
+  assert.ok(fs.existsSync(seen), "the hook ran");
+  assert.match(fs.readFileSync(seen, "utf8"), /kanban\.changed/);
+  // An event nobody brings is refused.
+  const { parseManifest } = await import("@/lib/ext/manifest");
+  assert.ok(!parseManifest(JSON.stringify({ ...base, id: "p-y", permissions: ["exec"], contributes: { hooks: { "mail.arrived": { command: ["x"] } } } })).ok);
+  reg.setEnabled("hook-kanban", false);
 });

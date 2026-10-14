@@ -3,6 +3,7 @@ import { t } from "@/lib/i18n/server";
 
 /** Todos' part of the plugin API (docs/plugins/api.md). */
 export const TODOS_API: ApiContribution = {
+  events: { "todos.changed": { description: "Something in the todos changed (no details; at most every half second)", topic: "todos" } },
   permissions: () => ({
     "todos.read": t("Read your todos"),
     "todos.write": t("Add todos"),

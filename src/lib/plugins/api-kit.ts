@@ -28,9 +28,14 @@ export type ApiCaller = {
 /** One method: `perm` the permission it needs (none: any caller), `summary` for the docs. */
 export type ApiMethod = { perm?: string; summary: string; run: (p: Params, caller: ApiCaller) => unknown | Promise<unknown> };
 
-/** What a plugin brings to the API: its methods (names "<area>.<what>") and the permissions they use, in words. */
+/** An event a hook can listen to: `topic` ties it to the app's change bus (lib/events.ts) — fired, at most every half second, when that topic changes. */
+export type ApiEvent = { description: string; topic?: string };
+
+/** What a plugin brings to the API: its methods (names "<area>.<what>"), the permissions they use, in words, and the events hooks can listen to. */
 export type ApiContribution = {
   methods: Record<string, ApiMethod>;
+  /** Event name ("kanban.changed") → what it is. */
+  events?: Record<string, ApiEvent>;
   /** Permission id → what it allows, translated when asked (a function: the language is the caller's). */
   permissions?: () => Record<string, string>;
 };
