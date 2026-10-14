@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useLang, useT } from "@/components/I18nProvider";
 import { addDays } from "@/lib/calendar/recurrence";
 import { LANGUAGES } from "@/lib/i18n/shared";
-import { isoWeek, itemOn, local, minutesBetween, timeText, weekdayHeads, type Item } from "./view-shared";
+import { isoWeek, itemOn, local, mergeDone, minutesBetween, timeText, weekdayHeads, type Item } from "./view-shared";
 
 const MAX = 3;
 
@@ -87,7 +87,7 @@ export function MonthGrid({
               {isoWeek(w[0])}
             </button>
             {w.map((d) => {
-              const list = shown.filter((it) => itemOn(it, d)).sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start.localeCompare(b.start));
+              const list = mergeDone(shown.filter((it) => itemOn(it, d))).sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start.localeCompare(b.start));
               const other = d.slice(0, 7) !== month;
               const isToday = d === today;
               const target = drag?.moved && drag.day === d;
@@ -120,11 +120,12 @@ export function MonthGrid({
                       onKeyDown={(e) => e.key === "Enter" && onOpen(it, e.currentTarget.getBoundingClientRect())}
                       className={`flex w-full min-w-0 items-center gap-1 truncate rounded px-1 text-left text-[11px] leading-5 ${it.allDay ? "font-medium text-white" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"} ${it.editable ? "cursor-grab" : "cursor-pointer"} ${drag?.moved && drag.item.id === it.id ? "opacity-60" : ""} ${it.proposed ? "border border-dashed" : ""}`}
                       style={it.allDay ? { background: it.color } : it.proposed ? { borderColor: it.color } : undefined}
-                      title={`${it.allDay ? "" : `${timeText(it.start)} `}${it.title}`}
+                      title={`${it.allDay ? "" : `${timeText(it.start)} `}${it.title}${it.merged ? ` ✓ ${it.merged.title}` : ""}`}
                     >
                       {!it.allDay && <span className="size-1.5 shrink-0 rounded-full" style={{ background: it.color }} />}
                       {!it.allDay && <span className="shrink-0 text-zinc-500 tabular-nums">{it.start.slice(0, 10) === d ? timeText(it.start) : "…"}</span>}
                       <span className="min-w-0 truncate">{it.title}</span>
+                      {it.merged && <span className="shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden>✓</span>}
                     </button>
                   ))}
                   {list.length > MAX && (

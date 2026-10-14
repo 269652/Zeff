@@ -2,14 +2,14 @@
 
 import { useLang, useT } from "@/components/I18nProvider";
 import { LANGUAGES } from "@/lib/i18n/shared";
-import { itemOn, local, timeText, type Item } from "./view-shared";
+import { itemOn, local, mergeDone, timeText, type Item } from "./view-shared";
 
 /** The next days as a list: each day with appointments, its appointments in order — a click opens one. */
 export function AgendaList({ days, items, today, onOpen }: { days: string[]; items: Item[]; today: string; onOpen: (item: Item, rect: DOMRect) => void }) {
   const t = useT();
   const locale = LANGUAGES[useLang()].locale;
   const groups = days
-    .map((d) => ({ d, list: items.filter((it) => itemOn(it, d)).sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start.localeCompare(b.start)) }))
+    .map((d) => ({ d, list: mergeDone(items.filter((it) => itemOn(it, d))).sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start.localeCompare(b.start)) }))
     .filter((g) => g.list.length);
   if (!groups.length) return <p className="p-8 text-center text-sm text-zinc-500">{t("No events in these {n} days.", { n: days.length })}</p>;
   return (
@@ -34,6 +34,11 @@ export function AgendaList({ days, items, today, onOpen }: { days: string[]; ite
                     <span className="font-medium">
                       {it.event?.recurrence ? "↻ " : ""}
                       {it.proposed ? t("Proposed: {title}", { title: it.title }) : it.title}
+                      {it.merged && (
+                        <span className="ml-1 font-normal text-emerald-600 dark:text-emerald-400" title={it.merged.title}>
+                          ✓
+                        </span>
+                      )}
                     </span>
                     {it.event?.location && <span className="text-zinc-500"> · {it.event.location}</span>}
                     {it.calendar && <span className="block text-xs text-zinc-400">{it.calendar.name}</span>}
