@@ -43,3 +43,16 @@ test("kanban: board providers come through the extension point", async () => {
   assert.ok(!(await providerBoards()).some((b) => b.id === "sig-1"), "uninstalled: not listed");
   assert.equal(await providerBoard("sig-1"), null, "and not served");
 });
+
+/** The header tabs' dropdowns come from the plugins that have them, while installed. */
+test("tab menus: Kanban's and Keep's dropdowns follow their plugins", async () => {
+  const { tabsWithMenu } = await import("@/plugins/tab-menus");
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("kanban", true);
+  setInstalled("keep", false);
+  assert.ok(tabsWithMenu().has("/kanban") && !tabsWithMenu().has("/keep"));
+  setInstalled("keep", true);
+  assert.ok(tabsWithMenu().has("/keep"));
+  setInstalled("kanban", false);
+  assert.ok(!tabsWithMenu().has("/kanban"));
+});

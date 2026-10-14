@@ -450,7 +450,8 @@ test("a plugin's event reaches the hooks: Kanban's change becomes kanban.changed
   const b = store.createBoard({ name: "Hooked" });
   store.createCard(store.getBoard(b).columns[0].id, "x");
   const seen = path.join(dir, "seen.txt");
-  for (let i = 0; i < 40 && !fs.existsSync(seen); i++) await new Promise((r) => setTimeout(r, 100));
+  const said = () => fs.existsSync(seen) && fs.readFileSync(seen, "utf8").includes("kanban.changed");
+  for (let i = 0; i < 40 && !said(); i++) await new Promise((r) => setTimeout(r, 100));
   assert.ok(fs.existsSync(seen), "the hook ran");
   assert.match(fs.readFileSync(seen, "utf8"), /kanban\.changed/);
   // An event nobody brings is refused.

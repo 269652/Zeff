@@ -100,6 +100,24 @@ Views of your own, shown in a sandboxed frame (see [panels](panels.md)).
 | `entry` | the HTML page, **relative to the plugin's `ui/` folder** |
 | `placement` | `"tab"` (default): a link in Work's sidebar opening a page of its own. `"session"`: an extra tab next to *Conversation / Changes / Preview* of every session; the panel is told which session. |
 
+### `apps`
+
+Entries in Zeff's menu (*Apps*) that open one of the plugin's panels as a page of its own — not tied to Work.
+Each names a panel declared in `workPanels` (any `placement`); you can move the entry into the header with
+*Menu → Customize*, like a built-in app's.
+
+| Field | Meaning |
+| --- | --- |
+| `panel` | the `id` of a panel in `workPanels` |
+| `label` | its name in the menu (up to 30 characters) |
+| `short` | its name in the header (up to 12) |
+| `hint` | a line under the name (optional, up to 80) |
+
+```json
+"workPanels": [{ "id": "board", "title": "Team board", "entry": "board.html" }],
+"apps": [{ "panel": "board", "label": "Team board", "short": "Team", "hint": "Who works on what" }]
+```
+
 ### `workerMcpServers`
 
 MCP servers every worker gets, by name. The worker sees them as `ext-<plugin id>-<name>`. Two shapes:

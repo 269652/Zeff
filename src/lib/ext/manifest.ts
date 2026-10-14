@@ -81,6 +81,13 @@ const panel = z.object({
     .describe('"tab": a view of its own, linked in Work\'s sidebar. "session": a drawer beside a session, which gets that session\'s ids.'),
 });
 
+const app = z.object({
+  panel: shortId.describe("The id of one of the plugin's panels (workPanels) this entry opens."),
+  label: z.string().min(1).max(30).describe("Its name in the menu."),
+  short: z.string().min(1).max(12).describe("Its name in the header, when you put it there."),
+  hint: z.string().max(80).default("").describe("A line under the name in the menu."),
+});
+
 const hook = z.object({
   command: z.array(z.string().max(1000)).min(1).max(50).describe('Program and arguments, no shell. "node" is the Node that runs Zeff; "./x" is relative to the plugin folder.'),
   timeoutMs: z.number().int().min(200).max(30000).default(5000),
@@ -95,6 +102,7 @@ const contributes = z.object({
   workCommands: z.array(command).max(50).default([]).describe('Entries of the Work message box\'s "/" menu.'),
   workerMcpServers: z.record(shortId, z.union([mcpStdio, mcpHttp])).default({}).describe("MCP servers every Work worker gets (stdio: needs exec; http: needs network)."),
   workPanels: z.array(panel).max(20).default([]).describe("Views in Work, shown in a sandboxed frame."),
+  apps: z.array(app).max(10).default([]).describe("Entries in Zeff's menu (Apps) that open one of its panels as a page of its own — you can put them in the header (Menu → Customize)."),
   hooks: z.record(eventId, hook).default({}).describe("Programs Zeff runs when something happens. Needs the exec permission."),
 });
 
@@ -109,7 +117,7 @@ export const manifestSchema = z
     homepage: z.url().optional(),
     apiVersion: z.number().int().min(1).max(API_VERSION).describe(`The extension API version it was written for (this Zeff speaks up to ${API_VERSION}).`),
     permissions: z.array(permissionId).max(30).default([]).describe("What it may do (granted by you): exec, network, prompt, and the permissions plugins bring (work.read, todos.write, kanban.read …)."),
-    contributes: contributes.default({ workerRules: [], workCommands: [], workerMcpServers: {}, workPanels: [], hooks: {} }),
+    contributes: contributes.default({ workerRules: [], workCommands: [], workerMcpServers: {}, workPanels: [], apps: [], hooks: {} }),
   })
   .superRefine((m, ctx) => {
     const has = (p: Permission) => m.permissions.includes(p);
@@ -131,6 +139,9 @@ export const manifestSchema = z
     };
     dup(m.contributes.workCommands, "workCommands");
     dup(m.contributes.workPanels, "workPanels");
+    m.contributes.apps.forEach((a, i) => {
+      if (!m.contributes.workPanels.some((p) => p.id === a.panel)) ctx.addIssue({ code: "custom", path: ["contributes", "apps", i, "panel"], message: `no panel "${a.panel}" in workPanels` });
+    });
   });
 
 export type Manifest = z.output<typeof manifestSchema>;
