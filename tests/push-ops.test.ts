@@ -146,3 +146,60 @@ test("a delivery todo that names the branch carries the push and the merge reque
   assert.ok(getTodo(deliver.id)!.refs.includes("gitlab:branch:grp/proj:feature/PU-9-delivery"));
   assert.ok(getTodo(work.id)!.refs.includes("gitlab:branch:grp/proj:feature/PU-9-delivery"));
 });
+
+test("a todo that asks for the merge request still gets its push and MR buttons when the AI only suggested handing it to a worker", async () => {
+  const { attachOpenMrOps } = await import("@/lib/boards/delivery-ops");
+  const { addFollowUp, getTodo } = await import("@/lib/boards/store");
+  const { saveRepo } = await import("@/lib/repos");
+  const repo = repoWithBranch("feature/TY-8-typography-tokens");
+  saveRepo({ name: "r-TY-8", path: repo, gitlabProject: "grp/proj", boards: [], tickets: ["TY-8"], instructions: "", delivery: "mr" });
+  const handOver = { type: "work-instruct" as const, instruction: "Push den Branch und öffne einen Merge Request" };
+  const todo = addFollowUp({ ticket: "TY-8", text: "Merge Request für feature/TY-8-typography-tokens öffnen", kind: "other", parentId: null as unknown as number, workRunId: null, source: "test", ops: [handOver] });
+  await attachOpenMrOps();
+  // The deterministic actions first, the hand-over kept after them.
+  assert.deepEqual(getTodo(todo.id)!.ops.map((o) => o.type), ["git-push", "gitlab-open-mr", "work-instruct"]);
+  await attachOpenMrOps();
+  assert.equal(getTodo(todo.id)!.ops.length, 3, "not twice");
+
+});
+
+test("a push that ran is taken off the todo even when the stored action has a title with a trailing space (the view trims it)", async () => {
+  const { addFollowUp, getTodo, setTodoOps } = await import("@/lib/boards/store");
+  const { saveRepo } = await import("@/lib/repos");
+  const { runTodoOpsNow } = await import("@/lib/ops");
+  const repo = repoWithBranch("feature/TZ-1-spaced");
+  saveRepo({ name: "r-TZ-1", path: repo, gitlabProject: "grp/proj", boards: [], tickets: ["TZ-1"], instructions: "", delivery: "mr" });
+  const todo = addFollowUp({ ticket: "TZ-1", text: "Branch feature/TZ-1-spaced pushen", kind: "other", parentId: null as unknown as number, workRunId: null, source: "test" });
+  const handOver = { type: "work-instruct" as const, instruction: "x" };
+  setTodoOps(todo.id, [{ type: "git-push", repo, branch: "feature/TZ-1-spaced", remote: "feature/TZ-1-spaced", target: "main", title: "TZ-1: Spaced title ", description: "d" }, handOver]);
+  await runTodoOpsNow(todo.id, { only: [0] });
+  assert.deepEqual(getTodo(todo.id)!.ops.map((o) => o.type), ["work-instruct"]);
+});
+
+test("a pushed branch becomes a context entry of the todo, on the remote — not a line of text", async () => {
+  const { addFollowUp, getTodo, setTodoOps } = await import("@/lib/boards/store");
+  const { saveRepo } = await import("@/lib/repos");
+  const { runTodoOpsNow } = await import("@/lib/ops");
+  const { getDb, schema } = await import("@/db");
+  const { eq } = await import("drizzle-orm");
+  const repo = repoWithBranch("feature/TZ-2-context");
+  // Its origin looks like GitLab's (the web address is made from it); the push itself goes to the bare repo.
+  git(repo, "config", `url.${path.join(path.dirname(repo), "origin.git")}.pushInsteadOf`, "https://git.example/grp/proj.git");
+  git(repo, "remote", "set-url", "origin", "https://git.example/grp/proj.git");
+  saveRepo({ name: "r-TZ-2", path: repo, gitlabProject: "grp/proj", boards: [], tickets: ["TZ-2"], instructions: "", delivery: "mr" });
+  const todo = addFollowUp({ ticket: "TZ-2", text: "Branch feature/TZ-2-context pushen", kind: "other", parentId: null as unknown as number, workRunId: null, source: "test" });
+  setTodoOps(todo.id, [{ type: "git-push", repo, branch: "feature/TZ-2-context", remote: "feature/TZ-2-context", target: "main", title: "t", description: "d" }, { type: "work-instruct", instruction: "x" }]);
+  await runTodoOpsNow(todo.id, { only: [0] });
+  const key = "branch:grp/proj:feature/TZ-2-context";
+  const item = getDb().select().from(schema.gitlabItems).where(eq(schema.gitlabItems.key, key)).get();
+  assert.equal(item?.kind, "branch");
+  assert.equal(item?.state, null, "on the remote: not \"not pushed\"");
+  assert.equal(item?.url, "https://git.example/grp/proj/-/tree/feature/TZ-2-context");
+  assert.ok(getTodo(todo.id)!.refs.includes(`gitlab:${key}`), "linked as the todo's context");
+
+  // A branch noted before its push ("not pushed") is on the remote after it.
+  getDb().update(schema.gitlabItems).set({ state: "not pushed" }).where(eq(schema.gitlabItems.key, key)).run();
+  const { markBranchOnRemote } = await import("@/lib/work/branch-remote");
+  assert.equal(markBranchOnRemote(repo, "origin/feature/TZ-2-context"), true);
+  assert.equal(getDb().select().from(schema.gitlabItems).where(eq(schema.gitlabItems.key, key)).get()?.state, null);
+});

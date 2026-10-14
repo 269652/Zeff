@@ -91,13 +91,17 @@ export function GitlabItemBadge({
   const t = useT();
   const project = item.project.split("/").pop();
   const what = item.kind === "branch" ? item.ref : `${item.ref} ${item.title}`;
+  // A branch that is on the remote (GitLab has it, or Zeff pushed it): green, with a check.
+  const onRemote = item.kind === "branch" && item.state !== "not pushed";
   const start = item.kind === "comment" ? item.body.replace(/\s+/g, " ").trim() : "";
   const content = (
     <>
       {onToggle && <ChevronIcon open={expanded} className="size-3.5 shrink-0 text-orange-500 dark:text-orange-400" />}
-      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="size-4 shrink-0 text-orange-600 dark:text-orange-400" aria-hidden>
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className={`size-4 shrink-0 ${onRemote ? "text-emerald-600 dark:text-emerald-400" : "text-orange-600 dark:text-orange-400"}`} aria-hidden={!onRemote} role={onRemote ? "img" : undefined}>
+        {onRemote && <title>{t("On the remote")}</title>}
         {item.kind === "branch" ? (
           <>
+            {onRemote && <path d="M12.5 15.5l2 2 3.5-4.25" />}
             <circle cx="6" cy="4.5" r="1.75" />
             <circle cx="6" cy="15.5" r="1.75" />
             <circle cx="14" cy="7" r="1.75" />

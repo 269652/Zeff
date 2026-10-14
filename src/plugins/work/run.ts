@@ -28,13 +28,16 @@ const gitAsync = (cwd: string, args: string[], timeout = 180000) =>
   );
 
 /** The branch pushed — the merge request as the next step (with a GitLab project). */
-export async function runGitPush(op: Extract<TodoOp, { type: "git-push" }>): Promise<ActionResult> {
+export async function runGitPush(op: Extract<TodoOp, { type: "git-push" }>, ctx?: ActionContext): Promise<ActionResult> {
       await gitAsync(op.repo, [
         "push",
         "-u",
         "origin",
         `${op.branch}:refs/heads/${op.remote}`,
       ]);
+      // On the remote now: the todo's context says so (its branch entry, no longer "not pushed") — not a line of text that goes away.
+      const { markBranchOnRemote } = await import("@/lib/work/branch-remote");
+      if (markBranchOnRemote(op.repo, op.remote) && ctx?.todo) (await import("@/lib/boards/store")).recordBranch(ctx.todo.id, op.remote, op.repo, "push");
       const project = listRepos().find(
         (r) => r.path === op.repo,
       )?.gitlabProject;

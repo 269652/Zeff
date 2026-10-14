@@ -96,7 +96,8 @@ async function openMrOps(f: RepoFacts, t: TodoView, name: string): Promise<TodoO
  * Null: not such a todo, or nothing to do (no branch, no GitLab project, it's being delivered).
  */
 export async function deliveryOpsFor(t: TodoView, opts: { delivering?: Set<string>; facts?: Map<string, RepoFacts> } = {}): Promise<TodoOp[] | null> {
-  if (t.status !== "open" || t.ops.length) return null;
+  // (A hand-over to a worker — the AI's suggestion "Hand to Copilot" — is no delivery: the push and the merge request still get their buttons, before it.)
+  if (t.status !== "open" || t.ops.some((o) => o.type !== "work-instruct")) return null;
   const opens = t.owner === "me" && OPENS_MR(t.text);
   const merges = !opens && (t.kind === "merge" || MERGES(t.text));
   if (!opens && !merges) return null;
@@ -184,7 +185,7 @@ export async function attachOpenMrOps(): Promise<number> {
   for (const t of open) {
     const ops = await deliveryOpsFor(t, { delivering, facts });
     if (!ops) continue;
-    setTodoOps(t.id, ops);
+    setTodoOps(t.id, [...ops, ...t.ops]);
     for (const o of ops) if ("source" in o) delivering.add(o.source);
     n++;
   }

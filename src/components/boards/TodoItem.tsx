@@ -156,6 +156,10 @@ export function TodoItem({
   const [doing, startDoing] = useTransition();
   // Which action's button was pressed (each action has its own).
   const [doingAt, setDoingAt] = useState<number | null>(null);
+  // Actions that ran well, until the todo (refreshed) no longer lists them: their button stays off — a second click would run them again.
+  const [ran, setRan] = useState<string[]>([]);
+  // How the last action FAILED — stays under the actions (a toast is gone before you look), until the next one runs. A success shows in the todo's context instead (a pushed branch: its badge).
+  const [outcome, setOutcome] = useState<{ ok: boolean; text: string } | null>(null);
   const [quick, setQuick] = useState<QuickPanel>(null);
   const [showActions, setShowActions] = useState(false);
   const [showContext, setShowContext] = useState(false);
@@ -198,7 +202,7 @@ export function TodoItem({
   // Proposed by the auto-actions review: folded behind "Actions (n)" — they're suggestions.
   const proposedAll = todo.ops.length > 0 && !closed && !!todo.autoOpsWhy;
   const proposed = proposedAll && areaOn(off, "actions");
-  // Several actions (a delivery's commit, push, MR, merge): their notes fold behind the same toggle — the buttons stay.
+  // Several actions (a delivery's commit, push, MR, merge): all of them — each with its note and button, and the alternatives — fold behind the same toggle.
   const foldable = todo.ops.length > 1 && !closed && !proposedAll;
   const cameFrom = sourcesOf(todo.refs, sources);
   // Where a todo without a ticket came from: WhatsApp (Signal) when its messages are all that app's chats.
@@ -419,7 +423,7 @@ export function TodoItem({
             <ContextList items={context.items} todoId={todo.id} />
           </span>
         )}
-        {todo.ops.length > 0 && !closed && (proposedAll ? proposed && showActions : true) && (
+        {todo.ops.length > 0 && !closed && (proposedAll ? proposed && showActions : foldable ? showActions : true) && (
           <span className="mt-1.5 flex flex-col gap-1.5">
             {/* Proposed by the auto-actions review: said so, and why. */}
             {proposed && (
@@ -436,6 +440,8 @@ export function TodoItem({
             {opGroups.map((g, gi) => {
               const runnable = g.idx.filter((i) => !actionHref(todo.ops[i]));
               const runOps = runnable.map((i) => todo.ops[i]);
+              const sig = runOps.map((o) => JSON.stringify(o)).join("|");
+              const justRan = ran.includes(sig);
               return (
                 <span key={gi} className="flex items-center gap-2 max-sm:flex-col max-sm:items-start">
                   {(!foldable || showActions) && (
@@ -451,24 +457,37 @@ export function TodoItem({
                     <button
                       type="button"
                       className="btn btn-sm btn-primary shrink-0"
-                      disabled={doing || (running && runOps.some((o) => o.type === "work-instruct")) || !!todo.blockedBy}
+                      disabled={doing || doingAt !== null || justRan || (running && runOps.some((o) => o.type === "work-instruct")) || !!todo.blockedBy}
                       title={todo.blockedBy ? t("Waiting: {what} — the GitLab sync notices once it's ready", { what: todo.blockedBy }) : t("Zeff does it itself, no AI: {ops}", { ops: runOps.map((o) => opTitle(o, t)).join(" · ") })}
-                      onClick={() =>
+                      onClick={() => {
+                        // Off at once (not only when the transition has started): until it has worked or failed.
+                        setDoingAt(gi);
+                        setOutcome(null);
                         startDoing(async () => {
                           // Zeff runs it right now (no worker, no Work tab) — just this action.
-                          setDoingAt(gi);
-                          const r = await runTodoOpsAction(todo.id, opGroups.length > 1 ? runnable : undefined);
+                          const r = await runTodoOpsAction(todo.id, opGroups.length > 1 ? runnable : undefined).catch((e) => ({ ok: false as const, error: String(e?.message ?? e) }));
                           setDoingAt(null);
-                          toast(r?.ok ? `${todo.ref}: ${r.message}` : `${todo.ref}: ${r?.error ?? t("Didn't work.")}`, { tone: r?.ok ? "ok" : "error" });
-                        })
-                      }
+                          if (r?.ok) {
+                            setRan((x) => [...x, sig]);
+                            setTimeout(() => setRan((x) => x.filter((s) => s !== sig)), 15000);
+                          }
+                          const text = (r?.ok ? r.message : r?.error) || (r?.ok ? t("Done.") : t("Didn't work."));
+                          setOutcome(r?.ok ? null : { ok: false, text });
+                          toast(`${todo.ref}: ${text}`, { tone: r?.ok ? "ok" : "error" });
+                        });
+                      }}
                     >
-                      {(doing && doingAt === gi) || (running && runOps.some((o) => o.type === "work-instruct")) ? t("running…") : opsButton(runOps, t)}
+                      {doingAt === gi || (running && runOps.some((o) => o.type === "work-instruct")) ? t("running…") : justRan ? t("done") : opsButton(runOps, t)}
                     </button>
                   )}
                 </span>
               );
             })}
+            {outcome && (
+              <span role="status" className={`text-xs ${outcome.ok ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                {outcome.ok ? "✓" : "✗"} {outcome.text}
+              </span>
+            )}
             <TodoAlternatives t={todo} disabled={doing || running} />
           </span>
         )}

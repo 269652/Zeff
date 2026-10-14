@@ -298,11 +298,22 @@ function ContextCounts({ items, onHover }: { items: Item[]; onHover?: (group: st
   }
   const shown = CONTEXT_GROUPS.filter((g) => counts.get(g.group));
   if (!shown.length) return null;
+  // A branch among the GitLab items is on the remote (GitLab has it, or Zeff pushed it): its icon gets a green check.
+  const remote = items.some((it) => !("n" in it) && it.s.source === "gitlab" && it.s.gitlab.kind === "branch" && it.s.gitlab.state !== "not pushed");
   return (
     <span className="ml-1.5 flex items-center gap-2 font-normal text-zinc-500 dark:text-zinc-400">
       {shown.map((g) => (
         <span key={g.group} className="flex items-center gap-0.5 tabular-nums" title={`${counts.get(g.group)} ${g.label(t)}`} onMouseEnter={() => onHover?.(g.group)} onMouseLeave={() => onHover?.(null)}>
-          {g.icon}
+          {g.group === "gitlab" && remote ? (
+            <span className="relative flex" title={t("Branch on the remote")}>
+              {g.icon}
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" className="absolute -right-1 -bottom-1 size-2.5 rounded-full bg-white text-emerald-600 dark:bg-zinc-900 dark:text-emerald-400" aria-hidden>
+                <path d="m4.5 10.5 3.5 3.5 7.5-8" />
+              </svg>
+            </span>
+          ) : (
+            g.icon
+          )}
           {counts.get(g.group)}
         </span>
       ))}

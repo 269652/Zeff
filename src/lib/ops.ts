@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { opLabel, opTitle, type TodoView } from "@/lib/boards/shared";
 import { errorMessage } from "@/lib/errors";
+import { emitChange } from "@/lib/events";
 import { t } from "@/lib/i18n/server";
 import { actionHref, actionOf } from "@/plugins/actions/catalog";
 import { RUNNERS } from "@/plugins/actions/run";
@@ -43,11 +44,15 @@ export async function runTodoOps(
     } catch {
       now = [];
     }
+    // (The todo's view trims the texts of an action — "Title " is "Title" — so they're compared trimmed: else a done action stays and looks undone.)
+    const same = (o: unknown) => JSON.stringify(o, (_k, v) => (typeof v === "string" ? v.trim() : v));
     for (const op of ranOps) {
-      const at = now.findIndex((x) => JSON.stringify(x) === JSON.stringify(op));
+      const at = now.findIndex((x) => same(x) === same(op));
       if (at >= 0) now.splice(at, 1);
     }
     getDb().update(schema.todos).set({ ops: JSON.stringify(now) }).where(eq(schema.todos.id, todo.id)).run();
+    // Open pages show it gone at once (not at their next refresh).
+    if (ranOps.length) emitChange("todos");
   };
   try {
     while (left.length) {
