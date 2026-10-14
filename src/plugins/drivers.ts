@@ -1,14 +1,16 @@
 import path from "node:path";
 import { accountChrome } from "@/db/accounts";
+import { integrationDriverPath } from "@/lib/integrations/server";
 
 /**
  * The plugins' browser drivers (MCP servers over stdio, run by Zeff) — Outlook Web serves the mail and
  * the calendar plugin. Signal's attaches to Signal Desktop instead (its own debug port, see signal/endpoint.ts).
  */
-export type DriverId = "chrono" | "punch" | "teams" | "gitlab" | "outlook" | "gmail" | "whatsapp" | "signal" | "keep" | "google-calendar";
+export type DriverId = CoreDriverId | (string & {});
+type CoreDriverId = "teams" | "gitlab" | "outlook" | "gmail" | "whatsapp" | "signal" | "keep" | "google-calendar";
 
-/** Where a plugin's driver is. */
-export const driverPath = (id: DriverId) => path.join(/*turbopackIgnore: true*/ process.cwd(), "src", "plugins", id, "driver.mjs");
+/** Where a plugin's driver is — in its integration's mount, else in src/plugins/<id>/. */
+export const driverPath = (id: DriverId) => integrationDriverPath(id) ?? path.join(/*turbopackIgnore: true*/ process.cwd(), "src", "plugins", id, "driver.mjs");
 
 const ENDPOINTS = ["CHRONO_CDP_ENDPOINT", "TEAMS_CDP_ENDPOINT", "GITLAB_CDP_ENDPOINT", "OUTLOOK_CDP_ENDPOINT", "GMAIL_CDP_ENDPOINT", "WHATSAPP_CDP_ENDPOINT", "KEEP_CDP_ENDPOINT", "GCAL_CDP_ENDPOINT"] as const;
 
@@ -25,8 +27,8 @@ export function automationEnv(): Record<string, string> {
 }
 
 /** The automation Chrome's debug endpoint for one service (its own env setting first), of the account this runs for. */
-export const automationCdp = (service: "chrono" | "teams" | "gitlab" | "outlook" | "gmail" | "whatsapp" | "keep" = "chrono") =>
-  (service !== "chrono" && process.env[`${service.toUpperCase()}_CDP_ENDPOINT`]) || process.env.CHRONO_CDP_ENDPOINT || accountChrome().endpoint;
+export const automationCdp = (service?: "teams" | "gitlab" | "outlook" | "gmail" | "whatsapp" | "keep") =>
+  (service && process.env[`${service.toUpperCase()}_CDP_ENDPOINT`]) || process.env.CHRONO_CDP_ENDPOINT || accountChrome().endpoint;
 
 /** Whether a Chrome debug endpoint answers (its /json/version) — nothing is started for it. */
 export const cdpUp = (endpoint: string, timeoutMs = 3000): Promise<boolean> =>

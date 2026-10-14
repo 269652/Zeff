@@ -44,7 +44,7 @@ export function revalidateAll() {
  * (a request on every page, a notification) — Zeff never signs in itself; once it works again,
  * the request goes.
  */
-export async function watchSignIn(service: "chrono" | "punch", fn: () => Promise<string>): Promise<string> {
+export async function watchSignIn(service: string, fn: () => Promise<string>): Promise<string> {
   const { clearAttention, needsSignIn, raiseLogin } = await import("@/lib/attention");
   try {
     const out = await fn();

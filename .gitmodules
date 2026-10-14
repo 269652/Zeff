@@ -1,0 +1,4 @@
+[submodule "integrations/booking"]
+	path = integrations/booking
+	url = C:/Users/morrossl/Documents/Private/Zeff-booking
+	branch = main

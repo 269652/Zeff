@@ -40,8 +40,9 @@ const WRITES: Record<string, string[]> = {
   jira_edit_comment: ["src/lib/jira/context-sync.ts", "src/lib/jira/note-sync.ts"],
   jira_create_issue: ["src/plugins/jira/run.ts"],
   // The driver call (call.ts) and the click that exports (server-actions.ts).
-  chrono_export: ["src/plugins/chrono/call.ts", "src/plugins/chrono/server-actions.ts"],
-  punch_export: ["src/plugins/punch/call.ts", "src/plugins/punch/server-actions.ts"],
+  // The Chrono/Punch exports belong to a mounted integration (integrations/booking): nothing of Zeff itself calls them — the integration's own safety test names its callers.
+  chrono_export: [],
+  punch_export: [],
   keep_write: ["src/plugins/keep-write/write.ts"],
   // The MCP tools an agent you started uses to answer review comments (they ask for it in their own words: the todo or you).
   mr_reply: ["src/mcp/server.ts"],

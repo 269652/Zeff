@@ -4,12 +4,11 @@ import { setupTempData } from "./helpers";
 
 setupTempData();
 
-/** A week with bookings on two jobs — the weekly report's sums and the Chrono export built from them. */
-test("weekly report and Chrono export add up", async () => {
+/** A week with bookings on two jobs — the weekly report's sums. */
+test("the weekly report adds up", async () => {
   const { createJob } = await import("@/lib/jobs");
   const { createEntry, getWeeklyReport } = await import("@/lib/entries");
   const { resolveWeek } = await import("@/lib/week");
-  const { getChronoExportPlan, roundChronoHours, chronoComment } = await import("@/lib/chrono");
 
   createJob({ number: "100001", name: "Kunde A" });
   createJob({ number: "100002", name: "Kunde B" });
@@ -28,20 +27,4 @@ test("weekly report and Chrono export add up", async () => {
   const b = r.rows.find((x) => x.job.number === "100002")!;
   assert.equal(a.total, 5.5);
   assert.equal(b.total, 2.5);
-
-  // Chrono takes tenths, rounded up — never less than booked.
-  assert.equal(roundChronoHours(2.25), 2.3);
-  assert.equal(roundChronoHours(0.25), 0.3);
-  assert.equal(roundChronoHours(4), 4);
-  assert.equal(chronoComment("ABC-1", "Konzept"), "ABC-1: Konzept");
-  assert.equal(chronoComment(null, "x".repeat(200)).length, 125);
-
-  const plan = getChronoExportPlan(week);
-  const jobs = plan.rows.map((x) => x.jobNumber).sort();
-  assert.deepEqual(jobs, ["100001", "100002"]);
-  const exported = plan.rows.flatMap((row) => Object.values(row.entriesByDay).flat() as { hours: number }[]);
-  const sum = exported.reduce((s, e) => s + e.hours, 0);
-  // At least what was booked (rounding up), and not wildly more.
-  assert.ok(sum >= 8 - 1e-9, `exported ${sum}`);
-  assert.ok(sum <= 8 + 0.1 * exported.length + 1e-9, `exported ${sum}`);
 });

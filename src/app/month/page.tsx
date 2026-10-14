@@ -1,4 +1,5 @@
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
+import { Fragment } from "react";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
@@ -8,11 +9,10 @@ import { BarList, type BarItem } from "@/components/charts";
 import { CopyButton } from "@/components/CopyButton";
 import { EntriesTable } from "@/components/EntriesTable";
 import { JobSummaries } from "@/components/JobSummaries";
-import { MonthCalendar, type DayChrono } from "@/components/MonthCalendar";
+import { MonthCalendar } from "@/components/MonthCalendar";
 import { MonthJobTable } from "@/components/MonthJobTable";
 import { MonthNav } from "@/components/MonthNav";
 import { PersistentDetails } from "@/components/PersistentDetails";
-import { ChronoPullButton } from "@/components/ChronoPullButton";
 import { BookedStat, PastWeeksStat, Stat, type StatView } from "@/components/StatCard";
 import { dayShortfalls } from "@/lib/day-status";
 import { listReporters, type EntryWithJob } from "@/lib/entries";
@@ -24,7 +24,7 @@ import { currentMonth, formatMonth, resolveMonth } from "@/lib/month";
 import { getMonthlyReport, getPastWeeksDue } from "@/lib/monthly";
 import { NO_JOB_NUMBER } from "@/lib/projects-shared";
 import { getJobReportSummaries, jobSummariesToText } from "@/lib/report";
-import { chronoInSync, chronoPulledAt, chronoStatusByEntry, type EntryChronoStatus } from "@/lib/chrono-status";
+import { monthSlots } from "@/lib/integrations/slots";
 import { getDayTargets } from "@/lib/schedule";
 import { getUiOpen } from "@/lib/ui-state";
 import { isoDate, todayIso } from "@/lib/week";
@@ -67,23 +67,10 @@ export default async function MonthPage({
   const weekTargets = perWeek((i) => targets[i].target);
   const weekMissing = perWeek((i) => (shortfalls[i].state === "missing" ? shortfalls[i].gap : 0));
 
-  // Chrono approvals of the weeks pulled so far ("Pull Chrono"): each day's approved hours.
-  // (only with the Chrono plugin installed)
-  const chronoOn = isInstalled("chrono");
-  const pulledAt = month.weeks.map((w) => (chronoOn ? chronoPulledAt(w) : null));
-  const statuses: Record<number, EntryChronoStatus> = {};
-  month.weeks.forEach((w, i) => {
-    if (pulledAt[i]) Object.assign(statuses, chronoStatusByEntry(w));
-  });
-  const chrono: DayChrono[] = month.days.map((d) => {
-    const iso = isoDate(d);
-    const wi = month.weeks.findIndex((w) => iso >= w.startIso && iso <= w.endIso);
-    if (!pulledAt[wi]) return null;
-    const approved = report.entries.filter((e) => e.date === iso && statuses[e.id]?.kind === "approved");
-    return { approved: round2(approved.reduce((a, e) => a + e.hours, 0)) };
-  });
-  // The oldest pull among the month's weeks (what "Chrono status from …" vouches for).
-  const oldestPull = pulledAt.filter((p): p is string => !!p).sort()[0] ?? null;
+  // The booking systems (Chrono — a mounted integration, only while installed): each day's approved hours of the weeks pulled so far.
+  const slots = await monthSlots({ month, entries: report.entries });
+  const approvals = slots.find((x) => x.slot.approvals)?.slot.approvals;
+  const marks = Object.fromEntries(slots.map((x) => [x.id, { entries: x.slot.entries }]));
 
   const workdays = targets.filter((x) => x.target > 0).length;
   const absentDays = targets.filter((x) => x.absence).length;
@@ -164,16 +151,17 @@ export default async function MonthPage({
           <div>
             <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Days")}</h2>
             <p className="text-xs text-zinc-400">
-              {chronoOn ? t("booked hours and their Chrono approval · click a day to open its week") : t("booked hours · click a day to open its week")}
+              {approvals ? t("booked hours and their {system} approval · click a day to open its week", { system: approvals.system }) : t("booked hours · click a day to open its week")}
             </p>
           </div>
-          {chronoOn && <ChronoPullButton month={month.key} pulledAt={oldestPull} synced={!!oldestPull && chronoInSync(report.entries, statuses)} />}
+          {slots.map((x) => (
+            <Fragment key={x.id}>{x.slot.actions}</Fragment>
+          ))}
         </div>
         <MonthCalendar
           month={month}
           dayTotals={report.dayTotals}
-          chrono={chrono}
-          chronoOn={chronoOn}
+          approvals={approvals}
           targets={targets}
           shortfalls={shortfalls}
           today={today}
@@ -223,7 +211,7 @@ export default async function MonthPage({
             <span className="font-normal normal-case text-zinc-400">({report.entries.length})</span>
           </summary>
           <div className="mt-3">
-            <EntriesTable entries={report.entries} chronoStatuses={oldestPull ? statuses : undefined} />
+            <EntriesTable entries={report.entries} marks={marks} />
           </div>
         </PersistentDetails>
       </section>

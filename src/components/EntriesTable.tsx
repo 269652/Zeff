@@ -9,12 +9,12 @@ import { getTicketCards } from "@/lib/jira/store";
 import { formatHours } from "@/lib/format";
 import { t } from "@/lib/i18n/server";
 import { NO_JOB_NUMBER } from "@/lib/projects-shared";
-import type { EntryChronoStatus } from "@/lib/chrono-status";
+import { integrationClient } from "@/lib/integrations/client";
+import type { IntegrationMarks } from "@/lib/integrations/types";
 import { CollapsibleTags } from "./CollapsibleTags";
 import { CopyEntryButton } from "./CopyEntryButton";
 import { EntryHoursCell } from "./EntryHoursCell";
 import { ProjectWithJob } from "./ProjectWithJob";
-import { ChronoMark, CHRONO_APPROVED_TEXT } from "./ChronoMark";
 import { SubmitButton } from "./SubmitButton";
 import { ContextHoverIcon } from "./ContextHoverIcon";
 import { EntryTodoContextToggle } from "./EntryTodoContext";
@@ -26,11 +26,11 @@ export function EntriesTable({
   entries,
   showJob = true,
   showProject = true,
-  chronoStatuses,
+  marks,
 }: {
   entries: EntryWithJob[];
-  /** Chrono statuses by entry id, once the week was pulled — approved hours read green with a ✓. */
-  chronoStatuses?: Record<number, EntryChronoStatus>;
+  /** What the mounted integrations know of the entries (Chrono's statuses once the week was pulled): approved hours read green with a ✓. */
+  marks?: IntegrationMarks;
   showJob?: boolean;
   /** Without a job column, show each entry's project in a Project column (when any has one). */
   showProject?: boolean;
@@ -40,6 +40,11 @@ export function EntriesTable({
   }
   const projectColumn = !showJob && showProject && entries.some((e) => e.project);
   const types = entryTypeMap();
+  // The integrations that have something to say of these entries (Chrono once the week was pulled).
+  const plugins = Object.entries(marks ?? {}).flatMap(([id, data]) => {
+    const client = integrationClient(id);
+    return client && data.entries ? [{ id, client, data }] : [];
+  });
   // Entries with context get an info icon leading to their edit page, with a hover card of the items.
   const briefs = contextBriefs(entries.map((e) => e.id));
   // And the context of the todos that flowed into it, as the todos show it.
@@ -89,9 +94,9 @@ export function EntriesTable({
                   )}
                 </td>
               )}
-              <td className={`num font-semibold whitespace-nowrap ${chronoStatuses?.[e.id]?.kind === "approved" ? CHRONO_APPROVED_TEXT : ""}`}>
+              <td className={`num font-semibold whitespace-nowrap ${plugins.find((p) => p.client.entryApproved?.(p.data.entries![e.id]))?.client.approvedClass ?? ""}`}>
                 <EntryHoursCell entryId={e.id} hours={e.hours} />
-                {chronoStatuses && <ChronoMark status={chronoStatuses[e.id]} />}
+                {plugins.map((p) => (p.client.EntryMark ? <p.client.EntryMark key={p.id} item={p.data.entries![e.id]} /> : null))}
               </td>
               <td>
                 {/* The description opens the entry; the context icon sits at the cell's right edge, level with the first line. */}

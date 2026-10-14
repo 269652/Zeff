@@ -7,9 +7,12 @@
  * say, the work ones go and the rest stays. Client-safe (data only).
  */
 
-export const PLUGIN_IDS = ["zeiterfassung", "weekly-report", "monthly-report", "todos", "tickets", "kanban", "jira-lage", "work", "work-elevated", "auto-actions", "backup", "accounts", "knowledge", "people", "news", "documents", "google-drive", "jira", "llm", "copilot-cli", "claude-cli", "codex-cli", "outlook-mail", "gmail", "whatsapp", "signal", "keep", "keep-write", "calendar", "google-calendar", "outlook-calendar", "teams", "gitlab", "chrono", "punch", "lang-en", "lang-de", "lang-es"] as const;
-export type PluginId = (typeof PLUGIN_IDS)[number];
-export const isPluginId = (v: unknown): v is PluginId => (PLUGIN_IDS as readonly unknown[]).includes(v);
+import { integrationManifests } from "@/lib/integrations/meta";
+
+export const CORE_PLUGIN_IDS = ["zeiterfassung", "weekly-report", "monthly-report", "todos", "tickets", "kanban", "jira-lage", "work", "work-elevated", "auto-actions", "backup", "accounts", "knowledge", "people", "news", "documents", "google-drive", "jira", "llm", "copilot-cli", "claude-cli", "codex-cli", "outlook-mail", "gmail", "whatsapp", "signal", "keep", "keep-write", "calendar", "google-calendar", "outlook-calendar", "teams", "gitlab", "lang-en", "lang-de", "lang-es"] as const;
+/** A plugin: one of Zeff's own, or one a mounted integration brings (any string — its meta.ts names it). */
+export type PluginId = (typeof CORE_PLUGIN_IDS)[number] | (string & {});
+export const isPluginId = (v: unknown): v is PluginId => (CORE_PLUGIN_IDS as readonly unknown[]).includes(v) || integrationManifests().some((m) => m.id === v);
 
 export type PluginCategory = "app" | "ai" | "connector" | "timesheet" | "language" | "system";
 export const PLUGIN_CATEGORY_LABELS: Record<PluginCategory, string> = { app: "Applications", ai: "AI tools", connector: "Connectors", timesheet: "Time-sheet systems", language: "Languages", system: "System" };
@@ -47,12 +50,13 @@ export type PluginManifest = {
   beta?: string;
 };
 
-export const PLUGINS: PluginManifest[] = [
+/** Zeff's own plugins; the integrations' (mounted from their own repositories: Chrono, Punch) are added to them in PLUGINS. */
+const CORE_PLUGINS: PluginManifest[] = [
   {
     id: "zeiterfassung",
     settings: { href: "/settings", what: "Working hours, absences, rules for meetings and reports" },
     name: "Time tracking",
-    description: "The foundation of booking: jobs and projects, working hours and absences, the analysis of your entries. The weekly and monthly reports, Chrono and Punch build on it.",
+    description: "The foundation of booking: jobs and projects, working hours and absences, the analysis of your entries. The weekly and monthly reports and the time-sheet systems build on it.",
     category: "app",
     defaultInstalled: true,
     nav: [
@@ -594,32 +598,10 @@ export const PLUGINS: PluginManifest[] = [
     syncSteps: ["gitlab"],
     services: ["gitlab"],
   },
-  {
-    id: "chrono",
-    name: "Chrono",
-    description: "Exports your entries to Chrono and reads back what's booked, approvals and jobs from there (ticks in the reports).",
-    category: "timesheet",
-    defaultInstalled: true,
-    dependsOn: ["zeiterfassung"],
-    requires: "The automation Chrome with Chrono, signed in.",
-    routes: ["/export/chrono"],
-    syncSteps: ["chrono"],
-    services: ["chrono"],
-  },
-  {
-    id: "punch",
-    name: "Punch",
-    description: "Exports your days to Punch (arrival, departure, breaks) and reads them back.",
-    category: "timesheet",
-    defaultInstalled: true,
-    dependsOn: ["zeiterfassung"],
-    requires: "The automation Chrome with Punch, signed in.",
-    settings: { href: "/settings/punch", what: "The work day, break and absence defaults — and the sign-in (company, user name, password) so Zeff signs in by itself" },
-    routes: ["/export/punch", "/settings/punch"],
-    syncSteps: ["punch"],
-    services: ["punch"],
-  },
 ];
+
+/** Every plugin there is: Zeff's own and those of the mounted integrations (src/lib/integrations). */
+export const PLUGINS: PluginManifest[] = [...CORE_PLUGINS, ...integrationManifests()];
 
 export const pluginById = (id: PluginId) => PLUGINS.find((p) => p.id === id)!;
 

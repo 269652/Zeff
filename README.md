@@ -64,7 +64,7 @@ calls the API) and `plugin-builder`. Reference: [manifest](docs/plugins/manifest
 
 - **Time tracking.** Entries on jobs and projects, working hours, absences, flex time, a weekly
   and a monthly report. Every agent booking arrives as a suggestion that you take over.
-  *Feierabend* books the whole day in one go. Exports go to **Chrono** and **Punch**.
+  *Feierabend* books the whole day in one go. Exports go to the booking systems of an optional integration (see [docs/integrations.md](docs/integrations.md)).
 - **Todos and the Ticket-Lage.** An AI pass over your Jira tickets, mail, chats and merge requests
   says what happened and what's to do. Its todos carry their context, due dates and ready-made
   actions. **Heute** is the day on one page.
@@ -178,7 +178,7 @@ Don't run `npm run db:generate`: its snapshots stop at 0062, so it would recreat
 | Knowledge | The knowledge server's chat, and "Show knowledge" on todos |
 | Jira, Outlook Mail, Outlook Kalender, Google Calendar, Gmail, Teams, WhatsApp, Signal, Google Keep, GitLab | Connectors that read, and write only on your click |
 | Google Keep schreiben (beta) | Your Keep notes editable in Zeff — written back through Keep's own editor, on your click |
-| Chrono, Punch | The corporate timesheets: export and read back |
+| Chrono, Punch (a separate repository, mounted as a git submodule under `integrations/`) | The corporate timesheets: export and read back — [docs/integrations.md](docs/integrations.md) |
 | Backups, Konten | Encrypted backups (daily, weekly, monthly); more than one account |
 
 Built-in plugins are compiled into Zeff; **external plugins** (above) are loaded from the data folder while it runs.

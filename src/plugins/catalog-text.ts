@@ -1,4 +1,5 @@
 import type { T } from "@/lib/i18n/shared";
+import { integrationMetas } from "@/lib/integrations/meta";
 
 /**
  * The catalog's words in the account's language. catalog.ts stays English (client-safe data, the
@@ -16,7 +17,7 @@ export const catalogTexts = (t: T) => [
   t("Languages"),
   t("System"),
   t("Time tracking"),
-  t("The foundation of booking: jobs and projects, working hours and absences, the analysis of your entries. The weekly and monthly reports, Chrono and Punch build on it."),
+  t("The foundation of booking: jobs and projects, working hours and absences, the analysis of your entries. The weekly and monthly reports and the time-sheet systems build on it."),
   t("Working hours, absences, rules for meetings and reports"),
   t("What a todo shows, and which kinds of knowledge count"),
   t("Jobs"),
@@ -151,10 +152,6 @@ export const catalogTexts = (t: T) => [
   t("The automation Chrome with GitLab, signed in (and git)."),
   t("Your GitLab's address"),
   t("Merge requests, comments & branches"),
-  t("Exports your entries to Chrono and reads back what's booked, approvals and jobs from there (ticks in the reports)."),
-  t("The automation Chrome with Chrono, signed in."),
-  t("Exports your days to Punch (arrival, departure, breaks) and reads them back."),
-  t("The automation Chrome with Punch, signed in."),
 
   // The actions' names and their buttons' verbs (actions/catalog.ts — each plugin's actions.ts).
   t("Change Jira status"),
@@ -193,6 +190,8 @@ export const catalogTexts = (t: T) => [
   t("Open in Gmail"),
   t("Add"),
   t("Open in Google"),
+  // The texts of the mounted integrations' plugins (Chrono, Punch): their repositories list them.
+  ...integrationMetas().flatMap((m) => m.texts?.(t) ?? []),
 ];
 
 /**

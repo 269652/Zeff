@@ -1,10 +1,11 @@
 import { currentAccountId, accountChrome } from "@/db/accounts";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
+import { integrationServer } from "@/lib/integrations/server";
 import { automationEnv, automationUp, driverPath, type DriverId } from "@/plugins/drivers";
 import { PLUGINS } from "@/plugins/catalog";
 import { installedPlugins, stepAvailable } from "@/plugins/state";
-import { listAttention, SERVICE_LABELS, type ServiceId } from "./attention";
+import { listAttention, serviceLabel, type ServiceId } from "./attention";
 import { syncOverview } from "./sync/registry";
 import type { SyncKey } from "./sync/shared";
 
@@ -26,8 +27,8 @@ export type LoginView = {
   checkable: boolean;
 };
 
-/** The driver and its status tool, per service — GitLab and Jira have none (their last sync tells). */
-const STATUS_TOOL: Partial<Record<ServiceId, [DriverId, string]>> = {
+/** The driver and its status tool, per service — GitLab and Jira have none (their last sync tells). A mounted integration's service has the driver of its id and the tool "<id>_status". */
+const CORE_STATUS_TOOL: Partial<Record<string, [DriverId, string]>> = {
   teams: ["teams", "teams_status"],
   outlook: ["outlook", "outlook_status"],
   gmail: ["gmail", "gmail_status"],
@@ -35,9 +36,9 @@ const STATUS_TOOL: Partial<Record<ServiceId, [DriverId, string]>> = {
   signal: ["signal", "signal_status"],
   keep: ["keep", "keep_status"],
   gcalendar: ["google-calendar", "gcal_status"],
-  chrono: ["chrono", "chrono_status"],
-  punch: ["punch", "punch_status"],
 };
+
+const statusTool = (s: ServiceId): [DriverId, string] | undefined => CORE_STATUS_TOOL[s] ?? (integrationServer(s)?.service ? [s, `${s}_status`] : undefined);
 
 /** The sync whose last run tells whether the sign-in still works. */
 const stepOf = (s: ServiceId): SyncKey => (s === "outlook" ? (stepAvailable("mail") ? "mail" : "calendar") : s === "gmail" ? "mail" : s);
@@ -78,7 +79,7 @@ async function chromeUp(): Promise<boolean> {
 
 /** Ask a service's driver whether it's signed in — read-only: no tab opened, Chrome not started. */
 export async function checkLogin(service: ServiceId): Promise<{ state: LoginState; detail: string }> {
-  const tool = STATUS_TOOL[service];
+  const tool = statusTool(service);
   if (!tool) return { state: "unknown", detail: t("No check of its own — the last sync tells.") };
   let r: { state: LoginState; detail: string };
   // Signal Desktop isn't in the automation Chrome: its driver tells itself (running, its port, linked).
@@ -87,8 +88,8 @@ export async function checkLogin(service: ServiceId): Promise<{ state: LoginStat
     try {
       const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
       const out = await runStdioSession(
-        // (Punch's driver gets its address and login too — its status check doesn't sign anyone in.)
-        { command: process.execPath, args: [driverPath(tool[0])], env: { ...automationEnv(), ...(service === "punch" ? (await import("@/plugins/punch/login")).punchLoginEnv() : {}) }, label: `${SERVICE_LABELS[service]} status` },
+        // (a mounted integration's driver gets its address and login too — its status check doesn't sign anyone in.)
+        { command: process.execPath, args: [driverPath(tool[0])], env: { ...automationEnv(), ...((await integrationServer(service)?.service?.env?.()) ?? {}) }, label: `${serviceLabel(service) ?? service} status` },
         async (call) => resultToPayload(await call(tool[1], {})),
         45000,
       );
@@ -105,12 +106,12 @@ export async function checkLogin(service: ServiceId): Promise<{ state: LoginStat
 export async function listLogins(): Promise<{ chrome: { endpoint: string; running: boolean }; logins: LoginView[] }> {
   const on = installedPlugins();
   const services = new Map<ServiceId, string[]>();
-  for (const p of PLUGINS) if (on.has(p.id)) for (const s of p.services ?? []) if (s in SERVICE_LABELS) services.set(s as ServiceId, [...(services.get(s as ServiceId) ?? []), p.name]);
+  for (const p of PLUGINS) if (on.has(p.id)) for (const s of p.services ?? []) if (serviceLabel(s)) services.set(s as ServiceId, [...(services.get(s as ServiceId) ?? []), p.name]);
   const requests = new Map((await listAttention()).filter((a) => a.kind === "login" && a.service).map((a) => [a.service!, a]));
   const steps = new Map(syncOverview().steps.map((s) => [s.key, s]));
   const account = currentAccountId();
   const logins = [...services].map(([service, plugins]): LoginView => {
-    const base = { service, label: SERVICE_LABELS[service], plugins, checkable: !!STATUS_TOOL[service] };
+    const base = { service, label: serviceLabel(service) ?? service, plugins, checkable: !!statusTool(service) };
     const check = checks().get(`${account}:${service}`);
     const request = requests.get(service);
     const step = steps.get(stepOf(service));

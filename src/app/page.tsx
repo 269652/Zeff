@@ -1,20 +1,17 @@
 import { redirect } from "next/navigation";
 import { firstAppTab } from "@/plugins/tabs";
-import { installedPlugins, isInstalled } from "@/plugins/state";
+import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
-import Link from "next/link";
+import { Fragment } from "react";
 import { connection } from "next/server";
-import { parseISO } from "date-fns";
 import { createEntryAction } from "@/app/actions";
 import { ContextFormOptionsProvider } from "@/components/ContextFormOptions";
 import { EntriesTable } from "@/components/EntriesTable";
 import { EntryForm } from "@/components/EntryForm";
 import { PersistentDetails } from "@/components/PersistentDetails";
 import { ReportView } from "@/components/ReportView";
-import { ChronoPullButton } from "@/components/ChronoPullButton";
-import { PunchPullButton } from "@/components/PunchPullButton";
-import { BookedStat, PastWeeksStat, SplitStat, type StatHalf } from "@/components/StatCard";
+import { BookedStat, PastWeeksStat } from "@/components/StatCard";
 import { WeekNav } from "@/components/WeekNav";
 import { WeekCloseCard } from "@/components/WeekCloseCard";
 import { WeekTable } from "@/components/WeekTable";
@@ -25,19 +22,10 @@ import { listEntryTypes } from "@/lib/entry-types";
 import { getTicketCards } from "@/lib/jira/store";
 import { lastAndCurrentMonth } from "@/lib/month";
 import { getPastWeeksDue } from "@/lib/monthly";
-import {
-  APPROVALS_FRESH_HOURS,
-  getChronoApprovalSummary,
-  pulledWithin,
-  chronoInSync,
-  chronoPulledAt,
-  chronoStatusByEntry,
-  type ChronoItem,
-} from "@/lib/chrono-status";
-import { punchDayStates } from "@/lib/punch-status";
+import { marksOf, weekSlots } from "@/lib/integrations/slots";
 import { weekClose } from "@/lib/week-close";
 import { getWeeklyReport, listReporters } from "@/lib/entries";
-import { currentLocale, formatDate, formatHours, round2 } from "@/lib/format";
+import { currentLocale, formatHours } from "@/lib/format";
 import { getJobByNumber, listJobs } from "@/lib/jobs";
 import { latestPausesBefore, listPausesByDate } from "@/lib/pauses";
 import { listProjectOptions } from "@/lib/projects";
@@ -47,7 +35,7 @@ import { getDefaultPauses, getFlexTime, getWeekTargets } from "@/lib/schedule";
 import { listTags } from "@/lib/tags";
 import { getTypeRules } from "@/lib/type-rules";
 import { getUiOpen } from "@/lib/ui-state";
-import { currentWeek, isoDate, resolveWeek, todayIso, weekFromDate } from "@/lib/week";
+import { currentWeek, isoDate, resolveWeek, todayIso } from "@/lib/week";
 import { doneToday } from "@/lib/work/booking";
 import { DoneTodayPanel } from "@/components/DoneTodayPanel";
 import { SuggestionsPanel } from "@/components/SuggestionsPanel";
@@ -83,15 +71,9 @@ export default async function WeekPage({
   const ticketSuggestions = getEntryTicketSuggestions(week);
   const ui = await getUiOpen();
   const types = listEntryTypes();
-  // The time-sheet plugins: what they show only while they're installed.
-  const plugins = installedPlugins();
-  const chronoOn = plugins.has("chrono");
-  const punchOn = plugins.has("punch");
-  // Chrono approval statuses, once this week was pulled ("Pull Chrono").
-  const pulledAt = chronoOn ? chronoPulledAt(week) : null;
-  const chronoStatuses = pulledAt ? chronoStatusByEntry(week) : undefined;
-  // What Punch has on the week's days, as last read ("Pull Punch", or after an export).
-  const punch = punchOn ? punchDayStates(week) : null;
+  // The time-sheet plugins (Chrono, Punch: mounted integrations): what they add to the week — only while they're installed.
+  const slots = await weekSlots({ week, entries: report.entries, by });
+  const marks = marksOf(slots);
 
   const today = todayIso();
   const defaultDate = today >= week.startIso && today <= week.endIso ? today : week.startIso;
@@ -138,15 +120,18 @@ export default async function WeekPage({
         />
         {/* Hours left unbooked in the weeks before this one, since the start of last month. */}
         <PastWeeksStat due={getPastWeeksDue(lastAndCurrentMonth().last.startIso, today, today, { reportedBy: by })} />
-        {chronoOn && <ApprovalsCard />}
+        {slots.map((x) => (
+          <Fragment key={x.id}>{x.slot.card}</Fragment>
+        ))}
       </div>
 
       <section className="card p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Hours per job and day")}</h2>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {punch && <PunchPullButton week={week.key} pulledAt={punch.pulledAt} synced={punch.inSync} />}
-            {chronoOn && <ChronoPullButton week={week.key} pulledAt={pulledAt} synced={chronoInSync(report.entries, chronoStatuses)} />}
+            {[...slots].reverse().map((x) => (
+              <Fragment key={x.id}>{x.slot.actions}</Fragment>
+            ))}
           </div>
         </div>
         <WeekTable
@@ -155,9 +140,8 @@ export default async function WeekPage({
           pauses={listPausesByDate(week.startIso, week.endIso)}
           lastPauses={latestPausesBefore(week.startIso)}
           defaultPauses={getDefaultPauses()}
-          chronoStatuses={chronoStatuses}
+          marks={marks}
           flex={flexRow()}
-          punch={punch?.states}
         />
       </section>
 
@@ -191,22 +175,9 @@ export default async function WeekPage({
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Report · week {n}", { n: week.week })}</h2>
           <div className="flex items-center gap-3">
             <span className="text-xs text-zinc-400">{t("grouped per day · configure on Schedule")}</span>
-            {chronoOn && (
-              <Link
-                href={`/export/chrono?week=${week.key}${by ? `&by=${encodeURIComponent(by)}` : ""}`}
-                className="btn btn-sm"
-              >
-                {t("Export to Chrono →")}
-              </Link>
-            )}
-            {punchOn && (
-              <Link
-                href={`/export/punch?week=${week.key}${by ? `&by=${encodeURIComponent(by)}` : ""}`}
-                className="btn btn-sm"
-              >
-                {t("Export to Punch →")}
-              </Link>
-            )}
+            {slots.map((x) => (
+              <Fragment key={x.id}>{x.slot.exports}</Fragment>
+            ))}
           </div>
         </div>
         <ReportView
@@ -228,77 +199,11 @@ export default async function WeekPage({
             <span className="font-normal normal-case text-zinc-400">({report.entries.length})</span>
           </summary>
           <div className="mt-3">
-            <EntriesTable entries={report.entries} chronoStatuses={chronoStatuses} />
+            <EntriesTable entries={report.entries} marks={marks} />
           </div>
         </PersistentDetails>
       </section>
     </div>
-  );
-}
-
-/**
- * Chrono approvals over the last full and the current month, from the weeks pulled so far:
- * "X awaiting approval" (amber; orange when some weren't even submitted) and "N rejected"
- * (red) — green when there are none. Hover a number for the entries behind it.
- */
-function ApprovalsCard() {
-  const { last, current } = lastAndCurrentMonth();
-  const today = todayIso();
-  const a = getChronoApprovalSummary(last.startIso, current.endIso, today);
-  const pulled = a.pulledAt !== null;
-  const day = (iso: string) => formatDate(iso);
-  const item = (i: ChronoItem) => `${day(i.date)} · ${i.jobNumber} · ${formatHours(i.hours)} h “${i.comment}”`;
-  const waitingHours = round2(a.awaiting.reduce((s, i) => s + i.hours, 0));
-  const notSubmitted = a.unsubmitted.length ? t("{n} not submitted", { n: a.unsubmitted.length }) : "";
-
-  const left: StatHalf = {
-    label: t("Awaiting approval"),
-    value: pulled ? String(a.awaiting.length) : "–",
-    // The oldest waiting (else unsubmitted) entry's month: its calendar shows which days.
-    href: a.awaiting[0] || a.unsubmitted[0] ? `/month?month=${(a.awaiting[0] ?? a.unsubmitted[0]).date.slice(0, 7)}` : undefined,
-    title:
-      [
-        ...a.awaiting.map((i) => `${item(i)}${i.approver ? ` · ${t("waiting for {who}", { who: i.approver })}` : ""}`),
-        ...a.unsubmitted.map((i) => `${item(i)} · ${t("not submitted")}`),
-      ].join("\n") || undefined,
-    view: !pulled
-      ? undefined
-      : a.awaiting.length
-        ? { color: "amber", icon: "info", caption: [`${formatHours(waitingHours)} h`, notSubmitted].filter(Boolean).join(" · ") }
-        : notSubmitted
-          ? { color: "orange", icon: "info", caption: notSubmitted }
-          : { color: "green", icon: "check", caption: t("Nothing waiting") },
-    hint: pulled ? undefined : t("Pull Chrono to see approvals"),
-  };
-  const right: StatHalf = {
-    label: t("Rejected"),
-    value: pulled ? String(a.rejected.length) : "–",
-    // The first rejected entry's week, where it gets corrected.
-    href: a.rejected[0] ? `/?week=${weekFromDate(parseISO(a.rejected[0].date)).key}` : undefined,
-    title: a.rejected.map((i) => `${item(i)}${i.rejectionComment ? ` — ${i.rejectionComment}` : ""}`).join("\n") || undefined,
-    view: !pulled
-      ? undefined
-      : a.rejected.length
-        ? { color: "red", icon: "cross", caption: [...new Set(a.rejected.map((i) => day(i.date)))].slice(0, 3).join(", ") }
-        : { color: "green", icon: "check", caption: t("None rejected") },
-  };
-  return (
-    <SplitStat
-      className="sm:col-span-2"
-      left={left}
-      right={right}
-      footer={
-        <div className="flex flex-wrap items-center justify-between gap-x-2">
-          <span>
-            {last.start.toLocaleDateString(currentLocale(), { month: "short" })} –{" "}
-            {current.start.toLocaleDateString(currentLocale(), { month: "short", year: "numeric" })}
-            {a.unpulledWeeks.length > 0 && ` · ${t("not pulled: {weeks}", { weeks: a.unpulledWeeks.map((k) => `W${Number(k.slice(-2))}`).join(", ") })}`}
-          </span>
-          {/* ✓ for a few hours after a pull of every week. */}
-          <ChronoPullButton approvals pulledAt={a.pulledAt} synced={a.unpulledWeeks.length === 0 && pulledWithin(a.pulledAt, APPROVALS_FRESH_HOURS)} />
-        </div>
-      }
-    />
   );
 }
 

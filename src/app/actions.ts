@@ -15,8 +15,7 @@ import { parseBookOn } from "@/lib/projects-shared";
 import { ENTRY_CONTEXT_PREFIX } from "@/lib/contexts-shared";
 import { syncGitlabAction } from "@/plugins/gitlab/server-actions";
 import { accountsOn, entryTypeFrom, int, num, revalidateAll, str, tagsFrom, type ActionState } from "@/app/action-helpers";
-import { callChrono } from "@/plugins/chrono/call";
-import { callPunch } from "@/plugins/punch/call";
+import { integrationServer } from "@/lib/integrations/server";
 import { syncKeepAction } from "@/plugins/keep/server-actions";
 import { syncTeamsAction } from "@/plugins/teams/server-actions";
 import { syncWhatsappAction } from "@/plugins/whatsapp/server-actions";
@@ -677,9 +676,9 @@ export async function saveMeetingExcludeRulesAction(_prev: ActionState, fd: Form
 /** A service's sign-in shown in the automation Chrome (its tab at the front, else a new one) — you sign in there yourself. */
 export async function openServiceLoginAction(service: string): Promise<ActionState> {
   try {
-    const { openServiceLogin, SERVICE_LABELS } = await import("@/lib/attention");
-    if (!(service in SERVICE_LABELS)) return { ok: false, error: t("Unknown service.") };
-    const r = await openServiceLogin(service as keyof typeof SERVICE_LABELS);
+    const { openServiceLogin, serviceLabel } = await import("@/lib/attention");
+    if (!serviceLabel(service)) return { ok: false, error: t("Unknown service.") };
+    const r = await openServiceLogin(service);
     return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
@@ -739,10 +738,10 @@ export async function skipSetupAction(): Promise<void> {
 /** The Logins page: ask a service's driver whether it's signed in (read-only — nothing opened, Chrome not started). */
 export async function checkLoginAction(service: string): Promise<ActionState> {
   try {
-    const { SERVICE_LABELS } = await import("@/lib/attention");
-    if (!(service in SERVICE_LABELS)) return { ok: false, error: t("Unknown service.") };
+    const { serviceLabel } = await import("@/lib/attention");
+    if (!serviceLabel(service)) return { ok: false, error: t("Unknown service.") };
     const { checkLogin } = await import("@/lib/logins");
-    const r = await checkLogin(service as keyof typeof SERVICE_LABELS);
+    const r = await checkLogin(service);
     revalidatePath("/logins");
     return r.state === "ok" ? { ok: true, message: r.detail } : { ok: false, error: r.detail };
   } catch (err) {
@@ -780,8 +779,10 @@ export async function retryServiceAction(service: string): Promise<ActionState> 
       revalidateAll();
       return r.lastOk ? { ok: true, message: t("Jira works again.") } : { ok: false, error: r.lastMessage ?? t("Failed.") };
     }
-    if (service === "chrono" || service === "punch") {
-      const msg = service === "chrono" ? await callChrono("chrono_status", {}) : await callPunch("punch_status", {});
+    // The mounted integrations' (Chrono, Punch): their driver's status check.
+    const own = integrationServer(service)?.service;
+    if (own) {
+      const msg = await own.status();
       revalidateAll();
       return /not signed in/i.test(msg) ? { ok: false, error: msg } : { ok: true, message: msg };
     }
@@ -910,9 +911,8 @@ export async function syncOverviewAction(): Promise<import("@/lib/sync/shared").
 
 /** One step, started in the background (the menu follows it). */
 export async function runSyncAction(key: string): Promise<ActionState> {
-  const { isSyncKey } = await import("@/lib/sync/shared");
+  const { isSyncKey, startSync } = await import("@/lib/sync/registry");
   if (!isSyncKey(key)) return { ok: false, error: t("Unknown sync.") };
-  const { startSync } = await import("@/lib/sync/registry");
   const r = await startSync(key);
   return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
 }
