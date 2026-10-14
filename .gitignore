@@ -18,6 +18,11 @@
 # npm run deploy: the next build before the swap, the previous one after it
 /.next-build/
 /.next-old/
+# the sync host's own build (npm run deploy: .next-sync, the next one waiting in .next-sync-build, the previous in .next-sync-old) —
+# compiled and compressed output: ignored, or Tailwind scans it and builds a class out of the bytes ("Parsing CSS source code failed")
+/.next-sync/
+/.next-sync-build/
+/.next-sync-old/
 /out/
 
 # production
