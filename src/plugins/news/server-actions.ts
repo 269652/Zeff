@@ -137,15 +137,15 @@ export async function newsTopicAction(term: string, mode: string, weight = 1): P
 }
 
 /** The empty page's "Start": the starter pack on, the first fetch going in the background. */
-export async function newsStartAction(): Promise<Result> {
+export async function newsStartAction(): Promise<Result & { status?: import("./refresh").RefreshStatus }> {
   try {
     guard();
     const { starterFeeds } = await import("./catalog");
     const n = addSources(starterFeeds());
-    const { startSync } = await import("@/lib/sync/registry");
-    startSync("news");
+    // The refresh job (not a bare sync): it reports where it is, so the page can show its progress and the first cards as they come in.
+    const r = (await import("./refresh")).startRefresh();
     revalidatePath("/news");
-    return { ok: true, message: t("{n} sources added — fetching their news in the background.", { n }) };
+    return { ok: true, status: r.status, message: t("{n} sources added — fetching their news in the background.", { n }) };
   } catch (e) {
     return { ok: false, error: errorMessage(e) };
   }

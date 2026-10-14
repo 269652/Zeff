@@ -8,8 +8,7 @@ import { isInstalled } from "@/plugins/state";
 import { AskNews } from "@/plugins/news/AskNews";
 import { ListenButton } from "@/plugins/news/Listen";
 import { NewsFeed } from "@/plugins/news/NewsFeed";
-import { StartNews } from "@/plugins/news/RefreshButton";
-import { NewsRefreshButtons } from "@/plugins/news/RefreshButton";
+import { NewsFetching, NewsRefreshButtons } from "@/plugins/news/RefreshButton";
 import { getDigest } from "@/plugins/news/digest";
 import { DiscoverButton } from "@/plugins/news/DiscoverButton";
 import { getTaste } from "@/plugins/news/taste";
@@ -144,16 +143,21 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
         {items.length === 0 && view !== "discover" ? (
           <div className="card space-y-2 p-6 text-sm text-zinc-500">
             {sources.length === 0 && prefs.interests.length === 0 ? (
-              <p className="space-y-2">
-                <StartNews />
-                {t("Nothing here yet. Pick some sources and say what interests you under")}{" "}
-                <Link href="/settings/news" className="text-indigo-600 hover:underline dark:text-indigo-400">
-                  {t("News settings")}
-                </Link>
-                .
-              </p>
+              <NewsFetching starter>
+                <span className="mt-2 block">
+                  {t("Nothing here yet. Pick some sources and say what interests you under")}{" "}
+                  <Link href="/settings/news" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                    {t("News settings")}
+                  </Link>
+                  .
+                </span>
+              </NewsFetching>
+            ) : view === "foryou" || view === "latest" ? (
+              <NewsFetching starter={false}>
+                <span className="mt-2 block">{t("No news in the last {n} days — click Refresh.", { n: prefs.maxAgeDays })}</span>
+              </NewsFetching>
             ) : (
-              <p>{view === "foryou" || view === "latest" ? t("No news in the last {n} days — click Refresh.", { n: prefs.maxAgeDays }) : t("Nothing here.")}</p>
+              <p>{t("Nothing here.")}</p>
             )}
           </div>
         ) : (
