@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLang, useT } from "@/components/I18nProvider";
 import { addDays, weekdayOf } from "@/lib/calendar/recurrence";
 import { LANGUAGES } from "@/lib/i18n/shared";
-import { durationText, isoWeek, itemOn, lanes, local, minutesBetween, minutesOf, plus, snap, stampAt, timeText, type Item } from "./view-shared";
+import { durationText, isoWeek, itemOn, lanes, local, mergeDone, minutesBetween, minutesOf, plus, snap, stampAt, timeText, type Item } from "./view-shared";
 
 const HOUR = 48;
 const STEP = 15;
@@ -275,7 +275,7 @@ export function TimeGrid({
                     <span className="absolute -top-[5px] -left-[5px] size-2.5 rounded-full bg-red-500" />
                   </div>
                 )}
-                {lanes(timed).map((it) => {
+                {lanes(mergeDone(timed)).map((it) => {
                   const from = it.start.slice(0, 10) < d ? 0 : minutesOf(it.start);
                   const to = it.end.slice(0, 10) > d ? 24 * 60 : Math.max(from + STEP, minutesOf(it.end));
                   const h = ((to - from) / 60) * HOUR;
@@ -300,8 +300,10 @@ export function TimeGrid({
                         // A tint of its calendar's colour — light and dark alike.
                         background: `${it.color}${faint ? "14" : "2E"}`,
                         ...(faint ? { backgroundImage: `repeating-linear-gradient(45deg, transparent 0 6px, ${it.color}22 6px 12px)` } : {}),
+                        // Done too (a Done item merged into this meeting): its green stripes over the blue.
+                        ...(it.merged ? { backgroundImage: `repeating-linear-gradient(45deg, transparent 0 6px, ${it.merged.color}55 6px 12px)` } : {}),
                       }}
-                      title={`${timeText(it.start)}–${timeText(it.end)} ${it.title}`}
+                      title={`${timeText(it.start)}–${timeText(it.end)} ${it.title}${it.merged ? ` ✓ ${it.merged.title}` : ""}`}
                     >
                       <div className="dark:text-zinc-100">
                         {h < 34 ? (

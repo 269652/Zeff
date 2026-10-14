@@ -33,6 +33,8 @@ export type Item = {
   event?: CalendarEventView;
   calendar?: CalendarView;
   proposed?: ProposedEvent;
+  /** A Done item that matches this meeting, merged into it (see mergeDone). */
+  merged?: Item;
 };
 
 export const local = (s: string) => new Date(s.length === 10 ? `${s}T00:00:00` : `${s.slice(0, 16)}:00`);
@@ -141,3 +143,35 @@ export function lanes<T extends { start: string; end: string }>(items: T[]): (T 
 /** An item's day range (all-day: its days; timed: the days it touches). */
 export const itemOn = (it: Pick<Item, "start" | "end" | "allDay">, day: string) =>
   it.allDay ? it.start <= day && it.end > day : it.start.slice(0, 10) <= day && (it.end > `${day}T00:00` || it.start.slice(0, 10) === day);
+
+/** The key of the Done calendar (what Zeff derives from the entries: src/lib/calendar/done.ts). */
+export const DONE_CALENDAR = "zeff:done";
+
+/**
+ * A Done item that matches a meeting — they cover mostly the same time (the overlap is at least 3/4
+ * of the shorter one) — is merged into it: the meeting is shown once, with the Done item as `merged`
+ * (the view draws the green stripes over its colour). One Done item per meeting (the closest match),
+ * and a meeting takes one. What matches nothing stays as it is.
+ */
+export function mergeDone<T extends Pick<Item, "start" | "end" | "calendar" | "proposed" | "allDay"> & { merged?: Item }>(items: T[]): T[] {
+  const isDone = (i: T) => i.calendar?.key === DONE_CALENDAR;
+  const meetings = items.filter((i) => !isDone(i) && !i.proposed && !i.allDay);
+  const took = new Map<T, { done: T; score: number }>();
+  for (const d of items.filter(isDone)) {
+    let best: { m: T; score: number } | null = null;
+    for (const m of meetings) {
+      if (d.start.slice(0, 10) !== m.start.slice(0, 10)) continue;
+      const dd = minutesBetween(d.start, d.end);
+      const dm = minutesBetween(m.start, m.end);
+      const overlap = Math.min(minutesOf(d.end), minutesOf(m.end)) - Math.max(minutesOf(d.start), minutesOf(m.start));
+      const shorter = Math.min(dd, dm);
+      if (shorter <= 0 || overlap / shorter < 0.75) continue;
+      // The closest one: the most of both covered (overlap over the time they take together).
+      const score = overlap / (dd + dm - overlap);
+      if (!best || score > best.score) best = { m, score };
+    }
+    if (best && best.score > (took.get(best.m)?.score ?? 0)) took.set(best.m, { done: d, score: best.score });
+  }
+  const gone = new Set([...took.values()].map((t) => t.done));
+  return items.filter((i) => !gone.has(i)).map((i) => (took.has(i) ? { ...i, merged: took.get(i)!.done as unknown as Item } : i));
+}
