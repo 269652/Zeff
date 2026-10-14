@@ -2,10 +2,13 @@
  * Attaching Playwright to the user's debug Chrome (the one `npm run chrono:chrome` starts).
  * Shared by every browser driver (src/plugins/<id>/driver.mjs) and scripts/chrono-mcp.mjs.
  *
- * connectOverCDP attaches to EVERY open tab, so a single tab that doesn't answer — a
- * frozen/hung tab or one stuck on a dialog (seen with an idle "New Tab" page) — makes the
- * whole attach time out with an opaque error. So first ping each tab over its own CDP
- * socket and, if one doesn't answer, fail fast naming it. Nothing is closed or changed.
+ * connectOverCDP attaches to EVERY open tab and waits for each, so a single tab that doesn't
+ * answer — a frozen/hung tab or one stuck on a dialog (seen with an idle "New Tab" page) — makes
+ * the whole attach time out with an opaque error. So first ping each tab over its own CDP socket;
+ * the ones that stay silent (after being woken) are LEFT OUT of the attach — a local filter between
+ * Playwright and Chrome (cdp-filter.mjs) hides them, so one stuck tab no longer stops every driver.
+ * The driver doesn't see them (a page it needs is opened anew); nothing is closed or changed in
+ * them. Without that filter (another Playwright) it fails fast, naming the tab, as it did before.
  * When Chrome isn't running at all, start it (with the page the tool needs) instead.
  */
 import { spawn } from "node:child_process";
@@ -14,6 +17,7 @@ import os from "node:os";
 import path from "node:path";
 import { chromium } from "playwright-core";
 import { NO_BROWSER_MESSAGE, chromeProfileDir, findBrowser } from "./browser-find.mjs";
+import { startCdpFilter } from "./cdp-filter.mjs";
 
 const isAlive = (pid) => {
   try {
@@ -111,6 +115,16 @@ export async function wakeTabs(cdp, tabs, { ping = pingTab, activate = (t) => fe
   return still;
 }
 
+/** The filter that leaves the hung tabs out of the attach (null: there is none here — the caller fails as before). */
+async function hungTabsFiltered(cdp, stuck) {
+  try {
+    const version = await (await fetch(`${cdp.replace(/\/+$/, "")}/json/version`, { signal: AbortSignal.timeout(5000) })).json();
+    return await startCdpFilter(version.webSocketDebuggerUrl, new Set(stuck.map((t) => t.id)));
+  } catch {
+    return null;
+  }
+}
+
 /** A problem attaching to the automation Chrome, worded for the user; the MCP tools pass it through as-is. */
 export class ChromeConnectError extends Error {}
 
@@ -190,6 +204,25 @@ export async function connectToChrome(cdp, { timeout = 20000, launchUrls = [] } 
   const stuck = await wakeTabs(cdp, slow.filter((_, i) => !again[i]));
   if (stuck.length) {
     const names = stuck.map((t) => `“${t.title || t.url}” (${t.url.slice(0, 60)})`).join(", ");
+    // The rest is attached without them — through the filter that leaves them out.
+    const proxy = await hungTabsFiltered(cdp, stuck);
+    if (proxy) {
+      process.stderr.write(`[chrome-cdp] left out ${stuck.length === 1 ? "a tab that isn't" : "tabs that aren't"} responding: ${names}\n`);
+      const browser = await chromium.connectOverCDP(proxy.endpoint, { timeout }).catch((e) => {
+        proxy.close();
+        throw e;
+      });
+      const close = browser.close.bind(browser);
+      browser.close = async () => {
+        try {
+          await close();
+        } finally {
+          proxy.close();
+        }
+      };
+      browser.hungTabs = stuck.map((t) => ({ id: t.id, title: t.title, url: t.url }));
+      return browser;
+    }
     throw new ChromeConnectError(
       `A tab in the automation Chrome isn't responding: ${names}. Close ${stuck.length === 1 ? "that tab" : "those tabs"} (or dismiss any dialog open there) and try again.`,
     );
