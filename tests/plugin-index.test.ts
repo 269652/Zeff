@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { renderActions, renderLlmTasks, renderManifests, renderServer } from "../src/lib/plugins/index-gen";
-import { PLUGINS, STEP_NEEDS } from "../src/plugins/catalog";
+import { CORE_PLUGIN_IDS, PLUGINS, STEP_NEEDS } from "../src/plugins/catalog";
 
 const dir = path.join(process.cwd(), "src", "plugins");
 const read = (f: string) => fs.readFileSync(path.join(dir, f), "utf8").replace(/\r\n/g, "\n");
@@ -32,9 +32,11 @@ test("manifests are consistent: ids, folders, dependencies, extensions", () => {
   for (const [step, needs] of Object.entries(STEP_NEEDS)) for (const n of needs.flat()) assert.ok(ids.has(n), `step ${step} needs unknown "${n}"`);
 });
 
-/** The menu order is the manifests' `order`, and no two plugins share one (a stable, intended order). */
+/** Zeff's own plugins have an `order` each, distinct (a stable, intended menu order); a mounted integration's come after them. */
 test("plugins have distinct orders", () => {
-  const orders = PLUGINS.map((p) => p.order);
+  const core = PLUGINS.filter((p) => CORE_PLUGIN_IDS.includes(p.id));
+  const orders = core.map((p) => p.order);
+  assert.ok(orders.every((o) => typeof o === "number"), "a plugin without an order");
   assert.equal(new Set(orders).size, orders.length);
-  assert.deepEqual(orders, [...orders].sort((a, b) => a - b));
+  assert.deepEqual(orders, [...orders].sort((a, b) => a! - b!));
 });
