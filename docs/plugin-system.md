@@ -38,6 +38,14 @@ A built-in plugin's contribution is there while the plugin is installed (`isInst
 it is on. The owner of a feature **defines the point** (typed) in a small file of its own and **reads `list()`** —
 never a plugin by name. A contributor imports only the owner's point file.
 
+## Integrations in repositories of their own
+
+A plugin can also live outside this repository (Chrono and Punch do: `docs/integrations.md`, mounted under
+`integrations/<name>/`). Its `meta.ts` is the same data a `plugin.ts` holds (the catalog adds those entries to Zeff's
+own, after them in the lists), its `server.ts` the same kind of module. They are not yet generated into the same
+indexes as the plugins in `src/plugins/`; the next step is to give mounted plugins the extension points too (API
+methods, actions, AI tasks) so that an integration is a plugin in every respect.
+
 ## One API
 
 `src/lib/plugins/api.ts` is the registry. A method is registered by the plugin it belongs to (`kanban.cards.add` by
