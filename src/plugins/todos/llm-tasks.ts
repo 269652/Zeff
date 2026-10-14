@@ -1,0 +1,11 @@
+import type { T } from "@/lib/i18n/shared";
+
+/** The AI tasks todos has Zeff run (llm plugin: each its own backend and model). Client-safe; found by plugins/llm/tasks.ts through llm-tasks.generated.ts. */
+export const TODOS_LLM_TASKS = (t: T) =>
+  [
+    { plugin: "todos", id: "ticket-lage", label: t("Briefing"), what: t("Reads your tickets — Jira and your Kanban cards (KB-…) — with all their context and makes the briefing and the todos.") },
+    { plugin: "todos", id: "recap", label: t("Recap"), what: t("Sums up a day: what you did.") },
+    { plugin: "todos", id: "mail-todos", label: t("Mail review"), what: t("Finds what you have to do in new mails.") },
+    { plugin: "todos", id: "mail-relations", label: t("Mail matching"), what: t("Matches each todo with the mails it is about.") },
+    { plugin: "todos", id: "reply-draft", label: t("Reply draft"), what: t("Writes the reply to a message (WhatsApp, mail, Teams) a todo is about — from the conversation.") },
+  ] as const;

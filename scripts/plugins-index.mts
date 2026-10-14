@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { pluginsDir, renderActions, renderManifests, renderServer } from "../src/lib/plugins/index-gen";
+import { pluginsDir, renderActions, renderLlmTasks, renderManifests, renderServer } from "../src/lib/plugins/index-gen";
 
 /**
  * Writes src/plugins/index.generated.ts (one import per src/plugins/<id>/plugin.ts) and
@@ -15,6 +15,7 @@ if (process.argv[1]?.endsWith("plugins-index.mts")) {
     [path.join(dir, "index.generated.ts"), renderManifests()],
     [path.join(dir, "server.generated.ts"), renderServer()],
     [path.join(dir, "actions.generated.ts"), renderActions()],
+    [path.join(dir, "llm-tasks.generated.ts"), renderLlmTasks()],
   ];
   let stale = false;
   for (const [file, next] of outputs) {
