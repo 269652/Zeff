@@ -159,7 +159,7 @@ export function DocumentsApp({ docs, reading, origins = {}, todos, settings, kno
                 </a>
                 {origins[d.id] && <OriginLine o={origins[d.id]} />}
               </HoverCard>
-              <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${CHIP[d.status]}`} title={d.error || undefined}>
+              <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${CHIP[d.status]}`} title={d.error || undefined}>
                 {d.status === "ready" ? (knowledge ? (d.compiled ? t("compiled") : t("ready — compiling …")) : t("ready")) : d.status === "queued" ? t("waiting") : d.status === "extracting" ? t("being read …") : d.status === "unsupported" ? t("not readable") : t("failed")}
               </span>
               <span className="text-xs text-zinc-400">

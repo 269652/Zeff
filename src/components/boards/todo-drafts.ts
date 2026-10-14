@@ -33,6 +33,11 @@ function subscribe(cb: () => void) {
   };
 }
 
+/** A draft as it is now (not what a component rendered a moment ago). */
+export function getDraft(todoId: number, kind: DraftKind): string {
+  return parse(readRaw())[`${todoId}:${kind}`] ?? "";
+}
+
 /** Keep (or, empty, drop) a draft. */
 export function saveDraft(todoId: number, kind: DraftKind, text: string) {
   const all = parse(readRaw());

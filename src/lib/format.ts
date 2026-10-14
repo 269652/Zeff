@@ -34,6 +34,17 @@ export function formatHours(hours: number): string {
   return (Math.round(hours * 100) / 100).toLocaleString(currentLocale(), { maximumFractionDigits: 2, useGrouping: false });
 }
 
+/** Hours typed by a person: "1,5", "1.5" or "1:30" (h:mm). null when it is not a number. */
+export function parseHours(text: string): number | null {
+  const s = text.trim();
+  if (!s) return null;
+  const hm = /^(\d+):([0-5]\d)$/.exec(s);
+  if (hm) return round2(Number(hm[1]) + Number(hm[2]) / 60);
+  if (!/^\d*[.,]?\d+$|^\d+[.,]$/.test(s)) return null;
+  const n = Number(s.replace(",", "."));
+  return Number.isFinite(n) ? n : null;
+}
+
 /** Round to 2 decimals so 0.1 + 0.2 style sums stay tidy. */
 export function round2(n: number): number {
   return Math.round(n * 100) / 100;

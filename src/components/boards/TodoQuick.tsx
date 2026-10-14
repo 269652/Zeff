@@ -5,12 +5,15 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { addTodoNoteAction, draftReplyAction, instructTodoAction, openReplyTargetAction, suggestTodoActionsAction } from "@/plugins/todos/server-actions";
 import type { ReplyTarget } from "@/lib/boards/reply-draft";
 import { MentionTextarea } from "../MentionTextarea";
+import { TagSuggestions } from "@/plugins/people/TagSuggestions";
 import { NoteIcon, SparkIcon } from "../icons";
 import { toast } from "../Toaster";
 import { useT } from "@/components/I18nProvider";
 import type { T } from "@/lib/i18n/shared";
-import { saveDraft, useTodoDrafts } from "./todo-drafts";
+import { getDraft, saveDraft, useTodoDrafts } from "./todo-drafts";
 import { AttachPanel } from "@/plugins/documents/AttachPanel";
+import { uploadDocuments } from "@/plugins/documents/DocumentsApp";
+import { attachDocumentAction, ensureDocumentsAction } from "@/plugins/documents/server-actions";
 import { usePluginOn } from "../PluginFlags";
 import { TodoTimePanel } from "./TodoTime";
 import type { TimeRecord } from "@/lib/work/shared";
@@ -69,7 +72,7 @@ export function TodoQuickButtons({ todoId, panel, onToggle, aiDisabled, canReply
       <button
         type="button"
         className={`${ICON_BTN} relative ${panel === "ai" ? "bg-zinc-100 text-indigo-600 dark:bg-zinc-800 dark:text-indigo-400" : ""}`}
-        title={aiDisabled ?? (drafts.ai ? t("Instruction draft: {text}", { text: drafts.ai.slice(0, 120) }) : t("Instruction to Copilot — it works on this todo with it (Work tab)"))}
+        title={aiDisabled ?? (drafts.ai ? t("Instruction draft: {text}", { text: drafts.ai.slice(0, 120) }) : t("Instruction to Copilot — it works on this todo with it (Code tab)"))}
         aria-label={t("Instruction to Copilot")}
         aria-expanded={panel === "ai"}
         disabled={!!aiDisabled}
@@ -96,7 +99,7 @@ export function TodoQuickButtons({ todoId, panel, onToggle, aiDisabled, canReply
       )}
       {/* Not sent yet: said beside them (a click opens it). */}
       {!panel && (drafts.ai || drafts.note) && (
-        <button type="button" className="ml-1 text-[11px] font-medium text-amber-700 hover:underline dark:text-amber-400" onClick={() => onToggle(drafts.ai ? "ai" : "note")} title={(drafts.ai || drafts.note).slice(0, 200)}>
+        <button type="button" className="ml-1 text-xs font-medium text-amber-700 hover:underline dark:text-amber-400" onClick={() => onToggle(drafts.ai ? "ai" : "note")} title={(drafts.ai || drafts.note).slice(0, 200)}>
           {drafts.ai ? t("Instruction draft") : t("Note draft")}
         </button>
       )}
@@ -109,6 +112,9 @@ export function TodoQuickPanel({ todoId, todoRef, panel, onClose, time }: { todo
   const t = useT();
   const drafts = useTodoDrafts(todoId);
   const [pending, start] = useTransition();
+  const [uploading, setUploading] = useState(0);
+  const [over, setOver] = useState(false);
+  const imageInput = useRef<HTMLInputElement>(null);
   if (!panel) return null;
   if (panel === "reply") return <ReplyPanel todoId={todoId} onClose={onClose} />;
   if (panel === "doc") return <AttachPanel todoId={todoId} onClose={onClose} />;
@@ -116,6 +122,40 @@ export function TodoQuickPanel({ todoId, todoRef, panel, onClose, time }: { todo
   const ai = panel === "ai";
   const text = drafts[panel];
   const setText = (v: string) => saveDraft(todoId, panel, v);
+  // (Pictures work without the Documents plugin being on: the first one installs it.)
+  const imagesOn = !ai;
+  // Pictures for the note (pasted, dropped, chosen): kept as documents (read by the Documents plugin: what they show, the text in
+  // them), attached to the todo — so the AI that works on it or reviews it knows them — and named in the note.
+  const takeImages = async (files: File[]) => {
+    const images = files.filter((f) => f.type.startsWith("image/"));
+    if (!images.length) return;
+    setUploading((n) => n + images.length);
+    try {
+      // (a pasted screenshot is called "image.png": a name of its own says more)
+      const stamp = new Date().toISOString().slice(0, 19).replace("T", " ").replace(/:/g, "-");
+      const named = images.map((f, i) => (/^image\.\w+$/i.test(f.name) ? new File([f], `Bild ${stamp}${images.length > 1 ? ` ${i + 1}` : ""}.${(f.type.split("/")[1] ?? "png").replace("jpeg", "jpg")}`, { type: f.type }) : f));
+      const ready = await ensureDocumentsAction();
+      if (!ready?.ok) return void toast(ready?.error ?? t("Didn't work."), { tone: "error" });
+      if (ready.message) toast(ready.message, { tone: "ok" });
+      const r = await uploadDocuments(named);
+      if (!r.ok || !r.documents?.length) return void toast(r.error ?? r.errors?.join(" · ") ?? t("Didn't work."), { tone: "error" });
+      // Each picture is kept as a document, attached to the todo, and referenced in the note as ![title](doc:12) — the same
+      // reference the editor's autocomplete makes (typing ![title]( opens the search).
+      const markers: string[] = [];
+      for (const d of r.documents) {
+        const a = await attachDocumentAction(todoId, d.id);
+        if (a?.ok) markers.push(`![${d.name.replace(/\.[a-z0-9]+$/i, "").replace(/[[\]]/g, "")}](${d.ref})`);
+        else toast(a?.error ?? t("Didn't work."), { tone: "error" });
+      }
+      if (markers.length) {
+        const now = getDraft(todoId, "note");
+        saveDraft(todoId, "note", `${now}${now && !now.endsWith("\n") ? "\n" : ""}${markers.join("\n")}`);
+        toast(markers.length === 1 ? t("Image attached — the AI will know it.") : t("{n} images attached — the AI will know them.", { n: markers.length }), { tone: "ok" });
+      }
+    } finally {
+      setUploading((n) => n - images.length);
+    }
+  };
   const submit = () => {
     if (!text.trim() || pending) return;
     start(async () => {
@@ -137,7 +177,29 @@ export function TodoQuickPanel({ todoId, todoRef, panel, onClose, time }: { todo
     { label: t("Research"), title: t("Instruction: look in the repo and the context and report"), text: `Sieh im Repo und im Kontext nach, was für ${todoRef} wichtig ist (betroffene Stellen, Ursachen, offene Fragen), und berichte. Nichts ändern.` },
   ];
   return (
-    <div className="mt-1.5 space-y-1.5 rounded-md border border-zinc-200 p-2 dark:border-zinc-700">
+    <div
+      className={`mt-1.5 space-y-1.5 rounded-md border p-2 ${over ? "border-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/20" : "border-zinc-200 dark:border-zinc-700"}`}
+      onPaste={(e) => {
+        const files = imagesOn ? [...e.clipboardData.files].filter((f) => f.type.startsWith("image/")) : [];
+        if (!files.length) return;
+        e.preventDefault();
+        void takeImages(files);
+      }}
+      onDragOver={(e) => {
+        if (!imagesOn || ![...e.dataTransfer.types].includes("Files")) return;
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        setOver(false);
+        if (!imagesOn) return;
+        const files = [...e.dataTransfer.files].filter((f) => f.type.startsWith("image/"));
+        if (!files.length) return;
+        e.preventDefault();
+        void takeImages(files);
+      }}
+    >
       {ai && (
         <span className="flex flex-wrap gap-1">
           {SHORTCUTS.map((sc) => (
@@ -164,6 +226,7 @@ export function TodoQuickPanel({ todoId, todoRef, panel, onClose, time }: { todo
       )}
       <MentionTextarea
         autoFocus
+        images={imagesOn}
         rows={ai ? 3 : 2}
         className="input w-full resize-y text-sm"
         placeholder={ai ? t("What should Copilot do on {ref}? (e.g. “Check whether this is already done on the branch”)", { ref: todoRef }) : t("Note on {ref} — what you know, what applies, what's already settled… (@ tags people)", { ref: todoRef })}
@@ -177,12 +240,23 @@ export function TodoQuickPanel({ todoId, todoRef, panel, onClose, time }: { todo
           } else if (e.key === "Escape") onClose();
         }}
       />
+      {!ai && <TagSuggestions todoId={todoId} text={text} onPick={(name) => setText(`${text}${text && !/\s$/.test(text) ? " " : ""}@${name} `)} />}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs text-zinc-400">
-          {ai ? t("Copilot CLI gets the todo with all its context; the result shows on the Work tab.") : t("Goes as context to the briefing, workers and agents.")} Ctrl+Enter
+          {ai ? t("Copilot CLI gets the todo with all its context; the result shows on the Code tab.") : t("Goes as context to the briefing, workers and agents.")} Ctrl+Enter
+          {imagesOn && ` · ${t("paste or drop pictures here")}`}
+          {uploading > 0 && ` · ${t("adding pictures …")}`}
           {text.trim() && ` · ${t("draft saved")}`}
         </span>
         <span className="flex gap-1.5">
+          {imagesOn && (
+            <>
+              <input ref={imageInput} type="file" accept="image/*" multiple hidden onChange={(e) => { void takeImages([...(e.target.files ?? [])]); e.target.value = ""; }} />
+              <button type="button" className="btn btn-sm" onClick={() => imageInput.current?.click()} disabled={pending || uploading > 0} title={t("Add a picture (a screenshot, a mock-up): it is attached to the todo and the AI gets it as an attachment")}>
+                🖼 {t("Picture")}
+              </button>
+            </>
+          )}
           {text.trim() && (
             <button type="button" className="btn btn-sm" onClick={() => saveDraft(todoId, panel, "")} disabled={pending} title={t("Delete the draft")}>
               {t("Discard")}

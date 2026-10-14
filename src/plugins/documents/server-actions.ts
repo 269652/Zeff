@@ -102,6 +102,41 @@ export async function listDocumentsAction(): Promise<DocView[]> {
   return (await import("./store")).listDocuments();
 }
 
+/**
+ * The first picture added to a note installs the Documents plugin (it keeps the pictures; off by default) — nothing to set up
+ * before. Answers ok once it is there.
+ */
+export async function ensureDocumentsAction(): Promise<ActionState> {
+  try {
+    const { isInstalled, setInstalled } = await import("@/plugins/state");
+    if (isInstalled("documents")) return { ok: true };
+    setInstalled("documents", true);
+    revalidateAll();
+    return { ok: true, message: t("The Documents plugin is installed — it keeps the pictures of your notes.") };
+  } catch (e) {
+    return { ok: false, error: errorMessage(e) };
+  }
+}
+
+export type DocHit = { id: number; ref: string; name: string; kind: string; size: number; abstract: string };
+
+/** The note editor's autocomplete (typing ![title]( ): documents by what you typed — pictures first, then the best match, newest first. */
+export async function searchDocumentsAction(q: string): Promise<DocHit[]> {
+  if (off()) return [];
+  const words = String(q ?? "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean).slice(0, 6);
+  const { listDocuments } = await import("./store");
+  const docs = listDocuments().filter((d) => d.status !== "failed");
+  const scored = docs.map((d, i) => {
+    const hay = `${d.name} ${d.abstract} ${d.concepts.join(" ")}`.toLowerCase();
+    return { d, i, hits: words.filter((w) => hay.includes(w)).length };
+  });
+  return scored
+    .filter((x) => !words.length || x.hits > 0)
+    .sort((a, b) => Number(b.d.kind === "image") - Number(a.d.kind === "image") || b.hits - a.hits || a.i - b.i)
+    .slice(0, 8)
+    .map(({ d }) => ({ id: d.id, ref: d.ref, name: d.name, kind: d.kind, size: d.size, abstract: d.abstract.slice(0, 120) }));
+}
+
 /** The audio transcriber: the command that turns a recording into text — {file} and {dir} filled in. */
 export async function saveDocumentSettingsAction(v: { transcriber: string; autoInstall: boolean }): Promise<ActionState> {
   return run(async () => {
