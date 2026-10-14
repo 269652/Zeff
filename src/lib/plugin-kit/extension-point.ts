@@ -11,13 +11,16 @@ import type { PluginId } from "@/plugins/catalog";
  * Server only. Contributions are registered when `@/plugins/contributions` is imported (once per process).
  */
 
-export type Contribution<T> = { plugin: PluginId; impl: T };
+/** Who contributes: a built-in plugin, or "core" (Zeff itself, always there). */
+export type Contributor = PluginId | "core";
+
+export type Contribution<T> = { plugin: Contributor; impl: T };
 
 export type ExtensionPoint<T> = {
   /** Unique name, "<owner>.<what>" ("kanban.boardProviders"). */
   readonly name: string;
   /** Register `impl` for `plugin`; a plugin contributes once per point (a second call replaces the first). */
-  contribute(plugin: PluginId, impl: T): void;
+  contribute(plugin: Contributor, impl: T): void;
   /** The contributions of the installed plugins, in the order they were registered. */
   list(): Contribution<T>[];
   /** Every contribution, installed or not (for the Plugins page and tests). */
@@ -37,7 +40,7 @@ export function extensionPoint<T>(name: string): ExtensionPoint<T> {
       if (at >= 0) items[at] = { plugin, impl };
       else items.push({ plugin, impl });
     },
-    list: () => items.filter((c) => isInstalled(c.plugin)),
+    list: () => items.filter((c) => c.plugin === "core" || isInstalled(c.plugin)),
     all: () => [...items],
   };
   points.set(name, point as ExtensionPoint<unknown>);

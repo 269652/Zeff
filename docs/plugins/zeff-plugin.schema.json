@@ -42,19 +42,12 @@
     },
     "permissions": {
       "default": [],
-      "maxItems": 20,
+      "description": "What it may do (granted by you): exec, network, prompt, and the permissions plugins bring (work.read, todos.write, kanban.read …).",
+      "maxItems": 30,
       "type": "array",
       "items": {
         "type": "string",
-        "enum": [
-          "work.read",
-          "work.write",
-          "todos.read",
-          "todos.write",
-          "prompt",
-          "exec",
-          "network"
-        ]
+        "pattern": "^[a-z][a-z0-9]*(\\.[a-z0-9]+)*$"
       }
     },
     "contributes": {

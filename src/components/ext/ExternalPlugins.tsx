@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { hookLog } from "@/lib/ext/hooks";
-import { EVENTS, type PERMISSIONS } from "@/lib/ext/manifest";
+import { EVENTS } from "@/lib/ext/manifest";
 import { permissionTexts } from "@/lib/ext/permission-texts";
 import { allPlugins, pluginsRoot, scanPlugins } from "@/lib/ext/registry";
 import { t } from "@/lib/i18n/server";
@@ -13,7 +13,7 @@ import { ExtToggle } from "./ExtToggle";
 export function ExternalPlugins() {
   const plugins = allPlugins();
   const words = permissionTexts();
-  const permissionText = (id: keyof typeof PERMISSIONS) => words[id];
+  const permissionText = (id: string) => words[id] ?? t("(no installed plugin offers this)");
   const { problems } = scanPlugins();
   const root = pluginsRoot();
   return (

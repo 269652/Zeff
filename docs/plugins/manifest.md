@@ -47,6 +47,8 @@ is never granted, and a method or contribution that needs one fails or is skippe
 | `work.write` | Start, continue and stop Work sessions | `work.sessions.start`, `work.sessions.send`, `work.runs.cancel` |
 | `todos.read` | Read your todos | `todos.list` |
 | `todos.write` | Add todos | `todos.add` |
+| `kanban.read` | Read your Kanban boards and cards | `kanban.boards.list`, `kanban.boards.get` |
+| `kanban.write` | Add, change, move and archive Kanban cards | `kanban.cards.add`, `kanban.cards.update`, `kanban.cards.move`, `kanban.cards.archive`, `kanban.cards.restore` |
 | `prompt` | Add rules to what Work's workers are told | `contributes.workerRules` |
 | `exec` | Run programs on this computer — **with your rights** | `contributes.hooks`, stdio entries of `contributes.workerMcpServers` |
 | `network` | Let the plugin's panels contact other websites; allow http MCP servers | http entries of `contributes.workerMcpServers` |

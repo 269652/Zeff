@@ -12,18 +12,18 @@ import { z } from "zod";
 /** The version of the extension API this Zeff speaks (a plugin says which it was written for). */
 export const API_VERSION = 1;
 
-/** What a plugin may be allowed to do — each named in its manifest, granted by you when you enable it. */
-export const PERMISSIONS = {
-  "work.read": "Read Work sessions, their logs and results",
-  "work.write": "Start, continue and stop Work sessions",
-  "todos.read": "Read your todos",
-  "todos.write": "Add todos",
-  prompt: "Add rules to what Work's workers are told",
-  exec: "Run programs on this computer (event hooks, MCP servers) — with your rights",
-  network: "Let its panels contact other websites (otherwise they can't)",
-} as const;
-export type Permission = keyof typeof PERMISSIONS;
-export const PERMISSION_IDS = Object.keys(PERMISSIONS) as [Permission, ...Permission[]];
+/**
+ * What a plugin may be allowed to do — each named in its manifest, granted by you when you enable it.
+ * A permission is an id like "work.read": Zeff brings `prompt`, `exec` and `network`; every plugin that
+ * brings API methods brings the permissions they use (see lib/plugins/api.ts, GET /ext/docs for the list).
+ */
+export type Permission = string;
+/** Set by lib/plugins/api-point.ts: whether some plugin brings the permission. Without it, every well-formed id passes. */
+let permissionCheck: (p: string) => boolean = () => true;
+export const setPermissionCheck = (fn: (p: string) => boolean) => {
+  permissionCheck = fn;
+};
+const permissionId = z.string().regex(/^[a-z][a-z0-9]*(\.[a-z0-9]+)*$/, "a permission id like work.read or exec").refine((p) => permissionCheck(p), "no plugin brings this permission");
 
 /** The events a hook can listen to (docs/plugins/hooks.md). */
 export const EVENTS = {
@@ -106,7 +106,7 @@ export const manifestSchema = z
     author: z.string().max(100).optional(),
     homepage: z.url().optional(),
     apiVersion: z.number().int().min(1).max(API_VERSION).describe(`The extension API version it was written for (this Zeff speaks up to ${API_VERSION}).`),
-    permissions: z.array(z.enum(PERMISSION_IDS)).max(20).default([]),
+    permissions: z.array(permissionId).max(30).default([]).describe("What it may do (granted by you): exec, network, prompt, and the permissions plugins bring (work.read, todos.write, kanban.read …)."),
     contributes: contributes.default({ workerRules: [], workCommands: [], workerMcpServers: {}, workPanels: [], hooks: {} }),
   })
   .superRefine((m, ctx) => {

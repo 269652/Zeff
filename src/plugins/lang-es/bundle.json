@@ -4277,5 +4277,8 @@
   "← Manage boards": "← Gestionar tableros",
   "Archived cards of {name}": "Tarjetas archivadas de {name}",
   "No archived cards.": "No hay tarjetas archivadas.",
-  "Delete the card “{title}” for good?": "¿Eliminar la tarjeta «{title}» definitivamente?"
+  "Delete the card “{title}” for good?": "¿Eliminar la tarjeta «{title}» definitivamente?",
+  "(no installed plugin offers this)": "(ningún plugin instalado lo ofrece)",
+  "Read your Kanban boards and cards": "Leer tus tableros y tarjetas Kanban",
+  "Add, change, move and archive Kanban cards": "Añadir, cambiar, mover y archivar tarjetas Kanban"
 }

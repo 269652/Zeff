@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { renderManifests, renderServer } from "../scripts/plugins-index.mts";
+import { renderManifests, renderServer } from "../src/lib/plugins/index-gen";
 import { PLUGINS, STEP_NEEDS } from "../src/plugins/catalog";
 
 const dir = path.join(process.cwd(), "src", "plugins");
