@@ -4,6 +4,7 @@ import { definePlugin } from "../define";
 export default definePlugin({
   id: "outlook-calendar",
   order: 340,
+  actionsOrder: 50,
   name: "Outlook Calendar",
   description: "Reads your meetings from Outlook (automation Chrome, bookmarklet or Microsoft sign-in) — meetings to book, with job and exclusion rules.",
   category: "connector",

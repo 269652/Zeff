@@ -4,6 +4,7 @@ import { definePlugin } from "../define";
 export default definePlugin({
   id: "calendar",
   order: 320,
+  actionsOrder: 110,
   name: "Calendar",
   description: "One calendar for everything: your own calendars in Zeff and those of your sources (Outlook, Google Calendar) in one week view, each with a colour, to show or hide. Zeff reads every source into its own calendar model — that's where the free slots for meeting suggestions and the meetings to book come from. Your todos' suggested meetings show dashed.",
   category: "app",

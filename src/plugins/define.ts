@@ -54,6 +54,8 @@ export type PluginShape<Id extends string = string> = {
   syncSteps?: string[];
   /** The services it signs in to (sign-in prompts). */
   services?: string[];
+  /** Where its actions stand in the AI's dictionary (lower first; none: after the others). Keeps the prompt's order stable. */
+  actionsOrder?: number;
   /** The AI provider it is. */
   aiProvider?: "copilot" | "claude" | "codex";
   /** What it brings to other plugins — extensions (see extensions.ts), there while all their plugins are. */

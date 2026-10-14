@@ -4,6 +4,7 @@ import { definePlugin } from "../define";
 export default definePlugin({
   id: "jira",
   order: 210,
+  actionsOrder: 10,
   name: "Jira",
   description: "Your tickets and those of the chosen boards — the basis of the todos, the context sync and the entries per ticket.",
   category: "connector",

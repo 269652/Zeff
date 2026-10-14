@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { renderManifests, renderServer } from "../src/lib/plugins/index-gen";
+import { renderActions, renderManifests, renderServer } from "../src/lib/plugins/index-gen";
 import { PLUGINS, STEP_NEEDS } from "../src/plugins/catalog";
 
 const dir = path.join(process.cwd(), "src", "plugins");
@@ -12,6 +12,7 @@ const read = (f: string) => fs.readFileSync(path.join(dir, f), "utf8").replace(/
 test("the generated plugin indexes are fresh", () => {
   assert.equal(read("index.generated.ts"), renderManifests(), "run `npm run plugins:index`");
   assert.equal(read("server.generated.ts"), renderServer(), "run `npm run plugins:index`");
+  assert.equal(read("actions.generated.ts"), renderActions(), "run `npm run plugins:index`");
 });
 
 /** Each plugin's manifest is in the folder named like its id, and everything it names exists. */

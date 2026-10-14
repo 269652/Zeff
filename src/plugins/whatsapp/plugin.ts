@@ -4,6 +4,7 @@ import { definePlugin } from "../define";
 export default definePlugin({
   id: "whatsapp",
   order: 280,
+  actionsOrder: 80,
   name: "WhatsApp",
   description: "Reads your chats in WhatsApp Web in the account's automation Chrome — only the chat list (per chat the last message, who, when, unread); no chat is opened, so nothing is marked as read (no blue ticks). The messages go into the review (todos), matching and knowledge, just like mails.",
   category: "connector",

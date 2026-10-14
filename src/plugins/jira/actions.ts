@@ -1,6 +1,17 @@
 /** The Jira plugin's actions: a status, an assignee, a comment, a new ticket — through Zeff's Jira connection. Client-safe. */
 import { action, EN, str, ticketKey } from "../actions/types";
 
+/** The operation types this plugin brings (an entry per `type`); the core's TodoOp is the union of all plugins'. */
+declare module "@/lib/boards/shared" {
+  interface TodoOpMap {
+  "jira-transition": { ticket: string; to: string };
+  "jira-assign": { ticket: string; assignee: string };
+  "jira-comment": { ticket: string; body: string };
+  /** A new ticket (in the project of `ticket`, linked to it): its title, type and description (Markdown — Jira's markup when it's created). */
+  "jira-create": { ticket: string; summary: string; issueType: string; body: string };
+  }
+}
+
 export const JIRA_ACTIONS = [
   action({
     type: "jira-transition",

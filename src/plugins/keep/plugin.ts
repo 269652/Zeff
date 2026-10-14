@@ -4,6 +4,7 @@ import { definePlugin } from "../define";
 export default definePlugin({
   id: "keep",
   order: 300,
+  actionsOrder: 70,
   name: "Google Keep",
   description: "Notes like in Google Keep: your own note boards in Zeff (Private, Ideas, Shopping …) with notes, lists, colours, labels — and your Google Keep notes, read in the account's automation Chrome (Keep opened in a new tab, what Keep loads taken over, tab closed; nothing changes in Keep). Everything is in the Keep app, in knowledge (also as a source of its own for the knowledge server), for agents — and with its extensions in the briefing and the todos.",
   category: "connector",

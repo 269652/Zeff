@@ -4,6 +4,7 @@ import { definePlugin } from "../define";
 export default definePlugin({
   id: "work",
   order: 80,
+  actionsOrder: 60,
   name: "Work",
   description: "Workers and agents on your todos: runs, live sessions, branches and repos, delivery — and the MCP tools for agents.",
   category: "app",

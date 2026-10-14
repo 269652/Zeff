@@ -4,6 +4,7 @@ import { definePlugin } from "../define";
 export default definePlugin({
   id: "gmail",
   order: 270,
+  actionsOrder: 100,
   name: "Gmail",
   description: "Reads your Gmail inbox in the account's automation Chrome (only the list, nothing is opened or marked as read) — mails as context for todos, the mail review, mail matching and knowledge; with or instead of Outlook.",
   category: "connector",

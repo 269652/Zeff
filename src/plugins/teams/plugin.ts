@@ -4,6 +4,7 @@ import { definePlugin } from "../define";
 export default definePlugin({
   id: "teams",
   order: 350,
+  actionsOrder: 30,
   name: "Microsoft Teams",
   description: "Reads your mentions and chats in Teams Web — context for the briefing and todos; sends Teams messages on a click.",
   category: "connector",

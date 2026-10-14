@@ -8,6 +8,16 @@ import { formatDayTime } from "@/lib/format";
 import type { T } from "@/lib/i18n/shared";
 import { action, EN, str } from "../actions/types";
 
+/** The operation types this plugin brings (an entry per `type`); the core's TodoOp is the union of all plugins'. */
+declare module "@/lib/boards/shared" {
+  interface TodoOpMap {
+  /** An appointment entered in one of Zeff's own calendars (by name; "": the first) — local start "YYYY-MM-DDTHH:MM". */
+  "calendar-entry": { calendar: string; title: string; start: string; minutes: number; body: string };
+  /** An appointment opened in Google Calendar, filled in (you save it) — local start "YYYY-MM-DDTHH:MM". */
+  "gcal-event": { title: string; start: string; minutes: number; body: string };
+  }
+}
+
 /** "2026-10-13 10:00" / "2026-10-13T10:00" → local "2026-10-13T10:00" (null: not a time); plus minutes. */
 export const localStamp = (v: string, plus = 0): string | null => {
   const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(v.trim());

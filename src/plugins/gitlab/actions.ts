@@ -1,6 +1,16 @@
 /** The GitLab plugin's actions: replies and resolved threads on merge requests; opening and merging them (delivery). Client-safe. */
 import { action, EN, noteId, str } from "../actions/types";
 
+/** The operation types this plugin brings (an entry per `type`); the core's TodoOp is the union of all plugins'. */
+declare module "@/lib/boards/shared" {
+  interface TodoOpMap {
+  "gitlab-reply": { note: string; body: string };
+  "gitlab-resolve": { note: string };
+  "gitlab-open-mr": { repo: string; project: string; source: string; target: string; title: string; description: string };
+  "gitlab-merge": { project: string; iid: number; source: string };
+  }
+}
+
 export const GITLAB_ACTIONS = [
   action({
     type: "gitlab-reply",

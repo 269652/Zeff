@@ -4,6 +4,7 @@ import { definePlugin } from "../define";
 export default definePlugin({
   id: "signal",
   order: 290,
+  actionsOrder: 90,
   name: "Signal",
   description: "Reads your Signal chats from Signal Desktop on this computer (over its local debug port) — the messages of your active chats; no chat is opened, so nothing is marked as read. The messages go into the review (todos), matching and knowledge, just like mails.",
   category: "connector",

@@ -1,10 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
-import { pluginsDir, renderManifests, renderServer } from "../src/lib/plugins/index-gen";
+import { pluginsDir, renderActions, renderManifests, renderServer } from "../src/lib/plugins/index-gen";
 
 /**
  * Writes src/plugins/index.generated.ts (one import per src/plugins/<id>/plugin.ts) and
- * server.generated.ts (one per <id>/server.ts, for what a plugin brings that is code). A plugin is
+ * server.generated.ts (one per <id>/server.ts, for what a plugin registers on the server) and
+ * actions.generated.ts (every `export const <NAME>_ACTIONS` list in a plugin's files). A plugin is
  * added by creating its folder and running this (`npm run plugins:index`); tests/plugin-index.test.ts
  * fails while they are stale. `--check` only compares.
  */
@@ -13,6 +14,7 @@ if (process.argv[1]?.endsWith("plugins-index.mts")) {
   const outputs: [string, string][] = [
     [path.join(dir, "index.generated.ts"), renderManifests()],
     [path.join(dir, "server.generated.ts"), renderServer()],
+    [path.join(dir, "actions.generated.ts"), renderActions()],
   ];
   let stale = false;
   for (const [file, next] of outputs) {

@@ -4,6 +4,7 @@ import { definePlugin } from "../define";
 export default definePlugin({
   id: "gitlab",
   order: 360,
+  actionsOrder: 20,
   name: "GitLab",
   description: "Reads merge requests, comments and branches — context, delivery (push, MR, merge) and replies to comments on a click.",
   category: "connector",

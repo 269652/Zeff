@@ -1,22 +1,18 @@
 /**
- * All actions the plugins contribute, gathered — one place for their buttons, labels, notes, the
+ * All actions the plugins contribute, gathered from their folders — one place for their buttons, labels, notes, the
  * validation of what an AI proposes and the AI's dictionary. Which of them can run now is the
  * installed plugins' business (opAvailable on the server). Client-safe.
  */
 import type { TodoOp } from "@/lib/boards/shared";
-import { GITLAB_ACTIONS } from "../gitlab/actions";
-import { JIRA_ACTIONS } from "../jira/actions";
-import { GMAIL_ACTIONS } from "../gmail/actions";
-import { CALENDAR_ACTIONS } from "../calendar/actions";
-import { KEEP_ACTIONS } from "../keep/note-action";
-import { WHATSAPP_ACTIONS } from "../whatsapp/actions";
-import { SIGNAL_ACTIONS } from "../signal/actions";
-import { OUTLOOK_CALENDAR_ACTIONS, OUTLOOK_MAIL_ACTIONS } from "../outlook/actions";
-import { TEAMS_ACTIONS } from "../teams/actions";
-import { WORK_ACTIONS } from "../work/actions";
+import { pluginById } from "../catalog";
+import { ACTION_LISTS } from "../actions.generated";
 import type { ActionSpec, ActionType, CleanContext } from "./types";
 
-export const ACTIONS: ActionSpec[] = [...JIRA_ACTIONS, ...GITLAB_ACTIONS, ...TEAMS_ACTIONS, ...OUTLOOK_MAIL_ACTIONS, ...OUTLOOK_CALENDAR_ACTIONS, ...WORK_ACTIONS, ...KEEP_ACTIONS, ...WHATSAPP_ACTIONS, ...SIGNAL_ACTIONS, ...GMAIL_ACTIONS, ...CALENDAR_ACTIONS] as unknown as ActionSpec[];
+/** Every plugin's actions (the `*_ACTIONS` lists in their folders, see actions.generated.ts), in the AI dictionary's order: by their plugin's `actionsOrder`. */
+export const ACTIONS: ActionSpec[] = (ACTION_LISTS.flat() as unknown as ActionSpec[])
+  .map((a, i) => ({ a, i, rank: (a.plugin && pluginById(a.plugin)?.actionsOrder) || 1000 }))
+  .sort((x, y) => x.rank - y.rank || x.i - y.i)
+  .map((x) => x.a);
 
 const BY_TYPE = new Map(ACTIONS.map((a) => [a.type, a]));
 
