@@ -29,7 +29,7 @@ type Read = {
 const NOT_BUSY = /birthdays@|tasks@|holiday@|#holiday@|#contacts@|\.v\.calendar\.google\.com$/i;
 
 async function chromeUp(): Promise<boolean> {
-  return automationUp("chrono");
+  return automationUp();
 }
 
 export async function syncGoogleCalendar({ background = false } = {}): Promise<{ ok: boolean; message: string }> {

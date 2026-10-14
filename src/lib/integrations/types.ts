@@ -6,6 +6,7 @@ import type { MonthInfo } from "@/lib/month";
 import type { EntryWithJob } from "@/lib/entries";
 import type { JobWithStats } from "@/lib/jobs";
 import type { CloseItem } from "@/lib/week-close";
+import type { PrereqId } from "@/lib/prerequisites-shared";
 import type { PluginId, PluginManifest } from "@/plugins/catalog";
 import type { PluginSyncSettings } from "@/plugins/sync-settings";
 import type { SyncStep } from "@/lib/sync/registry";
@@ -30,6 +31,8 @@ export type IntegrationMeta = {
   manifest: PluginManifest;
   /** The texts of its catalog entry as literals (t("…")), so that npm run i18n finds them. */
   texts?: (t: T) => string[];
+  /** The programs it needs (the Prerequisites page shows a row for one when a plugin that needs it is installed). */
+  needs?: PrereqId[];
 };
 
 /** A Next.js page of an integration, as its module: the page and its metadata (it renders at /export/<id> or /settings/<id>). */
@@ -85,8 +88,8 @@ export type IntegrationServer = {
   syncStep?: { key: string; step: SyncStep };
   /** Its browser driver (an MCP server over stdio), as a path inside the mount: "chrono/driver.mjs". */
   driver?: string;
-  /** Its sign-in: where the page is ("Sign in" opens it), its driver's status check, what its driver needs in the environment. */
-  service?: { loginUrl: string; status: () => Promise<string>; env?: () => Record<string, string> | Promise<Record<string, string>> };
+  /** Its sign-in: its name, where the page is ("Sign in" opens it), its driver's status check (the driver of its id, tool "<id>_status"), what its driver needs in the environment. */
+  service?: { label: string; loginUrl: string; status: () => Promise<string>; env?: () => Record<string, string> | Promise<Record<string, string>> };
   /** Its pages: /export/<id> and /settings/<id> (the plugin's routes in the manifest). */
   pages?: { export?: IntegrationPage; settings?: IntegrationPage };
   week?: (ctx: WeekContext) => WeekSlot | Promise<WeekSlot>;

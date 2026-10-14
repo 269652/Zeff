@@ -6,15 +6,20 @@ import { integrationServer } from "@/lib/integrations/server";
 import { t } from "@/lib/i18n/server";
 
 /** The systems Zeff reaches through the automation Chrome (or a login), each with where you sign in. */
-export type ServiceId = "teams" | "outlook" | "gmail" | "whatsapp" | "signal" | "keep" | "gcalendar" | "gitlab" | "jira" | "chrono" | "punch";
+export type CoreServiceId = "teams" | "outlook" | "gmail" | "whatsapp" | "signal" | "keep" | "gcalendar" | "gitlab" | "jira";
+/** A service: one of Zeff's own, or one a mounted integration signs in to (its `service`). */
+export type ServiceId = CoreServiceId | (string & {});
 
-export const SERVICE_LABELS: Record<ServiceId, string> = { teams: "Teams", outlook: "Outlook", gmail: "Gmail", whatsapp: "WhatsApp", signal: "Signal", keep: "Google Keep", gcalendar: "Google Calendar", gitlab: "GitLab", jira: "Jira", chrono: "Chrono", punch: "Punch" };
+export const SERVICE_LABELS: Record<CoreServiceId, string> = { teams: "Teams", outlook: "Outlook", gmail: "Gmail", whatsapp: "WhatsApp", signal: "Signal", keep: "Google Keep", gcalendar: "Google Calendar", gitlab: "GitLab", jira: "Jira" };
+
+/** A service's name — Zeff's own, else the mounted integration's; undefined when there is no such service. */
+export const serviceLabel = (id: string): string | undefined => (SERVICE_LABELS as Record<string, string>)[id] ?? integrationServer(id)?.service?.label;
 
 /** A sign-in page some service sends you to (Microsoft's, GitLab's, …): tabs on it count as that service's. */
 const SIGN_IN_PAGES = "accounts\\.google\\.com|login\\.microsoftonline\\.com|login\\.live\\.com|login\\.windows\\.net|/users/sign_in|/login";
 
 async function serviceUrl(id: ServiceId): Promise<string | null> {
-  // The mounted integrations' (Chrono, Punch) say where their sign-in page is.
+  // The mounted integrations' say where their sign-in page is.
   const own = integrationServer(id)?.service?.loginUrl;
   if (own) return own;
   if (id === "teams") return "https://teams.microsoft.com/v2/";
@@ -38,8 +43,8 @@ export async function openServiceLogin(id: ServiceId): Promise<{ ok: boolean; me
   // Signal has no web app: Signal Desktop started (with its debug port) — you link it there.
   if (id === "signal") return (await import("@/plugins/signal/open")).openSignal();
   const url = await serviceUrl(id);
-  if (!url) return { ok: false, message: t("No address is set for {service}.", { service: SERVICE_LABELS[id] }) };
-  return openInAutomationChrome(url, SERVICE_LABELS[id]);
+  if (!url) return { ok: false, message: t("No address is set for {service}.", { service: serviceLabel(id) }) };
+  return openInAutomationChrome(url, serviceLabel(id) ?? id);
 }
 
 /** A page in the automation Chrome, at the front (its tab if one shows it, else a new one) — Chrome started if needed. */
@@ -90,7 +95,7 @@ export function raiseLogin(service: ServiceId, detail: string): void {
     key,
     kind: "login",
     service,
-    title: t("{service}: sign-in needed", { service: SERVICE_LABELS[service] }),
+    title: t("{service}: sign-in needed", { service: serviceLabel(service) ?? service }),
     body: t("{detail} — sign in in the automation Chrome (Zeff never types credentials), then try again.", { detail: detail.slice(0, 200) }),
     at: new Date().toISOString(),
   });

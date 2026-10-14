@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { integrationMetas } from "@/lib/integrations/meta";
 
 /**
  * The pure part of "what this PC needs": finding a command, and which plugin needs which program.
@@ -10,9 +11,9 @@ import path from "node:path";
 
 export type PrereqId = "browser" | "git" | "uv" | "claude" | "codex" | "copilot" | "poppler";
 
-/** The plugins that need a program (a row is shown when one of them is installed). */
+/** Zeff's own plugins that need a program (a row is shown when one of them is installed); a mounted integration adds its own (`needs` in its meta). */
 export const PREREQ_PLUGINS: Record<PrereqId, string[]> = {
-  browser: ["chrono", "punch", "outlook-mail", "outlook-calendar", "teams", "gitlab", "gmail", "whatsapp", "keep", "keep-write", "google-calendar"],
+  browser: ["outlook-mail", "outlook-calendar", "teams", "gitlab", "gmail", "whatsapp", "keep", "keep-write", "google-calendar"],
   git: ["work", "gitlab"],
   uv: ["jira"],
   claude: ["claude-cli"],
@@ -75,7 +76,8 @@ export function installCommand(id: "git" | "uv", platform: string = process.plat
 /** The rows a set of installed plugins needs: the program's row is kept when one of its plugins is installed. */
 export function relevantRows<T extends { id: PrereqId }>(rows: T[], installed: ReadonlySet<string>, opts: { jiraCommand?: string | null } = {}): T[] {
   return rows.filter((r) => {
-    if (!PREREQ_PLUGINS[r.id].some((p) => installed.has(p))) return false;
+    const plugins = [...PREREQ_PLUGINS[r.id], ...integrationMetas().filter((m) => m.needs?.includes(r.id)).map((m) => m.id)];
+    if (!plugins.some((p) => installed.has(p))) return false;
     // Jira pointed at another command (JIRA_MCP_COMMAND): uv isn't what it needs.
     if (r.id === "uv" && opts.jiraCommand && !/^uvx?(\.exe)?$/i.test(path.basename(opts.jiraCommand.trim()))) return false;
     return true;

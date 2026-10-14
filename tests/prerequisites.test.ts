@@ -80,7 +80,7 @@ test("relevantRows: only what the installed plugins need", () => {
   const rows = (Object.keys(PREREQ_PLUGINS) as PrereqId[]).map((id) => ({ id }));
   const ids = (installed: string[], jiraCommand?: string | null) => relevantRows(rows, new Set(installed), { jiraCommand }).map((r) => r.id);
   assert.deepEqual(ids([]), []);
-  assert.deepEqual(ids(["chrono"]), ["browser"]);
+  assert.deepEqual(ids(["teams"]), ["browser"]);
   assert.deepEqual(ids(["work", "claude-cli", "codex-cli"]), ["git", "claude", "codex"]);
   assert.deepEqual(ids(["documents", "jira"]), ["uv", "poppler"]);
   assert.deepEqual(ids(["jira"], "uvx"), ["uv"]);

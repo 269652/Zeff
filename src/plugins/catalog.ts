@@ -9,9 +9,10 @@
 
 import { integrationManifests } from "@/lib/integrations/meta";
 
-export const PLUGIN_IDS = ["zeiterfassung", "weekly-report", "monthly-report", "todos", "tickets", "kanban", "jira-lage", "work", "work-elevated", "auto-actions", "backup", "accounts", "knowledge", "people", "news", "documents", "google-drive", "jira", "llm", "copilot-cli", "claude-cli", "codex-cli", "outlook-mail", "gmail", "whatsapp", "signal", "keep", "keep-write", "calendar", "google-calendar", "outlook-calendar", "teams", "gitlab", "chrono", "punch", "lang-en", "lang-de", "lang-es"] as const;
-export type PluginId = (typeof PLUGIN_IDS)[number];
-export const isPluginId = (v: unknown): v is PluginId => (PLUGIN_IDS as readonly unknown[]).includes(v);
+export const CORE_PLUGIN_IDS = ["zeiterfassung", "weekly-report", "monthly-report", "todos", "tickets", "kanban", "jira-lage", "work", "work-elevated", "auto-actions", "backup", "accounts", "knowledge", "people", "news", "documents", "google-drive", "jira", "llm", "copilot-cli", "claude-cli", "codex-cli", "outlook-mail", "gmail", "whatsapp", "signal", "keep", "keep-write", "calendar", "google-calendar", "outlook-calendar", "teams", "gitlab", "lang-en", "lang-de", "lang-es"] as const;
+/** A plugin: one of Zeff's own, or one a mounted integration brings (any string — its meta.ts names it). */
+export type PluginId = (typeof CORE_PLUGIN_IDS)[number] | (string & {});
+export const isPluginId = (v: unknown): v is PluginId => (CORE_PLUGIN_IDS as readonly unknown[]).includes(v) || integrationManifests().some((m) => m.id === v);
 
 export type PluginCategory = "app" | "ai" | "connector" | "timesheet" | "language" | "system";
 export const PLUGIN_CATEGORY_LABELS: Record<PluginCategory, string> = { app: "Applications", ai: "AI tools", connector: "Connectors", timesheet: "Time-sheet systems", language: "Languages", system: "System" };

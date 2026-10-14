@@ -455,8 +455,16 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
 };
 
 /** The steps the mounted integrations bring (Chrono, Punch: src/lib/integrations) — by their key. */
-const integrationSteps = (): Partial<Record<SyncKey, Step>> =>
+const integrationSteps = (): Partial<Record<string, Step>> =>
   Object.fromEntries(integrationServerIds().flatMap((id) => { const x = integrationServer(id)?.syncStep; return x ? [[x.key, x.step]] : []; }));
+
+/** Every step's key, in the menu's order: Zeff's own, the integrations' right after the calendar. */
+const allKeys = (): SyncKey[] => {
+  const own = Object.keys(integrationSteps());
+  const at = SYNC_KEYS.indexOf("calendar") + 1;
+  return [...SYNC_KEYS.slice(0, at), ...own, ...SYNC_KEYS.slice(at)];
+};
+export const isSyncKey = (v: unknown): v is SyncKey => allKeys().includes(v as SyncKey);
 
 /**
  * Every step by its key. The integrations' are added on first use, not while this module loads: they import it
@@ -492,7 +500,7 @@ function nextRun(everyMinutes: number, lastAt: string | null, workdaysOnly = fal
 export function syncOverview(): SyncOverview {
   const l = live();
   // Only the steps there are: Zeff's own and the installed plugins'.
-  const steps: SyncView[] = SYNC_KEYS.filter((key) => stepAvailable(key)).map((key) => {
+  const steps: SyncView[] = allKeys().filter((key) => stepAvailable(key)).map((key) => {
     const s = STEPS[key];
     const sched = s.schedule?.();
     return {
@@ -595,7 +603,7 @@ export function startSyncAllHere(): { ok: boolean; message: string } {
     void (async () => {
       try {
         // The Mail-Durchsicht and -Zuordnung come with the Ticket-Lage (its last steps) — not twice.
-        for (const key of SYNC_KEYS.filter((k) => k !== "relations" && k !== "mailtodos" && k !== "autoactions" && k !== "boardlage" && k !== "knowledgerel" && k !== "peoplenorm" && k !== "tododupes" && k !== "notetodos" && k !== "noterelations" && k !== "doctodos" && k !== "docrelations" && stepAvailable(k))) {
+        for (const key of allKeys().filter((k) => k !== "relations" && k !== "mailtodos" && k !== "autoactions" && k !== "boardlage" && k !== "knowledgerel" && k !== "peoplenorm" && k !== "tododupes" && k !== "notetodos" && k !== "noterelations" && k !== "doctodos" && k !== "docrelations" && stepAvailable(k))) {
           if (l.allStopped) break;
           l.all = key;
           await runStep(key);
