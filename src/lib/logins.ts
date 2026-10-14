@@ -49,8 +49,10 @@ const checks = () => (store.__zeffLoginChecks ??= new Map());
 /** A status tool's answer (JSON from Gmail's and WhatsApp's, words from the others') as a state. */
 function classify(out: unknown): { state: LoginState; detail: string } {
   if (out && typeof out === "object") {
-    const o = out as { chrome?: boolean; open?: boolean; signedIn?: boolean; linked?: boolean; state?: string; message?: string };
+    const o = out as { chrome?: boolean; open?: boolean; signedIn?: boolean; linked?: boolean; state?: string; message?: string; drift?: { ok: boolean; summary: string } };
     if (o.chrome === false) return { state: "chrome", detail: o.message ?? t("The automation Chrome isn't running.") };
+    // WhatsApp / Signal: signed in, but the app no longer looks like the driver expects (an update) — told before a sync breaks on it.
+    if ((o.signedIn || o.linked) && o.drift) return { state: "ok", detail: `${t("Signed in.")} ${o.drift.summary}` };
     if (o.signedIn || o.linked) return { state: "ok", detail: t("Signed in.") };
     if (o.open === false) return { state: "closed", detail: t("Not open in the automation Chrome — “Sign in” opens the page.") };
     return { state: "login", detail: o.state === "link" ? t("Not linked — scan the QR code with your phone.") : t("Not signed in.") };

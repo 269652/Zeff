@@ -1,0 +1,52 @@
+{
+  "app": "signal",
+  "version": 1,
+  "note": "What the Signal driver expects of Signal Desktop (verified against 8.30). After an update of Signal Desktop, `signal_selftest` says which of these no longer holds; fix it here (or in data/automation/signal.json, merged over this file) — the adapter code needs no change for a rename.",
+  "globals": {
+    "conversations": {
+      "paths": ["ConversationController"],
+      "type": "object",
+      "has": ["getAll:function", "get:function", "getOurConversationId:function"],
+      "note": "Every chat, loaded by the app (in its isolated world)."
+    },
+    "store": {
+      "paths": ["reduxStore"],
+      "type": "object",
+      "has": ["getState:function"],
+      "note": "The app's redux store: the messages the chats have loaded, the navigation, the app view."
+    },
+    "actions": {
+      "paths": ["reduxActions"],
+      "type": "object",
+      "has": ["conversations.showConversation:function"],
+      "optional": true,
+      "note": "Only for sending: opens a chat."
+    }
+  },
+  "states": {
+    "redux": {
+      "from": "reduxStore.getState",
+      "has": ["app.appView", "conversations.messagesByConversation:object", "conversations.messagesLookup:object"],
+      "note": "Where loadNewestMessages/loadOlderMessages put the messages."
+    }
+  },
+  "paths": {
+    "selectedConversation": ["nav.selectedLocation.details.conversationId", "conversations.selectedConversationId"],
+    "messageList": ["conversations.messagesByConversation"],
+    "messageLookup": ["conversations.messagesLookup"]
+  },
+  "selectors": {
+    "composer": {
+      "any": [".module-composition-input__input .ql-editor"],
+      "transient": true,
+      "note": "The message field — only while a chat is open."
+    }
+  },
+  "texts": {
+    "windowUrl": ["background\\.html", "signal-desktop"],
+    "contextName": ["Electron Isolated"],
+    "linkViews": ["^Installer$", "^Standalone$"],
+    "inboxView": ["^Inbox$"],
+    "noteToSelf": ["^notiz an mich$", "^note to self$"]
+  }
+}

@@ -1,0 +1,152 @@
+{
+  "app": "whatsapp",
+  "version": 1,
+  "note": "What the WhatsApp driver expects of WhatsApp Web. After an update of WhatsApp Web, `whatsapp_selftest` says which of these no longer holds; fix it here (or in data/automation/whatsapp.json, merged over this file) — the adapter code needs no change for a rename.",
+  "modules": {
+    "collections": {
+      "names": [
+        "WAWebCollections"
+      ],
+      "has": [
+        "Chat.getModelsArray:function",
+        "Msg"
+      ],
+      "note": "The app's own collections (chats, messages, contacts) — what it has decrypted for display."
+    },
+    "load": {
+      "names": [
+        "WAWebChatLoadMessages"
+      ],
+      "has": [
+        "loadEarlierMsgs:function"
+      ],
+      "note": "Loads a chat's earlier messages from the local store: loadEarlierMsgs({ chat, msgs }); loadRecentMsgs likewise."
+    },
+    "me": {
+      "names": [
+        "WAWebUserPrefsMeUser"
+      ],
+      "has": [
+        "isMeAccount:function"
+      ],
+      "optional": true,
+      "note": "Whether an id is you — a group message that mentions or quotes you is to you."
+    }
+  },
+  "selectors": {
+    "chatList": {
+      "any": [
+        "#pane-side"
+      ],
+      "note": "The chat list's scrolling pane — its presence means: linked and loaded."
+    },
+    "chatRows": {
+      "any": [
+        "[role=\"row\"]",
+        "[role=\"listitem\"]"
+      ],
+      "optional": true,
+      "note": "A row of the chat list (virtual: only those near the view exist). WhatsApp Web moved from listitem to row."
+    },
+    "rowTitle": {
+      "any": [
+        "span[title]"
+      ],
+      "optional": true
+    },
+    "rowTick": {
+      "any": [
+        "[data-testid=\"last-msg-status\"] svg title",
+        "[data-icon*=\"check\"]",
+        "[data-icon^=\"status-\"]",
+        "[data-icon*=\"msg-time\"]"
+      ],
+      "transient": true,
+      "note": "Candidates for the ticks before your own last message in a row; texts.tick says which of them are ticks (the other svgs there are the message type: image, voice …)."
+    },
+    "search": {
+      "any": [
+        "#side input[data-tab=\"3\"]",
+        "#side [contenteditable=\"true\"][data-tab=\"3\"]"
+      ],
+      "note": "The chat search box (to open a chat by its name)."
+    },
+    "qr": {
+      "any": [
+        "canvas[aria-label*=\"QR\" i]",
+        "[data-ref] canvas",
+        "[data-testid=\"qrcode\"]"
+      ],
+      "note": "Shown instead of the chats when not linked.",
+      "transient": true
+    },
+    "main": {
+      "any": [
+        "#main"
+      ],
+      "optional": true,
+      "note": "The open chat (only when one is open)."
+    },
+    "chatHeader": {
+      "any": [
+        "#main header span[title]",
+        "#main header span[dir='auto']"
+      ],
+      "when": "main",
+      "note": "The open chat's name."
+    },
+    "composer": {
+      "any": [
+        "footer [contenteditable=\"true\"][role=\"textbox\"]",
+        "footer div[contenteditable=\"true\"]"
+      ],
+      "when": "main",
+      "note": "The message field."
+    },
+    "outgoing": {
+      "any": [
+        "#main .message-out"
+      ],
+      "when": "main",
+      "note": "Your messages in the open chat (to see that one was sent).",
+      "transient": true
+    }
+  },
+  "texts": {
+    "qr": [
+      "scanne den QR",
+      "scan the QR",
+      "mit telefonnummer",
+      "log in with phone",
+      "steps to log in",
+      "whatsapp auf deinem computer",
+      "use whatsapp on your computer"
+    ],
+    "elsewhere": [
+      "in einem anderen fenster",
+      "open in another window",
+      "hier verwenden",
+      "use here"
+    ],
+    "olderFromPhone": [
+      "(ältere|frühere) Nachrichten von deinem Telefon",
+      "older messages from your phone"
+    ],
+    "unread": [
+      "ungelesen",
+      "unread"
+    ],
+    "archived": [
+      "archiviert",
+      "archived"
+    ],
+    "tick": [
+      "check",
+      "^status-",
+      "msg-time",
+      "wds-ic-read",
+      "wds-ic-sent",
+      "wds-ic-deliver"
+    ]
+  }
+}

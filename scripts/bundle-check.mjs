@@ -56,9 +56,12 @@ section("files the app reads at run time");
 const journal = JSON.parse(read("drizzle", "meta", "_journal.json"));
 const missingSql = journal.entries.filter((e) => !has("drizzle", `${e.tag}.sql`)).map((e) => e.tag);
 check(!missingSql.length, `drizzle/: ${journal.entries.length} migrations, each with its .sql`, `drizzle/ lacks ${missingSql.join(", ")}`);
-const scripts = ["work-host.mjs", "work-session-host.mjs", "work-host-spool.mjs", "chrome-cdp.mjs", "chrome-open.mjs", "browser-find.mjs", "images-mcp.mjs", "chrono-mcp.mjs"];
+const scripts = ["work-host.mjs", "work-session-host.mjs", "work-host-spool.mjs", "chrome-cdp.mjs", "cdp-filter.mjs", "chrome-open.mjs", "browser-find.mjs", "images-mcp.mjs", "chrono-mcp.mjs", "automation/probe.mjs", "automation/contract.mjs", "automation/mcp-stdio.mjs"];
 const lackScripts = scripts.filter((f) => !has("scripts", f));
 check(!lackScripts.length, `scripts/: ${scripts.length} run-time scripts`, `scripts/ lacks ${lackScripts.join(", ")}`);
+// The app drivers' adapters and the contracts they read (what WhatsApp Web / Signal Desktop are expected to offer).
+const lackAdapters = ["whatsapp", "signal"].flatMap((id) => ["adapter.mjs", "contract.json"].filter((f) => !has("src", "plugins", id, f)).map((f) => `${id}/${f}`));
+check(!lackAdapters.length, "WhatsApp's and Signal's adapters and contracts", `src/plugins/ lacks ${lackAdapters.join(", ")}`);
 const pluginDirs = fs.readdirSync(path.join(root, "src", "plugins"), { withFileTypes: true }).filter((e) => e.isDirectory());
 const drivers = pluginDirs.filter((e) => has("src", "plugins", e.name, "driver.mjs")).map((e) => path.join("src", "plugins", e.name, "driver.mjs"));
 check(drivers.length >= 9, `${drivers.length} plugin drivers`, `only ${drivers.length} plugin drivers`);
