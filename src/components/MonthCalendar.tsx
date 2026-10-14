@@ -12,35 +12,35 @@ const weekdays = () => [t("Mon"), t("Tue"), t("Wed"), t("Thu"), t("Fri"), t("Sat
 const APPROVED_TEXT = "text-emerald-700 dark:text-emerald-300";
 const PENDING_TEXT = "text-orange-600 dark:text-orange-400";
 
-/** A day's approved hours in Chrono — null while its week hasn't been pulled ("Pull Chrono"). */
-export type DayChrono = { approved: number } | null;
+/** A day's hours approved in the booking system (Chrono) — null while its week hasn't been pulled. */
+export type DayApproval = { approved: number } | null;
 
 /**
  * Each day's booked hours, a row per week; a day links to its week. Green = every entry
- * approved in Chrono; "8 / 12" = 8 of 12 h approved; orange hours = none approved yet; red =
+ * approved in the booking system; "8 / 12" = 8 of 12 h approved; orange hours = none approved yet; red =
  * hours missing on a past day; amber = still due today.
  */
 export function MonthCalendar({
   month,
   dayTotals,
-  chrono,
+  approvals,
   targets,
   shortfalls,
   today,
-  chronoOn = true,
 }: {
-  /** The Chrono plugin installed — else no Chrono hints. */
-  chronoOn?: boolean;
   month: MonthInfo;
   /** Hours per day of the month (index 0 = the 1st). */
   dayTotals: number[];
-  /** Chrono approval per day of the month. */
-  chrono: DayChrono[];
+  /** A booking system's approval per day of the month (a plugin of an integration: Chrono) — none: no hints. */
+  approvals?: { system: string; days: DayApproval[] };
   targets: DayTarget[];
   shortfalls: DayShortfall[];
   today: string;
 }) {
   const index = new Map(month.days.map((d, i) => [isoDate(d), i]));
+  const chronoOn = !!approvals;
+  const chrono = approvals?.days ?? [];
+  const system = approvals?.system ?? "";
 
   return (
     <div className="overflow-x-auto">
@@ -77,6 +77,7 @@ export function MonthCalendar({
                   hours={dayTotals[i]}
                   chrono={chrono[i]}
                   chronoOn={chronoOn}
+                  system={system}
                   target={targets[i]}
                   shortfall={shortfalls[i]}
                   isToday={isoDate(d) === today}
@@ -93,7 +94,7 @@ export function MonthCalendar({
       </div>
 
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">
-        <LegendDot className="bg-emerald-100 dark:bg-emerald-900/60" label={t("all approved in Chrono")} />
+        <LegendDot className="bg-emerald-100 dark:bg-emerald-900/60" label={t("all approved in {system}", { system })} />
         <span>
           <span className={`font-semibold ${APPROVED_TEXT}`}>8</span> / <span className={`font-semibold ${PENDING_TEXT}`}>12</span>{" "}
           {t("approved / booked")}
@@ -105,7 +106,7 @@ export function MonthCalendar({
         <LegendDot className="bg-amber-100 dark:bg-amber-900/60" label={t("due today")} />
         <LegendDot className="bg-zinc-100 dark:bg-zinc-800" label={t("off / absent")} />
         {chronoOn && chrono.some((r, i) => r === null && dayTotals[i] > 0) && (
-          <span className="text-zinc-400">{t("plain hours: week not pulled from Chrono")}</span>
+          <span className="text-zinc-400">{t("plain hours: week not pulled from {system}", { system })}</span>
         )}
       </div>
     </div>
@@ -122,12 +123,14 @@ function DayCell({
   isToday,
   future,
   chronoOn,
+  system,
 }: {
   chronoOn: boolean;
+  system: string;
   weekKey: string;
   date: Date;
   hours: number;
-  chrono: DayChrono;
+  chrono: DayApproval;
   target: DayTarget;
   shortfall: DayShortfall;
   isToday: boolean;
@@ -163,12 +166,12 @@ function DayCell({
       : "",
     hours > 0 && chronoOn
       ? !chrono
-        ? t("week not pulled from Chrono")
+        ? t("week not pulled from {system}", { system })
         : allApproved
-          ? t("all approved in Chrono")
+          ? t("all approved in {system}", { system })
           : partlyApproved
-            ? t("{approved} of {hours} h approved in Chrono", { approved: formatHours(approved), hours: formatHours(hours) })
-            : t("not approved in Chrono yet")
+            ? t("{approved} of {hours} h approved in {system}", { approved: formatHours(approved), hours: formatHours(hours), system })
+            : t("not approved in {system} yet", { system })
       : "",
     note,
   ]

@@ -304,6 +304,8 @@ async function main() {
   await waitIdle("before");
   const apps = [ROOT, ...(args.has("--knowledge") ? [path.join(ROOT, "knowledge")] : [])];
   for (const app of apps) clearStage(app);
+  // The mounted integrations (Chrono, Punch: git submodules under integrations/) into the generated mount files — before anything compiles.
+  run("Integrationen", "node", ["scripts/integrations.mjs"]);
   if (!args.has("--skip-checks")) {
     run("Typecheck", "npx", ["tsc", "--noEmit", "-p", "."]);
     run("Lint (Fehler)", "npx", ["eslint", "src", "--quiet"]);

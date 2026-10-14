@@ -1,4 +1,6 @@
 import { isInstalled } from "@/plugins/state";
+import type { PluginId } from "@/plugins/catalog";
+import { integrationServer, integrationServerIds } from "./integrations/server";
 import { currentLocale, formatAgo, formatHours } from "./format";
 import { t } from "./i18n/server";
 import { isoDate, type WeekInfo } from "./week";
@@ -92,63 +94,10 @@ export async function weekClose(week: WeekInfo, now = new Date()): Promise<WeekC
     href: `/?${q}`,
   });
 
-  // 5. + 7. Chrono: everything in it, and approved — as of the last pull.
-  if (isInstalled("chrono")) {
-    const { chronoPulledAt, chronoStatusByEntry } = await import("./chrono-status");
-    const pulledAt = chronoPulledAt(week);
-    const booked = entries.filter((e) => e.job.number !== NO_JOB_NUMBER);
-    if (!pulledAt) {
-      items.push({ key: "chrono", label: t("In Chrono"), state: "unknown", detail: t("not pulled from Chrono yet"), href: `/export/chrono?${q}` });
-      items.push({ key: "approved", label: t("Approved in Chrono"), state: "unknown", detail: t("not pulled from Chrono yet"), href: `/export/chrono?${q}` });
-    } else {
-      const statuses = chronoStatusByEntry(week);
-      const kinds = booked.map((e) => statuses[e.id]?.kind ?? "missing");
-      const count = (k: string) => kinds.filter((x) => x === k).length;
-      const stand = t("pulled {ago}", { ago: ago(pulledAt, now) });
-      const notIn = count("missing");
-      const rejected = count("rejected");
-      items.push({
-        key: "chrono",
-        label: t("In Chrono"),
-        state: !booked.length ? (over ? "ok" : "later") : notIn || rejected ? "open" : "ok",
-        detail: [notIn ? t("{n} not in Chrono", { n: notIn }) : "", rejected ? t("{n} rejected", { n: rejected }) : "", !notIn && !rejected ? t("all in") : "", stand].filter(Boolean).join(" · "),
-        href: `/export/chrono?${q}`,
-      });
-      const draft = count("draft");
-      const submitted = count("submitted");
-      items.push({
-        key: "approved",
-        label: t("Approved in Chrono"),
-        state: !booked.length ? (over ? "ok" : "later") : notIn || rejected || draft || submitted ? "open" : "ok",
-        detail: [
-          draft ? t("{n} not submitted", { n: draft }) : "",
-          submitted ? t("{n} waiting for approval", { n: submitted }) : "",
-          !draft && !submitted && !notIn && !rejected ? t("all approved") : "",
-          stand,
-        ]
-          .filter(Boolean)
-          .join(" · "),
-        href: `/export/chrono?${q}`,
-      });
-    }
-  }
-
-  // 6. Punch: the days as Zeff would record them — as of the last read.
-  if (isInstalled("punch")) {
-    const { punchDayStates } = await import("./punch-status");
-    const punch = punchDayStates(week);
-    const differs = punch.states.filter((s) => s?.state === "differs").length;
-    items.push({
-      key: "punch",
-      label: t("In Punch"),
-      state: !punch.pulledAt ? "unknown" : punch.inSync ? "ok" : over ? "open" : "later",
-      detail: !punch.pulledAt
-        ? t("not read from Punch yet")
-        : punch.inSync
-          ? t("all in · read {ago}", { ago: ago(punch.pulledAt, now) })
-          : `${differs ? `${differs === 1 ? t("1 day differs") : t("{n} days differ", { n: differs })} · ` : ""}${t("not complete · read {ago}", { ago: ago(punch.pulledAt, now) })}`,
-      href: `/export/punch?${q}`,
-    });
+  // 5. – 7. The booking systems (Chrono, Punch — the mounted integrations): what is left in each, as of their last pull.
+  for (const id of integrationServerIds()) {
+    if (!isInstalled(id as PluginId)) continue;
+    items.push(...((await integrationServer(id)?.weekClose?.({ week, now, over, entries, query: q, ago: (iso) => ago(iso, now) })) ?? []));
   }
 
   return { items, done: items.every((i) => i.state === "ok"), over };

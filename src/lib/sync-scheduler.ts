@@ -7,7 +7,10 @@ import { syncGitlab } from "./gitlab/sync";
 import { getTeamsSettings } from "./teams/store";
 import { getMailSettings } from "./mail/store";
 import { syncTeams } from "./teams/sync";
+import { integrationServer, integrationServerIds } from "./integrations/server";
 import { jiraLastSyncAt, lastSyncOf, quietAt, runStoppable, startSync } from "./sync/registry";
+import type { OwnIntervalKey } from "./sync/intervals";
+import type { SyncKey } from "./sync/shared";
 import { stepMinutes } from "./sync/intervals";
 import { noteSyncResult } from "./sync/health";
 import { ABORTED } from "./abort";
@@ -18,7 +21,7 @@ async function chromeUp(): Promise<boolean> {
 }
 
 /** A step through the sync menu's registry — only while the automation Chrome runs (nothing is started for it). */
-const whileChromeRuns = (key: "calendar" | "chrono" | "punch" | "whatsapp" | "keep" | "gcalendar") => async () =>
+const whileChromeRuns = (key: SyncKey) => async () =>
   (await chromeUp()) ? startSync(key) : { ok: true, message: "the automation Chrome isn't running — later" };
 
 /** Signal's step — only while Signal Desktop runs (nothing is started for it). */
@@ -46,10 +49,8 @@ export function startSyncScheduler(): void {
   const jobs: { name: string; settings: () => { syncMinutes: number; lastSyncAt: string | null }; run: () => Promise<{ ok: boolean; message: string }> }[] = [
     // Jira: every 15 minutes (through the sync menu's step, so the menu shows it and records how it went).
     { name: "jira", settings: () => ({ syncMinutes: stepMinutes("jira"), lastSyncAt: jiraLastSyncAt() }), run: async () => startSync("jira") },
-    // Outlook's calendar, Chrono, Punch, WhatsApp (read only): as set on the Sync settings page — while the automation Chrome runs.
+    // Outlook's calendar, WhatsApp (read only): as set on the Sync settings page — while the automation Chrome runs.
     { name: "calendar", settings: () => ({ syncMinutes: stepMinutes("calendar"), lastSyncAt: lastSyncOf("calendar") }), run: whileChromeRuns("calendar") },
-    { name: "chrono", settings: () => ({ syncMinutes: stepMinutes("chrono"), lastSyncAt: lastSyncOf("chrono") }), run: whileChromeRuns("chrono") },
-    { name: "punch", settings: () => ({ syncMinutes: stepMinutes("punch"), lastSyncAt: lastSyncOf("punch") }), run: whileChromeRuns("punch") },
     { name: "whatsapp", settings: () => ({ syncMinutes: stepMinutes("whatsapp"), lastSyncAt: lastSyncOf("whatsapp") }), run: whileChromeRuns("whatsapp") },
     // Signal: while Signal Desktop runs — without its debug port the sync fails, so the menu tells you.
     { name: "signal", settings: () => ({ syncMinutes: stepMinutes("signal"), lastSyncAt: lastSyncOf("signal") }), run: whileSignalRuns },
@@ -87,6 +88,11 @@ export function startSyncScheduler(): void {
       run: async () => startRecap(previousWorkday()),
     },
   ];
+  // The mounted integrations' steps (Chrono, Punch): as set on the Sync settings page — while the automation Chrome runs.
+  for (const id of integrationServerIds()) {
+    const key = integrationServer(id)?.syncStep?.key as SyncKey | undefined;
+    if (key) jobs.push({ name: key, settings: () => ({ syncMinutes: stepMinutes(key as OwnIntervalKey), lastSyncAt: lastSyncOf(key) }), run: whileChromeRuns(key) });
+  }
   const tick = async () => {
     const { activeAccountId, listAccounts, withAccount, accountsInstalled } = await import("@/db/accounts");
     // A backup when it's due (Settings → Backups) — at any hour, quiet ones too; each account's

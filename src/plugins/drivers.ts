@@ -1,5 +1,6 @@
 import path from "node:path";
 import { accountChrome } from "@/db/accounts";
+import { integrationDriverPath } from "@/lib/integrations/server";
 
 /**
  * The plugins' browser drivers (MCP servers over stdio, run by Zeff) — Outlook Web serves the mail and
@@ -7,8 +8,8 @@ import { accountChrome } from "@/db/accounts";
  */
 export type DriverId = "chrono" | "punch" | "teams" | "gitlab" | "outlook" | "gmail" | "whatsapp" | "signal" | "keep" | "google-calendar";
 
-/** Where a plugin's driver is. */
-export const driverPath = (id: DriverId) => path.join(/*turbopackIgnore: true*/ process.cwd(), "src", "plugins", id, "driver.mjs");
+/** Where a plugin's driver is — in its integration's mount (Chrono, Punch), else in src/plugins/<id>/. */
+export const driverPath = (id: DriverId) => integrationDriverPath(id) ?? path.join(/*turbopackIgnore: true*/ process.cwd(), "src", "plugins", id, "driver.mjs");
 
 const ENDPOINTS = ["CHRONO_CDP_ENDPOINT", "TEAMS_CDP_ENDPOINT", "GITLAB_CDP_ENDPOINT", "OUTLOOK_CDP_ENDPOINT", "GMAIL_CDP_ENDPOINT", "WHATSAPP_CDP_ENDPOINT", "KEEP_CDP_ENDPOINT", "GCAL_CDP_ENDPOINT"] as const;
 

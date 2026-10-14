@@ -1,4 +1,5 @@
 import { EmptyState } from "@/components/EmptyState";
+import { Fragment } from "react";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
@@ -8,11 +9,10 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { createJobAction, toggleJobActiveAction } from "@/app/actions";
 import { JobForm } from "@/components/JobForm";
-import { ChronoJobsSyncButton } from "@/components/ChronoJobsSyncButton";
-import { StatusIcon } from "@/components/StatusIcon";
 import { SubmitButton } from "@/components/SubmitButton";
-import { formatDateTime, formatHours } from "@/lib/format";
+import { formatHours } from "@/lib/format";
 import { listDefaultTagMaps } from "@/lib/default-tags";
+import { jobsSlots } from "@/lib/integrations/slots";
 import { listJobs } from "@/lib/jobs";
 import { listTags } from "@/lib/tags";
 
@@ -23,7 +23,8 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function JobsPage() {
   await connection();
   if (!isInstalled("zeiterfassung")) return <PluginNotInstalled id="zeiterfassung" />;
-  const chronoOn = isInstalled("chrono");
+  // What the mounted integrations (Chrono) add: buttons above the table and a column of their own.
+  const ext = jobsSlots();
   const jobs = listJobs({ includeInactive: true });
   const allTags = listTags().map((tag) => tag.name);
   const defaultTags = listDefaultTagMaps().jobs;
@@ -45,7 +46,9 @@ export default async function JobsPage() {
       <section className="card p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("All jobs ({n})", { n: jobs.length })}</h2>
-          {chronoOn && <ChronoJobsSyncButton count={jobs.length} />}
+          {ext.map((x) => (
+            <Fragment key={x.id}>{x.slot.toolbar?.(jobs)}</Fragment>
+          ))}
         </div>
         {jobs.length === 0 ? (
           <EmptyState variant="centered">{t("No jobs yet.")}</EmptyState>
@@ -59,7 +62,7 @@ export default async function JobsPage() {
                   <th>{t("Customer")}</th>
                   <th className="num">{t("Hours")}</th>
                   <th className="num">{t("Entries")}</th>
-                  {chronoOn && <th className="text-center">Chrono</th>}
+                  {ext.map((x) => (x.slot.column ? <th key={x.id} className="text-center">{x.slot.column.title}</th> : null))}
                   <th>{t("Status")}</th>
                   <th></th>
                 </tr>
@@ -84,11 +87,7 @@ export default async function JobsPage() {
                     <td>{j.customer ?? ""}</td>
                     <td className="num">{formatHours(j.totalHours)}</td>
                     <td className="num">{j.entryCount}</td>
-                    {chronoOn && (
-                      <td className="text-center">
-                        <ChronoMark job={j} />
-                      </td>
-                    )}
+                    {ext.map((x) => (x.slot.column ? <td key={x.id} className="text-center">{x.slot.column.cell(j)}</td> : null))}
                     <td>
                       <span className={`badge ${j.active ? "badge-mcp" : "badge-web"}`}>
                         {j.active ? t("active") : t("inactive")}
@@ -114,22 +113,5 @@ export default async function JobsPage() {
         )}
       </section>
     </div>
-  );
-}
-
-/** The Chrono column: a checkmark when the last "Sync with Chrono" found the job, a cross when it didn't. */
-function ChronoMark({ job }: { job: { chronoFound: boolean | null; chronoName: string | null; chronoClient: string | null; chronoCheckedAt: string | null } }) {
-  const checked = job.chronoCheckedAt ? ` · ${t("checked {at}", { at: formatDateTime(job.chronoCheckedAt) })}` : "";
-  if (job.chronoFound === null) {
-    return <span className="text-zinc-300 dark:text-zinc-600" title={t("Not looked up yet — Sync with Chrono")}>–</span>;
-  }
-  return job.chronoFound ? (
-    <span className="inline-flex" title={`${t("In Chrono: {name}", { name: job.chronoName ?? "?" })}${job.chronoClient ? ` (${job.chronoClient})` : ""}${checked}`}>
-      <StatusIcon kind="check" className="text-emerald-600 dark:text-emerald-400" />
-    </span>
-  ) : (
-    <span className="inline-flex" title={`${t("Not found in Chrono's job search")}${checked}`}>
-      <StatusIcon kind="cross" className="text-red-600 dark:text-red-400" />
-    </span>
   );
 }

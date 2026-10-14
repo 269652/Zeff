@@ -56,15 +56,18 @@ section("files the app reads at run time");
 const journal = JSON.parse(read("drizzle", "meta", "_journal.json"));
 const missingSql = journal.entries.filter((e) => !has("drizzle", `${e.tag}.sql`)).map((e) => e.tag);
 check(!missingSql.length, `drizzle/: ${journal.entries.length} migrations, each with its .sql`, `drizzle/ lacks ${missingSql.join(", ")}`);
-const scripts = ["work-host.mjs", "work-session-host.mjs", "work-host-spool.mjs", "chrome-cdp.mjs", "cdp-filter.mjs", "chrome-open.mjs", "browser-find.mjs", "images-mcp.mjs", "chrono-mcp.mjs", "automation/probe.mjs", "automation/contract.mjs", "automation/mcp-stdio.mjs"];
+const scripts = ["work-host.mjs", "work-session-host.mjs", "work-host-spool.mjs", "chrome-cdp.mjs", "cdp-filter.mjs", "chrome-open.mjs", "browser-find.mjs", "images-mcp.mjs", "automation/probe.mjs", "automation/contract.mjs", "automation/mcp-stdio.mjs"];
 const lackScripts = scripts.filter((f) => !has("scripts", f));
 check(!lackScripts.length, `scripts/: ${scripts.length} run-time scripts`, `scripts/ lacks ${lackScripts.join(", ")}`);
 // The app drivers' adapters and the contracts they read (what WhatsApp Web / Signal Desktop are expected to offer).
 const lackAdapters = ["whatsapp", "signal"].flatMap((id) => ["adapter.mjs", "contract.json"].filter((f) => !has("src", "plugins", id, f)).map((f) => `${id}/${f}`));
 check(!lackAdapters.length, "WhatsApp's and Signal's adapters and contracts", `src/plugins/ lacks ${lackAdapters.join(", ")}`);
 const pluginDirs = fs.readdirSync(path.join(root, "src", "plugins"), { withFileTypes: true }).filter((e) => e.isDirectory());
-const drivers = pluginDirs.filter((e) => has("src", "plugins", e.name, "driver.mjs")).map((e) => path.join("src", "plugins", e.name, "driver.mjs"));
-check(drivers.length >= 9, `${drivers.length} plugin drivers`, `only ${drivers.length} plugin drivers`);
+// (The mounted integrations' drivers — Chrono, Punch — are there when the bundle was made with them.)
+const mounted = has("integrations") ? fs.readdirSync(path.join(root, "integrations"), { withFileTypes: true }).filter((e) => e.isDirectory()) : [];
+const mountedDrivers = mounted.flatMap((m) => fs.readdirSync(path.join(root, "integrations", m.name), { withFileTypes: true }).filter((e) => e.isDirectory() && has("integrations", m.name, e.name, "driver.mjs")).map((e) => path.join("integrations", m.name, e.name, "driver.mjs")));
+const drivers = [...pluginDirs.filter((e) => has("src", "plugins", e.name, "driver.mjs")).map((e) => path.join("src", "plugins", e.name, "driver.mjs")), ...mountedDrivers];
+check(drivers.length >= 8, `${drivers.length} plugin drivers`, `only ${drivers.length} plugin drivers`);
 for (const f of [".mcp.json", "package.json", "next.config.ts", ".next/BUILD_ID", "knowledge/.next/BUILD_ID", "node_modules/next/package.json", "node_modules/better-sqlite3/package.json"]) check(has(...f.split("/")), f, `${f} is missing`);
 // The documents of external plugins: shown at /ext/docs and served as Markdown at /ext/raw/<name> (src/app/ext).
 const pluginDocs = ["README", "manifest", "api", "panels", "hooks", "security"];
@@ -143,7 +146,7 @@ function handshake(script, env = {}) {
 // A browser that isn't there: the handshake never needs one.
 const deadChrome = "http://127.0.0.1:9";
 const cdpEnv = Object.fromEntries(["CHRONO", "TEAMS", "GITLAB", "OUTLOOK", "GMAIL", "WHATSAPP", "KEEP", "GCAL"].map((k) => [`${k}_CDP_ENDPOINT`, deadChrome]));
-for (const script of [...drivers, path.join("scripts", "chrono-mcp.mjs"), path.join("scripts", "images-mcp.mjs")]) {
+for (const script of [...drivers, path.join("scripts", "images-mcp.mjs")]) {
   try {
     const tools = await handshake(script, cdpEnv);
     check(tools.length > 0, `${script.replace(/\\/g, "/")}: ${tools.length} tools`, `${script}: tools/list is empty`);

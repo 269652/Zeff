@@ -16,11 +16,12 @@ import { stepMinutes } from "./intervals";
 import { callHost, HostDownError } from "@/lib/host/client";
 import { remoteResult } from "@/lib/host/commands";
 import { delegates } from "@/lib/host/role";
+import { integrationServer, integrationServerIds } from "@/lib/integrations/server";
 /** Quiet hours: from 19:00 to 08:00 nothing syncs by itself (by hand it still does). */
 export const QUIET = { from: 19, to: 8 };
 export const quietAt = (at = new Date()) => at.getHours() >= QUIET.from || at.getHours() < QUIET.to;
 
-const { syncState, jiraTickets, chronoEntries, punchDays } = schema;
+const { syncState, jiraTickets } = schema;
 
 /** What's running from the menu, and "Sync all" (the step it's on) — across the server's module copies. */
 const state = globalThis as {
@@ -97,7 +98,7 @@ function record(key: SyncKey, ok: boolean, message: string): void {
  * A step its page runs too (not through here): the later of this menu's record and when its
  * data last came in (`column`: the newest of it).
  */
-function recordedOr(key: SyncKey, column: AnyColumn): Last {
+export function recordedOr(key: SyncKey, column: AnyColumn): Last {
   const r = recorded(key);
   const at = iso(getDb().select({ at: sql<string | null>`max(${column})` }).from(column.table).get()?.at);
   return at && (!r.lastAt || at > r.lastAt) ? { lastAt: at, lastOk: true, lastMessage: null } : r;
@@ -108,7 +109,7 @@ function lastOf(key: "teams" | "gitlab" | "mail"): Last {
   return { lastAt: iso(s.lastSyncAt), lastOk: s.lastOk ?? null, lastMessage: s.lastResult ?? null };
 }
 
-type Step = {
+export type SyncStep = {
   label: string;
   href: string;
   what: string;
@@ -123,8 +124,10 @@ type Step = {
   stop?: () => void;
 };
 
+type Step = SyncStep;
+
 /** The Monday ISO dates of the last and the current month's weeks. */
-async function lastAndCurrentWeeks(): Promise<string[]> {
+export async function lastAndCurrentWeeks(): Promise<string[]> {
   const { lastAndCurrentMonth } = await import("@/lib/month");
   const { last, current } = lastAndCurrentMonth();
   return [...last.weeks, ...current.weeks].map((w) => w.startIso);
@@ -135,11 +138,11 @@ async function lastAndCurrentWeeks(): Promise<string[]> {
 export const jiraLastSyncAt = () => recordedOr("jira", jiraTickets.syncedAt).lastAt;
 
 /** When a step last ran, however it was started. */
-export const lastSyncOf = (key: "calendar" | "chrono" | "punch" | "whatsapp" | "signal" | "keep" | "gcalendar" | "drivebackup" | "drivedocs" | "news") =>
-  (key === "calendar" || key === "whatsapp" || key === "signal" || key === "keep" || key === "gcalendar" || key === "drivebackup" || key === "drivedocs" || key === "news" ? recorded(key) : recordedOr(key, key === "chrono" ? chronoEntries.pulledAt : punchDays.pulledAt)).lastAt;
+export const lastSyncOf = (key: SyncKey) =>
+  (key === "calendar" || key === "whatsapp" || key === "signal" || key === "keep" || key === "gcalendar" || key === "drivebackup" || key === "drivedocs" || key === "news" ? recorded(key) : (STEPS[key]?.last?.() ?? recorded(key))).lastAt;
 
 /** Each step: how it runs, what it last did, when it runs by itself. All only read from elsewhere. */
-const STEPS: Record<SyncKey, Step> = {
+const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
   jira: {
     label: "Jira",
     href: "/jira",
@@ -256,27 +259,6 @@ const STEPS: Record<SyncKey, Step> = {
       return { ok: true, message: t("{weeks} weeks from Outlook — {events} events.", { weeks: r.weeks, events: r.events }) };
     },
     schedule: () => ({ everyMinutes: stepMinutes("calendar"), lastAt: lastSyncOf("calendar"), window: t("while the automation Chrome runs") }),
-  },
-  chrono: {
-    label: "Chrono",
-    href: "/month",
-    get what() { return t("Your Chrono entries' approvals, last and this month (read-only)"); },
-    run: async () => (await import("./pulls")).pullChronoWeekStarts(await lastAndCurrentWeeks()),
-    last: () => recordedOr("chrono", chronoEntries.pulledAt),
-    schedule: () => ({ everyMinutes: stepMinutes("chrono"), lastAt: lastSyncOf("chrono"), window: t("while the automation Chrome runs") }),
-  },
-  punch: {
-    label: "Punch",
-    href: "/",
-    get what() { return t("What Punch has on this and last week's days (read-only)"); },
-    run: async () => {
-      const { currentWeek, shiftWeek, isoDate } = await import("@/lib/week");
-      const days = [shiftWeek(currentWeek(), -1), currentWeek()].flatMap((w) => w.days.map(isoDate));
-      await (await import("./pulls")).pullPunchIsoDays(days);
-      return { ok: true, message: t("Read Punch for {n} days.", { n: days.length }) };
-    },
-    last: () => recordedOr("punch", punchDays.pulledAt),
-    schedule: () => ({ everyMinutes: stepMinutes("punch"), lastAt: lastSyncOf("punch"), window: t("while the automation Chrome runs") }),
   },
   boards: {
     get label() { return t("Briefing"); },
@@ -471,6 +453,19 @@ const STEPS: Record<SyncKey, Step> = {
     schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("knowledgerel").lastAt, window: t("workdays, with the briefing"), workdays: true }),
   },
 };
+
+/** The steps the mounted integrations bring (Chrono, Punch: src/lib/integrations) — by their key. */
+const integrationSteps = (): Partial<Record<SyncKey, Step>> =>
+  Object.fromEntries(integrationServerIds().flatMap((id) => { const x = integrationServer(id)?.syncStep; return x ? [[x.key, x.step]] : []; }));
+
+/**
+ * Every step by its key. The integrations' are added on first use, not while this module loads: they import it
+ * (for lastSyncOf, recordedOr …) and are themselves loaded by the generated mount.
+ */
+let allSteps: Record<SyncKey, Step> | undefined;
+const STEPS = new Proxy({} as Record<SyncKey, Step>, {
+  get: (_target, key) => (allSteps ??= { ...CORE_STEPS, ...integrationSteps() } as Record<SyncKey, Step>)[key as SyncKey],
+});
 
 /** The next time a step runs by itself — within its window (workdays 7–20 h) when it has one. */
 function nextRun(everyMinutes: number, lastAt: string | null, workdaysOnly = false): string | null {

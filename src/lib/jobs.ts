@@ -202,27 +202,3 @@ export function deleteJob(id: number): void {
   }
   db.delete(jobs).where(eq(jobs.id, id)).run();
 }
-
-export type ChronoLookup = { jobNumber: string; found: boolean; name?: string; client?: string; group?: string };
-
-/** Store the result of looking jobs up in Chrono ("Sync with Chrono"); returns how many jobs were updated. */
-export function recordChronoLookup(results: ChronoLookup[]): number {
-  const db = getDb();
-  const checkedAt = new Date().toISOString();
-  let updated = 0;
-  for (const r of results) {
-    const job = getJobByNumber(r.jobNumber);
-    if (!job) continue;
-    db.update(jobs)
-      .set({
-        chronoFound: r.found,
-        chronoName: r.found ? (r.name ?? null) : null,
-        chronoClient: r.found ? [r.client, r.group].filter(Boolean).join(" · ") || null : null,
-        chronoCheckedAt: checkedAt,
-      })
-      .where(eq(jobs.id, job.id))
-      .run();
-    updated++;
-  }
-  return updated;
-}

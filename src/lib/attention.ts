@@ -2,6 +2,7 @@ import { automationEnv } from "@/plugins/drivers";
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { emitChange } from "@/lib/events";
+import { integrationServer } from "@/lib/integrations/server";
 import { t } from "@/lib/i18n/server";
 
 /** The systems Zeff reaches through the automation Chrome (or a login), each with where you sign in. */
@@ -13,14 +14,15 @@ export const SERVICE_LABELS: Record<ServiceId, string> = { teams: "Teams", outlo
 const SIGN_IN_PAGES = "accounts\\.google\\.com|login\\.microsoftonline\\.com|login\\.live\\.com|login\\.windows\\.net|/users/sign_in|/login";
 
 async function serviceUrl(id: ServiceId): Promise<string | null> {
+  // The mounted integrations' (Chrono, Punch) say where their sign-in page is.
+  const own = integrationServer(id)?.service?.loginUrl;
+  if (own) return own;
   if (id === "teams") return "https://teams.microsoft.com/v2/";
   if (id === "outlook") return "https://outlook.office.com/mail/inbox";
   if (id === "gmail") return "https://mail.google.com/mail/u/0/#inbox";
   if (id === "whatsapp") return "https://web.whatsapp.com/";
   if (id === "keep") return `https://keep.google.com/u/${(await import("@/plugins/keep/store")).keepSettings().account}/`;
   if (id === "gcalendar") return `https://calendar.google.com/calendar/u/${(await import("@/plugins/google-calendar/sync")).googleCalendarSettings().account}/r`;
-  if (id === "chrono") return "https://chrono.example.ai/app/timesheet";
-  if (id === "punch") return "https://ac.punch24.de/punch/index.jsp";
   if (id === "gitlab") return `${(await import("@/lib/gitlab/store")).getGitlabSettings().baseUrl.replace(/\/+$/, "")}/`;
   const { getJiraSyncConfig } = await import("@/lib/jira/sync");
   const base = getJiraSyncConfig().baseUrl;

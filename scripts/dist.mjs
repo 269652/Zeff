@@ -166,6 +166,13 @@ function buildApp() {
       fs.copyFileSync(src, path.join(app, f));
       n++;
     }
+    // The mounted integrations (git submodules under integrations/: Chrono, Punch): git lists a submodule as one entry, so its files are copied here.
+    // (A release is made from a commit: no submodule files in it — Zeff without them.)
+    const mounts = path.join(root, "integrations");
+    for (const m of fs.existsSync(mounts) ? fs.readdirSync(mounts, { withFileTypes: true }).filter((e) => e.isDirectory()) : []) {
+      fs.cpSync(path.join(mounts, m.name), path.join(app, "integrations", m.name), { recursive: true, filter: (s) => path.basename(s) !== ".git" && path.basename(s) !== "node_modules" });
+      n += fs.readdirSync(path.join(mounts, m.name), { recursive: true, withFileTypes: true }).filter((e) => e.isFile()).length;
+    }
   }
   console.log(`${n} files`);
 

@@ -3,7 +3,6 @@ import { getDb, schema } from "@/db";
 import type { EntryType, ReportSettings } from "@/db/schema";
 import type { MeetingJobRule } from "./calendar/meetings";
 import { listEntries, type EntryWithJob } from "./entries";
-import { DEFAULT_PUNCH_CONFIG, type PunchConfig } from "./punch";
 import { round2 } from "./format";
 import { ValidationError } from "./errors";
 import { t } from "@/lib/i18n/server";
@@ -95,52 +94,6 @@ export function parseMeetingJobRules(json: string | null | undefined): MeetingJo
   }
 }
 
-/** Per-job Chrono WorkCode overrides ({ jobNumber: workCode }); used by the Chrono export. */
-export function getChronoWorkcodes(s: ReportSettings): Record<string, string> {
-  return parseChronoWorkcodes(s.chronoWorkcodes);
-}
-
-export function parseChronoWorkcodes(json: string | null | undefined): Record<string, string> {
-  if (!json) return {};
-  try {
-    const raw = JSON.parse(json);
-    if (!raw || typeof raw !== "object") return {};
-    const out: Record<string, string> = {};
-    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
-      const num = String(k).trim();
-      const code = String(v ?? "").trim();
-      if (num && code) out[num] = code;
-    }
-    return out;
-  } catch {
-    return {};
-  }
-}
-
-/** The default Punch work day (start/hours/break) used by the Punch export. */
-export function getPunchConfig(s: ReportSettings): PunchConfig {
-  return parsePunchConfig(s.punchConfig);
-}
-
-export function parsePunchConfig(json: string | null | undefined): PunchConfig {
-  if (!json) return { ...DEFAULT_PUNCH_CONFIG };
-  try {
-    const raw = JSON.parse(json) as Partial<PunchConfig>;
-    const startTime = /^\d{1,2}:\d{2}$/.test(String(raw?.startTime ?? "")) ? String(raw.startTime) : DEFAULT_PUNCH_CONFIG.startTime;
-    const workdayHours = Number(raw?.workdayHours);
-    const breakMinutes = Number(raw?.breakMinutes);
-    return {
-      startTime,
-      workdayHours: Number.isFinite(workdayHours) && workdayHours > 0 && workdayHours <= 24 ? workdayHours : DEFAULT_PUNCH_CONFIG.workdayHours,
-      breakMinutes: Number.isFinite(breakMinutes) && breakMinutes >= 0 && breakMinutes < 600 ? breakMinutes : DEFAULT_PUNCH_CONFIG.breakMinutes,
-      absenceJobNumber: String(raw?.absenceJobNumber ?? "").trim(),
-      absenceType: String(raw?.absenceType ?? "").trim() || DEFAULT_PUNCH_CONFIG.absenceType,
-    };
-  } catch {
-    return { ...DEFAULT_PUNCH_CONFIG };
-  }
-}
-
 export function updateReportSettings(patch: {
   rules?: ReportRule[];
   meetingJobRules?: MeetingJobRule[];
@@ -148,7 +101,7 @@ export function updateReportSettings(patch: {
   meetingExcludeRules?: string[];
   typeRules?: TypeRule[];
   chronoWorkcodes?: Record<string, string>;
-  punchConfig?: PunchConfig;
+  punchConfig?: Record<string, unknown>;
 }): ReportSettings {
   if (patch.rules !== undefined) {
     const err = validateRules(patch.rules, t);

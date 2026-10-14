@@ -15,8 +15,7 @@ import { parseBookOn } from "@/lib/projects-shared";
 import { ENTRY_CONTEXT_PREFIX } from "@/lib/contexts-shared";
 import { syncGitlabAction } from "@/plugins/gitlab/server-actions";
 import { accountsOn, entryTypeFrom, int, num, revalidateAll, str, tagsFrom, type ActionState } from "@/app/action-helpers";
-import { callChrono } from "@/plugins/chrono/call";
-import { callPunch } from "@/plugins/punch/call";
+import { integrationServer } from "@/lib/integrations/server";
 import { syncKeepAction } from "@/plugins/keep/server-actions";
 import { syncTeamsAction } from "@/plugins/teams/server-actions";
 import { syncWhatsappAction } from "@/plugins/whatsapp/server-actions";
@@ -780,8 +779,10 @@ export async function retryServiceAction(service: string): Promise<ActionState> 
       revalidateAll();
       return r.lastOk ? { ok: true, message: t("Jira works again.") } : { ok: false, error: r.lastMessage ?? t("Failed.") };
     }
-    if (service === "chrono" || service === "punch") {
-      const msg = service === "chrono" ? await callChrono("chrono_status", {}) : await callPunch("punch_status", {});
+    // The mounted integrations' (Chrono, Punch): their driver's status check.
+    const own = integrationServer(service)?.service;
+    if (own) {
+      const msg = await own.status();
       revalidateAll();
       return /not signed in/i.test(msg) ? { ok: false, error: msg } : { ok: true, message: msg };
     }

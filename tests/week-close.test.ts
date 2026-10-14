@@ -4,7 +4,7 @@ import { setupTempData } from "./helpers";
 
 setupTempData();
 
-/** Wochenabschluss: a past week's steps — what's missing, what's left, and Chrono/Punch unknown until pulled. */
+/** Wochenabschluss: a past week's steps — what's missing, what's left (the booking systems' steps, Chrono and Punch, are checked in their integration's tests). */
 test("a week's closing steps say what's left", async () => {
   const { createJob } = await import("@/lib/jobs");
   const { createProject } = await import("@/lib/projects");
@@ -34,10 +34,6 @@ test("a week's closing steps say what's left", async () => {
   assert.match(by.suggestions.detail, /1 open/);
   assert.equal(by.jobs.state, "open");
   assert.match(by.jobs.detail, /1 without a job/);
-  // Chrono and Punch never pulled: not known — not done.
-  assert.equal(by.chrono?.state, "unknown");
-  assert.equal(by.approved?.state, "unknown");
-  assert.equal(by.punch?.state, "unknown");
 });
 
 test("the running week: what's ahead isn't due yet", async () => {

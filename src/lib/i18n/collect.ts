@@ -8,11 +8,11 @@ import ts from "typescript";
  */
 const ROOT = process.cwd();
 
-export function collectKeys(dirs = ["src"]): Map<string, string[]> {
+export function collectKeys(dirs = ["src", "integrations"]): Map<string, string[]> {
   const keys = new Map<string, string[]>();
   const walk = (d: string): string[] =>
-    fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : /\.(ts|tsx)$/.test(e.name) ? [path.join(d, e.name)] : []));
-  for (const file of dirs.flatMap((d) => walk(path.join(ROOT, d)))) {
+    fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? (e.name.startsWith(".") || e.name === "node_modules" ? [] : walk(path.join(d, e.name))) : /\.(ts|tsx)$/.test(e.name) ? [path.join(d, e.name)] : []));
+  for (const file of dirs.filter((d) => fs.existsSync(path.join(ROOT, d))).flatMap((d) => walk(path.join(ROOT, d)))) {
     const text = fs.readFileSync(file, "utf8");
     if (!/\bt\(/.test(text)) continue;
     const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, file.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);

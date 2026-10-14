@@ -6,14 +6,12 @@ import { t } from "@/lib/i18n/server";
 import { totalPauseHours, type PauseRange } from "@/lib/pauses-shared";
 import { NO_JOB_NUMBER } from "@/lib/projects-shared";
 import { absenceLabels, type AbsenceType } from "@/lib/schedule-shared";
-import { aggregateChronoKind, type EntryChronoStatus } from "@/lib/chrono-status";
+import { integrationClient } from "@/lib/integrations/client";
+import type { IntegrationMarks } from "@/lib/integrations/types";
 import type { WeekTargets } from "@/lib/schedule";
-import type { PunchDayState } from "@/lib/punch-status";
 import { formatDay, isoDate, todayIso } from "@/lib/week";
 import { FlexTimeRow, type FlexTimeDay } from "./FlexTimeRow";
 import { PauseCell } from "./PauseCell";
-import { PunchMark } from "./PunchMark";
-import { ChronoCellMark, CHRONO_APPROVED_TEXT } from "./ChronoMark";
 import { ProjectWithJob } from "./ProjectWithJob";
 
 export function WeekTable({
@@ -22,9 +20,8 @@ export function WeekTable({
   pauses,
   lastPauses = [],
   defaultPauses = [],
-  chronoStatuses,
+  marks,
   flex,
-  punch,
 }: {
   report: WeeklyReport;
   targets?: WeekTargets;
@@ -34,12 +31,10 @@ export function WeekTable({
   lastPauses?: PauseRange[];
   /** The default break (Schedule), shown greyed out on working days without an entered break. */
   defaultPauses?: PauseRange[];
-  /** Chrono statuses by entry id, once the week was pulled — marks each cell (approved hours read green). */
-  chronoStatuses?: Record<number, EntryChronoStatus>;
+  /** What the mounted integrations know of the week (Chrono's statuses per entry once pulled, Punch's state per day): marks in the cells and the Booked row. */
+  marks?: IntegrationMarks;
   /** The flex-time job (Schedule → Flex time): a shadow row offers it each short day's missing hours. */
   flex?: { job: { id: number; number: string; name: string }; comment: string };
-  /** Each day against Punch, as last read ("Pull Punch"): marks in the Booked row. */
-  punch?: (PunchDayState | undefined)[];
 }) {
   const today = todayIso();
   const { week } = report;
@@ -70,11 +65,15 @@ export function WeekTable({
 
   // Breaks: a day without one is offered the latest earlier break (this week's, else lastPauses).
   const isoDays = week.days.map(isoDate);
-  // Chrono statuses of a row's entries on a day (rows are a job, or a project on its job).
-  const cellStatuses = (row: WeeklyReport["rows"][number], day: string) =>
-    report.entries
-      .filter((e) => e.jobId === row.job.id && (e.projectId ?? null) === (row.project?.id ?? null) && e.date === day)
-      .map((e) => chronoStatuses?.[e.id]);
+  // The integrations' marks: per plugin, its data for the entries of a row on a day (rows are a job, or a project on its job).
+  const plugins = Object.entries(marks ?? {}).flatMap(([id, data]) => {
+    const client = integrationClient(id);
+    return client ? [{ id, client, data }] : [];
+  });
+  const cellMarks = (row: WeeklyReport["rows"][number], day: string) => {
+    const entries = report.entries.filter((e) => e.jobId === row.job.id && (e.projectId ?? null) === (row.project?.id ?? null) && e.date === day);
+    return plugins.flatMap((p) => (p.data.entries ? [{ ...p, items: entries.map((e) => p.data.entries![e.id]) }] : []));
+  };
   const pauseSuggestion = (i: number): PauseRange[] => {
     for (let j = i - 1; j >= 0; j--) if (pauses?.[isoDays[j]]?.length) return pauses[isoDays[j]];
     return lastPauses;
@@ -158,12 +157,12 @@ export function WeekTable({
                   )}
                 </td>
                 {row.hoursByDay.map((h, i) => {
-                  const statuses = h && chronoStatuses ? cellStatuses(row, isoDays[i]) : [];
-                  const approved = aggregateChronoKind(statuses) === "approved";
+                  const cells = h ? cellMarks(row, isoDays[i]) : [];
+                  const approved = cells.find((c) => c.client.cellApproved?.(c.items));
                   return (
-                    <td key={i} className={`${dayClass(i)} ${approved ? CHRONO_APPROVED_TEXT : ""}`}>
+                    <td key={i} className={`${dayClass(i)} ${approved?.client.approvedClass ?? ""}`}>
                       {h ? formatHours(h) : <span className="text-zinc-300 dark:text-zinc-700">·</span>}
-                      {statuses.length > 0 && <ChronoCellMark statuses={statuses} />}
+                      {cells.map((c) => (c.client.CellMark && c.items.length > 0 ? <c.client.CellMark key={c.id} items={c.items} /> : null))}
                     </td>
                   );
                 })}
@@ -183,7 +182,7 @@ export function WeekTable({
                 title={shortfall[i].state === "ok" ? undefined : t("{hours} h below the target", { hours: formatHours(shortfall[i].gap) })}
               >
                 {h ? formatHours(h) : shortfall[i].state === "ok" ? "" : "0"}
-                {punch?.[i] && <PunchMark day={punch[i]} />}
+                {plugins.map((p) => (p.client.DayMark && p.data.days?.[i] ? <p.client.DayMark key={p.id} item={p.data.days[i]} /> : null))}
               </td>
             ))}
             <td className="num text-base">{formatHours(report.total)}</td>

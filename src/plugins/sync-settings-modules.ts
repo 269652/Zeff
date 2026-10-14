@@ -1,4 +1,5 @@
 import { PLUGINS, type PluginId, type PluginManifest } from "./catalog";
+import { integrationServer, integrationServerIds } from "@/lib/integrations/server";
 import { stepExtensionOk } from "./extension-state";
 import { installedPlugins } from "./state";
 import type { PluginSyncSettings, SyncInterval } from "./sync-settings";
@@ -10,9 +11,7 @@ import { syncSettings as jira } from "./jira/sync-settings";
 import { syncSettings as jiraLage } from "./jira-lage/sync-settings";
 import { syncSettings as outlookCalendar } from "./outlook-calendar/sync-settings";
 import { syncSettings as outlookMail } from "./outlook-mail/sync-settings";
-import { syncSettings as chrono } from "./chrono/sync-settings";
 import { syncSettings as teams } from "./teams/sync-settings";
-import { syncSettings as punch } from "./punch/sync-settings";
 import { syncSettings as todos } from "./todos/sync-settings";
 import { syncSettings as whatsapp } from "./whatsapp/sync-settings";
 import { syncSettings as signal } from "./signal/sync-settings";
@@ -24,7 +23,7 @@ import { syncSettings as googleDrive } from "./google-drive/sync-settings";
 import { syncSettings as news } from "./news/sync-settings";
 
 /** Each plugin's settings module for the Sync settings page — the plugins that bring a sync. */
-const MODULES: Partial<Record<PluginId, PluginSyncSettings>> = {
+const modules = (): Partial<Record<PluginId, PluginSyncSettings>> => ({
   documents,
   news,
   todos,
@@ -42,10 +41,10 @@ const MODULES: Partial<Record<PluginId, PluginSyncSettings>> = {
   "google-drive": googleDrive,
   "outlook-calendar": outlookCalendar,
   gitlab,
-  chrono,
-  punch,
   backup,
-};
+  // The mounted integrations' (Chrono, Punch).
+  ...Object.fromEntries(integrationServerIds().flatMap((id) => { const s = integrationServer(id)?.syncSettings; return s ? [[id, s]] : []; })),
+});
 
 /**
  * The installed plugins' sync settings, in the catalog's order — a sync two plugins share (Mail:
@@ -53,6 +52,7 @@ const MODULES: Partial<Record<PluginId, PluginSyncSettings>> = {
  */
 export function installedSyncSettings(): { plugin: PluginManifest; settings: Required<PluginSyncSettings> }[] {
   const on = installedPlugins();
+  const MODULES = modules();
   const seen = new Set<string>();
   const out: { plugin: PluginManifest; settings: Required<PluginSyncSettings> }[] = [];
   for (const plugin of PLUGINS) {
