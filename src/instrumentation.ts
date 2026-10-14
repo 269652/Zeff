@@ -5,6 +5,10 @@
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs" || process.env.NEXT_PHASE === "phase-production-build") return;
+  // A big streamed page makes Next's gzip stream collect drain listeners while it waits for the socket: Node warned about
+  // "a possible memory leak" on every such page (thousands of lines that hid the real errors in the log). They go when the
+  // response ends, so the limit is raised — a true leak still shows, only later.
+  (await import("node:events")).EventEmitter.defaultMaxListeners = 50;
   // The sync host (see lib/host/role.ts) does only what the web server hands it: the scheduler and the runs.
   // Resuming work runs, documents, the plugin event watcher … stay with the web server — twice would be wrong.
   if (process.env.ZEFF_ROLE === "sync") {
