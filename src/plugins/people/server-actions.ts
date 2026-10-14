@@ -7,6 +7,7 @@ import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { findDates } from "./dates";
 import { isDateKind, parseDayMonth } from "./shared";
+import { linksOf, visibleClaims } from "./graph";
 import { addDate, addRelation, createPerson, deleteDate, deletePerson, deleteRelation, getPerson, markReminded, mergePeople, updateDate, updatePerson } from "./store";
 
 /** The Personen plugin's server actions — forms post to them; each goes back to a page with what came of it. */
@@ -149,6 +150,71 @@ export async function mergePersonFormAction(fd: FormData): Promise<void> {
   back(`/personen/${keep}`, { saved: "1" });
 }
 
+/** The review queue: a proposal (a name as alias, two profiles merged, a new profile, a fact) accepted or rejected. */
+export async function reviewSuggestionFormAction(fd: FormData): Promise<void> {
+  const id = Number(str(fd, "id"));
+  const to = str(fd, "to") || "/personen";
+  try {
+    guard();
+    const { acceptSuggestion, rejectSuggestion } = await import("./identity");
+    if (str(fd, "op") === "accept") acceptSuggestion(id);
+    else rejectSuggestion(id);
+  } catch (e) {
+    back(to, { error: errorMessage(e) });
+  }
+  revalidatePath("/personen", "layout");
+  redirect(to);
+}
+
+/** Who to tag in a note on this todo: the people linked to its ticket and to what the note is about — not those already tagged. */
+export async function suggestTagsAction(todoId: number, text: string): Promise<{ id: number; name: string; why: string }[]> {
+  if (!isInstalled("people")) return [];
+  const { getTodo } = await import("@/lib/boards/store");
+  const { whoKnows } = await import("./graph");
+  const { splitTags, mentionMatcher } = await import("./mentions");
+  const { peopleIndex } = await import("./store");
+  const todo = getTodo(Number(todoId));
+  if (!todo) return [];
+  const tagged = new Set(splitTags(text, mentionMatcher(await peopleIndex())).flatMap((m) => (m.person ? [m.person.id] : [])));
+  return whoKnows(`${todo.text} ${text}`, { ticket: todo.ticket ?? undefined, limit: 6 })
+    .filter((e) => !tagged.has(e.personId))
+    .map((e) => ({ id: e.personId, name: e.name, why: e.why.slice(0, 3).join(" · ") }));
+}
+
+/** A claim or a link reviewed: confirm, reject, done (a commitment), recheck (still true). */
+export async function reviewKnowledgeFormAction(fd: FormData): Promise<void> {
+  const to = str(fd, "to") || "/personen";
+  try {
+    guard();
+    const { reviewClaim, reviewLink } = await import("./graph");
+    const op = str(fd, "op");
+    const id = Number(str(fd, "id"));
+    if (str(fd, "what") === "link") reviewLink(id, op === "confirm" ? "confirm" : "reject");
+    else if (op === "confirm" || op === "reject" || op === "done" || op === "recheck") reviewClaim(id, op);
+  } catch (e) {
+    back(to, { error: errorMessage(e) });
+  }
+  revalidatePath("/personen", "layout");
+  redirect(to);
+}
+
+/** "Read messages": what the new messages say about people, now — or looking back `days` days. */
+export async function extractKnowledgeFormAction(fd: FormData): Promise<void> {
+  let result = "";
+  try {
+    guard();
+    if (!isInstalled("llm")) throw new Error(t("The LLM plugin is needed for this (Menu → Plugins)."));
+    const days = Math.max(0, Math.min(90, Number(str(fd, "days")) || 0));
+    const r = await (await import("./extract")).extractKnowledge({ sinceDays: days || undefined });
+    if (!r.ok) throw new Error(r.error ?? t("Failed."));
+    result = `${r.items},${r.claims},${r.links + r.derived}`;
+  } catch (e) {
+    back("/personen", { error: errorMessage(e) });
+  }
+  revalidatePath("/personen", "layout");
+  back("/personen", { read: result });
+}
+
 /** A relation added by hand: what this person is (to you, or to the chosen profile). */
 export async function addRelationFormAction(fd: FormData): Promise<void> {
   const personId = Number(str(fd, "personId"));
@@ -252,6 +318,12 @@ export type PersonCardData = {
   relations: string[];
   messages: { who: string; text: string; at: string; folder: string }[];
   todos: { id: number; ref: string; text: string }[];
+  /** What was read from messages: roles, responsibilities, facts (confirmed, or the AI's sure ones). */
+  claims: { kind: string; text: string; confirmed: boolean }[];
+  /** What they are linked to: tickets, topics, people — "is on PROJ-364", "manages Rico Clemen". */
+  links: string[];
+  /** Open commitments with them: who owes what, by when. */
+  owed: { direction: "mine" | "theirs"; text: string; due: string }[];
 };
 
 /** A person's hover card's contents — loaded when it opens. Null: no such person (or the plugin is off). */
@@ -294,6 +366,18 @@ export async function personCardAction(id: number): Promise<PersonCardData | nul
       ...relationsOf(p.id).out.map((r) => (r.otherId ? t("{rel} of {name}", { rel: r.rel, name: r.otherName ?? "?" }) : r.rel)),
       ...relationsOf(p.id).in.map((r) => `${r.personName}: ${r.rel}`),
     ].slice(0, 6),
+    claims: visibleClaims(p.id)
+      .filter((c) => c.kind !== "commitment")
+      .slice(0, 5)
+      .map((c) => ({ kind: c.kind, text: c.text, confirmed: c.status === "confirmed" })),
+    links: linksOf(p.id)
+      .filter((l) => l.rel !== "commented-on")
+      .slice(0, 6)
+      .map((l) => `${l.rel.replace(/-/g, " ")} ${l.targetType === "person" ? (getPerson(Number(l.targetRef))?.name ?? "?") : l.targetRef}`),
+    owed: visibleClaims(p.id)
+      .filter((c) => c.kind === "commitment" && (c.direction === "mine" || c.direction === "theirs"))
+      .slice(0, 3)
+      .map((c) => ({ direction: c.direction as "mine" | "theirs", text: c.text, due: c.due })),
     messages: contactsOf(p, 3).map((c) => ({ who: c.who, text: c.text.slice(0, 220), at: c.at, folder: c.folder })),
     todos: listTodos({ status: "open" })
       .filter((x) => names(x.text))

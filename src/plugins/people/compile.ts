@@ -114,6 +114,15 @@ export async function compilePerson(id: number, opts: { ask?: CompileDeps["ask"]
   const { myJiraName } = await import("@/lib/jira/store");
   const me = myJiraName();
   const account = p.accounts.find((a) => a.kind === "jira")?.value;
+  // Older and less obvious hits for their name (the full-text index), beyond the latest ones above.
+  let more = "";
+  try {
+    const { retrieve } = await import("@/lib/rag");
+    const found = await retrieve([{ query: namesOf(p).filter((n) => n.length >= 3).slice(0, 2).join(" "), where: ["mails", "teams"] }], { perSource: 6, maxChars: 2500 });
+    more = found.hits.filter((h) => !lines.some((l) => l.includes(h.text.slice(0, 40)))).map((h) => `- ${h.when ?? ""} ${h.title}: ${h.text}`).join("\n");
+  } catch {
+    // no search then
+  }
   const prompt = [
     INSTRUCTIONS,
     "",
@@ -125,6 +134,7 @@ export async function compilePerson(id: number, opts: { ask?: CompileDeps["ask"]
     "",
     "# Was Zeff über sie hat",
     ...lines,
+    ...(more ? ["", "## Weitere Treffer (Suche)", more] : []),
   ]
     .join("\n")
     .slice(0, 14000);

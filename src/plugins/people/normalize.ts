@@ -117,17 +117,39 @@ function mentions(people: Person[]): Map<number, string> {
 const flag = globalThis as { __zeffPeopleNormalize?: boolean };
 export const peopleNormalizing = () => !!flag.__zeffPeopleNormalize;
 
-export type NormalizeResult = { ok: boolean; aliases: number; created: number; merged: number; relations: number; error?: string };
+export type NormalizeResult = { ok: boolean; aliases: number; created: number; merged: number; relations: number; claims?: number; links?: number; error?: string };
 
+/** The step after each briefing: names matched (AI), then what the new messages say about people read (extract.ts). */
 export async function normalizePeople(): Promise<NormalizeResult> {
   if (flag.__zeffPeopleNormalize) return { ok: false, aliases: 0, created: 0, merged: 0, relations: 0, error: "already running" };
   flag.__zeffPeopleNormalize = true;
+  try {
+    const r = await matchNames();
+    // What the new messages say about them — a failure here doesn't undo the matching.
+    try {
+      const x = await (await import("./extract")).extractKnowledge();
+      return { ...r, claims: x.claims, links: x.links + x.derived };
+    } catch {
+      return r;
+    }
+  } finally {
+    flag.__zeffPeopleNormalize = false;
+  }
+}
+
+async function matchNames(): Promise<NormalizeResult> {
   try {
     // Jira users tied to profiles by name — no AI needed (so they're there for the @-mentions).
     try {
       (await import("./accounts")).linkJiraAccounts();
     } catch {
       // without accounts, then
+    }
+    // Names the sources write for people, queued for review (no AI).
+    try {
+      (await import("./identity")).findIdentitySuggestions();
+    } catch {
+      // the sources aren't there, then
     }
     const people = listPeople();
     // The todos: open ones, and those of the last 30 days.
@@ -216,7 +238,5 @@ export async function normalizePeople(): Promise<NormalizeResult> {
     return { ok: true, aliases, created, merged, relations };
   } catch (e) {
     return { ok: false, aliases: 0, created: 0, merged: 0, relations: 0, error: errorMessage(e) };
-  } finally {
-    flag.__zeffPeopleNormalize = false;
   }
 }

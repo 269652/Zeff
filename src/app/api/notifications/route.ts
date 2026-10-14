@@ -41,5 +41,19 @@ export async function GET() {
         at: now.toISOString(),
       });
   }
+  // What was promised (read from the messages) and falls due today or is overdue.
+  if (isInstalled("people")) {
+    const { openCommitments } = await import("@/plugins/people/graph");
+    const now = new Date();
+    const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    for (const c of openCommitments().filter((x) => x.due && x.due <= day).slice(0, 5))
+      items.push({
+        id: `commitment:${c.id}:${day}`,
+        title: c.direction === "mine" ? t("You owe {name}: due {due}", { name: c.personName, due: c.due }) : t("{name} owes you: due {due}", { name: c.personName, due: c.due }),
+        body: c.text.slice(0, 200),
+        href: `/personen/${c.personId}`,
+        at: now.toISOString(),
+      });
+  }
   return Response.json({ items });
 }

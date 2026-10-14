@@ -145,8 +145,20 @@ export function personByAccount(kind: "jira", value: string): Person | null {
   return listPeople().find((p) => p.accounts.some((a) => a.kind === kind && a.value.toLowerCase() === v)) ?? null;
 }
 
+/** Run on the claims/links tables when they exist (graph.ts makes them when first needed). */
+function graphSql(sql: string, ...args: unknown[]): void {
+  try {
+    db().prepare(sql).run(...args);
+  } catch {
+    // not made yet: nothing to move
+  }
+}
+
 export function deletePerson(id: number): void {
   db().prepare("delete from people_relations where other_id = ?").run(id);
+  graphSql("delete from people_claims where person_id = ?", id);
+  graphSql("delete from people_links where person_id = ?", id);
+  graphSql("delete from people_links where target_type = 'person' and target_ref = ?", String(id));
   db().prepare("delete from people where id = ?").run(id);
   changed();
 }
@@ -358,6 +370,11 @@ export function mergePeople(keepId: number, dropId: number): void {
     d.prepare("update or ignore people_relations set person_id = ? where person_id = ?").run(keep.id, drop.id);
     d.prepare("update or ignore people_relations set other_id = ? where other_id = ?").run(keep.id, drop.id);
     d.prepare("delete from people_relations where person_id = ? and other_id = person_id").run(keep.id);
+    // Their claims and links too; links to them point to the kept one.
+    graphSql("update or ignore people_claims set person_id = ? where person_id = ?", keep.id, drop.id);
+    graphSql("update or ignore people_links set person_id = ? where person_id = ?", keep.id, drop.id);
+    graphSql("update or ignore people_links set target_ref = ? where target_type = 'person' and target_ref = ?", String(keep.id), String(drop.id));
+    graphSql("delete from people_links where person_id = ? and target_type = 'person' and target_ref = ?", keep.id, String(keep.id));
     deletePerson(drop.id);
   })();
 }

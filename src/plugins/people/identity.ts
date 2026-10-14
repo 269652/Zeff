@@ -1,0 +1,241 @@
+/**
+ * Identity resolution (the People plugin): one person under every name the sources know them by.
+ * Teams, mail, Jira and GitLab each write a person differently ("Lorenz, Christopher", "chrlorenz1",
+ * "Chris R."); this reads those names and the addresses and usernames that come with them and
+ * proposes — never applies by itself — which are the same person: a name to add as an alias, two
+ * profiles to merge, a profile for someone who keeps turning up. A proposal waits in the review
+ * queue until you accept it; a rejected one is remembered and not made again. Server only.
+ */
+import { getSqlite } from "@/db";
+import { emitChange } from "@/lib/events";
+import { nameSimilar, normalizeName } from "./accounts";
+import type { Person } from "./shared";
+import { addAccount, addAliases, createPerson, getPerson, listPeople, mergePeople, namesOf, updatePerson } from "./store";
+
+export type SuggestionKind = "alias" | "merge" | "person";
+export type Suggestion = {
+  id: number;
+  kind: SuggestionKind;
+  /** alias: the profile the name goes to. merge: the one that stays. person: 0. */
+  personId: number;
+  /** merge: the one that goes into it. */
+  otherId: number;
+  /** alias: the name. person: the name of the new profile. */
+  name: string;
+  emails: string[];
+  jira: string;
+  /** Why — one line, as shown in the queue. */
+  evidence: string;
+  confidence: number;
+  createdAt: string;
+};
+
+function db() {
+  const d = getSqlite();
+  d.exec(`
+    create table if not exists people_suggestions (id integer primary key autoincrement, key text not null unique, kind text not null, person_id integer not null default 0, other_id integer not null default 0, name text not null default '', emails text not null default '[]', jira text not null default '', evidence text not null default '', confidence real not null default 0.5, status text not null default 'pending', created_at text not null, decided_at text);
+  `);
+  return d;
+}
+
+const now = () => new Date().toISOString();
+type Row = { id: number; key: string; kind: string; person_id: number; other_id: number; name: string; emails: string; jira: string; evidence: string; confidence: number; created_at: string };
+const toSuggestion = (r: Row): Suggestion => ({
+  id: r.id,
+  kind: r.kind === "merge" || r.kind === "person" ? r.kind : "alias",
+  personId: r.person_id,
+  otherId: r.other_id,
+  name: r.name,
+  emails: (() => {
+    try {
+      return JSON.parse(r.emails) as string[];
+    } catch {
+      return [];
+    }
+  })(),
+  jira: r.jira,
+  evidence: r.evidence,
+  confidence: r.confidence,
+  createdAt: r.created_at,
+});
+
+/** The proposals waiting, the surest first. */
+export const pendingSuggestions = (): Suggestion[] => (db().prepare("select * from people_suggestions where status = 'pending' order by confidence desc, id").all() as Row[]).map(toSuggestion);
+
+/** Rejected proposals, as the extraction is told what not to propose again. */
+export const rejectedSuggestions = (limit = 30): Suggestion[] => (db().prepare("select * from people_suggestions where status = 'rejected' order by decided_at desc limit ?").all(limit) as Row[]).map(toSuggestion);
+
+/** A proposal queued — once per key, whatever became of it. Whether it is new. */
+function propose(s: Omit<Suggestion, "id" | "createdAt"> & { key: string }): boolean {
+  const r = db()
+    .prepare("insert or ignore into people_suggestions (key, kind, person_id, other_id, name, emails, jira, evidence, confidence, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .run(s.key, s.kind, s.personId, s.otherId, s.name, JSON.stringify(s.emails), s.jira, s.evidence.slice(0, 300), s.confidence, now());
+  return r.changes > 0;
+}
+
+// ---------------------------------------------------------------------------
+// What the sources call people
+// ---------------------------------------------------------------------------
+
+type Seen = { name: string; sources: Set<string>; count: number; emails: Set<string>; users: Set<string> };
+
+/** Bots and mailboxes: no one's profile. */
+const NOT_A_PERSON = /no-?reply|newsletter|notification|mailer|support|service|team|bot\b|admin|jira|gitlab|microsoft|google|system|\d{3,}/i;
+
+/** Every name the synced sources write, with where, how often, and the addresses and usernames that came with it. */
+export function observedNames(): Seen[] {
+  const d = getSqlite();
+  const seen = new Map<string, Seen>();
+  const note = (name: string | null | undefined, source: string, extra: { email?: string | null; user?: string | null; count?: number } = {}) => {
+    const display = (name ?? "").trim().replace(/\s+/g, " ");
+    const key = normalizeName(display);
+    if (!key || key === "ich" || display.length < 3 || NOT_A_PERSON.test(display)) return;
+    const s = seen.get(key) ?? { name: display, sources: new Set<string>(), count: 0, emails: new Set<string>(), users: new Set<string>() };
+    s.sources.add(source);
+    s.count += extra.count ?? 1;
+    if (extra.email?.includes("@")) s.emails.add(extra.email.toLowerCase());
+    if (extra.user) s.users.add(extra.user);
+    // The fuller way of writing it is the one shown ("Christopher Lorenz" over "Lorenz").
+    if (display.length > s.name.length) s.name = display;
+    seen.set(key, s);
+  };
+  const all = <T>(sql: string): T[] => {
+    try {
+      return d.prepare(sql).all() as T[];
+    } catch {
+      return []; // the plugin behind it never ran
+    }
+  };
+  for (const r of all<{ n: string | null; e: string | null; c: number }>("select from_name n, lower(from_email) e, count(*) c from emails where folder not in ('WhatsApp', 'Signal') and from_name is not null and from_name != 'Ich' group by n, e")) note(r.n, "mail", { email: r.e, count: r.c });
+  for (const r of all<{ n: string | null; c: number }>("select sender_name n, count(*) c from teams_messages where sender_name is not null group by n")) note(r.n, "teams", { count: r.c });
+  for (const r of all<{ n: string; c: number }>("select author n, count(*) c from jira_comments where author != '' group by n")) note(r.n, "jira", { count: r.c });
+  for (const r of all<{ n: string | null; c: number }>("select author n, count(*) c from gitlab_items where author is not null group by n")) note(r.n, "gitlab", { count: r.c });
+  // "Name (username)" as the briefing runs list everyone on a ticket.
+  for (const run of all<{ tickets: string }>("select tickets from board_runs where status = 'ok' order by id desc limit 12")) {
+    try {
+      for (const t of JSON.parse(run.tickets) as { people?: string[] }[]) {
+        for (const p of t.people ?? []) {
+          const m = /^(.+?) \(([^()]+)\)$/.exec(p.trim());
+          if (m) note(m[1], "jira", { user: m[2].trim() });
+        }
+      }
+    } catch {
+      // not readable
+    }
+  }
+  return [...seen.values()];
+}
+
+/** Whether a profile already goes by this name (or its normalized form). */
+const hasName = (p: Person, name: string) => namesOf(p).some((n) => normalizeName(n) === normalizeName(name));
+
+// ---------------------------------------------------------------------------
+// The proposals
+// ---------------------------------------------------------------------------
+
+const keyOf = (...parts: (string | number)[]) => parts.join(":");
+
+/**
+ * Look for identities to propose: names the sources write for a profile that it doesn't go by yet (an
+ * alias), profiles that are one person (merge), and names that keep turning up with no profile (a new
+ * one). Only what the evidence carries: a shared address or username, the same name written differently,
+ * a first name that fits one profile only. How many were queued.
+ */
+export function findIdentitySuggestions(): number {
+  const people = listPeople();
+  let queued = 0;
+  const q = (s: Parameters<typeof propose>[0]) => {
+    if (propose(s)) queued++;
+  };
+
+  // 1. Two profiles that are one person.
+  for (let i = 0; i < people.length; i++) {
+    for (let j = i + 1; j < people.length; j++) {
+      const a = people[i];
+      const b = people[j];
+      const shared = (x: string[], y: string[]) => x.find((v) => y.some((w) => w.toLowerCase() === v.toLowerCase()));
+      const email = shared(a.emails, b.emails);
+      const user = shared(a.accounts.map((x) => x.value), b.accounts.map((x) => x.value));
+      const chat = a.whatsapp && a.whatsapp === b.whatsapp ? a.whatsapp : "";
+      const sameName = namesOf(a).some((n) => namesOf(b).some((m) => normalizeName(n) === normalizeName(m) || (n.includes(" ") && nameSimilar(n, m))));
+      const found: { evidence: string; confidence: number } | null = email
+        ? { evidence: `the same address (${email})`, confidence: 0.97 }
+        : user
+          ? { evidence: `the same Jira user (${user})`, confidence: 0.97 }
+          : chat
+            ? { evidence: `the same WhatsApp chat (${chat})`, confidence: 0.95 }
+            : sameName
+              ? { evidence: `"${a.name}" and "${b.name}" are the same name written differently`, confidence: 0.85 }
+              : null;
+      if (!found) continue;
+      const { evidence, confidence } = found;
+      // The fuller profile stays (more words in the name, then more addresses).
+      const [keep, drop] = [a, b].sort((x, y) => y.name.split(/\s+/).length - x.name.split(/\s+/).length || y.emails.length - x.emails.length || x.id - y.id);
+      q({ key: keyOf("merge", Math.min(a.id, b.id), Math.max(a.id, b.id)), kind: "merge", personId: keep.id, otherId: drop.id, name: drop.name, emails: [], jira: "", evidence, confidence });
+    }
+  }
+
+  // 2. What the sources call people.
+  const seen = observedNames();
+  const byEmail = new Map(people.flatMap((p) => p.emails.map((e) => [e.toLowerCase(), p] as [string, Person])));
+  const byUser = new Map(people.flatMap((p) => p.accounts.map((a) => [a.value.toLowerCase(), p] as [string, Person])));
+  for (const s of seen) {
+    if (people.some((p) => hasName(p, s.name))) continue;
+    // By what it came with: an address or a username a profile has already.
+    const viaEmail = [...s.emails].map((e) => byEmail.get(e)).find(Boolean);
+    const viaUser = [...s.users].map((u) => byUser.get(u.toLowerCase())).find(Boolean);
+    if (viaEmail || viaUser) {
+      const p = (viaEmail ?? viaUser)!;
+      q({ key: keyOf("alias", p.id, normalizeName(s.name)), kind: "alias", personId: p.id, otherId: 0, name: s.name, emails: [], jira: "", evidence: viaEmail ? `written by ${[...s.emails].join(", ")} — ${p.name}'s address` : `listed as Jira user ${[...s.users].join(", ")} — ${p.name}'s account`, confidence: 0.95 });
+      continue;
+    }
+    // By the name: written differently (umlauts, "Last, First", a letter off) — for exactly one profile.
+    const near = people.filter((p) => namesOf(p).some((n) => nameSimilar(n, s.name)));
+    if (near.length === 1) {
+      q({ key: keyOf("alias", near[0].id, normalizeName(s.name)), kind: "alias", personId: near[0].id, otherId: 0, name: s.name, emails: [], jira: "", evidence: `"${s.name}" in ${[...s.sources].join(", ")} reads like ${near[0].name}`, confidence: 0.8 });
+      continue;
+    }
+    // A full name that continues exactly one profile's first name, with the same address/user nowhere else: "Julia" → "Julia Freidank".
+    const words = normalizeName(s.name).split(" ");
+    if (words.length >= 2 && s.sources.size >= 1) {
+      const first = people.filter((p) => !p.name.includes(" ") && normalizeName(p.name) === words[0]);
+      const rivals = people.filter((p) => p.name.includes(" ") && normalizeName(p.name).split(" ")[0] === words[0]);
+      if (first.length === 1 && !rivals.length && s.count >= 3) {
+        q({ key: keyOf("alias", first[0].id, normalizeName(s.name)), kind: "alias", personId: first[0].id, otherId: 0, name: s.name, emails: [...s.emails], jira: [...s.users][0] ?? "", evidence: `"${first[0].name}" is the only ${words[0]} you have a profile for; "${s.name}" appears ${s.count}× in ${[...s.sources].join(", ")}`, confidence: 0.55 });
+        continue;
+      }
+    }
+    // Someone who keeps turning up, with a full name and no profile: a new one.
+    if (words.length >= 2 && (s.count >= 4 || s.sources.size >= 2)) {
+      q({ key: keyOf("person", normalizeName(s.name)), kind: "person", personId: 0, otherId: 0, name: s.name, emails: [...s.emails].slice(0, 3), jira: [...s.users][0] ?? "", evidence: `${s.count}× in ${[...s.sources].join(", ")}`, confidence: Math.min(0.9, 0.4 + s.count / 40 + s.sources.size * 0.1) });
+    }
+  }
+  if (queued) emitChange("todos");
+  return queued;
+}
+
+/** Accept a proposal: do what it says. Throws when it no longer fits (the profiles are gone). */
+export function acceptSuggestion(id: number): void {
+  const r = db().prepare("select * from people_suggestions where id = ? and status = 'pending'").get(id) as Row | undefined;
+  if (!r) return;
+  const s = toSuggestion(r);
+  if (s.kind === "merge") mergePeople(s.personId, s.otherId);
+  else if (s.kind === "alias") {
+    if (!getPerson(s.personId)) throw new Error("Unknown person.");
+    addAliases(s.personId, [s.name]);
+    for (const e of s.emails) updatePerson(s.personId, { emails: [...new Set([...(getPerson(s.personId)?.emails ?? []), e])] });
+    if (s.jira) addAccount(s.personId, "jira", s.jira);
+  } else {
+    const pid = createPerson({ name: s.name, emails: s.emails });
+    if (s.jira) addAccount(pid, "jira", s.jira);
+  }
+  db().prepare("update people_suggestions set status = 'accepted', decided_at = ? where id = ?").run(now(), id);
+  // Others that concerned a profile that is gone now.
+  db().prepare("update people_suggestions set status = 'obsolete', decided_at = ? where status = 'pending' and kind != 'person' and ((person_id != 0 and person_id not in (select id from people)) or (other_id != 0 and other_id not in (select id from people)))").run(now());
+  emitChange("todos");
+}
+
+export function rejectSuggestion(id: number): void {
+  db().prepare("update people_suggestions set status = 'rejected', decided_at = ? where id = ? and status = 'pending'").run(now(), id);
+  emitChange("todos");
+}

@@ -127,6 +127,12 @@ export type RetrieveOpts = {
   maxChars?: number;
 };
 
+// Mails, chats and Teams: ranked from the full-text index (ctx-index.ts); scanning with LIKE where it can't be used.
+for (const source of ["mails", "teams"] as const) {
+  const scan = SEARCHERS[source];
+  SEARCHERS[source] = async (words, q) => (await import("@/lib/ctx-index")).indexedCandidates(source, words) ?? scan(words, q);
+}
+
 async function realKnowledge(query: string) {
   const { isInstalled } = await import("@/plugins/state");
   if (!isInstalled("knowledge")) return [];

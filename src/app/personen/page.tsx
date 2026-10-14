@@ -5,7 +5,9 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { findAllProgress } from "@/plugins/people/dates";
-import { createPersonFormAction, dateFormAction, findAllDatesFormAction, importPeopleFormAction, linkJiraAccountsFormAction, normalizePeopleFormAction, updatePersonFormAction } from "@/plugins/people/server-actions";
+import { createPersonFormAction, dateFormAction, extractKnowledgeFormAction, reviewSuggestionFormAction, findAllDatesFormAction, importPeopleFormAction, linkJiraAccountsFormAction, normalizePeopleFormAction, updatePersonFormAction } from "@/plugins/people/server-actions";
+import { pendingSuggestions } from "@/plugins/people/identity";
+import { KnowledgeReview } from "@/plugins/people/KnowledgeViews";
 import { dateKindLabels, dateText, inDaysText, upcomingShort, upcomingTitle } from "@/plugins/people/shared";
 import { contactsOf, listPeople, proposedDates, upcoming, whatsappChats } from "@/plugins/people/store";
 import { formatAgo } from "@/lib/format";
@@ -33,7 +35,7 @@ async function knowledgeSuggestions(taken: Set<string>) {
  * up next and when you last heard from them; the dates found waiting for you; people to add from
  * the knowledge and your WhatsApp chats.
  */
-export default async function PeoplePage({ searchParams }: { searchParams: Promise<{ error?: string; added?: string; searching?: string; matched?: string; linked?: string; imported?: string }> }) {
+export default async function PeoplePage({ searchParams }: { searchParams: Promise<{ read?: string; error?: string; added?: string; searching?: string; matched?: string; linked?: string; imported?: string }> }) {
   await connection();
   if (!isInstalled("people")) return <PluginNotInstalled id="people" />;
   const sp = await searchParams;
@@ -46,6 +48,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
   const known = await knowledgeSuggestions(taken);
   const chats = whatsappChats().filter((c) => !taken.has(c.name.toLowerCase())).slice(0, 16);
   const progress = findAllProgress();
+  const identities = pendingSuggestions();
 
   return (
     <div className="page">
@@ -96,6 +99,23 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
           </form>
         )}
         {people.length > 0 && (
+          <form action={extractKnowledgeFormAction} className="flex gap-1">
+            <button className="btn btn-sm min-w-0 flex-1" title={t("The AI reads the messages that came in since the last time (mail, chats, Teams, Jira) and notes what they say about people: roles, who is responsible for what, commitments. It also runs after each briefing; the result waits for your review.")}>
+              {t("Read new messages (AI)")}
+            </button>
+            <select name="days" defaultValue="0" className="input w-24 text-xs" aria-label={t("Look back")}>
+              <option value="0">{t("since last")}</option>
+              <option value="14">{t("14 days")}</option>
+              <option value="30">{t("30 days")}</option>
+            </select>
+          </form>
+        )}
+        {sp.read !== undefined &&
+          (() => {
+            const [i, c, l] = sp.read.split(",").map(Number);
+            return <p role="status" className="alert-ok text-sm">{t("{i} messages read — {c} claims, {l} links", { i: i || 0, c: c || 0, l: l || 0 })}</p>;
+          })()}
+        {people.length > 0 && (
           <form action={linkJiraAccountsFormAction}>
             <button className="btn btn-sm w-full" title={t("Ties Jira users to the profiles by their names (as the briefing lists them on the tickets) — so @-mentions in notes synced to Jira point to the right person. No AI; names that fit two users aren't guessed.")}>
               {t("Link Jira accounts")}
@@ -127,6 +147,41 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
       </div>
 
       <div className="space-y-6">
+        {identities.length > 0 && (
+          <section className="card space-y-2 p-4">
+            <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Same person? — please check")}</h2>
+            <ul className="space-y-2">
+              {identities.slice(0, 30).map((s) => {
+                const target = people.find((p) => p.id === s.personId);
+                const other = people.find((p) => p.id === s.otherId);
+                return (
+                  <li key={s.id} className="flex flex-wrap items-baseline gap-2 text-sm">
+                    <span className="min-w-0">
+                      {s.kind === "merge" && t("Merge {other} into {name}", { other: other?.name ?? s.name, name: target?.name ?? "?" })}
+                      {s.kind === "alias" && t("“{alias}” is another name of {name}", { alias: s.name, name: target?.name ?? "?" })}
+                      {s.kind === "person" && t("New profile for {name}", { name: s.name })}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-xs text-zinc-500" title={s.evidence}>
+                      {s.evidence} · {Math.round(s.confidence * 100)}%
+                    </span>
+                    <form action={reviewSuggestionFormAction} className="flex gap-1">
+                      <input type="hidden" name="id" value={s.id} />
+                      <button name="op" value="accept" className="btn btn-primary btn-sm">
+                        {t("Right")}
+                      </button>
+                      <button name="op" value="reject" className="btn btn-sm">
+                        {t("Wrong")}
+                      </button>
+                    </form>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
+
+        <KnowledgeReview />
+
         {proposals.length > 0 && (
           <section className="card space-y-2 p-4">
             <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Dates found — are they right?")}</h2>

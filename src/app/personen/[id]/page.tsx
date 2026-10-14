@@ -13,6 +13,7 @@ import { contactsOf, datesOf, getPerson, listPeople, namesThem, relationsOf, rem
 import { formatDate, formatDateTime } from "@/lib/format";
 import { isInstalled } from "@/plugins/state";
 import { PersonSummaryDetails } from "@/plugins/people/SummaryView";
+import { PersonKnowledge } from "@/plugins/people/KnowledgeViews";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("Person") };
@@ -181,6 +182,10 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
+        <Card title={t("Read from your messages")}>
+          <PersonKnowledge personId={p.id} />
+        </Card>
+
         <Card title={t("Relations")}>
           <ul className="space-y-1 text-sm">
             {relations.out.map((r) => (
