@@ -149,6 +149,8 @@ export async function readMessages({ contract, since, maxLoads, maxMessages }) {
   const load = P.module(contract.modules.load)?.mod;
   if (!C?.Chat?.getModelsArray || !load) return { error: "no-internals", missing: [!C && "collections", !load && "load"].filter(Boolean) };
   const MEDIA = { image: "Bild", video: "Video", ptt: "Sprachnachricht", audio: "Audio", document: "Dokument", location: "Standort", vcard: "Kontakt", multi_vcard: "Kontakte", poll_creation: "Umfrage", album: "Album" };
+  // A message's own id: _serialized where there is one, else String(id) (WhatsApp Web's id objects stopped having _serialized: it prints as "false_<chat>_<hash>"), else "<chat>|<time>" — what a message kept before is matched by (saveMails: same chat, time and words keep their row).
+  const idOf = (chat, m) => (typeof m.id?._serialized === "string" ? m.id._serialized : /^(true|false)_/.test(String(m.id ?? "")) ? String(m.id) : `${chat.id?._serialized}|${m.t}`);
   const nameOf = (c) => c?.formattedName || c?.name || c?.pushname || c?.verifiedName || c?.id?.user || "";
   const lastAt = (c) => Math.max(c.t || 0, ...(c.msgs?.getModelsArray?.() ?? []).map((m) => m.t || 0));
   // You (your number and your lid): a group message mentioning you or quoting yours is to you.
@@ -188,7 +190,7 @@ export async function readMessages({ contract, since, maxLoads, maxMessages }) {
     const title = chat.formattedTitle || chat.name || nameOf(chat.contact) || chat.id?.user || "?";
     const group = !!chat.isGroup || /@g\.us$/.test(chat.id?._serialized ?? "");
     for (const m of msgs()) {
-      const id = m.id?._serialized ?? `${chat.id?._serialized}|${m.t}`;
+      const id = idOf(chat, m);
       if (m.t < since || m.isNotification || m.revokeTimestamp || seen.has(id)) continue;
       seen.add(id);
       const media = MEDIA[m.type];
@@ -223,6 +225,8 @@ export async function readHistory({ contract, name, maxLoads, settleMs }) {
   const load = P.module(contract.modules.load)?.mod;
   if (!C?.Chat?.getModelsArray || !load) return { error: "no-internals", missing: [!C && "collections", !load && "load"].filter(Boolean) };
   const MEDIA = { image: "Bild", video: "Video", ptt: "Sprachnachricht", audio: "Audio", document: "Dokument", location: "Standort", vcard: "Kontakt", multi_vcard: "Kontakte", poll_creation: "Umfrage", album: "Album", sticker: "Sticker" };
+  // A message's own id: _serialized where there is one, else String(id) (WhatsApp Web's id objects stopped having _serialized: it prints as "false_<chat>_<hash>"), else "<chat>|<time>" — what a message kept before is matched by (saveMails: same chat, time and words keep their row).
+  const idOf = (chat, m) => (typeof m.id?._serialized === "string" ? m.id._serialized : /^(true|false)_/.test(String(m.id ?? "")) ? String(m.id) : `${chat.id?._serialized}|${m.t}`);
   const nameOf = (c) => c?.formattedName || c?.name || c?.pushname || c?.verifiedName || c?.id?.user || "";
   const titleOf = (c) => c.formattedTitle || c.name || nameOf(c.contact) || c.id?.user || "";
   const all = C.Chat.getModelsArray().filter((c) => !/@(newsletter|broadcast)$/.test(c.id?._serialized ?? "") && c.id?.user !== "status");
@@ -264,7 +268,7 @@ export async function readHistory({ contract, name, maxLoads, settleMs }) {
   const out = [];
   const seen = new Set();
   for (const m of msgs()) {
-    const id = m.id?._serialized ?? `${chat.id?._serialized}|${m.t}`;
+    const id = idOf(chat, m);
     if (m.isNotification || m.revokeTimestamp || seen.has(id)) continue;
     seen.add(id);
     const media = MEDIA[m.type];
@@ -304,8 +308,9 @@ export function selfCheck({ contract }) {
     const need = ["id.fromMe:boolean", "t:number", "type:string"];
     const lacks = need.filter((h) => !P.shape(msg, [h]));
     add("message-fields", !lacks.length, lacks.length ? `lacks ${lacks.join(", ")}` : need.join(", "));
-    // A message's own id: WhatsApp Web's id objects stopped having _serialized — the reader keys a message "<chat>|<time>" then (two in the same second of one chat count as one).
-    if (!P.shape(msg, ["id._serialized:string"])) checks.push({ kind: "data", id: "message-id", level: "warn", detail: "id._serialized is gone — messages are keyed chat|time (String(id) is the real id now)" });
+    // A message's own id (what its row is kept by): _serialized, else what String(id) prints; neither: "<chat>|<time>" (two messages in the same second of one chat then count as one).
+    const printed = /^(true|false)_/.test(String(msg.id ?? ""));
+    if (!P.shape(msg, ["id._serialized:string"])) checks.push({ kind: "data", id: "message-id", level: printed ? "ok" : "warn", detail: printed ? "id._serialized is gone — String(id) is the id" : "no id to read (_serialized, String(id)) — messages are keyed chat|time" });
   } else checks.push({ kind: "data", id: "message-fields", level: "skip", detail: "no message loaded to look at" });
   return checks;
 }

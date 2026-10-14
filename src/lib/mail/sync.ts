@@ -39,6 +39,9 @@ async function whatsappRead(call: (name: string, args: Record<string, unknown>) 
 }
 
 /** One source read (Outlook's or Gmail's list, WhatsApp's chat list) — as shown: no mail or chat opened, none marked read. */
+  // WhatsApp Web's insides no longer match the driver's contract: said (the chat list is the fallback — fewer messages), not silently.
+  const d = data as { error?: string; missing?: string[]; hint?: string } | null;
+  if (d?.error === "no-internals") console.warn(`[mail sync] WhatsApp: ${d.hint ?? "WhatsApp Web changed"}${d.missing?.length ? ` (missing: ${d.missing.join(", ")})` : ""} — reading the chat list instead.`);
 async function readMailbox(source: Source, days: number, background: boolean, gmail?: { account: string; folder: string }): Promise<{ messages: MailInput[]; missing?: string[] }> {
   const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
   const out = await runStdioSession(

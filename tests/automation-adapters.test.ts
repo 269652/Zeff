@@ -242,3 +242,24 @@ test("Signal adapter: the self-check says what an update broke", async () => {
   checks = a.selfCheck({ contract: a.contract() });
   assert.match(checks.find((c) => c.id === "chat-methods").detail, /loadOlderMessages/);
 });
+
+test("WhatsApp adapter: a message's id is _serialized, else what String(id) prints (WhatsApp Web's id objects lost _serialized), else chat|time", async () => {
+  const a = await import("../src/plugins/whatsapp/adapter.mjs");
+  const mods = whatsappModules();
+  const chat = mods.WAWebCollections.Chat.getModelsArray()[0];
+  const printing = (s: string) => ({ fromMe: false, toString: () => s });
+  chat.msgs.getModelsArray = () => [
+    { id: printing("false_1@c.us_ABC123"), t: NOW - 30, type: "chat", body: "one" },
+    { id: { fromMe: false }, t: NOW - 20, type: "chat", body: "two" },
+    { id: { _serialized: "false_1@c.us_OLD", fromMe: false }, t: NOW - 10, type: "chat", body: "three" },
+  ];
+  await page({ require: registry(mods), document: dom({}) });
+  const got: any = await a.readMessages({ contract: a.contract(), since: NOW - 3600, maxLoads: 0, maxMessages: 100 });
+  assert.deepEqual(got.messages.map((m: any) => m.id).sort(), [`1@c.us|${NOW - 20}`, "false_1@c.us_ABC123", "false_1@c.us_OLD"].sort());
+  // The self-check: String(id) is fine; no id to read is a warning.
+  const level = () => (a.selfCheck({ contract: a.contract() }) as any[]).find((c) => c.id === "message-id")?.level;
+  chat.msgs.getModelsArray = () => [{ id: printing("false_1@c.us_ABC123"), t: NOW, type: "chat", body: "x" }];
+  assert.equal(level(), "ok");
+  chat.msgs.getModelsArray = () => [{ id: { fromMe: false }, t: NOW, type: "chat", body: "x" }];
+  assert.equal(level(), "warn");
+});
