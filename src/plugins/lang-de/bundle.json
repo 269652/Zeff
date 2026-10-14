@@ -4265,5 +4265,17 @@
   "Prod": "Prod",
   "Test / Stage": "Test / Stage",
   "Dev": "Dev",
-  "The work day, break and absence defaults — and the sign-in (company, user name, password) so Zeff signs in by itself": "Die Standardwerte für Arbeitstag, Pause und Abwesenheit — und die Anmeldung (Firma, Benutzername, Passwort), damit Zeff sich selbst anmeldet"
+  "The work day, break and absence defaults — and the sign-in (company, user name, password) so Zeff signs in by itself": "Die Standardwerte für Arbeitstag, Pause und Abwesenheit — und die Anmeldung (Firma, Benutzername, Passwort), damit Zeff sich selbst anmeldet",
+  "Card moved.": "Karte verschoben.",
+  "No longer a subtask.": "Keine Unteraufgabe mehr.",
+  "Card restored.": "Karte wiederhergestellt.",
+  "The column still has archived cards — restore or delete them first.": "Die Spalte hat noch archivierte Karten — stelle sie zuerst wieder her oder lösche sie.",
+  "A subtask can't have subtasks of its own.": "Eine Unteraufgabe kann keine eigenen Unteraufgaben haben.",
+  "“{name}” has no column.": "„{name}“ hat keine Spalte.",
+  "Archived cards ({n})": "Archivierte Karten ({n})",
+  "Archived cards": "Archivierte Karten",
+  "← Manage boards": "← Boards verwalten",
+  "Archived cards of {name}": "Archivierte Karten von {name}",
+  "No archived cards.": "Keine archivierten Karten.",
+  "Delete the card “{title}” for good?": "Die Karte „{title}“ endgültig löschen?"
 }

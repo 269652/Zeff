@@ -4265,5 +4265,17 @@
   "Prod": "Prod",
   "Test / Stage": "Test / Stage",
   "Dev": "Dev",
-  "The work day, break and absence defaults — and the sign-in (company, user name, password) so Zeff signs in by itself": "Los valores por defecto de jornada, pausa y ausencia — y el inicio de sesión (empresa, usuario, contraseña) para que Zeff inicie sesión solo"
+  "The work day, break and absence defaults — and the sign-in (company, user name, password) so Zeff signs in by itself": "Los valores por defecto de jornada, pausa y ausencia — y el inicio de sesión (empresa, usuario, contraseña) para que Zeff inicie sesión solo",
+  "Card moved.": "Tarjeta movida.",
+  "No longer a subtask.": "Ya no es una subtarea.",
+  "Card restored.": "Tarjeta restaurada.",
+  "The column still has archived cards — restore or delete them first.": "La columna aún tiene tarjetas archivadas: restáuralas o elimínalas primero.",
+  "A subtask can't have subtasks of its own.": "Una subtarea no puede tener subtareas propias.",
+  "“{name}” has no column.": "«{name}» no tiene columnas.",
+  "Archived cards ({n})": "Tarjetas archivadas ({n})",
+  "Archived cards": "Tarjetas archivadas",
+  "← Manage boards": "← Gestionar tableros",
+  "Archived cards of {name}": "Tarjetas archivadas de {name}",
+  "No archived cards.": "No hay tarjetas archivadas.",
+  "Delete the card “{title}” for good?": "¿Eliminar la tarjeta «{title}» definitivamente?"
 }

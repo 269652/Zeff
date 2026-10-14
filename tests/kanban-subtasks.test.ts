@@ -20,7 +20,7 @@ test("subtasks: linked to the parent, a column of their own, cut loose on delete
   const cards = view.columns.flatMap((c) => c.cards);
   assert.equal(cards.find((c) => c.id === kid.id)!.columnId, doing.id);
   assert.equal(cards.find((c) => c.id === kid.id)!.parentId, parent.id, "the link stays when it moves");
-  assert.throws(() => s.createSubtask(kid.id, "Grandkid"), /keine eigenen Unteraufgaben/);
+  assert.throws(() => s.createSubtask(kid.id, "Grandkid"), /can.t have subtasks/);
 
   s.detachSubtask(kid.id);
   assert.equal(s.getBoard(a).columns.flatMap((c) => c.cards).find((c) => c.id === kid.id)!.parentId, null);

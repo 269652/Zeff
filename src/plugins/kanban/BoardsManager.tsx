@@ -10,7 +10,7 @@ import { deleteBoardAction, moveBoardAction, updateBoardAction } from "./actions
 import { boardDot } from "./colors";
 import { BOARD_COLORS } from "./shared";
 
-type Row = { id: number; name: string; description: string; color: string; archived: boolean; inLage: boolean; cards: number; open: number };
+type Row = { id: number; name: string; description: string; color: string; archived: boolean; inLage: boolean; cards: number; open: number; archivedCards: number };
 type Result = { ok: boolean; error?: string; message?: string };
 
 /** One board's row: name and description (saved when you leave the field), colour, Lage, order, archive, delete. */
@@ -54,6 +54,11 @@ function BoardRow({ b, first, last, run }: { b: Row; first: boolean; last: boole
           {b.archived ? ` · ${t("archived")}` : ""}
         </span>
         <span className="ml-auto flex gap-2">
+          {b.archivedCards > 0 && (
+            <Link href={`/kanban/${b.id}/archive`} className="btn btn-sm">
+              {t("Archived cards ({n})", { n: b.archivedCards })}
+            </Link>
+          )}
           {!b.archived && (
             <Link href={`/kanban/${b.id}`} className="btn btn-sm">
               {t("Open")}
