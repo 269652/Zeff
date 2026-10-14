@@ -31,6 +31,7 @@
     "dist": "node scripts/dist.mjs",
     "release": "node scripts/dist.mjs --release",
     "plugin:check": "tsx scripts/plugin-check.mts",
+    "plugins:index": "tsx scripts/plugins-index.mts",
     "plugin:schema": "tsx scripts/plugin-schema.mts",
     "release:check": "node scripts/smoke-release.mjs",
     "launcher:start": "npm --prefix launcher start"

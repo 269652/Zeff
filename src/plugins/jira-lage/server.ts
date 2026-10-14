@@ -1,6 +1,6 @@
 import { boardProviders } from "@/plugins/kanban/board-providers";
 
-/** What Jira Lage brings to other plugins. */
+/** What Jira Lage brings to other plugins (registered when plugins/contributions is loaded). */
 
 // Kanban: "Meine Lage" and your Jira boards, each ticket with its Lage.
 boardProviders.contribute("jira-lage", {

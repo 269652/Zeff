@@ -6,8 +6,8 @@ not import the other plugin and the other plugin does not import it: the feature
 
 ```
 kanban/board-providers.ts      export const boardProviders = extensionPoint<BoardProvider>("kanban.boardProviders")
-jira-lage/contribute.ts        boardProviders.contribute("jira-lage", { idPrefix, list, get })
-plugins/contributions.ts       import "./jira-lage/contribute"      <- one line per contributing plugin
+jira-lage/server.ts            boardProviders.contribute("jira-lage", { idPrefix, list, get })
+plugins/server.generated.ts     import "./jira-lage/server"   <- generated: npm run plugins:index
 kanban/providers.ts            boardProviders.list()                <- installed plugins' contributions only
 ```
 
@@ -18,12 +18,12 @@ The kit is `src/lib/plugin-kit/extension-point.ts` (`extensionPoint`, `.contribu
 1. **The owner defines the shape.** The point lives in the owning plugin's folder, typed. A contribution is plain
    data and functions, no UI imports from the owner's internals.
 2. **A contributor only imports the owner's point file** (`kanban/board-providers.ts`), never its other files,
-   and keeps what it brings in its own `contribute.ts`.
+   and keeps what it brings in its own `server.ts`.
 3. **Heavy code loads lazily** (`await import("./board")` inside `list`/`get`), so registering costs nothing
    and an uninstalled plugin's code is never loaded.
 4. **The owner reads `list()`** — it is already filtered by `isInstalled`; the owner never checks for a
    specific contributor by name.
-5. **Adding a plugin = its folder + its `PLUGINS` entry + one line in `plugins/contributions.ts`.**
+5. **Adding a plugin = its folder** (`plugin.ts` for what it is, `server.ts` for what it registers), then `npm run plugins:index`. No other file names it.
    Removing it = the reverse. No other file names it.
 6. **Each point has a test** with a fake contributor under another plugin id and an uninstall step
    (see `tests/plugin-kit.test.ts`).

@@ -4,7 +4,7 @@ import type { BoardSummary, RichBoard } from "./shared";
 /**
  * Kanban's extension point for boards: a plugin brings boards of its own (read-only here — Jira
  * Lage's "Meine Lage" and your Jira boards), shown beside the boards you make in Kanban. Defined here;
- * the plugins contribute from their own `contribute.ts`.
+ * the plugins contribute from their own `server.ts`.
  */
 export type BoardProvider = {
   /** Its board ids start with this ("jira-"): the board page asks the provider whose prefix fits. */
