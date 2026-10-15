@@ -495,6 +495,22 @@ export function groupRows(rows: Row[], groupBy: string, props: Property[], label
   return none.rows.length || !list.length ? [...list, none] : list;
 }
 
+/**
+ * What a row's grouped property becomes when its card is dropped from column `from` into column `to`
+ * (keys as groupRows makes them; "" is No value): a single value is replaced; a multi value (tags,
+ * people, relations) only swaps the column it came from — its other values stay.
+ */
+export function dropValue(p: Property, current: unknown, from: string, to: string): unknown {
+  if (p.type === "checkbox") return to === "true";
+  if (p.type === "multi_select" || p.type === "person" || p.type === "relation") {
+    const key = (k: string): unknown => (p.type === "multi_select" ? k : Number(k));
+    const kept = asArray(current).filter((x) => x !== null && x !== "" && String(x) !== from);
+    const next = to === "" || kept.some((x) => String(x) === to) ? kept : [...kept, key(to)];
+    return next.length ? next : null;
+  }
+  return to === "" ? null : to;
+}
+
 // ---------------------------------------------------------------------------
 // Computed properties
 // ---------------------------------------------------------------------------

@@ -4,8 +4,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, setCellAction, updateSchemaAction, type DatabaseData } from "../actions";
-import { cellText, columnOrder, dateRange, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
+import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, placeRowAction, setCellAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { cellText, columnOrder, dateRange, dropValue, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
 import { FilterEditor, PropertiesMenu, SchemaModal, SortEditor } from "./db-menus";
@@ -147,8 +147,30 @@ function useDatabase(initial: DatabaseData | null, dbId: number) {
     [reload],
   );
 
+  /** A row placed between two others (the board's manual order): shown at once, then saved. */
+  const place = useCallback(
+    (rowId: number, after: number | null, before: number | null) => {
+      const cur = dataRef.current;
+      if (!cur) return;
+      const row = cur.rows.find((r) => r.id === rowId);
+      if (!row) return;
+      const rest = cur.rows.filter((r) => r.id !== rowId);
+      const at = before !== null ? rest.findIndex((r) => r.id === before) : after !== null ? rest.findIndex((r) => r.id === after) + 1 : 0;
+      rest.splice(at < 0 ? rest.length : at, 0, row);
+      setData({ ...cur, rows: rest });
+      schemaSaving.current = schemaSaving.current.then(() => placeRowAction(rowId, after, before)).then((r) => {
+        if (!r.ok) {
+          toast((r as { error: string }).error, { tone: "error" });
+          void reload();
+        }
+        return r;
+      });
+    },
+    [reload],
+  );
+
   void t;
-  return { data, error, reload, saveSchema, changeSchema, set, addOption, addRow, removeRow, duplicateRow };
+  return { data, error, reload, saveSchema, changeSchema, set, addOption, addRow, removeRow, duplicateRow, place };
 }
 
 // ---------------------------------------------------------------------------
@@ -554,23 +576,47 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
 function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, newRow }: ViewProps & { newRow: (cells?: Record<string, unknown>, templateId?: number, open?: boolean) => Promise<void> }) {
   const t = useT();
   const gp = schema.properties.find((p) => p.id === view.groupBy);
-  const [over, setOver] = useState<string | null>(null);
+  // Where a dragged card would land: its column and the card it would go before (null: the end).
+  const [over, setOver] = useState<{ key: string; before: number | null } | null>(null);
   if (!gp) return <p className="rounded-lg border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700">{t("Choose a property to group the board by (a status or a select).")}</p>;
   const groups = groupRows(rows, gp.id, schema.properties, labels);
   const valueFor = (key: string): unknown => (gp.type === "checkbox" ? key === "true" : key === "" ? null : gp.type === "multi_select" ? [key] : gp.type === "person" || gp.type === "relation" ? [Number(key)] : key);
+  // A manual order only when the view isn't sorted (else the sort decides).
+  const ordered = !view.sorts.length;
+  /** The card the cursor is above (by its vertical middle) in a column: the one to land before. */
+  const beforeAt = (col: HTMLElement, y: number): number | null => {
+    for (const el of col.querySelectorAll<HTMLElement>("[data-row]")) {
+      const r = el.getBoundingClientRect();
+      if (y < r.top + r.height / 2) return Number(el.dataset.row);
+    }
+    return null;
+  };
   return (
     <div className="flex items-start gap-3 overflow-x-auto pb-2">
       {groups.map((g) => (
         <div
           key={g.key || "none"}
-          className={`ws-column w-72 shrink-0 space-y-2 rounded-xl p-2 ${over === g.key ? "ws-column-over" : ""}`}
-          onDragOver={(e) => (e.preventDefault(), setOver(g.key))}
-          onDragLeave={() => setOver(null)}
+          className={`ws-column w-72 shrink-0 space-y-2 rounded-xl p-2 ${over?.key === g.key ? "ws-column-over" : ""}`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            const before = beforeAt(e.currentTarget, e.clientY);
+            if (over?.key !== g.key || over.before !== before) setOver({ key: g.key, before });
+          }}
+          onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && setOver(null)}
           onDrop={(e) => {
             e.preventDefault();
+            const before = beforeAt(e.currentTarget, e.clientY);
             setOver(null);
             const id = Number(e.dataTransfer.getData("text/ws-row"));
-            if (id) api.set(id, gp.id, valueFor(g.key));
+            const from = e.dataTransfer.getData("text/ws-from");
+            const row = rows.find((r) => r.id === id);
+            if (!row) return;
+            if (from !== g.key) api.set(id, gp.id, dropValue(gp, row.cells[gp.id], from, g.key));
+            if (ordered && before !== id) {
+              const list = g.rows.filter((r) => r.id !== id);
+              const at = before === null ? list.length : list.findIndex((r) => r.id === before);
+              api.place(id, list[at - 1]?.id ?? null, list[at]?.id ?? null);
+            }
           }}
         >
           <div className="flex items-center gap-2 px-1 text-sm">
@@ -578,13 +624,28 @@ function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, new
             <span className="text-zinc-400">{g.rows.length}</span>
           </div>
           {g.rows.map((r) => (
-            <div key={r.id} className="ws-card group/card relative cursor-pointer" draggable onDragStart={(e) => e.dataTransfer.setData("text/ws-row", String(r.id))} onClick={() => openRow(r.id)} role="button" tabIndex={0} onKeyDown={(e) => e.key === "Enter" && openRow(r.id)}>
+            <div
+              key={r.id}
+              data-row={r.id}
+              className={`ws-card group/card relative cursor-pointer ${over?.key === g.key && over.before === r.id ? "ws-card-drop-before" : ""}`}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData("text/ws-row", String(r.id));
+                e.dataTransfer.setData("text/ws-from", g.key);
+                e.dataTransfer.effectAllowed = "move";
+              }}
+              onClick={() => openRow(r.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === "Enter" && openRow(r.id)}
+            >
               <span className="absolute top-1 right-1 rounded bg-white/90 opacity-0 group-hover/card:opacity-100 dark:bg-zinc-900/90" onClick={(e) => e.stopPropagation()}>
                 <RowMenu row={r} api={api} />
               </span>
               <RowCard row={r} visible={visible.filter((p) => p.id !== gp.id)} ctx={ctx} mode="board" />
             </div>
           ))}
+          {over?.key === g.key && over.before === null && <div className="ws-drop-line" aria-hidden />}
           <button type="button" className="w-full rounded-md px-2 py-1 text-left text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => void newRow({ [gp.id]: valueFor(g.key) })}>
             + {t("New")}
           </button>

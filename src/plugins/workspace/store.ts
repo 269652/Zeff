@@ -674,6 +674,40 @@ export function setCell(rowId: number, propId: string, value: unknown): void {
   changed();
 }
 
+/**
+ * A row placed between two others of its database (a card dragged on the board): `after` / `before`
+ * its new neighbours as shown (null: the start / the end). When the gap is too small to split, the
+ * database's rows are numbered afresh first.
+ */
+export function placeRow(rowId: number, at: { after: number | null; before: number | null }): void {
+  const row = getPage(rowId);
+  if (!row?.dbId) throw new Error("No such row.");
+  const d = db();
+  const pos = (id: number | null): number | null => {
+    if (id === null) return null;
+    const r = d.prepare("select db_id, position from ws_pages where id = ?").get(id) as { db_id: number | null; position: number } | undefined;
+    if (!r || r.db_id !== row.dbId) throw new Error(`#${id} is not a row of the same database.`);
+    return r.position;
+  };
+  const between = () => {
+    const lo = pos(at.after);
+    const hi = pos(at.before);
+    return lo === null && hi === null ? null : lo === null ? hi! - 1 : hi === null ? lo + 1 : (lo + hi) / 2;
+  };
+  d.transaction(() => {
+    let p = between();
+    const lo = pos(at.after);
+    const hi = pos(at.before);
+    if (p !== null && lo !== null && hi !== null && !(p > Math.min(lo, hi) && p < Math.max(lo, hi))) {
+      const set = d.prepare("update ws_pages set position = ? where id = ?");
+      (d.prepare("select id from ws_pages where db_id = ? order by position, id").all(row.dbId) as { id: number }[]).forEach((r, i) => set.run(i + 1, r.id));
+      p = between();
+    }
+    if (p !== null) d.prepare("update ws_pages set position = ? where id = ?").run(p, rowId);
+  })();
+  changed();
+}
+
 export type NewRow = { title?: string; cells?: Record<string, unknown>; templateId?: number };
 
 /** A row added: its title and cells (fitted to the properties); from a template: its content and cells come along. */

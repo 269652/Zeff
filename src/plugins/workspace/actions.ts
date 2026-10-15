@@ -261,6 +261,11 @@ export async function setCellAction(rowId: number, propId: string, value: unknow
   return run(() => (store.setCell(Number(rowId), String(propId), value), {}));
 }
 
+/** A card dragged on the board: placed between its new neighbours (null: the start / the end). */
+export async function placeRowAction(rowId: number, after: number | null, before: number | null) {
+  return run(() => (store.placeRow(Number(rowId), { after: after === null ? null : Number(after), before: before === null ? null : Number(before) }), {}));
+}
+
 export async function duplicateRowAction(rowId: number) {
   return run(() => {
     const r = store.getPage(Number(rowId));
