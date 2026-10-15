@@ -2,8 +2,7 @@ import { isoDay } from "@/lib/text";
 import { getSqlite } from "@/db";
 import { currentAccount } from "@/db/accounts";
 import { weekFromDate } from "@/lib/week";
-import { knowledgeOwnNotes } from "@/plugins/keep/boards";
-import { allKeepNotes } from "@/plugins/keep/store";
+import { knowledgeItems } from "@/lib/items";
 import { documentDocs } from "@/plugins/documents/export";
 import { isInstalled } from "@/plugins/state";
 import { pushTo } from "@/lib/collections";
@@ -45,40 +44,24 @@ function doc(d: Omit<KnowledgeDoc, "version">): KnowledgeDoc {
   return { ...d, version: version(`${d.title}\n${d.body}`) };
 }
 
-/** Your own Keep boards' notes (those set "Im Wissen") as documents — a note each, in the space "Keep · <board>". */
-function ownBoardDocs(): KnowledgeDoc[] {
-  return knowledgeOwnNotes()
-    .filter((n) => n.title || n.text)
-    .map((n) => {
-      const meta = [`Notiz im Board „${n.boardName}“`, n.labels.length ? `Labels: ${n.labels.join(", ")}` : "", n.pinned ? "angeheftet" : "", n.archived ? "archiviert" : ""].filter(Boolean).join(" · ");
+/** What an item is, by its kind (the documents' first line). */
+const KIND_DE = { card: "Karte", note: "Notiz", row: "Eintrag" } as const;
+
+/**
+ * What you keep (Keep boards, Google Keep, Workspace databases …) as documents: the items of the
+ * collections in the knowledge, archived ones too — one each, in its collection's space.
+ * `plugin`: one plugin's only.
+ */
+export function collectionDocs(plugin?: string): KnowledgeDoc[] {
+  return knowledgeItems(plugin ? { plugin } : {})
+    .filter(({ item: n }) => n.title || n.text)
+    .map(({ item: n, collection: c }) => {
+      const meta = [`${KIND_DE[n.kind]} in „${c.name}“`, n.status ? `Status: ${n.status.name}` : "", n.labels.length ? `Labels: ${n.labels.join(", ")}` : "", n.pinned ? "angeheftet" : "", n.archived ? "archiviert" : ""].filter(Boolean).join(" · ");
       return doc({
         id: n.ref,
-        space: `Keep · ${n.boardName}`,
-        title: n.title || n.text.split("\n")[0].slice(0, 100) || "Notiz",
-        url: "",
-        updatedAt: n.updatedAt ?? n.createdAt,
-        author: null,
-        body: `${meta}\n\n${clean(n.text)}`,
-      });
-    });
-}
-
-/** Google Keep's notes (Google Keep plugin) as documents — a note each, in the space "Google Keep" — and your own boards' (those in the knowledge). */
-export function keepDocs(): KnowledgeDoc[] {
-  if (!isInstalled("keep")) return [];
-  return [...ownBoardDocs(), ...googleKeepDocs()];
-}
-
-function googleKeepDocs(): KnowledgeDoc[] {
-  return allKeepNotes()
-    .filter((n) => n.title || n.text)
-    .map((n) => {
-      const meta = [n.kind === "list" ? "Liste" : "Notiz", n.labels.length ? `Labels: ${n.labels.join(", ")}` : "", n.pinned ? "angeheftet" : "", n.archived ? "archiviert" : ""].filter(Boolean).join(" · ");
-      return doc({
-        id: `keep:${n.id}`,
-        space: "Google Keep",
-        title: n.title || n.text.split("\n")[0].slice(0, 100) || "Notiz",
-        url: n.url,
+        space: c.space ?? c.name,
+        title: n.title || n.text.split("\n")[0].slice(0, 100) || KIND_DE[n.kind],
+        url: /^https?:/.test(n.href) ? n.href : "",
         updatedAt: n.updatedAt ?? n.createdAt,
         author: null,
         body: `${meta}\n\n${clean(n.text)}`,
@@ -88,7 +71,7 @@ function googleKeepDocs(): KnowledgeDoc[] {
 
 /** `only: "keep"`: just Google Keep's notes (the knowledge server's own Google Keep source). */
 export function knowledgeDocs(zeffUrl: string, only?: "keep"): { account: string; docs: KnowledgeDoc[] } {
-  if (only === "keep") return { account: currentAccount().name, docs: keepDocs() };
+  if (only === "keep") return { account: currentAccount().name, docs: collectionDocs("keep") };
   const db = getSqlite();
   const all = <T>(sql: string, ...args: unknown[]) => db.prepare(sql).all(...args) as T[];
   const docs: KnowledgeDoc[] = [];
@@ -252,7 +235,7 @@ ${clean(r.body)}` }));
     docs.push(doc({ id: `zeff:context:${c.id}`, space: "Zeff · Notizen", title: c.title || `${c.kind}${c.ticket ? ` zu ${c.ticket}` : ""} ${c.date ?? ""}`.trim(), url: "", updatedAt: c.updated_at ?? c.date, author: c.author, body: `${c.ticket ? `Zu ${c.ticket}. ` : ""}${clean(c.body)}` }));
 
   // Google Keep's notes.
-  docs.push(...keepDocs());
+  docs.push(...collectionDocs());
 
   // Facts the Mail-Durchsicht found in your messages ("Nadines Geburtstag: 16.10.") — each its own page.
   for (const f of all<{ id: number; subject: string; text: string; updated_at: string }>("select id, subject, text, updated_at from facts"))

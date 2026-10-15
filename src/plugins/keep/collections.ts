@@ -46,6 +46,7 @@ export const keepCollections: CollectionProvider = {
         readOnly: false,
         briefing: b.inLage,
         knowledge: b.inKnowledge,
+        space: `Keep · ${b.name}`,
         items: b.notes,
       }),
     );
@@ -65,11 +66,12 @@ export const keepCollections: CollectionProvider = {
     };
     return [...own, google];
   },
-  items(id) {
-    if (id === GOOGLE) return keepCount() ? allKeepNotes().filter((n) => !n.archived).map((n) => toItem(googleNote(n), GOOGLE)) : null;
+  items(id, { archived = false } = {}) {
+    if (id === GOOGLE) return keepCount() ? allKeepNotes().filter((n) => archived || !n.archived).map((n) => toItem(googleNote(n), GOOGLE)) : null;
     const m = /^keep:board:(\d+)$/.exec(id);
     if (!m || !listKeepBoards().some((b) => b.id === Number(m[1]))) return null;
-    return listOwnNotes(Number(m[1])).map((n) => toItem(n, id));
+    const board = Number(m[1]);
+    return [...listOwnNotes(board), ...(archived ? listOwnNotes(board, { archived: true }) : [])].map((n) => toItem(n, id));
   },
   byRefs: (refs) => notesByRefs(refs).map((n) => toItem(n, n.boardId ? ownId(n.boardId) : GOOGLE)),
 };

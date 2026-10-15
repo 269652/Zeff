@@ -9,8 +9,8 @@ import type { Collection, Item } from "./shared";
 export type CollectionProvider = {
   /** Its collections. */
   collections(): Collection[];
-  /** A collection's items (not the archived); null when the id isn't one of its collections. */
-  items(collectionId: string): Item[] | null;
+  /** A collection's items (`archived`: the archived ones too); null when the id isn't one of its collections. */
+  items(collectionId: string, opts?: { archived?: boolean }): Item[] | null;
   /** The items among `refs` that are its own and still there. */
   byRefs(refs: string[]): Item[];
 };

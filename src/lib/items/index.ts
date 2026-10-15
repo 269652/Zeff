@@ -25,10 +25,10 @@ export function listCollections(filter: CollectionFilter = {}): Collection[] {
     );
 }
 
-/** A collection's items; null when no installed plugin has it. */
-export function collectionItems(id: string): Item[] | null {
+/** A collection's items (`archived`: the archived ones too); null when no installed plugin has it. */
+export function collectionItems(id: string, opts: { archived?: boolean } = {}): Item[] | null {
   for (const p of providers()) {
-    const items = p.items(id);
+    const items = p.items(id, opts);
     if (items) return items;
   }
   return null;
@@ -53,6 +53,11 @@ export function placed(items: Iterable<Item>): PlacedItem[] {
     const collection = cols.get(item.collectionId);
     return collection ? [{ item, collection }] : [];
   });
+}
+
+/** What goes into the knowledge: the items of the collections in it, archived ones too. */
+export function knowledgeItems(filter: Pick<CollectionFilter, "plugin"> = {}): PlacedItem[] {
+  return listCollections({ ...filter, knowledge: true }).flatMap((collection) => (collectionItems(collection.id, { archived: true }) ?? []).map((item) => ({ item, collection })));
 }
 
 /**

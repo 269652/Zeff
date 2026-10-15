@@ -24,6 +24,8 @@ export type Collection = {
   briefing: boolean;
   /** Its items go into the knowledge. */
   knowledge: boolean;
+  /** Its space in the knowledge (default: its name). */
+  space?: string;
   /** How many items it has (not the archived). */
   items: number;
 };
