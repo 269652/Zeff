@@ -71,9 +71,10 @@ export async function register() {
   try {
     // Once: Kanban's boards move into the Workspace (a copy of the database first) — in every account.
     const { listAccounts, withAccount } = await import("./db/accounts");
-    const { moveAllBoardsOnce } = await import("./plugins/kanban/to-workspace");
+    const { moveAllBoardsOnce, widenMovedBoardsOnce } = await import("./plugins/kanban/to-workspace");
     for (const a of listAccounts()) {
       const r = await withAccount(a.id, moveAllBoardsOnce);
+      withAccount(a.id, widenMovedBoardsOnce);
       if (r?.moved || r?.failed) console.log(`[kanban] ${a.name}: ${r.moved} board(s) moved into the Workspace${r.failed ? `, ${r.failed} failed (tried again at the next start)` : ""} — backup: ${r.backup}`);
     }
   } catch (e) {

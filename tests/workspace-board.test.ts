@@ -84,3 +84,11 @@ test("ticketExtras: a card's todos and Lage by its key", async () => {
   assert.deepEqual(x["WS-41"].todos.map((t) => [t.id, t.status]), [[a.id, "open"], [b.id, "done"]], "open first");
   assert.equal(x["WS-41"].attention, null, "no Lage run yet");
 });
+
+/** A row's properties panel leaves out what Zeff keeps for itself: the ticket key, a note's ref. */
+test("panelProperties: the system properties (ticketkey, noteref) aren't shown", async () => {
+  const { panelProperties, newProperty } = await import("@/plugins/workspace/model");
+  const status = newProperty("Status", "status");
+  const props = [status, { id: "ticketkey", name: "Key", type: "text" as const }, { id: "noteref", name: "Note", type: "text" as const }, { id: "color", name: "Color", type: "select" as const, options: [] }];
+  assert.deepEqual(panelProperties(props).map((p) => p.name), ["Status", "Color"]);
+});

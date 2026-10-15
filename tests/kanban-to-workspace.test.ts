@@ -31,6 +31,7 @@ test("a Kanban board moves into the Workspace as a database, its cards as rows",
   const { dbId } = moveBoardToWorkspace(b);
   const d = w.getDatabase(dbId)!;
   assert.equal(d.page.title, "Haus");
+  assert.equal(d.page.fullWidth, true, "a board uses the whole width, as Kanban did");
   const prop = (name: string) => d.schema.properties.find((p) => p.name === name)!;
   const status = prop("Status");
   assert.deepEqual(status.options!.map((o) => [o.name, o.group]), [["Offen", "todo"], ["Dran", "doing"], ["Fertig", "done"]]);
@@ -188,4 +189,20 @@ test("boardCreated: after the move a new Kanban board goes straight into the Wor
   const after = s.createBoard({ name: "Nachher" });
   boardCreated(after);
   assert.match(movedHref(after) ?? "", /^\/workspace\/\d+$/);
+});
+
+/** Boards moved before they got the whole width: widened once. */
+test("widenMovedBoardsOnce: boards moved earlier get the whole width — once", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["kanban", "workspace"]) setInstalled(id, true);
+  const s = await import("@/plugins/kanban/store");
+  const w = await import("@/plugins/workspace/store");
+  const { moveBoardToWorkspace, widenMovedBoardsOnce } = await import("@/plugins/kanban/to-workspace");
+  const { dbId } = moveBoardToWorkspace(s.createBoard({ name: "Schmal" }));
+  w.updatePage(dbId, { fullWidth: false });
+  assert.equal(widenMovedBoardsOnce(), true);
+  assert.equal(w.getPage(dbId)!.fullWidth, true);
+  w.updatePage(dbId, { fullWidth: false });
+  assert.equal(widenMovedBoardsOnce(), false, "once: narrowed by you, it stays so");
+  assert.equal(w.getPage(dbId)!.fullWidth, false);
 });

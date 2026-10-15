@@ -163,6 +163,11 @@ export function normalizeSchema(raw: unknown): DbSchema {
 
 export const propById = (props: Property[], id: string): Property | undefined => props.find((p) => p.id === id);
 
+/** What Zeff keeps on a row for itself (a moved card's ticket key, a moved note's ref): not shown among its properties. */
+export const SYSTEM_PROPS = new Set(["ticketkey", "noteref"]);
+/** The properties a row's panel shows. */
+export const panelProperties = (props: Property[]): Property[] => props.filter((p) => !SYSTEM_PROPS.has(p.id));
+
 // ---------------------------------------------------------------------------
 // Values
 // ---------------------------------------------------------------------------

@@ -90,6 +90,7 @@ function move(boardId: number): { dbId: number } {
     views: [{ ...newView("Board", "board"), groupBy: status.id, hidden: [key.id] }, newView("Table", "table")],
   };
   const dbId = createPage({ kind: "database", title: board.name, schema });
+  updatePage(dbId, { fullWidth: true }); // a board uses the whole width, as Kanban did
   const parent: Property = { ...prop("Parent", "relation"), relationDb: dbId };
   updateSchema(dbId, { ...schema, properties: [...schema.properties, parent] });
 
@@ -151,6 +152,16 @@ export async function moveAllBoardsOnce(): Promise<{ moved: number; failed: numb
   }
   if (!failed) setPref(MOVED_ALL, true);
   return { moved: boards.length - failed, failed, backup };
+}
+
+const WIDENED = "kanban.movedBoardsWidened";
+
+/** Once: the boards moved before they got the whole width get it (narrowed later by you, they stay so). True when it ran. */
+export function widenMovedBoardsOnce(): boolean {
+  if (getPref<boolean>(WIDENED, false)) return false;
+  for (const { db_id } of db().prepare("select db_id from kanban_moved_boards").all() as { db_id: number }[]) if (getDatabase(db_id)) updatePage(db_id, { fullWidth: true });
+  setPref(WIDENED, true);
+  return true;
 }
 
 /** A board was made in Kanban: once the boards have moved (and the Workspace is there), it goes into the Workspace too. */

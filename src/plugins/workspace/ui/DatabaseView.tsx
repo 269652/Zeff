@@ -1,11 +1,11 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, placeRowAction, setCellAction, updateSchemaAction, type DatabaseData } from "../actions";
-import { cellText, columnOrder, dateRange, dropValue, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
+import { cellText, columnOrder, dateRange, dropValue, panelProperties, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
 import { RowPeek } from "./RowPeek";
@@ -180,6 +180,8 @@ function useDatabase(initial: DatabaseData | null, dbId: number) {
 
 type Api = ReturnType<typeof useDatabase>;
 
+const noSubscribe = () => () => {};
+
 export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }: { initial: DatabaseData | null; dbId: number; viewId?: string; onView?: (id: string) => void; embedded?: boolean }) {
   const t = useT();
   const router = useRouter();
@@ -192,6 +194,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   // A row opens over the database (?row=<id> — a link to it opens it again); the full page is a click further.
   const search = useSearchParams();
   const [peek, setPeek] = useState<number | null>(() => Number(search.get("row")) || null);
+  // The panel is drawn in the browser only (a portal): the server's HTML has none, so nothing to mismatch.
+  const inBrowser = useSyncExternalStore(noSubscribe, () => true, () => false);
   const [databases, setDatabases] = useState<{ id: number; title: string }[]>([]);
   useEffect(() => {
     if (schemaOpen) void databasesAction().then((r) => r.ok && setDatabases(r.databases.map((d) => ({ id: d.id, title: d.title }))));
@@ -410,7 +414,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
       <p className="text-xs text-zinc-500">{rows.length === data.rows.length ? (rows.length === 1 ? t("1 row") : t("{n} rows", { n: rows.length })) : t("{n} of {total} rows", { n: rows.length, total: data.rows.length })}</p>
 
       {schemaOpen && <SchemaModal schema={schema} data={data} dbId={dbId} databases={databases} onSave={api.saveSchema} onClose={() => setSchemaOpen(false)} />}
-      {peek !== null && data.rows.some((r) => r.id === peek) && <RowPeek key={peek} data={data} rowId={peek} onClose={closePeek} />}
+      {inBrowser && peek !== null && data.rows.some((r) => r.id === peek) && <RowPeek key={peek} data={data} rowId={peek} onClose={closePeek} />}
     </div>
   );
 }
@@ -863,7 +867,7 @@ export function RowProperties({ initial, dbId, rowId }: { initial: DatabaseData;
   if (!data.schema.properties.length) return null;
   return (
     <dl className="grid gap-x-4 gap-y-0.5 sm:grid-cols-[10rem_minmax(0,1fr)]" aria-label={t("Properties")}>
-      {data.schema.properties.map((p) => (
+      {panelProperties(data.schema.properties).map((p) => (
         <div key={p.id} className="contents">
           <dt className="flex min-h-7 items-center text-sm text-zinc-500">{p.name}</dt>
           <dd className="flex min-h-7 flex-wrap items-center gap-1 text-sm">

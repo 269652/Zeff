@@ -69,6 +69,7 @@ function move(boardId: number): { dbId: number } {
     views: [{ ...newView("Notes", "gallery"), sorts: [{ prop: pinned.id, dir: "desc" }], hidden: [ref.id, pinned.id] }, newView("Table", "table")],
   };
   const dbId = createPage({ kind: "database", title: board.name, schema });
+  updatePage(dbId, { fullWidth: true }); // the notes use the whole width, as Keep's did
 
   const d = db();
   const rows = new Map<string, number>();
