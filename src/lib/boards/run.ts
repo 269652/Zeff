@@ -34,6 +34,10 @@ export function cleanResult(r: BoardResult, tickets: BoardTicket[]): BoardResult
         todos: (t.todos ?? []).filter((d) => d?.text?.trim()),
         resolved: (t.resolved ?? []).filter((d) => Number.isInteger(d?.id)),
         flags: (t.flags ?? []).filter(Boolean).slice(0, 5),
+        branchKnowledge: (t.branchKnowledge ?? [])
+          .filter((b) => b && String(b.text ?? "").trim())
+          .slice(0, 4)
+          .map((b) => ({ kind: b.kind === "rule" ? ("rule" as const) : ("change" as const), text: String(b.text).trim().slice(0, 300), ...(/^(teams|jira-comment|mail):./.test(String(b.ref ?? "").trim()) ? { ref: String(b.ref).trim() } : {}) })),
         questions: (t.questions ?? [])
           .filter((x) => x && String(x.q ?? "").trim())
           .slice(0, 5)
@@ -113,6 +117,12 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
           // Questions the context left open: answered from what the knowledge base has on them (looked up now, not given in the prompt).
           await answerOpenQuestions(result).catch((e) => console.error("[boards] answering the questions failed:", errorMessage(e)));
           reconcileTodos(result, id);
+          // What the AI read about code changes and branch naming while it wrote the todos: kept as knowledge artifacts (tag branch-naming).
+          try {
+            (await import("@/lib/work/branch-knowledge")).keepFromBriefing(result.tickets);
+          } catch (e) {
+            console.error("[boards] keeping the branch knowledge failed:", errorMessage(e));
+          }
           closeTodosOfDoneTickets(doneLeft);
           // Merge requests to open, asked for in words: their button (push → open MR), worked out from git.
           try {
@@ -163,12 +173,6 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
         if (stepAvailable("peoplenorm")) {
           state.__zeffBoardRun = { id, phase: "people", since: t0, provider };
           await syncAndWait("peoplenorm");
-        }
-        // Each todo with a ticket and the messages it comes from, kept as knowledge (tagged for the branch names) — before a message is gone.
-        try {
-          (await import("@/lib/work/branch-knowledge")).ensureBranchKnowledge();
-        } catch {
-          // the artifacts are made again at the next run or export
         }
         throwIfAborted();
         // The duplicates the steps above may have left (and any from before): merged into the oldest, before the actions look at them.

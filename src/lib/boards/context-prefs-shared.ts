@@ -112,21 +112,12 @@ export const contextSteps = (t: T): ContextStep[] => [
   {
     id: "branchname",
     label: t("Branch names"),
-    what: t("What a worker is told when it names a branch — the rules, how short the name is, and the context that goes with it. The preview below shows what a todo would get."),
+    what: t("What a worker is told when it names a branch: the rule, how short the name is — and the knowledge kept for it (what messages said about the code change and about naming branches, written by the AI of the briefing)."),
     plugin: "work",
-    sources: [
-      { key: "rules", label: t("Rules"), what: t("What colleagues said about naming branches, with the message it comes from"), default: true },
-      { key: "knowledge", label: t("Kept knowledge of the ticket"), what: t("Each todo and the messages it comes from, kept — also when the todo is done and the message is gone"), default: true },
-      { key: "ticket", label: t("The Jira ticket"), what: t("Its title and status"), plugin: "jira", default: true },
-      { key: "comments", label: t("Jira comments"), what: t("The newest comments on the ticket"), plugin: "jira", default: true },
-      { key: "todo", label: t("The todo"), what: t("Its text and note"), default: true },
-      { key: "branches", label: t("Branches already there"), what: t("The ticket's linked branches and merge requests, to keep to their style"), default: true },
-    ],
+    sources: [],
     numbers: [
       { key: "maxChars", label: t("Characters after the ticket key, at most"), min: 10, max: 60, default: 24 },
       { key: "words", label: t("Words in the short name, at most"), min: 1, max: 6, default: 3 },
-      { key: "artifacts", label: t("Kept todos of the ticket, at most"), min: 1, max: 12, default: 6 },
-      { key: "comments", label: t("Jira comments, at most"), min: 1, max: 10, default: 3 },
     ],
   },
 ];

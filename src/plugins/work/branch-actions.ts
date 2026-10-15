@@ -3,17 +3,19 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { errorMessage } from "@/lib/errors";
-import { addBranchRule, deleteBranchRule, setBranchRuleEnabled } from "@/lib/work/branch-rules";
+import { addArtifact, deleteArtifact, setArtifactEnabled } from "@/lib/work/branch-knowledge";
 
-/** The branch naming rules (Auswerten → Branch names): one kept, switched off or on, deleted — forms post to these. */
+/** The branch knowledge (Prompts → Branch names): one added by hand, switched off or on, deleted — forms post to these. */
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const back = (error?: string): never => redirect(`/settings/prompts${error ? `?error=${encodeURIComponent(error)}` : ""}#branchname`);
 
-export async function addBranchRuleAction(fd: FormData): Promise<void> {
+export async function addArtifactAction(fd: FormData): Promise<void> {
   let err: string | undefined;
   try {
-    addBranchRule({ text: str(fd, "text"), scope: str(fd, "scope"), refs: str(fd, "refs").split(/[\s,;]+/).filter(Boolean) });
+    const ticket = str(fd, "ticket");
+    if (!/^[A-Za-z][A-Za-z0-9]+-\d+$/.test(ticket)) throw new Error("A ticket key like PROJ-306, please.");
+    addArtifact({ ticket, kind: str(fd, "kind") === "rule" ? "rule" : "change", text: str(fd, "text"), ref: str(fd, "ref") || null });
   } catch (e) {
     err = errorMessage(e);
   }
@@ -21,14 +23,14 @@ export async function addBranchRuleAction(fd: FormData): Promise<void> {
   back(err);
 }
 
-export async function toggleBranchRuleAction(fd: FormData): Promise<void> {
-  setBranchRuleEnabled(Number(str(fd, "id")), str(fd, "enabled") === "1");
+export async function toggleArtifactAction(fd: FormData): Promise<void> {
+  setArtifactEnabled(Number(str(fd, "id")), str(fd, "enabled") === "1");
   revalidatePath("/settings/prompts");
   back();
 }
 
-export async function deleteBranchRuleAction(fd: FormData): Promise<void> {
-  deleteBranchRule(Number(str(fd, "id")));
+export async function deleteArtifactAction(fd: FormData): Promise<void> {
+  deleteArtifact(Number(str(fd, "id")));
   revalidatePath("/settings/prompts");
   back();
 }

@@ -554,6 +554,8 @@ export type BoardResult = {
     flags: string[];
     /** Changes to the ticket to make now (older runs: none). */
     actions?: TicketAction[];
+    /** What the messages say about the code change (kind "change") or how branches are named (kind "rule") — kept as knowledge for naming branches (older runs: none). */
+    branchKnowledge?: { kind: "change" | "rule"; text: string; ref?: string }[];
     /** Possible questions about the ticket, answered from the context — or, with `search`, from the knowledge base afterwards (older runs: none). */
     questions?: TicketQuestion[];
   }[];
@@ -696,6 +698,16 @@ export const BOARD_RESULT_SCHEMA = {
             items: { type: "string" },
             description:
               "Kurze Warnhinweise, z. B. „Rückfrage seit 24.09. offen“.",
+          },
+          branchKnowledge: {
+            type: "array",
+            description:
+              "Nur wenn eine Nachricht, ein Kommentar oder das Ticket ausdrücklich sagt, WAS im Code geändert werden soll (kind change: der eigentliche Change in 2–6 Wörtern, z. B. „Footer-Link einrücken“) oder WIE Branches benannt werden sollen (kind rule: die Regel in einem Satz, z. B. „Der Branch-Name beschreibt den Code Change, nicht den Ticket-Titel“) — mit ref der Nachricht (z. B. teams:…). Kein Smalltalk, nicht der Ticket-Titel allein. Höchstens 4, sonst leer.",
+            items: {
+              type: "object",
+              required: ["kind", "text"],
+              properties: { kind: { type: "string", enum: ["change", "rule"] }, text: { type: "string" }, ref: { type: "string" } },
+            },
           },
           questions: {
             type: "array",
