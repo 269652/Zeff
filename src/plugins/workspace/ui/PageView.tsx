@@ -135,6 +135,62 @@ export function PageView({ page, row, database }: { page: PageViewData; row?: { 
     if (!r.ok) toast(r.error, { tone: "error" });
     router.refresh();
   };
+  /** Pick a cover: a gradient, a picture of yours, or none. */
+  const coverPicker = (close: () => void) => (
+    <div className="w-64 space-y-2 p-1">
+      <div className="grid grid-cols-4 gap-1.5">
+        {Object.entries(COVERS).map(([k, v]) => (
+          <button
+            key={k}
+            type="button"
+            title={k}
+            aria-label={k}
+            className="h-8 rounded-md border border-zinc-200 dark:border-zinc-700"
+            style={{ backgroundImage: v }}
+            onClick={() => {
+              setCover(`gradient:${k}`);
+              void patch({ cover: `gradient:${k}` });
+              close();
+            }}
+          />
+        ))}
+      </div>
+      <div className="flex gap-1">
+        <button
+          type="button"
+          className="btn btn-sm flex-1"
+          onClick={async () => {
+            close();
+            const f = await pickFile("image/*");
+            if (!f) return;
+            try {
+              const url = await uploadImage(f);
+              setCover(url);
+              void patch({ cover: url });
+            } catch (e) {
+              toast(e instanceof Error ? e.message : String(e), { tone: "error" });
+            }
+          }}
+        >
+          {t("Upload a picture")}
+        </button>
+        {cover && (
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => {
+              setCover("");
+              void patch({ cover: "" });
+              close();
+            }}
+          >
+            {t("Remove")}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
   const saveTitle = (v: string) => {
     setTitle(v);
     setStatus("saving");
@@ -252,68 +308,16 @@ export function PageView({ page, row, database }: { page: PageViewData; row?: { 
         </Dropdown>
       </div>
 
-      {(cover || editable) && (
-        <div className={`group/cover relative -mx-1 overflow-hidden rounded-lg ${cover ? "ws-cover" : ""}`} style={coverStyle(cover)}>
-          <div className={`flex gap-1 ${cover ? "absolute right-2 bottom-2 opacity-0 transition-opacity group-hover/cover:opacity-100 focus-within:opacity-100" : ""}`}>
-            {editable && (
-              <Dropdown label={cover ? t("Change cover") : t("Add cover")} className="btn btn-sm bg-white/90 dark:bg-zinc-900/90" align="right">
-                {(close) => (
-                  <div className="w-64 space-y-2 p-1">
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {Object.entries(COVERS).map(([k, v]) => (
-                        <button
-                          key={k}
-                          type="button"
-                          title={k}
-                          aria-label={k}
-                          className="h-8 rounded-md border border-zinc-200 dark:border-zinc-700"
-                          style={{ backgroundImage: v }}
-                          onClick={() => {
-                            setCover(`gradient:${k}`);
-                            void patch({ cover: `gradient:${k}` });
-                            close();
-                          }}
-                        />
-                      ))}
-                    </div>
-                    <div className="flex gap-1">
-                      <button
-                        type="button"
-                        className="btn btn-sm flex-1"
-                        onClick={async () => {
-                          close();
-                          const f = await pickFile("image/*");
-                          if (!f) return;
-                          try {
-                            const url = await uploadImage(f);
-                            setCover(url);
-                            void patch({ cover: url });
-                          } catch (e) {
-                            toast(e instanceof Error ? e.message : String(e), { tone: "error" });
-                          }
-                        }}
-                      >
-                        {t("Upload a picture")}
-                      </button>
-                      {cover && (
-                        <button
-                          type="button"
-                          className="btn btn-sm"
-                          onClick={() => {
-                            setCover("");
-                            void patch({ cover: "" });
-                            close();
-                          }}
-                        >
-                          {t("Remove")}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
+      {/* The cover: shown when there is one (its hover button changes it); adding one is in the title's ⋯ menu — no row of its own. */}
+      {cover && (
+        <div className="group/cover ws-cover relative -mx-1 overflow-hidden rounded-lg" style={coverStyle(cover)}>
+          {editable && (
+            <div className="absolute right-2 bottom-2 flex gap-1 opacity-0 transition-opacity group-hover/cover:opacity-100 focus-within:opacity-100">
+              <Dropdown label={t("Change cover")} className="btn btn-sm bg-white/90 dark:bg-zinc-900/90" align="right">
+                {coverPicker}
               </Dropdown>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -350,6 +354,11 @@ export function PageView({ page, row, database }: { page: PageViewData; row?: { 
             aria-label={t("Title")}
             className="min-w-0 flex-1 resize-none overflow-hidden bg-transparent text-4xl leading-tight font-bold outline-none focus:outline-none focus-visible:outline-none placeholder:text-zinc-300 dark:placeholder:text-zinc-700"
           />
+          {editable && !cover && (
+            <Dropdown label="⋯" title={t("Add cover")} align="right" className="mt-2 rounded-md px-2 py-1 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+              {coverPicker}
+            </Dropdown>
+          )}
         </div>
 
         {row && <RowProperties initial={row.initial} dbId={row.dbId} rowId={page.id} />}
