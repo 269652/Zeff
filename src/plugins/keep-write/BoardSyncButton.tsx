@@ -40,7 +40,7 @@ export function BoardSyncButton({ boardId, boardName, initial, linked }: { board
     <div className="space-y-1.5 rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
       <div className="flex items-center gap-2">
         <span className="font-medium">Google Keep</span>
-        <span className="rounded bg-amber-100 px-1 text-[10px] font-semibold text-amber-800 uppercase dark:bg-amber-950 dark:text-amber-200">Beta</span>
+        <span className="rounded bg-amber-100 px-1 text-xs font-semibold text-amber-800 uppercase dark:bg-amber-950 dark:text-amber-200">Beta</span>
       </div>
       {running ? (
         <p className="text-xs text-zinc-600 dark:text-zinc-300">

@@ -14,11 +14,11 @@ export const API_VERSION = 1;
 
 /** What a plugin may be allowed to do — each named in its manifest, granted by you when you enable it. */
 export const PERMISSIONS = {
-  "work.read": "Read Work sessions, their logs and results",
-  "work.write": "Start, continue and stop Work sessions",
+  "work.read": "Read Code sessions, their logs and results",
+  "work.write": "Start, continue and stop Code sessions",
   "todos.read": "Read your todos",
   "todos.write": "Add todos",
-  prompt: "Add rules to what Work's workers are told",
+  prompt: "Add rules to what Code's workers are told",
   exec: "Run programs on this computer (event hooks, MCP servers) — with your rights",
   network: "Let its panels contact other websites (otherwise they can't)",
 } as const;
@@ -27,9 +27,9 @@ export const PERMISSION_IDS = Object.keys(PERMISSIONS) as [Permission, ...Permis
 
 /** The events a hook can listen to (docs/plugins/hooks.md). */
 export const EVENTS = {
-  "work.run.started": "A Work run started working",
-  "work.run.finished": "A Work run ended (done, failed, stopped or interrupted)",
-  "work.changed": "Something in Work changed (no details; at most every half second)",
+  "work.run.started": "A Code run started working",
+  "work.run.finished": "A Code run ended (done, failed, stopped or interrupted)",
+  "work.changed": "Something in Code changed (no details; at most every half second)",
   "todos.changed": "Something in the todos changed (no details; at most every half second)",
 } as const;
 export type ExtEvent = keyof typeof EVENTS;
@@ -76,7 +76,7 @@ const panel = z.object({
   placement: z
     .enum(["tab", "session"])
     .default("tab")
-    .describe('"tab": a view of its own, linked in Work\'s sidebar. "session": a drawer beside a session, which gets that session\'s ids.'),
+    .describe('"tab": a view of its own, linked in Code\'s sidebar. "session": a drawer beside a session, which gets that session\'s ids.'),
 });
 
 const hook = z.object({
@@ -89,10 +89,10 @@ const contributes = z.object({
     .union([relPath, z.array(relPath).max(10)])
     .transform((v) => (Array.isArray(v) ? v : [v]))
     .default([])
-    .describe("Text files whose content is added to the rules of every Work worker. Needs the prompt permission."),
-  workCommands: z.array(command).max(50).default([]).describe('Entries of the Work message box\'s "/" menu.'),
-  workerMcpServers: z.record(shortId, z.union([mcpStdio, mcpHttp])).default({}).describe("MCP servers every Work worker gets (stdio: needs exec; http: needs network)."),
-  workPanels: z.array(panel).max(20).default([]).describe("Views in Work, shown in a sandboxed frame."),
+    .describe("Text files whose content is added to the rules of every Code worker. Needs the prompt permission."),
+  workCommands: z.array(command).max(50).default([]).describe('Entries of the Code message box\'s "/" menu.'),
+  workerMcpServers: z.record(shortId, z.union([mcpStdio, mcpHttp])).default({}).describe("MCP servers every Code worker gets (stdio: needs exec; http: needs network)."),
+  workPanels: z.array(panel).max(20).default([]).describe("Views in Code, shown in a sandboxed frame."),
   hooks: z.partialRecord(z.enum(EVENT_IDS), hook).default({}).describe("Programs Zeff runs when something happens. Needs the exec permission."),
 });
 

@@ -16,12 +16,18 @@ export async function callDriver(name: DriverId, tool: string, args: Record<stri
  * replacing what was there. How many weeks and events.
  */
 export async function syncOutlookWeekStarts(weekStartIsos: string[]): Promise<{ weeks: number; events: number }> {
-  const raw = await callDriver("outlook", "outlook_events", { weekStartIsos: [...new Set(weekStartIsos)].sort() }, "Outlook sync", 300000);
+  const weeks = [...new Set(weekStartIsos)].sort();
   let pulled: { weekStartIso: string; events: unknown[] }[];
-  try {
-    pulled = (JSON.parse(raw) as { weeks?: typeof pulled }).weeks ?? [];
-  } catch {
-    throw new Error(raw.slice(0, 300));
+  if ((await import("@/lib/connectors/store")).driverOf("outlook-calendar") === "api") {
+    // Through Microsoft Graph: no Chrome.
+    pulled = await (await import("@/lib/microsoft/calendar-api")).readWeeks(weeks);
+  } else {
+    const raw = await callDriver("outlook", "outlook_events", { weekStartIsos: weeks }, "Outlook sync", 300000);
+    try {
+      pulled = (JSON.parse(raw) as { weeks?: typeof pulled }).weeks ?? [];
+    } catch {
+      throw new Error(raw.slice(0, 300));
+    }
   }
   const { replaceInboxWeeks } = await import("@/lib/calendar/inbox");
   const r = replaceInboxWeeks(pulled);

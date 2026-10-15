@@ -164,7 +164,7 @@ export function MailAttachmentsSettings({ settings, sources, folders, totals }: 
     <details id="attachments" className="card group text-sm" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
       <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-2.5 [&::-webkit-details-marker]:hidden">
         <span className="font-medium">{t("Mail attachments → Documents")}</span>
-        <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${settings.enabled ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200" : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"}`}>{settings.enabled ? t("on") : t("off")}</span>
+        <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${settings.enabled ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200" : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"}`}>{settings.enabled ? t("on") : t("off")}</span>
         {totals.documents > 0 && <span className="text-xs text-zinc-400">{t("{n} documents so far", { n: totals.documents })}</span>}
         <span className="ml-auto text-xs text-zinc-400 group-open:hidden">{t("Settings")}</span>
       </summary>

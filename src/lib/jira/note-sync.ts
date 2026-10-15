@@ -1,4 +1,7 @@
+import path from "node:path";
 import { jiraCommentUrl } from "@/lib/boards/shared";
+import { documentFile } from "@/plugins/documents/store";
+import { NOTE_IMAGE, noteImageIds } from "@/plugins/documents/shared";
 import { getTodo, markNoteSynced } from "@/lib/boards/store";
 import { ValidationError, errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
@@ -20,7 +23,28 @@ export type NoteSyncDeps = {
   lookupUser?: import("@/plugins/people/accounts").JiraLookup;
   post: (ticket: string, body: string) => Promise<string | null>;
   edit: (ticket: string, commentId: string, body: string) => Promise<void>;
+  /** Files (full paths) uploaded to the ticket as attachments — the pictures of a note, before its comment names them. */
+  attach?: (ticket: string, paths: string[]) => Promise<void>;
 };
+
+/** A note's inline pictures (![title](doc:12)) with their stored file — the name it has as an attachment on Jira is the file's name. */
+export function noteImageFiles(text: string): { id: number; title: string; path: string; name: string }[] {
+  const out: { id: number; title: string; path: string; name: string }[] = [];
+  for (const id of noteImageIds(text)) {
+    const f = documentFile(id);
+    if (f) out.push({ id, title: f.name, path: f.path, name: path.basename(f.path) });
+  }
+  return out;
+}
+
+/**
+ * The note as the Jira comment says it: each inline picture is the attachment by its file name (`![](name)` — the
+ * Jira connector shows it as the picture); a picture whose file is gone is just its title.
+ */
+export function noteBodyForJira(text: string, files: { id: number; name: string }[]): string {
+  const byId = new Map(files.map((f) => [f.id, f]));
+  return text.replace(NOTE_IMAGE, (_all, title: string, id: string) => (byId.has(Number(id)) ? `![](${byId.get(Number(id))!.name})` : title || ""));
+}
 
 /** The comment id in jira_add_comment's answer ({ comment: { id } }, { id }, …), if any. */
 function commentIdOf(payload: unknown): string | null {
@@ -44,6 +68,7 @@ async function viaJira<T>(fn: (deps: NoteSyncDeps) => Promise<T>): Promise<T> {
       out = await fn({
         post: async (ticket, body) => commentIdOf(resultToPayload(await call("jira_add_comment", { issue_key: ticket, body }))),
         edit: async (ticket, commentId, body) => void (await call("jira_edit_comment", { issue_key: ticket, comment_id: commentId, body })),
+        attach: async (ticket, paths) => void (await call("jira_update_issue", { issue_key: ticket, fields: "{}", attachments: JSON.stringify(paths) })),
       });
     },
     120000,
@@ -78,8 +103,18 @@ export async function syncNoteToJira(todoId: number, at: string, deps?: NoteSync
   } catch {
     // without the link, the name is written out
   }
-  const { text, hash, noAccount } = jiraNoteBody(note.text);
+  const { text: words, hash, noAccount } = jiraNoteBody(note.text);
   const sync = async (d: NoteSyncDeps): Promise<NoteSyncResult> => {
+    // The pictures first: uploaded to the ticket as attachments (once each) — then the comment names them.
+    const images = noteImageFiles(note.text);
+    const done = new Set(note.jiraFiles ?? []);
+    const pending = images.filter((i) => !done.has(i.id));
+    if (pending.length && d.attach) {
+      await d.attach(ticket.key, pending.map((i) => i.path));
+      for (const i of pending) done.add(i.id);
+    }
+    // (Without a way to upload — nothing was: such a picture isn't named in the comment.)
+    const text = noteBodyForJira(words, images.filter((i) => done.has(i.id)));
     const post = async () => {
       const id = await d.post(ticket.key, text);
       if (!id) throw new ValidationError(t("Jira didn't say which comment it made — nothing is marked as synced."));
@@ -102,7 +137,7 @@ export async function syncNoteToJira(todoId: number, at: string, deps?: NoteSync
       }
     }
     const url = ticket.url ? jiraCommentUrl(ticket.url, commentId) : null;
-    markNoteSynced(todoId, at, { commentId, hash, url, text: note.text });
+    markNoteSynced(todoId, at, { commentId, hash, url, text: note.text, files: [...done] });
     return { state, commentId, url, noAccount };
   };
   try {

@@ -26,11 +26,11 @@ function SyncedMark({ s }: { s: SyncedComment }) {
       ? t("Synced to Jira by Zeff as a comment — done there")
       : t("Synced to Jira by Zeff as a comment");
   return s.url ? (
-    <a href={s.url} target="_blank" rel="noreferrer" className="shrink-0 self-center text-[11px] font-medium whitespace-nowrap text-sky-700 hover:underline dark:text-sky-400" title={title}>
+    <a href={s.url} target="_blank" rel="noreferrer" className="shrink-0 self-center text-xs font-medium whitespace-nowrap text-sky-700 hover:underline dark:text-sky-400" title={title}>
       {text}
     </a>
   ) : (
-    <span className="shrink-0 self-center text-[11px] font-medium whitespace-nowrap text-sky-700 dark:text-sky-400" title={title}>
+    <span className="shrink-0 self-center text-xs font-medium whitespace-nowrap text-sky-700 dark:text-sky-400" title={title}>
       {text}
     </span>
   );
@@ -40,7 +40,7 @@ function SyncedMark({ s }: { s: SyncedComment }) {
 function PostedMark({ by }: { by: { todoId: number; text: string } }) {
   const t = useT();
   return (
-    <span className="shrink-0 self-center text-[11px] font-medium whitespace-nowrap text-sky-700 dark:text-sky-400" title={t("Posted by Zeff as the action of {ref}: {text}", { ref: todoRef(by.todoId), text: by.text })}>
+    <span className="shrink-0 self-center text-xs font-medium whitespace-nowrap text-sky-700 dark:text-sky-400" title={t("Posted by Zeff as the action of {ref}: {text}", { ref: todoRef(by.todoId), text: by.text })}>
       ✓ {todoRef(by.todoId)}
     </span>
   );
@@ -101,7 +101,7 @@ export function useContextItems(list: TodoSource[], notes: TodoUserNote[], todoI
 export function AreaToggle({ open, onToggle, label, tone = "indigo", title, children }: { open: boolean; onToggle: () => void; label: string; tone?: "indigo" | "violet" | "emerald"; title?: string; children?: React.ReactNode }) {
   const color = tone === "violet" ? "text-violet-700 dark:text-violet-300" : tone === "emerald" ? "text-emerald-700 dark:text-emerald-300" : "text-indigo-600 dark:text-indigo-400";
   return (
-    <button type="button" onClick={onToggle} className={`flex items-center gap-1 text-xs font-medium hover:underline ${color}`} aria-expanded={open} title={title}>
+    <button type="button" onClick={onToggle} className={`flex flex-wrap items-center gap-x-1 gap-y-0.5 text-left text-xs font-medium hover:underline ${color}`} aria-expanded={open} title={title}>
       {open ? <CollapseIcon className="size-3.5" /> : <ExpandIcon className="size-3.5" />}
       <span>{label}</span>
       {children}
@@ -168,31 +168,51 @@ export function ContextList({ items, todoId }: { items: Item[]; todoId?: number 
   const [all, setAll] = useState(false);
   const { shown, hidden } = latestPerKind(items, itemKind, all);
   return (
-    <span className="flex flex-col items-start gap-1">
-      {shown.map((it) => {
-        if ("n" in it) return <NoteRow key={`note:${it.n.from ?? ""}:${it.n.at}`} n={it.n} jira={it.jira} todoId={todoId} />;
-        const s = it.s;
-        const posted = s.source === "jira-comment" ? s.comment.postedBy : undefined;
-        const synced = s.source === "jira-comment" || s.source === "keep" || s.source === "fact" || s.source === "document" ? undefined : s.synced;
-        return (
-          <HoverCard
-            key={sourceKey(s)}
-            className="group gap-1.5 sm:max-w-md"
-            card={
-              <div>
-                <SourceDetails entity={s} />
-                {synced && <SyncedNote s={synced} />}
-                {posted && <PostedNote by={posted} />}
-              </div>
-            }
-          >
-            <SourceBadge entity={s} className="min-w-0" resolved={synced?.resolved || undefined} />
-            {synced && <SyncedMark s={synced} />}
-            {posted && <PostedMark by={posted} />}
-            {todoId !== undefined && <DismissButton onDismiss={() => dismissTodoContextAction(todoId, sourceKey(s))} title={t("Dismiss — takes it out of this todo's context for good")} label={t("Dismiss this context item")} />}
-          </HoverCard>
-        );
-      })}
+    <span className="flex w-full flex-col items-start gap-2">
+      {/* Masonry: up to four columns (each at least 14rem wide), the cards as tall as they are. */}
+      <span className="block w-full [column-gap:0.75rem] [columns:4_14rem]">
+        {shown.map((it) => {
+          if ("n" in it)
+            return (
+              <span key={`note:${it.n.from ?? ""}:${it.n.at}`} className="mb-3 block break-inside-avoid">
+                <NoteRow n={it.n} jira={it.jira} todoId={todoId} />
+              </span>
+            );
+          const s = it.s;
+          const posted = s.source === "jira-comment" ? s.comment.postedBy : undefined;
+          const synced = s.source === "jira-comment" || s.source === "keep" || s.source === "fact" || s.source === "document" ? undefined : s.synced;
+          return (
+            <span key={sourceKey(s)} className="mb-3 block break-inside-avoid">
+              <HoverCard
+                className="group relative w-full flex-col items-stretch gap-1"
+                card={
+                  <div>
+                    <SourceDetails entity={s} />
+                    {synced && <SyncedNote s={synced} />}
+                    {posted && <PostedNote by={posted} />}
+                  </div>
+                }
+              >
+                <SourceBadge entity={s} className="min-w-0 flex-1" resolved={synced?.resolved || undefined} />
+                {(synced || posted) && (
+                  <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-1">
+                    {synced && <SyncedMark s={synced} />}
+                    {posted && <PostedMark by={posted} />}
+                  </span>
+                )}
+                {todoId !== undefined && (
+                  <DismissButton
+                    className="absolute top-2 right-2 rounded-full bg-white/90 shadow-sm [@media(hover:none)]:opacity-100 group-focus-within:opacity-100 dark:bg-zinc-900/90"
+                    onDismiss={() => dismissTodoContextAction(todoId, sourceKey(s))}
+                    title={t("Dismiss — takes it out of this todo's context for good")}
+                    label={t("Dismiss this context item")}
+                  />
+                )}
+              </HoverCard>
+            </span>
+          );
+        })}
+      </span>
       <ShowMoreToggle hidden={hidden} open={all} onToggle={() => setAll(!all)} />
     </span>
   );
@@ -301,7 +321,7 @@ function ContextCounts({ items, onHover }: { items: Item[]; onHover?: (group: st
   // A branch among the GitLab items is on the remote (GitLab has it, or Zeff pushed it): its icon gets a green check.
   const remote = items.some((it) => !("n" in it) && it.s.source === "gitlab" && it.s.gitlab.kind === "branch" && it.s.gitlab.state !== "not pushed");
   return (
-    <span className="ml-1.5 flex items-center gap-2 font-normal text-zinc-500 dark:text-zinc-400">
+    <span className="ml-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-normal text-zinc-500 dark:text-zinc-400">
       {shown.map((g) => (
         <span key={g.group} className="flex items-center gap-0.5 tabular-nums" title={`${counts.get(g.group)} ${g.label(t)}`} onMouseEnter={() => onHover?.(g.group)} onMouseLeave={() => onHover?.(null)}>
           {g.group === "gitlab" && remote ? (

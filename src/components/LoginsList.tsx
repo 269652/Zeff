@@ -30,7 +30,7 @@ export async function LoginsList() {
                   <div className="min-w-0 flex-1 basis-80">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{l.label}</span>
-                      <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${cls}`}>{text}</span>
+                      <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${cls}`}>{text}</span>
                       <span className="text-xs text-zinc-400">{l.plugins.join(", ")}</span>
                     </div>
                     <p className="line-clamp-2 text-sm text-zinc-500">{l.detail}</p>

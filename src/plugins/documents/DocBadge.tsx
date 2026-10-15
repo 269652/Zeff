@@ -1,35 +1,31 @@
 "use client";
 
 import { useT } from "@/components/I18nProvider";
-import { ChevronIcon } from "@/components/icons";
+import { SourceCard } from "@/components/SourceCard";
 import { formatDate } from "@/lib/format";
 import { KIND_ICONS, sizeText, type DocView } from "./shared";
 import type { DocOrigin } from "@/lib/mail/shared";
 
-const BADGE = "flex min-w-0 items-stretch overflow-hidden rounded-md border border-teal-200 bg-teal-50 text-xs text-teal-950 dark:border-teal-900 dark:bg-teal-950/40 dark:text-teal-100";
-const INNER = "flex min-w-0 flex-1 items-center gap-2 py-1 pr-2 pl-1.5 text-left";
 
-/** A document as a badge: "📕 Mietvertrag.pdf" — with `onToggle` it unfolds. */
+/** A document as a small card: its name, what kind and how big — a picture shows itself. With `onToggle` it unfolds. */
 export function DocBadge({ d, className = "", expanded = false, onToggle }: { d: DocView; className?: string; expanded?: boolean; onToggle?: () => void }) {
   const t = useT();
-  const body = (
-    <>
-      {onToggle && <ChevronIcon open={expanded} className="size-3.5 shrink-0 text-teal-500" />}
-      <span aria-hidden>{KIND_ICONS[d.kind]}</span>
-      <span className="min-w-0 truncate font-medium">{d.name}</span>
-      {d.status !== "ready" && <span className="shrink-0 text-teal-700/70 dark:text-teal-300/70">{statusText(d, t)}</span>}
-    </>
-  );
+  const state = statusText(d, t);
   return (
-    <div className={`${BADGE} ${className}`}>
-      {onToggle ? (
-        <button type="button" className={`${INNER} cursor-pointer transition hover:bg-teal-100 dark:hover:bg-teal-950`} onClick={onToggle} aria-expanded={expanded} title={expanded ? t("Fold") : t("Show the document")}>
-          {body}
-        </button>
-      ) : (
-        <span className={INNER}>{body}</span>
-      )}
-    </div>
+    <SourceCard
+      tone="teal"
+      icon={<span className="text-base leading-none">{KIND_ICONS[d.kind]}</span>}
+      kind={t("Document")}
+      state={state ? { text: state, className: d.status === "failed" ? "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200" : undefined } : undefined}
+      title={d.name}
+      sub={sizeText(d.size)}
+      snippet={d.status === "ready" ? d.abstract || undefined : undefined}
+      thumb={d.kind === "image" ? `/api/documents/${d.id}/file` : undefined}
+      expanded={expanded}
+      onToggle={onToggle}
+      toggleTitle={expanded ? t("Fold") : t("Show the document")}
+      className={className}
+    />
   );
 }
 

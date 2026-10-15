@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@/components/I18nProvider";
+import { useOverlayFocus } from "@/components/Overlay";
 import type { NewsItem } from "./shared";
 
 export type Box = { left: number; top: number; width: number; height: number };
@@ -27,6 +28,8 @@ export function MagicStage({ item, from, done, onGone, showImage }: { item: News
   const end = useRef("none");
   const born = useRef(0);
   const leaving = useRef(false);
+  // Focus goes into the overlay while it is up (no Escape: it leaves by itself) and back afterwards.
+  useOverlayFocus(backdrop, true);
 
   const sparkles = useMemo(
     () =>
@@ -73,7 +76,7 @@ export function MagicStage({ item, from, done, onGone, showImage }: { item: News
   }, [done, onGone]);
 
   const body = (
-    <div ref={backdrop} className="fixed inset-0 z-[60] bg-zinc-950/55 opacity-0 backdrop-blur-[3px]" role="dialog" aria-label={t("More like this")}>
+    <div ref={backdrop} className="fixed inset-0 z-[60] bg-zinc-950/55 opacity-0 backdrop-blur-[3px]" role="dialog" aria-modal="true" aria-label={t("More like this")}>
       <style>{`
         @keyframes zeff-twinkle{0%,100%{opacity:0;transform:scale(.2) rotate(0deg)}45%{opacity:1;transform:scale(1) rotate(90deg)}70%{opacity:.7;transform:scale(.75) rotate(160deg)}}
         @keyframes zeff-rise{0%{opacity:0;transform:translateY(0) scale(.6)}15%{opacity:1}100%{opacity:0;transform:translateY(-230px) scale(1.2)}}

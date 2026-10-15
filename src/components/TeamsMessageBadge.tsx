@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { findTeamsMessagesAction, setTeamsResolvedAction } from "@/plugins/teams/server-actions";
 import { teamsKindLabel, teamsLinkKey, teamsMarkdown, type TeamsMessageView } from "@/lib/teams/shared";
-import { ChevronIcon } from "./icons";
+import { SourceCard } from "./SourceCard";
 import { Markdown } from "./Markdown";
 import { ResolvedMark } from "./ResolvedMark";
 import { ResolveToggle } from "./ResolveToggle";
@@ -55,55 +55,27 @@ export function TeamsMessageBadge({
   const who = m.senderName ?? t("message");
   const at = formatFull(m.sentAt);
   const start = [m.subject, m.text].filter(Boolean).join(" — ");
-  const what = (
-    <>
-      {onToggle && <ChevronIcon open={expanded} className="size-3.5 shrink-0 text-violet-500 dark:text-violet-400" />}
-      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinejoin="round" className="size-4 shrink-0 text-violet-600 dark:text-violet-400" aria-hidden>
-        <path d="M3.5 4.75A1.75 1.75 0 0 1 5.25 3h9.5a1.75 1.75 0 0 1 1.75 1.75v7.5A1.75 1.75 0 0 1 14.75 14H9l-3.5 3v-3h-.25A1.75 1.75 0 0 1 3.5 12.25z" />
-      </svg>
-      <ResolvedMark done={resolved ?? !!m.resolvedAt} />
-      <span className="shrink-0 font-medium">{m.senderName ?? "Teams"}</span>
-      {/* Where and when — on a phone it gives way too (ellipsis). */}
-      <span className="shrink-0 text-violet-700/80 max-sm:min-w-0 max-sm:shrink max-sm:truncate dark:text-violet-300/80">
-        {m.place ? `${m.place} · ` : ""}
-        {formatDateTime(m.sentAt)} · {teamsKindLabel(m, t)}
-      </span>
-      {start && <span className="min-w-0 truncate text-violet-800/70 dark:text-violet-200/70">{start}</span>}
-    </>
-  );
-  const inner = "flex min-w-0 flex-1 items-center gap-2 py-1 pr-2 pl-1.5 text-left";
   return (
-    <div
-      className={`flex min-w-0 items-stretch overflow-hidden rounded-md border border-violet-200 bg-violet-50 text-xs text-violet-900 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-100 ${className}`}
-    >
-      {onToggle ? (
-        <button
-          type="button"
-          className={`${inner} cursor-pointer transition hover:bg-violet-100 dark:hover:bg-violet-950`}
-          onClick={onToggle}
-          aria-expanded={expanded}
-          title={expanded ? t("Fold") : t("Show the whole message")}
-        >
-          {what}
-        </button>
-      ) : (
-        <span className={inner}>{what}</span>
-      )}
-      <a
-        href={m.link}
-        target="_blank"
-        rel="noreferrer"
-        className="flex shrink-0 items-center px-2 text-violet-700 transition hover:bg-violet-100 dark:text-violet-300 dark:hover:bg-violet-950"
-        title={
-          m.place
-            ? t("Open in Teams: {who} in {place}, {at}", { who, place: m.place, at })
-            : t("Open in Teams: {who}, {at}", { who, at })
-        }
-        aria-label={t("Open in Teams")}
-      >
-        ↗
-      </a>
-    </div>
+    <SourceCard
+      tone="violet"
+      icon={
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinejoin="round" aria-hidden>
+          <path d="M3.5 4.75A1.75 1.75 0 0 1 5.25 3h9.5a1.75 1.75 0 0 1 1.75 1.75v7.5A1.75 1.75 0 0 1 14.75 14H9l-3.5 3v-3h-.25A1.75 1.75 0 0 1 3.5 12.25z" />
+        </svg>
+      }
+      kind={`Teams · ${teamsKindLabel(m, t)}`}
+      mark={<ResolvedMark done={resolved ?? !!m.resolvedAt} />}
+      when={formatDateTime(m.sentAt)}
+      title={m.senderName ?? "Teams"}
+      sub={m.place || undefined}
+      snippet={start || undefined}
+      expanded={expanded}
+      onToggle={onToggle}
+      toggleTitle={expanded ? t("Fold") : t("Show the whole message")}
+      href={m.link}
+      hrefTitle={m.place ? t("Open in Teams: {who} in {place}, {at}", { who, place: m.place, at }) : t("Open in Teams: {who}, {at}", { who, at })}
+      className={className}
+    />
   );
 }
 

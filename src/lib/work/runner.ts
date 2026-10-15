@@ -15,7 +15,8 @@ import { COPILOT_MAX_PROMPT, findCopilotCli, runCopilot } from "@/plugins/copilo
 import { isAiProvider, type AiProvider } from "@/lib/ai/shared";
 import { asksForApproval, opsSettle, todoRef } from "@/lib/boards/shared";
 import type { TodoOp, TodoView } from "@/lib/boards/shared";
-import { linkBranchContext } from "./branch-context";
+import { linkBranchContext, linkedBranchesOf } from "./branch-context";
+import { newBranchName } from "./branch-name";
 import { addFollowUp, addTestedDelivery, addTodoInstruction, getTodo, handOverPlan, setTodoOps } from "@/lib/boards/store";
 import { commentOnMr, openGitlabMr, postGitlabReply } from "@/lib/gitlab/reply";
 import { runTodoOps } from "@/lib/ops";
@@ -133,7 +134,7 @@ export function dispatchTodo(
     repoPath?: string;
     /** The branch to start from / work on (see workspace); none: the ticket's own branch, else the default. */
     branch?: string;
-    /** worktree: a new branch from `branch` in a worktree · branch: `branch` itself in a worktree · checkout: in the repo itself. None: the Work settings. */
+    /** worktree: a new branch from `branch` in a worktree · branch: `branch` itself in a worktree · checkout: in the repo itself. None: the Code settings. */
     workspace?: "worktree" | "branch" | "checkout";
     /** Started by you to talk to (the composer): it waits for you after each turn — else a task that ends with its result. */
     conversation?: boolean;
@@ -143,7 +144,7 @@ export function dispatchTodo(
     attachments?: { name: string; path: string }[];
   } = {},
 ): WorkRunView {
-  if (!isInstalled("work")) throw new ValidationError(t("Work is not installed (Menu → Plugins) — without it no worker works on todos."));
+  if (!isInstalled("work")) throw new ValidationError(t("Code is not installed (Menu → Plugins) — without it no worker works on todos."));
   const todo = getTodo(todoId);
   if (!todo) throw new NotFoundError(t("Todo {ref} not found.", { ref: todoRef(todoId) }));
   // Your instruction: an AI run on the todo that does what you say (whatever the todo's own mode).
@@ -193,26 +194,26 @@ export function dispatchTodo(
     throw new ValidationError(t("No repo for {ticket} — assign its board (or the ticket) to one on the Repos page.", { ticket: todo.ticket }));
   }
   const app = getAppSettings();
-  // The Work tab's model is one of the Settings provider's; another provider gets its own Settings model.
+  // The Code tab's model is one of the Settings provider's; another provider gets its own Settings model.
   const own = provider === "zeff" ? "" : provider === llmChoice("worker").provider ? llmChoice("worker").model : defaultModelOf(provider, app);
   const so = opts.session ?? {};
-  // (The Work settings' model is a Claude/Copilot one: ChatGPT gets its own default.)
+  // (The Code settings' model is a Claude/Copilot one: ChatGPT gets its own default.)
   const model = so.model?.trim() || (provider !== "codex" && provider === aiChoice().provider ? s.model || own : own) || null;
   // Claude resumes its session — in the folder it ran in (Claude keeps sessions by folder), so it knows everything said and done.
   const waitFor = prev && (prev.status === "queued" || prev.status === "running") ? prev : undefined;
-  // A live session (the Work settings): its mode — yours from the composer, else the settings' (yours or Zeff's own runs).
+  // A live session (the Code settings): its mode — yours from the composer, else the settings' (yours or Zeff's own runs).
   const cs = claudeSessionSettings();
   const driver = provider === "zeff" ? undefined : liveDriverFor(provider);
   const live = !!driver && cs.live && m.mode !== "send";
   if (provider === "codex" && !live) {
-    throw new ValidationError(t("ChatGPT workers need Live sessions — switch them on in the Work settings (Claude sessions)."));
+    throw new ValidationError(t("ChatGPT workers need Live sessions — switch them on in the Code settings (Claude sessions)."));
   }
   const resume = prev && !waitFor && resumes(provider, prev) && fs.existsSync(/*turbopackIgnore: true*/ prev.cwd!) ? prev : undefined;
   const modes = driver?.modes({ allowBypass: cs.allowBypass }) ?? [];
-  // (Claude's from the Work settings — yours or Zeff's own runs; another provider's: its first.)
+  // (Claude's from the Code settings — yours or Zeff's own runs; another provider's: its first.)
   const liveMode = so.permissionMode ?? (provider === "claude" ? (opts.conversation || prev ? cs.mode : cs.autoMode) : (modes[0]?.id ?? ""));
   if (live && !modes.some((x) => x.id === liveMode)) {
-    throw new ValidationError(liveMode === "bypassPermissions" ? t("Bypass isn't allowed — Work settings → Claude sessions.") : t("Unknown mode."));
+    throw new ValidationError(liveMode === "bypassPermissions" ? t("Bypass isn't allowed — Code settings → Claude sessions.") : t("Unknown mode."));
   }
   if (so.elevated && provider !== "claude") throw new ValidationError(t("Only live Claude sessions run as administrator."));
   if (so.elevated && !live) throw new ValidationError(t("Only live Claude sessions run as administrator."));
@@ -356,7 +357,18 @@ function start(id: number): void {
     // A conversation going on: just your words. A task: the brief, what to do, and its result as JSON at the end (a live Claude task — without --json-schema).
     const tail = `\n\nAntworte am Ende mit dem Ergebnis als JSON in einem \`\`\`json-Block, nach diesem JSON-Schema:\n${JSON.stringify(WORK_RESULT_SCHEMA)}`;
     const isolation = r.workspace === "checkout" || (!r.workspace && s.isolation === "checkout") ? "checkout" : "worktree";
-    const task = taskFor(mode, { todo, runId: id, repo: r.repo, cwd, branch, base, isolation, onExisting: r.workspace === "branch" && !!branch });
+    const task = taskFor(mode, {
+      todo,
+      runId: id,
+      repo: r.repo,
+      cwd,
+      branch,
+      base,
+      isolation,
+      onExisting: r.workspace === "branch" && !!branch,
+      linked: linkedBranchesOf(todo),
+      newBranch: newBranchName(todo),
+    });
     const prompt = resume && so ? r.prompt : `${r.prompt}\n\n${task}${so && !so.conversation ? tail : ""}`;
     updateRun(id, { cwd, branch, base, baseSha, prompt });
 
@@ -400,7 +412,7 @@ function start(id: number): void {
       const cli = findCopilotCli();
       if (!cli) throw new Error(t("The Copilot CLI wasn't found (npm install -g @github/copilot, or set COPILOT_CLI)."));
       const tail = `\n\nAntworte am Ende mit einem JSON-Objekt nach diesem JSON-Schema, in einem \`\`\`json-Block:\n${JSON.stringify(WORK_RESULT_SCHEMA)}`;
-      // A live session (it asks you for permissions on the Work tab, you can write to it, switch it to autopilot).
+      // A live session (it asks you for permissions on the Code tab, you can write to it, switch it to autopilot).
       if (s.copilotMode !== "headless") {
         // The session writes its log itself (as it goes), not a process' output.
         updateRun(id, { permissionMode: s.copilotMode === "autopilot" ? "acp-autopilot" : "acp" });

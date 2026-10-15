@@ -57,9 +57,9 @@ export default async function TagsPage() {
           <table className="table">
             <thead>
               <tr>
-                <th>{t("Name")}</th>
-                <th className="num">{t("Entries")}</th>
-                <th></th>
+                <th scope="col">{t("Name")}</th>
+                <th scope="col" className="num">{t("Entries")}</th>
+                <th scope="col"><span className="sr-only">{t("Actions")}</span></th>
               </tr>
             </thead>
             <tbody>

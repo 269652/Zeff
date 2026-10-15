@@ -92,3 +92,19 @@ export async function importConfigAction(fd: FormData): Promise<ActionState> {
     return { ok: false, error: errorMessage(err) };
   }
 }
+
+/** Backups also to Google Drive (Backups settings): turning it on installs the Google Drive plugin if it isn't, and switches its Backups extension on. */
+export async function setDriveBackupAction(on: boolean): Promise<ActionState> {
+  try {
+    const { isInstalled, setInstalled } = await import("@/plugins/state");
+    if (!isInstalled("backup")) return { ok: false, error: t("Backups are not installed (Menu → Plugins).") };
+    if (on && !isInstalled("google-drive")) setInstalled("google-drive", true);
+    (await import("@/plugins/extension-state")).setExtensionInstalled("google-drive:backup-sync", !!on);
+    revalidateAll();
+    if (!on) return { ok: true, message: t("Backups are no longer copied to Google Drive.") };
+    const { isConnected } = await import("@/plugins/google-drive/config");
+    return { ok: true, message: isConnected() ? t("Backups are copied to Google Drive now.") : t("On — connect Google Drive on its page, then backups are copied.") };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}

@@ -16,7 +16,7 @@ export function DismissButton({ onDismiss, title, label, className = "" }: { onD
   return (
     <button
       type="button"
-      className={`icon-btn shrink-0 text-base opacity-0 group-hover:opacity-100 focus-visible:opacity-100 ${className}`}
+      className={`icon-btn shrink-0 text-base opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 ${className}`}
       disabled={pending}
       title={title}
       aria-label={label}

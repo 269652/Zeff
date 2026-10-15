@@ -119,7 +119,7 @@ export type TodoOp =
   | { type: "mail-compose"; to: string; subject: string; body: string }
   /** An appointment opened in Outlook Web (you send it): local start "YYYY-MM-DDTHH:MM", its minutes, addresses. */
   | { type: "calendar-event"; subject: string; start: string; minutes: number; attendees: string; body: string }
-  /** The todo handed to a worker (Work tab) with this instruction. */
+  /** The todo handed to a worker (Code tab) with this instruction. */
   | { type: "work-instruct"; instruction: string }
   /** A note on one of your Keep boards (Google Keep's extension for Auto-Aktionen). */
   | { type: "keep-note"; board: string; title: string; text: string }
@@ -372,6 +372,8 @@ export type TodoUserNote = {
   jiraHash?: string;
   /** The note's text as it was last synced — to tell whether it has changed since. */
   jiraText?: string;
+  /** The pictures (documents) of the note already uploaded to its ticket as attachments — not uploaded twice. */
+  jiraFiles?: number[];
   /** Filled in when the todo is read: what would go to Jira now differs from the comment there (the note changed, or who the people it tags are). */
   jiraStale?: boolean;
 };

@@ -10,7 +10,8 @@ import { toast } from "@/components/Toaster";
 import { formatDate } from "@/lib/format";
 import { DocDetails, OriginLine } from "./DocBadge";
 import { attachDocumentAction, deleteDocumentAction, reprocessDocumentAction, restartReadingAction, saveDocumentSettingsAction, skipDocumentAction, startReadingAction } from "./server-actions";
-import { KIND_ICONS, sizeText, type DocView } from "./shared";
+import { DOC_KINDS, KIND_ICONS, sizeText, type DocView } from "./shared";
+import { filterDocs, isDocKindFilter, type DocKindFilter, type DocSort, type DocStatusFilter } from "./list-filter";
 import { TodoPicker } from "./TodoPicker";
 import type { DocOrigin } from "@/lib/mail/shared";
 
@@ -43,6 +44,13 @@ export function DocumentsApp({ docs, reading, origins = {}, todos, settings, kno
   const [command, setCommand] = useState(settings.transcriber);
   const [autoInstall, setAutoInstall] = useState(settings.autoInstall);
   const input = useRef<HTMLInputElement>(null);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<DocStatusFilter>("all");
+  const [kindFilter, setKindFilter] = useState<DocKindFilter>("all");
+  const [sort, setSort] = useState<DocSort>("newest");
+  const shown = filterDocs(docs, { query, status: statusFilter, kind: kindFilter, sort });
+  const filtered = query.trim() !== "" || statusFilter !== "all" || kindFilter !== "all";
+  const kindNames: Record<string, string> = { text: t("Text"), office: t("Office"), pdf: t("PDF"), image: t("Image"), audio: t("Audio"), other: t("Other") };
   const waiting = docs.some((d) => d.status === "queued" || d.status === "extracting") || (knowledge && docs.some((d) => d.status === "ready" && !d.compiled));
 
   // While something is being read or compiled: the list refreshes itself.
@@ -149,8 +157,51 @@ export function DocumentsApp({ docs, reading, origins = {}, todos, settings, kno
       {docs.length === 0 ? (
         <EmptyState variant="centered">{t("No documents yet.")}</EmptyState>
       ) : (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2" role="search">
+            <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("Search name, abstract, concepts…")} aria-label={t("Search documents")} className="input min-w-0 flex-1 basis-56" />
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as DocStatusFilter)} className="input w-auto" aria-label={t("Status")}>
+              <option value="all">{t("All statuses")}</option>
+              <option value="ready">{t("Ready")}</option>
+              <option value="reading">{t("Being read")}</option>
+              <option value="failed">{t("Failed")}</option>
+              <option value="unsupported">{t("Not readable")}</option>
+            </select>
+            <select value={kindFilter} onChange={(e) => isDocKindFilter(e.target.value) && setKindFilter(e.target.value)} className="input w-auto" aria-label={t("Kind")}>
+              <option value="all">{t("All kinds")}</option>
+              {DOC_KINDS.map((k) => (
+                <option key={k} value={k}>
+                  {kindNames[k]}
+                </option>
+              ))}
+            </select>
+            <select value={sort} onChange={(e) => setSort(e.target.value as DocSort)} className="input w-auto" aria-label={t("Sort")}>
+              <option value="newest">{t("Newest")}</option>
+              <option value="name">{t("Name")}</option>
+              <option value="size">{t("Size")}</option>
+            </select>
+          </div>
+          <p role="status" aria-live="polite" className="min-h-4 text-xs text-zinc-500">
+            {filtered ? t("{shown} of {n} documents", { shown: shown.length, n: docs.length }) : docs.length === 1 ? t("1 document") : t("{n} documents", { n: docs.length })}
+          </p>
+          {shown.length === 0 ? (
+            <EmptyState variant="centered">
+              {t("No document matches.")}{" "}
+              <button
+                type="button"
+                className="underline hover:no-underline"
+                onClick={() => {
+                  setQuery("");
+                  setStatusFilter("all");
+                  setKindFilter("all");
+                }}
+              >
+                {t("Clear filters")}
+              </button>
+            </EmptyState>
+          ) : (
         <ul className="card divide-y divide-zinc-100 dark:divide-zinc-800">
-          {docs.map((d) => (
+          {shown.map((d) => (
             <li key={d.id} id={d.ref} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 text-sm">
               <HoverCard width={440} card={<DocDetails d={d} origin={origins[d.id]} />} className="min-w-0 flex-1 basis-64">
                 <a href={`/api/documents/${d.id}/file`} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-2 hover:underline">
@@ -196,6 +247,8 @@ export function DocumentsApp({ docs, reading, origins = {}, todos, settings, kno
             </li>
           ))}
         </ul>
+          )}
+        </div>
       )}
 
       <section id="settings" className="card space-y-2 p-4 text-sm">

@@ -28,7 +28,7 @@ export default async function AppsPage() {
             <Link href={a.href} className="card block h-full p-4 transition hover:border-indigo-300 hover:shadow-md dark:hover:border-indigo-700">
               <div className="flex items-baseline justify-between gap-2">
                 <span className="font-medium">{a.label}</span>
-                <span className="text-[11px] text-zinc-400">{placement[a.place]}</span>
+                <span className="text-xs text-zinc-400">{placement[a.place]}</span>
               </div>
               <p className="text-sm text-zinc-500">{a.hint}</p>
               <p className="mt-1 text-xs text-zinc-400">{a.pluginName}</p>

@@ -12,7 +12,7 @@ import { noteHeadline } from "@/plugins/keep/shared";
 /** A Jira ticket, as a source: what it's called, where it stands, its link. */
 export type JiraTicketBrief = { key: string; summary: string; status: string; assignee: string | null; description: string | null; url: string };
 
-/** An agent's or worker's run on a todo (Work tab), as evidence: who, how long, what it reported. */
+/** An agent's or worker's run on a todo (Code tab), as evidence: who, how long, what it reported. */
 export type WorkRunBrief = {
   id: number;
   ref: string;

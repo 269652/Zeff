@@ -12,7 +12,7 @@ export async function syncGitlabAction(): Promise<ActionState> {
   const { syncAndWait } = await import("@/lib/sync/registry");
   const r = await syncAndWait("gitlab");
   revalidateAll();
-  return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
+  return r.lastOk ? { ok: true, message: r.lastMessage ?? "" } : { ok: false, error: r.lastMessage ?? t("Failed.") };
 }
 
 /** Your GitLab's address (how often it syncs: the Sync settings page). */
@@ -71,4 +71,53 @@ export async function findGitlabItemsAction(urls: string[]): Promise<Record<stri
   const list = urls.map(String).slice(0, 50);
   const found = gitlabItemsByKeys(list.map((u) => gitlabLinkKey(u) ?? ""));
   return Object.fromEntries(list.map((u) => [u, found.get(gitlabLinkKey(u) ?? "") ?? null]));
+}
+
+/** How Zeff reaches GitLab: through the automation Chrome, or through GitLab's API (a token, or an OAuth client of your own). A secret only when one is typed (else the saved one stays). */
+export async function saveGitlabConnectionAction(v: { driver: string; authKind: string; token?: string; clientId?: string; clientSecret?: string }): Promise<ActionState> {
+  try {
+    const { getConnector, updateConnector, disconnectConnector } = await import("@/lib/connectors/store");
+    const row = getConnector("gitlab");
+    const driver = v.driver === "api" ? "api" : "cdp";
+    const authKind = v.authKind === "oauth" ? "oauth" : "token";
+    const token = String(v.token ?? "").trim();
+    const clientId = String(v.clientId ?? "").trim();
+    const secret = String(v.clientSecret ?? "").trim();
+    // Another way of signing in, or another client: the old sign-in doesn't apply.
+    if (authKind !== row.authKind || (authKind === "oauth" && (clientId !== row.clientId || (secret !== "" && secret !== row.clientSecret)))) disconnectConnector("gitlab");
+    updateConnector("gitlab", {
+      driver,
+      authKind,
+      ...(token ? { token } : {}),
+      ...(authKind === "oauth" ? { clientId, ...(secret ? { clientSecret: secret } : {}) } : {}),
+    });
+    revalidateAll();
+    return { ok: true, message: driver === "api" ? t("GitLab is read through its API now.") : t("GitLab is read through the automation Chrome.") };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** The API sign-in forgotten (the token, the OAuth tokens). */
+export async function disconnectGitlabAction(): Promise<ActionState> {
+  try {
+    (await import("@/lib/connectors/store")).disconnectConnector("gitlab");
+    revalidateAll();
+    return { ok: true, message: t("Disconnected.") };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** A read of the signed-in user through the API: tests the token (or the OAuth sign-in) and shows who it is. */
+export async function testGitlabApiAction(): Promise<ActionState> {
+  try {
+    const { whoAmI } = await import("@/lib/gitlab/api");
+    const me = await whoAmI();
+    (await import("@/lib/connectors/store")).updateConnector("gitlab", { account: me.username });
+    revalidateAll();
+    return { ok: true, message: t("Signed in to GitLab as {name} (@{username}).", { name: me.name, username: me.username }) };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
 }

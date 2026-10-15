@@ -1,3 +1,4 @@
+import { attachmentLine, todoAttachments } from "@/plugins/documents/attachments";
 import { isJiraKey, isKanbanKey } from "@/lib/ticket-keys";
 import { and, desc, eq, gte, like, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
@@ -284,6 +285,12 @@ function zeffLines(key: string, cited = new Set<string>()): string[] {
   return lines;
 }
 
+/** What I attached to a todo (pictures pasted into its notes, documents): the AI can't see pictures here — their description is the line. */
+const attachLine = (t: { refs: string[] }) => {
+  const a = todoAttachments(t.refs);
+  return a.length ? ` — ANHÄNGE (Bilder/Dokumente, die ich angehängt habe — mein Kontext): ${a.map((d) => attachmentLine(d, 240)).join(" | ")}` : "";
+};
+
 /** A todo linked to more than one ticket (the same thing on both): which ones — it's one todo, not one per ticket. */
 const linkedLine = (t: { ticket: string; alsoTickets: string[] }, key: string) =>
   t.alsoTickets.length
@@ -295,7 +302,7 @@ function todoLines(key: string): string[] {
   const lines: string[] = [];
   for (const t of listTodos({ ticket: key, status: "open" }))
     lines.push(
-      `- [${t.id}] offen (${t.kind}, ${t.owner}): ${t.text}${t.draft ? ` — Entwurf${t.channel ? ` für ${t.channel}` : ""}: „${plain(t.draft, 600)}“` : ""}${t.ops.length ? ` — ops schon: ${JSON.stringify(t.ops)}` : ""}${t.path ? ` — auf dem Weg „${t.path}“` : ""}${t.note ? ` — Notiz: ${t.note}` : ""}${t.userNotes.some((n) => !n.by) ? ` — MEINE NOTIZEN dazu: ${t.userNotes.filter((n) => !n.by).map((n) => `${n.kind === "instruction" ? `(Anweisung an W-${n.run ?? "?"}) ` : ""}„${plain(n.text, 800)}“`).join(" ")}` : ""}${t.userNotes.some((n) => n.by) ? ` — Berichte der Läufe daran: ${t.userNotes.filter((n) => n.by).map((n) => `${n.by}: „${plain(n.text, 600)}“${n.url ? ` (${n.url})` : ""}`).join(" ")}` : ""}${t.planned.length ? ` — geplant danach: ${planLine(t.planned)}` : ""}${t.flaggedAt ? " — WICHTIG (von mir markiert)" : ""}${linkedLine(t, key)}`,
+      `- [${t.id}] offen (${t.kind}, ${t.owner}): ${t.text}${t.draft ? ` — Entwurf${t.channel ? ` für ${t.channel}` : ""}: „${plain(t.draft, 600)}“` : ""}${t.ops.length ? ` — ops schon: ${JSON.stringify(t.ops)}` : ""}${t.path ? ` — auf dem Weg „${t.path}“` : ""}${t.note ? ` — Notiz: ${t.note}` : ""}${t.userNotes.some((n) => !n.by) ? ` — MEINE NOTIZEN dazu: ${t.userNotes.filter((n) => !n.by).map((n) => `${n.kind === "instruction" ? `(Anweisung an W-${n.run ?? "?"}) ` : ""}„${plain(n.text, 800)}“`).join(" ")}` : ""}${t.userNotes.some((n) => n.by) ? ` — Berichte der Läufe daran: ${t.userNotes.filter((n) => n.by).map((n) => `${n.by}: „${plain(n.text, 600)}“${n.url ? ` (${n.url})` : ""}`).join(" ")}` : ""}${t.planned.length ? ` — geplant danach: ${planLine(t.planned)}` : ""}${t.flaggedAt ? " — WICHTIG (von mir markiert)" : ""}${attachLine(t)}${linkedLine(t, key)}`,
     );
   const recent = new Date(Date.now() - 21 * 864e5).toISOString();
   for (const t of listTodos({ ticket: key, status: "all" })) {

@@ -45,7 +45,7 @@ function notifyNew(items: Attention[]) {
 /**
  * What needs you, on every page: a service to sign in to (shown in the automation Chrome on a
  * click — you sign in, Zeff never does). A question an agent waits on gets no banner — it's a
- * yellow dot on the Work tab and its session. Each one is also pinged as a browser notification
+ * yellow dot on the Code tab and its session. Each one is also pinged as a browser notification
  * (once you allow them), so you needn't watch the page.
  */
 export function AttentionBar({ items }: { items: Attention[] }) {

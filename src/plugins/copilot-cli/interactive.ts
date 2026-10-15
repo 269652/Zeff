@@ -9,7 +9,7 @@ import { errPath, logPath } from "@/lib/work/log";
 /**
  * Interactive workers: Copilot as an Agent Client Protocol server (`copilot --acp`), driven by
  * Zeff over stdio. What it says and does goes into the run's log as it happens; when it wants
- * to do something it isn't allowed yet, it asks — and the question waits on the Work tab (and
+ * to do something it isn't allowed yet, it asks — and the question waits on the Code tab (and
  * pings you) till you answer. You can write to it between turns, switch its mode (Agent, Plan,
  * Autopilot), or have it wrap up. A turn that ends with its result (the JSON) ends the run.
  */
@@ -190,7 +190,7 @@ export async function startInteractive(v: { runId: number; command: string; args
   live.view.modes = (s.modes?.availableModes ?? []).map((m) => ({ id: m.id, name: m.name }));
   live.view.mode = s.modes?.currentModeId ?? "";
   if (v.autopilot && live.view.modes.some((m) => m.id === AUTOPILOT)) await setMode(v.runId, AUTOPILOT);
-  log(v.runId, `[Zeff] Interactive Copilot session (${live.view.modes.find((m) => m.id === live.view.mode)?.name ?? "Agent"}) — questions and permissions on the Work tab.\n`);
+  log(v.runId, `[Zeff] Interactive Copilot session (${live.view.modes.find((m) => m.id === live.view.mode)?.name ?? "Agent"}) — questions and permissions on the Code tab.\n`);
   void turn(live, v.prompt);
   return child.pid ?? null;
 }

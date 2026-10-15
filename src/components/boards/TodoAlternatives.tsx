@@ -10,7 +10,7 @@ import { useT } from "@/components/I18nProvider";
 
 /** The blue chip an operation (or an alternative) is shown as. */
 export const OP_CHIP =
-  "rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[11px] text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100";
+  "rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-xs text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100";
 
 /**
  * A todo's other ways to be done ("Rene zuweisen", "Merge into main"), each a row of its own:

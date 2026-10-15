@@ -20,7 +20,7 @@ import { codexModels, codexSandboxState, findCodexCli } from "./cli";
 import { commandText, fileChangeInput, markCodexRun, type FileUpdate } from "./log";
 
 /**
- * Live Codex sessions (ChatGPT) on the Work tab: `codex app-server`, Codex's own JSON-RPC over
+ * Live Codex sessions (ChatGPT) on the Code tab: `codex app-server`, Codex's own JSON-RPC over
  * stdio (a line each way) — a thread, its turns, what it asks before it runs a command or changes
  * a file, your answers. Like Claude Code's (plugins/claude-cli/live.ts) it runs under a host
  * outside Zeff's server (the launcher's work host, or scripts/work-session-host.mjs), so a
@@ -929,7 +929,7 @@ function stopIfWanted(l: Live) {
 /** Its mode (approval policy and sandbox), from the next turn on. */
 async function setCodexMode(runId: number, mode: string) {
   const l = liveOf(runId);
-  if (!codexModes(l.cfg.allowBypass).some((m) => m.id === mode)) throw new Error(mode === "full" ? t("Bypass isn't allowed — Work settings → “Bypass may be picked” (it applies to new sessions).") : t("Unknown mode."));
+  if (!codexModes(l.cfg.allowBypass).some((m) => m.id === mode)) throw new Error(mode === "full" ? t("Bypass isn't allowed — Code settings → “Bypass may be picked” (it applies to new sessions).") : t("Unknown mode."));
   l.cfg.mode = mode;
   l.cfg.policyChanged = true;
   saveCfg(l);

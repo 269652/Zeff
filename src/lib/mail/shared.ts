@@ -43,5 +43,36 @@ export const outlookLink = (m: Pick<MailView, "convId" | "folder">): string | nu
     ? null
     : `https://outlook.office.com/mail/inbox/id/${encodeURIComponent(m.convId)}`;
 
+/** The stored sender name of your own messages (what the syncs write as `fromName`; shown as t("Me")). */
+export const ME_SENDER = "Ich";
+
+/** Whether a message (or a bare sender name) is yours. */
+export const isMine = (m: Pick<MailView, "fromName"> | string | null | undefined): boolean => (typeof m === "string" ? m : m?.fromName) === ME_SENDER;
+
+/** The inbox folder, as Outlook's German UI names it (the stored folder name). */
+export const INBOX_FOLDER = "Posteingang";
+
+/** Whether a folder is the inbox (Outlook: "Posteingang", also "Inbox"; Gmail's folders carry their own name). */
+export const isInboxFolder = (folder: string) => folder === INBOX_FOLDER || folder.toLowerCase() === "inbox";
+
+/** The Gmail thread of a message (its hex id), or null. */
+export const gmailThreadOf = (convId: string) => /^gmail:(?:[^:]+:)?([0-9a-f]+)$/i.exec(convId)?.[1] ?? null;
+
+/** The mail's thread in Gmail on the web — null for anything but a Gmail thread. The account is the folder's address ("Gmail · me@x.com"), else the first signed in (0). */
+export const gmailLink = (m: Pick<MailView, "convId" | "folder">): string | null => {
+  const thread = gmailThreadOf(m.convId);
+  if (!thread) return null;
+  const named = /^Gmail · (\S+@\S+)$/.exec(m.folder)?.[1];
+  return `https://mail.google.com/mail/u/${encodeURIComponent(named ?? "0")}/#all/${thread}`;
+};
+
+/** A mail's source link — Outlook or Gmail — with the label to show. */
+export const sourceLink = (m: Pick<MailView, "convId" | "folder">): { href: string; label: "Open in Outlook" | "Open in Gmail" } | null => {
+  const o = outlookLink(m);
+  if (o) return { href: o, label: "Open in Outlook" };
+  const g = gmailLink(m);
+  return g ? { href: g, label: "Open in Gmail" } : null;
+};
+
 /** Who wrote it, as shown. */
 export const mailSender = (m: Pick<MailView, "fromName" | "fromEmail">) => m.fromName ?? m.fromEmail ?? "Mail";

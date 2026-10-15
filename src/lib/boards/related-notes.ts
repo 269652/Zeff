@@ -1,4 +1,4 @@
-import { listTodos } from "./store";
+import { todoNoteIndex } from "./store";
 import type { TodoUserNote, TodoView } from "./shared";
 
 /**
@@ -8,9 +8,8 @@ import type { TodoUserNote, TodoView } from "./shared";
  */
 export function relatedNotes(list: TodoView[]): Record<number, TodoUserNote[]> {
   const out: Record<number, TodoUserNote[]> = {};
-  const byTicket = new Map<string, TodoView[]>();
+  const byTicket = todoNoteIndex(list.map((t) => t.ticket));
   for (const t of list) {
-    if (!byTicket.has(t.ticket)) byTicket.set(t.ticket, listTodos({ ticket: t.ticket, status: "all" }));
     const all = byTicket.get(t.ticket)!;
     const byId = new Map(all.map((x) => [x.id, x]));
     const related = new Set<number>();

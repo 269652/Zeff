@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { WorkRunBrief } from "@/lib/entities-shared";
-import { ChevronIcon, SparkIcon } from "./icons";
+import { SparkIcon } from "./icons";
+import { SourceCard } from "./SourceCard";
 import { formatDateTime, formatTime } from "@/lib/format";
 import { useT } from "@/components/I18nProvider";
 import { rich } from "@/lib/i18n/rich";
@@ -10,43 +11,31 @@ const when = (iso: string | null) => (iso ? formatDateTime(iso) : "?");
 const time = (iso: string | null) => (iso ? formatTime(iso) : "…");
 
 const CARD = "space-y-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-900";
-const INNER = "flex min-w-0 flex-1 items-center gap-2 py-1 pr-2 pl-1.5 text-left";
-const BADGE = "flex min-w-0 items-stretch overflow-hidden rounded-md border border-violet-200 bg-violet-50 text-xs text-violet-950 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-100";
-
 const outcomes = (t: T): Record<string, string> => ({ done: t("done"), partial: t("partly"), blocked: t("blocked") });
 
-/** A run (an agent's, a worker's) as a badge: who, when, how long, its line. With `onToggle` it unfolds. */
+/** A run (an agent's, a worker's) as a small card: what it did, who, when, how long, how it ended. With `onToggle` it unfolds. */
 export function WorkRunBadge({ r, className = "", expanded = false, onToggle }: { r: WorkRunBrief; className?: string; expanded?: boolean; onToggle?: () => void }) {
   const t = useT();
   const OUTCOME = outcomes(t);
-  const body = (
-    <>
-      {onToggle && <ChevronIcon open={expanded} className="size-3.5 shrink-0 text-violet-500 dark:text-violet-400" />}
-      <SparkIcon className="size-4 shrink-0 text-violet-600 dark:text-violet-400" />
-      <span className="shrink-0 font-medium">
-        {r.ref} · {r.agent}
-      </span>
-      <span className="shrink-0 text-violet-700/80 dark:text-violet-300/80">
-        {when(r.startedAt)}
-        {r.minutes != null ? ` · ${r.minutes} min` : ""}
-        {r.outcome ? ` · ${OUTCOME[r.outcome] ?? r.outcome}` : ""}
-      </span>
-      {r.entryLine && <span className="min-w-0 truncate text-violet-900/70 dark:text-violet-100/70">{r.entryLine}</span>}
-    </>
-  );
+  const end = r.outcome ? (OUTCOME[r.outcome] ?? r.outcome) : r.status;
+  const summary = r.summary?.replace(/\s+/g, " ").trim();
   return (
-    <div className={`${BADGE} ${className}`}>
-      {onToggle ? (
-        <button type="button" className={`${INNER} cursor-pointer transition hover:bg-violet-100 dark:hover:bg-violet-950`} onClick={onToggle} aria-expanded={expanded} title={expanded ? t("Fold") : t("Show the report")}>
-          {body}
-        </button>
-      ) : (
-        <span className={INNER}>{body}</span>
-      )}
-      <Link href={`/work?run=${r.id}`} className="flex shrink-0 items-center px-2 text-violet-700 transition hover:bg-violet-100 dark:text-violet-300 dark:hover:bg-violet-950" title={t("Open the run on the Work tab")}>
-        ↗
-      </Link>
-    </div>
+    <SourceCard
+      tone="violet"
+      icon={<SparkIcon />}
+      kind={t("Run {ref}", { ref: r.ref })}
+      state={end ? { text: end, className: r.outcome === "blocked" ? "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200" : undefined } : undefined}
+      when={r.startedAt ? formatDateTime(r.startedAt) : undefined}
+      title={r.entryLine || summary || r.ref}
+      sub={[r.agent, r.minutes != null ? `${r.minutes} min` : ""].filter(Boolean).join(" · ")}
+      snippet={r.entryLine ? summary : undefined}
+      expanded={expanded}
+      onToggle={onToggle}
+      toggleTitle={expanded ? t("Fold") : t("Show the report")}
+      href={`/work?run=${r.id}`}
+      hrefTitle={t("Open the run on the Code tab")}
+      className={className}
+    />
   );
 }
 

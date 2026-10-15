@@ -74,7 +74,7 @@ export function ScopeChoice({ title, onPick, onCancel, pending }: { title: strin
  * repeat (a preset or a rule of your own, ending never / on a day / after n times), place, notes.
  * A series' occurrence asks first: this one, it and the following, or all.
  */
-export function EventEditor({ init, calendars, onClose, onDone }: { init: EditorInit; calendars: CalendarView[]; onClose: () => void; onDone: (r: Result) => void }) {
+export function EventEditor({ init, calendars, onClose, onDone }: { init: EditorInit; calendars: CalendarView[]; onClose: () => void; onDone: (r: Result, undo?: () => unknown) => void }) {
   const t = useT();
   const [v, setV] = useState(init);
   const [pending, start] = useTransition();
@@ -123,8 +123,8 @@ export function EventEditor({ init, calendars, onClose, onDone }: { init: Editor
   const setRule = (patch: Partial<Recurrence> | null) => set({ recurrence: patch === null ? null : ({ ...(rule ?? { freq: "weekly", interval: 1 }), ...patch } as Recurrence) });
   const ends = rule?.until ? "on" : rule?.count ? "after" : "never";
 
-  const finish = (r: Result) => {
-    if (r?.ok) onDone(r);
+  const finish = (r: Result, undo?: () => unknown) => {
+    if (r?.ok) onDone(r, undo);
     else setError(r?.error ?? t("That didn't work."));
   };
   const save = (scope?: SeriesScope) =>
@@ -145,7 +145,14 @@ export function EventEditor({ init, calendars, onClose, onDone }: { init: Editor
         }),
       ),
     );
-  const remove = (scope?: SeriesScope) => start(async () => finish(await deleteEventAction(v.id!, series && scope ? { occurrence: init.occurrence!, scope } : undefined)));
+  const remove = (scope?: SeriesScope) =>
+    start(async () =>
+      finish(
+        await deleteEventAction(v.id!, series && scope ? { occurrence: init.occurrence!, scope } : undefined),
+        // Undo of a single event: entered again (a series is not).
+        series ? undefined : () => saveEventAction({ calendarId: v.calendarId, title: v.title, start: v.start, end: v.end, allDay: v.allDay, location: v.location, description: v.description, recurrence: v.recurrence }),
+      ),
+    );
   const calendar = calendars.find((c) => c.id === v.calendarId);
 
   return (
@@ -173,7 +180,7 @@ export function EventEditor({ init, calendars, onClose, onDone }: { init: Editor
               {t("All day")}
             </label>
             <div className="grid grid-cols-[3rem_1fr_auto] items-center gap-2 text-sm">
-              <span className="text-zinc-500">{t("From")}</span>
+              <span className="text-zinc-600 dark:text-zinc-400">{t("From")}</span>
               <input type="date" className="input" value={startDay} onChange={(e) => e.target.value && setStart(e.target.value, startTime)} required />
               {!v.allDay ? <input type="time" step={300} className="input w-28" value={startTime} onChange={(e) => e.target.value && setStart(startDay, e.target.value)} required /> : <span />}
               <span className="text-zinc-500">{t("To")}</span>
@@ -297,7 +304,10 @@ export function EventEditor({ init, calendars, onClose, onDone }: { init: Editor
             <input className="input" placeholder={t("Add location")} value={v.location} onChange={(e) => set({ location: e.target.value })} />
             <textarea className="input min-h-20 resize-y" placeholder={t("Add description")} value={v.description} onChange={(e) => set({ description: e.target.value })} />
 
-            {error && <p className="alert-error text-sm">{error}</p>}
+            <span role="status" className="sr-only">
+              {pending ? t("Saving…") : ""}
+            </span>
+            {error && <p role="alert" className="alert-error text-sm">{error}</p>}
             <div className="flex items-center gap-2 pt-1">
               {v.id && (
                 <button type="button" className="btn btn-sm text-red-600 dark:text-red-400" disabled={pending} onClick={() => (series ? setAsking("delete") : remove())}>

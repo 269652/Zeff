@@ -3,7 +3,7 @@ import { t } from "@/lib/i18n/server";
 import { findGit, installCommand } from "@/lib/prerequisites-shared";
 
 /**
- * Git is the one program Zeff doesn't bring (the Work tab's worktrees and the repos need it).
+ * Git is the one program Zeff doesn't bring (the Code tab's worktrees and the repos need it).
  * Without it, git's spawn fails with "spawn git ENOENT" — these turn that into a message that says
  * what to do. Server only.
  */
@@ -21,7 +21,7 @@ export function gitPath(): string | null {
 export const gitAvailable = (): boolean => gitPath() !== null;
 
 /** "Git isn't installed …": what for, and the command that installs it. */
-export const gitMissingMessage = (): string => t("Git isn't installed on this PC (or not on the PATH) — the Work tab and the repos need it. Install it ({command}), then restart Zeff.", { command: installCommand("git") });
+export const gitMissingMessage = (): string => t("Git isn't installed on this PC (or not on the PATH) — the Code tab and the repos need it. Install it ({command}), then restart Zeff.", { command: installCommand("git") });
 
 /** A failure of a spawned git, worded for the user: not installed → gitMissingMessage(); else `message` (default: the error's own). */
 export function gitFailure(err: unknown, message?: string): Error {

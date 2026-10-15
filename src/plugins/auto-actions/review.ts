@@ -340,7 +340,7 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
         getDb().update(todos).set(set).where(eq(todos.id, t.id)).run();
       }
     }
-    if (withActions) emitChange("todos");
+    if (withActions || opts.ids) emitChange("todos"); // (a review of chosen todos — after a note — says it is through even with nothing new)
     return {
       ok: failed < list.length,
       reviewed: list.length,

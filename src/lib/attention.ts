@@ -109,15 +109,22 @@ export function clearAttention(key: string): void {
 
 /** What needs you now: sign-ins, and the questions agents wait on (todos with ❗). */
 export async function listAttention(): Promise<Attention[]> {
-  const { listTodos } = await import("@/lib/boards/store");
-  const questions = listTodos({ status: "open" })
+  // Only the todos that wait for an answer, from their own columns: every page asks (the header),
+  // so this must not build the whole todo view (links, sources …) for every open todo.
+  const { getDb, schema } = await import("@/db");
+  const { and, eq, isNotNull } = await import("drizzle-orm");
+  const questions = getDb()
+    .select({ id: schema.todos.id, needsInput: schema.todos.needsInput, updatedAt: schema.todos.updatedAt })
+    .from(schema.todos)
+    .where(and(eq(schema.todos.status, "open"), isNotNull(schema.todos.needsInput)))
+    .all()
     .filter((todo) => todo.needsInput)
     .map((todo): Attention => ({
       key: `question:${todo.id}`,
       kind: "question",
-      title: t("{ref} is waiting for your answer", { ref: todo.ref }),
+      title: t("{ref} is waiting for your answer", { ref: `T-${todo.id}` }),
       body: todo.needsInput!,
-      at: todo.updatedAt,
+      at: /^\d{4}-\d{2}-\d{2} /.test(String(todo.updatedAt)) ? `${String(todo.updatedAt).replace(" ", "T")}Z` : String(todo.updatedAt),
       href: `/t/${todo.id}`,
     }));
   // Live Copilot sessions waiting on you: a permission it asks for, or its turn over without a result.

@@ -123,7 +123,7 @@ export default async function MonthPage({
       </div>
 
       {sp.month && !requested && (
-        <p className="alert-error">{t('Could not read month "{month}" — showing the current month instead.', { month: sp.month })}</p>
+        <p role="alert" className="alert-error">{t('Could not read month "{month}" — showing the current month instead.', { month: sp.month })}</p>
       )}
 
       <div className="grid gap-3 sm:grid-cols-3">

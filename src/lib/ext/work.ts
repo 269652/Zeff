@@ -8,7 +8,7 @@ import { emitExtEvent, extEnv, resolveCommand } from "./hooks";
 import { enabledPlugins } from "./registry";
 
 /**
- * What the Work tab takes from external plugins — the one place Work's code calls: the rules
+ * What the Code tab takes from external plugins — the one place Work's code calls: the rules
  * workers are told, the MCP servers they get, the "/" commands of the message box, the views in the
  * sidebar, and the event watcher. Everything is read when it's needed (a plugin's change counts at
  * once); none of it throws — a broken plugin is skipped, not Work.

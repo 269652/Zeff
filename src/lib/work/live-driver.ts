@@ -6,7 +6,7 @@ import type { AskAnswer, ClaudeAsk, Effort, SessionLiveView, SessionMode, WorkRe
 /**
  * Live sessions, whatever CLI runs them: a driver per provider (Claude Code's in
  * plugins/claude-cli/live.ts; others register theirs). The runner starts a session through its
- * provider's driver; the Work tab, its live route, the attention bar and the host's exit report
+ * provider's driver; the Code tab, its live route, the attention bar and the host's exit report
  * go through the driver that has the run. A driver keeps its sessions' state itself (in memory,
  * found again after a restart: reattach) and shows them as one shape (SessionLiveView).
  */

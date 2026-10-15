@@ -56,8 +56,8 @@ export default async function CompilePage({ searchParams }: { searchParams: Prom
             </form>
           </div>
         )}
-        {sp.error && <p className="alert-error text-sm">{sp.error}</p>}
-        {sp.started && !running && <p className="alert-ok text-sm">{t("Started — the summaries appear as they are done.")}</p>}
+        {sp.error && <p role="alert" className="alert-error text-sm">{sp.error}</p>}
+        {sp.started && !running && <p role="status" className="alert-ok text-sm">{t("Started — the summaries appear as they are done.")}</p>}
         {sp.busy && <p className="text-sm text-amber-700 dark:text-amber-400">{t("A compile run is going already.")}</p>}
         {progress?.result && (
           <p className={`text-sm ${progress.result.failed.length ? "text-amber-700 dark:text-amber-400" : "text-zinc-500"}`}>

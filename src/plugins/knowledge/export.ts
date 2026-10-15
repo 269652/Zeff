@@ -7,11 +7,12 @@ import { allKeepNotes } from "@/plugins/keep/store";
 import { documentDocs } from "@/plugins/documents/export";
 import { isInstalled } from "@/plugins/state";
 import { pushTo } from "@/lib/collections";
+import { backfillReports } from "@/lib/work/report";
 
 /**
  * Zeff's synced context as documents for the knowledge server (its "Zeff" source): Jira tickets
  * with their comments, Teams chats by day, mail conversations, GitLab merge requests with their
- * comments, todos with their notes and AI reports, the time entries by week, the day recaps, the
+ * comments, todos with their notes and AI reports (and the workers' full reports), the time entries by week, the day recaps, the
  * notes, the Google Keep notes. Each with a version (a hash of its text — unchanged ones aren't compiled again) and,
  * where there is one, a link (Jira, Teams, GitLab, or the page in Zeff).
  */
@@ -203,6 +204,15 @@ export function knowledgeDocs(zeffUrl: string, only?: "keep"): { account: string
       .join("\n\n");
     docs.push(doc({ id: `zeff:todo:${t.id}`, space: "Zeff · Todos", title: `T-${t.id}${t.ticket ? ` · ${t.ticket}` : ""}: ${t.text.slice(0, 120)}`, url: `${zeffUrl}/t/${t.id}`, updatedAt: t.updated_at ?? t.created_at, author: null, body }));
   }
+
+  // Work reports: what a worker did on a todo, whole (the runs from before they were kept get theirs first) (the todo's own page has only its cut-short comment).
+  backfillReports();
+  for (const r of all<{ id: number; run_id: number; todo_id: number; ticket: string; title: string; body: string; by_who: string; created_at: string; updated_at: string }>(
+    "select id, run_id, todo_id, ticket, title, body, by_who, created_at, updated_at from work_reports",
+  ))
+    docs.push(doc({ id: `zeff:report:${r.id}`, space: "Zeff · Berichte", title: `Bericht W-${r.run_id} zu T-${r.todo_id}${r.ticket ? ` · ${r.ticket}` : ""}: ${r.title.slice(0, 120)}`, url: `${zeffUrl}/t/${r.todo_id}`, updatedAt: r.updated_at ?? r.created_at, author: r.by_who, body: `Bericht von ${r.by_who} zu Todo T-${r.todo_id}${r.ticket ? ` (${r.ticket})` : ""}, ${day(r.created_at)}.
+
+${clean(r.body)}` }));
 
   // Time entries: a week each (Monday).
   const weeks = new Map<string, string[]>();

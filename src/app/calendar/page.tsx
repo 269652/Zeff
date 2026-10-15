@@ -82,7 +82,7 @@ export default async function CalendarPage({
       </div>
 
       {sp.imported !== undefined && (
-        <p className="alert-ok">
+        <p role="status" className="alert-ok">
           {sp.imported === "1"
             ? sp.skipped
               ? t("Imported 1 meeting as time entries ({skipped} already booked, skipped).", { skipped: sp.skipped })
@@ -92,7 +92,7 @@ export default async function CalendarPage({
               : t("Imported {n} meetings as time entries.", { n: sp.imported })}
         </p>
       )}
-      {sp.week && !requested && <p className="alert-error">{t('Could not read week "{week}" — showing this week.', { week: sp.week })}</p>}
+      {sp.week && !requested && <p role="alert" className="alert-error">{t('Could not read week "{week}" — showing this week.', { week: sp.week })}</p>}
 
       <section className="card p-4">
         {count === 0 ? (

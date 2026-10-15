@@ -8,6 +8,7 @@ import { findAllProgress } from "@/plugins/people/dates";
 import { createPersonFormAction, dateFormAction, extractKnowledgeFormAction, reviewSuggestionFormAction, findAllDatesFormAction, importPeopleFormAction, linkJiraAccountsFormAction, normalizePeopleFormAction, updatePersonFormAction } from "@/plugins/people/server-actions";
 import { pendingSuggestions } from "@/plugins/people/identity";
 import { KnowledgeReview } from "@/plugins/people/KnowledgeViews";
+import { PeopleList } from "@/plugins/people/PeopleList";
 import { dateKindLabels, dateText, inDaysText, upcomingShort, upcomingTitle } from "@/plugins/people/shared";
 import { contactsOf, listPeople, proposedDates, upcoming, whatsappChats } from "@/plugins/people/store";
 import { formatAgo } from "@/lib/format";
@@ -59,8 +60,8 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
           <input name="name" required placeholder={t("Name…")} className="input" aria-label={t("New person")} />
           <button className="btn btn-primary">{t("Add")}</button>
         </form>
-        {sp.error && <p className="alert-error text-sm">{sp.error}</p>}
-        {sp.added && <p className="alert-ok text-sm">{t("Added ✓")}</p>}
+        {sp.error && <p role="alert" className="alert-error text-sm">{sp.error}</p>}
+        {sp.added && <p role="status" className="alert-ok text-sm">{t("Added ✓")}</p>}
         <Link href="/personen/compile" className="btn btn-sm w-full text-center" title={t("A summary of every person: what connects you, the key facts, the fun facts")}>
           {t("Compile summaries")}
         </Link>
@@ -72,7 +73,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
         {sp.imported !== undefined &&
           (() => {
             const [c, u, k] = sp.imported.split(",").map(Number);
-            return <p className="alert-ok text-sm">{t("{c} new people, {u} updated — from {k} contacts of the last 14 days", { c: c || 0, u: u || 0, k: k || 0 })}</p>;
+            return <p role="status" className="alert-ok text-sm">{t("{c} new people, {u} updated — from {k} contacts of the last 14 days", { c: c || 0, u: u || 0, k: k || 0 })}</p>;
           })()}
         {people.length > 0 &&
           (progress ? (
@@ -122,11 +123,11 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
             </button>
           </form>
         )}
-        {sp.linked !== undefined && <p className="alert-ok text-sm">{sp.linked === "0" ? t("No new Jira accounts found.") : t("{n} Jira accounts linked.", { n: sp.linked })}</p>}
+        {sp.linked !== undefined && <p role="status" className="alert-ok text-sm">{sp.linked === "0" ? t("No new Jira accounts found.") : t("{n} Jira accounts linked.", { n: sp.linked })}</p>}
         {sp.matched !== undefined &&
           (() => {
             const [a, c, m, r] = sp.matched.split(",").map(Number);
-            return <p className="alert-ok text-sm">{t("{a} aliases, {c} new, {m} merged, {r} relations", { a: a || 0, c: c || 0, m: m || 0, r: r || 0 })}</p>;
+            return <p role="status" className="alert-ok text-sm">{t("{a} aliases, {c} new, {m} merged, {r} relations", { a: a || 0, c: c || 0, m: m || 0, r: r || 0 })}</p>;
           })()}
         <p className="text-xs text-zinc-400">{t("Two profiles that are one person? Open one: “Same person as …” merges it into the other.")}</p>
         {soon.length > 0 && (
@@ -216,40 +217,26 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
         <section className="space-y-2">
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">{people.length === 1 ? t("1 person") : t("{n} people", { n: people.length })}</h2>
           {people.length ? (
-            <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-              {people.map((p) => {
+            <PeopleList
+              rows={people.map((p) => {
                 const next = nextOf.get(p.id);
                 const last = contactsOf(p, 1)[0];
-                return (
-                  <li key={p.id} className="card flex items-start gap-2 p-3">
-                    <form action={updatePersonFormAction}>
-                      <input type="hidden" name="id" value={p.id} />
-                      <input type="hidden" name="to" value="/personen" />
-                      <input type="hidden" name="starred" value={p.starred ? "0" : "1"} />
-                      <button
-                        className={`text-lg leading-none ${p.starred ? "text-amber-500" : "text-zinc-300 hover:text-amber-400 dark:text-zinc-600"}`}
-                        title={p.starred ? t("Don't keep at the top") : t("Keep at the top")}
-                        aria-label={p.starred ? t("Remove star") : t("Add star")}
-                      >
-                        ★
-                      </button>
-                    </form>
-                    <Link href={`/personen/${p.id}`} className="min-w-0 flex-1">
-                      <span className="block truncate font-medium hover:underline">{p.name}</span>
-                      {(p.aliases.length > 0 || p.accounts.length > 0) && (
-                        <span className="block truncate text-xs text-zinc-500" title={[...p.aliases, ...p.accounts.map((a) => `Jira ~${a.value}`)].join(" · ")}>
-                          {[...p.aliases, ...p.accounts.map((a) => `~${a.value}`)].join(" · ")}
-                        </span>
-                      )}
-                      <span className="block truncate text-xs text-zinc-500">
-                        {next ? `${upcomingShort(next, t)} ${inDaysText(next.inDays, next.on, t)}` : t("no date coming up")}
-                        {last ? ` · ${t("last {ago}", { ago: formatAgo(last.at) })}` : ""}
-                      </span>
-                    </Link>
-                  </li>
-                );
+                return {
+                  id: p.id,
+                  name: p.name,
+                  aliases: p.aliases,
+                  emails: p.emails,
+                  note: p.note,
+                  starred: p.starred,
+                  createdAt: p.createdAt,
+                  nextDays: next ? next.inDays : null,
+                  lastAt: last?.at ?? null,
+                  aliasLine: [...p.aliases, ...p.accounts.map((a) => `~${a.value}`)].join(" · "),
+                  aliasTitle: [...p.aliases, ...p.accounts.map((a) => `Jira ~${a.value}`)].join(" · "),
+                  dateLine: `${next ? `${upcomingShort(next, t)} ${inDaysText(next.inDays, next.on, t)}` : t("no date coming up")}${last ? ` · ${t("last {ago}", { ago: formatAgo(last.at) })}` : ""}`,
+                };
               })}
-            </ul>
+            />
           ) : (
             <EmptyState>{t("Nobody yet — import them from your context on the left (the AI reads the last 14 days), add someone by hand, or take people over from the knowledge and WhatsApp below.")}</EmptyState>
           )}

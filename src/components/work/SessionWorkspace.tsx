@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 import type { DiffFile } from "@/lib/work/session-git";
 import type { ProcView } from "@/lib/work/session-procs";
 import { useT } from "../I18nProvider";
+import { FormError } from "../FormError";
 import { toast } from "../Toaster";
 import { ExtFrame, type ExtContext } from "../ext/ExtFrame";
 import { Patch } from "./Diff";
@@ -114,7 +115,7 @@ function Changes({ runId, title }: { runId: number; title: string }) {
           </button>
         </span>
       </div>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <FormError as="p">{error}</FormError>}
       <div className="min-h-0 flex-1 space-y-2 overflow-auto">
         {data?.files.map((f) => (
           <div key={f.path} className="overflow-hidden rounded-md border border-zinc-200 dark:border-zinc-800">
@@ -196,7 +197,7 @@ function Preview({ runId }: { runId: number }) {
             {p.log && (
               <details className="mt-1">
                 <summary className="cursor-pointer text-xs text-zinc-500">{t("Output")}</summary>
-                <pre className="mt-1 max-h-60 overflow-auto rounded bg-zinc-950 p-2 font-mono text-[11px] whitespace-pre-wrap text-zinc-300">{p.log}</pre>
+                <pre className="mt-1 max-h-60 overflow-auto rounded bg-zinc-950 p-2 font-mono text-xs whitespace-pre-wrap text-zinc-300">{p.log}</pre>
               </details>
             )}
           </li>

@@ -33,7 +33,7 @@ const cache = (): AnswerCache<AiAnswer<unknown>> => (shared.__zeffLlmCache ??= c
 export function llmChoice(task: LlmTaskId): { provider: AiProvider; model: string } {
   const own = getLlmSettings().tasks[task];
   let provider: AiProvider = own?.provider && providerAvailable(own.provider) ? own.provider : aiChoice().provider;
-  // ChatGPT's workers are live sessions only: without those (Work settings → Live sessions) the first other backend installed.
+  // ChatGPT's workers are live sessions only: without those (Code settings → Live sessions) the first other backend installed.
   if (task === "worker" && provider === "codex" && !liveWorkersOn("codex")) provider = (["claude", "copilot"] as const).find((p) => providerAvailable(p)) ?? "copilot";
   return { provider, model: (own?.model && own.provider === provider ? own.model : "") || defaultModelOf(provider) };
 }

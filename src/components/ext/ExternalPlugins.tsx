@@ -25,7 +25,7 @@ export function ExternalPlugins() {
         </Link>
       </div>
       <p className="max-w-[75ch] text-sm text-zinc-500">
-        {t("Plugins you add without changing Zeff: put a folder with a zeff-plugin.json into the plugins folder — it shows up here at once, no restart. They can add rules for Work's workers, “/” commands, views, MCP servers and event hooks.")}{" "}
+        {t("Plugins you add without changing Zeff: put a folder with a zeff-plugin.json into the plugins folder — it shows up here at once, no restart. They can add rules for Code's workers, “/” commands, views, MCP servers and event hooks.")}{" "}
         <code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-800">{root}</code>
       </p>
       {plugins.length === 0 && problems.length === 0 && <p className="card p-4 text-sm text-zinc-500">{t("No external plugins yet. docs/plugins/ has the reference and examples/plugins/ two plugins to start from.")}</p>}
@@ -47,12 +47,12 @@ export function ExternalPlugins() {
                   <h3 className="font-medium">
                     {p.manifest.name} <span className="text-xs font-normal text-zinc-400">{p.manifest.version}</span>{" "}
                     {p.enabled ? (
-                      <span className="ml-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">{t("on")}</span>
+                      <span className="ml-1 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">{t("on")}</span>
                     ) : (
-                      <span className="ml-1 rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">{t("off")}</span>
+                      <span className="ml-1 rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">{t("off")}</span>
                     )}
                   </h3>
-                  <p className="font-mono text-[11px] text-zinc-400">
+                  <p className="font-mono text-xs text-zinc-400">
                     {p.id}
                     {p.manifest.author ? ` · ${p.manifest.author}` : ""}
                   </p>

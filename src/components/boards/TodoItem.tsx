@@ -265,7 +265,7 @@ export function TodoItem({
           )}
           <Linked text={todo.text} cards={cards} mrs={todo.links?.mrs} />
         </span>
-        {status === "dismissed" && <span className="ml-2 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 uppercase dark:bg-zinc-800 dark:text-zinc-400">{t("Dismissed")}</span>}
+        {status === "dismissed" && <span className="ml-2 rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-medium text-zinc-500 uppercase dark:bg-zinc-800 dark:text-zinc-400">{t("Dismissed")}</span>}
         <span className="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-zinc-400">
           <CopyButton text={todo.ref} className="font-mono hover:text-indigo-600 hover:underline dark:hover:text-indigo-400" title={t("Copy “{text}” — for Copilot / Claude Code", { text: todo.ref })}>
             {todo.ref}
@@ -324,7 +324,7 @@ export function TodoItem({
           )}
           {todo.deferred && !closed && <span className="text-zinc-400"> · {t("deferred")}</span>}
           {todo.bubbledUp && !closed && <span className="text-amber-600 dark:text-amber-400" title={t("You had moved it down — it's back on top")}> · {t("back on top: {why}", { why: todo.bubbledUp })}</span>}
-          {!closed && <TodoQuickButtons todoId={todo.id} panel={quick} onToggle={setQuick} canReply={todo.owner === "me" && [...todo.refs, ...todo.mailRefs].some((r) => r.startsWith("mail:") || r.startsWith("teams:"))} aiDisabled={!workOn ? t("Work isn't installed (Menu → Plugins)") : running || doing ? t("Being worked on — once the run is done") : undefined} />}
+          {!closed && <TodoQuickButtons todoId={todo.id} panel={quick} onToggle={setQuick} canReply={todo.owner === "me" && [...todo.refs, ...todo.mailRefs].some((r) => r.startsWith("mail:") || r.startsWith("teams:"))} aiDisabled={!workOn ? t("Code isn't installed (Menu → Plugins)") : running || doing ? t("Being worked on — once the run is done") : undefined} />}
         </span>
         <TodoQuickPanel todoId={todo.id} todoRef={todo.ref} panel={closed && quick !== "time" ? null : quick} onClose={() => setQuick(null)} time={todo.time} />
         {todo.note ? (
@@ -464,7 +464,7 @@ export function TodoItem({
                         setDoingAt(gi);
                         setOutcome(null);
                         startDoing(async () => {
-                          // Zeff runs it right now (no worker, no Work tab) — just this action.
+                          // Zeff runs it right now (no worker, no Code tab) — just this action.
                           const r = await runTodoOpsAction(todo.id, opGroups.length > 1 ? runnable : undefined).catch((e) => ({ ok: false as const, error: String(e?.message ?? e) }));
                           setDoingAt(null);
                           if (r?.ok) {

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { findGitlabItemsAction, setGitlabResolvedAction } from "@/plugins/gitlab/server-actions";
 import { gitlabDone, gitlabKindLabels, gitlabLinkKey, gitlabMarkdown, resolvedInGitlab, type GitlabItemView, type GitlabKind } from "@/lib/gitlab/shared";
-import { ChevronIcon } from "./icons";
+import { SourceCard } from "./SourceCard";
 import { Markdown } from "./Markdown";
 import { ResolvedMark } from "./ResolvedMark";
 import { ResolveToggle } from "./ResolveToggle";
@@ -91,13 +91,12 @@ export function GitlabItemBadge({
   const t = useT();
   const project = item.project.split("/").pop();
   const what = item.kind === "branch" ? item.ref : `${item.ref} ${item.title}`;
-  // A branch that is on the remote (GitLab has it, or Zeff pushed it): green, with a check.
+  // A branch that is on the remote (GitLab has it, or Zeff pushed it): with a check.
   const onRemote = item.kind === "branch" && item.state !== "not pushed";
-  const start = item.kind === "comment" ? item.body.replace(/\s+/g, " ").trim() : "";
-  const content = (
+  const start = item.kind === "comment" ? item.body.replace(/[`*_>#]+|!?\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/\s+/g, " ").trim() : "";
+  const icon = (
     <>
-      {onToggle && <ChevronIcon open={expanded} className="size-3.5 shrink-0 text-orange-500 dark:text-orange-400" />}
-      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className={`size-4 shrink-0 ${onRemote ? "text-emerald-600 dark:text-emerald-400" : "text-orange-600 dark:text-orange-400"}`} aria-hidden={!onRemote} role={onRemote ? "img" : undefined}>
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden={!onRemote} role={onRemote ? "img" : undefined}>
         {onRemote && <title>{t("On the remote")}</title>}
         {item.kind === "branch" ? (
           <>
@@ -118,55 +117,28 @@ export function GitlabItemBadge({
           </>
         )}
       </svg>
-      {item.kind === "comment" && <ResolvedMark done={resolved || gitlabDone(item)} title={resolvedInGitlab(item) ? t("resolved in GitLab") : undefined} />}
-      <span className="shrink-0 font-medium">{gitlabKindLabels(t)[item.kind]}</span>
-      {item.kind === "branch" ? (
-        <span className="min-w-0 truncate font-medium">{what}</span>
-      ) : (
-        <>
-          <span className="shrink-0 font-mono font-medium">{item.ref}</span>
-          {item.kind === "mr" && <span className="min-w-0 truncate font-medium">{item.title}</span>}
-        </>
-      )}
-      {/* Where, who and when — on a phone it gives way too (ellipsis). */}
-      <span className="shrink-0 text-orange-800/80 max-sm:min-w-0 max-sm:shrink max-sm:truncate dark:text-orange-200/80">
-        {project}
-        {item.author ? ` · ${item.author}` : ""}
-        {item.updatedAt ? ` · ${when(item.kind === "comment" ? item.createdAt : item.updatedAt)}` : ""}
-        {item.state ? ` · ${item.state}` : ""}
-      </span>
-      {start && <span className="min-w-0 truncate text-orange-900/70 dark:text-orange-100/70">{start}</span>}
     </>
   );
-  const inner = "flex min-w-0 flex-1 items-center gap-2 py-1 pr-2 pl-1.5 text-left";
+  const kind = gitlabKindLabels(t)[item.kind];
+  const day = item.kind === "comment" ? item.createdAt : item.updatedAt;
   return (
-    <div
-      className={`flex min-w-0 items-stretch overflow-hidden rounded-md border border-orange-200 bg-orange-50 text-xs text-orange-950 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-100 ${className}`}
-    >
-      {onToggle ? (
-        <button
-          type="button"
-          className={`${inner} cursor-pointer transition hover:bg-orange-100 dark:hover:bg-orange-950`}
-          onClick={onToggle}
-          aria-expanded={expanded}
-          title={expanded ? t("Fold") : t("Show all of it")}
-        >
-          {content}
-        </button>
-      ) : (
-        <span className={inner}>{content}</span>
-      )}
-      <a
-        href={item.url}
-        target="_blank"
-        rel="noreferrer"
-        className="flex shrink-0 items-center px-2 text-orange-800 transition hover:bg-orange-100 dark:text-orange-200 dark:hover:bg-orange-950"
-        title={t("Open in GitLab: {kind} {what} ({project})", { kind: gitlabKindLabels(t)[item.kind], what, project: item.project })}
-        aria-label={t("Open in GitLab")}
-      >
-        ↗
-      </a>
-    </div>
+    <SourceCard
+      tone="orange"
+      icon={icon}
+      kind={kind}
+      mark={item.kind === "comment" ? <ResolvedMark done={resolved || gitlabDone(item)} title={resolvedInGitlab(item) ? t("resolved in GitLab") : undefined} /> : undefined}
+      state={item.state ? { text: item.state, className: STATE_STYLE(item.state) } : undefined}
+      when={day ? when(day) : undefined}
+      title={(item.kind === "branch" ? item.ref : item.kind === "mr" ? item.title : item.title || item.ref) || kind}
+      sub={[project, item.kind === "comment" ? item.ref : item.kind === "mr" ? item.ref : "", item.author].filter(Boolean).join(" · ") || undefined}
+      snippet={start || undefined}
+      expanded={expanded}
+      onToggle={onToggle}
+      toggleTitle={expanded ? t("Fold") : t("Show all of it")}
+      href={item.url}
+      hrefTitle={t("Open in GitLab: {kind} {what} ({project})", { kind, what, project: item.project })}
+      className={className}
+    />
   );
 }
 

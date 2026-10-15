@@ -89,7 +89,7 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
                   <h2 className="flex min-w-0 items-center gap-2 font-medium">
                     <span className={`size-2.5 shrink-0 rounded-full ${dotOf(a.color)}`} aria-hidden />
                     <span className="truncate">{a.name}</span>
-                    {a.current && <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[11px] font-medium text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">{t("active")}</span>}
+                    {a.current && <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-xs font-medium text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">{t("active")}</span>}
                   </h2>
                   <span className="flex shrink-0 gap-2">
                     {!a.current && (

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
 import Link from "next/link";
 import { connection } from "next/server";
-import { BetaBadge, BetaWarning } from "@/components/BetaBadge";
+import { BetaBadge, BetaWarning, ExperimentalBadge, ExperimentalWarning } from "@/components/BetaBadge";
 import { PluginExtensions, type ExtensionRow } from "@/components/PluginExtensions";
 import { PluginInstallButton } from "@/components/PluginInstallButton";
 import { ThisPc } from "@/components/ThisPc";
@@ -70,18 +70,20 @@ export default async function PluginsPage() {
                       <h3 className="font-medium">
                         {catalogText(t, p.name)}{" "}
                         {installed ? (
-                          <span className="ml-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">{t("installed")}</span>
+                          <span className="ml-1 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">{t("installed")}</span>
                         ) : (
-                          <span className="ml-1 rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">{t("not installed")}</span>
+                          <span className="ml-1 rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">{t("not installed")}</span>
                         )}
-                        {p.defaultInstalled && <span className="ml-1 text-[11px] text-zinc-400">{t("Default")}</span>}
+                        {p.defaultInstalled && <span className="ml-1 text-xs text-zinc-400">{t("Default")}</span>}
                         {p.beta && <BetaBadge warning={p.beta} />}
+                        {p.experimental && <ExperimentalBadge warning={p.experimental} />}
                       </h3>
                       <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">{catalogText(t, p.description)}</p>
                     </div>
-                    <PluginInstallButton id={p.id} installed={installed} beta={p.beta} />
+                    <PluginInstallButton id={p.id} installed={installed} beta={p.beta} experimental={p.experimental} />
                   </div>
                   {p.beta && <BetaWarning warning={p.beta} />}
+                  {p.experimental && <ExperimentalWarning warning={p.experimental} />}
                   {p.dependsOn?.length ? (
                     <p className="text-xs text-zinc-500">
                       {t("Builds on: {names}", { names: p.dependsOn.map((d) => catalogText(t, pluginById(d).name)).join(", ") })}

@@ -3,6 +3,7 @@ import { isTodoKind, todoRef, type TodoOp } from "@/lib/boards/shared";
 import { addFollowUp, addTodoAiNote, getTodo, listTodos, markWorkerDone, setTodoDraft, setTodoOps, setTodoStatus } from "@/lib/boards/store";
 import { pushedLink } from "./remote";
 import { linkBranchContext } from "./branch-context";
+import { saveReport } from "./report";
 import { runActions } from "./log";
 import { sameTodo } from "@/lib/boards/similar";
 
@@ -126,6 +127,8 @@ export function applyOutcome(run: WorkRun, res: WorkResult): { closed: number[];
     }
     added.push(t.id);
   }
+  // The whole report, kept apart from the comment (which is cut short): filed under the todo, read by the knowledge server.
+  const reportId = saveReport(run, res);
   // Every run leaves its summary on its todo as a comment — open or done now — with where its pushed work is.
   const mine = own ?? getTodo(run.todoId);
   if (mine && res.summary.trim()) {
@@ -135,7 +138,8 @@ export function applyOutcome(run: WorkRun, res: WorkResult): { closed: number[];
     addTodoAiNote(mine.id, {
       text: [res.summary.trim(), ...folded.map((d) => `Suggested message: ${d}`), ...(actions.length ? [`Actions:\n${actions.map((a) => `- ${a}`).join("\n")}`] : [])].join("\n\n"),
       by: `${ref}${run.model ? ` · ${run.model}` : ""}`,
-      ...(link ? { url: link.url, urlLabel: link.label } : {}),
+      // Where its pushed work is — else the whole report.
+      ...(link ? { url: link.url, urlLabel: link.label } : reportId ? { url: `/reports/${reportId}`, urlLabel: "Report" } : {}),
     });
   }
   // Its follow-ups by the same rules as the Ticket-Lage's: waiting ones to "Wartet auf andere", joint ones asking for a time.

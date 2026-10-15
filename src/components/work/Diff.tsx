@@ -61,7 +61,7 @@ const TONE = { " ": "text-zinc-400", "-": "bg-red-950/60 text-red-200", "+": "bg
 export function EditDiff({ old, new: next, max = 400 }: { old: string; new: string; max?: number }) {
   const rows = fold(lineDiff(old, next));
   return (
-    <div className="overflow-x-auto rounded border border-zinc-800 bg-zinc-950 font-mono text-[11px] leading-snug">
+    <div className="overflow-x-auto rounded border border-zinc-800 bg-zinc-950 font-mono text-xs leading-snug">
       {rows.slice(0, max).map((r, i) =>
         r.t === "…" ? (
           <div key={i} className="px-2 text-zinc-600">
@@ -83,7 +83,7 @@ export function EditDiff({ old, new: next, max = 400 }: { old: string; new: stri
 export function Patch({ patch, max = 3000 }: { patch: string; max?: number }) {
   const lines = patch.split("\n").filter((l) => !/^(diff --git|index |--- |\+\+\+ |new file mode|deleted file mode|similarity index|rename (from|to) )/.test(l));
   return (
-    <div className="overflow-x-auto bg-zinc-950 font-mono text-[11px] leading-snug">
+    <div className="overflow-x-auto bg-zinc-950 font-mono text-xs leading-snug">
       {lines.slice(0, max).map((l, i) => (
         <div key={i} className={`px-2 whitespace-pre ${l.startsWith("@@") ? "bg-sky-950/50 text-sky-300" : l.startsWith("+") ? TONE["+"] : l.startsWith("-") ? TONE["-"] : TONE[" "]}`}>
           {l || " "}

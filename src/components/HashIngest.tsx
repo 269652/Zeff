@@ -58,5 +58,5 @@ export function HashIngest() {
   }, [router, t]);
 
   if (!msg) return null;
-  return <p className={error ? "alert-error" : "alert-ok"}>{msg}</p>;
+  return <p role={error ? "alert" : "status"} className={error ? "alert-error" : "alert-ok"}>{msg}</p>;
 }

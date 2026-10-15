@@ -70,10 +70,10 @@ export function LlmSettingsForm({
           <table className="table">
             <thead>
               <tr>
-                <th>{t("Task")}</th>
-                <th>{t("Backend")}</th>
-                <th>{t("Model")}</th>
-                <th>{t("Runs with now")}</th>
+                <th scope="col">{t("Task")}</th>
+                <th scope="col">{t("Backend")}</th>
+                <th scope="col">{t("Model")}</th>
+                <th scope="col">{t("Runs with now")}</th>
               </tr>
             </thead>
             <tbody>

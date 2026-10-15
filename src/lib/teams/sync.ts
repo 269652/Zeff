@@ -1,4 +1,5 @@
 import { automationEnv, automationUp, driverPath } from "@/plugins/drivers";
+import { driverOf } from "@/lib/connectors/store";
 import { clearAttention, needsSignIn, raiseLogin } from "@/lib/attention";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
@@ -32,25 +33,30 @@ export async function syncTeams({ background = false } = {}): Promise<{ ok: bool
   if (state.__zeffTeamsSyncing) return { ok: false, message: t("A Teams sync is already running.") };
   state.__zeffTeamsSyncing = true;
   try {
-    // In the background without the automation Chrome: later, as for the other sources — not a failure.
-    if (background && !(await chromeUp())) return { ok: true, message: t("The automation Chrome isn't running — later.") };
-    const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
-    const script = driverPath("teams");
-    const out = await runStdioSession(
-      { command: process.execPath, args: [script], env: automationEnv(), label: "Teams sync" },
-      // Teams not open: a tab for it (Chrome itself started only by hand).
-      async (call) => resultToPayload(await call("teams_messages", { pmDays: PM_DAYS, chatDays: CHAT_DAYS, openIfMissing: true, launch: !background })),
-      180000,
-    );
-    const data = (typeof out === "string" ? JSON.parse(out) : out) as { messages?: TeamsMessageInput[]; unresolved?: number };
-    if (!Array.isArray(data.messages)) throw new Error(typeof out === "string" ? out.slice(0, 300) : t("{source} returned nothing readable.", { source: "Teams" }));
-    const { added, total } = saveTeamsMessages(data.messages);
+    // Through Graph (the API driver) no Chrome is needed; else, in the background without the automation Chrome: later — not a failure.
+    const viaApi = driverOf("teams") === "api";
+    if (!viaApi && background && !(await chromeUp())) return { ok: true, message: t("The automation Chrome isn't running — later.") };
+    let data: { messages?: TeamsMessageInput[]; unresolved?: number };
+    if (viaApi) data = await (await import("@/lib/microsoft/teams-api")).readTeams({ pmDays: PM_DAYS, chatDays: CHAT_DAYS });
+    else {
+      const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
+      const script = driverPath("teams");
+      const out = await runStdioSession(
+        { command: process.execPath, args: [script], env: automationEnv(), label: "Teams sync" },
+        // Teams not open: a tab for it (Chrome itself started only by hand).
+        async (call) => resultToPayload(await call("teams_messages", { pmDays: PM_DAYS, chatDays: CHAT_DAYS, openIfMissing: true, launch: !background })),
+        180000,
+      );
+      data = (typeof out === "string" ? JSON.parse(out) : out) as { messages?: TeamsMessageInput[]; unresolved?: number };
+      if (!Array.isArray(data.messages)) throw new Error(typeof out === "string" ? out.slice(0, 300) : t("{source} returned nothing readable.", { source: "Teams" }));
+    }
+    const { added, total } = saveTeamsMessages(data.messages ?? []);
     clearAttention("login:teams");
     return record(true, t("{added} new · {total} in all", { added, total }));
   } catch (e) {
     const message = errorMessage(e).slice(0, 300);
     // Teams wants you to sign in: asked of you (and pinged) — never done by Zeff.
-    if (needsSignIn(message)) raiseLogin("teams", message);
+    if (driverOf("teams") === "cdp" && needsSignIn(message)) raiseLogin("teams", message);
     return record(false, message);
   } finally {
     state.__zeffTeamsSyncing = false;

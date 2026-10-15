@@ -14,7 +14,7 @@ export function Cited({ text, sources }: { text: string; sources: Source[] }) {
         const n = Number(part.match(/^\[(\d{1,2})\]$/)?.[1]);
         const s = n ? sources.find((x) => x.n === n) : undefined;
         return s ? (
-          <a key={i} href={s.url} target="_blank" rel="noreferrer noopener" title={`${s.sourceName}: ${s.title}`} className="align-super text-[10px] font-semibold text-indigo-600 hover:underline dark:text-indigo-400">
+          <a key={i} href={s.url} target="_blank" rel="noreferrer noopener" title={`${s.sourceName}: ${s.title}`} className="align-super text-xs font-semibold text-indigo-600 hover:underline dark:text-indigo-400">
             [{n}]
           </a>
         ) : (
@@ -57,7 +57,7 @@ export function AskNews() {
           {pending ? t("Reading the news …") : t("Ask")}
         </button>
       </form>
-      {error && <p className="alert-error mt-2 text-sm">{error}</p>}
+      {error && <p role="alert" className="alert-error mt-2 text-sm">{error}</p>}
       {res && (
         <div className="mt-3 space-y-2">
           <p className="leading-relaxed whitespace-pre-line">

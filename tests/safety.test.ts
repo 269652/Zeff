@@ -35,7 +35,8 @@ const WRITES: Record<string, string[]> = {
   // (note-sync.ts: your note put on its ticket — the "Sync to Jira" click on a note.)
   jira_add_comment: ["src/lib/boards/actions.ts", "src/lib/jira/context-sync.ts", "src/lib/jira/note-sync.ts", "src/lib/work/runner.ts", "src/plugins/jira/run.ts"],
   jira_transition_issue: ["src/lib/boards/actions.ts", "src/lib/work/runner.ts", "src/plugins/jira/run.ts"],
-  jira_update_issue: ["src/lib/boards/actions.ts", "src/lib/jira/context-sync.ts", "src/lib/work/runner.ts", "src/plugins/jira/run.ts"],
+  // (note-sync.ts: the pictures of your note uploaded as attachments to its ticket, right before its comment — the same "Sync to Jira" click.)
+  jira_update_issue: ["src/lib/boards/actions.ts", "src/lib/jira/context-sync.ts", "src/lib/jira/note-sync.ts", "src/lib/work/runner.ts", "src/plugins/jira/run.ts"],
   jira_create_issue_link: ["src/plugins/jira/run.ts"],
   jira_edit_comment: ["src/lib/jira/context-sync.ts", "src/lib/jira/note-sync.ts"],
   jira_create_issue: ["src/plugins/jira/run.ts"],

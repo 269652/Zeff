@@ -54,8 +54,10 @@ export function NewBoardForm() {
               aria-checked={color === c}
               aria-label={c}
               onClick={() => setColor(c)}
-              className={`size-5 rounded-full ${boardDot(c)} ring-offset-2 dark:ring-offset-zinc-900 ${color === c ? "ring-2 ring-zinc-500" : "opacity-60 hover:opacity-100"}`}
-            />
+              className={`grid size-6 place-items-center rounded-full text-[11px] leading-none font-bold text-white ${boardDot(c)} ring-offset-2 dark:ring-offset-zinc-900 ${color === c ? "ring-2 ring-zinc-600 dark:ring-zinc-300" : "opacity-60 hover:opacity-100"}`}
+            >
+              {color === c ? "✓" : ""}
+            </button>
           ))}
         </span>
         <button type="submit" className="btn btn-primary ml-auto" disabled={pending || !name.trim()}>

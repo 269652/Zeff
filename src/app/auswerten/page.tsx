@@ -107,23 +107,23 @@ function Quality({ q, all }: { q: AiQuality; all: boolean }) {
           <table className="table text-sm">
             <thead>
               <tr className="text-left text-xs text-zinc-500">
-                <th>{t("Step")}</th>
-                <th className="text-right">{t("New")}</th>
-                <th className="text-right">{t("Done")}</th>
-                <th className="text-right" title={t("Dismissed by you")}>
+                <th scope="col">{t("Step")}</th>
+                <th scope="col" className="text-right">{t("New")}</th>
+                <th scope="col" className="text-right">{t("Done")}</th>
+                <th scope="col" className="text-right" title={t("Dismissed by you")}>
                   {t("Dismissed")}
                 </th>
-                <th className="text-right" title={t("Withdrawn by the AI (outdated) or done another way")}>
+                <th scope="col" className="text-right" title={t("Withdrawn by the AI (outdated) or done another way")}>
                   {t("Withdrawn")}
                 </th>
-                <th className="text-right" title={t("Reopened by you — closed too early")}>
+                <th scope="col" className="text-right" title={t("Reopened by you — closed too early")}>
                   {t("Reopened")}
                 </th>
-                <th className="text-right" title={t("In brackets: untouched for {n} days", { n: STALE_DAYS })}>
+                <th scope="col" className="text-right" title={t("In brackets: untouched for {n} days", { n: STALE_DAYS })}>
                   {t("Open")}
                 </th>
-                <th className="text-right">{t("Hit rate")}</th>
-                <th className="text-right" title={t("Median: created to done")}>
+                <th scope="col" className="text-right">{t("Hit rate")}</th>
+                <th scope="col" className="text-right" title={t("Median: created to done")}>
                   {t("To done")}
                 </th>
               </tr>

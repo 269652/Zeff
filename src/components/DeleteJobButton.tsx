@@ -18,7 +18,7 @@ export function DeleteJobButton({ id, number }: { id: number; number: string }) 
       >
         {t("Delete job")}
       </SubmitButton>
-      {state?.error && <p className="alert-error">{state.error}</p>}
+      {state?.error && <p role="alert" className="alert-error">{state.error}</p>}
     </form>
   );
 }

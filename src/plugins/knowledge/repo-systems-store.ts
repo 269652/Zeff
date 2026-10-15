@@ -35,9 +35,10 @@ export const basisOf = (r: RepoView, others: RepoView[] = []): string =>
   JSON.stringify([3, fingerprint(getPickPrompt()), r.name, r.gitlabProject, r.boards, r.tickets, others.filter((o) => o.id !== r.id).map((o) => [o.name, o.gitlabProject, o.boards, o.tickets])]);
 
 // toTodo runs for every todo: the repos (a folder check each) and the stored summaries are read once per few seconds.
-let cache: { at: number; repos: RepoView[]; systems: Record<string, RepoSystems> } | null = null;
+// (The repo of each ticket is looked up once per snapshot too: it is a scan of the GitLab items.)
+let cache: { at: number; repos: RepoView[]; systems: Record<string, RepoSystems>; byTicket: Map<string, RepoSummary | null> } | null = null;
 const snapshot = () => {
-  if (!cache || Date.now() - cache.at > 5000) cache = { at: Date.now(), repos: listRepos(), systems: all() };
+  if (!cache || Date.now() - cache.at > 5000) cache = { at: Date.now(), repos: listRepos(), systems: all(), byTicket: new Map() };
   return cache;
 };
 
@@ -45,10 +46,13 @@ const snapshot = () => {
 export function summaryForTicket(ticket: string | null | undefined): RepoSummary | null {
   if (!ticket) return null;
   try {
-    const { repos, systems } = snapshot();
+    const { repos, systems, byTicket } = snapshot();
+    if (byTicket.has(ticket)) return byTicket.get(ticket)!;
     const repo = repoForTicket(ticket, repos)?.repo;
     const summary = repo && systems[String(repo.id)]?.summary?.trim();
-    return repo && summary ? { name: repo.name, summary } : null;
+    const found = repo && summary ? { name: repo.name, summary } : null;
+    byTicket.set(ticket, found);
+    return found;
   } catch {
     return null;
   }

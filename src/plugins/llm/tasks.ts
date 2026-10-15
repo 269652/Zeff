@@ -24,7 +24,7 @@ export const llmTasks = (t: T = translator("en")) =>
     { id: "news-feeds", label: t("News feed finder"), what: t("Names outlets, blogs and newsletters worth reading on a topic — Zeff then looks for their feeds and checks them (News plugin).") },
     { id: "reply-draft", label: t("Reply draft"), what: t("Writes the reply to a message (WhatsApp, mail, Teams) a todo is about — from the conversation.") },
     { id: "auto-actions", label: t("Auto actions"), what: t("Turns todos into ready-made actions (message, comment, mail, meeting, hand-over).") },
-    { id: "worker", label: t("Worker"), what: t("Works on a todo (Work tab, ✨ To Copilot) — in the repo, with tools.") },
+    { id: "worker", label: t("Worker"), what: t("Works on a todo (Code tab, ✨ To Copilot) — in the repo, with tools.") },
     { id: "general", label: t("Other"), what: t("Everything else (e.g. the connection test).") },
   ] as const;
 export const LLM_TASKS = llmTasks();

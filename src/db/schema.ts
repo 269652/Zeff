@@ -74,6 +74,16 @@ export const timeEntries = sqliteTable(
     source: text("source", { enum: ["mcp", "web", "calendar"] })
       .notNull()
       .default("web"),
+    /** When the work began ("HH:MM", local); null: not known. Its end = start + hours, leaving out the day's breaks — what makes work parallel to a group. */
+    start: text("start"),
+    /** A group entry (a mob day, or parallel work combined): the work is itemized under it (entry_items) instead of being booked on top. */
+    isGroup: integer("is_group", { mode: "boolean" }).notNull().default(false),
+    /** collect: its hours are yours (a mob day booked as 8 h) — combine: its hours are what the parallel work spanned, kept up to date from its items. null (a group): collect. */
+    groupKind: text("group_kind"),
+    /** Entries that ran in parallel and share the span's hours between them (divided): the same key. */
+    spanId: text("span_id"),
+    /** Divided: the hours really worked on it (its `hours` are its share of the span). */
+    workedHours: real("worked_hours"),
     /** Id of the calendar event an imported entry was created from (prevents double imports). */
     externalId: text("external_id").unique(),
     createdAt: text("created_at")
@@ -224,6 +234,32 @@ export const chronoEntries = sqliteTable(
   },
   (t) => [index("chrono_entries_week_idx").on(t.weekStart)],
 );
+
+/**
+ * Parallel work that belongs together: tasks done at the same time, or under one collecting entry
+ * (a mob day). Every task stays an entry of its own with its real hours (`worked_hours`) and its
+ * real start — the grouping is never lost. `mode` only says how the span is BOOKED, and that is
+ * what the hours of the entries are (reports and exports read them): combine (one spanning entry,
+ * the head, carries the span's hours), divide (the span's hours shared between the tasks),
+ * sequential (each task its full hours) or collect (a collecting entry of yours, the head, carries
+ * the hours). Switching the mode only recalculates booked hours — nothing is rewritten or removed
+ * but a head Zeff made itself (`head_auto`).
+ */
+export const entrySpans = sqliteTable(
+  "entry_spans",
+  {
+    id: text("id").primaryKey(),
+    date: text("date").notNull(),
+    /** combine | divide | sequential | collect */
+    mode: text("mode").notNull(),
+    /** The spanning entry (combine: made by Zeff; collect: yours). */
+    headId: integer("head_id"),
+    headAuto: integer("head_auto", { mode: "boolean" }).notNull().default(false),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [index("entry_spans_date_idx").on(t.date)],
+);
+export type EntrySpan = typeof entrySpans.$inferSelect;
 
 /** Tags that can be attached to time entries (many-to-many). */
 export const tags = sqliteTable("tags", {
@@ -776,13 +812,13 @@ export const appSettings = sqliteTable("app_settings", {
   copilotModel: text("copilot_model").notNull().default(""),
   /** Luna by default (fast and affordable; "" = the CLI's own). */
   codexModel: text("codex_model").notNull().default("gpt-6-luna"),
-  /** Work tab: how many workers run at once. */
+  /** Code tab: how many workers run at once. */
   workParallel: integer("work_parallel").notNull().default(2),
   /** Claude Code's permission mode for workers (auto: its classifier decides each action). */
   workPermissionMode: text("work_permission_mode").notNull().default("auto"),
   /** worktree: each code job in a git worktree of its own; checkout: in the repo itself, one job at a time. */
   workIsolation: text("work_isolation").notNull().default("worktree"),
-  /** How Copilot workers run: interactive (asks you for permissions on the Work tab), autopilot (allows everything), headless (as a one-shot -p run). */
+  /** How Copilot workers run: interactive (asks you for permissions on the Code tab), autopilot (allows everything), headless (as a one-shot -p run). */
   workCopilotMode: text("work_copilot_mode").notNull().default("interactive"),
   /** Mail (Outlook's inbox, read in the automation Chrome): every N minutes (0 = only by hand), and how the last sync went. */
   mailSyncMinutes: integer("mail_sync_minutes").notNull().default(15),
@@ -1002,7 +1038,7 @@ export const todoEvents = sqliteTable(
 );
 
 /**
- * A code repository workers implement in (Work tab): its folder on this machine, the GitLab
+ * A code repository workers implement in (Code tab): its folder on this machine, the GitLab
  * project it is, the Jira boards — and single tickets — whose work goes there, and what its
  * workers should know (test commands, conventions).
  */
@@ -1019,7 +1055,7 @@ export const repos = sqliteTable("repos", {
   instructions: text("instructions").notNull().default(""),
   /** How finished work gets in: mr (push a feature branch, open a merge request, merge once approved) | direct (merge into the default branch and push). */
   delivery: text("delivery").notNull().default("mr"),
-  /** JSON ["old/branch"]: local branches not to list as work (Work tab's Branches). */
+  /** JSON ["old/branch"]: local branches not to list as work (Code tab's Branches). */
   ignoredBranches: text("ignored_branches").notNull().default("[]"),
   createdAt: text("created_at")
     .notNull()
@@ -1064,7 +1100,7 @@ export const ticketActions = sqliteTable(
 );
 
 /**
- * The Work tab: a todo handed to a worker (Claude Code or Copilot CLI, unattended) — and all it
+ * The Code tab: a todo handed to a worker (Claude Code or Copilot CLI, unattended) — and all it
  * did: the prompt it got, where it worked (repo, worktree, branch), its session, its log (a
  * file under data/work/), its answer, what git says it changed, what it cost, how long it took,
  * and the time entry its time went into. `mode`: code (do the work) | draft (write the message)
@@ -1110,7 +1146,7 @@ export const workRuns = sqliteTable(
     costUsd: real("cost_usd"),
     durationMs: integer("duration_ms"),
     turns: integer("turns"),
-    /** Where it works, as chosen with the session: "worktree" (a new branch from `base`, own folder), "branch" (the existing branch `base`, own folder), "checkout" (in the repo itself); null: the Work settings' isolation. */
+    /** Where it works, as chosen with the session: "worktree" (a new branch from `base`, own folder), "branch" (the existing branch `base`, own folder), "checkout" (in the repo itself); null: the Code settings' isolation. */
     workspace: text("workspace"),
     /** Actions the permission mode refused. */
     denials: integer("denials"),
@@ -1202,6 +1238,43 @@ export type BoardRun = typeof boardRuns.$inferSelect;
 export type Todo = typeof todos.$inferSelect;
 export type Repo = typeof repos.$inferSelect;
 export type TicketActionRow = typeof ticketActions.$inferSelect;
+/**
+ * A finished run's report (Code tab): what it did, what it changed and checked, what is open, where
+ * it lies — kept whole (the comment on the todo is cut short), per run, filed under the todo it
+ * worked on and listing the todos it reported done. The knowledge server reads these (Zeff · Berichte).
+ */
+export const workReports = sqliteTable(
+  "work_reports",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    /** The run it came from — one report per run (a later answer of the same run replaces it). */
+    runId: integer("run_id").notNull(),
+    todoId: integer("todo_id").notNull(),
+    ticket: text("ticket").notNull(),
+    /** done | partial | blocked — as the run said. */
+    outcome: text("outcome").notNull(),
+    /** One line: the run's entry line. */
+    title: text("title").notNull(),
+    /** The run's own summary. */
+    summary: text("summary").notNull(),
+    /** The whole report as Markdown (summary + changes, checks, what is open, where it lies). */
+    body: text("body").notNull(),
+    /** JSON: string[] (changed files/commits), string[] (checks with results), string[] (the follow-ups' texts), number[] (the todos it reported done). */
+    changes: text("changes"),
+    checks: text("checks"),
+    openItems: text("open_items"),
+    completedTodos: text("completed_todos"),
+    repo: text("repo"),
+    branch: text("branch"),
+    /** Who wrote it: "W-45 · model". */
+    byWho: text("by_who").notNull(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [uniqueIndex("work_reports_run_idx").on(t.runId), index("work_reports_todo_idx").on(t.todoId)],
+);
+export type WorkReport = typeof workReports.$inferSelect;
+
 export type WorkRun = typeof workRuns.$inferSelect;
 export type EntrySuggestion = typeof entrySuggestions.$inferSelect;
 
@@ -1390,3 +1463,30 @@ export const documents = sqliteTable(
   },
   (t) => [uniqueIndex("documents_sha256").on(t.sha256)],
 );
+
+/**
+ * How Zeff talks to a service (one row each): through the automation Chrome ("cdp", the default —
+ * what you're signed in with there) or the service's own API ("api", with a token or an OAuth
+ * sign-in of your own). Server only.
+ */
+export const connectors = sqliteTable("connectors", {
+  service: text("service").primaryKey(),
+  /** cdp | api */
+  driver: text("driver").notNull().default("cdp"),
+  /** How the API is signed in to: token (a personal access token) | oauth. */
+  authKind: text("auth_kind").notNull().default("token"),
+  token: text("token").notNull().default(""),
+  clientId: text("client_id").notNull().default(""),
+  clientSecret: text("client_secret").notNull().default(""),
+  accessToken: text("access_token").notNull().default(""),
+  refreshToken: text("refresh_token").notNull().default(""),
+  /** Access token expiry as epoch milliseconds. */
+  expiresAt: integer("expires_at").notNull().default(0),
+  scope: text("scope").notNull().default(""),
+  /** Who is signed in (to show it). */
+  account: text("account").notNull().default(""),
+  connectedAt: text("connected_at"),
+  /** Per provider: more settings as JSON (Microsoft: { tenant }). */
+  extra: text("extra").notNull().default("{}"),
+});
+export type ConnectorRow = typeof connectors.$inferSelect;

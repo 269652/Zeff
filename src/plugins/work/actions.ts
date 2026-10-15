@@ -20,7 +20,7 @@ export const WORK_ACTIONS = [
     },
     clean: (o) => (str(o.instruction) ? { type: "work-instruct", instruction: str(o.instruction).slice(0, 4000) } : null),
     title: (op, t = EN) => t("To Copilot: {instruction}", { instruction: `${op.instruction.slice(0, 60)}${op.instruction.length > 60 ? "…" : ""}` }),
-    note: (op, t = EN) => ({ heading: t("Hand to Copilot (Work tab)"), detail: null, body: op.instruction }),
+    note: (op, t = EN) => ({ heading: t("Hand to Copilot (Code tab)"), detail: null, body: op.instruction }),
   }),
   action({
     type: "git-push",

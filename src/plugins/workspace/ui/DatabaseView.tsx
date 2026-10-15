@@ -1,0 +1,777 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "@/components/Toaster";
+import { useT } from "@/components/I18nProvider";
+import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, setCellAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { cellText, dateRange, filterRows, groupRows, isComputed, newId, newView, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
+import { Cell, CellView, PopCell, type CellCtx } from "./cells";
+import { FilterEditor, PropertiesMenu, SchemaModal, SortEditor } from "./db-menus";
+import { Dropdown, MenuItem } from "./kit";
+
+/** A database on a page: its views (table, board, list, gallery, calendar), filters, sorts, groups, and the rows in place. */
+
+const VIEW_ICON: Record<ViewType, string> = { table: "▦", board: "▥", list: "☰", gallery: "▤", calendar: "📅" };
+
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const countRules = (f: View["filter"]): number => f.rules.reduce((n, r) => n + ("rules" in r ? countRules(r) : 1), 0);
+
+/** The views' state and the changes to the database: shared by the page and the blocks. */
+function useDatabase(initial: DatabaseData | null, dbId: number) {
+  const t = useT();
+  const [data, setData] = useState<DatabaseData | null>(initial);
+  const [error, setError] = useState("");
+  const dataRef = useRef(data);
+  useEffect(() => {
+    dataRef.current = data;
+  });
+  const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const schemaSaving = useRef<Promise<unknown>>(Promise.resolve());
+  const schemaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const reload = useCallback(async () => {
+    const r = await loadDatabaseAction(dbId);
+    if (r.ok) {
+      setData(r.data);
+      setError("");
+    } else setError(r.error);
+  }, [dbId]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the rows are fetched when the block appears
+    if (!initial) void reload();
+  }, [initial, reload]);
+
+  const reloadSoon = useCallback(() => {
+    if (reloadTimer.current) clearTimeout(reloadTimer.current);
+    reloadTimer.current = setTimeout(() => void reload(), 600);
+  }, [reload]);
+
+  /** Persist the schema now (waits for one in flight). Returns the error, or null. */
+  const saveSchema = useCallback(
+    async (schema: DbSchema): Promise<string | null> => {
+      const run = schemaSaving.current.then(() => updateSchemaAction(dbId, schema));
+      schemaSaving.current = run;
+      const r = await run;
+      if (!r.ok) return r.error;
+      await reload();
+      return null;
+    },
+    [dbId, reload],
+  );
+
+  /** A view's change: shown at once, saved a moment later. */
+  const changeSchema = useCallback(
+    (fn: (s: DbSchema) => DbSchema) => {
+      const cur = dataRef.current;
+      if (!cur) return;
+      const next = fn(cur.schema);
+      setData({ ...cur, schema: next });
+      dataRef.current = { ...cur, schema: next };
+      if (schemaTimer.current) clearTimeout(schemaTimer.current);
+      schemaTimer.current = setTimeout(() => {
+        schemaSaving.current = schemaSaving.current.then(() => updateSchemaAction(dbId, dataRef.current!.schema));
+      }, 350);
+    },
+    [dbId],
+  );
+
+  const set = useCallback(
+    (rowId: number, propId: string, value: unknown) => {
+      const cur = dataRef.current;
+      if (!cur) return;
+      // Shown at once …
+      const rows = cur.rows.map((r) => (r.id === rowId ? (propId === TITLE ? { ...r, title: String(value ?? "") } : { ...r, cells: { ...r.cells, [propId]: value === null || value === "" ? undefined : value } }) : r));
+      setData({ ...cur, rows });
+      // … saved after any schema change in flight (a new option must be there first), computed cells caught up after.
+      schemaSaving.current = schemaSaving.current.then(() => setCellAction(rowId, propId, value)).then((r) => {
+        if (!r.ok) {
+          toast((r as { error: string }).error, { tone: "error" });
+          void reload();
+        } else if (cur.schema.properties.some(isComputed)) reloadSoon();
+        return r;
+      });
+    },
+    [reload, reloadSoon],
+  );
+
+  const addOption = useCallback(
+    (propId: string, name: string): string => {
+      const id = newId("o");
+      changeSchema((s) => ({
+        ...s,
+        properties: s.properties.map((p) => (p.id === propId ? { ...p, options: [...(p.options ?? []), { id, name, color: ["gray", "blue", "green", "orange", "purple", "pink", "red", "yellow", "brown"][(p.options?.length ?? 0) % 9], group: p.type === "status" ? ("todo" as const) : undefined }] } : p)),
+      }));
+      return id;
+    },
+    [changeSchema],
+  );
+
+  const addRow = useCallback(
+    async (cells: Record<string, unknown> = {}, title = "", templateId?: number): Promise<number | null> => {
+      await schemaSaving.current;
+      const r = await addRowAction(dbId, { title, cells, templateId });
+      if (!r.ok) {
+        toast(r.error, { tone: "error" });
+        return null;
+      }
+      await reload();
+      return r.id;
+    },
+    [dbId, reload],
+  );
+
+  const removeRow = useCallback(
+    async (rowId: number) => {
+      const r = await archivePageAction(rowId);
+      if (!r.ok) toast(r.error, { tone: "error" });
+      await reload();
+    },
+    [reload],
+  );
+
+  const duplicateRow = useCallback(
+    async (rowId: number) => {
+      const r = await duplicateRowAction(rowId);
+      if (!r.ok) toast(r.error, { tone: "error" });
+      await reload();
+    },
+    [reload],
+  );
+
+  void t;
+  return { data, error, reload, saveSchema, changeSchema, set, addOption, addRow, removeRow, duplicateRow };
+}
+
+// ---------------------------------------------------------------------------
+// The view area
+// ---------------------------------------------------------------------------
+
+type Api = ReturnType<typeof useDatabase>;
+
+export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }: { initial: DatabaseData | null; dbId: number; viewId?: string; onView?: (id: string) => void; embedded?: boolean }) {
+  const t = useT();
+  const router = useRouter();
+  const api = useDatabase(initial, dbId);
+  const { data } = api;
+  const [current, setCurrent] = useState(viewId ?? "");
+  const [q, setQ] = useState("");
+  const [schemaOpen, setSchemaOpen] = useState(false);
+  const [justAdded, setJustAdded] = useState<number | null>(null);
+  const [databases, setDatabases] = useState<{ id: number; title: string }[]>([]);
+  useEffect(() => {
+    if (schemaOpen) void databasesAction().then((r) => r.ok && setDatabases(r.databases.map((d) => ({ id: d.id, title: d.title }))));
+  }, [schemaOpen]);
+
+  const view = useMemo(() => data?.schema.views.find((v) => v.id === current) ?? data?.schema.views[0], [data, current]);
+
+  const labels: Labels = useMemo(
+    () => ({ person: (id) => data?.labels.people[id] ?? `#${id}`, page: (id) => data?.labels.pages[id]?.title ?? `#${id}`, todo: (id) => data?.labels.todos[id] ?? `T-${id}` }),
+    [data],
+  );
+
+  const rows = useMemo(() => {
+    if (!data || !view) return [];
+    const props = data.schema.properties;
+    let r = filterRows(data.rows, view.filter, props, labels);
+    const w = q.trim().toLowerCase();
+    if (w) r = r.filter((x) => x.title.toLowerCase().includes(w) || props.some((p) => cellText(p, x.cells[p.id], labels).toLowerCase().includes(w)));
+    return sortRows(r, view.sorts, props);
+  }, [data, view, q, labels]);
+
+  if (api.error && !data) return <p className="alert-error text-sm">{api.error}</p>;
+  if (!data || !view) return <p className="py-6 text-sm text-zinc-500">{t("Loading …")}</p>;
+
+  const schema = data.schema;
+  const ctx: CellCtx = { data, set: api.set, addOption: api.addOption, editable: true };
+  void embedded;
+  const openRow = (id: number) => router.push(`/workspace/${id}`);
+  const setView = (v: View) => api.changeSchema((s) => ({ ...s, views: s.views.map((x) => (x.id === v.id ? v : x)) }));
+  const pick = (id: string) => {
+    setCurrent(id);
+    onView?.(id);
+  };
+  const visible = (view.order ? [...schema.properties].sort((a, b) => (view.order!.indexOf(a.id) + 1 || 999) - (view.order!.indexOf(b.id) + 1 || 999)) : schema.properties).filter((p) => !view.hidden.includes(p.id));
+  const filters = countRules(view.filter);
+
+  const addView = (type: ViewType) => {
+    const names: Record<ViewType, string> = { table: t("Table"), board: t("Board"), list: t("List"), gallery: t("Gallery"), calendar: t("Calendar") };
+    const v = newView(names[type], type);
+    if (type === "board") v.groupBy = schema.properties.find((p) => p.type === "status" || p.type === "select")?.id;
+    if (type === "calendar") v.dateProp = schema.properties.find((p) => p.type === "date")?.id;
+    api.changeSchema((s) => ({ ...s, views: [...s.views, v] }));
+    pick(v.id);
+  };
+
+  const newRow = async (cells: Record<string, unknown> = {}, templateId?: number, open = false) => {
+    const id = await api.addRow(cells, "", templateId);
+    if (!id) return;
+    // A row from a template opens as a page; a plain one is named in place.
+    if (open) openRow(id);
+    else setJustAdded(id);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-0.5" role="tablist" aria-label={t("Views")}>
+          {schema.views.map((v) => (
+            <button key={v.id} type="button" role="tab" aria-selected={v.id === view.id} onClick={() => pick(v.id)} className={`rounded-md px-2 py-1 text-sm ${v.id === view.id ? "bg-zinc-100 font-medium dark:bg-zinc-800" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>
+              {VIEW_ICON[v.type]} {v.name}
+            </button>
+          ))}
+          <Dropdown label="+" title={t("Add a view")} className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+            {(close) =>
+              VIEW_TYPES.map((vt) => (
+                <MenuItem
+                  key={vt}
+                  onClick={() => {
+                    addView(vt);
+                    close();
+                  }}
+                >
+                  {VIEW_ICON[vt]} {{ table: t("Table"), board: t("Board"), list: t("List"), gallery: t("Gallery"), calendar: t("Calendar") }[vt]}
+                </MenuItem>
+              ))
+            }
+          </Dropdown>
+        </div>
+        <span className="flex-1" />
+        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Search …")} aria-label={t("Search the rows")} className="input w-36 text-sm" />
+        <Dropdown label={`${t("Filter")}${filters ? ` · ${filters}` : ""}`} className={`btn btn-sm ${filters ? "text-indigo-600 dark:text-indigo-400" : ""}`}>
+          {() => (
+            <div className="w-[34rem] max-w-[90vw] space-y-2 p-2">
+              <FilterEditor filter={view.filter} schema={schema} data={data} onChange={(filter) => setView({ ...view, filter })} />
+              {filters > 0 && (
+                <button type="button" className="text-sm text-zinc-500 hover:underline" onClick={() => setView({ ...view, filter: { op: "and", rules: [] } })}>
+                  {t("Clear the filter")}
+                </button>
+              )}
+            </div>
+          )}
+        </Dropdown>
+        <Dropdown label={`${t("Sort")}${view.sorts.length ? ` · ${view.sorts.length}` : ""}`} className={`btn btn-sm ${view.sorts.length ? "text-indigo-600 dark:text-indigo-400" : ""}`}>
+          {() => (
+            <div className="w-80 p-2">
+              <SortEditor sorts={view.sorts} schema={schema} onChange={(sorts) => setView({ ...view, sorts })} />
+            </div>
+          )}
+        </Dropdown>
+        {(view.type === "board" || view.type === "table" || view.type === "list") && (
+          <select className="input w-auto text-sm" value={view.groupBy ?? ""} aria-label={t("Group by")} onChange={(e) => setView({ ...view, groupBy: e.target.value || undefined })}>
+            <option value="">{view.type === "board" ? t("Group by …") : t("No grouping")}</option>
+            {schema.properties.filter((p) => ["select", "status", "multi_select", "person", "checkbox", "relation"].includes(p.type)).map((p) => (
+              <option key={p.id} value={p.id}>
+                {t("Group by {name}", { name: p.name })}
+              </option>
+            ))}
+          </select>
+        )}
+        {view.type === "calendar" && (
+          <select className="input w-auto text-sm" value={view.dateProp ?? ""} aria-label={t("Date property")} onChange={(e) => setView({ ...view, dateProp: e.target.value || undefined })}>
+            <option value="">{t("Date by …")}</option>
+            {schema.properties.filter((p) => p.type === "date").map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        )}
+        <Dropdown label={t("Properties")} align="right" className="btn btn-sm">
+          {() => <PropertiesMenu view={view} schema={schema} onChange={setView} />}
+        </Dropdown>
+        <Dropdown label="⋯" align="right" title={t("More")} className="btn btn-sm">
+          {(close) => (
+            <>
+              <MenuItem onClick={() => (close(), setSchemaOpen(true))}>⚙ {t("Edit properties …")}</MenuItem>
+              <div className="px-2 py-1">
+                <input className="input w-full text-sm" value={view.name} aria-label={t("View name")} onChange={(e) => setView({ ...view, name: e.target.value })} />
+              </div>
+              <div className="flex flex-wrap gap-1 px-2 pb-1">
+                {VIEW_TYPES.map((vt) => (
+                  <button key={vt} type="button" className={`rounded px-1.5 py-0.5 text-sm ${view.type === vt ? "bg-indigo-100 dark:bg-indigo-950" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"}`} title={vt} onClick={() => setView({ ...view, type: vt, groupBy: vt === "board" && !view.groupBy ? schema.properties.find((p) => p.type === "status" || p.type === "select")?.id : view.groupBy, dateProp: vt === "calendar" && !view.dateProp ? schema.properties.find((p) => p.type === "date")?.id : view.dateProp })}>
+                    {VIEW_ICON[vt]}
+                  </button>
+                ))}
+              </div>
+              <MenuItem
+                onClick={() => {
+                  close();
+                  const copy = { ...view, id: newId("v"), name: `${view.name} (${t("copy")})` };
+                  api.changeSchema((s) => ({ ...s, views: [...s.views, copy] }));
+                  pick(copy.id);
+                }}
+              >
+                ⧉ {t("Duplicate the view")}
+              </MenuItem>
+              <MenuItem
+                disabled={schema.views.length < 2}
+                danger
+                onClick={() => {
+                  close();
+                  const rest = schema.views.filter((v) => v.id !== view.id);
+                  api.changeSchema((s) => ({ ...s, views: rest }));
+                  pick(rest[0].id);
+                }}
+              >
+                🗑 {t("Delete the view")}
+              </MenuItem>
+              <MenuItem
+                onClick={async () => {
+                  close();
+                  const r = await exportDatabaseCsvAction(dbId, view.id);
+                  if (!r.ok) return toast(r.error, { tone: "error" });
+                  const url = URL.createObjectURL(new Blob([`﻿${r.csv}`], { type: "text/csv;charset=utf-8" }));
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = r.filename;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                ⇩ {t("Export as CSV")}
+              </MenuItem>
+            </>
+          )}
+        </Dropdown>
+        <div className="flex">
+          <button type="button" className="btn btn-primary btn-sm rounded-r-none" onClick={() => void newRow({}, undefined, false)}>
+            {t("New")}
+          </button>
+          <Dropdown label="▾" align="right" title={t("New from a template")} className="btn btn-primary btn-sm rounded-l-none border-l border-indigo-400 px-1.5">
+            {(close) => (
+              <>
+                {data.templates.map((tp) => (
+                  <MenuItem key={tp.id} onClick={() => (close(), void newRow({}, tp.id, true))}>
+                    📋 {tp.title}
+                  </MenuItem>
+                ))}
+                {!data.templates.length && <p className="max-w-56 px-2 py-1.5 text-xs text-zinc-500">{t("No templates yet — open a row and choose “Use as a template” in its menu.")}</p>}
+              </>
+            )}
+          </Dropdown>
+        </div>
+      </div>
+
+      {view.type === "table" && <TableView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />}
+      {view.type === "board" && <BoardView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} newRow={newRow} />}
+      {view.type === "list" && <ListView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} />}
+      {view.type === "gallery" && <GalleryView rows={rows} visible={visible} ctx={ctx} openRow={openRow} />}
+      {view.type === "calendar" && <CalendarView view={view} rows={rows} schema={schema} api={api} openRow={openRow} newRow={newRow} />}
+      <p className="text-xs text-zinc-500">{rows.length === data.rows.length ? t("{n} rows", { n: rows.length }) : t("{n} of {total} rows", { n: rows.length, total: data.rows.length })}</p>
+
+      {schemaOpen && <SchemaModal schema={schema} data={data} dbId={dbId} databases={databases} onSave={api.saveSchema} onClose={() => setSchemaOpen(false)} />}
+    </div>
+  );
+}
+
+type ViewProps = { view: View; rows: Row[]; visible: Property[]; schema: DbSchema; ctx: CellCtx; api: Api; labels: Labels; openRow: (id: number) => void };
+
+function RowMenu({ row, api }: { row: Row; api: Api }) {
+  const t = useT();
+  return (
+    <Dropdown label="⋮" title={t("Row actions")} className="icon-btn" align="left">
+      {(close) => (
+        <>
+          <MenuItem onClick={() => (close(), void api.duplicateRow(row.id))}>⧉ {t("Duplicate")}</MenuItem>
+          <MenuItem danger onClick={() => (close(), void api.removeRow(row.id))}>
+            🗑 {t("Delete")}
+          </MenuItem>
+        </>
+      )}
+    </Dropdown>
+  );
+}
+
+function TitleCell({ row, ctx, openRow, autoEdit = false, onEdited }: { row: Row; ctx: CellCtx; openRow: (id: number) => void; autoEdit?: boolean; onEdited?: () => void }) {
+  const t = useT();
+  const [editing, setEditing] = useState(autoEdit);
+  const [text, setText] = useState(row.title);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- the field follows the row when it is changed elsewhere
+  useEffect(() => setText(row.title), [row.title]);
+  if (editing)
+    return (
+      <input
+        autoFocus
+        className="ws-cell-input"
+        value={text}
+        aria-label={t("Title")}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => {
+          setEditing(false);
+          onEdited?.();
+          if (text !== row.title) ctx.set(row.id, TITLE, text);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          if (e.key === "Escape") {
+            setText(row.title);
+            setEditing(false);
+          }
+        }}
+      />
+    );
+  return (
+    <div className="group/title flex min-h-8 items-center gap-1 px-2 py-1">
+      <span>{row.icon || "📄"}</span>
+      <button type="button" className="min-w-0 flex-1 truncate text-left font-medium hover:underline" onClick={() => openRow(row.id)} title={t("Open")}>
+        {row.title || <span className="text-zinc-400">{t("Untitled")}</span>}
+      </button>
+      <button type="button" className="icon-btn opacity-0 group-hover/title:opacity-100" onClick={() => setEditing(true)} aria-label={t("Rename")} title={t("Rename")}>
+        ✎
+      </button>
+    </div>
+  );
+}
+
+function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, setView, onSchema, justAdded, onEdited }: ViewProps & { setView: (v: View) => void; onSchema: () => void; justAdded: number | null; onEdited: () => void }) {
+  const t = useT();
+  const groups = view.groupBy ? groupRows(rows, view.groupBy, schema.properties, labels) : [{ key: "", label: "", color: undefined as string | undefined, rows }];
+  const [folded, setFolded] = useState<Set<string>>(new Set());
+  const header = (
+    <thead>
+      <tr>
+        <th className="w-8" />
+        <th className="min-w-56">{schema.titleName}</th>
+        {visible.map((p) => (
+          <th key={p.id}>
+            <Dropdown label={<span>{p.name}</span>} className="flex items-center gap-1 text-left">
+              {(close) => (
+                <>
+                  <MenuItem onClick={() => (close(), setView({ ...view, sorts: [{ prop: p.id, dir: "asc" }] }))}>↑ {t("Sort ascending")}</MenuItem>
+                  <MenuItem onClick={() => (close(), setView({ ...view, sorts: [{ prop: p.id, dir: "desc" }] }))}>↓ {t("Sort descending")}</MenuItem>
+                  <MenuItem onClick={() => (close(), setView({ ...view, hidden: [...view.hidden, p.id] }))}>🙈 {t("Hide")}</MenuItem>
+                  <MenuItem onClick={() => (close(), onSchema())}>⚙ {t("Edit properties …")}</MenuItem>
+                </>
+              )}
+            </Dropdown>
+          </th>
+        ))}
+        <th className="w-8">
+          <button type="button" className="icon-btn" onClick={onSchema} aria-label={t("Add a property")} title={t("Add a property")}>
+            +
+          </button>
+        </th>
+      </tr>
+    </thead>
+  );
+  return (
+    <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
+      <table className="ws-table">
+        {header}
+        {groups.map((g) => (
+          <tbody key={g.key || "all"}>
+            {view.groupBy && (
+              <tr>
+                <td colSpan={visible.length + 3} className="bg-zinc-50 px-2 py-1 dark:bg-zinc-900/50">
+                  <button type="button" className="flex items-center gap-2 text-sm" onClick={() => setFolded((f) => (f.has(g.key) ? new Set([...f].filter((x) => x !== g.key)) : new Set([...f, g.key])))} aria-expanded={!folded.has(g.key)}>
+                    <span>{folded.has(g.key) ? "▸" : "▾"}</span>
+                    {g.color ? <span className="ws-tag" data-color={g.color}>{g.label}</span> : <span className="font-medium">{g.label || t("No value")}</span>}
+                    <span className="text-zinc-400">{g.rows.length}</span>
+                  </button>
+                </td>
+              </tr>
+            )}
+            {!folded.has(g.key) &&
+              g.rows.map((r) => (
+                <tr key={r.id} className="group/row">
+                  <td className="w-8 text-center align-middle">
+                    <span className="opacity-0 group-hover/row:opacity-100">
+                      <RowMenu row={r} api={api} />
+                    </span>
+                  </td>
+                  <td>
+                    <TitleCell row={r} ctx={ctx} openRow={openRow} autoEdit={justAdded === r.id} onEdited={onEdited} />
+                  </td>
+                  {visible.map((p) => (
+                    <td key={p.id}>
+                      <Cell p={p} row={r} ctx={ctx} />
+                    </td>
+                  ))}
+                  <td />
+                </tr>
+              ))}
+            {!folded.has(g.key) && (
+              <tr>
+                <td colSpan={visible.length + 3}>
+                  <button
+                    type="button"
+                    className="w-full px-3 py-1.5 text-left text-sm text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                    onClick={() => {
+                      const gp = view.groupBy ? schema.properties.find((p) => p.id === view.groupBy) : undefined;
+                      void api.addRow(gp && g.key ? { [gp.id]: gp.type === "multi_select" || gp.type === "person" || gp.type === "relation" ? [gp.type === "multi_select" ? g.key : Number(g.key)] : gp.type === "checkbox" ? g.key === "true" : g.key } : {});
+                    }}
+                  >
+                    + {t("New")}
+                  </button>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        ))}
+      </table>
+    </div>
+  );
+}
+
+function CardBody({ row, visible, ctx, max = 4 }: { row: Row; visible: Property[]; ctx: CellCtx; max?: number }) {
+  const shown = visible.filter((p) => !(row.cells[p.id] === undefined || row.cells[p.id] === null || row.cells[p.id] === "" || (Array.isArray(row.cells[p.id]) && (row.cells[p.id] as unknown[]).length === 0)) || p.type === "checkbox").slice(0, max);
+  return (
+    <div className="space-y-1">
+      {shown.map((p) => (
+        <div key={p.id} className="flex flex-wrap items-center gap-1 text-xs">
+          <CellView p={p} row={row} ctx={ctx} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, newRow }: ViewProps & { newRow: (cells?: Record<string, unknown>, templateId?: number, open?: boolean) => Promise<void> }) {
+  const t = useT();
+  const gp = schema.properties.find((p) => p.id === view.groupBy);
+  const [over, setOver] = useState<string | null>(null);
+  if (!gp) return <p className="rounded-lg border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700">{t("Choose a property to group the board by (a status or a select).")}</p>;
+  const groups = groupRows(rows, gp.id, schema.properties, labels);
+  const valueFor = (key: string): unknown => (gp.type === "checkbox" ? key === "true" : key === "" ? null : gp.type === "multi_select" ? [key] : gp.type === "person" || gp.type === "relation" ? [Number(key)] : key);
+  return (
+    <div className="flex gap-3 overflow-x-auto pb-2">
+      {groups.map((g) => (
+        <div
+          key={g.key || "none"}
+          className={`w-64 shrink-0 space-y-2 rounded-lg p-1 ${over === g.key ? "bg-indigo-50 dark:bg-indigo-950/40" : ""}`}
+          onDragOver={(e) => (e.preventDefault(), setOver(g.key))}
+          onDragLeave={() => setOver(null)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setOver(null);
+            const id = Number(e.dataTransfer.getData("text/ws-row"));
+            if (id) api.set(id, gp.id, valueFor(g.key));
+          }}
+        >
+          <div className="flex items-center gap-2 px-1 text-sm">
+            {g.color ? <span className="ws-tag" data-color={g.color}>{g.label}</span> : <span className="font-medium text-zinc-500">{g.label || t("No value")}</span>}
+            <span className="text-zinc-400">{g.rows.length}</span>
+          </div>
+          {g.rows.map((r) => (
+            <div key={r.id} className="ws-card group/card relative cursor-pointer" draggable onDragStart={(e) => e.dataTransfer.setData("text/ws-row", String(r.id))} onClick={() => openRow(r.id)} role="button" tabIndex={0} onKeyDown={(e) => e.key === "Enter" && openRow(r.id)}>
+              <div className="flex items-start gap-1">
+                <span>{r.icon || "📄"}</span>
+                <span className="min-w-0 flex-1 text-sm font-medium break-words">{r.title || <span className="text-zinc-400">{t("Untitled")}</span>}</span>
+                <span className="opacity-0 group-hover/card:opacity-100" onClick={(e) => e.stopPropagation()}>
+                  <RowMenu row={r} api={api} />
+                </span>
+              </div>
+              <CardBody row={r} visible={visible.filter((p) => p.id !== gp.id)} ctx={{ ...ctx, editable: true }} />
+            </div>
+          ))}
+          <button type="button" className="w-full rounded-md px-2 py-1 text-left text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => void newRow({ [gp.id]: valueFor(g.key) })}>
+            + {t("New")}
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ListView({ view, rows, visible, schema, ctx, api, labels, openRow }: ViewProps) {
+  const t = useT();
+  const groups = view.groupBy ? groupRows(rows, view.groupBy, schema.properties, labels) : [{ key: "", label: "", color: undefined as string | undefined, rows }];
+  return (
+    <div className="space-y-3">
+      {groups.map((g) => (
+        <div key={g.key || "all"}>
+          {view.groupBy && <div className="mb-1 flex items-center gap-2 text-sm">{g.color ? <span className="ws-tag" data-color={g.color}>{g.label}</span> : <span className="font-medium text-zinc-500">{g.label || t("No value")}</span>}<span className="text-zinc-400">{g.rows.length}</span></div>}
+          <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+            {g.rows.map((r) => (
+              <li key={r.id} className="group/row flex flex-wrap items-center gap-2 px-2 py-1.5 text-sm">
+                <span>{r.icon || "📄"}</span>
+                <button type="button" className="min-w-0 truncate text-left font-medium hover:underline" onClick={() => openRow(r.id)}>
+                  {r.title || <span className="text-zinc-400">{t("Untitled")}</span>}
+                </button>
+                <span className="flex flex-1 flex-wrap items-center justify-end gap-1.5">
+                  {visible.slice(0, 5).map((p) => (
+                    <PopCell key={p.id} p={p} row={r} ctx={ctx} />
+                  ))}
+                </span>
+                <span className="opacity-0 group-hover/row:opacity-100">
+                  <RowMenu row={r} api={api} />
+                </span>
+              </li>
+            ))}
+            {!g.rows.length && <li className="px-2 py-2 text-xs text-zinc-400">{t("Empty")}</li>}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function GalleryView({ rows, visible, ctx, openRow }: { rows: Row[]; visible: Property[]; ctx: CellCtx; openRow: (id: number) => void }) {
+  const t = useT();
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {rows.map((r) => (
+        <div key={r.id} className="ws-card cursor-pointer space-y-2" role="button" tabIndex={0} onClick={() => openRow(r.id)} onKeyDown={(e) => e.key === "Enter" && openRow(r.id)}>
+          <div className="text-3xl">{r.icon || "📄"}</div>
+          <div className="text-sm font-medium break-words">{r.title || <span className="text-zinc-400">{t("Untitled")}</span>}</div>
+          <CardBody row={r} visible={visible} ctx={ctx} max={5} />
+        </div>
+      ))}
+      {!rows.length && <p className="text-sm text-zinc-500">{t("Nothing here yet.")}</p>}
+    </div>
+  );
+}
+
+function CalendarView({ view, rows, schema, api, openRow, newRow }: { view: View; rows: Row[]; schema: DbSchema; api: Api; openRow: (id: number) => void; newRow: (cells?: Record<string, unknown>, templateId?: number, open?: boolean) => Promise<void> }) {
+  const t = useT();
+  const prop = schema.properties.find((p) => p.id === view.dateProp);
+  const [month, setMonth] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+  if (!prop) return <p className="rounded-lg border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700">{t("Choose the date property the calendar is laid out by.")}</p>;
+  const first = new Date(month.getFullYear(), month.getMonth(), 1);
+  const start = new Date(first);
+  start.setDate(1 - ((first.getDay() + 6) % 7));
+  const days = Array.from({ length: 42 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    return d;
+  });
+  const byDay = new Map<string, Row[]>();
+  for (const r of rows) {
+    const rg = dateRange(r.cells[prop.id]);
+    if (!rg) continue;
+    const from = new Date(`${rg.start.slice(0, 10)}T00:00:00`);
+    const to = new Date(`${(rg.end ?? rg.start).slice(0, 10)}T00:00:00`);
+    for (let d = new Date(from), n = 0; d <= to && n < 62; d.setDate(d.getDate() + 1), n++) {
+      const k = ymd(d);
+      byDay.set(k, [...(byDay.get(k) ?? []), r]);
+    }
+  }
+  const undated = rows.filter((r) => !dateRange(r.cells[prop.id]));
+  const today = ymd(new Date());
+  const names = [t("Mon"), t("Tue"), t("Wed"), t("Thu"), t("Fri"), t("Sat"), t("Sun")];
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <button type="button" className="btn btn-sm" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} aria-label={t("Previous month")}>
+          ‹
+        </button>
+        <span className="min-w-32 text-center text-sm font-medium">{month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</span>
+        <button type="button" className="btn btn-sm" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} aria-label={t("Next month")}>
+          ›
+        </button>
+        <button type="button" className="btn btn-sm" onClick={() => setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>
+          {t("Today")}
+        </button>
+      </div>
+      <div className="grid grid-cols-7 overflow-hidden rounded-lg border border-zinc-200 text-xs dark:border-zinc-800">
+        {names.map((n) => (
+          <div key={n} className="border-b border-zinc-200 bg-zinc-50 px-1.5 py-1 text-center font-medium text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/50">
+            {n}
+          </div>
+        ))}
+        {days.map((d) => {
+          const k = ymd(d);
+          const inMonth = d.getMonth() === month.getMonth();
+          return (
+            <div
+              key={k}
+              className={`group/day min-h-24 border-r border-b border-zinc-200 p-1 dark:border-zinc-800 ${inMonth ? "" : "bg-zinc-50/60 text-zinc-400 dark:bg-zinc-900/30"}`}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const id = Number(e.dataTransfer.getData("text/ws-row"));
+                const row = rows.find((r) => r.id === id);
+                if (!row) return;
+                const rg = dateRange(row.cells[prop.id]);
+                if (!rg) return api.set(id, prop.id, k);
+                // The span keeps its length.
+                const days = Math.round((Date.parse(`${(rg.end ?? rg.start).slice(0, 10)}T00:00:00Z`) - Date.parse(`${rg.start.slice(0, 10)}T00:00:00Z`)) / 864e5);
+                const to = new Date(`${k}T00:00:00`);
+                to.setDate(to.getDate() + days);
+                api.set(id, prop.id, days ? { start: k, end: ymd(to) } : k);
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <span className={k === today ? "rounded-full bg-indigo-600 px-1.5 text-white" : ""}>{d.getDate()}</span>
+                <button type="button" className="icon-btn opacity-0 group-hover/day:opacity-100" aria-label={t("New row on {day}", { day: k })} onClick={() => void newRow({ [prop.id]: k })}>
+                  +
+                </button>
+              </div>
+              <div className="space-y-0.5">
+                {(byDay.get(k) ?? []).slice(0, 4).map((r) => (
+                  <button key={r.id} type="button" draggable onDragStart={(e) => e.dataTransfer.setData("text/ws-row", String(r.id))} onClick={() => openRow(r.id)} className="block w-full truncate rounded bg-indigo-100 px-1 py-0.5 text-left text-indigo-900 hover:bg-indigo-200 dark:bg-indigo-950 dark:text-indigo-100" title={r.title}>
+                    {r.icon} {r.title || t("Untitled")}
+                  </button>
+                ))}
+                {(byDay.get(k)?.length ?? 0) > 4 && <span className="text-zinc-500">+{(byDay.get(k)?.length ?? 0) - 4}</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {undated.length > 0 && (
+        <details className="text-sm">
+          <summary className="cursor-pointer text-zinc-500">{t("{n} without a date", { n: undated.length })}</summary>
+          <ul className="mt-1 flex flex-wrap gap-1">
+            {undated.map((r) => (
+              <li key={r.id}>
+                <button type="button" className="ws-chip" onClick={() => openRow(r.id)}>
+                  {r.title || t("Untitled")}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
+}
+
+/** A database shown in a page (a block): its own view, loaded when it appears. */
+export function DatabaseBlock({ dbId, viewId, onView }: { dbId: number; viewId: string; onView: (id: string) => void }) {
+  const t = useT();
+  const router = useRouter();
+  const [title, setTitle] = useState("");
+  useEffect(() => {
+    let live = true;
+    void loadDatabaseAction(dbId).then((r) => live && r.ok && setTitle(r.data.title));
+    return () => {
+      live = false;
+    };
+  }, [dbId]);
+  return (
+    <div className="space-y-1">
+      <button type="button" className="text-sm font-semibold hover:underline" onClick={() => router.push(`/workspace/${dbId}`)} title={t("Open as a page")}>
+        🗂️ {title || t("Database")}
+      </button>
+      <DatabaseView initial={null} dbId={dbId} viewId={viewId} onView={onView} embedded />
+    </div>
+  );
+}
+
+/** The properties of a row at the top of its page: every property, editable in place. */
+export function RowProperties({ initial, dbId, rowId }: { initial: DatabaseData; dbId: number; rowId: number }) {
+  const t = useT();
+  const api = useDatabase(initial, dbId);
+  const data = api.data;
+  const row = data?.rows.find((r) => r.id === rowId);
+  if (!data || !row) return null;
+  const ctx: CellCtx = { data, set: api.set, addOption: api.addOption, editable: true };
+  if (!data.schema.properties.length) return null;
+  return (
+    <dl className="grid gap-x-4 gap-y-0.5 sm:grid-cols-[10rem_minmax(0,1fr)]" aria-label={t("Properties")}>
+      {data.schema.properties.map((p) => (
+        <div key={p.id} className="contents">
+          <dt className="flex min-h-7 items-center text-sm text-zinc-500">{p.name}</dt>
+          <dd className="flex min-h-7 flex-wrap items-center gap-1 text-sm">
+            <PopCell p={p} row={row} ctx={ctx} />
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}

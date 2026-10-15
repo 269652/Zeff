@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { createMcpHandler } from "mcp-handler";
 import { DEFAULT_ACCOUNT, accountById, withAccount } from "@/db/accounts";
+import { RUN_HEADER, withCallerRun } from "@/mcp/caller";
 import { INSTRUCTIONS, SERVER_INFO, registerZeffTools } from "@/mcp/server";
 import { foreignRequest, refused } from "@/lib/request-guard";
 
@@ -51,5 +52,5 @@ export async function handleMcp(req: Request, accountId: string = DEFAULT_ACCOUN
   }
   const account = accountById(accountId);
   if (!account) return Response.json({ error: "not_found", message: `No Zeff account "${accountId}".` }, { status: 404 });
-  return withAccount(account.id, () => handlerFor(account.id, account.name)(req));
+  return withAccount(account.id, () => withCallerRun(req.headers.get(RUN_HEADER), () => handlerFor(account.id, account.name)(req)));
 }

@@ -1,0 +1,641 @@
+/**
+ * Databases (the Workspace plugin): what a database is made of — typed properties, views with
+ * filters, sorts and groups — and the logic over its rows that both the server and the views need:
+ * matching, sorting, grouping, and the computed properties (formulas, rollups through relations, back
+ * relations, created/edited times). Pure functions over plain data; client-safe.
+ */
+import { evalFormula, formulaToStored, type FormulaValue } from "./formula";
+
+export const PROP_TYPES = ["text", "number", "select", "multi_select", "status", "date", "checkbox", "url", "email", "phone", "person", "relation", "rollup", "formula", "created_time", "updated_time", "todo", "ticket", "ai"] as const;
+export type PropType = (typeof PROP_TYPES)[number];
+export const PROP_LABELS: Record<PropType, string> = {
+  text: "Text",
+  number: "Number",
+  select: "Select",
+  multi_select: "Multi-select",
+  status: "Status",
+  date: "Date",
+  checkbox: "Checkbox",
+  url: "URL",
+  email: "Email",
+  phone: "Phone",
+  person: "Person",
+  relation: "Relation",
+  rollup: "Rollup",
+  formula: "Formula",
+  created_time: "Created time",
+  updated_time: "Last edited time",
+  todo: "Zeff todo",
+  ticket: "Jira ticket",
+  ai: "AI",
+};
+export const COLORS = ["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"] as const;
+
+export type Option = { id: string; name: string; color: string; /** Status options sit in a group (to do / doing / done). */ group?: "todo" | "doing" | "done" };
+export const ROLLUP_FNS = ["count", "count_values", "count_unique", "count_empty", "count_not_empty", "percent_empty", "percent_not_empty", "sum", "average", "median", "min", "max", "range", "earliest", "latest", "show_original", "show_unique", "checked", "unchecked", "percent_checked", "percent_done"] as const;
+export type RollupFn = (typeof ROLLUP_FNS)[number];
+
+export type Property = {
+  id: string;
+  name: string;
+  type: PropType;
+  options?: Option[];
+  /** Relation: the database it points to; `backOf`: this is the other side of that property there (computed, not stored). */
+  relationDb?: number;
+  /** Relation: also show it on the related database (made when the schema is saved). */
+  twoWay?: boolean;
+  backOf?: string;
+  rollup?: { relation: string; property: string; fn: RollupFn };
+  formula?: string;
+  /** AI: the instruction the AI fills the cell by, from the row's other cells. */
+  aiPrompt?: string;
+  format?: "number" | "percent" | "euro" | "dollar" | "hours";
+  includeTime?: boolean;
+};
+
+export type Cond =
+  | "contains" | "not_contains" | "is" | "is_not" | "starts_with" | "ends_with" | "is_empty" | "not_empty"
+  | "eq" | "neq" | "gt" | "lt" | "gte" | "lte"
+  | "before" | "after" | "on_or_before" | "on_or_after" | "past_week" | "past_month" | "next_week" | "next_month" | "this_week" | "today"
+  | "checked" | "unchecked";
+export type Rule = { prop: string; cond: Cond; value?: unknown };
+export type Filter = { op: "and" | "or"; rules: (Rule | Filter)[] };
+export type Sort = { prop: string; dir: "asc" | "desc" };
+export const VIEW_TYPES = ["table", "board", "list", "gallery", "calendar"] as const;
+export type ViewType = (typeof VIEW_TYPES)[number];
+export type View = {
+  id: string;
+  name: string;
+  type: ViewType;
+  filter: Filter;
+  sorts: Sort[];
+  /** Board: the columns; table/list: the groups. */
+  groupBy?: string;
+  hidden: string[];
+  /** Calendar: the date property the rows sit on. */
+  dateProp?: string;
+  wrap?: boolean;
+  widths?: Record<string, number>;
+  /** The order of the properties (ids); the rest follow. */
+  order?: string[];
+};
+export type DbSchema = { titleName: string; properties: Property[]; views: View[] };
+
+/** A row as the views get it: the page, and its cells by property id (stored values, and the computed ones filled in). */
+export type Row = { id: number; title: string; icon: string; cells: Record<string, unknown>; createdAt: string; updatedAt: string };
+
+/** The pseudo-properties every database has. */
+export const TITLE = "title";
+export const CREATED = "created_at";
+export const UPDATED = "updated_at";
+
+export const newId = (prefix = "x"): string => `${prefix}${Math.random().toString(36).slice(2, 8)}${Date.now().toString(36).slice(-3)}`;
+export const emptyFilter = (): Filter => ({ op: "and", rules: [] });
+export const isFilter = (r: Rule | Filter): r is Filter => "rules" in r;
+
+export const isComputed = (p: Property): boolean => p.type === "rollup" || p.type === "formula" || p.type === "created_time" || p.type === "updated_time" || (p.type === "relation" && !!p.backOf);
+
+export function defaultOptions(type: PropType): Option[] | undefined {
+  if (type === "status")
+    return [
+      { id: newId("o"), name: "Not started", color: "gray", group: "todo" },
+      { id: newId("o"), name: "In progress", color: "blue", group: "doing" },
+      { id: newId("o"), name: "Done", color: "green", group: "done" },
+    ];
+  if (type === "select" || type === "multi_select") return [];
+  return undefined;
+}
+
+export function newProperty(name: string, type: PropType): Property {
+  const p: Property = { id: newId("p"), name, type };
+  const o = defaultOptions(type);
+  if (o) p.options = o;
+  return p;
+}
+
+export function newView(name: string, type: ViewType = "table"): View {
+  return { id: newId("v"), name, type, filter: emptyFilter(), sorts: [], hidden: [] };
+}
+
+/** A new database's schema: a title, a status and a date, one table view. */
+export function defaultSchema(): DbSchema {
+  return { titleName: "Name", properties: [newProperty("Status", "status"), newProperty("Date", "date")], views: [newView("Table", "table")] };
+}
+
+/** A schema from stored JSON, repaired: every view and property has what the code relies on. */
+export function normalizeSchema(raw: unknown): DbSchema {
+  const o = (raw && typeof raw === "object" ? raw : {}) as Partial<DbSchema>;
+  const props = (Array.isArray(o.properties) ? o.properties : []).filter((p): p is Property => !!p && typeof p.id === "string" && (PROP_TYPES as readonly string[]).includes(p.type));
+  const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [] }));
+  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")] };
+}
+
+export const propById = (props: Property[], id: string): Property | undefined => props.find((p) => p.id === id);
+
+// ---------------------------------------------------------------------------
+// Values
+// ---------------------------------------------------------------------------
+
+/** A date value as {start, end?}: a text "2026-10-14" / "2026-10-14T09:00", or {start, end}. */
+export function dateRange(v: unknown): { start: string; end?: string } | null {
+  if (typeof v === "string" && v) return { start: v };
+  if (v && typeof v === "object" && typeof (v as { start?: unknown }).start === "string" && (v as { start: string }).start) {
+    const o = v as { start: string; end?: unknown };
+    return { start: o.start, end: typeof o.end === "string" && o.end ? o.end : undefined };
+  }
+  return null;
+}
+
+const asArray = (v: unknown): unknown[] => (Array.isArray(v) ? v : v === null || v === undefined || v === "" ? [] : [v]);
+
+export function isEmptyValue(p: Property | undefined, v: unknown): boolean {
+  if (v === null || v === undefined) return true;
+  if (p?.type === "checkbox") return false;
+  if (typeof v === "string") return v.trim() === "";
+  if (Array.isArray(v)) return v.length === 0;
+  if (p?.type === "date") return dateRange(v) === null;
+  return false;
+}
+
+export type Labels = {
+  /** The name behind a person, page or todo id. */
+  person: (id: number) => string;
+  page: (id: number) => string;
+  todo: (id: number) => string;
+  now?: Date;
+};
+export const noLabels: Labels = { person: (id) => `#${id}`, page: (id) => `#${id}`, todo: (id) => `T-${id}` };
+
+const optionName = (p: Property, id: unknown): string => p.options?.find((o) => o.id === id)?.name ?? (typeof id === "string" ? id : "");
+
+/** A cell as plain text — for display fallbacks, search, export, and what the AI reads. */
+export function cellText(p: Property | undefined, v: unknown, labels: Labels = noLabels): string {
+  if (!p) return v === null || v === undefined ? "" : String(v);
+  if (isEmptyValue(p, v)) return p.type === "checkbox" ? "No" : "";
+  switch (p.type) {
+    case "select":
+    case "status":
+      return optionName(p, v);
+    case "multi_select":
+      return asArray(v).map((x) => optionName(p, x)).join(", ");
+    case "checkbox":
+      return v ? "Yes" : "No";
+    case "number":
+      return typeof v === "number" ? formatNumber(p, v) : String(v);
+    case "date": {
+      const r = dateRange(v);
+      return r ? (r.end ? `${r.start} → ${r.end}` : r.start) : "";
+    }
+    case "person":
+      return asArray(v).map((x) => labels.person(Number(x))).join(", ");
+    case "relation":
+      return asArray(v).map((x) => labels.page(Number(x))).join(", ");
+    case "todo":
+      return asArray(v).map((x) => labels.todo(Number(x))).join(", ");
+    case "created_time":
+    case "updated_time":
+      return String(v).slice(0, 16).replace("T", " ");
+    default:
+      if (Array.isArray(v)) return v.map((x) => (typeof x === "number" && p.type === "rollup" ? formatNumber(p, x) : String(x))).join(", ");
+      if (typeof v === "number") return formatNumber(p, v);
+      return String(v);
+  }
+}
+
+export function formatNumber(p: Property, n: number): string {
+  const r = Math.round(n * 1e6) / 1e6;
+  switch (p.format) {
+    case "percent":
+      return `${Math.round(r * 10000) / 100} %`;
+    case "euro":
+      return `${r.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+    case "dollar":
+      return `$${r.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    case "hours":
+      return `${r} h`;
+    default:
+      return String(r);
+  }
+}
+
+/** The value of a cell for sorting and grouping: a number, a string, or null (empty). */
+function sortKey(p: Property | undefined, v: unknown, row: Row): number | string | null {
+  if (!p) return null;
+  if (p.type === "created_time") return row.createdAt;
+  if (p.type === "updated_time") return row.updatedAt;
+  if (isEmptyValue(p, v)) return null;
+  switch (p.type) {
+    case "number":
+    case "rollup":
+    case "formula":
+      return typeof v === "number" ? v : typeof v === "string" ? v : typeof v === "boolean" ? Number(v) : Array.isArray(v) ? v.length : null;
+    case "checkbox":
+      return v ? 1 : 0;
+    case "date":
+      return dateRange(v)?.start ?? null;
+    case "select":
+    case "status": {
+      const i = p.options?.findIndex((o) => o.id === v) ?? -1;
+      return i >= 0 ? i : null;
+    }
+    case "multi_select": {
+      const i = p.options?.findIndex((o) => o.id === asArray(v)[0]) ?? -1;
+      return i >= 0 ? i : null;
+    }
+    case "person":
+    case "relation":
+    case "todo":
+      return asArray(v).length;
+    default:
+      return String(v).toLowerCase();
+  }
+}
+
+const virtual = (id: string): Property | undefined =>
+  id === TITLE ? { id, name: "Title", type: "text" } : id === CREATED ? { id, name: "Created", type: "created_time" } : id === UPDATED ? { id, name: "Edited", type: "updated_time" } : undefined;
+const propOrVirtual = (props: Property[], id: string) => propById(props, id) ?? virtual(id);
+const cellOf = (row: Row, id: string): unknown => (id === TITLE ? row.title : id === CREATED ? row.createdAt : id === UPDATED ? row.updatedAt : row.cells[id]);
+
+export function sortRows(rows: Row[], sorts: Sort[], props: Property[]): Row[] {
+  const active = sorts.filter((s) => propOrVirtual(props, s.prop));
+  if (!active.length) return rows;
+  return [...rows].sort((a, b) => {
+    for (const s of active) {
+      const p = propOrVirtual(props, s.prop)!;
+      const x = sortKey(p, cellOf(a, s.prop), a);
+      const y = sortKey(p, cellOf(b, s.prop), b);
+      // Empty ones last, whatever the direction.
+      if (x === null || y === null) {
+        if (x === y) continue;
+        return x === null ? 1 : -1;
+      }
+      const c = typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), undefined, { numeric: true });
+      if (c) return s.dir === "desc" ? -c : c;
+    }
+    return a.id - b.id;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Filtering
+// ---------------------------------------------------------------------------
+
+const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const dayText = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+/** Monday of the week of d. */
+const weekStart = (d: Date) => addDays(startOfDay(d), -((d.getDay() + 6) % 7));
+
+/** The condition choices of a property type — what the filter menu offers. */
+export function condsFor(type: PropType | "title"): Cond[] {
+  switch (type) {
+    case "number":
+    case "rollup":
+    case "formula":
+      return ["eq", "neq", "gt", "lt", "gte", "lte", "is_empty", "not_empty"];
+    case "select":
+    case "status":
+      return ["is", "is_not", "is_empty", "not_empty"];
+    case "multi_select":
+    case "person":
+    case "relation":
+    case "todo":
+    case "ticket":
+      return ["contains", "not_contains", "is_empty", "not_empty"];
+    case "date":
+    case "created_time":
+    case "updated_time":
+      return ["is", "before", "after", "on_or_before", "on_or_after", "today", "this_week", "past_week", "past_month", "next_week", "next_month", "is_empty", "not_empty"];
+    case "checkbox":
+      return ["checked", "unchecked"];
+    default:
+      return ["contains", "not_contains", "is", "is_not", "starts_with", "ends_with", "is_empty", "not_empty"];
+  }
+}
+
+export const needsValue = (c: Cond): boolean => !["is_empty", "not_empty", "checked", "unchecked", "past_week", "past_month", "next_week", "next_month", "this_week", "today"].includes(c);
+
+export function matchRule(row: Row, rule: Rule, props: Property[], labels: Labels = noLabels): boolean {
+  const p = propOrVirtual(props, rule.prop);
+  if (!p) return true;
+  const v = cellOf(row, rule.prop);
+  const cond = rule.cond;
+  const empty = p.type === "created_time" || p.type === "updated_time" ? false : isEmptyValue(p, v);
+  if (cond === "is_empty") return empty;
+  if (cond === "not_empty") return !empty;
+  if (cond === "checked") return !!v;
+  if (cond === "unchecked") return !v;
+  const want = rule.value;
+  switch (p.type) {
+    case "number":
+    case "rollup":
+    case "formula": {
+      if (typeof v !== "number" && typeof want !== "string" && typeof want !== "number") return false;
+      const a = typeof v === "number" ? v : Number(v);
+      const b = Number(want);
+      if (Number.isNaN(a) || Number.isNaN(b) || want === "" || want === undefined) return p.type === "formula" || p.type === "rollup" ? matchText(cellText(p, v, labels), cond, String(want ?? "")) : false;
+      return cond === "eq" ? a === b : cond === "neq" ? a !== b : cond === "gt" ? a > b : cond === "lt" ? a < b : cond === "gte" ? a >= b : cond === "lte" ? a <= b : true;
+    }
+    case "select":
+    case "status":
+      return cond === "is" ? v === want : cond === "is_not" ? v !== want : true;
+    case "multi_select":
+    case "person":
+    case "relation":
+    case "todo":
+    case "ticket": {
+      const has = asArray(v).some((x) => x === want || String(x) === String(want));
+      return cond === "contains" ? has : cond === "not_contains" ? !has : true;
+    }
+    case "date":
+    case "created_time":
+    case "updated_time":
+      return matchDate(p.type === "date" ? dateRange(v) : { start: String(p.type === "created_time" ? row.createdAt : row.updatedAt) }, cond, want, labels.now ?? new Date());
+    case "checkbox":
+      return true;
+    default:
+      return matchText(rule.prop === TITLE ? row.title : cellText(p, v, labels), cond, String(want ?? ""));
+  }
+}
+
+function matchText(text: string, cond: Cond, want: string): boolean {
+  const t = text.toLowerCase();
+  const w = want.toLowerCase();
+  switch (cond) {
+    case "contains":
+      return t.includes(w);
+    case "not_contains":
+      return !t.includes(w);
+    case "is":
+      return t === w;
+    case "is_not":
+      return t !== w;
+    case "starts_with":
+      return t.startsWith(w);
+    case "ends_with":
+      return t.endsWith(w);
+    default:
+      return true;
+  }
+}
+
+function matchDate(r: { start: string; end?: string } | null, cond: Cond, want: unknown, now: Date): boolean {
+  if (!r) return false;
+  const start = r.start.slice(0, 10);
+  const end = (r.end ?? r.start).slice(0, 10);
+  const today = startOfDay(now);
+  const within = (from: Date, to: Date) => end >= dayText(from) && start <= dayText(to);
+  const w = typeof want === "string" ? want.slice(0, 10) : "";
+  switch (cond) {
+    case "is":
+      return !!w && start <= w && w <= end;
+    case "before":
+      return !!w && start < w;
+    case "after":
+      return !!w && end > w;
+    case "on_or_before":
+      return !!w && start <= w;
+    case "on_or_after":
+      return !!w && end >= w;
+    case "today":
+      return within(today, today);
+    case "this_week":
+      return within(weekStart(today), addDays(weekStart(today), 6));
+    case "past_week":
+      return within(addDays(today, -7), today);
+    case "past_month":
+      return within(addDays(today, -30), today);
+    case "next_week":
+      return within(today, addDays(today, 7));
+    case "next_month":
+      return within(today, addDays(today, 30));
+    default:
+      return true;
+  }
+}
+
+export function matchFilter(row: Row, f: Filter, props: Property[], labels: Labels = noLabels): boolean {
+  if (!f.rules.length) return true;
+  const test = (r: Rule | Filter) => (isFilter(r) ? matchFilter(row, r, props, labels) : matchRule(row, r, props, labels));
+  return f.op === "or" ? f.rules.some(test) : f.rules.every(test);
+}
+
+export const filterRows = (rows: Row[], f: Filter, props: Property[], labels: Labels = noLabels): Row[] => (f.rules.length ? rows.filter((r) => matchFilter(r, f, props, labels)) : rows);
+
+// ---------------------------------------------------------------------------
+// Grouping (board columns, table groups)
+// ---------------------------------------------------------------------------
+
+export type Group = { key: string; label: string; color?: string; rows: Row[] };
+
+/** Rows in groups by a property: a column per option (in their order, empty ones too), a "No value" last. */
+export function groupRows(rows: Row[], groupBy: string, props: Property[], labels: Labels = noLabels): Group[] {
+  const p = propOrVirtual(props, groupBy);
+  if (!p) return [{ key: "", label: "", rows }];
+  const groups = new Map<string, Group>();
+  const ensure = (key: string, label: string, color?: string) => {
+    if (!groups.has(key)) groups.set(key, { key, label, color, rows: [] });
+    return groups.get(key)!;
+  };
+  if (p.type === "select" || p.type === "status" || p.type === "multi_select") for (const o of p.options ?? []) ensure(o.id, o.name, o.color);
+  if (p.type === "checkbox") {
+    ensure("true", "Checked");
+    ensure("false", "Not checked");
+  }
+  const none = { key: "", label: "No value" } as Group;
+  none.rows = [];
+  for (const r of rows) {
+    const v = cellOf(r, groupBy);
+    if (p.type === "checkbox") {
+      ensure(v ? "true" : "false", "").rows.push(r);
+      continue;
+    }
+    const values = p.type === "date" ? (dateRange(v) ? [dateRange(v)!.start.slice(0, 7)] : []) : asArray(v).filter((x) => x !== "" && x !== null);
+    if (!values.length) none.rows.push(r);
+    for (const x of values) {
+      const key = String(x);
+      const label = p.type === "select" || p.type === "status" || p.type === "multi_select" ? optionName(p, x) : p.type === "person" ? labels.person(Number(x)) : p.type === "relation" ? labels.page(Number(x)) : p.type === "todo" ? labels.todo(Number(x)) : key;
+      if (!(p.type === "select" || p.type === "status" || p.type === "multi_select") || groups.has(key)) ensure(key, label, groups.get(key)?.color).rows.push(r);
+      else none.rows.push(r);
+    }
+  }
+  const list = [...groups.values()];
+  if (!(p.type === "select" || p.type === "status" || p.type === "multi_select" || p.type === "checkbox")) list.sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
+  return none.rows.length || !list.length ? [...list, none] : list;
+}
+
+// ---------------------------------------------------------------------------
+// Computed properties
+// ---------------------------------------------------------------------------
+
+/** What another database offers a rollup: its schema and its rows (stored values). */
+export type DbLookup = (dbId: number) => { schema: DbSchema; rows: Row[] } | null;
+
+const num = (v: unknown): number | null => (typeof v === "number" && !Number.isNaN(v) ? v : typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v)) ? Number(v) : null);
+
+/** A rollup over the values of the related rows' property. */
+export function rollup(fn: RollupFn, target: Property | undefined, values: unknown[]): unknown {
+  const flat = values.flatMap((v) => (Array.isArray(v) ? v : [v]));
+  const present = flat.filter((v) => !isEmptyValue(target, v));
+  const nums = present.map(num).filter((n): n is number => n !== null);
+  switch (fn) {
+    case "count":
+      return values.length;
+    case "count_values":
+      return present.length;
+    case "count_unique":
+      return new Set(present.map((v) => JSON.stringify(v))).size;
+    case "count_empty":
+      return values.length - values.filter((v) => !isEmptyValue(target, v)).length;
+    case "count_not_empty":
+      return values.filter((v) => !isEmptyValue(target, v)).length;
+    case "percent_empty":
+      return values.length ? (values.length - values.filter((v) => !isEmptyValue(target, v)).length) / values.length : null;
+    case "percent_not_empty":
+      return values.length ? values.filter((v) => !isEmptyValue(target, v)).length / values.length : null;
+    case "sum":
+      return nums.reduce((a, b) => a + b, 0);
+    case "average":
+      return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null;
+    case "median": {
+      if (!nums.length) return null;
+      const s = [...nums].sort((a, b) => a - b);
+      const m = Math.floor(s.length / 2);
+      return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+    }
+    case "min":
+      return nums.length ? Math.min(...nums) : null;
+    case "max":
+      return nums.length ? Math.max(...nums) : null;
+    case "range":
+      return nums.length ? Math.max(...nums) - Math.min(...nums) : null;
+    case "earliest":
+    case "latest": {
+      const ds = present.map((v) => dateRange(v)?.start).filter((s): s is string => !!s).sort();
+      return ds.length ? (fn === "earliest" ? ds[0] : ds[ds.length - 1]) : null;
+    }
+    case "show_original":
+      return present;
+    case "show_unique":
+      return [...new Map(present.map((v) => [JSON.stringify(v), v])).values()];
+    case "checked":
+      return values.filter(Boolean).length;
+    case "unchecked":
+      return values.filter((v) => !v).length;
+    case "percent_checked":
+      return values.length ? values.filter(Boolean).length / values.length : null;
+    case "percent_done":
+      // Of a status property: how many sit in an option of the "done" group.
+      return values.length ? values.filter((v) => target?.options?.find((o) => o.id === v)?.group === "done").length / values.length : null;
+  }
+}
+
+/**
+ * The rows with their computed cells filled in: back relations (the rows of the other database that point
+ * here), rollups through relations, formulas (which may use the others), created/edited times. Stored
+ * values are left as they are. A formula that fails gets its message in `cells[id + "!"]`.
+ */
+export function computeRows(schema: DbSchema, rows: Row[], lookup: DbLookup, selfId: number, depth = 0, now = new Date()): Row[] {
+  const props = schema.properties;
+  if (!props.some(isComputed)) return rows;
+  const byRow = new Map<number, Row>();
+  const out = rows.map((r) => {
+    const copy: Row = { ...r, cells: { ...r.cells } };
+    byRow.set(copy.id, copy);
+    return copy;
+  });
+  // Related databases, computed once (a rollup of a formula there needs it computed; deeper than 2 is left null).
+  const related = new Map<number, { schema: DbSchema; rows: Row[] } | null>();
+  const other = (dbId: number) => {
+    if (!related.has(dbId)) {
+      const d = dbId === selfId ? { schema, rows } : lookup(dbId);
+      related.set(dbId, d);
+    }
+    return related.get(dbId) ?? null;
+  };
+  const computedOther = new Map<number, Row[]>();
+  const rowsOf = (dbId: number, needComputed: boolean): Row[] => {
+    const d = other(dbId);
+    if (!d) return [];
+    if (!needComputed || depth >= 2 || dbId === selfId) return dbId === selfId ? out : d.rows;
+    if (!computedOther.has(dbId)) computedOther.set(dbId, computeRows(d.schema, d.rows, lookup, dbId, depth + 1, now));
+    return computedOther.get(dbId)!;
+  };
+
+  // 1. Back relations.
+  for (const p of props) {
+    if (p.type !== "relation" || !p.backOf || p.relationDb === undefined) continue;
+    const d = other(p.relationDb);
+    for (const r of out) r.cells[p.id] = (d?.rows ?? []).filter((x) => asArray(x.cells[p.backOf!]).some((id) => Number(id) === r.id)).map((x) => x.id);
+  }
+  // 2. Rollups, 3. formulas (by property, memoised; a formula may use a rollup or another formula).
+  const done = new Set<string>();
+  const busy = new Set<string>();
+  const valueOf = (row: Row, p: Property): unknown => {
+    if (p.id === TITLE) return row.title;
+    if (p.type === "created_time") return row.createdAt;
+    if (p.type === "updated_time") return row.updatedAt;
+    if (p.type === "formula" || p.type === "rollup") ensure(row, p);
+    return row.cells[p.id];
+  };
+  const ensure = (row: Row, p: Property) => {
+    const key = `${row.id}:${p.id}`;
+    if (done.has(key)) return;
+    if (busy.has(key)) {
+      row.cells[`${p.id}!`] = "Circular formula";
+      return;
+    }
+    busy.add(key);
+    try {
+      if (p.type === "rollup" && p.rollup) {
+        const rel = propById(props, p.rollup.relation);
+        const ids = asArray(rel ? valueOf(row, rel) : null).map(Number);
+        const d = rel?.relationDb !== undefined ? other(rel.relationDb) : null;
+        const target = d ? propById(d.schema.properties, p.rollup.property) : undefined;
+        const pool = rel?.relationDb !== undefined ? rowsOf(rel.relationDb, !!target && isComputed(target)) : [];
+        const picked = ids.map((id) => pool.find((x) => x.id === id)).filter((x): x is Row => !!x);
+        const cellsOf = picked.map((x) => (p.rollup!.property === TITLE ? x.title : x.cells[p.rollup!.property]));
+        row.cells[p.id] = rollup(p.rollup.fn, p.rollup.property === TITLE ? { id: TITLE, name: "Title", type: "text" } : target, cellsOf);
+      } else if (p.type === "formula") {
+        const res = evalFormula(p.formula ?? "", {
+          now,
+          prop: (name) => {
+            const q = props.find((x) => x.name.toLowerCase() === name.toLowerCase()) ?? (name.toLowerCase() === schema.titleName.toLowerCase() || name.toLowerCase() === "title" ? { id: TITLE, name, type: "text" as const } : undefined);
+            if (!q) throw new Error(`No property "${name}"`);
+            return valueOf(row, q);
+          },
+        });
+        if ("error" in res) {
+          row.cells[p.id] = null;
+          row.cells[`${p.id}!`] = res.error;
+        } else row.cells[p.id] = formulaToStored(res.value as FormulaValue);
+      }
+    } finally {
+      busy.delete(key);
+      done.add(key);
+    }
+  };
+  for (const p of props) if (p.type === "rollup") for (const r of out) ensure(r, p);
+  for (const p of props) if (p.type === "formula") for (const r of out) ensure(r, p);
+  for (const p of props) {
+    if (p.type === "created_time") for (const r of out) r.cells[p.id] = r.createdAt;
+    if (p.type === "updated_time") for (const r of out) r.cells[p.id] = r.updatedAt;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Export
+// ---------------------------------------------------------------------------
+
+const csvCell = (s: string) => (/[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+
+/** A database as CSV (title first, then the properties in the view's order, hidden ones left out). */
+export function rowsToCsv(schema: DbSchema, rows: Row[], view?: View, labels: Labels = noLabels): string {
+  const hidden = new Set(view?.hidden ?? []);
+  const order = view?.order ?? [];
+  const props = [...schema.properties].filter((p) => !hidden.has(p.id)).sort((a, b) => (order.indexOf(a.id) + 1 || 999) - (order.indexOf(b.id) + 1 || 999));
+  const lines = [[schema.titleName, ...props.map((p) => p.name)].map(csvCell).join(";")];
+  for (const r of rows) lines.push([r.title, ...props.map((p) => cellText(p, r.cells[p.id], labels))].map(csvCell).join(";"));
+  return `${lines.join("\n")}\n`;
+}

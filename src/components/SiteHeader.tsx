@@ -8,6 +8,7 @@ import { saveMenuAction } from "@/app/actions";
 import { inOrder, type Placement } from "@/lib/layout-shared";
 import { UnseenActivityBadge } from "./boards/ActivitySeen";
 import { SyncMenu } from "./SyncMenu";
+import { CommandPalette } from "./CommandPalette";
 import { TabSplit } from "./TabSplit";
 import { LastTabLink } from "./LastTabLink";
 import { LinkPending } from "./LinkPending";
@@ -32,9 +33,11 @@ const menuEntries = (t: T) => [
   { href: "/context", label: t("Context"), hint: t("Colleagues' messages & links") },
   { href: "/mcp", label: "MCP", hint: t("Connect an agent") },
   { href: "/preferences", label: t("Settings"), hint: t("AI provider") },
+  { href: "/settings/all", label: t("All settings"), hint: t("Every settings area in one place") },
   { href: "/auswerten", label: t("AI steps"), hint: t("What the AI reads at each step") },
   { href: "/sync-settings", label: t("Sync settings"), hint: t("How often each sync runs") },
-  { href: "/logins", label: t("Sign-ins"), hint: t("Logins in the automation Chrome") },
+  { href: "/logins", label: t("Browser sign-ins"), hint: t("Logins in the automation Chrome") },
+  { href: "/connections", label: t("Connections"), hint: t("Chrome or API, per service") },
   { href: "/plugins", label: t("Plugins"), hint: t("Connectors & AI tools") },
 ];
 
@@ -87,6 +90,10 @@ export function SiteHeader({
   // The menu: the apps, the installed plugins' pages (a group each), then Zeff's own.
   const zeff = inOrder(menuEntries(t), (l) => l.href, order).filter((l) => !(settingsGroup && l.href === "/preferences"));
   const menu = [...apps.filter((a) => a.place === "menu"), ...pluginGroups.flatMap((g) => g.items), ...(settingsGroup?.items ?? []), ...zeff];
+  // The command palette finds every page the menu has (the hidden ones too).
+  const palettePages = [...apps, ...pluginGroups.flatMap((g) => g.items), ...(settingsGroup?.items ?? []), ...menuEntries(t)]
+    .filter((l, i, all) => all.findIndex((x) => x.href === l.href) === i)
+    .map((l) => ({ id: l.href, label: l.label, hint: l.hint, href: l.href, group: "Pages" }));
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -163,7 +170,7 @@ export function SiteHeader({
   const arrows = (label: string, keys: string[], i: number, same?: (k: string) => boolean) => (
     <button
       type="button"
-      className="-ml-1.5 shrink-0 cursor-grab rounded px-0.5 text-zinc-400 hover:text-zinc-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:hover:text-zinc-200"
+      className="-ml-1.5 flex min-h-6 min-w-6 shrink-0 cursor-grab items-center justify-center rounded text-zinc-400 hover:text-zinc-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:hover:text-zinc-200"
       disabled={saving}
       title={t("Drag to reorder (or ↑/↓)")}
       aria-label={t("Move {label} (arrow keys)", { label })}
@@ -267,7 +274,7 @@ export function SiteHeader({
     );
   };
   const heading = (text: string, href?: string) => (
-    <li className="px-3 pt-3 pb-1 text-[11px] font-semibold tracking-wide text-zinc-400 uppercase">
+    <li className="px-3 pt-3 pb-1 text-xs font-semibold tracking-wide text-zinc-400 uppercase">
       {href ? (
         <Link href={href} onClick={() => setOpen(false)} className="hover:text-zinc-600 hover:underline dark:hover:text-zinc-200">
           {text}
@@ -345,7 +352,7 @@ export function SiteHeader({
           {!bare && (
             <div className="flex min-w-0 items-center gap-1 sm:gap-2">
               {/* The tabs: on a narrow screen they scroll sideways — the page never gets wider than the window. */}
-              <nav className="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none]" aria-label={t("Reports")}>
+              <nav className="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none]" aria-label={t("Main")}>
                 {tabs.map((tab) => {
                   const active = tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href);
                   const current = active || (tab.also ?? []).some((p) => pathname.startsWith(p));
@@ -384,12 +391,26 @@ export function SiteHeader({
                   );
                 })}
               </nav>
+              <button
+                type="button"
+                className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-zinc-600 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                aria-label={t("Search")} aria-keyshortcuts="Control+K Meta+K /"
+                title={t("Search pages, settings and todos (Ctrl+K or /)")}
+                onClick={() => window.dispatchEvent(new Event("zeff:palette"))}
+              >
+                <svg viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" aria-hidden>
+                  <circle cx="9" cy="9" r="5.5" />
+                  <path d="M13.5 13.5L17 17" />
+                </svg>
+                <span className="hidden lg:inline">{t("Search")}</span>
+              </button>
               <SyncMenu />
             </div>
           )}
         </div>
       </header>
 
+      {!bare && <CommandPalette pages={palettePages} />}
       {/* The menu drawer (not while setting up: the assistant leads). */}
       {!bare && (
         <>
@@ -447,7 +468,7 @@ export function SiteHeader({
                           (k) => apps.find((x) => x.href === k)?.place === a.place,
                         )}
                         <span className="min-w-0 flex-1 truncate text-sm font-medium">{a.label}</span>
-                        <span className="flex overflow-hidden rounded-md border border-zinc-200 text-[11px] dark:border-zinc-700" role="group" aria-label={t("{label}: where", { label: a.label })}>
+                        <span className="flex overflow-hidden rounded-md border border-zinc-200 text-xs dark:border-zinc-700" role="group" aria-label={t("{label}: where", { label: a.label })}>
                           {(["header", "menu", "hidden"] as const).map((p) => (
                             <button
                               key={p}
@@ -455,7 +476,7 @@ export function SiteHeader({
                               disabled={saving}
                               aria-pressed={a.place === p}
                               onClick={() => save({ href: a.href, place: p })}
-                              className={`px-1.5 py-0.5 ${a.place === p ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
+                              className={`min-h-6 px-2 py-0.5 ${a.place === p ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
                             >
                               {p === "header" ? t("Header") : p === "menu" ? t("Menu") : t("Off")}
                             </button>
@@ -487,7 +508,7 @@ export function SiteHeader({
                   {editing ? t("Done") : t("Customize menu")}
                 </button>
                 {editing && (
-                  <p className="mt-1 text-[11px] text-zinc-400">
+                  <p className="mt-1 text-xs text-zinc-400">
                     {t(
                       "Apps: into the header, into the menu or off. The other items: show or hide them. Drag the handle (or focus it and press ↑/↓) to reorder — for apps that is also the order of the tabs at the top; an app dragged onto one in the header moves into the header.",
                     )}

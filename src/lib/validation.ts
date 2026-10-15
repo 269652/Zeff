@@ -40,9 +40,13 @@ export const timeEntryInputSchema = z.object({
   reportedBy: z.string().trim().max(100).optional(),
   type: entryTypeSchema.optional(),
   tags: tagNamesSchema.optional(),
+  /** A group entry: the day's work is itemized under it. */
+  isGroup: z.boolean().optional(),
+  /** When the work began, "HH:MM" (also "9.30", "930"); empty: not known. */
+  start: z.string().trim().max(10).optional(),
 });
 
-export type TimeEntryInput = z.infer<typeof timeEntryInputSchema>;
+export type TimeEntryInput= z.infer<typeof timeEntryInputSchema>;
 
 export const timeEntryPatchSchema = z.object({
   jobNumber: jobNumberSchema.optional(),
@@ -55,9 +59,11 @@ export const timeEntryPatchSchema = z.object({
   reportedBy: z.string().trim().min(1).max(100).optional(),
   type: entryTypeSchema.optional(),
   tags: tagNamesSchema.optional(),
+  isGroup: z.boolean().optional(),
+  start: z.string().trim().max(10).nullable().optional(),
 });
 
-export type TimeEntryPatch = z.infer<typeof timeEntryPatchSchema>;
+export type TimeEntryPatch= z.infer<typeof timeEntryPatchSchema>;
 
 export const jobInputSchema = z.object({
   number: jobNumberSchema,

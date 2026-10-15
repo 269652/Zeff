@@ -1,4 +1,5 @@
 import { automationEnv, automationUp, driverPath } from "@/plugins/drivers";
+import { driverOf } from "@/lib/connectors/store";
 import { clearAttention, needsSignIn, raiseLogin } from "@/lib/attention";
 import { sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
@@ -28,6 +29,9 @@ type Source = "outlook" | "gmail" | "whatsapp" | "signal";
 const SOURCE_LABELS: Record<Source, string> = { outlook: "Outlook", gmail: "Gmail", whatsapp: "WhatsApp", signal: "Signal" };
 const SOURCE_PLUGINS = { outlook: "outlook-mail", gmail: "gmail", whatsapp: "whatsapp" } as const;
 
+/** Gmail / Outlook read through the service's API (the sign-in on the Connections page) instead of the automation Chrome. */
+const isApi = (source: Source) => (source === "gmail" && driverOf("gmail") === "api") || (source === "outlook" && driverOf("outlook-mail") === "api");
+
 /** WhatsApp: the active chats' messages — else (WhatsApp Web doesn't offer them) each chat's last one from the list. */
 async function whatsappRead(call: (name: string, args: Record<string, unknown>) => Promise<unknown>, days: number, background: boolean): Promise<unknown> {
   const { resultToPayload } = await import("@/lib/jira/mcp-client");
@@ -35,14 +39,21 @@ async function whatsappRead(call: (name: string, args: Record<string, unknown>) 
   const p = resultToPayload(r);
   const data = typeof p === "string" ? (p.trim().startsWith("{") ? JSON.parse(p) : null) : p;
   if (data && Array.isArray((data as { messages?: unknown }).messages)) return r;
+  // WhatsApp Web's insides no longer match the driver's contract: said (the chat list is the fallback — fewer messages), not silently.
+  const d = data as { error?: string; missing?: string[]; hint?: string } | null;
+  if (d?.error === "no-internals") console.warn(`[mail sync] WhatsApp: ${d.hint ?? "WhatsApp Web changed"}${d.missing?.length ? ` (missing: ${d.missing.join(", ")})` : ""} — reading the chat list instead.`);
   return call("whatsapp_chats", { days, maxChats: days > DAYS ? 300 : 100, openIfMissing: true, launch: !background });
 }
 
 /** One source read (Outlook's or Gmail's list, WhatsApp's chat list) — as shown: no mail or chat opened, none marked read. */
-  // WhatsApp Web's insides no longer match the driver's contract: said (the chat list is the fallback — fewer messages), not silently.
-  const d = data as { error?: string; missing?: string[]; hint?: string } | null;
-  if (d?.error === "no-internals") console.warn(`[mail sync] WhatsApp: ${d.hint ?? "WhatsApp Web changed"}${d.missing?.length ? ` (missing: ${d.missing.join(", ")})` : ""} — reading the chat list instead.`);
 async function readMailbox(source: Source, days: number, background: boolean, gmail?: { account: string; folder: string }): Promise<{ messages: MailInput[]; missing?: string[] }> {
+  // Gmail through Google's API: no automation Chrome.
+  if (source === "gmail" && isApi(source)) {
+    const { readGmail } = await import("@/lib/google/gmail-api");
+    return readGmail({ days, maxPages: days > DAYS ? 20 : 3, folder: gmail?.folder ?? "Gmail", fullKnown: getPref<string[]>(`gmail:full:${gmail?.account ?? "0"}`, []) });
+  }
+  // Outlook through Microsoft Graph: no automation Chrome.
+  if (source === "outlook" && isApi(source)) return (await import("@/lib/microsoft/mail-api")).readMail({ days, folders: getMailSettings().folders });
   const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
   const out = await runStdioSession(
     { command: process.execPath, args: [driverPath(source)], env: automationEnv(), label: `${SOURCE_LABELS[source]} sync` },
@@ -90,7 +101,8 @@ async function syncSource(source: Source, days: number, background: boolean, pre
     return { ok: true, part: `${prefix ? `${label}: ` : ""}${counted}${missing}` };
   } catch (e) {
     const message = errorMessage(e).slice(0, 300);
-    if (needsSignIn(message) || /sign[- ]in|anmeld|verknüpf/i.test(message)) raiseLogin(source, message);
+    // (An API sign-in that fails is told in the result — connect again on the Connections page; no Chrome login to raise.)
+    if (!isApi(source) && (needsSignIn(message) || /sign[- ]in|anmeld|verknüpf/i.test(message))) raiseLogin(source, message);
     return { ok: false, part: `${label}: ${message}` };
   }
 }
@@ -106,21 +118,27 @@ export async function syncMail({ background = false } = {}): Promise<{ ok: boole
   try {
     // In the background without the automation Chrome: later, as for the other sources — not a failure
     // (that would also make the next sync read two months again).
-    if (background && !(await chromeUp())) return { ok: true, message: t("The automation Chrome isn't running — later.") };
+    // Gmail through the API doesn't need it: that part runs, the Chrome-driven ones wait.
     const { isInstalled } = await import("@/plugins/state");
     const sources = (["outlook", "gmail"] as const).filter((s) => isInstalled(SOURCE_PLUGINS[s]));
+    const chromeDown = background && !(await chromeUp());
+    if (chromeDown && !sources.some(isApi)) return { ok: true, message: t("The automation Chrome isn't running — later.") };
     if (!sources.length) return record(false, t("No mail plugin installed (Outlook Mail or Gmail)."));
     const days = background && getMailSettings().lastOk ? DAYS : FULL_DAYS;
     const done = [];
     // Gmail: each account set on its settings page, into its own folder.
     const { gmailAccounts, gmailFolder } = await import("@/plugins/gmail/accounts");
-    const boxes = sources.flatMap((source): { source: Source; gmail?: { account: string; folder: string } }[] => (source === "gmail" ? gmailAccounts().map((a, i) => ({ source, gmail: { account: a.account, folder: gmailFolder(a, i) } })) : [{ source, gmail: undefined }]));
+    // (With the API there is one account — the one signed in on the Connections page — in the folder "Gmail".)
+    const all = sources.flatMap((source): { source: Source; gmail?: { account: string; folder: string } }[] =>
+      source === "gmail" && isApi(source) ? [{ source, gmail: { account: "0", folder: "Gmail" } }] : source === "gmail" ? gmailAccounts().map((a, i) => ({ source, gmail: { account: a.account, folder: gmailFolder(a, i) } })) : [{ source, gmail: undefined }],
+    );
+    const boxes = chromeDown ? all.filter((b) => isApi(b.source)) : all;
     for (const b of boxes) done.push(await syncSource(b.source, days, background, boxes.length > 1, b.gmail));
     // Attachments → Documents (when turned on): its own step after the mails are kept — whatever goes wrong
     // there is a note in the result, never a failed mail sync.
     if (done.some((d) => d.ok)) {
       try {
-        const att = await (await import("./attachments-sync")).fetchMailAttachments();
+        const att = await (await import("./attachments-sync")).fetchMailAttachments(chromeDown ? { only: sources.filter(isApi) } : {});
         if (att.message) done.push({ ok: true, part: att.message });
       } catch (e) {
         done.push({ ok: true, part: t("attachments: {error}", { error: errorMessage(e).slice(0, 200) }) });

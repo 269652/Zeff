@@ -100,16 +100,16 @@ function StepLine({ s }: { s: Step }) {
     return (
       <div>
         <div className="flex min-w-0 items-baseline gap-2">
-          <span className="text-[9px] text-emerald-500" aria-hidden>
+          <span className="text-xs text-emerald-500" aria-hidden>
             ●
           </span>
           <span className="shrink-0 font-medium text-zinc-700 dark:text-zinc-200">{s.tool}</span>
           {more ? (
-            <button type="button" onClick={() => setOpen(!open)} className="min-w-0 truncate text-left font-mono text-[11px] text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200" title={s.text} aria-expanded={open}>
+            <button type="button" onClick={() => setOpen(!open)} className="min-w-0 truncate text-left font-mono text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200" title={s.text} aria-expanded={open}>
               {open ? "▾" : "▸"} {s.text}
             </button>
           ) : (
-            <span className="min-w-0 truncate font-mono text-[11px] text-zinc-500" title={s.text}>
+            <span className="min-w-0 truncate font-mono text-xs text-zinc-500" title={s.text}>
               {s.text}
             </span>
           )}
@@ -117,7 +117,7 @@ function StepLine({ s }: { s: Step }) {
         {open && (
           <div className="mt-1 mb-2 ml-4 space-y-1">
             {s.diff?.map((d, i) => <EditDiff key={i} old={d.old} new={d.new} />)}
-            {s.detail && (s.tool === "ExitPlanMode" ? <Markdown text={s.detail} /> : <pre className="max-h-96 overflow-auto rounded bg-zinc-950 p-2 font-mono text-[11px] whitespace-pre-wrap text-zinc-200">{s.detail}</pre>)}
+            {s.detail && (s.tool === "ExitPlanMode" ? <Markdown text={s.detail} /> : <pre className="max-h-96 overflow-auto rounded bg-zinc-950 p-2 font-mono text-xs whitespace-pre-wrap text-zinc-200">{s.detail}</pre>)}
           </div>
         )}
       </div>
@@ -126,7 +126,7 @@ function StepLine({ s }: { s: Step }) {
   if (s.k === "ask")
     return (
       <div className="flex min-w-0 items-baseline gap-2 rounded-md bg-amber-50 px-1.5 py-0.5 dark:bg-amber-950/40">
-        <span className="text-[10px] text-amber-600" aria-hidden>
+        <span className="text-xs text-amber-600" aria-hidden>
           ?
         </span>
         <span className="min-w-0 truncate text-amber-900 dark:text-amber-100" title={s.text}>
@@ -146,15 +146,15 @@ function StepLine({ s }: { s: Step }) {
   return (
     <div className="pl-4">
       {s.full ? (
-        <button type="button" onClick={() => setOpen(!open)} className={`block w-full truncate text-left font-mono text-[11px] ${s.error ? "text-red-600 dark:text-red-400" : "text-zinc-400"} hover:text-zinc-700 dark:hover:text-zinc-200`} title={s.text} aria-expanded={open}>
+        <button type="button" onClick={() => setOpen(!open)} className={`block w-full truncate text-left font-mono text-xs ${s.error ? "text-red-600 dark:text-red-400" : "text-zinc-400"} hover:text-zinc-700 dark:hover:text-zinc-200`} title={s.text} aria-expanded={open}>
           ⎿ {s.text}
         </button>
       ) : (
-        <div className={`truncate font-mono text-[11px] ${s.error ? "text-red-600 dark:text-red-400" : "text-zinc-400"}`} title={s.text}>
+        <div className={`truncate font-mono text-xs ${s.error ? "text-red-600 dark:text-red-400" : "text-zinc-400"}`} title={s.text}>
           ⎿ {s.text}
         </div>
       )}
-      {open && s.full && <pre className="mt-1 max-h-96 overflow-auto rounded bg-zinc-950 p-2 font-mono text-[11px] whitespace-pre-wrap text-zinc-300">{s.full}</pre>}
+      {open && s.full && <pre className="mt-1 max-h-96 overflow-auto rounded bg-zinc-950 p-2 font-mono text-xs whitespace-pre-wrap text-zinc-300">{s.full}</pre>}
     </div>
   );
 }
@@ -171,7 +171,7 @@ function Steps({ steps, working }: { steps: Step[]; working: boolean }) {
     <div className="space-y-0.5 text-xs">
       {steps.length > 4 && (
         <button type="button" onClick={() => setOpen(!open)} className="flex items-center gap-1.5 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200" aria-expanded={open}>
-          <span className="w-3 text-[10px]">{open ? "▾" : "▸"}</span>
+          <span className="w-3 text-xs">{open ? "▾" : "▸"}</span>
           {calls.length === 1 ? t("1 step") : t("{n} steps", { n: calls.length })}
           <span className="truncate text-zinc-400">
             · {names.slice(0, 5).join(", ")}
@@ -193,9 +193,9 @@ function Raw({ text }: { text: string }) {
   const long = lines.length > 12;
   return (
     <div className="rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/60">
-      <pre className="max-h-[60vh] overflow-auto p-2.5 font-mono text-[11px] leading-snug whitespace-pre-wrap text-zinc-600 dark:text-zinc-400">{long && !open ? lines.slice(-12).join("\n") : text}</pre>
+      <pre className="max-h-[60vh] overflow-auto p-2.5 font-mono text-xs leading-snug whitespace-pre-wrap text-zinc-600 dark:text-zinc-400">{long && !open ? lines.slice(-12).join("\n") : text}</pre>
       {long && (
-        <button type="button" onClick={() => setOpen(!open)} className="w-full border-t border-zinc-200 px-2.5 py-1 text-left text-[11px] text-zinc-500 hover:text-zinc-800 dark:border-zinc-800 dark:hover:text-zinc-200">
+        <button type="button" onClick={() => setOpen(!open)} className="w-full border-t border-zinc-200 px-2.5 py-1 text-left text-xs text-zinc-500 hover:text-zinc-800 dark:border-zinc-800 dark:hover:text-zinc-200">
           {open ? t("Show less") : t("Show all {n} lines", { n: lines.length })}
         </button>
       )}
@@ -239,7 +239,7 @@ function Shell({ cmd, text, ok }: { cmd: string; text: string; ok: boolean }) {
   return (
     <details className="rounded-lg bg-zinc-950 px-3 py-1.5 font-mono text-xs text-zinc-200">
       <summary className={`cursor-pointer ${ok ? "text-amber-300" : "text-red-300"}`}>! {cmd}</summary>
-      <pre className="mt-1 max-h-96 overflow-auto text-[11px] whitespace-pre-wrap text-zinc-300">{text || t("(no output)")}</pre>
+      <pre className="mt-1 max-h-96 overflow-auto text-xs whitespace-pre-wrap text-zinc-300">{text || t("(no output)")}</pre>
     </details>
   );
 }
@@ -274,7 +274,7 @@ function Answer({ run }: { run: WorkRunView }) {
         ) : b.t === "shell" ? (
           <Shell key={i} cmd={b.cmd} text={b.text} ok={b.ok} />
         ) : b.t === "note" ? (
-          <p key={i} className="text-center text-[11px] text-zinc-400">
+          <p key={i} className="text-center text-xs text-zinc-400">
             {b.text}
           </p>
         ) : (
@@ -311,7 +311,7 @@ function Answer({ run }: { run: WorkRunView }) {
       )}
       {loaded && !active && !blocks.length && !summary && !run.error && <p className="text-sm text-zinc-500">{t("No answer.")}</p>}
       {!active && (
-        <p className="text-[11px] text-zinc-400" title={run.sessionId ? t("Session {id}", { id: run.sessionId }) : undefined}>
+        <p className="text-xs text-zinc-400" title={run.sessionId ? t("Session {id}", { id: run.sessionId }) : undefined}>
           {meta.join(" · ")}
           {res?.outcome && res.outcome !== "done" ? ` · ${res.outcome}` : ""}
         </p>

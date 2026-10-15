@@ -32,7 +32,7 @@ export function EntryTodoContextSection({ ctx }: { ctx: EntryTodoContext }) {
             </Link>
           ))}
           {ctx.runs.map((r) => (
-            <Link key={r} href="/work" className="font-mono text-violet-700 hover:underline dark:text-violet-300" title={t("Work run {ref}", { ref: `W-${r}` })}>
+            <Link key={r} href="/work" className="font-mono text-violet-700 hover:underline dark:text-violet-300" title={t("Code run {ref}", { ref: `W-${r}` })}>
               W-{r}
             </Link>
           ))}

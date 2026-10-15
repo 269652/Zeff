@@ -90,12 +90,12 @@ export function DeviceCodeConnect() {
   }
 
   if (phase === "done") {
-    return <p className="alert-ok">{t("Connected. Loading your calendar…")}</p>;
+    return <p role="status" className="alert-ok">{t("Connected. Loading your calendar…")}</p>;
   }
 
   return (
     <div className="space-y-3">
-      {phase === "error" && <p className="alert-error whitespace-pre-line">{error}</p>}
+      {phase === "error" && <p role="alert" className="alert-error whitespace-pre-line">{error}</p>}
       <button type="button" className="btn btn-primary" onClick={start} disabled={phase === "starting"}>
         {phase === "starting" ? t("Preparing…") : phase === "error" ? t("Try again") : t("Connect Outlook")}
       </button>

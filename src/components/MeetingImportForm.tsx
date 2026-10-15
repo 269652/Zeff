@@ -132,14 +132,14 @@ export function MeetingImportForm({
         <table className="table">
           <thead>
             <tr>
-              <th></th>
-              <th>{t("Date")}</th>
-              <th>{t("Time")}</th>
-              <th>{t("Meeting → description")}</th>
-              <th className="num">{t("Hours")}</th>
-              <th>{t("Ticket")}</th>
-              <th>{t("Job")}</th>
-              <th>{t("Notes")}</th>
+              <th scope="col"><span className="sr-only">{t("Actions")}</span></th>
+              <th scope="col">{t("Date")}</th>
+              <th scope="col">{t("Time")}</th>
+              <th scope="col">{t("Meeting → description")}</th>
+              <th scope="col" className="num">{t("Hours")}</th>
+              <th scope="col">{t("Ticket")}</th>
+              <th scope="col">{t("Job")}</th>
+              <th scope="col">{t("Notes")}</th>
             </tr>
           </thead>
           <tbody>
@@ -151,7 +151,10 @@ export function MeetingImportForm({
                   <td>
                     <input type="hidden" name={`externalId-${i}`} value={r.externalId} />
                     <input type="hidden" name={`date-${i}`} value={r.date} />
+                    <input type="hidden" name={`start-${i}`} value={r.startTime} />
+                    <label className="-m-1.5 inline-flex cursor-pointer p-1.5">
                     <input
+                      aria-label={t("Import: {subject}", { subject: r.subject })}
                       type="checkbox"
                       name={`include-${i}`}
                       checked={r.selected}
@@ -159,22 +162,23 @@ export function MeetingImportForm({
                       onChange={(e) => update(i, { selected: e.target.checked })}
                       className="size-4 accent-indigo-600"
                     />
+                    </label>
                   </td>
                   <td className="font-mono whitespace-nowrap">{r.date}</td>
                   <td className="font-mono whitespace-nowrap">{r.startTime}–{r.endTime}</td>
                   <td className="min-w-64">
-                    <input name={`description-${i}`} className="input" value={r.description} onChange={(e) => update(i, { description: e.target.value })} disabled={imported} />
+                    <input name={`description-${i}`} aria-label={t("Description: {subject}", { subject: r.subject })} className="input" value={r.description} onChange={(e) => update(i, { description: e.target.value })} disabled={imported} />
                     {r.organizer && <div className="mt-0.5 text-xs text-zinc-500">{t("by {name}", { name: r.organizer })}</div>}
                   </td>
                   <td>
-                    <input name={`hours-${i}`} type="number" step="0.25" min="0.25" max="24" className="input num w-20" value={r.hoursValue} onChange={(e) => update(i, { hoursValue: e.target.value })} disabled={imported} />
+                    <input name={`hours-${i}`} aria-label={t("Hours: {subject}", { subject: r.subject })} type="number" step="0.25" min="0.25" max="24" className="input num w-20" value={r.hoursValue} onChange={(e) => update(i, { hoursValue: e.target.value })} disabled={imported} />
                     <div className="mt-0.5 text-right text-xs text-zinc-500">{t("{n} min", { n: r.minutes })}</div>
                   </td>
                   <td>
-                    <input name={`ticket-${i}`} className="input w-28 font-mono" value={r.ticketValue} onChange={(e) => update(i, { ticketValue: e.target.value })} disabled={imported} placeholder="—" />
+                    <input name={`ticket-${i}`} aria-label={t("Ticket: {subject}", { subject: r.subject })} className="input w-28 font-mono" value={r.ticketValue} onChange={(e) => update(i, { ticketValue: e.target.value })} disabled={imported} placeholder="—" />
                   </td>
                   <td>
-                    <select name={`job-${i}`} className="input min-w-44" value={r.jobNumber} onChange={(e) => update(i, { jobNumber: e.target.value })} disabled={imported}>
+                    <select name={`job-${i}`} aria-label={t("Job: {subject}", { subject: r.subject })} className="input min-w-44" value={r.jobNumber} onChange={(e) => update(i, { jobNumber: e.target.value })} disabled={imported}>
                       {jobs.map((j) => (
                         <option key={j.id} value={j.number}>{j.number} — {j.name}</option>
                       ))}
@@ -226,7 +230,7 @@ export function MeetingImportForm({
               : t("Book {n} meetings", { n: selectedRows.length })}
         </button>
       </div>
-      {state?.error && <p className="alert-error whitespace-pre-line">{state.error}</p>}
+      {state?.error && <p role="alert" className="alert-error whitespace-pre-line">{state.error}</p>}
     </form>
   );
 }

@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useAction } from "@/components/useAction";
+import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
+import { Overlay } from "@/components/Overlay";
 import { addCardTodoAction, setTodoStatusAction } from "@/plugins/todos/server-actions";
 import { CloseIcon, PencilIcon } from "@/components/icons";
 import {
@@ -19,10 +21,13 @@ import {
   moveCardAction,
   moveCardToBoardAction,
   moveColumnAction,
+  restoreCardAction,
+  unarchiveCardAction,
   updateBoardAction,
   updateCardAction,
   updateColumnAction,
 } from "./actions";
+import type { CardSnapshot } from "./store";
 import { BoardFrame, COLUMN } from "./BoardFrame";
 import { CardChecklist } from "./CardChecklist";
 import { initials, NOBODY, PersonChips, peopleOf } from "./PersonChips";
@@ -93,28 +98,28 @@ function Card({ c, lage, todosOn, parent, kids, onOpen, onDragStart, onDragEnd, 
       {/* A subtask: the parent's title and both refs on top (parent/own), then its own title. */}
       <span className="flex items-start gap-2">
         {parent ? (
-          <span className="min-w-0 flex-1 truncate text-xs font-medium text-indigo-700 dark:text-indigo-300" title={`Unteraufgabe von ${parent.ref} ${parent.title}`}>
+          <span className="min-w-0 flex-1 truncate text-xs font-medium text-indigo-700 dark:text-indigo-300" title={t("Subtask of {ref} {title}", { ref: parent.ref, title: parent.title })}>
             {parent.title}
           </span>
         ) : (
           <span className="min-w-0 flex-1 font-medium break-words">{c.title}</span>
         )}
-        <span className="shrink-0 font-mono text-[11px] text-zinc-400">{parent ? `${parent.ref}/${c.ref}` : c.ref}</span>
+        <span className="shrink-0 font-mono text-xs text-zinc-400">{parent ? `${parent.ref}/${c.ref}` : c.ref}</span>
         {c.assignee && (
-          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-[9px] font-semibold text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200" title={c.assignee}>
+          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-xs font-semibold text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200" title={c.assignee}>
             {initials(c.assignee)}
           </span>
         )}
       </span>
       {parent && <span className="mt-0.5 block font-medium break-words">{c.title}</span>}
       {kids && kids.total > 0 && (
-        <span className={`mt-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${kids.done === kids.total ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-300"}`} title="Unteraufgaben (erledigt/alle) — im Panel der Karte">
+        <span className={`mt-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs ${kids.done === kids.total ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-300"}`} title={t("Subtasks (done/all) — in the card's panel")}>
           ⧉ {kids.done}/{kids.total}
         </span>
       )}
       {lage?.lead && <span className="mt-1 block text-xs text-zinc-600 dark:text-zinc-400">{lage.lead}</span>}
       {(c.labels.length > 0 || c.priority || c.due || c.description) && (
-        <span className="mt-1.5 flex flex-wrap items-center gap-1 text-[11px]">
+        <span className="mt-1.5 flex flex-wrap items-center gap-1 text-xs">
           {c.priority && c.priority !== "normal" && <span className={`rounded px-1.5 py-0.5 font-medium ${PRIORITY_TONE[c.priority]}`}>{priorityLabels(t)[c.priority]}</span>}
           {c.labels.map((l) => (
             <span key={l} className="rounded bg-indigo-50 px-1.5 py-0.5 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
@@ -139,16 +144,16 @@ function Card({ c, lage, todosOn, parent, kids, onOpen, onDragStart, onDragEnd, 
                 e.stopPropagation();
                 setExpanded((v) => !v);
               }}
-              className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${done === all ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"}`}
-              title={`${all - done} offen, ${done} erledigt — klicken zum Aufklappen`}
+              className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs ${done === all ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"}`}
+              title={t("{open} open, {done} done — click to expand", { open: all - done, done })}
             >
-              {expanded ? "▾" : "▸"} {all ? `☑ ${done}/${all}` : "+ Todo"}
+              {expanded ? "▾" : "▸"} {all ? `☑ ${done}/${all}` : t("+ Todo")}
             </button>
             {expanded && (
               <ul className="mt-1.5 space-y-1" onClick={(e) => e.stopPropagation()}>
                 {list.map((x) => (
                   <li key={x.id} className="flex items-start gap-1.5 text-xs">
-                    <input type="checkbox" className="mt-0.5 size-3.5 shrink-0" checked={x.status === "done"} disabled={pending} onChange={(e) => tick(x.id, e.target.checked)} aria-label={`T-${x.id} ${x.status === "done" ? "wieder öffnen" : "erledigt"}`} />
+                    <input type="checkbox" className="mt-0.5 size-3.5 shrink-0" checked={x.status === "done"} disabled={pending} onChange={(e) => tick(x.id, e.target.checked)} aria-label={x.status === "done" ? t("T-{id} reopen", { id: x.id }) : t("T-{id} done", { id: x.id })} />
                     <span className={`min-w-0 flex-1 break-words ${x.status === "done" ? "text-zinc-400 line-through" : ""}`}>{x.text}</span>
                   </li>
                 ))}
@@ -164,8 +169,8 @@ function Card({ c, lage, todosOn, parent, kids, onOpen, onDragStart, onDragEnd, 
                         addTodo();
                       }
                     }}
-                    placeholder="+ Todo (Enter)"
-                    aria-label="Neues Todo zur Karte"
+                    placeholder={t("+ Todo (Enter)")}
+                    aria-label={t("New todo for the card")}
                   />
                 </li>
               </ul>
@@ -189,11 +194,6 @@ function CardPanel({ c, lage, people, columns, boards, parent, subtasks, onOpenC
   /** The board chosen to move the card to, while it has subtasks: asked whether they come along. */
   const [moveTo, setMoveTo] = useState<{ id: number; name: string } | null>(null);
   const dirty = title !== c.title || description !== c.description || labels !== c.labels.join(", ") || priority !== (c.priority ?? "") || due !== (c.due ?? "") || assignee !== (c.assignee ?? "");
-  useEffect(() => {
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", esc);
-    return () => document.removeEventListener("keydown", esc);
-  }, [onClose]);
   const save = () =>
     run(() =>
       updateCardAction(c.id, {
@@ -210,8 +210,7 @@ function CardPanel({ c, lage, people, columns, boards, parent, subtasks, onOpenC
     );
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-zinc-950/30" onClick={onClose} aria-hidden />
-      <aside role="dialog" aria-label={t("Card {ref}", { ref: c.ref })} className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col border-l border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
+      <Overlay open onClose={onClose} label={t("Card {ref}", { ref: c.ref })} dirty={dirty} className="max-w-lg">
         <div className="flex items-center justify-between gap-2 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
           <span className="font-mono text-sm text-zinc-500">{c.ref}</span>
           <button type="button" className="icon-btn" onClick={onClose} aria-label={t("Close")} title={t("Close (Esc)")}>
@@ -340,43 +339,65 @@ function CardPanel({ c, lage, people, columns, boards, parent, subtasks, onOpenC
           <button type="button" className="btn btn-primary" disabled={!dirty || !title.trim()} onClick={save}>
             {t("Save")}
           </button>
-          <button type="button" className="btn" onClick={() => run(() => archiveCardAction(c.id), onClose)}>
+          <button type="button" className="btn" onClick={() =>
+              run(
+                () => archiveCardAction(c.id),
+                () => {
+                  onClose();
+                  toast(t("Card archived."), { action: { label: t("Undo"), run: () => run(() => unarchiveCardAction(c.id)) } });
+                },
+              )
+            }>
             {t("Archive")}
           </button>
           <button
             type="button"
             className="btn btn-danger ml-auto"
             onClick={() => {
-              if (confirmAction(t("Delete {ref} “{title}”?", { ref: c.ref, title: c.title }))) run(() => deleteCardAction(c.id), onClose);
+              if (!confirmAction(t("Delete {ref} “{title}”?", { ref: c.ref, title: c.title }))) return;
+              let snap: CardSnapshot | undefined;
+              run(
+                async () => {
+                  const r = await deleteCardAction(c.id);
+                  snap = r.snapshot;
+                  return r;
+                },
+                () => {
+                  onClose();
+                  const s = snap;
+                  toast(t("Card deleted."), { action: s ? { label: t("Undo"), run: () => run(() => restoreCardAction(s)) } : undefined });
+                },
+              );
             }}
           >
             {t("Delete")}
           </button>
         </div>
-      </aside>
+      </Overlay>
     </>
   );
 }
 
 /** A card's place in a tree: the card it is a subtask of, or its subtasks (each in a column of its own) — and a field for a new one. */
 function Subtasks({ c, parent, subtasks, onOpenCard, run }: { c: CardView; parent?: CardView; subtasks: { card: CardView; column: string; done: boolean }[]; onOpenCard: (id: number) => void; run: (fn: () => Promise<Result>) => void }) {
+  const t = useT();
   const [text, setText] = useState("");
   const add = () => {
-    const t = text.trim();
-    if (!t) return;
+    const title = text.trim();
+    if (!title) return;
     setText("");
-    run(() => createSubtaskAction(c.id, t));
+    run(() => createSubtaskAction(c.id, title));
   };
   if (parent)
     return (
       <section className="space-y-1.5">
-        <h3 className="label">Unteraufgabe von</h3>
+        <h3 className="label">{t("Subtask of")}</h3>
         <div className="flex items-center gap-2 text-sm">
           <button type="button" className="min-w-0 flex-1 truncate text-left text-indigo-700 hover:underline dark:text-indigo-300" onClick={() => onOpenCard(parent.id)}>
             <span className="font-mono text-xs">{parent.ref}</span> {parent.title}
           </button>
-          <button type="button" className="btn btn-sm shrink-0" onClick={() => run(() => detachSubtaskAction(c.id))} title="Wird eine eigene Karte">
-            Lösen
+          <button type="button" className="btn btn-sm shrink-0" onClick={() => run(() => detachSubtaskAction(c.id))} title={t("Becomes a card of its own")}>
+            {t("Detach")}
           </button>
         </div>
       </section>
@@ -384,10 +405,10 @@ function Subtasks({ c, parent, subtasks, onOpenCard, run }: { c: CardView; paren
   return (
     <section className="space-y-2">
       <h3 className="label flex items-center gap-2">
-        Unteraufgaben
+        {t("Subtasks")}
         {subtasks.length > 0 && (
           <span className="font-normal normal-case">
-            {subtasks.filter((x) => x.done).length}/{subtasks.length} erledigt
+            {t("{done}/{total} done", { done: subtasks.filter((x) => x.done).length, total: subtasks.length })}
           </span>
         )}
       </h3>
@@ -399,7 +420,7 @@ function Subtasks({ c, parent, subtasks, onOpenCard, run }: { c: CardView; paren
               <button type="button" className={`min-w-0 flex-1 truncate text-left hover:underline ${done ? "text-zinc-400 line-through" : ""}`} onClick={() => onOpenCard(card.id)}>
                 <span className="font-mono text-xs text-zinc-400">{card.ref}</span> {card.title}
               </button>
-              <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300" title="Die Spalte der Unteraufgabe">
+              <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300" title={t("The subtask's column")}>
                 {column}
               </span>
             </li>
@@ -409,7 +430,7 @@ function Subtasks({ c, parent, subtasks, onOpenCard, run }: { c: CardView; paren
       <input
         className="input"
         value={text}
-        placeholder="Neue Unteraufgabe …"
+        placeholder={t("New subtask …")}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
@@ -423,11 +444,12 @@ function Subtasks({ c, parent, subtasks, onOpenCard, run }: { c: CardView; paren
 }
 
 /** A column's head: its name (click to rename), how many (of the WIP limit), and its menu. */
-function ColumnHead({ col, first, last, run }: { col: ColumnView; first: boolean; last: boolean; run: (fn: () => Promise<Result>) => void }) {
+function ColumnHead({ col, first, last, run }: { col: ColumnView; first: boolean; last: boolean; run: (fn: () => Promise<Result>, after?: () => void) => void }) {
   const t = useT();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(col.name);
   const [menu, setMenu] = useState(false);
+  const skipBlur = useRef(false);
   const over = col.wipLimit !== null && col.cards.length > col.wipLimit;
   return (
     <div className="relative flex items-center gap-1.5 px-1">
@@ -437,10 +459,22 @@ function ColumnHead({ col, first, last, run }: { col: ColumnView; first: boolean
           onSubmit={(e) => {
             e.preventDefault();
             setEditing(false);
-            if (name.trim() && name !== col.name) run(() => updateColumnAction(col.id, { name }));
+            if (name.trim() && name !== col.name) {
+              const was = col.name;
+              run(() => updateColumnAction(col.id, { name }), () => toast(t("Column renamed."), { action: { label: t("Undo"), run: () => run(() => updateColumnAction(col.id, { name: was })) } }));
+            }
           }}
         >
-          <input className="input py-0.5 text-sm font-semibold" value={name} autoFocus onChange={(e) => setName(e.target.value)} onBlur={(e) => e.currentTarget.form?.requestSubmit()} />
+          <input className="input py-0.5 text-sm font-semibold" value={name} autoFocus onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "Escape") return;
+              e.preventDefault();
+              skipBlur.current = true;
+              setName(col.name);
+              setEditing(false);
+            }}
+            onBlur={(e) => (skipBlur.current ? (skipBlur.current = false) : e.currentTarget.form?.requestSubmit())}
+          />
         </form>
       ) : (
         <button type="button" className="min-w-0 flex-1 truncate text-left text-sm font-semibold" onClick={() => setEditing(true)} title={t("Rename")}>
@@ -487,6 +521,61 @@ function ColumnHead({ col, first, last, run }: { col: ColumnView; first: boolean
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * A ghost card under a card — it appears while the pointer is on the card (or focus is in it): "+ Add a
+ * subtask". A click turns it into a field for the title; Enter makes the subtask (linked to the card, in
+ * its column) and the field stays for the next one; Esc or leaving it empty closes it.
+ */
+function SubtaskGhost({ parent }: { parent: CardView }) {
+  const t = useT();
+  const { run, pending } = useAction({ quiet: true });
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState("");
+  const add = () => {
+    const text = title.trim();
+    if (!text) return;
+    setTitle("");
+    void run(() => createSubtaskAction(parent.id, text));
+  };
+  return (
+    <div className={`grid transition-[grid-template-rows] duration-150 ${editing ? "grid-rows-[1fr]" : "grid-rows-[0fr] group-focus-within/ticket:grid-rows-[1fr] group-hover/ticket:grid-rows-[1fr]"}`}>
+      <div className="overflow-hidden">
+        {editing ? (
+          <input
+            autoFocus
+            className="mt-1.5 mb-0.5 w-full rounded-lg border border-dashed border-indigo-400 bg-white/80 px-2.5 py-1.5 text-xs shadow-xs outline-none placeholder:text-zinc-400 focus:border-indigo-500 dark:bg-zinc-900/80"
+            value={title}
+            disabled={pending}
+            placeholder={t("Title of the subtask (Enter)")}
+            aria-label={t("Title of the new subtask of {ref}", { ref: parent.ref })}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                add();
+              } else if (e.key === "Escape") {
+                setTitle("");
+                setEditing(false);
+              }
+            }}
+            onBlur={() => !title.trim() && setEditing(false)}
+          />
+        ) : (
+          <button
+            type="button"
+            className="mt-1.5 mb-0.5 flex w-full items-center gap-1.5 rounded-lg border border-dashed border-zinc-300 bg-zinc-50/60 px-2.5 py-1.5 text-left text-xs text-zinc-400 transition hover:border-indigo-300 hover:bg-indigo-50/60 hover:text-indigo-600 dark:border-zinc-700 dark:bg-zinc-900/40 dark:hover:border-indigo-700 dark:hover:bg-indigo-950/40 dark:hover:text-indigo-300"
+            onClick={() => setEditing(true)}
+            title={t("Add a subtask to {ref}", { ref: parent.ref })}
+          >
+            <span aria-hidden>+</span>
+            {t("Add a subtask")}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -546,9 +635,10 @@ export function OwnBoard({ board, lage = {}, todosOn = false, otherBoards = [], 
   const [drag, setDrag] = useState<number | null>(null);
   const [drop, setDrop] = useState<{ col: number; before: number | null } | null>(null);
   const [filter, setFilter] = useState("");
-  const { run } = useAction<Result>();
+  const { run } = useAction<Result>({ quiet: [t("Card archived."), t("Card deleted."), t("Card restored.")] });
   const [newCol, setNewCol] = useState("");
   const [editingName, setEditingName] = useState(false);
+  const skipBlur = useRef(false);
   const bodies = useRef(new Map<number, HTMLDivElement>());
 
   // The board as the server has it now (after a change, a refresh) — what's shown follows.
@@ -610,10 +700,22 @@ export function OwnBoard({ board, lage = {}, todosOn = false, otherBoards = [], 
                     e.preventDefault();
                     const name = new FormData(e.currentTarget).get("name");
                     setEditingName(false);
-                    if (name && name !== board.name) run(() => updateBoardAction(board.id, { name: String(name) }));
+                    if (name && name !== board.name) {
+                      const was = board.name;
+                      run(() => updateBoardAction(board.id, { name: String(name) }), () => toast(t("Board renamed."), { action: { label: t("Undo"), run: () => run(() => updateBoardAction(board.id, { name: was })) } }));
+                    }
                   }}
                 >
-                  <input name="name" className="input text-lg font-semibold" defaultValue={board.name} autoFocus onBlur={(e) => e.currentTarget.form?.requestSubmit()} />
+                  <input name="name" className="input text-lg font-semibold" defaultValue={board.name}
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key !== "Escape") return;
+                      e.preventDefault();
+                      skipBlur.current = true;
+                      setEditingName(false);
+                    }}
+                    onBlur={(e) => (skipBlur.current ? (skipBlur.current = false) : e.currentTarget.form?.requestSubmit())}
+                  />
                 </form>
               ) : (
                 <h1 className="cursor-text text-lg font-semibold" onClick={() => setEditingName(true)} title={t("Rename")}>
@@ -698,7 +800,7 @@ export function OwnBoard({ board, lage = {}, todosOn = false, otherBoards = [], 
               className={`flex min-h-12 flex-1 flex-col gap-2 overflow-y-auto rounded-lg p-0.5 transition ${drop?.col === col.id ? "bg-indigo-100/70 dark:bg-indigo-950/50" : ""}`}
             >
               {col.cards.filter(matches).map((c) => (
-                <div key={c.id}>
+                <div key={c.id} className="group/ticket">
                   {drop?.col === col.id && drop.before === c.id && drag !== c.id && <div className="mb-2 h-1 rounded-full bg-indigo-500" />}
                   <Card
                     c={c}
@@ -722,6 +824,8 @@ export function OwnBoard({ board, lage = {}, todosOn = false, otherBoards = [], 
                       setDrop(null);
                     }}
                   />
+                  {/* A subtask has none of its own (one level): the ghost is for the cards that can have them. */}
+                  {!c.parentId && drag === null && <SubtaskGhost parent={c} />}
                 </div>
               ))}
               {drop?.col === col.id && drop.before === null && <div className="h-1 rounded-full bg-indigo-500" />}

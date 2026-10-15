@@ -133,7 +133,7 @@ export async function runGitMergeMain(op: Extract<TodoOp, { type: "git-merge-mai
       return { what: t("{branch} merged into {target} and pushed", { branch: op.branch, target: op.target }) };
 }
 
-/** The todo handed to a worker with the instruction — a run on the Work tab (its report comes back on the todo). */
+/** The todo handed to a worker with the instruction — a run on the Code tab (its report comes back on the todo). */
 export async function runWorkInstruct(op: Extract<TodoOp, { type: "work-instruct" }>, ctx: ActionContext): Promise<ActionResult> {
   const { dispatchTodo } = await import("@/lib/work/runner");
   const run = dispatchTodo(ctx.todo.id, { instruction: op.instruction });

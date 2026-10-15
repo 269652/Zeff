@@ -7,6 +7,8 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { createContextAction, deleteEntryAction, linkContextAction, updateEntryAction } from "@/app/actions";
 import { ContextCard } from "@/components/ContextCard";
+import { SpanBar } from "@/components/SpanBar";
+import { entryRow, getSpan, membersOf, spanOfHead, workedOf } from "@/lib/entry-spans";
 import { EntrySourceRows } from "@/components/EntrySourceRows";
 import { EntryTodoContextSection } from "@/components/EntryTodoContext";
 import { entryTodoContext } from "@/lib/entry-todo-context";
@@ -102,15 +104,46 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
             jobNumber: entry.job.number,
             projectId: entry.projectId ?? undefined,
             date: entry.date,
-            hours: entry.hours,
+            // (a task of grouped work edits what it worked; what it books follows the group)
+            hours: entry.spanId ? workedOf(entry) : entry.hours,
             description: entry.description,
             ticket: entry.ticket ?? "",
             reportedBy: entry.reportedBy,
             type: entry.type,
             tags: entry.tags.map((tag) => tag.name),
+            isGroup: entry.isGroup,
+            start: entry.start ?? "",
           }}
         />
       </section>
+
+      {/* Parallel work, kept whole: the group this entry belongs to (or is the head of) — how it is booked, and its tasks with what they worked and book. */}
+      {(() => {
+        const span = entry.spanId ? getSpan(entry.spanId) : entry.isGroup ? spanOfHead(entry.id) : undefined;
+        if (!span) return null;
+        const members = membersOf(span.id);
+        const head = span.headId ? entryRow(span.headId) : null;
+        return (
+          <section className="card space-y-3 p-4">
+            <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Grouped parallel work")}</h2>
+            <SpanBar span={span} head={head ? { id: head.id, hours: head.hours, workedHours: head.workedHours, start: head.start } : null} members={members.map((m) => ({ id: m.id, hours: m.hours, workedHours: m.workedHours, start: m.start }))} />
+            <ul className="divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
+              {[...(head ? [head] : []), ...members].map((m) => (
+                <li key={m.id} className={`flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-1.5 ${m.id === entry.id ? "font-medium" : ""}`}>
+                  <span className="w-12 shrink-0 font-mono text-xs text-zinc-500">{m.start ?? ""}</span>
+                  <span className="w-28 shrink-0 text-xs tabular-nums">
+                    {m.id === head?.id ? t("books {h} h", { h: formatHours(m.hours) }) : `${formatHours(workedOf(m))} h · ${t("books {h} h", { h: formatHours(m.hours) })}`}
+                  </span>
+                  {m.ticket && <span className="font-mono text-xs text-zinc-500">{m.ticket}</span>}
+                  <Link href={`/entries/${m.id}`} className="min-w-0 flex-1 hover:underline">
+                    {m.description}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })()}
 
       {/* The todos (and runs) that flowed into it, with their whole context — as the todos show it. */}
       {(() => {

@@ -57,6 +57,13 @@ export function getJob(id: number): Job | undefined {
   return getDb().select().from(jobs).where(eq(jobs.id, id)).get();
 }
 
+/** Every job by its number (lowercase) - for looking up many at once instead of a query each. */
+export function jobsByNumber(): Map<string, Job> {
+  const out = new Map<string, Job>();
+  for (const j of getDb().select().from(jobs).all()) out.set(j.number.trim().toLowerCase(), j);
+  return out;
+}
+
 /** Look up a job by its number; exact match first, then case-insensitive. */
 export function getJobByNumber(number: string): Job | undefined {
   const db = getDb();

@@ -1,5 +1,5 @@
-import { isChatFolder, mailSender, outlookLink, type MailView } from "@/lib/mail/shared";
-import { ChevronIcon } from "./icons";
+import { isChatFolder, mailSender, sourceLink, type MailView } from "@/lib/mail/shared";
+import { SourceCard } from "./SourceCard";
 import { ResolvedMark } from "./ResolvedMark";
 import { formatDateTime } from "@/lib/format";
 import type { T } from "@/lib/i18n/shared";
@@ -10,10 +10,6 @@ import { useT } from "@/components/I18nProvider";
 const kindOf = (m: Pick<MailView, "folder">, t: T) => (isChatFolder(m.folder) ? m.folder : t("Mail"));
 
 const CARD = "space-y-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-900";
-const INNER = "flex min-w-0 flex-1 items-center gap-2 py-1 pr-2 pl-1.5 text-left";
-const BADGE = "flex min-w-0 items-stretch overflow-hidden rounded-md border border-sky-200 bg-sky-50 text-xs text-sky-950 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100";
-/** A chat's message: WhatsApp's green, not the mail's blue. */
-const CHAT_BADGE = "flex min-w-0 items-stretch overflow-hidden rounded-md border border-emerald-200 bg-emerald-50 text-xs text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100";
 
 function MailIcon({ className = "" }: { className?: string }) {
   return (
@@ -33,37 +29,33 @@ export function ChatIcon({ className = "" }: { className?: string }) {
   );
 }
 
-/** A mail as a badge: who wrote it, when, its subject — like a comment's. With `onToggle` it unfolds. */
+/** A mail as a small card: its subject, who wrote it, when, its first words — like a comment's. With `onToggle` it unfolds. */
 export function MailBadge({ m, className = "", expanded = false, onToggle }: { m: MailView; className?: string; expanded?: boolean; onToggle?: () => void }) {
   const t = useT();
   const chat = isChatFolder(m.folder);
-  const body = (
-    <>
-      {onToggle && <ChevronIcon open={expanded} className={`size-3.5 shrink-0 ${chat ? "text-emerald-500 dark:text-emerald-400" : "text-sky-500 dark:text-sky-400"}`} />}
-      {chat ? <ChatIcon className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" /> : <MailIcon className="size-4 shrink-0 text-sky-600 dark:text-sky-400" />}
-      <ResolvedMark done={!!m.resolvedAt} />
-      <span className="shrink-0 font-medium">{mailSender(m)}</span>
-      <span className={`shrink-0 ${chat ? "text-emerald-700/80 dark:text-emerald-300/80" : "text-sky-700/80 dark:text-sky-300/80"}`}>{kindOf(m, t)} · {formatDateTime(m.receivedAt)}</span>
-      <span className={`min-w-0 truncate ${chat ? "text-emerald-900/70 dark:text-emerald-100/70" : "text-sky-900/70 dark:text-sky-100/70"}`}>{m.subject}</span>
-    </>
-  );
   return (
-    <div className={`${chat ? CHAT_BADGE : BADGE} ${className}`}>
-      {onToggle ? (
-        <button type="button" className={`${INNER} cursor-pointer transition ${chat ? "hover:bg-emerald-100 dark:hover:bg-emerald-950" : "hover:bg-sky-100 dark:hover:bg-sky-950"}`} onClick={onToggle} aria-expanded={expanded} title={expanded ? t("Fold") : chat ? t("Show the message") : t("Show the mail")}>
-          {body}
-        </button>
-      ) : (
-        <span className={INNER}>{body}</span>
-      )}
-    </div>
+    <SourceCard
+      tone={chat ? "emerald" : "sky"}
+      icon={chat ? <ChatIcon /> : <MailIcon />}
+      kind={kindOf(m, t)}
+      mark={<ResolvedMark done={!!m.resolvedAt} />}
+      state={m.unread ? { text: t("unread"), className: chat ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200" : "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200" } : undefined}
+      when={formatDateTime(m.receivedAt)}
+      title={m.subject || mailSender(m)}
+      sub={m.subject ? mailSender(m) : undefined}
+      snippet={m.preview || undefined}
+      expanded={expanded}
+      onToggle={onToggle}
+      toggleTitle={expanded ? t("Fold") : chat ? t("Show the message") : t("Show the mail")}
+      className={className}
+    />
   );
 }
 
 /** A mail in full, as Zeff has it: subject, sender, when, its first lines (the list's — it isn't opened). */
 export function MailDetails({ m }: { m: MailView }) {
   const t = useT();
-  const link = outlookLink(m);
+  const link = sourceLink(m);
   return (
     <div className={CARD}>
       <div className="flex items-center justify-between gap-2 text-xs text-zinc-500">
@@ -78,8 +70,8 @@ export function MailDetails({ m }: { m: MailView }) {
           ? t("A message from your Signal chat — the whole chat is in Signal.")
           : t("The first lines, as the list shows them — the whole mail is in the mailbox.")}</p>
       {link && (
-        <a href={link} target="_blank" rel="noopener noreferrer" className="inline-block text-xs font-medium text-sky-700 hover:underline dark:text-sky-400">
-          {t("Open in Outlook")} ↗
+        <a href={link.href} target="_blank" rel="noopener noreferrer" className="inline-block text-xs font-medium text-sky-700 hover:underline dark:text-sky-400">
+          {link.label === "Open in Gmail" ? t("Open in Gmail") : t("Open in Outlook")} ↗
         </a>
       )}
     </div>

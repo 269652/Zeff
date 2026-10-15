@@ -8,9 +8,11 @@ import type { EntryTypeDef } from "@/lib/entry-types-shared";
 import { bookOnValue, parseBookOn, type ProjectOption } from "@/lib/projects-shared";
 import { dedupeTags, pickDefaultTags, type DefaultTagMaps } from "@/lib/tags-shared";
 import { inferType, type TypeRule } from "@/lib/type-rules-shared";
+import { parseHours } from "@/lib/format";
 import { useT } from "./I18nProvider";
 import { ContextFields, useContextDraft } from "./ContextForm";
 import { TagInput } from "./TagInput";
+import { Switch } from "./Switch";
 import { TicketCombobox } from "./TicketCombobox";
 
 export type EntryFormJob = { id: number; number: string; name: string; customer: string | null };
@@ -37,6 +39,10 @@ export type EntryFormDefaults = Partial<{
   reportedBy: string;
   type: EntryType;
   tags: string[];
+  /** A group entry (a mob day): the day's work is itemized under it. */
+  isGroup: boolean;
+  /** When the work began, "HH:MM". */
+  start: string;
 }>;
 
 export function EntryForm({
@@ -52,6 +58,7 @@ export function EntryForm({
   defaultTagMaps = { jobs: {}, projects: {}, tickets: {} },
   types,
   withContext = false,
+  groupDays = {},
 }: {
   jobs: EntryFormJob[];
   projects?: EntryFormProject[];
@@ -72,6 +79,8 @@ export function EntryForm({
    * Needs a ContextFormOptionsProvider around the form for its pickers.
    */
   withContext?: boolean;
+  /** Days that have a group entry (a mob day): date → its name. */
+  groupDays?: Record<string, string>;
 }) {
   const t = useT();
   const formRef = useRef<HTMLFormElement>(null);
@@ -80,6 +89,10 @@ export function EntryForm({
   // "+ Add context": its ticket and date are the entry's until changed there.
   const context = useContextDraft({ ticket: defaults.ticket ?? "", date: defaults.date ?? "" }, { fromEntry: true });
   const [contextOpen, setContextOpen] = useState(false);
+  // On a day with a group entry (a mob day) an entry is grouped by default — "Separate entry" books it on its own.
+  const [entryDate, setEntryDate] = useState(defaults.date ?? "");
+  const [separate, setSeparate] = useState(false);
+  const [isGroup, setIsGroup] = useState(!!defaults.isGroup);
 
   /** The type an untouched entry gets: a matching type rule, else Ticket with a ticket, else Other. */
   const autoType = (job: string, description: string, tk: string): EntryType =>
@@ -150,7 +163,10 @@ export function EntryForm({
   /** The description lives in TagInput; follow its textarea through the bubbling change event (and the date for the context). */
   function onFormChange(e: React.FormEvent<HTMLFormElement>) {
     const el = e.target as HTMLTextAreaElement;
-    if (el.name === "date") context.followEntry({ date: el.value });
+    if (el.name === "date") {
+      context.followEntry({ date: el.value });
+      setEntryDate(el.value);
+    }
     if (el.name !== "description") return;
     setDescription(el.value);
     retype({ description: el.value });
@@ -161,6 +177,8 @@ export function EntryForm({
     // The context's pictures being fetched, or its link being looked up, go along once they're here.
     if (withContext && (context.fetching || context.resolving)) return;
     const fd = new FormData(e.currentTarget);
+    const typedHours = parseHours(String(fd.get("hours") ?? ""));
+    if (typedHours !== null) fd.set("hours", String(typedHours)); // "1,5" and "1:30" reach the server as 1.5
     startTransition(async () => {
       if (withContext) await context.prepare(fd, ENTRY_CONTEXT_PREFIX);
       const result = await action(null, fd);
@@ -241,7 +259,11 @@ export function EntryForm({
         </div>
         <div>
           <label className="label" htmlFor="hours">{t("Hours")}</label>
-          <input id="hours" name="hours" type="number" step="0.25" min="0.25" max="24" inputMode="decimal" placeholder="1.5" className="input num" defaultValue={defaults.hours} required />
+          <input id="hours" name="hours" type="text" inputMode="decimal" placeholder="1.5" className="input num" defaultValue={defaults.hours} required />
+        </div>
+        <div>
+          <label className="label" htmlFor="start">{t("Start")}</label>
+          <input id="start" name="start" type="time" className="input" defaultValue={defaults.start} />
         </div>
         <div>
           <label className="label" htmlFor="ticket">{t("Ticket")}</label>
@@ -259,6 +281,20 @@ export function EntryForm({
             required
           />
         </div>
+        {groupDays[entryDate] && !isGroup && (
+          <div className="flex flex-wrap items-center gap-3 sm:col-span-6">
+            <Switch checked={!separate} onChange={(on) => setSeparate(!on)} labelOn={t("Group entry")} labelOff={t("Separate entry")} />
+            <input type="hidden" name="placement" value={separate ? "separate" : "group"} />
+            <span className="text-xs text-zinc-500">{t("{day} has the group entry “{group}”: work that runs parallel to it (by its start and hours) is grouped by default.", { day: entryDate, group: groupDays[entryDate] })}</span>
+          </div>
+        )}
+        <label className="flex items-start gap-2 text-sm sm:col-span-6">
+          <input type="checkbox" name="isGroup" className="mt-0.5 size-4 accent-indigo-600" checked={isGroup} onChange={(e) => setIsGroup(e.target.checked)} />
+          <span>
+            {t("This entry collects the day's work (e.g. Mob Programming)")}
+            <span className="block text-xs text-zinc-500">{t("The hours are booked once, as they are here. What you implement that day and that runs parallel to it (by start and hours) is itemized under this entry — not booked on top, and traceable through the todos.")}</span>
+          </span>
+        </label>
         {withContext && (
           <details
             className="rounded-lg border border-dashed border-zinc-300 p-3 sm:col-span-6 dark:border-zinc-700"
@@ -283,8 +319,8 @@ export function EntryForm({
           </button>
         </div>
       </form>
-      {state?.error && <p className="alert-error">{state.error}</p>}
-      {state?.ok && state.message && <p className="alert-ok">{state.message}</p>}
+      {state?.error && <p role="alert" className="alert-error">{state.error}</p>}
+      {state?.ok && state.message && <p role="status" className="alert-ok">{state.message}</p>}
     </div>
   );
 }

@@ -40,7 +40,7 @@ export function Donut({
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-2xl font-semibold tabular-nums">{centerValue}</span>
-        <span className="text-[11px] text-zinc-500 uppercase">{centerLabel}</span>
+        <span className="text-xs text-zinc-500 uppercase">{centerLabel}</span>
       </div>
     </div>
   );
@@ -96,7 +96,7 @@ export function WeeklyBars({ weeks, height = 130 }: { weeks: WeekColumn[]; heigh
     <div className="flex items-end gap-2 overflow-x-auto pb-1" style={{ minHeight: height + 44 }}>
       {weeks.map((w) => (
         <div key={w.key} className="flex min-w-9 flex-1 flex-col items-center gap-1">
-          <div className="text-[11px] font-medium tabular-nums text-zinc-500">{w.total ? w.total : ""}</div>
+          <div className="text-xs font-medium tabular-nums text-zinc-500">{w.total ? w.total : ""}</div>
           <div className="flex w-full flex-col-reverse items-stretch" style={{ height }}>
             {w.segments.map((s) =>
               s.value > 0 ? (
@@ -109,9 +109,9 @@ export function WeeklyBars({ weeks, height = 130 }: { weeks: WeekColumn[]; heigh
             )}
             {w.total === 0 && <div className="mt-auto h-0.5 w-full bg-zinc-200 dark:bg-zinc-800" />}
           </div>
-          <div className="text-[11px] text-zinc-500">{w.label}</div>
+          <div className="text-xs text-zinc-500">{w.label}</div>
           {w.badge !== undefined && (
-            <div className="rounded bg-sky-50 px-1 text-[10px] font-medium text-sky-700 tabular-nums dark:bg-sky-950 dark:text-sky-300">
+            <div className="rounded bg-sky-50 px-1 text-xs font-medium text-sky-700 tabular-nums dark:bg-sky-950 dark:text-sky-300">
               {w.badge}
             </div>
           )}
@@ -165,7 +165,7 @@ export function LineChart({
 
   return (
     <div className={colorClass}>
-      <div className="mb-1 flex items-baseline justify-between text-[11px] text-zinc-500 tabular-nums">
+      <div className="mb-1 flex items-baseline justify-between text-xs text-zinc-500 tabular-nums">
         <span>
           {t("max {value}", { value: format(max) })}
           {unit}
@@ -190,7 +190,7 @@ export function LineChart({
           />
         ))}
       </div>
-      <div className="mt-1 flex justify-between text-[10px] text-zinc-500">
+      <div className="mt-1 flex justify-between text-xs text-zinc-500">
         {points
           .map((p, i) => ({ p, i }))
           .filter(({ i }) => i % step === 0 || i === n - 1)

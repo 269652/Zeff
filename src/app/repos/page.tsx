@@ -51,7 +51,7 @@ export default async function ReposPage() {
         <p className="max-w-[75ch] text-sm text-zinc-500">
           {rich(
             t(
-              "Where the <link>Work</link> tab's workers implement. A ticket's work goes to the repo that names the ticket, else to the one its Jira board is assigned to, else to the one whose GitLab project its merge requests are in. The projects come from the GitLab sync, the boards from the Jira tab.",
+              "Where the <link>Code</link> tab's workers implement. A ticket's work goes to the repo that names the ticket, else to the one its Jira board is assigned to, else to the one whose GitLab project its merge requests are in. The projects come from the GitLab sync, the boards from the Jira tab.",
             ),
             {
               link: (s) => (

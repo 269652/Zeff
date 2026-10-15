@@ -113,7 +113,7 @@ export function TypeRulesForm({
           {t("Save & apply to existing entries")}
         </SubmitButton>
         {state?.ok && <span className="text-sm text-emerald-600">{state.message}</span>}
-        {state?.error && <span className="alert-error">{state.error}</span>}
+        {state?.error && <span role="alert" className="alert-error">{state.error}</span>}
       </div>
       <p className="text-xs text-zinc-400">
         {t(

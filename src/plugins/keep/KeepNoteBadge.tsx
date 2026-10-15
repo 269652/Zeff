@@ -1,26 +1,35 @@
 "use client";
 
 import { useT } from "@/components/I18nProvider";
+import { SourceCard } from "@/components/SourceCard";
+import { formatDateTime } from "@/lib/format";
 import { keepNoteClass } from "./colors";
 import { noteHeadline, type KeepNoteBrief } from "./shared";
 
-/** A note as a source's badge: "Note · its title" — with `onToggle`, it unfolds. */
+/** A Keep note as a small card: its title, where it lives, its first words — with `onToggle`, it unfolds. */
 export function KeepNoteBadge({ n, className = "", expanded, onToggle }: { n: KeepNoteBrief; className?: string; expanded?: boolean; onToggle?: () => void }) {
   const t = useT();
-  const body = (
-    <>
-      <span className="shrink-0 rounded bg-yellow-100 px-1 text-[10px] font-semibold text-yellow-800 uppercase dark:bg-yellow-950 dark:text-yellow-300">{t("Note")}</span>
-      <span className="truncate">{noteHeadline(n, t("Note"))}</span>
-      <span className="shrink-0 text-zinc-400">{n.where}</span>
-    </>
-  );
-  const cls = `inline-flex max-w-full items-center gap-1.5 rounded border border-zinc-200 px-1.5 py-0.5 text-xs dark:border-zinc-700 ${n.archived ? "opacity-60" : ""} ${className}`;
-  return onToggle ? (
-    <button type="button" className={`${cls} text-left hover:bg-zinc-50 dark:hover:bg-zinc-800`} onClick={onToggle} aria-expanded={!!expanded}>
-      {body}
-    </button>
-  ) : (
-    <span className={cls}>{body}</span>
+  const title = noteHeadline(n, t("Note"));
+  const lines = n.text.split("\n");
+  const rest = (n.title ? n.text : lines.slice(1).join(" ")).replace(/\s+/g, " ").trim();
+  return (
+    <SourceCard
+      tone="amber"
+      icon={
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinejoin="round" aria-hidden>
+          <path d="M4.5 3.5h11v9l-4 4h-7z M11.5 16.5v-4h4 M7 7.5h6 M7 10.5h3" />
+        </svg>
+      }
+      kind={t("Keep note")}
+      when={n.updatedAt ? formatDateTime(n.updatedAt) : undefined}
+      title={title}
+      sub={n.where}
+      snippet={rest || undefined}
+      expanded={!!expanded}
+      onToggle={onToggle}
+      toggleTitle={expanded ? t("Fold") : t("Show the note")}
+      className={`${n.archived ? "opacity-60" : ""} ${className}`}
+    />
   );
 }
 

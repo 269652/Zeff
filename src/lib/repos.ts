@@ -116,7 +116,19 @@ export type RepoMatch = { repo: RepoView; via: "ticket" | "board" | "gitlab" };
  * on a branch named after it, else the first.
  */
 export function repoForTicket(ticket: string, all: RepoView[] = listRepos()): RepoMatch | null {
+  // Per list of repos (one the caller keeps for a while - a page, a snapshot - or one read just now): each ticket is looked up once.
+  let memo = matches.get(all);
+  if (!memo) matches.set(all, (memo = new Map()));
   const key = ticket.trim().toUpperCase();
+  if (memo.has(key)) return memo.get(key)!;
+  const found = lookupRepo(key, all);
+  memo.set(key, found);
+  return found;
+}
+
+const matches = new WeakMap<RepoView[], Map<string, RepoMatch | null>>();
+
+function lookupRepo(key: string, all: RepoView[]): RepoMatch | null {
   const usable = all.filter((r) => r.ok);
   const named = usable.find((r) => r.tickets.includes(key));
   if (named) return { repo: named, via: "ticket" };

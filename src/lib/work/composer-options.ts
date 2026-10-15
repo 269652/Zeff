@@ -3,12 +3,12 @@ import { CLAUDE_MODELS } from "@/lib/ai/shared";
 import type { BackendChoices, ComposerOptions } from "@/lib/work/composer-shared";
 import { liveDriverFor } from "@/lib/work/live-driver";
 import { claudeSessionSettings } from "@/lib/work/store";
-import { codexModels, refreshCodexSandbox } from "@/plugins/codex-cli/cli";
+import { codexModelsNow, codexSandboxNow } from "@/plugins/codex-cli/cli";
 import { llmChoice } from "@/plugins/llm/run";
 import { elevationAvailable } from "@/plugins/work-elevated/elevate";
 import { providerAvailable } from "@/plugins/state";
 
-/** The Work tab's composer options (server): the installed backends and what each lets you choose. */
+/** The Code tab's composer options (server): the installed backends and what each lets you choose. */
 export async function composerOptions(): Promise<ComposerOptions> {
   const cs = claudeSessionSettings();
   const found = aiProviders().filter((p) => p.found);
@@ -20,8 +20,8 @@ export async function composerOptions(): Promise<ComposerOptions> {
     // ChatGPT has no one-shot workers: without live sessions it isn't offered.
     if (!live && p.id === "codex") continue;
     if (live && driver) {
-      // (ChatGPT's Auto mode says whether its Windows sandbox is set up: ask it first.)
-      if (p.id === "codex") await refreshCodexSandbox();
+      // (ChatGPT's Auto mode says whether its Windows sandbox is set up: the last answer, refreshed behind the page.)
+      if (p.id === "codex") codexSandboxNow();
       const modes = driver.modes({ allowBypass: cs.allowBypass });
       if (p.id === "claude") {
         choices[p.id] = {
@@ -36,7 +36,7 @@ export async function composerOptions(): Promise<ComposerOptions> {
         choices[p.id] = {
           modes,
           defaultMode: modes[0]?.id ?? "",
-          models: [{ value: "", label: "" }, ...(await codexModels()).map((m) => ({ value: m.id, label: m.label, efforts: m.efforts }))],
+          models: [{ value: "", label: "" }, ...codexModelsNow().map((m) => ({ value: m.id, label: m.label, efforts: m.efforts }))],
           effort: true,
           defaultEffort: "",
           admin: false,

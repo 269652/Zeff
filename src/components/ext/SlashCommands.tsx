@@ -74,7 +74,7 @@ export function SlashCommands({ text, onPick, area }: { text: string; onPick: (t
             >
               <span className="font-medium">/{c.label}</span>
               {c.description && <span className="min-w-0 flex-1 truncate text-xs text-zinc-500">{c.description}</span>}
-              <span className="ml-auto shrink-0 text-[10px] text-zinc-400">{c.plugin}</span>
+              <span className="ml-auto shrink-0 text-xs text-zinc-400">{c.plugin}</span>
             </button>
           </li>
         ))}

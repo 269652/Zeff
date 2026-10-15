@@ -14,6 +14,7 @@ import { formatDate, formatDateTime } from "@/lib/format";
 import { isInstalled } from "@/plugins/state";
 import { PersonSummaryDetails } from "@/plugins/people/SummaryView";
 import { PersonKnowledge } from "@/plugins/people/KnowledgeViews";
+import { PersonPages } from "@/plugins/workspace/PersonPages";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("Person") };
@@ -119,10 +120,10 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
             {p.whatsapp && <li className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100">WhatsApp {p.whatsapp}</li>}
           </ul>
         )}
-        {sp.error && <p className="alert-error text-sm">{sp.error}</p>}
-        {sp.saved && <p className="alert-ok text-sm">{t("Saved ✓")}</p>}
+        {sp.error && <p role="alert" className="alert-error text-sm">{sp.error}</p>}
+        {sp.saved && <p role="status" className="alert-ok text-sm">{t("Saved ✓")}</p>}
         {sp.found !== undefined && (
-          <p className="alert-ok text-sm">
+          <p role="status" className="alert-ok text-sm">
             {sp.found === "0" ? t("No new dates found.") : sp.found === "1" ? t("1 date found — confirm below.") : t("{n} dates found — confirm below.", { n: sp.found })}
           </p>
         )}
@@ -182,6 +183,8 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
+        <PersonPages personId={p.id} />
+
         <Card title={t("Read from your messages")}>
           <PersonKnowledge personId={p.id} />
         </Card>

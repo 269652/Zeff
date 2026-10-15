@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { redirect } from "next/navigation";
-import { getJobNumberForTicket, createEntry, deleteEntry, updateEntry, requireEntry, applyReportRuleTagsToEntries, reapplyMeetingJobRules, applyTypeRulesToEntries } from "@/lib/entries";
+import { parallelSaid } from "@/lib/entry-parallel";
+import { getJobNumberForTicket, createEntry, deleteEntry, updateEntry, getEntry, requireEntry, applyReportRuleTagsToEntries, reapplyMeetingJobRules, applyTypeRulesToEntries } from "@/lib/entries";
 import { errorMessage } from "@/lib/errors";
 import { formatDate, formatHours } from "@/lib/format";
 import { t } from "@/lib/i18n/server";
@@ -45,15 +46,20 @@ export async function createEntryAction(_prev: ActionState, fd: FormData): Promi
         return { ok: false, error: t("Context: {error}", { error: errorMessage(err) }) };
       }
     }
+    const date = str(fd, "date") ?? "";
+    const start = str(fd, "start");
+    const isGroup = fd.get("isGroup") === "on";
     const entry = createEntry(
       {
         ...target,
-        date: str(fd, "date") ?? "",
+        date,
         hours,
         description: str(fd, "description") ?? "",
         ticket,
         type: entryTypeFrom(fd),
         tags: tagsFrom(fd),
+        isGroup,
+        start,
         reportedBy: str(fd, "reportedBy"),
       },
       "web",
@@ -67,18 +73,27 @@ export async function createEntryAction(_prev: ActionState, fd: FormData): Promi
         throw err;
       }
     }
+    // Parallel work stays whole: a new collecting entry (a mob day) takes in what that day has and runs parallel to it; other
+    // work is grouped with what it runs parallel to (a collecting entry, tasks of its job at the same time) unless "Separate entry" is chosen.
+    const { autoGroup, collectIntoHead, parallelSaid } = await import("@/lib/entry-parallel");
+    let grouped = "";
+    if (entry.isGroup) {
+      const n = collectIntoHead(entry.id);
+      if (n) grouped = n === 1 ? t("1 parallel entry of that day was grouped under it.") : t("{n} parallel entries of that day were grouped under it.", { n });
+    } else if (str(fd, "placement") !== "separate") {
+      const g = autoGroup(entry.id);
+      if (g) grouped = parallelSaid(g);
+    }
     revalidateAll();
-    const v = { hours: formatHours(entry.hours), project: entry.project?.title, job: entry.job.name, number: entry.job.number, date: entry.date };
-    return {
-      ok: true,
-      message: entry.project
-        ? context
-          ? t("Booked {hours}h on {project} ({job}) for {date} — with its context.", v)
-          : t("Booked {hours}h on {project} ({job}) for {date}.", v)
-        : context
-          ? t("Booked {hours}h on {number} for {date} — with its context.", v)
-          : t("Booked {hours}h on {number} for {date}.", v),
-    };
+    const v = { hours: formatHours(hours), project: entry.project?.title, job: entry.job.name, number: entry.job.number, date: entry.date };
+    const base = entry.project
+      ? context
+        ? t("Booked {hours}h on {project} ({job}) for {date} — with its context.", v)
+        : t("Booked {hours}h on {project} ({job}) for {date}.", v)
+      : context
+        ? t("Booked {hours}h on {number} for {date} — with its context.", v)
+        : t("Booked {hours}h on {number} for {date}.", v);
+    return { ok: true, message: grouped ? `${base} ${grouped}` : base };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -94,6 +109,7 @@ export async function updateEntryAction(
     const hours = num(fd, "hours");
     if (hours === undefined) return { ok: false, error: t("Hours is required (e.g. 1.5).") };
     const bookOn = parseBookOn(str(fd, "bookOn") ?? str(fd, "jobNumber"));
+    const wasGroup = getEntry(id)?.isGroup ?? false;
     const entry = updateEntry(id, {
       ...(bookOn && ("projectId" in bookOn ? bookOn : { jobNumber: bookOn.jobNumber, projectId: null })),
       date: str(fd, "date"),
@@ -103,8 +119,12 @@ export async function updateEntryAction(
       type: entryTypeFrom(fd),
       tags: tagsFrom(fd),
       reportedBy: str(fd, "reportedBy"),
+      isGroup: fd.get("isGroup") === "on",
+      start: str(fd, "start") ?? null,
     });
     date = entry.date;
+    // Made a collecting entry now: what that day has and runs parallel to it is grouped under it (nothing is moved or rewritten).
+    if (entry.isGroup && !wasGroup) (await import("@/lib/entry-parallel")).collectIntoHead(entry.id);
     revalidateAll();
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
@@ -118,7 +138,8 @@ export async function updateEntryHoursAction(id: number, hours: number): Promise
     if (!Number.isFinite(hours)) return { ok: false, error: t("Enter hours as a number, e.g. 1.5.") };
     const entry = updateEntry(id, { hours });
     revalidateAll();
-    return { ok: true, message: t("{hours} h", { hours: formatHours(entry.hours) }) };
+    // (a task of grouped parallel work: what was worked — what it books follows the group's way of booking)
+    return { ok: true, message: t("{hours} h", { hours: formatHours(entry.workedHours ?? entry.hours) }) };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -1055,17 +1076,32 @@ export async function syncContextsToJiraAction(contextIds: number[]): Promise<Ac
 }
 
 /** Feierabend: the day's lines booked as you took them over (meetings, suggestions, tickets). */
-export async function bookDayAction(date: string, rows: import("@/lib/feierabend").DayBooking[]): Promise<ActionState> {
+export async function bookDayAction(date: string, rows: import("@/lib/feierabend").DayBooking[]): Promise<ActionState | (NonNullable<ActionState> & { created?: import("@/lib/feierabend").BookedStamp[] })> {
   try {
     if (!(await import("@/plugins/state")).isInstalled("zeiterfassung")) return { ok: false, error: t("Time tracking is not installed (Menu → Plugins).") };
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) return { ok: false, error: t("Not a day.") };
     const { bookDay } = await import("@/lib/feierabend");
     const r = await bookDay(String(date), Array.isArray(rows) ? rows.slice(0, 60) : []);
     revalidateAll();
-    const said = r.skipped
+    const base = r.skipped
       ? t("{booked} booked ({hours} h), {skipped} already booked", { booked: r.booked, hours: formatHours(r.hours), skipped: r.skipped })
       : t("{booked} booked ({hours} h)", { booked: r.booked, hours: formatHours(r.hours) });
-    return r.errors.length ? { ok: false, error: t("{said} — not booked: {errors}", { said, errors: r.errors.join("; ") }) } : { ok: true, message: `${said}.` };
+    const itemsSaid = r.items ? `${base}, ${r.items === 1 ? t("1 itemized under the group entry") : t("{n} itemized under the group entry", { n: r.items })}` : base;
+    const said = r.parallel ? `${itemsSaid}, ${r.parallel === 1 ? t("1 grouped as parallel work") : t("{n} grouped as parallel work", { n: r.parallel })}` : itemsSaid;
+    return r.errors.length ? { ok: false, error: t("{said} — not booked: {errors}", { said, errors: r.errors.join("; ") }), created: r.created } : { ok: true, message: `${said}.`, created: r.created };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** Takes a Feierabend booking back: deletes the entries it created, only those still as booked. */
+export async function undoBookDayAction(created: { id: number; updatedAt: string }[]): Promise<ActionState> {
+  try {
+    const list = (Array.isArray(created) ? created : []).slice(0, 60).map((c) => ({ id: Number(c?.id), updatedAt: String(c?.updatedAt) })).filter((c) => Number.isInteger(c.id));
+    const { undoBooking } = await import("@/lib/feierabend");
+    const r = await undoBooking(list);
+    revalidateAll();
+    return { ok: true, message: r.kept ? t("{n} taken back, {kept} left (changed since)", { n: r.deleted, kept: r.kept }) : t("{n} taken back", { n: r.deleted }) };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -1097,7 +1133,9 @@ export async function acceptSuggestionAction(id: number, edits: { hours?: number
     revalidateAll();
     return {
       ok: true,
-      message: r.ticket
+      message: r.parallel
+        ? `${r.ticket ? t("Booked {hours} h on {ticket}.", { hours: formatHours(r.hours), ticket: r.ticket }) : t("Booked {hours} h.", { hours: formatHours(r.hours) })} ${parallelSaid(r.parallel)}`
+        : r.ticket
         ? t("Booked {hours} h on {ticket}.", { hours: formatHours(r.hours), ticket: r.ticket })
         : t("Booked {hours} h.", { hours: formatHours(r.hours) }),
     };

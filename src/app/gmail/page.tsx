@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { driverOf } from "@/lib/connectors/store";
 import { t } from "@/lib/i18n/server";
 import { rich } from "@/lib/i18n/rich";
 import { connection } from "next/server";
@@ -43,6 +44,17 @@ export default async function GmailSettingsPage() {
           )}
         </p>
       </div>
+      {driverOf("gmail") === "api" && (
+        <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+          {rich(t("Gmail is read through Google's API: the accounts below apply to the automation Chrome only. The API reads the account signed in on the <connections>Connections</connections> page."), {
+            connections: (s) => (
+              <Link href="/connections" className="underline">
+                {s}
+              </Link>
+            ),
+          })}
+        </p>
+      )}
       <section className="card space-y-3 p-4">
         <h2 className="font-medium">{t("Accounts")}</h2>
         <GmailAccountsForm signedIn={signedIn} configured={accounts} />

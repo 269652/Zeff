@@ -42,6 +42,8 @@ const DEFAULTS = {
   httpsPorts: [443, 1337],
   /** Redirect http://<host> (port 80) to https. */
   httpRedirect: true,
+  /** Run Zeff as `next dev` (hot reload) instead of `next start`. Also: --dev, or the tray toggle (kept in <data>/launcher/dev-mode). */
+  dev: false,
   /** Start the servers with the launcher. */
   autostartServers: true,
   /** Extra environment for both servers. */

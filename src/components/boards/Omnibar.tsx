@@ -127,7 +127,7 @@ export function Omnibar({ chips, onChange }: { chips: OmniChip[]; onChange: (chi
             const first = i === 0 || hits[i - 1].kind !== h.kind;
             return (
               <li key={h.key} role="presentation">
-                {first && <div className="px-2 pt-1.5 pb-0.5 text-[10px] font-semibold tracking-wide text-zinc-400 uppercase">{labels[h.kind] ?? h.kind}</div>}
+                {first && <div className="px-2 pt-1.5 pb-0.5 text-xs font-semibold tracking-wide text-zinc-400 uppercase">{labels[h.kind] ?? h.kind}</div>}
                 <button
                   type="button"
                   role="option"

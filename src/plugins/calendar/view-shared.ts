@@ -175,3 +175,8 @@ export function mergeDone<T extends Pick<Item, "start" | "end" | "calendar" | "p
   const gone = new Set([...took.values()].map((t) => t.done));
   return items.filter((i) => !gone.has(i)).map((i) => (took.has(i) ? { ...i, merged: took.get(i)!.done as unknown as Item } : i));
 }
+
+/** What a screen reader says for an appointment's block: title, when, calendar (not the title alone). */
+export function itemLabel(it: Item, t: T): string {
+  return [it.proposed ? t("Proposed: {title}", { title: it.title }) : it.title, whenText(it, t), it.calendar?.name].filter(Boolean).join(", ");
+}

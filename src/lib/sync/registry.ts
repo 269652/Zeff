@@ -3,6 +3,7 @@ import { getDb, schema } from "@/db";
 import { getBoardSettings, latestRun } from "@/lib/boards/store";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
+import { driverOf } from "@/lib/connectors/store";
 import { getGitlabSettings } from "@/lib/gitlab/store";
 import { getTeamsSettings } from "@/lib/teams/store";
 import { getMailSettings } from "@/lib/mail/store";
@@ -12,7 +13,6 @@ import { inThisAccount } from "@/db/accounts";
 import { ABORTED, sleep, withAbort } from "@/lib/abort";
 import { noteSyncResult } from "./health";
 import { stepMinutes } from "./intervals";
-
 import { callHost, HostDownError } from "@/lib/host/client";
 import { remoteResult } from "@/lib/host/commands";
 import { delegates } from "@/lib/host/role";
@@ -220,7 +220,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
     get what() { return t("Your Google calendars (the week view read in a fresh tab, week by week — nothing in Google changes)"); },
     run: async () => (await import("@/plugins/google-calendar/sync")).syncGoogleCalendar(),
     busy: () => flag("__zeffGcalSyncing"),
-    schedule: () => ({ everyMinutes: stepMinutes("gcalendar"), lastAt: recorded("gcalendar").lastAt, window: t("while the automation Chrome runs") }),
+    schedule: () => ({ everyMinutes: stepMinutes("gcalendar"), lastAt: recorded("gcalendar").lastAt, window: driverOf("gcalendar") === "api" ? t("always") : t("while the automation Chrome runs") }),
   },
   // The Google Drive plugin's extensions for Backups and Documents (there while they're on):
   drivebackup: {
@@ -258,7 +258,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
       const r = await syncOutlookWeekStarts(await outlookWeeks());
       return { ok: true, message: t("{weeks} weeks from Outlook — {events} events.", { weeks: r.weeks, events: r.events }) };
     },
-    schedule: () => ({ everyMinutes: stepMinutes("calendar"), lastAt: lastSyncOf("calendar"), window: t("while the automation Chrome runs") }),
+    schedule: () => ({ everyMinutes: stepMinutes("calendar"), lastAt: lastSyncOf("calendar"), window: driverOf("outlook-calendar") === "api" ? t("always") : t("while the automation Chrome runs") }),
   },
   boards: {
     get label() { return t("Briefing"); },
@@ -552,7 +552,6 @@ async function runStep(key: SyncKey): Promise<void> {
 
 /** Run one step and wait for it (one already going: wait for that one). How it went. */
 export async function syncAndWait(key: SyncKey): Promise<Last> {
-  const l = live();
   if (!delegates()) return syncAndWaitHere(key);
   try {
     return await callHost<Last>("sync.wait", { key }, 45 * 60000);
@@ -563,6 +562,7 @@ export async function syncAndWait(key: SyncKey): Promise<Last> {
 }
 
 export async function syncAndWaitHere(key: SyncKey): Promise<Last> {
+  const l = live();
   if (l.running.has(key) || STEPS[key].busy?.()) {
     while (live().running.has(key) || STEPS[key].busy?.()) await sleep(1000);
   } else await runStep(key);

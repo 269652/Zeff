@@ -53,13 +53,16 @@ export function MeetingJobRulesForm({
       <input type="hidden" name="meetingJobRules" value={JSON.stringify(rules.filter((r) => r.match.trim() && r.jobNumber))} />
       <input type="hidden" name="meetingDefaultJob" value={defaultJob} />
 
-      <div className="grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)_2rem] items-center gap-2">
+      <div className="grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)_auto_2rem] items-center gap-2">
         <span className="text-xs font-medium text-zinc-500 uppercase">{t("Meeting title contains")}</span>
         <span className="text-xs font-medium text-zinc-500 uppercase">{t("Book on job")}</span>
+        <span className="text-xs font-medium text-zinc-500 uppercase" title={t("A group meeting (a mob day): its entry collects the day's work — what you implement is itemized under it, not booked on top.")}>
+          {t("Group")}
+        </span>
         <span />
 
         {rules.length === 0 && (
-          <p className="col-span-3 text-sm text-zinc-500">
+          <p className="col-span-4 text-sm text-zinc-500">
             {rich(t("No rules yet — e.g. title contains <code>Mob Programming</code> → your Relaunch job."), {
               code: (s) => <code className="code">{s}</code>,
             })}
@@ -82,6 +85,9 @@ export function MeetingJobRulesForm({
             >
               {jobOptions}
             </select>
+            <label className="flex items-center justify-center" title={t("A group meeting (a mob day): its entry collects the day's work — what you implement is itemized under it, not booked on top.")}>
+              <input type="checkbox" className="size-4 accent-indigo-600" checked={!!r.group} aria-label={t("Rule {n}: group meeting", { n: i + 1 })} onChange={(e) => setRule(i, { group: e.target.checked })} />
+            </label>
             <button
               type="button"
               className="btn btn-sm btn-danger w-8 justify-center px-0"
@@ -116,7 +122,7 @@ export function MeetingJobRulesForm({
           {t("Save & reapply")}
         </SubmitButton>
         {state?.ok && <span className="text-sm text-emerald-600">{state.message}</span>}
-        {state?.error && <span className="alert-error">{state.error}</span>}
+        {state?.error && <span role="alert" className="alert-error">{state.error}</span>}
       </div>
       <p className="text-xs text-zinc-400">
         {t(

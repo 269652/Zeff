@@ -1,4 +1,4 @@
-import { listEntries } from "@/lib/entries";
+import { listBookedEntries } from "@/lib/entries";
 import { resolveMonth } from "@/lib/month";
 import { resolveWeek } from "@/lib/week";
 
@@ -23,7 +23,7 @@ export async function GET(req: Request) {
   }
   const by = url.searchParams.get("by")?.trim() || undefined;
 
-  const entries = listEntries({ from: period.from, to: period.to, reportedBy: by });
+  const entries = listBookedEntries({ from: period.from, to: period.to, reportedBy: by });
   const header = ["date", "job_number", "job_name", "customer", "hours", "description", "ticket", "reported_by", "source", "project"];
   const rows = [...entries]
     .sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id)

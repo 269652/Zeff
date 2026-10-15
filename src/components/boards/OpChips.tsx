@@ -146,7 +146,7 @@ function OpChip({
       {!!files?.length && (
         <details className="mt-0.5 text-xs text-sky-950/80 dark:text-sky-100/80">
           <summary className="cursor-pointer">{t("Show files")}</summary>
-          <ul className="mt-0.5 space-y-0.5 font-mono text-[11px]">
+          <ul className="mt-0.5 space-y-0.5 font-mono text-xs">
             {files.map((f) => (
               <li key={f} className="break-all" title={f}>
                 {f.includes("/") ? (

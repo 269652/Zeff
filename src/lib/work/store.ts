@@ -50,7 +50,7 @@ export function updateWorkSettings(patch: Partial<WorkSettingsView>): WorkSettin
   return getWorkSettings();
 }
 
-/** Live Claude sessions' settings (Work settings → Claude sessions). */
+/** Live Claude sessions' settings (Code settings → Claude sessions). */
 export function claudeSessionSettings(): ClaudeSessionSettings {
   const p = { ...CLAUDE_SESSION_DEFAULTS, ...getPref<Partial<ClaudeSessionSettings>>("workClaude", {}) };
   return {

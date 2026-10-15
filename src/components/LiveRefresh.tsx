@@ -10,6 +10,8 @@ const LIVE: [RegExp, string[]][] = [
   [/^\/todos/, ["work", "todos", "attention"]],
   [/^\/tickets/, ["work", "todos", "attention"]],
   [/^\/kanban/, ["kanban", "todos"]],
+  [/^\/t\//, ["work", "todos", "attention"]],
+  [/^\/heute/, ["work", "todos", "attention"]],
 ];
 
 /**

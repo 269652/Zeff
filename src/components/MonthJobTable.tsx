@@ -28,17 +28,17 @@ export function MonthJobTable({
       <table className="table">
         <thead>
           <tr>
-            <th>{t("Job")}</th>
+            <th scope="col">{t("Job")}</th>
             {month.weeks.map((w) => (
-              <th key={w.key} className="num">
+              <th scope="col" key={w.key} className="num">
                 <Link href={`/?week=${w.key}`} className="hover:underline">
                   {t("W{week}", { week: w.week })}
                 </Link>
                 <div className="font-normal normal-case">{weekRangeInMonth(w, month)}</div>
               </th>
             ))}
-            <th className="num">{t("Total")}</th>
-            <th className="num">{t("Share")}</th>
+            <th scope="col" className="num">{t("Total")}</th>
+            <th scope="col" className="num">{t("Share")}</th>
           </tr>
         </thead>
         <tbody>

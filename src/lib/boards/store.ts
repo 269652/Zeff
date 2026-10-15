@@ -135,14 +135,50 @@ const mailRefsOf = (r: Todo) => relatedRefsOf(r).filter((k) => k.startsWith("mai
  * branch and merge requests are its context, derived here, so nothing that rewrites the todo can drop them —
  * and the context items you took out by hand (they stay out).
  */
-function linksOf(id: number): { branchRefs: string[]; dismissed: Set<string> } {
-  const rows = getDb().select().from(todoLinks).where(eq(todoLinks.todoId, id)).all();
-  const names = rows.filter((l) => l.kind === "branch").map((l) => l.value);
-  const items = names.length
-    ? getDb().select({ key: gitlabItems.key, kind: gitlabItems.kind }).from(gitlabItems).where(or(inArray(gitlabItems.branch, names), inArray(gitlabItems.ref, names))).all().filter((i) => i.kind === "branch" || i.kind === "mr")
-    : [];
-  return { branchRefs: items.map((i) => `gitlab:${i.key}`), dismissed: new Set(rows.filter((l) => l.kind === "dismissed").map((l) => l.value)) };
+type TodoLinksOf = { branchRefs: string[]; dismissed: Set<string> };
+function linksOf(id: number): TodoLinksOf {
+  return linksOfMany([id]).get(id)!;
 }
+
+/** linksOf for many todos at once: two queries in all (chunked), not two per todo. */
+function linksOfMany(ids: number[]): Map<number, TodoLinksOf> {
+  const out = new Map<number, TodoLinksOf>(ids.map((id) => [id, { branchRefs: [], dismissed: new Set<string>() }]));
+  const db = getDb();
+  const names = new Set<string>();
+  const branchesOf = new Map<number, string[]>();
+  for (let i = 0; i < ids.length; i += 400) {
+    for (const l of db.select().from(todoLinks).where(inArray(todoLinks.todoId, ids.slice(i, i + 400))).all()) {
+      if (l.kind === "dismissed") out.get(l.todoId)?.dismissed.add(l.value);
+      else if (l.kind === "branch") {
+        names.add(l.value);
+        branchesOf.set(l.todoId, [...(branchesOf.get(l.todoId) ?? []), l.value]);
+      }
+    }
+  }
+  if (!names.size) return out;
+  const items: { key: string; kind: string; branch: string | null; ref: string }[] = [];
+  const all = [...names];
+  for (let i = 0; i < all.length; i += 400) {
+    const part = all.slice(i, i + 400);
+    items.push(...db.select({ key: gitlabItems.key, kind: gitlabItems.kind, branch: gitlabItems.branch, ref: gitlabItems.ref }).from(gitlabItems).where(or(inArray(gitlabItems.branch, part), inArray(gitlabItems.ref, part))).all().filter((x) => x.kind === "branch" || x.kind === "mr"));
+  }
+  for (const [id, mine] of branchesOf) {
+    const wanted = new Set(mine);
+    out.get(id)!.branchRefs = items.filter((x) => (x.branch && wanted.has(x.branch)) || wanted.has(x.ref)).map((x) => `gitlab:${x.key}`);
+  }
+  return out;
+}
+
+/** Todos built from rows: their links read together. */
+const toTodos = (rows: Todo[]): TodoView[] => {
+  linkBatch = linksOfMany(rows.map((r) => r.id));
+  try {
+    return rows.map(toTodo);
+  } finally {
+    linkBatch = null;
+  }
+};
+let linkBatch: Map<number, TodoLinksOf> | null = null;
 
 /**
  * A note synced to Jira, marked when what would go there now differs from the comment (its text with the people
@@ -165,7 +201,7 @@ function withRepoSystems(k: TodoKnowledge | null, ticket: string | null): TodoKn
 }
 
 const toTodo = (r: Todo): TodoView => {
-  const { branchRefs, dismissed } = linksOf(r.id);
+  const { branchRefs, dismissed } = linkBatch?.get(r.id) ?? linksOf(r.id);
   const shown = (refs: string[]) => refs.filter((k) => !dismissed.has(k));
   return {
   id: r.id,
@@ -292,40 +328,69 @@ export function linkTodoTicket(id: number, ticket: string, tx: Pick<ReturnType<t
   emitChange("todos");
 }
 
-export function listTodos(opts: { ticket?: string; status?: TodoStatus | "all"; tickets?: string[] } = {}): TodoView[] {
+export function listTodos(opts: { ticket?: string; status?: TodoStatus | "all"; tickets?: string[]; /** Closed on or after this day (YYYY-MM-DD; a day's slack is the caller's) - without reading all the others. */ doneSince?: string; /** Open, or closed on or after this day. */ openOrDoneSince?: string; byWorker?: boolean } = {}): TodoView[] {
   const status = opts.status ?? "open";
   const where = and(
     status === "all" ? undefined : eq(todos.status, status),
     opts.ticket ? onTicket(opts.ticket.trim().toUpperCase()) : undefined,
+    opts.doneSince ? sql`${todos.doneAt} >= ${opts.doneSince}` : undefined,
+    opts.openOrDoneSince ? or(eq(todos.status, "open"), sql`${todos.doneAt} >= ${opts.openOrDoneSince}`) : undefined,
+    opts.byWorker === undefined ? undefined : eq(todos.byWorker, opts.byWorker),
     opts.tickets ? (opts.tickets.length ? or(...opts.tickets.map((k) => onTicket(k.trim().toUpperCase()))) : eq(todos.ticket, "")) : undefined,
   );
-  return getDb().select().from(todos).where(where).orderBy(todos.id).all().map(toTodo);
+  return toTodos(getDb().select().from(todos).where(where).orderBy(todos.id).all());
+}
+
+/**
+ * What the related-notes lookup needs of the todos on these tickets (all states): who follows whom, what
+ * they cite, their notes - without building whole todos (their links, their plans ...) for it.
+ */
+export function todoNoteIndex(tickets: string[]): Map<string, { id: number; parentId: number | null; refs: string[]; userNotes: TodoView["userNotes"] }[]> {
+  const out = new Map<string, { id: number; parentId: number | null; refs: string[]; userNotes: TodoView["userNotes"] }[]>();
+  for (const ticket of new Set(tickets)) {
+    out.set(
+      ticket,
+      getDb()
+        .select({ id: todos.id, parentId: todos.parentId, refs: todos.refs, userNotes: todos.userNotes })
+        .from(todos)
+        .where(ticket ? onTicket(ticket.trim().toUpperCase()) : undefined)
+        .orderBy(todos.id)
+        .all()
+        .map((r) => ({
+          id: r.id,
+          parentId: r.parentId ?? null,
+          refs: parse<string[]>(r.refs, []).filter((k) => typeof k === "string"),
+          userNotes: parse<TodoView["userNotes"]>(r.userNotes, []).filter((n) => n && typeof n.text === "string"),
+        })),
+    );
+  }
+  return out;
 }
 
 /** These tickets' todos as the Todos page shows them: the open ones, and those closed in the last `days`. */
 export function boardTodos(tickets: string[], days = 7): TodoView[] {
   const since = new Date(Date.now() - days * 864e5).toISOString();
-  return listTodos({ status: "all", tickets }).filter((t) => !t.byWorker && !t.mergedInto && (t.status === "open" || (t.doneAt ?? "") >= since));
+  // (Closed ones older than the window are not even read: the cut by day is a day wider than the exact test below.)
+  return listTodos({ status: "all", tickets, openOrDoneSince: since.slice(0, 10) }).filter((t) => !t.byWorker && !t.mergedInto && (t.status === "open" || (t.doneAt ?? "") >= since));
 }
 
 /** The workers' own todos (the Todos page's "Worker" tab): the open ones, then those closed lately — newest first. */
 export function workerTodos(days = 14): TodoView[] {
   const since = new Date(Date.now() - days * 864e5).toISOString();
-  return listTodos({ status: "all" })
+  return listTodos({ status: "all", openOrDoneSince: since.slice(0, 10), byWorker: true })
     .filter((t) => t.byWorker && !t.mergedInto && (t.status === "open" || (t.doneAt ?? "") >= since))
     .sort((a, b) => Number(b.status === "open") - Number(a.status === "open") || b.id - a.id);
 }
 
 /** Done and dismissed todos, the latest first — all of them (up to `limit`). */
 export function doneTodos(limit = 300): TodoView[] {
-  return getDb()
+  return toTodos(getDb()
     .select()
     .from(todos)
     .where(and(inArray(todos.status, ["done", "dismissed"]), eq(todos.byWorker, false), isNull(todos.mergedInto)))
     .orderBy(desc(todos.doneAt), desc(todos.id))
     .limit(limit)
-    .all()
-    .map(toTodo);
+    .all());
 }
 
 /**
@@ -335,7 +400,7 @@ export function doneTodos(limit = 300): TodoView[] {
  */
 export function droppedByYou(days = 60): TodoView[] {
   const since = new Date(Date.now() - days * 864e5).toISOString();
-  return getDb()
+  return toTodos(getDb()
     .select()
     .from(todos)
     .where(
@@ -345,8 +410,7 @@ export function droppedByYou(days = 60): TodoView[] {
         sql`(select e.actor from todo_events e where e.todo_id = ${todos.id} and e.event = 'dismissed' order by e.id desc limit 1) = 'you'`,
       ),
     )
-    .all()
-    .map(toTodo);
+    .all());
 }
 
 /** How many todos are done or dismissed (up to `limit`, the newest), and their tickets — without reading them whole. */
@@ -365,7 +429,7 @@ export function doneTodoTickets(limit = 300): { count: number; tickets: string[]
 export function todosByIds(ids: number[]): Map<number, TodoView> {
   const wanted = [...new Set(ids)].slice(0, 200);
   if (!wanted.length) return new Map();
-  return new Map(getDb().select().from(todos).where(inArray(todos.id, wanted)).all().map((r) => [r.id, toTodo(r)]));
+  return new Map(toTodos(getDb().select().from(todos).where(inArray(todos.id, wanted)).all()).map((t) => [t.id, t]));
 }
 
 /**
@@ -375,7 +439,7 @@ export function todosByIds(ids: number[]): Map<number, TodoView> {
 export function searchTodos(q: string, limit = 8): TodoView[] {
   const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const ref = parseTodoRef(q);
-  const all = getDb().select().from(todos).where(inArray(todos.status, ["done", "open"])).orderBy(desc(todos.id)).limit(500).all().map(toTodo);
+  const all = toTodos(getDb().select().from(todos).where(inArray(todos.status, ["done", "open"])).orderBy(desc(todos.id)).limit(500).all());
   const hits = ref !== null && /^\s*t/i.test(q)
     ? all.filter((t) => t.id === ref)
     : all.filter((t) => words.every((w) => `${t.ref} ${t.ticket} ${t.text} ${t.note ?? ""}`.toLowerCase().includes(w)));
@@ -395,7 +459,6 @@ export function getTodo(id: number): TodoView | undefined {
  * from them; opened again (an undo), they're open again.
  */
 export function setTodoStatus(id: number, status: TodoStatus, note?: string | null): TodoView {
-  emitChange("todos");
   const db = getDb();
   const before = getTodo(id);
   if (!before) throw new NotFoundError(t("Todo {ref} not found.", { ref: todoRef(id) }));
@@ -413,6 +476,8 @@ export function setTodoStatus(id: number, status: TodoStatus, note?: string | nu
     .where(eq(todos.id, id))
     .run();
   if (status === "done" && before.status !== "done") afterDone(id);
+  // After the status and the follow-ups it brings are written: a page that refreshes on this finds both the closed todo and the next one.
+  emitChange("todos");
   return getTodo(id)!;
 }
 
@@ -655,7 +720,6 @@ export function addFollowUp(v: {
     { closed: !!v.byWorker || /^Follow-up from/.test(v.source), planned: !/^Planned after/.test(v.source), skipId: parent && (parent.status !== "open" || parent.workerDone) ? parent.id : null },
   );
   if (g) return g;
-  emitChange("todos");
   const now = new Date().toISOString();
   const row = getDb()
     .insert(todos)
@@ -681,6 +745,7 @@ export function addFollowUp(v: {
     })
     .returning()
     .get();
+  emitChange("todos"); // (after it is written: a page that refreshes on it must find it)
   return toTodo(row);
 }
 
@@ -692,7 +757,6 @@ export function addFollowUp(v: {
 export function addMailTodo(v: { ticket: string; text: string; kind: string; owner?: "me" | "other"; refs: string[]; runId: number | null; due?: string | null }): Gated {
   const g = gateTodo({ ticket: v.ticket, text: v.text, kind: v.kind, owner: v.owner, refs: v.refs.filter((r) => r.startsWith("mail:") || r.startsWith("fact:")), due: v.due, runId: v.runId, byWorker: false, source: "Mail-Durchsicht" }, { closed: true });
   if (g) return g;
-  emitChange("todos");
   const now = new Date().toISOString();
   const row = getDb()
     .insert(todos)
@@ -711,6 +775,7 @@ export function addMailTodo(v: { ticket: string; text: string; kind: string; own
     })
     .returning()
     .get();
+  emitChange("todos"); // (after it is written: a page that refreshes on it must find it)
   return toTodo(row);
 }
 
@@ -719,7 +784,6 @@ export function addMailTodo(v: { ticket: string; text: string; kind: string; own
 export function addDocTodo(v: { ticket: string; text: string; kind: string; owner?: "me" | "other"; refs: string[]; runId: number | null; due?: string | null }): Gated {
   const g = gateTodo({ ticket: v.ticket, text: v.text, kind: v.kind, owner: v.owner, refs: v.refs.filter((r) => r.startsWith("doc:")), due: v.due, runId: v.runId, byWorker: false, source: "Dokument-Durchsicht" }, { closed: true });
   if (g) return g;
-  emitChange("todos");
   const now = new Date().toISOString();
   const row = getDb()
     .insert(todos)
@@ -738,13 +802,13 @@ export function addDocTodo(v: { ticket: string; text: string; kind: string; owne
     })
     .returning()
     .get();
+  emitChange("todos"); // (after it is written: a page that refreshes on it must find it)
   return toTodo(row);
 }
 
 export function addNoteTodo(v: { ticket: string; text: string; kind: string; owner?: "me" | "other"; refs: string[]; runId: number | null; due?: string | null }): Gated {
   const g = gateTodo({ ticket: v.ticket, text: v.text, kind: v.kind, owner: v.owner, refs: v.refs.filter((r) => r.startsWith("keep:")), due: v.due, runId: v.runId, byWorker: false, source: "Notiz-Durchsicht" }, { closed: true });
   if (g) return g;
-  emitChange("todos");
   const now = new Date().toISOString();
   const row = getDb()
     .insert(todos)
@@ -763,6 +827,7 @@ export function addNoteTodo(v: { ticket: string; text: string; kind: string; own
     })
     .returning()
     .get();
+  emitChange("todos"); // (after it is written: a page that refreshes on it must find it)
   return toTodo(row);
 }
 
@@ -774,26 +839,26 @@ export function addNoteTodo(v: { ticket: string; text: string; kind: string; own
 export function addCalendarTodo(v: { text: string; due: string; ref: string; source: string }): TodoView | null {
   if (getDb().select({ id: todos.id }).from(todos).where(sql`${todos.refs} like ${`%"${v.ref}"%`}`).get()) return null;
   // (No gate: each occurrence is its own todo on its own day - "Daily (09:00)" repeats by nature, and its ref says which.)
-  emitChange("todos");
   const now = new Date().toISOString();
   const row = getDb()
     .insert(todos)
     .values({ ticket: "", text: v.text.trim().slice(0, 500), kind: "other", owner: "me", status: "open", source: v.source.slice(0, 200), refs: JSON.stringify([v.ref]), runId: null, due: dueDay(v.due), createdAt: now, updatedAt: now })
     .returning()
     .get();
+  emitChange("todos"); // (after it is written: a page that refreshes on it must find it)
   return toTodo(row);
 }
 
 export function addManualTodo(v: { ticket: string; text: string }): Gated {
   const g = gateTodo({ ticket: v.ticket, text: v.text, byWorker: false, source: "From you", actor: "you" });
   if (g) return g;
-  emitChange("todos");
   const now = new Date().toISOString();
   const row = getDb()
     .insert(todos)
     .values({ ticket: v.ticket.trim().toUpperCase(), text: v.text.trim().slice(0, 500), kind: "other", owner: "me", status: "open", source: "From you", refs: "[]", runId: null, createdAt: now, updatedAt: now })
     .returning()
     .get();
+  emitChange("todos"); // (after it is written: a page that refreshes on it must find it)
   return toTodo(row);
 }
 
@@ -801,13 +866,13 @@ export function addManualTodo(v: { ticket: string; text: string }): Gated {
 export function addSessionTodo(v: { ticket: string; text: string }): Gated {
   const g = gateTodo({ ticket: v.ticket, text: v.text, byWorker: false, source: "Work-Session", actor: "you" });
   if (g) return g;
-  emitChange("todos");
   const now = new Date().toISOString();
   const row = getDb()
     .insert(todos)
     .values({ ticket: v.ticket.trim().toUpperCase(), text: v.text.trim().slice(0, 500), kind: "other", owner: "me", status: "open", source: "Work-Session", refs: "[]", runId: null, createdAt: now, updatedAt: now })
     .returning()
     .get();
+  emitChange("todos"); // (after it is written: a page that refreshes on it must find it)
   return toTodo(row);
 }
 
@@ -909,10 +974,10 @@ export function updateTodoUserNote(id: number, at: string, text: string): TodoVi
 }
 
 /** A note's comment on Jira, as it is now (its address becomes the note's link). */
-export function markNoteSynced(id: number, at: string, v: { commentId: string; hash: string; url: string | null; text?: string }): void {
+export function markNoteSynced(id: number, at: string, v: { commentId: string; hash: string; url: string | null; text?: string; files?: number[] }): void {
   const todo = getTodo(id);
   if (!todo) return;
-  const notes = todo.userNotes.map((n) => (n.at === at ? { ...n, jiraCommentId: v.commentId, jiraHash: v.hash, ...(v.text !== undefined ? { jiraText: v.text } : {}), ...(v.url ? { url: v.url, urlLabel: "Jira" } : {}) } : n));
+  const notes = todo.userNotes.map((n) => (n.at === at ? { ...n, jiraCommentId: v.commentId, jiraHash: v.hash, ...(v.text !== undefined ? { jiraText: v.text } : {}), ...(v.files ? { jiraFiles: v.files } : {}), ...(v.url ? { url: v.url, urlLabel: "Jira" } : {}) } : n));
   getDb().update(todos).set({ userNotes: JSON.stringify(notes) }).where(eq(todos.id, id)).run();
   emitChange("todos");
 }

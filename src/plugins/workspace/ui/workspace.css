@@ -1,0 +1,637 @@
+/* The Workspace plugin's editor and database styles. Scoped under .ws-*; colours follow the page (light/dark). */
+
+.ws-editor .ProseMirror {
+  outline: none;
+  min-height: 12rem;
+  padding: 0.25rem 0 6rem;
+  line-height: 1.65;
+  caret-color: currentColor;
+}
+.ws-editor.ws-small .ProseMirror {
+  font-size: 0.875rem;
+}
+.ws-editor .ProseMirror > * + * {
+  margin-top: 0.35rem;
+}
+.ws-editor .ProseMirror p.is-empty:first-child::before,
+.ws-editor .ProseMirror p.is-editor-empty:first-child::before,
+.ws-editor .ProseMirror .is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--color-zinc-400, #a1a1aa);
+}
+.ws-editor .ProseMirror h1 {
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-top: 1.6rem;
+}
+.ws-editor .ProseMirror h2 {
+  font-size: 1.45rem;
+  font-weight: 650;
+  line-height: 1.3;
+  margin-top: 1.3rem;
+}
+.ws-editor .ProseMirror h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-top: 1rem;
+}
+.ws-editor .ProseMirror ul {
+  list-style: disc;
+  padding-left: 1.5rem;
+}
+.ws-editor .ProseMirror ol {
+  list-style: decimal;
+  padding-left: 1.5rem;
+}
+.ws-editor .ProseMirror li > p {
+  margin: 0;
+}
+.ws-editor .ProseMirror li > * + * {
+  margin-top: 0.2rem;
+}
+.ws-editor .ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0.1rem;
+}
+.ws-editor .ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+.ws-editor .ProseMirror ul[data-type="taskList"] li > label {
+  margin-top: 0.3rem;
+  user-select: none;
+}
+.ws-editor .ProseMirror ul[data-type="taskList"] li > label input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--color-indigo-600, #4f46e5);
+  cursor: pointer;
+}
+.ws-editor .ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1;
+  min-width: 0;
+}
+.ws-editor .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
+  color: var(--color-zinc-400, #a1a1aa);
+  text-decoration: line-through;
+}
+.ws-editor .ProseMirror blockquote {
+  border-left: 3px solid var(--color-zinc-300, #d4d4d8);
+  padding-left: 1rem;
+  color: var(--color-zinc-600, #52525b);
+}
+.ws-editor .ProseMirror hr {
+  border: 0;
+  border-top: 1px solid var(--color-zinc-300, #d4d4d8);
+  margin: 1.2rem 0;
+}
+.ws-editor .ProseMirror code {
+  background: color-mix(in oklab, var(--color-zinc-500, #71717a) 16%, transparent);
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.3rem;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.88em;
+}
+.ws-editor .ProseMirror pre {
+  background: var(--color-zinc-900, #18181b);
+  color: var(--color-zinc-100, #f4f4f5);
+  border-radius: 0.5rem;
+  padding: 0.8rem 1rem;
+  overflow-x: auto;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.ws-editor .ProseMirror pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+}
+.ws-editor .hljs-comment,
+.ws-editor .hljs-quote {
+  color: #8b949e;
+}
+.ws-editor .hljs-keyword,
+.ws-editor .hljs-selector-tag,
+.ws-editor .hljs-literal {
+  color: #ff7b72;
+}
+.ws-editor .hljs-string,
+.ws-editor .hljs-regexp,
+.ws-editor .hljs-addition {
+  color: #a5d6ff;
+}
+.ws-editor .hljs-number,
+.ws-editor .hljs-attr,
+.ws-editor .hljs-variable {
+  color: #79c0ff;
+}
+.ws-editor .hljs-title,
+.ws-editor .hljs-section,
+.ws-editor .hljs-built_in {
+  color: #d2a8ff;
+}
+.ws-editor .ProseMirror a {
+  color: var(--color-indigo-600, #4f46e5);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.ws-editor .ProseMirror mark {
+  background: color-mix(in oklab, var(--color-yellow-300, #fde047) 55%, transparent);
+  border-radius: 0.2rem;
+  padding: 0 0.1rem;
+  color: inherit;
+}
+.ws-editor .ProseMirror img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.4rem;
+  display: block;
+}
+.ws-editor .ProseMirror img.ProseMirror-selectednode,
+.ws-editor .ProseMirror .ProseMirror-selectednode > .ws-chip,
+.ws-editor .ProseMirror .ProseMirror-selectednode > .ws-callout,
+.ws-editor .ProseMirror .ProseMirror-selectednode > .ws-dbblock {
+  outline: 2px solid var(--color-indigo-400, #818cf8);
+  outline-offset: 2px;
+}
+.ws-editor .ProseMirror table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 0.6rem 0;
+  overflow: hidden;
+}
+.ws-editor .ProseMirror td,
+.ws-editor .ProseMirror th {
+  border: 1px solid var(--color-zinc-300, #d4d4d8);
+  padding: 0.35rem 0.55rem;
+  vertical-align: top;
+  position: relative;
+  min-width: 3rem;
+}
+.ws-editor .ProseMirror th {
+  background: color-mix(in oklab, var(--color-zinc-500, #71717a) 10%, transparent);
+  font-weight: 600;
+  text-align: left;
+}
+.ws-editor .ProseMirror .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: color-mix(in oklab, var(--color-indigo-500, #6366f1) 18%, transparent);
+  pointer-events: none;
+}
+.ws-editor .ProseMirror .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--color-indigo-400, #818cf8);
+  pointer-events: none;
+}
+.ws-editor .ProseMirror .tableWrapper {
+  overflow-x: auto;
+}
+/* toggle (details) */
+.ws-editor .ProseMirror [data-type="details"] {
+  display: flex;
+  gap: 0.2rem;
+  border-radius: 0.3rem;
+}
+.ws-editor .ProseMirror [data-type="details"] > button {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  width: 1.5rem;
+  height: 1.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-zinc-500, #71717a);
+  flex: none;
+}
+.ws-editor .ProseMirror [data-type="details"] > button::before {
+  content: "▸";
+  transition: transform 0.12s;
+}
+.ws-editor .ProseMirror [data-type="details"].is-open > button::before {
+  transform: rotate(90deg);
+}
+.ws-editor .ProseMirror [data-type="details"] > div {
+  flex: 1;
+  min-width: 0;
+}
+.ws-editor .ProseMirror [data-type="details"] summary {
+  display: block;
+  list-style: none;
+  font-weight: 500;
+  min-height: 1.7rem;
+}
+.ws-editor .ProseMirror [data-type="detailsContent"] {
+  display: none;
+  margin-left: 0.2rem;
+}
+.ws-editor .ProseMirror [data-type="details"].is-open [data-type="detailsContent"] {
+  display: block;
+}
+/* callout */
+.ws-callout {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.5rem;
+  background: color-mix(in oklab, var(--color-zinc-500, #71717a) 12%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-zinc-500, #71717a) 22%, transparent);
+}
+.ws-callout[data-tone="blue"] {
+  background: color-mix(in oklab, var(--color-blue-500, #3b82f6) 12%, transparent);
+  border-color: color-mix(in oklab, var(--color-blue-500, #3b82f6) 28%, transparent);
+}
+.ws-callout[data-tone="yellow"] {
+  background: color-mix(in oklab, var(--color-yellow-400, #facc15) 18%, transparent);
+  border-color: color-mix(in oklab, var(--color-yellow-500, #eab308) 32%, transparent);
+}
+.ws-callout[data-tone="red"] {
+  background: color-mix(in oklab, var(--color-red-500, #ef4444) 12%, transparent);
+  border-color: color-mix(in oklab, var(--color-red-500, #ef4444) 28%, transparent);
+}
+.ws-callout[data-tone="green"] {
+  background: color-mix(in oklab, var(--color-green-500, #22c55e) 12%, transparent);
+  border-color: color-mix(in oklab, var(--color-green-500, #22c55e) 28%, transparent);
+}
+.ws-callout > button {
+  font-size: 1.25rem;
+  line-height: 1.5;
+  align-self: flex-start;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+.ws-callout > div {
+  flex: 1;
+  min-width: 0;
+}
+/* mentions */
+.ws-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  border-radius: 0.35rem;
+  padding: 0 0.3rem;
+  background: color-mix(in oklab, var(--color-indigo-500, #6366f1) 12%, transparent);
+  color: var(--color-indigo-700, #4338ca);
+  text-decoration: none !important;
+  font-size: 0.95em;
+  line-height: 1.5;
+  white-space: nowrap;
+  max-width: 28rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: baseline;
+}
+.ws-chip[data-kind="person"] {
+  background: color-mix(in oklab, var(--color-teal-500, #14b8a6) 14%, transparent);
+  color: var(--color-teal-700, #0f766e);
+}
+.ws-chip[data-kind="todo"] {
+  background: color-mix(in oklab, var(--color-amber-500, #f59e0b) 16%, transparent);
+  color: var(--color-amber-800, #92400e);
+}
+.ws-chip[data-kind="ticket"] {
+  background: color-mix(in oklab, var(--color-sky-500, #0ea5e9) 14%, transparent);
+  color: var(--color-sky-800, #075985);
+}
+.ws-chip[data-missing="true"] {
+  text-decoration: line-through !important;
+  opacity: 0.6;
+}
+.ws-chip[data-done="true"] {
+  opacity: 0.75;
+}
+@media (prefers-color-scheme: dark) {
+  .ws-editor .ProseMirror a {
+    color: var(--color-indigo-400, #818cf8);
+  }
+  .ws-editor .ProseMirror blockquote {
+    border-left-color: var(--color-zinc-600, #52525b);
+    color: var(--color-zinc-300, #d4d4d8);
+  }
+  .ws-editor .ProseMirror hr,
+  .ws-editor .ProseMirror td,
+  .ws-editor .ProseMirror th {
+    border-color: var(--color-zinc-700, #3f3f46);
+    border-top-color: var(--color-zinc-700, #3f3f46);
+  }
+  .ws-chip {
+    color: var(--color-indigo-300, #a5b4fc);
+  }
+  .ws-chip[data-kind="person"] {
+    color: var(--color-teal-300, #5eead4);
+  }
+  .ws-chip[data-kind="todo"] {
+    color: var(--color-amber-300, #fcd34d);
+  }
+  .ws-chip[data-kind="ticket"] {
+    color: var(--color-sky-300, #7dd3fc);
+  }
+}
+/* the drag handle */
+.ws-handle {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  color: var(--color-zinc-400, #a1a1aa);
+  opacity: 0.9;
+  padding-right: 0.25rem;
+}
+.ws-handle button,
+.ws-handle .ws-grip {
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 0.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  background: none;
+  border: 0;
+  color: inherit;
+  font-size: 0.95rem;
+}
+.ws-handle button {
+  cursor: pointer;
+}
+.ws-handle button:hover,
+.ws-handle .ws-grip:hover {
+  background: color-mix(in oklab, var(--color-zinc-500, #71717a) 20%, transparent);
+}
+/* popup menus (slash, mention) */
+.ws-pop {
+  position: fixed;
+  z-index: 60;
+  max-height: 20rem;
+  min-width: 15rem;
+  max-width: 22rem;
+  overflow-y: auto;
+  border-radius: 0.6rem;
+  border: 1px solid var(--color-zinc-200, #e4e4e7);
+  background: var(--color-white, #ffffff);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.16);
+  padding: 0.25rem;
+  font-size: 0.85rem;
+}
+@media (prefers-color-scheme: dark) {
+  .ws-pop {
+    background: var(--color-zinc-900, #18181b);
+    border-color: var(--color-zinc-700, #3f3f46);
+  }
+}
+.ws-pop button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.55rem;
+  text-align: left;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.4rem;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  color: inherit;
+}
+.ws-pop button[aria-selected="true"],
+.ws-pop button:hover {
+  background: color-mix(in oklab, var(--color-indigo-500, #6366f1) 14%, transparent);
+}
+.ws-pop .ws-pop-head {
+  padding: 0.3rem 0.5rem 0.15rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-zinc-500, #71717a);
+}
+.ws-pop .ws-pop-icon {
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 0.35rem;
+  border: 1px solid var(--color-zinc-200, #e4e4e7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  font-size: 0.95rem;
+}
+@media (prefers-color-scheme: dark) {
+  .ws-pop .ws-pop-icon {
+    border-color: var(--color-zinc-700, #3f3f46);
+  }
+}
+/* bubble menu */
+.ws-bubble {
+  display: flex;
+  gap: 0.1rem;
+  align-items: center;
+  padding: 0.2rem;
+  border-radius: 0.55rem;
+  border: 1px solid var(--color-zinc-200, #e4e4e7);
+  background: var(--color-white, #ffffff);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.16);
+}
+@media (prefers-color-scheme: dark) {
+  .ws-bubble {
+    background: var(--color-zinc-900, #18181b);
+    border-color: var(--color-zinc-700, #3f3f46);
+  }
+}
+.ws-bubble button {
+  min-width: 1.8rem;
+  height: 1.8rem;
+  padding: 0 0.35rem;
+  border-radius: 0.35rem;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: inherit;
+}
+.ws-bubble button:hover {
+  background: color-mix(in oklab, var(--color-zinc-500, #71717a) 18%, transparent);
+}
+.ws-bubble button[data-active="true"] {
+  background: color-mix(in oklab, var(--color-indigo-500, #6366f1) 22%, transparent);
+  color: var(--color-indigo-700, #4338ca);
+}
+/* tags (database options) */
+.ws-tag {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  border-radius: 0.3rem;
+  padding: 0 0.4rem;
+  font-size: 0.78rem;
+  line-height: 1.35rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: color-mix(in oklab, var(--tag, var(--color-zinc-500, #71717a)) 18%, transparent);
+  color: color-mix(in oklab, var(--tag, var(--color-zinc-500, #71717a)) 90%, black);
+}
+@media (prefers-color-scheme: dark) {
+  .ws-tag {
+    color: color-mix(in oklab, var(--tag, var(--color-zinc-500, #71717a)) 70%, white);
+  }
+}
+.ws-tag[data-color="gray"] {
+  --tag: var(--color-zinc-500, #71717a);
+}
+.ws-tag[data-color="brown"] {
+  --tag: #92603a;
+}
+.ws-tag[data-color="orange"] {
+  --tag: var(--color-orange-500, #f97316);
+}
+.ws-tag[data-color="yellow"] {
+  --tag: var(--color-yellow-500, #eab308);
+}
+.ws-tag[data-color="green"] {
+  --tag: var(--color-green-600, #16a34a);
+}
+.ws-tag[data-color="blue"] {
+  --tag: var(--color-blue-500, #3b82f6);
+}
+.ws-tag[data-color="purple"] {
+  --tag: var(--color-purple-500, #a855f7);
+}
+.ws-tag[data-color="pink"] {
+  --tag: var(--color-pink-500, #ec4899);
+}
+.ws-tag[data-color="red"] {
+  --tag: var(--color-red-500, #ef4444);
+}
+/* database table */
+.ws-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 100%;
+  font-size: 0.85rem;
+}
+.ws-table th {
+  position: sticky;
+  top: 0;
+  background: var(--background);
+  text-align: left;
+  font-weight: 500;
+  color: var(--color-zinc-500, #71717a);
+  border-bottom: 1px solid var(--color-zinc-200, #e4e4e7);
+  border-right: 1px solid var(--color-zinc-200, #e4e4e7);
+  padding: 0.3rem 0.5rem;
+  white-space: nowrap;
+}
+.ws-table td {
+  border-bottom: 1px solid var(--color-zinc-200, #e4e4e7);
+  border-right: 1px solid var(--color-zinc-200, #e4e4e7);
+  padding: 0;
+  vertical-align: top;
+  min-width: 6rem;
+}
+@media (prefers-color-scheme: dark) {
+  .ws-table th,
+  .ws-table td {
+    border-color: var(--color-zinc-800, #27272a);
+  }
+}
+.ws-cell {
+  min-height: 2rem;
+  padding: 0.3rem 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: text;
+}
+.ws-cell:hover {
+  background: color-mix(in oklab, var(--color-zinc-500, #71717a) 8%, transparent);
+}
+.ws-cell-input {
+  width: 100%;
+  min-height: 2rem;
+  padding: 0.3rem 0.5rem;
+  background: color-mix(in oklab, var(--color-indigo-500, #6366f1) 8%, transparent);
+  border: 0;
+  outline: 2px solid var(--color-indigo-400, #818cf8);
+  outline-offset: -2px;
+  color: inherit;
+  font: inherit;
+}
+.ws-card {
+  border: 1px solid var(--color-zinc-200, #e4e4e7);
+  border-radius: 0.55rem;
+  background: var(--color-white, #ffffff);
+  padding: 0.55rem 0.65rem;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+}
+@media (prefers-color-scheme: dark) {
+  .ws-card {
+    background: var(--color-zinc-900, #18181b);
+    border-color: var(--color-zinc-800, #27272a);
+  }
+}
+.ws-card:hover {
+  border-color: var(--color-indigo-300, #a5b4fc);
+}
+.ws-dbblock {
+  border: 1px solid var(--color-zinc-200, #e4e4e7);
+  border-radius: 0.6rem;
+  padding: 0.5rem 0.6rem;
+}
+@media (prefers-color-scheme: dark) {
+  .ws-dbblock {
+    border-color: var(--color-zinc-800, #27272a);
+  }
+}
+.ws-cover {
+  height: 11rem;
+  background-size: cover;
+  background-position: center;
+}
+.ws-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  border-radius: 0.4rem;
+  min-height: 1.75rem;
+  font-size: 0.85rem;
+}
+.ws-tree-row:hover {
+  background: color-mix(in oklab, var(--color-zinc-500, #71717a) 12%, transparent);
+}
+.ws-tree-row[data-active="true"] {
+  background: color-mix(in oklab, var(--color-indigo-500, #6366f1) 14%, transparent);
+  font-weight: 500;
+}
+.ws-tree-row[data-over="true"] {
+  outline: 2px solid var(--color-indigo-400, #818cf8);
+}
+.ws-tree-row [data-hover] {
+  opacity: 0;
+}
+.ws-tree-row:hover [data-hover],
+.ws-tree-row:focus-within [data-hover] {
+  opacity: 1;
+}

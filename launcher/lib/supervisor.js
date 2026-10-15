@@ -30,7 +30,7 @@ const portOpen = (port) =>
   });
 
 class Service extends EventEmitter {
-  /** spec: { name, port, node, args, cwd, env, logFile, buildMarker } */
+  /** spec: { name, port, node, args, cwd, env, logFile, buildMarker } — args, env and buildMarker may be functions, asked at each start. */
   constructor(spec) {
     super();
     Object.assign(this, { spec, name: spec.name, port: spec.port, logFile: spec.logFile });
@@ -89,7 +89,7 @@ class Service extends EventEmitter {
         if (!this.desired) {
           if (this.status !== "external") this.set("stopped", null);
         } else if (Date.now() >= this.notBefore) {
-          if (!fs.existsSync(this.spec.buildMarker)) this.set("notBuilt", null);
+          if (!fs.existsSync(this.marker())) this.set("notBuilt", null);
           else if (await portOpen(this.port)) this.set("external", null);
           else this.launch();
         }
@@ -103,8 +103,15 @@ class Service extends EventEmitter {
     }
   }
 
+  /** The file whose presence means "built" (a function: it differs between `next start` and `next dev`). */
+  marker() {
+    const m = this.spec.buildMarker;
+    return typeof m === "function" ? m() : m;
+  }
+
   launch() {
-    const { node, args, cwd, logFile } = this.spec;
+    const { node, cwd, logFile } = this.spec;
+    const args = typeof this.spec.args === "function" ? this.spec.args() : this.spec.args;
     // (A function: asked at each start — what the server is told can change between two starts.)
     const env = typeof this.spec.env === "function" ? this.spec.env() : this.spec.env;
     rotate(logFile, 10 * 1024 * 1024);

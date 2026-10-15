@@ -58,7 +58,7 @@ function SessionMenu({ s, active }: { s: SessionItem; active: boolean }) {
     });
   return (
     <div ref={ref} className="absolute top-1/2 right-0.5 -translate-y-1/2">
-      <button type="button" className={`icon-btn size-6 text-sm group-hover:opacity-100 focus-visible:opacity-100 ${open ? "opacity-100" : "opacity-0"}`} onClick={() => setOpen(!open)} aria-label={t("Session menu")} aria-expanded={open} disabled={pending}>
+      <button type="button" className={`icon-btn size-6 text-sm group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 ${open ? "opacity-100" : "opacity-0"}`} onClick={() => setOpen(!open)} aria-label={t("Session menu")} aria-expanded={open} disabled={pending}>
         ⋯
       </button>
       {open && (
@@ -72,7 +72,7 @@ function SessionMenu({ s, active }: { s: SessionItem; active: boolean }) {
             className="block w-full px-3 py-1.5 text-left text-red-700 hover:bg-red-50 disabled:opacity-50 dark:text-red-300 dark:hover:bg-red-950/40"
             disabled={active}
             title={active ? t("It's working — stop it first.") : undefined}
-            onClick={() => confirm(t("Delete this session? Its conversation and logs are gone; its todo stays.")) && act(() => deleteSessionAction(s.todoId))}
+            onClick={() => confirm(t("Delete this session for good? Its conversation, logs and result are deleted and cannot be brought back; its todo stays.")) && act(() => deleteSessionAction(s.todoId))}
           >
             {t("Delete …")}
           </button>
@@ -184,9 +184,9 @@ export function SessionSidebar({
         </Link>
         <input className="input h-8 min-w-0 flex-1 text-xs" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Search sessions…")} aria-label={t("Search")} />
       </div>
-      <label className="flex items-center gap-1.5 text-[11px] text-zinc-500">
+      <label className="flex items-center gap-1.5 text-xs text-zinc-500">
         {t("Sort")}
-        <select className="input h-6 flex-1 py-0 text-[11px]" value={sort} onChange={(e) => pick(e.target.value as SortKey)} aria-label={t("Sort sessions")}>
+        <select className="input h-6 flex-1 py-0 text-xs" value={sort} onChange={(e) => pick(e.target.value as SortKey)} aria-label={t("Sort sessions")}>
           <option value="newest">{t("Newest")}</option>
           <option value="priority">{t("Priority")}</option>
           <option value="ticket">{t("Ticket")}</option>
@@ -199,9 +199,9 @@ export function SessionSidebar({
           return (
             <section key={g.key}>
               {g.id !== "all" && (
-                <div className="flex items-center gap-1 px-0.5 pt-2 pb-0.5 text-[11px] text-zinc-500">
+                <div className="flex items-center gap-1 px-0.5 pt-2 pb-0.5 text-xs text-zinc-500">
                   <button type="button" className="flex min-w-0 items-center gap-1 rounded px-0.5 hover:text-zinc-800 dark:hover:text-zinc-200" onClick={() => fold(g.key)} aria-expanded={!isFolded} aria-label={isFolded ? t("Expand") : t("Collapse")}>
-                    <span className="w-3 shrink-0 text-[9px]">{isFolded ? "▸" : "▾"}</span>
+                    <span className="w-3 shrink-0 text-xs">{isFolded ? "▸" : "▾"}</span>
                     {g.id !== "ticket" && <span className="font-medium tracking-wide uppercase">{headings[g.id]}</span>}
                   </button>
                   {g.id === "ticket" && (
@@ -224,8 +224,8 @@ export function SessionSidebar({
                       >
                         <span className={`size-1.5 shrink-0 rounded-full ${s.waiting ? "bg-amber-500" : (DOT[s.status] ?? "bg-zinc-300")}`} aria-hidden />
                         <span className="min-w-0 flex-1 truncate">{s.title}</span>
-                        {g.id !== "ticket" && s.ticket && <span className="shrink-0 font-mono text-[10px] text-zinc-400">{s.ticket}</span>}
-                        <span className="w-7 shrink-0 text-right text-[10px] whitespace-nowrap text-zinc-400 group-focus-within:invisible group-hover:invisible" title={formatAgo(stamp(s.at))} suppressHydrationWarning>
+                        {g.id !== "ticket" && s.ticket && <span className="shrink-0 font-mono text-xs text-zinc-400">{s.ticket}</span>}
+                        <span className="w-7 shrink-0 text-right text-xs whitespace-nowrap text-zinc-400 group-focus-within:invisible group-hover:invisible [@media(hover:none)]:invisible" title={formatAgo(stamp(s.at))} suppressHydrationWarning>
                           {ago(s.at)}
                         </span>
                       </Link>
@@ -249,7 +249,7 @@ export function SessionSidebar({
           {extTabs.map((x) => (
             <Link key={x.id} href={x.href} className="flex items-baseline gap-1.5 rounded px-1.5 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800" title={x.plugin}>
               <span className="font-medium">{x.title}</span>
-              <span className="truncate text-[10px] text-zinc-400">{x.plugin}</span>
+              <span className="truncate text-xs text-zinc-400">{x.plugin}</span>
             </Link>
           ))}
         </nav>

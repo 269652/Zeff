@@ -77,7 +77,7 @@ export function TicketChat({ ticket, initial }: { ticket: string; initial: ChatI
           {pending ? "…" : t("Ask")}
         </button>
       </form>
-      <p className="mt-1 text-[11px] text-zinc-500">{t("Answers stay as context of the ticket (briefing, todos, workers) until you dismiss them.")}</p>
+      <p className="mt-1 text-xs text-zinc-500">{t("Answers stay as context of the ticket (briefing, todos, workers) until you dismiss them.")}</p>
     </section>
   );
 }

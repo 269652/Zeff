@@ -36,7 +36,7 @@ import {
 import { todayIso } from "@/lib/week";
 
 export async function generateMetadata(): Promise<Metadata> {
-  return { title: t("Working hours & absences") };
+  return { title: t("Time-tracking settings") };
 }
 
 export default async function SettingsPage() {
@@ -61,6 +61,16 @@ export default async function SettingsPage() {
   const tagNames = listTags().map((tag) => tag.name);
   const jobOptions = listJobs().map((j) => ({ number: j.number, name: j.name }));
   const flex = getFlexTime(schedule);
+  const sections: [string, string][] = [
+    ["hours", t("Weekly hours")],
+    ["breaks", t("Default break")],
+    ["flex", t("Flex time")],
+    ["types", t("Entry type rules")],
+    ["report", t("Report rewriting")],
+    ...(isInstalled("outlook-calendar") ? ([["meetings", t("Meetings")]] as [string, string][]) : []),
+    ["absences", t("Absence")],
+    ...(isInstalled("work") ? ([["work", t("Code")]] as [string, string][]) : []),
+  ];
   // The flex-time job stays pickable even once it's deactivated.
   const flexJob = flex.jobNumber && !jobOptions.some((j) => j.number === flex.jobNumber) ? getJobByNumber(flex.jobNumber) : undefined;
   const flexJobOptions = flexJob ? [{ number: flexJob.number, name: t("{name} (inactive)", { name: flexJob.name }) }, ...jobOptions] : jobOptions;
@@ -68,7 +78,7 @@ export default async function SettingsPage() {
   return (
     <div className="page">
       <div className="page-aside">
-        <h1 className="text-lg font-semibold">{t("Working hours & absences")}</h1>
+        <h1 className="text-lg font-semibold">{t("Time-tracking settings")}</h1>
         <p className="text-sm text-zinc-500">
           {t("Set your weekly working pattern (part-time) and record time off. The weekly report uses this to show booked hours against your target.")}
         </p>
@@ -91,12 +101,20 @@ export default async function SettingsPage() {
         ))}
       </div>
 
-      <section className="card p-4">
+      <nav aria-label={t("Sections of this page")} className="sticky top-0 z-10 -mx-1 flex flex-wrap gap-1 rounded-md border border-zinc-200 bg-white/90 p-1 text-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90">
+        {sections.map(([id, label]) => (
+          <a key={id} href={`#${id}`} className="rounded px-2 py-1 text-zinc-600 hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:text-zinc-300 dark:hover:bg-zinc-800">
+            {label}
+          </a>
+        ))}
+      </nav>
+
+      <section id="hours" className="card scroll-mt-14 p-4">
         <h2 className="mb-3 text-sm font-semibold text-zinc-500 uppercase">{t("Weekly hours · {hours} h/week", { hours: formatHours(weekTotal) })}</h2>
         <ScheduleForm hours={hours} />
       </section>
 
-      <section className="card space-y-3 p-4">
+      <section id="breaks" className="card scroll-mt-14 space-y-3 p-4">
         <div>
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Default break")}</h2>
           <p className="mt-1 text-sm text-zinc-500">
@@ -111,9 +129,9 @@ export default async function SettingsPage() {
         <DefaultPausesForm text={schedule.defaultPauses ?? ""} exportToPunch={schedule.punchDefaultPauses} punchOn={isInstalled("punch")} />
       </section>
 
-      <section className="card space-y-3 p-4">
+      <section id="flex" className="card scroll-mt-14 space-y-3 p-4">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Flex time (Gleitzeit)")}</h2>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Flex time")}</h2>
           <p className="mt-1 text-sm text-zinc-500">
             {rich(
               t(
@@ -126,7 +144,7 @@ export default async function SettingsPage() {
         <FlexTimeForm flex={flex} jobs={flexJobOptions} />
       </section>
 
-      <section className="card space-y-3 p-4">
+      <section id="types" className="card scroll-mt-14 space-y-3 p-4">
         <div>
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Entry type rules")}</h2>
           <p className="mt-1 text-sm text-zinc-500">
@@ -136,7 +154,7 @@ export default async function SettingsPage() {
         <TypeRulesForm initialRules={getTypeRules()} jobs={jobOptions} types={listEntryTypes()} />
       </section>
 
-      <section className="card space-y-3 p-4">
+      <section id="report" className="card scroll-mt-14 space-y-3 p-4">
         <div>
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Report rewriting")}</h2>
           <p className="mt-1 text-sm text-zinc-500">
@@ -156,7 +174,7 @@ export default async function SettingsPage() {
       {/* Meetings come from the Outlook calendar plugin: its rules only while it's installed. */}
       {isInstalled("outlook-calendar") && (
         <>
-      <section className="card space-y-3 p-4">
+      <section id="meetings" className="card scroll-mt-14 space-y-3 p-4">
         <div>
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Meeting → job rules")}</h2>
           <p className="mt-1 text-sm text-zinc-500">
@@ -185,7 +203,7 @@ export default async function SettingsPage() {
         </>
       )}
 
-      <section className="card space-y-4 p-4">
+      <section id="absences" className="card scroll-mt-14 space-y-4 p-4">
         <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Absences & time off")}</h2>
         <AbsenceForm defaultDate={todayIso()} />
 
@@ -196,12 +214,12 @@ export default async function SettingsPage() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>{t("From")}</th>
-                  <th>{t("To")}</th>
-                  <th>{t("Type")}</th>
-                  <th className="num">{t("Hours/day")}</th>
-                  <th>{t("Note")}</th>
-                  <th></th>
+                  <th scope="col">{t("From")}</th>
+                  <th scope="col">{t("To")}</th>
+                  <th scope="col">{t("Type")}</th>
+                  <th scope="col" className="num">{t("Hours/day")}</th>
+                  <th scope="col">{t("Note")}</th>
+                  <th scope="col"><span className="sr-only">{t("Actions")}</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -217,7 +235,7 @@ export default async function SettingsPage() {
                     <td className="text-right">
                       <form action={deleteAbsenceAction}>
                         <input type="hidden" name="id" value={a.id} />
-                        <SubmitButton className="btn btn-sm btn-danger" pendingText="…">
+                        <SubmitButton className="btn btn-sm btn-danger" pendingText="…" confirm={t("Delete the absence {type} ({from} to {to})? Targets, Chrono and Punch change with it.", { type: absenceLabels(t)[a.type as AbsenceType], from: a.startDate, to: a.endDate })}>
                           {t("Delete")}
                         </SubmitButton>
                       </form>

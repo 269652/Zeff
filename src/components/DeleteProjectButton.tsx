@@ -25,7 +25,7 @@ export function DeleteProjectButton({ id, title, entryCount }: { id: number; tit
       >
         {t("Delete project")}
       </SubmitButton>
-      {state?.error && <p className="alert-error">{state.error}</p>}
+      {state?.error && <p role="alert" className="alert-error">{state.error}</p>}
     </form>
   );
 }

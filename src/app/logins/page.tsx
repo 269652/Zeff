@@ -8,7 +8,7 @@ import { LoginsList } from "@/components/LoginsList";
 import { listLogins } from "@/lib/logins";
 
 export async function generateMetadata(): Promise<Metadata> {
-  return { title: t("Sign-ins") };
+  return { title: t("Browser sign-ins") };
 }
 
 /**
@@ -23,11 +23,20 @@ export default async function LoginsPage({ searchParams }: { searchParams: Promi
   return (
     <div className="page">
       <div className="page-aside">
-        <h1 className="text-lg font-semibold">{t("Sign-ins")}</h1>
+        <h1 className="text-lg font-semibold">{t("Browser sign-ins")}</h1>
         <p className="text-sm text-zinc-500">
           {t(
             "Where the installed plugins read (and, on your click, write): each site in this account's automation Chrome. “Sign in” brings it to the front there — you sign in yourself, Zeff never types credentials. “Check” asks the plugin whether you're signed in, and opens nothing.",
           )}
+        </p>
+        <p className="text-sm text-zinc-500">
+          {rich(t("These are the logins in the automation Chrome. Services that Zeff reads through an API (OAuth) are set up under <link>Connections</link>."), {
+            link: (s) => (
+              <Link href="/connections" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                {s}
+              </Link>
+            ),
+          })}
         </p>
         <p className="text-xs text-zinc-400">
           {chrome.running

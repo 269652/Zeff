@@ -26,7 +26,7 @@ export default async function ExtPanelPage({ params, searchParams }: { params: P
         <h1 className="text-lg font-semibold">{panel.title}</h1>
         <span className="text-xs text-zinc-500">{plugin.manifest.name}</span>
         <Link href="/work" className="ml-auto text-xs text-indigo-600 hover:underline dark:text-indigo-400">
-          {t("← Work")}
+          {t("← Code")}
         </Link>
       </header>
       <ExtFrame plugin={plugin.id} entry={panel.entry} title={panel.title} context={{ runId: num(sp.runId), ticket: sp.ticket?.slice(0, 40), todoId: num(sp.todoId) }} />

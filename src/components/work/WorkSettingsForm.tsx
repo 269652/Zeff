@@ -22,7 +22,7 @@ export function WorkSettingsForm({
 }: {
   s: WorkSettingsView;
   repos: { name: string; ok: boolean }[];
-  /** The Settings provider's model ("" = its CLI's default) — preselected, unless the Work tab picked another. */
+  /** The Settings provider's model ("" = its CLI's default) — preselected, unless the Code tab picked another. */
   defaultModel: string;
   models: { value: string; label: string }[];
   provider: "claude" | "copilot";
@@ -83,7 +83,7 @@ export function WorkSettingsForm({
               <span>{copilotModeLabels(t)[m]}</span>
             </label>
           ))}
-          <p className="text-xs text-zinc-500">{t("Interactive and Autopilot run as a session on the Work tab: you answer permissions and questions there and can switch the mode any time. Restarting Zeff ends a running session.")}</p>
+          <p className="text-xs text-zinc-500">{t("Interactive and Autopilot run as a session on the Code tab: you answer permissions and questions there and can switch the mode any time. Restarting Zeff ends a running session.")}</p>
         </div>
       </fieldset>
 

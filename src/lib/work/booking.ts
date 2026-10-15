@@ -1,5 +1,8 @@
+import { workStart } from "./start";
+import { autoGroup, collectSpanFor } from "@/lib/entry-parallel";
+import { entryRow } from "@/lib/entry-spans";
 import { mailLink } from "@/lib/mail/shared";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { jiraCommentUrl, sourcesOf, todoRef } from "@/lib/boards/shared";
 import { todoSources } from "@/lib/boards/sources";
@@ -138,12 +141,15 @@ export function groupTime(list: { id: number; text: string }[], runs: (typeof wo
 }
 
 /** The todos with unbooked time tracked today that no suggestion covers. */
+/** The day before (YYYY-MM-DD): the cut for what is read from the database - zone slack included - before the exact day test. */
+const dayBefore = (day: string) => isoDate(new Date(new Date(`${day}T12:00:00`).getTime() - 864e5));
+
 function trackedTodayIds(suggested: ReturnType<typeof suggestedEvidence>, today = isoDate(new Date())): Set<number> {
   return new Set(
     getDb()
       .select({ todoId: todoTime.todoId, id: todoTime.id, at: todoTime.at })
       .from(todoTime)
-      .where(isNull(todoTime.entryId))
+      .where(and(isNull(todoTime.entryId), sql`${todoTime.at} >= ${dayBefore(today)}`))
       .all()
       .filter((r) => !suggested.timeIds.has(r.id) && isoDate(new Date(r.at)) === today)
       .map((r) => r.todoId),
@@ -160,7 +166,7 @@ export function doneToday(): DoneToday[] {
   const today = isoDate(new Date());
   // What an agent suggested a booking for already (a shadow row of its own): not here again.
   const suggested = suggestedEvidence();
-  const done = listTodos({ status: "done" }).filter(
+  const done = listTodos({ status: "done", doneSince: dayBefore(today) }).filter(
     (todo) => todo.doneAt && isoDate(new Date(todo.doneAt)) === today,
   );
   // Time tracked on a todo today — whatever its state: the todo goes in with the time (it stays open).
@@ -357,20 +363,27 @@ export function bookDoneToday(v: {
   }
   if (!(v.hours > 0) || v.hours > 24)
     throw new ValidationError(t("Hours: more than 0, at most 24."));
-  const jobNumber = getTicketDefaultJob(v.ticket);
+  // A group day (a mob day): with no job of its own the todo books on the collecting entry's job — and is grouped under it.
+  const today = isoDate(new Date());
+  const groupDay = collectSpanFor(today, { hours: v.hours });
+  const groupJob = groupDay ? getDb().select({ number: schema.jobs.number }).from(schema.jobs).where(eq(schema.jobs.id, entryRow(groupDay.head.id)!.jobId)).get()?.number : undefined;
+  const jobNumber = getTicketDefaultJob(v.ticket) ?? groupJob;
   if (!jobNumber)
     throw new ValidationError(
       t("{ticket} has no job — give it (or its board) one on the Jira tab.", {
         ticket: v.ticket,
       }),
     );
+  // Its start: when the work on it began (the runs' start — start_todo —, the time records) — not when it is booked.
+  const start = workStart(today, { todoIds: open, timeIds: time.timeIds });
   const entry = createEntry(
     {
       jobNumber,
-      date: isoDate(new Date()),
+      date: today,
       hours: round2(v.hours),
       description: v.description.trim() || v.ticket,
       ticket: v.ticket,
+      ...(start ? { start } : {}),
     },
     "web",
   );
@@ -386,5 +399,7 @@ export function bookDoneToday(v: {
     .set({ entryId: entry.id })
     .where(and(inArray(workRuns.todoId, closed.length ? closed : [-1]), isNull(workRuns.entryId)))
     .run();
+  // Grouped with what it runs parallel to: a collecting entry's day (even without a start), tasks of its job at the same time (by its start).
+  if (groupDay || start) autoGroup(entry.id);
   return { entryId: entry.id, hours: round2(v.hours), todoIds: open };
 }

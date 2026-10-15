@@ -1,5 +1,5 @@
 /**
- * The Work tab — todos handed to workers (Claude Code or the Copilot CLI, unattended): the parts
+ * The Code tab — todos handed to workers (Claude Code or the Copilot CLI, unattended): the parts
  * pages and the server share (client-safe: no DB access here).
  */
 import { actionHref } from "@/plugins/actions/catalog";
@@ -132,7 +132,8 @@ export const WORK_RESULT_SCHEMA = {
     },
     summary: {
       type: "string",
-      description: "Was du getan hast, in Markdown, knapp: Erledigt (je Punkt womit geprüft), Offen, Tests/Checks, Doku — und wo die Änderungen liegen (Branch, Commits).",
+      description:
+        "Dein Bericht in Markdown, IMMER in dieser Form: zuerst EIN Satz, was jetzt erledigt ist (oder warum nicht); dann \"## Erledigt\" (je Punkt womit geprüft), \"## Offen\" (was bleibt und warum), \"## Geprüft\" (Tests, Build, manuelle Prüfung — und was NICHT lief, mit Grund), \"## Ort\" (Branch, Commit). Nichts erfinden: was nicht lief, steht als nicht gelaufen da.",
     },
     entry: { type: "string", description: "Eine Zeile (< 80 Zeichen) für die Zeitbuchung: was gemacht wurde, ohne Ticket-Key." },
     completedTodos: {
@@ -157,15 +158,15 @@ export const WORK_RESULT_SCHEMA = {
         },
       },
     },
-    changes: { type: "array", items: { type: "string" }, description: "Geänderte Dateien und Commits." },
-    checks: { type: "array", items: { type: "string" }, description: "Ausgeführte Tests und Prüfungen, je mit Ergebnis." },
+    changes: { type: "array", items: { type: "string" }, description: "Jede geänderte Datei oder Stelle in einer Zeile (Pfad: was) und die Commits (Hash: Titel) — vollständig." },
+    checks: { type: "array", items: { type: "string" }, description: "Jede Prüfung in einer Zeile, auch die nicht gelaufenen: \"Befehl/Art: Ergebnis\" bzw. \"nicht gelaufen: Grund\"." },
     draft: { type: "string", description: "Nur beim Entwurf-Auftrag: die fertige Nachricht." },
     channel: { type: "string", enum: ["jira", "teams", "gitlab", "none"], description: "Nur beim Entwurf-Auftrag: wohin die Nachricht geht." },
     target: { type: "string", description: "Nur beim Entwurf-Auftrag: Ticket-Key, teams:<Kennung> oder gitlab:note:<id>." },
   },
 } as const;
 
-/** One line of a run's log, as the Work tab shows it. */
+/** One line of a run's log, as the Code tab shows it. */
 export type WorkLogLine =
   /** Session, model, folder, permission mode. */
   | { k: "start"; text: string; /** The model that answers, as the CLI reports it. */ model?: string }
@@ -250,7 +251,7 @@ export type WorkIsolation = "worktree" | "checkout";
 
 /**
  * A live Claude session's permission modes (Claude Code's, switchable while it runs): what it may
- * do without asking — and what it asks you on the Work tab. "default" is Claude Code's "ask".
+ * do without asking — and what it asks you on the Code tab. "default" is Claude Code's "ask".
  */
 export const CLAUDE_MODES = ["default", "acceptEdits", "auto", "plan", "dontAsk", "bypassPermissions"] as const;
 export type ClaudeMode = (typeof CLAUDE_MODES)[number];
@@ -268,7 +269,7 @@ export const isClaudeMode = (v: unknown): v is ClaudeMode => typeof v === "strin
 export const EFFORTS = ["", "low", "medium", "high", "xhigh", "max"] as const;
 export type Effort = (typeof EFFORTS)[number];
 
-/** How a session is started — the composer's choices (the rest from the Work settings). */
+/** How a session is started — the composer's choices (the rest from the Code settings). */
 export type SessionOptions = {
   /** A mode its driver offers (Claude: default, acceptEdits, auto, plan …). */
   permissionMode?: string;
@@ -278,7 +279,7 @@ export type SessionOptions = {
   elevated?: boolean;
 };
 
-/** The Work tab's settings for live Claude sessions (a pref, not columns). */
+/** The Code tab's settings for live Claude sessions (a pref, not columns). */
 export type ClaudeSessionSettings = {
   /** Claude workers as live sessions (talk to them, answer them) — off: one-shot runs as before. */
   live: boolean;

@@ -28,6 +28,11 @@ export type DocView = {
   updatedAt: string;
 };
 
+/** A picture (or file) of the store inside a note: ![title](doc:12) — what typing ![title]( in the note editor completes. */
+export const NOTE_IMAGE = /!\[([^\]\n]*)\]\(doc:(\d+)\)/g;
+/** The documents a note references inline. */
+export const noteImageIds = (text: string): number[] => [...new Set([...text.matchAll(NOTE_IMAGE)].map((m) => Number(m[2])))];
+
 export const docRef = (id: number) => `doc:${id}`;
 export const docIdOf = (ref: string): number | null => (/^doc:\d+$/.test(ref) ? Number(ref.slice(4)) : null);
 

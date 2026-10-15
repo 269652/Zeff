@@ -140,10 +140,10 @@ function TicketActionButton({
         {pending ? "…" : action.label}
       </button>
       {action.why && (
-        <p className="text-[11px] leading-snug text-zinc-400">{action.why}</p>
+        <p className="text-xs leading-snug text-zinc-400">{action.why}</p>
       )}
       {done?.status === "failed" && (
-        <p className="text-[11px] leading-snug text-red-600 dark:text-red-400">
+        <p className="text-xs leading-snug text-red-600 dark:text-red-400">
           {t("Failed: {detail}", { detail: done.detail })}
         </p>
       )}
@@ -206,7 +206,7 @@ function TicketRow({
             className="font-mono text-sm font-semibold text-indigo-700 dark:text-indigo-300"
           />
           <span className="font-medium">{facts.summary}</span>
-          <span className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wide text-zinc-600 uppercase dark:bg-zinc-800 dark:text-zinc-300">
+          <span className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs font-semibold tracking-wide text-zinc-600 uppercase dark:bg-zinc-800 dark:text-zinc-300">
             {facts.status}
           </span>
           {facts.followed && (
@@ -214,7 +214,7 @@ function TicketRow({
           )}
           {a && (
             <span
-              className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${ATT[attention].chip}`}
+              className={`rounded px-1.5 py-0.5 text-xs font-medium ${ATT[attention].chip}`}
             >
               {attentionLabels(t)[attention]}
             </span>
@@ -391,7 +391,7 @@ function TicketRow({
             </div>
           </details>
         )}
-        <div className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[11px] text-zinc-400">
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-xs text-zinc-400">
           {facts.issueType && <span>{facts.issueType}</span>}
           {facts.priority && <span>{facts.priority}</span>}
           <span>
@@ -441,7 +441,7 @@ function TicketRow({
           href="/work"
           className="text-xs text-indigo-600 hover:underline dark:text-indigo-400"
         >
-          {t("Todos on the Work tab")} →
+          {t("Todos on the Code tab")} →
         </Link>
       </div>
     </article>

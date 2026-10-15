@@ -27,14 +27,14 @@ const STYLE: Record<Variant, Record<string, string>> = {
   },
   chat: {
     box: "bg-white p-3 text-sm leading-relaxed text-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-800",
-    start: "font-mono text-[11px] text-zinc-400",
+    start: "font-mono text-xs text-zinc-400",
     say: "",
     chip: "bg-zinc-100 text-sky-700 dark:bg-zinc-800 dark:text-sky-300",
     tool: "font-mono text-xs text-zinc-600 dark:text-zinc-300",
     out: "font-mono text-xs text-zinc-500",
     err: "font-mono text-xs text-red-600 dark:text-red-400",
     deny: "text-xs text-amber-700 dark:text-amber-400",
-    note: "text-center text-[11px] text-zinc-400",
+    note: "text-center text-xs text-zinc-400",
     raw: "font-mono text-xs whitespace-pre-wrap text-zinc-500",
     user: "ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-indigo-600 px-3 py-2 whitespace-pre-wrap text-white",
     ask: "rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100",
@@ -79,7 +79,7 @@ function Line({ l, v }: { l: WorkLogLine; v: Variant }) {
     case "tool": {
       const head = (
         <>
-          <span className={`mr-1.5 rounded px-1 text-[11px] ${s.chip}`}>{l.tool}</span>
+          <span className={`mr-1.5 rounded px-1 text-xs ${s.chip}`}>{l.tool}</span>
           <span className="break-all">{l.text}</span>
         </>
       );
@@ -110,7 +110,7 @@ function Line({ l, v }: { l: WorkLogLine; v: Variant }) {
       );
       return l.full ? (
         <Fold className={`pl-4 ${l.error ? s.err : s.out}`} summary={head}>
-          <pre className="max-h-96 overflow-auto rounded bg-zinc-950 p-2 text-[11px] whitespace-pre-wrap text-zinc-300">{l.full}</pre>
+          <pre className="max-h-96 overflow-auto rounded bg-zinc-950 p-2 text-xs whitespace-pre-wrap text-zinc-300">{l.full}</pre>
         </Fold>
       ) : (
         <div className={`pl-4 ${l.error ? s.err : s.out}`}>{head}</div>
@@ -126,7 +126,7 @@ function Line({ l, v }: { l: WorkLogLine; v: Variant }) {
     case "shell":
       return (
         <Fold className={s.shell} summary={<span className={l.ok ? "text-amber-300" : "text-red-300"}>! {l.cmd}</span>}>
-          <pre className="max-h-96 overflow-auto text-[11px] whitespace-pre-wrap text-zinc-300">{l.text || t("(no output)")}</pre>
+          <pre className="max-h-96 overflow-auto text-xs whitespace-pre-wrap text-zinc-300">{l.text || t("(no output)")}</pre>
         </Fold>
       );
     case "note":

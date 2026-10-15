@@ -1,5 +1,5 @@
-import { getJobNumberForTicket, listWeekTickets, type TicketSuggestion } from "./entries";
-import { getJobByNumber } from "./jobs";
+import { jobNumbersByTicket, listWeekTickets, type TicketSuggestion } from "./entries";
+import { jobsByNumber } from "./jobs";
 import { ticketSuggestions as jiraTicketSuggestions } from "./jira/store";
 import type { WeekInfo } from "./week";
 
@@ -11,11 +11,13 @@ import type { WeekInfo } from "./week";
 export function getEntryTicketSuggestions(week: WeekInfo): TicketSuggestion[] {
   const byKey = new Map<string, TicketSuggestion>();
   for (const t of listWeekTickets(week)) byKey.set(t.ticket.toLowerCase(), t);
+  let history: Map<string, string> | undefined;
+  const jobs = jobsByNumber();
   for (const j of jiraTicketSuggestions()) {
     const key = j.ticket.toLowerCase();
     if (byKey.has(key)) continue;
-    const jobNumber = j.jobNumber ?? getJobNumberForTicket(j.ticket);
-    const job = jobNumber ? getJobByNumber(jobNumber) : undefined;
+    const jobNumber = j.jobNumber ?? (history ??= jobNumbersByTicket()).get(j.ticket.trim().toLowerCase());
+    const job = jobNumber ? jobs.get(jobNumber.trim().toLowerCase()) : undefined;
     byKey.set(key, {
       ticket: j.ticket,
       jobId: job?.id ?? 0,

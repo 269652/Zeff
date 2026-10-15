@@ -164,18 +164,18 @@ export function PauseCell({
             <>
               <span className="block tabular-nums">{formatHours(totalPauseHours(pauses))}</span>
               {pauses.map((p) => (
-                <span key={p.start} className="block text-[11px] leading-tight whitespace-nowrap text-zinc-400 dark:text-zinc-500">
+                <span key={p.start} className="block text-xs leading-tight whitespace-nowrap text-zinc-400 dark:text-zinc-500">
                   {p.start}–{p.end}
                 </span>
               ))}
             </>
           ) : noBreak ? (
-            <span className="text-[11px] whitespace-nowrap text-zinc-400 dark:text-zinc-500">{t("no break")}</span>
+            <span className="text-xs whitespace-nowrap text-zinc-400 dark:text-zinc-500">{t("no break")}</span>
           ) : showShadow ? (
             <span className="text-zinc-300 dark:text-zinc-600">
               <span className="block tabular-nums">{formatHours(totalPauseHours(shadow))}</span>
               {shadow.map((p) => (
-                <span key={p.start} className="block text-[11px] leading-tight whitespace-nowrap">
+                <span key={p.start} className="block text-xs leading-tight whitespace-nowrap">
                   {p.start}–{p.end}
                 </span>
               ))}
@@ -197,7 +197,7 @@ export function PauseCell({
           <div className="flex items-baseline justify-between gap-2">
             <span className="text-xs font-semibold text-zinc-500 uppercase">{t("Break · {day}", { day: dayLabel })}</span>
             {!entered && offer.length > 0 && (
-              <span className="text-[11px] text-zinc-400">
+              <span className="text-xs text-zinc-400">
                 {shadow.length ? t("default break — Enter takes it") : t("last break — Enter repeats it")}
               </span>
             )}
@@ -258,7 +258,7 @@ export function PauseCell({
               </button>
             )}
           </div>
-          <p className="text-[11px] leading-snug text-zinc-400">
+          <p className="text-xs leading-snug text-zinc-400">
             {t(
               "Enter saves · Esc closes. Type 12-12:30, 12:15 45m, just 30 (minutes from {start}) or none; separate several breaks with “;”. Changing a start or end moves the break (its length stays) — use a preset or “12:00 45m” to change the length.",
               { start: defaultStart },

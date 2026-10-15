@@ -45,7 +45,7 @@ export function prerequisites(): Prerequisite[] {
     {
       id: "git",
       label: "Git",
-      neededFor: t("The Work tab (worktrees, diffs, commits) and the repos"),
+      neededFor: t("The Code tab (worktrees, diffs, commits) and the repos"),
       found: gitPath(),
       howToGet: t("Install Git: {command}", { command: installCommand("git") }),
     },
@@ -59,21 +59,21 @@ export function prerequisites(): Prerequisite[] {
     {
       id: "claude",
       label: t("Claude CLI"),
-      neededFor: t("AI answers and Work sessions with Claude"),
+      neededFor: t("AI answers and Code sessions with Claude"),
       found: findClaudeCli(),
       howToGet: t("Install Claude Code (https://claude.com/claude-code), then sign in once with “claude”. CLAUDE_CLI names its program."),
     },
     {
       id: "codex",
       label: t("Codex CLI"),
-      neededFor: t("AI answers and Work sessions with ChatGPT"),
+      neededFor: t("AI answers and Code sessions with ChatGPT"),
       found: codex?.where ?? null,
       howToGet: t("Install it with Node.js: npm install -g @openai/codex — then “codex login” once. CODEX_CLI names its program."),
     },
     {
       id: "copilot",
       label: t("Copilot CLI"),
-      neededFor: t("AI answers and Work sessions with GitHub Copilot"),
+      neededFor: t("AI answers and Code sessions with GitHub Copilot"),
       found: copilot?.where ?? null,
       howToGet: t("Install it with Node.js: npm install -g @github/copilot — then “/login” in copilot once. COPILOT_CLI names its program."),
     },

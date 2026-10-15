@@ -9,7 +9,7 @@
 
 import { integrationManifests } from "@/lib/integrations/meta";
 
-export const CORE_PLUGIN_IDS = ["zeiterfassung", "weekly-report", "monthly-report", "todos", "tickets", "kanban", "jira-lage", "work", "work-elevated", "auto-actions", "backup", "accounts", "knowledge", "people", "news", "documents", "google-drive", "jira", "llm", "copilot-cli", "claude-cli", "codex-cli", "outlook-mail", "gmail", "whatsapp", "signal", "keep", "keep-write", "calendar", "google-calendar", "outlook-calendar", "teams", "gitlab", "lang-en", "lang-de", "lang-es"] as const;
+export const CORE_PLUGIN_IDS = ["zeiterfassung", "weekly-report", "monthly-report", "todos", "tickets", "kanban", "jira-lage", "work", "work-elevated", "auto-actions", "backup", "accounts", "knowledge", "people", "news", "documents", "workspace", "google-drive", "jira", "llm", "copilot-cli", "claude-cli", "codex-cli", "outlook-mail", "gmail", "whatsapp", "signal", "keep", "keep-write", "calendar", "google-calendar", "outlook-calendar", "teams", "gitlab", "lang-en", "lang-de", "lang-es"] as const;
 /** A plugin: one of Zeff's own, or one a mounted integration brings (any string — its meta.ts names it). */
 export type PluginId = (typeof CORE_PLUGIN_IDS)[number] | (string & {});
 export const isPluginId = (v: unknown): v is PluginId => (CORE_PLUGIN_IDS as readonly unknown[]).includes(v) || integrationManifests().some((m) => m.id === v);
@@ -48,7 +48,12 @@ export type PluginManifest = {
   extensions?: import("./extensions").ExtensionDecl[];
   /** Beta: works, but may break — the warning shown with it (Plugins page, before installing, where it acts). */
   beta?: string;
+  /** Experimental: not an official integration of the service (it drives its web page or internals) — why it can break or be refused; shown with the liability disclaimer (Plugins page, before installing, where it acts). */
+  experimental?: string;
 };
+
+/** Shown with every experimental plugin: no warranty, no liability. */
+export const EXPERIMENTAL_DISCLAIMER = "No warranty, no liability: Zeff is provided as it is. Automated access can go against the terms of the service or of your employer and can get your account restricted or blocked; it can also read or write wrong data. You use this plugin at your own risk — the author accepts no liability for any damage or consequence of using it.";
 
 /** Zeff's own plugins; the integrations' (mounted from their own repositories: Chrono, Punch) are added to them in PLUGINS. */
 const CORE_PLUGINS: PluginManifest[] = [
@@ -135,12 +140,12 @@ const CORE_PLUGINS: PluginManifest[] = [
   {
     id: "work",
     settings: { href: "/repos", what: "The repos the workers work in" },
-    name: "Work",
+    name: "Code",
     description: "Workers and agents on your todos: runs, live sessions, branches and repos, delivery — and the MCP tools for agents.",
     category: "app",
     defaultInstalled: true,
     dependsOn: ["todos", "llm"],
-    tabs: [{ href: "/work", label: "Work", short: "Work" }],
+    tabs: [{ href: "/work", label: "Code", short: "Code" }],
     nav: [{ href: "/repos", label: "Repos", hint: "Where workers implement" }],
     routes: ["/work", "/api/work", "/repos"],
   },
@@ -149,7 +154,7 @@ const CORE_PLUGINS: PluginManifest[] = [
     settings: { href: "/work/admin", what: "Ask Windows each time (UAC), or start them without asking (a scheduled task, set up once)" },
     name: "Admin sessions",
     description:
-      "Live Claude sessions on the Work tab as administrator (Windows): installing software, services, system settings, anything that needs elevation. Each time Windows asks you (UAC) — or, set up once, a scheduled task starts them without asking.",
+      "Live Claude sessions on the Code tab as administrator (Windows): installing software, services, system settings, anything that needs elevation. Each time Windows asks you (UAC) — or, set up once, a scheduled task starts them without asking.",
     category: "app",
     defaultInstalled: false,
     dependsOn: ["work", "claude-cli"],
@@ -174,6 +179,16 @@ const CORE_PLUGINS: PluginManifest[] = [
     category: "system",
     defaultInstalled: true,
     nav: [{ href: "/preferences#backups", label: "Backups", hint: "Encrypted backups & restore" }],
+  },
+  {
+    id: "workspace",
+    name: "Workspace",
+    description:
+      "Pages and databases, like Notion — and wired into Zeff: a block editor (headings, lists, to-dos, tables, callouts, toggles, code, pictures; type / for blocks), pages in a tree with backlinks, history and a trash, databases with table, board, list, gallery and calendar views, filters, sorts, formulas and relations — and what Notion can't do: @-mention your people, todos and tickets, AI that writes, summarises and turns a page into todos, notes that agents can read and write through the MCP, and everything searchable in Zeff.",
+    category: "app",
+    defaultInstalled: false,
+    apps: [{ href: "/workspace", label: "Workspace", short: "Space", hint: "Pages and databases" }],
+    routes: ["/workspace", "/api/workspace"],
   },
   {
     id: "google-drive",
@@ -344,7 +359,7 @@ const CORE_PLUGINS: PluginManifest[] = [
   {
     id: "copilot-cli",
     name: "GitHub Copilot CLI",
-    description: "Copilot as the AI for the briefing, the mail steps and the workers — interactive too (ACP): permissions, questions and mode on the Work tab.",
+    description: "Copilot as the AI for the briefing, the mail steps and the workers — interactive too (ACP): permissions, questions and mode on the Code tab.",
     category: "ai",
     defaultInstalled: true,
     dependsOn: ["llm"],
@@ -378,7 +393,7 @@ const CORE_PLUGINS: PluginManifest[] = [
     description: "Reads your inbox in Outlook Web (only the list, nothing is opened) — mails as context for todos, the mail review and mail matching.",
     category: "connector",
     defaultInstalled: true,
-    requires: "The automation Chrome with Outlook Web, signed in.",
+    requires: "The automation Chrome with Outlook Web, signed in — or Microsoft's API with your own sign-in (Connections page).",
     apps: [{ href: "/mail", label: "Messages", short: "Msgs", hint: "All mails and chats in one place, their sync" }],
     routes: ["/mail", "/api/boards/mail-relations"],
     syncSteps: ["mail", "mailtodos", "relations"],
@@ -390,7 +405,7 @@ const CORE_PLUGINS: PluginManifest[] = [
     description: "Reads your Gmail inbox in the account's automation Chrome (only the list, nothing is opened or marked as read) — mails as context for todos, the mail review, mail matching and knowledge; with or instead of Outlook.",
     category: "connector",
     defaultInstalled: false,
-    requires: "The account's automation Chrome with Gmail (mail.google.com), signed in.",
+    requires: "The account's automation Chrome with Gmail (mail.google.com), signed in — or Google's API with your own sign-in (Connections page).",
     apps: [
       { href: "/apps/gmail", label: "Gmail", short: "Gmail", hint: "Your Gmail mails, per account" },
       { href: "/mail", label: "Messages", short: "Msgs", hint: "All mails and chats in one place, their sync" },
@@ -414,6 +429,7 @@ const CORE_PLUGINS: PluginManifest[] = [
     id: "whatsapp",
     name: "WhatsApp",
     description: "Reads your chats in WhatsApp Web in the account's automation Chrome — only the chat list (per chat the last message, who, when, unread); no chat is opened, so nothing is marked as read (no blue ticks). The messages go into the review (todos), matching and knowledge, just like mails.",
+    experimental: "Zeff reads WhatsApp Web in the automation Chrome, as if by hand. WhatsApp does not offer an API for this, its terms forbid automated access, and it can restrict or ban an account it suspects of it. A WhatsApp update can stop the sync or make it read wrongly.",
     category: "connector",
     defaultInstalled: false,
     requires: "The account's automation Chrome with WhatsApp Web (web.whatsapp.com), linked to your phone.",
@@ -439,9 +455,9 @@ const CORE_PLUGINS: PluginManifest[] = [
     id: "signal",
     name: "Signal",
     description: "Reads your Signal chats from Signal Desktop on this computer (over its local debug port) — the messages of your active chats; no chat is opened, so nothing is marked as read. The messages go into the review (todos), matching and knowledge, just like mails.",
+    experimental: "Zeff reads Signal Desktop through its internals, over a debug port — a Signal update can change them and stop the sync until Zeff is adapted. While the port is open, any program on this computer could read Signal through it (as with the automation Chrome). Signal does not offer an API for this.",
     category: "connector",
     defaultInstalled: false,
-    beta: "Zeff reads Signal Desktop through its internals, over a debug port — a Signal update can change them and stop the sync until Zeff is adapted. While the port is open, any program on this computer could read Signal through it (as with the automation Chrome).",
     requires: "Signal Desktop on this computer, linked to your phone — running with its debug port (Zeff starts it so, or sets up its autostart).",
     apps: [
       { href: "/apps/signal", label: "Signal", short: "Signal", hint: "Your Signal chats, their latest messages" },
@@ -465,6 +481,7 @@ const CORE_PLUGINS: PluginManifest[] = [
     id: "keep",
     name: "Google Keep",
     description: "Notes like in Google Keep: your own note boards in Zeff (Private, Ideas, Shopping …) with notes, lists, colours, labels — and your Google Keep notes, read in the account's automation Chrome (Keep opened in a new tab, what Keep loads taken over, tab closed; nothing changes in Keep). Everything is in the Keep app, in knowledge (also as a source of its own for the knowledge server), for agents — and with its extensions in the briefing and the todos.",
+    experimental: "Zeff reads Google Keep through its web page in the automation Chrome — Google offers no API for personal Keep notes. If Google changes the page, the sync can fail or miss notes, and Google can object to automated access to your account.",
     category: "connector",
     defaultInstalled: false,
     requires: "For Google Keep: the account's automation Chrome, signed in to Google (keep.google.com). Your own boards need nothing.",
@@ -544,9 +561,10 @@ const CORE_PLUGINS: PluginManifest[] = [
     id: "google-calendar",
     name: "Google Calendar",
     description: "Reads your Google calendars in the account's automation Chrome — the week view in a new tab, week by week (last week, this one and the next three), then closed again; nothing changes in Google. Every Google calendar (yours, family, birthdays …) shows in the Calendar app, its events count for free slots.",
+    settings: { href: "/connections", what: "How it is reached: the automation Chrome or its API" },
     category: "connector",
     defaultInstalled: false,
-    requires: "The account's automation Chrome, signed in to Google (calendar.google.com).",
+    requires: "The account's automation Chrome, signed in to Google (calendar.google.com) — or Google's API with your own sign-in (Connections page).",
     dependsOn: ["calendar"],
     syncSteps: ["gcalendar"],
     services: ["gcalendar"],
@@ -565,9 +583,10 @@ const CORE_PLUGINS: PluginManifest[] = [
     id: "outlook-calendar",
     name: "Outlook Calendar",
     description: "Reads your meetings from Outlook (automation Chrome, bookmarklet or Microsoft sign-in) — meetings to book, with job and exclusion rules.",
+    settings: { href: "/connections", what: "How it is reached: the automation Chrome or its API" },
     category: "connector",
     defaultInstalled: true,
-    requires: "The automation Chrome with Outlook Web, signed in.",
+    requires: "The automation Chrome with Outlook Web, signed in — or Microsoft's API with your own sign-in (Connections page).",
     apps: [{ href: "/calendar", label: "Book meetings", short: "Book", hint: "The calendars' meetings, taken over as entries" }],
     routes: ["/calendar", "/import", "/api/calendar"],
     syncSteps: ["calendar"],
@@ -577,9 +596,10 @@ const CORE_PLUGINS: PluginManifest[] = [
     id: "teams",
     name: "Microsoft Teams",
     description: "Reads your mentions and chats in Teams Web — context for the briefing and todos; sends Teams messages on a click.",
+    settings: { href: "/connections", what: "How it is reached: the automation Chrome or its API" },
     category: "connector",
     defaultInstalled: true,
-    requires: "The automation Chrome with Teams Web, signed in.",
+    requires: "The automation Chrome with Teams Web, signed in — or Microsoft's API with your own sign-in (Connections page).",
     apps: [{ href: "/teams", label: "Teams", short: "Teams", hint: "Your mentions and messages" }],
     routes: ["/teams"],
     syncSteps: ["teams"],
@@ -592,7 +612,7 @@ const CORE_PLUGINS: PluginManifest[] = [
     description: "Reads merge requests, comments and branches — context, delivery (push, MR, merge) and replies to comments on a click.",
     category: "connector",
     defaultInstalled: true,
-    requires: "The automation Chrome with GitLab, signed in (and git).",
+    requires: "The automation Chrome with GitLab, signed in (and git) — or GitLab's API with a token or your own sign-in.",
     nav: [{ href: "/gitlab", label: "GitLab", hint: "Merge requests, comments & branches" }],
     routes: ["/gitlab"],
     syncSteps: ["gitlab"],

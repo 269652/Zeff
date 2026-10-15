@@ -396,7 +396,8 @@ if (release) {
   console.log(`Release ${version} (${exactTag ? `tag ${exactTag}, ` : "no tag on this commit, "}commit ${commit}) for ${target}`);
 }
 if (args.has("--launcher-only")) {
-  if (!fs.existsSync(app)) throw new Error(`${app} doesn't exist yet — run without --launcher-only first.`);
+  // A bundle without app/ is fine: zeff-launcher.json's "appDir" can point it at a checkout.
+  if (!fs.existsSync(bundle)) throw new Error(`${bundle} doesn't exist yet — run without --launcher-only first.`);
 } else {
   buildApp();
 }

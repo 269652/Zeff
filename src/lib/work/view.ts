@@ -10,7 +10,7 @@ export type WorkSettingsData = {
   preferred: "claude" | "copilot";
   /** The repos (Repos page) — none: workers have nowhere to work yet. */
   repos: { name: string; ok: boolean }[];
-  /** The Settings provider's model (what workers get unless the Work settings pick another), and the models to pick from. */
+  /** The Settings provider's model (what workers get unless the Code settings pick another), and the models to pick from. */
   defaultModel: string;
   models: { value: string; label: string }[];
 };

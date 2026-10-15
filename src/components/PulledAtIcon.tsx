@@ -70,7 +70,7 @@ export function PulledAtIcon({
           <span
             role="tooltip"
             style={{ position: "fixed", top: tip.top, bottom: tip.bottom, right: tip.right }}
-            className="pointer-events-none z-[100] w-max max-w-64 rounded-md bg-zinc-900 px-2.5 py-1.5 text-left text-[11px] leading-snug font-normal text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900"
+            className="pointer-events-none z-[100] w-max max-w-64 rounded-md bg-zinc-900 px-2.5 py-1.5 text-left text-xs leading-snug font-normal text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900"
           >
             <span className="block font-medium">
               {pulled

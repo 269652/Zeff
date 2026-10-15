@@ -69,6 +69,8 @@ export type MeetingJobRule = {
   match: string;
   /** Job number to book the meeting on (e.g. "AB123-000001-00"). */
   jobNumber: string;
+  /** A group meeting (a mob day): its entry collects the day's work — what you implement is itemized under it, not booked on top. */
+  group?: boolean;
 };
 
 /** The job number of the first rule whose `match` is a substring of the title, else undefined. */
@@ -79,6 +81,16 @@ export function jobForMeeting(subject: string, rules: MeetingJobRule[]): string 
     if (needle && r.jobNumber && s.includes(needle)) return r.jobNumber;
   }
   return undefined;
+}
+
+/** Whether the first rule matching the title is a group rule (see MeetingJobRule.group). */
+export function groupForMeeting(subject: string, rules: MeetingJobRule[]): boolean {
+  const s = (subject ?? "").toLowerCase();
+  for (const r of rules) {
+    const needle = (r.match ?? "").trim().toLowerCase();
+    if (needle && r.jobNumber && s.includes(needle)) return !!r.group;
+  }
+  return false;
 }
 
 /** Whether a meeting title matches an exclude rule (case-insensitive "title contains"). */

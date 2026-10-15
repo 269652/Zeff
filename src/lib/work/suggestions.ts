@@ -5,6 +5,9 @@ import { listTodos, todosByIds } from "@/lib/boards/store";
 import { todoRef, type TodoView } from "@/lib/boards/shared";
 import { emitChange } from "@/lib/events";
 import { createEntry, getJobNumberForTicket } from "@/lib/entries";
+import { autoGroup, collectSpanFor } from "@/lib/entry-parallel";
+import { workStart } from "./start";
+import type { SpanMode } from "@/lib/entry-spans";
 import { ValidationError } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { round2 } from "@/lib/format";
@@ -328,18 +331,48 @@ export function skipSuggestion(id: number): void {
   emitChange("work");
 }
 
+/** When the work of a suggestion began that day ("HH:MM", local): as recorded — a run's start (start_todo) or a record's end minus its minutes — never when it is booked; null when nothing dated that day is on record. */
+function evidenceStart(r: { date: string; todoIds: string; runIds: string; timeIds: string }): string | null {
+  return workStart(r.date, { todoIds: ids(r.todoIds), runIds: ids(r.runIds), timeIds: ids(r.timeIds) });
+}
+
+/** A suggestion's evidence booked on an entry: its time records, todos (with their context) and runs. */
+function bookEvidence(entryId: number, r: { ticket: string | null; todoIds: string; runIds: string; timeIds: string }, withContext: boolean): void {
+  const todoIds = ids(r.todoIds);
+  const runIds = ids(r.runIds);
+  markTimeBooked(ids(r.timeIds), entryId);
+  if (todoIds.length) {
+    getDb().update(todos).set({ entryId }).where(and(inArray(todos.id, todoIds), isNull(todos.entryId))).run();
+    // Its context: here, or (context: false) by the caller once the booking is answered.
+    if (withContext) attachTodoContext(entryId, r.ticket, todoIds);
+  }
+  if (runIds.length) getDb().update(workRuns).set({ entryId }).where(and(inArray(workRuns.id, runIds), isNull(workRuns.entryId))).run();
+}
+
 /**
  * Take a suggestion over — with the hours and words you settled on: a real entry (by the agent,
  * source mcp), its evidence as the entry's context (the todos, what they came from, the MRs),
  * its todos and runs booked with it.
  */
-export function acceptSuggestion(id: number, edits: { hours?: number; description?: string } = {}, opts: { context?: boolean } = {}): { entryId: number; hours: number; ticket: string | null; todoIds: number[] } {
+export function acceptSuggestion(
+  id: number,
+  edits: { hours?: number; description?: string } = {},
+  /** group: "none" books it as a normal entry even if it runs parallel to other work (a mob day's group entry, other tasks); else it is grouped by default. */
+  opts: { context?: boolean; group?: "none" } = {},
+): { entryId: number; hours: number; ticket: string | null; todoIds: number[]; parallel?: { mode: SpanMode; spanId: string; ids: number[] } } {
   const r = requireOpen(id);
-  const job = jobOf(r);
-  if (!job && !r.projectId) {
+  const hours = edits.hours !== undefined ? round2(Number(edits.hours)) : r.hours;
+  const start = evidenceStart(r);
+  let jobNumber = jobOf(r)?.number;
+  // No job of its own: on a day with a collecting entry (a mob day) it books on that entry's job.
+  const collecting = opts.group === "none" ? undefined : collectSpanFor(r.date, { start, hours });
+  if (!jobNumber && !r.projectId && collecting?.head) {
+    const headJob = getDb().select({ number: schema.jobs.number }).from(schema.timeEntries).innerJoin(schema.jobs, eq(schema.jobs.id, schema.timeEntries.jobId)).where(eq(schema.timeEntries.id, collecting.head.id)).get();
+    jobNumber = headJob?.number;
+  }
+  if (!jobNumber && !r.projectId) {
     throw new ValidationError(r.ticket ? t("{ticket} has no job — give it (or its board) one on the Jira tab.", { ticket: r.ticket }) : t("No job to book on."));
   }
-  const hours = edits.hours !== undefined ? round2(Number(edits.hours)) : r.hours;
   if (!(hours > 0) || hours > 24) throw new ValidationError(t("Hours: more than 0, at most 24."));
   const description = (edits.description !== undefined ? oneLine(edits.description) : "") || r.description;
   let tags: string[] = [];
@@ -350,7 +383,7 @@ export function acceptSuggestion(id: number, edits: { hours?: number; descriptio
   }
   const entry = createEntry(
     {
-      jobNumber: r.projectId ? undefined : job!.number,
+      jobNumber: r.projectId ? undefined : jobNumber,
       projectId: r.projectId ?? undefined,
       date: r.date,
       hours,
@@ -359,19 +392,15 @@ export function acceptSuggestion(id: number, edits: { hours?: number; descriptio
       type: r.type ?? undefined,
       tags,
       reportedBy: r.reportedBy,
+      start: start ?? undefined,
     },
     "mcp",
   );
   const todoIds = ids(r.todoIds);
-  const runIds = ids(r.runIds);
-  markTimeBooked(ids(r.timeIds), entry.id);
-  if (todoIds.length) {
-    getDb().update(todos).set({ entryId: entry.id }).where(and(inArray(todos.id, todoIds), isNull(todos.entryId))).run();
-    // Its context: here, or (context: false) by the caller once the booking is answered.
-    if (opts.context !== false) attachTodoContext(entry.id, r.ticket, todoIds);
-  }
-  if (runIds.length) getDb().update(workRuns).set({ entryId: entry.id }).where(and(inArray(workRuns.id, runIds), isNull(workRuns.entryId))).run();
+  bookEvidence(entry.id, r, opts.context !== false);
   getDb().update(entrySuggestions).set({ status: "accepted", entryId: entry.id, hours, description, updatedAt: new Date().toISOString() }).where(eq(entrySuggestions.id, id)).run();
+  // Work parallel to other work (a collecting entry's day, tasks of its job at the same time): grouped with it — nothing is moved, only how it is booked.
+  const parallel = opts.group === "none" ? undefined : (autoGroup(entry.id) ?? undefined);
   emitChange("work");
-  return { entryId: entry.id, hours, ticket: r.ticket, todoIds };
+  return { entryId: entry.id, hours, ticket: r.ticket, todoIds, ...(parallel ? { parallel } : {}) };
 }

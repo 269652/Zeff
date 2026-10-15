@@ -39,7 +39,7 @@ export default async function KnowledgePage() {
             <p className="text-sm text-zinc-500">{t("Questions to the knowledge — Confluence and what Zeff has synced; every answer with its sources.")}</p>
           </div>
           {typeof status === "string" ? (
-            <p className="alert-error text-sm">{status}</p>
+            <p role="alert" className="alert-error text-sm">{status}</p>
           ) : (
             <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
               {(

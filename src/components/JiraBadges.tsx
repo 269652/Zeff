@@ -3,7 +3,7 @@
 import { setJiraCommentResolvedAction } from "@/plugins/jira/server-actions";
 import type { JiraCommentView } from "@/lib/boards/shared";
 import type { JiraTicketBrief } from "@/lib/entities-shared";
-import { ChevronIcon } from "./icons";
+import { SourceCard } from "./SourceCard";
 import { ResolvedMark } from "./ResolvedMark";
 import { ResolveToggle } from "./ResolveToggle";
 import { formatDateTime, formatDayTime } from "@/lib/format";
@@ -12,46 +12,31 @@ import { useT } from "@/components/I18nProvider";
 const full = (iso: string) => formatDayTime(iso, { year: true });
 
 const CARD = "space-y-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-900";
-const BADGE = "flex min-w-0 items-stretch overflow-hidden rounded-md border border-jira-200 bg-jira-50 text-xs text-jira-950 dark:border-jira-900 dark:bg-jira-950/40 dark:text-jira-100";
-const INNER = "flex min-w-0 flex-1 items-center gap-2 py-1 pr-2 pl-1.5 text-left";
-const OPEN = "flex shrink-0 items-center px-2 text-jira-700 transition hover:bg-jira-100 dark:text-jira-300 dark:hover:bg-jira-950";
 
-/** A Jira badge's body: a button that unfolds it (with `onToggle`), else just its content. */
-function Body({ expanded, onToggle, what, children }: { expanded: boolean; onToggle?: () => void; what: "comment" | "ticket"; children: React.ReactNode }) {
-  const t = useT();
-  return onToggle ? (
-    <button type="button" className={`${INNER} cursor-pointer transition hover:bg-jira-100 dark:hover:bg-jira-950`} onClick={onToggle} aria-expanded={expanded} title={expanded ? t("Fold") : what === "comment" ? t("Show the whole comment") : t("Show the whole ticket")}>
-      <ChevronIcon open={expanded} className="size-3.5 shrink-0 text-jira-500 dark:text-jira-400" />
-      {children}
-    </button>
-  ) : (
-    <span className={INNER}>{children}</span>
-  );
-}
-
-/** A Jira comment as a badge: who wrote it on which ticket, when, how it starts; ↗ opens it in Jira. With `onToggle` it unfolds. */
+/** A Jira comment as a small card: who wrote it on which ticket, when, how it starts; ↗ opens it in Jira. With `onToggle` it unfolds. */
 export function JiraCommentBadge({ c, className = "", expanded = false, onToggle }: { c: JiraCommentView; className?: string; expanded?: boolean; onToggle?: () => void }) {
   const t = useT();
   return (
-    <div className={`${BADGE} ${className}`}>
-      <Body expanded={expanded} onToggle={onToggle} what="comment">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinejoin="round" className="size-4 shrink-0 text-jira-500 dark:text-jira-400" aria-hidden>
+    <SourceCard
+      tone="sky"
+      icon={
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinejoin="round" aria-hidden>
           <path d="M4 4.5h12v8.5H9.5L6 16v-3H4z" />
         </svg>
-        <ResolvedMark done={c.resolved} />
-        <span className="shrink-0 font-medium">{c.author || t("Jira comment")}</span>
-        <span className="shrink-0 text-jira-700/80 max-sm:min-w-0 max-sm:shrink max-sm:truncate dark:text-jira-300/80">
-          {c.ticket}
-          {c.at ? ` · ${formatDateTime(c.at)}` : ""}
-        </span>
-        {c.text && <span className="min-w-0 truncate text-jira-900/70 dark:text-jira-100/70">{c.text}</span>}
-      </Body>
-      {c.url && (
-        <a href={c.url} target="_blank" rel="noreferrer" className={OPEN} title={t("Open the comment on {ticket} in Jira", { ticket: c.ticket })} aria-label={t("Open in Jira")}>
-          ↗
-        </a>
-      )}
-    </div>
+      }
+      kind={t("Jira comment")}
+      mark={<ResolvedMark done={c.resolved} />}
+      when={c.at ? formatDateTime(c.at) : undefined}
+      title={c.ticket}
+      sub={c.author || undefined}
+      snippet={c.text ? c.text.replace(/\s+/g, " ").trim() : undefined}
+      expanded={expanded}
+      onToggle={onToggle}
+      toggleTitle={expanded ? t("Fold") : t("Show the whole comment")}
+      href={c.url || undefined}
+      hrefTitle={t("Open the comment on {ticket} in Jira", { ticket: c.ticket })}
+      className={className}
+    />
   );
 }
 
@@ -96,23 +81,28 @@ export function JiraCommentDetails({ c }: { c: JiraCommentView }) {
   );
 }
 
-/** A Jira ticket as a badge: its key, status and summary; ↗ opens it in Jira. With `onToggle` it unfolds. */
+/** A Jira ticket as a small card: its summary, key, status and assignee; ↗ opens it in Jira. With `onToggle` it unfolds. */
 export function JiraTicketBadge({ t: tk, className = "", expanded = false, onToggle }: { t: JiraTicketBrief; className?: string; expanded?: boolean; onToggle?: () => void }) {
   const t = useT();
   return (
-    <div className={`${BADGE} ${className}`}>
-      <Body expanded={expanded} onToggle={onToggle} what="ticket">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinejoin="round" className="size-4 shrink-0 text-jira-500 dark:text-jira-400" aria-hidden>
+    <SourceCard
+      tone="sky"
+      icon={
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinejoin="round" aria-hidden>
           <path d="M5 3.5h10v13H5z M7.5 7h5 M7.5 10h5 M7.5 13h3" />
         </svg>
-        <span className="shrink-0 font-mono font-medium">{tk.key}</span>
-        {tk.status && <span className="shrink-0 rounded bg-jira-100 px-1 text-[11px] text-jira-800 dark:bg-jira-900/60 dark:text-jira-200">{tk.status}</span>}
-        <span className="min-w-0 truncate text-jira-900/80 dark:text-jira-100/80">{tk.summary}</span>
-      </Body>
-      <a href={tk.url} target="_blank" rel="noreferrer" className={OPEN} title={t("Open {key} in Jira", { key: tk.key })} aria-label={t("Open in Jira")}>
-        ↗
-      </a>
-    </div>
+      }
+      kind={t("Jira ticket")}
+      state={tk.status ? { text: tk.status, className: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200" } : undefined}
+      title={tk.summary || tk.key}
+      sub={[tk.key, tk.assignee].filter(Boolean).join(" · ")}
+      expanded={expanded}
+      onToggle={onToggle}
+      toggleTitle={expanded ? t("Fold") : t("Show the whole ticket")}
+      href={tk.url}
+      hrefTitle={t("Open {key} in Jira", { key: tk.key })}
+      className={className}
+    />
   );
 }
 

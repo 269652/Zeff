@@ -74,8 +74,8 @@ export function ProjectBookDaysForm({
           {pending ? t("Booking…") : t("Book days")}
         </button>
       </div>
-      {state?.error && <p className="alert-error sm:col-span-6">{state.error}</p>}
-      {state?.ok && state.message && <p className="alert-ok sm:col-span-6">{state.message}</p>}
+      {state?.error && <p role="alert" className="alert-error sm:col-span-6">{state.error}</p>}
+      {state?.ok && state.message && <p role="status" className="alert-ok sm:col-span-6">{state.message}</p>}
     </form>
   );
 }

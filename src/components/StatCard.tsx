@@ -196,7 +196,7 @@ export function PastWeeksStat({ due }: { due: PastWeeksDue }) {
                       target: formatHours(w.target),
                     })
               }
-              className={`rounded px-1.5 py-0.5 text-[11px] font-medium tabular-nums hover:brightness-95 dark:hover:brightness-125 ${
+              className={`rounded px-1.5 py-0.5 text-xs font-medium tabular-nums hover:brightness-95 dark:hover:brightness-125 ${
                 w.missing > 0
                   ? "bg-red-100 text-red-700 dark:bg-red-900/60 dark:text-red-200"
                   : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-200"
@@ -234,7 +234,7 @@ export function SplitStat({ left, right, footer, className = "" }: { left: StatH
       <Half half={left} />
       <Half half={right} divider />
       {footer && (
-        <div className="col-span-2 border-t border-zinc-200 px-4 py-1 text-[11px] text-zinc-400 dark:border-zinc-800">{footer}</div>
+        <div className="col-span-2 border-t border-zinc-200 px-4 py-1 text-xs text-zinc-400 dark:border-zinc-800">{footer}</div>
       )}
     </div>
   );
@@ -262,6 +262,16 @@ function Half({ half, divider }: { half: StatHalf; divider?: boolean }) {
         <div className={`text-xs ${colors?.text}`}>{half.view.caption}</div>
       ) : (
         half.hint && <div className="text-xs text-zinc-500">{half.hint}</div>
+      )}
+      {half.title && (
+        <details className="mt-1 text-xs text-zinc-500">
+          <summary className="cursor-pointer">{t("Show entries")}</summary>
+          <ul className="mt-1 space-y-0.5">
+            {half.title.split(String.fromCharCode(10)).map((line, i) => (
+              <li key={i}>{line}</li>
+            ))}
+          </ul>
+        </details>
       )}
     </div>
   );

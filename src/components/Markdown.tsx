@@ -48,7 +48,7 @@ function block(b: MdBlock, img: (target: string) => string | null, t: T) {
             <thead>
               <tr>
                 {b.head.map((c, i) => (
-                  <th key={i} className="border border-zinc-200 px-2 py-1 text-left font-semibold dark:border-zinc-700">{inline(c, img, t)}</th>
+                  <th scope="col" key={i} className="border border-zinc-200 px-2 py-1 text-left font-semibold dark:border-zinc-700">{inline(c, img, t)}</th>
                 ))}
               </tr>
             </thead>

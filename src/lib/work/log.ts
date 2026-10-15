@@ -112,7 +112,7 @@ const tail = (text: string, lines: number, max: number) =>
   );
 
 /**
- * A run's log as the Work tab shows it: Claude's stream (JSON lines) condensed — its words,
+ * A run's log as the Code tab shows it: Claude's stream (JSON lines) condensed — its words,
  * its tool calls in short, failed calls, the ends of command outputs, what the permission mode
  * refused, how it ended — and, for a plain-text CLI (Copilot) or a failure, the lines as they
  * are. Only whole lines (the last one may still be being written), so a line's place never

@@ -14,6 +14,9 @@ import { FlexTimeRow, type FlexTimeDay } from "./FlexTimeRow";
 import { PauseCell } from "./PauseCell";
 import { ProjectWithJob } from "./ProjectWithJob";
 
+/** A row-header cell that looks like the plain cell it replaces (the table style gives th a column-header look). */
+const ROW_TH = "border-b border-zinc-100 px-3 py-2 text-left align-top text-sm font-[weight:inherit] tracking-normal text-inherit normal-case dark:border-zinc-800/60";
+
 export function WeekTable({
   report,
   targets,
@@ -106,28 +109,29 @@ export function WeekTable({
   return (
     <div className="overflow-x-auto">
       <table className="table">
+        <caption className="sr-only">{t("Entries of the week")}</caption>
         <thead>
           <tr>
-            <th>{t("Job")}</th>
+            <th scope="col">{t("Job")}</th>
             {week.days.map((d, i) => {
               const absence = targets?.absenceByDay[i];
               return (
-                <th key={i} className={dayClass(i)}>
+                <th scope="col" key={i} className={dayClass(i)}>
                   <div className={shortfall[i].state === "missing" ? "text-red-600 dark:text-red-400" : undefined}>
                     {formatDay(d, "EEE")}
                   </div>
                   <div className="font-normal normal-case">{formatDay(d, "d MMM")}</div>
                   {absence ? (
-                    <div className="font-normal text-[10px] tracking-normal text-amber-600 normal-case dark:text-amber-400">
+                    <div className="font-normal text-xs tracking-normal text-amber-600 normal-case dark:text-amber-400">
                       {absenceLabels(t)[absence.type as AbsenceType]}
                     </div>
                   ) : nonWorking(i) ? (
-                    <div className="font-normal text-[10px] tracking-normal text-zinc-400 normal-case">{t("off")}</div>
+                    <div className="font-normal text-xs tracking-normal text-zinc-400 normal-case">{t("off")}</div>
                   ) : null}
                 </th>
               );
             })}
-            <th className="num">{t("Total")}</th>
+            <th scope="col" className="num">{t("Total")}</th>
           </tr>
         </thead>
         <tbody>
@@ -142,7 +146,7 @@ export function WeekTable({
           ) : (
             report.rows.map((row) => (
               <tr key={`${row.job.id}:${row.project?.id ?? ""}`} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
-                <td>
+                <th scope="row" className={ROW_TH}>
                   {row.project ? (
                     <ProjectWithJob project={row.project} job={row.job} />
                   ) : row.job.number === NO_JOB_NUMBER ? (
@@ -155,7 +159,7 @@ export function WeekTable({
                       {row.job.customer && <div className="text-xs text-zinc-500">{row.job.customer}</div>}
                     </>
                   )}
-                </td>
+                </th>
                 {row.hoursByDay.map((h, i) => {
                   const cells = h ? cellMarks(row, isoDays[i]) : [];
                   const approved = cells.find((c) => c.client.cellApproved?.(c.items));
@@ -174,7 +178,7 @@ export function WeekTable({
         </tbody>
         <tfoot>
           <tr className="font-semibold">
-            <td>{t("Booked")}</td>
+            <th scope="row" className={ROW_TH}>{t("Booked")}</th>
             {report.dayTotals.map((h, i) => (
               <td
                 key={i}
@@ -182,6 +186,13 @@ export function WeekTable({
                 title={shortfall[i].state === "ok" ? undefined : t("{hours} h below the target", { hours: formatHours(shortfall[i].gap) })}
               >
                 {h ? formatHours(h) : shortfall[i].state === "ok" ? "" : "0"}
+                {shortfall[i].state !== "ok" && (
+                  <span className="sr-only">
+                    {shortfall[i].state === "short"
+                      ? t("{hours} h below the target (day not over yet)", { hours: formatHours(shortfall[i].gap) })
+                      : t("{hours} h below the target", { hours: formatHours(shortfall[i].gap) })}
+                  </span>
+                )}
                 {plugins.map((p) => (p.client.DayMark && p.data.days?.[i] ? <p.client.DayMark key={p.id} item={p.data.days[i]} /> : null))}
               </td>
             ))}
@@ -189,7 +200,7 @@ export function WeekTable({
           </tr>
           {missingTotal > 0 && (
             <tr className="font-semibold text-red-600 dark:text-red-400">
-              <td>{t("Missing")}</td>
+              <th scope="row" className={ROW_TH}>{t("Missing")}</th>
               {shortfall.map((s, i) => (
                 <td key={i} className={`num ${s.state === "missing" ? "bg-red-50 dark:bg-red-950/40" : ""}`}>
                   {s.state === "missing" ? formatHours(s.gap) : ""}
@@ -200,7 +211,7 @@ export function WeekTable({
           )}
           {targets && (
             <tr className="text-zinc-500">
-              <td>{t("Target")}</td>
+              <th scope="row" className={ROW_TH}>{t("Target")}</th>
               {targets.targets.map((h, i) => (
                 <td key={i} className={`num ${nonWorking(i) ? "bg-zinc-50 dark:bg-zinc-900/60" : ""}`}>
                   {h ? formatHours(h) : ""}
@@ -211,7 +222,7 @@ export function WeekTable({
           )}
           {pauses && (
             <tr className="text-zinc-600 dark:text-zinc-300">
-              <td>{t("Pause")}</td>
+              <th scope="row" className={ROW_TH}>{t("Pause")}</th>
               {week.days.map((d, i) => (
                 <td key={i} className={`num align-top ${nonWorking(i) ? "bg-zinc-50 dark:bg-zinc-900/60" : ""}`}>
                   <PauseCell

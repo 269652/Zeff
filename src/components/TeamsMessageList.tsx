@@ -48,7 +48,7 @@ function TeamsMessageCard({ m }: { m: TeamsMessageView }) {
         {m.senderName && <span className="font-medium text-zinc-700 dark:text-zinc-200">{m.senderName}</span>}
         {m.place && <span>{t("in {place}", { place: m.place })}</span>}
         <span title={formatFull(m.sentAt)}>{formatDayTime(m.sentAt)}</span>
-        {m.kind === "mention" && m.isRead === false && <span className="rounded bg-violet-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">{t("unread")}</span>}
+        {m.kind === "mention" && m.isRead === false && <span className="rounded bg-violet-600 px-1.5 py-0.5 text-xs font-semibold text-white">{t("unread")}</span>}
         <span className="ml-auto flex items-center gap-2">
           {m.inContext && <span className="rounded bg-emerald-100 px-1.5 py-0.5 font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">✓ {t("in Context")}</span>}
           <ResolveToggle done={!!m.resolvedAt} onChange={(next) => setTeamsResolvedAction(m.key, next)} />

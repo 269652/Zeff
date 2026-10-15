@@ -34,7 +34,7 @@ export function ClaudeSessionSettingsForm({ s, admin }: { s: ClaudeSessionSettin
       <div>
         <h2 className="text-base font-semibold">{t("Claude sessions")}</h2>
         <p className="text-sm text-zinc-500">
-          {t("Claude workers as live sessions, like Claude Code: you talk to them, they ask you (permissions, plans, questions) on the Work tab, you switch their mode any time. They keep running when Zeff restarts.")}
+          {t("Claude workers as live sessions, like Claude Code: you talk to them, they ask you (permissions, plans, questions) on the Code tab, you switch their mode any time. They keep running when Zeff restarts.")}
         </p>
       </div>
       <label className="flex items-center gap-2 text-sm">

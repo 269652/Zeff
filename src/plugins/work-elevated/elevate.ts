@@ -54,7 +54,7 @@ export async function taskInstalled(): Promise<boolean> {
 export async function startElevatedHost(cfgFile: string): Promise<void> {
   if (!elevationAvailable()) throw new Error(t("Admin sessions need Windows and the “Admin sessions” plugin (Plugins)."));
   if (elevationMode() === "task") {
-    if (!(await taskInstalled())) throw new Error(t("Automatic admin sessions aren't set up — Work → Admin sessions → Set up."));
+    if (!(await taskInstalled())) throw new Error(t("Automatic admin sessions aren't set up — Code → Admin sessions → Set up."));
     fs.mkdirSync(spoolDir(), { recursive: true });
     const name = `${Date.now()}-${crypto.randomBytes(4).toString("hex")}.json`;
     fs.copyFileSync(cfgFile, path.join(spoolDir(), name));
@@ -110,7 +110,7 @@ export async function installTask(): Promise<void> {
   await elevatedScript(`  $action = New-ScheduledTaskAction -Execute ${lit(process.execPath)} -Argument ${lit(args)}
   $principal = New-ScheduledTaskPrincipal -UserId ${lit(user)} -LogonType Interactive -RunLevel Highest
   $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances Parallel
-  Register-ScheduledTask -TaskPath ${lit(TASK_PATH)} -TaskName ${lit(TASK_NAME)} -Action $action -Principal $principal -Settings $settings -Description 'Zeff: starts Work sessions as administrator (Admin sessions plugin). Remove it from Zeff or here.' -Force | Out-Null`);
+  Register-ScheduledTask -TaskPath ${lit(TASK_PATH)} -TaskName ${lit(TASK_NAME)} -Action $action -Principal $principal -Settings $settings -Description 'Zeff: starts Code sessions as administrator (Admin sessions plugin). Remove it from Zeff or here.' -Force | Out-Null`);
   setElevationMode("task");
 }
 

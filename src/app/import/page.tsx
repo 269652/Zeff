@@ -87,7 +87,7 @@ export default async function ImportPage({
       <HashIngest />
 
       {sp.error && (
-        <p className="alert-error">
+        <p role="alert" className="alert-error">
           {sp.error === "use-device-code"
             ? t("That sign-in method needs a custom app registration. Use the bookmarklet below instead.")
             : sp.error}
@@ -220,7 +220,7 @@ async function Preview({ weekKey, from, to, reportedBy }: { weekKey: string; fro
     const excludeRules = getMeetingExcludeRules(getReportSettings());
     plan = planImport(events, { from, to, now: new Date(), booked, excludeRules });
   } catch (err) {
-    return <p className="alert-error">{t("Could not load the calendar: {error}", { error: errorMessage(err) })}</p>;
+    return <p role="alert" className="alert-error">{t("Could not load the calendar: {error}", { error: errorMessage(err) })}</p>;
   }
 
   const counts = new Map<ExclusionReason, number>();

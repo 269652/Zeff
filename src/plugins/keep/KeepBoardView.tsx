@@ -2,7 +2,7 @@
 
 import { confirmAction } from "@/components/confirm";
 import Link from "next/link";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useAction } from "@/components/useAction";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
@@ -12,7 +12,7 @@ import { createNoteAction, deleteNoteAction, updateNoteAction } from "./actions"
 import { KEEP_SWATCH, keepNoteClass } from "./colors";
 
 export type BoardNote = { id: number | string; title: string; text: string; labels: string[]; color: string | null; pinned: boolean; archived: boolean; updatedAt: string | null; url?: string };
-type Result = { ok: boolean; error?: string; message?: string };
+type Result = { ok: boolean; error?: string; message?: string; id?: number | string };
 type Patch = { title?: string; text?: string; color?: string | null; labels?: string[]; pinned?: boolean; archived?: boolean };
 
 /**
@@ -73,20 +73,51 @@ function NoteText({ text, onToggle }: { text: string; onToggle?: (line: number) 
   );
 }
 
+/** The labels field: comma-separated, with the labels already in use offered (datalist for the typed one, chips to add). */
+function LabelsInput({ value, onChange, disabled, known }: { value: string; onChange: (v: string) => void; disabled?: boolean; known: string[] }) {
+  const t = useT();
+  const id = useId();
+  const used = new Set(labelList(value));
+  const free = known.filter((l) => !used.has(l)).slice(0, 12);
+  return (
+    <div className="space-y-1">
+      <input disabled={disabled} list={id} aria-label={t("Labels, comma-separated")} className="input text-xs" placeholder={t("Labels, comma-separated")} value={value} onChange={(e) => onChange(e.target.value)} />
+      <datalist id={id}>
+        {known.map((l) => (
+          <option key={l} value={l} />
+        ))}
+      </datalist>
+      {free.length > 0 && (
+        <div className="flex flex-wrap gap-1 text-xs" role="group" aria-label={t("Add a label")}>
+          {free.map((l) => (
+            <button key={l} type="button" disabled={disabled} className="min-h-6 rounded-full bg-zinc-200/70 px-2 hover:bg-zinc-300 dark:bg-zinc-700/70 dark:hover:bg-zinc-600" onClick={() => onChange(`${value.trim().replace(/,$/, "")}${value.trim() ? ", " : ""}${l}`)}>
+              + {l}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ColorPicker({ value, onPick, disabled }: { value: string | null; onPick: (c: string | null) => void; disabled?: boolean }) {
   const t = useT();
   return (
     <span className="flex flex-wrap items-center gap-1" role="radiogroup" aria-label={t("Colour")}>
-      <button type="button" role="radio" aria-checked={!value} aria-label={t("No colour")} disabled={disabled} onClick={() => onPick(null)} className={`size-4 rounded-full border border-zinc-300 bg-white dark:bg-zinc-900 ${!value ? "ring-2 ring-zinc-500" : ""}`} />
+            <button type="button" role="radio" aria-checked={!value} aria-label={t("No colour")} disabled={disabled} onClick={() => onPick(null)} className={`grid size-6 place-items-center rounded-full border border-zinc-400 bg-white text-[11px] leading-none text-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 ${!value ? "ring-2 ring-zinc-500" : ""}`}>
+        {!value ? "✓" : ""}
+      </button>
       {Object.entries(KEEP_SWATCH).map(([c, cls]) => (
-        <button key={c} type="button" role="radio" aria-checked={value === c} aria-label={c} disabled={disabled} onClick={() => onPick(c)} className={`size-4 rounded-full ${cls} ${value === c ? "ring-2 ring-zinc-500" : "opacity-70 hover:opacity-100"}`} />
+        <button key={c} type="button" role="radio" aria-checked={value === c} aria-label={c} disabled={disabled} onClick={() => onPick(c)} className={`grid size-6 place-items-center rounded-full text-[11px] leading-none font-bold text-zinc-900 ${cls} ${value === c ? "ring-2 ring-zinc-600" : "opacity-70 hover:opacity-100"}`}>
+          {value === c ? "✓" : ""}
+        </button>
       ))}
     </span>
   );
 }
 
 /** "Write a note …": opens into title, text, labels and colour; saved with Enter in the title or the button. */
-function Composer({ api, run }: { api: Api; run: Run }) {
+function Composer({ api, run, known }: { api: Api; run: Run; known: string[] }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -121,7 +152,7 @@ function Composer({ api, run }: { api: Api; run: Run }) {
         onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), void save())}
       />
       <textarea disabled={busy} className="min-h-24 w-full resize-y bg-transparent text-sm outline-none" placeholder={t("Note … (a list: lines with “- [ ] ”)")} value={text} onChange={(e) => setText(e.target.value)} />
-      <input disabled={busy} className="input text-xs" placeholder={t("Labels, comma-separated")} value={labels} onChange={(e) => setLabels(e.target.value)} />
+      <LabelsInput disabled={busy} value={labels} onChange={setLabels} known={known} />
       <div className="flex flex-wrap items-center gap-2">
         <ColorPicker value={color} onPick={setColor} disabled={busy} />
         <button type="button" disabled={busy} className="btn btn-sm ml-auto" onClick={() => setText((s) => `${s}${s && !s.endsWith("\n") ? "\n" : ""}- [ ] `)}>
@@ -139,7 +170,7 @@ function Composer({ api, run }: { api: Api; run: Run }) {
 }
 
 /** One note: as Keep shows it; a click opens it for editing (title, text, labels), ticks, colour, pin, archive, delete. */
-function NoteCard({ n, api, run, labelHref }: { n: BoardNote; api: Api; run: Run; labelHref?: string }) {
+function NoteCard({ n, api, run, labelHref, known }: { n: BoardNote; api: Api; run: Run; labelHref?: string; known: string[] }) {
   const t = useT();
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -176,7 +207,7 @@ function NoteCard({ n, api, run, labelHref }: { n: BoardNote; api: Api; run: Run
         <>
           <input autoFocus disabled={busy} className="w-full bg-transparent font-medium outline-none" placeholder={t("Title")} value={title} onChange={(e) => setTitle(e.target.value)} />
           <textarea disabled={busy} className="min-h-32 w-full resize-y bg-transparent text-sm outline-none" value={text} onChange={(e) => setText(e.target.value)} />
-          <input disabled={busy} className="input text-xs" placeholder={t("Labels, comma-separated")} value={labels} onChange={(e) => setLabels(e.target.value)} />
+          <LabelsInput disabled={busy} value={labels} onChange={setLabels} known={known} />
           <div className="flex justify-end gap-2">
             <button type="button" disabled={busy} className="btn btn-sm" onClick={() => (setTitle(n.title), setText(n.text), setLabels(n.labels.join(", ")), setEditing(false))}>
               {t("Cancel")}
@@ -235,7 +266,13 @@ function NoteCard({ n, api, run, labelHref }: { n: BoardNote; api: Api; run: Run
             className="icon-btn"
             title={n.archived ? t("Restore") : t("Archive")}
             aria-label={n.archived ? t("Restore") : t("Archive")}
-            onClick={() => void go({ archived: !n.archived })}
+            onClick={() =>
+              void go({ archived: !n.archived }).then((ok) => {
+                if (!ok) return;
+                const was = n.archived;
+                toast(was ? t("Note restored.") : t("Note archived."), { action: { label: t("Undo"), run: () => void run(() => api.update(n.id, { archived: was })) } });
+              })
+            }
           >
             {n.archived ? "↩" : "🗄"}
           </button>
@@ -248,7 +285,22 @@ function NoteCard({ n, api, run, labelHref }: { n: BoardNote; api: Api; run: Run
             onClick={() => {
               if (!confirmAction(api.removeQuestion)) return;
               setBusy(true);
-              void run(() => api.remove(n.id)).then(() => setBusy(false));
+              void run(() => api.remove(n.id)).then((ok) => {
+                setBusy(false);
+                if (!ok || api.google) return;
+                // Own notes: put it back from a snapshot (same text, colour, labels; pinned and archived follow).
+                const snap = { title: n.title, text: n.text, color: n.color, labels: n.labels };
+                toast(t("Note deleted."), {
+                  action: {
+                    label: t("Undo"),
+                    run: async () => {
+                      let made: Result | undefined;
+                      const ok2 = await run(async () => (made = await api.create(snap)));
+                      if (ok2 && made?.id !== undefined && (n.pinned || n.archived)) await run(() => api.update(made!.id!, { pinned: n.pinned, archived: n.archived }));
+                    },
+                  },
+                });
+              });
             }}
           >
             🗑
@@ -262,20 +314,46 @@ function NoteCard({ n, api, run, labelHref }: { n: BoardNote; api: Api; run: Run
 /** Notes like Keep's — one of your boards or Google Keep: write a note, see them (pinned first), edit, tick, colour, pin, archive. */
 export function KeepBoardView({ source, notes, archived, empty }: { source: NoteSource; notes: BoardNote[]; archived: boolean; empty: string }) {
   const t = useT();
-  const { run: act } = useAction<Result>();
+  const { run: act } = useAction<Result>({ quiet: [t("Archived."), t("Restored."), t("Note deleted.")] });
+  const [query, setQuery] = useState("");
+  const [sel, setSel] = useState<string[]>([]);
   const api = apiFor(source, t);
   const labelHref = source.kind === "google" ? source.labelHref : undefined;
   const run: Run = (fn) => {
     if (api.google) toast(t("Writing to Google Keep … (about half a minute)"), { tone: "ok" });
     return act(fn);
   };
-  const pinned = notes.filter((n) => n.pinned);
-  const others = notes.filter((n) => !n.pinned);
-  const card = (n: BoardNote) => <NoteCard key={`${n.id}:${n.updatedAt}:${n.color}:${n.pinned}:${n.archived}:${n.text}`} n={n} api={api} run={run} labelHref={labelHref} />;
+  const known = [...new Set(notes.flatMap((n) => n.labels))].sort((a, b) => a.localeCompare(b));
+  const q = query.trim().toLowerCase();
+  const shownNotes = notes.filter((n) => (!q || `${n.title}
+${n.text}
+${n.labels.join(" ")}`.toLowerCase().includes(q)) && sel.every((l) => n.labels.includes(l)));
+  const filtering = !!q || sel.length > 0;
+  const pinned = shownNotes.filter((n) => n.pinned);
+  const others = shownNotes.filter((n) => !n.pinned);
+  const card = (n: BoardNote) => <NoteCard key={`${n.id}:${n.updatedAt}:${n.color}:${n.pinned}:${n.archived}:${n.text}`} n={n} api={api} run={run} labelHref={labelHref} known={known} />;
   return (
     <section className="space-y-4">
-      {!archived && <Composer api={api} run={run} />}
-      {notes.length === 0 && <p className="py-6 text-center text-sm text-zinc-500">{empty}</p>}
+      {!archived && <Composer api={api} run={run} known={known} />}
+      {notes.length > 0 && (
+        <div className="mx-auto max-w-xl space-y-2">
+          <input type="search" aria-label={t("Search notes")} className="input w-full" placeholder={t("Search notes (title, text, labels)")} value={query} onChange={(e) => setQuery(e.target.value)} />
+          {known.length > 0 && (
+            <div className="flex flex-wrap gap-1 text-xs" role="group" aria-label={t("Filter by label")}>
+              {known.map((l) => (
+                <button key={l} type="button" aria-pressed={sel.includes(l)} className={`min-h-6 rounded-full px-2 ${sel.includes(l) ? "bg-indigo-600 text-white" : "bg-zinc-200/70 hover:bg-zinc-300 dark:bg-zinc-700/70 dark:hover:bg-zinc-600"}`} onClick={() => setSel((s) => (s.includes(l) ? s.filter((x) => x !== l) : [...s, l]))}>
+                  {sel.includes(l) ? "✓ " : ""}
+                  {l}
+                </button>
+              ))}
+            </div>
+          )}
+          <p role="status" aria-live="polite" className="text-xs text-zinc-500">
+            {filtering ? t("{n} of {total} notes", { n: shownNotes.length, total: notes.length }) : ""}
+          </p>
+        </div>
+      )}
+      {shownNotes.length === 0 && <p className="py-6 text-center text-sm text-zinc-500">{filtering ? t("No note matches.") : empty}</p>}
       {pinned.length > 0 && others.length > 0 && <h2 className="text-xs font-semibold text-zinc-500 uppercase">{t("Pinned")}</h2>}
       {pinned.length > 0 && <div className="columns-1 gap-3 sm:columns-2 xl:columns-3">{pinned.map(card)}</div>}
       {pinned.length > 0 && others.length > 0 && <h2 className="text-xs font-semibold text-zinc-500 uppercase">{t("Others")}</h2>}

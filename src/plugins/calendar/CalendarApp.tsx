@@ -24,6 +24,8 @@ const shortcuts = (t: T): [string, string][] => [
   ["← / →", t("Previous / next")],
   ["D W M A", t("Day, week, month, agenda")],
   ["N", t("New event")],
+  ["Alt + ↑ ↓ ← →", t("Move the focused event by 15 minutes / a day")],
+  ["Shift + Alt + ↑ ↓", t("Change the focused event's end")],
   ["Esc", t("Close")],
 ];
 
@@ -110,8 +112,8 @@ export function CalendarApp({
   );
 
   const done = useCallback(
-    (r: Result) => {
-      toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("That didn't work.")), { tone: r?.ok ? "ok" : "error" });
+    (r: Result, undo?: () => unknown) => {
+      toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("That didn't work.")), { tone: r?.ok ? "ok" : "error", action: r?.ok && undo ? { label: t("Undo"), run: undo } : undefined });
       router.refresh();
       return !!r?.ok;
     },
@@ -140,23 +142,26 @@ export function CalendarApp({
   };
 
   /** A drag ended: an appointment's new times saved (a series' occurrence: which ones, asked first). */
-  const save = (it: Item, s: string, e: string, scope?: SeriesScope) => {
+  const save = (it: Item, s: string, e: string, scope?: SeriesScope, undoable = true) => {
     const ev = it.event!;
+    const [was, wasEnd] = [it.start, it.end];
     setMoved((m) => ({ ...m, [it.id]: { start: s, end: e } }));
     start(async () => {
       const r = await saveEventAction({ id: ev.id, calendarId: ev.calendarId, title: ev.title, start: s, end: e, allDay: ev.allDay, location: ev.location, description: ev.description, occurrence: ev.occurrence, scope });
       if (!r?.ok) setMoved((m) => Object.fromEntries(Object.entries(m).filter(([k]) => k !== it.id)));
-      done(r);
+      // Undo: the same handler with the old times (not for one occurrence of a series — it has moved to another day's id).
+      done(r, undoable && !ev.occurrence ? () => save({ ...it, start: s, end: e }, was, wasEnd, undefined, false) : undefined);
     });
   };
   /** A proposed appointment dragged or resized: shown where it went, saved in the todo's action. */
-  const moveProposed = (it: Item, s: string, e: string) => {
+  const moveProposed = (it: Item, s: string, e: string, undoable = true) => {
     const p = it.proposed!;
+    const [was, wasEnd] = [it.start, it.end];
     setMoved((m) => ({ ...m, [it.id]: { start: s, end: e } }));
     start(async () => {
       const r = await moveProposedEventAction(p.todoId, p.index, s, e);
       if (!r?.ok) setMoved((m) => Object.fromEntries(Object.entries(m).filter(([k]) => k !== it.id)));
-      done(r);
+      done(r, undoable ? () => moveProposed({ ...it, start: s, end: e }, was, wasEnd, false) : undefined);
     });
   };
   const move = (it: Item, s: string, e: string) => {
@@ -202,12 +207,12 @@ export function CalendarApp({
         const list = calendars.filter((c) => c.source === src);
         return list.length ? (
           <div key={src} className="space-y-1">
-            <p className="text-[11px] font-semibold tracking-wide text-zinc-400 uppercase">{src === "zeff" ? t("My calendars") : SOURCE_LABELS[src]}</p>
+            <p className="text-xs font-semibold tracking-wide text-zinc-600 uppercase dark:text-zinc-400">{src === "zeff" ? t("My calendars") : SOURCE_LABELS[src]}</p>
             {list.map((c) => (
               <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800">
                 <input type="checkbox" className="size-4 rounded" style={{ accentColor: c.color }} checked={!!shown[c.id]} onChange={() => toggle(c)} />
                 <span className="min-w-0 flex-1 truncate">{c.name}</span>
-                {!c.busy && <span className="text-[10px] text-zinc-400" title={t("Doesn't block time")}>
+                {!c.busy && <span className="text-xs text-zinc-600 dark:text-zinc-400" title={t("Doesn't block time")}>
                     {t("free")}
                   </span>}
               </label>
@@ -216,11 +221,11 @@ export function CalendarApp({
         ) : null;
       })}
       <div className="space-y-1">
-        <p className="text-[11px] font-semibold tracking-wide text-zinc-400 uppercase">{t("Todos")}</p>
+        <p className="text-xs font-semibold tracking-wide text-zinc-600 uppercase dark:text-zinc-400">{t("Todos")}</p>
         <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800">
           <input type="checkbox" className="size-4 rounded" style={{ accentColor: "#6366F1" }} checked={showProposed} onChange={() => setShowProposed(!showProposed)} />
           <span className="min-w-0 flex-1 truncate">{t("Proposed by todos")}</span>
-          <span className="text-xs text-zinc-400">{proposed.length}</span>
+          <span className="text-xs text-zinc-600 dark:text-zinc-400">{proposed.length}</span>
         </label>
       </div>
       <Link href="/kalender/einstellungen" className="block text-xs text-zinc-500 hover:underline">
@@ -232,7 +237,7 @@ export function CalendarApp({
           {shortcuts(t).map(([k, what]) => (
             <div key={k} className="contents">
               <dt>
-                <kbd className="rounded border border-zinc-300 px-1 font-mono text-[10px] dark:border-zinc-600">{k}</kbd>
+                <kbd className="rounded border border-zinc-300 px-1 font-mono text-xs dark:border-zinc-600">{k}</kbd>
               </dt>
               <dd>{what}</dd>
             </div>
@@ -272,14 +277,16 @@ export function CalendarApp({
             </button>
           </div>
           <h1 className="min-w-0 flex-1 truncate text-lg font-semibold">{viewTitle(view, day)}</h1>
-          {pending && <span className="text-xs text-zinc-400">{t("Saving…")}</span>}
-          <div className="flex rounded-lg border border-zinc-200 p-0.5 dark:border-zinc-700" role="tablist" aria-label={t("View")}>
+          <span role="status" className="text-xs text-zinc-600 dark:text-zinc-400">
+            {pending ? t("Saving…") : ""}
+          </span>
+          <div className="flex rounded-lg border border-zinc-200 p-0.5 dark:border-zinc-700" role="group" aria-label={t("View")}>
             {VIEWS.map((v) => (
               <button
                 key={v}
                 type="button"
-                role="tab"
-                aria-selected={v === view}
+                aria-pressed={v === view}
+                aria-keyshortcuts={v[0].toUpperCase()}
                 onClick={() => go(v, day)}
                 title={`${viewLabels(t)[v]} (${v[0].toUpperCase()})`}
                 className={`rounded-md px-2.5 py-1 text-xs font-medium ${v === view ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"}`}
@@ -310,8 +317,8 @@ export function CalendarApp({
         </section>
       </div>
 
-      {picked && <EventDetails key={picked.item.id} item={picked.item} anchor={picked.rect} onClose={() => setPicked(null)} onEdit={() => edit(picked.item)} onDone={(r) => done(r) && setPicked(null)} />}
-      {editor && <EventEditor init={editor} calendars={own} onClose={() => setEditor(null)} onDone={(r) => done(r) && setEditor(null)} />}
+      {picked && <EventDetails key={picked.item.id} item={picked.item} anchor={picked.rect} onClose={() => setPicked(null)} onEdit={() => edit(picked.item)} onDone={(r, undo) => done(r, undo) && setPicked(null)} />}
+      {editor && <EventEditor init={editor} calendars={own} onClose={() => setEditor(null)} onDone={(r, undo) => done(r, undo) && setEditor(null)} />}
       {moving && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4">
           <div role="dialog" aria-modal="true" className="card w-full max-w-sm p-4 shadow-2xl">

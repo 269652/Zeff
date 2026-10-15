@@ -61,7 +61,7 @@
       "type": "object",
       "properties": {
         "workerRules": {
-          "description": "Text files whose content is added to the rules of every Work worker. Needs the prompt permission.",
+          "description": "Text files whose content is added to the rules of every Code worker. Needs the prompt permission.",
           "anyOf": [
             {
               "type": "string",
@@ -81,7 +81,7 @@
         },
         "workCommands": {
           "default": [],
-          "description": "Entries of the Work message box's \"/\" menu.",
+          "description": "Entries of the Code message box's \"/\" menu.",
           "maxItems": 50,
           "type": "array",
           "items": {
@@ -118,7 +118,7 @@
         },
         "workerMcpServers": {
           "default": {},
-          "description": "MCP servers every Work worker gets (stdio: needs exec; http: needs network).",
+          "description": "MCP servers every Code worker gets (stdio: needs exec; http: needs network).",
           "type": "object",
           "propertyNames": {
             "type": "string",
@@ -189,7 +189,7 @@
         },
         "workPanels": {
           "default": [],
-          "description": "Views in Work, shown in a sandboxed frame.",
+          "description": "Views in Code, shown in a sandboxed frame.",
           "maxItems": 20,
           "type": "array",
           "items": {
@@ -212,7 +212,7 @@
               },
               "placement": {
                 "default": "tab",
-                "description": "\"tab\": a view of its own, linked in Work's sidebar. \"session\": a drawer beside a session, which gets that session's ids.",
+                "description": "\"tab\": a view of its own, linked in Code's sidebar. \"session\": a drawer beside a session, which gets that session's ids.",
                 "type": "string",
                 "enum": [
                   "tab",

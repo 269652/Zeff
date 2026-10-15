@@ -20,11 +20,11 @@ function Cited({ text, answer }: { text: string; answer: KnowledgeAnswer }) {
         const s = n ? byN.get(Number(n)) : undefined;
         if (!s) return <span key={i}>{part}</span>;
         return s.url ? (
-          <a key={i} href={s.url} target="_blank" rel="noreferrer" className="align-super text-[10px] font-semibold text-indigo-600 hover:underline dark:text-indigo-400" title={s.title}>
+          <a key={i} href={s.url} target="_blank" rel="noreferrer" className="align-super text-xs font-semibold text-indigo-600 hover:underline dark:text-indigo-400" title={s.title}>
             [{n}]
           </a>
         ) : (
-          <span key={i} className="align-super text-[10px] font-semibold text-indigo-600 dark:text-indigo-400" title={s.title}>
+          <span key={i} className="align-super text-xs font-semibold text-indigo-600 dark:text-indigo-400" title={s.title}>
             [{n}]
           </span>
         );
@@ -109,7 +109,7 @@ export function KnowledgeChat() {
               {m.answer.entities.length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {m.answer.entities.map((e) => (
-                    <span key={e.id} className="rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300" title={[e.summary, ...e.related.map((r) => (r.dir === "out" ? `→ ${r.rel} ${r.name}` : `← ${r.name} ${r.rel}`))].join("\n")}>
+                    <span key={e.id} className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300" title={[e.summary, ...e.related.map((r) => (r.dir === "out" ? `→ ${r.rel} ${r.name}` : `← ${r.name} ${r.rel}`))].join("\n")}>
                       {e.name} <span className="text-zinc-400">{e.type}</span>
                     </span>
                   ))}

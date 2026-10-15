@@ -15,7 +15,7 @@ export function CollapsibleTags({ tags, lead }: { tags: TagLite[]; lead?: ReactN
   const names = tags.map((tag) => `#${tag.name}`).join(" ");
   return (
     <div className="flex flex-wrap gap-1">
-      <span className="inline-flex items-center gap-1 whitespace-nowrap">
+      <span className="inline-flex flex-wrap items-center gap-1">
         {lead}
         {tags.length > 0 && (
           <button

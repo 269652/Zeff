@@ -8,7 +8,7 @@ import { describeRecurrence } from "@/lib/calendar/recurrence";
 import type { T } from "@/lib/i18n/shared";
 import { ScopeChoice } from "./EventEditor";
 import { doneBrowserOpAction, removeTodoOpAction } from "@/plugins/todos/server-actions";
-import { acceptProposedEventAction, deleteEventAction } from "./server-actions";
+import { acceptProposedEventAction, deleteEventAction, saveEventAction } from "./server-actions";
 import { whenText, type Item } from "./view-shared";
 
 type Result = { ok: boolean; message?: string; error?: string } | null;
@@ -30,7 +30,7 @@ const showAsText = (t: T, v: string): string =>
  * place, notes, who's invited — and what to do: edit or delete (Zeff's own), open it in Google or
  * Outlook, go to the todo it's for.
  */
-export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: Item; anchor: DOMRect | null; onClose: () => void; onEdit: () => void; onDone: (r: Result) => void }) {
+export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: Item; anchor: DOMRect | null; onClose: () => void; onEdit: () => void; onDone: (r: Result, undo?: () => unknown) => void }) {
   const t = useT();
   const box = useRef<HTMLDivElement>(null);
   const [asking, setAsking] = useState(false);
@@ -79,7 +79,14 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
   };
   const dismiss = () => p && start(async () => onDone(await removeTodoOpAction(p.todoId, p.index)));
 
-  const remove = (scope?: SeriesScope) => start(async () => onDone(await deleteEventAction(e!.id, series && scope ? { occurrence: e!.occurrence!, scope } : undefined)));
+  const remove = (scope?: SeriesScope) =>
+    start(async () =>
+      onDone(
+        await deleteEventAction(e!.id, series && scope ? { occurrence: e!.occurrence!, scope } : undefined),
+        // Undo of a single event: entered again (a series is not).
+        series ? undefined : () => saveEventAction({ calendarId: e!.calendarId, title: e!.title, start: item.start, end: item.end, allDay: e!.allDay, location: e!.location, description: e!.description, recurrence: e!.recurrence }),
+      ),
+    );
 
   return (
     <div
@@ -88,6 +95,9 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
       aria-label={item.title}
       className="card fixed right-2 bottom-2 left-2 z-40 w-auto space-y-2 p-4 text-sm shadow-xl sm:left-auto sm:w-[22rem]"
     >
+      <span role="status" className="sr-only">
+        {pending ? t("Saving…") : ""}
+      </span>
       {asking ? (
         <ScopeChoice title={t("Delete recurring event")} pending={pending} onCancel={() => setAsking(false)} onPick={remove} />
       ) : (
@@ -158,7 +168,7 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
                 {item.calendar ? t("Open in {source} ↗", { source: SOURCE_LABELS[item.calendar.source] }) : t("Open in source ↗")}
               </a>
             )}
-            {!item.editable && !item.proposed && item.calendar && <p className="text-xs text-zinc-400">{t("Read-only here — change it in {source}.", { source: SOURCE_LABELS[item.calendar.source] })}</p>}
+            {!item.editable && !item.proposed && item.calendar && <p className="text-xs text-zinc-600 dark:text-zinc-400">{t("Read-only here — change it in {source}.", { source: SOURCE_LABELS[item.calendar.source] })}</p>}
           </div>
         </>
       )}

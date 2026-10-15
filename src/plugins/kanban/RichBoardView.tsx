@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { Overlay } from "@/components/Overlay";
 import { CloseIcon } from "@/components/icons";
 import { useT } from "@/components/I18nProvider";
 import { formatAgo, formatDateTime } from "@/lib/format";
@@ -54,7 +55,7 @@ function Card({ c, onOpen }: { c: RichCard; onOpen: () => void }) {
       onClick={onOpen}
       className={`w-full rounded-lg border border-l-4 border-zinc-200 bg-white p-2.5 text-left text-sm shadow-xs transition hover:shadow-sm dark:border-zinc-700 dark:bg-zinc-900 ${tone?.stripe ?? "border-l-zinc-200 dark:border-l-zinc-700"} ${c.noLage ? "opacity-80" : ""}`}
     >
-      <span className="flex items-center gap-1.5 text-[11px]">
+      <span className="flex items-center gap-1.5 text-xs">
         <span className="font-mono font-medium text-zinc-500">{c.ref}</span>
         {c.attentionLabel && <span className={`rounded px-1.5 py-0.5 font-medium ${tone?.badge ?? ""}`}>{c.attentionLabel}</span>}
         {c.badges.map((b) => (
@@ -63,7 +64,7 @@ function Card({ c, onOpen }: { c: RichCard; onOpen: () => void }) {
           </span>
         ))}
         {c.assignee && (
-          <span className="ml-auto flex size-5 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-[9px] font-semibold text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200" title={c.assignee}>
+          <span className="ml-auto flex size-5 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-xs font-semibold text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200" title={c.assignee}>
             {initials(c.assignee)}
           </span>
         )}
@@ -71,13 +72,13 @@ function Card({ c, onOpen }: { c: RichCard; onOpen: () => void }) {
       <span className="mt-1 block font-medium break-words">{c.title}</span>
       {c.lead && <span className="mt-1 block text-xs text-zinc-700 dark:text-zinc-300">{c.lead}</span>}
       {last && (
-        <span className="mt-1.5 block truncate text-[11px] text-zinc-500" title={`${last.when}${last.who ? ` · ${last.who}` : ""}: ${last.what}`}>
+        <span className="mt-1.5 block truncate text-xs text-zinc-500" title={`${last.when}${last.who ? ` · ${last.who}` : ""}: ${last.what}`}>
           ↳ {last.when}
           {last.who ? ` · ${last.who}` : ""}: {last.what}
         </span>
       )}
       {(c.todos.length > 0 || c.flags.length > 0 || c.actions.length > 0) && (
-        <span className="mt-1.5 flex flex-wrap gap-1 text-[11px]">
+        <span className="mt-1.5 flex flex-wrap gap-1 text-xs">
           {c.todos.length > 0 && (
             <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300" title={t("Open todos")}>
               ☐ {c.todos.length}
@@ -99,16 +100,10 @@ function Card({ c, onOpen }: { c: RichCard; onOpen: () => void }) {
 /** A card opened: its whole Lage — summary, what happened, todos, flags, actions, who's on it. */
 function Panel({ c, onClose }: { c: RichCard; onClose: () => void }) {
   const t = useT();
-  useEffect(() => {
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", esc);
-    return () => document.removeEventListener("keydown", esc);
-  }, [onClose]);
   const tone = c.attention ? ATTENTION_TONE[c.attention] : undefined;
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-zinc-950/30" onClick={onClose} aria-hidden />
-      <aside role="dialog" aria-label={c.ref} className="fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col border-l border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
+      <Overlay open onClose={onClose} label={c.ref} className="max-w-xl">
         <div className="flex items-center justify-between gap-2 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
           <span className="flex items-center gap-2 text-sm">
             {c.url ? (
@@ -184,7 +179,7 @@ function Panel({ c, onClose }: { c: RichCard; onClose: () => void }) {
                   </li>
                 ))}
               </ul>
-              <p className="mt-1 text-[11px] text-zinc-500">{t("Run them in the Todos tab.")}</p>
+              <p className="mt-1 text-xs text-zinc-500">{t("Run them in the Todos tab.")}</p>
             </section>
           )}
           {c.flags.length > 0 && (
@@ -204,7 +199,7 @@ function Panel({ c, onClose }: { c: RichCard; onClose: () => void }) {
             </section>
           )}
         </div>
-      </aside>
+      </Overlay>
     </>
   );
 }

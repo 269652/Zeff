@@ -13,7 +13,7 @@ import { elevationMode, taskInstalled, zeffElevated } from "@/plugins/work-eleva
 export const metadata: Metadata = { title: "Admin sessions" };
 
 /**
- * Admin sessions (beta plugin): Claude sessions on the Work tab run as administrator — Windows
+ * Admin sessions (beta plugin): Claude sessions on the Code tab run as administrator — Windows
  * asks each time (UAC), or a scheduled task set up once starts them without asking.
  */
 export default async function AdminSessionsPage() {
@@ -28,7 +28,7 @@ export default async function AdminSessionsPage() {
       <header>
         <h1 className="text-xl font-semibold">{t("Admin sessions")}</h1>
         <p className="text-sm text-zinc-500">
-          {rich(t("Live Claude sessions as administrator: tick “As administrator” when you start one on the <link>Work tab</link>."), {
+          {rich(t("Live Claude sessions as administrator: tick “As administrator” when you start one on the <link>Code tab</link>."), {
             link: (s) => (
               <Link href="/work" className="text-indigo-600 hover:underline dark:text-indigo-400">
                 {s}

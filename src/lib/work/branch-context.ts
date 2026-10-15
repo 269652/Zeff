@@ -22,6 +22,33 @@ export function branchNamesOf(todo: Pick<TodoView, "ops" | "planned">): string[]
   return [...names].map((n) => n.replace(/^origin\//, "")).filter(Boolean);
 }
 
+/** A branch or merge request a todo is linked to, as the worker is told of it. */
+export type LinkedBranch = { branch: string; label: string; url: string };
+
+/**
+ * The branches the todo's context names: its linked branches and the source branches of its linked
+ * merge requests (or of the merge request a linked comment is on) — not a worker's own zeff/… branch,
+ * not a merge request that is merged or closed already.
+ */
+export function linkedBranchesOf(todo: Pick<TodoView, "refs">): LinkedBranch[] {
+  const keys = todo.refs.filter((r) => r.startsWith("gitlab:")).map((r) => r.slice("gitlab:".length));
+  if (!keys.length) return [];
+  const db = getDb();
+  const rows = db.select().from(gitlabItems).where(inArray(gitlabItems.key, keys)).all();
+  const parents = rows.map((r) => r.parent).filter((p): p is string => !!p && !keys.includes(p));
+  if (parents.length) rows.push(...db.select().from(gitlabItems).where(inArray(gitlabItems.key, parents)).all());
+  const out = new Map<string, LinkedBranch>();
+  for (const r of rows) {
+    if ((r.kind !== "mr" && r.kind !== "branch") || !r.branch || !shown(r.branch)) continue;
+    if (r.kind === "mr" && /merged|closed/i.test(r.state ?? "")) continue;
+    const mr = r.kind === "mr";
+    const prev = out.get(r.branch);
+    if (prev && !mr) continue;
+    out.set(r.branch, { branch: r.branch, label: mr ? `Merge Request ${r.ref}` : "Branch", url: r.url });
+  }
+  return [...out.values()];
+}
+
 /** A todo's work chain: the todos it follows up on (up to the one a worker did the work on) and everything that follows from it (follow-ups, theirs …). */
 function family(id: number): number[] {
   const out = new Set<number>([id]);

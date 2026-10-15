@@ -11,7 +11,7 @@ type Branches = { ok: true; root: string; current: string | null; branches: { na
 
 const base = (p: string) => p.split(/[\\/]/).filter(Boolean).pop() ?? p;
 const MODES: { id: Workspace["mode"]; label: string; hint: string }[] = [
-  { id: "", label: "Default isolation", hint: "As set in the Work settings" },
+  { id: "", label: "Default isolation", hint: "As set in the Code settings" },
   { id: "worktree", label: "New branch in a worktree", hint: "A new zeff/ branch from the chosen one, in a folder of its own - your checkout stays untouched" },
   { id: "branch", label: "This branch in a worktree", hint: "Work goes on the chosen branch itself, in a folder of its own" },
   { id: "checkout", label: "In the repo itself", hint: "Directly in the checkout (switches it to the chosen branch if nothing is uncommitted)" },
@@ -46,7 +46,7 @@ function FolderPopover({ repos, value, onPick, onClose }: { repos: { id: number;
       </button>
       {repos.length > 0 && (
         <div className="mb-1 border-b border-zinc-100 pb-1 dark:border-zinc-800">
-          <div className="px-2 py-0.5 text-[10px] font-medium tracking-wide text-zinc-400 uppercase">Your repos</div>
+          <div className="px-2 py-0.5 text-xs font-medium tracking-wide text-zinc-400 uppercase">Your repos</div>
           {repos.map((r) => (
             <button key={r.id} type="button" className="block w-full truncate rounded px-2 py-1 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800" title={r.path} onClick={() => onPick(r.path)}>
               {r.name} <span className="text-zinc-400">{r.path}</span>
@@ -155,7 +155,7 @@ export function WorkspacePicker({ repos, value, onChange, selectClass }: { repos
           ))}
         </select>
       )}
-      {value.path && branches && !branches.ok && <span className="px-1 text-[11px] text-red-600 dark:text-red-400">{branches.error}</span>}
+      {value.path && branches && !branches.ok && <span className="px-1 text-xs text-red-600 dark:text-red-400">{branches.error}</span>}
       {value.path && (
         <select className={`${selectClass} max-w-52`} value={value.mode} onChange={(e) => onChange({ ...value, mode: e.target.value as Workspace["mode"] })} aria-label="Isolation" title={mode.hint}>
           {MODES.map((m) => (

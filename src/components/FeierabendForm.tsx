@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { bookDayAction } from "@/app/actions";
+import { bookDayAction, undoBookDayAction } from "@/app/actions";
 import type { DayRow } from "@/lib/feierabend";
 import { toast } from "./Toaster";
 import { formatHours } from "@/lib/format";
@@ -21,14 +21,19 @@ const fmt = formatHours;
  * "Rest verteilen" spreads what's missing to the target over the ticket lines without hours; one
  * click books it all.
  */
-export function FeierabendForm({ date, target, booked, rows: initial, jobs }: { date: string; target: number; booked: number; rows: DayRow[]; jobs: { number: string; name: string }[] }) {
+export function FeierabendForm({ date, target, booked, group, rows: initial, jobs }: { date: string; target: number; booked: number; group: string | null; rows: DayRow[]; jobs: { number: string; name: string }[] }) {
   const t = useT();
   const router = useRouter();
   const [rows, setRows] = useState(initial);
   const [pending, start] = useTransition();
   const set = (id: string, patch: Partial<DayRow>) => setRows((l) => l.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   const chosen = rows.filter((r) => r.include);
-  const sum = chosen.reduce((s, r) => s + (r.hours ?? 0), 0);
+  // A group day (a mob day: today's group entry, or a group meeting ticked here): the other lines are
+  // itemized under it — real hours, but not booked on top, so they don't add to the day.
+  const groupName = chosen.find((r) => r.kind === "meeting" && r.group)?.description ?? group;
+  const under = (r: DayRow) => !!groupName && r.kind !== "meeting" && !r.standalone;
+  const sum = chosen.filter((r) => !under(r)).reduce((s, r) => s + (r.hours ?? 0), 0);
+  const itemized = chosen.filter(under).reduce((s, r) => s + (r.hours ?? 0), 0);
   const missing = Math.max(0, Math.round((target - booked - sum) * 100) / 100);
   // What's missing to the target, on the ticked ticket lines without hours — in quarter hours.
   const spread = () => {
@@ -42,11 +47,36 @@ export function FeierabendForm({ date, target, booked, rows: initial, jobs }: { 
     start(async () => {
       const r = await bookDayAction(
         date,
-        chosen.map((x) => ({ kind: x.kind, hours: x.hours ?? 0, jobNumber: x.jobNumber, description: x.description, ticket: x.ticket, externalId: x.externalId, suggestionId: x.suggestionId })),
+        chosen.map((x) => ({ kind: x.kind, hours: x.hours ?? 0, jobNumber: x.jobNumber, description: x.description, ticket: x.ticket, externalId: x.externalId, suggestionId: x.suggestionId, group: x.group, start: x.start, standalone: x.standalone })),
       );
-      toast(r?.ok ? (r.message ?? t("Booked.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" });
+      const created = r && "created" in r ? (r.created ?? []) : [];
+      toast(r?.ok ? (r.message ?? t("Booked.")) : (r?.error ?? t("Didn't work.")), {
+        tone: r?.ok ? "ok" : "error",
+        // What was created can be taken back (not what was changed since).
+        ...(created.length
+          ? {
+              ms: 20000,
+              action: {
+                label: t("Undo"),
+                run: async () => {
+                  const u = await undoBookDayAction(created);
+                  toast(u?.ok ? (u.message ?? t("Taken back.")) : (u?.error ?? t("Didn't work.")), { tone: u?.ok ? "ok" : "error" });
+                  router.refresh();
+                },
+              },
+            }
+          : {}),
+      });
       router.refresh();
     });
+  // Why the book button is off (said in words, not only greyed out).
+  const whyNot = !chosen.length
+    ? t("Nothing ticked to book.")
+    : chosen.some((r) => !r.hours)
+      ? t("Every ticked row needs hours.")
+      : chosen.some((r) => r.kind !== "suggestion" && !r.jobNumber)
+        ? t("Every ticked row needs a job.")
+        : "";
 
   return (
     <div className="space-y-4">
@@ -57,6 +87,11 @@ export function FeierabendForm({ date, target, booked, rows: initial, jobs }: { 
         <span>
           {rich(t("+ selected <b>{hours}</b> h", { hours: fmt(sum) }), { b })}
         </span>
+        {itemized > 0 && groupName && (
+          <span className="text-indigo-600 dark:text-indigo-400">
+            {t("{hours} h itemized under “{group}” (not on top)", { hours: fmt(itemized), group: groupName })}
+          </span>
+        )}
         <span className={booked + sum >= target ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}>
           {missing
             ? rich(t("= <b>{hours}</b> of {target} h — {missing} h missing", { hours: fmt(booked + sum), target: fmt(target), missing: fmt(missing) }), { b })
@@ -66,10 +101,15 @@ export function FeierabendForm({ date, target, booked, rows: initial, jobs }: { 
           <button type="button" className="btn btn-sm" disabled={pending || !missing || !rows.some((r) => r.include && r.kind === "ticket")} onClick={spread} title={t("Spread the missing hours over the ticked ticket rows without hours (in quarter hours)")}>
             {t("Spread the rest")}
           </button>
-          <button type="button" className="btn btn-primary btn-sm" disabled={pending || !chosen.length || chosen.some((r) => !r.hours || (r.kind !== "suggestion" && !r.jobNumber))} onClick={book}>
+          <button type="button" className="btn btn-primary btn-sm" disabled={pending || !!whyNot} aria-describedby={whyNot ? "book-why" : undefined} onClick={book}>
             {pending ? t("Booking…") : chosen.length === 1 ? t("Book 1 row") : t("Book {n} rows", { n: chosen.length })}
           </button>
         </span>
+        {whyNot && (
+          <p id="book-why" className="w-full text-right text-xs text-amber-700 dark:text-amber-400">
+            {whyNot}
+          </p>
+        )}
       </div>
 
       {rows.length ? (
@@ -102,9 +142,18 @@ export function FeierabendForm({ date, target, booked, rows: initial, jobs }: { 
                 </select>
               )}
               <input className="input min-w-0 flex-1 basis-60" value={r.description} aria-label={t("Description")} onChange={(e) => set(r.id, { description: e.target.value })} />
-              <span className="w-full pl-[7.5rem] text-xs text-zinc-400">
-                {r.ticket && <span className="font-mono">{r.ticket} · </span>}
-                {r.from}
+              <span className="flex w-full flex-wrap items-center gap-x-3 pl-[7.5rem] text-xs text-zinc-400">
+                <span>
+                  {r.ticket && <span className="font-mono">{r.ticket} · </span>}
+                  {r.from}
+                </span>
+                {r.kind === "meeting" && r.group && <span className="rounded bg-indigo-100 px-1.5 py-0.5 font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">{t("Group: the day's work goes under it")}</span>}
+                {r.kind !== "meeting" && groupName && (
+                  <label className="flex items-center gap-1.5">
+                    <input type="checkbox" className="size-3.5" checked={!r.standalone} onChange={(e) => set(r.id, { standalone: !e.target.checked })} />
+                    {t("Itemize under “{group}”", { group: groupName })}
+                  </label>
+                )}
               </span>
             </li>
           ))}

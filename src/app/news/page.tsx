@@ -114,7 +114,7 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
                       {th.ids.map((id, k) => {
                         const it = byId.get(id);
                         return it ? (
-                          <a key={id} href={it.url} target="_blank" rel="noreferrer noopener" title={`${it.sourceName}: ${it.title}`} className="rounded bg-indigo-100 px-1.5 py-0.5 text-[11px] text-indigo-800 hover:underline dark:bg-indigo-950 dark:text-indigo-200">
+                          <a key={id} href={it.url} target="_blank" rel="noreferrer noopener" title={`${it.sourceName}: ${it.title}`} className="rounded bg-indigo-100 px-1.5 py-0.5 text-xs text-indigo-800 hover:underline dark:bg-indigo-950 dark:text-indigo-200">
                             [{k + 1}] {it.sourceName}
                           </a>
                         ) : null;

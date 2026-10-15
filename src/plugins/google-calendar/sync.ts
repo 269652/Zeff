@@ -6,6 +6,7 @@
 import { isoDay } from "@/lib/text";
 import { clearAttention, needsSignIn, raiseLogin } from "@/lib/attention";
 import { ensureCalendar, replaceEvents, type EventInput } from "@/lib/calendar/ir";
+import { driverOf } from "@/lib/connectors/store";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { getPref } from "@/lib/prefs";
@@ -36,16 +37,21 @@ export async function syncGoogleCalendar({ background = false } = {}): Promise<{
   if (flag.__zeffGcalSyncing) return { ok: false, message: t("A Google Calendar sync is already running.") };
   flag.__zeffGcalSyncing = true;
   try {
-    if (background && !(await chromeUp())) return { ok: false, message: t("The automation Chrome isn't running. Not synced.") };
+    const viaApi = driverOf("gcalendar") === "api";
+    if (!viaApi && background && !(await chromeUp())) return { ok: false, message: t("The automation Chrome isn't running. Not synced.") };
     const s = googleCalendarSettings();
-    const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
-    const out = await runStdioSession(
-      { command: process.execPath, args: [driverPath("google-calendar")], env: automationEnv(), label: "Google Calendar sync" },
-      async (call) => resultToPayload(await call("gcal_events", { account: s.account, weeks: s.weeks, launch: !background })),
-      300000,
-    );
-    const data = (typeof out === "string" ? (out.trim().startsWith("{") ? JSON.parse(out) : null) : out) as Read | null;
-    if (!data || !Array.isArray(data.calendars) || !Array.isArray(data.events)) throw new Error(typeof out === "string" ? out.replace(/^Error:\s*/, "").slice(0, 300) : t("Google Calendar returned nothing readable."));
+    let data: Read | null;
+    if (viaApi) data = await (await import("@/lib/google/calendar-api")).readCalendar({ weeks: s.weeks });
+    else {
+      const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
+      const out = await runStdioSession(
+        { command: process.execPath, args: [driverPath("google-calendar")], env: automationEnv(), label: "Google Calendar sync" },
+        async (call) => resultToPayload(await call("gcal_events", { account: s.account, weeks: s.weeks, launch: !background })),
+        300000,
+      );
+      data = (typeof out === "string" ? (out.trim().startsWith("{") ? JSON.parse(out) : null) : out) as Read | null;
+      if (!data || !Array.isArray(data.calendars) || !Array.isArray(data.events)) throw new Error(typeof out === "string" ? out.replace(/^Error:\s*/, "").slice(0, 300) : t("Google Calendar returned nothing readable."));
+    }
     // The weeks read: from their Monday, so many weeks on.
     const to = new Date(`${data.from}T00:00:00`);
     to.setDate(to.getDate() + 7 * s.weeks);
@@ -68,7 +74,8 @@ export async function syncGoogleCalendar({ background = false } = {}): Promise<{
     };
   } catch (e) {
     const message = errorMessage(e).slice(0, 300);
-    if (needsSignIn(message) || /sign[- ]in|anmeld|not signed/i.test(message)) raiseLogin("gcalendar", message);
+    // (An API sign-in that fails is told in the result: connect again on the Connections page — no Chrome login to raise.)
+    if (driverOf("gcalendar") === "cdp" && (needsSignIn(message) || /sign[- ]in|anmeld|not signed/i.test(message))) raiseLogin("gcalendar", message);
     return { ok: false, message };
   } finally {
     flag.__zeffGcalSyncing = false;

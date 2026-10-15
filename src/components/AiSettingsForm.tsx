@@ -64,9 +64,9 @@ export function AiSettingsForm({
         <input type="radio" name="aiProvider" value={id} checked={chosen === id} onChange={() => setChosen(id)} className="accent-indigo-600" />
         <span className="font-medium">{info[id].label}</span>
         {found[id] ? (
-          <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">{t("installed")}</span>
+          <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">{t("installed")}</span>
         ) : (
-          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200">{t("not found")}</span>
+          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200">{t("not found")}</span>
         )}
       </span>
       <span className="block text-xs text-zinc-500">

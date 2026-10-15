@@ -21,6 +21,7 @@ export async function importMeetingsAction(_prev: ActionState, fd: FormData): Pr
   const week = str(fd, "week") ?? "";
   const reportedBy = str(fd, "reportedBy");
   const result: ImportResult = { imported: 0, skipped: 0, errors: [] };
+  const { isGroupMeeting } = await import("@/lib/report");
 
   for (let i = 0; i < count; i++) {
     if (fd.get(`include-${i}`) !== "on") continue;
@@ -31,7 +32,7 @@ export async function importMeetingsAction(_prev: ActionState, fd: FormData): Pr
       continue;
     }
     try {
-      createEntry(
+      const created = createEntry(
         {
           jobNumber: str(fd, `job-${i}`) ?? "",
           date: str(fd, `date-${i}`) ?? "",
@@ -39,10 +40,14 @@ export async function importMeetingsAction(_prev: ActionState, fd: FormData): Pr
           description: str(fd, `description-${i}`) ?? "",
           ticket: str(fd, `ticket-${i}`),
           reportedBy,
+          isGroup: isGroupMeeting(str(fd, `description-${i}`) ?? ""),
+          start: str(fd, `start-${i}`),
         },
         "calendar",
         { externalId },
       );
+      // A group meeting: what was booked before on that day and runs parallel to it goes under it.
+      if (created.isGroup) (await import("@/lib/entry-parallel")).collectIntoHead(created.id);
       result.imported++;
     } catch (err) {
       const msg = errorMessage(err);

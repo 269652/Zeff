@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useLang, useT } from "@/components/I18nProvider";
 import { addDays, weekdayOf } from "@/lib/calendar/recurrence";
+import { textOn } from "@/lib/contrast";
 import { LANGUAGES } from "@/lib/i18n/shared";
-import { durationText, isoWeek, itemOn, lanes, local, mergeDone, minutesBetween, minutesOf, plus, snap, stampAt, timeText, type Item } from "./view-shared";
+import { nudged, nudgeOf } from "./nudge";
+import { durationText, isoWeek, itemLabel, itemOn, lanes, local, mergeDone, minutesBetween, minutesOf, plus, snap, stampAt, timeText, type Item } from "./view-shared";
 
 const HOUR = 48;
 const STEP = 15;
@@ -49,6 +51,8 @@ export function TimeGrid({
   const [drag, setDrag] = useState<Drag | null>(null);
   const dragRef = useRef<Drag | null>(null);
   const today = now.slice(0, 10);
+  const [status, setStatus] = useState("");
+  const dayName = (d: string, opts: Intl.DateTimeFormatOptions = { weekday: "long", day: "numeric", month: "long" }) => local(d).toLocaleDateString(locale, opts);
   const update = (d: Drag | null) => {
     dragRef.current = d;
     setDrag(d);
@@ -169,6 +173,34 @@ export function TimeGrid({
     update({ kind: "allday", item: it, from: day, day, x0: e.clientX, y0: e.clientY, moved: false });
   };
 
+  /** A key on a focused appointment: Enter/Space opens it; Alt+arrows move it (Shift+Alt+↑/↓: its end), announced. */
+  const onItemKey = (e: React.KeyboardEvent, it: Item, native: boolean) => {
+    if (e.altKey) {
+      const n = nudgeOf(e.key, e.shiftKey);
+      if (!n) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (!it.editable) return;
+      const r = nudged(it.start, it.end, it.allDay, n);
+      if (!r) return;
+      onMove(it, r.start, r.end);
+      if (it.event?.occurrence) return;
+      setStatus(
+        n.resize
+          ? t("Now ends at {time}", { time: timeText(r.end) })
+          : t("Moved to {when}", { when: it.allDay ? dayName(r.start, { weekday: "short", day: "numeric", month: "short" }) : `${dayName(r.start, { weekday: "short" })} ${timeText(r.start)}` }),
+      );
+      return;
+    }
+    // A real button opens on Enter/Space by itself (a click without a pointer); the block is a div.
+    if (!native && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      onOpen(it, e.currentTarget.getBoundingClientRect());
+    }
+  };
+  /** A click without a pointer (a screen reader's, a switch): the drag logic never saw it. */
+  const onItemClick = (e: React.MouseEvent, it: Item) => e.detail === 0 && onOpen(it, e.currentTarget.getBoundingClientRect());
+
   // What's shown: a moved or resized one where it's being dragged to.
   const live = (it: Item): Item => {
     if (!drag) return it;
@@ -191,22 +223,36 @@ export function TimeGrid({
 
   return (
     <div className={`flex h-full min-h-0 flex-col ${drag ? "select-none" : ""}`} data-grid onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={() => update(null)}>
+      <p role="status" aria-live="polite" className="sr-only">
+        {status}
+      </p>
       {/* The days, and their all-day appointments. */}
       <div className="grid border-b border-zinc-200 dark:border-zinc-800" style={{ gridTemplateColumns: cols }}>
-        <div className="flex items-end justify-center pb-1 text-[10px] text-zinc-400" title={t("Calendar week")}>
+        <div className="flex items-end justify-center pb-1 text-xs text-zinc-600 dark:text-zinc-400" title={t("Calendar week")}>
           {t("W{n}", { n: isoWeek(days[0]) })}
         </div>
         {days.map((d) => {
           const isToday = d === today;
           const weekend = weekdayOf(local(d)) >= 5;
           return (
-            <div key={d} className="min-w-0 border-l border-zinc-100 dark:border-zinc-800">
+            <div key={d} role="group" aria-label={dayName(d)} className="relative min-w-0 border-l border-zinc-100 dark:border-zinc-800">
+              <button
+                type="button"
+                onClick={() => onCreate({ start: `${d}T09:00`, end: `${d}T10:00`, allDay: false })}
+                className="absolute top-1 right-1 z-10 flex size-6 items-center justify-center rounded text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                aria-label={t("New event on {day}", { day: dayName(d) })}
+                title={t("New event on {day}", { day: dayName(d) })}
+              >
+                +
+              </button>
               <button type="button" onClick={() => onPickDay(d)} className="flex w-full flex-col items-center py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/60" title={t("Show this day")}>
-                <span className={`text-[11px] font-medium uppercase ${isToday ? "text-indigo-600 dark:text-indigo-400" : weekend ? "text-zinc-400" : "text-zinc-500"}`}>{local(d).toLocaleDateString(locale, { weekday: "short" })}</span>
+                <span className={`text-xs font-medium uppercase ${isToday ? "text-indigo-600 dark:text-indigo-400" : weekend ? "text-zinc-500" : "text-zinc-600 dark:text-zinc-400"}`}>{local(d).toLocaleDateString(locale, { weekday: "short" })}</span>
                 <span className={`flex size-8 items-center justify-center rounded-full text-lg leading-none tabular-nums ${isToday ? "bg-indigo-600 font-semibold text-white" : ""}`}>{Number(d.slice(8))}</span>
               </button>
               <div
                 data-day={d}
+                role="group"
+                aria-label={t("All-day events, {day}", { day: dayName(d) })}
                 className="min-h-6 cursor-copy space-y-0.5 px-0.5 pb-1"
                 onClick={(e) => e.target === e.currentTarget && onCreate({ start: d, end: addDays(d, 1), allDay: true })}
                 title={t("Click: an all-day event")}
@@ -219,9 +265,11 @@ export function TimeGrid({
                       type="button"
                       data-item
                       onPointerDown={(e) => startAllDay(e, it, d)}
-                      onKeyDown={(e) => e.key === "Enter" && onOpen(it, e.currentTarget.getBoundingClientRect())}
-                      className={`block w-full truncate rounded px-1.5 py-0.5 text-left text-[11px] font-medium text-white ${it.editable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${dragging === it.id ? "opacity-70 shadow-lg ring-2 ring-white/70" : ""}`}
-                      style={{ background: it.color }}
+                      onClick={(e) => onItemClick(e, it)}
+                      onKeyDown={(e) => onItemKey(e, it, true)}
+                      aria-label={itemLabel(it, t)}
+                      className={`block w-full truncate rounded px-1.5 py-0.5 text-left text-xs font-medium ${it.editable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${dragging === it.id ? "opacity-70 shadow-lg ring-2 ring-white/70" : ""}`}
+                      style={{ background: it.color, color: textOn(it.color) }}
                       title={it.title}
                     >
                       {it.start < d ? "↳ " : ""}
@@ -239,12 +287,12 @@ export function TimeGrid({
         <div className="relative grid" style={{ gridTemplateColumns: cols, height: 24 * HOUR }}>
           <div className="relative">
             {Array.from({ length: 24 }, (_, h) => (
-              <div key={h} className="absolute right-2 -translate-y-1/2 text-[10px] text-zinc-400 tabular-nums" style={{ top: h * HOUR }}>
+              <div key={h} className="absolute right-2 -translate-y-1/2 text-xs text-zinc-600 tabular-nums dark:text-zinc-400" style={{ top: h * HOUR }}>
                 {h ? `${String(h).padStart(2, "0")}:00` : ""}
               </div>
             ))}
             {days.includes(today) && (
-              <div className="absolute right-1 z-20 -translate-y-1/2 rounded bg-red-500 px-1 text-[10px] font-semibold text-white tabular-nums" style={{ top: (nowMin / 60) * HOUR }}>
+              <div className="absolute right-1 z-20 -translate-y-1/2 rounded bg-red-700 px-1 text-xs font-semibold text-white tabular-nums" style={{ top: (nowMin / 60) * HOUR }}>
                 {timeText(now)}
               </div>
             )}
@@ -257,6 +305,8 @@ export function TimeGrid({
               <div
                 key={d}
                 data-day={d}
+                role="group"
+                aria-label={t("{day}, events", { day: dayName(d) })}
                 className={`relative cursor-cell border-l border-zinc-100 dark:border-zinc-800 ${weekend ? "bg-zinc-50/80 dark:bg-zinc-900/60" : ""}`}
                 style={{ backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent ${HOUR - 1}px, rgb(161 161 170 / 0.22) ${HOUR - 1}px, rgb(161 161 170 / 0.22) ${HOUR}px)` }}
                 onPointerDown={(e) => startCreate(e, d)}
@@ -289,8 +339,10 @@ export function TimeGrid({
                       role="button"
                       tabIndex={0}
                       onPointerDown={(e) => startMove(e, it, d)}
-                      onKeyDown={(e) => e.key === "Enter" && onOpen(it, e.currentTarget.getBoundingClientRect())}
-                      className={`group absolute overflow-hidden rounded-md px-1.5 py-0.5 text-left text-[11px] leading-tight transition-shadow ${it.proposed ? "border-2 border-dashed" : "border-l-[3px]"} ${it.editable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${isDragged ? "z-30 shadow-xl ring-2 ring-indigo-400/60" : "hover:z-10 hover:shadow-md"} ${faint ? "opacity-50" : past && !isDragged ? "opacity-75" : ""}`}
+                      onClick={(e) => onItemClick(e, it)}
+                      onKeyDown={(e) => onItemKey(e, it, false)}
+                      aria-label={itemLabel(it, t)}
+                      className={`group absolute overflow-hidden rounded-md px-1.5 py-0.5 text-left text-xs leading-tight transition-shadow ${it.proposed ? "border-2 border-dashed" : "border-l-[3px]"} ${it.editable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${isDragged ? "z-30 shadow-xl ring-2 ring-indigo-400/60" : "hover:z-10 hover:shadow-md"} ${faint ? "opacity-50" : past && !isDragged ? "opacity-75" : ""}`}
                       style={{
                         top: (from / 60) * HOUR + 1,
                         height: Math.max(18, h - 2),
@@ -309,7 +361,7 @@ export function TimeGrid({
                         {h < 34 ? (
                           <span className="block truncate font-semibold">
                             {it.title}
-                            <span className="font-normal text-zinc-500">, {timeText(it.start)}</span>
+                            <span className="font-normal text-zinc-600 dark:text-zinc-400">, {timeText(it.start)}</span>
                           </span>
                         ) : (
                           <>
@@ -337,7 +389,7 @@ export function TimeGrid({
                   );
                 })}
                 {ghost && (
-                  <div className="pointer-events-none absolute inset-x-1 z-30 rounded-md border-2 border-indigo-500 bg-indigo-500/15 px-1.5 py-0.5 text-[11px] font-medium text-indigo-700 dark:text-indigo-300" style={{ top: (ghost.a / 60) * HOUR, height: ((ghost.b - ghost.a) / 60) * HOUR }}>
+                  <div className="pointer-events-none absolute inset-x-1 z-30 rounded-md border-2 border-indigo-500 bg-indigo-500/15 px-1.5 py-0.5 text-xs font-medium text-indigo-700 dark:text-indigo-300" style={{ top: (ghost.a / 60) * HOUR, height: ((ghost.b - ghost.a) / 60) * HOUR }}>
                     {hhmm(ghost.a)} – {hhmm(Math.min(24 * 60, ghost.b))}
                     <span className="block font-normal opacity-80">{durationText(ghost.b - ghost.a, t)}</span>
                   </div>

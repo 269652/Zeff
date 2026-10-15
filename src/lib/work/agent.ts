@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { linkBranchContext } from "./branch-context";
+import { newBranchName } from "./branch-name";
 import { addTestedDelivery, deliversBranch, getTodo, listTodos, setTodoNeedsInput } from "@/lib/boards/store";
 import { parseTodoRef, todoRef } from "@/lib/boards/shared";
 import { NotFoundError, ValidationError } from "@/lib/errors";
@@ -14,10 +15,12 @@ import { workModeOf, workRef, type WorkMode } from "./shared";
 import { createRun, getRun, runsByStatus, updateRun } from "./store";
 import { quarterHours, suggestEntry, unsuggestedRuns, unsuggestedTimes } from "./suggestions";
 import { addTodoTime, listTodoTimes, timesByIds } from "./todo-time";
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/db";
+import { emitChange } from "@/lib/events";
+import { callerRunId } from "@/mcp/caller";
 
-const { workRuns } = schema;
+const { todos, todoTime, workRuns } = schema;
 
 /**
  * Work on a todo by an agent outside Zeff (VS Code Copilot, a Claude Code session …) through
@@ -41,8 +44,36 @@ function openTodo(ref: string) {
   return t;
 }
 
-/** The agent's run on a todo (running), if there is one. */
-const agentRunOn = (todoId: number) => runsByStatus(["running"]).find((r) => r.todoId === todoId && r.provider === "agent");
+/** The live Zeff session the MCP request comes from (X-Zeff-Run), while it works. */
+function callerSession() {
+  const id = callerRunId();
+  const r = id ? getRun(id) : undefined;
+  return r && r.status === "running" && r.provider !== "agent" && r.provider !== "zeff" ? r : undefined;
+}
+
+/** The agent's run on a todo (running), if there is one — a Zeff session that took the todo over is its own agent. */
+const agentRunOn = (todoId: number) => {
+  const mine = callerSession();
+  if (mine?.todoId === todoId) return mine;
+  return runsByStatus(["running"]).find((r) => r.todoId === todoId && r.provider === "agent");
+};
+
+/**
+ * A session started without a ticket takes a todo: the session itself moves under the todo - its runs,
+ * its time, its place in the Code tab - and the todo it was made for closes ("moved"), instead of a
+ * second session of an agent starting there beside it.
+ */
+function adoptSession(run: { id: number; repo: string | null }, from: TodoView, to: TodoView): void {
+  const db = getDb();
+  const stamp = now();
+  db.update(workRuns).set({ todoId: to.id, ticket: to.ticket }).where(eq(workRuns.todoId, from.id)).run();
+  db.update(todoTime).set({ todoId: to.id }).where(eq(todoTime.todoId, from.id)).run();
+  if (!run.repo) updateRun(run.id, { repo: repoForTicket(to.ticket)?.repo.path ?? null });
+  db.update(todos).set({ status: "dismissed", note: `Session moved to ${to.ref}.`, doneAt: stamp, updatedAt: stamp, mergedInto: to.id }).where(eq(todos.id, from.id)).run();
+  note(run.id, `[Zeff] The session moved under ${to.ref} (${to.ticket}).`);
+  emitChange("todos");
+  emitChange("work");
+}
 
 /** An agent takes a todo: its run starts (or the one it has goes on). The run. */
 export function startAgentWork(v: { todo: string; agent?: string; note?: string }) {
@@ -51,7 +82,14 @@ export function startAgentWork(v: { todo: string; agent?: string; note?: string 
   const mine = agentRunOn(t.id);
   if (mine) return { run: getRun(mine.id)!, resumed: true, todo: t };
   const busy = runsByStatus(["queued", "running"]).find((r) => r.todoId === t.id);
-  if (busy) throw new ValidationError(`${workRef(busy.id)} (${busy.provider}) is already on ${t.ref} — wait for it, or stop it on Zeff's Work tab.`);
+  // A session of Zeff's own without a ticket: it is the one working on it now.
+  const session = busy ? undefined : callerSession();
+  const placeholder = session ? getTodo(session.todoId) : undefined;
+  if (session && placeholder && !placeholder.ticket && placeholder.status === "open") {
+    adoptSession(session, placeholder, t);
+    return { run: getRun(session.id)!, resumed: false, todo: t };
+  }
+  if (busy) throw new ValidationError(`${workRef(busy.id)} (${busy.provider}) is already on ${t.ref} — wait for it, or stop it on Zeff's Code tab.`);
   const agent = (v.agent ?? "").trim().slice(0, 60) || "Agent";
   const mode: WorkMode = workModeOf(t).mode ?? "code";
   const r = createRun({ ticket: t.ticket, todoId: t.id, mode, provider: "agent", model: agent, permissionMode: null, repo: repoForTicket(t.ticket)?.repo.path ?? null, prompt: v.note?.trim() ?? "" });
@@ -59,15 +97,6 @@ export function startAgentWork(v: { todo: string; agent?: string; note?: string 
   note(r.id, `[${agent}] takes over ${t.ref}: ${t.text}`);
   if (v.note?.trim()) note(r.id, `[${agent}] ${v.note.trim()}`);
   return { run: getRun(r.id)!, resumed: false, todo: t };
-}
-
-/**
- * The pattern for a new branch: the Jira ticket key, then a few words the AGENT picks for the code
- * change it actually makes (feature/PROJ-364-footer-link-indent) — not the todo's or ticket's title,
- * which isn't necessarily the change.
- */
-export function newBranchName(t: Pick<TodoView, "ticket" | "kind">): string {
-  return `${t.kind === "fix" ? "fix" : "feature"}/${t.ticket}-<short-change>`;
 }
 
 /** Where code work on a todo goes: the ticket's repo (Repos page), its default branch, and a feature branch name to use. */
@@ -258,6 +287,9 @@ export async function finishAgentWork(v: {
   branch?: string;
   repo?: string;
   followUps?: { text: string; kind?: string; channel?: string; target?: string; draft?: string }[];
+  /** For the report: every changed file/place and every check (with its result). */
+  changes?: string[];
+  checks?: string[];
 }) {
   const t = openTodo(v.todo);
   if (t.needsInput) setTodoNeedsInput(t.id, null);
@@ -273,7 +305,7 @@ export async function finishAgentWork(v: {
   }
   // Done only when it says so — partial or blocked, the todo stays open (its plan waits too).
   const outcome = v.outcome ?? "done";
-  const res = normalizeResult({ outcome, summary: v.summary, entry: v.entry, completedTodos: outcome === "done" ? [t.id] : [], followUps: v.followUps ?? [] });
+  const res = normalizeResult({ outcome, summary: v.summary, entry: v.entry, completedTodos: outcome === "done" ? [t.id] : [], followUps: v.followUps ?? [], changes: v.changes, checks: v.checks });
   if (!res) throw new ValidationError("A report (summary) is needed.");
   const finishedAt = now();
   const sinceStart = run.startedAt ? Date.parse(finishedAt) - Date.parse(run.startedAt) : null;
@@ -282,13 +314,12 @@ export async function finishAgentWork(v: {
   let durationMs = minutes > 0 ? Math.round(minutes * 60000) : sinceStart;
   note(run.id, `[${run.model ?? "Agent"}] finished (${res.outcome}): ${res.entry}`);
   updateRun(run.id, {
-    status: "done",
+    ...(run.provider === "agent" ? { status: "done" as const, finishedAt } : {}),
     outcome: res.outcome,
     summary: res.summary,
     entryLine: res.entry || null,
     result: JSON.stringify(res),
     durationMs,
-    finishedAt,
   });
   // The last stretch as a record like the others (with no minutes and no records, the run's own time).
   const lastMinutes = minutes > 0 ? minutes : !before.length && durationMs ? Math.max(1, Math.round(durationMs / 60000)) : 0;
@@ -311,7 +342,12 @@ export async function finishAgentWork(v: {
   });
   if (delivery) note(run.id, `[Zeff] Delivery: ${delivery}`);
   // Its branch first: the report it leaves on the todo links to what it pushed.
-  if (v.branch?.trim()) updateRun(run.id, { branch: v.branch.trim() });
+  if (v.branch?.trim()) {
+    // With its repo (the one given, the run's, the ticket's): GitLab's branch item is known right away and the branch joins the todo's context at once.
+    const repoPath = v.repo?.trim() || run.repo || repoForTicket(t.ticket)?.repo.path || null;
+    updateRun(run.id, { branch: v.branch.trim(), ...(repoPath ? { repo: repoPath } : {}) });
+    linkBranchContext([t.id]);
+  }
   // Its time, as a booking to take over (a shadow row in the Weekly report): the minutes it took,
   // its one line — with the todo and its runs as evidence. Nothing is booked yet.
   let suggestion: string | null = null;

@@ -22,7 +22,7 @@ export async function setExtPluginEnabledAction(id: string, on: boolean): Promis
   }
 }
 
-/** The "/" commands of the Work message box (from the plugins that are on). */
+/** The "/" commands of the Code message box (from the plugins that are on). */
 export async function listWorkCommandsAction(): Promise<WorkCommand[]> {
   return extWorkCommands();
 }

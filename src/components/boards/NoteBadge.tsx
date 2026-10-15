@@ -11,6 +11,9 @@ import { DismissButton } from "../DismissButton";
 import { HoverCard } from "../HoverCard";
 import { toast } from "../Toaster";
 import { TodoRefs } from "./TodoRefs";
+import { SourceCard } from "../SourceCard";
+import { NOTE_IMAGE, noteImageIds } from "@/plugins/documents/shared";
+import { NoteText } from "./NoteText";
 import { formatDateTime } from "@/lib/format";
 import { useT } from "@/components/I18nProvider";
 
@@ -24,44 +27,38 @@ function JiraMark({ className = "" }: { className?: string }) {
   );
 }
 
-/** A note on a todo as a badge, like a comment: a run's report (✨, violet) or yours (💬); ↗ opens what it links to. */
+/** A note on a todo as a small card, like a comment: a run's report (AI report) or yours; ↗ opens what it links to. */
 export function NoteBadge({ n, className = "", jira }: { n: TodoUserNote; className?: string; /** The Jira comment this note became: one entry, with both icons. */ jira?: TodoSource }) {
   const t = useT();
   const onJira = jira?.source === "jira-comment" ? jira.comment : null;
   const ai = !!n.by;
-  const tone = ai
-    ? "border-violet-200 bg-violet-50 text-violet-950 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-100"
-    : "border-indigo-200 bg-indigo-50 text-indigo-950 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-100";
+  const plain = n.text.replace(NOTE_IMAGE, "").trim();
+  const [first, ...more] = plain.split("\n");
+  const who = n.by ?? (n.kind === "instruction" ? (n.run ? t("Your instruction → W-{run}", { run: n.run }) : t("Your instruction")) : t("Your note"));
+  const imageId = noteImageIds(n.text)[0];
   return (
-    <div className={`flex min-w-0 items-stretch overflow-hidden rounded-md border text-xs ${tone} ${className}`}>
-      <span className="flex min-w-0 flex-1 items-center gap-2 py-1 pr-2 pl-1.5">
-        {ai || n.kind === "instruction" ? <SparkIcon className={`size-4 shrink-0 ${ai ? "text-violet-600 dark:text-violet-400" : "text-indigo-600 dark:text-indigo-400"}`} /> : <NoteIcon className="size-4 shrink-0 text-indigo-600 dark:text-indigo-400" />}
-        {(onJira || n.jiraCommentId) && (
+    <SourceCard
+      tone={ai ? "indigo" : "zinc"}
+      icon={ai || n.kind === "instruction" ? <SparkIcon /> : <NoteIcon />}
+      kind={ai ? t("AI report") : t("Note")}
+      mark={
+        onJira || n.jiraCommentId ? (
           <span
             className="inline-flex shrink-0 items-center"
             title={onJira ? t("On both: your note here and its comment on Jira ({ticket}, {when})", { ticket: onJira.ticket, when: formatDateTime(onJira.at) }) : t("Also on Jira as a comment (it shows here once the Jira sync has read it back)")}
           >
-            <JiraMark className="size-4 text-sky-600 dark:text-sky-400" />
+            <JiraMark className="size-3.5 text-sky-600 dark:text-sky-400" />
           </span>
-        )}
-        <span className="shrink-0 font-medium">{n.by ??
-            (n.kind === "instruction"
-              ? n.run
-                ? t("Your instruction → W-{run}", { run: n.run })
-                : t("Your instruction")
-              : t("Your note"))}</span>
-        {n.from && <span className="shrink-0 font-mono opacity-70">{t("on T-{id}", { id: n.from })}</span>}
-        <span className="shrink-0 opacity-70">{formatDateTime(n.at)}</span>
-        <span className="min-w-0 truncate opacity-80">
-          <TaggedText text={n.text.replace(/\s+/g, " ")} render={(s) => <TodoRefs text={s} />} />
-        </span>
-      </span>
-      {n.url && (
-        <a href={n.url} target="_blank" rel="noreferrer" className="flex shrink-0 items-center px-2 hover:bg-violet-100 dark:hover:bg-violet-950" title={n.urlLabel ?? t("Open")} aria-label={t("Open")}>
-          ↗
-        </a>
-      )}
-    </div>
+        ) : undefined
+      }
+      title={first.replace(/\s+/g, " ").trim() || who}
+      sub={[who, n.from ? t("on T-{id}", { id: n.from }) : "", formatDateTime(n.at)].filter(Boolean).join(" · ")}
+      snippet={more.join(" ").replace(/\s+/g, " ").trim() || undefined}
+      thumb={imageId !== undefined ? `/api/documents/${imageId}/file` : undefined}
+      href={n.url || undefined}
+      hrefTitle={n.urlLabel ?? t("Open")}
+      className={className}
+    />
   );
 }
 
@@ -90,7 +87,7 @@ export function NoteDetails({ n, jira }: { n: TodoUserNote; todoId?: number; jir
         {noteSyncState(n) === "changed" && <span className="text-amber-600 dark:text-amber-400"> · {t("changed since the last sync to Jira")}</span>}
       </div>
       <p className="leading-relaxed whitespace-pre-line text-zinc-700 dark:text-zinc-300">
-        <TaggedText text={n.text} render={(s) => <TodoRefs text={s} />} />
+        <NoteText text={n.text} render={(s) => <TaggedText text={s} render={(x) => <TodoRefs text={x} />} />} />
       </p>
       {onJira && (
         <p className="flex items-center gap-1.5 text-xs text-sky-700 dark:text-sky-300">
@@ -123,12 +120,15 @@ export function NoteRow({ n, todoId, jira }: { n: TodoUserNote; todoId?: number;
   // The people the note tags: hovering a name opens the card's sidebar, a carousel of them all with that one in front.
   const tagged = useTaggedPeople(n.text);
   return (
-    <span className="flex flex-col items-start gap-1">
+    <span className="flex min-w-0 flex-col items-stretch gap-1">
       <PeopleGroup people={tagged}>
-      <HoverCard className="group gap-1.5 sm:max-w-md" card={<NoteDetails n={n} jira={jira} />}>
-        <NoteBadge n={n} jira={jira} className="min-w-0" />
+      <HoverCard className="group relative w-full flex-col items-stretch gap-1" card={<NoteDetails n={n} jira={jira} />}>
+        <NoteBadge n={n} jira={jira} className="min-w-0 flex-1" />
+        {/* The card's own actions sit on its corner, shown with the pointer or the focus on it (always on touch). */}
+        {own && (
+          <span className="absolute top-2 right-2 flex items-center gap-0.5 rounded-full bg-white/90 opacity-0 shadow-sm group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 dark:bg-zinc-900/90">
         {mine && (
-          <button type="button" className="icon-btn shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100" title={t("Edit the text")} aria-label={t("Edit the text")} onClick={() => (setText(n.text), setEditing(true))}>
+          <button type="button" className="icon-btn shrink-0" title={t("Edit the text")} aria-label={t("Edit the text")} onClick={() => (setText(n.text), setEditing(true))}>
             <PencilIcon className="size-3.5" />
           </button>
         )}
@@ -136,7 +136,7 @@ export function NoteRow({ n, todoId, jira }: { n: TodoUserNote; todoId?: number;
         {mine && sync !== "synced" && (
           <button
             type="button"
-            className={`shrink-0 rounded px-1 text-xs font-medium hover:underline disabled:opacity-40 ${sync === "changed" ? "text-amber-600 dark:text-amber-400" : "text-indigo-600 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 dark:text-indigo-400"}`}
+            className={`w-fit shrink-0 rounded px-1 text-xs font-medium hover:underline disabled:opacity-40 ${sync === "changed" ? "text-amber-600 dark:text-amber-400" : "text-indigo-600 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 dark:text-indigo-400"}`}
             disabled={pending}
             title={
               sync === "changed"
@@ -153,12 +153,14 @@ export function NoteRow({ n, todoId, jira }: { n: TodoUserNote; todoId?: number;
             {pending ? "…" : sync === "changed" ? t("Sync again") : t("Sync to Jira")}
           </button>
         )}
-        {own && <DismissButton onDismiss={() => removeTodoNoteAction(todoId!, n.at)} title={t("Dismiss — takes it out of this todo's context for good")} label={t("Dismiss this context item")} />}
+        {own && <DismissButton className="opacity-100" onDismiss={() => removeTodoNoteAction(todoId!, n.at)} title={t("Dismiss — takes it out of this todo's context for good")} label={t("Dismiss this context item")} />}
+          </span>
+        )}
       </HoverCard>
       </PeopleGroup>
       {editing && (
         <span className="block w-full max-w-xl space-y-1.5">
-          <MentionTextarea autoFocus rows={4} className="input w-full resize-y text-sm" value={text} onChange={setText} disabled={pending} aria-label={t("Edit the text")} />
+          <MentionTextarea autoFocus images rows={4} className="input w-full resize-y text-sm" value={text} onChange={setText} disabled={pending} aria-label={t("Edit the text")} />
           <span className="flex gap-1.5">
             <button
               type="button"

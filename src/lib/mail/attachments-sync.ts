@@ -10,6 +10,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { currentAccountId } from "@/db/accounts";
+import { driverOf } from "@/lib/connectors/store";
 import { automationEnv, driverPath } from "@/plugins/drivers";
 import { throwIfAborted } from "@/lib/abort";
 import { errorMessage } from "@/lib/errors";
@@ -34,6 +35,10 @@ export type DriverCall = (tool: string, args: Record<string, unknown>) => Promis
 export type SessionOpener = <T>(source: AttachmentSource, body: (call: DriverCall) => Promise<T>, timeoutMs: number) => Promise<T>;
 
 const defaultOpener: SessionOpener = async (source, body, timeoutMs) => {
+  // Gmail through Google's API: no driver process.
+  if (source === "gmail" && driverOf("gmail") === "api") return body((await import("@/lib/google/gmail-api")).gmailApiCall);
+  // Outlook through Microsoft Graph: no driver process, no mail opened (so none marked read).
+  if (source === "outlook" && driverOf("outlook-mail") === "api") return body((await import("@/lib/microsoft/mail-api")).outlookApiCall);
   const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
   return runStdioSession(
     { command: process.execPath, args: [driverPath(source)], env: automationEnv(), label: `${SOURCE_LABELS[source]} attachments` },
@@ -145,6 +150,8 @@ const DRIVER_DOWN = /sign[- ]?in|anmeld|isn't open|isn't running|not running|no 
 
 /** Gmail folder name → account, as the mail sync names them. */
 async function gmailFolderMap(): Promise<Map<string, string>> {
+  // With the API there is one account, in the folder "Gmail".
+  if (driverOf("gmail") === "api") return new Map([["Gmail", "0"]]);
   const { gmailAccounts, gmailFolder } = await import("@/plugins/gmail/accounts");
   return new Map(gmailAccounts().map((a, i) => [gmailFolder(a, i), a.account]));
 }
@@ -178,7 +185,7 @@ export function setAttachmentProgress(patch: Partial<AttachmentProgress>): void 
  * One run of the step. `manual`: from the “Fetch attachments now” button (runs also when the setting
  * says “only on request”, with roomier limits). Returns what happened; nothing here throws.
  */
-export async function fetchMailAttachments({ manual = false, now = Date.now() }: { manual?: boolean; now?: number } = {}): Promise<AttachmentRun> {
+export async function fetchMailAttachments({ manual = false, now = Date.now(), only }: { manual?: boolean; now?: number; only?: AttachmentSource[] } = {}): Promise<AttachmentRun> {
   const s = attachmentSettings();
   if (!s.enabled) return none();
   if (!manual && s.when === "manual") return none();
@@ -189,14 +196,15 @@ export async function fetchMailAttachments({ manual = false, now = Date.now() }:
   const run = none({ ran: true });
   let tmp = "";
   try {
-    const on = installedAttachmentSources().filter((src) => s.sources[src]);
+    const on = installedAttachmentSources().filter((src) => s.sources[src] && (!only || only.includes(src)));
     if (!on.length) return none({ message: manual ? t("No mail source is turned on for attachments.") : "" });
     const limits = manual ? MANUAL_LIMITS : AUTO_LIMITS;
     const started = Date.now();
     const gmailFolders = on.includes("gmail") ? await gmailFolderMap() : new Map<string, string>();
     const all = attachmentCandidates(s, on, gmailFolders, now);
     // Mails still unread are left alone where opening them would mark them read.
-    const todo = all.filter((m) => mayOpenMail(m, m.source, s));
+    // (Through Outlook's API nothing is opened, so unread mails stay unread: they're fine to take.)
+    const todo = all.filter((m) => mayOpenMail(m, m.source, s) || (m.source === "outlook" && driverOf("outlook-mail") === "api"));
     run.unreadLeft = all.length - todo.length;
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), "zeff-attach-"));
     let budget = limits.mails;

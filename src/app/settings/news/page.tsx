@@ -43,8 +43,8 @@ export default async function NewsSettingsPage({ searchParams }: { searchParams:
         <Link href="/news" className="btn btn-sm w-full text-center">
           {t("To the news")}
         </Link>
-        {sp.error && <p className="alert-error text-sm">{sp.error}</p>}
-        {sp.ok && <p className="alert-ok text-sm">{sp.ok}</p>}
+        {sp.error && <p role="alert" className="alert-error text-sm">{sp.error}</p>}
+        {sp.ok && <p role="status" className="alert-ok text-sm">{sp.ok}</p>}
       </div>
 
       <div className="space-y-4">

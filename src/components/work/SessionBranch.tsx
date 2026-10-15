@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
+import { FormError } from "@/components/FormError";
 import { toast } from "@/components/Toaster";
 import { switchSessionBranchAction } from "@/plugins/work/server-actions";
 
@@ -63,14 +64,14 @@ export function SessionBranch({ runId, repo, cwd, branch, worktree, idle }: { ru
           aria-label="Branch"
         >
           ⎇ {branch}
-          {worktree && <span className="rounded bg-indigo-100 px-1 text-[10px] text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">worktree</span>}
+          {worktree && <span className="rounded bg-indigo-100 px-1 text-xs text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">worktree</span>}
           {idle && cwd && <span aria-hidden>▾</span>}
         </button>
       )}
       {open && (
         <div className="absolute top-full left-0 z-30 mt-1 max-h-72 w-72 overflow-y-auto rounded-lg border border-zinc-200 bg-white p-1 text-xs shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
           {!list && <p className="px-2 py-1 text-zinc-400">Loading …</p>}
-          {list && !list.ok && <p className="px-2 py-1 text-red-600 dark:text-red-400">{list.error}</p>}
+          {list && !list.ok && <FormError as="p" className="px-2 py-1">{list.error}</FormError>}
           {list?.ok &&
             list.branches.map((b) => (
               <button

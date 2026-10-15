@@ -1,3 +1,4 @@
+import { convertLegacyItems } from "./legacy-items";
 import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
@@ -39,6 +40,26 @@ function applyPendingRestore(dbPath: string): void {
   console.log(`[zeff] Backup wiederhergestellt (${path.basename(db)} und Dateien aus ${pending}).`);
 }
 
+/**
+ * The migrations applied. Several processes may open the same new database at once (`next build`
+ * collects the pages with parallel workers; a deploy starts servers next to each other), and with a
+ * new migration they all try to apply it: the later ones fail with "already exists" — although the
+ * first one has applied it. Drizzle runs a migration in a transaction (a failed one leaves nothing
+ * behind), so trying again finds it applied and does nothing.
+ */
+function migrateOnce(db: Db): void {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      migrate(db, { migrationsFolder: MIGRATIONS_DIR });
+      return;
+    } catch (e) {
+      const cause = (e as { cause?: { message?: string } })?.cause?.message ?? (e as Error)?.message ?? String(e);
+      if (attempt >= 5 || !/already exists|duplicate column|database is locked|SQLITE_BUSY/i.test(cause)) throw e;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 150 * (attempt + 1)); // a short pause, then look again
+    }
+  }
+}
+
 function createDb(dbPath: string): { db: Db; sqlite: Database.Database } {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   applyPendingRestore(dbPath);
@@ -55,7 +76,14 @@ function createDb(dbPath: string): { db: Db; sqlite: Database.Database } {
   const db = drizzle(sqlite, { schema });
   // Apply the SQL migrations in ./drizzle on first use so the app is
   // zero-setup: `npm run dev` creates data/zeff.db with the current schema.
-  migrate(db, { migrationsFolder: MIGRATIONS_DIR });
+  migrateOnce(db);
+  // Parallel work kept as "items" by an earlier version: back as entries (see legacy-items.ts).
+  try {
+    const n = convertLegacyItems(sqlite);
+    if (n) console.log(`[zeff] ${n} Positionen unter Gruppeneinträgen sind wieder eigene Einträge.`);
+  } catch (e) {
+    console.error("[zeff] legacy items:", (e as Error).message);
+  }
   return { db, sqlite };
 }
 

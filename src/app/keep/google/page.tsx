@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { syncKeepAction } from "@/plugins/keep/server-actions";
-import { BetaBadge, BetaWarning } from "@/components/BetaBadge";
+import { BetaBadge, BetaWarning, PluginExperimental } from "@/components/BetaBadge";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { SyncControls } from "@/components/SyncControls";
 import { syncOverview } from "@/lib/sync/registry";
@@ -49,6 +49,7 @@ export default async function GoogleKeepPage({ searchParams }: { searchParams: P
   return (
     <div className="page">
       <div className="page-aside">
+        <PluginExperimental id="keep" />
         <h1 className="text-lg font-semibold">Keep</h1>
         <KeepNav current="google" />
         {writable ? (

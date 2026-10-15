@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PluginExperimental } from "@/components/BetaBadge";
 import { t } from "@/lib/i18n/server";
 import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
@@ -21,6 +22,7 @@ export default async function KeepSettingsPage() {
   return (
     <div className="page">
       <div className="page-aside">
+        <PluginExperimental id="keep" />
         <h1 className="text-lg font-semibold">{t("Manage Keep")}</h1>
         <KeepNav current="settings" />
         <p className="text-sm text-zinc-500">

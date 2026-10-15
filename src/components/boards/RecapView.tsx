@@ -41,7 +41,7 @@ function Facts({ facts, entities = [] }: { facts: RecapFact[]; entities?: Entity
         {lines.map((f, i) => (
           <li key={i} className="flex items-baseline gap-2 text-xs text-zinc-600 dark:text-zinc-300">
             <span className="w-10 shrink-0 font-mono text-zinc-400">{time(f.at)}</span>
-            <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${kind[f.kind].cls}`}>
+            <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-medium ${kind[f.kind].cls}`}>
               {kind[f.kind].label}
               {f.hours ? ` ${formatHours(f.hours)} h` : ""}
             </span>
@@ -80,7 +80,7 @@ export function RecapView({ recap, cards, entities = {} }: { recap: Recap; cards
             <header className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
               <TicketLink ticket={tk.key} card={cards[tk.key]} className="font-mono text-sm font-semibold text-indigo-700 dark:text-indigo-300" />
               <span className="font-medium">{tk.summary || cards[tk.key]?.summary}</span>
-              {tk.status && <span className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wide text-zinc-600 uppercase dark:bg-zinc-800 dark:text-zinc-300">{tk.status}</span>}
+              {tk.status && <span className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs font-semibold tracking-wide text-zinc-600 uppercase dark:bg-zinc-800 dark:text-zinc-300">{tk.status}</span>}
               {hours > 0 && <span className="ml-auto text-xs text-zinc-500">{t("{hours} h booked", { hours: formatHours(hours) })}</span>}
             </header>
             {w?.lead && <p className="font-medium">{w.lead}</p>}

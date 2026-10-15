@@ -45,8 +45,10 @@ function BoardRow({ b, first, last, run }: { b: Row; first: boolean; last: boole
               aria-checked={b.color === c}
               aria-label={c}
               onClick={() => c !== b.color && run(() => updateBoardAction(b.id, { color: c }))}
-              className={`size-4 rounded-full ${boardDot(c)} ring-offset-2 dark:ring-offset-zinc-900 ${b.color === c ? "ring-2 ring-zinc-500" : "opacity-50 hover:opacity-100"}`}
-            />
+              className={`grid size-6 place-items-center rounded-full text-[11px] leading-none font-bold text-white ${boardDot(c)} ring-offset-2 dark:ring-offset-zinc-900 ${b.color === c ? "ring-2 ring-zinc-600 dark:ring-zinc-300" : "opacity-60 hover:opacity-100"}`}
+            >
+              {b.color === c ? "✓" : ""}
+            </button>
           ))}
         </span>
         <span className="text-xs text-zinc-500">

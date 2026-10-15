@@ -2,7 +2,7 @@
 
 import { useOptimistic, useState, useTransition } from "react";
 import { updateEntryHoursAction } from "@/app/actions";
-import { formatHours } from "@/lib/format";
+import { formatHours, parseHours } from "@/lib/format";
 import { useT } from "./I18nProvider";
 
 const STEP = 0.25;
@@ -33,8 +33,8 @@ export function EntryHoursCell({ entryId, hours }: { entryId: number; hours: num
 
   /** Move to the next quarter hour up/down (1.1 → 1.25 / 1.0), kept within 0.25–24. */
   function step(dir: 1 | -1) {
-    const typed = Number(draft.trim().replace(",", "."));
-    const base = draft.trim() && Number.isFinite(typed) ? typed : hours;
+    const typed = parseHours(draft);
+    const base = typed ?? hours;
     const next = dir > 0 ? Math.floor(base / STEP + 1e-9) * STEP + STEP : Math.ceil(base / STEP - 1e-9) * STEP - STEP;
     setDraft(String(Math.min(24, Math.max(STEP, Math.round(next * 100) / 100))));
     setError(null);
@@ -55,8 +55,8 @@ export function EntryHoursCell({ entryId, hours }: { entryId: number; hours: num
   );
 
   function save() {
-    const value = Number(draft.trim().replace(",", "."));
-    if (!draft.trim() || !Number.isFinite(value)) {
+    const value = parseHours(draft);
+    if (value === null) {
       setError(t("Enter hours as a number, e.g. 1.5"));
       return;
     }

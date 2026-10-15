@@ -1,4 +1,5 @@
 import { MINUTE_CHOICES, type SyncFollower, type SyncInterval } from "@/plugins/sync-settings";
+import { driverOf } from "@/lib/connectors/store";
 import { t } from "@/lib/i18n/server";
 import { getMailSettings, updateMailSettings } from "./store";
 
@@ -9,13 +10,15 @@ export const MAIL_INTERVAL: SyncInterval = {
     return t("Mail");
   },
   get what() {
-    return t("Your inbox's latest mails (Outlook, Gmail) — read from the list, none opened.");
+    return driverOf("gmail") === "api" || driverOf("outlook-mail") === "api"
+      ? t("Your inbox's latest mails (Outlook, Gmail) — read from the list, none opened. A mailbox set to its API is read through it, the others through the automation Chrome.")
+      : t("Your inbox's latest mails (Outlook, Gmail) — read from the list, none opened.");
   },
   get: () => getMailSettings().syncMinutes,
   set: (m) => updateMailSettings({ syncMinutes: m }),
   choices: MINUTE_CHOICES,
   get window() {
-    return t("while the automation Chrome runs");
+    return driverOf("gmail") === "api" || driverOf("outlook-mail") === "api" ? t("A mailbox through its API always, the others while the automation Chrome runs") : t("while the automation Chrome runs");
   },
 };
 

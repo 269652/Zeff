@@ -1,3 +1,5 @@
+import { collectHeadsOn } from "@/lib/entry-parallel";
+import { ParallelPanel } from "@/components/ParallelPanel";
 import { redirect } from "next/navigation";
 import { firstAppTab } from "@/plugins/tabs";
 import { isInstalled } from "@/plugins/state";
@@ -91,7 +93,7 @@ export default async function WeekPage({
       </div>
 
       {sp.imported !== undefined && (
-        <p className="alert-ok">
+        <p role="status" className="alert-ok">
           {sp.imported === "1"
             ? sp.skipped
               ? t("Imported 1 meeting as time entries ({skipped} already booked, skipped).", { skipped: sp.skipped })
@@ -103,7 +105,7 @@ export default async function WeekPage({
       )}
 
       {sp.week && !requested && (
-        <p className="alert-error">{t('Could not read week "{week}" — showing the current week instead.', { week: sp.week })}</p>
+        <p role="alert" className="alert-error">{t('Could not read week "{week}" — showing the current week instead.', { week: sp.week })}</p>
       )}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -159,6 +161,7 @@ export default async function WeekPage({
             defaultTagMaps={listDefaultTagMaps()}
             types={types}
             withContext
+            groupDays={Object.fromEntries(week.days.flatMap((d) => { const g = collectHeadsOn(isoDate(d))[0]; return g ? [[isoDate(d), g.head.description]] : []; }))}
           />
         </ContextFormOptionsProvider>
       </section>
@@ -169,6 +172,9 @@ export default async function WeekPage({
       <SuggestionsPanel items={openSuggestions()} />
 
       <DoneTodayPanel items={doneToday()} />
+
+      {/* Two tasks of one job done at the same time, still booked on top of each other. */}
+      <ParallelPanel from={week.startIso} to={week.endIso} />
 
       <section className="card p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

@@ -22,7 +22,7 @@ export function FollowToggle({ ticket, followed }: { ticket: string; followed?: 
     });
   if (followed)
     return (
-      <span className="inline-flex items-center gap-1 rounded bg-indigo-50 px-1.5 py-0.5 text-[11px] text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-200" title={t("Not (or no longer) on your board filter — here because you work on it")}>
+      <span className="inline-flex items-center gap-1 rounded bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-200" title={t("Not (or no longer) on your board filter — here because you work on it")}>
         {t("followed")} · {followed}
         <button type="button" className="ml-0.5 underline-offset-2 hover:underline" disabled={pending} onClick={() => set(-1)} title={t("Stop following — it drops out of the briefing on the next run")}>
           {t("unfollow")}
@@ -30,7 +30,7 @@ export function FollowToggle({ ticket, followed }: { ticket: string; followed?: 
       </span>
     );
   return (
-    <button type="button" className="text-[11px] text-indigo-700 hover:underline dark:text-indigo-300" disabled={pending} onClick={() => set(1)} title={t("Keep it in the briefing although it is no longer on your board filter")}>
+    <button type="button" className="text-xs text-indigo-700 hover:underline dark:text-indigo-300" disabled={pending} onClick={() => set(1)} title={t("Keep it in the briefing although it is no longer on your board filter")}>
       {t("keep following")}
     </button>
   );

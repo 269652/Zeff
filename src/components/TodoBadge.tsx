@@ -2,7 +2,7 @@
 
 import { setTodoStatusAction } from "@/plugins/todos/server-actions";
 import { todoKindLabels, type TodoSource, type TodoView } from "@/lib/boards/shared";
-import { ChevronIcon } from "./icons";
+import { SourceCard } from "./SourceCard";
 import { TodoSources } from "./boards/TodoSources";
 import { ResolveToggle } from "./ResolveToggle";
 import { formatDate, formatDayTime } from "@/lib/format";
@@ -17,71 +17,39 @@ export const todoHref = (t: Pick<TodoView, "id" | "status">) => (t.status === "o
 
 const STATUS = (t: T) => ({ open: t("open"), done: t("done"), dismissed: t("dismissed") });
 
-/** Green once it's done, blue while it's open. */
-const TONE = {
-  done: {
-    box: "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100",
-    hover: "hover:bg-emerald-100 dark:hover:bg-emerald-950",
-    accent: "text-emerald-600 dark:text-emerald-400",
-    meta: "text-emerald-800/80 dark:text-emerald-300/80",
-    words: "text-emerald-900/70 dark:text-emerald-100/70",
-  },
-  open: {
-    box: "border-sky-200 bg-sky-50 text-sky-950 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100",
-    hover: "hover:bg-sky-100 dark:hover:bg-sky-950",
-    accent: "text-sky-600 dark:text-sky-400",
-    meta: "text-sky-800/80 dark:text-sky-300/80",
-    words: "text-sky-900/70 dark:text-sky-100/70",
-  },
-};
-
 /**
- * A link to a board todo, shown as the todo: its reference, ticket, what kind and whether it's
- * done — and what it asks. With `onToggle` a click unfolds it (the chevron); ↗ shows it on the
- * Todos page.
+ * A link to a board todo, as a small card: its text, ticket, kind and whether it's done. With
+ * `onToggle` a click unfolds it (the chevron); ↗ shows it on the Todos page.
  */
 export function TodoBadge({ t: todo, className = "", expanded = false, onToggle }: { t: TodoView; className?: string; expanded?: boolean; onToggle?: () => void }) {
   const t = useT();
   const closed = todo.status !== "open";
-  const tone = TONE[closed ? "done" : "open"];
-  const what = (
-    <>
-      {onToggle && <ChevronIcon open={expanded} className={`size-3.5 shrink-0 ${tone.accent}`} />}
-      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className={`size-4 shrink-0 ${tone.accent}`} aria-hidden>
-        <rect x="3.5" y="3.5" width="13" height="13" rx="2.5" />
-        {closed && <path d="m7 10.25 2 2 4-4.5" />}
-      </svg>
-      <span className="shrink-0 font-mono font-medium">{todo.ref}</span>
-      {/* Ticket, kind and state — on a phone it gives way too (ellipsis). */}
-      <span className={`shrink-0 max-sm:min-w-0 max-sm:shrink max-sm:truncate ${tone.meta}`}>
-        {todo.ticket} · {todoKindLabels(t)[todo.kind]} · {closed ? `${STATUS(t)[todo.status]} ${day(todo.doneAt ?? todo.updatedAt)}` : STATUS(t).open}
-      </span>
-      <span className={`min-w-0 truncate ${tone.words}`}>{todo.text}</span>
-    </>
-  );
-  const inner = "flex min-w-0 flex-1 items-center gap-2 py-1 pr-2 pl-1.5 text-left";
   return (
-    <div className={`flex min-w-0 items-stretch overflow-hidden rounded-md border text-xs ${tone.box} ${className}`}>
-      {onToggle ? (
-        <button type="button" className={`${inner} cursor-pointer transition ${tone.hover}`} onClick={onToggle} aria-expanded={expanded} title={expanded ? t("Fold") : t("Show the whole todo")}>
-          {what}
-        </button>
-      ) : (
-        <span className={inner}>{what}</span>
-      )}
-      <a
-        href={todoHref(todo)}
-        target="_blank"
-        rel="noreferrer"
-        className={`flex shrink-0 items-center px-2 transition ${tone.accent} ${tone.hover}`}
-        title={t("Show {ref} on the Todos page", { ref: todo.ref })}
-        aria-label={t("Show {ref} on the Todos page", { ref: todo.ref })}
-      >
-        ↗
-      </a>
-    </div>
+    <SourceCard
+      tone="indigo"
+      icon={
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <rect x="3.5" y="3.5" width="13" height="13" rx="2.5" />
+          {closed && <path d="m7 10.25 2 2 4-4.5" />}
+        </svg>
+      }
+      kind={`${t("Todo")} ${todo.ref}`}
+      state={{
+        text: closed ? `${STATUS(t)[todo.status]} ${day(todo.doneAt ?? todo.updatedAt)}` : STATUS(t).open,
+        className: closed ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200" : "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200",
+      }}
+      title={todo.text || todo.ref}
+      sub={[todo.ticket, todoKindLabels(t)[todo.kind]].filter(Boolean).join(" · ")}
+      expanded={expanded}
+      onToggle={onToggle}
+      toggleTitle={expanded ? t("Fold") : t("Show the whole todo")}
+      href={todoHref(todo)}
+      hrefTitle={t("Show {ref} on the Todos page", { ref: todo.ref })}
+      className={className}
+    />
   );
 }
+
 
 /**
  * A board todo in full, as a card: what it asks, why it was closed, what it came from (`from`:

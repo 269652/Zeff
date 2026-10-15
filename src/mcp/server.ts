@@ -1,4 +1,5 @@
 import { isInstalled } from "@/plugins/state";
+import { registerWorkspaceTools } from "@/plugins/workspace/mcp";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { ConflictError, NotFoundError, ValidationError, errorMessage } from "@/lib/errors";
@@ -39,13 +40,13 @@ Todos: Zeff's Todos tab reads the user's Jira tickets and finds concrete todos o
 Time on a todo: REPORT IT AS YOU GO. A todo has many time records — call todo_time (todo, minutes, a one-line note, your name as agent) after each phase of the work (research, implementation, tests …), before you ask the user something and whenever you pause or stop: the minutes spent since your LAST record, honestly (waiting for the user doesn't count; no padding, no rounding up). Several calls per todo are expected and wanted. When the user books, the time of all related todos (same ticket, follow-ups, the todos a session touched) flows into ONE booking suggestion, with each record linked as evidence — so the records are how your time is tracked. Don't report the same stretch twice, and don't also add it up in report_time.
 
 Working on a todo (you're an agent — VS Code Copilot, Claude Code, …):
-1. Call start_todo with the todo and your name as agent IMMEDIATELY — as your very first step, before you read code, research, plan or ask anything. Research and looking around already count as working on it. Zeff then shows the todo as being worked on and you as a worker on its Work tab.
+1. Call start_todo with the todo and your name as agent IMMEDIATELY — as your very first step, before you read code, research, plan or ask anything. Research and looking around already count as working on it. Zeff then shows the todo as being worked on and you as a worker on its Code tab.
 2. Code changes go on a FEATURE BRANCH, never on main: start_todo tells you the repo and the branch — the ticket's EXISTING feature branch if it has one (continue on it), otherwise a new one: feature/<TICKET>-<short-change> (fix/… for bugs), where <TICKET> is the key of the Jira ticket the todo belongs to (e.g. PROJ-364) and <short-change> is 2–4 lowercase words (max ~30 characters) describing the code change you actually make (feature/PROJ-364-footer-link-indent) — NOT the ticket's or todo's title, which isn't necessarily the change. The ticket key must always be the prefix; never a name without it. You create it from the default branch in a separate worktree (git worktree add -b <branch> <folder> origin/main after a fetch). Commit there. Don't push to main and don't merge — Zeff does the delivery from your branch.
    Implement with STRICT TDD: first a test that fails for the right reason, then the smallest change that makes it pass, then tidy up — and run the affected suite at the end. What can only be checked by hand, name as open in your summary.
-   Then call todo_context for everything Zeff knows about it (the ticket, comments, the Teams messages and mails it comes from, the user's notes, earlier runs) — read it before you start.
+   Then call todo_context for everything Zeff knows about it (the ticket, comments, the Teams messages and mails it comes from, the user's notes, earlier runs) — read it before you start. If it lists attachments (pictures the user pasted into their notes: screenshots, mock-ups, error screens — and documents), LOOK at them with todo_attachment before you implement: a picture often shows exactly what is meant.
    Optionally call todo_progress with a short note now and then (what you're doing) — it's your log there.
    Report your time with todo_time after each phase and before you ask the user (see "Time on a todo" above).
-   Whenever you stop to ask the user something (a question, a decision, a confirmation, a review) — call todo_needs_input with the question FIRST, then ask. The todo then shows ❗ on Zeff's Todos and Work tabs so the user sees you're waiting. Once you have the answer and go on, call todo_progress (that clears the ❗) — finish_todo clears it too.
+   Whenever you stop to ask the user something (a question, a decision, a confirmation, a review) — call todo_needs_input with the question FIRST, then ask. The todo then shows ❗ on Zeff's Todos and Code tabs so the user sees you're waiting. Once you have the answer and go on, call todo_progress (that clears the ❗) — finish_todo clears it too.
 3. When you're done — or stop — call finish_todo with: summary (it's shown on the todo as your comment — so ALWAYS a summary of what you did: first ONE sentence saying what is done now, then short bullets: what you changed, how you tested, what's still open and why, where it is — branch and commit), entry (ONE short line for the booking, same rules as report_time descriptions), minutes (the time since your LAST todo_time record — all of it, if you reported none —, honestly), outcome (done / partial / blocked), branch (the feature branch you committed on — and repo, its folder, if Zeff doesn't know the ticket's repo) and followUps for what's left (replies, comments, ticket changes — with ready drafts).
    With a branch, Zeff creates a todo for the user to TEST AND VERIFY your work by hand first; once they've ticked it off, the delivery follows (push → merge request to main, or merge straight into main — one click each). Don't create test or delivery todos yourself, and say in your summary what the user should test.
    finish_todo records those last minutes as one more time record on the todo (the entry line as its note) and suggests the booking itself — all the todo's records not suggested yet add up in it, with the todo and your run as evidence — so give honest minutes and a good one-line entry, and do NOT also call report_time for that work (it would be suggested twice).
@@ -64,8 +65,11 @@ function fail(text: string) {
   return { content: [{ type: "text" as const, text }], isError: true };
 }
 
+/** What a tool answers: text, and pictures (todo_attachment). */
+type ToolResult = { content: ({ type: "text"; text: string } | { type: "image"; data: string; mimeType: string })[]; isError?: boolean };
+
 /** Run a tool body and turn thrown errors into MCP error results the agent can read. */
-async function run(fn: () => Promise<ReturnType<typeof ok>> | ReturnType<typeof ok>) {
+async function run(fn: () => Promise<ToolResult> | ToolResult) {
   try {
     return await fn();
   } catch (err) {
@@ -136,7 +140,7 @@ function renderWeeklyReport(report: WeeklyReport): string {
 /** A tool of a plugin that isn't installed: says so (else null). */
 function pluginOff(id: "todos" | "work") {
   if (isInstalled(id)) return null;
-  return fail(`${id === "work" ? "Work" : "Todos"} is not installed in Zeff (Menu → Plugins) — this tool isn't available.`);
+  return fail(`${id === "work" ? "Code" : "Todos"} is not installed in Zeff (Menu → Plugins) — this tool isn't available.`);
 }
 
 export function registerZeffTools(server: McpServer): void {
@@ -298,7 +302,7 @@ export function registerZeffTools(server: McpServer): void {
         "and before asking the user. German and English words both work; 2–5 specific words find more than a sentence.",
       inputSchema: z.object({
         query: z.string().min(2).describe("What to look for — words that stand in the texts: names, systems, ticket keys."),
-        where: z.array(z.enum(["knowledge", "mails", "teams", "gitlab", "jira", "notes", "facts", "todos"])).optional().describe("Only look in these sources (default: all)."),
+        where: z.array(z.enum(["knowledge", "mails", "teams", "gitlab", "jira", "notes", "facts", "todos", "documents", "pages"])).optional().describe("Only look in these sources (default: all)."),
       }),
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
@@ -475,11 +479,11 @@ export function registerZeffTools(server: McpServer): void {
     {
       title: "Start working on a board todo",
       description:
-        "Take a board todo (T-<id>, see list_todos) as your very FIRST step — before any research, reading or planning: Zeff shows it as being worked on and you as a worker (an extra one, next to its own) on its Work tab. " +
-        "Call finish_todo with your report and the time it took when you're through.",
+        "Take a board todo (T-<id>, see list_todos) as your very FIRST step — before any research, reading or planning: Zeff shows it as being worked on and you as a worker (an extra one, next to its own) on its Code tab. " +
+        "Starting is recorded — it is when your work on the todo began, and what the booking's start time (and Zeff's Done calendar) is taken from — so call it BEFORE you begin, not afterwards. Call finish_todo with your report and the time it took when you're through.",
       inputSchema: z.object({
         todo: z.string().min(1).describe("The todo, e.g. 'T-12'."),
-        agent: z.string().optional().describe("Who you are, as the Work tab shows it — e.g. 'VS Code Copilot' or 'Claude Code'."),
+        agent: z.string().optional().describe("Who you are, as the Code tab shows it — e.g. 'VS Code Copilot' or 'Claude Code'."),
         note: z.string().optional().describe("What you're about to do, one short line (optional)."),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
@@ -529,10 +533,70 @@ export function registerZeffTools(server: McpServer): void {
   );
 
   server.registerTool(
+    "todo_attachment",
+    {
+      title: "A todo's attachments — look at its pictures",
+      description:
+        "The pictures (and documents) the user attached to a todo — mostly pasted into its notes: screenshots, mock-ups, error screens. todo_context lists them as [doc:12]; this returns the pictures themselves for you to look at (as images), or a document's text. Without doc: all pictures of the todo. Look at them before you implement — a picture often shows exactly what is meant.",
+      inputSchema: z.object({
+        todo: z.string().min(1).describe("The todo, e.g. 'T-12'."),
+        doc: z.string().optional().describe("One attachment as todo_context lists it, e.g. 'doc:12'. Omitted: all the pictures attached to the todo."),
+      }),
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    async (args) =>
+      run(async () => {
+        const off = pluginOff("todos");
+        if (off) return off;
+        if (!isInstalled("documents")) return fail("Documents is not installed in Zeff (Menu → Plugins) — this tool isn't available.");
+        const id = parseTodoRef(args.todo);
+        const todo = id === null ? undefined : getTodo(id);
+        if (!todo) return fail(`"${args.todo}" isn't a todo — list_todos shows them (T-12).`);
+        const { attachmentLine, parseDocQuery, todoAttachments } = await import("@/plugins/documents/attachments");
+        const { documentFile, documentText } = await import("@/plugins/documents/store");
+        const all = todoAttachments(todo.refs);
+        if (!all.length) return ok(`${todoRef(todo.id)} has no attachments.`);
+        let chosen = all.filter((d) => d.kind === "image").slice(0, 4);
+        if (args.doc) {
+          const want = parseDocQuery(args.doc);
+          const hit = all.find((d) => d.id === want);
+          if (!hit) return fail(`"${args.doc}" isn't attached to ${todoRef(todo.id)} — todo_context lists its attachments: ${all.map((d) => d.ref).join(", ")}.`);
+          chosen = [hit];
+        } else if (!chosen.length) {
+          return ok(`${todoRef(todo.id)} has no pictures; its other attachments (ask for one with doc):\n${all.map((d) => `- ${attachmentLine(d)}`).join("\n")}`);
+        }
+        const content: ToolResult["content"] = [];
+        const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+        for (const d of chosen) {
+          content.push({ type: "text", text: attachmentLine(d, 1500) });
+          if (d.kind === "image") {
+            const f = documentFile(d.id);
+            if (!f) {
+              content.push({ type: "text", text: "(the file is no longer there)" });
+              continue;
+            }
+            const fs = await import("node:fs");
+            if (fs.statSync(f.path).size > MAX_IMAGE_BYTES) {
+              content.push({ type: "text", text: "(the picture is larger than 8 MB — only its description above is available)" });
+              continue;
+            }
+            const ext = f.name.split(".").pop()?.toLowerCase() ?? "";
+            const mimeType = f.mime.startsWith("image/") ? f.mime : ext === "jpg" || ext === "jpeg" ? "image/jpeg" : `image/${ext || "png"}`;
+            content.push({ type: "image", data: fs.readFileSync(f.path).toString("base64"), mimeType });
+          } else {
+            const text = documentText(d.id).trim();
+            content.push({ type: "text", text: text ? (text.length > 12000 ? `${text.slice(0, 12000)}\n… (cut)` : text) : "(no text read from it)" });
+          }
+        }
+        return { content };
+      }),
+  );
+
+  server.registerTool(
     "todo_progress",
     {
       title: "Note progress on a board todo",
-      description: "A short note on what you're doing on a todo you started (start_todo) — shown as its log on Zeff's Work tab.",
+      description: "A short note on what you're doing on a todo you started (start_todo) — shown as its log on Zeff's Code tab.",
       inputSchema: z.object({
         todo: z.string().min(1).describe("The todo, e.g. 'T-12'."),
         message: z.string().min(1).describe("What you're doing now, one or two lines."),
@@ -591,7 +655,7 @@ export function registerZeffTools(server: McpServer): void {
     {
       title: "Mark a board todo as waiting for the user",
       description:
-        "Call BEFORE you ask the user anything while working on a todo you started (start_todo): a question, a decision, a confirmation. The todo shows ❗ and your question on Zeff's Todos and Work tabs until you go on (todo_progress) or finish (finish_todo).",
+        "Call BEFORE you ask the user anything while working on a todo you started (start_todo): a question, a decision, a confirmation. The todo shows ❗ and your question on Zeff's Todos and Code tabs until you go on (todo_progress) or finish (finish_todo).",
       inputSchema: z.object({
         todo: z.string().min(1).describe("The todo, e.g. 'T-12'."),
         question: z.string().min(1).describe("What you're asking the user, one or two lines."),
@@ -620,7 +684,9 @@ export function registerZeffTools(server: McpServer): void {
         summary: z
           .string()
           .min(1)
-          .describe("Your comment on the todo — always a summary of what you did: ONE sentence on what is done now, then short bullets: changed, tested, still open (and why), where (branch, commit). Markdown."),
+          .describe("Your report on the todo — ALWAYS, in full, even when nothing worked: ONE sentence on what is done now (or why not), then the sections '## Erledigt', '## Offen' (what stays and why), '## Geprüft' (tests/build/manual checks — and what did NOT run, with the reason), '## Ort' (branch, commit). Markdown. It is kept as the todo's report and read by the knowledge server."),
+        changes: z.array(z.string()).optional().describe("Every changed file or place, one line each (path: what), and the commits (hash: title)."),
+        checks: z.array(z.string()).optional().describe("Every check, one line each: 'command/kind: result' — or 'not run: reason'."),
         entry: z.string().min(1).describe("ONE short line for the time booking: what was done, not how (no commit/MR numbers, no file lists)."),
         minutes: z.number().positive().describe("The time since your last todo_time record, in minutes — all the work's time, if you reported none."),
         outcome: z.enum(["done", "partial", "blocked"]).optional().describe("done (default): the todo is finished; partial: some of it; blocked: you couldn't go on."),
@@ -869,4 +935,7 @@ export function registerZeffTools(server: McpServer): void {
         return ok(`Withdrew ${s.ref} (${formatHours(s.hours)}h, "${s.description}").`);
       }),
   );
+
+  // The Workspace's pages and databases (when that plugin is installed, the tools say so otherwise).
+  registerWorkspaceTools(server, { run, ok, fail });
 }

@@ -14,8 +14,8 @@ export async function WorkSettingsSection() {
     <>
       <section id="work" className="card scroll-mt-24 space-y-3 p-4">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Work")}</h2>
-          <p className="mt-1 text-sm text-zinc-500">{t("How the Work tab's sessions and workers run: Claude Code live, its permission modes, and the workers' limits, model and house rules.")}</p>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Code")}</h2>
+          <p className="mt-1 text-sm text-zinc-500">{t("How the Code tab's sessions and workers run: Claude Code live, its permission modes, and the workers' limits, model and house rules.")}</p>
         </div>
         <ClaudeSessionSettingsForm s={claudeSessionSettings()} admin={isInstalled("work-elevated")} />
       </section>

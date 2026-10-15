@@ -118,6 +118,7 @@ export function SyncMenu() {
   const [, setTick] = useState(0);
   const [, start] = useTransition();
   const root = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
   const wasRunning = useRef(false);
   const running = !!data && (data.all.running || data.steps.some((s) => s.running));
   const failed = !!data && data.steps.some((s) => s.lastOk === false && !s.running);
@@ -155,14 +156,23 @@ export function SyncMenu() {
       if (!root.current?.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        setOpen(false);
+        trigger.current?.focus();
+      }
+    };
+    // Focus leaving the menu (Tab out) closes it, without pulling focus back.
+    const onFocusIn = (e: FocusEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
+    document.addEventListener("focusin", onFocusIn);
     return () => {
       clearInterval(clock);
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
+      document.removeEventListener("focusin", onFocusIn);
     };
   }, [open]);
 
@@ -177,9 +187,10 @@ export function SyncMenu() {
   return (
     <div ref={root} className="relative">
       <button
+        ref={trigger}
         type="button"
         className="relative inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md px-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:text-zinc-300 dark:hover:bg-zinc-800"
-        aria-haspopup="true"
+        aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls="sync-menu"
         onClick={() => setOpen(!open)}
@@ -190,7 +201,7 @@ export function SyncMenu() {
         {failed && <span className="absolute top-1.5 right-1 size-1.5 rounded-full bg-red-500" aria-hidden />}
       </button>
       {open && (
-        <div id="sync-menu" className="absolute right-0 z-50 mt-2 flex max-h-[calc(100dvh-5rem)] w-[22rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
+        <div id="sync-menu" role="dialog" aria-label={t("Sync")} className="absolute right-0 z-50 mt-2 flex max-h-[calc(100dvh-5rem)] w-[22rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-zinc-200 px-3 py-2.5 dark:border-zinc-800">
             {data?.all.running ? (
               <button type="button" className="btn btn-sm text-red-600 dark:text-red-400" onClick={() => go(stopSyncAllAction)} title={t("Cancel the running step and start no more")}>
@@ -211,7 +222,10 @@ export function SyncMenu() {
           {/* The steps scroll (there are many); the head and the links stay. */}
           <ul className="min-h-0 flex-1 divide-y divide-zinc-100 overflow-y-auto overscroll-contain dark:divide-zinc-900">
             {(data?.steps ?? []).map((s) => (
-              <SyncStepRow key={s.key} s={s} disabled={!!data?.all.running} onRun={() => go(() => runSyncAction(s.key))} onStop={() => go(() => stopSyncAction(s.key))} onNavigate={() => setOpen(false)} />
+              <SyncStepRow key={s.key} s={s} disabled={!!data?.all.running} onRun={() => go(() => runSyncAction(s.key))} onStop={() => go(() => stopSyncAction(s.key))} onNavigate={() => {
+                setOpen(false);
+                trigger.current?.focus();
+              }} />
             ))}
             {!data && <LoadingRow>{t("Loading…")}</LoadingRow>}
           </ul>

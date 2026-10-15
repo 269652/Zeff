@@ -1,32 +1,24 @@
 import type { FactView } from "@/lib/facts-shared";
-import { ChevronIcon } from "./icons";
+import { SourceCard } from "./SourceCard";
 import { formatDate } from "@/lib/format";
 import { useT } from "@/components/I18nProvider";
 
-const BADGE = "flex min-w-0 items-stretch overflow-hidden rounded-md border border-amber-200 bg-amber-50 text-xs text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100";
-const INNER = "flex min-w-0 flex-1 items-center gap-2 py-1 pr-2 pl-1.5 text-left";
-
-/** A fact as a badge: "💡 Nadines Geburtstag: 16.10." — with `onToggle` it unfolds. */
+/** A fact as a small card: its subject and what is true — with `onToggle` it unfolds. */
 export function FactBadge({ f, className = "", expanded = false, onToggle }: { f: FactView; className?: string; expanded?: boolean; onToggle?: () => void }) {
   const t = useT();
-  const body = (
-    <>
-      {onToggle && <ChevronIcon open={expanded} className="size-3.5 shrink-0 text-amber-500" />}
-      <span aria-hidden>💡</span>
-      <span className="shrink-0 font-medium">{f.subject}</span>
-      <span className="min-w-0 truncate">{f.text}</span>
-    </>
-  );
   return (
-    <div className={`${BADGE} ${className}`}>
-      {onToggle ? (
-        <button type="button" className={`${INNER} cursor-pointer transition hover:bg-amber-100 dark:hover:bg-amber-950`} onClick={onToggle} aria-expanded={expanded} title={expanded ? t("Fold") : t("Show the fact")}>
-          {body}
-        </button>
-      ) : (
-        <span className={INNER}>{body}</span>
-      )}
-    </div>
+    <SourceCard
+      tone="teal"
+      icon={<span className="text-base leading-none">💡</span>}
+      kind={t("Fact")}
+      when={formatDate(f.updatedAt, { weekday: false })}
+      title={f.text || f.subject}
+      sub={f.subject}
+      expanded={expanded}
+      onToggle={onToggle}
+      toggleTitle={expanded ? t("Fold") : t("Show the fact")}
+      className={className}
+    />
   );
 }
 

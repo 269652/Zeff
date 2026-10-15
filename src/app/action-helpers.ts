@@ -36,7 +36,11 @@ export function int(fd: FormData, key: string): number | undefined {
 
 /** Everything reads from the same SQLite file, so refresh every route after a write. */
 export function revalidateAll() {
-  revalidatePath("/", "layout");
+  try {
+    revalidatePath("/", "layout");
+  } catch {
+    // outside a request (a script, a test): there is no page to refresh
+  }
 }
 
 /**

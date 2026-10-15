@@ -1,3 +1,4 @@
+import { driverOf } from "@/lib/connectors/store";
 import { t } from "@/lib/i18n/server";
 import { setStepMinutes, stepMinutes } from "@/lib/sync/intervals";
 import { MINUTE_CHOICES, type PluginSyncSettings } from "../sync-settings";
@@ -9,13 +10,15 @@ export const syncSettings: PluginSyncSettings = {
       key: "gcalendar",
       label: "Google Calendar",
       get what() {
-        return t("Your Google calendars — the week view is read in a new tab, week by week, then the tab is closed again. Nothing changes in Google.");
+        return driverOf("gcalendar") === "api"
+          ? t("Your Google calendars — read through Google's Calendar API. Nothing changes in Google.")
+          : t("Your Google calendars — the week view is read in a new tab, week by week, then the tab is closed again. Nothing changes in Google.");
       },
       get: () => stepMinutes("gcalendar"),
       set: (m) => setStepMinutes("gcalendar", m),
       choices: MINUTE_CHOICES,
       get window() {
-        return t("while the automation Chrome is running");
+        return driverOf("gcalendar") === "api" ? t("always") : t("while the automation Chrome is running");
       },
     },
   ],

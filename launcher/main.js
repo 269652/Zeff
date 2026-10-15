@@ -70,6 +70,8 @@ const state = {
   hosts: false,
   trusted: false,
   autostart: false,
+  /** Zeff runs as `next dev` (hot reload) instead of `next start` on the last build. */
+  dev: false,
 };
 let tray = null;
 let win = null;
@@ -147,6 +149,21 @@ function serviceMenu(s, extra = []) {
   };
 }
 
+/** Zeff as `next dev` (hot reload, no deploy) or `next start` - kept across launcher starts. The port stays, so the proxy and https need nothing. */
+function setDev(on) {
+  state.dev = on;
+  try {
+    const f = path.join(state.paths.state, "dev-mode");
+    if (on) fs.writeFileSync(f, "");
+    else fs.rmSync(f, { force: true });
+  } catch (e) {
+    log(`dev mode flag: ${e.message}`);
+  }
+  log(`Zeff: ${on ? "dev mode (next dev, hot reload)" : "production mode (next start)"}`);
+  zeff()?.restart();
+  refresh();
+}
+
 function buildMenu() {
   return Menu.buildFromTemplate([
     { label: "Open Zeff", click: () => shell.openExternal(state.url) },
@@ -155,6 +172,7 @@ function buildMenu() {
     serviceMenu(zeff()),
     ...state.services.filter((s) => s.name === "Work" || s.name === "Sync").map((w) => serviceMenu(w)),
     ...knowledges().map((k) => serviceMenu(k, [{ label: "Open knowledge", click: () => shell.openExternal(knowledgeUrl(k)) }, { type: "separator" }])),
+    { label: "Dev mode (hot reload)", type: "checkbox", checked: state.dev, click: (item) => setDev(item.checked) },
     { type: "separator" },
     { label: "Open data folder", click: () => shell.openPath(state.paths.data) },
     { label: "Open plugins folder", click: openPluginsFolder },
@@ -340,11 +358,20 @@ async function start() {
     return s;
   };
   // Zeff's server hands its syncs and runs to the sync host while the host's build is there — else it does them itself.
+  // Dev mode (tray, --dev, "dev": true): `next dev` on the same port - no build needed, edits show at once. It writes .next/dev,
+  // not the build `npm run deploy` swaps; the sync host goes on running its own build, so its code is only as new as the last deploy.
+  state.dev = cfg.dev === true || flag("--dev") || fs.existsSync(path.join(paths.state, "dev-mode"));
   const zeffSpec = spec("Zeff", null, cfg.zeffPort);
-  zeffSpec.env = () =>
-    cfg.syncHost && fs.existsSync(syncMarker)
-      ? { ...env, ZEFF_ROLE: "web", ZEFF_SYNC_HOST: `http://127.0.0.1:${cfg.syncPort}`, ZEFF_SYNC_TOKEN: syncToken }
-      : env;
+  zeffSpec.args = () => [next, state.dev ? "dev" : "start", "-H", "127.0.0.1", "-p", String(cfg.zeffPort)];
+  zeffSpec.buildMarker = () => (state.dev ? path.join(paths.app, "package.json") : path.join(paths.app, ".next", "BUILD_ID"));
+  zeffSpec.env = () => {
+    const e =
+      cfg.syncHost && fs.existsSync(syncMarker)
+        ? { ...env, ZEFF_ROLE: "web", ZEFF_SYNC_HOST: `http://127.0.0.1:${cfg.syncPort}`, ZEFF_SYNC_TOKEN: syncToken }
+        : { ...env };
+    // next dev refuses cross-origin dev assets and the HMR socket, and the browser's origin is https://zeff.
+    return state.dev ? { ...e, NODE_ENV: "development", ZEFF_DEV_ORIGINS: cfg.hostsNames.join(",") } : e;
+  };
   add(new Service(zeffSpec));
   if (cfg.syncHost) {
     const hostSpec = spec("Sync", null, cfg.syncPort);

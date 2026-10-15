@@ -48,7 +48,7 @@ export function FeedFinder() {
         </button>
       </form>
       {pending && <p className="text-xs text-zinc-500">{t("Looking up who writes about it, asking the AI for outlets, and checking each site's feeds — about 20 seconds.")}</p>}
-      {error && <p className="alert-error text-sm">{error}</p>}
+      {error && <p role="alert" className="alert-error text-sm">{error}</p>}
       {found && !pending && found.length === 0 && !error && <p className="text-sm text-zinc-500">{t("Found nothing new for that.")}</p>}
       {found && found.length > 0 && (
         <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">

@@ -3,6 +3,8 @@ import { getDb, schema } from "@/db";
 import type { EntryType, Job, TimeEntry } from "@/db/schema";
 import { jobForMeeting, type BookedEntry, type MeetingJobRule } from "./calendar/meetings";
 import { defaultTagsFor } from "./default-tags";
+import { beforeEntryDeleted, ensureHeadSpan, getSpan, recomputeSpan, releaseHead, setSpanMode, spanOfHead, unlinkMember } from "./entry-spans";
+import { normalizeStart } from "./entry-timeline";
 import { assertEntryType, isEntryType } from "./entry-types";
 import { NotFoundError, ValidationError } from "./errors";
 import { round2 } from "./format";
@@ -89,6 +91,17 @@ export function listEntries(opts: ListEntriesOptions = {}): EntryWithJob[] {
     .orderBy(desc(timeEntries.date), desc(timeEntries.id));
   const rows = opts.limit ? q.limit(opts.limit).all() : q.all();
   return attachTags(rows.map(shape));
+}
+
+/**
+ * The entries as they are BOOKED — what the reports and the exports (Chrono, Punch, the CSV) are made of:
+ * the tasks of grouped parallel work whose group books the hours (combined, collected) book 0 and are
+ * left out — and a collecting entry that books nothing (its tasks book instead); every task of a divided or
+ * one-after-the-other group is there with what it books.
+ * (The overview shows all entries — listEntries — with what each really worked.)
+ */
+export function listBookedEntries(opts: ListEntriesOptions = {}): EntryWithJob[] {
+  return listEntries(opts).filter((e) => !((e.spanId || e.isGroup) && e.hours <= 0));
 }
 
 export function getEntry(id: number): EntryWithJob | undefined {
@@ -186,12 +199,17 @@ export function createEntry(
       reportedBy: input.reportedBy || (source === "mcp" ? "agent" : "web"),
       source,
       externalId: opts.externalId ?? null,
+      isGroup: !!input.isGroup,
+      groupKind: input.isGroup ? "collect" : null,
+      start: normalizeStart(input.start),
     })
     .returning()
     .get();
   if (allTags.length) {
     setEntryTags(inserted.id, getOrCreateTags(allTags).map((t) => t.id));
   }
+  // A group entry (a mob day) collects the day's parallel work: its span.
+  if (inserted.isGroup) ensureHeadSpan(inserted.id, "collect");
   return requireEntry(inserted.id);
 }
 
@@ -296,21 +314,37 @@ export function updateEntry(id: number, raw: TimeEntryPatch): EntryWithJob {
     hashTags = parsedDesc.tags;
   }
 
+  // Parallel work stays whole: a task of a span edits what it WORKED (what it books follows the span's way of booking);
+  // a combined entry made by Zeff whose hours you set becomes yours (a collecting entry); a task moved to another day leaves its span.
+  if (existing.spanId && patch.date !== undefined && patch.date !== existing.date) {
+    unlinkMember(id);
+  }
+  const member = existing.spanId && (patch.date === undefined || patch.date === existing.date);
+  const headSpan = spanOfHead(id);
+  const userHead = !!headSpan && !headSpan.headAuto;
+  if (headSpan?.headAuto && patch.hours !== undefined && round2(patch.hours) !== existing.hours) setSpanMode(headSpan.id, "collect");
   getDb()
     .update(timeEntries)
     .set({
       ...(booking && { jobId: booking.jobId, projectId: booking.projectId }),
       ...(patch.date !== undefined && { date: patch.date }),
-      ...(patch.hours !== undefined && { hours: round2(patch.hours) }),
+      ...(patch.hours !== undefined && (member ? { workedHours: round2(patch.hours) } : userHead ? { workedHours: round2(patch.hours), hours: round2(patch.hours) } : { hours: round2(patch.hours) })),
       ...(description !== undefined && { description }),
       ...(patch.type !== undefined && { type: patch.type }),
       ...(patch.ticket !== undefined && { ticket: patch.ticket || null }),
       ...(patch.reportedBy !== undefined && { reportedBy: patch.reportedBy }),
+      ...(patch.isGroup !== undefined && { isGroup: patch.isGroup }),
+      ...(patch.start !== undefined && { start: normalizeStart(patch.start) }),
       updatedAt: sql`(CURRENT_TIMESTAMP)`,
     })
     .where(eq(timeEntries.id, id))
     .run();
 
+  if (patch.isGroup === true && !existing.isGroup) ensureHeadSpan(id, "collect");
+  if (patch.isGroup === false && existing.isGroup) releaseHead(id);
+  if (member && getSpan(existing.spanId)) recomputeSpan(existing.spanId!);
+  // A collecting entry of yours: its total is what it was set to — what it books follows the group's way of booking.
+  if (userHead && patch.hours !== undefined) recomputeSpan(headSpan.id);
   // Tags: an explicit list replaces; otherwise merge any new #tags into the existing set.
   if (patch.tags !== undefined) {
     const names = dedupeTags([...patch.tags, ...hashTags]);
@@ -324,7 +358,10 @@ export function updateEntry(id: number, raw: TimeEntryPatch): EntryWithJob {
 
 export function deleteEntry(id: number): EntryWithJob {
   const entry = requireEntry(id);
+  // A task of a span: the span is recalculated; a head: the tasks book what they worked again (they are never deleted with it).
+  const after = beforeEntryDeleted(entry);
   getDb().delete(timeEntries).where(eq(timeEntries.id, id)).run();
+  after();
   return entry;
 }
 
@@ -360,6 +397,23 @@ export function getJobNumberForTicket(ticket: string): string | undefined {
     .limit(1)
     .get();
   return row?.number;
+}
+
+/** The job of each ticket's latest booking, by lowercase ticket (one scan, instead of one per ticket). */
+export function jobNumbersByTicket(): Map<string, string> {
+  const rows = getDb()
+    .select({ ticket: timeEntries.ticket, number: jobs.number })
+    .from(timeEntries)
+    .innerJoin(jobs, eq(jobs.id, timeEntries.jobId))
+    .where(sql`${timeEntries.ticket} is not null and trim(${timeEntries.ticket}) <> ''`)
+    .orderBy(desc(timeEntries.date), desc(timeEntries.id))
+    .all();
+  const out = new Map<string, string>();
+  for (const r of rows) {
+    const key = r.ticket!.trim().toLowerCase();
+    if (!out.has(key)) out.set(key, r.number);
+  }
+  return out;
 }
 
 export type TicketSuggestion = {

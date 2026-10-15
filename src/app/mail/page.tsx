@@ -14,7 +14,8 @@ import { installedAttachmentSources } from "@/lib/mail/attachments-sync";
 import { SyncSplitButton } from "@/components/SyncSplitButton";
 import { TodoRefs } from "@/components/boards/TodoRefs";
 import { getMailSettings, listMails, mailFolderCounts } from "@/lib/mail/store";
-import { isChatFolder, type MailView } from "@/lib/mail/shared";
+import { isChatFolder, isInboxFolder, isMine, sourceLink, type MailView } from "@/lib/mail/shared";
+import { UnreadDot, UnreadDotSlot } from "@/components/UnreadDot";
 import { agoText } from "@/lib/teams/time";
 import { syncOverview } from "@/lib/sync/registry";
 import { pushTo } from "@/lib/collections";
@@ -29,7 +30,7 @@ export async function generateMetadata(): Promise<Metadata> {
  * Chrome — none opened, none marked read; their syncs in a split button beside the search. The
  * Ticket-Lage reads those that name a ticket.
  */
-export default async function MailPage({ searchParams }: { searchParams: Promise<{ q?: string; folder?: string }> }) {
+export default async function MailPage({ searchParams }: { searchParams: Promise<{ q?: string; folder?: string; unread?: string; n?: string; older?: string }> }) {
   await connection();
   // A plugin's page: there while Outlook Mail, Gmail, WhatsApp or Signal is installed.
   const outlook = isInstalled("outlook-mail");
@@ -48,12 +49,23 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
   // Mail attachments → Documents: its settings here, and the one-time notice until it is answered.
   const attachOn = isInstalled("documents") && (outlook || gmail);
   const attachments = attachOn ? attachmentSettings() : null;
-  const mails = listMails({ q, folder, limit: 1500 });
+  const unreadOnly = sp.unread === "1";
+  const older = sp.older === "1";
+  // How many conversations to show: 200, more with "Show more" (the message query reads up to 2000).
+  const shown = Math.min(1000, Math.max(200, Math.floor(Number(sp.n)) || 200));
+  const mails = listMails({ q, folder, limit: shown > 200 ? 2000 : 1500 });
   // By conversation (a chat, a mail thread) — newest first, its messages in order.
   const convs = new Map<string, MailView[]>();
   for (const m of mails) pushTo(convs, m.convId, m);
-  const conversations = [...convs.values()].slice(0, 200);
-  const href = (f?: string) => `/mail?${new URLSearchParams({ ...(f ? { folder: f } : {}), ...(q ? { q } : {}) })}`;
+  const allConversations = [...convs.values()].filter((l) => !unreadOnly || l.some((m) => m.unread));
+  const conversations = allConversations.slice(0, shown);
+  const query = (over: { f?: string; unread?: boolean; n?: number; older?: boolean }) => {
+    const f = "f" in over ? over.f : folder;
+    const u = "unread" in over ? over.unread : unreadOnly;
+    const o = "older" in over ? over.older : older;
+    return `/mail?${new URLSearchParams({ ...(f ? { folder: f } : {}), ...(q ? { q } : {}), ...(u ? { unread: "1" } : {}), ...(over.n && over.n > 200 ? { n: String(over.n) } : {}), ...(o ? { older: "1" } : {}) })}`;
+  };
+  const href = (f?: string) => query({ f });
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
 
   return (
@@ -86,8 +98,16 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
           </Link>
         ))}
       </nav>
+      <Link
+        href={query({ unread: !unreadOnly })}
+        aria-current={unreadOnly ? "true" : undefined}
+        className={`rounded-md border px-3 py-1 text-sm ${unreadOnly ? "border-indigo-300 bg-indigo-50 font-medium text-indigo-800 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-200" : "border-zinc-200 text-zinc-500 hover:text-zinc-800 dark:border-zinc-700 dark:hover:text-zinc-200"}`}
+      >
+        {unreadOnly ? t("Unread only — show all") : t("Unread only")}
+      </Link>
       <form action="/mail" className="flex items-center justify-end gap-2">
         {folder && <input type="hidden" name="folder" value={folder} />}
+        {unreadOnly && <input type="hidden" name="unread" value="1" />}
         <input name="q" defaultValue={q} className="input min-w-0 max-w-md flex-1" placeholder={t("Sender, subject, text…")} aria-label={t("Search messages")} />
         <button type="submit" className="btn shrink-0 whitespace-nowrap">{t("Search")}</button>
         {attachments?.enabled && <FetchAttachmentsButton className="btn shrink-0 whitespace-nowrap" short />}
@@ -111,36 +131,49 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
             const unread = list.some((m) => m.unread);
             // Who's in it: the others first (each once), you last.
             const names = [...new Set(list.map((m) => m.fromName ?? m.fromEmail ?? "?"))];
-            const people = [...names.filter((n) => n !== "Ich"), ...names.filter((n) => n === "Ich")];
-            const thread = [...list].reverse().slice(-25);
+            const people = [...names.filter((n) => !isMine(n)), ...names.filter((n) => isMine(n))].map((n) => (isMine(n) ? t("Me") : n));
+            const thread = older ? [...list].reverse() : [...list].reverse().slice(-25);
+            const link = sourceLink(latest);
             return (
               <li key={latest.convId}>
                 <details className="group">
                   <summary className="flex cursor-pointer list-none items-start gap-3 px-4 py-2.5 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900/60 [&::-webkit-details-marker]:hidden">
-                    <span className={`mt-1.5 size-2 shrink-0 rounded-full ${unread ? (chat ? "bg-emerald-500" : "bg-indigo-500") : "bg-transparent"}`} title={unread ? t("Unread") : undefined} />
+                    {unread ? <span className="mt-1.5 flex"><UnreadDot className={chat ? "bg-emerald-500" : "bg-indigo-500"} /></span> : <UnreadDotSlot />}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline gap-2">
                         <span className={`truncate ${unread ? "font-semibold" : "font-medium"}`}>{chat ? latest.subject : <TodoRefs text={latest.subject} />}</span>
-                        {latest.folder !== "Posteingang" && <span className="shrink-0 rounded bg-zinc-100 px-1.5 text-[11px] text-zinc-500 dark:bg-zinc-800">{latest.folder}</span>}
+                        {!isInboxFolder(latest.folder) &&<span className="shrink-0 rounded bg-zinc-100 px-1.5 text-xs text-zinc-500 dark:bg-zinc-800">{latest.folder}</span>}
                         {list.length > 1 && <span className="shrink-0 text-xs text-zinc-400 tabular-nums">{list.length}</span>}
                         <span className="ml-auto shrink-0 text-xs text-zinc-400">{formatSmart(latest.receivedAt)}</span>
                       </div>
                       <div className="truncate text-xs text-zinc-500">{people.slice(0, 4).join(", ")}{people.length > 4 ? ` +${people.length - 4}` : ""}</div>
                       <div className="line-clamp-1 text-xs text-zinc-600 group-open:hidden dark:text-zinc-400">
-                        {latest.fromName && (list.length > 1 || chat) ? <span className="font-medium">{latest.fromName}: </span> : null}
+                        {latest.fromName && (list.length > 1 || chat) ? <span className="font-medium">{isMine(latest) ? t("Me") : latest.fromName}: </span> : null}
                         {latest.preview}
                       </div>
                     </div>
                   </summary>
                   <ul className="space-y-1.5 px-4 pb-3 pl-9">
-                    {list.length > thread.length && <li className="text-xs text-zinc-400">{t("… {n} older", { n: list.length - thread.length })}</li>}
+                    {link && (
+                      <li>
+                        <a href={link.href} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-sky-700 hover:underline dark:text-sky-400">
+                          {link.label === "Open in Gmail" ? t("Open in Gmail") : t("Open in Outlook")} ↗<span className="sr-only"> {t("(opens in a new tab)")}</span>
+                        </a>
+                      </li>
+                    )}
+                    {list.length > thread.length && (
+                      <li className="text-xs text-zinc-500">
+                        {t("… {n} older", { n: list.length - thread.length })} ·{" "}
+                        <Link href={query({ older: true })} className="font-medium text-indigo-700 hover:underline dark:text-indigo-400">{t("Show older")}</Link>
+                      </li>
+                    )}
                     {thread.map((m) => {
-                      const mine = m.fromName === "Ich";
+                      const mine = isMine(m);
                       return (
                         <li key={m.key} className={`flex ${mine && chat ? "justify-end" : ""}`}>
                           <div className={`max-w-[85%] rounded-lg px-3 py-1.5 text-sm ${mine ? "bg-emerald-50 dark:bg-emerald-950/40" : "bg-zinc-100 dark:bg-zinc-800"}`}>
                             <div className="flex items-baseline gap-2 text-xs">
-                              <span className="font-medium text-zinc-700 dark:text-zinc-200" title={m.fromEmail ?? undefined}>{m.fromName ?? m.fromEmail ?? "?"}</span>
+                              <span className="font-medium text-zinc-700 dark:text-zinc-200" title={m.fromEmail ?? undefined}>{mine ? t("Me") : (m.fromName ?? m.fromEmail ?? "?")}</span>
                               <span className="text-zinc-400">{formatSmart(m.receivedAt)}</span>
                               {m.unread && <span className="text-zinc-400">· {t("unread")}</span>}
                             </div>
@@ -161,8 +194,11 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
           {q ? t("No message matches.") : t("Nothing synced yet — “Sync” opens the inbox ({source}) in the automation Chrome if it isn't open.", { source })}
         </p>
       )}
-      {convs.size > conversations.length && (
-        <p className="text-center text-xs text-zinc-400">{t("The newest {n} conversations — search to find older ones.", { n: conversations.length })}</p>
+      {allConversations.length > conversations.length && (
+        <p className="text-center text-xs text-zinc-500">
+          {t("The newest {n} conversations — search to find older ones.", { n: conversations.length })}
+          {shown < 1000 && <> · <Link href={query({ n: shown + 200 })} className="font-medium text-indigo-700 hover:underline dark:text-indigo-400">{t("Show more")}</Link></>}
+        </p>
       )}
     </div>
   );

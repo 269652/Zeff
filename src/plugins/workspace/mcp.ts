@@ -1,0 +1,243 @@
+/**
+ * The Workspace's tools for agents (over the MCP): search pages, read one, write one, append to one, query a
+ * database, add a row. The pages are the user's notes and wiki — an agent finds what was decided, and leaves
+ * what it learned where the user will look. Server only.
+ */
+import type { McpServer } from "@modelcontextprotocol/server";
+import { z } from "zod";
+import { isInstalled } from "@/plugins/state";
+import { docToMarkdown, markdownToDoc } from "./doc";
+import { cellText, filterRows, isComputed, sortRows, TITLE, type Row } from "./model";
+import * as store from "./store";
+
+type Result = { content: ({ type: "text"; text: string } | { type: "image"; data: string; mimeType: string })[]; isError?: boolean };
+type Helpers = { run: (fn: () => Promise<Result> | Result) => Promise<Result>; ok: (text: string) => Result; fail: (text: string) => Result };
+
+const off = (h: Helpers): Result | null => (isInstalled("workspace") ? null : h.fail("The Workspace is not installed in Zeff (Menu → Plugins) — this tool isn't available."));
+
+/** A page by id ("12", "#12") or by its title (exact, then the closest). */
+function findPage(ref: string | number): store.Page | null {
+  const s = String(ref).trim();
+  const id = /^#?(\d+)$/.exec(s);
+  if (id) return store.getPage(Number(id[1]));
+  const hits = store.suggestPages(s, 5);
+  const exact = hits.find((h) => h.title.toLowerCase() === s.toLowerCase());
+  const pick = exact ?? hits[0];
+  return pick ? store.getPage(pick.id) : null;
+}
+
+const MAX_CHARS = 14000;
+
+/** A page as text for an agent: where it is, its text, what links here. */
+function describePage(p: store.Page): string {
+  const crumbs = store.breadcrumbs(p.id).map((c) => c.title || "Untitled");
+  const head = [`# ${p.title || "Untitled"}`, `(page ${p.id}${crumbs.length ? ` · in ${crumbs.join(" / ")}` : ""}${p.dbId ? ` · row of database ${p.dbId}` : ""} · edited ${p.updatedAt.slice(0, 16).replace("T", " ")})`];
+  if (p.kind === "database") {
+    const d = store.rowsOf(p.id);
+    if (!d) return head.join("\n");
+    const labels = store.labelFns({ people: {}, pages: {}, todos: {} });
+    const props = d.schema.properties;
+    head.push(`Database with ${d.rows.length} rows. Properties: ${[d.schema.titleName, ...props.map((x) => `${x.name} (${x.type})`)].join(", ")}.`);
+    head.push("", `| ${[d.schema.titleName, ...props.map((x) => x.name)].join(" | ")} |`, `| ${["---", ...props.map(() => "---")].join(" | ")} |`);
+    for (const r of d.rows.slice(0, 60)) head.push(`| ${[`[${r.id}] ${r.title}`, ...props.map((x) => cellText(x, r.cells[x.id], labels).replace(/\|/g, "/"))].join(" | ")} |`);
+    return head.join("\n");
+  }
+  const props = p.dbId ? store.getDatabase(p.dbId) : null;
+  if (props) {
+    for (const q of props.schema.properties) if (!isComputed(q)) head.push(`- ${q.name}: ${cellText(q, p.props[q.id]) || "—"}`);
+  }
+  head.push("", docToMarkdown(p.content).slice(0, MAX_CHARS));
+  const back = store.backlinks(p.id);
+  if (back.length) head.push("", `Linked from: ${back.map((b) => `${b.title || "Untitled"} (${b.id})`).join(", ")}`);
+  return head.join("\n");
+}
+
+export function registerWorkspaceTools(server: McpServer, h: Helpers): void {
+  server.registerTool(
+    "workspace_search",
+    {
+      title: "Search the workspace",
+      description:
+        "Search the user's workspace pages (notes, wiki, meeting notes, decisions, databases) by words — titles count more than text. Hits come with the page id: read one with workspace_read_page. " +
+        "Look here before guessing what was decided or how something works, and before asking the user.",
+      inputSchema: z.object({ query: z.string().min(2).describe("Words that stand in the pages."), limit: z.number().int().min(1).max(20).optional() }),
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    async ({ query, limit }) =>
+      h.run(() => {
+        const gone = off(h);
+        if (gone) return gone;
+        const hits = store.search(query, limit ?? 8);
+        return h.ok(hits.length ? hits.map((x) => `- [${x.id}] ${x.icon} ${x.title || "Untitled"}${x.path ? ` — ${x.path}` : ""}${x.snippet ? `\n  ${x.snippet}` : ""}`).join("\n") : `Nothing found for "${query}".`);
+      }),
+  );
+
+  server.registerTool(
+    "workspace_read_page",
+    {
+      title: "Read a workspace page",
+      description: "A page's text as Markdown (a database: its properties and rows), with where it sits and which pages link to it. page: the id from a search, or its title.",
+      inputSchema: z.object({ page: z.union([z.number().int(), z.string()]).describe("The page's id (12) or its title.") }),
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    async ({ page }) =>
+      h.run(() => {
+        const gone = off(h);
+        if (gone) return gone;
+        const p = findPage(page);
+        return p ? h.ok(describePage(p)) : h.fail(`No page "${page}" — try workspace_search.`);
+      }),
+  );
+
+  server.registerTool(
+    "workspace_create_page",
+    {
+      title: "Create a workspace page",
+      description:
+        "Make a page in the user's workspace: a title and its text as Markdown (headings, lists, - [ ] tasks, tables, code, **bold**, links). parent: the page it goes under (id or title; none = the top). " +
+        "Use it to leave notes, summaries or findings where the user will look — not for secrets.",
+      inputSchema: z.object({ title: z.string().min(1).max(300), markdown: z.string().max(200000).optional(), parent: z.union([z.number().int(), z.string()]).optional() }),
+      annotations: { readOnlyHint: false, destructiveHint: false },
+    },
+    async ({ title, markdown, parent }) =>
+      h.run(() => {
+        const gone = off(h);
+        if (gone) return gone;
+        const up = parent !== undefined ? findPage(parent) : null;
+        if (parent !== undefined && !up) return h.fail(`No parent page "${parent}".`);
+        const id = store.createPage({ title, parentId: up?.id ?? null, content: markdown ? markdownToDoc(markdown) : undefined });
+        return h.ok(`Created page ${id} "${title}"${up ? ` under "${up.title || "Untitled"}"` : ""}. Open: /workspace/${id}`);
+      }),
+  );
+
+  server.registerTool(
+    "workspace_append",
+    {
+      title: "Append to a workspace page",
+      description: "Add Markdown at the end of a page (e.g. a log entry, a finding, a task list). The existing text stays.",
+      inputSchema: z.object({ page: z.union([z.number().int(), z.string()]), markdown: z.string().min(1).max(200000) }),
+      annotations: { readOnlyHint: false, destructiveHint: false },
+    },
+    async ({ page, markdown }) =>
+      h.run(() => {
+        const gone = off(h);
+        if (gone) return gone;
+        const p = findPage(page);
+        if (!p || p.kind !== "page") return h.fail(`No page "${page}".`);
+        if (p.locked) return h.fail("That page is locked by the user.");
+        const add = markdownToDoc(markdown).content;
+        const keep = p.content.content.filter((n, i, all) => !(i === all.length - 1 && n.type === "paragraph" && !n.content));
+        store.updatePage(p.id, { content: { type: "doc", content: [...keep, ...add] } });
+        return h.ok(`Appended to page ${p.id} "${p.title || "Untitled"}".`);
+      }),
+  );
+
+  server.registerTool(
+    "workspace_update_page",
+    {
+      title: "Replace a workspace page's text",
+      description: "Replace a page's whole text (and optionally its title) — read it first with workspace_read_page and keep what should stay. A version of the old text is kept in the page's history.",
+      inputSchema: z.object({ page: z.union([z.number().int(), z.string()]), markdown: z.string().max(200000).optional(), title: z.string().max(300).optional() }),
+      annotations: { readOnlyHint: false, destructiveHint: true },
+    },
+    async ({ page, markdown, title }) =>
+      h.run(() => {
+        const gone = off(h);
+        if (gone) return gone;
+        const p = findPage(page);
+        if (!p || p.kind !== "page") return h.fail(`No page "${page}".`);
+        if (p.locked) return h.fail("That page is locked by the user.");
+        store.updatePage(p.id, { ...(title !== undefined ? { title } : {}), ...(markdown !== undefined ? { content: markdownToDoc(markdown) } : {}) });
+        return h.ok(`Updated page ${p.id}.`);
+      }),
+  );
+
+  server.registerTool(
+    "workspace_query_database",
+    {
+      title: "Query a workspace database",
+      description:
+        "The rows of a database (Notion-style table in the workspace): optionally those whose cells contain some text, sorted by a property. Every row is a page: read one with workspace_read_page. database: its id or title.",
+      inputSchema: z.object({
+        database: z.union([z.number().int(), z.string()]),
+        contains: z.string().optional().describe("Only rows where the title or any cell contains this."),
+        sortBy: z.string().optional().describe("A property's name (or the title's)."),
+        descending: z.boolean().optional(),
+        limit: z.number().int().min(1).max(200).optional(),
+      }),
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    async ({ database, contains, sortBy, descending, limit }) =>
+      h.run(async () => {
+        const gone = off(h);
+        if (gone) return gone;
+        const p = findPage(database);
+        const d = p && p.kind === "database" ? store.rowsOf(p.id) : null;
+        if (!p || !d) return h.fail(`No database "${database}".`);
+        const labels = store.labelFns(await store.labelsFor(d.schema, d.rows));
+        const props = d.schema.properties;
+        let rows: Row[] = d.rows;
+        if (contains) rows = filterRows(rows, { op: "or", rules: [{ prop: TITLE, cond: "contains", value: contains }, ...props.filter((q) => !["checkbox", "date", "number"].includes(q.type)).map((q) => ({ prop: q.id, cond: "contains" as const, value: contains }))] }, props, labels);
+        const sortProp = sortBy ? (props.find((q) => q.name.toLowerCase() === sortBy.toLowerCase())?.id ?? (sortBy.toLowerCase() === d.schema.titleName.toLowerCase() ? TITLE : undefined)) : undefined;
+        if (sortProp) rows = sortRows(rows, [{ prop: sortProp, dir: descending ? "desc" : "asc" }], props);
+        const shown = rows.slice(0, limit ?? 50);
+        const lines = [`${p.title || "Database"} — ${rows.length} rows${rows.length > shown.length ? ` (first ${shown.length})` : ""}`, `| ${[d.schema.titleName, ...props.map((q) => q.name)].join(" | ")} |`, `| ${["---", ...props.map(() => "---")].join(" | ")} |`];
+        for (const r of shown) lines.push(`| ${[`[${r.id}] ${r.title}`, ...props.map((q) => cellText(q, r.cells[q.id], labels).replace(/\|/g, "/"))].join(" | ")} |`);
+        return h.ok(lines.join("\n"));
+      }),
+  );
+
+  server.registerTool(
+    "workspace_add_row",
+    {
+      title: "Add a row to a workspace database",
+      description:
+        "Add a row to a database: a title and values by property name — select/status by option name (a new name makes the option), multi-select as a list of names, dates as YYYY-MM-DD, numbers, checkboxes as true/false, people by name, ticket keys. Computed properties can't be set.",
+      inputSchema: z.object({ database: z.union([z.number().int(), z.string()]), title: z.string().max(300), values: z.record(z.string(), z.unknown()).optional(), markdown: z.string().max(200000).optional().describe("The row page's text.") }),
+      annotations: { readOnlyHint: false, destructiveHint: false },
+    },
+    async ({ database, title, values, markdown }) =>
+      h.run(async () => {
+        const gone = off(h);
+        if (gone) return gone;
+        const p = findPage(database);
+        const d = p && p.kind === "database" ? store.getDatabase(p.id) : null;
+        if (!p || !d) return h.fail(`No database "${database}".`);
+        let schema = d.schema;
+        const cells: Record<string, unknown> = {};
+        const notes: string[] = [];
+        for (const [name, raw] of Object.entries(values ?? {})) {
+          const q = schema.properties.find((x) => x.name.toLowerCase() === name.toLowerCase());
+          if (!q) {
+            notes.push(`no property "${name}"`);
+            continue;
+          }
+          if (isComputed(q)) {
+            notes.push(`"${q.name}" is computed`);
+            continue;
+          }
+          if (q.type === "select" || q.type === "status" || q.type === "multi_select") {
+            const names = (Array.isArray(raw) ? raw : [raw]).map(String);
+            const ids: string[] = [];
+            for (const n of names) {
+              let o = q.options?.find((x) => x.name.toLowerCase() === n.toLowerCase());
+              if (!o) {
+                o = { id: `o${Math.random().toString(36).slice(2, 8)}`, name: n, color: "gray", group: q.type === "status" ? "todo" : undefined };
+                schema = { ...schema, properties: schema.properties.map((x) => (x.id === q.id ? { ...x, options: [...(x.options ?? []), o!] } : x)) };
+              }
+              ids.push(o.id);
+            }
+            cells[q.id] = q.type === "multi_select" ? ids : ids[0];
+          } else if (q.type === "person") {
+            const { listPeople } = await import("@/plugins/people/store");
+            const people = (Array.isArray(raw) ? raw : [raw]).map((n) => listPeople().find((x) => x.name.toLowerCase() === String(n).toLowerCase() || x.aliases.some((a) => a.toLowerCase() === String(n).toLowerCase()))?.id).filter((x): x is number => !!x);
+            cells[q.id] = people;
+          } else cells[q.id] = raw;
+        }
+        if (schema !== d.schema) store.updateSchema(p.id, schema);
+        const id = store.addRow(p.id, { title, cells });
+        if (markdown) store.updatePage(id, { content: markdownToDoc(markdown) });
+        return h.ok(`Added row ${id} "${title}" to "${p.title || "Untitled"}"${notes.length ? ` (ignored: ${notes.join("; ")})` : ""}. Open: /workspace/${id}`);
+      }),
+  );
+}

@@ -1,0 +1,693 @@
+/**
+ * The Workspace plugin's storage: pages in a tree, each with a document (see doc.ts); databases are
+ * pages whose rows are pages too (so a row has a body of its own); links between pages and to people,
+ * todos and tickets (backlinks); a history of earlier versions; a full-text index. Its own tables,
+ * made when first needed. Server only.
+ */
+import { getSqlite } from "@/db";
+import { emitChange } from "@/lib/events";
+import { docRefs, docText, emptyDoc, sanitizeDoc, type Doc, type DocRef } from "./doc";
+import { computeRows, dateRange, defaultSchema, isComputed, normalizeSchema, propById, TITLE, type DbSchema, type Labels, type Property, type Row } from "./model";
+
+function db() {
+  const d = getSqlite();
+  d.exec(`
+    create table if not exists ws_pages (
+      id integer primary key autoincrement, parent_id integer, db_id integer, kind text not null default 'page',
+      title text not null default '', icon text not null default '', cover text not null default '',
+      content text not null default '', body_text text not null default '', props text not null default '{}', schema text,
+      position real not null default 0, favorite integer not null default 0, full_width integer not null default 0, small_text integer not null default 0,
+      locked integer not null default 0, template integer not null default 0, archived_at text, rev integer not null default 1,
+      created_at text not null, updated_at text not null, opened_at text
+    );
+    create index if not exists ws_pages_parent on ws_pages (parent_id);
+    create index if not exists ws_pages_db on ws_pages (db_id);
+    create table if not exists ws_versions (id integer primary key autoincrement, page_id integer not null, title text not null default '', content text not null, at text not null);
+    create index if not exists ws_versions_page on ws_versions (page_id, id);
+    create table if not exists ws_links (page_id integer not null, kind text not null, ref text not null, label text not null default '', primary key (page_id, kind, ref));
+    create index if not exists ws_links_ref on ws_links (kind, ref);
+    create virtual table if not exists ws_fts using fts5(title, body, tokenize = 'unicode61 remove_diacritics 2');
+  `);
+  return d;
+}
+
+const now = () => new Date().toISOString();
+const changed = () => emitChange("workspace");
+const clip = (s: unknown, n: number) => String(s ?? "").slice(0, n);
+
+export type Page = {
+  id: number;
+  parentId: number | null;
+  dbId: number | null;
+  kind: "page" | "database";
+  title: string;
+  icon: string;
+  cover: string;
+  content: Doc;
+  props: Record<string, unknown>;
+  schema: DbSchema | null;
+  position: number;
+  favorite: boolean;
+  fullWidth: boolean;
+  smallText: boolean;
+  locked: boolean;
+  template: boolean;
+  archivedAt: string | null;
+  rev: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type PRow = { id: number; parent_id: number | null; db_id: number | null; kind: string; title: string; icon: string; cover: string; content: string; props: string; schema: string | null; position: number; favorite: number; full_width: number; small_text: number; locked: number; template: number; archived_at: string | null; rev: number; created_at: string; updated_at: string };
+
+const parse = <T>(s: string | null, d: T): T => {
+  try {
+    return s ? (JSON.parse(s) as T) : d;
+  } catch {
+    return d;
+  }
+};
+
+const toPage = (r: PRow): Page => ({
+  id: r.id,
+  parentId: r.parent_id,
+  dbId: r.db_id,
+  kind: r.kind === "database" ? "database" : "page",
+  title: r.title,
+  icon: r.icon,
+  cover: r.cover,
+  content: r.content ? sanitizeDoc(parse(r.content, null)) : emptyDoc(),
+  props: parse<Record<string, unknown>>(r.props, {}),
+  schema: r.kind === "database" ? normalizeSchema(parse(r.schema, null)) : null,
+  position: r.position,
+  favorite: !!r.favorite,
+  fullWidth: !!r.full_width,
+  smallText: !!r.small_text,
+  locked: !!r.locked,
+  template: !!r.template,
+  archivedAt: r.archived_at,
+  rev: r.rev,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+});
+
+export function getPage(id: number): Page | null {
+  const r = db().prepare("select * from ws_pages where id = ?").get(id) as PRow | undefined;
+  return r ? toPage(r) : null;
+}
+
+// ---------------------------------------------------------------------------
+// The tree
+// ---------------------------------------------------------------------------
+
+export type TreeItem = { id: number; parentId: number | null; kind: "page" | "database"; title: string; icon: string; favorite: boolean; position: number };
+
+/** Every page of the tree (not the rows of databases, not the trash, not templates), in sibling order. */
+export function tree(): TreeItem[] {
+  return (db().prepare("select id, parent_id, kind, title, icon, favorite, position from ws_pages where db_id is null and archived_at is null and template = 0 order by position, id").all() as { id: number; parent_id: number | null; kind: string; title: string; icon: string; favorite: number; position: number }[]).map((r) => ({
+    id: r.id,
+    parentId: r.parent_id,
+    kind: r.kind === "database" ? "database" : "page",
+    title: r.title,
+    icon: r.icon,
+    favorite: !!r.favorite,
+    position: r.position,
+  }));
+}
+
+/** The pages above a page, the root first (a row: its database and the ones above that). */
+export function breadcrumbs(id: number): { id: number; title: string; icon: string; kind: string }[] {
+  const out: { id: number; title: string; icon: string; kind: string }[] = [];
+  const seen = new Set<number>();
+  let at = db().prepare("select id, parent_id, db_id, title, icon, kind from ws_pages where id = ?").get(id) as { id: number; parent_id: number | null; db_id: number | null; title: string; icon: string; kind: string } | undefined;
+  at = at && (at.db_id ?? at.parent_id) ? (db().prepare("select id, parent_id, db_id, title, icon, kind from ws_pages where id = ?").get((at.db_id ?? at.parent_id)!) as typeof at | undefined) : undefined;
+  while (at && !seen.has(at.id)) {
+    seen.add(at.id);
+    out.unshift({ id: at.id, title: at.title, icon: at.icon, kind: at.kind });
+    at = at.parent_id ? (db().prepare("select id, parent_id, db_id, title, icon, kind from ws_pages where id = ?").get(at.parent_id) as typeof at | undefined) : undefined;
+  }
+  return out;
+}
+
+const maxPosition = (parentId: number | null): number => ((db().prepare("select max(position) m from ws_pages where db_id is null and template = 0 and parent_id is ?").get(parentId) as { m: number | null }).m ?? 0) + 1;
+
+export type NewPage = { parentId?: number | null; title?: string; icon?: string; kind?: "page" | "database"; dbId?: number | null; content?: unknown; props?: Record<string, unknown>; schema?: DbSchema; template?: boolean };
+
+/** A page made. A row (`dbId`) takes the database's place in the tree; a database gets a default schema. */
+export function createPage(v: NewPage = {}): number {
+  const d = db();
+  const kind = v.kind === "database" ? "database" : "page";
+  if (v.dbId) {
+    const parent = getPage(v.dbId);
+    if (!parent || parent.kind !== "database") throw new Error("No such database.");
+  }
+  if (v.parentId && !getPage(v.parentId)) throw new Error("No such page.");
+  const doc = v.content === undefined ? emptyDoc() : sanitizeDoc(v.content);
+  const at = now();
+  const r = d
+    .prepare("insert into ws_pages (parent_id, db_id, kind, title, icon, content, body_text, props, schema, position, template, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .run(
+      v.dbId ? null : (v.parentId ?? null),
+      v.dbId ?? null,
+      kind,
+      clip(v.title, 300),
+      clip(v.icon, 16),
+      JSON.stringify(doc),
+      docText(doc),
+      JSON.stringify(v.props ?? {}),
+      kind === "database" ? JSON.stringify(v.schema ? normalizeSchema(v.schema) : defaultSchema()) : null,
+      v.dbId ? Date.now() / 1000 : maxPosition(v.parentId ?? null),
+      v.template ? 1 : 0,
+      at,
+      at,
+    );
+  const id = Number(r.lastInsertRowid);
+  index(id);
+  relink(id, doc);
+  changed();
+  return id;
+}
+
+function index(id: number) {
+  const d = db();
+  const p = d.prepare("select title, body_text, archived_at from ws_pages where id = ?").get(id) as { title: string; body_text: string; archived_at: string | null } | undefined;
+  d.prepare("delete from ws_fts where rowid = ?").run(id);
+  if (p && !p.archived_at) d.prepare("insert into ws_fts (rowid, title, body) values (?, ?, ?)").run(id, p.title, p.body_text);
+}
+
+function relink(id: number, doc: Doc) {
+  const d = db();
+  d.prepare("delete from ws_links where page_id = ?").run(id);
+  const ins = d.prepare("insert or ignore into ws_links (page_id, kind, ref, label) values (?, ?, ?, ?)");
+  for (const r of docRefs(doc)) ins.run(id, r.kind, r.ref, r.label.slice(0, 200));
+}
+
+export type PagePatch = { title?: string; icon?: string; cover?: string; content?: unknown; favorite?: boolean; fullWidth?: boolean; smallText?: boolean; locked?: boolean; template?: boolean };
+export type SaveResult = { ok: true; rev: number; updatedAt: string } | { ok: false; conflict: true; rev: number };
+
+/** How long a version stays the newest before another one is kept (minutes). */
+const VERSION_EVERY_MS = 10 * 60000;
+const VERSIONS_KEPT = 60;
+
+/**
+ * A page changed. `rev` is the revision the editor started from: when the page has moved on since (another
+ * tab, an agent) and the content would be overwritten, nothing is saved and the conflict is reported.
+ */
+export function updatePage(id: number, patch: PagePatch, rev?: number): SaveResult {
+  const d = db();
+  const cur = d.prepare("select * from ws_pages where id = ?").get(id) as PRow | undefined;
+  if (!cur) throw new Error("No such page.");
+  if (patch.content !== undefined && rev !== undefined && rev !== cur.rev) return { ok: false, conflict: true, rev: cur.rev };
+  const sets: string[] = [];
+  const args: unknown[] = [];
+  const set = (col: string, v: unknown) => (sets.push(`${col} = ?`), args.push(v));
+  let doc: Doc | null = null;
+  if (patch.title !== undefined) set("title", clip(patch.title, 300));
+  if (patch.icon !== undefined) set("icon", clip(patch.icon, 16));
+  if (patch.cover !== undefined) set("cover", /^(gradient:[a-z0-9-]+|\/api\/workspace\/files\/[\w.-]+|https?:\/\/\S+)?$/i.test(patch.cover) ? patch.cover : "");
+  if (patch.favorite !== undefined) set("favorite", patch.favorite ? 1 : 0);
+  if (patch.fullWidth !== undefined) set("full_width", patch.fullWidth ? 1 : 0);
+  if (patch.smallText !== undefined) set("small_text", patch.smallText ? 1 : 0);
+  if (patch.locked !== undefined) set("locked", patch.locked ? 1 : 0);
+  if (patch.template !== undefined) set("template", patch.template ? 1 : 0);
+  let newRev = cur.rev;
+  if (patch.content !== undefined) {
+    doc = sanitizeDoc(patch.content);
+    const json = JSON.stringify(doc);
+    if (json !== cur.content) {
+      // The state before this change is kept as a version — at most one every ten minutes.
+      const last = d.prepare("select at from ws_versions where page_id = ? order by id desc limit 1").get(id) as { at: string } | undefined;
+      if (cur.content && (!last || Date.now() - Date.parse(last.at) > VERSION_EVERY_MS)) {
+        d.prepare("insert into ws_versions (page_id, title, content, at) values (?, ?, ?, ?)").run(id, cur.title, cur.content, now());
+        d.prepare("delete from ws_versions where page_id = ? and id not in (select id from ws_versions where page_id = ? order by id desc limit ?)").run(id, id, VERSIONS_KEPT);
+      }
+      set("content", json);
+      set("body_text", docText(doc));
+      newRev = cur.rev + 1;
+      set("rev", newRev);
+    } else doc = null;
+  }
+  if (!sets.length) return { ok: true, rev: cur.rev, updatedAt: cur.updated_at };
+  const at = now();
+  // Only a change of what the page says moves "edited" (a favorite star isn't an edit).
+  const editing = patch.title !== undefined || patch.content !== undefined || patch.icon !== undefined || patch.cover !== undefined;
+  if (editing) set("updated_at", at);
+  d.prepare(`update ws_pages set ${sets.join(", ")} where id = ?`).run(...args, id);
+  if (patch.title !== undefined || doc) index(id);
+  if (doc) relink(id, doc);
+  changed();
+  return { ok: true, rev: newRev, updatedAt: editing ? at : cur.updated_at };
+}
+
+export const touchOpened = (id: number) => void db().prepare("update ws_pages set opened_at = ? where id = ?").run(now(), id);
+
+// ---------------------------------------------------------------------------
+// Moving, trash, copies
+// ---------------------------------------------------------------------------
+
+
+/** Everything below a page: its sub-pages and, for a database, its rows (and theirs). */
+export function subtree(id: number): number[] {
+  const out: number[] = [];
+  const seen = new Set<number>([id]);
+  const q = [id];
+  const stmt = db().prepare("select id from ws_pages where parent_id = ? or db_id = ?");
+  while (q.length) {
+    const at = q.shift()!;
+    for (const r of stmt.all(at, at) as { id: number }[]) {
+      if (!seen.has(r.id)) {
+        seen.add(r.id);
+        out.push(r.id);
+        q.push(r.id);
+      }
+    }
+  }
+  return out;
+}
+
+/** A page moved under another (null: the top), before a sibling (or last). Not into itself or what is below it; rows stay in their database. */
+export function movePage(id: number, parentId: number | null, beforeId?: number | null): void {
+  const d = db();
+  const p = getPage(id);
+  if (!p || p.dbId) throw new Error("No such page.");
+  if (parentId !== null) {
+    const target = getPage(parentId);
+    if (!target || target.archivedAt) throw new Error("No such page.");
+    if (parentId === id || subtree(id).includes(parentId)) throw new Error("A page can't go inside itself.");
+  }
+  const siblings = (d.prepare("select id, position from ws_pages where db_id is null and template = 0 and archived_at is null and parent_id is ? and id != ? order by position, id").all(parentId, id) as { id: number; position: number }[]);
+  let position: number;
+  const at = beforeId ? siblings.findIndex((s) => s.id === beforeId) : -1;
+  if (at >= 0) {
+    const prev = at > 0 ? siblings[at - 1].position : siblings[at].position - 2;
+    position = (prev + siblings[at].position) / 2;
+  } else position = (siblings.length ? siblings[siblings.length - 1].position : 0) + 1;
+  d.prepare("update ws_pages set parent_id = ?, position = ?, updated_at = ? where id = ?").run(parentId, position, now(), id);
+  changed();
+}
+
+/** To the trash: the page, what is below it, and its rows. */
+export function archivePage(id: number): void {
+  const ids = [id, ...subtree(id)];
+  const at = now();
+  const d = db();
+  d.transaction(() => {
+    for (const x of ids) {
+      d.prepare("update ws_pages set archived_at = ? where id = ? and archived_at is null").run(at, x);
+      index(x);
+    }
+  })();
+  changed();
+}
+
+export function restorePage(id: number): void {
+  const d = db();
+  const p = getPage(id);
+  if (!p) return;
+  const ids = [id, ...subtree(id)];
+  d.transaction(() => {
+    // A page whose parent is in the trash too comes back to the top.
+    if (p.parentId) {
+      const parent = getPage(p.parentId);
+      if (!parent || parent.archivedAt) d.prepare("update ws_pages set parent_id = null where id = ?").run(id);
+    }
+    for (const x of ids) {
+      d.prepare("update ws_pages set archived_at = null where id = ?").run(x);
+      index(x);
+    }
+  })();
+  changed();
+}
+
+/** Gone for good, with what is below it. */
+export function deletePage(id: number): void {
+  const d = db();
+  const ids = [id, ...subtree(id)];
+  d.transaction(() => {
+    for (const x of ids) {
+      d.prepare("delete from ws_fts where rowid = ?").run(x);
+      d.prepare("delete from ws_links where page_id = ?").run(x);
+      d.prepare("delete from ws_versions where page_id = ?").run(x);
+      d.prepare("delete from ws_pages where id = ?").run(x);
+    }
+    // Rows that pointed at it lose the pointer.
+    for (const x of ids) cleanRelations(x);
+  })();
+  changed();
+}
+
+/** Remove a deleted page's id from the relation cells that hold it. */
+function cleanRelations(pageId: number) {
+  const d = db();
+  for (const dbRow of d.prepare("select id, schema from ws_pages where kind = 'database'").all() as { id: number; schema: string | null }[]) {
+    const schema = normalizeSchema(parse(dbRow.schema, null));
+    const rel = schema.properties.filter((p) => p.type === "relation" && !p.backOf);
+    if (!rel.length) continue;
+    for (const r of d.prepare("select id, props from ws_pages where db_id = ?").all(dbRow.id) as { id: number; props: string }[]) {
+      const props = parse<Record<string, unknown>>(r.props, {});
+      let dirty = false;
+      for (const p of rel) {
+        const v = props[p.id];
+        if (Array.isArray(v) && v.includes(pageId)) {
+          const rest = v.filter((x) => x !== pageId);
+          if (rest.length) props[p.id] = rest;
+          else delete props[p.id];
+          dirty = true;
+        }
+      }
+      if (dirty) d.prepare("update ws_pages set props = ? where id = ?").run(JSON.stringify(props), r.id);
+    }
+  }
+}
+
+/** The trash: what was archived and whose parent wasn't archived with it (the roots), newest first. */
+export function trash(): { id: number; title: string; icon: string; kind: string; archivedAt: string; below: number }[] {
+  const rows = db()
+    .prepare(
+      "select p.id, p.title, p.icon, p.kind, p.archived_at at from ws_pages p where p.archived_at is not null and p.db_id is null and (p.parent_id is null or not exists (select 1 from ws_pages q where q.id = p.parent_id and q.archived_at is not null)) order by p.archived_at desc",
+    )
+    .all() as { id: number; title: string; icon: string; kind: string; at: string }[];
+  return rows.map((r) => ({ id: r.id, title: r.title, icon: r.icon, kind: r.kind, archivedAt: r.at, below: subtree(r.id).length }));
+}
+
+export function emptyTrash(): number {
+  const roots = trash();
+  for (const r of roots) deletePage(r.id);
+  return roots.length;
+}
+
+/** A copy of a page with what is below it (a database: with its rows); "(copy)" added to the title. Returns the new id. */
+export function duplicatePage(id: number, opts: { parentId?: number | null; dbId?: number | null; suffix?: boolean } = {}): number {
+  const p = getPage(id);
+  if (!p) throw new Error("No such page.");
+  const idMap = new Map<number, number>();
+  const copy = (src: Page, parentId: number | null, dbId: number | null, top: boolean): number => {
+    const nid = createPage({
+      parentId,
+      dbId,
+      kind: src.kind,
+      title: top && opts.suffix !== false ? `${src.title || "Untitled"} (copy)` : src.title,
+      icon: src.icon,
+      content: src.content,
+      props: src.props,
+      schema: src.schema ?? undefined,
+      template: src.template,
+    });
+    idMap.set(src.id, nid);
+    const x = db();
+    x.prepare("update ws_pages set cover = ?, full_width = ?, small_text = ? where id = ?").run(src.cover, src.fullWidth ? 1 : 0, src.smallText ? 1 : 0, nid);
+    for (const c of x.prepare("select id from ws_pages where parent_id = ? and archived_at is null order by position, id").all(src.id) as { id: number }[]) copy(getPage(c.id)!, nid, null, false);
+    if (src.kind === "database") for (const r of x.prepare("select id from ws_pages where db_id = ? and archived_at is null order by id").all(src.id) as { id: number }[]) copy(getPage(r.id)!, null, nid, false);
+    return nid;
+  };
+  const top = copy(p, opts.dbId ? null : opts.parentId === undefined ? p.parentId : opts.parentId, opts.dbId ?? p.dbId, true);
+  // Relations between pages that were copied together point at the copies.
+  const d = db();
+  for (const [from, to] of idMap) {
+    const copied = getPage(to)!;
+    if (copied.dbId && Object.keys(copied.props).length) {
+      let dirty = false;
+      const props = { ...copied.props };
+      for (const [k, v] of Object.entries(props)) {
+        if (Array.isArray(v) && v.some((x) => idMap.has(Number(x)) && typeof x === "number")) {
+          props[k] = v.map((x) => (typeof x === "number" && idMap.has(x) ? idMap.get(x)! : x));
+          dirty = true;
+        }
+      }
+      if (dirty) d.prepare("update ws_pages set props = ? where id = ?").run(JSON.stringify(props), to);
+    }
+    void from;
+  }
+  return top;
+}
+
+// ---------------------------------------------------------------------------
+// Lists and search
+// ---------------------------------------------------------------------------
+
+export type PageRef = { id: number; title: string; icon: string; kind: string; updatedAt: string; dbId: number | null };
+
+const refOf = (r: { id: number; title: string; icon: string; kind: string; updated_at: string; db_id: number | null }): PageRef => ({ id: r.id, title: r.title, icon: r.icon, kind: r.kind, updatedAt: r.updated_at, dbId: r.db_id });
+
+export const favorites = (): PageRef[] => (db().prepare("select id, title, icon, kind, updated_at, db_id from ws_pages where favorite = 1 and archived_at is null order by title").all() as never[]).map(refOf);
+
+/** The last pages you opened or edited. */
+export const recent = (limit = 12): PageRef[] =>
+  (db().prepare("select id, title, icon, kind, updated_at, db_id from ws_pages where archived_at is null and template = 0 order by max(coalesce(opened_at, ''), updated_at) desc limit ?").all(limit) as never[]).map(refOf);
+
+export type Hit = PageRef & { snippet: string; path: string };
+
+/** Pages by what they say and what they are called — words by their beginnings, titles first. */
+export function search(q: string, limit = 20): Hit[] {
+  const words = q.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  if (!words.length) return [];
+  const match = words.map((w) => `"${w}"*`).join(" ");
+  let rows: { id: number; title: string; icon: string; kind: string; updated_at: string; db_id: number | null; snip: string }[] = [];
+  try {
+    rows = db()
+      .prepare(
+        "select p.id, p.title, p.icon, p.kind, p.updated_at, p.db_id, snippet(ws_fts, 1, '', '', '…', 14) snip from ws_fts join ws_pages p on p.id = ws_fts.rowid where ws_fts match ? and p.archived_at is null and p.template = 0 order by bm25(ws_fts, 8.0, 1.0) limit ?",
+      )
+      .all(match, limit) as typeof rows;
+  } catch {
+    rows = [];
+  }
+  return rows.map((r) => ({ ...refOf(r), snippet: r.snip, path: breadcrumbs(r.id).map((b) => b.title || "Untitled").join(" / ") }));
+}
+
+/** Pages whose title starts with / contains the words — for the @ menu (quick, no index). */
+export function suggestPages(q: string, limit = 8): PageRef[] {
+  const like = `%${q.replace(/[%_]/g, "")}%`;
+  return (db().prepare("select id, title, icon, kind, updated_at, db_id from ws_pages where archived_at is null and template = 0 and title like ? order by (title like ?) desc, updated_at desc limit ?").all(like, `${q.replace(/[%_]/g, "")}%`, limit) as never[]).map(refOf);
+}
+
+// ---------------------------------------------------------------------------
+// Links
+// ---------------------------------------------------------------------------
+
+/** The pages that link to a page (a mention or a link in their text). */
+export const backlinks = (id: number): PageRef[] =>
+  (
+    db()
+      .prepare("select p.id, p.title, p.icon, p.kind, p.updated_at, p.db_id from ws_links l join ws_pages p on p.id = l.page_id where l.kind = 'page' and l.ref = ? and p.archived_at is null and p.id != ? order by p.updated_at desc")
+      .all(String(id), id) as never[]
+  ).map(refOf);
+
+/** The pages that name a person, a todo or a ticket. */
+export const pagesMentioning = (kind: DocRef["kind"], ref: string | number, limit = 20): PageRef[] =>
+  (db().prepare("select p.id, p.title, p.icon, p.kind, p.updated_at, p.db_id from ws_links l join ws_pages p on p.id = l.page_id where l.kind = ? and l.ref = ? and p.archived_at is null and p.template = 0 order by p.updated_at desc limit ?").all(kind, String(ref), limit) as never[]).map(refOf);
+
+// ---------------------------------------------------------------------------
+// History
+// ---------------------------------------------------------------------------
+
+export type Version = { id: number; at: string; title: string; size: number };
+export const versions = (pageId: number): Version[] => (db().prepare("select id, at, title, length(content) size from ws_versions where page_id = ? order by id desc").all(pageId) as Version[]);
+export const getVersion = (id: number): { id: number; pageId: number; at: string; title: string; content: Doc } | null => {
+  const r = db().prepare("select * from ws_versions where id = ?").get(id) as { id: number; page_id: number; at: string; title: string; content: string } | undefined;
+  return r ? { id: r.id, pageId: r.page_id, at: r.at, title: r.title, content: sanitizeDoc(parse(r.content, null)) } : null;
+};
+
+/** A page's content put back to a version (the state before is kept as a version first). */
+export function restoreVersion(versionId: number): void {
+  const v = getVersion(versionId);
+  if (!v) throw new Error("No such version.");
+  const cur = getPage(v.pageId);
+  if (!cur) throw new Error("No such page.");
+  db().prepare("insert into ws_versions (page_id, title, content, at) values (?, ?, ?, ?)").run(cur.id, cur.title, JSON.stringify(cur.content), now());
+  updatePage(cur.id, { title: v.title, content: v.content });
+}
+
+// ---------------------------------------------------------------------------
+// Databases
+// ---------------------------------------------------------------------------
+
+export function getDatabase(id: number): { page: Page; schema: DbSchema } | null {
+  const p = getPage(id);
+  return p && p.kind === "database" && p.schema ? { page: p, schema: p.schema } : null;
+}
+
+/** A database's rows as stored (computed properties not filled in). Not the archived, not the templates. */
+export function rawRows(dbId: number, opts: { templates?: boolean } = {}): Row[] {
+  return (db().prepare("select id, title, icon, props, created_at, updated_at from ws_pages where db_id = ? and archived_at is null and template = ? order by position, id").all(dbId, opts.templates ? 1 : 0) as { id: number; title: string; icon: string; props: string; created_at: string; updated_at: string }[]).map((r) => ({
+    id: r.id,
+    title: r.title,
+    icon: r.icon,
+    cells: parse<Record<string, unknown>>(r.props, {}),
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  }));
+}
+
+/** The rows of a database with the computed properties filled in. */
+export function rowsOf(dbId: number): { schema: DbSchema; rows: Row[] } | null {
+  const d = getDatabase(dbId);
+  if (!d) return null;
+  const lookup = (id: number) => {
+    const o = getDatabase(id);
+    return o ? { schema: o.schema, rows: rawRows(id) } : null;
+  };
+  return { schema: d.schema, rows: computeRows(d.schema, rawRows(dbId), lookup, dbId) };
+}
+
+/** What the views show for the ids in cells: the people, pages and todos by name. */
+export async function labelsFor(schema: DbSchema, rows: Row[]): Promise<{ people: Record<number, string>; pages: Record<number, { title: string; icon: string }>; todos: Record<number, string> }> {
+  const people = new Set<number>();
+  const pages = new Set<number>();
+  const todos = new Set<number>();
+  const ids = (v: unknown) => (Array.isArray(v) ? v : [v]).map(Number).filter((n) => Number.isInteger(n) && n > 0);
+  for (const p of schema.properties) {
+    const bag = p.type === "person" ? people : p.type === "relation" ? pages : p.type === "todo" ? todos : null;
+    if (!bag) continue;
+    for (const r of rows) for (const n of ids(r.cells[p.id])) bag.add(n);
+    if (p.type === "rollup" || p.type === "formula") continue;
+  }
+  const out = { people: {} as Record<number, string>, pages: {} as Record<number, { title: string; icon: string }>, todos: {} as Record<number, string> };
+  if (people.size) {
+    const { getPerson } = await import("@/plugins/people/store");
+    for (const id of people) out.people[id] = getPerson(id)?.name ?? `#${id}`;
+  }
+  for (const id of pages) {
+    const p = db().prepare("select title, icon from ws_pages where id = ?").get(id) as { title: string; icon: string } | undefined;
+    out.pages[id] = { title: p?.title || "Untitled", icon: p?.icon ?? "" };
+  }
+  if (todos.size) {
+    const { getTodo } = await import("@/lib/boards/store");
+    for (const id of todos) out.todos[id] = getTodo(id)?.ref ?? `T-${id}`;
+  }
+  return out;
+}
+
+export function labelFns(l: Awaited<ReturnType<typeof labelsFor>>): Labels {
+  return { person: (id) => l.people[id] ?? `#${id}`, page: (id) => l.pages[id]?.title ?? `#${id}`, todo: (id) => l.todos[id] ?? `T-${id}` };
+}
+
+/** The schema changed (properties, views). A removed property's cells go away with it. */
+export function updateSchema(id: number, next: unknown): DbSchema {
+  const cur = getDatabase(id);
+  if (!cur) throw new Error("No such database.");
+  const schema = normalizeSchema(next);
+  const ids = new Set(schema.properties.map((p) => p.id));
+  for (const p of schema.properties) {
+    if (p.type === "relation" && p.relationDb !== undefined && !getDatabase(p.relationDb)) throw new Error(`Relation "${p.name}" points to a database that isn't there.`);
+    if (p.type === "relation" && p.backOf) {
+      const other = getDatabase(p.relationDb ?? -1);
+      if (!other?.schema.properties.some((q) => q.id === p.backOf)) throw new Error(`"${p.name}" has no relation on the other side.`);
+    }
+  }
+  const dropped = cur.schema.properties.filter((p) => !ids.has(p.id)).map((p) => p.id);
+  const d = db();
+  d.transaction(() => {
+    d.prepare("update ws_pages set schema = ?, updated_at = ? where id = ?").run(JSON.stringify(schema), now(), id);
+    if (dropped.length) {
+      for (const r of d.prepare("select id, props from ws_pages where db_id = ?").all(id) as { id: number; props: string }[]) {
+        const props = parse<Record<string, unknown>>(r.props, {});
+        let dirty = false;
+        for (const k of dropped) {
+          if (k in props) {
+            delete props[k];
+            dirty = true;
+          }
+        }
+        if (dirty) d.prepare("update ws_pages set props = ? where id = ?").run(JSON.stringify(props), r.id);
+      }
+    }
+  })();
+  changed();
+  return schema;
+}
+
+/** A cell value made to fit its property: what can't be is dropped (null). */
+export function coerceCell(p: Property, v: unknown): unknown {
+  if (v === null || v === undefined) return null;
+  switch (p.type) {
+    case "number": {
+      const n = typeof v === "number" ? v : Number(String(v).replace(",", "."));
+      return v === "" || Number.isNaN(n) ? null : n;
+    }
+    case "checkbox":
+      return !!v;
+    case "select":
+    case "status":
+      return p.options?.some((o) => o.id === v) ? v : null;
+    case "multi_select": {
+      const a = (Array.isArray(v) ? v : [v]).filter((x) => p.options?.some((o) => o.id === x));
+      return a.length ? [...new Set(a)] : null;
+    }
+    case "date": {
+      const r = dateRange(v);
+      if (!r || !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(r.start) || (r.end !== undefined && !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(r.end))) return null;
+      return r.end ? { start: r.start, end: r.end } : r.start;
+    }
+    case "person":
+    case "todo":
+    case "relation": {
+      const a = (Array.isArray(v) ? v : [v]).map(Number).filter((n) => Number.isInteger(n) && n > 0);
+      return a.length ? [...new Set(a)] : null;
+    }
+    case "ticket": {
+      const a = (Array.isArray(v) ? v : [v]).map((x) => String(x).trim().toUpperCase()).filter((x) => /^[A-Z][A-Z0-9]+-\d+$/.test(x));
+      return a.length ? [...new Set(a)] : null;
+    }
+    case "url":
+    case "email":
+    case "phone":
+      return String(v).trim().slice(0, 500) || null;
+    case "text":
+    case "ai":
+      return String(v).slice(0, 20000) || null;
+    default:
+      return null; // computed: never stored
+  }
+}
+
+/** One cell of a row set (null clears it). Computed properties can't be set. */
+export function setCell(rowId: number, propId: string, value: unknown): void {
+  const row = getPage(rowId);
+  if (!row?.dbId) throw new Error("No such row.");
+  if (propId === TITLE) {
+    updatePage(rowId, { title: String(value ?? "") });
+    return;
+  }
+  const schema = getDatabase(row.dbId)?.schema;
+  const p = schema && propById(schema.properties, propId);
+  if (!p) throw new Error("No such property.");
+  if (isComputed(p)) throw new Error(`"${p.name}" is computed — it can't be set.`);
+  const props = { ...row.props };
+  const v = coerceCell(p, value);
+  if (v === null) delete props[propId];
+  else props[propId] = v;
+  db().prepare("update ws_pages set props = ?, updated_at = ? where id = ?").run(JSON.stringify(props), now(), rowId);
+  changed();
+}
+
+export type NewRow = { title?: string; cells?: Record<string, unknown>; templateId?: number };
+
+/** A row added: its title and cells (fitted to the properties); from a template: its content and cells come along. */
+export function addRow(dbId: number, v: NewRow = {}): number {
+  const d = getDatabase(dbId);
+  if (!d) throw new Error("No such database.");
+  const tpl = v.templateId ? getPage(v.templateId) : null;
+  const props: Record<string, unknown> = {};
+  for (const [k, val] of Object.entries({ ...(tpl?.dbId === dbId ? tpl.props : {}), ...(v.cells ?? {}) })) {
+    const p = propById(d.schema.properties, k);
+    if (!p || isComputed(p)) continue;
+    const c = coerceCell(p, val);
+    if (c !== null) props[k] = c;
+  }
+  return createPage({ dbId, title: v.title ?? (tpl && tpl.dbId === dbId ? tpl.title : ""), icon: tpl?.icon, content: tpl?.dbId === dbId ? tpl.content : undefined, props });
+}
+
+/** The row templates of a database. */
+export const rowTemplates = (dbId: number): Row[] => rawRows(dbId, { templates: true });
+
+/** For the search of everything Zeff keeps (rag.ts): pages as hits, by words. */
+export function pageHits(words: string[]): { ref: string; title: string; text: string; when: string; score: number }[] {
+  return search(words.join(" "), 10).map((h, i) => ({
+    ref: `page:${h.id}`,
+    title: `${h.icon ? `${h.icon} ` : ""}${h.title || "Untitled"}${h.path ? ` (${h.path})` : ""}`,
+    text: (h.snippet || docText(getPage(h.id)?.content)).slice(0, 400),
+    when: h.updatedAt.slice(0, 10),
+    score: words.length + (10 - i) / 20,
+  }));
+}

@@ -5,7 +5,7 @@ import { AiSettingsForm } from "@/components/AiSettingsForm";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { aiChoice, aiProviders, getAppSettings } from "@/lib/ai";
 import { AI_PROVIDER_INFO, type AiProvider } from "@/lib/ai/shared";
-import { codexModels } from "@/plugins/codex-cli/cli";
+import { codexModelsNow } from "@/plugins/codex-cli/cli";
 import { copilotModels } from "@/plugins/copilot-cli/cli";
 import { LlmSettingsForm } from "@/plugins/llm/LlmSettingsForm";
 import { llmChoice } from "@/plugins/llm/run";
@@ -50,7 +50,7 @@ export default async function LlmPage() {
           copilotModel={s.copilotModel}
           copilotModels={found.copilot ? await copilotModels() : []}
           codexModel={s.codexModel}
-          codexModels={found.codex ? (await codexModels()).map((m) => ({ id: m.id, label: m.label })) : []}
+          codexModels={found.codex ? codexModelsNow().map((m) => ({ id: m.id, label: m.label })) : []}
           found={found}
         />
       </section>

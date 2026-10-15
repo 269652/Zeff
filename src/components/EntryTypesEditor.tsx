@@ -36,12 +36,12 @@ export function EntryTypesEditor({ types, usage }: { types: EntryTypeDef[]; usag
         <table className="table">
           <thead>
             <tr>
-              <th>{t("Color")}</th>
-              <th>{t("Name")}</th>
-              <th>{t("Key")}</th>
-              <th className="num">{t("Entries")}</th>
-              <th>{t("Looks like")}</th>
-              <th></th>
+              <th scope="col">{t("Color")}</th>
+              <th scope="col">{t("Name")}</th>
+              <th scope="col">{t("Key")}</th>
+              <th scope="col" className="num">{t("Entries")}</th>
+              <th scope="col">{t("Looks like")}</th>
+              <th scope="col"><span className="sr-only">{t("Actions")}</span></th>
             </tr>
           </thead>
           <tbody>

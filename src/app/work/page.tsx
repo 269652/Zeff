@@ -19,7 +19,7 @@ import { listRepos, repoForTicket } from "@/lib/repos";
 import { GitMissingNotice } from "@/components/GitMissingNotice";
 
 export async function generateMetadata(): Promise<Metadata> {
-  return { title: t("Work") };
+  return { title: t("Code") };
 }
 
 /**

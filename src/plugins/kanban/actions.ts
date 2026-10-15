@@ -103,6 +103,21 @@ export async function archiveCardAction(id: number): Promise<Result> {
   return act(() => store.archiveCard(Number(id)), t("Card archived."));
 }
 
-export async function deleteCardAction(id: number): Promise<Result> {
-  return act(() => store.deleteCard(Number(id)), t("Card deleted."));
+export async function unarchiveCardAction(id: number): Promise<Result> {
+  return act(() => store.unarchiveCard(Number(id)), t("Card restored."));
+}
+
+/** Deletes the card and answers with a snapshot of it, to hand to restoreCardAction (Undo). */
+export async function deleteCardAction(id: number): Promise<Result & { snapshot?: store.CardSnapshot }> {
+  try {
+    const snapshot = isInstalled("kanban") ? store.snapshotCard(Number(id)) : undefined;
+    const r = await act(() => store.deleteCard(Number(id)), t("Card deleted."));
+    return r.ok ? { ...r, snapshot } : r;
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+export async function restoreCardAction(snapshot: store.CardSnapshot): Promise<Result> {
+  return act(() => store.restoreCard(snapshot).id, t("Card restored."));
 }

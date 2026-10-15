@@ -112,7 +112,7 @@ export function ClaudeSession({ run }: { run: WorkRunView }) {
           </>
         }
         status={
-          <span className="ml-auto flex min-w-0 items-center gap-1.5 text-[11px] text-zinc-500">
+          <span className="ml-auto flex min-w-0 items-center gap-1.5 text-xs text-zinc-500">
             <span className={`inline-block size-1.5 shrink-0 rounded-full ${working || c.host !== "up" ? "animate-pulse bg-indigo-500" : c.asks.length ? "bg-amber-500" : "bg-emerald-500"}`} aria-hidden />
             <span className="truncate">{status}</span>
             {c.queued > 0 && <span className="shrink-0 rounded bg-zinc-100 px-1 dark:bg-zinc-800">{t("{n} queued", { n: c.queued })}</span>}
@@ -356,7 +356,7 @@ function Composer({
               <span key={i} className="relative">
                 {/* eslint-disable-next-line @next/next/no-img-element -- a data URL preview */}
                 <img src={`data:${im.mediaType};base64,${im.data}`} alt={im.name} className="h-14 w-auto rounded border border-zinc-200 dark:border-zinc-700" />
-                <button type="button" className="absolute -top-1.5 -right-1.5 rounded-full bg-zinc-800 px-1 text-[10px] text-white" onClick={() => setImages((xs) => xs.filter((_, j) => j !== i))} aria-label={t("Remove image")}>
+                <button type="button" className="absolute -top-1.5 -right-1.5 rounded-full bg-zinc-800 px-1 text-xs text-white" onClick={() => setImages((xs) => xs.filter((_, j) => j !== i))} aria-label={t("Remove image")}>
                   ✕
                 </button>
               </span>

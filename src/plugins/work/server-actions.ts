@@ -11,7 +11,7 @@ import { num, revalidateAll, str, type ActionState } from "@/app/action-helpers"
 /**
  * A work session (Work, like Claude Code): your instruction to a worker — on a todo (it goes on
  * where that one is), or as a new todo on a ticket (or none) — in a repo you pick, else the
- * ticket's. Interactive with the Copilot CLI (the Work settings): you talk to it on its page.
+ * ticket's. Interactive with the Copilot CLI (the Code settings): you talk to it on its page.
  */
 /** A new session — or, with continueRunId, your next message in that session's conversation. */
 export async function startSessionAction(v: {
@@ -207,7 +207,7 @@ export async function cancelWorkAction(runId: number): Promise<ActionState> {
   }
 }
 
-/** The Work tab's settings: workers at once, permission mode, isolation, repos, model, budget, house rules. */
+/** The Code tab's settings: workers at once, permission mode, isolation, repos, model, budget, house rules. */
 export async function saveWorkSettingsAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   try {
     const { PERMISSION_MODES } = await import("@/lib/work/shared");

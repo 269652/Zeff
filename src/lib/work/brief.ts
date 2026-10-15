@@ -1,3 +1,4 @@
+import { attachmentLine, todoAttachments } from "@/plugins/documents/attachments";
 import { opAvailable } from "@/plugins/ops";
 import { todoSources } from "@/lib/boards/sources";
 import { opsDictionary, sourcesOf, TODO_KIND_LABELS, todoRef, type TodoSource, type TodoView } from "@/lib/boards/shared";
@@ -8,6 +9,7 @@ import { mailSender } from "@/lib/mail/shared";
 import { noteHeadline } from "@/plugins/keep/shared";
 import { resolvedCommentIds } from "@/lib/resolved";
 import { sideTodos } from "./actions";
+import type { LinkedBranch } from "./branch-context";
 import { runsForTodos } from "./store";
 import { CHANNEL_LABELS, formatMinutes, workRef, type WorkIsolation, type WorkMode } from "./shared";
 import { listTodoTimes } from "./todo-time";
@@ -102,9 +104,16 @@ export function briefFor(todo: TodoView): string {
 
   const sources = todoSources([todo], run?.tickets ?? []);
   // As the todo shows it: what the Ticket-Lage cited (an MR or Jira thread with its comments) and the mails related to it.
-  const from = sourcesOf(todo.refs, sources);
+  const from = sourcesOf(todo.refs, sources).filter((s) => s.source !== "document");
   if (from.length) out.push("", "## Woher das Todo kommt", ...from.map(sourceText));
   else if (todo.source) out.push("", `Quelle laut Ticket-Lage: ${todo.source}`);
+
+  // What the user attached: pictures pasted into their notes, documents — their context, and what it shows (as read, or to look at).
+  const attached = todoAttachments(todo.refs);
+  if (attached.length) {
+    out.push("", "## Anhänge (Bilder und Dokumente, die der Nutzer an dieses Todo gehängt hat — sein Kontext)", ...attached.map((d) => `- ${attachmentLine(d)}`));
+    out.push(`Bilder (Screenshots, Vorgaben, Fehlerbilder) zeigen oft genau, was gemeint ist: sieh sie dir mit todo_attachment an (todo: "${todoRef(todo.id)}", doc: z. B. "${attached[0].ref}"), bevor du umsetzt — die Beschreibung oben ersetzt das Bild nicht.`);
+  }
 
   // What was asked about the ticket in its chat (and answered): the user's context until they dismiss it.
   const chat = ticketChat(todo.ticket);
@@ -136,8 +145,8 @@ export function workerRules(
   } = {},
 ): string {
   const head = opts.conversation
-    ? `Du bist ein Zeff-Worker in einer Session mit dem Nutzer auf Zeffs Work-Tab — wie in Claude Code: er liest mit, beantwortet Rückfragen (AskUserQuestion) und Erlaubnisanfragen und schreibt dir zwischendurch. Arbeite wie in Claude Code: frag, wenn etwas unklar ist, statt zu raten.`
-    : `Du bist ein Zeff-Worker: du erledigst genau einen Auftrag aus Zeffs Work-Tab, unbeaufsichtigt — niemand beantwortet Rückfragen, niemand bestätigt Aktionen.`;
+    ? `Du bist ein Zeff-Worker in einer Session mit dem Nutzer auf Zeffs Code-Tab — wie in Claude Code: er liest mit, beantwortet Rückfragen (AskUserQuestion) und Erlaubnisanfragen und schreibt dir zwischendurch. Arbeite wie in Claude Code: frag, wenn etwas unklar ist, statt zu raten.`
+    : `Du bist ein Zeff-Worker: du erledigst genau einen Auftrag aus Zeffs Code-Tab, unbeaufsichtigt — niemand beantwortet Rückfragen, niemand bestätigt Aktionen.`;
   const end = opts.conversation
     ? `- Ein JSON-Ergebnis gibst du nur, wenn der Nutzer die Session abschließt (er sagt es dir, mit dem Schema) — dann im verlangten Format (outcome, summary, entry, completedTodos, followUps …).`
     : `- Kommst du ohne Klärung nicht weiter: hör auf, statt zu raten, und gib die Frage als followUp (kind clarify, mit Entwurf) zurück; outcome blocked.
@@ -151,6 +160,7 @@ export function workerRules(
 - Buche keine Zeit über Zeffs MCP-Server (report_time, update_time_entry) — Zeff bucht später selbst. Melde aber deine Zeit je Todo mit dem Zeff-MCP-Tool todo_time (mcp__zeff__todo_time): für JEDES Todo, an dem du gearbeitet hast (auch die Nebentodos einer Session), jeweils nach einer Arbeitsphase, bei jeder Pause bzw. am Ende deines Zugs und am Ende des Auftrags — todo: die Nummer, minutes: die Minuten seit deinem letzten Eintrag zu diesem Todo (ehrlich, ohne Aufrunden; Warten auf den Nutzer zählt nicht), note: eine kurze Zeile, was in der Zeit getan wurde, agent: die Nummer deines Laufs, wie sie unter „Dein Auftrag“ steht (z. B. W-45). Das ist die Grundlage der Buchung; die Laufzeit des Laufs gilt nur als Ersatz, wenn zu einem Todo kein Eintrag da ist. Ein Todo meldest du als erledigt über completedTodos (oder complete_todo): es bleibt offen und wird hervorgehoben — das Schließen macht der Nutzer.
 ${end}
 - summary steht danach als dein Kommentar am Todo — fasse darin IMMER zusammen, was du getan hast: zuerst EIN Satz, was jetzt erledigt ist; dann kurze Stichpunkte: was geändert, wie geprüft, was offen bleibt (und warum), wo es liegt (Branch, Commit).
+- Dein Ergebnis wird zusätzlich als Bericht am Todo abgelegt (und ins Wissen übernommen) — liefere ihn IMMER vollständig, auch wenn nichts geklappt hat: summary mit den Abschnitten „## Erledigt“, „## Offen“, „## Geprüft“ (auch was NICHT lief, mit Grund — z. B. fehlendes node_modules), „## Ort“ (Branch, Commit); dazu changes (jede geänderte Datei/Stelle, eine Zeile) und checks (jede Prüfung mit Ergebnis oder „nicht gelaufen: Grund“) als Listen. Erfinde nichts; was offen oder ungeprüft ist, sagst du so.
 
 ${opsDictionary(opAvailable)}${extra.trim() ? `\n\nZusätzlich:\n${extra.trim()}` : ""}`;
 }
@@ -175,12 +185,42 @@ function sessionTodos(todo: TodoView, runId: number): string {
   return `## Todos dieser Session\nAktuell dran: ${side.find((s) => s.active) ? todoRef(side.find((s) => s.active)!.todoId) : todoRef(todo.id)}.\n${lines.join("\n")}`;
 }
 
+/**
+ * Which branch the work belongs on: the one the todo's merge request or branch is on (not a branch of
+ * our own like feature/PROJ-123-w66) — or, with none yet, the naming convention for a new one (the MCP server's).
+ */
+function branchRule(ctx: { linked?: LinkedBranch[]; newBranch?: string | null; branch: string | null; onExisting?: boolean }): string {
+  if (!ctx.branch || ctx.onExisting) return "";
+  if (ctx.linked?.length) {
+    const list = ctx.linked.map((l) => `${l.branch} (${l.label}, ${l.url})`).join("; ");
+    return `\n- Branch: Das Todo ist mit ${list} verknüpft. Arbeite auf diesem Branch, nicht auf einem neuen: im Worktree \`git fetch origin && git switch <Branch>\` (ist er woanders ausgecheckt: \`git switch -c ${ctx.branch}-tmp origin/<Branch>\`, und committe am Ende auf den Stand des verknüpften Branches). Nenne den Branch im Ergebnis (branch).`;
+  }
+  return ctx.newBranch
+    ? `\n- Branch: Zu diesem Todo gibt es noch keinen Feature-Branch oder Merge Request. Lege einen an, nach der Namenskonvention ${ctx.newBranch} (feature/ bzw. fix/, dann der Ticket-Key, dann <short-change> = 2–4 kleingeschriebene Wörter für die Codeänderung, die du machst — nicht der Titel von Ticket oder Todo; max. ~30 Zeichen) und committe dort. Nenne den Branch im Ergebnis (branch).`
+    : "";
+}
+
 /** What the worker is to do, by mode — and where. */
 export function taskFor(
   mode: WorkMode,
-  ctx: { todo: TodoView; runId: number; repo: string | null; cwd: string; branch: string | null; base: string | null; isolation: WorkIsolation; /** The work goes on an existing branch you picked (in a worktree of its own). */ onExisting?: boolean },
+  ctx: {
+    todo: TodoView;
+    runId: number;
+    repo: string | null;
+    cwd: string;
+    branch: string | null;
+    base: string | null;
+    isolation: WorkIsolation;
+    /** The work goes on an existing branch you picked (in a worktree of its own). */
+    onExisting?: boolean;
+    /** The branches of the todo's linked merge requests and branches. */
+    linked?: LinkedBranch[];
+    /** The naming pattern for a new feature branch (feature/PROJ-1-<short-change>). */
+    newBranch?: string | null;
+  },
 ): string {
   const { todo } = ctx;
+  const branchLine = branchRule(ctx);
   if (mode === "code") {
     const where = ctx.branch
       ? ctx.onExisting
@@ -190,7 +230,7 @@ export function taskFor(
     return `## Dein Auftrag (${workRef(ctx.runId)})
 Erledige ${todoRef(todo.id)}: ${todo.text}
 
-${where}
+${where}${branchLine}
 - Folge dem Ablauf des Projekts (CLAUDE.md, Doku im Repo; gibt es einen Skill für Tickets dieses Projekts — etwa proj-ticket —, dann dessen Regeln). Die Ticketdaten stehen oben: nicht über den Browser laden.
 - TDD: erst ein Test, der aus dem richtigen Grund rot ist, dann die Umsetzung, dann aufräumen; am Ende die betroffene Suite. Was nur von Hand prüfbar ist, nennst du als offen.
 ${ctx.branch ? `- Im Worktree fehlen evtl. Abhängigkeiten (vendor, node_modules) und die DDEV-Umgebung. Installiere, was du für Tests brauchst, wenn es geht; sonst nenne die Prüfung als offen.
@@ -211,7 +251,7 @@ ${ctx.branch ? `- Im Worktree fehlen evtl. Abhängigkeiten (vendor, node_modules
     return `## Dein Auftrag (${workRef(ctx.runId)})
 Tu, was der Nutzer oben unter „Deine Anweisung“ zu ${todoRef(todo.id)} sagt — genau das, nicht mehr. Der Rest oben ist Kontext.
 
-${where}
+${where}${branchLine}
 - Nichts nach außen (keine Jira-, Teams- oder GitLab-Nachrichten, kein Push), außer die Anweisung verlangt es ausdrücklich — und auch dann nur als followUp mit fertigem Entwurf (channel, target) bzw. als ops, die Zeff auf Klick ausführt.
 - Welches Todo gerade dran ist: Unter „Todos dieser Session“ (am Ende) steht, woran du arbeitest — ▶ ist das zuletzt von dir begonnene, sonst ★ der Auftrag dieser Session. Erkenne bei jeder Nachricht selbst, ob sie dazu gehört oder zu etwas anderem wechselt, auch ohne Nummer oder Namen („mach jetzt noch …“, ein anderes Thema, eine neue Aufgabe): ordne sie dem passendsten offenen Todo zu (Liste unten, oben, list_todos, notfalls todo_context). Unsicher zwischen zwei? Nimm das wahrscheinlichere und nenne deine Annahme in der summary. Passt keins und es ist offensichtlich eine neue Aufgabe, erledige sie trotzdem unter dem aktuellen Todo und schlage das neue Todo als followUp vor (kind, text). Sag in der summary immer kurz, an welchem Todo du gearbeitet hast.
 - Wechselst du zu einem anderen offenen Todo als dem aktuellen (genannt per Nummer — „mach T-38“ — oder von dir erkannt), markierst du es selbst als in Arbeit: als Allererstes, bevor du etwas liest oder änderst, rufst du das Zeff-MCP-Tool start_todo auf — todo: die Nummer, agent: genau „${workRef(ctx.runId)} · Session“, note: ein kurzer Satz. Gibst du Zwischenstände, ist todo_progress dafür da. finish_todo rufst du dafür nicht auf (auch wenn die Antwort von start_todo es nahelegt, ebenso einen Feature-Branch: für diesen Lauf gilt, was hier steht): Zeff beendet diese Todos mit diesem Lauf. Deine Zeit meldest du je Todo mit todo_time (agent: genau „${workRef(ctx.runId)}“ bzw. bei Nebentodos „${workRef(ctx.runId)} · Session“): Minuten seit deinem letzten Eintrag zu diesem Todo, an jeder Pause und am Ende des Zugs — auch für das Todo dieser Session; die Laufzeit des Laufs zählt nur dort, wo ein Todo keinen Eintrag hat. Hast du ein solches Todo erledigt, führst du es zusätzlich in completedTodos.

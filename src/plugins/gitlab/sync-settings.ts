@@ -1,3 +1,4 @@
+import { driverOf } from "@/lib/connectors/store";
 import { t } from "@/lib/i18n/server";
 import { getGitlabSettings, updateGitlabSettings } from "@/lib/gitlab/store";
 import { MINUTE_CHOICES, type PluginSyncSettings } from "../sync-settings";
@@ -9,13 +10,15 @@ export const syncSettings: PluginSyncSettings = {
       key: "gitlab",
       label: "GitLab",
       get what() {
-        return t("Merge requests, their comments and your branches — through a GitLab tab in the automation Chrome.");
+        return driverOf("gitlab") === "api"
+          ? t("Merge requests, their comments and your branches — through GitLab's API.")
+          : t("Merge requests, their comments and your branches — through a GitLab tab in the automation Chrome.");
       },
       get: () => getGitlabSettings().syncMinutes,
       set: (m) => updateGitlabSettings({ syncMinutes: m }),
       choices: MINUTE_CHOICES,
       get window() {
-        return t("while the automation Chrome is running");
+        return driverOf("gitlab") === "api" ? t("always") : t("while the automation Chrome is running");
       },
     },
   ],

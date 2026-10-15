@@ -11,7 +11,7 @@ export function MainArea({ children }: { children: ReactNode }) {
   const wide = WIDE.some((r) => r.test(path));
   // The one place that scrolls (a long page); a full-window page (a board, the chat) fits it exactly.
   return (
-    <main className="min-h-0 w-full flex-1 overflow-y-auto">
+    <main id="main" tabIndex={0} className="min-h-0 w-full flex-1 overflow-y-auto">
       <div className={`px-4 py-3 ${wide ? "h-full" : ""}`}>{children}</div>
     </main>
   );

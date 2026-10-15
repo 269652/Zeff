@@ -104,7 +104,7 @@ export function CalendarWeek({
           </button>
         </div>
       </div>
-      {state?.error && <p className="alert-error whitespace-pre-line">{state.error}</p>}
+      {state?.error && <p role="alert" className="alert-error whitespace-pre-line">{state.error}</p>}
 
       <div className="overflow-x-auto pb-1">
         <div className="grid min-w-[64rem] grid-cols-7 gap-2">
@@ -127,14 +127,14 @@ export function CalendarWeek({
                 {d.allDay.length > 0 && (
                   <div className="mb-1.5 space-y-0.5">
                     {d.allDay.map((e) => (
-                      <div key={e.externalId} className="truncate rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-500 dark:bg-zinc-800" title={t("{subject} (all day)", { subject: e.subject })}>
+                      <div key={e.externalId} className="truncate rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800" title={t("{subject} (all day)", { subject: e.subject })}>
                         {e.subject}
                       </div>
                     ))}
                   </div>
                 )}
                 <div className="space-y-1">
-                  {d.events.length === 0 && d.allDay.length === 0 && <div className="px-1 py-2 text-[11px] text-zinc-300 dark:text-zinc-700">—</div>}
+                  {d.events.length === 0 && d.allDay.length === 0 && <div className="px-1 py-2 text-xs text-zinc-300 dark:text-zinc-700">—</div>}
                   {d.events.map((e) => (
                     <EventCard
                       key={e.externalId}
@@ -215,7 +215,7 @@ function EventCard({
     >
       <div className="flex items-start gap-1.5">
         <span
-          className={`mt-0.5 flex size-3.5 shrink-0 items-center justify-center rounded-sm border text-[10px] leading-none ${
+          className={`mt-0.5 flex size-3.5 shrink-0 items-center justify-center rounded-sm border text-xs leading-none ${
             e.state === "booked"
               ? "border-emerald-500 bg-emerald-500 text-white"
               : canTick && on
@@ -227,7 +227,7 @@ function EventCard({
           {e.state === "booked" || (canTick && on) ? "✓" : ""}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="flex justify-between gap-1 text-[11px] tabular-nums opacity-70">
+          <div className="flex justify-between gap-1 text-xs tabular-nums opacity-70">
             <span>
               {e.startTime}–{e.endTime}
             </span>
@@ -239,7 +239,7 @@ function EventCard({
           {badges.length > 0 && (
             <div className="mt-0.5 flex flex-wrap gap-0.5">
               {badges.map((b) => (
-                <span key={b} className="rounded bg-black/5 px-1 text-[10px] dark:bg-white/10">
+                <span key={b} className="rounded bg-black/5 px-1 text-xs dark:bg-white/10">
                   {b}
                 </span>
               ))}
@@ -247,7 +247,7 @@ function EventCard({
           )}
           {canTick && on && (
             <select
-              className="mt-1 w-full rounded border border-zinc-300 bg-white px-1 py-0.5 text-[11px] dark:border-zinc-700 dark:bg-zinc-950"
+              className="mt-1 w-full rounded border border-zinc-300 bg-white px-1 py-0.5 text-xs dark:border-zinc-700 dark:bg-zinc-950"
               value={job}
               onClick={(ev) => ev.stopPropagation()}
               onKeyDown={(ev) => ev.stopPropagation()}

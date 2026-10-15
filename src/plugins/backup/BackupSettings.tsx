@@ -1,10 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { confirmAction } from "@/components/confirm";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { rich } from "@/lib/i18n/rich";
-import { importConfigAction, restoreBackupAction, runBackupAction, saveBackupSettingsAction, uploadBackupAction } from "@/plugins/backup/server-actions";
+import { importConfigAction, restoreBackupAction, runBackupAction, saveBackupSettingsAction, setDriveBackupAction, uploadBackupAction } from "@/plugins/backup/server-actions";
 import { pickFolderAction } from "@/app/actions";
 import type { BackupFile, BackupSettingsView } from "./backup";
 import { toast } from "@/components/Toaster";
@@ -84,17 +85,17 @@ function BackupRow({ b, hasPassword }: { b: BackupFile; hasPassword: boolean }) 
         </span>
         <span className="flex gap-1">
           {b.tiers.map((tier) => (
-            <span key={tier} className="rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+            <span key={tier} className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
               {tierLabels(t)[tier]}
             </span>
           ))}
           {!b.tiers.length && (
-            <span className="text-[11px] text-amber-700 dark:text-amber-400" title={t("No longer counts in any tier — the next backup deletes it")}>
+            <span className="text-xs text-amber-700 dark:text-amber-400" title={t("No longer counts in any tier — the next backup deletes it")}>
               {t("goes next")}
             </span>
           )}
           {b.config && (
-            <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[11px] text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300" title={t("With a configuration ZIP (settings, plugins, repos …)")}>
+            <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300" title={t("With a configuration ZIP (settings, plugins, repos …)")}>
               {t("+ configuration")}
             </span>
           )}
@@ -176,7 +177,10 @@ function BackupRow({ b, hasPassword }: { b: BackupFile; hasPassword: boolean }) 
  * Backups (Settings): on/off, how often, how many kept, where, the ZIP's password — the last one,
  * a backup now, and the backups there to restore (or one uploaded from elsewhere).
  */
-export function BackupSettings({ s, backups }: { s: BackupSettingsView; backups: BackupFile[] }) {
+/** Backups also to Google Drive: whether it is on and whether Drive is signed in. */
+export type DriveBackupView = { on: boolean; connected: boolean; installed: boolean };
+
+export function BackupSettings({ s, backups, drive }: { s: BackupSettingsView; backups: BackupFile[]; drive?: DriveBackupView }) {
   const t = useT();
   const router = useRouter();
   const [enabled, setEnabled] = useState(s.enabled);
@@ -257,6 +261,27 @@ export function BackupSettings({ s, backups }: { s: BackupSettingsView; backups:
             </span>
           </span>
         </label>
+        {drive && (
+          <label className="flex items-start gap-2 text-sm sm:col-span-2">
+            <input
+              type="checkbox"
+              checked={drive.on}
+              disabled={pending}
+              onChange={(e) => start(async () => done(await setDriveBackupAction(e.target.checked)))}
+              className="mt-0.5 size-4 accent-indigo-600"
+            />
+            <span>
+              {t("Also copy every backup to Google Drive")}
+              <span className="block text-xs text-zinc-400">
+                {t("Only encrypted backups (set a password) go up, unless you allow others on the Google Drive page.")}{" "}
+                {drive.on && !drive.connected ? <span className="text-amber-700 dark:text-amber-400">{t("Not signed in yet —")} </span> : null}
+                <Link href="/google-drive" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                  {t("Google Drive settings")}
+                </Link>
+              </span>
+            </span>
+          </label>
+        )}
         <label className="space-y-1 text-sm">
           <span className="text-zinc-500">{t("How often")}</span>
           <select className="input" value={everyHours} onChange={(e) => setEveryHours(Number(e.target.value))} disabled={!enabled}>

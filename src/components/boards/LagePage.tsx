@@ -85,7 +85,7 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
           <div className="space-y-1">
           <h1 className="text-lg font-semibold">{part === "tickets" ? t("Tickets") : t("Todos")}</h1>
           {shown && (
-            <p className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[11px] text-zinc-400">
+            <p className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-xs text-zinc-400">
               <span>{t("As of: {when}", { when: when(shown.finishedAt ?? shown.startedAt) })}</span>
               {shown.model && <span>{shown.model}</span>}
               {shown.durationMs ? <span>{minutes(shown.durationMs)}</span> : null}
@@ -99,7 +99,7 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
           {part === "tickets" && <div id="todos-filter-slot" />}
           {shown?.result?.lede && <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{shown.result.lede}</p>}
           {failed && (
-            <div className="alert-error text-sm">
+            <div role="alert" className="alert-error text-sm">
               {t("The last run ({when}) failed: {error}", { when: when(failed.startedAt), error: failed.error ?? "" })}
               {shown ? ` — ${t("this is the one before.")}` : ""}
             </div>
@@ -212,7 +212,7 @@ function RecapPage({ day }: { day: string }) {
             <RecapDayPicker day={day} max={today} />
           </div>
           {shown && (
-            <p className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[11px] text-zinc-400">
+            <p className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-xs text-zinc-400">
               <span>{t("As of: {when}", { when: when(shown.finishedAt ?? shown.startedAt) })}</span>
               {shown.model && <span>{shown.model}</span>}
               {shown.durationMs ? <span>{minutes(shown.durationMs)}</span> : null}
@@ -222,7 +222,7 @@ function RecapPage({ day }: { day: string }) {
         </div>
           <RecapControls day={day} running={running} phase={running ? (live?.phase ?? null) : null} since={running ? (live?.since ?? null) : null} provider={live?.provider ?? aiLabel} again={!!shown} />
           {failed && (
-            <div className="alert-error text-sm">
+            <div role="alert" className="alert-error text-sm">
               {t("Summarizing ({when}) failed: {error}", { when: when(failed.startedAt), error: failed.error ?? "" })}
               {shown ? ` — ${t("this is the one before.")}` : ""}
             </div>

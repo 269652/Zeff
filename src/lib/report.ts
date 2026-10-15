@@ -1,8 +1,8 @@
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { EntryType, ReportSettings } from "@/db/schema";
-import type { MeetingJobRule } from "./calendar/meetings";
-import { listEntries, type EntryWithJob } from "./entries";
+import { groupForMeeting, type MeetingJobRule } from "./calendar/meetings";
+import { listBookedEntries, type EntryWithJob } from "./entries";
 import { round2 } from "./format";
 import { ValidationError } from "./errors";
 import { t } from "@/lib/i18n/server";
@@ -57,6 +57,11 @@ export function getMeetingJobRules(s: ReportSettings): MeetingJobRule[] {
   return parseMeetingJobRules(s.meetingJobRules);
 }
 
+/** Whether an imported meeting is a group meeting by the rules (a mob day): its entry collects the day's work. */
+export function isGroupMeeting(subject: string): boolean {
+  return groupForMeeting(subject, getMeetingJobRules(getReportSettings()));
+}
+
 /** Job for imported meetings that no meeting→job rule matches (null = the first job). */
 export function getMeetingDefaultJob(s: ReportSettings): string | null {
   return s.meetingDefaultJob?.trim() || null;
@@ -87,7 +92,7 @@ export function parseMeetingJobRules(json: string | null | undefined): MeetingJo
     const raw = JSON.parse(json);
     if (!Array.isArray(raw)) return [];
     return raw
-      .map((r) => ({ match: String(r?.match ?? "").trim(), jobNumber: String(r?.jobNumber ?? "").trim() }))
+      .map((r): MeetingJobRule => ({ match: String(r?.match ?? "").trim(), jobNumber: String(r?.jobNumber ?? "").trim(), ...(r?.group ? { group: true } : {}) }))
       .filter((r) => r.match && r.jobNumber);
   } catch {
     return [];
@@ -263,7 +268,7 @@ function buildDay(date: string, entries: EntryWithJob[], rules: ReportRule[], su
 export function getRewrittenReport(week: WeekInfo, filter: { reportedBy?: string } = {}): RewrittenReport {
   const settings = getReportSettings();
   const rules = getReportRules(settings);
-  const entries = listEntries({ from: week.startIso, to: week.endIso, reportedBy: filter.reportedBy });
+  const entries = listBookedEntries({ from: week.startIso, to: week.endIso, reportedBy: filter.reportedBy });
   const summaries = getTicketSummaries();
   const labels = typeLabels();
 
@@ -306,7 +311,8 @@ export function getRewrittenJobLines(week: WeekInfo, filter: { reportedBy?: stri
   const rules = getReportRules(getReportSettings());
   const summaries = getTicketSummaries();
   const labels = typeLabels();
-  const entries = listEntries({ from: week.startIso, to: week.endIso, reportedBy: filter.reportedBy });
+  // What goes out is what is BOOKED (the tasks of a combined or collected group book 0: their group's entry carries the hours).
+  const entries = listBookedEntries({ from: week.startIso, to: week.endIso, reportedBy: filter.reportedBy });
   const groups = new Map<string, { e: EntryWithJob; rule: ReportRule; re: RuleEntry; hours: number; count: number; ids: number[] }>();
   // listEntries is newest first; go oldest first so each day's lines read chronologically.
   for (const e of [...entries].reverse()) {
@@ -362,7 +368,7 @@ export function getJobReportSummaries(fromIso: string, toIso: string, filter: { 
   const rules = getReportRules(getReportSettings());
   const summaries = getTicketSummaries();
   const labels = typeLabels();
-  const entries = listEntries({ from: fromIso, to: toIso, reportedBy: filter.reportedBy });
+  const entries = listBookedEntries({ from: fromIso, to: toIso, reportedBy: filter.reportedBy });
   type Acc = JobLabelSummary & { dates: Set<string> };
   const jobs = new Map<string, { jobNumber: string; jobName: string; hours: number; lines: Map<string, Acc> }>();
   // listEntries is newest first; go oldest first so equal-hour labels keep their booking order.

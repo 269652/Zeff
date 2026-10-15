@@ -153,7 +153,7 @@ export function NewsCard({ item, ago, showImage, onChange, onDrop, onFollow, fol
             {item.sourceName} · {ago}
           </p>
         </div>
-        {item.fromTopic && <p className="text-[11px] font-medium text-indigo-600 dark:text-indigo-400">↳ {item.fromTopic}</p>}
+        {item.fromTopic && <p className="text-xs font-medium text-indigo-600 dark:text-indigo-400">↳ {item.fromTopic}</p>}
         {item.summary && !reader.open && <p className="line-clamp-4 text-sm text-zinc-600 dark:text-zinc-300">{item.summary}</p>}
         {reader.open && (
           <div className="max-h-96 overflow-auto rounded border border-zinc-200 bg-zinc-50 p-3 text-sm leading-relaxed whitespace-pre-line dark:border-zinc-700 dark:bg-zinc-900">
@@ -161,7 +161,7 @@ export function NewsCard({ item, ago, showImage, onChange, onDrop, onFollow, fol
           </div>
         )}
         {item.story && (
-          <button type="button" className="text-left text-[11px] font-medium text-amber-700 hover:underline dark:text-amber-400" onClick={toggleThread} title={t("The story this belongs to — follow the thread")}>
+          <button type="button" className="text-left text-xs font-medium text-amber-700 hover:underline dark:text-amber-400" onClick={toggleThread} title={t("The story this belongs to — follow the thread")}>
             🧵 {item.story}
           </button>
         )}
@@ -193,15 +193,6 @@ export function NewsCard({ item, ago, showImage, onChange, onDrop, onFollow, fol
               </>
             )}
           </div>
-        )}
-        {item.reasons.length > 0 && (
-          <p className="flex flex-wrap gap-1 text-[11px] text-zinc-500">
-            {item.reasons.slice(0, 4).map((r) => (
-              <span key={r} className="rounded bg-zinc-100 px-1.5 py-0.5 dark:bg-zinc-800">
-                {r.startsWith("like ") ? t("like {words}", { words: r.slice(5) }) : r.startsWith("work: ") ? t("your work: {words}", { words: r.slice(6) }) : r.startsWith("profile: ") ? `✨ ${r.slice(9).replace(/^([^·]+) · (.*)$/, (_m, term: string, why: string) => `${term} (${why.replace(/^work: /, t("your work") + " ").replace(/^you: /, "").replace(/^ticket: /, t("ticket") + " ")})`)}` : r === "fresh" ? t("fresh") : r}
-              </span>
-            ))}
-          </p>
         )}
         <div className="flex items-center gap-2 pt-1">
           <button type="button" className={btn(reader.open)} disabled={pending} onClick={toggleReader} title={item.hasContent ? t("The whole article, read here") : t("Fetches the article and shows its text here")}>

@@ -20,10 +20,14 @@ export type DriveRow = GoogleDriveRow;
 /** The settings row (made when first asked for). */
 export function driveRow(): DriveRow {
   const db = getDb();
-  const row = db.select().from(googleDrive).where(eq(googleDrive.id, 1)).get();
-  if (row) return row;
-  db.insert(googleDrive).values({ id: 1 }).onConflictDoNothing().run();
-  return db.select().from(googleDrive).where(eq(googleDrive.id, 1)).get()!;
+  let row = db.select().from(googleDrive).where(eq(googleDrive.id, 1)).get();
+  if (!row) {
+    db.insert(googleDrive).values({ id: 1 }).onConflictDoNothing().run();
+    row = db.select().from(googleDrive).where(eq(googleDrive.id, 1)).get()!;
+  }
+  // No client saved on the page: the one in the environment (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).
+  const envId = process.env.GOOGLE_CLIENT_ID?.trim();
+  return !row.clientId && envId ? { ...row, clientId: envId, clientSecret: process.env.GOOGLE_CLIENT_SECRET?.trim() ?? "" } : row;
 }
 
 export function updateDrive(patch: Partial<Omit<DriveRow, "id">>): DriveRow {

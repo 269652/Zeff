@@ -42,7 +42,7 @@ export default async function FeierabendPage() {
           })}
         </p>
       </div>
-      <FeierabendForm date={p.date} target={p.target} booked={p.booked} rows={p.rows} jobs={p.jobs} />
+      <FeierabendForm date={p.date} target={p.target} booked={p.booked} group={p.group} rows={p.rows} jobs={p.jobs} />
     </div>
   );
 }

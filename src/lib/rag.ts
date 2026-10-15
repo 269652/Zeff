@@ -10,9 +10,9 @@ import { getDb, schema } from "@/db";
  * what it found — see askWithRetrieval. Nothing is put into a prompt beforehand for this.
  */
 
-const { emails, teamsMessages, gitlabItems, jiraComments, jiraTickets, contexts, facts } = schema;
+const { emails, teamsMessages, gitlabItems, jiraComments, jiraTickets, contexts, facts, documents } = schema;
 
-export const RAG_SOURCES = ["knowledge", "mails", "teams", "gitlab", "jira", "notes", "facts", "todos"] as const;
+export const RAG_SOURCES = ["knowledge", "mails", "teams", "gitlab", "jira", "notes", "facts", "todos", "documents", "pages"] as const;
 export type RagSource = (typeof RAG_SOURCES)[number];
 
 /** What an AI step asks for when it misses context: search words, in all sources or only in some. */
@@ -20,7 +20,7 @@ export type Need = { query: string; where?: string[] };
 export type RagHit = { source: RagSource; ref: string; title: string; text: string; when?: string };
 
 /** What a step adds to its prompt so the AI knows it can ask — and how. */
-export const RAG_INSTRUCTIONS = `Fehlt dir Kontext, um sicher zu antworten (ein Name, ein Beschluss, was in einer Rückfrage steht, wie etwas funktioniert), rate nicht: lass die Antwort leer und nenne unter needs bis zu 3 Suchanfragen — query: 2–5 Suchwörter, die in den gesuchten Texten stehen dürften; where (optional): knowledge (Dokumentation), mails, teams, gitlab, jira, notes, facts, todos. Zeff sucht dort und fragt dich mit den Fundstellen noch einmal. Ist der Kontext unten schon ausreichend, antworte gleich und lass needs weg.`;
+export const RAG_INSTRUCTIONS = `Fehlt dir Kontext, um sicher zu antworten (ein Name, ein Beschluss, was in einer Rückfrage steht, wie etwas funktioniert), rate nicht: lass die Antwort leer und nenne unter needs bis zu 3 Suchanfragen — query: 2–5 Suchwörter, die in den gesuchten Texten stehen dürften; where (optional): knowledge (Dokumentation), mails, teams, gitlab, jira, notes, facts, todos, documents (Dokumente und Bilder, die ich an Todos gehängt habe: was darin steht oder zu sehen ist), pages (meine Workspace-Seiten: Notizen, Wiki, Beschlüsse, Meeting-Protokolle). Zeff sucht dort und fragt dich mit den Fundstellen noch einmal. Ist der Kontext unten schon ausreichend, antworte gleich und lass needs weg.`;
 
 /** The optional `needs` field added to a step's answer schema. */
 const NEEDS_PROPERTY = {
@@ -109,6 +109,21 @@ export const SEARCHERS: Record<Exclude<RagSource, "knowledge">, Searcher> = {
       (f) => ({ ref: `fact:${f.id}`, title: clip(f.subject, 100), text: clip(f.text, 400), when: f.updatedAt.slice(0, 10) }),
       "facts",
     ),
+  // The Documents plugin's files — a picture pasted into a todo's note counts: what it shows and the text visible in it, as it was read.
+  documents: (words) =>
+    scored(
+      getDb().select().from(documents).where(anyWord([documents.name, documents.text, documents.summary, documents.concepts], words)).orderBy(desc(documents.createdAt)).limit(30).all(),
+      words,
+      (d) => `${d.name} ${d.summary} ${d.concepts} ${d.text}`,
+      (d) => ({ ref: `doc:${d.id}`, title: `${d.name} (${d.kind === "image" ? "Bild" : d.kind})`, text: clip(d.summary || d.text, 500), when: d.createdAt.slice(0, 10) }),
+      "documents",
+    ),
+  // The Workspace's pages (notes, wiki, decisions).
+  pages: async (words) => {
+    if (!(await import("@/plugins/state")).isInstalled("workspace")) return [];
+    const { pageHits } = await import("@/plugins/workspace/store");
+    return pageHits(words).map((h) => ({ source: "pages" as const, ref: h.ref, title: h.title, text: clip(h.text, 400), when: h.when, score: h.score }));
+  },
   todos: async (words, q) => {
     const { searchTodos } = await import("@/lib/boards/store");
     // searchTodos wants every word: the whole query first, then the single words.
@@ -118,6 +133,12 @@ export const SEARCHERS: Record<Exclude<RagSource, "knowledge">, Searcher> = {
   },
 };
 
+// Mails, chats and Teams: ranked from the full-text index (ctx-index.ts); scanning with LIKE where it can't be used.
+for (const source of ["mails", "teams"] as const) {
+  const scan = SEARCHERS[source];
+  SEARCHERS[source] = async (words, q) => (await import("@/lib/ctx-index")).indexedCandidates(source, words) ?? scan(words, q);
+}
+
 export type RetrieveOpts = {
   /** The knowledge base's pages for some words (default: the knowledge server's search). */
   knowledge?: (query: string) => Promise<{ title: string; snippet: string }[]>;
@@ -126,12 +147,6 @@ export type RetrieveOpts = {
   /** About this many characters of text in all. */
   maxChars?: number;
 };
-
-// Mails, chats and Teams: ranked from the full-text index (ctx-index.ts); scanning with LIKE where it can't be used.
-for (const source of ["mails", "teams"] as const) {
-  const scan = SEARCHERS[source];
-  SEARCHERS[source] = async (words, q) => (await import("@/lib/ctx-index")).indexedCandidates(source, words) ?? scan(words, q);
-}
 
 async function realKnowledge(query: string) {
   const { isInstalled } = await import("@/plugins/state");

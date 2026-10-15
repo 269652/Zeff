@@ -3,7 +3,10 @@ import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { t } from "@/lib/i18n/server";
+import { headers } from "next/headers";
 import { connection } from "next/server";
+import { GitlabConnection } from "@/plugins/gitlab/GitlabConnection";
+import { apiConnected, getConnector } from "@/lib/connectors/store";
 import { saveGitlabSyncAction, syncGitlabAction } from "@/plugins/gitlab/server-actions";
 import { GitlabItemList } from "@/components/GitlabItemList";
 import { SyncControls } from "@/components/SyncControls";
@@ -15,8 +18,12 @@ import { currentWeek } from "@/lib/week";
 
 export const metadata: Metadata = { title: "GitLab" };
 
-export default async function GitlabPage({ searchParams }: { searchParams: Promise<{ q?: string; kind?: string }> }) {
+export default async function GitlabPage({ searchParams }: { searchParams: Promise<{ q?: string; kind?: string; error?: string; connected?: string }> }) {
   await connection();
+  const h = await headers();
+  const hostHeader = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost";
+  const proto = h.get("x-forwarded-proto")?.split(",")[0] ?? "http";
+  const connector = getConnector("gitlab");
   // A plugin's page: there while it's installed.
   if (!isInstalled("gitlab")) return <PluginNotInstalled id="gitlab" />;
   const sp = await searchParams;
@@ -47,12 +54,33 @@ export default async function GitlabPage({ searchParams }: { searchParams: Promi
       <div className="page-aside">
         <h1 className="text-lg font-semibold">GitLab</h1>
         <p className="text-sm text-zinc-500">
-          {t(
-            "Merge requests you wrote, are assigned to or review, their comments (yours too), and your branches — read from {host} in the automation Chrome (GET requests only: nothing changes in GitLab). Add them to an entry with its context search (a pasted link works too), or add one as context here.",
-            { host },
-          )}
+          {connector.driver === "api"
+            ? t(
+                "Merge requests you wrote, are assigned to or review, their comments (yours too), and your branches — read from {host} through its API. Add them to an entry with its context search (a pasted link works too), or add one as context here.",
+                { host },
+              )
+            : t(
+                "Merge requests you wrote, are assigned to or review, their comments (yours too), and your branches — read from {host} in the automation Chrome (GET requests only: nothing changes in GitLab). Add them to an entry with its context search (a pasted link works too), or add one as context here.",
+                { host },
+              )}
         </p>
       </div>
+
+      <GitlabConnection
+        error={sp.error === "client" ? t("Set your OAuth application first.") : (sp.error ?? null)}
+        justConnected={sp.connected === "1"}
+        redirectUri={`${proto}://${hostHeader}/api/connectors/gitlab/callback`}
+        s={{
+          driver: connector.driver === "api" ? "api" : "cdp",
+          authKind: connector.authKind === "oauth" ? "oauth" : "token",
+          hasToken: !!connector.token,
+          clientId: connector.clientId,
+          hasSecret: !!connector.clientSecret,
+          connected: apiConnected(connector),
+          account: connector.account,
+          host,
+        }}
+      />
 
       <section className="card p-4">
         <SyncControls

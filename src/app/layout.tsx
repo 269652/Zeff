@@ -103,6 +103,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       {/* An app shell: the window is the page — the body never scrolls; the content does, in itself. */}
       <body className="flex h-screen flex-col overflow-hidden">
         <I18nProvider lang={lang}>
+          {/* The first stop of the keyboard: past the header to the page itself (WCAG 2.4.1). */}
+          <a href="#main" className="skip-link">
+            {t("Skip to the content")}
+          </a>
           <SiteHeader
             activityIds={activityNewsIds()}
             waiting={attention.flatMap((a) => (a.kind === "question" && a.href?.startsWith("/work") ? [{ href: "/work", title: a.title }] : []))}

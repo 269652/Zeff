@@ -55,7 +55,7 @@ function Hit({ p, linked }: { p: Picked; linked: boolean }) {
     <>
       <span className="flex items-center gap-1.5 text-xs text-zinc-500">
         <span className="truncate">{meta.filter(Boolean).join(" · ")}</span>
-        {done && <span className="shrink-0 rounded bg-emerald-100 px-1 text-[10px] font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">{t("done")}</span>}
+        {done && <span className="shrink-0 rounded bg-emerald-100 px-1 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">{t("done")}</span>}
         {linked && <span className="ml-auto shrink-0 font-medium text-emerald-600 dark:text-emerald-400">{t("✓ added")}</span>}
       </span>
       <span className="line-clamp-2 text-sm">{words || t("(no text)")}</span>
@@ -192,7 +192,7 @@ export function SourcePicker({ linked, onPick }: { linked: Set<string>; onPick: 
               ...sections.map((g) =>
                 g.items.length ? (
                   <li key={g.label} role="presentation">
-                    <div className="px-3 pt-1.5 pb-0.5 text-[11px] font-semibold tracking-wide text-zinc-400 uppercase">{g.label}</div>
+                    <div className="px-3 pt-1.5 pb-0.5 text-xs font-semibold tracking-wide text-zinc-400 uppercase">{g.label}</div>
                     <ul role="presentation">
                       {g.items.map(({ p, i }) => (
                         <li

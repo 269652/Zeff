@@ -1,3 +1,4 @@
+import { driverOf } from "@/lib/connectors/store";
 import { t } from "@/lib/i18n/server";
 import { setStepMinutes, stepMinutes } from "@/lib/sync/intervals";
 import { MINUTE_CHOICES, type PluginSyncSettings } from "../sync-settings";
@@ -11,13 +12,15 @@ export const syncSettings: PluginSyncSettings = {
         return t("Calendar");
       },
       get what() {
-        return t("Your Outlook meetings, last month to next week (read only).");
+        return driverOf("outlook-calendar") === "api"
+          ? t("Your Outlook meetings, last month to next week (read only) — through Microsoft Graph.")
+          : t("Your Outlook meetings, last month to next week (read only).");
       },
       get: () => stepMinutes("calendar"),
       set: (m) => setStepMinutes("calendar", m),
       choices: MINUTE_CHOICES,
       get window() {
-        return t("while the automation Chrome is running");
+        return driverOf("outlook-calendar") === "api" ? t("always") : t("while the automation Chrome is running");
       },
     },
   ],

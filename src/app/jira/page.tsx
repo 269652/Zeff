@@ -127,12 +127,12 @@ export default async function JiraPage({
             <table className="table">
               <thead>
                 <tr>
-                  <th className="text-center">{t("On")}</th>
-                  <th>{t("Board")}</th>
-                  <th>{t("Type")}</th>
-                  <th>{t("Project")}</th>
-                  <th className="text-right">{t("Tickets")}</th>
-                  <th>{t("Default job")}</th>
+                  <th scope="col" className="text-center">{t("On")}</th>
+                  <th scope="col">{t("Board")}</th>
+                  <th scope="col">{t("Type")}</th>
+                  <th scope="col">{t("Project")}</th>
+                  <th scope="col" className="text-right">{t("Tickets")}</th>
+                  <th scope="col">{t("Default job")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -175,14 +175,14 @@ export default async function JiraPage({
             <table className="table">
               <thead>
                 <tr>
-                  <th>{t("Key")}</th>
-                  <th>{t("Type")}</th>
-                  <th>{t("Summary")}</th>
-                  <th>{t("Status")}</th>
-                  <th>{t("Assignee")}</th>
-                  <th>{t("Board")}</th>
-                  <th>{t("Job")}</th>
-                  <th title={t("Default tags: added to every entry booked on the ticket")}>{t("Tags")}</th>
+                  <th scope="col">{t("Key")}</th>
+                  <th scope="col">{t("Type")}</th>
+                  <th scope="col">{t("Summary")}</th>
+                  <th scope="col">{t("Status")}</th>
+                  <th scope="col">{t("Assignee")}</th>
+                  <th scope="col">{t("Board")}</th>
+                  <th scope="col">{t("Job")}</th>
+                  <th scope="col" title={t("Default tags: added to every entry booked on the ticket")}>{t("Tags")}</th>
                 </tr>
               </thead>
               <tbody>

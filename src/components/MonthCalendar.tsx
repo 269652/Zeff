@@ -87,7 +87,7 @@ export function MonthCalendar({
             }),
             <div key={`${w.key}-total`} className="flex flex-col items-end justify-center px-2 tabular-nums">
               <span className="font-semibold">{booked ? formatHours(booked) : "–"}</span>
-              {target > 0 && <span className="text-[11px] text-zinc-400">{t("of {hours}", { hours: formatHours(target) })}</span>}
+              {target > 0 && <span className="text-xs text-zinc-400">{t("of {hours}", { hours: formatHours(target) })}</span>}
             </div>,
           ];
         })}
@@ -186,7 +186,7 @@ function DayCell({
         isToday ? "ring-2 ring-indigo-400 dark:ring-indigo-500" : ""
       }`}
     >
-      <div className="flex items-baseline justify-between gap-1 text-[11px]">
+      <div className="flex items-baseline justify-between gap-1 text-xs">
         <span className={isToday ? "font-semibold text-indigo-600 dark:text-indigo-400" : "opacity-70"}>{date.getDate()}</span>
         {note && <span className="truncate opacity-80">{note}</span>}
       </div>
@@ -206,8 +206,9 @@ function DayCell({
         ) : (
           "0"
         )}
-        {shortfall.state !== "ok" && <span className="ml-1 text-[11px] font-normal">−{formatHours(shortfall.gap)}</span>}
+        {shortfall.state !== "ok" && <span className="ml-1 text-xs font-normal">−{formatHours(shortfall.gap)}</span>}
       </div>
+      <span className="sr-only">{title}</span>
     </Link>
   );
 }

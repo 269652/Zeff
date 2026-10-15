@@ -65,7 +65,7 @@ function JiraState({ item, ticketUrl, short = false }: { item: ContextItem; tick
     );
   }
   const text = short ? `✓ ${t("synced")}` : `✓ ${t("on {ticket}", { ticket: item.ticket })}`;
-  const cls = "rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200";
+  const cls = "rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200";
   const id = item.jiraCommentId;
   if (id && ticketUrl) {
     const href = `${ticketUrl}?focusedCommentId=${encodeURIComponent(id)}&page=com.atlassian.jira.plugin.system.issuetabpanels%3Acomment-tabpanel#comment-${encodeURIComponent(id)}`;

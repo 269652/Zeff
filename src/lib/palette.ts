@@ -1,0 +1,49 @@
+/** The command palette's pure part: what a typed text finds among the pages, and in which order. */
+export type PaletteItem = { id: string; label: string; hint?: string; href: string; group: string; /** Extra words that find it (the old name, a ticket key). */ keywords?: string };
+
+const norm = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "");
+
+/** 0 = no match; higher is better: the label starts with the text > a word starts with it > the label contains it > the hint/keywords do. Every word of the query must match. */
+export function scoreItem(item: PaletteItem, query: string): number {
+  const words = norm(query).split(/\s+/).filter(Boolean);
+  if (!words.length) return 1;
+  const label = norm(item.label);
+  const rest = norm(`${item.hint ?? ""} ${item.keywords ?? ""} ${item.group}`);
+  let total = 0;
+  for (const w of words) {
+    let s = 0;
+    if (label.startsWith(w)) s = 100;
+    else if (label.split(/[^a-z0-9]+/).some((x) => x.startsWith(w))) s = 70;
+    else if (label.includes(w)) s = 40;
+    else if (rest.includes(w)) s = 15;
+    if (!s) return 0;
+    total += s;
+  }
+  return total;
+}
+
+/** The items matching `query`, best first (ties keep their order); without a query the first `limit` as they are. */
+export function filterPalette(items: PaletteItem[], query: string, limit = 30): PaletteItem[] {
+  if (!query.trim()) return items.slice(0, limit);
+  return items
+    .map((item, i) => ({ item, i, s: scoreItem(item, query) }))
+    .filter((x) => x.s > 0)
+    .sort((a, b) => b.s - a.s || a.i - b.i)
+    .slice(0, limit)
+    .map((x) => x.item);
+}
+
+/** A key press that should open the palette: Ctrl/Cmd+K anywhere, "/" only when not typing in a field. */
+export function opensPalette(e: { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; target: EventTarget | { tagName?: string } | null }): boolean {
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "k") return true;
+  return e.key === "/" && !typing(e) && !e.ctrlKey && !e.metaKey && !e.altKey;
+}
+/** "?" opens the shortcuts help — not while typing. */
+export function opensShortcuts(e: { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; target: EventTarget | { tagName?: string } | null }): boolean {
+  return e.key === "?" && !typing(e) && !e.ctrlKey && !e.metaKey && !e.altKey;
+}
+function typing(e: { target: EventTarget | { tagName?: string } | null }): boolean {
+  const el = e.target as { tagName?: string; isContentEditable?: boolean } | null;
+  if (!el) return false;
+  return !!el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes((el.tagName ?? "").toUpperCase());
+}

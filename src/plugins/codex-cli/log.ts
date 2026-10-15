@@ -5,7 +5,7 @@ import { t } from "@/lib/i18n/server";
 import type { WorkLogLine } from "@/lib/work/shared";
 
 /**
- * A Codex run's log as the Work tab shows it — the same lines as Claude's (lib/work/log.ts
+ * A Codex run's log as the Code tab shows it — the same lines as Claude's (lib/work/log.ts
  * readLog), from what `codex app-server` printed (JSON-RPC, a line each) and what Zeff sent it
  * (beside the log). readLog hands a run over here when its log starts with the Codex marker.
  */

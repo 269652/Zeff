@@ -1,5 +1,5 @@
 import { addDays, eachDayOfInterval, parseISO } from "date-fns";
-import { getDayTotals, listEntries, type EntryWithJob, type JobRef, type ProjectRef } from "./entries";
+import { getDayTotals, listBookedEntries, type EntryWithJob, type JobRef, type ProjectRef } from "./entries";
 import { round2 } from "./format";
 import { isNoJobPlaceholder } from "./jobs";
 import type { MonthInfo } from "./month";
@@ -91,7 +91,7 @@ export type MonthlyReport = {
 };
 
 export function getMonthlyReport(month: MonthInfo, filter: { reportedBy?: string } = {}): MonthlyReport {
-  const entries = listEntries({ from: month.startIso, to: month.endIso, reportedBy: filter.reportedBy });
+  const entries = listBookedEntries({ from: month.startIso, to: month.endIso, reportedBy: filter.reportedBy });
   const dayIndex = new Map(month.days.map((d, i) => [isoDate(d), i]));
   const weekIndex = new Map(
     month.days.map((d) => {

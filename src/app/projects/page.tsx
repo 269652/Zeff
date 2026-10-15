@@ -49,14 +49,14 @@ export default async function ProjectsPage() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>{t("Title")}</th>
-                  <th>{t("Job")}</th>
-                  <th>{t("Customer")}</th>
-                  <th>{t("Booked")}</th>
-                  <th className="num">{t("Hours")}</th>
-                  <th className="num">{t("Entries")}</th>
-                  <th>{t("Status")}</th>
-                  <th></th>
+                  <th scope="col">{t("Title")}</th>
+                  <th scope="col">{t("Job")}</th>
+                  <th scope="col">{t("Customer")}</th>
+                  <th scope="col">{t("Booked")}</th>
+                  <th scope="col" className="num">{t("Hours")}</th>
+                  <th scope="col" className="num">{t("Entries")}</th>
+                  <th scope="col">{t("Status")}</th>
+                  <th scope="col"><span className="sr-only">{t("Actions")}</span></th>
                 </tr>
               </thead>
               <tbody>

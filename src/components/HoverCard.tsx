@@ -1,7 +1,8 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useT } from "./I18nProvider";
 
 type Place = { left: number; width: number; top?: number; bottom?: number; maxHeight: number };
 
@@ -21,12 +22,49 @@ export const useHoverSide = () => useContext(SideCtx);
  * above when there's more room there — no taller than that room (it scrolls inside), kept in the
  * window. It stays while the pointer is on it, to click what's in it.
  */
-export function HoverCard({ card, children, width = 420, className = "", side: sideProp }: { card: ReactNode; children: ReactNode; width?: number; className?: string; /** A sidebar beside the card, whenever it's open (the people a note names). */ side?: ReactNode }) {
+export function HoverCard({ card, children, width = 420, className = "", side: sideProp, label }: { card: ReactNode; children: ReactNode; width?: number; className?: string; /** A sidebar beside the card, whenever it's open (the people a note names). */ side?: ReactNode; /** The card's accessible name. */ label?: string }) {
+  const t = useT();
+  const id = useId();
   const [place, setPlace] = useState<Place | null>(null);
   const [asked, setSide] = useState<ReactNode | null>(null);
   const side = sideProp ?? asked;
   const ref = useRef<HTMLSpanElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchAt = useRef(0);
+  const isOpen = !!place;
+
+  // The trigger (the first child, when it can be focused) says it opens a dialog.
+  useEffect(() => {
+    const el = ref.current?.firstElementChild;
+    if (!el || !el.matches("a[href], button, input, select, textarea, summary, [tabindex], [role=button], [role=link]")) return;
+    el.setAttribute("aria-haspopup", "dialog");
+    el.setAttribute("aria-expanded", String(isOpen));
+    if (isOpen) el.setAttribute("aria-controls", id);
+    else el.removeAttribute("aria-controls");
+  }, [isOpen, id]);
+
+  // Open: Escape closes (1.4.13); a tap outside closes (touch).
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (timer.current) clearTimeout(timer.current);
+      setPlace(null);
+    };
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType === "mouse") return;
+      const n = e.target as Node;
+      if (ref.current?.contains(n) || cardRef.current?.contains(n)) return;
+      setPlace(null);
+    };
+    window.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDown);
+    };
+  }, [isOpen]);
 
   useEffect(
     () => () => {
@@ -65,7 +103,17 @@ export function HoverCard({ card, children, width = 420, className = "", side: s
           : { left, width: w, bottom: window.innerHeight - r.top + 6, maxHeight: above },
       );
   };
-  const show = () => later(locate, 250);
+  // A touch fires emulated mouse/focus events after its pointerdown: those must not undo the toggle.
+  const recentTouch = () => Date.now() - touchAt.current < 800;
+  const show = () => {
+    if (!recentTouch()) later(locate, 250);
+  };
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType !== "touch" && e.pointerType !== "pen") return;
+    touchAt.current = Date.now();
+    if (place) later(() => setPlace(null), 0);
+    else later(locate, 0);
+  };
   const hasSide = !!sideProp;
   const api = useMemo(() => ({ setSide, open: () => later(locate, 0), hasSide }), [hasSide]); // eslint-disable-line react-hooks/exhaustive-deps
   const hide = () => later(() => setPlace(null), 150);
@@ -76,12 +124,15 @@ export function HoverCard({ card, children, width = 420, className = "", side: s
   const left = place && total ? Math.max(8, Math.min(place.left, window.innerWidth - total - 8)) : 0;
   return (
     <SideCtx.Provider value={api}>
-      <span ref={ref} className={`inline-flex max-w-full min-w-0 ${className}`} onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide}>
+      <span ref={ref} className={`inline-flex max-w-full min-w-0 ${className}`} onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide} onPointerDown={onPointerDown}>
         {children}
         {place &&
           createPortal(
             <div
-              role="tooltip"
+              ref={cardRef}
+              id={id}
+              role="dialog"
+              aria-label={label ?? t("Details")}
               style={{ position: "fixed", left, top: place.top, bottom: place.bottom, width: total ?? place.width, maxHeight: place.maxHeight }}
               className="z-50 flex overflow-hidden rounded-lg text-left text-sm font-normal tracking-normal normal-case shadow-lg"
               onMouseEnter={keep}
@@ -89,7 +140,7 @@ export function HoverCard({ card, children, width = 420, className = "", side: s
             >
               <div className="min-w-0 flex-1 overflow-y-auto">{card}</div>
               {side && (
-                <aside className="w-[340px] max-w-[45%] shrink-0 overflow-y-auto border-l border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950" aria-label="">
+                <aside className="w-[340px] max-w-[45%] shrink-0 overflow-y-auto border-l border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950" aria-label={t("Related")}>
                   {side}
                 </aside>
               )}

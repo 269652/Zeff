@@ -41,10 +41,10 @@ export function MiniMonth({ focus, shown, today, busyDays, onPick }: { focus: st
       </div>
       <table className="w-full table-fixed text-center text-xs">
         <thead>
-          <tr className="text-[10px] text-zinc-400">
-            <th className="w-6 font-normal" aria-label={t("Week")} />
+          <tr className="text-xs text-zinc-600 dark:text-zinc-400">
+            <th scope="col" className="w-6 font-normal" aria-label={t("Week")} />
             {weekdayHeads("narrow", locale).map((h, i) => (
-              <th key={i} className="pb-1 font-medium">
+              <th scope="col" key={i} className="pb-1 font-medium">
                 {h}
               </th>
             ))}
@@ -53,7 +53,7 @@ export function MiniMonth({ focus, shown, today, busyDays, onPick }: { focus: st
         <tbody>
           {weeks.map((w) => (
             <tr key={w[0]}>
-              <td className="text-[10px] text-zinc-300 dark:text-zinc-600">{isoWeek(w[0])}</td>
+              <td className="text-xs text-zinc-600 dark:text-zinc-400">{isoWeek(w[0])}</td>
               {w.map((day) => {
                 const other = day.slice(0, 7) !== month;
                 const isToday = day === today;
@@ -66,7 +66,7 @@ export function MiniMonth({ focus, shown, today, busyDays, onPick }: { focus: st
                       aria-current={isToday ? "date" : undefined}
                       className={`relative mx-auto flex size-7 items-center justify-center rounded-full tabular-nums transition ${
                         isToday ? "bg-indigo-600 font-semibold text-white" : inView.has(day) ? "bg-indigo-100 text-indigo-900 dark:bg-indigo-900/50 dark:text-indigo-100" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                      } ${other && !isToday ? "text-zinc-400 dark:text-zinc-600" : ""}`}
+                      } ${other && !isToday ? "text-zinc-500 dark:text-zinc-400" : ""}`}
                     >
                       {Number(day.slice(8))}
                       {busyDays.has(day) && !isToday && <span className="absolute bottom-0.5 size-1 rounded-full bg-indigo-400" />}

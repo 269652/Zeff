@@ -1,4 +1,4 @@
-import { extWorkerMcpServers } from "@/lib/ext/work";
+import { workerMcpServers } from "@/lib/work/mcp";
 import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -17,7 +17,7 @@ import { findClaudeCli } from "./cli";
 import type { LiveView } from "@/plugins/copilot-cli/live-state";
 
 /**
- * Live Claude sessions — Claude Code as you know it, on the Work tab: `claude -p` with stream-json
+ * Live Claude sessions — Claude Code as you know it, on the Code tab: `claude -p` with stream-json
  * in and out, kept open. It works, it asks you (a permission, its plan, a question) and waits for
  * your answer; you write to it any time (a message sent while it works waits its turn), stop it
  * mid-turn, switch its mode (Ask, Edits, Auto, Plan, Bypass), its model, its effort.
@@ -847,7 +847,7 @@ export async function answer(runId: number, requestId: string, a: AskAnswer) {
     const input = a.answers ? { ...ask.input, answers: a.answers } : (a.input ?? ask.input);
     const perms = a.then ? [{ type: "setMode", mode: a.then, destination: "session" }] : a.always ? ask.suggestions : undefined;
     if (a.then && !isClaudeMode(a.then)) throw new Error(t("Unknown mode."));
-    if (a.then === "bypassPermissions" && !l.cfg.allowBypass) throw new Error(t("Bypass isn't allowed (Work settings)."));
+    if (a.then === "bypassPermissions" && !l.cfg.allowBypass) throw new Error(t("Bypass isn't allowed (Code settings)."));
     response = { behavior: "allow", updatedInput: input, ...(perms?.length ? { updatedPermissions: perms } : {}) };
   } else {
     response = { behavior: "deny", message: a.message?.trim() || "The user said no — don't do that; find another way or ask.", ...(a.interrupt ? { interrupt: true } : {}) };
@@ -867,7 +867,7 @@ export async function interruptClaude(runId: number) {
 export async function setClaudeMode(runId: number, mode: string) {
   const l = liveOf(runId);
   if (!isClaudeMode(mode)) throw new Error(t("Unknown mode."));
-  if (mode === "bypassPermissions" && !l.cfg.allowBypass) throw new Error(t("Bypass isn't allowed — Work settings → “Bypass may be picked” (it applies to new sessions)."));
+  if (mode === "bypassPermissions" && !l.cfg.allowBypass) throw new Error(t("Bypass isn't allowed — Code settings → “Bypass may be picked” (it applies to new sessions)."));
   await write(l, { type: "control_request", request_id: reqId(), request: { subtype: "set_permission_mode", mode } });
   l.mode = mode;
   changed();
@@ -1013,7 +1013,9 @@ async function startFrom(s: LiveStart): Promise<void> {
         [...s.disallowedTools, ...NOT_HERE].join(","),
         ...(s.allowBypass ? ["--allow-dangerously-skip-permissions"] : []),
         // External plugins' MCP servers (src/lib/ext): added to the project's and user's own.
-        ...(Object.keys(extWorkerMcpServers()).length ? ["--mcp-config", JSON.stringify({ mcpServers: extWorkerMcpServers() })] : []),
+        // Zeff's own, of this run's account, with the run's id: start_todo in a session without a ticket moves this session under the todo's ticket.
+        "--mcp-config",
+        JSON.stringify(workerMcpServers(currentAccountId(), {}, s.runId)),
       ],
       cwd: s.cwd,
       resumeSession: s.resumeSession,

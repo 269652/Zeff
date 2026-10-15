@@ -84,7 +84,7 @@ export async function runTodoOpsAction(todoId: number, only?: number[]): Promise
   }
 }
 
-/** Your instruction on a todo, done by the Copilot CLI — a run on the Work tab. */
+/** Your instruction on a todo, done by the Copilot CLI — a run on the Code tab. */
 export async function instructTodoAction(todoId: number, instruction: string): Promise<ActionState> {
   try {
     const text = String(instruction ?? "").trim();
@@ -176,6 +176,8 @@ export async function addTodoNoteAction(todoId: number, text: string): Promise<A
     if (!String(text ?? "").trim()) return { ok: false, error: t("The note is empty.") };
     const { addTodoUserNote } = await import("@/lib/boards/store");
     const todo = addTodoUserNote(Number(todoId), String(text));
+    // Pictures the note shows inline are the todo's files (the AI that works on it gets them as attachments).
+    if (todo) await (await import("@/plugins/documents/attachments")).linkNoteImages(todo.id, String(text)).catch(() => 0);
     revalidateAll();
     // The todo brought up to date with the note at once (its text, kind, done …, then its actions) —
     // in the background, just this todo: no whole run needed. While a run is under way, it reads the note itself.
@@ -187,7 +189,7 @@ export async function addTodoNoteAction(todoId: number, text: string): Promise<A
     // (Can't now — a run under way: its actions proposed by the auto-actions, proposed again with the note.)
     if (todo?.autoOpsWhy && todo.ops.length && (await import("@/plugins/state")).isInstalled("auto-actions")) {
       const { reviewTodosForActions } = await import("@/plugins/auto-actions/review");
-      void reviewTodosForActions({ ids: [todo.id] }).catch(() => {});
+      void reviewTodosForActions({ ids: [todo.id] }).catch(() => {}).finally(async () => (await import("@/lib/events")).emitChange("todos"));
       return { ok: true, message: t("Note saved — the actions are proposed again with it.") };
     }
     return { ok: true };
@@ -226,6 +228,7 @@ export async function updateTodoNoteAction(todoId: number, at: string, text: str
   try {
     const { updateTodoUserNote } = await import("@/lib/boards/store");
     updateTodoUserNote(Number(todoId), String(at), String(text ?? ""));
+    await (await import("@/plugins/documents/attachments")).linkNoteImages(Number(todoId), String(text ?? "")).catch(() => 0);
     revalidateAll();
     return { ok: true };
   } catch (err) {

@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { emitChange } from "@/lib/events";
 import { NotFoundError, ValidationError } from "@/lib/errors";
@@ -254,6 +254,42 @@ export function moveCardToBoard(id: number, boardId: number, withSubtasks = fals
 
 export function archiveCard(id: number): void {
   getDb().update(cards).set({ archived: true, updatedAt: now() }).where(eq(cards.id, id)).run();
+  changed();
+}
+
+/** A card as it is stored, with the subtasks it has — to put it back (restoreCard) after a delete. */
+export type CardSnapshot = typeof cards.$inferSelect & { kidIds: number[] };
+
+export function snapshotCard(id: number): CardSnapshot {
+  const row = getDb().select().from(cards).where(eq(cards.id, id)).get();
+  if (!row) throw new NotFoundError(t("That card doesn't exist."));
+  const kidIds = getDb().select({ id: cards.id }).from(cards).where(eq(cards.parentId, id)).all().map((k) => k.id);
+  return { ...row, kidIds };
+}
+
+/**
+ * A deleted card put back — same id (so its KB-ref, todos and Lage links hold), column, position,
+ * labels, assignee, due, priority, parent and subtasks. Its column must still be there.
+ */
+export function restoreCard(snap: CardSnapshot): CardView {
+  const db = getDb();
+  const { kidIds, ...row } = snap;
+  if (db.select().from(cards).where(eq(cards.id, row.id)).get()) throw new ValidationError(t("That card exists already."));
+  const col = db.select().from(columns).where(eq(columns.id, row.columnId)).get();
+  if (!col) throw new NotFoundError(t("That column doesn't exist."));
+  const parentOk = row.parentId !== null && !!db.select().from(cards).where(eq(cards.id, row.parentId)).get();
+  const r = db
+    .insert(cards)
+    .values({ ...row, boardId: col.boardId, parentId: parentOk ? row.parentId : null, archived: false, updatedAt: now() })
+    .returning()
+    .get();
+  kidIds.forEach((k) => db.update(cards).set({ parentId: r.id }).where(and(eq(cards.id, k), isNull(cards.parentId))).run());
+  changed();
+  return toCard(r);
+}
+
+export function unarchiveCard(id: number): void {
+  getDb().update(cards).set({ archived: false, updatedAt: now() }).where(eq(cards.id, id)).run();
   changed();
 }
 

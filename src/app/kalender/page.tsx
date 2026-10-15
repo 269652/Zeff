@@ -27,6 +27,8 @@ export default async function KalenderPage({ searchParams }: { searchParams: Pro
   const asked = sp.d ?? sp.w;
   const day = asked && /^\d{4}-\d{2}-\d{2}$/.test(asked) ? asked : dayOf(new Date());
   const { from, to } = viewRange(view, day);
+  // The entries with a start time as a calendar of their own ("Done"): read again from them for what is shown.
+  if (isInstalled("zeiterfassung")) (await import("@/lib/calendar/done")).syncDoneCalendar(from, to);
   const calendars = listCalendars();
   const events = eventsBetween(from, to).map(({ calendar: _c, ...e }) => e);
   // The appointments todos propose (their actions — not entered yet).

@@ -45,6 +45,13 @@ export type CodexModel = { id: string; label: string; efforts: string[] };
  * The models the Codex CLI offers your ChatGPT account — its catalog (`codex debug models`, read
  * locally; asked once an hour). Empty when the CLI isn't there or says nothing usable.
  */
+/** The models for a page: what is cached at once (stale too), and a refresh in the background — never a wait for the CLI. */
+export function codexModelsNow(): CodexModel[] {
+  const cache = globalThis as { __zeffCodexModels?: { at: number; list: CodexModel[] } };
+  void codexModels().catch(() => {});
+  return cache.__zeffCodexModels?.list ?? [];
+}
+
 export async function codexModels(): Promise<CodexModel[]> {
   const cache = globalThis as { __zeffCodexModels?: { at: number; list: CodexModel[] } };
   const hit = cache.__zeffCodexModels;
@@ -91,7 +98,7 @@ export const codexSandboxState = (): CodexSandbox => (process.platform === "win3
 export async function refreshCodexSandbox(): Promise<CodexSandbox> {
   if (process.platform !== "win32") return "ready";
   const hit = sandboxCache.__zeffCodexSandbox;
-  if (hit && Date.now() - hit.at < 600000) return hit.state;
+  if (hit && Date.now() - hit.at < (hit.state === "unknown" ? 60000 : 600000)) return hit.state;
   const cli = findCodexCli();
   if (!cli) return "unknown";
   const state = await new Promise<CodexSandbox>((resolve) => {
@@ -126,8 +133,17 @@ export async function refreshCodexSandbox(): Promise<CodexSandbox> {
     });
     send({ id: 1, method: "initialize", params: { clientInfo: { name: "zeff", title: null, version: "0" }, capabilities: null } });
   });
-  if (state !== "unknown") sandboxCache.__zeffCodexSandbox = { at: Date.now(), state };
+  sandboxCache.__zeffCodexSandbox = { at: Date.now(), state };
   return state;
+}
+
+/**
+ * The sandbox state for a page: the last answer at once, and — when it is stale or was never asked — a
+ * refresh in the background (the CLI takes seconds, up to its 20 s timeout: a page must not wait for it).
+ */
+export function codexSandboxNow(): CodexSandbox {
+  void refreshCodexSandbox().catch(() => {});
+  return codexSandboxState();
 }
 
 type Schema = { type?: string | string[]; properties?: Record<string, Schema>; required?: string[]; items?: Schema; additionalProperties?: unknown; [k: string]: unknown };

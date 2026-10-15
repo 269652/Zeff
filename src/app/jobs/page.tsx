@@ -7,7 +7,8 @@ import { t } from "@/lib/i18n/server";
 import { rich } from "@/lib/i18n/rich";
 import Link from "next/link";
 import { connection } from "next/server";
-import { createJobAction, toggleJobActiveAction } from "@/app/actions";
+import { createJobAction } from "@/app/actions";
+import { ToggleJobActiveButton } from "@/components/ToggleJobActiveButton";
 import { JobForm } from "@/components/JobForm";
 import { SubmitButton } from "@/components/SubmitButton";
 import { formatHours } from "@/lib/format";
@@ -57,14 +58,14 @@ export default async function JobsPage() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>{t("Number")}</th>
-                  <th>{t("Name")}</th>
-                  <th>{t("Customer")}</th>
-                  <th className="num">{t("Hours")}</th>
-                  <th className="num">{t("Entries")}</th>
-                  {ext.map((x) => (x.slot.column ? <th key={x.id} className="text-center">{x.slot.column.title}</th> : null))}
-                  <th>{t("Status")}</th>
-                  <th></th>
+                  <th scope="col">{t("Number")}</th>
+                  <th scope="col">{t("Name")}</th>
+                  <th scope="col">{t("Customer")}</th>
+                  <th scope="col" className="num">{t("Hours")}</th>
+                  <th scope="col" className="num">{t("Entries")}</th>
+                  {ext.map((x) => (x.slot.column ? <th scope="col" key={x.id} className="text-center">{x.slot.column.title}</th> : null))}
+                  <th scope="col">{t("Status")}</th>
+                  <th scope="col"><span className="sr-only">{t("Actions")}</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -96,13 +97,7 @@ export default async function JobsPage() {
                     <td>
                       <div className="flex justify-end gap-1">
                         <Link href={`/jobs/${j.id}`} className="btn btn-sm">{t("Edit")}</Link>
-                        <form action={toggleJobActiveAction}>
-                          <input type="hidden" name="id" value={j.id} />
-                          <input type="hidden" name="active" value={j.active ? "false" : "true"} />
-                          <SubmitButton className="btn btn-sm" pendingText="…">
-                            {j.active ? t("Deactivate") : t("Activate")}
-                          </SubmitButton>
-                        </form>
+                        <ToggleJobActiveButton id={j.id} active={j.active} number={j.number} />
                       </div>
                     </td>
                   </tr>
