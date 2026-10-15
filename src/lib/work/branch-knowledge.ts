@@ -12,10 +12,10 @@ import { listTodos } from "@/lib/boards/store";
 import type { TodoView } from "@/lib/boards/shared";
 
 export const BRANCH_TAG = "branch-naming";
-/** At most this many characters for the words after the ticket key in a branch name. */
+/** The default for the characters after the ticket key in a branch name (the settings change it: branch-naming.ts). */
 export const SHORT_NAME_MAX = 24;
 
-type Source = { ref: string; label: string; text: string };
+export type Source = { ref: string; label: string; text: string };
 export type BranchArtifact = { id: number; todoId: number; ticket: string; title: string; body: string; tags: string[]; slug: string; sources: Source[]; createdAt: string; updatedAt: string };
 type Row = { id: number; todo_id: number; ticket: string; title: string; body: string; tags: string; slug: string; sources: string; created_at: string; updated_at: string };
 
@@ -53,9 +53,9 @@ const plain = (s: string) =>
 
 /**
  * A short name for the change from the words of a text: its first meaningful words (no stop words, no
- * ticket keys, no URLs), lower case, joined by hyphens — 2 or 3 of them, at most SHORT_NAME_MAX characters.
+ * ticket keys, no URLs), lower case, joined by hyphens — as many as `maxWords`, at most `max` characters (the settings: Auswerten → Branch names).
  */
-export function suggestSlug(text: string): string {
+export function suggestSlug(text: string, max = SHORT_NAME_MAX, maxWords = 3): string {
   const words = plain(text.replace(/https?:\/\/\S+/g, " ").replace(/\b[A-Za-z][A-Za-z0-9]+-\d+\b/g, " "))
     .replace(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)
@@ -64,22 +64,21 @@ export function suggestSlug(text: string): string {
   for (const w of words) {
     if (picked.includes(w)) continue;
     const next = [...picked, w].join("-");
-    if (next.length > SHORT_NAME_MAX) {
-      if (!picked.length) picked.push(w.slice(0, SHORT_NAME_MAX));
+    if (next.length > max) {
+      if (!picked.length) picked.push(w.slice(0, max));
       break;
     }
     picked.push(w);
-    if (picked.length === 3) break;
+    if (picked.length >= maxWords) break;
   }
   return picked.join("-");
 }
 
 const clean = (t: string | null | undefined) => (t ?? "").replace(/\r/g, "").replace(/\s*\n\s*/g, " ").trim();
 
-/** The messages a todo cites, as they are now (Teams message, Jira comment, mail) — what can still be read. */
-function sourcesNow(todo: Pick<TodoView, "refs" | "mailRefs">): Source[] {
+/** One message by its ref (teams:<key>, jira-comment:<id>, mail:<key>), as it is now — null when it can't be read any more. */
+export function readSource(ref: string): Source | null {
   const d = getSqlite();
-  const out: Source[] = [];
   const get = <T>(sql: string, ...a: unknown[]) => {
     try {
       return d.prepare(sql).get(...a) as T | undefined;
@@ -87,19 +86,25 @@ function sourcesNow(todo: Pick<TodoView, "refs" | "mailRefs">): Source[] {
       return undefined;
     }
   };
-  for (const ref of new Set([...todo.refs, ...todo.mailRefs])) {
-    if (ref.startsWith("teams:")) {
-      const m = get<{ sender_name: string | null; place: string | null; sent_at: string; subject: string | null; text: string }>("select sender_name, place, sent_at, subject, text from teams_messages where key = ?", ref.slice(6));
-      if (m) out.push({ ref, label: `Teams-Nachricht von ${m.sender_name ?? "?"}${m.place ? ` in „${m.place}“` : ""}, ${m.sent_at.slice(0, 10)}`, text: clean([m.subject, m.text].filter(Boolean).join(" — ")).slice(0, 1200) });
-    } else if (ref.startsWith("jira-comment:")) {
-      const c = get<{ ticket: string; author: string; at: string; body: string }>("select ticket, author, at, body from jira_comments where id = ?", ref.slice(13));
-      if (c) out.push({ ref, label: `Jira-Kommentar von ${c.author} an ${c.ticket}, ${c.at.slice(0, 10)}`, text: clean(c.body).slice(0, 1200) });
-    } else if (ref.startsWith("mail:")) {
-      const m = get<{ from_name: string | null; subject: string; preview: string; received_at: string }>("select from_name, subject, preview, received_at from emails where key = ?", ref.slice(5));
-      if (m) out.push({ ref, label: `Mail von ${m.from_name ?? "?"}, ${m.received_at.slice(0, 10)}`, text: clean(`${m.subject} — ${m.preview}`).slice(0, 1200) });
-    }
+  if (ref.startsWith("teams:")) {
+    const m = get<{ sender_name: string | null; place: string | null; sent_at: string; subject: string | null; text: string }>("select sender_name, place, sent_at, subject, text from teams_messages where key = ?", ref.slice(6));
+    if (m) return { ref, label: `Teams-Nachricht von ${m.sender_name ?? "?"}${m.place ? ` in „${m.place}“` : ""}, ${m.sent_at.slice(0, 10)}`, text: clean([m.subject, m.text].filter(Boolean).join(" — ")).slice(0, 1200) };
+  } else if (ref.startsWith("jira-comment:")) {
+    const c = get<{ ticket: string; author: string; at: string; body: string }>("select ticket, author, at, body from jira_comments where id = ?", ref.slice(13));
+    if (c) return { ref, label: `Jira-Kommentar von ${c.author} an ${c.ticket}, ${c.at.slice(0, 10)}`, text: clean(c.body).slice(0, 1200) };
+  } else if (ref.startsWith("mail:")) {
+    const m = get<{ from_name: string | null; subject: string; preview: string; received_at: string }>("select from_name, subject, preview, received_at from emails where key = ?", ref.slice(5));
+    if (m) return { ref, label: `Mail von ${m.from_name ?? "?"}, ${m.received_at.slice(0, 10)}`, text: clean(`${m.subject} — ${m.preview}`).slice(0, 1200) };
   }
-  return out;
+  return null;
+}
+
+/** The messages a todo cites, as they are now (Teams message, Jira comment, mail) — what can still be read. */
+function sourcesNow(todo: Pick<TodoView, "refs" | "mailRefs">): Source[] {
+  return [...new Set([...todo.refs, ...todo.mailRefs])].flatMap((ref) => {
+    const s = readSource(ref);
+    return s ? [s] : [];
+  });
 }
 
 function bodyOf(todo: TodoView, sources: Source[], slug: string): string {
@@ -162,27 +167,6 @@ export function branchKnowledgeFor(v: { ticket?: string | null; todoIds?: number
     .slice(0, v.limit ?? 6);
 }
 
-/**
- * What a worker is told when it names a branch: the artifacts of the ticket — what the todo and its messages
- * said, even if the todo is done and the message is gone from the context — and the rule for a short name.
- * Empty when there is nothing kept.
- */
-export function branchKnowledgeBlock(todo: Pick<TodoView, "id" | "ticket" | "refs" | "mailRefs" | "text" | "kind" | "ref" | "note">): string {
-  // Brought up to date first: a message that is still there is kept before it goes.
-  try {
-    snapshotTodo(todo as TodoView);
-  } catch {
-    // the block is made from what is kept
-  }
-  const list = branchKnowledgeFor({ ticket: todo.ticket, todoIds: [todo.id] });
-  if (!list.length) return "";
-  const lines = list.map((a) => {
-    const said = a.sources.map((s) => `  - ${s.label}: „${s.text.slice(0, 300)}“`).join("\n");
-    return `- ${a.title}${a.slug ? ` — Kurzname-Vorschlag: \`${a.slug}\`` : ""}${said ? `\n${said}` : ""}`;
-  });
-  return `\n\n## Wissen zur Branch-Benennung (Tag ${BRANCH_TAG}, ${todo.ticket})\nDas ist festgehalten, worum es bei diesem Ticket ging — auch von erledigten Todos und Nachrichten, die nicht mehr im Kontext stehen. Wähle den Branch-Namen danach: kurz (2–3 Wörter, höchstens ${SHORT_NAME_MAX} Zeichen hinter dem Ticket-Key), nimm einen passenden Kurznamen-Vorschlag oder fasse die Sache selbst knapp.\n${lines.join("\n")}`;
-}
-
 /** The artifacts as documents for the knowledge server (its "Zeff" source): one page each, the tags in its text. */
 export function branchKnowledgeDocs(zeffUrl: string): { id: string; space: string; title: string; url: string; updatedAt: string | null; author: string | null; body: string }[] {
   ensureBranchKnowledge();
@@ -195,36 +179,4 @@ export function branchKnowledgeDocs(zeffUrl: string): { id: string; space: strin
     author: null,
     body: `Tags: ${a.tags.join(", ")}\n\n${a.body}`,
   }));
-}
-
-/**
- * The name for the branch a worker starts on — feature/PROJ-306-footer-link (fix/ for a fix): the ticket key and the
- * short name the kept knowledge suggests. Which artifact: the todo the instruction names ("T-165"), else the ones of
- * the ticket whose todo is yours, and with a message or comment behind it (what someone asked for) first. Null: nothing
- * short to say (the worker's own branch name zeff/… stays).
- */
-export function proposeBranchName(todo: Pick<TodoView, "id" | "ticket" | "kind" | "text" | "refs" | "mailRefs" | "ref" | "note" | "byWorker">): string | null {
-  if (!todo.ticket) return null;
-  try {
-    ensureBranchKnowledge(); // (all of them: the todo the words name may not be kept yet)
-    snapshotTodo(todo as TodoView);
-  } catch {
-    // from what is kept
-  }
-  const named = new Set([...todo.text.matchAll(/T-(\d+)/gi)].map((m) => Number(m[1])));
-  const list = branchKnowledgeFor({ ticket: todo.ticket, todoIds: [todo.id], limit: 30 }).filter((a) => a.slug);
-  if (!list.length) return null;
-  const score = (a: BranchArtifact) => {
-    const other = a.todoId !== todo.id;
-    let s = 0;
-    if (named.has(a.todoId)) s += 10;
-    if (a.sources.length) s += 2;
-    if (a.sources.some((x) => x.ref.startsWith("jira-comment:"))) s += 1;
-    // A session's own placeholder says little (its words are an instruction), unless it is all there is.
-    if (!other && todo.byWorker) s -= 3;
-    return s;
-  };
-  const best = [...list].sort((a, b) => score(b) - score(a) || b.updatedAt.localeCompare(a.updatedAt))[0];
-  const kind = todo.kind === "fix" || best.tags.includes("fix") ? "fix" : "feature";
-  return `${kind}/${todo.ticket.toUpperCase()}-${best.slug}`;
 }

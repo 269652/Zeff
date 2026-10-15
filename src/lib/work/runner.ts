@@ -17,7 +17,7 @@ import { asksForApproval, opsSettle, todoRef } from "@/lib/boards/shared";
 import type { TodoOp, TodoView } from "@/lib/boards/shared";
 import { linkBranchContext, linkedBranchesOf } from "./branch-context";
 import { newBranchName } from "./branch-name";
-import { branchKnowledgeBlock, proposeBranchName } from "./branch-knowledge";
+import { namingBlock, proposeBranchName } from "./branch-naming";
 import { addFollowUp, addTestedDelivery, addTodoInstruction, getTodo, handOverPlan, setTodoOps } from "@/lib/boards/store";
 import { commentOnMr, openGitlabMr, postGitlabReply } from "@/lib/gitlab/reply";
 import { runTodoOps } from "@/lib/ops";
@@ -369,7 +369,7 @@ function start(id: number): void {
       onExisting: r.workspace === "branch" && !!branch,
       linked: linkedBranchesOf(todo),
       newBranch: newBranchName(todo),
-      branchKnowledge: branchKnowledgeBlock(todo),
+      branchKnowledge: namingBlock(todo),
     });
     const prompt = resume && so ? r.prompt : `${r.prompt}\n\n${task}${sessionTodoNote(todo)}${so && !so.conversation ? tail : ""}`;
     updateRun(id, { cwd, branch, base, baseSha, prompt });

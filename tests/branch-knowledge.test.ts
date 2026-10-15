@@ -17,7 +17,8 @@ test("short names: the first meaningful words of the message — no stop words, 
 test("branch knowledge: a todo and its Teams message are kept, tagged — and found by ticket when the todo is done and the message gone", async () => {
   const { getDb, schema, getSqlite } = await import("@/db");
   const { addFollowUp, listTodos, setTodoStatus } = await import("@/lib/boards/store");
-  const { ensureBranchKnowledge, branchKnowledgeFor, branchKnowledgeBlock, branchKnowledgeDocs, BRANCH_TAG } = await import("@/lib/work/branch-knowledge");
+  const { ensureBranchKnowledge, branchKnowledgeFor, branchKnowledgeDocs, BRANCH_TAG } = await import("@/lib/work/branch-knowledge");
+  const { namingBlock: branchKnowledgeBlock } = await import("@/lib/work/branch-naming");
   getDb()
     .insert(schema.teamsMessages)
     .values({ key: "c|1", kind: "chat", conversationId: "c", messageId: "1", sentAt: ago(2), html: "", text: "Kannst du den Footer-Link im Newsletter einrücken? Der hängt links am Rand.", link: "l", syncedAt: ago(0), senderName: "Rico Clemen", place: "PROJ Devs" } as never)
@@ -42,7 +43,7 @@ test("branch knowledge: a todo and its Teams message are kept, tagged — and fo
   // A worker naming a branch for another todo of the ticket is told.
   const next = addFollowUp({ ticket: "PROJ-364", text: "Mobile prüfen", kind: "check", parentId: null as unknown as number, workRunId: null, source: "test" } as never);
   const block = branchKnowledgeBlock(listTodos({ status: "all" }).find((t) => t.id === next.id)!);
-  assert.match(block, /Wissen zur Branch-Benennung/);
+  assert.match(block, /Branch-Benennung \(Tag branch-naming, PROJ-364\)/);
   assert.match(block, /hängt links am Rand/);
   assert.match(block, /höchstens 24 Zeichen/);
   assert.match(block, /Kurzname-Vorschlag: `footer-link/);
@@ -70,7 +71,7 @@ test("the worker's brief for a new branch asks for a short name and carries what
 test("the branch a worker starts on is named from what is kept: feature/<ticket>-<short name> — the todo the instruction names counts most", async () => {
   const { getDb, schema } = await import("@/db");
   const { addManualTodo, addSessionTodo, getTodo } = await import("@/lib/boards/store");
-  const { proposeBranchName } = await import("@/lib/work/branch-knowledge");
+  const { proposeBranchName } = await import("@/lib/work/branch-naming");
   getDb()
     .insert(schema.jiraComments)
     .values({ id: "bk-1", ticket: "PROJ-306", author: "Christopher Lorenz", at: ago(1), body: "Bitte die Quote-Variante der Startseite mit den Figma-Maßen umsetzen." } as never)

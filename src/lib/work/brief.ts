@@ -9,6 +9,7 @@ import { mailSender } from "@/lib/mail/shared";
 import { noteHeadline } from "@/plugins/keep/shared";
 import { resolvedCommentIds } from "@/lib/resolved";
 import { sideTodos } from "./actions";
+import { namingRuleLine } from "./branch-naming";
 import type { LinkedBranch } from "./branch-context";
 import { runsForTodos } from "./store";
 import { CHANNEL_LABELS, formatMinutes, workRef, type WorkIsolation, type WorkMode } from "./shared";
@@ -197,10 +198,10 @@ function branchRule(ctx: { linked?: LinkedBranch[]; newBranch?: string | null; b
   }
   // Zeff has named the branch already (from what is kept about the ticket): the worker may rename it when it doesn't fit.
   if (ctx.newBranch && /^(feature|fix)\//.test(ctx.branch)) {
-    return `\n- Branch: ${ctx.branch} ist für dich angelegt, benannt nach der Konvention ${ctx.newBranch} (Ticket-Key, dann 2–3 kleingeschriebene Wörter, höchstens 24 Zeichen). Committe dort. Passt der Name nicht zur Codeänderung, die du machst, benenne ihn vor dem ersten Commit um (\`git branch -m <neuer-Name>\`, gleiche Konvention, kurz) und nenne den Branch im Ergebnis (branch).${ctx.branchKnowledge ?? ""}`;
+    return `\n- Branch: ${ctx.branch} ist für dich angelegt, benannt nach der Konvention ${ctx.newBranch} (${namingRuleLine()}). Committe dort. Passt der Name nicht zur Codeänderung, die du machst, benenne ihn vor dem ersten Commit um (\`git branch -m <neuer-Name>\`, gleiche Konvention, kurz) und nenne den Branch im Ergebnis (branch).${ctx.branchKnowledge ?? ""}`;
   }
   return ctx.newBranch
-    ? `\n- Branch: Zu diesem Todo gibt es noch keinen Feature-Branch oder Merge Request. Lege einen an, nach der Namenskonvention ${ctx.newBranch} (feature/ bzw. fix/, dann der Ticket-Key, dann <short-change> = 2–3 kleingeschriebene Wörter für die Codeänderung, die du machst, höchstens 24 Zeichen — nicht der Titel von Ticket oder Todo) und committe dort. Nenne den Branch im Ergebnis (branch).${ctx.branchKnowledge ?? ""}`
+    ? `\n- Branch: Zu diesem Todo gibt es noch keinen Feature-Branch oder Merge Request. Lege einen an, nach der Namenskonvention ${ctx.newBranch} (${namingRuleLine()}) und committe dort. Nenne den Branch im Ergebnis (branch).${ctx.branchKnowledge ?? ""}`
     : "";
 }
 

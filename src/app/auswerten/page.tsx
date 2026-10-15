@@ -3,6 +3,7 @@ import { t } from "@/lib/i18n/server";
 import { rich } from "@/lib/i18n/rich";
 import Link from "next/link";
 import { connection } from "next/server";
+import { BranchNamingAdmin } from "@/components/BranchNamingAdmin";
 import { ContextStepForm } from "@/components/ContextStepForm";
 import { aiQuality, STALE_DAYS, type AiQuality } from "@/lib/ai-quality";
 import { getContextPrefs } from "@/lib/boards/context-prefs";
@@ -18,12 +19,13 @@ export async function generateMetadata(): Promise<Metadata> {
  * messages, the assignment, the auto-actions, the reply drafts: their sources, how far back, how
  * much, and instructions of your own. Steps and sources of plugins that aren't installed don't show.
  */
-export default async function AuswertenPage({ searchParams }: { searchParams: Promise<{ zeit?: string }> }) {
+export default async function AuswertenPage({ searchParams }: { searchParams: Promise<{ zeit?: string; todo?: string; error?: string }> }) {
   await connection();
   const on = installedPlugins();
   const prefs = getContextPrefs();
   const steps = contextSteps(t).filter((s) => !s.plugin || on.has(s.plugin));
-  const all = (await searchParams).zeit === "alle";
+  const sp = await searchParams;
+  const all = sp.zeit === "alle";
   const quality = aiQuality(all ? null : 30);
   return (
     <div className="page">
@@ -67,6 +69,12 @@ export default async function AuswertenPage({ searchParams }: { searchParams: Pr
             <p className="text-sm text-zinc-500">{s.what}</p>
           </div>
           <ContextStepForm step={s} prefs={prefs[s.id]} installed={[...on]} />
+          {s.id === "branchname" && (
+            <>
+              {sp.error && <p role="alert" className="alert-error text-sm">{sp.error}</p>}
+              <BranchNamingAdmin todoId={Number(sp.todo) || undefined} />
+            </>
+          )}
         </section>
       ))}
     </div>
