@@ -69,6 +69,17 @@ export async function register() {
     console.error("[documents] picking up the waiting documents failed", e);
   }
   try {
+    // Once: Kanban's boards move into the Workspace (a copy of the database first) — in every account.
+    const { listAccounts, withAccount } = await import("./db/accounts");
+    const { moveAllBoardsOnce } = await import("./plugins/kanban/to-workspace");
+    for (const a of listAccounts()) {
+      const r = await withAccount(a.id, moveAllBoardsOnce);
+      if (r?.moved || r?.failed) console.log(`[kanban] ${a.name}: ${r.moved} board(s) moved into the Workspace${r.failed ? `, ${r.failed} failed (tried again at the next start)` : ""} — backup: ${r.backup}`);
+    }
+  } catch (e) {
+    console.error("[kanban] moving the boards into the Workspace failed", e);
+  }
+  try {
     const { keepCommentsFromRuns } = await import("./lib/jira/comments");
     keepCommentsFromRuns(); // once: the comments past runs read
   } catch (e) {

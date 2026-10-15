@@ -85,3 +85,31 @@ test("moving needs the Workspace: without it, nothing is made and the board stay
   assert.equal(w.tree().length, before, "no database made");
   assert.ok(s.listBoards().some((x) => x.id === b), "the board is still there");
 });
+
+/** At the next start, once: every board (not the archived) moves — after a copy of the database. */
+test("moveAllBoardsOnce: a backup first, the Workspace on, every open board moved — once", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { setInstalled, isInstalled } = await import("@/plugins/state");
+  setInstalled("kanban", true);
+  setInstalled("workspace", false);
+  const s = await import("@/plugins/kanban/store");
+  const { moveAllBoardsOnce, movedBoard } = await import("@/plugins/kanban/to-workspace");
+  const a = s.createBoard({ name: "Eins" });
+  const b = s.createBoard({ name: "Zwei" });
+  const old = s.createBoard({ name: "Altes" });
+  s.updateBoard(old, { archived: true });
+
+  const r = await moveAllBoardsOnce();
+  assert.ok(r);
+  assert.ok(isInstalled("workspace"), "the Workspace is turned on");
+  assert.ok(r.moved >= 2);
+  assert.ok(movedBoard(a) && movedBoard(b), "every open board moved");
+  assert.equal(movedBoard(old), null, "an archived board stays in Kanban's archive");
+  assert.equal(path.basename(r.backup!), "zeff-before-kanban-move.db");
+  assert.ok(fs.statSync(r.backup!).size > 0, "a copy of the database first");
+  assert.equal(s.listBoards().length, 0, "nothing left open on Kanban");
+
+  s.createBoard({ name: "Später" });
+  assert.equal(await moveAllBoardsOnce(), null, "once: a board made later stays on Kanban");
+});

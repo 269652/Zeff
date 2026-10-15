@@ -1,6 +1,9 @@
+import path from "node:path";
 import { getSqlite } from "@/db";
+import { accountDir, currentAccountId } from "@/db/accounts";
+import { getPref, setPref } from "@/lib/prefs";
 import { setCollection } from "@/lib/items";
-import { isInstalled } from "@/plugins/state";
+import { isInstalled, setInstalled } from "@/plugins/state";
 import { markdownToDoc } from "@/plugins/workspace/doc";
 import { COLORS, newId, newProperty, newView, type DbSchema, type Option, type Property } from "@/plugins/workspace/model";
 import { addRow, archivePage, createPage, getDatabase, setCell, updatePage, updateSchema } from "@/plugins/workspace/store";
@@ -95,4 +98,34 @@ function move(boardId: number): { dbId: number } {
   setCollection(`workspace:${dbId}`, { briefing: meta.inLage });
   updateBoard(boardId, { archived: true });
   return { dbId };
+}
+
+const MOVED_ALL = "kanban.movedToWorkspace";
+
+/**
+ * Once per account (at a server start): every Kanban board that isn't archived moves into the
+ * Workspace — after a copy of the database next to it (zeff-before-kanban-move.db), with the
+ * Workspace turned on. Archived boards stay in Kanban's archive. A board that fails is logged and
+ * the next start tries again; null: done already (or Kanban isn't installed).
+ */
+export async function moveAllBoardsOnce(): Promise<{ moved: number; failed: number; backup: string | null } | null> {
+  if (getPref<boolean>(MOVED_ALL, false) || !isInstalled("kanban")) return null;
+  const boards = listBoards().filter((b) => !movedBoard(b.id));
+  let backup: string | null = null;
+  if (boards.length) {
+    backup = path.join(accountDir(currentAccountId()), "zeff-before-kanban-move.db");
+    await getSqlite().backup(backup);
+    if (!isInstalled("workspace")) setInstalled("workspace", true);
+  }
+  let failed = 0;
+  for (const b of boards) {
+    try {
+      moveBoardToWorkspace(b.id);
+    } catch (e) {
+      failed++;
+      console.error(`[kanban] moving board ${b.id} “${b.name}” into the Workspace failed`, e);
+    }
+  }
+  if (!failed) setPref(MOVED_ALL, true);
+  return { moved: boards.length - failed, failed, backup };
 }
