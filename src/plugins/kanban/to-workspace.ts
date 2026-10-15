@@ -2,13 +2,13 @@ import path from "node:path";
 import { getSqlite } from "@/db";
 import { accountDir, currentAccountId } from "@/db/accounts";
 import { getPref, setPref } from "@/lib/prefs";
-import { setCollection } from "@/lib/items";
+import { collectionItems, listCollections, setCollection } from "@/lib/items";
 import { isInstalled, setInstalled } from "@/plugins/state";
 import { markdownToDoc } from "@/plugins/workspace/doc";
 import { COLORS, newId, newProperty, newView, type DbSchema, type Option, type Property } from "@/plugins/workspace/model";
 import { addRow, archivePage, createPage, getDatabase, setCell, updatePage, updateSchema } from "@/plugins/workspace/store";
 import { KEY_PROP } from "@/plugins/workspace/collections";
-import { cardRef, PRIORITIES, PRIORITY_LABELS, type CardView } from "./shared";
+import { cardRef, PRIORITIES, PRIORITY_LABELS, type BoardSummary, type CardView } from "./shared";
 import { getBoard, listArchivedCards, listBoards, updateBoard } from "./store";
 
 /**
@@ -39,6 +39,24 @@ export function movedBoard(boardId: number): number | null {
 
 /** A Kanban time (SQLite's "2026-09-01 08:00:00", UTC) as the Workspace keeps it (ISO). */
 const iso = (t: string) => new Date(t.includes("T") ? t : `${t.replace(" ", "T")}Z`).toISOString();
+/** Where an old link to a moved board (or one of its cards, `card`) leads now: its database (or the card's row); null: not moved. */
+export function movedHref(boardId: number, card?: string | null): string | null {
+  const dbId = movedBoard(boardId);
+  if (!dbId) return null;
+  const row = card && /^\d+$/.test(card) ? movedCard(Number(card)) : null;
+  return `/workspace/${row ?? dbId}`;
+}
+
+/** The Workspace's boards (databases with a board view by status) as Kanban's overview lists them. */
+export function workspaceBoards(): BoardSummary[] {
+  return listCollections({ plugin: "workspace" })
+    .filter((c) => c.kind === "board")
+    .map((c) => {
+      const items = collectionItems(c.id) ?? [];
+      return { id: c.id, name: c.name, description: c.description, color: c.color ?? "indigo", source: "Workspace", cards: items.length, open: items.filter((i) => i.status?.phase !== "done").length, href: c.href, updatedAt: null };
+    });
+}
+
 const option = (name: string, color: string, group?: Option["group"]): Option => ({ id: newId("o"), name, color, ...(group ? { group } : {}) });
 const prop = (name: string, type: Property["type"], options?: Option[]): Property => ({ ...newProperty(name, type), ...(options ? { options } : {}) });
 

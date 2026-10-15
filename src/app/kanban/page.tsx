@@ -35,7 +35,11 @@ function BoardTile({ b }: { b: BoardSummary }) {
 export default async function KanbanPage() {
   await connection();
   if (!isInstalled("kanban")) return <PluginNotInstalled id="kanban" />;
-  const own: BoardSummary[] = listBoards().map((b) => ({ id: String(b.id), name: b.name, description: b.description, color: b.color, source: "Kanban", cards: b.cards, open: b.open, href: `/kanban/${b.id}`, updatedAt: b.updatedAt }));
+  const own: BoardSummary[] = [
+    ...listBoards().map((b) => ({ id: String(b.id), name: b.name, description: b.description, color: b.color, source: "Kanban", cards: b.cards, open: b.open, href: `/kanban/${b.id}`, updatedAt: b.updatedAt })),
+    // The boards in the Workspace (moved Kanban boards among them).
+    ...(await import("@/plugins/kanban/to-workspace")).workspaceBoards(),
+  ];
   const others = await providerBoards();
   return (
     <div className="page">

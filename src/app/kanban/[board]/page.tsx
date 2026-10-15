@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { t } from "@/lib/i18n/server";
 import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
@@ -38,11 +38,15 @@ async function cardLage(view: BoardView): Promise<Record<string, CardLage>> {
 }
 
 /** A board: one of yours (numbered — to change), or one a plugin brings (jira-… — to look at). */
-export default async function BoardPage({ params }: { params: Promise<{ board: string }> }) {
+export default async function BoardPage({ params, searchParams }: { params: Promise<{ board: string }>; searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   await connection();
   if (!isInstalled("kanban")) return <PluginNotInstalled id="kanban" />;
   const { board } = await params;
   if (/^\d+$/.test(board)) {
+    // Moved into the Workspace: old links (a card's too) lead there.
+    const card = (await searchParams).card;
+    const moved = (await import("@/plugins/kanban/to-workspace")).movedHref(Number(board), typeof card === "string" ? card : null);
+    if (moved) redirect(moved);
     let view: BoardView | null = null;
     try {
       view = getBoard(Number(board));

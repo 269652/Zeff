@@ -131,3 +131,43 @@ test("a moved card keeps its times", async () => {
   assert.equal(row.createdAt, "2026-09-01T08:00:00.000Z");
   assert.equal(row.updatedAt, "2026-09-02T09:30:00.000Z");
 });
+
+/** Old links (/kanban/1, /kanban/1?card=3, bookmarks) lead to where the board and its cards are now. */
+test("movedHref: an old board or card link leads to its database or row", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["kanban", "workspace"]) setInstalled(id, true);
+  const s = await import("@/plugins/kanban/store");
+  const { moveBoardToWorkspace, movedCard, movedHref } = await import("@/plugins/kanban/to-workspace");
+  const b = s.createBoard({ name: "Links" });
+  const card = s.createCard(s.getBoard(b).columns[0].id, "Karte");
+  const stays = s.createBoard({ name: "Bleibt" });
+  assert.equal(movedHref(b), null, "not moved yet: Kanban's page");
+  const { dbId } = moveBoardToWorkspace(b);
+  assert.equal(movedHref(b), `/workspace/${dbId}`);
+  assert.equal(movedHref(b, String(card.id)), `/workspace/${movedCard(card.id)}`);
+  assert.equal(movedHref(b, "999999"), `/workspace/${dbId}`, "a card that isn't known: the database");
+  assert.equal(movedHref(stays), null);
+});
+
+/** Kanban's overview shows the boards in the Workspace too: open and all cards, a link there. */
+test("workspaceBoards: the Workspace's boards as Kanban's overview lists them", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["kanban", "workspace"]) setInstalled(id, true);
+  const s = await import("@/plugins/kanban/store");
+  const w = await import("@/plugins/workspace/store");
+  const { moveBoardToWorkspace, workspaceBoards } = await import("@/plugins/kanban/to-workspace");
+  const b = s.createBoard({ name: "Übersicht", description: "Für die Liste", columns: ["Offen", "Fertig"] });
+  const [open, done] = s.getBoard(b).columns;
+  s.updateColumn(done.id, { done: true });
+  s.createCard(open.id, "Eins");
+  s.moveCard(s.createCard(open.id, "Zwei").id, done.id, null);
+  const { dbId } = moveBoardToWorkspace(b);
+  w.createPage({ kind: "database", title: "Keine Tafel" });
+
+  const mine = workspaceBoards().find((x) => x.id === `workspace:${dbId}`);
+  assert.ok(mine);
+  assert.deepEqual({ name: mine.name, cards: mine.cards, open: mine.open, href: mine.href, source: mine.source }, { name: "Übersicht", cards: 2, open: 1, href: `/workspace/${dbId}`, source: "Workspace" });
+  assert.ok(!workspaceBoards().some((x) => x.name === "Keine Tafel"), "a database without a board view isn't a board");
+  setInstalled("workspace", false);
+  assert.deepEqual(workspaceBoards(), [], "without the Workspace: none");
+});
