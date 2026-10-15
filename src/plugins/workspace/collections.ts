@@ -40,6 +40,17 @@ export function rowKey(r: Pick<Row, "id" | "cells">): string | null {
 const SWITCHES = "workspace.collections";
 type Switches = { briefing: number[]; knowledge: number[] };
 const switches = (): Switches => ({ briefing: [], knowledge: [], ...getPref<Partial<Switches>>(SWITCHES, {}) });
+
+/** The databases a sync keeps (Jira's boards, Google Keep): their source, by database. */
+const SOURCES = "workspace.sources";
+const sources = (): Record<string, string> => getPref<Record<string, string>>(SOURCES, {});
+/** A database marked as kept by a sync from `source` (null: its own again). */
+export function setDatabaseSource(dbId: number, source: string | null): void {
+  const next = { ...sources() };
+  if (source) next[dbId] = source;
+  else delete next[dbId];
+  setPref(SOURCES, next);
+}
 const named = (icon: string, title: string) => [icon, title || "Untitled"].filter(Boolean).join(" ");
 
 function itemsOf(dbId: number, schema: DbSchema, rows: Row[]): Item[] {
@@ -129,6 +140,7 @@ function rowAction(rowId: number, action: ItemAction): string {
 export const workspaceCollections: CollectionProvider = {
   collections: () => {
     const on = switches();
+    const from = sources();
     return tree()
       .filter((p) => p.kind === "database")
       .map((p): Collection => {
@@ -149,6 +161,7 @@ export const workspaceCollections: CollectionProvider = {
           knowledge: on.knowledge.includes(p.id),
           items: rawRows(p.id).length,
           ...(board ? { statuses: status!.options?.map((o) => o.name) ?? [] } : {}),
+          ...(from[p.id] ? { source: from[p.id] } : {}),
         };
       });
   },

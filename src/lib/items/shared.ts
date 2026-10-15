@@ -30,6 +30,8 @@ export type Collection = {
   items: number;
   /** A board's statuses in order (its columns) — where its items can go. */
   statuses?: string[];
+  /** Kept by a sync from elsewhere ("jira", "google-keep"): its items come from there (Jira's tickets come into the Lage from Jira). */
+  source?: string;
 };
 
 /** What can be switched on a collection (what's left out stays as it is). */
