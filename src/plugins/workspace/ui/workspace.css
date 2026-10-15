@@ -763,3 +763,6 @@
 /* A due date's alarm on a card: past it red, on the day amber. */
 [data-due="overdue"] { color: var(--color-red-600, #dc2626); font-weight: 500; }
 [data-due="today"] { color: var(--color-amber-600, #d97706); font-weight: 500; }
+
+/* A column dragged by its head lands in front of this one. */
+.ws-column-drop-before { box-shadow: -4px 0 0 0 var(--color-indigo-500, #6366f1); }

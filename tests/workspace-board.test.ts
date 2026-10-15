@@ -207,3 +207,15 @@ test("zeffModule block: sanitized, to and from Markdown", async () => {
     { type: "zeffModule", attrs: { module: "chat", key: "KB-3" } },
   ]);
 });
+
+/** A board's column dragged onto another: it goes before that one (to the end when dropped on the last's right half). */
+test("moveOptionTo: a column dragged into its place", async () => {
+  const m = await import("@/plugins/workspace/model");
+  const status = m.newProperty("Status", "status");
+  const [a, b, c] = status.options!;
+  const schema: import("@/plugins/workspace/model").DbSchema = { titleName: "Name", properties: [status], views: [] };
+  const names = (s: typeof schema) => s.properties[0].options!.map((o) => o.name);
+  assert.deepEqual(names(m.moveOptionTo(schema, status.id, c.id, a.id)), ["Done", "Not started", "In progress"], "before the first");
+  assert.deepEqual(names(m.moveOptionTo(schema, status.id, a.id, null)), ["In progress", "Done", "Not started"], "to the end");
+  assert.deepEqual(names(m.moveOptionTo(schema, status.id, b.id, b.id)), ["Not started", "In progress", "Done"], "onto itself: stays");
+});

@@ -6,7 +6,7 @@ import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, placeRowAction, reviewDatabaseAction, setCellAction, setCollectionAction, updateSchemaAction, type DatabaseData } from "../actions";
-import { cellText, columnOrder, dateRange, detailModules, dropValue, filterByPeople, mineKeys, moveOption, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
+import { cellText, columnOrder, dateRange, detailModules, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
 import { RowPeek } from "./RowPeek";
@@ -701,6 +701,8 @@ function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, new
   const gp = schema.properties.find((p) => p.id === view.groupBy);
   // Where a dragged card would land: its column and the card it would go before (null: the end).
   const [over, setOver] = useState<{ key: string; before: number | null } | null>(null);
+  // A column being dragged (its head) — and the column it would go in front of.
+  const [colOver, setColOver] = useState<string | null>(null);
   if (!gp) return <p className="rounded-lg border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700">{t("Choose a property to group the board by (a status or a select).")}</p>;
   const groups = groupRows(rows, gp.id, schema.properties, labels);
   const valueFor = (key: string): unknown => (gp.type === "checkbox" ? key === "true" : key === "" ? null : gp.type === "multi_select" ? [key] : gp.type === "person" || gp.type === "relation" ? [Number(key)] : key);
@@ -719,15 +721,23 @@ function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, new
       {groups.map((g) => (
         <div
           key={g.key || "none"}
-          className={`ws-column w-72 shrink-0 space-y-2 rounded-xl p-2 ${over?.key === g.key ? "ws-column-over" : ""}`}
+          className={`ws-column w-72 shrink-0 space-y-2 rounded-xl p-2 ${over?.key === g.key ? "ws-column-over" : ""} ${colOver === g.key ? "ws-column-drop-before" : ""}`}
           onDragOver={(e) => {
             e.preventDefault();
+            if (e.dataTransfer.types.includes("text/ws-col")) return void (colOver !== g.key && setColOver(g.key));
             const before = beforeAt(e.currentTarget, e.clientY);
             if (over?.key !== g.key || over.before !== before) setOver({ key: g.key, before });
           }}
-          onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && setOver(null)}
+          onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && (setOver(null), setColOver(null))}
           onDrop={(e) => {
             e.preventDefault();
+            setColOver(null);
+            const col = e.dataTransfer.getData("text/ws-col");
+            if (col) {
+              // A column dropped on another: in front of it ("No value" stays last).
+              if (!ctx.data.locked && gp.options?.some((o) => o.id === g.key)) api.changeSchema((s) => moveOptionTo(s, gp.id, col, g.key));
+              return;
+            }
             const before = beforeAt(e.currentTarget, e.clientY);
             setOver(null);
             if (ctx.data.locked) return;
@@ -824,7 +834,17 @@ function ColumnHead({ g, gp, view, rows, api, locked }: { g: Group; gp: Property
   };
   const i = gp.options?.findIndex((o) => o.id === g.key) ?? -1;
   return (
-    <div className="flex items-center gap-2 px-1 text-sm">
+    <div
+      className={`flex items-center gap-2 px-1 text-sm ${option ? "cursor-grab" : ""}`}
+      draggable={!!option && !editing}
+      onDragStart={(e) => {
+        if (!option) return;
+        e.stopPropagation();
+        e.dataTransfer.setData("text/ws-col", option.id);
+        e.dataTransfer.effectAllowed = "move";
+      }}
+      title={option ? t("Drag to move the column") : undefined}
+    >
       {option && editing ? (
         <input
           autoFocus

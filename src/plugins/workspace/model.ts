@@ -566,6 +566,19 @@ export function moveOption(schema: DbSchema, propId: string, optionId: string, d
   });
 }
 
+/** A column dragged in front of another (`before`; null: to the end); onto itself it stays. */
+export function moveOptionTo(schema: DbSchema, propId: string, optionId: string, before: string | null): DbSchema {
+  if (optionId === before) return schema;
+  return withOptions(schema, propId, (o) => {
+    const moved = o.find((x) => x.id === optionId);
+    if (!moved) return o;
+    const rest = o.filter((x) => x.id !== optionId);
+    const at = before === null ? rest.length : rest.findIndex((x) => x.id === before);
+    rest.splice(at < 0 ? rest.length : at, 0, moved);
+    return rest;
+  });
+}
+
 /** A column renamed (an empty name changes nothing). */
 export const renameOption = (schema: DbSchema, propId: string, optionId: string, name: string): DbSchema =>
   name.trim() ? withOptions(schema, propId, (o) => o.map((x) => (x.id === optionId ? { ...x, name: name.trim() } : x))) : schema;

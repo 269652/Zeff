@@ -67,6 +67,17 @@ body {
   .page > .page-aside + * {
     @apply lg:mt-0;
   }
+  /* Full screen (FocusToggle): no app header, no page sidebar — the page has the whole window. */
+  html[data-focus] .site-header,
+  html[data-focus] .page > .page-aside {
+    display: none;
+  }
+  html[data-focus] .page {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  html[data-focus] .page > * {
+    grid-column: 1 / -1;
+  }
   .card {
     @apply rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900;
   }

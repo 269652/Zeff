@@ -1,5 +1,6 @@
 "use client";
 
+import { FocusToggle } from "@/components/FocusToggle";
 import type { JSONContent } from "@tiptap/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -241,6 +242,7 @@ export function PageView({ page, row, database }: { page: PageViewData; row?: { 
         <button type="button" className="btn btn-sm" onClick={() => setHistory(true)}>
           🕘 {t("History")}
         </button>
+        <FocusToggle />
         <Dropdown label="⋯" align="right" title={t("More")} className="btn btn-sm">
           {(close) => (
             <>
