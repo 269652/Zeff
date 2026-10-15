@@ -74,3 +74,24 @@ test("agents work with databases: rows by property names — options made on the
   const rowId = /\[(\d+)\] Login fails/.exec(q.text)![1];
   assert.match((await text("workspace_read_page", { page: rowId })).text, /Steps: open the page\./);
 });
+
+test("today's page: made once under Daily notes, with the todos that are due as links", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("workspace", true);
+  setInstalled("todos", true);
+  const { addManualTodo, listTodos } = await import("@/lib/boards/store");
+  const { getDb, schema } = await import("@/db");
+  const todo = addManualTodo({ ticket: "", text: "Call the printer" });
+  getDb().update(schema.todos).set({ due: "2020-01-01" } as never).run();
+  assert.ok(listTodos({ status: "open" }).length >= 1);
+  const { todayPageAction } = await import("@/plugins/workspace/actions");
+  const first = await todayPageAction();
+  const second = await todayPageAction();
+  assert.equal(first.ok && second.ok && first.id === second.id, true, "the same page the second time");
+  const store = await import("@/plugins/workspace/store");
+  const page = store.getPage((first as { id: number }).id)!;
+  assert.match(page.title, /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(store.breadcrumbs(page.id).map((c) => c.title).join(), "Daily notes");
+  assert.match(JSON.stringify(page.content), /"kind":"todo"/);
+  assert.deepEqual(store.pagesMentioning("todo", todo.id).map((p) => p.id), [page.id]);
+});

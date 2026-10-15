@@ -18,6 +18,12 @@ export async function GET(req: Request) {
       })
       .slice(0, 8)
       .map((todo) => ({ id: `todo:${todo.id}`, label: `${todo.ref} ${todo.text}`.slice(0, 140), hint: todo.ticket || undefined, href: `/todos#todo-${todo.id}`, group: "Todos" }));
+    // The Workspace's pages, by what they say and what they're called.
+    const { isInstalled } = await import("@/plugins/state");
+    if (isInstalled("workspace")) {
+      const { search } = await import("@/plugins/workspace/store");
+      for (const h of search(q, 6)) hits.push({ id: `page:${h.id}`, label: `${h.icon ? `${h.icon} ` : ""}${h.title || "Untitled"}`.slice(0, 140), hint: h.path || undefined, href: `/workspace/${h.id}`, group: "Workspace" });
+    }
     return Response.json({ hits });
   } catch {
     return Response.json({ hits: [] });

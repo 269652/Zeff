@@ -42,19 +42,12 @@
     },
     "permissions": {
       "default": [],
-      "maxItems": 20,
+      "description": "What it may do (granted by you): exec, network, prompt, and the permissions plugins bring (work.read, todos.write, kanban.read …).",
+      "maxItems": 30,
       "type": "array",
       "items": {
         "type": "string",
-        "enum": [
-          "work.read",
-          "work.write",
-          "todos.read",
-          "todos.write",
-          "prompt",
-          "exec",
-          "network"
-        ]
+        "pattern": "^[a-z][a-z0-9]*(\\.[a-z0-9]+)*$"
       }
     },
     "contributes": {
@@ -227,18 +220,52 @@
             ]
           }
         },
+        "apps": {
+          "default": [],
+          "description": "Entries in Zeff's menu (Apps) that open one of its panels as a page of its own — you can put them in the header (Menu → Customize).",
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "panel": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$",
+                "description": "The id of one of the plugin's panels (workPanels) this entry opens."
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 30,
+                "description": "Its name in the menu."
+              },
+              "short": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 12,
+                "description": "Its name in the header, when you put it there."
+              },
+              "hint": {
+                "default": "",
+                "description": "A line under the name in the menu.",
+                "type": "string",
+                "maxLength": 80
+              }
+            },
+            "required": [
+              "panel",
+              "label",
+              "short"
+            ]
+          }
+        },
         "hooks": {
           "default": {},
           "description": "Programs Zeff runs when something happens. Needs the exec permission.",
           "type": "object",
           "propertyNames": {
             "type": "string",
-            "enum": [
-              "work.run.started",
-              "work.run.finished",
-              "work.changed",
-              "todos.changed"
-            ]
+            "pattern": "^[a-z][a-z0-9]*(\\.[a-z0-9]+)+$"
           },
           "additionalProperties": {
             "type": "object",

@@ -128,6 +128,30 @@ is queued behind it. Both show up in Work's sidebar like any session.
 
 `Todo`: `{ id, ref, ticket, text, kind, owner: "me" | "other", status, due: string | null, parentId: number | null, source: string | null }`.
 
+### Kanban
+
+Needs the Kanban plugin to be installed. Cards are the ones on your own boards (`KB-<id>`).
+
+| Method | Permission | Params | Result |
+| --- | --- | --- | --- |
+| `kanban.boards.list` | `kanban.read` | — | `{ id, name, description, cards, open, inLage }[]` |
+| `kanban.boards.get` | `kanban.read` | `id`* | the board with its `columns` (each with its `cards`) |
+| `kanban.cards.add` | `kanban.write` | `columnId`*, `title`*, and any of `description`, `labels`, `priority`, `due`, `assignee` | the card |
+| `kanban.cards.update` | `kanban.write` | `id`*, and any of `title`, `description`, `labels`, `priority` (`low`, `normal`, `high`, `urgent` or `null`), `due` (`YYYY-MM-DD` or `null`), `assignee` | the card |
+| `kanban.cards.move` | `kanban.write` | `id`*, `columnId`*, `before` (a card id; none: at the end) | `true` |
+| `kanban.cards.archive` | `kanban.write` | `id`* | `true` |
+| `kanban.cards.unarchive` | `kanban.write` | `id`* | `true` |
+
+`card`: `{ id, ref, columnId, title, description, labels, priority, due, assignee, parentId, doneAt }`.
+
+## Plugins bring their own methods
+
+Every plugin — built-in or external — adds to the API the same way: the methods and the permissions they use are
+registered by the plugin itself (a built-in plugin's `src/plugins/<id>/server.ts`), so a method is there exactly
+while its plugin is installed. Built-in code calls the same methods in-process (`callBuiltin` in
+`src/lib/plugins/api.ts`); external plugins call them over HTTP with their token. A permission a manifest asks for
+must be one a plugin brings (a typo is refused); the list of what is on offer is on the Plugins page.
+
 ## Panel-only methods
 
 `ui.toast`, `ui.navigate`, `ui.resize` exist only in a panel (the page around the frame handles them) — see

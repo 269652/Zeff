@@ -4,6 +4,19 @@
  */
 import { action, EN, str } from "../actions/types";
 
+/** The operation types this plugin brings (an entry per `type`); the core's TodoOp is the union of all plugins'. */
+declare module "@/lib/boards/shared" {
+  interface TodoOpMap {
+  /** The todo handed to a worker (Code tab) with this instruction. */
+  "work-instruct": { instruction: string };
+  // Delivery (Zeff makes these after an implementation; not in the AI's dictionary):
+  "git-push": { repo: string; branch: string; remote: string; target: string; title?: string; description?: string };
+  "git-merge-main": { repo: string; branch: string; target: string };
+  /** Uncommitted changes (these files) committed on a feature branch (made from where the checkout is, when it's another). */
+  "git-commit-branch": { repo: string; branch: string; files: string[]; message: string; target: string };
+  }
+}
+
 export const WORK_ACTIONS = [
   action({
     type: "work-instruct",

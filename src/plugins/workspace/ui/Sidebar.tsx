@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { archivePageAction, createPageAction, duplicatePageAction, movePageAction, savePageAction, searchAction, templatesAction } from "../actions";
+import { archivePageAction, createPageAction, duplicatePageAction, movePageAction, savePageAction, searchAction, templatesAction, todayPageAction } from "../actions";
 import type { TreeItem } from "../store";
 import { Dropdown, MenuItem } from "./kit";
 import "./workspace.css";
@@ -208,6 +208,19 @@ export function Sidebar({ items, favorites }: { items: TreeItem[]; favorites: { 
         <Link href="/workspace" className="flex-1 text-lg font-semibold hover:underline">
           {t("Workspace")}
         </Link>
+        <button
+          type="button"
+          className="btn btn-sm"
+          title={t("Today's page — made at the first use, with your todos that are due")}
+          onClick={async () => {
+            const r = await todayPageAction();
+            if (!r.ok) return toast(r.error, { tone: "error" });
+            router.push(`/workspace/${r.id}`);
+            router.refresh();
+          }}
+        >
+          📅 {t("Today")}
+        </button>
         <Dropdown
           label="+"
           title={t("New")}

@@ -47,6 +47,8 @@ is never granted, and a method or contribution that needs one fails or is skippe
 | `work.write` | Start, continue and stop Work sessions | `work.sessions.start`, `work.sessions.send`, `work.runs.cancel` |
 | `todos.read` | Read your todos | `todos.list` |
 | `todos.write` | Add todos | `todos.add` |
+| `kanban.read` | Read your Kanban boards and cards | `kanban.boards.list`, `kanban.boards.get` |
+| `kanban.write` | Add, change, move and archive Kanban cards | `kanban.cards.add`, `kanban.cards.update`, `kanban.cards.move`, `kanban.cards.archive`, `kanban.cards.unarchive` |
 | `prompt` | Add rules to what Work's workers are told | `contributes.workerRules` |
 | `exec` | Run programs on this computer — **with your rights** | `contributes.hooks`, stdio entries of `contributes.workerMcpServers` |
 | `network` | Let the plugin's panels contact other websites; allow http MCP servers | http entries of `contributes.workerMcpServers` |
@@ -97,6 +99,24 @@ Views of your own, shown in a sandboxed frame (see [panels](panels.md)).
 | `title` | up to 40 characters |
 | `entry` | the HTML page, **relative to the plugin's `ui/` folder** |
 | `placement` | `"tab"` (default): a link in Work's sidebar opening a page of its own. `"session"`: an extra tab next to *Conversation / Changes / Preview* of every session; the panel is told which session. |
+
+### `apps`
+
+Entries in Zeff's menu (*Apps*) that open one of the plugin's panels as a page of its own — not tied to Work.
+Each names a panel declared in `workPanels` (any `placement`); you can move the entry into the header with
+*Menu → Customize*, like a built-in app's.
+
+| Field | Meaning |
+| --- | --- |
+| `panel` | the `id` of a panel in `workPanels` |
+| `label` | its name in the menu (up to 30 characters) |
+| `short` | its name in the header (up to 12) |
+| `hint` | a line under the name (optional, up to 80) |
+
+```json
+"workPanels": [{ "id": "board", "title": "Team board", "entry": "board.html" }],
+"apps": [{ "panel": "board", "label": "Team board", "short": "Team", "hint": "Who works on what" }]
+```
 
 ### `workerMcpServers`
 

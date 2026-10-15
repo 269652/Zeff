@@ -4,32 +4,27 @@
  * Client-safe.
  */
 import { translator, type T } from "@/lib/i18n/shared";
+import { pluginById, type PluginId } from "@/plugins/catalog";
+import { LLM_TASK_LISTS } from "@/plugins/llm-tasks.generated";
 
-/** The tasks — their names and what each does in the language of `t` (English without). */
-export const llmTasks = (t: T = translator("en")) =>
-  [
-    { id: "ticket-lage", label: t("Briefing"), what: t("Reads your tickets — Jira and your Kanban cards (KB-…) — with all their context and makes the briefing and the todos.") },
-    { id: "board-lage", label: t("Board briefing"), what: t("Assesses where all current tickets of your Jira boards stand (for the Kanban cards) — without todos.") },
-    { id: "recap", label: t("Recap"), what: t("Sums up a day: what you did.") },
-    { id: "mail-todos", label: t("Mail review"), what: t("Finds what you have to do in new mails.") },
-    { id: "mail-relations", label: t("Mail matching"), what: t("Matches each todo with the mails it is about.") },
-    { id: "note-todos", label: t("Note review"), what: t("Finds what you have to do in new and changed notes (Google Keep, your Keep boards).") },
-    { id: "note-relations", label: t("Note matching"), what: t("Matches each todo with the notes it is about.") },
-    { id: "doc-todos", label: t("Document review"), what: t("Finds what you have to do in new and changed documents (Documents plugin).") },
-    { id: "doc-relations", label: t("Document matching"), what: t("Matches each todo with the documents it is about.") },
-    { id: "knowledge-relations", idempotent: true, label: t("Knowledge matching"), what: t("Picks from the knowledge base's hits what really fits each todo.") },
-    { id: "people-dates", label: t("People's dates"), what: t("Finds birthdays, anniversaries and other important dates of your people in the knowledge and in your messages (People plugin).") },
-    { id: "people-normalize", idempotent: true, label: t("People matching"), what: t("Finds who is meant by the names in your todos — one person under all their names: aliases, new profiles for contacts, duplicates merged (People plugin).") },
-    { id: "news-digest", idempotent: true, label: t("News overview"), what: t("Sums up the best unread news of the day for you and says why each pick fits (News plugin).") },
-    { id: "news-feeds", label: t("News feed finder"), what: t("Names outlets, blogs and newsletters worth reading on a topic — Zeff then looks for their feeds and checks them (News plugin).") },
-    { id: "reply-draft", label: t("Reply draft"), what: t("Writes the reply to a message (WhatsApp, mail, Teams) a todo is about — from the conversation.") },
-    { id: "auto-actions", label: t("Auto actions"), what: t("Turns todos into ready-made actions (message, comment, mail, meeting, hand-over).") },
-    { id: "worker", label: t("Worker"), what: t("Works on a todo (Code tab, ✨ To Copilot) — in the repo, with tools.") },
-    { id: "general", label: t("Other"), what: t("Everything else (e.g. the connection test).") },
-  ] as const;
+/** The ids of all tasks (known to the compiler from the plugins' lists). */
+export type LlmTaskId = ReturnType<(typeof LLM_TASK_LISTS)[number]>[number]["id"];
+
+/** What a plugin says of a task it has Zeff run. */
+export type LlmTaskDecl = { plugin: PluginId; id: LlmTaskId; label: string; what: string; idempotent?: true };
+
+/**
+ * The tasks — their names and what each does in the language of `t` (English without). Every plugin
+ * brings its own (`export const <NAME>_LLM_TASKS` in a file of its folder, found by `npm run plugins:index`),
+ * in the order of the plugins.
+ */
+export const llmTasks = (t: T = translator("en")): readonly LlmTaskDecl[] =>
+  (LLM_TASK_LISTS as readonly ((t: T) => readonly LlmTaskDecl[])[])
+    .flatMap((list) => list(t))
+    .map((task, i) => ({ task, i, rank: pluginById(task.plugin)?.order ?? 1e6 }))
+    .sort((x, y) => x.rank - y.rank || x.i - y.i)
+    .map((x) => x.task);
 export const LLM_TASKS = llmTasks();
-
-export type LlmTaskId = (typeof LLM_TASKS)[number]["id"];
 
 /**
  * The tasks where identical input must give an equal answer (a repeat within minutes is answered

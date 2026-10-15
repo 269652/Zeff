@@ -16,7 +16,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function KanbanSettingsPage() {
   await connection();
   if (!isInstalled("kanban")) return <PluginNotInstalled id="kanban" />;
-  const boards = listBoards({ archived: true }).map((b) => ({ id: b.id, name: b.name, description: b.description, color: b.color, archived: b.archived, inLage: b.inLage, cards: b.cards, open: b.open }));
+  const boards = listBoards({ archived: true }).map((b) => ({ id: b.id, name: b.name, description: b.description, color: b.color, archived: b.archived, inLage: b.inLage, cards: b.cards, open: b.open, archivedCards: b.archivedCards }));
   return (
     <div className="page">
       <div className="page-aside">

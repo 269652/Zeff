@@ -8,25 +8,11 @@
  */
 import { translator, type T } from "@/lib/i18n/shared";
 import { PLUGINS, pluginById, type PluginId } from "./catalog";
+import type { ExtensionShape } from "./define";
 import { catalogText } from "./catalog-text";
 
 /** An extension as its plugin declares it. */
-export type ExtensionDecl = {
-  /** Unique within the plugin that brings it ("note-action"). */
-  key: string;
-  /** The plugin it extends. */
-  for: PluginId;
-  name: string;
-  description: string;
-  /** More plugins it needs (besides the one that brings it and the one it extends). */
-  requires?: PluginId[];
-  /** On by itself once its plugins are there (until you turn it off). */
-  defaultInstalled: boolean;
-  /** The sync steps it brings — there only while it's on. */
-  syncSteps?: string[];
-  /** The actions (operation types) it brings — offered and run only while it's on. */
-  actions?: string[];
-};
+export type ExtensionDecl = Omit<ExtensionShape, "for" | "requires"> & { for: PluginId; requires?: PluginId[] };
 
 export type Extension = ExtensionDecl & {
   /** "<by>:<key>" — "keep:note-action". */

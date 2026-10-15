@@ -12,28 +12,30 @@ import { z } from "zod";
 /** The version of the extension API this Zeff speaks (a plugin says which it was written for). */
 export const API_VERSION = 1;
 
-/** What a plugin may be allowed to do — each named in its manifest, granted by you when you enable it. */
-export const PERMISSIONS = {
-  "work.read": "Read Code sessions, their logs and results",
-  "work.write": "Start, continue and stop Code sessions",
-  "todos.read": "Read your todos",
-  "todos.write": "Add todos",
-  prompt: "Add rules to what Code's workers are told",
-  exec: "Run programs on this computer (event hooks, MCP servers) — with your rights",
-  network: "Let its panels contact other websites (otherwise they can't)",
-} as const;
-export type Permission = keyof typeof PERMISSIONS;
-export const PERMISSION_IDS = Object.keys(PERMISSIONS) as [Permission, ...Permission[]];
+/**
+ * What a plugin may be allowed to do — each named in its manifest, granted by you when you enable it.
+ * A permission is an id like "work.read": Zeff brings `prompt`, `exec` and `network`; every plugin that
+ * brings API methods brings the permissions they use (see lib/plugins/api.ts, GET /ext/docs for the list).
+ */
+export type Permission = string;
+/** Set by lib/plugins/api-point.ts: whether some plugin brings the permission. Without it, every well-formed id passes. */
+let permissionCheck: (p: string) => boolean = () => true;
+export const setPermissionCheck = (fn: (p: string) => boolean) => {
+  permissionCheck = fn;
+};
+const permissionId = z.string().regex(/^[a-z][a-z0-9]*(\.[a-z0-9]+)*$/, "a permission id like work.read or exec").refine((p) => permissionCheck(p), "no plugin brings this permission");
 
-/** The events a hook can listen to (docs/plugins/hooks.md). */
-export const EVENTS = {
-  "work.run.started": "A Code run started working",
-  "work.run.finished": "A Code run ended (done, failed, stopped or interrupted)",
-  "work.changed": "Something in Code changed (no details; at most every half second)",
-  "todos.changed": "Something in the todos changed (no details; at most every half second)",
-} as const;
-export type ExtEvent = keyof typeof EVENTS;
-export const EVENT_IDS = Object.keys(EVENTS) as [ExtEvent, ...ExtEvent[]];
+/**
+ * The events a hook can listen to (docs/plugins/hooks.md). Like permissions they are brought by plugins
+ * (Code: work.run.started, work.run.finished, work.changed; Todos: todos.changed; Kanban: kanban.changed …).
+ */
+export type ExtEvent = string;
+let eventCheck: (e: string) => boolean = () => true;
+/** Set by lib/plugins/api-point.ts: whether some plugin brings the event. */
+export const setEventCheck = (fn: (e: string) => boolean) => {
+  eventCheck = fn;
+};
+const eventId = z.string().regex(/^[a-z][a-z0-9]*(\.[a-z0-9]+)+$/, "an event name like work.run.finished").refine((e) => eventCheck(e), "no plugin brings this event");
 
 /** Ids a plugin can't take: they're Zeff's own paths under /ext. */
 export const RESERVED_IDS = ["sdk", "docs", "view", "raw"];
@@ -79,6 +81,13 @@ const panel = z.object({
     .describe('"tab": a view of its own, linked in Code\'s sidebar. "session": a drawer beside a session, which gets that session\'s ids.'),
 });
 
+const app = z.object({
+  panel: shortId.describe("The id of one of the plugin's panels (workPanels) this entry opens."),
+  label: z.string().min(1).max(30).describe("Its name in the menu."),
+  short: z.string().min(1).max(12).describe("Its name in the header, when you put it there."),
+  hint: z.string().max(80).default("").describe("A line under the name in the menu."),
+});
+
 const hook = z.object({
   command: z.array(z.string().max(1000)).min(1).max(50).describe('Program and arguments, no shell. "node" is the Node that runs Zeff; "./x" is relative to the plugin folder.'),
   timeoutMs: z.number().int().min(200).max(30000).default(5000),
@@ -93,7 +102,8 @@ const contributes = z.object({
   workCommands: z.array(command).max(50).default([]).describe('Entries of the Code message box\'s "/" menu.'),
   workerMcpServers: z.record(shortId, z.union([mcpStdio, mcpHttp])).default({}).describe("MCP servers every Code worker gets (stdio: needs exec; http: needs network)."),
   workPanels: z.array(panel).max(20).default([]).describe("Views in Code, shown in a sandboxed frame."),
-  hooks: z.partialRecord(z.enum(EVENT_IDS), hook).default({}).describe("Programs Zeff runs when something happens. Needs the exec permission."),
+  apps: z.array(app).max(10).default([]).describe("Entries in Zeff's menu (Apps) that open one of its panels as a page of its own — you can put them in the header (Menu → Customize)."),
+  hooks: z.record(eventId, hook).default({}).describe("Programs Zeff runs when something happens. Needs the exec permission."),
 });
 
 export const manifestSchema = z
@@ -106,8 +116,8 @@ export const manifestSchema = z
     author: z.string().max(100).optional(),
     homepage: z.url().optional(),
     apiVersion: z.number().int().min(1).max(API_VERSION).describe(`The extension API version it was written for (this Zeff speaks up to ${API_VERSION}).`),
-    permissions: z.array(z.enum(PERMISSION_IDS)).max(20).default([]),
-    contributes: contributes.default({ workerRules: [], workCommands: [], workerMcpServers: {}, workPanels: [], hooks: {} }),
+    permissions: z.array(permissionId).max(30).default([]).describe("What it may do (granted by you): exec, network, prompt, and the permissions plugins bring (work.read, todos.write, kanban.read …)."),
+    contributes: contributes.default({ workerRules: [], workCommands: [], workerMcpServers: {}, workPanels: [], apps: [], hooks: {} }),
   })
   .superRefine((m, ctx) => {
     const has = (p: Permission) => m.permissions.includes(p);
@@ -129,6 +139,9 @@ export const manifestSchema = z
     };
     dup(m.contributes.workCommands, "workCommands");
     dup(m.contributes.workPanels, "workPanels");
+    m.contributes.apps.forEach((a, i) => {
+      if (!m.contributes.workPanels.some((p) => p.id === a.panel)) ctx.addIssue({ code: "custom", path: ["contributes", "apps", i, "panel"], message: `no panel "${a.panel}" in workPanels` });
+    });
   });
 
 export type Manifest = z.output<typeof manifestSchema>;

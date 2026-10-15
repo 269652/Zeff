@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { emitChange } from "@/lib/events";
 import { NotFoundError, ValidationError } from "@/lib/errors";
@@ -40,18 +40,19 @@ function toCard(r: typeof cards.$inferSelect): CardView {
   };
 }
 
-export function listBoards(opts: { archived?: boolean } = {}): (typeof boards.$inferSelect & { cards: number; open: number })[] {
+export function listBoards(opts: { archived?: boolean } = {}): (typeof boards.$inferSelect & { cards: number; open: number; archivedCards: number })[] {
   return getDb()
     .select({
       b: boards,
       cards: sql<number>`(select count(*) from kanban_cards c where c.board_id = "kanban_boards"."id" and c.archived = 0)`,
       open: sql<number>`(select count(*) from kanban_cards c join kanban_columns k on k.id = c.column_id where c.board_id = "kanban_boards"."id" and c.archived = 0 and k.done = 0)`,
+      archivedCards: sql<number>`(select count(*) from kanban_cards c where c.board_id = "kanban_boards"."id" and c.archived = 1)`,
     })
     .from(boards)
     .where(opts.archived ? undefined : eq(boards.archived, false))
     .orderBy(asc(boards.sort), asc(boards.id))
     .all()
-    .map((r) => ({ ...r.b, cards: r.cards, open: r.open }));
+    .map((r) => ({ ...r.b, cards: r.cards, open: r.open, archivedCards: r.archivedCards }));
 }
 
 export function getBoard(id: number): BoardView {
@@ -126,6 +127,9 @@ export function updateColumn(id: number, patch: { name?: string; wipLimit?: numb
   if (patch.wipLimit !== undefined) set.wipLimit = patch.wipLimit && patch.wipLimit > 0 ? Math.round(patch.wipLimit) : null;
   if (patch.done !== undefined) set.done = patch.done;
   if (Object.keys(set).length) getDb().update(columns).set(set).where(eq(columns.id, id)).run();
+  // Cards already in the column follow its flag: done since now (never before), or open again.
+  if (patch.done === true) getDb().update(cards).set({ doneAt: now() }).where(and(eq(cards.columnId, id), isNull(cards.doneAt))).run();
+  if (patch.done === false) getDb().update(cards).set({ doneAt: null }).where(eq(cards.columnId, id)).run();
   changed();
 }
 
@@ -142,10 +146,18 @@ export function moveColumn(id: number, dir: -1 | 1): void {
   changed();
 }
 
-/** A column gone — only an empty one (its cards would go with it). */
+/** A column gone — only one without cards on the board. Archived cards in it move to the board's first other column (still archived), so they stay restorable. */
 export function deleteColumn(id: number): void {
+  const col = getDb().select().from(columns).where(eq(columns.id, id)).get();
+  if (!col) return;
   const n = getDb().select({ n: sql<number>`count(*)` }).from(cards).where(and(eq(cards.columnId, id), eq(cards.archived, false))).get()?.n ?? 0;
   if (n) throw new ValidationError(n === 1 ? t("The column still has 1 card — move it first.") : t("The column still has {n} cards — move them first.", { n }));
+  const archived = getDb().select({ n: sql<number>`count(*)` }).from(cards).where(and(eq(cards.columnId, id), eq(cards.archived, true))).get()?.n ?? 0;
+  if (archived) {
+    const other = getDb().select().from(columns).where(and(eq(columns.boardId, col.boardId), ne(columns.id, id))).orderBy(asc(columns.sort), asc(columns.id)).get();
+    if (!other) throw new ValidationError(t("The column still has archived cards — restore or delete them first."));
+    getDb().update(cards).set({ columnId: other.id }).where(and(eq(cards.columnId, id), eq(cards.archived, true))).run();
+  }
   getDb().delete(columns).where(eq(columns.id, id)).run();
   changed();
 }
@@ -153,15 +165,20 @@ export function deleteColumn(id: number): void {
 const isDone = (columnId: number) => !!getDb().select({ done: columns.done }).from(columns).where(eq(columns.id, columnId)).get()?.done;
 
 export function createCard(columnId: number, title: string): CardView {
+  return insertCard(columnId, title, null);
+}
+
+/** One insert (card and, for a subtask, its link to the parent) — so a subtask never exists half made. */
+function insertCard(columnId: number, title: string, parentId: number | null): CardView {
   const col = getDb().select().from(columns).where(eq(columns.id, columnId)).get();
   if (!col) throw new NotFoundError(t("That column doesn't exist."));
-  const sort = (getDb().select({ n: sql<number>`coalesce(max(sort), 0)` }).from(cards).where(eq(cards.columnId, columnId)).get()?.n ?? 0) + 1;
-  const r = getDb()
-    .insert(cards)
-    .values({ boardId: col.boardId, columnId, title: name(title, t("Card"), 300), sort, doneAt: col.done ? now() : null })
-    .returning()
-    .get();
-  getDb().update(boards).set({ updatedAt: now() }).where(eq(boards.id, col.boardId)).run();
+  const text = name(title, t("Card"), 300);
+  const r = getDb().transaction((tx) => {
+    const sort = (tx.select({ n: sql<number>`coalesce(max(sort), 0)` }).from(cards).where(eq(cards.columnId, columnId)).get()?.n ?? 0) + 1;
+    const row = tx.insert(cards).values({ boardId: col.boardId, columnId, title: text, sort, parentId, doneAt: col.done ? now() : null }).returning().get();
+    tx.update(boards).set({ updatedAt: now() }).where(eq(boards.id, col.boardId)).run();
+    return row;
+  });
   changed();
   return toCard(r);
 }
@@ -173,11 +190,9 @@ export function createCard(columnId: number, title: string): CardView {
 export function createSubtask(parentId: number, title: string): CardView {
   const db = getDb();
   const parent = db.select().from(cards).where(eq(cards.id, parentId)).get();
-  if (!parent) throw new NotFoundError("Die Karte gibt es nicht.");
-  if (parent.parentId) throw new ValidationError("Eine Unteraufgabe kann keine eigenen Unteraufgaben haben.");
-  const card = createCard(parent.columnId, title);
-  db.update(cards).set({ parentId }).where(eq(cards.id, card.id)).run();
-  return { ...card, parentId };
+  if (!parent) throw new NotFoundError(t("That card doesn't exist."));
+  if (parent.parentId) throw new ValidationError(t("A subtask can't have subtasks of its own."));
+  return insertCard(parent.columnId, title, parentId);
 }
 
 /** A subtask made a card of its own again. */
@@ -212,7 +227,16 @@ export function moveCard(id: number, columnId: number, before: number | null): v
   const card = db.select().from(cards).where(eq(cards.id, id)).get();
   if (!card) throw new NotFoundError(t("That card doesn't exist."));
   const list = db.select().from(cards).where(and(eq(cards.columnId, columnId), eq(cards.archived, false))).orderBy(asc(cards.sort), asc(cards.id)).all().filter((c) => c.id !== id);
-  const at = before ? list.findIndex((c) => c.id === before) : -1;
+  let at = before ? list.findIndex((c) => c.id === before) : -1;
+  // Midpoints halve the gap at every insert in the same spot; renumber the column before it's too small to order.
+  const gap = at > 0 ? list[at].sort - list[at - 1].sort : Infinity;
+  if (gap < 1e-6) {
+    list.forEach((c, i) => {
+      c.sort = (i + 1) * 1024;
+      db.update(cards).set({ sort: c.sort }).where(eq(cards.id, c.id)).run();
+    });
+    at = before ? list.findIndex((c) => c.id === before) : -1;
+  }
   const prev = at > 0 ? list[at - 1].sort : at === 0 ? list[0].sort - 2 : (list[list.length - 1]?.sort ?? 0);
   const next = at >= 0 ? list[at].sort : prev + 2;
   const done = isDone(columnId);
@@ -227,12 +251,12 @@ export function moveCard(id: number, columnId: number, before: number | null): v
 export function moveCardToBoard(id: number, boardId: number, withSubtasks = false): void {
   const db = getDb();
   const card = db.select().from(cards).where(eq(cards.id, id)).get();
-  if (!card) throw new NotFoundError("Die Karte gibt es nicht.");
+  if (!card) throw new NotFoundError(t("That card doesn't exist."));
   if (card.boardId === boardId) return;
   const target = db.select().from(boards).where(eq(boards.id, boardId)).get();
-  if (!target || target.archived) throw new NotFoundError("Das Board gibt es nicht.");
+  if (!target || target.archived) throw new NotFoundError(t("That board doesn't exist."));
   const col = db.select().from(columns).where(eq(columns.boardId, boardId)).orderBy(asc(columns.sort), asc(columns.id)).get();
-  if (!col) throw new ValidationError(`„${target.name}“ hat keine Spalte.`);
+  if (!col) throw new ValidationError(t("“{name}” has no column.", { name: target.name }));
   const sort = (db.select({ n: sql<number>`coalesce(max(sort), 0)` }).from(cards).where(eq(cards.columnId, col.id)).get()?.n ?? 0) + 1;
   // Links stay within a board: a subtask leaves its parent; a parent's subtasks either come along (each into the first column, after the parent, still linked to it) or stay behind as cards of their own.
   const kids = withSubtasks ? db.select().from(cards).where(eq(cards.parentId, id)).orderBy(asc(cards.sort), asc(cards.id)).all() : [];
@@ -253,8 +277,24 @@ export function moveCardToBoard(id: number, boardId: number, withSubtasks = fals
 }
 
 export function archiveCard(id: number): void {
-  getDb().update(cards).set({ archived: true, updatedAt: now() }).where(eq(cards.id, id)).run();
+  // Its subtasks stay on the board as cards of their own (the parent is out of sight).
+  getDb().transaction((tx) => {
+    tx.update(cards).set({ parentId: null }).where(eq(cards.parentId, id)).run();
+    tx.update(cards).set({ archived: true, updatedAt: now() }).where(eq(cards.id, id)).run();
+  });
   changed();
+}
+
+/** A board's archived cards, the latest first — to restore or delete for good. */
+export function listArchivedCards(boardId: number): (CardView & { column: string })[] {
+  return getDb()
+    .select({ c: cards, column: columns.name })
+    .from(cards)
+    .innerJoin(columns, eq(columns.id, cards.columnId))
+    .where(and(eq(cards.boardId, boardId), eq(cards.archived, true)))
+    .orderBy(desc(cards.updatedAt), desc(cards.id))
+    .all()
+    .map((r) => ({ ...toCard(r.c), column: r.column }));
 }
 
 /** A card as it is stored, with the subtasks it has — to put it back (restoreCard) after a delete. */
@@ -288,7 +328,9 @@ export function restoreCard(snap: CardSnapshot): CardView {
   return toCard(r);
 }
 
+/** An archived card back on its board, where it was. */
 export function unarchiveCard(id: number): void {
+  if (!getDb().select({ id: cards.id }).from(cards).where(eq(cards.id, id)).get()) throw new NotFoundError(t("That card doesn't exist."));
   getDb().update(cards).set({ archived: false, updatedAt: now() }).where(eq(cards.id, id)).run();
   changed();
 }

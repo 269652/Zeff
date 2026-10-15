@@ -19,15 +19,19 @@ export default async function ExtPanelPage({ params, searchParams }: { params: P
   const plugin = getPlugin(id);
   const panel = plugin?.enabled ? plugin.manifest.contributes.workPanels.find((p) => p.id === panelId) : undefined;
   if (!plugin || !panel) notFound();
+  // An app (Menu → Apps) is a page of its own; any other panel belongs to Work.
+  const isApp = plugin.manifest.contributes.apps.some((a) => a.panel === panel.id);
   const num = (v?: string) => (v && /^\d+$/.test(v) ? Number(v) : undefined);
   return (
     <div className="flex min-h-[calc(100vh-7rem)] w-full flex-col gap-3">
       <header className="flex items-baseline gap-3">
         <h1 className="text-lg font-semibold">{panel.title}</h1>
         <span className="text-xs text-zinc-500">{plugin.manifest.name}</span>
-        <Link href="/work" className="ml-auto text-xs text-indigo-600 hover:underline dark:text-indigo-400">
-          {t("← Code")}
-        </Link>
+        {!isApp && (
+          <Link href="/work" className="ml-auto text-xs text-indigo-600 hover:underline dark:text-indigo-400">
+            {t("← Code")}
+          </Link>
+        )}
       </header>
       <ExtFrame plugin={plugin.id} entry={panel.entry} title={panel.title} context={{ runId: num(sp.runId), ticket: sp.ticket?.slice(0, 40), todoId: num(sp.todoId) }} />
     </div>

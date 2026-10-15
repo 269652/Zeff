@@ -17,6 +17,8 @@ import { getBoardSettings } from "@/lib/boards/store";
 import { listJiraBoards } from "@/lib/jira/store";
 import { LanguagePicker } from "@/components/LanguagePicker";
 import { TouchSettings } from "@/components/TouchSettings";
+import { LockSettings } from "@/components/LockSettings";
+import { lockEnabled } from "@/lib/lock/shared";
 import { guardedActions, listCredentials } from "@/lib/touch";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -123,6 +125,17 @@ export default async function PreferencesPage() {
           keys={listCredentials().map((k) => ({ id: k.id, label: k.label, rpId: k.rpId, createdAt: k.createdAt }))}
           exportGuarded={guardedActions().includes("booking-export")}
         />
+      </section>
+      <section id="lock" className="card scroll-mt-4 space-y-3 p-4">
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Lock")}</h2>
+          <p className="max-w-[75ch] text-sm text-zinc-500">
+            {t(
+              "Zeff opens only with the PIN of your security key and a touch, and locks the moment you pull the key out. The PIN is the key's own (set it with the Yubico software or Windows: Settings → Accounts → Sign-in options → Security key). Only the browser is locked — agents and scripts on this computer are not. Locked out? Delete data/lock.json next to the database.",
+            )}
+          </p>
+        </div>
+        <LockSettings enabled={lockEnabled()} hasKeys={listCredentials().length > 0} />
       </section>
       {isInstalled("backup") && (
         <section id="backups" className="card scroll-mt-4 space-y-3 p-4">

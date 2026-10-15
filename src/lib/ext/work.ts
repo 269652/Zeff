@@ -150,16 +150,15 @@ export function extWorkPanels(placement?: "tab" | "session"): WorkPanel[] {
 }
 
 /**
- * Follow the app's own change bus, for the events without details (work.changed, todos.changed):
- * at most one per half second per account and topic. Started once when the server starts
- * (instrumentation.ts). Does nothing while no plugin listens.
+ * Follow the app's own change bus, for the events without details (work.changed, todos.changed,
+ * kanban.changed … — every event a plugin ties to a topic): at most one per half second per account and
+ * topic. Started once when the server starts (instrumentation.ts). Does nothing while no plugin listens.
  */
 export function startExtWatcher(): void {
   const g = globalThis as { __zeffExtWatcher?: () => void };
   g.__zeffExtWatcher?.();
   const pending = new Map<string, ReturnType<typeof setTimeout>>();
   const off = onChange((topic) => {
-    if (topic !== "work" && topic !== "todos") return;
     // The listener runs in the emitter's context: its account.
     const account = currentAccountId();
     const key = `${account}:${topic}`;
@@ -169,7 +168,12 @@ export function startExtWatcher(): void {
       setTimeout(() => {
         pending.delete(key);
         if (!listAccounts().some((a) => a.id === account)) return;
-        withAccount(account, () => emitExtEvent(topic === "work" ? "work.changed" : "todos.changed", {}));
+        withAccount(account, () => {
+          // The installed plugins' events tied to this topic (the registry is loaded lazily: it loads all plugins).
+          void import("@/lib/plugins/api").then(({ apiPoint }) => {
+            for (const c of apiPoint.list()) for (const [event, e] of Object.entries(c.impl.events ?? {})) if (e.topic === topic) withAccount(account, () => emitExtEvent(event, {}));
+          });
+        });
       }, 500),
     );
   });

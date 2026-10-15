@@ -22,8 +22,10 @@ const write = (id: string, manifest: unknown, files: Record<string, string> = {}
 const base = { name: "T", apiVersion: 1 };
 
 test("a manifest is checked: ids, permissions the contributions need, paths inside the folder", async () => {
+  await import("@/lib/plugins/api"); // the plugins register the permissions a manifest may ask for
   const { parseManifest } = await import("@/lib/ext/manifest");
   const ok = parseManifest(JSON.stringify({ ...base, id: "my-plugin" }));
+  assert.ok(parseManifest(JSON.stringify({ ...base, id: "my-plugin", permissions: ["kanban.write", "work.read", "exec"] })).ok, "permissions plugins bring are fine");
   assert.ok(ok.ok);
   const bad = (m: object) => {
     const r = parseManifest(JSON.stringify({ ...base, id: "p-x", ...m }));
@@ -297,21 +299,27 @@ test("a hook gets the event on stdin, in its folder, with the API environment; a
 
 test("the manifest's JSON Schema file and the permission texts are in step with the code", async () => {
   const { manifestJsonSchema } = await import("@/lib/ext/schema");
-  const { PERMISSIONS } = await import("@/lib/ext/manifest");
   const { permissionTexts } = await import("@/lib/ext/permission-texts");
   const file = fs.readFileSync(path.join(process.cwd(), "docs", "plugins", "zeff-plugin.schema.json"), "utf8").replace(/\r\n/g, "\n");
   assert.equal(file, manifestJsonSchema(), "docs/plugins/zeff-plugin.schema.json is out of date: npm run plugin:schema");
-  assert.deepEqual(permissionTexts(), PERMISSIONS, "the translated permission texts in permission-texts.ts must equal PERMISSIONS (English)");
+  // Zeff's three and those of Work, Todos and Kanban (installed by default or not, the texts are the plugins' own).
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("kanban", true);
+  const words = permissionTexts();
+  for (const id of ["prompt", "exec", "network", "work.read", "work.write", "todos.read", "todos.write", "kanban.read", "kanban.write"]) assert.ok(words[id], `no text for the permission ${id}`);
 });
 
 test("the docs name every API method, event and permission; the examples are valid plugins", async () => {
-  const { METHODS } = await import("@/lib/ext/api");
-  const { EVENT_IDS, PERMISSION_IDS } = await import("@/lib/ext/manifest");
+  const { apiMethods, knownPermissions } = await import("@/lib/plugins/api");
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("kanban", true);
+  const METHODS = apiMethods();
+  const { allEvents } = await import("@/lib/plugins/api-point");
   const { checkPluginFolder } = await import("@/lib/ext/check");
   const doc = (n: string) => fs.readFileSync(path.join(process.cwd(), "docs", "plugins", `${n}.md`), "utf8");
   for (const m of Object.keys(METHODS)) assert.ok(doc("api").includes(`\`${m}\``), `api.md doesn't document ${m}`);
-  for (const e of EVENT_IDS) assert.ok(doc("hooks").includes(`\`${e}\``), `hooks.md doesn't document ${e}`);
-  for (const p of PERMISSION_IDS) assert.ok(doc("manifest").includes(`\`${p}\``), `manifest.md doesn't document ${p}`);
+  for (const e of allEvents()) assert.ok(doc("hooks").includes(`\`${e.id}\``), `hooks.md doesn't document ${e.id}`);
+  for (const p of Object.keys(knownPermissions())) assert.ok(doc("manifest").includes(`\`${p}\``), `manifest.md doesn't document ${p}`);
   // Every method a panel's helper calls exists (the SDK is plain text: its call("…") names are checked here).
   const { SDK_JS } = await import("@/lib/ext/sdk");
   const clientOnly = new Set(["ui.toast", "ui.navigate", "ui.resize"]);
@@ -423,4 +431,31 @@ test("the docs render in the app: no bold or code span runs over a line break (t
       assert.equal(line.split("`").length % 2, 1, `${file}:${i + 1}: a \` span runs over the line's end`);
     });
   }
+});
+
+test("a plugin's event reaches the hooks: Kanban's change becomes kanban.changed", async () => {
+  const reg = await import("@/lib/ext/registry");
+  const { startExtWatcher } = await import("@/lib/ext/work");
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("kanban", true);
+  const dir = write(
+    "hook-kanban",
+    { ...base, id: "hook-kanban", permissions: ["exec"], contributes: { hooks: { "kanban.changed": { command: ["node", "./hook.mjs"], timeoutMs: 5000 } } } },
+    { "hook.mjs": 'import fs from "node:fs"; fs.appendFileSync("seen.txt", process.env.ZEFF_EVENT + " ");' },
+  );
+  assert.ok(reg.scanPlugins(true).plugins.some((p) => p.id === "hook-kanban"), "a hook on an event a plugin brings is accepted");
+  reg.setEnabled("hook-kanban", true);
+  startExtWatcher();
+  const store = await import("@/plugins/kanban/store");
+  const b = store.createBoard({ name: "Hooked" });
+  store.createCard(store.getBoard(b).columns[0].id, "x");
+  const seen = path.join(dir, "seen.txt");
+  const said = () => fs.existsSync(seen) && fs.readFileSync(seen, "utf8").includes("kanban.changed");
+  for (let i = 0; i < 40 && !said(); i++) await new Promise((r) => setTimeout(r, 100));
+  assert.ok(fs.existsSync(seen), "the hook ran");
+  assert.match(fs.readFileSync(seen, "utf8"), /kanban\.changed/);
+  // An event nobody brings is refused.
+  const { parseManifest } = await import("@/lib/ext/manifest");
+  assert.ok(!parseManifest(JSON.stringify({ ...base, id: "p-y", permissions: ["exec"], contributes: { hooks: { "mail.arrived": { command: ["x"] } } } })).ok);
+  reg.setEnabled("hook-kanban", false);
 });

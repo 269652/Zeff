@@ -4,6 +4,13 @@
  */
 import { action, EN, str } from "../actions/types";
 
+/** The operation types this plugin brings (an entry per `type`); the core's TodoOp is the union of all plugins'. */
+declare module "@/lib/boards/shared" {
+  interface TodoOpMap {
+  "signal-message": { chat: string; body: string };
+  }
+}
+
 export const SIGNAL_ACTIONS = [
   action({
     type: "signal-message",

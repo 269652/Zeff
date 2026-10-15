@@ -5,6 +5,8 @@ import { BASE_DIR, currentAccountId } from "@/db/accounts";
 import { getDb, schema } from "@/db";
 import { getPref, setPref } from "@/lib/prefs";
 import { parseManifest, type Manifest, type Permission } from "./manifest";
+// The permissions a manifest may ask for are the ones the plugins bring: they register when this is loaded.
+import "@/lib/plugins/api";
 
 /**
  * The external plugins on this computer: every folder in the plugins folder with a valid

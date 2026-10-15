@@ -7,6 +7,16 @@ import { pad2 as p } from "@/lib/text";
 import { formatDate, formatTime } from "@/lib/format";
 import { action, EN, str } from "../actions/types";
 
+/** The operation types this plugin brings (an entry per `type`); the core's TodoOp is the union of all plugins'. */
+declare module "@/lib/boards/shared" {
+  interface TodoOpMap {
+  /** A mail draft opened in Outlook Web (you send it) — addresses separated by ";". */
+  "mail-compose": { to: string; subject: string; body: string };
+  /** An appointment opened in Outlook Web (you send it): local start "YYYY-MM-DDTHH:MM", its minutes, addresses. */
+  "calendar-event": { subject: string; start: string; minutes: number; attendees: string; body: string };
+  }
+}
+
 const OWA = "https://outlook.office.com";
 const q = (params: Record<string, string>) =>
   Object.entries(params)

@@ -47,6 +47,33 @@ export async function createPageAction(v: { parentId?: number | null; kind?: "pa
   });
 }
 
+/** Today's page: under "Daily notes", made at the first use — with your open todos that are due, as links. Returns its id. */
+export async function todayPageAction() {
+  return run(async () => {
+    const d = new Date();
+    const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const topTitle = t("Daily notes");
+    const top = store.tree().find((x) => x.parentId === null && x.title === topTitle) ?? null;
+    const parentId = top ? top.id : store.createPage({ title: topTitle, icon: "🗓️" });
+    const had = store.tree().find((x) => x.parentId === parentId && x.title === day);
+    if (had) return { id: had.id };
+    const content: object[] = [{ type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: t("Plan") }] }];
+    if (isInstalled("todos")) {
+      const { listTodos } = await import("@/lib/boards/store");
+      const due = listTodos({ status: "open" })
+        .filter((x) => x.owner === "me" && x.due && x.due <= day)
+        .slice(0, 12);
+      if (due.length)
+        content.push({
+          type: "taskList",
+          content: due.map((x) => ({ type: "taskItem", attrs: { checked: false }, content: [{ type: "paragraph", content: [{ type: "zeffRef", attrs: { kind: "todo", ref: String(x.id), label: `${x.ref} ${x.text}`.slice(0, 80), href: `/t/${x.id}` } }] }] })),
+        });
+    }
+    content.push({ type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: t("Notes") }] }, { type: "paragraph" });
+    return { id: store.createPage({ parentId, title: day, icon: "📅", content: { type: "doc", content } }) };
+  });
+}
+
 export async function savePageAction(id: number, patch: store.PagePatch, rev?: number): Promise<Result<{ save: store.SaveResult }>> {
   return run(() => {
     const page = store.getPage(Number(id));
@@ -311,13 +338,14 @@ export async function exportMarkdownAction(pageId: number) {
   });
 }
 
-export async function importMarkdownAction(markdown: string, title: string, parentId: number | null) {
+/** A page from Markdown: its first "# Heading" is the title, else `fallbackTitle` (the file's name). */
+export async function importMarkdownAction(markdown: string, fallbackTitle: string, parentId: number | null) {
   return run(() => {
     const md = String(markdown ?? "");
     // A first "# Heading" is the title.
     const m = /^#\s+(.+?)\s*\n+/.exec(md);
     const doc = markdownToDoc(m ? md.slice(m[0].length) : md);
-    return { id: store.createPage({ parentId, title: title || m?.[1] || t("Imported page"), content: doc }) };
+    return { id: store.createPage({ parentId, title: m?.[1] || fallbackTitle || t("Imported page"), content: doc }) };
   });
 }
 

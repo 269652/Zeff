@@ -4,6 +4,7 @@ import { t } from "@/lib/i18n/server";
 import { PLUGINS } from "./catalog";
 import { catalogText } from "./catalog-text";
 import { installedPlugins } from "./state";
+import { enabledPlugins } from "@/lib/ext/registry";
 
 /** The applications' default order (a plugin's tabs — Work, Todos …); the plugins' apps (Mail, Gmail …) after. */
 const TAB_ORDER = ["work", "todos", "tickets", "kanban", "weekly-report", "monthly-report", "knowledge"];
@@ -26,11 +27,13 @@ export function allApps(): AppView[] {
   const prefs = getMenuPrefs();
   const rank = (id: string) => (TAB_ORDER.includes(id) ? TAB_ORDER.indexOf(id) : TAB_ORDER.length);
   const plugins = PLUGINS.filter((p) => on.has(p.id)).sort((a, b) => rank(a.id) - rank(b.id));
+  // External plugins (src/lib/ext) bring apps the same way: a panel of theirs opened as a page.
+  const external = enabledPlugins().flatMap((p) => p.manifest.contributes.apps.map((a) => ({ href: `/ext/view/${p.id}/${a.panel}`, label: a.label, short: a.short, hint: a.hint || p.manifest.name, pluginName: p.manifest.name })));
   const seen = new Set<string>();
   const apps: AppView[] = [];
   for (const [list, defaultPlace] of [
     [plugins.flatMap((p) => (p.tabs ?? []).map((x) => ({ ...x, label: tr(x.label), short: tr(x.short), hint: tr(p.name), pluginName: tr(p.name) }))), "header"],
-    [plugins.flatMap((p) => (p.apps ?? []).map((a) => ({ ...a, label: tr(a.label), short: tr(a.short), hint: tr(a.hint), pluginName: tr(p.name) }))), "menu"],
+    [[...plugins.flatMap((p) => (p.apps ?? []).map((a) => ({ ...a, label: tr(a.label), short: tr(a.short), hint: tr(a.hint), pluginName: tr(p.name) }))), ...external], "menu"],
   ] as const) {
     for (const a of list) {
       if (seen.has(a.href)) continue;

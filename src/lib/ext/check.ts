@@ -38,6 +38,7 @@ export function checkPluginFolder(dir: string): CheckResult {
   if (m.permissions.includes("exec") && !Object.keys(m.contributes.hooks).length && !Object.values(m.contributes.workerMcpServers).some((s) => "command" in s)) warnings.push('permission "exec" is asked for but nothing uses it');
   if (m.permissions.includes("prompt") && !m.contributes.workerRules.length) warnings.push('permission "prompt" is asked for but there are no workerRules');
   if (m.permissions.includes("network") && !m.contributes.workPanels.length && !Object.values(m.contributes.workerMcpServers).some((s) => "url" in s)) warnings.push('permission "network" is asked for but nothing uses it');
+  if (m.contributes.apps.length && !m.contributes.workPanels.length) warnings.push("apps open panels, but there are no workPanels");
   if (!m.description) warnings.push("no description");
   return { ok: errors.length === 0, manifest: m, errors, warnings };
 }

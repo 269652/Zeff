@@ -68,6 +68,8 @@ const headerAccount = () => {
   return { current: chip(currentAccount()), list: listAccounts().map(chip) };
 };
 import { Toaster } from "@/components/Toaster";
+import { LockWatcher } from "@/components/LockWatcher";
+import { lockEnabled } from "@/lib/lock/shared";
 import { SetupGate } from "@/components/SetupGate";
 import { getAppSettings } from "@/lib/ai";
 import { MainArea } from "@/components/MainArea";
@@ -131,6 +133,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             </PluginFlagsProvider>
           </MainArea>
           <LiveRefresh />
+          <LockWatcher enabled={lockEnabled()} />
           <HashHighlight />
           <Toaster />
         </I18nProvider>

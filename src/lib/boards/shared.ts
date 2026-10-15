@@ -3,7 +3,7 @@
  * parts pages, the MCP server and the run share (client-safe: no DB access here).
  */
 
-import { OFFERED_ACTIONS, actionOf, cleanActions } from "@/plugins/actions/catalog";
+import { ACTIONS, OFFERED_ACTIONS, actionOf, cleanActions } from "@/plugins/actions/catalog";
 import type { MailView } from "@/lib/mail/shared";
 import type { GitlabItemView } from "@/lib/gitlab/shared";
 import type { TeamsMessageView } from "@/lib/teams/shared";
@@ -105,62 +105,13 @@ export type TodoStatus = "open" | "done" | "dismissed";
  * Jira connection (a transition, an assignee, a comment), in GitLab through the automation
  * Chrome (a reply in a comment's thread, resolving it).
  */
-export type TodoOp =
-  | { type: "jira-transition"; ticket: string; to: string }
-  | { type: "jira-assign"; ticket: string; assignee: string }
-  | { type: "jira-comment"; ticket: string; body: string }
-  /** A new ticket (in the project of `ticket`, linked to it): its title, type and description (Markdown — Jira's markup when it's created). */
-  | { type: "jira-create"; ticket: string; summary: string; issueType: string; body: string }
-  | { type: "gitlab-reply"; note: string; body: string }
-  | { type: "gitlab-resolve"; note: string }
-  /** A 1:1 Teams message to a colleague (by display name) — sent through the Teams tab of the automation Chrome. */
-  | { type: "teams-message"; to: string; body: string }
-  /** A mail draft opened in Outlook Web (you send it) — addresses separated by ";". */
-  | { type: "mail-compose"; to: string; subject: string; body: string }
-  /** An appointment opened in Outlook Web (you send it): local start "YYYY-MM-DDTHH:MM", its minutes, addresses. */
-  | { type: "calendar-event"; subject: string; start: string; minutes: number; attendees: string; body: string }
-  /** The todo handed to a worker (Code tab) with this instruction. */
-  | { type: "work-instruct"; instruction: string }
-  /** A note on one of your Keep boards (Google Keep's extension for Auto-Aktionen). */
-  | { type: "keep-note"; board: string; title: string; text: string }
-  | { type: "whatsapp-message"; chat: string; body: string }
-  | { type: "signal-message"; chat: string; body: string }
-  | { type: "gmail-compose"; to: string; subject: string; body: string }
-  /** An appointment entered in one of Zeff's own calendars (by name; "": the first) — local start "YYYY-MM-DDTHH:MM". */
-  | { type: "calendar-entry"; calendar: string; title: string; start: string; minutes: number; body: string }
-  /** An appointment opened in Google Calendar, filled in (you save it) — local start "YYYY-MM-DDTHH:MM". */
-  | { type: "gcal-event"; title: string; start: string; minutes: number; body: string }
-  // Delivery (Zeff makes these after an implementation; not in the AI's dictionary):
-  | {
-      type: "git-push";
-      repo: string;
-      branch: string;
-      remote: string;
-      target: string;
-      title?: string;
-      description?: string;
-    }
-  | {
-      type: "gitlab-open-mr";
-      repo: string;
-      project: string;
-      source: string;
-      target: string;
-      title: string;
-      description: string;
-    }
-  | { type: "gitlab-merge"; project: string; iid: number; source: string }
-  | { type: "git-merge-main"; repo: string; branch: string; target: string }
-  /** Uncommitted changes (these files) committed on a feature branch (made from where the checkout is, when it's another). */
-  | { type: "git-commit-branch"; repo: string; branch: string; files: string[]; message: string; target: string };
-/** The delivery operations (Zeff's own, after an implementation). */
-export const DELIVERY_OP_TYPES = [
-  "git-push",
-  "gitlab-open-mr",
-  "gitlab-merge",
-  "git-merge-main",
-  "git-commit-branch",
-] as const;
+// An empty interface on purpose: plugins add their operation types to it (declaration merging).
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface TodoOpMap {}
+/** Every plugin's operation types (`declare module` in its actions file adds to {@link TodoOpMap}), each with its `type`. */
+export type TodoOp = { [K in keyof TodoOpMap]: { type: K } & TodoOpMap[K] }[keyof TodoOpMap];
+/** The delivery operations (Zeff's own, after an implementation): the actions flagged `delivery`. */
+export const DELIVERY_OP_TYPES = ACTIONS.filter((a) => a.delivery).map((a) => a.type);
 /** The operations an AI may propose: the offered actions of all plugins (which are installed is checked where they're offered). */
 export const TODO_OP_TYPES = OFFERED_ACTIONS.map((a) => a.type);
 

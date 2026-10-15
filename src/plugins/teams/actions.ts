@@ -1,6 +1,14 @@
 /** The Teams plugin's action: a 1:1 message, sent through Teams Web in the automation Chrome. Client-safe. */
 import { action, EN, str } from "../actions/types";
 
+/** The operation types this plugin brings (an entry per `type`); the core's TodoOp is the union of all plugins'. */
+declare module "@/lib/boards/shared" {
+  interface TodoOpMap {
+  /** A 1:1 Teams message to a colleague (by display name) — sent through the Teams tab of the automation Chrome. */
+  "teams-message": { to: string; body: string };
+  }
+}
+
 export const TEAMS_ACTIONS = [
   action({
     type: "teams-message",

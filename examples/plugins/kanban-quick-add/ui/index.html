@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Kanban quick add</title>
+  <link rel="stylesheet" href="/ext/sdk/zeff.css">
+</head>
+<body>
+  <h1>Kanban quick add</h1>
+  <p class="muted" id="hint"></p>
+  <form class="row" id="form">
+    <select class="input" id="board" aria-label="Board"></select>
+    <select class="input" id="column" aria-label="Column"></select>
+    <input class="input" id="title" placeholder="A card …" autocomplete="off" style="flex:1">
+    <button class="btn btn-primary">Add</button>
+  </form>
+  <ul id="cards"></ul>
+
+  <script src="/ext/sdk/zeff.js"></script>
+  <script>
+    "use strict";
+    const $ = (id) => document.getElementById(id);
+    let board = null;
+
+    // Methods other plugins bring are called by name: kanban.read / kanban.write are Kanban's permissions.
+    async function loadBoards() {
+      const boards = await zeff.call("kanban.boards.list");
+      $("board").replaceChildren(...boards.map((b) => new Option(b.name, b.id)));
+      $("hint").textContent = boards.length ? "" : "No boards yet — create one in Kanban.";
+      if (boards.length) await loadBoard(boards[0].id);
+    }
+    async function loadBoard(id) {
+      board = await zeff.call("kanban.boards.get", { id: Number(id) });
+      $("column").replaceChildren(...board.columns.map((c) => new Option(c.name, c.id)));
+      $("cards").replaceChildren(...board.columns.flatMap((c) => c.cards.slice(-5).map((x) => {
+        const li = document.createElement("li");
+        li.textContent = x.ref + " " + x.title + " (" + c.name + ")";
+        return li;
+      })));
+    }
+    $("board").onchange = () => loadBoard($("board").value).catch((e) => zeff.ui.toast(e.message, "error"));
+    $("form").onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        await zeff.call("kanban.cards.add", { columnId: Number($("column").value), title: $("title").value });
+        $("title").value = "";
+        await loadBoard($("board").value);
+      } catch (err) { zeff.ui.toast(err.message, "error"); }
+    };
+    zeff.on("change", ({ topic }) => { if (topic === "kanban" && board) loadBoard(board.id).catch(() => {}); });
+    loadBoards().catch((err) => { $("hint").textContent = err.message; });   // e.g. Kanban isn't installed
+  </script>
+</body>
+</html>
