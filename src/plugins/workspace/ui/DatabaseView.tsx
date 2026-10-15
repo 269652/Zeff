@@ -249,7 +249,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   if (!data || !view) return <p className="py-6 text-sm text-zinc-500">{t("Loading …")}</p>;
 
   const schema = data.schema;
-  const ctx: CellCtx = { data, set: api.set, addOption: api.addOption, editable: true, openRow: (id) => openRow(id) };
+  // A locked database (one a sync keeps, as Jira's) is shown, not changed: its cells, cards and columns stay as they are.
+  const ctx: CellCtx = { data, set: api.set, addOption: api.addOption, editable: !data.locked, openRow: (id) => openRow(id) };
   void embedded;
   const switchCollection = async (patch: { briefing?: boolean; knowledge?: boolean }) => {
     const r = await setCollectionAction(dbId, patch);
@@ -427,7 +428,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
             </>
           )}
         </Dropdown>
-        <div className="flex">
+        <div className={`flex ${data.locked ? "hidden" : ""}`}>
           <button type="button" className="btn btn-primary btn-sm rounded-r-none" onClick={() => void newRow({}, undefined, false)}>
             {t("New")}
           </button>
@@ -463,6 +464,7 @@ type ViewProps = { view: View; rows: Row[]; visible: Property[]; schema: DbSchem
 
 function RowMenu({ row, api }: { row: Row; api: Api }) {
   const t = useT();
+  if (api.data?.locked) return null; // a sync keeps its rows
   return (
     <Dropdown label="⋮" title={t("Row actions")} className="icon-btn" align="left">
       {(close) => (
@@ -670,6 +672,7 @@ function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, new
             e.preventDefault();
             const before = beforeAt(e.currentTarget, e.clientY);
             setOver(null);
+            if (ctx.data.locked) return;
             const id = Number(e.dataTransfer.getData("text/ws-row"));
             const from = e.dataTransfer.getData("text/ws-from");
             const row = rows.find((r) => r.id === id);
@@ -682,14 +685,14 @@ function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, new
             }
           }}
         >
-          <ColumnHead g={g} gp={gp} view={view} rows={rows} api={api} />
+          <ColumnHead g={g} gp={gp} view={view} rows={rows} api={api} locked={!!ctx.data.locked} />
           {g.rows.map((r) => (
             <div
               key={r.id}
               data-row={r.id}
               data-attention={ctx.data.extras?.tickets[ctx.data.extras.keys[r.id] ?? ""]?.attention ?? undefined}
               className={`ws-card group/card relative cursor-pointer ${over?.key === g.key && over.before === r.id ? "ws-card-drop-before" : ""}`}
-              draggable
+              draggable={!ctx.data.locked}
               onDragStart={(e) => {
                 e.dataTransfer.setData("text/ws-row", String(r.id));
                 e.dataTransfer.setData("text/ws-from", g.key);
@@ -707,10 +710,10 @@ function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, new
             </div>
           ))}
           {over?.key === g.key && over.before === null && <div className="ws-drop-line" aria-hidden />}
-          <NewCard cells={{ [gp.id]: valueFor(g.key) }} add={(cells, title) => api.addRow(cells, title)} />
+          {!ctx.data.locked && <NewCard cells={{ [gp.id]: valueFor(g.key) }} add={(cells, title) => api.addRow(cells, title)} />}
         </div>
       ))}
-      {(gp.type === "status" || gp.type === "select" || gp.type === "multi_select") && <AddColumn add={(name) => void api.addOption(gp.id, name)} />}
+      {!ctx.data.locked && (gp.type === "status" || gp.type === "select" || gp.type === "multi_select") && <AddColumn add={(name) => void api.addOption(gp.id, name)} />}
     </div>
   );
 }
@@ -719,13 +722,14 @@ function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, new
  * A board column's head, edited in place as Kanban's: its name (click to rename), "n" or "n/WIP" (red over the limit), ✓ when
  * it counts as done — and its menu: move left/right, counts as done, WIP limit, delete (only when empty).
  */
-function ColumnHead({ g, gp, view, rows, api }: { g: Group; gp: Property; view: View; rows: Row[]; api: Api }) {
+function ColumnHead({ g, gp, view, rows, api, locked }: { g: Group; gp: Property; view: View; rows: Row[]; api: Api; locked: boolean }) {
   const t = useT();
   const [editing, setEditing] = useState(false);
-  const option = gp.options?.find((o) => o.id === g.key);
-  const wip = option ? view.wip?.[option.id] : undefined;
+  const option = locked ? undefined : gp.options?.find((o) => o.id === g.key);
+  const shown = gp.options?.find((o) => o.id === g.key);
+  const wip = shown ? view.wip?.[shown.id] : undefined;
   const over = wip !== undefined && g.rows.length > wip;
-  const done = option?.group === "done";
+  const done = shown?.group === "done";
   const label = g.label || t("No value");
   const change = (fn: (s: DbSchema) => DbSchema) => {
     try {
@@ -757,6 +761,10 @@ function ColumnHead({ g, gp, view, rows, api }: { g: Group; gp: Property; view: 
         <button type="button" onClick={() => setEditing(true)} className="ws-tag cursor-text" data-color={g.color} title={t("Column …")}>
           {label}
         </button>
+      ) : shown ? (
+        <span className="ws-tag" data-color={g.color}>
+          {label}
+        </span>
       ) : (
         <span className="font-medium text-zinc-500">{label}</span>
       )}
@@ -1063,7 +1071,7 @@ export function RowProperties({ initial, dbId, rowId }: { initial: DatabaseData;
   const data = api.data;
   const row = data?.rows.find((r) => r.id === rowId);
   if (!data || !row) return null;
-  const ctx: CellCtx = { data, set: api.set, addOption: api.addOption, editable: true };
+  const ctx: CellCtx = { data, set: api.set, addOption: api.addOption, editable: !data.locked };
   if (!data.schema.properties.length) return null;
   return (
     <dl className="grid gap-x-4 gap-y-0.5 sm:grid-cols-[10rem_minmax(0,1fr)]" aria-label={t("Properties")}>

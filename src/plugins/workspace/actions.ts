@@ -233,6 +233,8 @@ export type DatabaseData = {
   /** Related databases (for relation pickers): their rows' titles. */
   related: Record<number, { title: string; properties: { id: string; name: string; type: string }[]; rows: { id: number; title: string; icon: string }[] }>;
   /** What the cards show beyond the cells: each row's ticket key, its subtasks, and — by key — its Lage and todos. */
+  /** Locked (a database a sync keeps, as Jira's): shown, not changed here — its cards don't move, its cells aren't edited. */
+  locked: boolean;
   extras: { keys: Record<number, string>; subtasks: Record<number, { done: number; total: number }>; tickets: Record<string, TicketExtras>; todosOn: boolean; briefing: boolean; knowledge: boolean };
 };
 
@@ -255,7 +257,7 @@ export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: D
       if (k) keys[r.id] = k;
     }
     const extras: DatabaseData["extras"] = { keys, subtasks: subtaskCounts(d.schema, d.rows, page.id), tickets: ticketExtras(Object.values(keys)), todosOn: isInstalled("todos"), ...collectionSwitches(page.id) };
-    return { data: { id: page.id, title: page.title, icon: page.icon, schema: d.schema, rows: d.rows, labels, templates: store.rowTemplates(page.id).map((r) => ({ id: r.id, title: r.title || t("Untitled") })), related, extras } };
+    return { data: { id: page.id, title: page.title, icon: page.icon, locked: page.locked, schema: d.schema, rows: d.rows, labels, templates: store.rowTemplates(page.id).map((r) => ({ id: r.id, title: r.title || t("Untitled") })), related, extras } };
   });
 }
 

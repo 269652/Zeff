@@ -50,7 +50,7 @@ export function RowPeek({ data, rowId, onClose }: { data: DatabaseData; rowId: n
         </button>
       </div>
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
-        <input value={title} onChange={(e) => saveTitle(e.target.value)} placeholder={t("Untitled")} aria-label={t("Title")} className="w-full bg-transparent text-2xl font-bold outline-none" />
+        <input value={title} readOnly={data.locked} onChange={(e) => saveTitle(e.target.value)} placeholder={t("Untitled")} aria-label={t("Title")} className="w-full bg-transparent text-2xl font-bold outline-none" />
         {row && <RowProperties initial={data} dbId={data.id} rowId={rowId} />}
         {x.ticket && (x.ticket.lead || x.ticket.summary || x.ticket.happened.length > 0) && (
           <section className="space-y-1.5 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-900">
@@ -73,7 +73,7 @@ export function RowPeek({ data, rowId, onClose }: { data: DatabaseData; rowId: n
           </section>
         )}
         {x.key && data.extras?.todosOn && <CardTodos k={x.key} ticket={x.ticket} open />}
-        {page ? <Editor key={rowId} pageId={rowId} initial={page.content} rev={page.rev} editable smallText={false} /> : <p className="text-sm text-zinc-400">…</p>}
+        {page ? <Editor key={rowId} pageId={rowId} initial={page.content} rev={page.rev} editable={!data.locked} smallText={false} /> : <p className="text-sm text-zinc-400">…</p>}
       </div>
     </Overlay>
   );

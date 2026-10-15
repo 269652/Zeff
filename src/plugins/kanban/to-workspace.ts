@@ -50,7 +50,7 @@ export function movedHref(boardId: number, card?: string | null): string | null 
 /** The Workspace's boards (databases with a board view by status) as Kanban's overview lists them. */
 export function workspaceBoards(): BoardSummary[] {
   return listCollections({ plugin: "workspace" })
-    .filter((c) => c.kind === "board")
+    .filter((c) => c.kind === "board" && !c.source) // a board a sync keeps (Jira) is listed with its source
     .map((c) => {
       const items = collectionItems(c.id) ?? [];
       return { id: c.id, name: c.name, description: c.description, color: c.color ?? "indigo", source: "Workspace", cards: items.length, open: items.filter((i) => i.status?.phase !== "done").length, href: c.href, updatedAt: null };
