@@ -35,6 +35,7 @@ function reading(present: boolean): void {
 
 const WINDOWS = (vid: string) => `
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 Add-Type -TypeDefinition @'
 using System; using System.Runtime.InteropServices;
 public static class ZeffUsb {
@@ -68,7 +69,10 @@ function startWindows(vendor: string): void {
       if (Number.isFinite(n) && n >= 0) reading(n > 0);
     }
   });
-  child.stderr.on("data", (d: Buffer) => console.error("[lock] key watcher:", d.toString().trim().slice(0, 300)));
+  child.stderr.on("data", (d: Buffer) => {
+    const text = d.toString().trim();
+    if (text && !text.startsWith("#< CLIXML")) console.error("[lock] key watcher:", text.slice(0, 300));
+  });
   child.on("exit", () => {
     watch.child = undefined;
     if (!watch.stop) setTimeout(() => startWindows(vendor), 2000); // until it speaks again the proxy treats the lock as shut (stale heartbeat)
