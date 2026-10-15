@@ -78,6 +78,8 @@ export type View = {
   widths?: Record<string, number>;
   /** The order of the properties (ids); the rest follow. */
   order?: string[];
+  /** Board: a column's WIP limit (by its option id) — more cards than that and its count turns red. */
+  wip?: Record<string, number>;
 };
 export type DbSchema = { titleName: string; properties: Property[]; views: View[] };
 
@@ -514,6 +516,56 @@ export function dropValue(p: Property, current: unknown, from: string, to: strin
     return next.length ? next : null;
   }
   return to === "" ? null : to;
+}
+
+// ---------------------------------------------------------------------------
+// A board's columns, edited on the board (the options of the property it groups by)
+// ---------------------------------------------------------------------------
+
+const withOptions = (schema: DbSchema, propId: string, fn: (o: Option[]) => Option[]): DbSchema => ({
+  ...schema,
+  properties: schema.properties.map((p) => (p.id === propId ? { ...p, options: fn(p.options ?? []) } : p)),
+});
+
+/** A column one place left (-1) or right (1); at the edge it stays. */
+export function moveOption(schema: DbSchema, propId: string, optionId: string, dir: -1 | 1): DbSchema {
+  return withOptions(schema, propId, (o) => {
+    const i = o.findIndex((x) => x.id === optionId);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= o.length) return o;
+    const next = [...o];
+    [next[i], next[j]] = [next[j], next[i]];
+    return next;
+  });
+}
+
+/** A column renamed (an empty name changes nothing). */
+export const renameOption = (schema: DbSchema, propId: string, optionId: string, name: string): DbSchema =>
+  name.trim() ? withOptions(schema, propId, (o) => o.map((x) => (x.id === optionId ? { ...x, name: name.trim() } : x))) : schema;
+
+/** A status column that counts as done (its cards are done), or not any more (then: doing). */
+export const setOptionDone = (schema: DbSchema, propId: string, optionId: string, done: boolean): DbSchema =>
+  withOptions(schema, propId, (o) => o.map((x) => (x.id === optionId ? { ...x, group: done ? ("done" as const) : x.group === "done" ? ("doing" as const) : x.group } : x)));
+
+/** A column's WIP limit on a board view (null: none). */
+export function setWipLimit(schema: DbSchema, viewId: string, optionId: string, limit: number | null): DbSchema {
+  return {
+    ...schema,
+    views: schema.views.map((v) => {
+      if (v.id !== viewId) return v;
+      const wip = { ...(v.wip ?? {}) };
+      if (limit && limit > 0) wip[optionId] = Math.floor(limit);
+      else delete wip[optionId];
+      return { ...v, wip };
+    }),
+  };
+}
+
+/** A column removed — only when no card is in it (they'd lose their place). */
+export function removeOption(schema: DbSchema, propId: string, optionId: string, rows: Row[]): DbSchema {
+  const n = rows.filter((r) => asArray(r.cells[propId]).includes(optionId)).length;
+  if (n) throw new Error(`The column still has ${n} card${n === 1 ? "" : "s"} — move them first.`);
+  return withOptions(schema, propId, (o) => o.filter((x) => x.id !== optionId));
 }
 
 /** A due date's alarm on a card (as Kanban's ⏰): past it "overdue", on the day "today" — none once the row is done. `today`: YYYY-MM-DD. */

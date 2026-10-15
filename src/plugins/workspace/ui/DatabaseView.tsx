@@ -2,10 +2,11 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, placeRowAction, setCellAction, updateSchemaAction, type DatabaseData } from "../actions";
-import { cellText, columnOrder, dateRange, dropValue, panelProperties, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
+import { cellText, columnOrder, dateRange, dropValue, moveOption, panelProperties, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
 import { RowPeek } from "./RowPeek";
@@ -669,10 +670,7 @@ function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, new
             }
           }}
         >
-          <div className="flex items-center gap-2 px-1 text-sm">
-            {g.color ? <span className="ws-tag" data-color={g.color}>{g.label}</span> : <span className="font-medium text-zinc-500">{g.label || t("No value")}</span>}
-            <span className="text-zinc-400">{g.rows.length}</span>
-          </div>
+          <ColumnHead g={g} gp={gp} view={view} rows={rows} api={api} />
           {g.rows.map((r) => (
             <div
               key={r.id}
@@ -700,6 +698,121 @@ function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, new
           <NewCard cells={{ [gp.id]: valueFor(g.key) }} add={(cells, title) => api.addRow(cells, title)} />
         </div>
       ))}
+      {(gp.type === "status" || gp.type === "select" || gp.type === "multi_select") && <AddColumn add={(name) => void api.addOption(gp.id, name)} />}
+    </div>
+  );
+}
+
+/**
+ * A board column's head, edited in place as Kanban's: its name (click to rename), "n" or "n/WIP" (red over the limit), ✓ when
+ * it counts as done — and its menu: move left/right, counts as done, WIP limit, delete (only when empty).
+ */
+function ColumnHead({ g, gp, view, rows, api }: { g: Group; gp: Property; view: View; rows: Row[]; api: Api }) {
+  const t = useT();
+  const [editing, setEditing] = useState(false);
+  const option = gp.options?.find((o) => o.id === g.key);
+  const wip = option ? view.wip?.[option.id] : undefined;
+  const over = wip !== undefined && g.rows.length > wip;
+  const done = option?.group === "done";
+  const label = g.label || t("No value");
+  const change = (fn: (s: DbSchema) => DbSchema) => {
+    try {
+      api.changeSchema(fn);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), { tone: "error" });
+    }
+  };
+  const i = gp.options?.findIndex((o) => o.id === g.key) ?? -1;
+  return (
+    <div className="flex items-center gap-2 px-1 text-sm">
+      {option && editing ? (
+        <input
+          autoFocus
+          defaultValue={option.name}
+          aria-label={t("Column …")}
+          className="input min-w-0 flex-1 py-0.5 text-sm"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+            if (e.key === "Escape") setEditing(false);
+          }}
+          onBlur={(e) => {
+            const name = e.currentTarget.value;
+            setEditing(false);
+            if (name.trim() && name.trim() !== option.name) change((s) => renameOption(s, gp.id, option.id, name));
+          }}
+        />
+      ) : option ? (
+        <button type="button" onClick={() => setEditing(true)} className="ws-tag cursor-text" data-color={g.color} title={t("Column …")}>
+          {label}
+        </button>
+      ) : (
+        <span className="font-medium text-zinc-500">{label}</span>
+      )}
+      {done && <span className="text-emerald-600" aria-hidden>✓</span>}
+      <span className={over ? "font-semibold text-red-600" : "text-zinc-400"}>{wip !== undefined ? `${g.rows.length}/${wip}` : g.rows.length}</span>
+      {option && (
+        <span className="ml-auto">
+          <Dropdown label="✎" title={t("Column menu")} align="right" className="rounded px-1 text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700">
+            {(close) => (
+              <>
+                <MenuItem disabled={i <= 0} onClick={() => (change((s) => moveOption(s, gp.id, option.id, -1)), close())}>
+                  {t("← move left")}
+                </MenuItem>
+                <MenuItem disabled={i < 0 || i >= (gp.options?.length ?? 0) - 1} onClick={() => (change((s) => moveOption(s, gp.id, option.id, 1)), close())}>
+                  {t("move right →")}
+                </MenuItem>
+                {gp.type === "status" && (
+                  <MenuItem onClick={() => (change((s) => setOptionDone(s, gp.id, option.id, !done)), close())}>{done ? t("No longer counts as done") : t("Counts as done ✓")}</MenuItem>
+                )}
+                <MenuItem
+                  onClick={() => {
+                    close();
+                    const v = prompt(t("WIP limit (empty: none)"), wip ? String(wip) : "");
+                    if (v !== null) change((s) => setWipLimit(s, view.id, option.id, v.trim() ? Number(v) : null));
+                  }}
+                >
+                  {t("WIP limit …")}
+                </MenuItem>
+                <MenuItem
+                  danger
+                  onClick={() => {
+                    close();
+                    // Its cards would lose their place: only an empty column goes (all rows, not just the filtered ones).
+                    const n = (api.data?.rows ?? rows).filter((r) => [r.cells[gp.id]].flat().includes(option.id)).length;
+                    if (n) return void toast(n === 1 ? t("The column still has 1 card — move it first.") : t("The column still has {n} cards — move them first.", { n }), { tone: "error" });
+                    if (confirmAction(t("Delete the column “{name}”?", { name: option.name }))) change((s) => removeOption(s, gp.id, option.id, api.data?.rows ?? rows));
+                  }}
+                >
+                  {t("Delete column")}
+                </MenuItem>
+              </>
+            )}
+          </Dropdown>
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** "+ Column" at the end of a board: a new option of the property it groups by. */
+function AddColumn({ add }: { add: (name: string) => void }) {
+  const t = useT();
+  const [name, setName] = useState("");
+  return (
+    <div className="w-72 shrink-0 rounded-xl border-2 border-dashed border-zinc-200 p-2 dark:border-zinc-800">
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && name.trim()) {
+            add(name.trim());
+            setName("");
+          }
+        }}
+        placeholder={t("+ Column")}
+        aria-label={t("New column")}
+        className="w-full bg-transparent px-1 py-1 text-sm outline-none"
+      />
     </div>
   );
 }

@@ -104,3 +104,28 @@ test("dueTone: overdue red, today amber, done or later nothing", async () => {
   assert.equal(dueTone("2026-10-01", today, true), null, "done: no alarm");
   assert.equal(dueTone(null, today, false), null);
 });
+
+/** A board's columns edited on the board (as Kanban's): moved, renamed, done or not, a WIP limit, removed when empty. */
+test("column edits: move, rename, done, WIP limit, remove only when empty", async () => {
+  const m = await import("@/plugins/workspace/model");
+  const status = m.newProperty("Status", "status");
+  const [a, b, c] = status.options!;
+  const board = { ...m.newView("Board", "board"), groupBy: status.id };
+  const schema: import("@/plugins/workspace/model").DbSchema = { titleName: "Name", properties: [status], views: [board] };
+  const names = (s: typeof schema) => s.properties[0].options!.map((o) => o.name);
+
+  assert.deepEqual(names(m.moveOption(schema, status.id, c.id, -1)), ["Not started", "Done", "In progress"]);
+  assert.deepEqual(names(m.moveOption(schema, status.id, a.id, -1)), ["Not started", "In progress", "Done"], "at the edge: stays");
+  assert.deepEqual(names(m.renameOption(schema, status.id, b.id, "  Dran ")), ["Not started", "Dran", "Done"]);
+  assert.deepEqual(names(m.renameOption(schema, status.id, b.id, "   ")), ["Not started", "In progress", "Done"], "no empty name");
+  assert.equal(m.setOptionDone(schema, status.id, b.id, true).properties[0].options![1].group, "done");
+  assert.equal(m.setOptionDone(schema, status.id, c.id, false).properties[0].options![2].group, "doing");
+
+  const limited = m.setWipLimit(schema, board.id, b.id, 3);
+  assert.deepEqual(limited.views[0].wip, { [b.id]: 3 });
+  assert.deepEqual(m.setWipLimit(limited, board.id, b.id, null).views[0].wip, {}, "no limit");
+
+  const row = (cells: Record<string, unknown>) => ({ id: 1, title: "", icon: "", cells, createdAt: "", updatedAt: "" });
+  assert.throws(() => m.removeOption(schema, status.id, b.id, [row({ [status.id]: b.id })]), /still has 1 card/);
+  assert.deepEqual(names(m.removeOption(schema, status.id, b.id, [row({ [status.id]: a.id })])), ["Not started", "Done"]);
+});
