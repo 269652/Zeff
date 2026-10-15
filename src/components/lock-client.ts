@@ -1,6 +1,6 @@
 "use client";
 
-import { toB64u, toBytes, type TouchResult } from "@/components/touch-client";
+import { IP_HINT, keyError, onIpAddress, toB64u, toBytes, type TouchResult } from "@/components/touch-client";
 
 /**
  * The browser's half of the lock's switch (Settings → Lock; the lock page itself is src/lib/lock/page.ts). Asks the key for
@@ -17,6 +17,7 @@ async function post(body: Record<string, unknown>): Promise<{ options?: { challe
 /** Switch the lock on: the key's PIN and a touch prove the key works, and the session that follows is this browser's. */
 export async function lockEnable(): Promise<TouchResult> {
   try {
+    if (onIpAddress()) return { ok: false, error: IP_HINT };
     if (!window.PublicKeyCredential) return { ok: false, error: "This browser cannot use a security key here (it needs https or localhost)." };
     const o = (await post({ step: "unlock-options" })).options!;
     const cred = (await navigator.credentials.get({
@@ -27,8 +28,7 @@ export async function lockEnable(): Promise<TouchResult> {
     await post({ step: "unlock-verify", enable: true, challenge: o.challenge, id: cred.id, clientDataJSON: toB64u(r.clientDataJSON), authenticatorData: toB64u(r.authenticatorData), signature: toB64u(r.signature) });
     return { ok: true };
   } catch (err) {
-    if (err instanceof DOMException && (err.name === "NotAllowedError" || err.name === "AbortError")) return { ok: false, error: "Cancelled or timed out — the key was not touched." };
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, error: keyError(err) };
   }
 }
 

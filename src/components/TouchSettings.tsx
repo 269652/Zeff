@@ -7,13 +7,19 @@ import { removeTouchKeyAction, setTouchGuardAction } from "@/app/touch-actions";
 import { useT } from "@/components/I18nProvider";
 import { touchApprove, touchRegister } from "@/components/touch-client";
 
+/** What the dropdown offers (the name is only for you, to tell keys apart). */
+const KEY_NAMES = ["YubiKey 5 NFC", "YubiKey 5C NFC", "YubiKey 5C", "YubiKey 5Ci", "YubiKey 5 Nano", "YubiKey 5C Nano", "YubiKey Bio", "Security Key by Yubico"];
+const OTHER = "__other";
+
 export type TouchKeyView = { id: string; label: string; rpId: string; createdAt: string };
 
 /** Settings → Touch to approve: the registered security keys, and which actions wait for a touch. */
 export function TouchSettings({ keys, exportGuarded }: { keys: TouchKeyView[]; exportGuarded: boolean }) {
   const t = useT();
   const router = useRouter();
-  const [label, setLabel] = useState("");
+  const [choice, setChoice] = useState(KEY_NAMES[0]);
+  const [custom, setCustom] = useState("");
+  const label = choice === OTHER ? custom : choice;
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -62,14 +68,22 @@ export function TouchSettings({ keys, exportGuarded }: { keys: TouchKeyView[]; e
             const r = await touchRegister(label, hasKeys);
             if (!r.ok) setError(r.error);
             else {
-              setLabel("");
+              setCustom("");
               setNote(t("Key added."));
             }
             router.refresh();
           });
         }}
       >
-        <input className="input w-auto" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("Name (YubiKey 5C …)")} aria-label={t("Name of the key")} />
+        <select className="input w-auto" value={choice} onChange={(e) => setChoice(e.target.value)} aria-label={t("Name of the key")}>
+          {KEY_NAMES.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+          <option value={OTHER}>{t("Other…")}</option>
+        </select>
+        {choice === OTHER && <input className="input w-auto" value={custom} onChange={(e) => setCustom(e.target.value)} placeholder={t("Name of the key")} aria-label={t("Name of the key")} />}
         <button type="submit" className="btn btn-sm" disabled={pending}>
           {hasKeys ? t("Add another key") : t("Register a key")}
         </button>

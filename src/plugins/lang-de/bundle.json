@@ -4927,5 +4927,6 @@
   "Zeff: your browser blocked the popup. Copied {n} meetings to the clipboard — paste them into Zeff → Import meetings.": "Zeff: dein Browser hat das Popup blockiert. {n} Termine in die Zwischenablage kopiert — füg sie in Zeff → Termine importieren ein.",
   "Zeff's data — the database and the files beside it (calendar inbox, run logs) — as a ZIP, AES-256 encrypted with a password. Runs by itself; here also by hand at any time, and restore here.": "Zeffs Daten — die Datenbank und die Dateien daneben (Kalender-Eingang, Lauf-Logs) — als ZIP, AES-256-verschlüsselt mit Passwort. Läuft von selbst; hier außerdem jederzeit von Hand, und hier wiederherstellen.",
   "Zeff's Jira connection isn't set up (Jira tab) — nothing can be posted without it.": "Zeffs Jira-Verbindung ist nicht eingerichtet (Jira-Tab) — ohne sie lässt sich nichts posten.",
-  "Zeff's Jira connection isn't set up (Jira tab).": "Zeffs Jira-Verbindung ist nicht eingerichtet (Jira-Tab)."
+  "Zeff's Jira connection isn't set up (Jira tab).": "Zeffs Jira-Verbindung ist nicht eingerichtet (Jira-Tab).",
+  "Other…": "Andere …"
 }

@@ -31,9 +31,15 @@ async function post(body: Record<string, unknown>): Promise<Answer> {
   return json;
 }
 
-function keyError(err: unknown): string {
-  if (err instanceof DOMException && (err.name === "NotAllowedError" || err.name === "AbortError")) return "Cancelled or timed out — the key was not touched.";
+/** A WebAuthn ceremony only works on a name (https://zeff, localhost) — not on an IP address, which the browser refuses as the site. */
+export const onIpAddress = (): boolean => /^(d+.d+.d+.d+|[.*])$/.test(location.hostname);
+export const IP_HINT = "A security key cannot be used on an IP address (127.0.0.1): open Zeff at https://zeff (or http://localhost).";
+
+export function keyError(err: unknown): string {
+  console.error("[security key]", err);
+  if (err instanceof DOMException && (err.name === "NotAllowedError" || err.name === "AbortError")) return "Cancelled or timed out — the key was not touched. (" + err.name + (err.message ? ": " + err.message : "") + ")";
   if (err instanceof DOMException && err.name === "InvalidStateError") return "This key is registered already.";
+  if (err instanceof DOMException) return err.name + ": " + err.message;
   return err instanceof Error ? err.message : String(err);
 }
 
@@ -72,6 +78,7 @@ export async function touchApprove(action: string, scope = ""): Promise<TouchRes
 /** Add a key (with a key already registered: touch one first). */
 export async function touchRegister(label: string, hasKeys: boolean): Promise<TouchResult> {
   try {
+    if (onIpAddress()) return { ok: false, error: IP_HINT };
     if (hasKeys) {
       const t = await touchApprove("touch-settings");
       if (!t.ok) return t;
@@ -85,9 +92,11 @@ export async function touchRegister(label: string, hasKeys: boolean): Promise<To
         user: { id: toBytes(o.user.id), name: o.user.name, displayName: o.user.displayName },
         pubKeyCredParams: [{ type: "public-key", alg: -7 }],
         excludeCredentials: o.excludeCredentials.map((c) => ({ type: c.type, id: toBytes(c.id) })),
-        authenticatorSelection: { residentKey: "discouraged", userVerification: "discouraged" },
+        // The key itself (USB), not Windows Hello or a phone.
+        authenticatorSelection: { authenticatorAttachment: "cross-platform", residentKey: "discouraged", userVerification: "discouraged" },
         attestation: "none",
         timeout: 60000,
+        ...({ hints: ["security-key"] } as object),
       },
     })) as PublicKeyCredential | null;
     if (!cred) return { ok: false, error: "No answer from the key." };
