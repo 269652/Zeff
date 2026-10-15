@@ -51,6 +51,33 @@ function useDatabase(initial: DatabaseData | null, dbId: number) {
     return () => window.removeEventListener("ws-changed", again);
   }, [reload]);
 
+  // Changes from elsewhere (another tab, an agent through the MCP, the Lage, a todo ticked on the Todos tab): the data is
+  // read again — this database only, not the page (an editor being typed in stays as it is). A burst is one read, at most
+  // every 1.5 s; in a hidden tab it waits until the tab is shown.
+  useEffect(() => {
+    const topics = new Set(["workspace", "todos", "attention", "kanban"]);
+    const source = new EventSource("/api/events");
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let stale = false;
+    const read = () => {
+      timer = null;
+      if (document.visibilityState === "hidden") return void (stale = true);
+      stale = false;
+      void reload();
+    };
+    const onChange = (e: Event) => {
+      if (topics.has((e as MessageEvent<string>).data) && !timer) timer = setTimeout(read, 1500);
+    };
+    const shown = () => document.visibilityState === "visible" && stale && read();
+    source.addEventListener("change", onChange);
+    document.addEventListener("visibilitychange", shown);
+    return () => {
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", shown);
+      source.close();
+    };
+  }, [reload]);
+
   const reloadSoon = useCallback(() => {
     if (reloadTimer.current) clearTimeout(reloadTimer.current);
     reloadTimer.current = setTimeout(() => void reload(), 600);
