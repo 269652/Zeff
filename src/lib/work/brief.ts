@@ -189,14 +189,14 @@ function sessionTodos(todo: TodoView, runId: number): string {
  * Which branch the work belongs on: the one the todo's merge request or branch is on (not a branch of
  * our own like feature/PROJ-123-w66) — or, with none yet, the naming convention for a new one (the MCP server's).
  */
-function branchRule(ctx: { linked?: LinkedBranch[]; newBranch?: string | null; branch: string | null; onExisting?: boolean }): string {
+function branchRule(ctx: { linked?: LinkedBranch[]; newBranch?: string | null; branch: string | null; onExisting?: boolean; branchKnowledge?: string }): string {
   if (!ctx.branch || ctx.onExisting) return "";
   if (ctx.linked?.length) {
     const list = ctx.linked.map((l) => `${l.branch} (${l.label}, ${l.url})`).join("; ");
     return `\n- Branch: Das Todo ist mit ${list} verknüpft. Arbeite auf diesem Branch, nicht auf einem neuen: im Worktree \`git fetch origin && git switch <Branch>\` (ist er woanders ausgecheckt: \`git switch -c ${ctx.branch}-tmp origin/<Branch>\`, und committe am Ende auf den Stand des verknüpften Branches). Nenne den Branch im Ergebnis (branch).`;
   }
   return ctx.newBranch
-    ? `\n- Branch: Zu diesem Todo gibt es noch keinen Feature-Branch oder Merge Request. Lege einen an, nach der Namenskonvention ${ctx.newBranch} (feature/ bzw. fix/, dann der Ticket-Key, dann <short-change> = 2–4 kleingeschriebene Wörter für die Codeänderung, die du machst — nicht der Titel von Ticket oder Todo; max. ~30 Zeichen) und committe dort. Nenne den Branch im Ergebnis (branch).`
+    ? `\n- Branch: Zu diesem Todo gibt es noch keinen Feature-Branch oder Merge Request. Lege einen an, nach der Namenskonvention ${ctx.newBranch} (feature/ bzw. fix/, dann der Ticket-Key, dann <short-change> = 2–3 kleingeschriebene Wörter für die Codeänderung, die du machst, höchstens 24 Zeichen — nicht der Titel von Ticket oder Todo) und committe dort. Nenne den Branch im Ergebnis (branch).${ctx.branchKnowledge ?? ""}`
     : "";
 }
 
@@ -217,6 +217,8 @@ export function taskFor(
     linked?: LinkedBranch[];
     /** The naming pattern for a new feature branch (feature/PROJ-1-<short-change>). */
     newBranch?: string | null;
+    /** What is kept about the ticket (todos and the messages they came from), for naming the branch — see branch-knowledge.ts. */
+    branchKnowledge?: string;
   },
 ): string {
   const { todo } = ctx;

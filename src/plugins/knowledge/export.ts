@@ -8,6 +8,7 @@ import { documentDocs } from "@/plugins/documents/export";
 import { isInstalled } from "@/plugins/state";
 import { pushTo } from "@/lib/collections";
 import { backfillReports } from "@/lib/work/report";
+import { branchKnowledgeDocs } from "@/lib/work/branch-knowledge";
 
 /**
  * Zeff's synced context as documents for the knowledge server (its "Zeff" source): Jira tickets
@@ -213,6 +214,9 @@ export function knowledgeDocs(zeffUrl: string, only?: "keep"): { account: string
     docs.push(doc({ id: `zeff:report:${r.id}`, space: "Zeff · Berichte", title: `Bericht W-${r.run_id} zu T-${r.todo_id}${r.ticket ? ` · ${r.ticket}` : ""}: ${r.title.slice(0, 120)}`, url: `${zeffUrl}/t/${r.todo_id}`, updatedAt: r.updated_at ?? r.created_at, author: r.by_who, body: `Bericht von ${r.by_who} zu Todo T-${r.todo_id}${r.ticket ? ` (${r.ticket})` : ""}, ${day(r.created_at)}.
 
 ${clean(r.body)}` }));
+
+  // Branch knowledge: each todo with a ticket and the messages it comes from, kept and tagged — read by the workers that name branches.
+  for (const b of branchKnowledgeDocs(zeffUrl)) docs.push(doc(b));
 
   // Time entries: a week each (Monday).
   const weeks = new Map<string, string[]>();

@@ -164,6 +164,12 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
           state.__zeffBoardRun = { id, phase: "people", since: t0, provider };
           await syncAndWait("peoplenorm");
         }
+        // Each todo with a ticket and the messages it comes from, kept as knowledge (tagged for the branch names) — before a message is gone.
+        try {
+          (await import("@/lib/work/branch-knowledge")).ensureBranchKnowledge();
+        } catch {
+          // the artifacts are made again at the next run or export
+        }
         throwIfAborted();
         // The duplicates the steps above may have left (and any from before): merged into the oldest, before the actions look at them.
         await syncAndWait("tododupes");

@@ -495,6 +495,8 @@ export function registerZeffTools(server: McpServer): void {
         const { startAgentWork, workplaceOf } = await import("@/lib/work/agent");
         const { run: r, resumed, todo } = startAgentWork(args);
         const w = await workplaceOf(todo);
+        // What is kept about the ticket (todos and the messages they came from) for naming the branch — also when the todo is done and the message gone.
+        const kept = w.existing ? "" : (await import("@/lib/work/branch-knowledge")).branchKnowledgeBlock(todo);
         const preamble = (await import("@/plugins/llm/run")).llmPreamble();
         return ok(
           `${resumed ? "Still yours" : "Started"}: W-${r.id} — ${todo.ref} (${todo.ticket}): ${todo.text}\n` +
@@ -502,8 +504,9 @@ export function registerZeffTools(server: McpServer): void {
             (w.repo
               ? w.existing
                 ? `Code: repo ${w.repo.name} (${w.repo.path}). ${todo.ticket} has a feature branch already: ${w.existing} — continue on it (git fetch origin && git switch ${w.existing}, or a worktree of it if your checkout is busy). Commit there, don't push to ${w.base}, don't merge. Strict TDD: a failing test first, then the change, then the suite.\n`
-                : `Code: repo ${w.repo.name} (${w.repo.path}). No feature branch for ${todo.ticket} yet — create one off ${w.base} in a separate worktree. Name: ${w.branch} — replace <short-change> with 2–4 lowercase words (max ~30 characters) describing the code change you make, not the ticket's or todo's title; keep the ${todo.ticket} prefix (git fetch origin && git worktree add -b ${w.branch} ../${w.repo.name}-${todo.ticket} origin/${w.base}). Commit there, don't push to ${w.base}, don't merge. Strict TDD: a failing test first, then the change, then the suite.\n`
-              : `Code: Zeff knows no repo for ${todo.ticket} — work on a feature branch named ${w.branch} (keep the ${todo.ticket} prefix; <short-change> = 2–4 lowercase words for the code change you make, not the ticket's title) and pass branch and repo (its folder) to finish_todo. Strict TDD: a failing test first, then the change, then the suite.\n`) +
+                : `Code: repo ${w.repo.name} (${w.repo.path}). No feature branch for ${todo.ticket} yet — create one off ${w.base} in a separate worktree. Name: ${w.branch} — replace <short-change> with 2–3 lowercase words (max 24 characters) describing the code change you make, not the ticket's or todo's title; keep the ${todo.ticket} prefix (git fetch origin && git worktree add -b ${w.branch} ../${w.repo.name}-${todo.ticket} origin/${w.base}). Commit there, don't push to ${w.base}, don't merge. Strict TDD: a failing test first, then the change, then the suite.\n`
+              : `Code: Zeff knows no repo for ${todo.ticket} — work on a feature branch named ${w.branch} (keep the ${todo.ticket} prefix; <short-change> = 2–3 lowercase words (max 24 characters) for the code change you make, not the ticket's title) and pass branch and repo (its folder) to finish_todo. Strict TDD: a failing test first, then the change, then the suite.\n`) +
+            (kept ? `${kept.trim()}\n` : "") +
             "Its full context (ticket, comments, Teams, mails, notes, earlier runs): todo_context. Notes as you go: todo_progress. Asking the user something: todo_needs_input with the question first (todo_progress clears it when you go on). YOUR TIME: todo_time with the minutes since your last record and a one-line note — after each phase, before you ask the user, when you pause (several records per todo; that's how your time is tracked). When you're through: finish_todo with summary, entry, minutes (since your last todo_time record), outcome and branch (that's what gets booked and delivered — don't call report_time for it)." +
             // The user's instructions and context (the LLM plugin's) — for every agent too.
             (preamble ? `\n\n${preamble}` : ""),
