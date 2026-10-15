@@ -37,7 +37,7 @@ export const IP_HINT = "A security key cannot be used on an IP address (127.0.0.
 
 export function keyError(err: unknown): string {
   console.error("[security key]", err);
-  if (err instanceof DOMException && (err.name === "NotAllowedError" || err.name === "AbortError")) return "Cancelled or timed out — the key was not touched. (" + err.name + (err.message ? ": " + err.message : "") + ")";
+  if (err instanceof DOMException && (err.name === "NotAllowedError" || err.name === "AbortError")) return "Cancelled or timed out — the key was not touched. (" + err.name + (err.message ? ": " + err.message : "") + " on " + location.origin + ")";
   if (err instanceof DOMException && err.name === "InvalidStateError") return "This key is registered already.";
   if (err instanceof DOMException) return err.name + ": " + err.message;
   return err instanceof Error ? err.message : String(err);
