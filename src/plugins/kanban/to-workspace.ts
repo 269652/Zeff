@@ -66,7 +66,7 @@ function move(boardId: number): { dbId: number } {
     properties: [status, priority, labels, due, assignee, key],
     views: [{ ...newView("Board", "board"), groupBy: status.id, hidden: [key.id] }, newView("Table", "table")],
   };
-  const dbId = createPage({ kind: "database", title: board.name, icon: "📋", schema });
+  const dbId = createPage({ kind: "database", title: board.name, schema });
   const parent: Property = { ...prop("Parent", "relation"), relationDb: dbId };
   updateSchema(dbId, { ...schema, properties: [...schema.properties, parent] });
 

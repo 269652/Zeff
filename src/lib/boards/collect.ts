@@ -1,5 +1,5 @@
 import { attachmentLine, todoAttachments } from "@/plugins/documents/attachments";
-import { isJiraKey, isKanbanKey } from "@/lib/ticket-keys";
+import { isJiraKey, isKanbanKey, isWorkspaceKey } from "@/lib/ticket-keys";
 import { and, desc, eq, gte, like, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { resolveLinks } from "@/lib/context-links";
@@ -377,7 +377,9 @@ export function ticketBlock(
     `## ${issue.key} · ${issue.summary ?? ""}`,
     ...(isKanbanKey(issue.key)
       ? ["(Eigene Kanban-Karte in Zeff, kein Jira-Ticket: als Aktion nur ein Übergang in eine der Spalten unten — keine Zuweisung, keine Jira-Kommentare.)"]
-      : []),
+      : isWorkspaceKey(issue.key)
+        ? ["(Eigene Zeile einer Workspace-Datenbank in Zeff, kein Jira-Ticket: als Aktion nur ein Übergang in einen der Status unten — keine Zuweisung, keine Jira-Kommentare.)"]
+        : []),
     [
       `Status: ${issue.status?.name ?? "?"}`,
       `Typ: ${issue.issue_type?.name ?? "?"}`,
@@ -824,7 +826,11 @@ export async function collectBoard(
 
   // Your own Kanban cards (KB-…, Kanban plugin): tickets of the Lage too — their column the
   // status, the board's other columns where they can go (a suggested move moves the card).
-  const kanban = (await import("@/plugins/state")).isInstalled("kanban") ? (await import("@/plugins/kanban/lage")).kanbanLageTickets() : [];
+  // The rows of board databases in the briefing (moved Kanban boards: KB-…, new rows: WS-…) the same way.
+  const kanban = [
+    ...((await import("@/plugins/state")).isInstalled("kanban") ? (await import("@/plugins/kanban/lage")).kanbanLageTickets() : []),
+    ...(await import("@/lib/items/tickets")).boardLageTickets(),
+  ];
   const kanbanMoves: Record<string, string[]> = {};
   for (const k of kanban) {
     const facts = factsOf(k.issue, cfg.baseUrl, !k.done);
