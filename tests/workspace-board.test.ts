@@ -177,3 +177,19 @@ test("people: the person property, its chips, the filter, mine", async () => {
   assert.deepEqual(m.personChips(people, who, plabel).map((c) => [c.label, c.count]), [["Anna", 1], ["Ben", 1], ["Cem", 1]]);
   assert.deepEqual(m.filterByPeople(people, who, m.mineKeys(who, { names: [], ids: [9] })).map((r) => r.id), [6]);
 });
+
+/** A row's detail view is made of modules the database chooses (in order) — by default what fits its kind. */
+test("detailModules: a database's detail view — set, or by its kind", async () => {
+  const m = await import("@/plugins/workspace/model");
+  const status = m.newProperty("Status", "status");
+  const plain: import("@/plugins/workspace/model").DbSchema = { titleName: "Name", properties: [status], views: [m.newView("Table")] };
+  const board = { ...plain, views: [{ ...m.newView("Board", "board"), groupBy: status.id }] };
+  assert.deepEqual(m.detailModules(plain, null), ["properties", "page"]);
+  assert.deepEqual(m.detailModules(board, null), ["properties", "briefing", "todos", "page"], "a board: its cards' briefing and todos");
+  assert.deepEqual(m.detailModules(board, "jira"), ["properties", "briefing", "todos", "questions", "actions", "flags", "context", "chat"], "Jira's: the briefing panel as Jira Lage had it");
+  const set = { ...plain, detail: ["todos", "page", "nonsense"] as never };
+  assert.deepEqual(m.detailModules(m.normalizeSchema(set), null), ["todos", "page"], "the set one, the unknown left out");
+  assert.deepEqual(m.toggleDetail(["properties", "page"], "briefing"), ["properties", "page", "briefing"]);
+  assert.deepEqual(m.toggleDetail(["properties", "page"], "page"), ["properties"]);
+  assert.deepEqual(m.moveDetail(["properties", "briefing", "page"], "page", -1), ["properties", "page", "briefing"]);
+});

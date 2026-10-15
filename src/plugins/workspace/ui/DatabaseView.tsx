@@ -6,10 +6,11 @@ import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, placeRowAction, setCellAction, setCollectionAction, updateSchemaAction, type DatabaseData } from "../actions";
-import { cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
+import { cellText, columnOrder, dateRange, detailModules, dropValue, filterByPeople, mineKeys, moveOption, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
 import { RowPeek } from "./RowPeek";
+import { DetailEditor } from "./detail-modules";
 import { FilterEditor, PropertiesMenu, SchemaModal, SortEditor } from "./db-menus";
 import { Dropdown, MenuItem, useSortable } from "./kit";
 
@@ -218,6 +219,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const [current, setCurrent] = useState(viewId ?? "");
   const [q, setQ] = useState("");
   const [schemaOpen, setSchemaOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [justAdded, setJustAdded] = useState<number | null>(null);
   // A row opens over the database (?row=<id> — a link to it opens it again); the full page is a click further.
   const search = useSearchParams();
@@ -375,6 +377,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           {(close) => (
             <>
               <MenuItem onClick={() => (close(), setSchemaOpen(true))}>⚙ {t("Edit properties …")}</MenuItem>
+              <MenuItem onClick={() => (close(), setDetailOpen(true))}>▤ {t("Detail view …")}</MenuItem>
               {/* As Kanban's and Keep's boards: its rows go into the briefing (cards: tickets, notes: notes) and the knowledge. */}
               <MenuItem checked={!!data.extras?.briefing} onClick={() => (close(), void switchCollection({ briefing: !data.extras?.briefing }))}>
                 {t("In the briefing")}
@@ -479,6 +482,14 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
       <p className="text-xs text-zinc-500">{rows.length === data.rows.length ? (rows.length === 1 ? t("1 row") : t("{n} rows", { n: rows.length })) : t("{n} of {total} rows", { n: rows.length, total: data.rows.length })}</p>
 
       {schemaOpen && <SchemaModal schema={schema} data={data} dbId={dbId} databases={databases} onSave={api.saveSchema} onClose={() => setSchemaOpen(false)} />}
+      {detailOpen && (
+        <DetailEditor
+          modules={detailModules(schema, data.extras?.source)}
+          custom={!!schema.detail}
+          onChange={(next) => api.changeSchema((s) => (next ? { ...s, detail: next } : (({ detail: _, ...rest }) => rest)(s)))}
+          onClose={() => setDetailOpen(false)}
+        />
+      )}
       {inBrowser && peek !== null && data.rows.some((r) => r.id === peek) && <RowPeek key={peek} data={data} rowId={peek} onClose={closePeek} />}
     </div>
   );

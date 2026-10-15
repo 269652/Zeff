@@ -1,6 +1,8 @@
 import type { Issue } from "@/lib/boards/collect";
 import { attentionLabels, isAttention } from "@/lib/boards/shared";
-import { lageByTicket } from "@/lib/boards/ticket-lage";
+import { contextByTicket, lageByTicket, type TicketContextItem } from "@/lib/boards/ticket-lage";
+import { ticketChats, type ChatItem } from "@/lib/boards/ticket-chat";
+import type { TicketAction, TicketQuestion } from "@/lib/boards/shared";
 import { listTodos } from "@/lib/boards/store";
 import { t } from "@/lib/i18n/server";
 import type { TicketCard } from "@/lib/jira/ticket-card-shared";
@@ -37,6 +39,17 @@ export function boardLageTickets(): BoardLageTicket[] {
     }
   }
   return out;
+}
+
+/** A ticket's detail beyond its card: the questions, suggested actions and flags of its Lage, its context, its chat. */
+export type TicketDetail = { questions: TicketQuestion[]; actions: TicketAction[]; flags: string[]; context: TicketContextItem[]; chat: ChatItem[] };
+
+/** The heavier modules of a ticket's detail view (fetched when it opens), by its key. */
+export function ticketDetail(key: string): TicketDetail {
+  const k = key.trim().toUpperCase();
+  const { byKey, tickets } = lageByTicket();
+  const l = byKey.get(k);
+  return { questions: l?.questions ?? [], actions: l?.actions ?? [], flags: l?.flags ?? [], context: contextByTicket(tickets).get(k) ?? [], chat: ticketChats([k]).get(k) ?? [] };
 }
 
 /**

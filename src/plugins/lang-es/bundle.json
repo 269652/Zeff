@@ -5057,5 +5057,11 @@
   "No status “{name}” — there are: {statuses}.": "No hay estado «{name}»; hay: {statuses}.",
   "That doesn't work on a row (no assignment).": "Eso no funciona en una fila (sin asignación).",
   "New card": "Nueva tarjeta",
-  "The briefing on every relevant card of your boards — the Jira boards' tickets (not only yours) and your own boards' cards — shown on the cards (only what changed)": "La situación de cada tarjeta relevante de tus tableros — los tickets de los tableros de Jira (no solo los tuyos) y las tarjetas de tus propios tableros — mostrada en las tarjetas (solo lo que cambió)"
+  "The briefing on every relevant card of your boards — the Jira boards' tickets (not only yours) and your own boards' cards — shown on the cards (only what changed)": "La situación de cada tarjeta relevante de tus tableros — los tickets de los tableros de Jira (no solo los tuyos) y las tarjetas de tus propios tableros — mostrada en las tarjetas (solo lo que cambió)",
+  "Questions": "Preguntas",
+  "Detail view …": "Vista de detalle …",
+  "Shown in a row's detail view, in this order": "En la vista de detalle de una fila, en este orden",
+  "Up": "Arriba",
+  "Down": "Abajo",
+  "Back to the default": "Volver al estándar"
 }

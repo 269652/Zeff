@@ -97,3 +97,18 @@ test("actions and hover cards: KB-… of a moved card and WS-… act on and show
   assert.equal(cards[`WS-${fresh}`].statusCategory, "done");
   assert.equal(cards[`KB-${kb.id}`].summary, "Bleibt auf Kanban");
 });
+
+/** The heavier modules of a ticket's detail view, fetched when it opens: questions, actions, flags, context, chat. */
+test("ticketDetail: what the briefing knows beyond the lead — by key", async () => {
+  const { getSqlite } = await import("@/db");
+  const { ticketDetail } = await import("@/lib/items/tickets");
+  const d = getSqlite();
+  d.exec("create table if not exists ticket_lage (key text primary key, hash text not null, result text not null, model text, analyzed_at text not null)");
+  d.prepare("insert or replace into ticket_lage (key, hash, result, model, analyzed_at) values (?, '', ?, null, ?)").run("PROJ-77", JSON.stringify({ attention: "blocked", lead: "Wartet.", summary: "", happened: [], flags: ["Rückfrage seit 03.10. offen"] }), new Date().toISOString());
+  const x = ticketDetail("proj-77");
+  assert.deepEqual(x.flags, ["Rückfrage seit 03.10. offen"]);
+  assert.deepEqual(x.actions, []);
+  assert.deepEqual(x.questions, []);
+  assert.ok(Array.isArray(x.context) && Array.isArray(x.chat));
+  assert.deepEqual(ticketDetail("NOPE-1").flags, []);
+});

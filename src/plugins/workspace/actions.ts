@@ -235,7 +235,7 @@ export type DatabaseData = {
   /** What the cards show beyond the cells: each row's ticket key, its subtasks, and — by key — its Lage and todos. */
   /** Locked (a database a sync keeps, as Jira's): shown, not changed here — its cards don't move, its cells aren't edited. */
   locked: boolean;
-  extras: { keys: Record<number, string>; subtasks: Record<number, { done: number; total: number }>; tickets: Record<string, TicketExtras>; todosOn: boolean; briefing: boolean; knowledge: boolean; me: { names: string[]; ids: number[] } };
+  extras: { keys: Record<number, string>; subtasks: Record<number, { done: number; total: number }>; tickets: Record<string, TicketExtras>; todosOn: boolean; briefing: boolean; knowledge: boolean; me: { names: string[]; ids: number[] }; source: string | null };
 };
 
 export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: DatabaseData }>> {
@@ -256,7 +256,7 @@ export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: D
       const k = rowKey(r);
       if (k) keys[r.id] = k;
     }
-    const extras: DatabaseData["extras"] = { keys, subtasks: subtaskCounts(d.schema, d.rows, page.id), tickets: ticketExtras(Object.values(keys)), todosOn: isInstalled("todos"), ...collectionSwitches(page.id), me: await whoAmI() };
+    const extras: DatabaseData["extras"] = { keys, subtasks: subtaskCounts(d.schema, d.rows, page.id), tickets: ticketExtras(Object.values(keys)), todosOn: isInstalled("todos"), ...collectionSwitches(page.id), me: await whoAmI(), source: collectionSource(page.id) };
     return { data: { id: page.id, title: page.title, icon: page.icon, locked: page.locked, schema: d.schema, rows: d.rows, labels, templates: store.rowTemplates(page.id).map((r) => ({ id: r.id, title: r.title || t("Untitled") })), related, extras } };
   });
 }
@@ -286,6 +286,14 @@ async function whoAmI(): Promise<{ names: string[]; ids: number[] }> {
     .filter((p) => [p.name, ...(p.aliases ?? [])].some((n) => wanted.has(n.trim().toLowerCase())))
     .map((p) => p.id);
   return { names, ids };
+}
+
+/** The sync that keeps a database (jira …), or null: its own. */
+const collectionSource = (dbId: number): string | null => listCollections({ plugin: "workspace" }).find((x) => x.id === `workspace:${dbId}`)?.source ?? null;
+
+/** A ticket's detail beyond its card (questions, suggested actions, flags, context, chat) — fetched when its row's panel opens. */
+export async function ticketDetailAction(key: string) {
+  return run(async () => ({ detail: (await import("@/lib/items/tickets")).ticketDetail(String(key)) }));
 }
 
 /** Whether a database is in the briefing and in the knowledge (its collection's switches). */

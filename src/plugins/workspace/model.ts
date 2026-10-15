@@ -87,7 +87,14 @@ export type DbSchema = {
   views: View[];
   /** The property that says whose a row is (person filter, "mine"); unset: the first person property, else a text "Assignee". */
   personProp?: string;
+  /** What a row's detail view (the panel over the database) shows, in order; unset: what fits the database (detailModules). */
+  detail?: DetailModule[];
 };
+
+/** The modules a row's detail view can show: its properties and page, and — by its ticket key — what Zeff knows about it. */
+export const DETAIL_MODULES = ["properties", "briefing", "todos", "questions", "actions", "flags", "context", "chat", "page"] as const;
+export type DetailModule = (typeof DETAIL_MODULES)[number];
+const isDetailModule = (v: unknown): v is DetailModule => (DETAIL_MODULES as readonly unknown[]).includes(v);
 
 /** A row as the views get it: the page, and its cells by property id (stored values, and the computed ones filled in). */
 export type Row = { id: number; title: string; icon: string; cells: Record<string, unknown>; createdAt: string; updatedAt: string };
@@ -166,7 +173,7 @@ export function normalizeSchema(raw: unknown): DbSchema {
   const o = (raw && typeof raw === "object" ? raw : {}) as Partial<DbSchema>;
   const props = (Array.isArray(o.properties) ? o.properties : []).filter((p): p is Property => !!p && typeof p.id === "string" && (PROP_TYPES as readonly string[]).includes(p.type));
   const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [] }));
-  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}) };
+  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}) };
 }
 
 export const propById = (props: Property[], id: string): Property | undefined => props.find((p) => p.id === id);
@@ -572,6 +579,35 @@ export function removeOption(schema: DbSchema, propId: string, optionId: string,
   const n = rows.filter((r) => asArray(r.cells[propId]).includes(optionId)).length;
   if (n) throw new Error(`The column still has ${n} card${n === 1 ? "" : "s"} — move them first.`);
   return withOptions(schema, propId, (o) => o.filter((x) => x.id !== optionId));
+}
+
+// ---------------------------------------------------------------------------
+// A row's detail view: the modules its database shows
+// ---------------------------------------------------------------------------
+
+/**
+ * What a row's detail view shows, in order: the database's choice — else by its kind: a database a sync keeps from Jira the
+ * briefing panel as Jira Lage had it; a board its cards' briefing and todos; any other its properties and page.
+ */
+export function detailModules(schema: DbSchema, source: string | null | undefined): DetailModule[] {
+  if (schema.detail) return schema.detail;
+  if (source === "jira") return ["properties", "briefing", "todos", "questions", "actions", "flags", "context", "chat"];
+  const status = schema.properties.find((p) => p.type === "status");
+  const board = !!status && schema.views.some((v) => v.type === "board" && v.groupBy === status.id);
+  return board ? ["properties", "briefing", "todos", "page"] : ["properties", "page"];
+}
+
+/** A module shown (at the end) or not any more. */
+export const toggleDetail = (list: DetailModule[], m: DetailModule): DetailModule[] => (list.includes(m) ? list.filter((x) => x !== m) : [...list, m]);
+
+/** A module one place up (-1) or down (1). */
+export function moveDetail(list: DetailModule[], m: DetailModule, dir: -1 | 1): DetailModule[] {
+  const i = list.indexOf(m);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= list.length) return list;
+  const next = [...list];
+  [next[i], next[j]] = [next[j], next[i]];
+  return next;
 }
 
 // ---------------------------------------------------------------------------
