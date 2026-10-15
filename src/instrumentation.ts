@@ -34,6 +34,13 @@ export async function register() {
   } catch (e) {
     console.error("[context] unifying linked sources failed", e);
   }
+  try {
+    // The lock (Settings → Lock): the key watcher ends every session the moment the security key is pulled out.
+    const { lockEnabled } = await import("./lib/lock/shared");
+    if (lockEnabled()) (await import("./lib/lock/detect")).startKeyWatch();
+  } catch (e) {
+    console.error("[lock] starting the key watcher failed", e);
+  }
   const { runsWork, delegates } = await import("./lib/host/role");
   // A web server with a sync host: the briefing, the syncs and the recap run there, not here — so a restart of this
   // server interrupts none of them (and doesn't fail their rows). It copies what the host is doing instead.
