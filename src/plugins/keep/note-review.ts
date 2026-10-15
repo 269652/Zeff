@@ -10,7 +10,7 @@ import { t } from "@/lib/i18n/server";
 import { emitChange } from "@/lib/events";
 import { getJiraTicket } from "@/lib/jira/store";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
-import { lageNotes, type NoteView } from "./boards";
+import { briefingNotes, type Item } from "@/lib/items";
 import { isoDate } from "@/lib/week";
 
 /**
@@ -60,30 +60,35 @@ function db() {
 }
 
 /** A note's version: when it was last edited (a later edit: read again). */
-const versionOf = (n: NoteView) => n.updatedAt ?? n.createdAt ?? "";
+/** A note: an item of a collection in the briefing (a Keep board, Google Keep, a database …), with where it is. */
+type Note = Item & { where: string };
+
+const versionOf = (n: Note) => n.updatedAt ?? n.createdAt ?? "";
 
 const state = globalThis as unknown as { __zeffNoteTodos?: Promise<NoteTodosResult> | null };
 export type NoteTodosResult = { ok: boolean; reviewed: number; added: number; /** New todos that repeated an open one and were merged into it. */ merged?: number; batches: number; error?: string };
 
 /** The notes to read now: edited lately, not read at this version, not empty. */
-function unread(): NoteView[] {
+function unread(): Note[] {
   const since = new Date(Date.now() - DAYS * 864e5).toISOString();
   const seen = new Map((db().prepare("select ref, version from keep_reviewed").all() as { ref: string; version: string }[]).map((r) => [r.ref, r.version]));
-  return lageNotes().filter((n) => (n.title || n.text.trim()) && versionOf(n) >= since && seen.get(n.ref) !== versionOf(n));
+  return briefingNotes()
+    .map(({ item, collection }): Note => ({ ...item, where: collection.name }))
+    .filter((n) => (n.title || n.text.trim()) && versionOf(n) >= since && seen.get(n.ref) !== versionOf(n));
 }
 
 export function reviewNotesForTodos(runId: number | null = null): Promise<NoteTodosResult> {
   if (state.__zeffNoteTodos) return state.__zeffNoteTodos;
   const run = (async (): Promise<NoteTodosResult> => {
     const notes = unread();
-    const mark = (list: NoteView[]) => {
+    const mark = (list: Note[]) => {
       const d = db();
       const put = d.prepare("insert into keep_reviewed (ref, version, reviewed_at) values (?, ?, ?) on conflict(ref) do update set version = excluded.version, reviewed_at = excluded.reviewed_at");
       const now = new Date().toISOString();
       d.transaction(() => list.forEach((n) => put.run(n.ref, versionOf(n), now)))();
     };
     // Those a todo already has as its source: gone through.
-    const cited = new Set(listTodos({ status: "all" }).flatMap((t) => t.refs.filter((r) => r.startsWith("keep:"))));
+    const cited = new Set(listTodos({ status: "all" }).flatMap((t) => t.refs));
     const theirs = notes.filter((n) => cited.has(n.ref));
     mark(theirs);
     const todo = notes.filter((n) => !cited.has(n.ref)).sort((a, b) => versionOf(a).localeCompare(versionOf(b)));
@@ -91,10 +96,10 @@ export function reviewNotesForTodos(runId: number | null = null): Promise<NoteTo
 
     const tickets = lastGoodRun()?.tickets.map((t) => t.key) ?? [];
     const ticketLines = tickets.map((k) => `- ${k}${getJiraTicket(k)?.summary ? ` — ${plain(getJiraTicket(k)!.summary, 120)}` : ""}`);
-    const line = (n: NoteView) =>
-      `- [${n.ref}] ${versionOf(n).slice(0, 16).replace("T", " ")} (${n.source === "google" ? "Google Keep" : (n.boardName ?? "Keep")}${n.labels.length ? `, Labels: ${n.labels.join(", ")}` : ""}) „${plain(n.title || "(ohne Titel)", 200)}“ — ${plain(n.text.replace(/^\s*[-*]\s\[ \]\s?/gm, "☐ ").replace(/^\s*[-*]\s\[[xX]\]\s?/gm, "☑ "), 1200)}`;
+    const line = (n: Note) =>
+      `- [${n.ref}] ${versionOf(n).slice(0, 16).replace("T", " ")} (${n.where}${n.labels.length ? `, Labels: ${n.labels.join(", ")}` : ""}) „${plain(n.title || "(ohne Titel)", 200)}“ — ${plain(n.text.replace(/^\s*[-*]\s\[ \]\s?/gm, "☐ ").replace(/^\s*[-*]\s\[[xX]\]\s?/gm, "☑ "), 1200)}`;
     const limit = aiChoice().provider === "copilot" ? BATCH_CHARS : 3 * BATCH_CHARS;
-    const batches: NoteView[][] = [];
+    const batches: Note[][] = [];
     let size = 0;
     for (const n of todo) {
       const len = line(n).length + 1;
@@ -138,7 +143,7 @@ export function reviewNotesForTodos(runId: number | null = null): Promise<NoteTo
       const known = new Set(batch.map((n) => n.ref));
       for (const td of answer.output?.todos ?? []) {
         const text = td.text?.trim();
-        const refs = (td.refs ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).map((r) => (r.startsWith("keep:") ? r : `keep:${r}`)).filter((r) => known.has(r));
+        const refs = (td.refs ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).map((r) => (known.has(r) ? r : `keep:${r}`)).filter((r) => known.has(r));
         if (!text || !refs.length) continue;
         const ticket = td.ticket?.trim().toUpperCase() ?? "";
         // One you dropped isn't made again; one that repeats an open todo is merged into it (the gate).

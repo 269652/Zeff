@@ -806,8 +806,11 @@ export function addDocTodo(v: { ticket: string; text: string; kind: string; owne
   return toTodo(row);
 }
 
+/** What a note todo may come from: a note (keep:…) or a database row (page:…) — an item of a collection. */
+const isNoteRef = (r: string) => r.startsWith("keep:") || /^page:\d+$/.test(r);
+
 export function addNoteTodo(v: { ticket: string; text: string; kind: string; owner?: "me" | "other"; refs: string[]; runId: number | null; due?: string | null }): Gated {
-  const g = gateTodo({ ticket: v.ticket, text: v.text, kind: v.kind, owner: v.owner, refs: v.refs.filter((r) => r.startsWith("keep:")), due: v.due, runId: v.runId, byWorker: false, source: "Notiz-Durchsicht" }, { closed: true });
+  const g = gateTodo({ ticket: v.ticket, text: v.text, kind: v.kind, owner: v.owner, refs: v.refs.filter(isNoteRef), due: v.due, runId: v.runId, byWorker: false, source: "Notiz-Durchsicht" }, { closed: true });
   if (g) return g;
   const now = new Date().toISOString();
   const row = getDb()
@@ -819,7 +822,7 @@ export function addNoteTodo(v: { ticket: string; text: string; kind: string; own
       owner: v.owner === "other" ? "other" : "me",
       status: "open",
       source: "Notiz-Durchsicht",
-      refs: JSON.stringify(v.refs.filter((r) => r.startsWith("keep:")).slice(0, 15)),
+      refs: JSON.stringify(v.refs.filter(isNoteRef).slice(0, 15)),
       runId: v.runId,
       due: dueDay(v.due),
       createdAt: now,
