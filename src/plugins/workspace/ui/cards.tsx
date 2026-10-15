@@ -2,6 +2,7 @@
 
 import { useT } from "@/components/I18nProvider";
 import { cellText, type Property, type Row } from "../model";
+import { CardKey, CardLead, CardTodos, extrasOf, SubtaskBadge } from "./card-extras";
 import { CellView, type CellCtx } from "./cells";
 
 /**
@@ -47,6 +48,7 @@ export function RowCard({ row, visible, ctx, mode }: { row: Row; visible: Proper
   const metaMax = gallery ? 4 : 3;
   const meta = metaAll.slice(0, metaMax);
   const more = metaAll.length - meta.length;
+  const x = extrasOf(ctx.data, row.id);
   return (
     <>
       {cover && (
@@ -56,7 +58,9 @@ export function RowCard({ row, visible, ctx, mode }: { row: Row; visible: Proper
       <div className="ws-card-title">
         {row.icon && <span aria-hidden>{row.icon}</span>}
         <span className="min-w-0 flex-1 break-words">{row.title || <span className="text-zinc-400">{t("Untitled")}</span>}</span>
+        {!gallery && <CardKey k={x.key} />}
       </div>
+      <CardLead ticket={x.ticket} />
       {chips.length > 0 && (
         <div className="flex flex-wrap items-center gap-1">
           {chips.map((p) => (
@@ -86,8 +90,9 @@ export function RowCard({ row, visible, ctx, mode }: { row: Row; visible: Proper
             ))}
           </div>
         ))}
-      {(flags.length > 0 || more > 0) && (
+      {(flags.length > 0 || more > 0 || !!x.subtasks?.total) && (
         <div className="flex flex-wrap items-center gap-1 text-xs">
+          <SubtaskBadge s={x.subtasks} />
           {flags.map((p) => (
             <span key={p.id} className="ws-chip" data-kind="flag">
               ✓ {p.name}
@@ -100,6 +105,7 @@ export function RowCard({ row, visible, ctx, mode }: { row: Row; visible: Proper
           )}
         </div>
       )}
+      {!gallery && x.key && ctx.data.extras?.todosOn && <CardTodos k={x.key} ticket={x.ticket} />}
     </>
   );
 }

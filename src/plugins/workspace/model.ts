@@ -511,6 +511,26 @@ export function dropValue(p: Property, current: unknown, from: string, to: strin
   return to === "" ? null : to;
 }
 
+/**
+ * Subtasks per parent row: the rows pointing at it through a relation to their own database (a
+ * moved Kanban card's Parent) — done when their status is in the done group. By the parent's id.
+ */
+export function subtaskCounts(schema: DbSchema, rows: Row[], dbId: number): Record<number, { done: number; total: number }> {
+  const parents = schema.properties.filter((p) => p.type === "relation" && p.relationDb === dbId && !p.backOf);
+  const status = schema.properties.find((p) => p.type === "status");
+  const out: Record<number, { done: number; total: number }> = {};
+  for (const r of rows) {
+    const done = !!status && status.options?.find((o) => o.id === r.cells[status.id])?.group === "done";
+    for (const p of parents)
+      for (const id of asArray(r.cells[p.id]).map(Number).filter((n) => n > 0 && n !== r.id)) {
+        const c = (out[id] ??= { done: 0, total: 0 });
+        c.total++;
+        if (done) c.done++;
+      }
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // Computed properties
 // ---------------------------------------------------------------------------

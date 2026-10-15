@@ -67,3 +67,17 @@ export type Item = {
   createdAt: string | null;
   updatedAt: string | null;
 };
+
+/** A todo on a card (its checklist): open or done, with its deadline. */
+export type ExtraTodo = { id: number; text: string; owner: "me" | "other"; status: "open" | "done"; due: string | null };
+
+/** What Zeff knows about a ticket's card beyond its row: the Lage (attention, lead …) and its todos. */
+export type TicketExtras = {
+  attention: string | null;
+  attentionLabel: string | null;
+  lead: string | null;
+  summary: string | null;
+  happened: { when: string; who?: string; what: string }[];
+  /** Open first, then done. */
+  todos: ExtraTodo[];
+};

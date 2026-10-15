@@ -6,7 +6,10 @@ import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { csvToDatabase, parseCsv } from "./csv";
 import { docText, docToMarkdown, markdownToDoc, type DocRef } from "./doc";
-import { rowsToCsv, type DbSchema, type Row } from "./model";
+import { ticketExtras } from "@/lib/items/tickets";
+import type { TicketExtras } from "@/lib/items/shared";
+import { rowKey } from "./collections";
+import { rowsToCsv, subtaskCounts, type DbSchema, type Row } from "./model";
 import * as store from "./store";
 
 /** The Workspace plugin's server actions: what its pages and editors call. Each says what came of it; none throws at the page. */
@@ -228,6 +231,8 @@ export type DatabaseData = {
   templates: { id: number; title: string }[];
   /** Related databases (for relation pickers): their rows' titles. */
   related: Record<number, { title: string; properties: { id: string; name: string; type: string }[]; rows: { id: number; title: string; icon: string }[] }>;
+  /** What the cards show beyond the cells: each row's ticket key, its subtasks, and — by key — its Lage and todos. */
+  extras: { keys: Record<number, string>; subtasks: Record<number, { done: number; total: number }>; tickets: Record<string, TicketExtras>; todosOn: boolean };
 };
 
 export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: DatabaseData }>> {
@@ -243,7 +248,13 @@ export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: D
         if (o) related[p.relationDb] = { title: o.title, properties: (o.schema?.properties ?? []).map((q) => ({ id: q.id, name: q.name, type: q.type })), rows: store.rawRows(p.relationDb).map((r) => ({ id: r.id, title: r.title, icon: r.icon })) };
       }
     }
-    return { data: { id: page.id, title: page.title, icon: page.icon, schema: d.schema, rows: d.rows, labels, templates: store.rowTemplates(page.id).map((r) => ({ id: r.id, title: r.title || t("Untitled") })), related } };
+    const keys: Record<number, string> = {};
+    for (const r of d.rows) {
+      const k = rowKey(r);
+      if (k) keys[r.id] = k;
+    }
+    const extras: DatabaseData["extras"] = { keys, subtasks: subtaskCounts(d.schema, d.rows, page.id), tickets: ticketExtras(Object.values(keys)), todosOn: isInstalled("todos") };
+    return { data: { id: page.id, title: page.title, icon: page.icon, schema: d.schema, rows: d.rows, labels, templates: store.rowTemplates(page.id).map((r) => ({ id: r.id, title: r.title || t("Untitled") })), related, extras } };
   });
 }
 

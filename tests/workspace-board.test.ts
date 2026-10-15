@@ -53,3 +53,34 @@ test("placeRow: a card lands between its neighbours — the order holds after ma
   const other = w.createPage({ kind: "database", title: "Other" });
   assert.throws(() => w.placeRow(a, { after: w.addRow(other, { title: "O" }), before: null }), /not a row of the same database/);
 });
+
+/** A card's subtasks: the rows pointing at it through a relation to their own database (Parent) — done by their status. */
+test("subtaskCounts: done/total per parent through a relation within the database", async () => {
+  const { subtaskCounts, newProperty } = await import("@/plugins/workspace/model");
+  const status = newProperty("Status", "status");
+  const [todo, , done] = status.options!;
+  const parent = { ...newProperty("Parent", "relation"), relationDb: 7 };
+  const other = { ...newProperty("Elsewhere", "relation"), relationDb: 99 };
+  const schema = { titleName: "Name", properties: [status, parent, other], views: [] };
+  const row = (id: number, cells: Record<string, unknown>) => ({ id, title: `R${id}`, icon: "", cells, createdAt: "", updatedAt: "" });
+  const rows = [row(1, {}), row(2, { [parent.id]: [1], [status.id]: done.id }), row(3, { [parent.id]: [1], [status.id]: todo.id }), row(4, { [other.id]: [1] }), row(5, { [parent.id]: [2] })];
+  assert.deepEqual(subtaskCounts(schema, rows, 7), { 1: { done: 1, total: 2 }, 2: { done: 0, total: 1 } });
+  assert.deepEqual(subtaskCounts(schema, rows, 8), {}, "a relation to another database isn't a parent");
+});
+
+/** What a ticket's card shows from Zeff: its todos (open first) and what the Lage says. */
+test("ticketExtras: a card's todos and Lage by its key", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("todos", true);
+  const { addManualTodo, setTodoStatus } = await import("@/lib/boards/store");
+  const { ticketExtras } = await import("@/lib/items/tickets");
+  const a = addManualTodo({ ticket: "WS-41", text: "Fliesen aussuchen" }) as { id: number };
+  const b = addManualTodo({ ticket: "WS-41", text: "Termin machen" }) as { id: number };
+  addManualTodo({ ticket: "WS-42", text: "Anderes" });
+  setTodoStatus(b.id, "done");
+
+  const x = ticketExtras(["WS-41", "WS-43"]);
+  assert.deepEqual(Object.keys(x), ["WS-41"], "only keys with something to show");
+  assert.deepEqual(x["WS-41"].todos.map((t) => [t.id, t.status]), [[a.id, "open"], [b.id, "done"]], "open first");
+  assert.equal(x["WS-41"].attention, null, "no Lage run yet");
+});

@@ -627,6 +627,7 @@ function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, new
             <div
               key={r.id}
               data-row={r.id}
+              data-attention={ctx.data.extras?.tickets[ctx.data.extras.keys[r.id] ?? ""]?.attention ?? undefined}
               className={`ws-card group/card relative cursor-pointer ${over?.key === g.key && over.before === r.id ? "ws-card-drop-before" : ""}`}
               draggable
               onDragStart={(e) => {

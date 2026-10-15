@@ -1,5 +1,11 @@
 import type { Issue } from "@/lib/boards/collect";
+import { attentionLabels, isAttention } from "@/lib/boards/shared";
+import { lageByTicket } from "@/lib/boards/ticket-lage";
+import { listTodos } from "@/lib/boards/store";
+import { t } from "@/lib/i18n/server";
 import type { TicketCard } from "@/lib/jira/ticket-card-shared";
+import { isInstalled } from "@/plugins/state";
+import type { ExtraTodo, TicketExtras } from "./shared";
 import { itemsByKeys, listCollections, collectionItems, type Item, type ItemPhase } from "./index";
 
 /**
@@ -57,6 +63,31 @@ export function itemTicketCards(keys: string[]): Record<string, TicketCard> {
       resolvedAt: it.status?.phase === "done" ? it.updatedAt : null,
       jobNumber: null,
     };
+  }
+  return out;
+}
+
+/**
+ * What a card shows from Zeff, by ticket key (upper case): what the Lage says about it (its last run)
+ * and its todos — the checklist (open first). Only keys with something to show; nothing without Todos.
+ */
+export function ticketExtras(keys: string[]): Record<string, TicketExtras> {
+  if (!isInstalled("todos")) return {};
+  const wanted = new Set(keys.map((k) => k.trim().toUpperCase()));
+  const todos = new Map<string, ExtraTodo[]>();
+  for (const todo of listTodos({ status: "all" })) {
+    if (todo.status === "dismissed") continue;
+    for (const k of new Set([todo.ticket, ...todo.alsoTickets].map((x) => x.toUpperCase())))
+      if (wanted.has(k)) todos.set(k, [...(todos.get(k) ?? []), { id: todo.id, text: todo.text, owner: todo.owner, status: todo.status === "done" ? "done" : "open", due: todo.due }]);
+  }
+  const { byKey } = lageByTicket();
+  const out: Record<string, TicketExtras> = {};
+  for (const k of wanted) {
+    const l = byKey.get(k);
+    const list = (todos.get(k) ?? []).sort((a, b) => (a.status === b.status ? 0 : a.status === "open" ? -1 : 1));
+    if (!l && !list.length) continue;
+    const attention = l && isAttention(l.attention) ? l.attention : null;
+    out[k] = { attention, attentionLabel: attention ? attentionLabels(t)[attention] : null, lead: l?.lead ?? null, summary: l?.summary ?? null, happened: (l?.happened ?? []).slice(-6), todos: list };
   }
   return out;
 }

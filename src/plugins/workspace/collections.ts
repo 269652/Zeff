@@ -29,6 +29,13 @@ const ownKey = (id: number) => `WS-${id}`;
 
 const collectionId = (dbId: number) => `workspace:${dbId}`;
 
+/** A row's ticket key: its Key, else WS-<id> — none for a note's row (one with its own ref). */
+export function rowKey(r: Pick<Row, "id" | "cells">): string | null {
+  const key = r.cells[KEY_PROP];
+  const note = r.cells[NOTE_PROP];
+  return typeof key === "string" && key.trim() ? key.trim().toUpperCase() : typeof note === "string" && note ? null : ownKey(r.id);
+}
+
 /** The databases in the briefing and in the knowledge (none at first). */
 const SWITCHES = "workspace.collections";
 type Switches = { briefing: number[]; knowledge: number[] };
@@ -47,12 +54,11 @@ function itemsOf(dbId: number, schema: DbSchema, rows: Row[]): Item[] {
     const d = date ? r.cells[date.id] : null;
     const who = person ? (r.cells[person.id] as number[] | null)?.[0] : undefined;
     const tagIds = tags ? ((r.cells[tags.id] as string[] | null) ?? []) : [];
-    const key = r.cells[KEY_PROP];
     const note = r.cells[NOTE_PROP];
     const color = schema.properties.find((p) => p.id === COLOR_PROP)?.options?.find((o) => o.id === r.cells[COLOR_PROP]);
     return {
       ref: typeof note === "string" && note ? note : `page:${r.id}`,
-      key: typeof key === "string" && key.trim() ? key.trim().toUpperCase() : typeof note === "string" && note ? null : ownKey(r.id),
+      key: rowKey(r),
       collectionId: collectionId(dbId),
       kind: "row",
       title: r.title,

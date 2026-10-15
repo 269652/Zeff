@@ -749,3 +749,13 @@
   .ws-column { background: color-mix(in oklab, var(--color-zinc-800, #27272a) 55%, transparent); }
   .ws-card-cover { background: var(--color-zinc-800, #27272a); }
 }
+
+/* A card's stripe: what the Lage says it needs (as Kanban's cards had it). */
+.ws-card[data-attention] { border-left-width: 3px; }
+.ws-card[data-attention="feedback"] { border-left-color: var(--color-red-500, #ef4444); }
+.ws-card[data-attention="blocked"] { border-left-color: var(--color-amber-500, #f59e0b); }
+.ws-card[data-attention="active"] { border-left-color: var(--color-indigo-500, #6366f1); }
+.ws-card[data-attention="check"] { border-left-color: var(--color-sky-500, #0ea5e9); }
+.ws-card[data-attention="spec"] { border-left-color: var(--color-violet-500, #8b5cf6); }
+.ws-card[data-attention="ready"] { border-left-color: var(--color-emerald-500, #10b981); }
+.ws-card[data-attention="stale"] { border-left-color: var(--color-zinc-400, #a1a1aa); }
