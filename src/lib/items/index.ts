@@ -42,3 +42,25 @@ export function itemsByRefs(refs: string[]): Map<string, Item> {
   for (const p of providers()) for (const it of p.byRefs(wanted)) out.set(it.ref, it);
   return out;
 }
+
+/** An item with the collection it's in. */
+export type PlacedItem = { item: Item; collection: Collection };
+
+/** The items with their collections (an item whose collection isn't listed any more is left out). */
+export function placed(items: Iterable<Item>): PlacedItem[] {
+  const cols = new Map(listCollections().map((c) => [c.id, c]));
+  return [...items].flatMap((item) => {
+    const collection = cols.get(item.collectionId);
+    return collection ? [{ item, collection }] : [];
+  });
+}
+
+/**
+ * What the briefing reads as notes: the items of the collections in it — not the boards', whose
+ * cards are tickets in the Lage themselves.
+ */
+export function briefingNotes(): PlacedItem[] {
+  return listCollections({ briefing: true })
+    .filter((c) => c.kind !== "board")
+    .flatMap((collection) => (collectionItems(collection.id) ?? []).map((item) => ({ item, collection })));
+}
