@@ -7,7 +7,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { isInstalled } from "@/plugins/state";
 import { docToMarkdown, markdownToDoc } from "./doc";
-import { cellText, filterRows, isComputed, sortRows, TITLE, type Row } from "./model";
+import { cellText, isComputed, sortRows, TITLE, type Row } from "./model";
 import * as store from "./store";
 
 type Result = { content: ({ type: "text"; text: string } | { type: "image"; data: string; mimeType: string })[]; isError?: boolean };
@@ -177,7 +177,10 @@ export function registerWorkspaceTools(server: McpServer, h: Helpers): void {
         const labels = store.labelFns(await store.labelsFor(d.schema, d.rows));
         const props = d.schema.properties;
         let rows: Row[] = d.rows;
-        if (contains) rows = filterRows(rows, { op: "or", rules: [{ prop: TITLE, cond: "contains", value: contains }, ...props.filter((q) => !["checkbox", "date", "number"].includes(q.type)).map((q) => ({ prop: q.id, cond: "contains" as const, value: contains }))] }, props, labels);
+        if (contains) {
+          const w = contains.toLowerCase();
+          rows = rows.filter((r) => r.title.toLowerCase().includes(w) || props.some((q) => cellText(q, r.cells[q.id], labels).toLowerCase().includes(w)));
+        }
         const sortProp = sortBy ? (props.find((q) => q.name.toLowerCase() === sortBy.toLowerCase())?.id ?? (sortBy.toLowerCase() === d.schema.titleName.toLowerCase() ? TITLE : undefined)) : undefined;
         if (sortProp) rows = sortRows(rows, [{ prop: sortProp, dir: descending ? "desc" : "asc" }], props);
         const shown = rows.slice(0, limit ?? 50);

@@ -21,16 +21,19 @@ export function LockSettings({ enabled, hasKeys }: { enabled: boolean; hasKeys: 
       router.refresh();
     });
 
+  const lockNow = () =>
+    run(async () => {
+      const r = await lockStep("lock-now");
+      if (r.ok) location.reload();
+      return r;
+    });
+
   return (
     <div className="space-y-3">
       {enabled ? (
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <span className="font-medium text-emerald-700 dark:text-emerald-400">{t("The lock is on.")}</span>
-          <button type="button" className="btn btn-sm" disabled={pending} onClick={() => run(async () => {
-                const r = await lockStep("lock-now");
-                if (r.ok) location.reload();
-                return r;
-              })}>
+          <button type="button" className="btn btn-sm" disabled={pending} onClick={lockNow}>
             {t("Lock now")}
           </button>
           <button type="button" className="btn btn-sm" disabled={pending} onClick={() => run(() => lockStep("disable"))}>
