@@ -75,6 +75,13 @@ export function finishRun(
     })
     .where(eq(boardRuns.id, id))
     .run();
+  // What it says about each ticket, into the Lage fields of the Workspace's rows with its key (the cards read the fields).
+  if (patch.status === "ok" && patch.result?.tickets?.length) {
+    const tickets = patch.result.tickets;
+    void import("@/plugins/state")
+      .then(async ({ isInstalled }) => (isInstalled("workspace") ? (await import("@/plugins/workspace/lage-fields")).applyTicketLage(tickets) : 0))
+      .catch((e) => console.error("[boards] the Lage into the Workspace's fields failed", e));
+  }
 }
 
 /** A run by its number. */

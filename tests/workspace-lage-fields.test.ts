@@ -63,3 +63,34 @@ test("the review skips what the Ticket-Lage read; the card's stripe and lead com
   assert.equal(loaded.data.extras.tickets[key]?.lead, "Wartet auf Antwort.");
   assert.equal(loaded.data.extras.tickets[key]?.summary, "Seit Tagen offen.");
 });
+
+/** The Ticket-Lage writes what it says about a ticket into the Lage fields of every row with its key — the cards read only fields. */
+test("applyTicketLage: a Lage run's attention, lead, summary into the rows with the key (fields made where missing)", async () => {
+  await setup();
+  const w = await import("@/plugins/workspace/store");
+  const m = await import("@/plugins/workspace/model");
+  const { LAGE_FIELDS, applyTicketLage } = await import("@/plugins/workspace/lage-fields");
+  const { startRun, finishRun } = await import("@/lib/boards/store");
+  const status = m.newProperty("Status", "status");
+  const board = () => ({ titleName: "Name", properties: [status, { ...m.newProperty("Key", "text"), id: "ticketkey" }], views: [{ ...m.newView("Board", "board"), groupBy: status.id }] });
+  const one = w.createPage({ kind: "database", title: "Jira A", schema: board() });
+  const two = w.createPage({ kind: "database", title: "Mine", schema: board() });
+  const a = w.addRow(one, { title: "T", cells: { ticketkey: "PROJ-7" } });
+  const b = w.addRow(two, { title: "T", cells: { ticketkey: "PROJ-7" } });
+  const other = w.addRow(two, { title: "U", cells: { ticketkey: "PROJ-8" } });
+
+  const n = applyTicketLage([{ key: "proj-7", attention: "feedback", lead: "Rückfrage an Anna offen.", summary: "Seit 03.10." }, { key: "PROJ-9", attention: "active", lead: "x", summary: "" }]);
+  assert.equal(n, 2, "both rows with the key");
+  for (const r of [a, b]) {
+    assert.equal(w.getPage(r)!.props[LAGE_FIELDS.attention], "feedback");
+    assert.equal(w.getPage(r)!.props[LAGE_FIELDS.lead], "Rückfrage an Anna offen.");
+  }
+  assert.equal(w.getPage(other)!.props[LAGE_FIELDS.attention], undefined);
+  assert.ok(w.getDatabase(one)!.schema.properties.some((p) => p.id === LAGE_FIELDS.summary), "the fields made where missing");
+
+  // A finished run does it on its own.
+  const id = startRun("project = PROJ", null);
+  finishRun(id, { status: "ok", tickets: [], result: { lede: "", tickets: [{ key: "PROJ-8", attention: "blocked", lead: "Wartet.", summary: "", happened: [], todos: [], resolved: [], flags: [] }] as never, left: [] } as never });
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal(w.getPage(other)!.props[LAGE_FIELDS.attention], "blocked");
+});

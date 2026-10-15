@@ -115,7 +115,7 @@ function itemsOfRows(ids: Iterable<number>): Item[] {
 }
 
 /** The rows with these ticket keys (WS-<id>, or their Key). */
-const rowsByKeys = (keys: string[]): number[] => [...keys.flatMap((k) => (/^WS-\d+$/.test(k) ? [Number(k.slice(3))] : [])), ...rowsWhere(KEY_PROP, keys.filter((k) => !/^WS-\d+$/.test(k)))];
+export const rowsByKeys = (keys: string[]): number[] => [...keys.flatMap((k) => (/^WS-\d+$/.test(k) ? [Number(k.slice(3))] : [])), ...rowsWhere(KEY_PROP, keys.filter((k) => !/^WS-\d+$/.test(k)))];
 
 /** A Lage suggestion on a row (its ticket key): a move sets its status; a note goes on its page, dated. */
 function rowAction(rowId: number, action: ItemAction): string {
