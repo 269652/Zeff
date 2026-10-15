@@ -4,3 +4,4 @@ import "./kanban/server";
 import "./keep/server";
 import "./todos/server";
 import "./work/server";
+import "./workspace/server";
