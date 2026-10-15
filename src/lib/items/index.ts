@@ -1,6 +1,6 @@
 import "@/plugins/contributions";
 import { collectionProviders } from "./point";
-import type { Collection, CollectionSwitches, Item } from "./shared";
+import type { Collection, CollectionSwitches, Item, ItemAction } from "./shared";
 
 /**
  * Collections and their items from every installed plugin that keeps things (server only). What
@@ -8,7 +8,7 @@ import type { Collection, CollectionSwitches, Item } from "./shared";
  * reads them here, not from the plugins' stores.
  */
 
-export type { Collection, CollectionKind, CollectionSwitches, Item, ItemPhase, ItemStatus } from "./shared";
+export type { Collection, CollectionKind, CollectionSwitches, Item, ItemAction, ItemPhase, ItemStatus } from "./shared";
 
 const providers = () => collectionProviders.list().map((c) => c.impl);
 
@@ -41,6 +41,16 @@ export function itemsByKeys(keys: string[]): Map<string, Item> {
   if (!wanted.length) return out;
   for (const p of providers()) for (const it of p.byKeys(wanted)) if (it.key) out.set(it.key.toUpperCase(), it);
   return out;
+}
+
+/** Does a Lage suggestion on the item with ticket `key` (a card, a row): what was done, in words. */
+export function itemAction(key: string, action: ItemAction): string {
+  const k = key.trim().toUpperCase();
+  for (const p of providers()) {
+    const done = p.act(k, action);
+    if (done !== null) return done;
+  }
+  throw new Error(`That item doesn't exist (any more): ${k}`);
 }
 
 /** Puts a collection into the briefing or the knowledge, or takes it out (its plugin keeps the switch). */

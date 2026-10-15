@@ -3,7 +3,7 @@ import { getDb, schema } from "@/db";
 import type { CollectionProvider } from "@/lib/items/point";
 import type { Collection, Item, ItemPhase } from "@/lib/items/shared";
 import { cardRef, type BoardView } from "./shared";
-import { getBoard, listBoards, updateBoard } from "./store";
+import { getBoard, kanbanCardAction, listBoards, updateBoard } from "./store";
 
 /**
  * Your Kanban boards as collections (kanban:<id>), their cards as items (KB-<id>): the column is
@@ -71,6 +71,8 @@ export const kanbanCollections: CollectionProvider = {
     return true;
   },
   byKeys: (keys) => kanbanCollections.byRefs(keys),
+  // Only a card still on Kanban (a moved one is its row's now).
+  act: (key, action) => (kanbanCollections.byRefs([key]).length ? kanbanCardAction(Number(key.slice(3)), action) : null),
   byRefs(refs) {
     const ids = refs.flatMap((r) => {
       const m = /^KB-(\d+)$/i.exec(r);

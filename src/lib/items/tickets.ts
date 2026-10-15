@@ -1,5 +1,6 @@
 import type { Issue } from "@/lib/boards/collect";
-import { listCollections, collectionItems, type Item, type ItemPhase } from "./index";
+import type { TicketCard } from "@/lib/jira/ticket-card-shared";
+import { itemsByKeys, listCollections, collectionItems, type Item, type ItemPhase } from "./index";
 
 /**
  * The rows of board databases in the briefing (a Workspace database with a board view by status —
@@ -27,6 +28,35 @@ export function boardLageTickets(): BoardLageTicket[] {
       if (done && Date.parse(it.updatedAt ?? "") < since) continue;
       out.push({ board: col.name, done, columns: statuses.filter((s) => s !== status?.name), url: it.href, issue: issueOf(it, col.name, status) });
     }
+  }
+  return out;
+}
+
+/**
+ * Hover cards for own ticket keys whose item is a row (a moved card's KB-…, a row's WS-…): its title,
+ * status, page and database. Kanban's cards still on Kanban aren't here (kanbanTicketCards).
+ */
+export function itemTicketCards(keys: string[]): Record<string, TicketCard> {
+  const items = itemsByKeys(keys);
+  const names = new Map(listCollections().map((c) => [c.id, c.name]));
+  const out: Record<string, TicketCard> = {};
+  for (const [key, it] of items) {
+    if (it.kind !== "row") continue;
+    out[key] = {
+      key,
+      url: it.href,
+      synced: true,
+      summary: it.title,
+      description: it.text || null,
+      status: it.status?.name ?? "",
+      statusCategory: (it.status ? CATEGORY[it.status.phase] : "todo") as TicketCard["statusCategory"],
+      issueType: names.get(it.collectionId) ?? null,
+      priority: null,
+      assignee: it.assignee,
+      openedAt: it.createdAt,
+      resolvedAt: it.status?.phase === "done" ? it.updatedAt : null,
+      jobNumber: null,
+    };
   }
   return out;
 }

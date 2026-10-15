@@ -1,4 +1,4 @@
-import { isKanbanKey } from "@/lib/ticket-keys";
+import { isOwnKey } from "@/lib/ticket-keys";
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { errorMessage, NotFoundError, ValidationError } from "@/lib/errors";
@@ -53,11 +53,11 @@ export async function runTicketAction(runId: number, ticket: string, idx: number
       .insert(ticketActions)
       .values({ runId, ticket, idx, type: action.type, label: action.label, action: JSON.stringify(action), status, detail: detail.slice(0, 1000), at: new Date().toISOString() })
       .run();
-  // A Kanban card (KB-…): a move to the column named; a comment as a note in its description.
-  if (isKanbanKey(ticket)) {
+  // Your own card or row (KB-…, WS-…): a move to the column / status named; a comment as a note on it.
+  if (isOwnKey(ticket)) {
     try {
-      const { kanbanCardAction } = await import("@/plugins/kanban/store");
-      const detail = kanbanCardAction(Number(ticket.replace(/^KB-/i, "")), action);
+      const { itemAction } = await import("@/lib/items");
+      const detail = itemAction(ticket, action);
       keep("done", detail);
       return { action, detail };
     } catch (e) {

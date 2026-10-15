@@ -5012,5 +5012,7 @@
   "The branch gets the name": "La rama recibe el nombre",
   "zeff/… (no words to make a name of)": "zeff/… (sin palabras para hacer un nombre)",
   "From {source}: “{text}”": "De {source}: «{text}»",
-  "What the worker is told": "Lo que se le dice al worker"
+  "What the worker is told": "Lo que se le dice al worker",
+  "No status “{name}” — there are: {statuses}.": "No hay estado «{name}»; hay: {statuses}.",
+  "That doesn't work on a row (no assignment).": "Eso no funciona en una fila (sin asignación)."
 }

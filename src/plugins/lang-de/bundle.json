@@ -5012,5 +5012,7 @@
   "The branch gets the name": "Der Branch bekommt den Namen",
   "zeff/… (no words to make a name of)": "zeff/… (keine Worte, aus denen sich ein Name machen ließe)",
   "From {source}: “{text}”": "Aus {source}: „{text}“",
-  "What the worker is told": "Was der Worker gesagt bekommt"
+  "What the worker is told": "Was der Worker gesagt bekommt",
+  "No status “{name}” — there are: {statuses}.": "Kein Status „{name}“ — es gibt: {statuses}.",
+  "That doesn't work on a row (no assignment).": "Das geht bei einer Zeile nicht (keine Zuweisung)."
 }

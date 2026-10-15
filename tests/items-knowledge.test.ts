@@ -32,6 +32,7 @@ test("knowledge: items of the collections in the knowledge are documents, archiv
     byRefs: () => [],
     set: () => false,
     byKeys: () => [],
+    act: () => null,
   });
 
   const docs = knowledgeDocs("http://zeff").docs;

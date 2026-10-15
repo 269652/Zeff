@@ -57,3 +57,43 @@ test("lage: rows of a board database in the briefing are tickets — a moved car
   setCollection(`workspace:${dbId}`, { briefing: false });
   assert.deepEqual(boardLageTickets(), [], "out of the briefing: no tickets");
 });
+
+/** A Lage suggestion on a moved card or a row works there: a move sets its status, a note goes on its page; the hover card shows the row. */
+test("actions and hover cards: KB-… of a moved card and WS-… act on and show the row", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["kanban", "workspace"]) setInstalled(id, true);
+  const s = await import("@/plugins/kanban/store");
+  const w = await import("@/plugins/workspace/store");
+  const { docText } = await import("@/plugins/workspace/doc");
+  const { itemAction, itemsByKeys } = await import("@/lib/items");
+  const { moveBoardToWorkspace, movedCard } = await import("@/plugins/kanban/to-workspace");
+  const { getTicketCards } = await import("@/lib/jira/store");
+
+  const b = s.createBoard({ name: "Aktionen", columns: ["Offen", "Dran", "Fertig"] });
+  const card = s.createCard(s.getBoard(b).columns[0].id, "Wand streichen");
+  s.updateCard(card.id, { description: "Weiß" });
+  const stays = s.createBoard({ name: "Bleibt" });
+  const kb = s.createCard(s.getBoard(stays).columns[0].id, "Bleibt auf Kanban");
+  const { dbId } = moveBoardToWorkspace(b);
+  const fresh = w.addRow(dbId, { title: "Neue Zeile" });
+  const key = `KB-${card.id}`;
+
+  assert.equal(itemAction(key, { type: "transition", to: "dran", label: "→ Dran" }), "→ Dran");
+  assert.equal(itemsByKeys([key]).get(key)!.status?.name, "Dran");
+  assert.equal(itemAction(key, { type: "comment", comment: "Farbe gekauft", label: "Notiz" }), "Note on the card");
+  assert.match(docText(w.getPage(movedCard(card.id)!)!.content), /^Weiß[\s\S]*— .*: Farbe gekauft$/);
+  assert.equal(itemAction(`WS-${fresh}`, { type: "transition", to: "Fertig", label: "→ Fertig" }), "→ Fertig");
+  assert.throws(() => itemAction(`WS-${fresh}`, { type: "transition", to: "Nirgends", label: "x" }), /No status “Nirgends” — there are: Offen, Dran, Fertig/);
+  assert.throws(() => itemAction(`WS-${fresh}`, { type: "assign", label: "x" }), /doesn't work/);
+  assert.equal(itemAction(`KB-${kb.id}`, { type: "transition", to: "Done", label: "→ Done" }), "→ Done", "a card still on Kanban: Kanban's way");
+  assert.throws(() => itemAction("WS-999999", { type: "comment", comment: "x", label: "x" }), /doesn't exist/);
+
+  const cards = getTicketCards([key, `WS-${fresh}`, `KB-${kb.id}`]);
+  assert.equal(cards[key].summary, "Wand streichen");
+  assert.equal(cards[key].status, "Dran");
+  assert.equal(cards[key].statusCategory, "inprogress");
+  assert.equal(cards[key].url, `/workspace/${movedCard(card.id)}`);
+  assert.equal(cards[key].issueType, "Aktionen", "where it is: its database");
+  assert.equal(cards[`WS-${fresh}`].statusCategory, "done");
+  assert.equal(cards[`KB-${kb.id}`].summary, "Bleibt auf Kanban");
+});

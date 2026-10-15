@@ -1,11 +1,13 @@
 import { getSqlite } from "@/db";
+import { formatDate } from "@/lib/format";
+import { t } from "@/lib/i18n/server";
 import type { CollectionProvider } from "@/lib/items/point";
 import { getPref, setPref } from "@/lib/prefs";
-import type { Collection, Item } from "@/lib/items/shared";
+import type { Collection, Item, ItemAction } from "@/lib/items/shared";
 import { getPerson } from "@/plugins/people/store";
 import { docText } from "./doc";
 import type { DbSchema, Row } from "./model";
-import { getDatabase, getPage, rawRows, tree } from "./store";
+import { getDatabase, getPage, rawRows, setCell, tree, updatePage } from "./store";
 
 /**
  * Your Workspace databases as collections (workspace:<id>), their rows as items (page:<id>). What
@@ -62,6 +64,26 @@ function itemsOf(dbId: number, schema: DbSchema, rows: Row[]): Item[] {
   });
 }
 
+/** A Lage suggestion on a row (its ticket key): a move sets its status; a note goes on its page, dated. */
+function rowAction(rowId: number, action: ItemAction): string {
+  const page = getPage(rowId)!;
+  const status = getDatabase(page.dbId!)?.schema.properties.find((p) => p.type === "status");
+  if (action.type === "transition" && status) {
+    const want = (action.to ?? "").trim().toLowerCase();
+    const opts = status.options ?? [];
+    const hit = opts.find((o) => o.name.trim().toLowerCase() === want) ?? opts.find((o) => !!want && o.name.toLowerCase().includes(want));
+    if (!hit) throw new Error(t("No status “{name}” — there are: {statuses}.", { name: action.to ?? "", statuses: opts.map((o) => o.name).join(", ") }));
+    setCell(rowId, status.id, hit.id);
+    return `→ ${hit.name}`;
+  }
+  if (action.type === "comment" && action.comment?.trim()) {
+    const note = `— ${formatDate(new Date(), { weekday: false, year: true })}: ${action.comment.trim()}`;
+    updatePage(rowId, { content: { ...page.content, content: [...page.content.content, { type: "paragraph", content: [{ type: "text", text: note }] }] } });
+    return t("Note on the card");
+  }
+  throw new Error(t("That doesn't work on a row (no assignment)."));
+}
+
 export const workspaceCollections: CollectionProvider = {
   collections: () => {
     const on = switches();
@@ -114,6 +136,10 @@ export const workspaceCollections: CollectionProvider = {
       : [];
     const wanted = new Set(keys);
     return workspaceCollections.byRefs([...own, ...keyed]).filter((it) => it.key && wanted.has(it.key));
+  },
+  act(key, action) {
+    const [row] = workspaceCollections.byKeys([key]);
+    return row ? rowAction(Number(row.ref.slice(5)), action) : null;
   },
   byRefs(refs) {
     const ids = new Set(refs.flatMap((r) => (/^page:\d+$/.test(r) ? [Number(r.slice(5))] : [])));

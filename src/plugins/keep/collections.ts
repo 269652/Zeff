@@ -82,5 +82,6 @@ export const keepCollections: CollectionProvider = {
     return true;
   },
   byKeys: () => [],
+  act: () => null,
   byRefs: (refs) => notesByRefs(refs).map((n) => toItem(n, n.boardId ? ownId(n.boardId) : GOOGLE)),
 };

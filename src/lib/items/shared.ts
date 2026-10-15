@@ -35,6 +35,9 @@ export type Collection = {
 /** What can be switched on a collection (what's left out stays as it is). */
 export type CollectionSwitches = { briefing?: boolean; knowledge?: boolean };
 
+/** A Lage suggestion on an item, clicked: a move to a status (`to`), a note (`comment`). */
+export type ItemAction = { type: string; to?: string; comment?: string; label: string };
+
 /** Where an item stands: todo (not started), doing, done. */
 export type ItemPhase = "todo" | "doing" | "done";
 export type ItemStatus = { name: string; phase: ItemPhase };
