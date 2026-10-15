@@ -60,7 +60,7 @@ const SCHEMA = {
   },
 };
 
-const instructions = (me: string | null, today: string) => `Du schätzt die Lage einzelner Tickets eines Jira-Boards ein — für ein Kanban-Board, auf dem jede Karte zeigt, wie ihr Ticket steht. Heute ist ${today}.${me ? ` Ich bin ${me}; die Tickets gehören meist anderen.` : ""} Deutsch, nüchtern, konkret: Daten, Namen, was offen ist — nichts erfinden.
+const instructions = (me: string | null, today: string) => `Du schätzt die Lage einzelner Tickets eines Boards ein (Jira-Board oder eigenes Board in Zeff) — für ein Kanban-Board, auf dem jede Karte zeigt, wie ihr Ticket steht. Heute ist ${today}.${me ? ` Ich bin ${me}; die Tickets gehören meist anderen.` : ""} Deutsch, nüchtern, konkret: Daten, Namen, was offen ist — nichts erfinden.
 
 Gib für JEDES Ticket unten (key wie angegeben):
 - attention: feedback (eine Rückfrage ist offen / wartet auf Antwort), active (es wird daran gearbeitet), check (im Test, Review, Abnahme), spec (Anforderung/Spezifikation unklar, in Klärung), blocked (wartet auf andere / extern), ready (bereit zum Weitermachen, nichts blockiert), stale (liegt seit Wochen ohne Bewegung).
@@ -83,18 +83,22 @@ function ensureTable(): void {
  * the Ticket-Lage just read; of them the ones you're in (on you, followed, commented, your todos,
  * your bookings) — or all (`all`: also those without you, where you have only what Jira says).
  */
+/** The tickets the last Ticket-Lage run analyzed (they have their Lage from it). */
+function analyzedByTicketLage(): Set<string> {
+  const last = getDb().select({ tickets: boardRuns.tickets }).from(boardRuns).where(eq(boardRuns.status, "ok")).orderBy(desc(boardRuns.id)).limit(1).get();
+  try {
+    return new Set((JSON.parse(last?.tickets ?? "[]") as BoardTicket[]).filter((t) => t.analyzed).map((t) => t.key.toUpperCase()));
+  } catch {
+    return new Set();
+  }
+}
+
 function relevantKeys(all: boolean): string[] {
   const db = getDb();
   const boards = db.select({ id: jiraBoards.id }).from(jiraBoards).where(eq(jiraBoards.enabled, true)).all().map((b) => b.id);
   if (!boards.length) return [];
   const since = Date.now() - RECENT_DAYS * 864e5;
-  const last = db.select({ tickets: boardRuns.tickets }).from(boardRuns).where(eq(boardRuns.status, "ok")).orderBy(desc(boardRuns.id)).limit(1).get();
-  let mine = new Set<string>();
-  try {
-    mine = new Set((JSON.parse(last?.tickets ?? "[]") as BoardTicket[]).filter((t) => t.analyzed).map((t) => t.key.toUpperCase()));
-  } catch {
-    mine = new Set();
-  }
+  const mine = analyzedByTicketLage();
   const involved = all
     ? null
     : new Set([
@@ -136,12 +140,16 @@ export function runBoardLage(opts: { force?: boolean; all?: boolean } = {}): Pro
   const run = (async (): Promise<BoardLageResult> => {
     ensureTable();
     const keys = relevantKeys(all);
-    if (!keys.length) return { ok: true, all, relevant: 0, analyzed: 0, unchanged: 0, failed: 0 };
+    // Your own boards' open cards (Kanban, Workspace) — read from their rows, not from Jira; those the Ticket-Lage read have theirs.
+    const read = analyzedByTicketLage();
+    const own = (await import("@/lib/items/tickets")).ownBoardIssues(RECENT_DAYS).filter((i) => !read.has(i.key.toUpperCase()));
+    if (!keys.length && !own.length) return { ok: true, all, relevant: 0, analyzed: 0, unchanged: 0, failed: 0 };
     const cfg = getJiraSyncConfig();
-    if (!cfg.configured || !cfg.command) return { ok: false, all, relevant: keys.length, analyzed: 0, unchanged: 0, failed: 0, error: t("Jira isn't set up.") };
+    const jira = keys.length > 0 && cfg.configured && !!cfg.command;
+    if (keys.length && !jira && !own.length) return { ok: false, all, relevant: keys.length, analyzed: 0, unchanged: 0, failed: 0, error: t("Jira isn't set up.") };
     // Read from Jira: each with its comments and history.
-    const issues: Issue[] = await runStdioSession(
-      { command: cfg.command, args: cfg.args, env: cfg.env, label: "Jira (board briefing)" },
+    const fromJira: Issue[] = !jira ? [] : await runStdioSession(
+      { command: cfg.command!, args: cfg.args, env: cfg.env, label: "Jira (board briefing)" },
       async (call) => {
         const out: Issue[] = [];
         for (let i = 0; i < keys.length; i += 50) {
@@ -153,6 +161,7 @@ export function runBoardLage(opts: { force?: boolean; all?: boolean } = {}): Pro
       },
       240000,
     );
+    const issues = [...fromJira, ...own];
     keepComments(
       issues.flatMap((i) =>
         (i.comments ?? []).flatMap((c) => (c.id ? [{ id: c.id, ticket: i.key, author: who(c.author), at: dateOf(c.created)?.toISOString() ?? "", body: plain(c.body, 4000) }] : [])),
@@ -214,7 +223,7 @@ export function runBoardLage(opts: { force?: boolean; all?: boolean } = {}): Pro
       while (next < batches.length) await one(batches[next++]);
     };
     await Promise.all(Array.from({ length: Math.min(PARALLEL, batches.length) }, worker));
-    return { ok: failed === 0 || analyzed > 0, all, relevant: keys.length, analyzed, unchanged, failed, error: failed ? lastError.slice(0, 300) : undefined };
+    return { ok: failed === 0 || analyzed > 0, all, relevant: keys.length + own.length, analyzed, unchanged, failed, error: failed ? lastError.slice(0, 300) : undefined };
   })()
     .catch((e) => ({ ok: false, all, relevant: 0, analyzed: 0, unchanged: 0, failed: 0, error: errorMessage(e).slice(0, 300) }))
     .finally(() => {

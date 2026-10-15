@@ -40,6 +40,28 @@ export function boardLageTickets(): BoardLageTicket[] {
 }
 
 /**
+ * What a board review reads besides Jira's tickets: the open cards of the boards that aren't kept
+ * by a sync (your Kanban boards, Workspace board databases) — moved within `days` or in progress —
+ * as issues, from their rows. In the briefing or not: a board's cards all get their Lage.
+ */
+export function ownBoardIssues(days: number): Issue[] {
+  const since = Date.now() - days * 864e5;
+  const out: Issue[] = [];
+  for (const col of listCollections()) {
+    if (col.kind !== "board" || col.source) continue;
+    const statuses = col.statuses ?? [];
+    for (const it of collectionItems(col.id) ?? []) {
+      if (!it.key) continue;
+      const status = it.status ?? (statuses[0] ? { name: statuses[0], phase: "todo" as const } : null);
+      if (status?.phase === "done") continue;
+      if (status?.phase !== "doing" && Date.parse(it.updatedAt ?? "") < since) continue;
+      out.push(issueOf(it, col.name, status));
+    }
+  }
+  return out;
+}
+
+/**
  * Hover cards for own ticket keys whose item is a row (a moved card's KB-…, a row's WS-…): its title,
  * status, page and database. Kanban's cards still on Kanban aren't here (kanbanTicketCards).
  */
