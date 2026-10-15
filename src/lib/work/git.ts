@@ -46,14 +46,24 @@ export function baseFor(repo: string, ticket: string): string {
  * next to the repo (<parent>/.zeff-worktrees/<repo>-w<id>) — the checkout and what's in progress
  * there stay untouched.
  */
-export function addWorktree(repo: string, ticket: string, runId: number, base: string): { cwd: string; branch: string; baseSha: string } {
+export function addWorktree(repo: string, ticket: string, runId: number, base: string, preferred?: string): { cwd: string; branch: string; baseSha: string } {
   const baseSha = git(repo, ["rev-parse", base]);
   // A name already taken (a branch or folder left from before): the next free one.
   const taken = (b: string, dir: string) => !!tryGit(repo, ["rev-parse", "--verify", "--quiet", `refs/heads/${b}`]) || fs.existsSync(/*turbopackIgnore: true*/ dir);
   const name = (n: number) => (n ? `-w${runId}-${n + 1}` : `-w${runId}`);
   let n = 0;
   while (taken(`zeff/${ticket}${name(n)}`, path.join(path.dirname(repo), ".zeff-worktrees", `${path.basename(repo)}${name(n)}`)) && n < 20) n++;
-  const branch = `zeff/${ticket}${name(n)}`;
+  // Its branch: the name asked for (feature/PROJ-1-footer-link — a branch GitLab and the delivery can use), the next free one when it is taken; else zeff/<ticket>-w<run>.
+  let branch = `zeff/${ticket}${name(n)}`;
+  if (preferred && /^[A-Za-z0-9._/-]+$/.test(preferred) && tryGit(repo, ["check-ref-format", "--branch", preferred]) !== null) {
+    for (let i = 1; i <= 6; i++) {
+      const candidate = i === 1 ? preferred : `${preferred}-${i}`;
+      if (!tryGit(repo, ["rev-parse", "--verify", "--quiet", `refs/heads/${candidate}`]) && !tryGit(repo, ["rev-parse", "--verify", "--quiet", `refs/remotes/origin/${candidate}`])) {
+        branch = candidate;
+        break;
+      }
+    }
+  }
   const cwd = path.join(path.dirname(repo), ".zeff-worktrees", `${path.basename(repo)}${name(n)}`);
   fs.mkdirSync(/*turbopackIgnore: true*/ path.dirname(cwd), { recursive: true });
   // Without the repo's hooks: a post-checkout hook (CaptainHook: vendor/bin/captainhook) fails in

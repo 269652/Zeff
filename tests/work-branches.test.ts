@@ -92,3 +92,20 @@ test("the folder picker lists sub-folders, repos first, hidden ones left out", (
     fs.rmSync(base, { recursive: true, force: true });
   }
 });
+
+test("a worker's worktree gets the branch name asked for (the next free one when taken), else its own zeff/… name", () => {
+  const { base, repo } = makeRepo();
+  try {
+    const a = addWorktree(repo, "ABC-7", 21, "main", "feature/ABC-7-footer-link");
+    assert.equal(a.branch, "feature/ABC-7-footer-link");
+    assert.equal(git(a.cwd, "symbolic-ref", "--short", "HEAD"), "feature/ABC-7-footer-link");
+    // The same name asked for again: the next one is free.
+    const b = addWorktree(repo, "ABC-7", 22, "main", "feature/ABC-7-footer-link");
+    assert.equal(b.branch, "feature/ABC-7-footer-link-2");
+    // Not a name git takes: the worker's own.
+    assert.match(addWorktree(repo, "ABC-7", 23, "main", "feature/ABC 7 ..bad").branch, /^zeff\/ABC-7-w23/);
+    assert.match(addWorktree(repo, "ABC-7", 24, "main").branch, /^zeff\/ABC-7-w24/);
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+});

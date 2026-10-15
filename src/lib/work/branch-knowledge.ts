@@ -196,3 +196,35 @@ export function branchKnowledgeDocs(zeffUrl: string): { id: string; space: strin
     body: `Tags: ${a.tags.join(", ")}\n\n${a.body}`,
   }));
 }
+
+/**
+ * The name for the branch a worker starts on — feature/PROJ-306-footer-link (fix/ for a fix): the ticket key and the
+ * short name the kept knowledge suggests. Which artifact: the todo the instruction names ("T-165"), else the ones of
+ * the ticket whose todo is yours, and with a message or comment behind it (what someone asked for) first. Null: nothing
+ * short to say (the worker's own branch name zeff/… stays).
+ */
+export function proposeBranchName(todo: Pick<TodoView, "id" | "ticket" | "kind" | "text" | "refs" | "mailRefs" | "ref" | "note" | "byWorker">): string | null {
+  if (!todo.ticket) return null;
+  try {
+    ensureBranchKnowledge(); // (all of them: the todo the words name may not be kept yet)
+    snapshotTodo(todo as TodoView);
+  } catch {
+    // from what is kept
+  }
+  const named = new Set([...todo.text.matchAll(/T-(\d+)/gi)].map((m) => Number(m[1])));
+  const list = branchKnowledgeFor({ ticket: todo.ticket, todoIds: [todo.id], limit: 30 }).filter((a) => a.slug);
+  if (!list.length) return null;
+  const score = (a: BranchArtifact) => {
+    const other = a.todoId !== todo.id;
+    let s = 0;
+    if (named.has(a.todoId)) s += 10;
+    if (a.sources.length) s += 2;
+    if (a.sources.some((x) => x.ref.startsWith("jira-comment:"))) s += 1;
+    // A session's own placeholder says little (its words are an instruction), unless it is all there is.
+    if (!other && todo.byWorker) s -= 3;
+    return s;
+  };
+  const best = [...list].sort((a, b) => score(b) - score(a) || b.updatedAt.localeCompare(a.updatedAt))[0];
+  const kind = todo.kind === "fix" || best.tags.includes("fix") ? "fix" : "feature";
+  return `${kind}/${todo.ticket.toUpperCase()}-${best.slug}`;
+}

@@ -17,7 +17,7 @@ import { asksForApproval, opsSettle, todoRef } from "@/lib/boards/shared";
 import type { TodoOp, TodoView } from "@/lib/boards/shared";
 import { linkBranchContext, linkedBranchesOf } from "./branch-context";
 import { newBranchName } from "./branch-name";
-import { branchKnowledgeBlock } from "./branch-knowledge";
+import { branchKnowledgeBlock, proposeBranchName } from "./branch-knowledge";
 import { addFollowUp, addTestedDelivery, addTodoInstruction, getTodo, handOverPlan, setTodoOps } from "@/lib/boards/store";
 import { commentOnMr, openGitlabMr, postGitlabReply } from "@/lib/gitlab/reply";
 import { runTodoOps } from "@/lib/ops";
@@ -345,7 +345,7 @@ function start(id: number): void {
         baseSha = git(cwd, ["rev-parse", "HEAD"]);
       } else {
         base = r.base || baseFor(r.repo, r.ticket);
-        ({ cwd, branch, baseSha } = addWorktree(r.repo, r.ticket, id, base));
+        ({ cwd, branch, baseSha } = addWorktree(r.repo, r.ticket, id, base, (todo && proposeBranchName(todo)) || undefined));
       }
     } else if (mode === "draft" && r.repo) {
       cwd = r.repo; // to look things up — read only

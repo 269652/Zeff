@@ -66,3 +66,20 @@ test("the worker's brief for a new branch asks for a short name and carries what
   assert.match(task, /höchstens 24 Zeichen/);
   assert.match(task, /Wissen zur Branch-Benennung/);
 });
+
+test("the branch a worker starts on is named from what is kept: feature/<ticket>-<short name> — the todo the instruction names counts most", async () => {
+  const { getDb, schema } = await import("@/db");
+  const { addManualTodo, addSessionTodo, getTodo } = await import("@/lib/boards/store");
+  const { proposeBranchName } = await import("@/lib/work/branch-knowledge");
+  getDb()
+    .insert(schema.jiraComments)
+    .values({ id: "bk-1", ticket: "PROJ-306", author: "Christopher Lorenz", at: ago(1), body: "Bitte die Quote-Variante der Startseite mit den Figma-Maßen umsetzen." } as never)
+    .run();
+  const real = addManualTodo({ ticket: "PROJ-306", text: "Quote-Variante der Startseite umsetzen" });
+  getDb().update(schema.todos).set({ refs: JSON.stringify(["jira-comment:bk-1"]) } as never).run();
+  const session = addSessionTodo({ ticket: "PROJ-306", text: `Schließe du Umsetzung von ${real.ref} vollständig ab so dass PROJ-306 erledigt ist` });
+  const name = proposeBranchName(getTodo(session.id)!);
+  assert.match(name ?? "", /^feature\/PROJ-306-quote-variante$/, "from the named todo (with Christopher's comment behind it), not from the instruction's words");
+  assert.ok((name ?? "").length <= "feature/PROJ-306-".length + 24);
+  assert.equal(proposeBranchName({ ...getTodo(session.id)!, ticket: "" }), null, "no ticket: no name");
+});
