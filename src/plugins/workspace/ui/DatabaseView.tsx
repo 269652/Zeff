@@ -248,7 +248,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   if (!data || !view) return <p className="py-6 text-sm text-zinc-500">{t("Loading …")}</p>;
 
   const schema = data.schema;
-  const ctx: CellCtx = { data, set: api.set, addOption: api.addOption, editable: true };
+  const ctx: CellCtx = { data, set: api.set, addOption: api.addOption, editable: true, openRow: (id) => openRow(id) };
   void embedded;
   const withRow = (id: number | null) => {
     const u = new URL(window.location.href);
@@ -697,12 +697,60 @@ function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, new
             </div>
           ))}
           {over?.key === g.key && over.before === null && <div className="ws-drop-line" aria-hidden />}
-          <button type="button" className="w-full rounded-md px-2 py-1 text-left text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => void newRow({ [gp.id]: valueFor(g.key) })}>
-            + {t("New")}
-          </button>
+          <NewCard cells={{ [gp.id]: valueFor(g.key) }} add={(cells, title) => api.addRow(cells, title)} />
         </div>
       ))}
     </div>
+  );
+}
+
+/**
+ * "+ New" at the end of a board column, as Kanban's "+ Card": a field for the title — Enter makes the card (in this column)
+ * and keeps the field open for the next one, Shift+Enter a new line, Escape or leaving it empty closes it.
+ */
+function NewCard({ cells, add }: { cells: Record<string, unknown>; add: (cells: Record<string, unknown>, title: string) => Promise<number | null> }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const field = useRef<HTMLTextAreaElement>(null);
+  if (!open)
+    return (
+      <button type="button" className="w-full rounded-md px-2 py-1 text-left text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => setOpen(true)}>
+        + {t("New")}
+      </button>
+    );
+  const save = async () => {
+    const title = text.trim();
+    if (!title) return setOpen(false);
+    setBusy(true);
+    const id = await add(cells, title);
+    setBusy(false);
+    if (id) setText("");
+    field.current?.focus(); // the next one right away
+  };
+  return (
+    <textarea
+      ref={field}
+      autoFocus
+      rows={2}
+      value={text}
+      readOnly={busy}
+      onChange={(e) => setText(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          void save();
+        } else if (e.key === "Escape") {
+          setText("");
+          setOpen(false);
+        }
+      }}
+      onBlur={() => !text.trim() && setOpen(false)}
+      placeholder={t("Title")}
+      aria-label={t("New card")}
+      className="ws-card w-full resize-none text-sm outline-none"
+    />
   );
 }
 

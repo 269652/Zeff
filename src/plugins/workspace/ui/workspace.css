@@ -759,3 +759,7 @@
 .ws-card[data-attention="spec"] { border-left-color: var(--color-violet-500, #8b5cf6); }
 .ws-card[data-attention="ready"] { border-left-color: var(--color-emerald-500, #10b981); }
 .ws-card[data-attention="stale"] { border-left-color: var(--color-zinc-400, #a1a1aa); }
+
+/* A due date's alarm on a card: past it red, on the day amber. */
+[data-due="overdue"] { color: var(--color-red-600, #dc2626); font-weight: 500; }
+[data-due="today"] { color: var(--color-amber-600, #d97706); font-weight: 500; }

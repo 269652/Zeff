@@ -5055,5 +5055,6 @@
   "New chat": "Neuer Chat",
   "Written — Ctrl+Z undoes it.": "Geschrieben — Strg+Z macht es rückgängig.",
   "No status “{name}” — there are: {statuses}.": "Kein Status „{name}“ — es gibt: {statuses}.",
-  "That doesn't work on a row (no assignment).": "Das geht bei einer Zeile nicht (keine Zuweisung)."
+  "That doesn't work on a row (no assignment).": "Das geht bei einer Zeile nicht (keine Zuweisung).",
+  "New card": "Neue Karte"
 }

@@ -516,6 +516,14 @@ export function dropValue(p: Property, current: unknown, from: string, to: strin
   return to === "" ? null : to;
 }
 
+/** A due date's alarm on a card (as Kanban's ⏰): past it "overdue", on the day "today" — none once the row is done. `today`: YYYY-MM-DD. */
+export function dueTone(v: unknown, today: string, done: boolean): "overdue" | "today" | null {
+  const r = done ? null : dateRange(v);
+  if (!r) return null;
+  const day = r.start.slice(0, 10);
+  return day < today ? "overdue" : day === today ? "today" : null;
+}
+
 /**
  * Subtasks per parent row: the rows pointing at it through a relation to their own database (a
  * moved Kanban card's Parent) — done when their status is in the done group. By the parent's id.

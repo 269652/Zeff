@@ -1,7 +1,7 @@
 "use client";
 
 import { useT } from "@/components/I18nProvider";
-import { cellText, type Property, type Row } from "../model";
+import { cellText, dueTone, type Property, type Row } from "../model";
 import { CardKey, CardLead, CardTodos, extrasOf, SubtaskBadge } from "./card-extras";
 import { CellView, type CellCtx } from "./cells";
 
@@ -49,6 +49,11 @@ export function RowCard({ row, visible, ctx, mode }: { row: Row; visible: Proper
   const meta = metaAll.slice(0, metaMax);
   const more = metaAll.length - meta.length;
   const x = extrasOf(ctx.data, row.id);
+  // A date's alarm (as Kanban's ⏰): red past it, amber on the day — none once the row is done.
+  const status = ctx.data.schema.properties.find((p) => p.type === "status");
+  const done = !!status && status.options?.find((o) => o.id === row.cells[status.id])?.group === "done";
+  const today = new Date().toLocaleDateString("sv-SE");
+  const tone = (p: Property) => (p.type === "date" ? dueTone(row.cells[p.id], today, done) : null);
   return (
     <>
       {cover && (
@@ -75,7 +80,8 @@ export function RowCard({ row, visible, ctx, mode }: { row: Row; visible: Proper
             {meta.map((p) => (
               <div key={p.id} className="min-w-0">
                 <dt>{p.name}</dt>
-                <dd className="truncate">
+                <dd className="truncate" data-due={tone(p) ?? undefined}>
+                  {tone(p) && <span aria-hidden>⏰ </span>}
                   <CellView p={p} row={row} ctx={ctx} />
                 </dd>
               </div>
@@ -84,7 +90,8 @@ export function RowCard({ row, visible, ctx, mode }: { row: Row; visible: Proper
         ) : (
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
             {meta.map((p) => (
-              <span key={p.id} className="inline-flex max-w-full min-w-0 items-center gap-1 truncate" title={p.name}>
+              <span key={p.id} className="inline-flex max-w-full min-w-0 items-center gap-1 truncate" title={p.name} data-due={tone(p) ?? undefined}>
+                {tone(p) && <span aria-hidden>⏰</span>}
                 <CellView p={p} row={row} ctx={ctx} />
               </span>
             ))}

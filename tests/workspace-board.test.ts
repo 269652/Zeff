@@ -92,3 +92,15 @@ test("panelProperties: the system properties (ticketkey, noteref) aren't shown",
   const props = [status, { id: "ticketkey", name: "Key", type: "text" as const }, { id: "noteref", name: "Note", type: "text" as const }, { id: "color", name: "Color", type: "select" as const, options: [] }];
   assert.deepEqual(panelProperties(props).map((p) => p.name), ["Status", "Color"]);
 });
+
+/** A card's due date as Kanban showed it: red when past, amber today — not once the card is done. */
+test("dueTone: overdue red, today amber, done or later nothing", async () => {
+  const { dueTone } = await import("@/plugins/workspace/model");
+  const today = "2026-10-16";
+  assert.equal(dueTone("2026-10-15", today, false), "overdue");
+  assert.equal(dueTone("2026-10-16", today, false), "today");
+  assert.equal(dueTone({ start: "2026-10-16T09:00", end: "2026-10-17" }, today, false), "today", "a range: its start");
+  assert.equal(dueTone("2026-10-17", today, false), null);
+  assert.equal(dueTone("2026-10-01", today, true), null, "done: no alarm");
+  assert.equal(dueTone(null, today, false), null);
+});

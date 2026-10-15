@@ -5055,5 +5055,6 @@
   "New chat": "Nuevo chat",
   "Written — Ctrl+Z undoes it.": "Escrito — Ctrl+Z lo deshace.",
   "No status “{name}” — there are: {statuses}.": "No hay estado «{name}»; hay: {statuses}.",
-  "That doesn't work on a row (no assignment).": "Eso no funciona en una fila (sin asignación)."
+  "That doesn't work on a row (no assignment).": "Eso no funciona en una fila (sin asignación).",
+  "New card": "Nueva tarjeta"
 }

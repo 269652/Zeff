@@ -16,6 +16,8 @@ export type CellCtx = {
   /** Add an option to a select / multi-select / status property; returns its id. */
   addOption: (propId: string, name: string) => string;
   editable: boolean;
+  /** Open a row of this database over it (a relation to the same database — a card's parent — opens there). */
+  openRow?: (id: number) => void;
 };
 
 const hrefOf = (v: string) => (/^https?:\/\//i.test(v) ? v : /^[\w.-]+\.[a-z]{2,}(\/|$)/i.test(v) ? `https://${v}` : "");
@@ -110,7 +112,19 @@ export function CellView({ p, row, ctx }: { p: Property; row: Row; ctx: CellCtx 
           {asArr(v).map((id) => {
             const pg = labels.pages[Number(id)];
             return (
-              <Link key={String(id)} href={`/workspace/${id}`} onClick={(e) => e.stopPropagation()} className="ws-chip" data-kind="page">
+              <Link
+                key={String(id)}
+                href={`/workspace/${id}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (ctx.openRow && p.relationDb === ctx.data.id) {
+                    e.preventDefault();
+                    ctx.openRow(Number(id));
+                  }
+                }}
+                className="ws-chip"
+                data-kind="page"
+              >
                 {pg?.icon || "📄"} {pg?.title ?? `#${id}`}
               </Link>
             );
