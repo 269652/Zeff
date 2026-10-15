@@ -17,7 +17,7 @@ test("short names: the first meaningful words of a change — no stop words, tic
 
 test("branch knowledge: what the briefing's AI read is kept with its message — a change for its ticket, a rule for its whole project — and stays when the message is gone", async () => {
   const { getDb, schema, getSqlite } = await import("@/db");
-  const { addArtifact, artifactsFor, keepFromBriefing, listArtifacts, setArtifactEnabled, deleteArtifact, branchKnowledgeDocs } = await import("@/lib/work/branch-knowledge");
+  const { addArtifact, artifactsFor, keepFromBriefing, listArtifacts, deleteArtifact, branchKnowledgeDocs } = await import("@/lib/work/branch-knowledge");
   getDb()
     .insert(schema.teamsMessages)
     .values({ key: "proj|2", kind: "chat", conversationId: "proj", messageId: "2", sentAt: ago(3), html: "", text: "Der Ticket-Titel ist nicht zwingend der Code Change. Lieber den Branch nach Code Change shorten lassen.", link: "l", syncedAt: ago(0), senderName: "Christopher Lorenz", place: "PROJ Devs" } as never)
@@ -48,37 +48,45 @@ test("branch knowledge: what the briefing's AI read is kept with its message —
   assert.equal(docs[0].space, "Zeff · Branch-Kontext");
   assert.match(docs.find((d) => d.title.startsWith("Branch-Regel"))!.body, /^Tags: branch-naming, convention, PROJ-364/);
 
-  setArtifactEnabled(rule.id, false);
-  assert.deepEqual(artifactsFor("PROJ-306").map((a) => a.kind), ["change"]);
   deleteArtifact(rule.id);
   assert.equal(listArtifacts().length, 1);
 });
 
-test("the naming: only the rule, your words and the kept knowledge go in — no chat, no ticket text; the branch name and the limits follow the settings", async () => {
+test("the branch name is always there: feature/PROJ-432-fileadmin-relations — from a kept change, else the todo's words, else the ticket's title; the limits and your words follow the settings", async () => {
   const { addArtifact } = await import("@/lib/work/branch-knowledge");
-  const { addManualTodo, getTodo } = await import("@/lib/boards/store");
+  const { addManualTodo, addSessionTodo, getTodo } = await import("@/lib/boards/store");
   const { setStepPrefs } = await import("@/lib/boards/context-prefs");
-  const { namingBlock, namingLimits, proposeBranchName } = await import("@/lib/work/branch-naming");
-  const todo = getTodo(addManualTodo({ ticket: "XYZ-5", text: "Irgendein sehr langer Todo-Text über das Navigationsmenü und den ganzen Rest" }).id)!;
+  const { namingBlock, namingLimits, branchNameFor, proposeBranchName } = await import("@/lib/work/branch-naming");
+  const todo = getTodo(addManualTodo({ ticket: "XYZ-5", text: "Fileadmin Relations auf die neue Struktur umstellen" }).id)!;
 
-  // Nothing kept: the rule and the limits, no name.
+  // Nothing kept: the todo's words make the name. The block has the rule and the limits only.
+  assert.deepEqual(branchNameFor(todo), { name: "feature/XYZ-5-fileadmin-relations", from: "todo", text: todo.text });
   let block = namingBlock(todo);
   assert.match(block, /Branch-Benennung \(Tag branch-naming, XYZ-5\)/);
   assert.match(block, /2–3 kleingeschriebene Wörter, höchstens 24 Zeichen/);
   assert.match(block, /nicht der Kundenname/);
   assert.doesNotMatch(block, /Festgehalten/);
-  assert.doesNotMatch(block, /Navigationsmenü/, "the todo's words aren't context");
-  assert.equal(proposeBranchName(todo), null);
 
+  // A session's placeholder names the todo it is about by number: that todo's words count, not the instruction's.
+  const session = addSessionTodo({ ticket: "XYZ-5", text: `Schließe du Umsetzung von ${todo.ref} vollständig ab so dass XYZ-5 erledigt ist` });
+  assert.equal(proposeBranchName(getTodo(session.id)!), "feature/XYZ-5-fileadmin-relations");
+
+  // Kept by the briefing's AI: that change names the branch; the rule is told.
   addArtifact({ ticket: "XYZ-5", kind: "change", text: "Navigationsmenü auf Mobilgeräten überarbeiten" });
   addArtifact({ ticket: "XYZ-5", kind: "rule", text: "Branch-Namen kurz halten." });
-  block = namingBlock(todo);
-  assert.match(block, /Festgehalten/);
-  assert.match(block, /- Code Change: Navigationsmenü auf Mobilgeräten überarbeiten/);
-  assert.match(block, /- Regel: Branch-Namen kurz halten\./);
+  assert.equal(branchNameFor(todo)!.from, "kept");
   assert.equal(proposeBranchName(todo), "feature/XYZ-5-navigationsmenue");
   assert.equal(proposeBranchName({ ...todo, kind: "fix" }), "fix/XYZ-5-navigationsmenue");
-  assert.equal(proposeBranchName({ ...todo, ticket: "" }), null);
+  block = namingBlock(todo);
+  assert.match(block, /- Code Change: Navigationsmenü auf Mobilgeräten überarbeiten/);
+  assert.match(block, /- Regel: Branch-Namen kurz halten\./);
+  assert.doesNotMatch(block, /Fileadmin Relations/, "the todo's words are not context, only the name's source");
+
+  // Without any words of its own, the ticket's title: last.
+  const { getDb, schema } = await import("@/db");
+  getDb().insert(schema.jiraTickets).values({ key: "XYZ-6", summary: "Suche: Filter nach Datum", status: "Open", updatedAt: ago(0) } as never).run();
+  assert.equal(proposeBranchName({ ticket: "XYZ-6", kind: "todo", text: "Das ist ein" } as never), "feature/XYZ-6-suche-filter-datum");
+  assert.equal(proposeBranchName({ ticket: "", kind: "todo", text: "Etwas" } as never), null, "no ticket: no name");
 
   // Prompts → Branch names: lengths and your own words.
   setStepPrefs("branchname", { numbers: { maxChars: 14, words: 2 }, extra: "Immer auf Englisch benennen." });

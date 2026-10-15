@@ -1,10 +1,14 @@
 /**
- * Naming branches, in one place. What a worker (or an agent) is told when it names a branch: the rule with its limits,
- * your own words (Prompts → Branch names), and the knowledge artifacts tagged `branch-naming` of the ticket — nothing
- * else. The brief, the MCP's start_todo and the name Zeff gives a worker's branch all come from here. Server only.
+ * Naming branches, in one place: feature/PROJ-432-fileadmin-relations — fix/ for a fix, the ticket key, then a short name
+ * of the code change. The short name comes from the newest change kept for the ticket (the briefing's AI writes those from
+ * the messages it reads), else from the todo's words, else from the ticket's title; how long it may be and your own words
+ * are set under Prompts → Branch names. A worker's branch gets this name when it starts, and its brief and the MCP's
+ * start_todo carry the rule and what is kept. Server only.
  */
 import type { TodoView } from "@/lib/boards/shared";
 import { getContextPrefs } from "@/lib/boards/context-prefs";
+import { getTodo } from "@/lib/boards/store";
+import { getJiraTicket } from "@/lib/jira/store";
 import { artifactsFor, BRANCH_TAG, suggestSlug, type BranchArtifact } from "./branch-knowledge";
 
 export type NamingSettings = { maxChars: number; words: number; extra: string };
@@ -30,8 +34,8 @@ export function namingRuleLine(s = namingSettings()): string {
 const line = (a: BranchArtifact) => `- ${a.kind === "rule" ? "Regel" : "Code Change"}: ${a.text}${a.source ? ` — ${a.source.label}: „${a.source.text.slice(0, 300)}“` : ""}`;
 
 /**
- * The block a worker (or an agent) gets when it names a branch: the rule with its limits, your own words, and the
- * artifacts of the ticket (what a message asked to change, how colleagues said branches are named). Empty without a ticket.
+ * What a worker (or an agent) is told about naming the branch: the rule with its limits, your own words, and what is kept
+ * for the ticket (a change a message asked for, how colleagues said branches are named). Empty without a ticket.
  */
 export function namingBlock(todo: Pick<TodoView, "ticket">): string {
   if (!todo.ticket) return "";
@@ -40,15 +44,30 @@ export function namingBlock(todo: Pick<TodoView, "ticket">): string {
   return `\n\n## Branch-Benennung (Tag ${BRANCH_TAG}, ${todo.ticket})\nDer Branch-Name: ${namingRuleLine(s)}. So sieht man schon in der Commit-History, was der eigentliche Change war.${s.extra ? `\n${s.extra}` : ""}${kept.length ? `\n\nFestgehalten (aus den Nachrichten gelesen — gilt auch, wenn die Nachricht nicht mehr im Kontext steht):\n${kept.map(line).join("\n")}` : ""}`;
 }
 
+/** Where the short name comes from: a kept change, the todo's words, the ticket's title. */
+export type NameFrom = "kept" | "todo" | "ticket";
+
 /**
- * The name for the branch a worker starts on — feature/PROJ-306-footer-link (fix/ for a fix): the ticket key and the short
- * name of the newest "change" artifact of the ticket, as long as the settings say. Null: none kept (the worker's own
- * zeff/… name stays, and it is told the rule).
+ * The branch name of a todo — feature/PROJ-432-fileadmin-relations — and the words it was made from. A session's
+ * placeholder ("… T-165 vollständig abschließen") takes the words of the todo it names. Null only without a ticket or
+ * without any words to make a name of.
  */
-export function proposeBranchName(todo: Pick<TodoView, "ticket" | "kind">): string | null {
-  if (!todo.ticket) return null;
+export function branchNameFor(todo: Pick<TodoView, "ticket" | "kind" | "text">): { name: string; from: NameFrom; text: string } | null {
+  if (!todo.ticket.trim()) return null;
+  const key = todo.ticket.trim().toUpperCase();
   const s = namingSettings();
-  const change = artifactsFor(todo.ticket, 50).find((a) => a.kind === "change");
-  const slug = change ? suggestSlug(change.text, s.maxChars, s.words) : "";
-  return slug ? `${todo.kind === "fix" ? "fix" : "feature"}/${todo.ticket.toUpperCase()}-${slug}` : null;
+  const named = /\bT-(\d+)\b/i.exec(todo.text);
+  const candidates: [NameFrom, string][] = [
+    ["kept", artifactsFor(key, 50).find((a) => a.kind === "change")?.text ?? ""],
+    ["todo", (named ? getTodo(Number(named[1]))?.text : "") || todo.text],
+    ["ticket", getJiraTicket(key)?.summary ?? ""],
+  ];
+  for (const [from, text] of candidates) {
+    const slug = suggestSlug(text, s.maxChars, s.words);
+    if (slug) return { name: `${todo.kind === "fix" ? "fix" : "feature"}/${key}-${slug}`, from, text };
+  }
+  return null;
 }
+
+/** Just the name (see branchNameFor). */
+export const proposeBranchName = (todo: Pick<TodoView, "ticket" | "kind" | "text">): string | null => branchNameFor(todo)?.name ?? null;

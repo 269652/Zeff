@@ -15,12 +15,12 @@ export const SHORT_NAME_MAX = 24;
 
 export type Source = { ref: string; label: string; text: string };
 export type ArtifactKind = "change" | "rule";
-export type BranchArtifact = { id: number; ticket: string; kind: ArtifactKind; text: string; source: Source | null; tags: string[]; enabled: boolean; createdAt: string };
-type Row = { id: number; ticket: string; kind: string; text: string; source: string | null; enabled: number; created_at: string };
+export type BranchArtifact = { id: number; ticket: string; kind: ArtifactKind; text: string; source: Source | null; tags: string[]; createdAt: string };
+type Row = { id: number; ticket: string; kind: string; text: string; source: string | null; created_at: string };
 
 function db() {
   const d = getSqlite();
-  d.exec("create table if not exists branch_artifacts (id integer primary key autoincrement, ticket text not null, kind text not null, text text not null, source text, enabled integer not null default 1, created_at text not null)");
+  d.exec("create table if not exists branch_artifacts (id integer primary key autoincrement, ticket text not null, kind text not null, text text not null, source text, created_at text not null)");
   return d;
 }
 
@@ -40,7 +40,6 @@ const toArtifact = (r: Row): BranchArtifact => ({
     }
   })(),
   tags: [BRANCH_TAG, r.kind === "rule" ? "convention" : "change", r.ticket],
-  enabled: !!r.enabled,
   createdAt: r.created_at,
 });
 
@@ -92,7 +91,6 @@ export function keepFromBriefing(tickets: { key: string; branchKnowledge?: { kin
 }
 
 export const listArtifacts = (): BranchArtifact[] => (db().prepare("select * from branch_artifacts order by id desc").all() as Row[]).map(toArtifact);
-export const setArtifactEnabled = (id: number, enabled: boolean) => void db().prepare("update branch_artifacts set enabled = ? where id = ?").run(enabled ? 1 : 0, id);
 export const deleteArtifact = (id: number) => void db().prepare("delete from branch_artifacts where id = ?").run(id);
 
 /**
@@ -103,7 +101,7 @@ export function artifactsFor(ticket: string, limit = 8): BranchArtifact[] {
   const key = ticket.trim().toUpperCase();
   if (!key) return [];
   return listArtifacts()
-    .filter((a) => a.enabled && (a.kind === "rule" ? projectOf(a.ticket) === projectOf(key) : a.ticket === key))
+    .filter((a) => (a.kind === "rule" ? projectOf(a.ticket) === projectOf(key) : a.ticket === key))
     .slice(0, limit);
 }
 
@@ -146,9 +144,7 @@ export function suggestSlug(text: string, max = SHORT_NAME_MAX, maxWords = 3): s
 
 /** The artifacts as documents for the knowledge server (its "Zeff" source): a page each, the tags in its text. */
 export function branchKnowledgeDocs(zeffUrl: string): { id: string; space: string; title: string; url: string; updatedAt: string | null; author: string | null; body: string }[] {
-  return listArtifacts()
-    .filter((a) => a.enabled)
-    .map((a) => ({
+  return listArtifacts().map((a) => ({
       id: `zeff:branchctx:${a.id}`,
       space: "Zeff · Branch-Kontext",
       title: `${a.kind === "rule" ? "Branch-Regel" : "Code Change"} ${a.ticket}: ${a.text.slice(0, 90)}`,

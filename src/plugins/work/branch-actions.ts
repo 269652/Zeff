@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { errorMessage } from "@/lib/errors";
-import { addArtifact, deleteArtifact, setArtifactEnabled } from "@/lib/work/branch-knowledge";
+import { addArtifact, deleteArtifact } from "@/lib/work/branch-knowledge";
 
-/** The branch knowledge (Prompts → Branch names): one added by hand, switched off or on, deleted — forms post to these. */
+/** The branch knowledge (Prompts → Branch names): one added by hand or deleted — forms post to these. */
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
 const back = (error?: string): never => redirect(`/settings/prompts${error ? `?error=${encodeURIComponent(error)}` : ""}#branchname`);
@@ -21,12 +21,6 @@ export async function addArtifactAction(fd: FormData): Promise<void> {
   }
   revalidatePath("/settings/prompts");
   back(err);
-}
-
-export async function toggleArtifactAction(fd: FormData): Promise<void> {
-  setArtifactEnabled(Number(str(fd, "id")), str(fd, "enabled") === "1");
-  revalidatePath("/settings/prompts");
-  back();
 }
 
 export async function deleteArtifactAction(fd: FormData): Promise<void> {
