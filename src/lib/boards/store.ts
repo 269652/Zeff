@@ -862,18 +862,53 @@ export function addManualTodo(v: { ticket: string; text: string }): Gated {
   return toTodo(row);
 }
 
-/** A todo for a work session (Work: a new session — on a ticket, or none): your instruction's first line. */
+/**
+ * The todo a new work session belongs on, when the instruction or the ticket says which: the open todo of
+ * yours it names ("T-165"), else the only open todo of yours on the ticket. Not a worker's, not a placeholder.
+ */
+export function findSessionTodo(instruction: string, ticket: string): TodoView | undefined {
+  const mine = (t: TodoView | undefined) => (t && t.status === "open" && t.owner === "me" && !t.byWorker ? t : undefined);
+  for (const m of instruction.matchAll(/\bT-(\d+)\b/gi)) {
+    const t = mine(getTodo(Number(m[1])));
+    if (t) return t;
+  }
+  const key = ticket.trim().toUpperCase();
+  if (!key) return undefined;
+  const open = listTodos({ status: "open", ticket: key }).filter((t) => t.owner === "me" && !t.byWorker);
+  return open.length === 1 ? open[0] : undefined;
+}
+
+/**
+ * A placeholder todo for a work session that belongs to no todo (Work: a new session — on a ticket, or none):
+ * it carries the session, stays in the Worker tab (never in yours), and offers one action — "Create todo" with
+ * your instruction's first line as the title — that makes it a todo of yours (promoteSessionTodo).
+ */
 export function addSessionTodo(v: { ticket: string; text: string }): Gated {
-  const g = gateTodo({ ticket: v.ticket, text: v.text, byWorker: false, source: "Work-Session", actor: "you" });
+  const g = gateTodo({ ticket: v.ticket, text: v.text, byWorker: true, source: "Work-Session", actor: "you" });
   if (g) return g;
   const now = new Date().toISOString();
+  const text = v.text.trim().slice(0, 500);
   const row = getDb()
     .insert(todos)
-    .values({ ticket: v.ticket.trim().toUpperCase(), text: v.text.trim().slice(0, 500), kind: "other", owner: "me", status: "open", source: "Work-Session", refs: "[]", runId: null, createdAt: now, updatedAt: now })
+    .values({ ticket: v.ticket.trim().toUpperCase(), text, kind: "other", owner: "me", status: "open", source: "Work-Session", byWorker: true, ops: JSON.stringify([{ type: "todo-promote", text }]), refs: "[]", runId: null, createdAt: now, updatedAt: now })
     .returning()
     .get();
   emitChange("todos"); // (after it is written: a page that refreshes on it must find it)
   return toTodo(row);
+}
+
+/** A session's placeholder made a todo of yours (Todos tab): the title you want; its runs and time stay with it. */
+export function promoteSessionTodo(id: number, text: string): TodoView {
+  const t = getTodo(id);
+  if (!t) throw new Error("No such todo.");
+  const title = (text.trim() || t.text).slice(0, 500);
+  getDb()
+    .update(todos)
+    .set({ byWorker: false, text: title, ops: JSON.stringify(t.ops.filter((o) => o.type !== "todo-promote")), updatedAt: new Date().toISOString() })
+    .where(eq(todos.id, id))
+    .run();
+  emitChange("todos");
+  return getTodo(id)!;
 }
 
 /** A todo's operations, replaced (e.g. merging straight into main instead of a merge request). */

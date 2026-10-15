@@ -200,6 +200,19 @@ function branchRule(ctx: { linked?: LinkedBranch[]; newBranch?: string | null; b
     : "";
 }
 
+/**
+ * A session that belongs to no todo of yours has a placeholder (Worker tab) — the worker is told so: it makes
+ * no todos of yours, looks whether one exists, and asks once whether to make one (the action "Todo anlegen"
+ * is on the placeholder already: your click makes it).
+ */
+export function sessionTodoNote(todo: Pick<TodoView, "byWorker" | "source" | "ticket" | "text" | "ref">): string {
+  if (!todo.byWorker || todo.source !== "Work-Session") return "";
+  return `
+
+## ${todo.ref} ist der Platzhalter dieser Session
+Diese Arbeit gehört zu keinem Todo des Nutzers; ${todo.ref} steht nur im Worker-Tab. Lege selbst keine Todos für den Nutzer an — Follow-ups landen immer im Worker-Tab. So gehst du vor: (1) Prüfe mit list_todos${todo.ticket ? ` (${todo.ticket})` : ""}, ob es ein echtes Todo zu dieser Arbeit gibt; wenn ja, nenne es im Ergebnis (summary). (2) Gibt es keins, frage den Nutzer EINMAL mit todo_needs_input, ob ein Todo angelegt werden soll, und schlage einen kurzen Titel vor (jetzt: „${todo.text.slice(0, 80)}“). Am Platzhalter hängt schon die Aktion „Todo anlegen“: der Nutzer macht daraus mit einem Klick sein Todo.`;
+}
+
 /** What the worker is to do, by mode — and where. */
 export function taskFor(
   mode: WorkMode,

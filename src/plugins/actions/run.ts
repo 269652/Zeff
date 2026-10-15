@@ -6,6 +6,7 @@
 import type { TodoOp } from "@/lib/boards/shared";
 import { runGitlabMerge, runGitlabNote, runGitlabOpenMr } from "../gitlab/run";
 import { runKeepNote } from "../keep/run";
+import { runTodoPromote } from "../todos/run";
 import { runCalendarEntry } from "../calendar/run";
 import { runWhatsappMessage } from "../whatsapp/run";
 import { runSignalMessage } from "../signal/run";
@@ -27,6 +28,7 @@ export const RUNNERS: Partial<Record<TodoOp["type"], Runner>> = {
   "git-merge-main": r<"git-merge-main">(runGitMergeMain),
   "work-instruct": r<"work-instruct">(runWorkInstruct),
   "keep-note": r<"keep-note">(runKeepNote),
+  "todo-promote": r<"todo-promote">(runTodoPromote),
   "whatsapp-message": r<"whatsapp-message">(runWhatsappMessage),
   "signal-message": r<"signal-message">(runSignalMessage),
   "calendar-entry": r<"calendar-entry">(runCalendarEntry),

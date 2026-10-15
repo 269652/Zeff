@@ -4928,5 +4928,8 @@
   "Zeff's data — the database and the files beside it (calendar inbox, run logs) — as a ZIP, AES-256 encrypted with a password. Runs by itself; here also by hand at any time, and restore here.": "Zeffs Daten — die Datenbank und die Dateien daneben (Kalender-Eingang, Lauf-Logs) — als ZIP, AES-256-verschlüsselt mit Passwort. Läuft von selbst; hier außerdem jederzeit von Hand, und hier wiederherstellen.",
   "Zeff's Jira connection isn't set up (Jira tab) — nothing can be posted without it.": "Zeffs Jira-Verbindung ist nicht eingerichtet (Jira-Tab) — ohne sie lässt sich nichts posten.",
   "Zeff's Jira connection isn't set up (Jira tab).": "Zeffs Jira-Verbindung ist nicht eingerichtet (Jira-Tab).",
-  "Other…": "Andere …"
+  "Other…": "Andere …",
+  "Create todo: {text}": "Todo anlegen: {text}",
+  "Create todo": "Todo anlegen",
+  "Todo {ref} created: {text}": "Todo {ref} angelegt: {text}"
 }

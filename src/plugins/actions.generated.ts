@@ -8,8 +8,9 @@ import { OUTLOOK_MAIL_ACTIONS } from "./outlook/actions";
 import { OUTLOOK_CALENDAR_ACTIONS } from "./outlook/actions";
 import { SIGNAL_ACTIONS } from "./signal/actions";
 import { TEAMS_ACTIONS } from "./teams/actions";
+import { TODOS_ACTIONS } from "./todos/actions";
 import { WHATSAPP_ACTIONS } from "./whatsapp/actions";
 import { WORK_ACTIONS } from "./work/actions";
 
 /** Every plugin's actions (plugins/actions/catalog.ts orders them by their plugin's `actionsOrder`). */
-export const ACTION_LISTS = [CALENDAR_ACTIONS, GITLAB_ACTIONS, GMAIL_ACTIONS, JIRA_ACTIONS, KEEP_ACTIONS, OUTLOOK_MAIL_ACTIONS, OUTLOOK_CALENDAR_ACTIONS, SIGNAL_ACTIONS, TEAMS_ACTIONS, WHATSAPP_ACTIONS, WORK_ACTIONS] as const;
+export const ACTION_LISTS = [CALENDAR_ACTIONS, GITLAB_ACTIONS, GMAIL_ACTIONS, JIRA_ACTIONS, KEEP_ACTIONS, OUTLOOK_MAIL_ACTIONS, OUTLOOK_CALENDAR_ACTIONS, SIGNAL_ACTIONS, TEAMS_ACTIONS, TODOS_ACTIONS, WHATSAPP_ACTIONS, WORK_ACTIONS] as const;

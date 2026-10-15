@@ -61,12 +61,12 @@ export async function startSessionAction(v: {
       revalidatePath("/work");
       return { ok: true, runId: run.id };
     }
-    const { addSessionTodo, getTodo } = await import("@/lib/boards/store");
-    // On its todo, while it's open; else a new todo (on the ticket, or none).
+    const { addSessionTodo, findSessionTodo, getTodo } = await import("@/lib/boards/store");
+    // On its todo, while it's open; else the todo the words or the ticket point to (that one is worked on); else a placeholder in the Worker tab.
     const existing = v.todoId ? getTodo(Number(v.todoId)) : undefined;
     const ticket = String(v.ticket ?? existing?.ticket ?? "").trim();
     if (ticket && !/^[A-Z][A-Z0-9]+-\d+$/i.test(ticket)) return { ok: false, error: t("“{ticket}” isn't a ticket.", { ticket }) };
-    const todo = existing?.status === "open" ? existing : addSessionTodo({ ticket, text: instruction.split("\n")[0].slice(0, 200) });
+    const todo = existing?.status === "open" ? existing : (findSessionTodo(instruction, ticket) ?? addSessionTodo({ ticket, text: instruction.split("\n")[0].slice(0, 200) }));
     const workspace = v.workspace === "worktree" || v.workspace === "branch" || v.workspace === "checkout" ? v.workspace : undefined;
     const run = dispatchTodo(todo.id, {
       instruction,

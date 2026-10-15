@@ -29,7 +29,7 @@ import { t } from "@/lib/i18n/server";
 import { getJiraSyncConfig } from "@/lib/jira/sync";
 import { endSideWork } from "./actions";
 import { attachmentsDir, attachmentsNote, attachmentsPrompt } from "./attachments";
-import { briefFor, taskFor, workerRules } from "./brief";
+import { briefFor, sessionTodoNote, taskFor, workerRules } from "./brief";
 import { listRepos, repoForTicket } from "@/lib/repos";
 import { addBranchWorktree, addWorktree, baseFor, git, gitSummary, repoRoot, switchBranch } from "./git";
 import { startInteractive } from "@/plugins/copilot-cli/interactive";
@@ -371,7 +371,7 @@ function start(id: number): void {
       newBranch: newBranchName(todo),
       branchKnowledge: branchKnowledgeBlock(todo),
     });
-    const prompt = resume && so ? r.prompt : `${r.prompt}\n\n${task}${so && !so.conversation ? tail : ""}`;
+    const prompt = resume && so ? r.prompt : `${r.prompt}\n\n${task}${sessionTodoNote(todo)}${so && !so.conversation ? tail : ""}`;
     updateRun(id, { cwd, branch, base, baseSha, prompt });
 
     const driver = so ? liveDriverFor(r.provider) : undefined;
