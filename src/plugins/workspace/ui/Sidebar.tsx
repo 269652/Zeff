@@ -8,6 +8,7 @@ import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { archivePageAction, createPageAction, duplicatePageAction, movePageAction, savePageAction, searchAction, templatesAction, todayPageAction } from "../actions";
 import type { TreeItem } from "../store";
+import { ChatPanel } from "./ChatPanel";
 import { Dropdown, MenuItem } from "./kit";
 import "./workspace.css";
 
@@ -309,6 +310,8 @@ export function Sidebar({ items, favorites }: { items: TreeItem[]; favorites: { 
       <Link href="/workspace/trash" className="ws-tree-row px-1.5 text-zinc-500" data-active={path === "/workspace/trash"}>
         🗑 {t("Trash")}
       </Link>
+
+      <ChatPanel />
     </div>
   );
 }

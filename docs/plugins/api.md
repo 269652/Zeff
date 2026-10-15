@@ -144,6 +144,19 @@ Needs the Kanban plugin to be installed. Cards are the ones on your own boards (
 
 `card`: `{ id, ref, columnId, title, description, labels, priority, due, assignee, parentId, doneAt }`.
 
+### AI steps (LLM)
+
+The instructions and numbers of the AI steps (Menu → Prompts: the briefing, the mail review, the branch names …).
+
+| Method | Permission | Params | Result |
+| --- | --- | --- | --- |
+| `llm.steps.list` | `llm.read` | — | `{ id, label, extra, numbers }[]` |
+| `llm.steps.update` | `llm.write` | `step`*, `extra` (the whole new instruction text), `numbers` (`{ key: value }`, held to the step's limits) | `true` |
+
+The AI may also propose `llm.steps.update` (and `kanban.cards.add`) as an **Auto-Aktion** from what a colleague wrote
+("Do in Zeff"): a method is offered to the AI by an `offer` on it (`ApiOffer` in `lib/plugins/api-kit.ts`), with the
+current state as context so the new text adjusts what is there.
+
 ## Plugins bring their own methods
 
 Every plugin — built-in or external — adds to the API the same way: the methods and the permissions they use are

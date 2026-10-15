@@ -293,6 +293,36 @@ export function registerZeffTools(server: McpServer): void {
   );
 
   server.registerTool(
+    "zeff_actions",
+    {
+      title: "What Zeff can be told to do — and what is set now",
+      description:
+        "The things plugins let Zeff do on a click (change the instructions of an AI step such as the branch naming, add a Kanban card …): each with its method, its fields, and — for the text you pass — what exists NOW " +
+        "(the current instructions, the boards, what the knowledge base says). Read it before you write an instruction, a rule or a card, so what you write adjusts what is there instead of contradicting or doubling it.",
+      inputSchema: z.object({
+        query: z.string().optional().describe("What it is about, in words — a rule, a topic, a ticket key. The current state for it is read."),
+        ticket: z.string().optional().describe("The ticket it is about, e.g. PROJ-306."),
+      }),
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    async (args) =>
+      run(async () => {
+        const { offeredMethods, offerContext } = await import("@/plugins/actions/server");
+        const methods = Object.entries(offeredMethods());
+        if (!methods.length) return ok("Nothing is offered.");
+        const known = await offerContext({ ticket: args.ticket ?? "", text: args.query ?? "" });
+        return ok(
+          [
+            ...methods.map(([name, m]) => `- ${name} — ${m.offer.label}\n  fields: ${Object.entries(m.offer.fields).map(([k, d]) => `${k} (${d})`).join("; ")}`),
+            known.length ? `\nWhat exists now:\n${known.join("\n")}` : "",
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        );
+      }),
+  );
+
+  server.registerTool(
     "search_context",
     {
       title: "Search everything Zeff keeps",

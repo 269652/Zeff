@@ -12,6 +12,7 @@ import { runWhatsappMessage } from "../whatsapp/run";
 import { runSignalMessage } from "../signal/run";
 import { runTeamsMessage } from "../teams/run";
 import { runGitCommit, runGitMergeMain, runGitPush, runWorkInstruct } from "../work/run";
+import { runZeffDo } from "./zeff-run";
 import type { ActionContext, ActionResult } from "./run-types";
 
 type Runner = (op: TodoOp, ctx: ActionContext) => Promise<ActionResult>;
@@ -32,4 +33,5 @@ export const RUNNERS: Partial<Record<TodoOp["type"], Runner>> = {
   "whatsapp-message": r<"whatsapp-message">(runWhatsappMessage),
   "signal-message": r<"signal-message">(runSignalMessage),
   "calendar-entry": r<"calendar-entry">(runCalendarEntry),
+  "zeff-do": r<"zeff-do">(runZeffDo),
 };

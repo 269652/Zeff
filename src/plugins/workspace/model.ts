@@ -89,6 +89,37 @@ export const TITLE = "title";
 export const CREATED = "created_at";
 export const UPDATED = "updated_at";
 
+/**
+ * The columns of a table in the order a view shows them: the title and the properties (ids), by `view.order`
+ * (which may name the title anywhere - a column can sit before it); what the order doesn't name follows in its
+ * natural place (the title first, then the properties as the schema has them).
+ */
+export function columnOrder(view: Pick<View, "order">, schema: Pick<DbSchema, "properties">): string[] {
+  const natural = [TITLE, ...schema.properties.map((p) => p.id)];
+  const order = (view.order ?? []).filter((id) => natural.includes(id));
+  return [...order, ...natural.filter((id) => !order.includes(id))];
+}
+
+/** `ids` with `from` moved next to `to` (before it, or after). */
+export function moveBefore(ids: string[], from: string, to: string, after = false): string[] {
+  if (from === to || !ids.includes(from) || !ids.includes(to)) return ids;
+  const rest = ids.filter((x) => x !== from);
+  const at = rest.indexOf(to) + (after ? 1 : 0);
+  return [...rest.slice(0, at), from, ...rest.slice(at)];
+}
+
+/** Whether other properties hang on this one (a rollup through it, the other side of a relation). */
+export const hasDependents = (schema: Pick<DbSchema, "properties">, id: string): boolean => schema.properties.some((x) => x.id !== id && ((x.type === "rollup" && x.rollup?.relation === id) || (x.type === "relation" && x.backOf === id)));
+
+/** The schema without a property: the rollups through it go too, and every view forgets it (hidden, order, grouping, dates, sorts). */
+export function removeProperty(schema: DbSchema, id: string): DbSchema {
+  return {
+    ...schema,
+    properties: schema.properties.filter((x) => x.id !== id && !(x.type === "rollup" && x.rollup?.relation === id)),
+    views: schema.views.map((v) => ({ ...v, hidden: v.hidden.filter((h) => h !== id), order: v.order?.filter((x) => x !== id), groupBy: v.groupBy === id ? undefined : v.groupBy, dateProp: v.dateProp === id ? undefined : v.dateProp, sorts: v.sorts.filter((s) => s.prop !== id) })),
+  };
+}
+
 export const newId = (prefix = "x"): string => `${prefix}${Math.random().toString(36).slice(2, 8)}${Date.now().toString(36).slice(-3)}`;
 export const emptyFilter = (): Filter => ({ op: "and", rules: [] });
 export const isFilter = (r: Rule | Filter): r is Filter => "rules" in r;

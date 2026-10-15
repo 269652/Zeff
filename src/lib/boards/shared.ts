@@ -199,16 +199,25 @@ export const TODO_OPS_SCHEMA = {
 /** The plugin an operation needs (Teams, GitLab, Outlook, Work …) — null: Zeff's own. */
 export const opPlugin = (type: string) => actionOf(type as TodoOp["type"])?.plugin ?? null;
 
+/** More lines for the dictionary, from what plugins offer at run time (the API methods the AI may propose: "zeff-do"). Set on the server. */
+let dictionaryExtras: () => string[] = () => [];
+export const setOpsDictionaryExtras = (fn: () => string[]) => {
+  dictionaryExtras = fn;
+};
+
 /** The operations Zeff can do without AI, for a prompt — `available`: those whose plugin is installed. */
 export function opsDictionary(available: (type: string) => boolean = () => true): string {
   const types = TODO_OP_TYPES.filter((t) => available(t));
   return [
     "Wörterbuch der Operationen, die Zeff ohne KI ausführt (Feld „ops“ eines Todos oder Follow-ups; jede Operation genau in dieser Form):",
-    ...types.map((t) => {
+    ...types.flatMap((t) => {
       const c = OP_CATALOG[t];
-      return `- ${t} — ${c.label}: ${c.when} Felder: ${Object.entries(c.fields)
-        .map(([k, d]) => `${k} (${d})`)
-        .join(", ")}. Beispiel: ${JSON.stringify(c.example)}`;
+      return [
+        `- ${t} — ${c.label}: ${c.when} Felder: ${Object.entries(c.fields)
+          .map(([k, d]) => `${k} (${d})`)
+          .join(", ")}. Beispiel: ${JSON.stringify(c.example)}`,
+        ...(t === "zeff-do" ? dictionaryExtras() : []),
+      ];
     }),
     "Was sich so ausdrücken lässt (Status, Zuweisung, Kommentar, neues Ticket, Antwort, Nachricht, Mail, Termin, Übergabe an einen Worker), gib IMMER als ops an — ein Todo „Ticket … anlegen“ bekommt eine jira-create mit fertigem Titel und vollständiger Beschreibung — zusätzlich zum Text. Mehrere Operationen in der Reihenfolge, in der sie laufen sollen.",
     ...(types.includes("teams-message")

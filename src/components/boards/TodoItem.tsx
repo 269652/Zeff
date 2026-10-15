@@ -229,7 +229,7 @@ export function TodoItem({
   return (
     <li
       id={anchor ? `todo-${todo.id}` : undefined}
-      className={`group flex scroll-mt-24 items-start gap-2 rounded target:bg-amber-50 dark:target:bg-amber-950/40 ${asking ? "-mx-2 bg-amber-50 px-2 py-1.5 ring-1 ring-amber-300 dark:bg-amber-950/40 dark:ring-amber-800" : suggested ? "-mx-2 bg-zinc-100/80 px-2 py-1.5 ring-1 ring-zinc-200 dark:bg-zinc-800/40 dark:ring-zinc-700" : reported ? "-mx-2 bg-emerald-50 px-2 py-1.5 ring-1 ring-emerald-300 dark:bg-emerald-950/30 dark:ring-emerald-800" : running || doing ? "-mx-2 bg-indigo-50 px-2 py-1.5 ring-1 ring-indigo-200 dark:bg-indigo-950/40 dark:ring-indigo-900" : isFresh ? "-mx-2 bg-sky-50/80 px-2 py-1.5 ring-1 ring-sky-100 dark:bg-sky-950/30 dark:ring-sky-900/60" : todo.deferred && !closed ? "opacity-60 hover:opacity-100" : ""}`}
+      className={`group relative flex scroll-mt-24 items-start gap-2 rounded target:bg-amber-50 dark:target:bg-amber-950/40 ${asking ? "-mx-2 bg-amber-50 px-2 py-1.5 ring-1 ring-amber-300 dark:bg-amber-950/40 dark:ring-amber-800" : suggested ? "-mx-2 bg-zinc-100/80 px-2 py-1.5 ring-1 ring-zinc-200 dark:bg-zinc-800/40 dark:ring-zinc-700" : reported ? "-mx-2 bg-emerald-50 px-2 py-1.5 ring-1 ring-emerald-300 dark:bg-emerald-950/30 dark:ring-emerald-800" : running || doing ? "-mx-2 bg-indigo-50 px-2 py-1.5 ring-1 ring-indigo-200 dark:bg-indigo-950/40 dark:ring-indigo-900" : isFresh ? "-mx-2 bg-sky-50/80 px-2 py-1.5 ring-1 ring-sky-100 dark:bg-sky-950/30 dark:ring-sky-900/60" : todo.deferred && !closed ? "opacity-60 hover:opacity-100" : ""}`}
       onMouseEnter={fresh ? markSeen : undefined}
       title={asking ? t("The agent is waiting for you: {question}", { question: asking }) : running ? t("Being worked on (worker or agent)") : undefined}
     >
@@ -244,13 +244,13 @@ export function TodoItem({
       />
       <div className="min-w-0 flex-1 text-sm" data-hover-column>
         <span
-          className={
+          className={`block pr-28 ${
             closed
               ? "text-zinc-400 line-through"
               : todo.owner === "other"
                 ? "text-zinc-600 italic dark:text-zinc-300"
                 : ""
-          }
+          }`}
         >
           {asking && (
             <span className="mr-1 font-bold text-amber-600 not-italic dark:text-amber-400" title={t("The agent is waiting for you: {question}", { question: asking })} aria-label={t("Waiting for you")}>
@@ -494,35 +494,38 @@ export function TodoItem({
         {/* What comes after it — last, under its actions. */}
         <TodoPlan t={{ planned: todo.planned, status }} />
       </div>
-      {!closed && todo.ticket && <WorkedOnButton todoId={todo.id} todoRef={todo.ref} />}
-      {!closed && <FlagButton todoId={todo.id} todoRef={todo.ref} flagged={!!todo.flaggedAt} />}
-      {!closed && (
-        <button
-          type="button"
-          className={`icon-btn ${todo.deferred ? "text-indigo-600 opacity-100 dark:text-indigo-400" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"}`}
-          onClick={() =>
-            startDefer(async () => {
-              const r = await deferTodoAction(todo.id, !todo.deferred);
-              if (!r?.ok) toast(r?.error ?? t("Didn't work."), { tone: "error" });
-            })
-          }
-          title={todo.deferred ? t("Bring back to the top") : t("Move down — set aside for now (comes back up when something happens, in 3 days at the latest)")}
-          aria-label={todo.deferred ? t("Move {ref} back up", { ref: todo.ref }) : t("Move {ref} down", { ref: todo.ref })}
-        >
-          {todo.deferred ? <ToTopIcon /> : <ToBottomIcon />}
-        </button>
-      )}
-      {!closed && (
-        <button
-          type="button"
-          className="icon-btn text-base opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-          onClick={() => set("dismissed")}
-          title={t("Dismiss — doesn't apply")}
-          aria-label={t("Dismiss {ref}", { ref: todo.ref })}
-        >
-          ×
-        </button>
-      )}
+      {/* Its icons in one container in the top right corner, out of the row — so the content below takes the whole width; about 8px between the glyphs (each button is 28px wide, the -mx pulls them together). */}
+      <div className="absolute top-1 right-1 flex items-center [&>.icon-btn]:-mx-0.5">
+        {!closed && todo.ticket && <WorkedOnButton todoId={todo.id} todoRef={todo.ref} />}
+        {!closed && <FlagButton todoId={todo.id} todoRef={todo.ref} flagged={!!todo.flaggedAt} />}
+        {!closed && (
+          <button
+            type="button"
+            className={`icon-btn ${todo.deferred ? "text-indigo-600 opacity-100 dark:text-indigo-400" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"}`}
+            onClick={() =>
+              startDefer(async () => {
+                const r = await deferTodoAction(todo.id, !todo.deferred);
+                if (!r?.ok) toast(r?.error ?? t("Didn't work."), { tone: "error" });
+              })
+            }
+            title={todo.deferred ? t("Bring back to the top") : t("Move down — set aside for now (comes back up when something happens, in 3 days at the latest)")}
+            aria-label={todo.deferred ? t("Move {ref} back up", { ref: todo.ref }) : t("Move {ref} down", { ref: todo.ref })}
+          >
+            {todo.deferred ? <ToTopIcon /> : <ToBottomIcon />}
+          </button>
+        )}
+        {!closed && (
+          <button
+            type="button"
+            className="icon-btn text-base opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+            onClick={() => set("dismissed")}
+            title={t("Dismiss — doesn't apply")}
+            aria-label={t("Dismiss {ref}", { ref: todo.ref })}
+          >
+            ×
+          </button>
+        )}
+      </div>
     </li>
   );
 }

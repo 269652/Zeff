@@ -635,3 +635,108 @@
 .ws-tree-row:focus-within [data-hover] {
   opacity: 1;
 }
+
+/* "Write with AI", beside the cursor on an empty line. */
+.ws-ai-inline {
+  border: 1px solid var(--ws-ai-border, #ddd6fe);
+  background: var(--ws-ai-bg, #f5f3ff);
+  color: var(--ws-ai-fg, #6d28d9);
+  border-radius: 6px;
+  padding: 1px 8px;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ws-ai-inline:hover { background: #ede9fe; }
+.ws-ai-inline:disabled { opacity: 0.5; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .ws-ai-inline { background: #2e1065; border-color: #5b21b6; color: #ddd6fe; }
+}
+
+/* Selects in the menus and dialogs of a database are as wide as their text - not 100% each, squeezing the fields beside them to nothing. */
+[role="menu"] select.input,
+[role="dialog"] select.input {
+  width: auto;
+  flex-shrink: 0;
+}
+
+/* Cards (gallery and board): one look for any shape of data. */
+.ws-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
+  gap: 0.85rem;
+  align-items: stretch;
+}
+.ws-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow: hidden;
+  padding: 0.8rem 0.9rem;
+  border-radius: 0.7rem;
+  transition: box-shadow 0.15s, border-color 0.15s, transform 0.15s;
+}
+.ws-card:hover {
+  box-shadow: 0 6px 16px -6px rgb(0 0 0 / 0.18);
+}
+.ws-card:focus-visible {
+  outline: 2px solid var(--color-indigo-400, #818cf8);
+  outline-offset: 2px;
+}
+.ws-card-cover {
+  display: block;
+  width: calc(100% + 1.8rem);
+  margin: -0.8rem -0.9rem 0.1rem;
+  max-width: none;
+  object-fit: cover;
+  background: var(--color-zinc-100, #f4f4f5);
+}
+.ws-card-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.3;
+  display: flex;
+}
+.ws-card-text {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--color-zinc-600, #52525b);
+}
+.ws-card-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem 0.75rem;
+  margin: 0;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--color-zinc-100, #f4f4f5);
+}
+.ws-card-meta dt {
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
+  color: var(--color-zinc-400, #a1a1aa);
+  text-transform: uppercase;
+}
+.ws-card-meta dd {
+  margin: 0;
+  font-size: 0.8rem;
+}
+.ws-column {
+  background: var(--color-zinc-100, #f4f4f5);
+}
+.ws-column-over {
+  background: var(--color-indigo-50, #eef2ff);
+  outline: 2px dashed var(--color-indigo-300, #a5b4fc);
+}
+.ws-chip[data-kind="flag"] {
+  background: color-mix(in oklab, var(--color-emerald-500, #10b981) 14%, transparent);
+  color: var(--color-emerald-700, #047857);
+}
+@media (prefers-color-scheme: dark) {
+  .ws-card-text { color: var(--color-zinc-400, #a1a1aa); }
+  .ws-card-meta { border-color: var(--color-zinc-800, #27272a); }
+  .ws-column { background: color-mix(in oklab, var(--color-zinc-800, #27272a) 55%, transparent); }
+  .ws-card-cover { background: var(--color-zinc-800, #27272a); }
+}

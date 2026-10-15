@@ -10,7 +10,7 @@ export default definePlugin({
   category: "connector",
   defaultInstalled: false,
   requires: "The Jira MCP server (mcp-atlassian) with your access.",
-  settings: { href: "/jira", what: "Address, access, chosen boards" },
+  settings: { href: "/settings/jira", what: "Address, access, chosen boards" },
   nav: [
     { href: "/jira", label: "Jira", hint: "Boards, tickets & sync" },
   ],

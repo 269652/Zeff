@@ -8,7 +8,7 @@ import { noteSyncState, type TodoSource, type TodoUserNote } from "@/lib/boards/
 import { PeopleGroup, TaggedText, useTaggedPeople } from "@/plugins/people/PersonMention";
 import { NoteIcon, PencilIcon, SparkIcon } from "../icons";
 import { DismissButton } from "../DismissButton";
-import { HoverCard } from "../HoverCard";
+import { ContentLightbox } from "../ContentLightbox";
 import { toast } from "../Toaster";
 import { TodoRefs } from "./TodoRefs";
 import { SourceCard } from "../SourceCard";
@@ -28,7 +28,7 @@ function JiraMark({ className = "" }: { className?: string }) {
 }
 
 /** A note on a todo as a small card, like a comment: a run's report (AI report) or yours; ↗ opens what it links to. */
-export function NoteBadge({ n, className = "", jira }: { n: TodoUserNote; className?: string; /** The Jira comment this note became: one entry, with both icons. */ jira?: TodoSource }) {
+export function NoteBadge({ n, className = "", jira, onOpen }: { n: TodoUserNote; className?: string; /** The Jira comment this note became: one entry, with both icons. */ jira?: TodoSource; /** Makes the card's title a button that calls this (the lightbox with the whole note). */ onOpen?: () => void }) {
   const t = useT();
   const onJira = jira?.source === "jira-comment" ? jira.comment : null;
   const ai = !!n.by;
@@ -57,6 +57,8 @@ export function NoteBadge({ n, className = "", jira }: { n: TodoUserNote; classN
       thumb={imageId !== undefined ? `/api/documents/${imageId}/file` : undefined}
       href={n.url || undefined}
       hrefTitle={n.urlLabel ?? t("Open")}
+      onToggle={onOpen}
+      toggleTitle={t("Show the whole note")}
       className={className}
     />
   );
@@ -113,6 +115,7 @@ export function NoteRow({ n, todoId, jira }: { n: TodoUserNote; todoId?: number;
   const t = useT();
   const [pending, start] = useTransition();
   const [editing, setEditing] = useState(false);
+  const [open, setOpen] = useState(false);
   const [text, setText] = useState(n.text);
   const own = todoId !== undefined && !n.from;
   const mine = own && !n.by && n.kind !== "instruction";
@@ -122,8 +125,11 @@ export function NoteRow({ n, todoId, jira }: { n: TodoUserNote; todoId?: number;
   return (
     <span className="flex min-w-0 flex-col items-stretch gap-1">
       <PeopleGroup people={tagged}>
-      <HoverCard className="group relative w-full flex-col items-stretch gap-1" card={<NoteDetails n={n} jira={jira} />}>
-        <NoteBadge n={n} jira={jira} className="min-w-0 flex-1" />
+      <span className="group relative flex w-full flex-col items-stretch gap-1">
+        <NoteBadge n={n} jira={jira} className="min-w-0 flex-1" onOpen={() => setOpen(true)} />
+        <ContentLightbox open={open} onClose={() => setOpen(false)} label={t("Note")}>
+          <NoteDetails n={n} jira={jira} />
+        </ContentLightbox>
         {/* The card's own actions sit on its corner, shown with the pointer or the focus on it (always on touch). */}
         {own && (
           <span className="absolute top-2 right-2 flex items-center gap-0.5 rounded-full bg-white/90 opacity-0 shadow-sm group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 dark:bg-zinc-900/90">
@@ -156,7 +162,7 @@ export function NoteRow({ n, todoId, jira }: { n: TodoUserNote; todoId?: number;
         {own && <DismissButton className="opacity-100" onDismiss={() => removeTodoNoteAction(todoId!, n.at)} title={t("Dismiss — takes it out of this todo's context for good")} label={t("Dismiss this context item")} />}
           </span>
         )}
-      </HoverCard>
+      </span>
       </PeopleGroup>
       {editing && (
         <span className="block w-full max-w-xl space-y-1.5">

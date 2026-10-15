@@ -40,6 +40,27 @@ export const KANBAN_API: ApiContribution = {
     "kanban.cards.add": {
       perm: "kanban.write",
       summary: "A card at the end of a column (columnId, title; optional description, labels, priority, due, assignee).",
+      offer: {
+        label: "Kanban card",
+        when: "Etwas, das als Aufgabe auf eines meiner Kanban-Boards gehört (kein Jira-Ticket, keine Nachricht): eine Karte mit Titel und kurzer Beschreibung. Board und Spalte als Namen; ohne Angabe das erste Board / die erste Spalte.",
+        fields: { board: "der Name des Boards (siehe „Bestehendes in Zeff“)", column: "der Name der Spalte — ohne Angabe die erste", title: "der Titel der Karte (kurz)", description: "kurze Beschreibung, optional" },
+        example: { board: "Privat", column: "Open", title: "Geschenk für Nadine besorgen", description: "Geburtstag am 16.10." },
+        check: (raw) => {
+          const title = (raw.title ?? "").trim().slice(0, 300);
+          if (!title) return null;
+          const boards = store.listBoards();
+          const want = (raw.board ?? "").trim().toLowerCase();
+          const b = (want && (boards.find((x) => x.name.toLowerCase() === want) ?? boards.find((x) => x.name.toLowerCase().includes(want)))) || boards[0];
+          if (!b) return null;
+          const cols = store.getBoard(b.id).columns;
+          const wantCol = (raw.column ?? "").trim().toLowerCase();
+          const col = (wantCol && (cols.find((c) => c.name.toLowerCase() === wantCol) ?? cols.find((c) => c.name.toLowerCase().includes(wantCol)))) || cols[0];
+          return col ? { columnId: col.id, title, description: (raw.description ?? "").trim().slice(0, 2000), board: b.name, column: col.name } : null;
+        },
+        describe: (p) => ({ title: t("Kanban card “{title}” on {board}", { title: String(p.title), board: String(p.board) }), body: [String(p.column), String(p.description ?? "")].filter(Boolean).join(" — ") }),
+        context: () =>
+          store.listBoards().map((b) => `Board „${b.name}“ — Spalten: ${store.getBoard(b.id).columns.map((c) => c.name).join(", ")}`),
+      },
       run: (p) =>
         guard(() => {
           const c = store.createCard(int(p, "columnId", { required: true, min: 1 })!, str(p, "title", { required: true, max: 300 }));

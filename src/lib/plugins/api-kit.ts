@@ -25,8 +25,33 @@ export type ApiCaller = {
   ungranted: readonly string[];
 };
 
-/** One method: `perm` the permission it needs (none: any caller), `summary` for the docs. */
-export type ApiMethod = { perm?: string; summary: string; run: (p: Params, caller: ApiCaller) => unknown | Promise<unknown> };
+/**
+ * A method the AI may propose as an Auto-Aktion ("zeff-do"): what it is for, the fields the AI fills in (texts),
+ * how those become the method's parameters — and how the button and the card read. The click runs the method.
+ * A plugin offers a method by adding this to it: the AI's dictionary, the validation and the button follow.
+ */
+export type ApiOffer = {
+  /** Its name ("Branch rule"). */
+  label: string;
+  /** For the AI: when to use it (German, like the rest of the dictionary). */
+  when: string;
+  /** The fields the AI fills in, each described (all texts). */
+  fields: Record<string, string>;
+  example: Record<string, string>;
+  /** What the AI wrote → the method's parameters; null: incomplete or not meant (dropped). May look things up (a board by its name). */
+  check: (raw: Record<string, string>) => Params | null;
+  /** The button and the card, in the language of the account when it is proposed. */
+  describe: (p: Params) => { title: string; body?: string };
+  /**
+   * What exists now that the AI must know to write the fields right (the current instructions, the boards and their
+   * columns, what is written down about the topic): lines for the prompt about one todo. This is the retrieval — the AI
+   * adjusts what is there instead of writing beside it. The same lines are given to agents over the MCP (zeff_actions).
+   */
+  context?: (q: { ticket: string; text: string }) => string[] | Promise<string[]>;
+};
+
+/** One method: `perm` the permission it needs (none: any caller), `summary` for the docs, `offer` to let the AI propose it. */
+export type ApiMethod = { perm?: string; summary: string; offer?: ApiOffer; run: (p: Params, caller: ApiCaller) => unknown | Promise<unknown> };
 
 /** An event a hook can listen to: `topic` ties it to the app's change bus (lib/events.ts) — fired, at most every half second, when that topic changes. */
 export type ApiEvent = { description: string; topic?: string };

@@ -1,7 +1,7 @@
 "use client";
 
 import { Editor as TiptapEditor, EditorContent, useEditor, type JSONContent } from "@tiptap/react";
-import { BubbleMenu } from "@tiptap/react/menus";
+import { BubbleMenu, FloatingMenu } from "@tiptap/react/menus";
 import { DragHandle } from "@tiptap/extension-drag-handle-react";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { Details, DetailsContent, DetailsSummary } from "@tiptap/extension-details";
@@ -16,7 +16,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/Toaster";
 import { useLang, useT } from "@/components/I18nProvider";
-import { aiTextAction, aiTodosFromPageAction, createPageAction, createTodosAction, databasesAction, savePageAction, type AiMode } from "../actions";
+import { aiTextAction, aiTodosFromPageAction, createPageAction, createTodosAction, databasesAction, pageContentAction, savePageAction, type AiMode } from "../actions";
 import { markdownToDoc } from "../doc";
 import { Modal } from "./kit";
 import { pickFile, uploadImage } from "./kit";
@@ -95,6 +95,20 @@ export function Editor({ pageId, initial, rev, editable, smallText, onSave }: { 
     }
   }, [pageId, report]);
 
+  // The assistant (the chat in the sidebar) changed this page: its text is read again - unless you are typing (then the conflict notice says it).
+  useEffect(() => {
+    const again = async () => {
+      const ed = editorRef.current;
+      if (!ed || dirty.current || saving.current) return;
+      const r = await pageContentAction(pageId);
+      if (!r.ok || r.rev === revRef.current || dirty.current) return;
+      ed.commands.setContent(JSON.parse(r.content) as JSONContent, { emitUpdate: false });
+      revRef.current = r.rev;
+    };
+    window.addEventListener("ws-changed", again);
+    return () => window.removeEventListener("ws-changed", again);
+  }, [pageId]);
+
   const schedule = useCallback(() => {
     dirty.current = true;
     report("saving");
@@ -117,12 +131,19 @@ export function Editor({ pageId, initial, rev, editable, smallText, onSave }: { 
       try {
         const r = await aiTextAction({ mode, text, instruction, pageId });
         if (!r.ok) toast(r.error, { tone: "error" });
-        else setProposal({ markdown: r.markdown, mode, from, to, replace: !empty && !wholePage && mode !== "continue" });
+        else if (mode === "custom") {
+          // "Write with AI": typed right where the cursor was (or over the selection) - Ctrl+Z takes it back.
+          const size = ed.state.doc.content.size;
+          const content = markdownToDoc(r.markdown).content as JSONContent[];
+          const chain = ed.chain().focus();
+          (empty ? chain.insertContentAt(Math.min(from, size), content) : chain.insertContentAt({ from: Math.min(from, size), to: Math.min(to, size) }, content)).run();
+          toast(t("Written — Ctrl+Z undoes it."), { tone: "ok" });
+        } else setProposal({ markdown: r.markdown, mode, from, to, replace: !empty && !wholePage && mode !== "continue" });
       } finally {
         setAiBusy(false);
       }
     },
-    [pageId],
+    [pageId, t],
   );
 
   const insertImage = useCallback(async (file: File, pos?: number) => {
@@ -345,6 +366,14 @@ export function Editor({ pageId, initial, rev, editable, smallText, onSave }: { 
         </DragHandle>
       )}
       {editable && (
+        // On an empty line, at the cursor: write there with the AI.
+        <FloatingMenu editor={editor} options={{ placement: "top-start", offset: 6 }}>
+          <button type="button" disabled={aiBusy} className="ws-ai-inline" title={t("Tell the AI what to write — it has what Zeff knows")} onMouseDown={(e) => e.preventDefault()} onClick={() => setAskAi(true)}>
+            ✨ {t("Write with AI")}
+          </button>
+        </FloatingMenu>
+      )}
+      {editable && (
         <BubbleMenu editor={editor} options={{ placement: "top" }} shouldShow={({ editor: e, state: s }) => e.isEditable && !s.selection.empty && !e.isActive("image") && !e.isActive("codeBlock") && !e.isActive("zeffRef")}>
           <div className="ws-bubble">
             {[
@@ -392,6 +421,13 @@ export function Editor({ pageId, initial, rev, editable, smallText, onSave }: { 
           </div>
         </BubbleMenu>
       )}
+      {editable && (
+        <div className="mb-1 flex justify-end">
+          <button type="button" disabled={aiBusy} className="btn btn-sm text-violet-700 dark:text-violet-300" title={t("Tell the AI what to write — it has what Zeff knows")} onClick={() => setAskAi(true)}>
+            ✨ {aiBusy ? t("The AI is working …") : t("Write with AI")}
+          </button>
+        </div>
+      )}
       <EditorContent editor={editor} />
 
       {aiBusy && <p className="mt-2 text-sm text-violet-700 dark:text-violet-300">✨ {t("The AI is working …")}</p>}
@@ -416,7 +452,7 @@ export function Editor({ pageId, initial, rev, editable, smallText, onSave }: { 
       )}
 
       {askAi && (
-        <Modal title={`✨ ${t("Ask the AI")}`} onClose={() => setAskAi(false)}>
+        <Modal title={`✨ ${t("Write with AI")}`} onClose={() => setAskAi(false)}>
           <form
             className="space-y-2"
             onSubmit={(e) => {
@@ -428,7 +464,7 @@ export function Editor({ pageId, initial, rev, editable, smallText, onSave }: { 
             }}
           >
             <textarea name="q" autoFocus rows={3} className="input w-full" placeholder={t("What should it write? (e.g. “An agenda for a 30-minute kickoff”)")} />
-            <p className="text-xs text-zinc-500">{t("It sees the text before the cursor, or the selection.")}</p>
+            <p className="text-xs text-zinc-500">{t("It sees the text before the cursor, or the selection — and looks through what Zeff knows: mails, tickets, Teams messages, notes, the knowledge base, your pages.")}</p>
             <div className="flex justify-end gap-2">
               <button type="button" className="btn btn-sm" onClick={() => setAskAi(false)}>
                 {t("Cancel")}

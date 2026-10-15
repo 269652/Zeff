@@ -1,3 +1,4 @@
+import { summarizeContext } from "@/lib/context-summary";
 import { EmptyState } from "@/components/EmptyState";
 import Link from "next/link";
 import { Fragment } from "react";
@@ -63,7 +64,8 @@ export function EntriesTable({
     return client && data.entries ? [{ id, client, data }] : [];
   });
   // And the context of the todos that flowed into it, as the todos show it.
-  const fromTodos = entryTodoContext(entries.map((e) => e.id));
+  // (Only how much there is of each kind — the toggle fetches the context itself when it is opened.)
+  const fromTodos = Object.fromEntries(Object.entries(entryTodoContext(entries.map((e) => e.id))).map(([id, c]) => [id, summarizeContext(c.sources, c.notes)]));
   const ticketCards = getTicketCards(entries.map((e) => e.ticket));
   const columns = 5 + (showJob ? 1 : 0) + (projectColumn ? 1 : 0);
 
@@ -157,7 +159,7 @@ export function EntriesTable({
             </Link>
             <GroupMenu entryId={e.id} currentSpanId={e.spanId} headOfSpan={own?.id ?? null} options={groupsOfDay.get(e.date) ?? []} />
           </div>
-          {fromTodos[e.id] && <EntryTodoContextToggle ctx={fromTodos[e.id]} />}
+          {fromTodos[e.id]?.n > 0 && <EntryTodoContextToggle entryId={e.id} summary={fromTodos[e.id]} />}
         </td>
         <td className="whitespace-nowrap">{e.ticket && <TicketLink ticket={e.ticket} card={ticketCards[e.ticket.toUpperCase()]} />}</td>
         <td>

@@ -1,3 +1,5 @@
+// "Do in Zeff" (what plugins offer to the AI): the checks of the actions an AI proposes are registered by this.
+import "@/plugins/actions/server";
 import { parseTodoKnowledge, type TodoKnowledge } from "@/plugins/knowledge/shared";
 import { summaryForTicket } from "@/plugins/knowledge/repo-systems-store";
 import { repeatsByRecord, similarText } from "./similar";

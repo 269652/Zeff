@@ -7,9 +7,6 @@ import { t } from "@/lib/i18n/server";
 import { rich } from "@/lib/i18n/rich";
 import { connection } from "next/server";
 import { clearJiraAction } from "@/plugins/jira/server-actions";
-import { BoardEnableToggle } from "@/components/BoardEnableToggle";
-import { BoardJobSelect } from "@/components/BoardJobSelect";
-import { BoardSyncControls } from "@/components/BoardSyncControls";
 import { JiraJobSelect } from "@/components/JiraJobSelect";
 import { JiraSyncControls } from "@/components/JiraSyncControls";
 import { TicketTagsEditor } from "@/components/TicketTagsEditor";
@@ -107,54 +104,10 @@ export default async function JiraPage({
         <Stat label={t("Linked to a job")} value={String(stats.withJob)} />
       </div>
 
-      <section className="card space-y-3 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Boards → default job")}</h2>
-          <BoardSyncControls />
-        </div>
-        <p className="text-xs text-zinc-400">
-          {rich(
-            t(
-              "Only <b>enabled</b> boards are synced and feed the ticket dropdown — uncheck stale boards to declutter. Map a board to a job and every ticket on it defaults to that job (override per ticket below). Re-syncing only re-reads enabled and newly-found boards.",
-            ),
-            { b: (s) => <strong>{s}</strong> },
-          )}
-        </p>
-        {boards.length === 0 ? (
-          <p className="py-2 text-sm text-zinc-500">{t("No boards yet — click “Sync boards”.")}</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th scope="col" className="text-center">{t("On")}</th>
-                  <th scope="col">{t("Board")}</th>
-                  <th scope="col">{t("Type")}</th>
-                  <th scope="col">{t("Project")}</th>
-                  <th scope="col" className="text-right">{t("Tickets")}</th>
-                  <th scope="col">{t("Default job")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {boards.map((b) => (
-                  <tr key={b.id} className={b.enabled ? "" : "opacity-45"}>
-                    <td className="text-center">
-                      <BoardEnableToggle boardId={b.id} enabled={b.enabled} />
-                    </td>
-                    <td className="font-medium whitespace-nowrap">{b.name}</td>
-                    <td className="text-xs text-zinc-500">{b.type}</td>
-                    <td className="font-mono text-xs">{b.projectKey}</td>
-                    <td className="text-right tabular-nums text-zinc-500">{b.memberCount}</td>
-                    <td>
-                      <BoardJobSelect boardId={b.id} jobs={jobs} current={b.jobNumber} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+      <p className="text-xs text-zinc-500">
+        <Link href="/settings/jira" className="text-indigo-600 hover:underline dark:text-indigo-400">{t("Jira settings")}</Link>
+        <span className="text-zinc-400"> — {t("which boards are synced, and their default job")}</span>
+      </p>
 
       <section className="card p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

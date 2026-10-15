@@ -9,14 +9,15 @@ import { isInstalled } from "@/plugins/state";
 import { docToMarkdown, markdownToDoc } from "./doc";
 import { cellText, isComputed, sortRows, TITLE, type Row } from "./model";
 import * as store from "./store";
+import { registerWorkspaceDbTools, valuesToCells } from "./mcp-db";
 
 type Result = { content: ({ type: "text"; text: string } | { type: "image"; data: string; mimeType: string })[]; isError?: boolean };
-type Helpers = { run: (fn: () => Promise<Result> | Result) => Promise<Result>; ok: (text: string) => Result; fail: (text: string) => Result };
+export type Helpers = { run: (fn: () => Promise<Result> | Result) => Promise<Result>; ok: (text: string) => Result; fail: (text: string) => Result };
 
-const off = (h: Helpers): Result | null => (isInstalled("workspace") ? null : h.fail("The Workspace is not installed in Zeff (Menu → Plugins) — this tool isn't available."));
+export const off = (h: Helpers): Result | null => (isInstalled("workspace") ? null : h.fail("The Workspace is not installed in Zeff (Menu → Plugins) — this tool isn't available."));
 
 /** A page by id ("12", "#12") or by its title (exact, then the closest). */
-function findPage(ref: string | number): store.Page | null {
+export function findPage(ref: string | number): store.Page | null {
   const s = String(ref).trim();
   const id = /^#?(\d+)$/.exec(s);
   if (id) return store.getPage(Number(id[1]));
@@ -206,41 +207,13 @@ export function registerWorkspaceTools(server: McpServer, h: Helpers): void {
         const p = findPage(database);
         const d = p && p.kind === "database" ? store.getDatabase(p.id) : null;
         if (!p || !d) return h.fail(`No database "${database}".`);
-        let schema = d.schema;
-        const cells: Record<string, unknown> = {};
-        const notes: string[] = [];
-        for (const [name, raw] of Object.entries(values ?? {})) {
-          const q = schema.properties.find((x) => x.name.toLowerCase() === name.toLowerCase());
-          if (!q) {
-            notes.push(`no property "${name}"`);
-            continue;
-          }
-          if (isComputed(q)) {
-            notes.push(`"${q.name}" is computed`);
-            continue;
-          }
-          if (q.type === "select" || q.type === "status" || q.type === "multi_select") {
-            const names = (Array.isArray(raw) ? raw : [raw]).map(String);
-            const ids: string[] = [];
-            for (const n of names) {
-              let o = q.options?.find((x) => x.name.toLowerCase() === n.toLowerCase());
-              if (!o) {
-                o = { id: `o${Math.random().toString(36).slice(2, 8)}`, name: n, color: "gray", group: q.type === "status" ? "todo" : undefined };
-                schema = { ...schema, properties: schema.properties.map((x) => (x.id === q.id ? { ...x, options: [...(x.options ?? []), o!] } : x)) };
-              }
-              ids.push(o.id);
-            }
-            cells[q.id] = q.type === "multi_select" ? ids : ids[0];
-          } else if (q.type === "person") {
-            const { listPeople } = await import("@/plugins/people/store");
-            const people = (Array.isArray(raw) ? raw : [raw]).map((n) => listPeople().find((x) => x.name.toLowerCase() === String(n).toLowerCase() || x.aliases.some((a) => a.toLowerCase() === String(n).toLowerCase()))?.id).filter((x): x is number => !!x);
-            cells[q.id] = people;
-          } else cells[q.id] = raw;
-        }
+        const { cells, schema, notes } = await valuesToCells(d.schema, values ?? {});
         if (schema !== d.schema) store.updateSchema(p.id, schema);
         const id = store.addRow(p.id, { title, cells });
         if (markdown) store.updatePage(id, { content: markdownToDoc(markdown) });
         return h.ok(`Added row ${id} "${title}" to "${p.title || "Untitled"}"${notes.length ? ` (ignored: ${notes.join("; ")})` : ""}. Open: /workspace/${id}`);
       }),
   );
+
+  registerWorkspaceDbTools(server, h);
 }
