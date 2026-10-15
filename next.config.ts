@@ -19,7 +19,11 @@ const nextConfig: NextConfig = {
   },
   // The Boards tab is the Todos tab now — old links (bookmarks, notifications) land there.
   redirects() {
-    return [{ source: "/boards", destination: "/todos", permanent: false }];
+    return [
+      { source: "/boards", destination: "/todos", permanent: false },
+      // The AI steps are the prompts now: Settings → Prompts.
+      { source: "/auswerten", destination: "/settings/prompts", permanent: false },
+    ];
   },
   experimental: {
     // Context items upload files (screenshots, documents) with their form — up to 20 MB each.

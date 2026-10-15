@@ -4966,5 +4966,6 @@
   "Characters after the ticket key, at most": "Caracteres tras la clave del ticket, como máximo",
   "Words in the short name, at most": "Palabras en el nombre corto, como máximo",
   "Kept todos of the ticket, at most": "Tareas guardadas del ticket, como máximo",
-  "Jira comments, at most": "Comentarios de Jira, como máximo"
+  "Jira comments, at most": "Comentarios de Jira, como máximo",
+  "Prompts": "Prompts"
 }

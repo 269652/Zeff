@@ -139,7 +139,7 @@ export async function saveContextPrefsAction(step: string, patch: { sources?: Re
     if (!(CONTEXT_STEP_IDS as readonly string[]).includes(step)) return { ok: false, error: t("Unknown step.") };
     const { setStepPrefs } = await import("@/lib/boards/context-prefs");
     setStepPrefs(step as (typeof CONTEXT_STEP_IDS)[number], patch ?? {});
-    revalidatePath("/auswerten");
+    revalidatePath("/settings/prompts");
     return { ok: true, message: t("Saved — applies from the next run on.") };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };

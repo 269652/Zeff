@@ -4966,5 +4966,6 @@
   "Characters after the ticket key, at most": "Zeichen nach dem Ticket-Key, höchstens",
   "Words in the short name, at most": "Wörter im Kurznamen, höchstens",
   "Kept todos of the ticket, at most": "Festgehaltene Todos des Tickets, höchstens",
-  "Jira comments, at most": "Jira-Kommentare, höchstens"
+  "Jira comments, at most": "Jira-Kommentare, höchstens",
+  "Prompts": "Prompts"
 }

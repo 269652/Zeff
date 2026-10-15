@@ -18,7 +18,7 @@ export default async function SettingsHubPage() {
   const on = installedPlugins();
   const general: Area[] = [
     { href: "/preferences", label: t("General"), what: t("Language, AI provider, todo briefing, backups") },
-    { href: "/auswerten", label: t("AI steps"), what: t("What the AI reads at each step") },
+    { href: "/settings/prompts", label: t("Prompts"), what: t("What the AI reads at each step") },
     ...(isInstalled("todos") ? [{ href: "/settings/todos", label: t("Todo settings"), what: t("What a todo shows, and which kinds of knowledge count") }] : []),
   ];
   const time: Area[] = isInstalled("zeiterfassung") || isInstalled("work") ? [{ href: "/settings", label: t("Time-tracking settings"), what: t("Weekly hours, breaks, flex time, rules, absences") }] : [];

@@ -103,7 +103,7 @@ export function branchRuleDocs(zeffUrl: string): { id: string; space: string; ti
       id: `zeff:branchrule:${r.id}`,
       space: "Zeff · Branch-Kontext",
       title: `Branch-Regel: ${r.title}`,
-      url: `${zeffUrl}/auswerten#branchname`,
+      url: `${zeffUrl}/settings/prompts#branchname`,
       updatedAt: r.createdAt,
       author: null,
       body: `Tags: ${r.tags.join(", ")}\n\n${r.text}${r.sources.length ? `\n\n## Woher die Regel kommt\n${r.sources.map((s) => `- ${s.label}: „${s.text}“`).join("\n")}` : ""}`,

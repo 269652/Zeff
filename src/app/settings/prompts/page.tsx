@@ -11,7 +11,7 @@ import { contextSteps } from "@/lib/boards/context-prefs-shared";
 import { installedPlugins } from "@/plugins/state";
 
 export async function generateMetadata(): Promise<Metadata> {
-  return { title: t("AI steps") };
+  return { title: t("Prompts") };
 }
 
 /**
@@ -30,7 +30,7 @@ export default async function AuswertenPage({ searchParams }: { searchParams: Pr
   return (
     <div className="page">
       <div className="page-aside">
-        <h1 className="text-lg font-semibold">{t("AI steps")}</h1>
+        <h1 className="text-lg font-semibold">{t("Prompts")}</h1>
         <p className="text-sm text-zinc-500">
           {t(
             "What the AI reads at each step: which sources, how far back, how much — and what you give it for the step. A source turned off doesn't go into the AI (in the reviews its messages wait until you turn it back on).",
