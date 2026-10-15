@@ -122,11 +122,14 @@ function opsOf(r: Todo): TodoView["ops"] {
   return [{ type: "jira-comment", ticket, body: r.draft.trim() }];
 }
 
+/** A note's ref: a note (keep:…) or a database row (page:…) — an item of a collection. */
+const isNoteRef = (r: string) => r.startsWith("keep:") || /^page:\d+$/.test(r);
+
 /**
  * What a todo is related to, by the relation runs (its mail_refs column): the mails (Mail-Zuordnung,
- * "mail:…") and the notes (Notiz-Zuordnung, Keep's extension, "keep:…").
+ * "mail:…") and the notes (Notiz-Zuordnung, Keep's extension, "keep:…" and database rows "page:…").
  */
-const relatedRefsOf = (r: Todo) => parse<string[]>(r.mailRefs, []).filter((k) => typeof k === "string" && (k.startsWith("mail:") || k.startsWith("keep:") || k.startsWith("doc:")));
+const relatedRefsOf = (r: Todo) => parse<string[]>(r.mailRefs, []).filter((k) => typeof k === "string" && (k.startsWith("mail:") || isNoteRef(k) || k.startsWith("doc:")));
 /** The mails related to a todo (by the mail relation run). */
 const mailRefsOf = (r: Todo) => relatedRefsOf(r).filter((k) => k.startsWith("mail:"));
 
@@ -277,7 +280,7 @@ export function dismissTodoContext(todoId: number, ref: string): void {
  * A relation run's pick: per todo, what it's about — its refs of one kind ("mail:" / "keep:")
  * replaced, the other kind's kept. Todos not in `picks` keep theirs.
  */
-function setRelatedRefs(prefix: "mail:" | "keep:" | "doc:", picks: Map<number, string[]>): number {
+function setRelatedRefs(accept: (ref: string) => boolean, picks: Map<number, string[]>): number {
   if (!picks.size) return 0;
   let changed = 0;
   getDb().transaction((tx) => {
@@ -286,7 +289,7 @@ function setRelatedRefs(prefix: "mail:" | "keep:" | "doc:", picks: Map<number, s
       if (!row) continue;
       // Added to what it's related to already — that stays until you dismiss it.
       const had = parse<string[]>(row.mailRefs, []).filter((k) => typeof k === "string");
-      const json = JSON.stringify([...new Set([...had, ...refs.filter((r) => r.startsWith(prefix))])].slice(-40));
+      const json = JSON.stringify([...new Set([...had, ...refs.filter(accept)])].slice(-40));
       const r = tx.update(todos).set({ mailRefs: json }).where(and(eq(todos.id, id), sql`${todos.mailRefs} <> ${json}`)).run();
       changed += r.changes;
     }
@@ -296,13 +299,13 @@ function setRelatedRefs(prefix: "mail:" | "keep:" | "doc:", picks: Map<number, s
 }
 
 /** The mail relation run's pick: per todo, the mails it's about (["mail:<key>"]); its notes stay. */
-export const setTodoMailRefs = (picks: Map<number, string[]>) => setRelatedRefs("mail:", picks);
+export const setTodoMailRefs = (picks: Map<number, string[]>) => setRelatedRefs((r) => r.startsWith("mail:"), picks);
 
 /** The Notiz-Zuordnung's pick (Keep's extension): per todo, the notes it's about (["keep:…"]); its mails stay. */
-export const setTodoNoteRefs = (picks: Map<number, string[]>) => setRelatedRefs("keep:", picks);
+export const setTodoNoteRefs = (picks: Map<number, string[]>) => setRelatedRefs(isNoteRef, picks);
 
 /** The Dokument-Zuordnung's pick (the Documents plugin's extension): per todo, the documents it's about (["doc:12"]); its mails and notes stay. Documents attached by hand are in its refs — not touched. */
-export const setTodoDocRefs = (picks: Map<number, string[]>) => setRelatedRefs("doc:", picks);
+export const setTodoDocRefs = (picks: Map<number, string[]>) => setRelatedRefs((r) => r.startsWith("doc:"), picks);
 
 /** A todo on this ticket: its main ticket, or one it's linked to. */
 const onTicket = (key: string) => or(eq(todos.ticket, key), sql`${todos.alsoTickets} like ${`%"${key}"%`}`);
@@ -805,9 +808,6 @@ export function addDocTodo(v: { ticket: string; text: string; kind: string; owne
   emitChange("todos"); // (after it is written: a page that refreshes on it must find it)
   return toTodo(row);
 }
-
-/** What a note todo may come from: a note (keep:…) or a database row (page:…) — an item of a collection. */
-const isNoteRef = (r: string) => r.startsWith("keep:") || /^page:\d+$/.test(r);
 
 export function addNoteTodo(v: { ticket: string; text: string; kind: string; owner?: "me" | "other"; refs: string[]; runId: number | null; due?: string | null }): Gated {
   const g = gateTodo({ ticket: v.ticket, text: v.text, kind: v.kind, owner: v.owner, refs: v.refs.filter(isNoteRef), due: v.due, runId: v.runId, byWorker: false, source: "Notiz-Durchsicht" }, { closed: true });

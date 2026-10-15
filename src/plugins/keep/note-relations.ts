@@ -6,7 +6,7 @@ import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { getJiraTicket } from "@/lib/jira/store";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
-import { lageNotes, type NoteView } from "./boards";
+import { briefingNotes, type Item } from "@/lib/items";
 
 /**
  * The Notiz-Zuordnung (Google Keep's extension for Todos, a step after the Ticket-Lage): each open
@@ -15,6 +15,9 @@ import { lageNotes, type NoteView } from "./boards";
  * picks by content. They become the todo's related notes (with its related mails): shown at it, in
  * its context and its agents'.
  */
+
+/** A note: an item of a collection in the briefing (a Keep board, Google Keep, a database …), with where it is. */
+type Note = Item & { where: string };
 
 const PER_TODO = 6;
 const BATCH_CHARS = COPILOT_MAX_PROMPT - 4000;
@@ -36,7 +39,7 @@ const STOP = new Set("aber alle allem also auch dann dass dein deine denn diese 
 const words = (t: string) => new Set((t.toLowerCase().match(/[a-zäöüß0-9]{4,}/g) ?? []).filter((w) => !STOP.has(w)));
 
 /** The notes likeliest to be about a todo: most shared words (at least two), the best few. */
-function candidates(todo: TodoView, notes: { n: NoteView; w: Set<string> }[]): NoteView[] {
+function candidates(todo: TodoView, notes: { n: Note; w: Set<string> }[]): Note[] {
   const summary = todo.ticket ? (getJiraTicket(todo.ticket)?.summary ?? "") : "";
   const tw = words(`${todo.text} ${summary} ${todo.note ?? ""}`);
   if (!tw.size) return [];
@@ -48,8 +51,8 @@ function candidates(todo: TodoView, notes: { n: NoteView; w: Set<string> }[]): N
     .map((x) => x.n);
 }
 
-const noteLine = (n: NoteView) => `  - [${n.ref}] (${n.source === "google" ? "Google Keep" : (n.boardName ?? "Keep")}) „${plain(n.title || "(ohne Titel)", 160)}“ — ${plain(n.text, 500)}`;
-const block = (t: TodoView, list: NoteView[]) => [`## [${t.id}] ${plain(t.text, 300)}${t.ticket ? ` (${t.ticket})` : ""}`, ...list.map(noteLine)].join("\n");
+const noteLine = (n: Note) => `  - [${n.ref}] (${n.where}) „${plain(n.title || "(ohne Titel)", 160)}“ — ${plain(n.text, 500)}`;
+const block = (t: TodoView, list: Note[]) => [`## [${t.id}] ${plain(t.text, 300)}${t.ticket ? ` (${t.ticket})` : ""}`, ...list.map(noteLine)].join("\n");
 
 const state = globalThis as unknown as { __zeffNoteRelations?: Promise<NoteRelationResult> | null };
 export type NoteRelationResult = { ok: boolean; todos: number; changed: number; batches: number; error?: string };
@@ -58,11 +61,12 @@ export function relateNotes(): Promise<NoteRelationResult> {
   if (state.__zeffNoteRelations) return state.__zeffNoteRelations;
   const run = (async (): Promise<NoteRelationResult> => {
     const open = listTodos({ status: "open" });
-    const notes = lageNotes()
+    const notes = briefingNotes()
+      .map(({ item, collection }): Note => ({ ...item, where: collection.name }))
       .filter((n) => n.title || n.text.trim())
       .map((n) => ({ n, w: words(`${n.title} ${n.text} ${n.labels.join(" ")}`) }));
     const picks = new Map<number, string[]>();
-    const groups: { t: TodoView; list: NoteView[] }[] = [];
+    const groups: { t: TodoView; list: Note[] }[] = [];
     for (const t of open) {
       const list = candidates(t, notes);
       if (list.length) groups.push({ t, list });
@@ -93,7 +97,7 @@ export function relateNotes(): Promise<NoteRelationResult> {
       const said = new Map((answer.output?.todos ?? []).filter((t) => Number.isInteger(t?.id)).map((t) => [t.id!, t.notes ?? []]));
       for (const g of batch) {
         const known = new Set(g.list.map((n) => n.ref));
-        const refs = (said.get(g.t.id) ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).map((r) => (r.startsWith("keep:") ? r : `keep:${r}`));
+        const refs = (said.get(g.t.id) ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).map((r) => (known.has(r) ? r : `keep:${r}`));
         picks.set(g.t.id, refs.filter((r) => known.has(r)).slice(0, 4));
       }
     }
