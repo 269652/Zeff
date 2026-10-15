@@ -354,8 +354,10 @@ export function SiteHeader({
               {/* The tabs: on a narrow screen they scroll sideways — the page never gets wider than the window. */}
               <nav className="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none]" aria-label={t("Main")}>
                 {tabs.map((tab) => {
-                  const active = tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href);
-                  const current = active || (tab.also ?? []).some((p) => pathname.startsWith(p));
+                  // A tab owns its page and what is below it ("/work" is not "/workspace").
+                  const under = (base: string) => pathname === base || pathname.startsWith(base.endsWith("/") ? base : `${base}/`);
+                  const active = tab.href === "/" ? pathname === "/" : under(tab.href);
+                  const current = active || (tab.also ?? []).some(under);
                   const inner = (
                     <>
                       <span className="sm:hidden">{tab.short}</span>
