@@ -113,3 +113,21 @@ test("moveAllBoardsOnce: a backup first, the Workspace on, every open board move
   s.createBoard({ name: "Später" });
   assert.equal(await moveAllBoardsOnce(), null, "once: a board made later stays on Kanban");
 });
+
+/** A moved card keeps when it was made and last changed — else everything done would look done just now. */
+test("a moved card keeps its times", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["kanban", "workspace"]) setInstalled(id, true);
+  const { getSqlite } = await import("@/db");
+  const s = await import("@/plugins/kanban/store");
+  const w = await import("@/plugins/workspace/store");
+  const { moveBoardToWorkspace, movedCard } = await import("@/plugins/kanban/to-workspace");
+  const b = s.createBoard({ name: "Zeiten" });
+  const card = s.createCard(s.getBoard(b).columns[0].id, "Alt");
+  getSqlite().prepare("update kanban_cards set created_at = '2026-09-01 08:00:00', updated_at = '2026-09-02 09:30:00' where id = ?").run(card.id);
+
+  moveBoardToWorkspace(b);
+  const row = w.getPage(movedCard(card.id)!)!;
+  assert.equal(row.createdAt, "2026-09-01T08:00:00.000Z");
+  assert.equal(row.updatedAt, "2026-09-02T09:30:00.000Z");
+});

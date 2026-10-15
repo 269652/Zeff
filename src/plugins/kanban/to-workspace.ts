@@ -37,6 +37,8 @@ export function movedBoard(boardId: number): number | null {
   return r && getDatabase(r.db_id) ? r.db_id : null;
 }
 
+/** A Kanban time (SQLite's "2026-09-01 08:00:00", UTC) as the Workspace keeps it (ISO). */
+const iso = (t: string) => new Date(t.includes("T") ? t : `${t.replace(" ", "T")}Z`).toISOString();
 const option = (name: string, color: string, group?: Option["group"]): Option => ({ id: newId("o"), name, color, ...(group ? { group } : {}) });
 const prop = (name: string, type: Property["type"], options?: Option[]): Property => ({ ...newProperty(name, type), ...(options ? { options } : {}) });
 
@@ -93,6 +95,9 @@ function move(boardId: number): { dbId: number } {
   }
   for (const c of cards) if (c.parentId && rows.has(c.parentId)) setCell(rows.get(c.id)!, parent.id, [rows.get(c.parentId)!]);
   for (const c of archived) archivePage(rows.get(c.id)!);
+  // When each card was made and last changed (else all would look changed just now — done ones done today).
+  const times = d.prepare("update ws_pages set created_at = ?, updated_at = ? where id = ?");
+  for (const c of cards) times.run(iso(c.createdAt), iso(c.updatedAt), rows.get(c.id)!);
 
   d.prepare("insert or replace into kanban_moved_boards (board_id, db_id) values (?, ?)").run(boardId, dbId);
   setCollection(`workspace:${dbId}`, { briefing: meta.inLage });
