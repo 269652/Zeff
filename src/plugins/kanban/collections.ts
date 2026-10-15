@@ -3,7 +3,7 @@ import { getDb, schema } from "@/db";
 import type { CollectionProvider } from "@/lib/items/point";
 import type { Collection, Item, ItemPhase } from "@/lib/items/shared";
 import { cardRef, type BoardView } from "./shared";
-import { getBoard, listBoards } from "./store";
+import { getBoard, listBoards, updateBoard } from "./store";
 
 /**
  * Your Kanban boards as collections (kanban:<id>), their cards as items (KB-<id>): the column is
@@ -60,6 +60,13 @@ export const kanbanCollections: CollectionProvider = {
     const m = /^kanban:(\d+)$/.exec(id);
     if (!m || !listBoards().some((b) => b.id === Number(m[1]))) return null;
     return itemsOf(getBoard(Number(m[1])));
+  },
+  set(id, patch) {
+    const m = /^kanban:(\d+)$/.exec(id);
+    if (!m || !listBoards().some((b) => b.id === Number(m[1]))) return false;
+    if (patch.knowledge) throw new Error("A Kanban board can't go into the knowledge.");
+    if (patch.briefing !== undefined) updateBoard(Number(m[1]), { inLage: patch.briefing });
+    return true;
   },
   byRefs(refs) {
     const ids = refs.flatMap((r) => {

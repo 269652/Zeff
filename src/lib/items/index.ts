@@ -1,6 +1,6 @@
 import "@/plugins/contributions";
 import { collectionProviders } from "./point";
-import type { Collection, Item } from "./shared";
+import type { Collection, CollectionSwitches, Item } from "./shared";
 
 /**
  * Collections and their items from every installed plugin that keeps things (server only). What
@@ -8,7 +8,7 @@ import type { Collection, Item } from "./shared";
  * reads them here, not from the plugins' stores.
  */
 
-export type { Collection, CollectionKind, Item, ItemPhase, ItemStatus } from "./shared";
+export type { Collection, CollectionKind, CollectionSwitches, Item, ItemPhase, ItemStatus } from "./shared";
 
 const providers = () => collectionProviders.list().map((c) => c.impl);
 
@@ -32,6 +32,11 @@ export function collectionItems(id: string, opts: { archived?: boolean } = {}): 
     if (items) return items;
   }
   return null;
+}
+
+/** Puts a collection into the briefing or the knowledge, or takes it out (its plugin keeps the switch). */
+export function setCollection(id: string, patch: CollectionSwitches): void {
+  if (!providers().some((p) => p.set(id, patch))) throw new Error(`No such collection: ${id}`);
 }
 
 /** The items by their refs, those still there (an unknown ref is left out). */

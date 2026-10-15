@@ -30,6 +30,7 @@ test("knowledge: items of the collections in the knowledge are documents, archiv
     collections: () => [{ id: "db", plugin: "signal", kind: "database", name: "Entscheidungen", description: "", color: null, href: "/x", readOnly: false, briefing: false, knowledge: true, items: 1 }],
     items: (id) => (id === "db" ? [row] : null),
     byRefs: () => [],
+    set: () => false,
   });
 
   const docs = knowledgeDocs("http://zeff").docs;

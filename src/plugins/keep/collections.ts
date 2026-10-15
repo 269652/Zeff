@@ -1,7 +1,7 @@
 import type { CollectionProvider } from "@/lib/items/point";
 import type { Collection, Item } from "@/lib/items/shared";
 import { isInstalled } from "@/plugins/state";
-import { listKeepBoards, listOwnNotes, notesByRefs, type NoteView } from "./boards";
+import { listKeepBoards, listOwnNotes, notesByRefs, updateKeepBoard, type NoteView } from "./boards";
 import { allKeepNotes, keepCount, type KeepNote } from "./store";
 
 /**
@@ -72,6 +72,13 @@ export const keepCollections: CollectionProvider = {
     if (!m || !listKeepBoards().some((b) => b.id === Number(m[1]))) return null;
     const board = Number(m[1]);
     return [...listOwnNotes(board), ...(archived ? listOwnNotes(board, { archived: true }) : [])].map((n) => toItem(n, id));
+  },
+  set(id, patch) {
+    if (id === GOOGLE) throw new Error("Google Keep is always in the briefing and the knowledge.");
+    const m = /^keep:board:(\d+)$/.exec(id);
+    if (!m || !listKeepBoards().some((b) => b.id === Number(m[1]))) return false;
+    updateKeepBoard(Number(m[1]), { inLage: patch.briefing, inKnowledge: patch.knowledge });
+    return true;
   },
   byRefs: (refs) => notesByRefs(refs).map((n) => toItem(n, n.boardId ? ownId(n.boardId) : GOOGLE)),
 };

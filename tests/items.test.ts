@@ -162,3 +162,29 @@ test("an uninstalled plugin's collections aren't there", async () => {
   assert.equal(c.collectionItems("kanban:1"), null);
   assert.equal(c.itemsByRefs(["KB-1"]).size, 0);
 });
+
+/** One switch for every collection: in the briefing, in the knowledge — each plugin keeps it its way. */
+test("setCollection: briefing and knowledge switched the same way for boards, notes and databases", async () => {
+  await install("kanban", "keep", "workspace");
+  const c = await import("@/lib/items");
+  const kanban = (await import("@/plugins/kanban/store")).createBoard({ name: "Schalter" });
+  const keep = (await import("@/plugins/keep/boards")).createKeepBoard({ name: "Schalter" });
+  const ws = (await import("@/plugins/workspace/store")).createPage({ kind: "database", title: "Schalter" });
+  const get = (id: string) => c.listCollections().find((x) => x.id === id)!;
+
+  assert.equal(get(`workspace:${ws}`).briefing, false, "a database is out of the briefing at first");
+  c.setCollection(`workspace:${ws}`, { briefing: true, knowledge: true });
+  assert.equal(get(`workspace:${ws}`).briefing, true);
+  assert.equal(get(`workspace:${ws}`).knowledge, true);
+  c.setCollection(`workspace:${ws}`, { knowledge: false });
+  assert.deepEqual([get(`workspace:${ws}`).briefing, get(`workspace:${ws}`).knowledge], [true, false], "only what's given changes");
+
+  c.setCollection(`kanban:${kanban}`, { briefing: false });
+  assert.equal(get(`kanban:${kanban}`).briefing, false);
+  assert.equal((await import("@/plugins/kanban/store")).getBoard(kanban).inLage, false, "Kanban's own switch");
+  assert.throws(() => c.setCollection(`kanban:${kanban}`, { knowledge: true }), /can't go into the knowledge/);
+
+  c.setCollection(`keep:board:${keep}`, { briefing: false, knowledge: false });
+  assert.deepEqual([get(`keep:board:${keep}`).briefing, get(`keep:board:${keep}`).knowledge], [false, false]);
+  assert.throws(() => c.setCollection("nothing:1", { briefing: true }), /No such collection/);
+});

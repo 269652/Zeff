@@ -30,6 +30,9 @@ export type Collection = {
   items: number;
 };
 
+/** What can be switched on a collection (what's left out stays as it is). */
+export type CollectionSwitches = { briefing?: boolean; knowledge?: boolean };
+
 /** Where an item stands: todo (not started), doing, done. */
 export type ItemPhase = "todo" | "doing" | "done";
 export type ItemStatus = { name: string; phase: ItemPhase };

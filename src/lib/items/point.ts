@@ -1,5 +1,5 @@
 import { extensionPoint } from "@/lib/plugin-kit/extension-point";
-import type { Collection, Item } from "./shared";
+import type { Collection, CollectionSwitches, Item } from "./shared";
 
 /**
  * The extension point for collections: a plugin that keeps things (Kanban, Keep, Workspace)
@@ -13,6 +13,8 @@ export type CollectionProvider = {
   items(collectionId: string, opts?: { archived?: boolean }): Item[] | null;
   /** The items among `refs` that are its own and still there. */
   byRefs(refs: string[]): Item[];
+  /** Puts its collection into the briefing or the knowledge, or takes it out; false when the id isn't one of its collections. */
+  set(collectionId: string, patch: CollectionSwitches): boolean;
 };
 
 export const collectionProviders = extensionPoint<CollectionProvider>("items.collections");

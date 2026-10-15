@@ -58,6 +58,7 @@ test("lage: notes come from every collection in the briefing, not from boards", 
     collections: () => cols,
     items: (id) => (cols.some((c) => c.id === id) ? items.filter((i) => i.collectionId === id) : null),
     byRefs: (refs) => items.filter((i) => refs.includes(i.ref)),
+    set: () => false,
   });
 
   const lines = lageNoteLines("PROJ-77", 200, cut);
