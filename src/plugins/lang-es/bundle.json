@@ -5072,5 +5072,13 @@
   "AI review (with the briefing)": "Revisión IA (con la situación)",
   "The AI reads the rows that changed …": "La IA lee las filas que cambiaron …",
   "{n} rows filled, {m} unchanged": "{n} filas completadas, {m} sin cambios",
-  "Review now": "Revisar ahora"
+  "Review now": "Revisar ahora",
+  "What should the AI write here?": "¿Qué debe escribir la IA aquí?",
+  "Written again with every briefing": "Reescrito con cada situación",
+  "with the briefing": "con la situación",
+  "Write again": "Reescribir",
+  "Nothing written yet.": "Nada escrito todavía.",
+  "AI block": "Bloque IA",
+  "The AI writes here — from this page and the databases in it": "La IA escribe aquí — desde esta página y sus bases de datos",
+  "Only mine in this view": "Solo los míos en esta vista"
 }

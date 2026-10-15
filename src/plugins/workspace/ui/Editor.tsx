@@ -21,7 +21,7 @@ import { markdownToDoc } from "../doc";
 import { Modal } from "./kit";
 import { pickFile, uploadImage } from "./kit";
 import { MentionCommand } from "./mention";
-import { Callout, DatabaseViewNode, ZeffModuleNode, ZeffRef } from "./nodes";
+import { AiBlockNode, Callout, DatabaseViewNode, ZeffModuleNode, ZeffRef } from "./nodes";
 import { SlashCommand, type SlashContext } from "./slash";
 import "./workspace.css";
 
@@ -221,6 +221,7 @@ export function Editor({ pageId, initial, rev, editable, smallText, onSave }: { 
       ZeffRef,
       DatabaseViewNode,
       ZeffModuleNode.configure({ pageId }),
+      AiBlockNode.configure({ pageId }),
       // eslint-disable-next-line react-hooks/refs -- read when a command runs, not while rendering
       SlashCommand.configure({ getContext: () => ctxRef.current! }),
       MentionCommand.configure({ getLang: () => lang }),

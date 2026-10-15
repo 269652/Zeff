@@ -3,7 +3,9 @@
 import { mergeAttributes, Node, NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { mentionStateAction } from "../actions";
+import { aiBlockAction, mentionStateAction } from "../actions";
+import { useT } from "@/components/I18nProvider";
+import { toast } from "@/components/Toaster";
 import { DatabaseBlock } from "./DatabaseView";
 import { ModuleBlock } from "./detail-modules";
 import type { DetailModule } from "../model";
@@ -233,5 +235,67 @@ export const ZeffModuleNode = Node.create<{ pageId: number }>({
   },
   addNodeView() {
     return ReactNodeViewRenderer(ModuleBlockView);
+  },
+});
+
+/** An AI block: its instruction, what the AI wrote by it from the page (and the databases in it), written again by hand — or with the briefing ("auto"). */
+function AiBlockView({ node, updateAttributes, editor, extension }: NodeViewProps) {
+  const t = useT();
+  const [prompt, setPrompt] = useState(String(node.attrs.prompt ?? ""));
+  const [busy, setBusy] = useState(false);
+  const text = String(node.attrs.text ?? "");
+  const at = String(node.attrs.at ?? "");
+  const write = async () => {
+    setBusy(true);
+    const r = await aiBlockAction(Number((extension.options as { pageId: number }).pageId), prompt);
+    setBusy(false);
+    if (r.ok) updateAttributes({ prompt, text: r.text, at: r.at });
+    else toast(r.error, { tone: "error" });
+  };
+  return (
+    <NodeViewWrapper className="ws-ai-block my-2 space-y-2 rounded-lg border border-violet-200 bg-violet-50/40 p-3 dark:border-violet-900 dark:bg-violet-950/20" contentEditable={false}>
+      <div className="flex items-center gap-2 text-xs text-violet-700 dark:text-violet-300">
+        <span aria-hidden>✨</span>
+        {editor.isEditable ? (
+          <input value={prompt} onChange={(e) => setPrompt(e.target.value)} onBlur={() => updateAttributes({ prompt })} placeholder={t("What should the AI write here?")} aria-label={t("Instruction")} className="min-w-0 flex-1 bg-transparent outline-none" />
+        ) : (
+          <span className="flex-1">{prompt}</span>
+        )}
+        {editor.isEditable && (
+          <label className="flex items-center gap-1" title={t("Written again with every briefing")}>
+            <input type="checkbox" checked={!!node.attrs.auto} onChange={(e) => updateAttributes({ auto: e.target.checked })} />
+            {t("with the briefing")}
+          </label>
+        )}
+        <button type="button" className="btn btn-sm" disabled={busy || !prompt.trim()} onClick={() => void write()}>
+          {busy ? "…" : text ? t("Write again") : t("Write")}
+        </button>
+      </div>
+      {text ? <div className="text-sm whitespace-pre-wrap">{text}</div> : <p className="text-sm text-zinc-400">{t("Nothing written yet.")}</p>}
+      {at && <p className="text-xs text-zinc-400">{new Date(at).toLocaleString()}</p>}
+    </NodeViewWrapper>
+  );
+}
+
+/** AI in any page (doc.ts: aiBlock). */
+export const AiBlockNode = Node.create<{ pageId: number }>({
+  name: "aiBlock",
+  group: "block",
+  atom: true,
+  draggable: true,
+  addOptions() {
+    return { pageId: 0 };
+  },
+  addAttributes() {
+    return { prompt: { default: "" }, text: { default: "" }, at: { default: "" }, auto: { default: false } };
+  },
+  parseHTML() {
+    return [{ tag: "div[data-ai-block]" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["div", mergeAttributes(HTMLAttributes, { "data-ai-block": "" })];
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(AiBlockView);
   },
 });

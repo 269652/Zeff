@@ -64,6 +64,7 @@ export const slashItems = (t: T): SlashItem[] => [
   { key: "database", title: t("Database"), hint: t("A new table, board or calendar here"), icon: "🗂", group: t("Pages & databases"), keywords: ["database", "table", "board", "kanban", "calendar", "gallery", "new"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.newDatabase()) },
   { key: "linked-db", title: t("Linked database"), hint: t("A view of an existing database"), icon: "🔗", group: t("Pages & databases"), keywords: ["linked", "database", "view", "embed"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.linkDatabase()) },
   { key: "mention", title: t("Mention"), hint: t("A person, page, todo or ticket"), icon: "@", group: t("Zeff"), keywords: ["mention", "person", "page", "todo", "ticket", "link", "@"], run: ({ editor, range }) => chain(editor, range).insertContent("@").run() },
+  { key: "ai-block", title: t("AI block"), hint: t("The AI writes here — from this page and the databases in it"), icon: "✨", group: t("Zeff"), keywords: ["ai", "ki", "write", "summary", "briefing", "lage", "gpt", "claude"], run: ({ editor, range }) => chain(editor, range).insertContent({ type: "aiBlock", attrs: { prompt: "", text: "", at: "", auto: false } }).run() },
   // What Zeff knows about a ticket — of the row whose page it is, or the key given in the block: the modules of a detail view.
   ...(
     [

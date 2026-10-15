@@ -159,6 +159,8 @@ function block(n: DocNode, ctx: { ordered?: number } = {}): string {
       const line = (r: string[]) => `| ${Array.from({ length: width }, (_, i) => r[i] ?? "").join(" | ")} |`;
       return [line(rows[0]), `| ${Array.from({ length: width }, () => "---").join(" | ")} |`, ...rows.slice(1).map(line)].join("\n");
     }
+    case "aiBlock":
+      return `:::ai ${n.attrs?.auto ? "auto " : ""}${String(n.attrs?.prompt ?? "").replace(/\n/g, " ")}\n${String(n.attrs?.text ?? "")}\n:::`;
     case "zeffModule":
       return `:::zeff ${String(n.attrs?.module ?? "")}${n.attrs?.key ? ` ${String(n.attrs.key)}` : ""}`;
     case "databaseView":
@@ -243,6 +245,16 @@ export function markdownToDoc(md: string): Doc {
       if (/^(-{3,}|\*{3,}|_{3,})\s*$/.test(l)) {
         out.push({ type: "horizontalRule" });
         i++;
+        continue;
+      }
+      // :::ai [auto] instruction / its text / :::  - an AI block: what the AI wrote by the instruction, from the page
+      const ai = /^:::ai\s+(auto\s+)?(.*)$/.exec(l);
+      if (ai) {
+        const text: string[] = [];
+        i++;
+        while (i < lines.length && lines[i].trim() !== ":::") text.push(lines[i++]);
+        i++;
+        out.push({ type: "aiBlock", attrs: { prompt: ai[2].trim(), text: text.join("\n").trim(), at: "", auto: !!ai[1] } });
         continue;
       }
       // :::zeff briefing [KEY]  - what Zeff knows about a ticket (its row's, or the key's), as a block
@@ -371,6 +383,7 @@ const NODE_ATTRS: Record<string, string[]> = {
   zeffRef: ["kind", "ref", "label", "href"],
   databaseView: ["dbId", "viewId", "title"],
   zeffModule: ["module", "key"],
+  aiBlock: ["prompt", "text", "at", "auto"],
 };
 
 /** The modules a page can hold as a block (what Zeff knows about a ticket — of its row, or the key given). */

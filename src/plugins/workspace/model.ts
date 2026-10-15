@@ -78,6 +78,8 @@ export type View = {
   dateProp?: string;
   wrap?: boolean;
   widths?: Record<string, number>;
+  /** Shows only your rows (the person filter's "Mine", kept with the view). */
+  mine?: boolean;
   /** The order of the properties (ids); the rest follow. */
   order?: string[];
   /** Board: a column's WIP limit (by its option id) — more cards than that and its count turns red. */

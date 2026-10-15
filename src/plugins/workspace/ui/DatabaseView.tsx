@@ -246,7 +246,9 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
     if (!data || !view) return [];
     const props = data.schema.properties;
     let r = filterRows(data.rows, view.filter, props, labels);
-    if (personProp && (mine || people.size)) r = filterByPeople(r, personProp, mine ? mineKeys(personProp, data.extras?.me ?? { names: [], ids: [] }) : people);
+    // A view kept as "only mine" shows only your rows, whatever is picked.
+    const onlyMine = mine || !!view.mine;
+    if (personProp && (onlyMine || people.size)) r = filterByPeople(r, personProp, onlyMine ? mineKeys(personProp, data.extras?.me ?? { names: [], ids: [] }) : people);
     const w = q.trim().toLowerCase();
     if (w) r = r.filter((x) => x.title.toLowerCase().includes(w) || props.some((p) => cellText(p, x.cells[p.id], labels).toLowerCase().includes(w)));
     return sortRows(r, view.sorts, props);
@@ -378,6 +380,11 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
             <>
               <MenuItem onClick={() => (close(), setSchemaOpen(true))}>⚙ {t("Edit properties …")}</MenuItem>
               <MenuItem onClick={() => (close(), setDetailOpen(true))}>▤ {t("Detail view …")}</MenuItem>
+              {personProp && (
+                <MenuItem checked={!!view.mine} onClick={() => (close(), setView({ ...view, mine: !view.mine }))}>
+                  {t("Only mine in this view")}
+                </MenuItem>
+              )}
               {schema.properties.some((p) => p.type === "ai") && (
                 <>
                   <MenuItem checked={!!schema.review?.on} onClick={() => (close(), api.changeSchema((s) => ({ ...s, review: { on: !s.review?.on } })))}>

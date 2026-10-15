@@ -4,6 +4,8 @@ import { setCollection } from "@/lib/items";
 import { KEY_PROP, setDatabaseSource } from "@/plugins/workspace/collections";
 import { COLORS, newId, newProperty, newView, type DbSchema, type Option, type Property } from "@/plugins/workspace/model";
 import { addRow, archivePage, createPage, getDatabase, placeRow, rawRows, setCell, updatePage, updateSchema } from "@/plugins/workspace/store";
+import { t } from "@/lib/i18n/server";
+import { ensureMyBriefingPage } from "@/plugins/workspace/ai-block";
 import { lageBoard, lageBoards } from "./board";
 
 /**
@@ -140,8 +142,10 @@ export async function syncJiraBoardDatabases(): Promise<Counts> {
   return out;
 }
 
-/** Where an old link to a Jira board (/kanban/jira-…) leads now: its database; null: not kept yet. */
+/** Where an old link to a Jira board (/kanban/jira-…) leads now: its database — My briefing: the page Meine Lage over it; null: not kept yet. */
 export const jiraBoardHref = (boardId: string): string | null => {
   const dbId = jiraBoardDatabase(boardId);
-  return dbId ? `/workspace/${dbId}` : null;
+  if (!dbId) return null;
+  if (boardId === "jira-lage") return `/workspace/${ensureMyBriefingPage(dbId, t("My briefing"))}`;
+  return `/workspace/${dbId}`;
 };

@@ -315,6 +315,14 @@ export async function reviewDatabaseAction(dbId: number, force = false) {
   });
 }
 
+/** What an AI block on a page writes by its instruction (from the page and the databases shown in it). */
+export async function aiBlockAction(pageId: number, prompt: string) {
+  return run(async () => {
+    if (!isInstalled("llm")) throw new Error(t("The LLM plugin is needed for this (Menu → Plugins)."));
+    return { text: await (await import("./ai-block")).writeAiBlock(Number(pageId), String(prompt ?? "").slice(0, 2000)), at: new Date().toISOString() };
+  });
+}
+
 /** A ticket's detail beyond its card (questions, suggested actions, flags, context, chat) — fetched when its row's panel opens. */
 export async function ticketDetailAction(key: string) {
   return run(async () => ({ detail: (await import("@/lib/items/tickets")).ticketDetail(String(key)) }));
