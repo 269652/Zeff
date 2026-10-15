@@ -350,8 +350,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
       // The Workspace databases with an AI review: their AI properties for the rows that changed — the same step.
       const { isInstalled } = await import("@/plugins/state");
       if (isInstalled("workspace") && isInstalled("llm")) {
-        await (await import("@/plugins/workspace/review")).reviewDatabases().catch((e) => console.error("[workspace] the AI review failed", e));
-        // The AI blocks set to go with the briefing (Meine Lage's overall picture among them) written again.
+        // (The databases' AI reviews ran in it.) The AI blocks set to go with the briefing (Meine Lage's overall picture among them) written again.
         await (await import("@/plugins/workspace/ai-block")).refreshAiBlocks().catch((e) => console.error("[workspace] the AI blocks failed", e));
       }
       return r.ok

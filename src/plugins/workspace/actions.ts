@@ -256,7 +256,20 @@ export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: D
       const k = rowKey(r);
       if (k) keys[r.id] = k;
     }
-    const extras: DatabaseData["extras"] = { keys, subtasks: subtaskCounts(d.schema, d.rows, page.id), tickets: ticketExtras(Object.values(keys)), todosOn: isInstalled("todos"), ...collectionSwitches(page.id), me: await whoAmI(), source: collectionSource(page.id) };
+    const tickets = ticketExtras(Object.values(keys));
+    // A board's Lage fields (its AI review): the card's stripe, lead and summary from them.
+    const { LAGE_FIELDS } = await import("./lage-fields");
+    const { attentionLabels, isAttention } = await import("@/lib/boards/shared");
+    for (const r of d.rows) {
+      const k = keys[r.id];
+      const att = r.cells[LAGE_FIELDS.attention];
+      const lead = r.cells[LAGE_FIELDS.lead];
+      if (!k || (typeof att !== "string" && typeof lead !== "string")) continue;
+      const cur = tickets[k];
+      const attention = typeof att === "string" && isAttention(att) ? att : (cur?.attention ?? null);
+      tickets[k] = { attention, attentionLabel: attention && isAttention(attention) ? attentionLabels(t)[attention] : null, lead: typeof lead === "string" ? lead : (cur?.lead ?? null), summary: typeof r.cells[LAGE_FIELDS.summary] === "string" ? String(r.cells[LAGE_FIELDS.summary]) : (cur?.summary ?? null), happened: cur?.happened ?? [], todos: cur?.todos ?? [] };
+    }
+    const extras: DatabaseData["extras"] = { keys, subtasks: subtaskCounts(d.schema, d.rows, page.id), tickets, todosOn: isInstalled("todos"), ...collectionSwitches(page.id), me: await whoAmI(), source: collectionSource(page.id) };
     return { data: { id: page.id, title: page.title, icon: page.icon, locked: page.locked, schema: d.schema, rows: d.rows, labels, templates: store.rowTemplates(page.id).map((r) => ({ id: r.id, title: r.title || t("Untitled") })), related, extras } };
   });
 }

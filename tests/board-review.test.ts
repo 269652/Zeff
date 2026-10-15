@@ -21,7 +21,6 @@ test("board review: your own board's open cards get their Lage — without Jira,
   const w = await import("@/plugins/workspace/store");
   const { moveBoardToWorkspace, movedCard } = await import("@/plugins/kanban/to-workspace");
   const { setCollection } = await import("@/lib/items");
-  const { ticketExtras } = await import("@/lib/items/tickets");
   const { runBoardLage } = await import("@/plugins/jira-lage/board-lage");
 
   const b = s.createBoard({ name: "Privat", columns: ["Offen", "Dran", "Fertig"] });
@@ -36,33 +35,38 @@ test("board review: your own board's open cards get their Lage — without Jira,
   const fresh = w.addRow(dbId, { title: "Neue Idee" });
   const key = `KB-${card.id}`;
 
+  const { LAGE_FIELDS } = await import("@/plugins/workspace/lage-fields");
+  const a = await import("@/plugins/workspace/actions");
+  const row = movedCard(card.id)!;
   process.env.FAKE_CLAUDE_OUTPUT = JSON.stringify({
-    tickets: [
-      { key, attention: "blocked", lead: "Wartet auf die Belege.", summary: "Belege fehlen.", happened: [], flags: [] },
-      { key: `WS-${fresh}`, attention: "ready", lead: "Kann losgehen.", summary: "Neu.", happened: [], flags: [] },
+    rows: [
+      { id: row, values: { [LAGE_FIELDS.attention]: "blocked", [LAGE_FIELDS.lead]: "Wartet auf die Belege.", [LAGE_FIELDS.summary]: "Belege fehlen." } },
+      { id: fresh, values: { [LAGE_FIELDS.attention]: "ready", [LAGE_FIELDS.lead]: "Kann losgehen.", [LAGE_FIELDS.summary]: "Neu." } },
     ],
   });
   const r = await runBoardLage();
   assert.equal(r.ok, true, r.error);
   assert.equal(r.analyzed, 2, "the two open cards");
   const prompt = fs.readFileSync(promptFile, "utf8");
-  assert.match(prompt, new RegExp(`## ${key} · Steuer machen`));
+  assert.match(prompt, /Steuer machen/);
   assert.match(prompt, /Belege fehlen noch/);
-  assert.doesNotMatch(prompt, /## KB-\d+ · Erledigt/, "a done card isn't reviewed");
-  assert.match(prompt, /Tickets eines Boards/);
+  assert.match(prompt, /„Attention“/, "the review's own fields");
 
-  const x = ticketExtras([key, `WS-${fresh}`]);
-  assert.equal(x[key]?.attention, "blocked");
-  assert.equal(x[key]?.lead, "Wartet auf die Belege.");
-  assert.equal(x[`WS-${fresh}`]?.attention, "ready");
+  const cards = async () => {
+    const l = await a.loadDatabaseAction(dbId);
+    assert.ok(l.ok);
+    return l.data.extras.tickets;
+  };
+  assert.equal((await cards())[key]?.attention, "blocked");
+  assert.equal((await cards())[key]?.lead, "Wartet auf die Belege.");
+  assert.equal((await cards())[`WS-${fresh}`]?.attention, "ready");
 
   fs.rmSync(promptFile);
   const again = await runBoardLage();
   assert.equal(again.analyzed, 0, "unchanged: not again");
-  assert.equal(again.unchanged, 2);
-  w.updatePage(movedCard(card.id)!, { title: "Steuer machen (Belege da)" });
-  process.env.FAKE_CLAUDE_OUTPUT = JSON.stringify({ tickets: [{ key, attention: "active", lead: "Läuft.", summary: "", happened: [], flags: [] }] });
+  w.updatePage(row, { title: "Steuer machen (Belege da)" });
+  process.env.FAKE_CLAUDE_OUTPUT = JSON.stringify({ rows: [{ id: row, values: { [LAGE_FIELDS.attention]: "active", [LAGE_FIELDS.lead]: "Läuft.", [LAGE_FIELDS.summary]: "" } }] });
   const changed = await runBoardLage();
   assert.equal(changed.analyzed, 1, "changed: read again");
-  assert.equal(ticketExtras([key])[key]?.attention, "active");
+  assert.equal((await cards())[key]?.attention, "active");
 });

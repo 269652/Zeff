@@ -68,6 +68,16 @@ export function contextByTicket(tickets: BoardTicket[] = []): Map<string, Ticket
   return out;
 }
 
+/** The tickets the last Ticket-Lage run analyzed (they have their Lage from it: a board review leaves them). */
+export function analyzedByTicketLage(): Set<string> {
+  const last = getDb().select({ tickets: boardRuns.tickets }).from(boardRuns).where(eq(boardRuns.status, "ok")).orderBy(desc(boardRuns.id)).limit(1).get();
+  try {
+    return new Set((JSON.parse(last?.tickets ?? "[]") as BoardTicket[]).filter((t) => t.analyzed).map((t) => t.key.toUpperCase()));
+  } catch {
+    return new Set();
+  }
+}
+
 export function openTodosByTicket(): Map<string, { id: number; text: string; owner: "me" | "other" }[]> {
   const out = new Map<string, { id: number; text: string; owner: "me" | "other" }[]>();
   for (const t of listTodos({ status: "open" }))

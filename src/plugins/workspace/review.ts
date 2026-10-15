@@ -62,13 +62,22 @@ export async function reviewDatabase(dbId: number, opts: { force?: boolean } = {
   const known = new Map((db().prepare("select row_id, hash from ws_review").all() as { row_id: number; hash: string }[]).map((r) => [r.row_id, r.hash]));
   const spec = ai.map((p) => `${p.id}:${p.aiPrompt ?? ""}:${(p.aiChoices ?? []).join("|")}`).join(";");
   const todo: { row: Row; text: string; hash: string }[] = [];
+  // A board's Lage fields: not for the cards the Ticket-Lage read (they have theirs from it).
+  const briefed = d.schema.review?.skipBriefed ? (await import("@/lib/boards/ticket-lage")).analyzedByTicketLage() : new Set<string>();
+  // Only the open rows (a status not done), moved within recentDays (or in progress) — as the Board-Lage read its cards.
+  const status = d.schema.properties.find((p) => p.type === "status");
+  const phase = (r: Row) => status?.options?.find((o) => o.id === r.cells[status.id])?.group ?? "todo";
+  const since = d.schema.review?.recentDays ? Date.now() - d.schema.review.recentDays * 864e5 : 0;
+  const skipped = (r: Row) =>
+    (d.schema.review?.openOnly && phase(r) === "done") || (since > 0 && phase(r) !== "doing" && Date.parse(r.updatedAt) < since) || briefed.has(rowKey(r) ?? "");
   for (const row of rows) {
+    if (skipped(row)) continue;
     const text = rowBlock(row, d.schema.properties, ai);
     const hash = createHash("sha1").update(`${spec}\n${text}`).digest("hex");
     if (!opts.force && known.get(row.id) === hash) continue;
     todo.push({ row, text, hash });
   }
-  const result: ReviewResult = { ...base, rows: rows.length, unchanged: rows.length - todo.length };
+  const result: ReviewResult = { ...base, rows: rows.length, unchanged: rows.length - todo.length - rows.filter(skipped).length };
   if (!todo.length) return result;
 
   const batches: (typeof todo)[] = [];
