@@ -37,6 +37,7 @@ import { readSessionOpts, saveSessionOpts } from "@/plugins/claude-cli/live";
 import { liveDriverFor, liveDriverOf, liveDrivers, liveIdle } from "./live-driver";
 import { errPath, lastJson, logPath, readErrors, readLog, readOutput, workDir } from "./log";
 import { applyOutcome, normalizeResult } from "./outcome";
+import { ensureActions } from "./ensure-actions";
 import { claudeSessionSettings, createRun, getRun, getWorkSettings, runsByStatus, toRunView, updateRun } from "./store";
 import { parseMrTarget, WORK_RESULT_SCHEMA, workModeOf, workRef, type SessionOptions, type WorkResult, type WorkRunView } from "./shared";
 
@@ -714,6 +715,13 @@ Gib diesen Bericht im verlangten Format zurück: outcome, summary (Markdown: Erl
 
 const WORK_MODE_LABELS_DE = { code: "umsetzen", draft: "Entwurf schreiben", send: "senden" } as const;
 
+/** A conversation's turn ended with a result: taken in while the session stays open (the run's end then doesn't repeat it). */
+export function applyTurnResult(runId: number, result: WorkResult): void {
+  const r = getRun(runId);
+  if (!r || r.status !== "running") return;
+  ensureActions(applyOutcome(r, result).added);
+}
+
 /**
  * A run's process is gone: read how it ended — its answer, cost, steps, what was refused —
  * what git says it changed; take the answer in (todos done, follow-ups, a draft); start the
@@ -752,6 +760,7 @@ async function finish(r: WorkRun, gone: boolean): Promise<void> {
   let denials: number | null = null;
   let sessionId = r.sessionId;
   let closedText: string | null = null;
+  let appliedAlready = false;
   const liveDriver = liveDriverOf(id);
   if (liveDriver) {
     // A live session: its last turn's JSON — or closed by you (no result: nothing taken in, its last words the summary).
@@ -761,6 +770,7 @@ async function finish(r: WorkRun, gone: boolean): Promise<void> {
     turns = o.turns;
     denials = o.denials;
     result = o.closed ? null : o.result;
+    appliedAlready = !!result && !!o.applied;
     if (o.closed) closedText = o.lastText.slice(-4000) || "Closed.";
     else if (!result) error = readErrors(id) || (o.lastText ? `It ended without a result. Its last words: ${o.lastText.slice(-1500)}` : "The session ended without a result.");
   } else if (r.provider === "claude") {
@@ -785,7 +795,7 @@ async function finish(r: WorkRun, gone: boolean): Promise<void> {
   if (result) {
     if (codeLike(r.mode) && r.branch && getRun(id)?.status === "running") gitText += await proposeDelivery(r, result);
     try {
-      applyOutcome(r, result);
+      if (!appliedAlready) ensureActions(applyOutcome(r, result).added);
     } catch (e) {
       error = t("Its result couldn't be taken in: {error}", { error: errorMessage(e) });
     }

@@ -9,7 +9,7 @@ import { sameTodo } from "@/lib/boards/similar";
 
 export { sameTodo };
 import { applyTodoRules } from "@/lib/boards/todo-rules";
-import { workRef, type Channel, type WorkFollowUp, type WorkResult } from "./shared";
+import { WORK_RESULT_SCHEMA, workRef, type Channel, type WorkFollowUp, type WorkResult } from "./shared";
 
 const channelOf = (c: unknown): Channel | null => (c === "jira" || c === "teams" || c === "gitlab" ? c : null);
 
@@ -25,15 +25,25 @@ export function normalizeResult(raw: unknown): WorkResult | null {
   // (A jira-assign on the ticket a jira-create comes from would assign the source, not the new one - dropped, the text says who.)
   const topAll = Array.isArray(o.ops) ? (o.ops.filter((x) => x && typeof x === "object") as Record<string, unknown>[]) : [];
   const created = new Set(topAll.filter((x) => x.type === "jira-create").map((x) => String(x.ticket ?? "").toUpperCase()));
-  const topOps = topAll.filter((x) => !(x.type === "jira-assign" && created.has(String(x.ticket ?? "").toUpperCase())));
-  const assignee = topAll.find((x) => x.type === "jira-assign" && created.has(String(x.ticket ?? "").toUpperCase()))?.assignee;
+  const isAssignOfNew = (x: Record<string, unknown>) => x.type === "jira-assign" && created.has(String(x.ticket ?? "").toUpperCase());
+  // (The assignee goes with the ticket when it is created.)
+  const assignee = topAll.find(isAssignOfNew)?.assignee;
+  const topOps = topAll.filter((x) => !isAssignOfNew(x)).map((x) => (x.type === "jira-create" && typeof assignee === "string" && assignee && !x.assignee ? { ...x, assignee } : x));
   const followUps = o.followUps;
+  // What is not taken as written is said (the contract is WORK_RESULT_SCHEMA): a field it doesn't have, a value it doesn't know, ops at the wrong level.
+  const warnings: string[] = [];
+  const known = new Set<string>(Object.keys(WORK_RESULT_SCHEMA.properties));
+  const extra = Object.keys(o).filter((k) => !known.has(k) && k !== "ops");
+  if (extra.length) warnings.push(`Unknown field${extra.length > 1 ? "s" : ""} ignored: ${extra.join(", ")}`);
+  if (typeof o.outcome === "string" && !["done", "partial", "blocked"].includes(o.outcome)) warnings.push(`outcome "${o.outcome}" is not done/partial/blocked - taken as ${o.outcome === "success" ? "done" : "partial"}`);
+  if (topAll.length) warnings.push("ops at the top level: belong in followUps[].ops - made a follow-up of");
+  if (topAll.length > topOps.length) warnings.push("jira-assign on a ticket that is being created: the assignee was moved into the jira-create (the new ticket has no key yet)");
   return {
     outcome: o.outcome === "done" || o.outcome === "success" ? "done" : o.outcome === "blocked" ? "blocked" : "partial",
     summary: str(o.summary, 20000),
     entry: str(o.entry, 200),
     completedTodos: Array.isArray(o.completedTodos) ? o.completedTodos.map(Number).filter((n) => Number.isInteger(n) && n > 0) : [],
-    followUps: [...(Array.isArray(followUps) ? followUps : []), ...(topOps.length ? [{ kind: "other", text: (str(o.entry, 200) || "Run the operations the worker prepared") + (typeof assignee === "string" && assignee ? ` (→ ${assignee})` : ""), ops: topOps }] : [])].flatMap((f): WorkFollowUp[] => {
+    followUps: [...(Array.isArray(followUps) ? followUps : []), ...(topOps.length ? [{ kind: "other", text: (str(o.entry, 200) || "Run the operations the worker prepared") + "", ops: topOps }] : [])].flatMap((f): WorkFollowUp[] => {
       const x = (f ?? {}) as Record<string, unknown>;
       const text = str(x.text, 500);
       if (!text) return [];
@@ -53,6 +63,7 @@ export function normalizeResult(raw: unknown): WorkResult | null {
     draft: str(o.draft, 8000) || undefined,
     channel: channelOf(o.channel) ?? undefined,
     target: str(o.target, 300) || undefined,
+    warnings: warnings.length ? warnings : undefined,
   };
 }
 
@@ -150,6 +161,8 @@ export function applyOutcome(run: WorkRun, res: WorkResult): { closed: number[];
       ...(link ? { url: link.url, urlLabel: link.label } : reportId ? { url: `/reports/${reportId}`, urlLabel: "Report" } : {}),
     });
   }
+  // What was not taken as written: on the todo, where it is read and the worker's format gets fixed.
+  if (mine && res.warnings?.length) addTodoAiNote(mine.id, { text: `Result format - ${res.warnings.join("; ")}`, by: ref });
   // Its follow-ups by the same rules as the Ticket-Lage's: waiting ones to "Wartet auf andere", joint ones asking for a time.
   if (added.length) applyTodoRules();
   // Its feature branch and merge request (as far as GitLab has them) go into the todo's context, linked.

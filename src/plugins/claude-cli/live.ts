@@ -59,6 +59,8 @@ export type SessionCfg = {
   finishing?: boolean;
   /** Closed by you without a result. */
   closing?: boolean;
+  /** The last result taken in at the end of a turn (hash): the run's end doesn't take it in again. */
+  appliedResult?: string;
   /** Being restarted (another effort): its exit isn't its end. */
   restarting?: boolean;
   /** The conversation went on from another run's: the first start resumes it. */
@@ -402,9 +404,25 @@ async function settle(l: Live) {
   if (l.resultSeen && !l.busy) {
     l.resultSeen = false;
     const ended = !l.cfg.conversation || l.cfg.finishing;
-    if (ended && resultOf(l.turnText)) {
+    const turnResult = resultOf(l.turnText);
+    if (ended && turnResult) {
       await end(l);
       return;
+    }
+    // A conversation's turn with a result: taken in now (todos closed, follow-ups made), the session stays open for you.
+    if (turnResult) {
+      const hash = resultHash(turnResult);
+      if (hash !== l.cfg.appliedResult) {
+        try {
+          const { applyTurnResult } = await import("@/lib/work/runner");
+          await withAccount(l.account, async () => applyTurnResult(l.runId, turnResult));
+          l.cfg.appliedResult = hash;
+          saveCfg(l);
+          changed(true);
+        } catch (e) {
+          console.error(`[work] taking in the result of run ${l.runId} failed:`, e);
+        }
+      }
     }
   }
   if (l.exited) {
@@ -444,6 +462,9 @@ function processAlive(l: Live): boolean {
   const info = readInfo(l.files.info);
   return !!info && (info.elevated || alive(info.pid));
 }
+
+/** A result as a short hash: the same one is taken in once. */
+export const resultHash = (r: WorkResult): string => crypto.createHash("sha1").update(JSON.stringify(r)).digest("hex").slice(0, 16);
 
 /** Its result in what it said: the last ```json block (or object) that is one. */
 function resultOf(text: string): WorkResult | null {
@@ -490,7 +511,7 @@ export function claudeWorkerExited(runId: number): boolean {
 }
 
 /** How the session ended, from its log: its result (the last turn's JSON), cost, turns, refusals. For runner.finish. */
-export function liveOutcome(runId: number): { result: WorkResult | null; closed: boolean; lastText: string; costUsd: number | null; turns: number; denials: number; sessionId: string | null } {
+export function liveOutcome(runId: number): { result: WorkResult | null; applied: boolean; closed: boolean; lastText: string; costUsd: number | null; turns: number; denials: number; sessionId: string | null } {
   const cfg = readSessionCfg(runId);
   let raw = "";
   try {
@@ -529,7 +550,8 @@ export function liveOutcome(runId: number): { result: WorkResult | null; closed:
     } else if (e.type === "system" && e.subtype === "init" && typeof e.session_id === "string") sessionId = e.session_id;
   }
   const cost = costDone + costNow;
-  return { result: resultOf(lastText), closed: !!cfg?.closing, lastText, costUsd: cost || null, turns, denials, sessionId };
+  const result = resultOf(lastText);
+  return { result, applied: !!result && !!cfg?.appliedResult && cfg.appliedResult === resultHash(result), closed: !!cfg?.closing, lastText, costUsd: cost || null, turns, denials, sessionId };
 }
 
 // ——— its process: on the launcher's work host, or a host of its own ———

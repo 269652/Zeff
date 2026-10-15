@@ -105,6 +105,15 @@ async function jiraOp(call: Call, op: JiraOp): Promise<string> {
     if (!created) throw lastError ?? new Error(t("No issue type worked."));
     const key = createdKey(created);
     if (!key) throw new Error(t("Jira created the ticket but didn't return a key: {answer}", { answer: JSON.stringify(created).slice(0, 200) }));
+    let assigned = "";
+    if (op.assignee) {
+      try {
+        await call("jira_update_issue", { issue_key: key, fields: JSON.stringify({ assignee: op.assignee }) });
+        assigned = ` ${t("(assigned: {assignee})", { assignee: op.assignee })}`;
+      } catch {
+        assigned = ` ${t("(assigning {assignee} didn't work — please set it in Jira)", { assignee: op.assignee })}`;
+      }
+    }
     let linked = "";
     try {
       await call("jira_create_issue_link", { link_type: "Relates", inward_issue_key: key, outward_issue_key: op.ticket });
@@ -113,7 +122,7 @@ async function jiraOp(call: Call, op: JiraOp): Promise<string> {
       linked = ` ${t("(linking to {ticket} didn't work — please set it in Jira)", { ticket: op.ticket })}`;
     }
     const url = getJiraTicket(op.ticket)?.url?.replace(/\/browse\/.*$/, `/browse/${key}`);
-    return `${t("Ticket {key} created", { key })}${labels.length ? ` ${t("(labels: {labels})", { labels: labels.join(", ") })}` : ""}${linked}${url ? `: ${url}` : ""}`;
+    return `${t("Ticket {key} created", { key })}${assigned}${labels.length ? ` ${t("(labels: {labels})", { labels: labels.join(", ") })}` : ""}${linked}${url ? `: ${url}` : ""}`;
   }
   await call("jira_add_comment", { issue_key: op.ticket, body: op.body });
   return t("Comment posted on {ticket}", { ticket: op.ticket });

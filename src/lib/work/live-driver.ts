@@ -1,6 +1,7 @@
 import { claudeLiveDriver } from "@/plugins/claude-cli/live";
 import { codexLiveDriver } from "@/plugins/codex-cli/live";
 import type { LiveView } from "@/plugins/copilot-cli/live-state";
+import { runsByStatus } from "./store";
 import type { AskAnswer, ClaudeAsk, Effort, SessionLiveView, SessionMode, WorkResult } from "./shared";
 
 /**
@@ -38,7 +39,7 @@ export type LiveStart = {
 };
 
 /** How a session ended, from what it left (its log): for the runner's finish. */
-export type LiveOutcome = { result: WorkResult | null; closed: boolean; lastText: string; costUsd: number | null; turns: number; denials: number; sessionId: string | null };
+export type LiveOutcome = { result: WorkResult | null; /** Its result was taken in already, at the end of a turn. */ applied?: boolean; closed: boolean; lastText: string; costUsd: number | null; turns: number; denials: number; sessionId: string | null };
 
 export type LiveDriver = {
   /** The AI provider it runs (llm's: claude, codex …). */
@@ -96,6 +97,14 @@ export const liveSessionView = (runId: number) => {
 };
 /** A live session waiting for you: it doesn't hold a worker. */
 export const liveIdle = (runId: number): boolean => liveDrivers().some((d) => d.idle(runId));
+
+/**
+ * The todos a worker is working on right now - the one answer to "being worked on": a queued or running run that is
+ * not a live session waiting for you (that one is idle: its todo can be ticked off without stopping it).
+ */
+export function workingTodoIds(): number[] {
+  return runsByStatus(["queued", "running"]).filter((r) => !liveIdle(r.id)).map((r) => r.todoId);
+}
 
 /** What it asks, in a few words (the attention bar, the sidebar). */
 export function askTitle(a: ClaudeAsk, t: (s: string) => string): string {

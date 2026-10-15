@@ -114,6 +114,8 @@ export type WorkResult = {
   followUps: WorkFollowUp[];
   changes?: string[];
   checks?: string[];
+  /** What Zeff did not take as written (a field it doesn't know, a value changed or moved): shown on the todo, so the worker's format gets fixed. */
+  warnings?: string[];
   /** Draft mode: the message, and where it goes. */
   draft?: string;
   channel?: Channel | "none";

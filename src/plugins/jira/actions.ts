@@ -8,7 +8,7 @@ declare module "@/lib/boards/shared" {
   "jira-assign": { ticket: string; assignee: string };
   "jira-comment": { ticket: string; body: string };
   /** A new ticket (in the project of `ticket`, linked to it): its title, type and description (Markdown — Jira's markup when it's created). */
-  "jira-create": { ticket: string; summary: string; issueType: string; body: string };
+  "jira-create": { ticket: string; summary: string; issueType: string; body: string; /** Who works on it (Jira user name), set when it is created. */ assignee?: string };
   }
 }
 
@@ -68,18 +68,21 @@ export const JIRA_ACTIONS = [
         summary: "der Titel des neuen Tickets",
         issueType: "Task, Bug oder Story",
         body: "die Beschreibung in Markdown: Hintergrund (mit Verweis aufs Ticket), was genau zu tun ist, Akzeptanzkriterien als Liste",
+        assignee: "Benutzername, wer es bearbeiten soll (bei der Anlage gesetzt) - leer, wenn offen",
       },
+      needs: { match: "ticket|story|aufgabe|task|epic|anleg|erstell|auslager|create", context: ["ticket.description"] },
       example: {
         type: "jira-create",
         ticket: "PROJ-415",
         summary: "Nicht unterstützte Video-URLs in der VideoHub-Migration behandeln",
         issueType: "Task",
+        assignee: "",
         body: "Aus PROJ-415: Die VideoHub-Migration überspringt Video-URLs, die VideoHub nicht importieren kann.\n\n## Zu tun\n- Anzahl und Art der betroffenen URLs ermitteln\n- klären, ob die Seiten noch aktiv sind\n\n## Akzeptanzkriterien\n- Liste der URLs mit Seite und Status liegt vor",
       },
     },
     clean: (o, c) =>
       str(o.summary) && str(o.body)
-        ? { type: "jira-create", ticket: ticketKey(o.ticket, c.ticket), summary: str(o.summary).slice(0, 250), issueType: str(o.issueType) || str(o.issue_type) || "Task", body: str(o.body).slice(0, 20000) }
+        ? { type: "jira-create", ticket: ticketKey(o.ticket, c.ticket), summary: str(o.summary).slice(0, 250), issueType: str(o.issueType) || str(o.issue_type) || "Task", body: str(o.body).slice(0, 20000), ...(str(o.assignee) ? { assignee: str(o.assignee) } : {}) }
         : null,
     title: (op, t = EN) => t("Create ticket: {summary}", { summary: op.summary }),
     note: (op, t = EN) => ({

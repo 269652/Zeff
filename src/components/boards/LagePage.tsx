@@ -1,4 +1,4 @@
-import { liveIdle } from "@/lib/work/live-driver";
+import { workingTodoIds } from "@/lib/work/live-driver";
 import { isInstalled, stepAvailable } from "@/plugins/state";
 import { getContextPrefs } from "@/lib/boards/context-prefs";
 import { PRESYNC_ORDER } from "@/lib/boards/context-prefs-shared";
@@ -24,7 +24,7 @@ import { AI_PROVIDER_INFO } from "@/lib/ai/shared";
 import { boardRunState } from "@/lib/boards/run";
 import { actionsDone } from "@/lib/boards/actions";
 import { todoSources } from "@/lib/boards/sources";
-import { runsByStatus } from "@/lib/work/store";
+
 import { WorkFollow } from "@/components/work/WorkFollow";
 import { withAlternatives } from "@/lib/boards/alternatives";
 import { activityNewsIds, todoActivity } from "@/lib/boards/activity";
@@ -63,7 +63,7 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
   // With the todos on no ticket (from mails: a training, a form …).
   const todos = boardTodos([...keys, ""]);
   // (A live session waiting for you after its turn is idle: its todo is not "being worked on" - tick it off without stopping the session.)
-  const busy = runsByStatus(["queued", "running"]).filter((r) => !liveIdle(r.id)).map((r) => r.todoId);
+  const busy = workingTodoIds();
   // The done ones whole only on their tab — the others count them (and their tickets for the cards).
   const doneSummary = doneTodoTickets();
   const done = tab === "done" ? doneTodos() : [];

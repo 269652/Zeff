@@ -9,6 +9,9 @@ import type { TodoOp } from "@/lib/boards/shared";
 import { translator, type T as Translate } from "@/lib/i18n/shared";
 import type { PluginId } from "../catalog";
 
+/** Context an action may ask the review to hand the AI along with a todo. */
+export type ActionContext = "ticket.description";
+
 export type ActionType = TodoOp["type"];
 export type OpOf<T extends ActionType> = Extract<TodoOp, { type: T }>;
 
@@ -32,7 +35,16 @@ export type ActionSpec<T extends ActionType = ActionType> = {
    * Offered to the AI (the Ticket-Lage, the auto-actions): when to use it, its fields, an example.
    * Without: Zeff makes it itself (a delivery step), it's never proposed.
    */
-  offer?: { when: string; fields: Record<string, string>; example: Record<string, string> };
+  offer?: {
+    when: string;
+    fields: Record<string, string>;
+    example: Record<string, string>;
+    /**
+     * What the AI must be given to fill it well, when a todo's text matches `match` (a regular expression, case-insensitive): the
+     * review adds it to that todo's block - an action says what it needs, nobody edits the review for it.
+     */
+    needs?: { match: string; context: ActionContext[] };
+  };
   /** Its parts as an AI may hand them over, cleaned — null: incomplete, dropped. */
   clean: (o: Record<string, unknown>, ctx: CleanContext) => OpOf<T> | null;
   /** In a few words ("PROJ-415 → Testing") — in the language of `t` (English without). */

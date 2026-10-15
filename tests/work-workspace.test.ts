@@ -65,7 +65,8 @@ test("a session works where you picked: another folder, a new branch from a chos
     const a = await start({ repoPath: path.join(repo), branch: "other", workspace: "worktree" });
     assert.equal(a.status, "done", a.error ?? "");
     assert.equal(a.base, "other");
-    assert.match(a.branch ?? "", /^zeff\/ABC-9-w/);
+    // (Named after the work - feature/ABC-9-work-somewhere - since branches are named by the todo; zeff/<ticket>-w<id> only without words.)
+    assert.match(a.branch ?? "", /^(feature\/ABC-9-work-somewhere|zeff\/ABC-9-w)/);
     assert.ok(a.cwd!.includes(".zeff-worktrees"));
     assert.equal(a.workspace, "worktree");
 
