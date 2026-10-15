@@ -2,6 +2,7 @@
 
 import { EmptyState } from "@/components/EmptyState";
 import { confirmAction } from "@/components/confirm";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { HoverCard } from "@/components/HoverCard";
@@ -9,7 +10,7 @@ import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { formatDate } from "@/lib/format";
 import { DocDetails, OriginLine } from "./DocBadge";
-import { attachDocumentAction, deleteDocumentAction, reprocessDocumentAction, restartReadingAction, saveDocumentSettingsAction, skipDocumentAction, startReadingAction } from "./server-actions";
+import { attachDocumentAction, deleteDocumentAction, reprocessDocumentAction, restartReadingAction, skipDocumentAction, startReadingAction } from "./server-actions";
 import { DOC_KINDS, KIND_ICONS, sizeText, type DocView } from "./shared";
 import { filterDocs, isDocKindFilter, type DocKindFilter, type DocSort, type DocStatusFilter } from "./list-filter";
 import { TodoPicker } from "./TodoPicker";
@@ -35,14 +36,12 @@ const CHIP: Record<string, string> = {
  * The Documents app: a drop zone (files dragged in, or picked), the store's documents with their
  * state — hover one for its abstract —, the open todos to attach one to, and the transcriber setting.
  */
-export function DocumentsApp({ docs, reading, origins = {}, todos, settings, knowledge }: { docs: DocView[]; /** What is being read now / waits (the server's view). */ reading: { current: { id: number; name: string; since: number; lane: "fast" | "slow" }[]; waiting: number; idle: boolean }; origins?: Record<number, DocOrigin>; todos: { id: number; ref: string; text: string }[]; settings: { transcriber: string; autoInstall: boolean }; knowledge: boolean }) {
+export function DocumentsApp({ docs, reading, origins = {}, todos, knowledge }: { docs: DocView[]; /** What is being read now / waits (the server's view). */ reading: { current: { id: number; name: string; since: number; lane: "fast" | "slow" }[]; waiting: number; idle: boolean }; origins?: Record<number, DocOrigin>; todos: { id: number; ref: string; text: string }[]; knowledge: boolean }) {
   const t = useT();
   const router = useRouter();
   const [pending, start] = useTransition();
   const [over, setOver] = useState(false);
   const [uploading, setUploading] = useState(0);
-  const [command, setCommand] = useState(settings.transcriber);
-  const [autoInstall, setAutoInstall] = useState(settings.autoInstall);
   const input = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<DocStatusFilter>("all");
@@ -251,26 +250,9 @@ export function DocumentsApp({ docs, reading, origins = {}, todos, settings, kno
         </div>
       )}
 
-      <section id="settings" className="card space-y-2 p-4 text-sm">
-        <h2 className="font-medium">{t("Audio transcriber")}</h2>
-        <p className="text-xs text-zinc-500">
-          {t("Audio is turned into text by a command you set — Zeff installs nothing. {file} is the recording, {dir} a folder for its output (it takes the .txt written there, else what the command prints). For example with OpenAI's Whisper:")}
-        </p>
-        <code className="block rounded bg-zinc-100 px-2 py-1 text-xs dark:bg-zinc-800">whisper &quot;{"{file}"}&quot; --model small --output_format txt --output_dir &quot;{"{dir}"}&quot;</code>
-        <label className="flex items-start gap-2 pt-1">
-          <input type="checkbox" className="mt-0.5" checked={autoInstall} onChange={(e) => setAutoInstall(e.target.checked)} />
-          <span>
-            {t("Install Poppler by itself when a scanned or complex PDF needs it")}
-            <span className="block text-xs text-zinc-500">{t("Poppler (pdftoppm) is what lets the Claude CLI read such PDFs. Zeff installs it once, with your package manager (winget or scoop on Windows, Homebrew on a Mac); if that fails it says so and tries again only when you click “Read again”.")}</span>
-          </span>
-        </label>
-        <div className="flex flex-wrap gap-2">
-          <input className="input min-w-0 flex-1 basis-80 font-mono text-xs" value={command} onChange={(e) => setCommand(e.target.value)} placeholder={t("(none — audio isn't read)")} />
-          <button type="button" className="btn btn-sm" disabled={pending} onClick={() => start(async () => void done(await saveDocumentSettingsAction({ transcriber: command, autoInstall })))}>
-            {t("Save")}
-          </button>
-        </div>
-      </section>
+      <p className="text-xs text-zinc-500">
+        <Link href="/settings/documents" className="text-indigo-600 hover:underline dark:text-indigo-400">{t("Documents settings")}</Link> — {t("audio transcriber, PDF reading")}
+      </p>
     </div>
   );
 }

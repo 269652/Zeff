@@ -7,10 +7,9 @@ import Link from "next/link";
 import { syncMailAction } from "@/app/actions";
 import { syncWhatsappAction } from "@/plugins/whatsapp/server-actions";
 import { syncSignalAction } from "@/plugins/signal/server-actions";
-import { MailFoldersForm } from "@/components/MailFoldersForm";
-import { FetchAttachmentsButton, MailAttachmentsOffer, MailAttachmentsSettings } from "@/components/MailAttachments";
-import { attachmentOfferOpen, attachmentSettings, attachmentTotals } from "@/lib/mail/attachments-store";
-import { installedAttachmentSources } from "@/lib/mail/attachments-sync";
+import { MailConversation } from "@/components/MailConversation";
+import { FetchAttachmentsButton, MailAttachmentsOffer } from "@/components/MailAttachments";
+import { attachmentOfferOpen, attachmentSettings } from "@/lib/mail/attachments-store";
 import { SyncSplitButton } from "@/components/SyncSplitButton";
 import { TodoRefs } from "@/components/boards/TodoRefs";
 import { getMailSettings, listMails, mailFolderCounts } from "@/lib/mail/store";
@@ -78,11 +77,15 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
             { source },
           )}
         </p>
-        {outlook && <MailFoldersForm folders={settings.folders} />}
+        {(outlook || gmail) && (
+          <p className="mt-2 text-xs">
+            <Link href="/settings/mail" className="text-indigo-600 hover:underline dark:text-indigo-400">{t("Mail settings")}</Link>
+            <span className="text-zinc-400"> — {t("folders, attachments → Documents")}</span>
+          </p>
+        )}
       </div>
 
       {attachOn && attachmentOfferOpen() && <MailAttachmentsOffer />}
-      {attachments && <MailAttachmentsSettings settings={attachments} sources={installedAttachmentSources()} folders={Object.keys(counts)} totals={attachmentTotals()} />}
 
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -132,59 +135,36 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
             // Who's in it: the others first (each once), you last.
             const names = [...new Set(list.map((m) => m.fromName ?? m.fromEmail ?? "?"))];
             const people = [...names.filter((n) => !isMine(n)), ...names.filter((n) => isMine(n))].map((n) => (isMine(n) ? t("Me") : n));
-            const thread = older ? [...list].reverse() : [...list].reverse().slice(-25);
             const link = sourceLink(latest);
             return (
               <li key={latest.convId}>
-                <details className="group">
-                  <summary className="flex cursor-pointer list-none items-start gap-3 px-4 py-2.5 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900/60 [&::-webkit-details-marker]:hidden">
-                    {unread ? <span className="mt-1.5 flex"><UnreadDot className={chat ? "bg-emerald-500" : "bg-indigo-500"} /></span> : <UnreadDotSlot />}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline gap-2">
-                        <span className={`truncate ${unread ? "font-semibold" : "font-medium"}`}>{chat ? latest.subject : <TodoRefs text={latest.subject} />}</span>
-                        {!isInboxFolder(latest.folder) &&<span className="shrink-0 rounded bg-zinc-100 px-1.5 text-xs text-zinc-500 dark:bg-zinc-800">{latest.folder}</span>}
-                        {list.length > 1 && <span className="shrink-0 text-xs text-zinc-400 tabular-nums">{list.length}</span>}
-                        <span className="ml-auto shrink-0 text-xs text-zinc-400">{formatSmart(latest.receivedAt)}</span>
+                <MailConversation
+                  convId={latest.convId}
+                  total={list.length}
+                  older={older}
+                  chat={chat}
+                  latestSubject={latest.subject}
+                  link={link ? { href: link.href, label: link.label === "Open in Gmail" ? t("Open in Gmail") : t("Open in Outlook") } : null}
+                  olderHref={query({ older: true })}
+                  summary={
+                    <>
+                      {unread ? <span className="mt-1.5 flex"><UnreadDot className={chat ? "bg-emerald-500" : "bg-indigo-500"} /></span> : <UnreadDotSlot />}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline gap-2">
+                          <span className={`truncate ${unread ? "font-semibold" : "font-medium"}`}>{chat ? latest.subject : <TodoRefs text={latest.subject} />}</span>
+                          {!isInboxFolder(latest.folder) && <span className="shrink-0 rounded bg-zinc-100 px-1.5 text-xs text-zinc-500 dark:bg-zinc-800">{latest.folder}</span>}
+                          {list.length > 1 && <span className="shrink-0 text-xs text-zinc-400 tabular-nums">{list.length}</span>}
+                          <span className="ml-auto shrink-0 text-xs text-zinc-400">{formatSmart(latest.receivedAt)}</span>
+                        </div>
+                        <div className="truncate text-xs text-zinc-500">{people.slice(0, 4).join(", ")}{people.length > 4 ? ` +${people.length - 4}` : ""}</div>
+                        <div className="line-clamp-1 text-xs text-zinc-600 group-open:hidden dark:text-zinc-400">
+                          {latest.fromName && (list.length > 1 || chat) ? <span className="font-medium">{isMine(latest) ? t("Me") : latest.fromName}: </span> : null}
+                          {latest.preview}
+                        </div>
                       </div>
-                      <div className="truncate text-xs text-zinc-500">{people.slice(0, 4).join(", ")}{people.length > 4 ? ` +${people.length - 4}` : ""}</div>
-                      <div className="line-clamp-1 text-xs text-zinc-600 group-open:hidden dark:text-zinc-400">
-                        {latest.fromName && (list.length > 1 || chat) ? <span className="font-medium">{isMine(latest) ? t("Me") : latest.fromName}: </span> : null}
-                        {latest.preview}
-                      </div>
-                    </div>
-                  </summary>
-                  <ul className="space-y-1.5 px-4 pb-3 pl-9">
-                    {link && (
-                      <li>
-                        <a href={link.href} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-sky-700 hover:underline dark:text-sky-400">
-                          {link.label === "Open in Gmail" ? t("Open in Gmail") : t("Open in Outlook")} ↗<span className="sr-only"> {t("(opens in a new tab)")}</span>
-                        </a>
-                      </li>
-                    )}
-                    {list.length > thread.length && (
-                      <li className="text-xs text-zinc-500">
-                        {t("… {n} older", { n: list.length - thread.length })} ·{" "}
-                        <Link href={query({ older: true })} className="font-medium text-indigo-700 hover:underline dark:text-indigo-400">{t("Show older")}</Link>
-                      </li>
-                    )}
-                    {thread.map((m) => {
-                      const mine = isMine(m);
-                      return (
-                        <li key={m.key} className={`flex ${mine && chat ? "justify-end" : ""}`}>
-                          <div className={`max-w-[85%] rounded-lg px-3 py-1.5 text-sm ${mine ? "bg-emerald-50 dark:bg-emerald-950/40" : "bg-zinc-100 dark:bg-zinc-800"}`}>
-                            <div className="flex items-baseline gap-2 text-xs">
-                              <span className="font-medium text-zinc-700 dark:text-zinc-200" title={m.fromEmail ?? undefined}>{mine ? t("Me") : (m.fromName ?? m.fromEmail ?? "?")}</span>
-                              <span className="text-zinc-400">{formatSmart(m.receivedAt)}</span>
-                              {m.unread && <span className="text-zinc-400">· {t("unread")}</span>}
-                            </div>
-                            {!chat && m.subject !== latest.subject && <div className="text-xs font-medium"><TodoRefs text={m.subject} /></div>}
-                            <div className="whitespace-pre-line">{m.preview}</div>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </details>
+                    </>
+                  }
+                />
               </li>
             );
           })}

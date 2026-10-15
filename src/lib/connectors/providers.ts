@@ -26,7 +26,7 @@ export const microsoftTenant = () => extraOf("microsoft").tenant?.trim() || "org
 const microsoftLogin = () => process.env.ZEFF_MS_LOGIN_URL || "https://login.microsoftonline.com";
 
 export const PROVIDERS: Record<Provider, ProviderInfo> = {
-  gitlab: { id: "gitlab", label: "GitLab", page: "/gitlab", endpoints: gitlabEndpoints, services: [{ service: "gitlab", label: "GitLab", plugin: "gitlab" }] },
+  gitlab: { id: "gitlab", label: "GitLab", page: "/settings/gitlab", endpoints: gitlabEndpoints, services: [{ service: "gitlab", label: "GitLab", plugin: "gitlab" }] },
   google: {
     id: "google",
     label: "Google",

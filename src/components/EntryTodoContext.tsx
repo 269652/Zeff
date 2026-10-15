@@ -2,14 +2,35 @@
 
 import Link from "next/link";
 import type { EntryTodoContext } from "@/lib/entry-todo-context";
-import { ContextList, TodoSources, useContextItems } from "./boards/TodoSources";
+import { useState } from "react";
+import type { ContextSummary } from "@/lib/context-summary";
+import { ContextList, ContextSummaryToggle, TodoSources, useContextItems } from "./boards/TodoSources";
 import { useT } from "@/components/I18nProvider";
 
 const todoRef = (id: number) => `T-${id}`;
 
-/** In the entries table: the todos' context behind its toggle ("Context (N)", hover for the newest). */
-export function EntryTodoContextToggle({ ctx }: { ctx: EntryTodoContext }) {
-  return <TodoSources list={ctx.sources} notes={ctx.notes} />;
+/**
+ * In the entries table: the todos' context behind its toggle ("Context (N)" and its kinds). The table carries only the
+ * summary; the context is fetched when the toggle is opened (a month of entries with their context was megabytes).
+ */
+export function EntryTodoContextToggle({ entryId, summary }: { entryId: number; summary: ContextSummary }) {
+  const [ctx, setCtx] = useState<EntryTodoContext | null>(null);
+  const [loading, setLoading] = useState(false);
+  const open = () => {
+    if (loading) return;
+    setLoading(true);
+    fetch(`/api/entries/${entryId}/context`)
+      .then((r) => (r.ok ? (r.json() as Promise<EntryTodoContext | null>) : Promise.reject(new Error(String(r.status)))))
+      .then((c) => setCtx(c))
+      .catch(() => undefined)
+      .finally(() => setLoading(false));
+  };
+  if (ctx) return <TodoSources list={ctx.sources} notes={ctx.notes} startOpen />;
+  return (
+    <span className="mt-1 flex flex-col items-start gap-1">
+      <ContextSummaryToggle summary={summary} onOpen={open} loading={loading} />
+    </span>
+  );
 }
 
 /**

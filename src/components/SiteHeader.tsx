@@ -34,6 +34,7 @@ const menuEntries = (t: T) => [
   { href: "/mcp", label: "MCP", hint: t("Connect an agent") },
   { href: "/preferences", label: t("Settings"), hint: t("AI provider") },
   { href: "/settings/all", label: t("All settings"), hint: t("Every settings area in one place") },
+  { href: "/settings/mail", label: t("Mail settings"), hint: t("Folders, attachments → Documents") },
   { href: "/settings/prompts", label: t("Prompts"), hint: t("What the AI reads at each step") },
   { href: "/sync-settings", label: t("Sync settings"), hint: t("How often each sync runs") },
   { href: "/logins", label: t("Browser sign-ins"), hint: t("Logins in the automation Chrome") },

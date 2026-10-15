@@ -5,10 +5,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, setCellAction, updateSchemaAction, type DatabaseData } from "../actions";
-import { cellText, dateRange, filterRows, groupRows, isComputed, newId, newView, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
-import { Cell, CellView, PopCell, type CellCtx } from "./cells";
+import { cellText, columnOrder, dateRange, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
+import { Cell, PopCell, type CellCtx } from "./cells";
+import { RowCard } from "./cards";
 import { FilterEditor, PropertiesMenu, SchemaModal, SortEditor } from "./db-menus";
-import { Dropdown, MenuItem } from "./kit";
+import { Dropdown, MenuItem, useSortable } from "./kit";
 
 /** A database on a page: its views (table, board, list, gallery, calendar), filters, sorts, groups, and the rows in place. */
 
@@ -41,6 +42,13 @@ function useDatabase(initial: DatabaseData | null, dbId: number) {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the rows are fetched when the block appears
     if (!initial) void reload();
   }, [initial, reload]);
+
+  // The assistant (the chat in the sidebar) changed the workspace: the rows and the schema are read again.
+  useEffect(() => {
+    const again = () => void reload();
+    window.addEventListener("ws-changed", again);
+    return () => window.removeEventListener("ws-changed", again);
+  }, [reload]);
 
   const reloadSoon = useCallback(() => {
     if (reloadTimer.current) clearTimeout(reloadTimer.current);
@@ -287,9 +295,10 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
               <div className="px-2 py-1">
                 <input className="input w-full text-sm" value={view.name} aria-label={t("View name")} onChange={(e) => setView({ ...view, name: e.target.value })} />
               </div>
+              <p className="px-2 pt-1 text-xs text-zinc-500">{t("Show this view as — to keep it as it is, add another view with “+”")}</p>
               <div className="flex flex-wrap gap-1 px-2 pb-1">
                 {VIEW_TYPES.map((vt) => (
-                  <button key={vt} type="button" className={`rounded px-1.5 py-0.5 text-sm ${view.type === vt ? "bg-indigo-100 dark:bg-indigo-950" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"}`} title={vt} onClick={() => setView({ ...view, type: vt, groupBy: vt === "board" && !view.groupBy ? schema.properties.find((p) => p.type === "status" || p.type === "select")?.id : view.groupBy, dateProp: vt === "calendar" && !view.dateProp ? schema.properties.find((p) => p.type === "date")?.id : view.dateProp })}>
+                  <button key={vt} type="button" className={`rounded px-1.5 py-0.5 text-sm ${view.type === vt ? "bg-indigo-100 dark:bg-indigo-950" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"}`} title={vt} aria-pressed={view.type === vt} onClick={() => setView({ ...view, type: vt, groupBy: vt === "board" && !view.groupBy ? schema.properties.find((p) => p.type === "status" || p.type === "select")?.id : view.groupBy, dateProp: vt === "calendar" && !view.dateProp ? schema.properties.find((p) => p.type === "date")?.id : view.dateProp })}>
                     {VIEW_ICON[vt]}
                   </button>
                 ))}
@@ -428,13 +437,25 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
   const t = useT();
   const groups = view.groupBy ? groupRows(rows, view.groupBy, schema.properties, labels) : [{ key: "", label: "", color: undefined as string | undefined, rows }];
   const [folded, setFolded] = useState<Set<string>>(new Set());
+  // The columns in the view's order - the title is one of them and may sit anywhere (drag a header to move it).
+  const cols = columnOrder(view, schema).filter((id) => id === TITLE || visible.some((p) => p.id === id));
+  const byId = new Map(visible.map((p) => [p.id, p]));
+  const sort = useSortable((from, to, after) => setView({ ...view, order: moveBefore(columnOrder(view, schema), from, to, after) }), "x", "text/ws-col");
   const header = (
     <thead>
       <tr>
         <th className="w-8" />
-        <th className="min-w-56">{schema.titleName}</th>
-        {visible.map((p) => (
-          <th key={p.id}>
+        {cols.map((id) => {
+          const p = byId.get(id);
+          const drag = { ...sort.handle(id), ...sort.target(id) };
+          if (!p)
+            return (
+              <th key={id} className={`min-w-56 cursor-grab ${sort.mark(id)}`} title={t("Drag to move the column")} {...drag}>
+                {schema.titleName}
+              </th>
+            );
+          return (
+          <th key={p.id} className={`cursor-grab ${sort.mark(p.id)}`} title={t("Drag to move the column")} {...drag}>
             <Dropdown label={<span>{p.name}</span>} className="flex items-center gap-1 text-left">
               {(close) => (
                 <>
@@ -442,11 +463,23 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
                   <MenuItem onClick={() => (close(), setView({ ...view, sorts: [{ prop: p.id, dir: "desc" }] }))}>↓ {t("Sort descending")}</MenuItem>
                   <MenuItem onClick={() => (close(), setView({ ...view, hidden: [...view.hidden, p.id] }))}>🙈 {t("Hide")}</MenuItem>
                   <MenuItem onClick={() => (close(), onSchema())}>⚙ {t("Edit properties …")}</MenuItem>
+                  <MenuItem
+                    danger
+                    onClick={() => {
+                      close();
+                      const note = hasDependents(schema, p.id) ? ` ${t("Other properties use this one (a rollup or a relation's other side).")}` : "";
+                      if (!window.confirm(`${t("Delete the property “{name}” and its values?", { name: p.name })}${note}`)) return;
+                      api.changeSchema((s) => removeProperty(s, p.id));
+                    }}
+                  >
+                    🗑 {t("Delete the property")}
+                  </MenuItem>
                 </>
               )}
             </Dropdown>
           </th>
-        ))}
+          );
+        })}
         <th className="w-8">
           <button type="button" className="icon-btn" onClick={onSchema} aria-label={t("Add a property")} title={t("Add a property")}>
             +
@@ -480,14 +513,18 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
                       <RowMenu row={r} api={api} />
                     </span>
                   </td>
-                  <td>
-                    <TitleCell row={r} ctx={ctx} openRow={openRow} autoEdit={justAdded === r.id} onEdited={onEdited} />
-                  </td>
-                  {visible.map((p) => (
-                    <td key={p.id}>
-                      <Cell p={p} row={r} ctx={ctx} />
-                    </td>
-                  ))}
+                  {cols.map((id) => {
+                    const p = byId.get(id);
+                    return p ? (
+                      <td key={p.id}>
+                        <Cell p={p} row={r} ctx={ctx} />
+                      </td>
+                    ) : (
+                      <td key={id}>
+                        <TitleCell row={r} ctx={ctx} openRow={openRow} autoEdit={justAdded === r.id} onEdited={onEdited} />
+                      </td>
+                    );
+                  })}
                   <td />
                 </tr>
               ))}
@@ -514,19 +551,6 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
   );
 }
 
-function CardBody({ row, visible, ctx, max = 4 }: { row: Row; visible: Property[]; ctx: CellCtx; max?: number }) {
-  const shown = visible.filter((p) => !(row.cells[p.id] === undefined || row.cells[p.id] === null || row.cells[p.id] === "" || (Array.isArray(row.cells[p.id]) && (row.cells[p.id] as unknown[]).length === 0)) || p.type === "checkbox").slice(0, max);
-  return (
-    <div className="space-y-1">
-      {shown.map((p) => (
-        <div key={p.id} className="flex flex-wrap items-center gap-1 text-xs">
-          <CellView p={p} row={row} ctx={ctx} />
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, newRow }: ViewProps & { newRow: (cells?: Record<string, unknown>, templateId?: number, open?: boolean) => Promise<void> }) {
   const t = useT();
   const gp = schema.properties.find((p) => p.id === view.groupBy);
@@ -535,11 +559,11 @@ function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, new
   const groups = groupRows(rows, gp.id, schema.properties, labels);
   const valueFor = (key: string): unknown => (gp.type === "checkbox" ? key === "true" : key === "" ? null : gp.type === "multi_select" ? [key] : gp.type === "person" || gp.type === "relation" ? [Number(key)] : key);
   return (
-    <div className="flex gap-3 overflow-x-auto pb-2">
+    <div className="flex items-start gap-3 overflow-x-auto pb-2">
       {groups.map((g) => (
         <div
           key={g.key || "none"}
-          className={`w-64 shrink-0 space-y-2 rounded-lg p-1 ${over === g.key ? "bg-indigo-50 dark:bg-indigo-950/40" : ""}`}
+          className={`ws-column w-72 shrink-0 space-y-2 rounded-xl p-2 ${over === g.key ? "ws-column-over" : ""}`}
           onDragOver={(e) => (e.preventDefault(), setOver(g.key))}
           onDragLeave={() => setOver(null)}
           onDrop={(e) => {
@@ -555,14 +579,10 @@ function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, new
           </div>
           {g.rows.map((r) => (
             <div key={r.id} className="ws-card group/card relative cursor-pointer" draggable onDragStart={(e) => e.dataTransfer.setData("text/ws-row", String(r.id))} onClick={() => openRow(r.id)} role="button" tabIndex={0} onKeyDown={(e) => e.key === "Enter" && openRow(r.id)}>
-              <div className="flex items-start gap-1">
-                <span>{r.icon || "📄"}</span>
-                <span className="min-w-0 flex-1 text-sm font-medium break-words">{r.title || <span className="text-zinc-400">{t("Untitled")}</span>}</span>
-                <span className="opacity-0 group-hover/card:opacity-100" onClick={(e) => e.stopPropagation()}>
-                  <RowMenu row={r} api={api} />
-                </span>
-              </div>
-              <CardBody row={r} visible={visible.filter((p) => p.id !== gp.id)} ctx={{ ...ctx, editable: true }} />
+              <span className="absolute top-1 right-1 rounded bg-white/90 opacity-0 group-hover/card:opacity-100 dark:bg-zinc-900/90" onClick={(e) => e.stopPropagation()}>
+                <RowMenu row={r} api={api} />
+              </span>
+              <RowCard row={r} visible={visible.filter((p) => p.id !== gp.id)} ctx={ctx} mode="board" />
             </div>
           ))}
           <button type="button" className="w-full rounded-md px-2 py-1 text-left text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => void newRow({ [gp.id]: valueFor(g.key) })}>
@@ -610,12 +630,10 @@ function ListView({ view, rows, visible, schema, ctx, api, labels, openRow }: Vi
 function GalleryView({ rows, visible, ctx, openRow }: { rows: Row[]; visible: Property[]; ctx: CellCtx; openRow: (id: number) => void }) {
   const t = useT();
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="ws-gallery">
       {rows.map((r) => (
-        <div key={r.id} className="ws-card cursor-pointer space-y-2" role="button" tabIndex={0} onClick={() => openRow(r.id)} onKeyDown={(e) => e.key === "Enter" && openRow(r.id)}>
-          <div className="text-3xl">{r.icon || "📄"}</div>
-          <div className="text-sm font-medium break-words">{r.title || <span className="text-zinc-400">{t("Untitled")}</span>}</div>
-          <CardBody row={r} visible={visible} ctx={ctx} max={5} />
+        <div key={r.id} className="ws-card cursor-pointer" role="button" tabIndex={0} onClick={() => openRow(r.id)} onKeyDown={(e) => e.key === "Enter" && openRow(r.id)}>
+          <RowCard row={r} visible={visible} ctx={ctx} mode="gallery" />
         </div>
       ))}
       {!rows.length && <p className="text-sm text-zinc-500">{t("Nothing here yet.")}</p>}

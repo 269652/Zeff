@@ -20,7 +20,7 @@ export function MailAttachmentsOffer() {
       const r = await answerAttachmentOfferAction(a);
       if (!r?.ok) return toast(r?.error ?? t("That didn't work."), { tone: "error" });
       // “Turn on” opens its settings.
-      if (a === "on") router.push("/mail#attachments");
+      if (a === "on") router.push("/settings/mail#attachments");
       router.refresh();
     });
   return (

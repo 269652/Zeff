@@ -15,18 +15,20 @@ import { foreignRequest, refused } from "@/lib/request-guard";
  */
 
 type Handler = (req: Request) => Promise<Response>;
-const state = globalThis as unknown as { __zeffMcp?: Map<string, Handler> };
+const state = globalThis as unknown as { __zeffMcp?: Map<string, { gen: number; h: Handler }> };
 const handlers = (state.__zeffMcp ??= new Map());
+// The tool list is made when a handler is: after a code change (dev hot reload evaluates this module again) the handlers are made again, else agents keep seeing the tools of the server's start.
+const GENERATION = Date.now();
 
 function handlerFor(id: string, name: string): Handler {
-  let h = handlers.get(id);
+  let h = handlers.get(id)?.gen === GENERATION ? handlers.get(id)!.h : undefined;
   if (!h) {
     h = createMcpHandler((server) => registerZeffTools(server), {
       serverInfo: SERVER_INFO,
       instructions: `${INSTRUCTIONS}\n\nThis connection is Zeff's account "${name}": everything you book, read and search here is that account's.`,
       verboseLogs: process.env.ZEFF_MCP_VERBOSE === "1",
     });
-    handlers.set(id, h);
+    handlers.set(id, { gen: GENERATION, h });
   }
   return h;
 }

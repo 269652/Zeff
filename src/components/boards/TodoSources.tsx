@@ -6,11 +6,14 @@ import { NoteBadge, NoteRow } from "./NoteBadge";
 import { DismissButton } from "../DismissButton";
 import { SourceBadge, SourceDetails } from "../SourceBadge";
 import { entityWhoWhen } from "@/lib/entities-shared";
+import { groupOfKind, sourceKindOf, type ContextSummary } from "@/lib/context-summary";
 import { HoverCard } from "../HoverCard";
 import { CollapseIcon, ExpandIcon, NoteIcon, SparkIcon } from "../icons";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { dismissTodoContextAction } from "@/plugins/todos/server-actions";
 import { latestPerKind, ShowMoreToggle } from "../ShowMore";
+import { ContentLightbox } from "../ContentLightbox";
+import { ScaledBox } from "../ScaledBox";
 import { useT } from "../I18nProvider";
 import type { T } from "@/lib/i18n/shared";
 
@@ -163,56 +166,65 @@ export function ContextToggle({ items, unread, open, onToggle }: { items: Item[]
 }
 
 /** The context itself: of each kind the latest three — the rest behind "Show more"; hover one for all of it. */
+/** A source in a todo's context: its badge, what Zeff did with it — and, from the badge's title, all of it in a lightbox. */
+function ContextSource({ s, todoId }: { s: TodoSource; todoId?: number }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const posted = s.source === "jira-comment" ? s.comment.postedBy : undefined;
+  const synced = s.source === "jira-comment" || s.source === "keep" || s.source === "fact" || s.source === "document" ? undefined : s.synced;
+  return (
+    <span className="group relative flex w-full flex-col items-stretch gap-1">
+      <SourceBadge entity={s} className="min-w-0 flex-1" resolved={synced?.resolved || undefined} onToggle={() => setOpen(true)} />
+      {(synced || posted) && (
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-1">
+          {synced && <SyncedMark s={synced} />}
+          {posted && <PostedMark by={posted} />}
+        </span>
+      )}
+      <ContentLightbox open={open} onClose={() => setOpen(false)} label={t("Context")}>
+        <SourceDetails entity={s} />
+        {synced && <SyncedNote s={synced} />}
+        {posted && <PostedNote by={posted} />}
+      </ContentLightbox>
+      {todoId !== undefined && (
+        <DismissButton
+          className="absolute top-2 right-2 rounded-full bg-white/90 shadow-sm [@media(hover:none)]:opacity-100 group-focus-within:opacity-100 dark:bg-zinc-900/90"
+          onDismiss={() => dismissTodoContextAction(todoId, sourceKey(s))}
+          title={t("Dismiss — takes it out of this todo's context for good")}
+          label={t("Dismiss this context item")}
+        />
+      )}
+    </span>
+  );
+}
+
+/** How many columns the context cards stand in. */
+const CONTEXT_COLUMNS = 4;
+
 export function ContextList({ items, todoId }: { items: Item[]; todoId?: number }) {
   const t = useT();
   const [all, setAll] = useState(false);
   const { shown, hidden } = latestPerKind(items, itemKind, all);
   return (
     <span className="flex w-full flex-col items-start gap-2">
-      {/* Masonry: up to four columns (each at least 14rem wide), the cards as tall as they are. */}
-      <span className="block w-full [column-gap:0.75rem] [columns:4_14rem]">
-        {shown.map((it) => {
-          if ("n" in it)
-            return (
-              <span key={`note:${it.n.from ?? ""}:${it.n.at}`} className="mb-3 block break-inside-avoid">
-                <NoteRow n={it.n} jira={it.jira} todoId={todoId} />
-              </span>
-            );
-          const s = it.s;
-          const posted = s.source === "jira-comment" ? s.comment.postedBy : undefined;
-          const synced = s.source === "jira-comment" || s.source === "keep" || s.source === "fact" || s.source === "document" ? undefined : s.synced;
-          return (
-            <span key={sourceKey(s)} className="mb-3 block break-inside-avoid">
-              <HoverCard
-                className="group relative w-full flex-col items-stretch gap-1"
-                card={
-                  <div>
-                    <SourceDetails entity={s} />
-                    {synced && <SyncedNote s={synced} />}
-                    {posted && <PostedNote by={posted} />}
-                  </div>
-                }
-              >
-                <SourceBadge entity={s} className="min-w-0 flex-1" resolved={synced?.resolved || undefined} />
-                {(synced || posted) && (
-                  <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-1">
-                    {synced && <SyncedMark s={synced} />}
-                    {posted && <PostedMark by={posted} />}
-                  </span>
+      {/* Four columns in a row across the whole width (each a column of cards, dealt out in turn), 20% smaller than the page (text, padding, pictures). */}
+      <ScaledBox className="w-full">
+        <div className="flex w-full items-start gap-3">
+          {Array.from({ length: CONTEXT_COLUMNS }, (_, c) => (
+            <div key={c} className="flex min-w-0 flex-1 flex-col gap-3">
+              {shown
+                .filter((_, i) => i % CONTEXT_COLUMNS === c)
+                .map((it) =>
+                  "n" in it ? (
+                    <NoteRow key={`note:${it.n.from ?? ""}:${it.n.at}`} n={it.n} jira={it.jira} todoId={todoId} />
+                  ) : (
+                    <ContextSource key={sourceKey(it.s)} s={it.s} todoId={todoId} />
+                  ),
                 )}
-                {todoId !== undefined && (
-                  <DismissButton
-                    className="absolute top-2 right-2 rounded-full bg-white/90 shadow-sm [@media(hover:none)]:opacity-100 group-focus-within:opacity-100 dark:bg-zinc-900/90"
-                    onDismiss={() => dismissTodoContextAction(todoId, sourceKey(s))}
-                    title={t("Dismiss — takes it out of this todo's context for good")}
-                    label={t("Dismiss this context item")}
-                  />
-                )}
-              </HoverCard>
-            </span>
-          );
-        })}
-      </span>
+            </div>
+          ))}
+        </div>
+      </ScaledBox>
       <ShowMoreToggle hidden={hidden} open={all} onToggle={() => setAll(!all)} />
     </span>
   );
@@ -222,8 +234,8 @@ export function ContextList({ items, todoId }: { items: Item[]; todoId?: number 
  * What a todo came from — Jira comments, Teams messages, GitLab comments, mails, the notes — as
  * badges, folded behind its toggle; hover (or focus) one for all of it, and to mark it done.
  */
-export function TodoSources({ list, notes = [], todoId }: { list: TodoSource[]; notes?: TodoUserNote[]; todoId?: number }) {
-  const [open, setOpen] = useState(false);
+export function TodoSources({ list, notes = [], todoId, startOpen = false }: { list: TodoSource[]; notes?: TodoUserNote[]; todoId?: number; /** Unfolded from the start (it was opened to be fetched). */ startOpen?: boolean }) {
+  const [open, setOpen] = useState(startOpen);
   const { items, unread, markSeen } = useContextItems(list, notes, todoId);
   if (!items.length) return null;
   return (
@@ -306,24 +318,29 @@ const CONTEXT_GROUPS: { group: string; label: (t: T) => string; icon: React.Reac
   { group: "note", label: (t) => t("Notes"), icon: <NoteIcon className="size-3.5 text-indigo-600 dark:text-indigo-400" /> },
   { group: "report", label: (t) => t("AI reports"), icon: <SparkIcon className="size-3.5 text-violet-600 dark:text-violet-400" /> },
 ];
-const groupOf = (kind: string) => (kind.startsWith("gitlab") ? "gitlab" : kind.startsWith("jira") ? "jira" : kind);
+const groupOf = groupOfKind;
 
 /** How much of each kind of context there is: small icons with numbers (5 Teams, 4 Mail, 3 Jira …). */
 function ContextCounts({ items, onHover }: { items: Item[]; onHover?: (group: string | null) => void }) {
-  const t = useT();
-  const counts = new Map<string, number>();
+  const counts: Record<string, number> = {};
   for (const it of items) {
     const g = groupOf(itemKind(it).kind);
-    counts.set(g, (counts.get(g) ?? 0) + 1);
+    counts[g] = (counts[g] ?? 0) + 1;
   }
-  const shown = CONTEXT_GROUPS.filter((g) => counts.get(g.group));
-  if (!shown.length) return null;
   // A branch among the GitLab items is on the remote (GitLab has it, or Zeff pushed it): its icon gets a green check.
   const remote = items.some((it) => !("n" in it) && it.s.source === "gitlab" && it.s.gitlab.kind === "branch" && it.s.gitlab.state !== "not pushed");
+  return <ContextCountsView groups={counts} remote={remote} onHover={onHover} />;
+}
+
+/** The same from a summary alone (a table row before its context is fetched). */
+export function ContextCountsView({ groups, remote, onHover }: { groups: Record<string, number>; remote: boolean; onHover?: (group: string | null) => void }) {
+  const t = useT();
+  const shown = CONTEXT_GROUPS.filter((g) => groups[g.group]);
+  if (!shown.length) return null;
   return (
     <span className="ml-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-normal text-zinc-500 dark:text-zinc-400">
       {shown.map((g) => (
-        <span key={g.group} className="flex items-center gap-0.5 tabular-nums" title={`${counts.get(g.group)} ${g.label(t)}`} onMouseEnter={() => onHover?.(g.group)} onMouseLeave={() => onHover?.(null)}>
+        <span key={g.group} className="flex items-center gap-0.5 tabular-nums" title={`${groups[g.group]} ${g.label(t)}`} onMouseEnter={() => onHover?.(g.group)} onMouseLeave={() => onHover?.(null)}>
           {g.group === "gitlab" && remote ? (
             <span className="relative flex" title={t("Branch on the remote")}>
               {g.icon}
@@ -334,10 +351,20 @@ function ContextCounts({ items, onHover }: { items: Item[]; onHover?: (group: st
           ) : (
             g.icon
           )}
-          {counts.get(g.group)}
+          {groups[g.group]}
         </span>
       ))}
     </span>
+  );
+}
+
+/** The toggle of a context that isn't loaded yet: "Context (12)" and its kinds — `onOpen` fetches it. */
+export function ContextSummaryToggle({ summary, onOpen, loading }: { summary: ContextSummary; onOpen: () => void; loading?: boolean }) {
+  const t = useT();
+  return (
+    <AreaToggle open={false} onToggle={onOpen} label={loading ? t("Loading …") : t("Context ({n})", { n: summary.n })}>
+      <ContextCountsView groups={summary.groups} remote={summary.remote} />
+    </AreaToggle>
   );
 }
 
@@ -346,6 +373,5 @@ const itemKind = (it: Item) => ("n" in it ? { kind: it.n.by ? "report" : "note",
 /** A source's kind (Teams, Jira comment, mail, GitLab comment, MR, branch) and when it was written. */
 function sourceKind(s: TodoSource): { kind: string; at: string } {
   // A chat's message counts as WhatsApp (Signal), not as mail (the mail sync reads them all).
-  const kind = s.source === "gitlab" ? `gitlab-${s.gitlab.kind}` : s.source === "mail" && s.mail.folder === "WhatsApp" ? "whatsapp" : s.source === "mail" && s.mail.folder === "Signal" ? "signal" : s.source;
-  return { kind, at: entityWhoWhen(s).at ?? "" };
+  return { kind: sourceKindOf(s), at: entityWhoWhen(s).at ?? "" };
 }

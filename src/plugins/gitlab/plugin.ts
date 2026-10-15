@@ -10,7 +10,7 @@ export default definePlugin({
   category: "connector",
   defaultInstalled: true,
   requires: "The automation Chrome with GitLab, signed in (and git) — or GitLab's API with a token or your own sign-in.",
-  settings: { href: "/gitlab", what: "Your GitLab's address" },
+  settings: { href: "/settings/gitlab", what: "Your GitLab's address" },
   nav: [
     { href: "/gitlab", label: "GitLab", hint: "Merge requests, comments & branches" },
   ],

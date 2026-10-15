@@ -7,7 +7,7 @@
 import { getSqlite } from "@/db";
 import { emitChange } from "@/lib/events";
 import { docRefs, docText, emptyDoc, sanitizeDoc, type Doc, type DocRef } from "./doc";
-import { computeRows, dateRange, defaultSchema, isComputed, normalizeSchema, propById, TITLE, type DbSchema, type Labels, type Property, type Row } from "./model";
+import { computeRows, dateRange, defaultSchema, isComputed, newProperty, normalizeSchema, propById, TITLE, type DbSchema, type Labels, type Property, type Row } from "./model";
 
 function db() {
   const d = getSqlite();
@@ -595,6 +595,19 @@ export function updateSchema(id: number, next: unknown): DbSchema {
   })();
   changed();
   return schema;
+}
+
+/** A schema saved, with what hangs on it: a relation asked to show on the other side gets its back property there (computed from this one). */
+export function saveSchema(id: number, next: unknown, fallbackName = "Relation"): DbSchema {
+  const saved = updateSchema(id, next);
+  const here = getPage(id);
+  for (const p of saved.properties) {
+    if (p.type !== "relation" || p.backOf || !p.twoWay || p.relationDb === undefined || p.relationDb === id) continue;
+    const other = getDatabase(p.relationDb);
+    if (!other || other.schema.properties.some((q) => q.backOf === p.id)) continue;
+    updateSchema(other.page.id, { ...other.schema, properties: [...other.schema.properties, { ...newProperty(here?.title || fallbackName, "relation"), relationDb: id, backOf: p.id }] });
+  }
+  return saved;
 }
 
 /** A cell value made to fit its property: what can't be is dropped (null). */

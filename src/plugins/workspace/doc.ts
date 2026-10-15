@@ -5,6 +5,8 @@
  * backlinks), and a whitelist that cleans what a client sends. Client-safe.
  */
 
+import { COLORS } from "./model";
+
 export type Mark = { type: string; attrs?: Record<string, unknown> };
 export type DocNode = { type: string; attrs?: Record<string, unknown>; content?: DocNode[]; marks?: Mark[]; text?: string };
 export type Doc = { type: "doc"; content: DocNode[] };
@@ -83,8 +85,11 @@ function inline(nodes: DocNode[] | undefined): string {
     }
     if (n.type === "zeffRef") {
       const label = String(n.attrs?.label ?? "");
-      const href = String(n.attrs?.href ?? "");
-      out += href ? `[${label}](${href})` : label;
+      const kind = String(n.attrs?.kind ?? "");
+      const ref = String(n.attrs?.ref ?? "");
+      // A mention as the reference it is ([[page:12|Label]]), so writing the text back keeps it a mention.
+      if ((kind === "page" || kind === "todo" || kind === "ticket" || kind === "person") && ref) out += `[[${kind}:${ref}${label ? `|${label.replace(/[\]|]/g, "")}` : ""}]]`;
+      else out += label;
       continue;
     }
     if (n.type === "image") {
@@ -135,7 +140,7 @@ function block(n: DocNode, ctx: { ordered?: number } = {}): string {
     case "blockquote":
       return blocks(kids).split("\n").map((l) => `> ${l}`.trimEnd()).join("\n");
     case "callout":
-      return `> ${String(n.attrs?.icon ?? "💡")} ${blocks(kids).split("\n").join("\n> ")}`;
+      return `:::callout ${String(n.attrs?.icon ?? "💡")} ${String(n.attrs?.tone ?? "gray")}\n${blocks(kids)}\n:::`;
     case "codeBlock":
       return `\`\`\`${String(n.attrs?.language ?? "")}\n${kids.map((c) => c.text ?? "").join("")}\n\`\`\``;
     case "horizontalRule":
@@ -145,7 +150,7 @@ function block(n: DocNode, ctx: { ordered?: number } = {}): string {
     case "details": {
       const summary = kids.find((c) => c.type === "detailsSummary");
       const body = kids.find((c) => c.type === "detailsContent");
-      return `<details>\n<summary>${inline(summary?.content)}</summary>\n\n${blocks(body?.content ?? [])}\n\n</details>`;
+      return `:::toggle ${inline(summary?.content)}\n${blocks(body?.content ?? [])}\n:::`;
     }
     case "table": {
       const rows = kids.map((r) => (r.content ?? []).map((c) => blocks(c.content ?? []).replace(/\n+/g, " ").replace(/\|/g, "\\|")));
@@ -155,7 +160,7 @@ function block(n: DocNode, ctx: { ordered?: number } = {}): string {
       return [line(rows[0]), `| ${Array.from({ length: width }, () => "---").join(" | ")} |`, ...rows.slice(1).map(line)].join("\n");
     }
     case "databaseView":
-      return `*(database ${String(n.attrs?.title ?? n.attrs?.dbId ?? "")})*`;
+      return `:::database ${String(n.attrs?.dbId ?? "")}${n.attrs?.title ? ` ${String(n.attrs.title)}` : ""}`;
     case "doc":
       return blocks(kids);
     default:
@@ -174,7 +179,7 @@ export function docToMarkdown(doc: DocNode | null | undefined): string {
 
 function parseInline(src: string): DocNode[] {
   const out: DocNode[] = [];
-  const re = /(`[^`]+`)|(\*\*[^*]+\*\*)|(~~[^~]+~~)|(==[^=]+==)|(\*[^*\s][^*]*\*)|(_[^_\s][^_]*_)|(!?\[[^\]]*\]\([^)\s]+\))/g;
+  const re = /(`[^`]+`)|(\*\*[^*]+\*\*)|(~~[^~]+~~)|(==[^=]+==)|(\*[^*\s][^*]*\*)|(_[^_\s][^_]*_)|(\[\[(?:page|todo|ticket|person):[^\]|]+(?:\|[^\]]*)?\]\])|(!?\[[^\]]*\]\([^)\s]+\))/g;
   let at = 0;
   const text = (t: string, marks: Mark[] = []) => {
     if (t) out.push(marks.length ? { type: "text", text: t.replace(/\\([\\`*_[\]<>])/g, "$1"), marks } : { type: "text", text: t.replace(/\\([\\`*_[\]<>])/g, "$1") });
@@ -188,7 +193,11 @@ function parseInline(src: string): DocNode[] {
     else if (s.startsWith("~~")) text(s.slice(2, -2), [{ type: "strike" }]);
     else if (s.startsWith("==")) text(s.slice(2, -2), [{ type: "highlight" }]);
     else if (s.startsWith("*") || s.startsWith("_")) text(s.slice(1, -1), [{ type: "italic" }]);
-    else {
+    else if (s.startsWith("[[")) {
+      const r = /^\[\[(page|todo|ticket|person):([^\]|]+)(?:\|([^\]]*))?\]\]$/.exec(s)!;
+      const ref = r[2].trim();
+      out.push({ type: "zeffRef", attrs: { kind: r[1], ref, label: (r[3] ?? "").trim() || (r[1] === "todo" ? `T-${ref}` : ref), href: r[1] === "page" ? `/workspace/${ref}` : "" } });
+    } else {
       const l = /^(!?)\[([^\]]*)\]\(([^)\s]+)\)$/.exec(s)!;
       if (l[1]) out.push({ type: "image", attrs: { src: l[3], alt: l[2] } });
       else text(l[2], [{ type: "link", attrs: { href: l[3] } }]);
@@ -234,6 +243,34 @@ export function markdownToDoc(md: string): Doc {
         i++;
         continue;
       }
+      // :::database 12 [title]  - a database shown in the page
+      const db = /^:::database\s+(\d+)\s*(.*)$/.exec(l);
+      if (db) {
+        out.push({ type: "databaseView", attrs: { dbId: Number(db[1]), viewId: "", title: db[2].trim() } });
+        i++;
+        continue;
+      }
+      // :::callout 💡 blue ... :::   and   :::toggle Summary ... :::   (nested blocks inside; they may nest)
+      const dir = /^:::(callout|toggle)\s*(.*)$/.exec(l);
+      if (dir) {
+        const inner: string[] = [];
+        let depth = 1;
+        i++;
+        while (i < lines.length) {
+          if (/^:::(callout|toggle)\b/.test(lines[i])) depth++;
+          else if (/^:::\s*$/.test(lines[i]) && --depth === 0) break;
+          inner.push(lines[i++]);
+        }
+        i++;
+        const kids = markdownToDoc(inner.join("\n")).content;
+        if (dir[1] === "callout") {
+          const parts = dir[2].trim().split(/\s+/).filter(Boolean);
+          const tone = parts.find((x) => (COLORS as readonly string[]).includes(x));
+          const icon = parts.find((x) => x !== tone) ?? "💡";
+          out.push({ type: "callout", attrs: { icon, tone: tone ?? "gray" }, content: kids });
+        } else out.push({ type: "details", attrs: { open: false }, content: [{ type: "detailsSummary", content: parseInline(dir[2].trim() || "Details") }, { type: "detailsContent", content: kids }] });
+        continue;
+      }
       if (/^>\s?/.test(l)) {
         const q: string[] = [];
         while (i < lines.length && /^>\s?/.test(lines[i])) q.push(lines[i++].replace(/^>\s?/, ""));
@@ -258,7 +295,7 @@ export function markdownToDoc(md: string): Doc {
       }
       // A paragraph: lines up to a blank line or the start of another block.
       const buf: string[] = [];
-      while (i < lines.length && lines[i].trim() && !/^(#{1,6}\s|```|>\s?|\s*([-*+]|\d+\.)\s+|-{3,}\s*$)/.test(lines[i])) buf.push(lines[i++].trim());
+      while (i < lines.length && lines[i].trim() && !/^(#{1,6}\s|```|:::|>\s?|\s*([-*+]|\d+\.)\s+|-{3,}\s*$)/.test(lines[i])) buf.push(lines[i++].trim());
       if (!buf.length) buf.push(lines[i++]);
       out.push(para(buf.join(" ")));
     }

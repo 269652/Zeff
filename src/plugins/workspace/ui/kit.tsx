@@ -54,23 +54,113 @@ export function Modal({ title, onClose, children, wide = false }: { title: strin
   );
 }
 
-/** A button with a dropdown under it (any content); closes on a click outside, Escape, or when `close` is called. */
+/**
+ * A button with a dropdown under it (any content); closes on a click outside, Escape, a scroll or when `close` is called.
+ * The menu is a portal to the body (fixed under the button): inside a sidebar or a table it would be cut off or make it scroll.
+ */
 export function Dropdown({ label, children, align = "left", title, className = "btn btn-sm" }: { label: ReactNode; children: (close: () => void) => ReactNode; align?: "left" | "right"; title?: string; className?: string }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useDismiss(ref, open, () => setOpen(false));
+  const [at, setAt] = useState<{ top: number; left?: number; right?: number } | null>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const close = () => setOpen(false);
+  const cb = useRef(close);
+  useEffect(() => {
+    cb.current = close;
+  });
+  useEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const r = button.current?.getBoundingClientRect();
+      if (!r) return;
+      setAt({ top: r.bottom + 4, ...(align === "right" ? { right: Math.max(8, window.innerWidth - r.right) } : { left: Math.max(8, Math.min(r.left, window.innerWidth - 200)) }) });
+    };
+    place();
+    const down = (e: MouseEvent) => {
+      const n = e.target as Node;
+      if (!menu.current?.contains(n) && !button.current?.contains(n)) cb.current();
+    };
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "Escape") cb.current();
+    };
+    // A scroll elsewhere (the sidebar, the page) moves the button: the menu goes with it - closed is simplest.
+    const scroll = (e: Event) => {
+      if (!menu.current?.contains(e.target as Node)) cb.current();
+    };
+    document.addEventListener("mousedown", down);
+    document.addEventListener("keydown", key);
+    window.addEventListener("scroll", scroll, true);
+    window.addEventListener("resize", place);
+    return () => {
+      document.removeEventListener("mousedown", down);
+      document.removeEventListener("keydown", key);
+      window.removeEventListener("scroll", scroll, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open, align]);
   return (
-    <div ref={ref} className="relative inline-block">
-      <button type="button" className={className} title={title} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+    <div className="relative inline-block">
+      <button ref={button} type="button" className={className} title={title} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
         {label}
       </button>
-      {open && (
-        <div className={`absolute z-50 mt-1 min-w-48 rounded-lg border border-zinc-200 bg-white p-1 text-sm shadow-lg dark:border-zinc-700 dark:bg-zinc-900 ${align === "right" ? "right-0" : "left-0"}`} role="menu">
-          {children(() => setOpen(false))}
-        </div>
-      )}
+      {open &&
+        at &&
+        typeof document !== "undefined" &&
+        createPortal(
+          // (A click inside must not reach a dialog's own "click outside closes it" - the menu is outside of it in the DOM.)
+          <div
+            ref={menu}
+            style={{ position: "fixed", top: at.top, left: at.left, right: at.right }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="z-[80] max-h-[70vh] min-w-48 overflow-y-auto rounded-lg border border-zinc-200 bg-white p-1 text-sm shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+            role="menu"
+          >
+            {children(close)}
+          </div>,
+          document.body,
+        )}
     </div>
   );
+}
+
+/**
+ * Drag and drop to put things in order: `handle(id)` goes on what is picked up, `target(id)` on what it can be dropped on
+ * (often the same element); `mark(id)` is a class that shows where it would land (before or after, by `axis`).
+ * `onMove(from, to, after)` does the move.
+ */
+export function useSortable(onMove: (from: string, to: string, after: boolean) => void, axis: "x" | "y" = "y", mime = "text/ws-sort") {
+  const [over, setOver] = useState<{ id: string; after: boolean } | null>(null);
+  const handle = (id: string) => ({
+    draggable: true as const,
+    onDragStart: (e: React.DragEvent) => {
+      e.dataTransfer.setData(mime, id);
+      e.dataTransfer.effectAllowed = "move";
+    },
+    onDragEnd: () => setOver(null),
+  });
+  const target = (id: string) => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (!e.dataTransfer.types.includes(mime)) return;
+      e.preventDefault();
+      const r = e.currentTarget.getBoundingClientRect();
+      const after = axis === "x" ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2;
+      setOver((o) => (o && o.id === id && o.after === after ? o : { id, after }));
+    },
+    onDragLeave: (e: React.DragEvent) => {
+      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver((o) => (o?.id === id ? null : o));
+    },
+    onDrop: (e: React.DragEvent) => {
+      const from = e.dataTransfer.getData(mime);
+      if (!from) return;
+      e.preventDefault();
+      const r = e.currentTarget.getBoundingClientRect();
+      const after = axis === "x" ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2;
+      setOver(null);
+      onMove(from, id, after);
+    },
+  });
+  const mark = (id: string): string => (over?.id !== id ? "" : axis === "x" ? (over.after ? "shadow-[inset_-3px_0_0_0_#6366f1]" : "shadow-[inset_3px_0_0_0_#6366f1]") : over.after ? "shadow-[inset_0_-3px_0_0_#6366f1]" : "shadow-[inset_0_3px_0_0_#6366f1]");
+  return { handle, target, mark };
 }
 
 /** A row of a dropdown. */

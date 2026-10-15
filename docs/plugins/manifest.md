@@ -47,6 +47,8 @@ is never granted, and a method or contribution that needs one fails or is skippe
 | `work.write` | Start, continue and stop Work sessions | `work.sessions.start`, `work.sessions.send`, `work.runs.cancel` |
 | `todos.read` | Read your todos | `todos.list` |
 | `todos.write` | Add todos | `todos.add` |
+| `llm.read` | Read the instructions and numbers of the AI steps | `llm.steps.list` |
+| `llm.write` | Change the instructions and numbers of the AI steps | `llm.steps.update` |
 | `kanban.read` | Read your Kanban boards and cards | `kanban.boards.list`, `kanban.boards.get` |
 | `kanban.write` | Add, change, move and archive Kanban cards | `kanban.cards.add`, `kanban.cards.update`, `kanban.cards.move`, `kanban.cards.archive`, `kanban.cards.unarchive` |
 | `prompt` | Add rules to what Work's workers are told | `contributes.workerRules` |

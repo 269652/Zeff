@@ -1,3 +1,5 @@
+// "Do in Zeff" (what plugins offer to the AI) is registered by this: the dictionary and the checks need it.
+import "@/plugins/actions/server";
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { opLabel, opTitle, type TodoView } from "@/lib/boards/shared";

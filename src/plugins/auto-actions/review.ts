@@ -5,6 +5,9 @@
  * what the installed plugins offer (a comment, a message, a mail draft, an appointment, a hand-over
  * to a worker …). Complete and ready: one click runs them. Server only.
  */
+// "Do in Zeff" (what plugins offer to the AI) is registered by this: the dictionary and the checks need it.
+import "@/plugins/actions/server";
+import { createHash } from "node:crypto";
 import { pad2 as two } from "@/lib/text";
 import { throwIfAborted } from "@/lib/abort";
 import { extraBlock } from "@/lib/boards/context-prefs";
@@ -27,6 +30,7 @@ import { isChatFolder } from "@/lib/mail/shared";
 import { parseLocalDateTime } from "@/lib/calendar/meetings";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { opAvailable } from "@/plugins/ops";
+import { OFFERED_ACTIONS } from "@/plugins/actions/catalog";
 
 const { todos, emails } = schema;
 
@@ -70,8 +74,10 @@ Für JEDES Todo: welche Aktionen erledigen es oder bringen es den nächsten echt
 - Etwas Privates mit einem Zeitpunkt oder das Zeit braucht (etwas besorgen, erledigen, vorbereiten; ein Geburtstag, eine Verabredung, eine Frist) → calendar-entry (mein Zeff-Kalender) oder gcal-event (Google Calendar) — was das Wörterbuch hat, nicht beide; abends oder am Wochenende, außer es braucht Öffnungszeiten (Arzt, Amt, Geschäft); vor dem Datum, um das es geht (ein Geschenk vor dem Geburtstag).
 - Nach einer Übergabe an einen Worker (work-instruct) legt Zeff selbst ein Todo zum Testen an — dafür keinen eigenen Termin.
 - Ticket-Pflege (Status, Zuweisung, Kommentar, neues Ticket) → jira-transition / jira-assign / jira-comment / jira-create — Übergänge nur aus den möglichen, Zuweisungen mit dem Benutzernamen.
+- Ein neues Ticket / eine Story / ein Task soll angelegt werden („… anlegen“, „… Story erstellen“, „auslagern“) → IMMER eine jira-create, nie nur ein Kommentar: summary = ein präziser Titel (was geliefert wird, nicht „Ticket zu …“); body = vollständige Beschreibung in Markdown NUR aus dem Context unten (Beschreibung und Kommentare des Quell-Tickets, Quellen, Berichte, Notizen): Hintergrund mit Verweis auf das Quell-Ticket, was genau gebraucht wird (konkrete Seiten, Komponenten, Verhalten, Vorgaben aus dem Ticket), offene Fragen, Akzeptanzkriterien als prüfbare Liste. Nichts erfinden — was der Context nicht hergibt, steht unter „Offene Fragen“. issueType Story, wenn das Todo Story sagt, sonst Task. ticket = das Quell-Ticket. Wer es bearbeiten soll, schreibst du in die Beschreibung, nicht als jira-assign (das neue Ticket hat noch keinen Schlüssel).
 - Antwort auf einen GitLab-Kommentar / Thread erledigt → gitlab-reply / gitlab-resolve mit note:<id>.
 - Etwas umsetzen, fixen, im Code nachsehen, ausarbeiten → work-instruct mit einer konkreten, vollständigen Anweisung.
+- Sagt jemand, wie in Zeff selbst etwas gehandhabt werden soll (eine Regel, eine Absprache: wie Branches heißen, wie Antworten klingen, worauf ein KI-Schritt achten soll) → zeff-do mit einer Methode aus dem Wörterbuch; die neuen Anweisungen schreibst du als Anpassung dessen, was unter „Bestehendes in Zeff“ steht.
 - Mehrere Aktionen, wenn sie zusammengehören (z. B. Kommentar + Übergang + Zuweisung an den Tester), in der Reihenfolge, in der sie laufen.
 
 Regeln:
@@ -150,6 +156,16 @@ function systemsOf(t: TodoView): string[] {
 ${repo.summary}`] : [];
 }
 
+/** What the actions say they need for a todo with this text (their offer's `needs`). */
+function contextNeeded(text: string): Set<string> {
+  const out = new Set<string>();
+  for (const a of OFFERED_ACTIONS) {
+    const n = a.offer?.needs;
+    if (n && opAvailable(a.type) && new RegExp(n.match, "i").test(text)) n.context.forEach((c) => out.add(c));
+  }
+  return out;
+}
+
 /** One todo for the prompt: the todo, its ticket, where it comes from, the notes on it. */
 function todoBlock(t: TodoView, sources: ReturnType<typeof todoSources>, run: ReturnType<typeof lastGoodRun>): string {
   const tk = run?.tickets.find((x) => x.key === t.ticket);
@@ -163,6 +179,9 @@ function todoBlock(t: TodoView, sources: ReturnType<typeof todoSources>, run: Re
     ...(t.ticket
       ? [`Ticket ${t.ticket}: ${plain(tk?.summary ?? jira?.summary ?? "", 160)} — Status ${tk?.status ?? jira?.status ?? "?"}, zugewiesen ${tk?.assignee ?? jira?.assignee ?? "niemand"}`]
       : []),
+    // A todo that makes a new ticket needs what the source ticket says to write it from.
+    ...(t.ticket && jira?.description && contextNeeded(t.text).has("ticket.description") ? [`Beschreibung von ${t.ticket}:
+${plain(jira.description, 3500)}`] : []),
     ...(tk?.people?.length ? [`Beteiligte: ${tk.people.join(", ")}`] : []),
     ...(tk?.transitions?.length ? [`Mögliche Übergänge: ${tk.transitions.join(", ")}`] : []),
     ...(t.source ? [`Quelle laut Lage: ${plain(t.source, 160)}`] : []),
@@ -226,7 +245,9 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
     // proposed itself (not run yet: what ran is gone from a todo), so they can get the new kind.
     const { TODO_OP_TYPES } = await import("@/lib/boards/shared");
     const { getPref, setPref } = await import("@/lib/prefs");
-    const offered = TODO_OP_TYPES.filter((t) => opAvailable(t)).sort().join(",");
+    // (The prompt's own text counts too: a better prompt looks at every todo without actions again, once.)
+    const promptHash = createHash("sha1").update(INSTRUCTIONS("", "")).digest("hex").slice(0, 8);
+    const offered = TODO_OP_TYPES.filter((t) => opAvailable(t)).sort().join(",") + `|${promptHash}`;
     const all = opts.all || getPref("autoactions:offered", "") !== offered;
     // Not looked at yet, or changed since (a new note, a new source).
     const due = new Set(
@@ -259,7 +280,14 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
     if (!opts.ids) setPref("autoactions:offered", offered);
     if (!list.length) return { ok: true, reviewed: 0, withActions: 0, batches: 0 };
     const sources = todoSources(list, board?.tickets ?? []);
-    const blocks = list.map((t) => ({ t, text: todoBlock(t, sources, board) }));
+    // What exists now that an action may adjust (the current instructions of an AI step, the boards, what the knowledge base says): retrieved per todo.
+    const { offerContext } = await import("@/plugins/actions/server");
+    const blocks = await Promise.all(
+      list.map(async (t) => {
+        const known = await offerContext({ ticket: t.ticket, text: plain(t.text, 400) });
+        return { t, text: todoBlock(t, sources, board) + (known.length ? ["", "Bestehendes in Zeff (für Aktionen, die etwas anpassen):", ...known].join("\n") : "") };
+      }),
+    );
     const me = myJiraName() ?? "";
     const today = new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
     const dictionary = opsDictionary(opAvailable);

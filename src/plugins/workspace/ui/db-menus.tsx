@@ -4,9 +4,9 @@ import { useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import type { DatabaseData } from "../actions";
 import { checkFormula, FORMULA_FUNCTIONS } from "../formula";
-import { condsFor, COLORS, CREATED, isFilter, needsValue, newId, PROP_LABELS, PROP_TYPES, ROLLUP_FNS, TITLE, UPDATED, type Cond, type DbSchema, type Filter, type Option, type Property, type PropType, type Rule, type Sort, type View } from "../model";
+import { columnOrder, condsFor, COLORS, CREATED, hasDependents, isFilter, moveBefore, needsValue, newId, removeProperty, PROP_LABELS, PROP_TYPES, ROLLUP_FNS, TITLE, UPDATED, type Cond, type DbSchema, type Filter, type Option, type Property, type PropType, type Rule, type Sort, type View } from "../model";
 import { makeOption, Tag } from "./cells";
-import { Modal } from "./kit";
+import { Modal, useSortable } from "./kit";
 
 /** The menus of a database: filter, sort, properties, and the schema editor. */
 
@@ -193,29 +193,38 @@ export function SortEditor({ sorts, schema, onChange }: { sorts: Sort[]; schema:
 /** Which properties a view shows, and in what order. */
 export function PropertiesMenu({ view, schema, onChange }: { view: View; schema: DbSchema; onChange: (v: View) => void }) {
   const t = useT();
-  const order = [...schema.properties].sort((a, b) => ((view.order ?? []).indexOf(a.id) + 1 || 999) - ((view.order ?? []).indexOf(b.id) + 1 || 999));
+  // The title is one of the columns (it can be moved too, but not hidden).
+  const ids = columnOrder(view, schema);
+  const named = new Map<string, string>([[TITLE, schema.titleName || t("Title")], ...schema.properties.map((p): [string, string] => [p.id, p.name])]);
+  const set = (next: string[]) => onChange({ ...view, order: next });
+  const sort = useSortable((from, to, after) => set(moveBefore(ids, from, to, after)));
   const move = (i: number, d: number) => {
-    const next = [...order];
     const j = i + d;
-    if (j < 0 || j >= next.length) return;
-    [next[i], next[j]] = [next[j], next[i]];
-    onChange({ ...view, order: next.map((p) => p.id) });
+    if (j < 0 || j >= ids.length) return;
+    set(moveBefore(ids, ids[i], ids[j], d > 0));
   };
   return (
     <ul className="w-64 space-y-0.5 p-1">
-      {order.map((p, i) => (
-        <li key={p.id} className="flex items-center gap-1.5 text-sm">
-          <input type="checkbox" checked={!view.hidden.includes(p.id)} onChange={(e) => onChange({ ...view, hidden: e.target.checked ? view.hidden.filter((x) => x !== p.id) : [...view.hidden, p.id] })} aria-label={t("Show {name}", { name: p.name })} />
-          <span className="min-w-0 flex-1 truncate">{p.name}</span>
+      {ids.map((id, i) => (
+        <li key={id} className={`flex items-center gap-1.5 rounded text-sm ${sort.mark(id)}`} {...sort.target(id)}>
+          <span className="cursor-grab px-0.5 text-zinc-400" title={t("Drag to move")} aria-hidden {...sort.handle(id)}>
+            ⠿
+          </span>
+          {id === TITLE ? (
+            <input type="checkbox" checked disabled aria-label={t("Title")} />
+          ) : (
+            <input type="checkbox" checked={!view.hidden.includes(id)} onChange={(e) => onChange({ ...view, hidden: e.target.checked ? view.hidden.filter((x) => x !== id) : [...view.hidden, id] })} aria-label={t("Show {name}", { name: named.get(id) ?? "" })} />
+          )}
+          <span className="min-w-0 flex-1 truncate">{named.get(id)}</span>
           <button type="button" className="icon-btn" disabled={i === 0} onClick={() => move(i, -1)} aria-label={t("Move up")}>
             ↑
           </button>
-          <button type="button" className="icon-btn" disabled={i === order.length - 1} onClick={() => move(i, 1)} aria-label={t("Move down")}>
+          <button type="button" className="icon-btn" disabled={i === ids.length - 1} onClick={() => move(i, 1)} aria-label={t("Move down")}>
             ↓
           </button>
         </li>
       ))}
-      {!order.length && <li className="px-1 text-xs text-zinc-500">{t("No properties yet.")}</li>}
+      {!schema.properties.length && <li className="px-1 text-xs text-zinc-500">{t("No properties yet.")}</li>}
     </ul>
   );
 }
@@ -239,7 +248,7 @@ function OptionsEditor({ p, onChange }: { p: Property; onChange: (o: Option[]) =
               </option>
             ))}
           </select>
-          <input className="input flex-1 text-sm" value={o.name} aria-label={t("Option")} onChange={(e) => onChange(opts.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
+          <input className="input min-w-0 flex-1 basis-32 text-sm" value={o.name} aria-label={t("Option")} onChange={(e) => onChange(opts.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
           {status && (
             <select className="input px-1 text-xs" value={o.group ?? "todo"} aria-label={t("Group")} onChange={(e) => onChange(opts.map((x, j) => (j === i ? { ...x, group: e.target.value as Option["group"] } : x)))}>
               <option value="todo">{t("To do")}</option>
@@ -260,7 +269,7 @@ function OptionsEditor({ p, onChange }: { p: Property; onChange: (o: Option[]) =
   );
 }
 
-function PropertyEditor({ p, schema, data, dbId, onChange, onRemove, databases }: { p: Property; schema: DbSchema; data: DatabaseData; dbId: number; onChange: (p: Property) => void; onRemove: () => void; databases: { id: number; title: string }[] }) {
+function PropertyEditor({ p, schema, data, dbId, onChange, onRemove, databases, sort }: { sort: ReturnType<typeof useSortable>; p: Property; schema: DbSchema; data: DatabaseData; dbId: number; onChange: (p: Property) => void; onRemove: () => void; databases: { id: number; title: string }[] }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const formulaError = p.type === "formula" && p.formula ? checkFormula(p.formula) : null;
@@ -268,11 +277,14 @@ function PropertyEditor({ p, schema, data, dbId, onChange, onRemove, databases }
   const relatedProps = rel?.relationDb !== undefined ? data.related[rel.relationDb]?.properties ?? [] : [];
   const computed = p.type === "rollup" || p.type === "formula" || p.type === "created_time" || p.type === "updated_time" || (p.type === "relation" && !!p.backOf);
   return (
-    <li className="rounded-lg border border-zinc-200 p-2 dark:border-zinc-700">
-      <div className="flex items-center gap-1.5">
-        <input className="input flex-1 text-sm" value={p.name} aria-label={t("Name")} onChange={(e) => onChange({ ...p, name: e.target.value })} />
+    <li className={`rounded-lg border border-zinc-200 p-2 dark:border-zinc-700 ${sort.mark(p.id)}`} {...sort.target(p.id)}>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="cursor-grab px-0.5 text-zinc-400" title={t("Drag to move")} aria-hidden {...sort.handle(p.id)}>
+          ⠿
+        </span>
+        <input className="input min-w-0 flex-1 basis-40 text-sm" value={p.name} aria-label={t("Name")} onChange={(e) => onChange({ ...p, name: e.target.value })} />
         <select
-          className="input text-sm"
+          className="input w-auto shrink-0 text-sm"
           value={p.type}
           aria-label={t("Type")}
           disabled={p.type === "relation" && !!p.backOf}
@@ -389,6 +401,10 @@ export function SchemaModal({ schema, data, dbId, databases, onSave, onClose }: 
   const [draft, setDraft] = useState<DbSchema>(schema);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const sort = useSortable((from, to, after) => {
+    const ids = moveBefore(draft.properties.map((p) => p.id), from, to, after);
+    setDraft({ ...draft, properties: ids.map((id) => draft.properties.find((p) => p.id === id)!) });
+  });
   return (
     <Modal title={t("Properties")} onClose={onClose} wide>
       <div className="space-y-3">
@@ -405,15 +421,11 @@ export function SchemaModal({ schema, data, dbId, databases, onSave, onClose }: 
               data={data}
               dbId={dbId}
               databases={databases}
+              sort={sort}
               onChange={(np) => setDraft({ ...draft, properties: draft.properties.map((x, j) => (j === i ? np : x)) })}
               onRemove={() => {
-                const dependent = draft.properties.some((x) => x.id !== p.id && ((x.type === "rollup" && x.rollup?.relation === p.id) || (x.type === "relation" && x.backOf === p.id)));
-                if (dependent && !window.confirm(t("Other properties use this one (a rollup or a relation's other side). Delete it anyway?"))) return;
-                setDraft({
-                  ...draft,
-                  properties: draft.properties.filter((x) => x.id !== p.id && !(x.type === "rollup" && x.rollup?.relation === p.id)),
-                  views: draft.views.map((v) => ({ ...v, hidden: v.hidden.filter((h) => h !== p.id), groupBy: v.groupBy === p.id ? undefined : v.groupBy, dateProp: v.dateProp === p.id ? undefined : v.dateProp, sorts: v.sorts.filter((s) => s.prop !== p.id) })),
-                });
+                if (hasDependents(draft, p.id) && !window.confirm(t("Other properties use this one (a rollup or a relation's other side). Delete it anyway?"))) return;
+                setDraft(removeProperty(draft, p.id));
               }}
             />
           ))}
