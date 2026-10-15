@@ -34,6 +34,15 @@ export function collectionItems(id: string, opts: { archived?: boolean } = {}): 
   return null;
 }
 
+/** The items by their ticket keys (KB-12, WS-7; any case), by upper-case key — those still there. */
+export function itemsByKeys(keys: string[]): Map<string, Item> {
+  const wanted = [...new Set(keys.map((k) => k.trim().toUpperCase()).filter(Boolean))];
+  const out = new Map<string, Item>();
+  if (!wanted.length) return out;
+  for (const p of providers()) for (const it of p.byKeys(wanted)) if (it.key) out.set(it.key.toUpperCase(), it);
+  return out;
+}
+
 /** Puts a collection into the briefing or the knowledge, or takes it out (its plugin keeps the switch). */
 export function setCollection(id: string, patch: CollectionSwitches): void {
   if (!providers().some((p) => p.set(id, patch))) throw new Error(`No such collection: ${id}`);

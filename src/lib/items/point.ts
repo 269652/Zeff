@@ -13,6 +13,8 @@ export type CollectionProvider = {
   items(collectionId: string, opts?: { archived?: boolean }): Item[] | null;
   /** The items among `refs` that are its own and still there. */
   byRefs(refs: string[]): Item[];
+  /** Its items among ticket `keys` (upper case: KB-12, WS-7) — those still there. */
+  byKeys(keys: string[]): Item[];
   /** Puts its collection into the briefing or the knowledge, or takes it out; false when the id isn't one of its collections. */
   set(collectionId: string, patch: CollectionSwitches): boolean;
 };

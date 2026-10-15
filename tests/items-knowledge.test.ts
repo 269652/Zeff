@@ -25,12 +25,13 @@ test("knowledge: items of the collections in the knowledge are documents, archiv
   k.createOwnNote(off, { title: "Pin", text: "1234" });
   g.saveKeepNotes([{ id: "g1", kind: "list", title: "", text: "☐ Milch", labels: [], color: null, pinned: false, archived: false, createdAt: "2026-10-01T00:00:00Z", updatedAt: "2026-10-02T00:00:00Z", url: "https://keep.google.com/#LIST/g1" }], true);
 
-  const row = { ref: "page:5", collectionId: "db", kind: "row" as const, title: "Entscheidung", text: "Wir nehmen Postgres", labels: [], status: { name: "Decided", phase: "done" as const }, due: null, assignee: null, color: null, pinned: false, archived: false, parentRef: null, href: "/workspace/5", createdAt: null, updatedAt: "2026-10-03T00:00:00Z" };
+  const row = { ref: "page:5", key: null, collectionId: "db", kind: "row" as const, title: "Entscheidung", text: "Wir nehmen Postgres", labels: [], status: { name: "Decided", phase: "done" as const }, due: null, assignee: null, color: null, pinned: false, archived: false, parentRef: null, href: "/workspace/5", createdAt: null, updatedAt: "2026-10-03T00:00:00Z" };
   collectionProviders.contribute("signal", {
     collections: () => [{ id: "db", plugin: "signal", kind: "database", name: "Entscheidungen", description: "", color: null, href: "/x", readOnly: false, briefing: false, knowledge: true, items: 1 }],
     items: (id) => (id === "db" ? [row] : null),
     byRefs: () => [],
     set: () => false,
+    byKeys: () => [],
   });
 
   const docs = knowledgeDocs("http://zeff").docs;

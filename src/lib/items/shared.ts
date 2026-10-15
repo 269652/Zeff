@@ -5,7 +5,7 @@
  * keep:<Google's id>, page:<id>.
  */
 
-/** board: columns of cards; notes: loose notes (Keep); database: rows with properties (Workspace). */
+/** board: columns of cards (a database with a board view by status too); notes: loose notes (Keep); database: rows with properties (Workspace). */
 export type CollectionKind = "board" | "notes" | "database";
 
 export type Collection = {
@@ -28,6 +28,8 @@ export type Collection = {
   space?: string;
   /** How many items it has (not the archived). */
   items: number;
+  /** A board's statuses in order (its columns) — where its items can go. */
+  statuses?: string[];
 };
 
 /** What can be switched on a collection (what's left out stays as it is). */
@@ -39,6 +41,8 @@ export type ItemStatus = { name: string; phase: ItemPhase };
 
 export type Item = {
   ref: string;
+  /** Its ticket key, as todos, the Lage and entries name it: KB-<id> (a Kanban card, also once moved), WS-<id> (a row); null: not a ticket (a note). */
+  key: string | null;
   collectionId: string;
   kind: "card" | "note" | "row";
   title: string;

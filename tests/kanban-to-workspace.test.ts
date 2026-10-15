@@ -45,6 +45,7 @@ test("a Kanban board moves into the Workspace as a database, its cards as rows",
   assert.deepEqual(rows.map((r) => r.title), ["Fliesen kaufen", "Fugen", "Streichen"], "the archived card isn't among the rows");
   const row = (cardId: number) => rows.find((r) => r.id === movedCard(cardId))!;
   const r = row(tiles.id);
+  assert.equal(prop("Key").id, "ticketkey", "the key property the Workspace reads a row's ticket key from");
   assert.equal(r.cells[prop("Key").id], `KB-${tiles.id}`, "its key stays");
   assert.equal(r.cells[status.id], status.options![0].id);
   assert.equal(r.cells[prop("Due").id], "2026-11-01");
@@ -61,6 +62,8 @@ test("a Kanban board moves into the Workspace as a database, its cards as rows",
   const moved = cols.find((x) => x.id === `workspace:${dbId}`)!;
   assert.equal(moved.briefing, true, "in the Lage: in the briefing");
   assert.deepEqual(c.collectionItems(moved.id)!.map((i) => i.status?.phase), ["todo", "todo", "doing"]);
+  assert.equal(moved.kind, "board");
+  assert.equal(c.itemsByKeys([`KB-${tiles.id}`]).get(`KB-${tiles.id}`)?.ref, `page:${movedCard(tiles.id)}`, "KB-<id> now names the row");
 
   assert.equal(moveBoardToWorkspace(b).dbId, dbId, "moved again: the same database");
   assert.equal(w.rawRows(dbId).length, 3, "nothing doubled");

@@ -1,3 +1,4 @@
+import { getSqlite } from "@/db";
 import type { CollectionProvider } from "@/lib/items/point";
 import { getPref, setPref } from "@/lib/prefs";
 import type { Collection, Item } from "@/lib/items/shared";
@@ -9,8 +10,14 @@ import { getDatabase, getPage, rawRows, tree } from "./store";
 /**
  * Your Workspace databases as collections (workspace:<id>), their rows as items (page:<id>). What
  * an item has comes from the first property of its kind: a status (its group is the phase), a date
- * (a range: its start), a person, a multi-select (the labels).
+ * (a range: its start), a person, a multi-select (the labels). A database with a board view by its
+ * status is a board. A row's ticket key: its Key (the property `ticketkey` — a moved Kanban card keeps
+ * KB-<id> there), else WS-<id>.
  */
+
+/** The property id of a row's own ticket key (a moved Kanban card's KB-<id>). */
+export const KEY_PROP = "ticketkey";
+const ownKey = (id: number) => `WS-${id}`;
 
 const collectionId = (dbId: number) => `workspace:${dbId}`;
 
@@ -32,8 +39,10 @@ function itemsOf(dbId: number, schema: DbSchema, rows: Row[]): Item[] {
     const d = date ? r.cells[date.id] : null;
     const who = person ? (r.cells[person.id] as number[] | null)?.[0] : undefined;
     const tagIds = tags ? ((r.cells[tags.id] as string[] | null) ?? []) : [];
+    const key = r.cells[KEY_PROP];
     return {
       ref: `page:${r.id}`,
+      key: typeof key === "string" && key.trim() ? key.trim().toUpperCase() : ownKey(r.id),
       collectionId: collectionId(dbId),
       kind: "row",
       title: r.title,
@@ -60,10 +69,13 @@ export const workspaceCollections: CollectionProvider = {
       .filter((p) => p.kind === "database")
       .map((p): Collection => {
         const page = getPage(p.id);
+        const schema = page?.schema;
+        const status = schema?.properties.find((x) => x.type === "status");
+        const board = !!status && !!schema?.views.some((v) => v.type === "board" && v.groupBy === status.id);
         return {
           id: collectionId(p.id),
           plugin: "workspace",
-          kind: "database",
+          kind: board ? "board" : "database",
           name: named(p.icon, p.title),
           description: "",
           color: null,
@@ -72,6 +84,7 @@ export const workspaceCollections: CollectionProvider = {
           briefing: on.briefing.includes(p.id),
           knowledge: on.knowledge.includes(p.id),
           items: rawRows(p.id).length,
+          ...(board ? { statuses: status!.options?.map((o) => o.name) ?? [] } : {}),
         };
       });
   },
@@ -89,6 +102,18 @@ export const workspaceCollections: CollectionProvider = {
     const d = m ? getDatabase(Number(m[1])) : null;
     if (!d || d.page.archivedAt) return null;
     return itemsOf(d.page.id, d.schema, rawRows(d.page.id));
+  },
+  byKeys(keys) {
+    const own = keys.flatMap((k) => (/^WS-\d+$/.test(k) ? [`page:${k.slice(3)}`] : []));
+    const others = keys.filter((k) => !/^WS-\d+$/.test(k));
+    tree(); // (the table is made when first needed)
+    const keyed = others.length
+      ? (getSqlite()
+          .prepare(`select id from ws_pages where db_id is not null and archived_at is null and template = 0 and upper(json_extract(props, '$.${KEY_PROP}')) in (${others.map(() => "?").join(", ")})`)
+          .all(...others) as { id: number }[]).map((r) => `page:${r.id}`)
+      : [];
+    const wanted = new Set(keys);
+    return workspaceCollections.byRefs([...own, ...keyed]).filter((it) => it.key && wanted.has(it.key));
   },
   byRefs(refs) {
     const ids = new Set(refs.flatMap((r) => (/^page:\d+$/.test(r) ? [Number(r.slice(5))] : [])));

@@ -4,6 +4,7 @@ import { isInstalled } from "@/plugins/state";
 import { markdownToDoc } from "@/plugins/workspace/doc";
 import { COLORS, newId, newProperty, newView, type DbSchema, type Option, type Property } from "@/plugins/workspace/model";
 import { addRow, archivePage, createPage, getDatabase, setCell, updatePage, updateSchema } from "@/plugins/workspace/store";
+import { KEY_PROP } from "@/plugins/workspace/collections";
 import { cardRef, PRIORITIES, PRIORITY_LABELS, type CardView } from "./shared";
 import { getBoard, listArchivedCards, listBoards, updateBoard } from "./store";
 
@@ -59,7 +60,7 @@ function move(boardId: number): { dbId: number } {
   const labels = prop("Labels", "multi_select", labelNames.map((n, i) => option(n, COLORS[(i + 3) % COLORS.length])));
   const due = prop("Due", "date");
   const assignee = prop("Assignee", "text");
-  const key = prop("Key", "text");
+  const key: Property = { id: KEY_PROP, name: "Key", type: "text" };
   const schema: DbSchema = {
     titleName: "Card",
     properties: [status, priority, labels, due, assignee, key],

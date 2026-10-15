@@ -19,6 +19,7 @@ function itemsOf(b: BoardView): Item[] {
     return col.cards.map(
       (c): Item => ({
         ref: cardRef(c.id),
+        key: cardRef(c.id),
         collectionId: collectionId(b.id),
         kind: "card",
         title: c.title,
@@ -54,6 +55,7 @@ export const kanbanCollections: CollectionProvider = {
         briefing: b.inLage,
         knowledge: false,
         items: b.cards,
+        statuses: getBoard(b.id).columns.map((k) => k.name),
       }),
     ),
   items(id) {
@@ -68,6 +70,7 @@ export const kanbanCollections: CollectionProvider = {
     if (patch.briefing !== undefined) updateBoard(Number(m[1]), { inLage: patch.briefing });
     return true;
   },
+  byKeys: (keys) => kanbanCollections.byRefs(keys),
   byRefs(refs) {
     const ids = refs.flatMap((r) => {
       const m = /^KB-(\d+)$/i.exec(r);

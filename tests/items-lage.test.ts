@@ -50,7 +50,7 @@ test("lage: notes come from every collection in the briefing, not from boards", 
   const { lageNoteLines } = await import("@/plugins/keep/lage");
   setInstalled("keep", true);
   setInstalled("signal", true);
-  const item = (ref: string, collectionId: string, text: string) => ({ ref, collectionId, kind: "row" as const, title: ref, text, labels: [], status: null, due: null, assignee: null, color: null, pinned: false, archived: false, parentRef: null, href: "/x", createdAt: null, updatedAt: "2030-01-01T00:00:00Z" });
+  const item = (ref: string, collectionId: string, text: string) => ({ ref, key: null, collectionId, kind: "row" as const, title: ref, text, labels: [], status: null, due: null, assignee: null, color: null, pinned: false, archived: false, parentRef: null, href: "/x", createdAt: null, updatedAt: "2030-01-01T00:00:00Z" });
   const col = (id: string, kind: "notes" | "board" | "database", briefing: boolean) => ({ id, plugin: "signal", kind, name: `Sammlung ${id}`, description: "", color: null, href: "/x", readOnly: true, briefing, knowledge: false, items: 1 });
   const cols = [col("db", "database", true), col("off", "database", false), col("cards", "board", true)];
   const items = [item("page:1", "db", "zu PROJ-77"), item("page:2", "off", "PROJ-77 aus"), item("X-1", "cards", "PROJ-77 Karte")];
@@ -59,6 +59,7 @@ test("lage: notes come from every collection in the briefing, not from boards", 
     items: (id) => (cols.some((c) => c.id === id) ? items.filter((i) => i.collectionId === id) : null),
     byRefs: (refs) => items.filter((i) => refs.includes(i.ref)),
     set: () => false,
+    byKeys: () => [],
   });
 
   const lines = lageNoteLines("PROJ-77", 200, cut);

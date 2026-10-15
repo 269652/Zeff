@@ -13,6 +13,7 @@ const GOOGLE = "keep:google";
 
 const toItem = (n: NoteView | (KeepNote & { ref: string; boardId: null }), collectionId: string): Item => ({
   ref: n.ref,
+  key: null,
   collectionId,
   kind: "note",
   title: n.title,
@@ -80,5 +81,6 @@ export const keepCollections: CollectionProvider = {
     updateKeepBoard(Number(m[1]), { inLage: patch.briefing, inKnowledge: patch.knowledge });
     return true;
   },
+  byKeys: () => [],
   byRefs: (refs) => notesByRefs(refs).map((n) => toItem(n, n.boardId ? ownId(n.boardId) : GOOGLE)),
 };

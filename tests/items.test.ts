@@ -188,3 +188,41 @@ test("setCollection: briefing and knowledge switched the same way for boards, no
   assert.deepEqual([get(`keep:board:${keep}`).briefing, get(`keep:board:${keep}`).knowledge], [false, false]);
   assert.throws(() => c.setCollection("nothing:1", { briefing: true }), /No such collection/);
 });
+
+/** Ticket keys: a card's KB-<id>; a row's its Key (a moved card keeps KB-<id>) or WS-<id>; a note has none. */
+test("keys and boards: what can be a ticket, and which databases are boards", async () => {
+  await install("kanban", "keep", "workspace");
+  const c = await import("@/lib/items");
+  const s = await import("@/plugins/kanban/store");
+  const w = await import("@/plugins/workspace/store");
+  const m = await import("@/plugins/workspace/model");
+  const b = s.createBoard({ name: "Keys" });
+  const card = s.createCard(s.getBoard(b).columns[0].id, "Karte");
+  assert.equal(c.collectionItems(`kanban:${b}`)![0].key, `KB-${card.id}`);
+  assert.deepEqual(c.listCollections().find((x) => x.id === `kanban:${b}`)!.statuses, s.getBoard(b).columns.map((k) => k.name));
+
+  const status = m.newProperty("Status", "status");
+  const key: import("@/plugins/workspace/model").Property = { id: "ticketkey", name: "Key", type: "text" };
+  const boardDb = w.createPage({ kind: "database", title: "Brett", schema: { titleName: "Name", properties: [status, key], views: [{ ...m.newView("Board", "board"), groupBy: status.id }] } });
+  const moved = w.addRow(boardDb, { title: "Alt", cells: { ticketkey: "KB-77" } });
+  const fresh = w.addRow(boardDb, { title: "Neu" });
+  const plainDb = w.createPage({ kind: "database", title: "Liste" });
+  w.addRow(plainDb, { title: "Zeile" });
+
+  const col = (id: number) => c.listCollections().find((x) => x.id === `workspace:${id}`)!;
+  assert.equal(col(boardDb).kind, "board", "a board view by status: a board");
+  assert.deepEqual(col(boardDb).statuses, ["Not started", "In progress", "Done"]);
+  assert.equal(col(plainDb).kind, "database");
+  const items = c.collectionItems(`workspace:${boardDb}`)!;
+  assert.equal(items.find((i) => i.ref === `page:${moved}`)!.key, "KB-77", "a moved card keeps its key");
+  assert.equal(items.find((i) => i.ref === `page:${fresh}`)!.key, `WS-${fresh}`);
+
+  const byKey = c.itemsByKeys(["KB-77", `WS-${fresh}`, `KB-${card.id}`, "WS-999999"]);
+  assert.deepEqual([...byKey.keys()].sort(), ["KB-77", `KB-${card.id}`, `WS-${fresh}`].sort());
+  assert.equal(byKey.get("KB-77")!.ref, `page:${moved}`);
+  assert.equal(byKey.get("kb-77".toUpperCase())!.title, "Alt");
+
+  const k = await import("@/plugins/keep/boards");
+  const n = k.createOwnNote(k.createKeepBoard({ name: "Keys" }), { title: "Notiz", text: "x" });
+  assert.equal(c.itemsByRefs([n.ref]).get(n.ref)!.key, null, "a note isn't a ticket");
+});
