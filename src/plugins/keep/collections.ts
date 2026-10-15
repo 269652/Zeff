@@ -1,3 +1,4 @@
+import { getSqlite } from "@/db";
 import type { CollectionProvider } from "@/lib/items/point";
 import type { Collection, Item } from "@/lib/items/shared";
 import { isInstalled } from "@/plugins/state";
@@ -10,6 +11,13 @@ import { allKeepNotes, keepCount, type KeepNote } from "./store";
  */
 
 const GOOGLE = "keep:google";
+
+/** Your notes moved into the Workspace (keep:n<id>) — the Workspace answers for them now (see ./to-workspace). */
+function movedRefs(): Set<string> {
+  const d = getSqlite();
+  if (!d.prepare("select 1 from sqlite_master where name = 'keep_moved'").get()) return new Set();
+  return new Set((d.prepare("select note_id from keep_moved").all() as { note_id: number }[]).map((r) => `keep:n${r.note_id}`));
+}
 
 const toItem = (n: NoteView | (KeepNote & { ref: string; boardId: null }), collectionId: string): Item => ({
   ref: n.ref,
@@ -83,5 +91,8 @@ export const keepCollections: CollectionProvider = {
   },
   byKeys: () => [],
   act: () => null,
-  byRefs: (refs) => notesByRefs(refs).map((n) => toItem(n, n.boardId ? ownId(n.boardId) : GOOGLE)),
+  byRefs: (refs) => {
+    const moved = movedRefs();
+    return notesByRefs(refs.filter((r) => !moved.has(r))).map((n) => toItem(n, n.boardId ? ownId(n.boardId) : GOOGLE));
+  },
 };

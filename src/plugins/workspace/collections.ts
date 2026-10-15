@@ -14,11 +14,17 @@ import { getDatabase, getPage, rawRows, setCell, tree, updatePage } from "./stor
  * an item has comes from the first property of its kind: a status (its group is the phase), a date
  * (a range: its start), a person, a multi-select (the labels). A database with a board view by its
  * status is a board. A row's ticket key: its Key (the property `ticketkey` — a moved Kanban card keeps
- * KB-<id> there), else WS-<id>.
+ * KB-<id> there), else WS-<id>; a note's row (one with its own ref) is no ticket. A row's ref: its own
+ * (the property `noteref` — a moved Keep note keeps keep:n<id> there), else page:<id>. A note's colour
+ * and pinned: the properties `color` (a select) and `pinned` (a checkbox).
  */
 
 /** The property id of a row's own ticket key (a moved Kanban card's KB-<id>). */
 export const KEY_PROP = "ticketkey";
+/** The property ids of a note's row: its own ref (a moved Keep note's keep:n<id>), its colour, pinned. */
+export const NOTE_PROP = "noteref";
+export const COLOR_PROP = "color";
+export const PINNED_PROP = "pinned";
 const ownKey = (id: number) => `WS-${id}`;
 
 const collectionId = (dbId: number) => `workspace:${dbId}`;
@@ -42,9 +48,11 @@ function itemsOf(dbId: number, schema: DbSchema, rows: Row[]): Item[] {
     const who = person ? (r.cells[person.id] as number[] | null)?.[0] : undefined;
     const tagIds = tags ? ((r.cells[tags.id] as string[] | null) ?? []) : [];
     const key = r.cells[KEY_PROP];
+    const note = r.cells[NOTE_PROP];
+    const color = schema.properties.find((p) => p.id === COLOR_PROP)?.options?.find((o) => o.id === r.cells[COLOR_PROP]);
     return {
-      ref: `page:${r.id}`,
-      key: typeof key === "string" && key.trim() ? key.trim().toUpperCase() : ownKey(r.id),
+      ref: typeof note === "string" && note ? note : `page:${r.id}`,
+      key: typeof key === "string" && key.trim() ? key.trim().toUpperCase() : typeof note === "string" && note ? null : ownKey(r.id),
       collectionId: collectionId(dbId),
       kind: "row",
       title: r.title,
@@ -53,8 +61,8 @@ function itemsOf(dbId: number, schema: DbSchema, rows: Row[]): Item[] {
       status: opt ? { name: opt.name, phase: opt.group ?? "todo" } : null,
       due: typeof d === "string" ? d : d && typeof d === "object" && "start" in d ? String(d.start) : null,
       assignee: who ? (getPerson(who)?.name ?? null) : null,
-      color: null,
-      pinned: false,
+      color: color?.name ?? null,
+      pinned: r.cells[PINNED_PROP] === true,
       archived: !!page?.archivedAt,
       parentRef: null,
       href: `/workspace/${r.id}`,
@@ -63,6 +71,34 @@ function itemsOf(dbId: number, schema: DbSchema, rows: Row[]): Item[] {
     };
   });
 }
+
+/** The rows (not archived) whose property `prop` is one of `values` (any case). */
+function rowsWhere(prop: string, values: string[]): number[] {
+  if (!values.length) return [];
+  tree(); // (the table is made when first needed)
+  return (getSqlite()
+    .prepare(`select id from ws_pages where db_id is not null and archived_at is null and template = 0 and upper(json_extract(props, '$.${prop}')) in (${values.map(() => "?").join(", ")})`)
+    .all(...values.map((v) => v.toUpperCase())) as { id: number }[]).map((r) => r.id);
+}
+
+/** The items of these rows, by their databases. */
+function itemsOfRows(ids: Iterable<number>): Item[] {
+  const byDb = new Map<number, number[]>();
+  for (const id of ids) {
+    const p = getPage(id);
+    if (p?.dbId) byDb.set(p.dbId, [...(byDb.get(p.dbId) ?? []), id]);
+  }
+  const out: Item[] = [];
+  for (const [dbId, rowIds] of byDb) {
+    const d = getDatabase(dbId);
+    if (!d) continue;
+    out.push(...itemsOf(dbId, d.schema, rawRows(dbId).filter((r) => rowIds.includes(r.id))));
+  }
+  return out;
+}
+
+/** The rows with these ticket keys (WS-<id>, or their Key). */
+const rowsByKeys = (keys: string[]): number[] => [...keys.flatMap((k) => (/^WS-\d+$/.test(k) ? [Number(k.slice(3))] : [])), ...rowsWhere(KEY_PROP, keys.filter((k) => !/^WS-\d+$/.test(k)))];
 
 /** A Lage suggestion on a row (its ticket key): a move sets its status; a note goes on its page, dated. */
 function rowAction(rowId: number, action: ItemAction): string {
@@ -126,34 +162,17 @@ export const workspaceCollections: CollectionProvider = {
     return itemsOf(d.page.id, d.schema, rawRows(d.page.id));
   },
   byKeys(keys) {
-    const own = keys.flatMap((k) => (/^WS-\d+$/.test(k) ? [`page:${k.slice(3)}`] : []));
-    const others = keys.filter((k) => !/^WS-\d+$/.test(k));
-    tree(); // (the table is made when first needed)
-    const keyed = others.length
-      ? (getSqlite()
-          .prepare(`select id from ws_pages where db_id is not null and archived_at is null and template = 0 and upper(json_extract(props, '$.${KEY_PROP}')) in (${others.map(() => "?").join(", ")})`)
-          .all(...others) as { id: number }[]).map((r) => `page:${r.id}`)
-      : [];
     const wanted = new Set(keys);
-    return workspaceCollections.byRefs([...own, ...keyed]).filter((it) => it.key && wanted.has(it.key));
+    return itemsOfRows(rowsByKeys(keys)).filter((it) => it.key && wanted.has(it.key));
   },
   act(key, action) {
-    const [row] = workspaceCollections.byKeys([key]);
-    return row ? rowAction(Number(row.ref.slice(5)), action) : null;
+    const row = rowsByKeys([key]).find((id) => itemsOfRows([id]).some((it) => it.key === key));
+    return row ? rowAction(row, action) : null;
   },
   byRefs(refs) {
-    const ids = new Set(refs.flatMap((r) => (/^page:\d+$/.test(r) ? [Number(r.slice(5))] : [])));
-    const byDb = new Map<number, number[]>();
-    for (const id of ids) {
-      const p = getPage(id);
-      if (p?.dbId) byDb.set(p.dbId, [...(byDb.get(p.dbId) ?? []), id]);
-    }
-    const out: Item[] = [];
-    for (const [dbId, rowIds] of byDb) {
-      const d = getDatabase(dbId);
-      if (!d) continue;
-      out.push(...itemsOf(dbId, d.schema, rawRows(dbId).filter((r) => rowIds.includes(r.id))));
-    }
-    return out;
+    const pages = refs.flatMap((r) => (/^page:\d+$/.test(r) ? [Number(r.slice(5))] : []));
+    const own = rowsWhere(NOTE_PROP, refs.filter((r) => !/^page:\d+$/.test(r)));
+    const wanted = new Set(refs);
+    return itemsOfRows(new Set([...pages, ...own])).filter((it) => wanted.has(it.ref));
   },
 };
