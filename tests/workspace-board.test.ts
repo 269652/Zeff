@@ -193,3 +193,17 @@ test("detailModules: a database's detail view — set, or by its kind", async ()
   assert.deepEqual(m.toggleDetail(["properties", "page"], "page"), ["properties"]);
   assert.deepEqual(m.moveDetail(["properties", "briefing", "page"], "page", -1), ["properties", "page", "briefing"]);
 });
+
+/** A detail module as a block of a page (/Lage, /Todos …): kept by the document, as Markdown both ways. */
+test("zeffModule block: sanitized, to and from Markdown", async () => {
+  const d = await import("@/plugins/workspace/doc");
+  const doc = d.sanitizeDoc({ type: "doc", content: [{ type: "zeffModule", attrs: { module: "briefing", key: "PROJ-12", evil: "x" } }, { type: "zeffModule", attrs: { module: "nonsense", key: "" } }] });
+  assert.deepEqual(doc.content[0], { type: "zeffModule", attrs: { module: "briefing", key: "PROJ-12" } });
+  assert.equal(doc.content.length, 1, "an unknown module isn't kept");
+  const md = d.docToMarkdown(d.sanitizeDoc({ type: "doc", content: [{ type: "zeffModule", attrs: { module: "todos", key: "" } }, { type: "zeffModule", attrs: { module: "chat", key: "KB-3" } }] }));
+  assert.equal(md.trim(), ":::zeff todos\n\n:::zeff chat KB-3");
+  assert.deepEqual(d.markdownToDoc(md).content, [
+    { type: "zeffModule", attrs: { module: "todos", key: "" } },
+    { type: "zeffModule", attrs: { module: "chat", key: "KB-3" } },
+  ]);
+});

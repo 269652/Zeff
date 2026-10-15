@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { mentionStateAction } from "../actions";
 import { DatabaseBlock } from "./DatabaseView";
+import { ModuleBlock } from "./detail-modules";
+import type { DetailModule } from "../model";
 
 /** The editor's own blocks: a callout, a mention chip (people, pages, todos, tickets), a database view. */
 
@@ -187,5 +189,49 @@ export const DatabaseViewNode = Node.create({
   },
   addNodeView() {
     return ReactNodeViewRenderer(DatabaseBlockView);
+  },
+});
+
+/** A detail module as a block (/Lage, /Todos …): its key in a small field (empty: its page's row's), the module below. */
+function ModuleBlockView({ node, updateAttributes, editor, extension }: NodeViewProps) {
+  const [key, setKey] = useState(String(node.attrs.key ?? ""));
+  return (
+    <NodeViewWrapper className="ws-module-block my-2" contentEditable={false}>
+      {editor.isEditable && (
+        <input
+          value={key}
+          onChange={(e) => setKey(e.target.value)}
+          onBlur={() => updateAttributes({ key: key.trim().toUpperCase() })}
+          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), e.currentTarget.blur())}
+          placeholder="KEY-1"
+          aria-label="Ticket"
+          className="float-right w-24 bg-transparent text-right font-mono text-xs text-zinc-400 outline-none focus:text-zinc-700"
+        />
+      )}
+      <ModuleBlock module={node.attrs.module as DetailModule} ticketKey={String(node.attrs.key ?? "")} pageId={Number((extension.options as { pageId: number }).pageId)} />
+    </NodeViewWrapper>
+  );
+}
+
+/** What Zeff knows about a ticket, as a block of a page — the modules of a row's detail view (doc.ts: zeffModule). */
+export const ZeffModuleNode = Node.create<{ pageId: number }>({
+  name: "zeffModule",
+  group: "block",
+  atom: true,
+  draggable: true,
+  addOptions() {
+    return { pageId: 0 };
+  },
+  addAttributes() {
+    return { module: { default: "briefing" }, key: { default: "" } };
+  },
+  parseHTML() {
+    return [{ tag: "div[data-zeff-module]" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["div", mergeAttributes(HTMLAttributes, { "data-zeff-module": "" })];
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(ModuleBlockView);
   },
 });

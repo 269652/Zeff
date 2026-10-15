@@ -7,7 +7,9 @@ import { ContextList } from "@/components/boards/TodoSources";
 import { TicketChat } from "@/components/boards/TicketChat";
 import { TicketQuestions } from "@/components/boards/TicketQuestions";
 import type { TicketDetail } from "@/lib/items/tickets";
-import { pageContentAction, ticketDetailAction, type DatabaseData } from "../actions";
+import { pageContentAction, ticketBlockAction, ticketDetailAction, type DatabaseData } from "../actions";
+import type { TicketExtras } from "@/lib/items/shared";
+import { WS_CHANGED } from "./ChatPanel";
 import { DETAIL_MODULES, moveDetail, toggleDetail, type DetailModule } from "../model";
 import { CardTodos, extrasOf } from "./card-extras";
 import { RowProperties } from "./DatabaseView";
@@ -32,7 +34,6 @@ const BY_KEY = new Set<DetailModule>(["briefing", "todos", "questions", "actions
 const HEAVY = new Set<DetailModule>(["questions", "actions", "flags", "context", "chat"]);
 
 export function DetailModules({ modules, data, rowId }: { modules: DetailModule[]; data: DatabaseData; rowId: number }) {
-  const t = useT();
   const x = extrasOf(data, rowId);
   const shown = modules.filter((m) => !BY_KEY.has(m) || x.key);
   const [detail, setDetail] = useState<TicketDetail | null>(null);
@@ -48,78 +49,10 @@ export function DetailModules({ modules, data, rowId }: { modules: DetailModule[
     };
   }, [rowId, x.key, wantsDetail, wantsPage]);
 
-  const section = (title: string, body: React.ReactNode) => (
-    <section className="space-y-1.5">
-      <h3 className="label">{title}</h3>
-      {body}
-    </section>
-  );
   const one = (m: DetailModule): React.ReactNode => {
-    switch (m) {
-      case "properties":
-        return <RowProperties initial={data} dbId={data.id} rowId={rowId} />;
-      case "briefing":
-        return x.ticket && (x.ticket.lead || x.ticket.summary || x.ticket.happened.length) ? (
-          <section className="space-y-1.5 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-900">
-            <h3 className="text-xs font-semibold text-zinc-500 uppercase">
-              {t("Briefing")}
-              {x.ticket.attentionLabel ? ` · ${x.ticket.attentionLabel}` : ""}
-            </h3>
-            {x.ticket.lead && <p className="font-medium">{x.ticket.lead}</p>}
-            {x.ticket.summary && <p className="text-zinc-600 dark:text-zinc-400">{x.ticket.summary}</p>}
-            {x.ticket.happened.length > 0 && (
-              <ul className="space-y-0.5 text-xs text-zinc-500">
-                {x.ticket.happened.map((h, i) => (
-                  <li key={i}>
-                    {h.when}
-                    {h.who ? ` · ${h.who}` : ""}: {h.what}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        ) : null;
-      case "todos":
-        return data.extras?.todosOn ? <CardTodos k={x.key!} ticket={x.ticket} open /> : null;
-      case "questions":
-        return detail?.questions.length ? <TicketQuestions questions={detail.questions} /> : null;
-      case "actions":
-        return detail?.actions.length
-          ? section(
-              t("Suggested actions"),
-              <>
-                <ul className="space-y-1 text-sm">
-                  {detail.actions.map((a, i) => (
-                    <li key={i}>
-                      <span className="font-medium">{a.label}</span>
-                      {"why" in a && a.why ? <span className="text-zinc-500"> — {String(a.why)}</span> : null}
-                    </li>
-                  ))}
-                </ul>
-                <p className="text-xs text-zinc-500">{t("Run them in the Todos tab.")}</p>
-              </>,
-            )
-          : null;
-      case "flags":
-        return detail?.flags.length
-          ? section(
-              t("Flags"),
-              <div className="flex flex-wrap gap-1">
-                {detail.flags.map((f) => (
-                  <span key={f} className="rounded bg-amber-50 px-1.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">
-                    ⚑ {f}
-                  </span>
-                ))}
-              </div>,
-            )
-          : null;
-      case "context":
-        return detail?.context.length ? section(t("Context"), <ContextList items={detail.context} />) : null;
-      case "chat":
-        return detail ? <TicketChat key={x.key} ticket={x.key!} initial={detail.chat} /> : null;
-      case "page":
-        return page ? <Editor key={rowId} pageId={rowId} initial={page.content} rev={page.rev} editable={!data.locked} smallText={false} /> : <p className="text-sm text-zinc-400">…</p>;
-    }
+    if (m === "properties") return <RowProperties initial={data} dbId={data.id} rowId={rowId} />;
+    if (m === "page") return page ? <Editor key={rowId} pageId={rowId} initial={page.content} rev={page.rev} editable={!data.locked} smallText={false} /> : <p className="text-sm text-zinc-400">…</p>;
+    return <ModuleBody m={m} k={x.key!} ticket={x.ticket} detail={detail} todosOn={!!data.extras?.todosOn} />;
   };
   return (
     <>
@@ -127,6 +60,110 @@ export function DetailModules({ modules, data, rowId }: { modules: DetailModule[
         <div key={m}>{one(m)}</div>
       ))}
     </>
+  );
+}
+
+/** A key module's body (the same in a row's panel and as a block of a page): what Zeff knows about ticket `k`. Null: nothing to show. */
+export function ModuleBody({ m, k, ticket, detail, todosOn }: { m: DetailModule; k: string; ticket: TicketExtras | null; detail: TicketDetail | null; todosOn: boolean }) {
+  const t = useT();
+  const section = (title: string, body: React.ReactNode) => (
+    <section className="space-y-1.5">
+      <h3 className="label">{title}</h3>
+      {body}
+    </section>
+  );
+  switch (m) {
+    case "briefing":
+      return ticket && (ticket.lead || ticket.summary || ticket.happened.length) ? (
+        <section className="space-y-1.5 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-900">
+          <h3 className="text-xs font-semibold text-zinc-500 uppercase">
+            {t("Briefing")}
+            {ticket.attentionLabel ? ` · ${ticket.attentionLabel}` : ""}
+          </h3>
+          {ticket.lead && <p className="font-medium">{ticket.lead}</p>}
+          {ticket.summary && <p className="text-zinc-600 dark:text-zinc-400">{ticket.summary}</p>}
+          {ticket.happened.length > 0 && (
+            <ul className="space-y-0.5 text-xs text-zinc-500">
+              {ticket.happened.map((h, i) => (
+                <li key={i}>
+                  {h.when}
+                  {h.who ? ` · ${h.who}` : ""}: {h.what}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null;
+    case "todos":
+      return todosOn ? <CardTodos k={k} ticket={ticket} open /> : null;
+    case "questions":
+      return detail?.questions.length ? <TicketQuestions questions={detail.questions} /> : null;
+    case "actions":
+      return detail?.actions.length
+        ? section(
+            t("Suggested actions"),
+            <>
+              <ul className="space-y-1 text-sm">
+                {detail.actions.map((a, i) => (
+                  <li key={i}>
+                    <span className="font-medium">{a.label}</span>
+                    {"why" in a && a.why ? <span className="text-zinc-500"> — {String(a.why)}</span> : null}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-zinc-500">{t("Run them in the Todos tab.")}</p>
+            </>,
+          )
+        : null;
+    case "flags":
+      return detail?.flags.length
+        ? section(
+            t("Flags"),
+            <div className="flex flex-wrap gap-1">
+              {detail.flags.map((f) => (
+                <span key={f} className="rounded bg-amber-50 px-1.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                  ⚑ {f}
+                </span>
+              ))}
+            </div>,
+          )
+        : null;
+    case "context":
+      return detail?.context.length ? section(t("Context"), <ContextList items={detail.context} />) : null;
+    case "chat":
+      return detail ? <TicketChat key={k} ticket={k} initial={detail.chat} /> : null;
+    default:
+      return null;
+  }
+}
+
+/**
+ * A key module as a block of a page (/Lage, /Todos …): what Zeff knows about the ticket `ticketKey` — or, without one, about the
+ * row whose page it's on. It reads its data itself, again on a change elsewhere.
+ */
+export function ModuleBlock({ module, ticketKey, pageId }: { module: DetailModule; ticketKey: string; pageId: number }) {
+  const t = useT();
+  const labels = useModuleLabels();
+  const [data, setData] = useState<{ key: string | null; ticket: TicketExtras | null; detail: TicketDetail | null; todosOn: boolean } | null>(null);
+  useEffect(() => {
+    let live = true;
+    const read = () => void ticketBlockAction(ticketKey, pageId).then((r) => live && r.ok && setData({ key: r.key, ticket: r.ticket, detail: r.detail, todosOn: r.todosOn }));
+    read();
+    window.addEventListener(WS_CHANGED, read);
+    return () => {
+      live = false;
+      window.removeEventListener(WS_CHANGED, read);
+    };
+  }, [ticketKey, pageId]);
+  const body = data?.key ? <ModuleBody m={module} k={data.key} ticket={data.ticket} detail={data.detail} todosOn={data.todosOn} /> : null;
+  return (
+    <div className="ws-module space-y-1 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+      <div className="flex items-center gap-2 text-xs text-zinc-500">
+        <span className="font-semibold uppercase">{labels[module]}</span>
+        {data?.key && <span className="font-mono">{data.key}</span>}
+      </div>
+      {!data ? <p className="text-sm text-zinc-400">…</p> : !data.key ? <p className="text-sm text-zinc-400">{t("No ticket here — give the block a key (e.g. PROJ-12).")}</p> : (body ?? <p className="text-sm text-zinc-400">{t("Nothing yet.")}</p>)}
+    </div>
   );
 }
 

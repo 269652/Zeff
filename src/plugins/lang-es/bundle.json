@@ -5063,5 +5063,8 @@
   "Shown in a row's detail view, in this order": "En la vista de detalle de una fila, en este orden",
   "Up": "Arriba",
   "Down": "Abajo",
-  "Back to the default": "Volver al estándar"
+  "Back to the default": "Volver al estándar",
+  "About this row's ticket — or the key you give the block": "Sobre el ticket de esta fila — o la clave que le des al bloque",
+  "No ticket here — give the block a key (e.g. PROJ-12).": "Aquí no hay ticket — dale una clave al bloque (p. ej. PROJ-12).",
+  "Nothing yet.": "Nada todavía."
 }

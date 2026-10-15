@@ -291,6 +291,20 @@ async function whoAmI(): Promise<{ names: string[]; ids: number[] }> {
 /** The sync that keeps a database (jira …), or null: its own. */
 const collectionSource = (dbId: number): string | null => listCollections({ plugin: "workspace" }).find((x) => x.id === `workspace:${dbId}`)?.source ?? null;
 
+/** What a block of a page shows about a ticket (/Lage, /Todos …): its key (given, else its page's row's), the card's extras and the detail. */
+export async function ticketBlockAction(key: string, pageId?: number) {
+  return run(async () => {
+    let k = String(key ?? "").trim().toUpperCase();
+    if (!k && pageId) {
+      const p = store.getPage(Number(pageId));
+      if (p?.dbId) k = rowKey({ id: p.id, cells: p.props }) ?? "";
+    }
+    if (!k) return { key: null, ticket: null, detail: null, todosOn: isInstalled("todos") };
+    const t = await import("@/lib/items/tickets");
+    return { key: k, ticket: t.ticketExtras([k])[k] ?? null, detail: t.ticketDetail(k), todosOn: isInstalled("todos") };
+  });
+}
+
 /** A ticket's detail beyond its card (questions, suggested actions, flags, context, chat) — fetched when its row's panel opens. */
 export async function ticketDetailAction(key: string) {
   return run(async () => ({ detail: (await import("@/lib/items/tickets")).ticketDetail(String(key)) }));

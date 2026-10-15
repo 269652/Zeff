@@ -5063,5 +5063,8 @@
   "Shown in a row's detail view, in this order": "In der Detailansicht einer Zeile, in dieser Reihenfolge",
   "Up": "Nach oben",
   "Down": "Nach unten",
-  "Back to the default": "Zurück zum Standard"
+  "Back to the default": "Zurück zum Standard",
+  "About this row's ticket — or the key you give the block": "Zum Ticket dieser Zeile — oder zum Key, den du dem Block gibst",
+  "No ticket here — give the block a key (e.g. PROJ-12).": "Hier ist kein Ticket — gib dem Block einen Key (z. B. PROJ-12).",
+  "Nothing yet.": "Noch nichts."
 }

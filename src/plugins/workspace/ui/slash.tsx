@@ -64,6 +64,26 @@ export const slashItems = (t: T): SlashItem[] => [
   { key: "database", title: t("Database"), hint: t("A new table, board or calendar here"), icon: "🗂", group: t("Pages & databases"), keywords: ["database", "table", "board", "kanban", "calendar", "gallery", "new"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.newDatabase()) },
   { key: "linked-db", title: t("Linked database"), hint: t("A view of an existing database"), icon: "🔗", group: t("Pages & databases"), keywords: ["linked", "database", "view", "embed"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.linkDatabase()) },
   { key: "mention", title: t("Mention"), hint: t("A person, page, todo or ticket"), icon: "@", group: t("Zeff"), keywords: ["mention", "person", "page", "todo", "ticket", "link", "@"], run: ({ editor, range }) => chain(editor, range).insertContent("@").run() },
+  // What Zeff knows about a ticket — of the row whose page it is, or the key given in the block: the modules of a detail view.
+  ...(
+    [
+      ["briefing", t("Briefing"), "🧭", ["lage", "briefing", "status", "attention"]],
+      ["todos", t("Todos"), "☑", ["todos", "checklist", "tasks"]],
+      ["questions", t("Questions"), "❓", ["questions", "fragen"]],
+      ["actions", t("Suggested actions"), "⚡", ["actions", "aktionen", "suggestions"]],
+      ["flags", t("Flags"), "⚑", ["flags", "risks", "markierungen"]],
+      ["context", t("Context"), "🔗", ["context", "kontext", "sources"]],
+      ["chat", t("Chat"), "💬", ["chat", "ask", "frag"]],
+    ] as const
+  ).map(([module, title, icon, keywords]): SlashItem => ({
+    key: `module-${module}`,
+    title,
+    hint: t("About this row's ticket — or the key you give the block"),
+    icon,
+    group: t("Zeff"),
+    keywords: [...keywords, "ticket", "zeff"],
+    run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffModule", attrs: { module, key: "" } }).run(),
+  })),
   { key: "date", title: t("Today's date"), hint: t("Insert the date"), icon: "📅", group: t("Zeff"), keywords: ["date", "today", "now"], run: ({ editor, range }) => chain(editor, range).insertContent(today()).run() },
   { key: "ai-continue", title: t("Continue writing"), hint: t("The AI goes on from here"), icon: "✨", group: t("AI"), keywords: ["ai", "continue", "write", "go on"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.ai("continue")) },
   { key: "ai-summarize", title: t("Summarize the page"), hint: t("Key points of what's above"), icon: "✨", group: t("AI"), keywords: ["ai", "summarize", "summary", "tldr"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.ai("summarize")) },

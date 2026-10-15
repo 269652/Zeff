@@ -159,6 +159,8 @@ function block(n: DocNode, ctx: { ordered?: number } = {}): string {
       const line = (r: string[]) => `| ${Array.from({ length: width }, (_, i) => r[i] ?? "").join(" | ")} |`;
       return [line(rows[0]), `| ${Array.from({ length: width }, () => "---").join(" | ")} |`, ...rows.slice(1).map(line)].join("\n");
     }
+    case "zeffModule":
+      return `:::zeff ${String(n.attrs?.module ?? "")}${n.attrs?.key ? ` ${String(n.attrs.key)}` : ""}`;
     case "databaseView":
       return `:::database ${String(n.attrs?.dbId ?? "")}${n.attrs?.title ? ` ${String(n.attrs.title)}` : ""}`;
     case "doc":
@@ -240,6 +242,13 @@ export function markdownToDoc(md: string): Doc {
       }
       if (/^(-{3,}|\*{3,}|_{3,})\s*$/.test(l)) {
         out.push({ type: "horizontalRule" });
+        i++;
+        continue;
+      }
+      // :::zeff briefing [KEY]  - what Zeff knows about a ticket (its row's, or the key's), as a block
+      const zm = /^:::zeff\s+([a-z]+)\s*([A-Za-z][A-Za-z0-9]*-\d+)?\s*$/.exec(l);
+      if (zm && (BLOCK_MODULES as readonly string[]).includes(zm[1])) {
+        out.push({ type: "zeffModule", attrs: { module: zm[1], key: (zm[2] ?? "").toUpperCase() } });
         i++;
         continue;
       }
@@ -361,7 +370,11 @@ const NODE_ATTRS: Record<string, string[]> = {
   callout: ["icon", "tone"],
   zeffRef: ["kind", "ref", "label", "href"],
   databaseView: ["dbId", "viewId", "title"],
+  zeffModule: ["module", "key"],
 };
+
+/** The modules a page can hold as a block (what Zeff knows about a ticket — of its row, or the key given). */
+export const BLOCK_MODULES = ["briefing", "todos", "questions", "actions", "flags", "context", "chat"] as const;
 const MARKS: Record<string, string[]> = { bold: [], italic: [], strike: [], underline: [], code: [], highlight: ["color"], link: ["href", "target"] };
 const MAX_NODES = 40000;
 const MAX_DEPTH = 40;
@@ -401,6 +414,10 @@ export function sanitizeDoc(input: unknown): Doc {
       if (o.type === "zeffRef") {
         const href = attrs.href === undefined ? "" : safeHref(attrs.href);
         if (href === null) delete attrs.href;
+      }
+      if (o.type === "zeffModule") {
+        if (!(BLOCK_MODULES as readonly unknown[]).includes(attrs.module)) return null;
+        attrs.key = String(attrs.key ?? "").trim().toUpperCase().slice(0, 40);
       }
       if (o.type === "heading") attrs.level = Math.min(3, Math.max(1, Number(attrs.level) || 1));
       if (Object.keys(attrs).length) out.attrs = attrs;
