@@ -5,7 +5,7 @@ import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { csvToDatabase, parseCsv } from "./csv";
-import { docText, docToMarkdown, markdownToDoc, type DocRef } from "./doc";
+import { docText, docToMarkdown, markdownToDoc, previewLines, toggleTask, type DocRef, type PreviewLine } from "./doc";
 import { listCollections, setCollection } from "@/lib/items";
 import { ticketExtras } from "@/lib/items/tickets";
 import type { TicketExtras } from "@/lib/items/shared";
@@ -235,7 +235,7 @@ export type DatabaseData = {
   /** What the cards show beyond the cells: each row's ticket key, its subtasks, and — by key — its Lage and todos. */
   /** Locked (a database a sync keeps, as Jira's): shown, not changed here — its cards don't move, its cells aren't edited. */
   locked: boolean;
-  extras: { keys: Record<number, string>; subtasks: Record<number, { done: number; total: number }>; tickets: Record<string, TicketExtras>; todosOn: boolean; briefing: boolean; knowledge: boolean; me: { names: string[]; ids: number[] }; source: string | null };
+  extras: { keys: Record<number, string>; subtasks: Record<number, { done: number; total: number }>; tickets: Record<string, TicketExtras>; todosOn: boolean; briefing: boolean; knowledge: boolean; me: { names: string[]; ids: number[] }; source: string | null; previews: Record<number, PreviewLine[]> };
 };
 
 export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: DatabaseData }>> {
@@ -269,7 +269,7 @@ export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: D
       const attention = typeof att === "string" && isAttention(att) ? att : (cur?.attention ?? null);
       tickets[k] = { attention, attentionLabel: attention && isAttention(attention) ? attentionLabels(t)[attention] : null, lead: typeof lead === "string" ? lead : (cur?.lead ?? null), summary: typeof r.cells[LAGE_FIELDS.summary] === "string" ? String(r.cells[LAGE_FIELDS.summary]) : (cur?.summary ?? null), happened: cur?.happened ?? [], todos: cur?.todos ?? [] };
     }
-    const extras: DatabaseData["extras"] = { keys, subtasks: subtaskCounts(d.schema, d.rows, page.id), tickets, todosOn: isInstalled("todos"), ...collectionSwitches(page.id), me: await whoAmI(), source: collectionSource(page.id) };
+    const extras: DatabaseData["extras"] = { keys, subtasks: subtaskCounts(d.schema, d.rows, page.id), tickets, todosOn: isInstalled("todos"), ...collectionSwitches(page.id), me: await whoAmI(), source: collectionSource(page.id), previews: Object.fromEntries(d.rows.map((r) => [r.id, previewLines(store.getPage(r.id)?.content, 10)])) };
     return { data: { id: page.id, title: page.title, icon: page.icon, locked: page.locked, schema: d.schema, rows: d.rows, labels, templates: store.rowTemplates(page.id).map((r) => ({ id: r.id, title: r.title || t("Untitled") })), related, extras } };
   });
 }
@@ -351,6 +351,16 @@ function collectionSwitches(dbId: number): { briefing: boolean; knowledge: boole
 export async function setCollectionAction(dbId: number, patch: { briefing?: boolean; knowledge?: boolean }) {
   return run(() => {
     setCollection(`workspace:${Number(dbId)}`, { ...(patch.briefing !== undefined ? { briefing: !!patch.briefing } : {}), ...(patch.knowledge !== undefined ? { knowledge: !!patch.knowledge } : {}) });
+    return {};
+  });
+}
+
+/** A note's checklist item ticked (or not) on its card: its page changes. */
+export async function toggleTaskAction(rowId: number, index: number, checked: boolean) {
+  return run(() => {
+    const p = store.getPage(Number(rowId));
+    if (!p) throw new Error(t("This page is gone."));
+    store.updatePage(p.id, { content: toggleTask(p.content, Number(index), !!checked) });
     return {};
   });
 }

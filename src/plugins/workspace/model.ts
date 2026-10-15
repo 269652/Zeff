@@ -685,6 +685,12 @@ export const filterByPeople = (rows: Row[], p: Property, keys: Set<string>): Row
 export const mineKeys = (p: Property, me: { names: string[]; ids: number[] }): Set<string> =>
   new Set(p.type === "person" ? me.ids.map(String) : me.names.map((n) => n.trim().toLowerCase()).filter(Boolean));
 
+/** The pinned rows (a note's pin: the property `pinned`) apart from the others — Keep's "Pinned" and "Others". */
+export function splitPinned(rows: Row[]): { pinned: Row[]; others: Row[] } {
+  const pinned = rows.filter((r) => r.cells.pinned === true);
+  return { pinned, others: rows.filter((r) => r.cells.pinned !== true) };
+}
+
 /** A due date's alarm on a card (as Kanban's ⏰): past it "overdue", on the day "today" — none once the row is done. `today`: YYYY-MM-DD. */
 export function dueTone(v: unknown, today: string, done: boolean): "overdue" | "today" | null {
   const r = done ? null : dateRange(v);

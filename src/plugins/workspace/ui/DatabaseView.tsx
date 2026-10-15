@@ -10,6 +10,7 @@ import { cellText, columnOrder, dateRange, detailModules, dropValue, filterByPeo
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
 import { RowPeek } from "./RowPeek";
+import { GalleryView } from "./gallery";
 import { DetailEditor } from "./detail-modules";
 import { FilterEditor, PropertiesMenu, SchemaModal, SortEditor } from "./db-menus";
 import { Dropdown, MenuItem, useSortable } from "./kit";
@@ -500,7 +501,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
       {view.type === "table" && <TableView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />}
       {view.type === "board" && <BoardView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} newRow={newRow} />}
       {view.type === "list" && <ListView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} />}
-      {view.type === "gallery" && <GalleryView rows={rows} visible={visible} ctx={ctx} openRow={openRow} />}
+      {view.type === "gallery" && <GalleryView rows={rows} visible={visible} ctx={ctx} openRow={openRow} add={(cells, title) => api.addRow(cells, title)} locked={!!data.locked} />}
       {view.type === "calendar" && <CalendarView view={view} rows={rows} schema={schema} api={api} openRow={openRow} newRow={newRow} />}
       <p className="text-xs text-zinc-500">{rows.length === data.rows.length ? (rows.length === 1 ? t("1 row") : t("{n} rows", { n: rows.length })) : t("{n} of {total} rows", { n: rows.length, total: data.rows.length })}</p>
 
@@ -1020,20 +1021,6 @@ function ListView({ view, rows, visible, schema, ctx, api, labels, openRow }: Vi
           </ul>
         </div>
       ))}
-    </div>
-  );
-}
-
-function GalleryView({ rows, visible, ctx, openRow }: { rows: Row[]; visible: Property[]; ctx: CellCtx; openRow: (id: number) => void }) {
-  const t = useT();
-  return (
-    <div className="ws-gallery">
-      {rows.map((r) => (
-        <div key={r.id} className="ws-card cursor-pointer" role="button" tabIndex={0} onClick={() => openRow(r.id)} onKeyDown={(e) => e.key === "Enter" && openRow(r.id)}>
-          <RowCard row={r} visible={visible} ctx={ctx} mode="gallery" />
-        </div>
-      ))}
-      {!rows.length && <p className="text-sm text-zinc-500">{t("Nothing here yet.")}</p>}
     </div>
   );
 }

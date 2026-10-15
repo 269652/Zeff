@@ -766,3 +766,27 @@
 
 /* A column dragged by its head lands in front of this one. */
 .ws-column-drop-before { box-shadow: -4px 0 0 0 var(--color-indigo-500, #6366f1); }
+
+/* The gallery as Keep's notes: columns of cards, each its own height. */
+.ws-masonry { columns: 15.5rem; column-gap: 0.85rem; }
+.ws-masonry > .ws-card { break-inside: avoid; margin-bottom: 0.85rem; }
+/* A note's colour (its "color" property), softened like Keep's. */
+.ws-note[data-color="red"] { background: color-mix(in oklab, var(--color-red-100, #fee2e2) 70%, white); }
+.ws-note[data-color="orange"] { background: color-mix(in oklab, var(--color-orange-100, #ffedd5) 70%, white); }
+.ws-note[data-color="yellow"] { background: color-mix(in oklab, var(--color-yellow-100, #fef9c3) 70%, white); }
+.ws-note[data-color="green"] { background: color-mix(in oklab, var(--color-green-100, #dcfce7) 70%, white); }
+.ws-note[data-color="blue"] { background: color-mix(in oklab, var(--color-sky-100, #e0f2fe) 70%, white); }
+.ws-note[data-color="purple"] { background: color-mix(in oklab, var(--color-purple-100, #f3e8ff) 70%, white); }
+.ws-note[data-color="pink"] { background: color-mix(in oklab, var(--color-pink-100, #fce7f3) 70%, white); }
+.ws-note[data-color="brown"] { background: color-mix(in oklab, var(--color-amber-100, #fef3c7) 70%, white); }
+.ws-note[data-color="gray"] { background: var(--color-zinc-100, #f4f4f5); }
+@media (prefers-color-scheme: dark) {
+  .ws-note[data-color] { background: color-mix(in oklab, var(--color-zinc-900, #18181b) 85%, transparent); }
+  .ws-note[data-color="red"] { border-color: var(--color-red-900, #7f1d1d); }
+  .ws-note[data-color="orange"] { border-color: var(--color-orange-900, #7c2d12); }
+  .ws-note[data-color="yellow"] { border-color: var(--color-yellow-900, #713f12); }
+  .ws-note[data-color="green"] { border-color: var(--color-green-900, #14532d); }
+  .ws-note[data-color="blue"] { border-color: var(--color-sky-900, #0c4a6e); }
+  .ws-note[data-color="purple"] { border-color: var(--color-purple-900, #581c87); }
+  .ws-note[data-color="pink"] { border-color: var(--color-pink-900, #831843); }
+}

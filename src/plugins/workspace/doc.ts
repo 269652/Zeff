@@ -467,3 +467,45 @@ export function sanitizeDoc(input: unknown): Doc {
   if (!d || d.type !== "doc" || !d.content?.length) return emptyDoc();
   return d as Doc;
 }
+
+/** A line of a card's preview (a note in the gallery): a line of text, or a checklist item with its place among them. */
+export type PreviewLine = { kind: "text"; text: string } | { kind: "task"; text: string; checked: boolean; index: number };
+
+/** A page as a card shows it, as Keep does a note: its lines of text and its checklist items (to tick in place) — at most `max`. */
+export function previewLines(doc: DocNode | null | undefined, max = 12): PreviewLine[] {
+  const out: PreviewLine[] = [];
+  let task = 0;
+  const walk = (nodes: DocNode[]) => {
+    for (const n of nodes) {
+      if (out.length >= max) return;
+      if (n.type === "taskList") {
+        for (const item of n.content ?? []) {
+          const text = docText(item).trim();
+          if (out.length < max) out.push({ kind: "task", text, checked: !!item.attrs?.checked, index: task });
+          task++;
+        }
+      } else if (n.type === "bulletList" || n.type === "orderedList") {
+        for (const item of n.content ?? []) if (out.length < max) out.push({ kind: "text", text: `• ${docText(item).trim()}` });
+      } else if (n.type === "aiBlock" || n.type === "zeffModule" || n.type === "databaseView" || n.type === "image") {
+        continue;
+      } else if (n.type === "details" || n.type === "blockquote" || n.type === "callout") {
+        walk(n.content ?? []);
+      } else {
+        const text = docText(n).trim();
+        if (text) out.push({ kind: "text", text });
+      }
+    }
+  };
+  walk(doc?.content ?? []);
+  return out;
+}
+
+/** The page with its `index`-th checklist item ticked or not (no such item: as it was). */
+export function toggleTask(doc: Doc, index: number, checked: boolean): Doc {
+  let task = 0;
+  const walk = (n: DocNode): DocNode => {
+    if (n.type === "taskItem") return task++ === index ? { ...n, attrs: { ...n.attrs, checked } } : n;
+    return n.content ? { ...n, content: n.content.map(walk) } : n;
+  };
+  return walk(doc) as Doc;
+}
