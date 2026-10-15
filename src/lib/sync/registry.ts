@@ -157,6 +157,10 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
         ? ` ${t("{n} board(s) couldn't be read to the end — nothing deactivated, next sync tries again.", { n: r.unreadBoards })}`
         : "";
       const done = t("{total} tickets — {mine} yours ({inserted} new, {updated} updated).", { total: r.total, mine: r.mine, inserted: r.inserted, updated: r.updated });
+      // The Jira boards' databases in the Workspace (Jira as a data source) follow at once.
+      const { isInstalled } = await import("@/plugins/state");
+      if (isInstalled("jira-lage") && isInstalled("workspace"))
+        await (await import("@/plugins/jira-lage/to-workspace")).syncJiraBoardDatabases().catch((e) => console.error("[jira] keeping the boards' databases failed", e));
       return { ok: !unread, message: `${done}${unread}` };
     },
     last: () => recordedOr("jira", jiraTickets.syncedAt),
@@ -340,7 +344,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
   boardlage: {
     get label() { return t("Board briefing"); },
     href: "/kanban",
-    get what() { return t("The briefing on every relevant ticket on your Jira boards (not only yours) — for the Kanban cards (by hand, from a Jira board; only what changed)"); },
+    get what() { return t("The briefing on every relevant card of your boards — the Jira boards' tickets (not only yours) and your own boards' cards — shown on the cards (only what changed)"); },
     run: async () => {
       const r = await (await import("@/plugins/jira-lage/board-lage")).runBoardLage();
       return r.ok
@@ -356,7 +360,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
         : { ok: false, message: r.error ?? t("Failed.") };
     },
     busy: () => flag("__zeffBoardLage"),
-    schedule: () => ({ everyMinutes: 0, lastAt: recorded("boardlage").lastAt, window: t("by hand, from a Jira board") }),
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("boardlage").lastAt, window: t("workdays, with the briefing"), workdays: true }),
   },
   relations: {
     get label() { return t("Mail matching"); },

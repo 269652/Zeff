@@ -5056,5 +5056,6 @@
   "Written — Ctrl+Z undoes it.": "Geschrieben — Strg+Z macht es rückgängig.",
   "No status “{name}” — there are: {statuses}.": "Kein Status „{name}“ — es gibt: {statuses}.",
   "That doesn't work on a row (no assignment).": "Das geht bei einer Zeile nicht (keine Zuweisung).",
-  "New card": "Neue Karte"
+  "New card": "Neue Karte",
+  "The briefing on every relevant card of your boards — the Jira boards' tickets (not only yours) and your own boards' cards — shown on the cards (only what changed)": "Die Lage zu jeder relevanten Karte deiner Boards — die Tickets der Jira-Boards (nicht nur deine) und die Karten deiner eigenen Boards — auf den Karten gezeigt (nur was sich geändert hat)"
 }

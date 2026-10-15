@@ -203,7 +203,8 @@ export function PageView({ page, row, database }: { page: PageViewData; row?: { 
   };
 
   const editable = !locked;
-  const width = fullWidth ? "max-w-none" : "max-w-3xl";
+  // A database uses the whole width (a board in a narrow column wastes the screen); a page as you set it.
+  const width = fullWidth || page.kind === "database" ? "max-w-none" : "max-w-3xl";
 
   return (
     <div className="space-y-3">

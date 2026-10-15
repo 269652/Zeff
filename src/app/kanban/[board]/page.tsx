@@ -60,6 +60,13 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
     if (isInstalled("people")) known = [...(await import("@/plugins/people/store")).listPeople().map((p) => p.name), ...known];
     return <OwnBoard board={view} lage={await cardLage(view)} todosOn={isInstalled("todos")} otherBoards={others} knownPeople={[...new Set(known)]} />;
   }
+  // A Jira board is a Workspace database now (Jira as a data source): made at the first visit, then there.
+  if (/^jira-/.test(board) && isInstalled("jira-lage") && isInstalled("workspace")) {
+    const j = await import("@/plugins/jira-lage/to-workspace");
+    if (!j.jiraBoardHref(board)) await j.syncJiraBoardDatabases();
+    const href = j.jiraBoardHref(board);
+    if (href) redirect(href);
+  }
   const rich = await providerBoard(board);
   if (!rich) notFound();
   return <RichBoardView board={rich} />;

@@ -40,7 +40,9 @@ export default async function KanbanPage() {
     // The boards in the Workspace (moved Kanban boards among them).
     ...(await import("@/plugins/kanban/to-workspace")).workspaceBoards(),
   ];
-  const others = await providerBoards();
+  // Jira's boards: their Workspace databases once the sync keeps them (Jira as a data source).
+  const jira = isInstalled("jira-lage") && isInstalled("workspace") ? await import("@/plugins/jira-lage/to-workspace") : null;
+  const others = (await providerBoards()).map((b) => ({ ...b, href: jira?.jiraBoardHref(b.id) ?? b.href }));
   return (
     <div className="page">
       <div className="page-aside">

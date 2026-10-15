@@ -5056,5 +5056,6 @@
   "Written — Ctrl+Z undoes it.": "Escrito — Ctrl+Z lo deshace.",
   "No status “{name}” — there are: {statuses}.": "No hay estado «{name}»; hay: {statuses}.",
   "That doesn't work on a row (no assignment).": "Eso no funciona en una fila (sin asignación).",
-  "New card": "Nueva tarjeta"
+  "New card": "Nueva tarjeta",
+  "The briefing on every relevant card of your boards — the Jira boards' tickets (not only yours) and your own boards' cards — shown on the cards (only what changed)": "La situación de cada tarjeta relevante de tus tableros — los tickets de los tableros de Jira (no solo los tuyos) y las tarjetas de tus propios tableros — mostrada en las tarjetas (solo lo que cambió)"
 }
