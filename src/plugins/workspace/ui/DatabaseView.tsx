@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
@@ -8,6 +8,7 @@ import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, e
 import { cellText, columnOrder, dateRange, dropValue, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
+import { RowPeek } from "./RowPeek";
 import { FilterEditor, PropertiesMenu, SchemaModal, SortEditor } from "./db-menus";
 import { Dropdown, MenuItem, useSortable } from "./kit";
 
@@ -188,6 +189,9 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const [q, setQ] = useState("");
   const [schemaOpen, setSchemaOpen] = useState(false);
   const [justAdded, setJustAdded] = useState<number | null>(null);
+  // A row opens over the database (?row=<id> — a link to it opens it again); the full page is a click further.
+  const search = useSearchParams();
+  const [peek, setPeek] = useState<number | null>(() => Number(search.get("row")) || null);
   const [databases, setDatabases] = useState<{ id: number; title: string }[]>([]);
   useEffect(() => {
     if (schemaOpen) void databasesAction().then((r) => r.ok && setDatabases(r.databases.map((d) => ({ id: d.id, title: d.title }))));
@@ -215,7 +219,21 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const schema = data.schema;
   const ctx: CellCtx = { data, set: api.set, addOption: api.addOption, editable: true };
   void embedded;
-  const openRow = (id: number) => router.push(`/workspace/${id}`);
+  const withRow = (id: number | null) => {
+    const u = new URL(window.location.href);
+    if (id) u.searchParams.set("row", String(id));
+    else u.searchParams.delete("row");
+    window.history.replaceState(null, "", u);
+  };
+  const openRow = (id: number) => {
+    setPeek(id);
+    withRow(id);
+  };
+  const closePeek = () => {
+    setPeek(null);
+    withRow(null);
+    void api.reload();
+  };
   const setView = (v: View) => api.changeSchema((s) => ({ ...s, views: s.views.map((x) => (x.id === v.id ? v : x)) }));
   const pick = (id: string) => {
     setCurrent(id);
@@ -392,6 +410,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
       <p className="text-xs text-zinc-500">{rows.length === data.rows.length ? (rows.length === 1 ? t("1 row") : t("{n} rows", { n: rows.length })) : t("{n} of {total} rows", { n: rows.length, total: data.rows.length })}</p>
 
       {schemaOpen && <SchemaModal schema={schema} data={data} dbId={dbId} databases={databases} onSave={api.saveSchema} onClose={() => setSchemaOpen(false)} />}
+      {peek !== null && data.rows.some((r) => r.id === peek) && <RowPeek key={peek} data={data} rowId={peek} onClose={closePeek} />}
     </div>
   );
 }

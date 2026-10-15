@@ -47,9 +47,9 @@ export function SubtaskBadge({ s }: { s: { done: number; total: number } | null 
 }
 
 /** The card's todos: "▸ ☑ done/all" (or "+ Todo"), opened in place — tick, and add one with Enter. */
-export function CardTodos({ k, ticket }: { k: string; ticket: TicketExtras | null }) {
+export function CardTodos({ k, ticket, open: initiallyOpen = false }: { k: string; ticket: TicketExtras | null; open?: boolean }) {
   const t = useT();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyOpen);
   const [text, setText] = useState("");
   const [pending, start] = useTransition();
   const list = ticket?.todos ?? [];
