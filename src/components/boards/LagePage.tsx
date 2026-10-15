@@ -1,3 +1,4 @@
+import { liveIdle } from "@/lib/work/live-driver";
 import { isInstalled, stepAvailable } from "@/plugins/state";
 import { getContextPrefs } from "@/lib/boards/context-prefs";
 import { PRESYNC_ORDER } from "@/lib/boards/context-prefs-shared";
@@ -61,7 +62,8 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
   const keys = shown?.tickets.map((t) => t.key) ?? [];
   // With the todos on no ticket (from mails: a training, a form …).
   const todos = boardTodos([...keys, ""]);
-  const busy = runsByStatus(["queued", "running"]).map((r) => r.todoId);
+  // (A live session waiting for you after its turn is idle: its todo is not "being worked on" - tick it off without stopping the session.)
+  const busy = runsByStatus(["queued", "running"]).filter((r) => !liveIdle(r.id)).map((r) => r.todoId);
   // The done ones whole only on their tab — the others count them (and their tickets for the cards).
   const doneSummary = doneTodoTickets();
   const done = tab === "done" ? doneTodos() : [];

@@ -20,12 +20,20 @@ export function normalizeResult(raw: unknown): WorkResult | null {
   const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
   const list = (v: unknown) => (Array.isArray(v) ? v.map((x) => str(x, 500)).filter(Boolean).slice(0, 50) : undefined);
   if (typeof o.summary !== "string" && typeof o.outcome !== "string") return null;
+  // Operations at the top level (a worker that wrote `ops` beside the report, as if they ran on their own) never run by
+  // themselves: they become a follow-up todo that carries them, to run with one click.
+  // (A jira-assign on the ticket a jira-create comes from would assign the source, not the new one - dropped, the text says who.)
+  const topAll = Array.isArray(o.ops) ? (o.ops.filter((x) => x && typeof x === "object") as Record<string, unknown>[]) : [];
+  const created = new Set(topAll.filter((x) => x.type === "jira-create").map((x) => String(x.ticket ?? "").toUpperCase()));
+  const topOps = topAll.filter((x) => !(x.type === "jira-assign" && created.has(String(x.ticket ?? "").toUpperCase())));
+  const assignee = topAll.find((x) => x.type === "jira-assign" && created.has(String(x.ticket ?? "").toUpperCase()))?.assignee;
+  const followUps = o.followUps;
   return {
-    outcome: o.outcome === "done" || o.outcome === "blocked" ? o.outcome : "partial",
+    outcome: o.outcome === "done" || o.outcome === "success" ? "done" : o.outcome === "blocked" ? "blocked" : "partial",
     summary: str(o.summary, 20000),
     entry: str(o.entry, 200),
     completedTodos: Array.isArray(o.completedTodos) ? o.completedTodos.map(Number).filter((n) => Number.isInteger(n) && n > 0) : [],
-    followUps: (Array.isArray(o.followUps) ? o.followUps : []).flatMap((f): WorkFollowUp[] => {
+    followUps: [...(Array.isArray(followUps) ? followUps : []), ...(topOps.length ? [{ kind: "other", text: (str(o.entry, 200) || "Run the operations the worker prepared") + (typeof assignee === "string" && assignee ? ` (→ ${assignee})` : ""), ops: topOps }] : [])].flatMap((f): WorkFollowUp[] => {
       const x = (f ?? {}) as Record<string, unknown>;
       const text = str(x.text, 500);
       if (!text) return [];
