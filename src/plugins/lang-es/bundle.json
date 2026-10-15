@@ -5066,5 +5066,11 @@
   "Back to the default": "Volver al estándar",
   "About this row's ticket — or the key you give the block": "Sobre el ticket de esta fila — o la clave que le des al bloque",
   "No ticket here — give the block a key (e.g. PROJ-12).": "Aquí no hay ticket — dale una clave al bloque (p. ej. PROJ-12).",
-  "Nothing yet.": "Nada todavía."
+  "Nothing yet.": "Nada todavía.",
+  "Choices, comma separated (empty: free text)": "Opciones, separadas por comas (vacío: texto libre)",
+  "Choices": "Opciones",
+  "AI review (with the briefing)": "Revisión IA (con la situación)",
+  "The AI reads the rows that changed …": "La IA lee las filas que cambiaron …",
+  "{n} rows filled, {m} unchanged": "{n} filas completadas, {m} sin cambios",
+  "Review now": "Revisar ahora"
 }

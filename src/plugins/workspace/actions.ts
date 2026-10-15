@@ -305,6 +305,16 @@ export async function ticketBlockAction(key: string, pageId?: number) {
   });
 }
 
+/** The AI review of a database now (its AI properties for the rows that changed; `force`: all rows). */
+export async function reviewDatabaseAction(dbId: number, force = false) {
+  return run(async () => {
+    if (!isInstalled("llm")) throw new Error(t("The LLM plugin is needed for this (Menu → Plugins)."));
+    const r = await (await import("./review")).reviewDatabase(Number(dbId), { force: !!force });
+    if (!r.ok) throw new Error(r.error ?? t("Failed."));
+    return { reviewed: r.reviewed, unchanged: r.unchanged };
+  });
+}
+
 /** A ticket's detail beyond its card (questions, suggested actions, flags, context, chat) — fetched when its row's panel opens. */
 export async function ticketDetailAction(key: string) {
   return run(async () => ({ detail: (await import("@/lib/items/tickets")).ticketDetail(String(key)) }));

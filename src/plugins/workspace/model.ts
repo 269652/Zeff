@@ -49,6 +49,8 @@ export type Property = {
   formula?: string;
   /** AI: the instruction the AI fills the cell by, from the row's other cells. */
   aiPrompt?: string;
+  /** AI: the values it may take (one of them — "blocked", "active" …); none: free text. */
+  aiChoices?: string[];
   format?: "number" | "percent" | "euro" | "dollar" | "hours";
   includeTime?: boolean;
 };
@@ -89,6 +91,8 @@ export type DbSchema = {
   personProp?: string;
   /** What a row's detail view (the panel over the database) shows, in order; unset: what fits the database (detailModules). */
   detail?: DetailModule[];
+  /** The AI review: its AI properties filled by a run of their own (scheduled, the changed rows only) — see review.ts. */
+  review?: { on: boolean };
 };
 
 /** The modules a row's detail view can show: its properties and page, and — by its ticket key — what Zeff knows about it. */
@@ -173,7 +177,7 @@ export function normalizeSchema(raw: unknown): DbSchema {
   const o = (raw && typeof raw === "object" ? raw : {}) as Partial<DbSchema>;
   const props = (Array.isArray(o.properties) ? o.properties : []).filter((p): p is Property => !!p && typeof p.id === "string" && (PROP_TYPES as readonly string[]).includes(p.type));
   const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [] }));
-  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}) };
+  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: { on: !!(o.review as { on?: unknown }).on } } : {}) };
 }
 
 export const propById = (props: Property[], id: string): Property | undefined => props.find((p) => p.id === id);

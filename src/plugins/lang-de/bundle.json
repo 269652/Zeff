@@ -5066,5 +5066,11 @@
   "Back to the default": "Zurück zum Standard",
   "About this row's ticket — or the key you give the block": "Zum Ticket dieser Zeile — oder zum Key, den du dem Block gibst",
   "No ticket here — give the block a key (e.g. PROJ-12).": "Hier ist kein Ticket — gib dem Block einen Key (z. B. PROJ-12).",
-  "Nothing yet.": "Noch nichts."
+  "Nothing yet.": "Noch nichts.",
+  "Choices, comma separated (empty: free text)": "Auswahl, mit Komma getrennt (leer: freier Text)",
+  "Choices": "Auswahl",
+  "AI review (with the briefing)": "KI-Prüfung (mit der Lage)",
+  "The AI reads the rows that changed …": "Die KI liest die geänderten Zeilen …",
+  "{n} rows filled, {m} unchanged": "{n} Zeilen gefüllt, {m} unverändert",
+  "Review now": "Jetzt prüfen"
 }

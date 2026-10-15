@@ -347,6 +347,9 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
     get what() { return t("The briefing on every relevant card of your boards — the Jira boards' tickets (not only yours) and your own boards' cards — shown on the cards (only what changed)"); },
     run: async () => {
       const r = await (await import("@/plugins/jira-lage/board-lage")).runBoardLage();
+      // The Workspace databases with an AI review: their AI properties for the rows that changed — the same step.
+      const { isInstalled } = await import("@/plugins/state");
+      if (isInstalled("workspace") && isInstalled("llm")) await (await import("@/plugins/workspace/review")).reviewDatabases().catch((e) => console.error("[workspace] the AI review failed", e));
       return r.ok
         ? {
             ok: true,

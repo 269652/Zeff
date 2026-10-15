@@ -329,6 +329,18 @@ function PropertyEditor({ p, schema, data, dbId, onChange, onRemove, databases, 
             </label>
           )}
           {p.type === "ai" && <textarea className="input w-full text-sm" rows={2} value={p.aiPrompt ?? ""} placeholder={t("What should the AI fill in? (e.g. “A one-line summary of the page”)")} onChange={(e) => onChange({ ...p, aiPrompt: e.target.value })} aria-label={t("Instruction")} />}
+          {p.type === "ai" && (
+            <input
+              className="input w-full text-sm"
+              defaultValue={(p.aiChoices ?? []).join(", ")}
+              placeholder={t("Choices, comma separated (empty: free text)")}
+              onBlur={(e) => {
+                const choices = [...new Set(e.target.value.split(",").map((c) => c.trim()).filter(Boolean))];
+                onChange({ ...p, aiChoices: choices.length ? choices : undefined });
+              }}
+              aria-label={t("Choices")}
+            />
+          )}
           {p.type === "formula" && (
             <div className="space-y-1">
               <textarea className="input w-full font-mono text-xs" rows={3} value={p.formula ?? ""} placeholder={'prop("Hours") * 80'} onChange={(e) => onChange({ ...p, formula: e.target.value })} aria-label={t("Formula")} />

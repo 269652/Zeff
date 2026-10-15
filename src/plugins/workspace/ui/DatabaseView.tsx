@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, placeRowAction, setCellAction, setCollectionAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, placeRowAction, reviewDatabaseAction, setCellAction, setCollectionAction, updateSchemaAction, type DatabaseData } from "../actions";
 import { cellText, columnOrder, dateRange, detailModules, dropValue, filterByPeople, mineKeys, moveOption, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
@@ -378,6 +378,22 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
             <>
               <MenuItem onClick={() => (close(), setSchemaOpen(true))}>⚙ {t("Edit properties …")}</MenuItem>
               <MenuItem onClick={() => (close(), setDetailOpen(true))}>▤ {t("Detail view …")}</MenuItem>
+              {schema.properties.some((p) => p.type === "ai") && (
+                <>
+                  <MenuItem checked={!!schema.review?.on} onClick={() => (close(), api.changeSchema((s) => ({ ...s, review: { on: !s.review?.on } })))}>
+                    {t("AI review (with the briefing)")}
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => {
+                      close();
+                      toast(t("The AI reads the rows that changed …"));
+                      void reviewDatabaseAction(dbId).then((r) => (r.ok ? toast(t("{n} rows filled, {m} unchanged", { n: r.reviewed, m: r.unchanged }), { tone: "ok" }) : toast(r.error, { tone: "error" })));
+                    }}
+                  >
+                    ✨ {t("Review now")}
+                  </MenuItem>
+                </>
+              )}
               {/* As Kanban's and Keep's boards: its rows go into the briefing (cards: tickets, notes: notes) and the knowledge. */}
               <MenuItem checked={!!data.extras?.briefing} onClick={() => (close(), void switchCollection({ briefing: !data.extras?.briefing }))}>
                 {t("In the briefing")}
