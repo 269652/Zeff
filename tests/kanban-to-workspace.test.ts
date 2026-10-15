@@ -171,3 +171,21 @@ test("workspaceBoards: the Workspace's boards as Kanban's overview lists them", 
   setInstalled("workspace", false);
   assert.deepEqual(workspaceBoards(), [], "without the Workspace: none");
 });
+
+/** Once the boards have moved, a board made in Kanban is made in the Workspace too. */
+test("boardCreated: after the move a new Kanban board goes straight into the Workspace", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["kanban", "workspace"]) setInstalled(id, true);
+  const { setPref } = await import("@/lib/prefs");
+  const s = await import("@/plugins/kanban/store");
+  const { boardCreated, movedHref } = await import("@/plugins/kanban/to-workspace");
+  setPref("kanban.movedToWorkspace", false);
+  const before = s.createBoard({ name: "Vorher" });
+  boardCreated(before);
+  assert.equal(movedHref(before), null, "not moved yet: stays a Kanban board");
+
+  setPref("kanban.movedToWorkspace", true);
+  const after = s.createBoard({ name: "Nachher" });
+  boardCreated(after);
+  assert.match(movedHref(after) ?? "", /^\/workspace\/\d+$/);
+});

@@ -6,6 +6,7 @@ import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { isPriority } from "./shared";
 import * as store from "./store";
+import { boardCreated } from "./to-workspace";
 
 /** Kanban's server actions: boards, columns, cards — each answers { ok, error?, message? } (and an id where one is made). */
 
@@ -24,8 +25,8 @@ async function act(fn: () => unknown, message?: string): Promise<Result> {
 
 export async function createBoardAction(v: { name: string; description?: string; color?: string; columns?: string }): Promise<Result> {
   return act(
-    () =>
-      store.createBoard({
+    () => {
+      const id = store.createBoard({
         name: String(v.name ?? ""),
         description: String(v.description ?? ""),
         color: String(v.color ?? ""),
@@ -33,7 +34,11 @@ export async function createBoardAction(v: { name: string; description?: string;
           .split(/[,\n]/)
           .map((c) => c.trim())
           .filter(Boolean),
-      }),
+      });
+      // Once the boards have moved: into the Workspace too (its page here leads there).
+      boardCreated(id);
+      return id;
+    },
     t("Board created."),
   );
 }

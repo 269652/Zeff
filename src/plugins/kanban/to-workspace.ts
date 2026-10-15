@@ -152,3 +152,8 @@ export async function moveAllBoardsOnce(): Promise<{ moved: number; failed: numb
   if (!failed) setPref(MOVED_ALL, true);
   return { moved: boards.length - failed, failed, backup };
 }
+
+/** A board was made in Kanban: once the boards have moved (and the Workspace is there), it goes into the Workspace too. */
+export function boardCreated(boardId: number): void {
+  if (getPref<boolean>(MOVED_ALL, false) && isInstalled("workspace")) moveBoardToWorkspace(boardId);
+}
