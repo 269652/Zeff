@@ -144,7 +144,7 @@ test("movedHref: an old board or card link leads to its database or row", async 
   assert.equal(movedHref(b), null, "not moved yet: Kanban's page");
   const { dbId } = moveBoardToWorkspace(b);
   assert.equal(movedHref(b), `/workspace/${dbId}`);
-  assert.equal(movedHref(b, String(card.id)), `/workspace/${movedCard(card.id)}`);
+  assert.equal(movedHref(b, String(card.id)), `/workspace/${dbId}?row=${movedCard(card.id)}`, "a card: open over its board");
   assert.equal(movedHref(b, "999999"), `/workspace/${dbId}`, "a card that isn't known: the database");
   assert.equal(movedHref(stays), null);
 });

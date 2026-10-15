@@ -39,12 +39,12 @@ export function movedBoard(boardId: number): number | null {
 
 /** A Kanban time (SQLite's "2026-09-01 08:00:00", UTC) as the Workspace keeps it (ISO). */
 const iso = (t: string) => new Date(t.includes("T") ? t : `${t.replace(" ", "T")}Z`).toISOString();
-/** Where an old link to a moved board (or one of its cards, `card`) leads now: its database (or the card's row); null: not moved. */
+/** Where an old link to a moved board (or one of its cards, `card`) leads now: its database (the card's row open over it); null: not moved. */
 export function movedHref(boardId: number, card?: string | null): string | null {
   const dbId = movedBoard(boardId);
   if (!dbId) return null;
   const row = card && /^\d+$/.test(card) ? movedCard(Number(card)) : null;
-  return `/workspace/${row ?? dbId}`;
+  return row ? `/workspace/${dbId}?row=${row}` : `/workspace/${dbId}`;
 }
 
 /** The Workspace's boards (databases with a board view by status) as Kanban's overview lists them. */
