@@ -6,7 +6,7 @@ import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, placeRowAction, setCellAction, setCollectionAction, updateSchemaAction, type DatabaseData } from "../actions";
-import { cellText, columnOrder, dateRange, dropValue, moveOption, panelProperties, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
+import { cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
 import { RowPeek } from "./RowPeek";
@@ -236,14 +236,19 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
     [data],
   );
 
+  // Whose rows are shown: the people picked (chips), or only yours.
+  const [people, setPeople] = useState<Set<string>>(new Set());
+  const [mine, setMine] = useState(false);
+  const personProp = data ? personPropOf(data.schema) : undefined;
   const rows = useMemo(() => {
     if (!data || !view) return [];
     const props = data.schema.properties;
     let r = filterRows(data.rows, view.filter, props, labels);
+    if (personProp && (mine || people.size)) r = filterByPeople(r, personProp, mine ? mineKeys(personProp, data.extras?.me ?? { names: [], ids: [] }) : people);
     const w = q.trim().toLowerCase();
     if (w) r = r.filter((x) => x.title.toLowerCase().includes(w) || props.some((p) => cellText(p, x.cells[p.id], labels).toLowerCase().includes(w)));
     return sortRows(r, view.sorts, props);
-  }, [data, view, q, labels]);
+  }, [data, view, q, labels, personProp, mine, people]);
 
   if (api.error && !data) return <p className="alert-error text-sm">{api.error}</p>;
   if (!data || !view) return <p className="py-6 text-sm text-zinc-500">{t("Loading …")}</p>;
@@ -446,6 +451,25 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           </Dropdown>
         </div>
       </div>
+
+      {personProp && (
+        <PeopleBar
+          chips={personChips(data.rows, personProp, (k) => labels.person(Number(k)))}
+          picked={people}
+          onPick={(k) => {
+            setMine(false);
+            setPeople((cur) => {
+              const next = new Set(cur);
+              if (next.has(k)) next.delete(k);
+              else next.add(k);
+              return next;
+            });
+          }}
+          onAll={() => (setMine(false), setPeople(new Set()))}
+          mine={mine}
+          onMine={(data.extras?.me.names.length || data.extras?.me.ids.length) ? () => (setPeople(new Set()), setMine(!mine)) : undefined}
+        />
+      )}
 
       {view.type === "table" && <TableView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />}
       {view.type === "board" && <BoardView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} newRow={newRow} />}
@@ -714,6 +738,32 @@ function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, new
         </div>
       ))}
       {!ctx.data.locked && (gp.type === "status" || gp.type === "select" || gp.type === "multi_select") && <AddColumn add={(name) => void api.addOption(gp.id, name)} />}
+    </div>
+  );
+}
+
+/** Whose rows: "Mine", then a chip per person with their count (and nobody), several at once — as Kanban's person chips. */
+function PeopleBar({ chips, picked, onPick, onAll, mine, onMine }: { chips: { key: string; label: string; count: number }[]; picked: Set<string>; onPick: (key: string) => void; onAll: () => void; mine: boolean; onMine?: () => void }) {
+  const t = useT();
+  if (chips.length < 2 && !onMine) return null;
+  const chip = (on: boolean) => `rounded-full border px-2.5 py-0.5 text-xs ${on ? "border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-300" : "border-zinc-200 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"}`;
+  return (
+    <div className="flex flex-wrap items-center gap-1" role="group" aria-label={t("Filter by person")}>
+      {onMine && (
+        <button type="button" className={chip(mine)} aria-pressed={mine} onClick={onMine}>
+          ★ {t("Mine")}
+        </button>
+      )}
+      {chips.map((c) => (
+        <button key={c.key || "none"} type="button" className={chip(picked.has(c.key))} aria-pressed={picked.has(c.key)} onClick={() => onPick(c.key)}>
+          {c.key ? c.label : `— ${t("Nobody")}`} <span className="text-zinc-400">{c.count}</span>
+        </button>
+      ))}
+      {(picked.size > 0 || mine) && (
+        <button type="button" className="px-1 text-xs text-zinc-500 hover:underline" onClick={onAll}>
+          {t("all")}
+        </button>
+      )}
     </div>
   );
 }

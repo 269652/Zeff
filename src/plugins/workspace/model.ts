@@ -81,7 +81,13 @@ export type View = {
   /** Board: a column's WIP limit (by its option id) — more cards than that and its count turns red. */
   wip?: Record<string, number>;
 };
-export type DbSchema = { titleName: string; properties: Property[]; views: View[] };
+export type DbSchema = {
+  titleName: string;
+  properties: Property[];
+  views: View[];
+  /** The property that says whose a row is (person filter, "mine"); unset: the first person property, else a text "Assignee". */
+  personProp?: string;
+};
 
 /** A row as the views get it: the page, and its cells by property id (stored values, and the computed ones filled in). */
 export type Row = { id: number; title: string; icon: string; cells: Record<string, unknown>; createdAt: string; updatedAt: string };
@@ -160,7 +166,7 @@ export function normalizeSchema(raw: unknown): DbSchema {
   const o = (raw && typeof raw === "object" ? raw : {}) as Partial<DbSchema>;
   const props = (Array.isArray(o.properties) ? o.properties : []).filter((p): p is Property => !!p && typeof p.id === "string" && (PROP_TYPES as readonly string[]).includes(p.type));
   const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [] }));
-  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")] };
+  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}) };
 }
 
 export const propById = (props: Property[], id: string): Property | undefined => props.find((p) => p.id === id);
@@ -567,6 +573,54 @@ export function removeOption(schema: DbSchema, propId: string, optionId: string,
   if (n) throw new Error(`The column still has ${n} card${n === 1 ? "" : "s"} — move them first.`);
   return withOptions(schema, propId, (o) => o.filter((x) => x.id !== optionId));
 }
+
+// ---------------------------------------------------------------------------
+// People: whose a row is — the chips to filter by, "mine"
+// ---------------------------------------------------------------------------
+
+const PERSON_NAMES = /^(assignee|zuständig|owner|person|bearbeiter|verantwortlich)$/i;
+
+/** The property that says whose a row is: the one set, else the first person property, else a text one named Assignee (Zuständig …). */
+export function personPropOf(schema: DbSchema): Property | undefined {
+  const set = schema.personProp ? schema.properties.find((p) => p.id === schema.personProp) : undefined;
+  return set ?? schema.properties.find((p) => p.type === "person") ?? schema.properties.find((p) => p.type === "text" && PERSON_NAMES.test(p.name.trim()));
+}
+
+/** A row's people as keys: person ids, or a name (any case, trimmed) — [] when nobody. */
+export function personKeys(row: Row, p: Property): string[] {
+  const v = row.cells[p.id];
+  if (p.type === "person") return asArray(v).map((x) => String(Number(x))).filter((x) => x !== "0" && x !== "NaN");
+  const name = typeof v === "string" ? v.trim().toLowerCase() : "";
+  return name ? [name] : [];
+}
+
+/** The people on these rows with their counts (most first), nobody ("") last when there are rows without. `label`: a person id's name. */
+export function personChips(rows: Row[], p: Property, label: (key: string) => string): { key: string; label: string; count: number }[] {
+  const seen = new Map<string, { key: string; label: string; count: number }>();
+  let nobody = 0;
+  for (const r of rows) {
+    const keys = personKeys(r, p);
+    if (!keys.length) nobody++;
+    for (const k of keys) {
+      const c = seen.get(k) ?? { key: k, label: p.type === "person" ? label(k) : String(r.cells[p.id]).trim(), count: 0 };
+      c.count++;
+      seen.set(k, c);
+    }
+  }
+  const list = [...seen.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  return nobody ? [...list, { key: "", label: "", count: nobody }] : list;
+}
+
+/** The rows of any of these people ("" for nobody). */
+export const filterByPeople = (rows: Row[], p: Property, keys: Set<string>): Row[] =>
+  rows.filter((r) => {
+    const own = personKeys(r, p);
+    return own.length ? own.some((k) => keys.has(k)) : keys.has("");
+  });
+
+/** Your keys for a person property: your names (a text one), your person ids (a person one). */
+export const mineKeys = (p: Property, me: { names: string[]; ids: number[] }): Set<string> =>
+  new Set(p.type === "person" ? me.ids.map(String) : me.names.map((n) => n.trim().toLowerCase()).filter(Boolean));
 
 /** A due date's alarm on a card (as Kanban's ⏰): past it "overdue", on the day "today" — none once the row is done. `today`: YYYY-MM-DD. */
 export function dueTone(v: unknown, today: string, done: boolean): "overdue" | "today" | null {

@@ -148,3 +148,32 @@ test("setCollectionAction: a database into the briefing and the knowledge, shown
   assert.ok((await a.setCollectionAction(dbId, { knowledge: true, briefing: false })).ok);
   assert.deepEqual(await state(), [false, true]);
 });
+
+/** Whose a row is: the database's person property — chips to filter by, "mine" by your name or your person. */
+test("people: the person property, its chips, the filter, mine", async () => {
+  const m = await import("@/plugins/workspace/model");
+  const who = m.newProperty("Owner", "person");
+  const assignee = { ...m.newProperty("Assignee", "text") };
+  const row = (id: number, cells: Record<string, unknown>) => ({ id, title: `R${id}`, icon: "", cells, createdAt: "", updatedAt: "" });
+
+  const textDb: import("@/plugins/workspace/model").DbSchema = { titleName: "Name", properties: [assignee], views: [] };
+  assert.equal(m.personPropOf(textDb)?.id, assignee.id, "a text Assignee, when there is no person property");
+  assert.equal(m.personPropOf({ ...textDb, properties: [assignee, who] })?.id, who.id, "a person property first");
+  assert.equal(m.personPropOf({ ...textDb, properties: [assignee, who], personProp: assignee.id })?.id, assignee.id, "the one set wins");
+  assert.equal(m.personPropOf({ titleName: "Name", properties: [m.newProperty("Notes", "text")], views: [] }), undefined);
+
+  const rows = [row(1, { [assignee.id]: "Anna Berg" }), row(2, { [assignee.id]: "anna berg " }), row(3, { [assignee.id]: "Ben" }), row(4, {})];
+  const label = (k: string) => k;
+  assert.deepEqual(m.personChips(rows, assignee, label), [
+    { key: "anna berg", label: "Anna Berg", count: 2 },
+    { key: "ben", label: "Ben", count: 1 },
+    { key: "", label: "", count: 1 },
+  ], "the same name in any case is one person; nobody last");
+  assert.deepEqual(m.filterByPeople(rows, assignee, new Set(["ben", ""])).map((r) => r.id), [3, 4]);
+  assert.deepEqual(m.mineKeys(assignee, { names: ["Anna Berg"], ids: [] }), new Set(["anna berg"]));
+
+  const people = [row(5, { [who.id]: [7, 8] }), row(6, { [who.id]: [9] })];
+  const plabel = (k: string) => ({ "7": "Anna", "8": "Ben", "9": "Cem" })[k] ?? k;
+  assert.deepEqual(m.personChips(people, who, plabel).map((c) => [c.label, c.count]), [["Anna", 1], ["Ben", 1], ["Cem", 1]]);
+  assert.deepEqual(m.filterByPeople(people, who, m.mineKeys(who, { names: [], ids: [9] })).map((r) => r.id), [6]);
+});

@@ -235,7 +235,7 @@ export type DatabaseData = {
   /** What the cards show beyond the cells: each row's ticket key, its subtasks, and — by key — its Lage and todos. */
   /** Locked (a database a sync keeps, as Jira's): shown, not changed here — its cards don't move, its cells aren't edited. */
   locked: boolean;
-  extras: { keys: Record<number, string>; subtasks: Record<number, { done: number; total: number }>; tickets: Record<string, TicketExtras>; todosOn: boolean; briefing: boolean; knowledge: boolean };
+  extras: { keys: Record<number, string>; subtasks: Record<number, { done: number; total: number }>; tickets: Record<string, TicketExtras>; todosOn: boolean; briefing: boolean; knowledge: boolean; me: { names: string[]; ids: number[] } };
 };
 
 export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: DatabaseData }>> {
@@ -256,7 +256,7 @@ export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: D
       const k = rowKey(r);
       if (k) keys[r.id] = k;
     }
-    const extras: DatabaseData["extras"] = { keys, subtasks: subtaskCounts(d.schema, d.rows, page.id), tickets: ticketExtras(Object.values(keys)), todosOn: isInstalled("todos"), ...collectionSwitches(page.id) };
+    const extras: DatabaseData["extras"] = { keys, subtasks: subtaskCounts(d.schema, d.rows, page.id), tickets: ticketExtras(Object.values(keys)), todosOn: isInstalled("todos"), ...collectionSwitches(page.id), me: await whoAmI() };
     return { data: { id: page.id, title: page.title, icon: page.icon, locked: page.locked, schema: d.schema, rows: d.rows, labels, templates: store.rowTemplates(page.id).map((r) => ({ id: r.id, title: r.title || t("Untitled") })), related, extras } };
   });
 }
@@ -273,6 +273,19 @@ export async function addRowAction(dbId: number, v: store.NewRow = {}) {
 
 export async function setCellAction(rowId: number, propId: string, value: unknown) {
   return run(() => (store.setCell(Number(rowId), String(propId), value), {}));
+}
+
+/** You, as rows name people: your name (as Jira knows you) and the people of the People plugin with it. For "mine". */
+async function whoAmI(): Promise<{ names: string[]; ids: number[] }> {
+  const { myJiraName } = await import("@/lib/jira/store");
+  const names = [myJiraName()].filter((n): n is string => !!n?.trim());
+  if (!names.length || !isInstalled("people")) return { names, ids: [] };
+  const wanted = new Set(names.map((n) => n.trim().toLowerCase()));
+  const { listPeople } = await import("@/plugins/people/store");
+  const ids = listPeople()
+    .filter((p) => [p.name, ...(p.aliases ?? [])].some((n) => wanted.has(n.trim().toLowerCase())))
+    .map((p) => p.id);
+  return { names, ids };
 }
 
 /** Whether a database is in the briefing and in the knowledge (its collection's switches). */
