@@ -6,6 +6,7 @@ import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { csvToDatabase, parseCsv } from "./csv";
 import { docText, docToMarkdown, markdownToDoc, type DocRef } from "./doc";
+import { listCollections, setCollection } from "@/lib/items";
 import { ticketExtras } from "@/lib/items/tickets";
 import type { TicketExtras } from "@/lib/items/shared";
 import { rowKey } from "./collections";
@@ -232,7 +233,7 @@ export type DatabaseData = {
   /** Related databases (for relation pickers): their rows' titles. */
   related: Record<number, { title: string; properties: { id: string; name: string; type: string }[]; rows: { id: number; title: string; icon: string }[] }>;
   /** What the cards show beyond the cells: each row's ticket key, its subtasks, and — by key — its Lage and todos. */
-  extras: { keys: Record<number, string>; subtasks: Record<number, { done: number; total: number }>; tickets: Record<string, TicketExtras>; todosOn: boolean };
+  extras: { keys: Record<number, string>; subtasks: Record<number, { done: number; total: number }>; tickets: Record<string, TicketExtras>; todosOn: boolean; briefing: boolean; knowledge: boolean };
 };
 
 export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: DatabaseData }>> {
@@ -253,7 +254,7 @@ export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: D
       const k = rowKey(r);
       if (k) keys[r.id] = k;
     }
-    const extras: DatabaseData["extras"] = { keys, subtasks: subtaskCounts(d.schema, d.rows, page.id), tickets: ticketExtras(Object.values(keys)), todosOn: isInstalled("todos") };
+    const extras: DatabaseData["extras"] = { keys, subtasks: subtaskCounts(d.schema, d.rows, page.id), tickets: ticketExtras(Object.values(keys)), todosOn: isInstalled("todos"), ...collectionSwitches(page.id) };
     return { data: { id: page.id, title: page.title, icon: page.icon, schema: d.schema, rows: d.rows, labels, templates: store.rowTemplates(page.id).map((r) => ({ id: r.id, title: r.title || t("Untitled") })), related, extras } };
   });
 }
@@ -270,6 +271,20 @@ export async function addRowAction(dbId: number, v: store.NewRow = {}) {
 
 export async function setCellAction(rowId: number, propId: string, value: unknown) {
   return run(() => (store.setCell(Number(rowId), String(propId), value), {}));
+}
+
+/** Whether a database is in the briefing and in the knowledge (its collection's switches). */
+function collectionSwitches(dbId: number): { briefing: boolean; knowledge: boolean } {
+  const c = listCollections({ plugin: "workspace" }).find((x) => x.id === `workspace:${dbId}`);
+  return { briefing: !!c?.briefing, knowledge: !!c?.knowledge };
+}
+
+/** A database into the briefing (its rows: tickets or notes of the Lage) or the knowledge, or out — Kanban's "into the briefing". */
+export async function setCollectionAction(dbId: number, patch: { briefing?: boolean; knowledge?: boolean }) {
+  return run(() => {
+    setCollection(`workspace:${Number(dbId)}`, { ...(patch.briefing !== undefined ? { briefing: !!patch.briefing } : {}), ...(patch.knowledge !== undefined ? { knowledge: !!patch.knowledge } : {}) });
+    return {};
+  });
 }
 
 /** A card dragged on the board: placed between its new neighbours (null: the start / the end). */

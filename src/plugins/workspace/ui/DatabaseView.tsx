@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, placeRowAction, setCellAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, placeRowAction, setCellAction, setCollectionAction, updateSchemaAction, type DatabaseData } from "../actions";
 import { cellText, columnOrder, dateRange, dropValue, moveOption, panelProperties, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
@@ -251,6 +251,11 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const schema = data.schema;
   const ctx: CellCtx = { data, set: api.set, addOption: api.addOption, editable: true, openRow: (id) => openRow(id) };
   void embedded;
+  const switchCollection = async (patch: { briefing?: boolean; knowledge?: boolean }) => {
+    const r = await setCollectionAction(dbId, patch);
+    if (!r.ok) toast(r.error, { tone: "error" });
+    await api.reload();
+  };
   const withRow = (id: number | null) => {
     const u = new URL(window.location.href);
     if (id) u.searchParams.set("row", String(id));
@@ -364,6 +369,13 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           {(close) => (
             <>
               <MenuItem onClick={() => (close(), setSchemaOpen(true))}>⚙ {t("Edit properties …")}</MenuItem>
+              {/* As Kanban's and Keep's boards: its rows go into the briefing (cards: tickets, notes: notes) and the knowledge. */}
+              <MenuItem checked={!!data.extras?.briefing} onClick={() => (close(), void switchCollection({ briefing: !data.extras?.briefing }))}>
+                {t("In the briefing")}
+              </MenuItem>
+              <MenuItem checked={!!data.extras?.knowledge} onClick={() => (close(), void switchCollection({ knowledge: !data.extras?.knowledge }))}>
+                {t("In the knowledge")}
+              </MenuItem>
               <div className="px-2 py-1">
                 <input className="input w-full text-sm" value={view.name} aria-label={t("View name")} onChange={(e) => setView({ ...view, name: e.target.value })} />
               </div>

@@ -129,3 +129,22 @@ test("column edits: move, rename, done, WIP limit, remove only when empty", asyn
   assert.throws(() => m.removeOption(schema, status.id, b.id, [row({ [status.id]: b.id })]), /still has 1 card/);
   assert.deepEqual(names(m.removeOption(schema, status.id, b.id, [row({ [status.id]: a.id })])), ["Not started", "Done"]);
 });
+
+/** "Into / out of the briefing" (Kanban's sidebar button) and "into the knowledge", on a database — and the view knows the state. */
+test("setCollectionAction: a database into the briefing and the knowledge, shown in its data", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("workspace", true);
+  const w = await import("@/plugins/workspace/store");
+  const a = await import("@/plugins/workspace/actions");
+  const dbId = w.createPage({ kind: "database", title: "Schalter" });
+  const state = async () => {
+    const r = await a.loadDatabaseAction(dbId);
+    assert.ok(r.ok);
+    return [r.data.extras.briefing, r.data.extras.knowledge];
+  };
+  assert.deepEqual(await state(), [false, false]);
+  assert.ok((await a.setCollectionAction(dbId, { briefing: true })).ok);
+  assert.deepEqual(await state(), [true, false]);
+  assert.ok((await a.setCollectionAction(dbId, { knowledge: true, briefing: false })).ok);
+  assert.deepEqual(await state(), [false, true]);
+});
