@@ -358,7 +358,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
       {view.type === "list" && <ListView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} />}
       {view.type === "gallery" && <GalleryView rows={rows} visible={visible} ctx={ctx} openRow={openRow} />}
       {view.type === "calendar" && <CalendarView view={view} rows={rows} schema={schema} api={api} openRow={openRow} newRow={newRow} />}
-      <p className="text-xs text-zinc-500">{rows.length === data.rows.length ? t("{n} rows", { n: rows.length }) : t("{n} of {total} rows", { n: rows.length, total: data.rows.length })}</p>
+      <p className="text-xs text-zinc-500">{rows.length === data.rows.length ? (rows.length === 1 ? t("1 row") : t("{n} rows", { n: rows.length })) : t("{n} of {total} rows", { n: rows.length, total: data.rows.length })}</p>
 
       {schemaOpen && <SchemaModal schema={schema} data={data} dbId={dbId} databases={databases} onSave={api.saveSchema} onClose={() => setSchemaOpen(false)} />}
     </div>
