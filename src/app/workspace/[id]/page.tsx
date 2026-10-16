@@ -33,6 +33,9 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
     const pid = personOfRow(page.id);
     if (pid) person = await personBundle(pid).catch(() => null);
   }
+  // Field, related and button blocks work on the row's database: read with the page too (only then).
+  const needsData = !!layout && /"zeff(Field|Related|Button)"/.test(JSON.stringify(layout.content));
+  const rowData = needsData ? await loadDatabaseAction(page.dbId!) : null;
   const row = isRow && !layout ? await loadDatabaseAction(page.dbId!) : null;
   const database = page.kind === "database" ? await loadDatabaseAction(page.id) : null;
   return (
@@ -60,7 +63,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
           .map((x) => ({ id: x.id, title: x.title, icon: x.icon, kind: x.kind })),
       }}
       row={row?.ok ? { initial: row.data, dbId: page.dbId! } : null}
-      detail={layout ? { pageId: layout.id, content: layout.content as never, rev: layout.rev, person: person as never } : null}
+      detail={layout ? { pageId: layout.id, content: layout.content as never, rev: layout.rev, person: person as never, data: rowData?.ok ? rowData.data : null } : null}
       database={database?.ok ? database.data : null}
     />
   );

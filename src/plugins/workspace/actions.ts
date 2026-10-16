@@ -928,3 +928,31 @@ export async function setAgentsAction(dbId: number, cfg: { auto: boolean; parall
 export async function linkedSourceAction(rowId: number) {
   return run(async () => ({ source: (await import("./links")).linkedSource(Number(rowId)) }));
 }
+
+// ---------------------------------------------------------------------------
+// The blocks of an app's layout: a field, a related list, a button
+// ---------------------------------------------------------------------------
+
+/** What the blocks of this layout page (or row) can pick: the database's fields and the databases whose rows belong to it. */
+export async function layoutChoicesAction(pageId: number) {
+  return run(async () => ({ choices: (await import("./app-blocks")).layoutChoices(Number(pageId)) }));
+}
+
+/** The rows of `dbId` that point to this row by `prop`. */
+export async function relatedRowsAction(rowId: number, dbId: number, prop: string) {
+  return run(async () => ({ rows: (await import("./app-blocks")).relatedRows(Number(rowId), Number(dbId), String(prop)) }));
+}
+
+/** A new row of `dbId`, pointing to this row. */
+export async function addRelatedRowAction(rowId: number, dbId: number, prop: string, title: string) {
+  return run(async () => ({ id: (await import("./app-blocks")).addRelatedRow(Number(rowId), Number(dbId), String(prop), String(title)) }));
+}
+
+/** A button of a layout pressed on a row. */
+export async function rowButtonAction(rowId: number, spec: { action: string; prop?: string; value?: string }) {
+  return run(async () => {
+    const b = await import("./app-blocks");
+    const action = (b.BUTTON_ACTIONS as readonly string[]).includes(spec?.action) ? (spec.action as (typeof b.BUTTON_ACTIONS)[number]) : "set";
+    return b.runRowButton(Number(rowId), { action, prop: spec?.prop ? String(spec.prop) : undefined, value: spec?.value !== undefined ? String(spec.value) : undefined });
+  });
+}

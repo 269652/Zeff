@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { addRowAction, archivePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, detailPageAction, makeInboxAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { addRowAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, detailPageAction, makeInboxAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
 import { DEFAULT_COLUMN, fitWidth, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
@@ -1520,6 +1520,32 @@ export function RowProperties({ initial, dbId, rowId }: { initial: DatabaseData;
         </div>
       ))}
     </dl>
+  );
+}
+
+/** One field of a row, edited in place (a field block of a layout): its name beside it — or without. */
+export function RowField({ initial, dbId, rowId, propId, showLabel = true }: { initial: DatabaseData; dbId: number; rowId: number; propId: string; showLabel?: boolean }) {
+  const t = useT();
+  const api = useDatabase(initial, dbId);
+  const data = api.data;
+  const row = data?.rows.find((r) => r.id === rowId);
+  if (!data || !row) return null;
+  const ctx: CellCtx = { data, set: api.set, addOption: api.addOption, editable: !data.locked };
+  const p = data.schema.properties.find((x) => x.id === propId);
+  const name = propId === "title" ? data.schema.titleName : (p?.name ?? "");
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm" data-row-field={propId}>
+      {showLabel && name && <span className="w-32 shrink-0 text-zinc-500">{name}</span>}
+      <span className="flex min-h-7 min-w-0 flex-1 flex-wrap items-center gap-1">
+        {propId === "title" ? (
+          <input defaultValue={row.title} readOnly={!!data.locked} aria-label={name} className="w-full bg-transparent font-medium outline-none" onBlur={(e) => e.target.value !== row.title && void savePageAction(rowId, { title: e.target.value })} />
+        ) : p ? (
+          <PopCell p={p} row={row} ctx={ctx} />
+        ) : (
+          <span className="text-zinc-400">{t("This field is gone.")}</span>
+        )}
+      </span>
+    </div>
   );
 }
 

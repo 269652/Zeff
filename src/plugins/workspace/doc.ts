@@ -390,6 +390,9 @@ const NODE_ATTRS: Record<string, string[]> = {
   detailsContent: [],
   callout: ["icon", "tone"],
   flexBox: ["dir", "gap", "wrap", "span"],
+  zeffField: ["prop", "label"],
+  zeffRelated: ["dbId", "prop"],
+  zeffButton: ["label", "action", "prop", "value"],
   zeffRef: ["kind", "ref", "label", "href"],
   databaseView: ["dbId", "viewId", "title"],
   pageEmbed: ["pageId", "title"],
@@ -444,6 +447,15 @@ export function sanitizeDoc(input: unknown): Doc {
       if (o.type === "zeffModule") {
         if (!(BLOCK_MODULES as readonly unknown[]).includes(attrs.module)) return null;
         attrs.key = String(attrs.key ?? "").trim().toUpperCase().slice(0, 40);
+      }
+      if (o.type === "zeffRelated") {
+        const id = Math.floor(Number(attrs.dbId));
+        if (!(id > 0)) return null;
+        attrs.dbId = id;
+      }
+      if (o.type === "zeffButton") {
+        if (!["set", "trash", "refresh"].includes(String(attrs.action))) attrs.action = "set";
+        attrs.label = String(attrs.label ?? "").slice(0, 80);
       }
       if (o.type === "flexBox") {
         attrs.dir = attrs.dir === "col" ? "col" : "row";

@@ -10,6 +10,7 @@ import { detailModules } from "../model";
 import { CardKey, extrasOf } from "./card-extras";
 import { DetailModules } from "./detail-modules";
 import { Editor } from "./Editor";
+import { seedRowData } from "./app-nodes";
 import { seedPerson } from "@/plugins/people/ui/PersonBlocks";
 import type { PersonBundle } from "@/plugins/people/blocks";
 
@@ -52,10 +53,13 @@ export function RowPeek({ data, rowId, onClose }: { data: DatabaseData; rowId: n
 }
 
 /** A row's detail view from its database's detail page: the page's blocks (and text), each about this row. */
-export function DetailFromPage({ pageId, rowId, initial, person }: { pageId: number; rowId: number; /** The layout, when the server has it already (no fetch). */ initial?: { doc: JSONContent; rev: number }; /** What a person's blocks show, when the server has it already. */ person?: PersonBundle }) {
+export function DetailFromPage({ pageId, rowId, initial, person, data }: { pageId: number; rowId: number; /** The row's database as the server read it (for the field, related and button blocks). */ data?: DatabaseData; /** The layout, when the server has it already (no fetch). */ initial?: { doc: JSONContent; rev: number }; /** What a person's blocks show, when the server has it already. */ person?: PersonBundle }) {
   const t = useT();
   // The blocks start from what the server read: instantly, no round trip per block.
-  useState(() => (person ? seedPerson(rowId, person) : undefined));
+  useState(() => {
+    if (person) seedPerson(rowId, person);
+    if (data) seedRowData(rowId, data);
+  });
   const [content, setContent] = useState<{ doc: JSONContent; rev: number } | null>(initial ?? null);
   const [layout, setLayout] = useState(false);
   useEffect(() => {

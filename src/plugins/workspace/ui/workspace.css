@@ -823,15 +823,20 @@
   position: relative;
   margin: 0.4rem 0;
 }
+/* the bars float over the box's corner: showing them must not move what is under the pointer */
 .ws-flex-bar {
-  display: none;
+  position: absolute;
+  top: -1.3rem;
+  left: 0;
+  z-index: 6;
+  display: flex;
   gap: 0.25rem;
   font-size: 0.7rem;
-  margin-bottom: 0.15rem;
+  visibility: hidden;
 }
 .ws-flex:hover > .ws-flex-bar,
 .ws-flex:focus-within > .ws-flex-bar {
-  display: flex;
+  visibility: visible;
 }
 .ws-flex-bar button {
   border: 1px solid color-mix(in oklab, var(--color-zinc-500, #71717a) 30%, transparent);
@@ -908,16 +913,29 @@
 }
 
 /* a module block's grip, new-line and remove buttons; a flex box's grip */
+.ws-module-block {
+  position: relative;
+}
 .ws-grip-bar {
-  display: none;
+  position: absolute;
+  top: -0.7rem;
+  right: 0.5rem;
+  z-index: 6;
+  display: flex;
   gap: 0.25rem;
-  justify-content: flex-end;
   font-size: 0.75rem;
-  margin-bottom: 0.15rem;
+  visibility: hidden;
+  background: var(--color-white, #fff);
+  border-radius: 0.3rem;
+}
+@media (prefers-color-scheme: dark) {
+  .ws-grip-bar {
+    background: var(--color-zinc-900, #18181b);
+  }
 }
 .ws-module-block:hover > .ws-grip-bar,
 .ws-module-block:focus-within > .ws-grip-bar {
-  display: flex;
+  visibility: visible;
 }
 .ws-grip-bar button,
 .ws-grip-btn {

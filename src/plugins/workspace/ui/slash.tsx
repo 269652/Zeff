@@ -106,6 +106,34 @@ export const slashItems = (t: T): SlashItem[] => [
     keywords: [...keywords, "ticket", "zeff"],
     run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffModule", attrs: { module, key: "" } }).run(),
   })),
+  // The parts an app's layout is made of.
+  {
+    key: "app-field",
+    title: t("Field"),
+    hint: t("One field of the entry, edited in place — pick which"),
+    icon: "▭",
+    group: t("App blocks"),
+    keywords: ["field", "property", "feld", "eigenschaft", "input", "edit"],
+    run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffField", attrs: { prop: "", label: true } }).run(),
+  },
+  {
+    key: "app-related",
+    title: t("Related rows"),
+    hint: t("The rows of another database that belong to the entry — with a field to add one"),
+    icon: "⛓",
+    group: t("App blocks"),
+    keywords: ["related", "relation", "list", "children", "tickets", "verknüpft", "liste"],
+    run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffRelated", attrs: { dbId: null, prop: "" } }).run(),
+  },
+  {
+    key: "app-button",
+    title: t("Button"),
+    hint: t("Sets a field of the entry, moves it to the trash, or reads the sources again"),
+    icon: "◉",
+    group: t("App blocks"),
+    keywords: ["button", "action", "knopf", "aktion", "done", "erledigt"],
+    run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffButton", attrs: { label: "", action: "set", prop: "", value: "" } }).run(),
+  },
   // The blocks of a person's page (the people database's detail view).
   ...(
     [
