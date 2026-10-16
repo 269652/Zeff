@@ -5515,5 +5515,20 @@
   "What the AI read — please check": "Was die KI gelesen hat – bitte prüfen",
   "you owe": "du schuldest",
   "they owe": "schuldet dir",
-  "Nothing to check right now. The people are the rows of this database — the other views list them.": "Gerade ist nichts zu prüfen. Die Personen sind die Zeilen dieser Datenbank – die anderen Ansichten listen sie."
+  "Nothing to check right now. The people are the rows of this database — the other views list them.": "Gerade ist nichts zu prüfen. Die Personen sind die Zeilen dieser Datenbank – die anderen Ansichten listen sie.",
+  "Rules (a database of when / then)": "Regeln (eine Datenbank aus Wenn / Dann)",
+  "Rules from": "Regeln aus",
+  "Which rules database": "Welche Regel-Datenbank",
+  "Pick a rules database …": "Regel-Datenbank wählen …",
+  "Jobs go to": "Aufträge gehen nach",
+  "Which jobs database": "Welche Auftrags-Datenbank",
+  "Each record goes through the rules in their order: one can drop it, set a field on it, or make a job for an agent from it (once). Make a rules database from the templates (/ or Workspace → New).": "Jeder Datensatz durchläuft die Regeln der Reihe nach: Eine kann ihn aussortieren, ein Feld setzen oder einen Auftrag für einen Agenten daraus machen (einmal). Eine Regel-Datenbank legst du aus den Vorlagen an (/ oder Workspace → Neu).",
+  "Given to a worker — the result comes back into the row.": "An einen Worker gegeben – das Ergebnis kommt in die Zeile zurück.",
+  "Start the agent": "Agent starten",
+  "Start all open jobs": "Alle offenen Aufträge starten",
+  "{n} jobs given to workers.": "{n} Aufträge an Worker gegeben.",
+  "Code is not installed (Menu → Plugins) — without it no worker takes a job.": "Code ist nicht installiert (Menü → Plugins) – ohne es übernimmt kein Worker einen Auftrag.",
+  "Jobs for agents": "Aufträge für Agenten",
+  "Jobs a worker takes on your click — a board by status; the result comes back into the row for your check.": "Aufträge, die ein Worker auf deinen Klick übernimmt – ein Board nach Status; das Ergebnis kommt zur Prüfung in die Zeile zurück.",
+  "When / then rules a pipeline applies to its records: drop, set a field, hand to an agent — or a hint every agent gets.": "Wenn-Dann-Regeln, die eine Pipeline auf ihre Datensätze anwendet: aussortieren, ein Feld setzen, an einen Agenten geben – oder ein Hinweis, den jeder Agent bekommt."
 }

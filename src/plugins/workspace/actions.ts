@@ -242,6 +242,8 @@ export type DatabaseData = {
 
 export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: DatabaseData }>> {
   return run(async () => {
+    // A jobs database: the jobs whose worker has finished are taken in first (the page shows how they ended).
+    if (store.getDatabase(Number(dbId))?.schema.jobs) await (await import("./jobs")).settleJobs().catch(() => 0);
     const d = store.rowsOf(Number(dbId));
     const page = store.getPage(Number(dbId));
     if (!d || !page) throw new Error(t("This database is gone."));
@@ -622,7 +624,7 @@ export async function duplicateRowAction(rowId: number) {
 
 /** Every database, to choose from (relations, linked views). */
 export async function databasesAction() {
-  return run(() => ({ databases: store.tree().filter((x) => x.kind === "database").map((x) => ({ id: x.id, title: x.title || t("Untitled"), icon: x.icon })) }));
+  return run(() => ({ databases: store.tree().filter((x) => x.kind === "database").map((x) => ({ id: x.id, title: x.title || t("Untitled"), icon: x.icon, rules: !!store.getDatabase(x.id)?.schema.rules, jobs: !!store.getDatabase(x.id)?.schema.jobs })) }));
 }
 
 /** People and open todos to put in person/todo cells. */
@@ -840,5 +842,25 @@ export async function aiFillCellAction(rowId: number, propId: string) {
     const value = String(r.output?.text ?? "").trim().slice(0, 2000);
     store.setCell(row.id, p.id, value);
     return { value };
+  });
+}
+
+/**
+ * A job of a jobs database given to a worker — your click (nothing starts a job by itself). The worker's result comes back
+ * into the row (the page settles ended jobs when it loads).
+ */
+export async function runJobAction(rowId: number) {
+  return run(async () => {
+    if (!isInstalled("work")) throw new Error(t("Code is not installed (Menu → Plugins) — without it no worker takes a job."));
+    const r = await (await import("./jobs")).dispatchJob(Number(rowId));
+    return { run: r.run };
+  });
+}
+
+/** Every open job of a jobs database given to workers — one click for all of them. */
+export async function runOpenJobsAction(dbId: number) {
+  return run(async () => {
+    if (!isInstalled("work")) throw new Error(t("Code is not installed (Menu → Plugins) — without it no worker takes a job."));
+    return (await import("./jobs")).dispatchOpenJobs(Number(dbId));
   });
 }

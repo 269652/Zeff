@@ -3,6 +3,8 @@
  * a decision log, tasks tied to Zeff's todos, projects with their tasks and a progress rollup. Server only.
  */
 import { markdownToDoc } from "./doc";
+import { createJobsDatabase } from "./jobs";
+import { createRulesDatabase } from "./rules";
 import { COLORS, newId, newProperty, newView, type DbSchema, type Option, type Property, type View } from "./model";
 import { addRow, createPage, getDatabase, updateSchema } from "./store";
 
@@ -17,6 +19,22 @@ const view = (name: string, type: View["type"], extra: Partial<View> = {}): View
 type Template = TemplateMeta & { build: (parentId: number | null) => number };
 
 const TEMPLATES: Template[] = [
+  {
+    key: "agent-jobs",
+    name: "Jobs for agents",
+    icon: "🤖",
+    description: "Jobs a worker takes on your click — a board by status; the result comes back into the row for your check.",
+    kind: "database",
+    build: (parentId) => createJobsDatabase(parentId),
+  },
+  {
+    key: "rules",
+    name: "Rules",
+    icon: "📏",
+    description: "When / then rules a pipeline applies to its records: drop, set a field, hand to an agent — or a hint every agent gets.",
+    kind: "database",
+    build: (parentId) => createRulesDatabase(parentId),
+  },
   {
     key: "meeting",
     name: "Meeting notes",

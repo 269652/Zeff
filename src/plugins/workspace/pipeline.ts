@@ -337,7 +337,7 @@ function valueOf(r: SourceRecord, field: string): string | boolean | number | nu
 const YES = new Set(["yes", "ja", "true", "1", "x"]);
 
 /** One rule on a record. */
-function holds(r: SourceRecord, rule: NonNullable<PipelineStep["rules"]>[number]): boolean {
+export function holds(r: SourceRecord, rule: NonNullable<PipelineStep["rules"]>[number]): boolean {
   const v = valueOf(r, rule.field);
   const empty = v === null || v === undefined || v === "" || v === false;
   if (rule.op === "empty") return empty;
@@ -577,6 +577,7 @@ async function runPipelineOnce(dbId: number, opts: { ai?: boolean; force?: boole
       else if (s.kind === "set") records = applySet(records, s);
       else if (s.kind === "join") records = applyJoin(records, s).records;
       else if (s.kind === "ai" && s.output === "filter") records = await aiFiltered(s, records);
+      else if (s.kind === "rules" && s.dbId) records = (await import("./rules")).applyRules(records, s.dbId, s.to);
     }
     // Whatever mixes mails and messages (also from other databases): the shared fields.
     if (new Set(records.map((r) => r.dataType).filter(Boolean)).size > 1) records = records.map(unifyComm);
@@ -776,7 +777,7 @@ export function runDuePipelines(opts: { ai: boolean }): number {
 }
 
 /** What the AI filter knows of a record (its text as it was judged). */
-const recordText = (r: SourceRecord): string =>
+export const recordText = (r: SourceRecord): string =>
   [r.title, ...(r.typed ?? []).filter((f) => f.value !== null && f.value !== "" && !/conv$/.test(f.id)).map((f) => `${f.name}: ${f.value}`), ...Object.entries(r.fields).map(([k, v]) => `${k}: ${v}`), (r.text ?? "").slice(0, 1500)].filter(Boolean).join("\n");
 
 function filterDb() {

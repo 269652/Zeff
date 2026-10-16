@@ -17,7 +17,7 @@ import { Dropdown, MenuItem, Modal } from "./kit";
  * database), filters, AI steps (a field on each row, a summary over all) — edited, saved, run.
  */
 
-const ICON: Record<string, string> = { write: "📤", aifilter: "🔎", actions: "⚡", jira: "🎫", keep: "🗒", todos: "☑", database: "🗃", mail: "✉", messages: "💬", knowledge: "📚", filter: "⏷", sort: "⇅", set: "🏷", join: "🔗", field: "✨", summary: "🧭" };
+const ICON: Record<string, string> = { write: "📤", aifilter: "🔎", actions: "⚡", jira: "🎫", keep: "🗒", todos: "☑", database: "🗃", mail: "✉", messages: "💬", knowledge: "📚", rules: "📏", filter: "⏷", sort: "⇅", set: "🏷", join: "🔗", field: "✨", summary: "🧭" };
 const kindOf = (s: PipelineStep) => (s.kind === "source" ? (s.from ?? "") : s.kind === "ai" ? (s.output === "filter" ? "aifilter" : (s.output ?? "")) : s.kind);
 const iconOf = (s: PipelineStep) => ICON[kindOf(s)];
 
@@ -29,7 +29,7 @@ export const BRIEFING_EXAMPLE = (): PipelineStep[] => [
   { id: newId("s"), kind: "ai", output: "summary", prompt: "Die Gesamtlage: was gerade brennt, was als Nächstes kommt, worauf ich warte — in wenigen Sätzen, die wichtigsten Tickets mit Schlüssel." },
 ];
 
-export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, checkboxes, databases, extSources = [], onSave, onRun, onClose }: { /** The sources plugins bring (People …). */ extSources?: { id: string; label: string; icon: string; hint?: string }[]; dbId: number; pipeline: Pipeline | undefined; synced: string | null; dataType?: DataType; fields: string[]; checkboxes: { id: string; name: string }[]; databases: { id: number; title: string }[]; onSave: (p: Pipeline) => Promise<void>; onRun: (ai: boolean) => Promise<void>; onClose: () => void }) {
+export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, checkboxes, databases, extSources = [], onSave, onRun, onClose }: { /** The sources plugins bring (People …). */ extSources?: { id: string; label: string; icon: string; hint?: string }[]; dbId: number; pipeline: Pipeline | undefined; synced: string | null; dataType?: DataType; fields: string[]; checkboxes: { id: string; name: string }[]; databases: { id: number; title: string; rules?: boolean; jobs?: boolean }[]; onSave: (p: Pipeline) => Promise<void>; onRun: (ai: boolean) => Promise<void>; onClose: () => void }) {
   const t = useT();
   // A database a sync keeps: the sync is its source — only AI steps of its own.
   const [auto, setAuto] = useState<{ autoAi: boolean; everyMinutes: number | undefined; keepProp: string | undefined }>({ autoAi: !!pipeline?.autoAi, everyMinutes: pipeline?.everyMinutes, keepProp: pipeline?.keepProp });
@@ -61,7 +61,7 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, check
       setBusy(false);
     }
   };
-  const labels: Record<string, string> = { jira: t("Jira tickets"), keep: t("Google Keep notes"), todos: t("Todos"), database: t("Another database"), mail: t("Mails (Outlook, Gmail)"), messages: t("Messages (Teams, WhatsApp, Signal)"), knowledge: t("Knowledge: addresses (test, prod …)"), filter: t("Filter"), set: t("Set a field where …"), join: t("Bring fields from another database"), aifilter: t("AI: keep only what …"), actions: t("AI: suggest actions for each row"), sort: t("Sort"), write: t("Write the rows into another database"), field: t("AI: a field on each row"), summary: t("AI: one summary over all rows") };
+  const labels: Record<string, string> = { jira: t("Jira tickets"), keep: t("Google Keep notes"), todos: t("Todos"), database: t("Another database"), mail: t("Mails (Outlook, Gmail)"), messages: t("Messages (Teams, WhatsApp, Signal)"), knowledge: t("Knowledge: addresses (test, prod …)"), rules: t("Rules (a database of when / then)"), filter: t("Filter"), set: t("Set a field where …"), join: t("Bring fields from another database"), aifilter: t("AI: keep only what …"), actions: t("AI: suggest actions for each row"), sort: t("Sort"), write: t("Write the rows into another database"), field: t("AI: a field on each row"), summary: t("AI: one summary over all rows") };
   return (
     <Modal title={t("Sources & steps …")} onClose={onClose} wide>
       <p className="text-sm text-zinc-500">{t("Where this database's rows come from and what's done with them, top to bottom. A run keeps the result as its rows (yours stay: AI fields, pages); the AI steps go with the briefing.")}</p>
@@ -116,6 +116,7 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, check
         {!synced && <button type="button" className="btn btn-sm" onClick={() => add({ kind: "set", name: "", setValue: "" })}>+ 🏷 {t("Set a field")}</button>}
         {!synced && <button type="button" className="btn btn-sm" onClick={() => add({ kind: "join", on: fields[0] ?? "", bring: [] })}>+ 🔗 {t("Join")}</button>}
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "sort", by: steps.find((x) => x.kind === "ai" && x.output === "field" && x.choices?.length)?.name ?? fields[0] ?? "" })}>+ ⇅ {t("Sort")}</button>
+        {!synced && <button type="button" className="btn btn-sm" onClick={() => add({ kind: "rules" })}>+ 📏 {t("Rules")}</button>}
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "write" })}>+ 📤 {t("Write to a database")}</button>
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "ai", output: "field", name: t("Lage"), prompt: "" })}>+ ✨ {t("AI field")}</button>
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "ai", output: "filter", prompt: "" })}>+ 🔎 {t("AI filter")}</button>
@@ -296,10 +297,40 @@ function Days({ label, value, set }: { label: string; value: number | undefined;
   );
 }
 
-function StepBody({ dbId, saved, step: s, allSteps, set, databases, fields }: { dbId: number; saved: boolean; step: PipelineStep; allSteps: PipelineStep[]; set: (p: Partial<PipelineStep>) => void; databases: { id: number; title: string }[]; fields: string[] }) {
+function StepBody({ dbId, saved, step: s, allSteps, set, databases, fields }: { dbId: number; saved: boolean; step: PipelineStep; allSteps: PipelineStep[]; set: (p: Partial<PipelineStep>) => void; databases: { id: number; title: string; rules?: boolean; jobs?: boolean }[]; fields: string[] }) {
   const [trial, setTrial] = useState<"busy" | { title: string; keep: boolean; why: string }[] | null>(null);
   const t = useT();
   const row = "flex flex-wrap items-center gap-x-4 gap-y-1.5";
+  if (s.kind === "rules")
+    return (
+      <div className="space-y-1.5">
+        <div className={row}>
+          <label className="flex items-center gap-1.5 text-sm">
+            {t("Rules from")}
+            <select className="input w-auto text-sm" value={s.dbId ?? ""} onChange={(e) => set({ dbId: Number(e.target.value) || undefined })} aria-label={t("Which rules database")}>
+              <option value="">{t("Pick a rules database …")}</option>
+              {databases.filter((d) => d.rules).map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-1.5 text-sm">
+            {t("Jobs go to")}
+            <select className="input w-auto text-sm" value={s.to ?? ""} onChange={(e) => set({ to: Number(e.target.value) || undefined })} aria-label={t("Which jobs database")}>
+              <option value="">{t("(no jobs)")}</option>
+              {databases.filter((d) => d.jobs).map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <p className="text-xs text-zinc-500">{t("Each record goes through the rules in their order: one can drop it, set a field on it, or make a job for an agent from it (once). Make a rules database from the templates (/ or Workspace → New).")}</p>
+      </div>
+    );
   if (s.kind === "write")
     return (
       <div className="space-y-1.5">
