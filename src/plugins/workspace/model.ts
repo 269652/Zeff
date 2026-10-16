@@ -144,6 +144,9 @@ export type PipelineStep = {
   recentDays?: number;
   limit?: number;
   output?: "field" | "summary" | "filter";
+  /** Filter: rules as Outlook's (a field by its name, a condition, a value) — all of them, or any. */
+  rules?: FilterRule[];
+  match?: "all" | "any";
   /** Sort: the field (its name) the rows go by, and which way. */
   by?: string;
   dir?: "asc" | "desc";
@@ -156,6 +159,10 @@ export type PipelineStep = {
   result?: { text: string; at: string; hash?: string };
 };
 export type Pipeline = { steps: PipelineStep[]; ranAt?: string };
+
+/** A filter's conditions: contains, doesn't contain, is, isn't (a checkbox: yes / no), empty, not empty. */
+export const FILTER_OPS = ["contains", "not_contains", "is", "is_not", "empty", "not_empty"] as const;
+export type FilterRule = { field: string; op: (typeof FILTER_OPS)[number]; value?: string };
 
 const posInt = (v: unknown): number | undefined => {
   const n = Math.floor(Number(v));
@@ -192,7 +199,13 @@ export function normalizePipeline(raw: unknown): Pipeline {
       const messages = from === "messages" ? defined<MessageCriteria>({ channels: strs(mg.channels)?.filter((c) => (MESSAGE_CHANNELS as readonly string[]).includes(c)) as MessageCriteria["channels"], chat: str(mg.chat), recentDays: posInt(mg.recentDays) }) : undefined;
       steps.push(defined<PipelineStep>({ id, kind: "source", from, jira, mail, messages, label: from === "keep" ? str(s.label) : undefined, todoStatus: from === "todos" && s.todoStatus === "all" ? "all" : undefined, dbId: from === "database" ? posInt(s.dbId) : undefined }));
     } else if (s.kind === "filter") {
-      steps.push(defined<PipelineStep>({ id, kind: "filter", text: str(s.text), openOnly: s.openOnly === true, recentDays: posInt(s.recentDays), limit: posInt(s.limit) }));
+      const rules = (Array.isArray(s.rules) ? s.rules : []).flatMap((x): FilterRule[] => {
+        const r = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+        const field = str(r.field);
+        if (!field || !(FILTER_OPS as readonly unknown[]).includes(r.op)) return [];
+        return [defined<FilterRule>({ field, op: r.op as FilterRule["op"], value: typeof r.value === "string" ? r.value : undefined })];
+      });
+      steps.push(defined<PipelineStep>({ id, kind: "filter", text: str(s.text), openOnly: s.openOnly === true, recentDays: posInt(s.recentDays), limit: posInt(s.limit), rules: rules.length ? rules : undefined, match: rules.length && s.match === "any" ? "any" : undefined }));
     } else if (s.kind === "sort") {
       if (str(s.by)) steps.push(defined<PipelineStep>({ id, kind: "sort", by: str(s.by), dir: s.dir === "desc" ? "desc" : undefined }));
     } else if (s.kind === "ai" && (s.output === "field" || s.output === "summary" || s.output === "filter")) {

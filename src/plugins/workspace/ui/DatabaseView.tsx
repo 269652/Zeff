@@ -575,6 +575,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           dbId={dbId}
           pipeline={schema.pipeline}
           synced={data.extras?.source ?? null}
+          dataType={schema.dataType}
           fields={schema.properties.filter((p) => !["srcref", "srcedited", "srcurl", "ticketkey", "noteref"].includes(p.id)).map((p) => p.name)}
           databases={databases}
           onSave={async (pipeline) => {

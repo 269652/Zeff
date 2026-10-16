@@ -231,12 +231,47 @@ async function read(step: PipelineStep, self: number): Promise<SourceRecord[]> {
 }
 
 /** A filter step on the records. */
+/** A record's value of a field by its name (the title as "Title", "Subject", "Name" too); a select's its option's name. */
+function valueOf(r: SourceRecord, field: string): string | boolean | number | null {
+  const name = field.trim().toLowerCase();
+  if (["title", "subject", "name", "titel", "betreff"].includes(name)) return r.title;
+  if (name === "key") return r.key ?? null;
+  if (name === "status") return r.status?.name ?? null;
+  const typed = (r.typed ?? []).find((x) => x.name.toLowerCase() === name);
+  if (typed) return typed.value;
+  const plain = Object.entries(r.fields).find(([k]) => k.toLowerCase() === name);
+  return plain ? plain[1] : null;
+}
+
+const YES = new Set(["yes", "ja", "true", "1", "x"]);
+
+/** One rule on a record. */
+function holds(r: SourceRecord, rule: NonNullable<PipelineStep["rules"]>[number]): boolean {
+  const v = valueOf(r, rule.field);
+  const empty = v === null || v === undefined || v === "" || v === false;
+  if (rule.op === "empty") return empty;
+  if (rule.op === "not_empty") return !empty;
+  const want = (rule.value ?? "").trim().toLowerCase();
+  if (typeof v === "boolean" || (v === null && (YES.has(want) || ["no", "nein", "false", "0"].includes(want)))) {
+    const is = v === true;
+    const wanted = YES.has(want);
+    return rule.op === "is" ? is === wanted : rule.op === "is_not" ? is !== wanted : rule.op === "contains" ? is === wanted : is !== wanted;
+  }
+  const text = String(v ?? "").toLowerCase();
+  if (rule.op === "contains") return text.includes(want);
+  if (rule.op === "not_contains") return !text.includes(want);
+  if (rule.op === "is") return text === want;
+  return text !== want;
+}
+
 function filtered(records: SourceRecord[], f: PipelineStep): SourceRecord[] {
   const text = f.text?.toLowerCase();
   const from = since(f.recentDays);
+  const rules = f.rules ?? [];
   const out = records.filter(
     (r) =>
-      (!text || [r.title, r.key ?? "", ...Object.values(r.fields)].join(" ").toLowerCase().includes(text)) &&
+      (!rules.length || (f.match === "any" ? rules.some((x) => holds(r, x)) : rules.every((x) => holds(r, x)))) &&
+      (!text || [r.title, r.key ?? "", ...Object.values(r.fields), ...(r.typed ?? []).map((x) => String(x.value ?? ""))].join(" ").toLowerCase().includes(text)) &&
       (!f.openOnly || r.status?.group !== "done") &&
       (!from || r.status?.group === "doing" || at(r.updatedAt) >= from),
   );

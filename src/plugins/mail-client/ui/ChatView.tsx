@@ -7,6 +7,7 @@ import { useT } from "@/components/I18nProvider";
 import type { AppViewProps } from "@/plugins/workspace/ui/app-view";
 import type { Row } from "@/plugins/workspace/model";
 import { sendChatMessageAction } from "../server-actions";
+import { NewInbox } from "./NewInbox";
 
 /**
  * The chat: a message database (Teams, WhatsApp, Signal — its rows a pipeline keeps) as conversations and their messages,
@@ -36,7 +37,11 @@ export default function ChatView({ data, rows, openRow, reload }: AppViewProps) 
   const chat = chats.find((c) => c.key === picked) ?? chats[0] ?? null;
   return (
     <div className="grid h-[70vh] min-h-96 grid-cols-[18rem_minmax(0,1fr)] overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800" data-app-view="chat">
-      <ul className="overflow-y-auto border-r border-zinc-200 dark:border-zinc-800" aria-label={t("Chats")}>
+      <div className="flex min-h-0 flex-col border-r border-zinc-200 dark:border-zinc-800">
+      <div className="flex justify-end border-b border-zinc-100 px-3 py-1 dark:border-zinc-800">
+        <NewInbox dbId={data.id} dataType="message" />
+      </div>
+      <ul className="min-h-0 flex-1 overflow-y-auto" aria-label={t("Chats")}>
         {chats.map((c) => {
           const last = c.list.at(-1)!;
           return (
@@ -57,6 +62,7 @@ export default function ChatView({ data, rows, openRow, reload }: AppViewProps) 
         })}
         {!chats.length && <li className="p-4 text-sm text-zinc-500">{t("No messages here.")}</li>}
       </ul>
+      </div>
       {chat ? <Conversation key={chat.key} list={chat.list} channel={channelOf(chat.list.at(-1)!)} canReply={!!data.extras?.capabilities?.reply.includes(channelOf(chat.list.at(-1)!))} openRow={openRow} reload={reload} /> : <p className="p-4 text-sm text-zinc-500">{t("Pick a chat.")}</p>}
     </div>
   );

@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import type { AppViewProps } from "@/plugins/workspace/ui/app-view";
 import type { Row } from "@/plugins/workspace/model";
+import { NewInbox } from "./NewInbox";
 
 /**
  * The mail client: a mail database (its rows a pipeline keeps from Outlook and Gmail) as folders, a list and a reading
@@ -24,64 +24,26 @@ const when = (v: unknown) => {
 
 export default function MailView({ data, rows, openRow }: AppViewProps) {
   const t = useT();
-  const [folder, setFolder] = useState<string>("");
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [picked, setPicked] = useState<number | null>(null);
-  const folderOf = (r: Row) => `${optName(data, "mailaccount", r.cells.mailaccount)} · ${optName(data, "mailfolder", r.cells.mailfolder)}`;
-  const folders = useMemo(() => {
-    const m = new Map<string, { all: number; unread: number }>();
-    for (const r of rows) {
-      const f = folderOf(r);
-      const c = m.get(f) ?? { all: 0, unread: 0 };
-      c.all++;
-      if (r.cells.mailunread) c.unread++;
-      m.set(f, c);
-    }
-    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- folderOf reads data, which rows come with
-  }, [rows, data]);
   const list = rows
-    .filter((r) => (!folder || folderOf(r) === folder) && (!unreadOnly || r.cells.mailunread))
+    .filter((r) => !unreadOnly || r.cells.mailunread)
     .sort((a, b) => String(b.cells.mailreceived ?? "").localeCompare(String(a.cells.mailreceived ?? "")));
   const row = list.find((r) => r.id === picked) ?? list[0] ?? null;
   const unread = rows.filter((r) => r.cells.mailunread).length;
-  // A folder of its own (a filter's database — "Important" under Mail): no folder column, the list and the mail.
-  const folderless = !!data.extras?.derivedFrom;
-  const folderButton = (key: string, label: string, n: number, u: number) => (
-    <button
-      key={key}
-      type="button"
-      onClick={() => (setFolder(key), setPicked(null))}
-      className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm ${folder === key ? "bg-indigo-50 font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
-    >
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      {u > 0 ? <span className="text-xs font-semibold text-indigo-600">{u}</span> : <span className="text-xs text-zinc-400">{n}</span>}
-    </button>
-  );
   return (
-    <div className={`grid h-[70vh] min-h-96 overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800 ${folderless ? "grid-cols-[minmax(0,24rem)_minmax(0,1fr)]" : "grid-cols-[12rem_minmax(0,22rem)_minmax(0,1fr)]"}`} data-app-view="mail">
-      {!folderless && (
-        <nav className="space-y-0.5 overflow-y-auto border-r border-zinc-200 p-2 dark:border-zinc-800" aria-label={t("Folders")}>
-          {folderButton("", t("All mails"), rows.length, unread)}
-          {folders.map(([f, c]) => folderButton(f, f, c.all, c.unread))}
-          {/* Its filters' databases ("Important") as folders of their own — opened as they are. */}
-          {(data.extras?.derived ?? []).length > 0 && <p className="px-2 pt-3 text-[11px] font-semibold text-zinc-500 uppercase">{t("Filtered")}</p>}
-          {(data.extras?.derived ?? []).map((d) => (
-            <Link key={d.id} href={`/workspace/${d.id}`} className="flex w-full items-center gap-2 rounded px-2 py-1 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800" data-derived-folder={d.id}>
-              <span className="min-w-0 flex-1 truncate">
-                {d.icon ? `${d.icon} ` : "⭐ "}
-                {d.title}
-              </span>
-              {d.unread > 0 ? <span className="text-xs font-semibold text-indigo-600">{d.unread}</span> : <span className="text-xs text-zinc-400">{d.count}</span>}
-            </Link>
-          ))}
-          <label className="mt-3 flex items-center gap-1.5 px-2 text-xs text-zinc-500">
-            <input type="checkbox" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} />
-            {t("Unread only")}
-          </label>
-        </nav>
-      )}
-      <ul className="overflow-y-auto border-r border-zinc-200 dark:border-zinc-800" aria-label={t("Mails")}>
+    <div className="grid h-[70vh] min-h-96 grid-cols-[minmax(0,24rem)_minmax(0,1fr)] overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800" data-app-view="mail">
+      <div className="flex min-h-0 flex-col border-r border-zinc-200 dark:border-zinc-800">
+      {/* The inboxes are databases under this one (the sidebar shows them); here: unread only, and a new one. */}
+      <div className="flex items-center gap-2 border-b border-zinc-100 px-3 py-1 dark:border-zinc-800">
+        <label className="flex items-center gap-1.5 text-xs text-zinc-500">
+          <input type="checkbox" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} />
+          {t("Unread only")} {unread > 0 && <span className="font-semibold text-indigo-600">({unread})</span>}
+        </label>
+        <span className="flex-1" />
+        <NewInbox dbId={data.id} dataType="mail" />
+      </div>
+      <ul className="min-h-0 flex-1 overflow-y-auto" aria-label={t("Mails")}>
         {list.map((r) => (
           <li key={r.id}>
             <button
@@ -100,6 +62,7 @@ export default function MailView({ data, rows, openRow }: AppViewProps) {
         ))}
         {!list.length && <li className="p-4 text-sm text-zinc-500">{t("No mails here.")}</li>}
       </ul>
+      </div>
       <section className="min-w-0 overflow-y-auto p-4" aria-label={t("Reading pane")}>{row ? <Reading key={row.id} row={row} data={data} openRow={openRow} /> : <p className="text-sm text-zinc-500">{t("Pick a mail.")}</p>}</section>
     </div>
   );

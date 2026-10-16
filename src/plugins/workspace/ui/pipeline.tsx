@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { saveSyncIntervalAction } from "@/app/actions";
 import { Markdown } from "@/components/Markdown";
 import { toast } from "@/components/Toaster";
@@ -8,7 +8,7 @@ import { minutesText } from "@/plugins/sync-settings";
 import { instructionsAction, newInstructionAction, rejudgeAction, sourceSyncsAction } from "../actions";
 import { useT } from "@/components/I18nProvider";
 import { ATTENTIONS } from "@/lib/boards/shared";
-import { newId, type JiraCriteria, type Pipeline, type PipelineSource, type PipelineStep } from "../model";
+import { FILTER_OPS, newId, type DataType, type FilterRule, type JiraCriteria, type Pipeline, type PipelineSource, type PipelineStep } from "../model";
 import { Dropdown, MenuItem, Modal } from "./kit";
 
 /**
@@ -28,7 +28,7 @@ export const BRIEFING_EXAMPLE = (): PipelineStep[] => [
   { id: newId("s"), kind: "ai", output: "summary", prompt: "Die Gesamtlage: was gerade brennt, was als Nächstes kommt, worauf ich warte — in wenigen Sätzen, die wichtigsten Tickets mit Schlüssel." },
 ];
 
-export function PipelineEditor({ dbId, pipeline, synced, fields, databases, onSave, onRun, onClose }: { dbId: number; pipeline: Pipeline | undefined; synced: string | null; fields: string[]; databases: { id: number; title: string }[]; onSave: (p: Pipeline) => Promise<void>; onRun: (ai: boolean) => Promise<void>; onClose: () => void }) {
+export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, databases, onSave, onRun, onClose }: { dbId: number; pipeline: Pipeline | undefined; synced: string | null; dataType?: DataType; fields: string[]; databases: { id: number; title: string }[]; onSave: (p: Pipeline) => Promise<void>; onRun: (ai: boolean) => Promise<void>; onClose: () => void }) {
   const t = useT();
   // A database a sync keeps: the sync is its source — only AI steps of its own.
   const [steps, setSteps] = useState<PipelineStep[]>((pipeline?.steps ?? []).filter((s) => !synced || s.kind === "ai"));
@@ -86,7 +86,7 @@ export function PipelineEditor({ dbId, pipeline, synced, fields, databases, onSa
               <button type="button" className="icon-btn" disabled={i === steps.length - 1} onClick={() => move(i, 1)} aria-label={t("Down")}>↓</button>
               <button type="button" className="icon-btn" onClick={() => setSteps((ss) => ss.filter((_, k) => k !== i))} aria-label={t("Remove the step")}>✕</button>
             </div>
-            <StepBody dbId={dbId} saved={!dirty} step={s} set={(p) => set(i, p)} databases={databases.filter((d) => d.id !== dbId)} fields={[...new Set([...fields, ...steps.flatMap((x) => (x.kind === "ai" && x.output === "field" && x.name ? [x.name] : []))])]} />
+            <StepBody dbId={dbId} saved={!dirty} step={s} set={(p) => set(i, p)} databases={databases.filter((d) => d.id !== dbId)} fields={[...new Set([...fields, ...(TYPED_FIELDS[dataType ?? ""] ?? []), ...steps.flatMap((x) => (x.kind === "ai" && x.output === "field" && x.name ? [x.name] : []))])]} />
             {s.kind === "ai" && <InstructionPicker chosen={s.instructions ?? []} all={instructions} set={(ids) => set(i, { instructions: ids.length ? ids : undefined })} reload={loadInstructions} />}
           </li>
         ))}
@@ -360,6 +360,8 @@ function StepBody({ dbId, saved, step: s, set, databases, fields }: { dbId: numb
     );
   if (s.kind === "filter")
     return (
+      <div className="space-y-2">
+      <RulesEditor rules={s.rules ?? []} match={s.match ?? "all"} fields={fields} set={(rules, match) => set({ rules: rules.length ? rules : undefined, match: rules.length && match === "any" ? "any" : undefined })} />
       <div className={row}>
         <label className="flex items-center gap-1.5 text-sm">
           {t("Containing")}
@@ -368,6 +370,7 @@ function StepBody({ dbId, saved, step: s, set, databases, fields }: { dbId: numb
         <Check label={t("Open only")} on={s.openOnly} set={(v) => set({ openOnly: v })} />
         <Days label={t("Changed within days")} value={s.recentDays} set={(v) => set({ recentDays: v })} />
         <Days label={t("At most")} value={s.limit} set={(v) => set({ limit: v })} />
+      </div>
       </div>
     );
   if (s.kind === "ai" && s.output === "field")
@@ -416,6 +419,54 @@ function StepBody({ dbId, saved, step: s, set, databases, fields }: { dbId: numb
       </div>
     );
   return null;
+}
+
+/** The fixed fields of a typed database (its sources' — there before its first run). */
+const TYPED_FIELDS: Record<string, string[]> = { mail: ["Title", "From", "Folder", "Account", "Received", "Unread"], message: ["Title", "Sender", "Chat", "Channel", "Sent", "Mine"] };
+
+/** A filter's rules, as Outlook's: field (by its name, suggested), condition, value — all of them or any. */
+function RulesEditor({ rules, match, fields, set }: { rules: FilterRule[]; match: "all" | "any"; fields: string[]; set: (rules: FilterRule[], match: "all" | "any") => void }) {
+  const t = useT();
+  const ops: Record<FilterRule["op"], string> = { contains: t("contains"), not_contains: t("doesn't contain"), is: t("is"), is_not: t("isn't"), empty: t("is empty"), not_empty: t("isn't empty") };
+  const listId = useId();
+  const put = (i: number, patch: Partial<FilterRule>) => set(rules.map((r, k) => (k === i ? { ...r, ...patch } : r)), match);
+  return (
+    <div className="space-y-1.5" data-rules>
+      <datalist id={listId}>
+        {fields.map((f) => (
+          <option key={f} value={f} />
+        ))}
+      </datalist>
+      {rules.length > 1 && (
+        <label className="flex items-center gap-1.5 text-sm">
+          {t("Rows that meet")}
+          <select className="input w-auto py-0.5 text-sm" value={match} onChange={(e) => set(rules, e.target.value === "any" ? "any" : "all")}>
+            <option value="all">{t("all rules")}</option>
+            <option value="any">{t("any rule")}</option>
+          </select>
+        </label>
+      )}
+      {rules.map((r, i) => (
+        <div key={i} className="flex flex-wrap items-center gap-1.5">
+          <input className="input w-36 py-0.5 text-sm" list={listId} value={r.field} placeholder={t("Field")} aria-label={t("Field")} onChange={(e) => put(i, { field: e.target.value })} />
+          <select className="input w-auto py-0.5 text-sm" value={r.op} aria-label={t("Condition")} onChange={(e) => put(i, { op: e.target.value as FilterRule["op"] })}>
+            {FILTER_OPS.map((o) => (
+              <option key={o} value={o}>
+                {ops[o]}
+              </option>
+            ))}
+          </select>
+          {r.op !== "empty" && r.op !== "not_empty" && <input className="input w-48 py-0.5 text-sm" value={r.value ?? ""} placeholder={t("Value (a checkbox: yes / no)")} aria-label={t("Value")} onChange={(e) => put(i, { value: e.target.value })} />}
+          <button type="button" className="icon-btn text-xs" aria-label={t("Remove the rule")} onClick={() => set(rules.filter((_, k) => k !== i), match)}>
+            ✕
+          </button>
+        </div>
+      ))}
+      <button type="button" className="text-sm text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => set([...rules, { field: fields[0] ?? "Title", op: "contains", value: "" }], match)}>
+        + {t("Rule")}
+      </button>
+    </div>
+  );
 }
 
 /** What the pipeline's summaries wrote, above the database's view. */
