@@ -92,6 +92,8 @@ export function addDocument(name: string, data: Buffer, mime = ""): { doc: DocVi
     .returning()
     .get();
   emitChange("todos");
+  // A new document: the Workspace's document inbox takes it in.
+  void import("./seen").then((m) => m.refresh()).catch(() => undefined);
   return { doc: toView(row), fresh: true };
 }
 

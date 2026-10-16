@@ -21,7 +21,7 @@ export type CellCtx = {
   openRow?: (id: number) => void;
 };
 
-const hrefOf = (v: string) => (/^https?:\/\//i.test(v) ? v : /^[\w.-]+\.[a-z]{2,}(\/|$)/i.test(v) ? `https://${v}` : "");
+const hrefOf = (v: string) => (/^https?:\/\//i.test(v) || /^\/(?!\/)/.test(v) ? v : /^[\w.-]+\.[a-z]{2,}(\/|$)/i.test(v) ? `https://${v}` : "");
 const asArr = (v: unknown): unknown[] => (Array.isArray(v) ? v : v === null || v === undefined || v === "" ? [] : [v]);
 
 export function Tag({ option }: { option: Option }) {
