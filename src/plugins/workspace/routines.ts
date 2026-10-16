@@ -270,3 +270,14 @@ export const getRun = (runId: number): RoutineRun | null => {
   const r = db().prepare("select * from ws_routine_runs where id = ?").get(runId) as LRow | undefined;
   return r ? toRun(r) : null;
 };
+
+/** The runs of agents still going: those with a worker run, not ended. */
+export function runningAgentRuns(): RoutineRun[] {
+  return (db().prepare("select * from ws_routine_runs where status = 'running' and work_run_id is not null order by id").all() as LRow[]).map(toRun);
+}
+
+/** The routine whose agent a worker run is (the newest run of it) — what an MCP request from that worker is allowed to do follows from it. */
+export function routineOfWorkRun(workRunId: number): number | null {
+  const r = db().prepare("select page_id from ws_routine_runs where work_run_id = ? order by id desc limit 1").get(workRunId) as { page_id: number } | undefined;
+  return r?.page_id ?? null;
+}

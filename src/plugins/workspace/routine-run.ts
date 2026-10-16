@@ -1,4 +1,5 @@
 import { runAutomation } from "./automation";
+import { startAgent, type AgentDeps } from "./routine-agent";
 import { getRoutine, type RunStatus, type Trigger } from "./routines";
 
 /**
@@ -9,6 +10,7 @@ export async function runRoutine(
   pageId: number,
   trigger: Trigger,
   ctx: { row?: number; payload?: Record<string, string>; depth?: number } = {},
+  agentDeps?: Partial<AgentDeps>,
 ): Promise<{ status: RunStatus | "started"; runId?: number; error?: string }> {
   const routine = getRoutine(pageId);
   if (!routine) throw new Error("This page is no routine.");
@@ -16,5 +18,6 @@ export async function runRoutine(
     const r = await runAutomation(pageId, trigger, { row: ctx.row, payload: ctx.payload, depth: ctx.depth });
     return { status: r.status, runId: r.runId, error: r.error };
   }
-  throw new Error("Agents are started in routine-agent.");
+  const r = await startAgent(pageId, trigger, { row: ctx.row, payload: ctx.payload }, agentDeps);
+  return { status: r.status, runId: r.runId, error: r.error };
 }

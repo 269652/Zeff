@@ -10,3 +10,11 @@ export const inAgentScope = (): boolean => agentScope.getStore() === true;
 
 /** A tool handler run in the agent scope. */
 export const asAgent = <A extends unknown[], R>(fn: (...a: A) => R) => (...a: A): R => agentScope.run(true, () => fn(...a));
+
+/**
+ * Further checks of what an AI's tool may write — a page (or the parent a page is made under; null: at the top). An agent routine's
+ * permissions are one: its worker's MCP requests may change only what its scope allows. A guard throws to refuse.
+ */
+const guards: ((pageId: number | null) => void)[] = [];
+export const addAgentGuard = (g: (pageId: number | null) => void): void => void (guards.includes(g) || guards.push(g));
+export const runAgentGuards = (pageId: number | null): void => guards.forEach((g) => g(pageId));

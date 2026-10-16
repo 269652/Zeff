@@ -8,7 +8,7 @@ import { afterJobChange } from "./jobs";
 import { syncLinkedFrom } from "./links";
 import { getSqlite } from "@/db";
 import { isSystemPage, systemPageIds } from "@/lib/prompts/system-pages";
-import { inAgentScope } from "./agent-scope";
+import { inAgentScope, runAgentGuards } from "./agent-scope";
 import { emitChange } from "@/lib/events";
 import { emitRowEvent } from "./events";
 import { docRefs, docText, emptyDoc, sanitizeDoc, type Doc, type DocRef } from "./doc";
@@ -309,7 +309,9 @@ export function isProtectedPage(id: number | null | undefined): boolean {
 
 /** The AI's tools may read system pages, not change them (or make pages under them). */
 function noAgentOnSystem(id: number | null | undefined): void {
-  if (inAgentScope() && isProtectedPage(id)) throw new Error("System pages (the prompts, the detail views, the instructions) can only be changed by you, not by the AI.");
+  if (!inAgentScope()) return;
+  if (isProtectedPage(id)) throw new Error("System pages (the prompts, the detail views, the instructions) can only be changed by you, not by the AI.");
+  runAgentGuards(id ?? null); // (an agent routine's permissions)
 }
 
 /** A system page (System, its prompts) stays: not archived, deleted or moved to another parent. */
@@ -707,6 +709,7 @@ export function setCell(rowId: number, propId: string, value: unknown): void {
   const p = schema && propById(schema.properties, propId);
   if (!p) throw new Error("No such property.");
   if (isComputed(p)) throw new Error(`"${p.name}" is computed — it can't be set.`);
+  noAgentOnSystem(rowId);
   const props = { ...row.props };
   const v = coerceCell(p, value);
   if (v === null) delete props[propId];

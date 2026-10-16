@@ -8,6 +8,7 @@ import { z } from "zod";
 import { isInstalled } from "@/plugins/state";
 import { docToMarkdown, markdownToDoc } from "./doc";
 import { cellText, isComputed, sortRows, TITLE, type Row } from "./model";
+import "./routine-agent"; // (registers an agent routine's permissions as a guard of its worker's requests)
 import { asAgent } from "./agent-scope";
 import * as store from "./store";
 import { registerWorkspaceDbTools, valuesToCells } from "./mcp-db";
