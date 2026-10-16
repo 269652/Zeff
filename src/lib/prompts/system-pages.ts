@@ -13,3 +13,8 @@ export function addSystemPage(id: number): void {
   const ids = systemPageIds();
   if (!ids.includes(id)) setPref(KEY, [...ids, id]);
 }
+/** Pages that are not system pages any more (a part of the system gone — they can be trashed again). */
+export function removeSystemPages(ids: number[]): void {
+  const gone = new Set(ids);
+  setPref(KEY, systemPageIds().filter((x) => !gone.has(x)));
+}

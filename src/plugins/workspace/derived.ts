@@ -56,8 +56,6 @@ export async function createExtSourceDatabase(ext: string, title?: string): Prom
   const schema: DbSchema = { titleName: t("Name"), properties: [], views, ...(src.dataType ? { dataType: src.dataType } : {}), pipeline: { steps: [step], everyMinutes: 60 } };
   const id = createPage({ kind: "database", title: title || t(src.label), icon: src.icon, schema });
   updatePage(id, { fullWidth: true });
-  // A people database: its rows open as a person's page (blocks in flex boxes — change them like any page).
-  if (src.dataType === "people") (await import("./detail-page")).ensureDetailPage(id);
   return id;
 }
 

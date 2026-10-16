@@ -10,8 +10,7 @@ import { personBundleAction, personOpAction, personWikiAction, type KnowledgeOfP
 import type { PersonBundle, PersonOperation } from "../blocks";
 
 /**
- * The blocks of a person's page — the detail view of a row of the people database, laid out as the page says (any of them, in any
- * flex row or column). All read one bundle per row, so a change in one shows in the others.
+ * The sections of a person's page — all read one bundle per row, so a change in one shows in the others.
  */
 
 type Entry = { data: PersonBundle | null; error: string | null; loading: boolean };
@@ -101,107 +100,130 @@ const LinkBtn = ({ children, ...p }: React.ButtonHTMLAttributes<HTMLButtonElemen
   </button>
 );
 
-export function PersonBlock({ module, rowId, fallback }: { module: string; rowId: number; /** Shown where the row is no person (a layout being laid out). */ fallback?: ReactNode }) {
+/**
+ * A person's page — the custom view of the people database's rows, ONE block of the row's own page (the rest of the page is free
+ * text and blocks): who they are, your notes, their dates on the left; the summary, what was read from messages and the relations on the right;
+ * below, over the full width, one row each: what the knowledge knows, the latest messages, the todos — then pages and tickets.
+ */
+export default function PersonView({ rowId }: { rowId: number }) {
   const t = useT();
   const p = usePerson(rowId);
   if (p.loading) return <Empty>…</Empty>;
-  if (!p.data) return fallback ? <>{fallback}</> : <Empty>{p.error ?? t("This row is not a person.")}</Empty>;
+  if (!p.data) return <Empty>{p.error ?? t("This row is not a person.")}</Empty>;
   const d = p.data;
-  switch (module) {
-    case "person-profile":
-      return <Profile d={d} run={p.run} />;
-    case "person-note":
-      return <Note d={d} run={p.run} />;
-    case "person-summary":
-      return <Summary d={d} run={p.run} />;
-    case "person-dates":
-      return <Dates d={d} run={p.run} />;
-    case "person-knowledge":
-      return <Known d={d} run={p.run} />;
-    case "person-wiki":
-      return <Wiki rowId={rowId} />;
-    case "person-relations":
-      return <Relations d={d} run={p.run} />;
-    case "person-messages":
-      return (
-        <Card title={t("Latest messages")}>
-          {d.contacts.length ? (
-            <ul className="space-y-1.5 text-sm">
-              {d.contacts.map((c) => (
-                <li key={c.key}>
-                  <div className="flex items-baseline gap-2 text-xs text-zinc-500">
-                    <span>{c.folder}</span>
-                    <span>{c.who}</span>
-                    <span className="ml-auto">{new Date(c.at).toLocaleString()}</span>
-                  </div>
-                  <p className="line-clamp-2">{c.text}</p>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <Empty>{t("No messages — enter the WhatsApp chat or the mail addresses in the profile.")}</Empty>
-          )}
-        </Card>
-      );
-    case "person-todos":
-      return (
-        <Card title={t("Todos they appear in")}>
-          {d.todos.length ? (
-            <ul className="space-y-1.5 text-sm">
-              {d.todos.map((todo) => (
-                <li key={todo.id} className="flex items-baseline gap-2">
-                  <Link href={`/t/${todo.id}`} className="font-mono text-xs text-zinc-400 hover:underline">
-                    {todo.ref}
-                  </Link>
-                  <span className="min-w-0 flex-1">{todo.text}</span>
-                  {todo.due && <span className="shrink-0 text-xs text-zinc-500">{todo.due}</span>}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <Empty>{t("No open todo names them.")}</Empty>
-          )}
-        </Card>
-      );
-    case "person-pages":
-      return (
-        <Card title={t("Mentioned in your workspace")}>
-          {d.pages.length ? (
-            <ul className="flex flex-wrap gap-1.5 text-sm">
-              {d.pages.map((pg) => (
-                <li key={pg.id}>
-                  <Link href={`/workspace/${pg.id}`} className="rounded-md border border-zinc-200 px-2 py-0.5 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800">
-                    {pg.icon} {pg.title}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <Empty>{t("No page mentions them yet — type @ in a page.")}</Empty>
-          )}
-        </Card>
-      );
-    case "person-tickets":
-      return (
-        <Card title={t("Shared tickets")}>
-          {d.tickets.length ? (
-            <ul className="flex flex-wrap gap-1.5 text-sm">
-              {d.tickets.map((k) => (
-                <li key={k} className="rounded-md border border-zinc-200 px-2 py-0.5 font-mono text-xs dark:border-zinc-700">
-                  🎫 {k}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <Empty>{t("No ticket known yet — Zeff derives them from comments and assignments.")}</Empty>
-          )}
-        </Card>
-      );
-    case "person-manage":
-      return <Manage d={d} run={p.run} />;
-    default:
-      return null;
-  }
+  return (
+    <div className="@container space-y-5" data-person-view>
+      {/* Who they are on the left, what Zeff made of them on the right … */}
+      <div className="ws-person grid gap-x-8 gap-y-5 @2xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        <aside className="space-y-5">
+          <Profile d={d} run={p.run} />
+          <Note d={d} run={p.run} />
+          <Dates d={d} run={p.run} />
+          <Manage d={d} run={p.run} />
+        </aside>
+        <div className="space-y-5">
+          <Summary d={d} run={p.run} />
+          <Known d={d} run={p.run} />
+          <Relations d={d} run={p.run} />
+        </div>
+      </div>
+      {/* … then, each over the full width: what the knowledge knows, the latest messages, the todos they appear in. */}
+      <Wiki rowId={rowId} />
+      <Messages d={d} />
+      <TodosOf d={d} />
+      <div className="grid gap-x-8 gap-y-5 @2xl:grid-cols-2">
+        <Pages d={d} />
+        <Tickets d={d} />
+      </div>
+    </div>
+  );
+}
+
+function Messages({ d }: { d: PersonBundle }) {
+  const t = useT();
+  return (
+    <Card title={t("Latest messages")}>
+      {d.contacts.length ? (
+        <ul className="space-y-1.5 text-sm">
+          {d.contacts.map((c) => (
+            <li key={c.key}>
+              <div className="flex items-baseline gap-2 text-xs text-zinc-500">
+                <span>{c.folder}</span>
+                <span>{c.who}</span>
+                <span className="ml-auto">{new Date(c.at).toLocaleString()}</span>
+              </div>
+              <p className="line-clamp-2">{c.text}</p>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <Empty>{t("No messages — enter the WhatsApp chat or the mail addresses in the profile.")}</Empty>
+      )}
+    </Card>
+  );
+}
+
+function TodosOf({ d }: { d: PersonBundle }) {
+  const t = useT();
+  return (
+    <Card title={t("Todos they appear in")}>
+      {d.todos.length ? (
+        <ul className="space-y-1.5 text-sm">
+          {d.todos.map((todo) => (
+            <li key={todo.id} className="flex items-baseline gap-2">
+              <Link href={`/t/${todo.id}`} className="font-mono text-xs text-zinc-400 hover:underline">
+                {todo.ref}
+              </Link>
+              <span className="min-w-0 flex-1">{todo.text}</span>
+              {todo.due && <span className="shrink-0 text-xs text-zinc-500">{todo.due}</span>}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <Empty>{t("No open todo names them.")}</Empty>
+      )}
+    </Card>
+  );
+}
+
+function Pages({ d }: { d: PersonBundle }) {
+  const t = useT();
+  return (
+    <Card title={t("Mentioned in your workspace")}>
+      {d.pages.length ? (
+        <ul className="flex flex-wrap gap-1.5 text-sm">
+          {d.pages.map((pg) => (
+            <li key={pg.id}>
+              <Link href={`/workspace/${pg.id}`} className="rounded-md border border-zinc-200 px-2 py-0.5 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800">
+                {pg.icon} {pg.title}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <Empty>{t("No page mentions them yet — type @ in a page.")}</Empty>
+      )}
+    </Card>
+  );
+}
+
+function Tickets({ d }: { d: PersonBundle }) {
+  const t = useT();
+  return (
+    <Card title={t("Shared tickets")}>
+      {d.tickets.length ? (
+        <ul className="flex flex-wrap gap-1.5 text-sm">
+          {d.tickets.map((k) => (
+            <li key={k} className="rounded-md border border-zinc-200 px-2 py-0.5 font-mono text-xs dark:border-zinc-700">
+              🎫 {k}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <Empty>{t("No ticket known yet — Zeff derives them from comments and assignments.")}</Empty>
+      )}
+    </Card>
+  );
 }
 
 type RunFn = (op: PersonOperation, done?: string) => Promise<boolean>;

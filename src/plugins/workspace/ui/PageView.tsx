@@ -12,7 +12,7 @@ import { useT } from "@/components/I18nProvider";
 import { archivePageAction, restorePageAction, createPageAction, duplicatePageAction, exportMarkdownAction, historyAction, restoreVersionAction, savePageAction, versionAction } from "../actions";
 import type { DatabaseData } from "../actions";
 import { DatabaseView, RowProperties } from "./DatabaseView";
-import { DetailFromPage } from "./RowPeek";
+import { seedPerson } from "@/plugins/people/ui/PersonView";
 import type { PersonBundle } from "@/plugins/people/blocks";
 import { Editor, type SaveState } from "./Editor";
 import { COVERS, coverStyle, Dropdown, EmojiPicker, MenuItem, Modal, pickFile, uploadImage } from "./kit";
@@ -110,9 +110,13 @@ function History({ pageId, onClose }: { pageId: number; onClose: () => void }) {
   );
 }
 
-export function PageView({ page, row, database, detail, arrangeLayout = false }: { /** A detail layout page: shown with the controls for arranging. */ arrangeLayout?: boolean; page: PageViewData; row?: { initial: DatabaseData; dbId: number } | null; database?: DatabaseData | null; /** The row's detail view as the server read it: its layout, and (a person) what the blocks show. */ detail?: { pageId: number; content: JSONContent; rev: number; person?: PersonBundle | null; data?: DatabaseData | null } | null }) {
+export function PageView({ page, row, database, person }: { page: PageViewData; row?: { initial: DatabaseData; dbId: number } | null; database?: DatabaseData | null; /** What a person's page shows, as the server read it with the page (no round trip after it). */ person?: PersonBundle | null }) {
   const t = useT();
   const router = useRouter();
+  // A person's view starts from what the server read with the page.
+  useState(() => {
+    if (person) seedPerson(page.id, person);
+  });
   const [title, setTitle] = useState(page.title);
   const [icon, setIcon] = useState(page.icon);
   const [cover, setCover] = useState(page.cover);
@@ -208,7 +212,7 @@ export function PageView({ page, row, database, detail, arrangeLayout = false }:
 
   const editable = !locked;
   // A database uses the whole width (a board in a narrow column wastes the screen); a page as you set it.
-  const width = fullWidth || page.kind === "database" || !!detail ? "max-w-none" : "max-w-3xl";
+  const width = fullWidth || page.kind === "database" || !!row?.initial.extras?.rowView ? "max-w-none" : "max-w-3xl";
 
   return (
     <div className="space-y-3">
@@ -378,18 +382,14 @@ export function PageView({ page, row, database, detail, arrangeLayout = false }:
           )}
         </div>
 
-        {row && !detail && <RowProperties initial={row.initial} dbId={row.dbId} rowId={page.id} />}
+        {/* A row with a custom view (a person) shows its fields in that view. */}
+        {row && !row.initial.extras?.rowView && <RowProperties initial={row.initial} dbId={row.dbId} rowId={page.id} />}
 
         <SystemPageBar pageId={page.id} />
         {page.kind === "database" ? (
           <DatabaseView initial={database ?? null} dbId={page.id} />
-        ) : detail ? (
-          // A row whose database has a detail view: the page is laid out as that view says (its own text is the "page" block).
-          <DetailFromPage pageId={detail.pageId} rowId={page.id} initial={{ doc: detail.content, rev: detail.rev }} person={detail.person ?? undefined} data={detail.data ?? undefined} />
         ) : (
-          <div data-arrange={arrangeLayout ? "true" : undefined}>
-            <Editor key={page.id} pageId={page.id} initial={page.content} rev={page.rev} editable={editable} smallText={smallText} onSave={setStatus} />
-          </div>
+          <Editor key={page.id} pageId={page.id} initial={page.content} rev={page.rev} editable={editable} smallText={smallText} onSave={setStatus} />
         )}
 
         {page.kind === "page" && (

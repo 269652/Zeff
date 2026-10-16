@@ -8,6 +8,7 @@ import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { DatabaseBlock } from "./DatabaseView";
 import { embedPage } from "./page-embed";
+import { RowViewHost } from "./row-view";
 import { ModuleBlock } from "./detail-modules";
 import type { DetailModule } from "../model";
 
@@ -317,7 +318,7 @@ function ModuleBlockView({ node, updateAttributes, editor, extension, getPos, de
           </button>
         </div>
       )}
-      {editor.isEditable && !String(node.attrs.module).startsWith("person-") && (
+      {editor.isEditable && (
         <input
           value={key}
           onChange={(e) => setKey(e.target.value)}
@@ -353,6 +354,44 @@ export const ZeffModuleNode = Node.create<{ pageId: number }>({
   },
   addNodeView() {
     return ReactNodeViewRenderer(ModuleBlockView);
+  },
+});
+
+/** The custom view of a row's database (a person's page): one block of the row's own page — the rest of the page is free. */
+function RowViewBlockView({ editor, extension, deleteNode }: NodeViewProps) {
+  return (
+    <NodeViewWrapper className="ws-module-block my-2" contentEditable={false}>
+      {editor.isEditable && (
+        <div className="ws-grip-bar" contentEditable={false}>
+          <span data-drag-handle className="ws-grip-btn" title="Drag to move" aria-label="Drag to move">
+            ⠿
+          </span>
+          <button type="button" title="Remove this view" aria-label="Remove this view" onClick={() => deleteNode()}>
+            ✕
+          </button>
+        </div>
+      )}
+      <RowViewHost rowId={Number((extension.options as { pageId: number }).pageId)} />
+    </NodeViewWrapper>
+  );
+}
+
+export const RowViewNode = Node.create<{ pageId: number }>({
+  name: "rowView",
+  group: "block",
+  atom: true,
+  draggable: true,
+  addOptions() {
+    return { pageId: 0 };
+  },
+  parseHTML() {
+    return [{ tag: "div[data-row-view]" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["div", mergeAttributes(HTMLAttributes, { "data-row-view": "" })];
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(RowViewBlockView);
   },
 });
 

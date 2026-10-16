@@ -240,7 +240,7 @@ export type DatabaseData = {
   /** What the cards show beyond the cells: each row's ticket key, its subtasks, and — by key — its Lage and todos. */
   /** Locked (a database a sync keeps, as Jira's): shown, not changed here — its cards don't move, its cells aren't edited. */
   locked: boolean;
-  extras: { keys: Record<number, string>; subtasks: Record<number, { done: number; total: number }>; tickets: Record<string, TicketExtras>; todosOn: boolean; briefing: boolean; knowledge: boolean; me: { names: string[]; ids: number[] }; source: string | null; running?: boolean; /** The app views it can have (mail client, chat — their plugins installed). */ appViews?: { id: string; label: string; icon: string }[]; /** The sources plugins bring (People …), for the pipeline editor. */ extSources?: { id: string; label: string; icon: string; hint?: string }[]; /** Mail or message channels can be named as sources (the View menu offers "Inbox"). */ inboxPossible?: boolean; /** What its sources let you do (reply where they send; read-only else). */ capabilities?: { reply: string[]; drafts: string[]; readOnly: boolean }; /** Its derived databases (an app shows them as folders), and the one it is derived from. */ derived?: { id: number; title: string; icon: string; count: number; unread: number }[]; derivedFrom?: number | null; previews: Record<number, PreviewLine[]>; /** Rows that are linked copies of a row in another database. */ links?: Record<number, { source: number; sourceTitle: string; sourceDb: string }> };
+  extras: { keys: Record<number, string>; subtasks: Record<number, { done: number; total: number }>; tickets: Record<string, TicketExtras>; todosOn: boolean; briefing: boolean; knowledge: boolean; me: { names: string[]; ids: number[] }; source: string | null; running?: boolean; /** The app views it can have (mail client, chat — their plugins installed). */ appViews?: { id: string; label: string; icon: string }[]; /** The sources plugins bring (People …), for the pipeline editor. */ extSources?: { id: string; label: string; icon: string; hint?: string }[]; /** Mail or message channels can be named as sources (the View menu offers "Inbox"). */ inboxPossible?: boolean; /** What its sources let you do (reply where they send; read-only else). */ capabilities?: { reply: string[]; drafts: string[]; readOnly: boolean }; /** Its derived databases (an app shows them as folders), and the one it is derived from. */ derived?: { id: number; title: string; icon: string; count: number; unread: number }[]; derivedFrom?: number | null; previews: Record<number, PreviewLine[]>; /** Rows that are linked copies of a row in another database. */ links?: Record<number, { source: number; sourceTitle: string; sourceDb: string }>; /** The custom view its rows have (a plugin's): its id. */ rowView?: string | null };
 };
 
 export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: DatabaseData }>> {
@@ -284,7 +284,7 @@ export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: D
       const attention = typeof att === "string" && isAttention(att) ? att : (cur?.attention ?? null);
       tickets[k] = { attention, attentionLabel: attention && isAttention(attention) ? attentionLabels(t)[attention] : null, lead: typeof lead === "string" ? lead : (cur?.lead ?? null), summary: typeof r.cells[LAGE_FIELDS.summary] === "string" ? String(r.cells[LAGE_FIELDS.summary]) : (cur?.summary ?? null), happened: cur?.happened ?? [], todos: cur?.todos ?? [] };
     }
-    const extras: DatabaseData["extras"] = { keys, subtasks: subtaskCounts(d.schema, d.rows, page.id), tickets, todosOn: isInstalled("todos"), ...collectionSwitches(page.id), me: await whoAmI(), source: collectionSource(page.id), running: (await import("./pipeline")).pipelineRunning(page.id), extSources: (await (await import("./source-point")).extSources()).map((x) => ({ id: x.id, label: x.label, icon: x.icon, hint: x.hint })), inboxPossible: (await import("./derived")).channelKinds().mail || (await import("./derived")).channelKinds().messages, appViews: (await import("./app-views")).appViewsFor(d.schema.dataType).map((a) => ({ id: a.id, label: t(a.label), icon: a.icon })), capabilities: (await import("./capabilities")).capabilitiesOf(d.schema), derived: (await import("./derived")).derivedOf(page.id), derivedFrom: (await import("./derived")).derivedFrom(d.schema), previews: Object.fromEntries(d.rows.map((r) => [r.id, previewLines(store.getPage(r.id)?.content, 10)])), links: (await import("./links")).linksIn(d.rows.map((r) => r.id)) };
+    const extras: DatabaseData["extras"] = { keys, subtasks: subtaskCounts(d.schema, d.rows, page.id), tickets, todosOn: isInstalled("todos"), ...collectionSwitches(page.id), me: await whoAmI(), source: collectionSource(page.id), running: (await import("./pipeline")).pipelineRunning(page.id), extSources: (await (await import("./source-point")).extSources()).map((x) => ({ id: x.id, label: x.label, icon: x.icon, hint: x.hint })), inboxPossible: (await import("./derived")).channelKinds().mail || (await import("./derived")).channelKinds().messages, appViews: (await import("./app-views")).appViewsFor(d.schema.dataType).map((a) => ({ id: a.id, label: t(a.label), icon: a.icon })), capabilities: (await import("./capabilities")).capabilitiesOf(d.schema), derived: (await import("./derived")).derivedOf(page.id), derivedFrom: (await import("./derived")).derivedFrom(d.schema), previews: Object.fromEntries(d.rows.map((r) => [r.id, previewLines(store.getPage(r.id)?.content, 10)])), links: (await import("./links")).linksIn(d.rows.map((r) => r.id)), rowView: (await import("./row-views")).rowViewOf(d.schema.dataType)?.id ?? null };
     return { data: { id: page.id, title: page.title, icon: page.icon, locked: page.locked, schema: d.schema, rows: d.rows, labels, templates: store.rowTemplates(page.id).map((r) => ({ id: r.id, title: r.title || t("Untitled") })), related, extras } };
   });
 }
@@ -441,11 +441,6 @@ export async function rowContextAction(rowId: number) {
     if (!r.ok) throw new Error(r.error);
     return { data: r.data };
   });
-}
-
-/** A database's detail page (its row panel as blocks) — made when it has none; its id, to open it. */
-export async function detailPageAction(dbId: number) {
-  return run(async () => ({ id: (await import("./detail-page")).ensureDetailPage(Number(dbId)) }));
 }
 
 /** An AI filter tried on a sample (what it would keep) — nothing saved. */
@@ -810,7 +805,9 @@ export async function workspaceChatAction(messages: { role: "user" | "assistant"
 
 /** A page's current text and revision - for an editor that is open while the assistant changed it. */
 export async function pageContentAction(id: number) {
-  return run(() => {
+  return run(async () => {
+    // A row whose database has a custom view (a person): its page starts with that view's block.
+    (await import("./row-views")).ensureRowView(Number(id));
     const p = store.getPage(Number(id));
     if (!p) throw new Error(t("This page is gone."));
     return { content: JSON.stringify(p.content), rev: p.rev };
@@ -921,6 +918,16 @@ export async function setAgentsAction(dbId: number, cfg: { auto: boolean; parall
     // Switched on: what is Ready already is taken now (in the background — the page doesn't wait for the workers).
     if (cfg.auto) void (await import("./jobs")).pumpJobs(Number(dbId)).catch(() => undefined);
     return {};
+  });
+}
+
+/** The custom view the rows of this row's database have (a plugin's — a person's page): its id, or none. Also writes the block into the page when it is missing. */
+export async function rowViewAction(rowId: number) {
+  return run(async () => {
+    const row = store.getPage(Number(rowId));
+    const db = row?.dbId ? store.getDatabase(row.dbId) : null;
+    const view = (await import("./row-views")).rowViewOf(db?.schema.dataType);
+    return { view: view?.id ?? null };
   });
 }
 

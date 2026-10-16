@@ -5655,5 +5655,7 @@
   "any of these": "cualquiera de estas",
   "Routine controls": "Controles de rutina",
   "Run, schedule and permissions of an agent or an automation — for this page": "Ejecutar, horario y permisos de un agente o una automatización: para esta página",
-  "The default worker": "El worker predeterminado"
+  "The default worker": "El worker predeterminado",
+  "Custom view of this entry": "Vista propia de esta entrada",
+  "What a plugin shows for the rows of this database — a person's page": "Lo que un plugin muestra para las filas de esta base de datos: la página de una persona"
 }

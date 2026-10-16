@@ -23,7 +23,7 @@ import type { TreeItem } from "../store";
 import { Modal } from "./kit";
 import { pickFile, uploadImage } from "./kit";
 import { MentionCommand } from "./mention";
-import { AiBlockNode, Callout, DatabaseViewNode, FlexBox, ZeffModuleNode, ZeffRef } from "./nodes";
+import { AiBlockNode, Callout, DatabaseViewNode, FlexBox, RowViewNode, ZeffModuleNode, ZeffRef } from "./nodes";
 import { ZeffButton, ZeffField, ZeffRelated } from "./app-nodes";
 import { ZeffRoutine } from "./routine-node";
 import { PageEmbedNode } from "./page-embed";
@@ -241,6 +241,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
       DatabaseViewNode,
       ZeffModuleNode.configure({ pageId: contextRowId ?? pageId }),
       ZeffRoutine.configure({ pageId }),
+      RowViewNode.configure({ pageId: contextRowId ?? pageId }),
       ZeffField.configure({ pageId: contextRowId ?? pageId }),
       ZeffRelated.configure({ pageId: contextRowId ?? pageId }),
       ZeffButton.configure({ pageId: contextRowId ?? pageId }),

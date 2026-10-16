@@ -118,8 +118,6 @@ export type DbSchema = {
   personProp?: string;
   /** What a row's detail view (the panel over the database) shows, in order; unset: what fits the database (detailModules). */
   detail?: DetailModule[];
-  /** Its detail view as a page of blocks (System → Detail views): what a row's panel shows, laid out as you like. */
-  detailPage?: number;
   /** The AI review: its AI properties filled by a run of their own (scheduled, the changed rows only) — see review.ts. */
   review?: { on: boolean; skipBriefed?: boolean; openOnly?: boolean; recentDays?: number };
   /** Where its rows come from and what's done with them, as steps (blocks) — kept in the database by a run (pipeline.ts). */
@@ -281,9 +279,7 @@ export function normalizePipeline(raw: unknown): Pipeline {
 }
 
 /** The modules a row's detail view can show: its properties and page, and — by its ticket key — what Zeff knows about it. */
-/** The blocks of a person's page (the people database's detail view): profile, notes, summary, dates, what is known, relations, messages … */
-export const PERSON_MODULES = ["person-profile", "person-note", "person-summary", "person-dates", "person-knowledge", "person-wiki", "person-relations", "person-messages", "person-todos", "person-pages", "person-tickets", "person-manage"] as const;
-export const DETAIL_MODULES = ["properties", "source", "subtasks", "suggested", "briefing", "todos", "questions", "actions", "flags", "context", "chat", "page", ...PERSON_MODULES] as const;
+export const DETAIL_MODULES = ["properties", "source", "subtasks", "suggested", "briefing", "todos", "questions", "actions", "flags", "context", "chat", "page"] as const;
 export type DetailModule = (typeof DETAIL_MODULES)[number];
 const isDetailModule = (v: unknown): v is DetailModule => (DETAIL_MODULES as readonly unknown[]).includes(v);
 
@@ -413,7 +409,7 @@ export function normalizeSchema(raw: unknown): DbSchema {
   const o = (raw && typeof raw === "object" ? raw : {}) as Partial<DbSchema>;
   const props = (Array.isArray(o.properties) ? o.properties : []).filter((p): p is Property => !!p && typeof p.id === "string" && (PROP_TYPES as readonly string[]).includes(p.type)).map(withAiColors);
   const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [] }));
-  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(Number.isInteger(o.detailPage) && Number(o.detailPage) > 0 ? { detailPage: Number(o.detailPage) } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(o.rules === true ? { rules: true } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}) };
+  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(o.rules === true ? { rules: true } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}) };
 }
 
 export const propById = (props: Property[], id: string): Property | undefined => props.find((p) => p.id === id);
@@ -847,7 +843,8 @@ export function removeOption(schema: DbSchema, propId: string, optionId: string,
  */
 export function detailModules(schema: DbSchema, source: string | null | undefined): DetailModule[] {
   if (schema.detail) return schema.detail;
-  if (schema.dataType === "people") return [...PERSON_MODULES, "page"];
+  // A plugin's custom view of the rows (a person) is a block of the row's own page.
+  if (schema.dataType === "people") return ["page"];
   if (source === "jira") return ["properties", "briefing", "todos", "questions", "actions", "flags", "context", "chat"];
   // A database that receives rows from others: the linked ticket first, then what Zeff knows of it (by the key the copy carries).
   if (schema.receive) return ["properties", "source", "briefing", "todos", "context", "page"];

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { addRowAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, detailPageAction, makeInboxAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { addRowAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, makeInboxAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
 import { DEFAULT_COLUMN, fitWidth, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
@@ -448,17 +448,6 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           {(close) => (
             <>
               <MenuItem onClick={() => (close(), setSchemaOpen(true))}>⚙ {t("Edit properties …")}</MenuItem>
-              <MenuItem
-                onClick={async () => {
-                  close();
-                  // The detail view is a page of blocks (System → Detail views): opened to lay it out.
-                  const r = await detailPageAction(dbId);
-                  if (!r.ok) return void toast(r.error, { tone: "error" });
-                  router.push(`/workspace/${r.id}`);
-                }}
-              >
-                ▤ {t("Detail view …")}
-              </MenuItem>
               <MenuItem onClick={() => (close(), setPipelineOpen(true))}>⛓ {t("Sources & steps …")}</MenuItem>
               <MenuItem onClick={() => (close(), setReceiveOpen(true))}>➜ {t("Receive tickets …")}</MenuItem>
               {schema.jobs && <MenuItem onClick={() => (close(), setAgentsOpen(true))}>🤖 {t("Agents …")}</MenuItem>}

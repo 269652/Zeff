@@ -143,31 +143,16 @@ export const slashItems = (t: T): SlashItem[] => [
     keywords: ["button", "action", "knopf", "aktion", "done", "erledigt"],
     run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffButton", attrs: { label: "", action: "set", prop: "", value: "" } }).run(),
   },
-  // The blocks of a person's page (the people database's detail view).
-  ...(
-    [
-      ["person-profile", t("Person: profile"), "👤", ["person", "profile", "name", "alias", "aliases", "mail", "person"]],
-      ["person-note", t("Person: notes"), "📝", ["person", "notes", "notiz"]],
-      ["person-summary", t("Person: summary"), "🧭", ["person", "summary", "compile", "zusammenfassung"]],
-      ["person-dates", t("Person: dates"), "🎂", ["person", "dates", "birthday", "geburtstag"]],
-      ["person-knowledge", t("Person: read from messages"), "🧠", ["person", "claims", "knowledge", "wissen"]],
-      ["person-wiki", t("Person: what the knowledge knows"), "📚", ["person", "knowledge", "wiki", "wissen"]],
-      ["person-relations", t("Person: relations"), "🔗", ["person", "relations", "beziehungen"]],
-      ["person-messages", t("Person: latest messages"), "💬", ["person", "messages", "nachrichten"]],
-      ["person-todos", t("Person: todos"), "☑", ["person", "todos"]],
-      ["person-pages", t("Person: pages that mention them"), "📄", ["person", "pages", "seiten"]],
-      ["person-tickets", t("Person: shared tickets"), "🎫", ["person", "tickets"]],
-      ["person-manage", t("Person: merge or delete"), "⚙", ["person", "merge", "delete", "zusammenführen"]],
-    ] as const
-  ).map(([module, title, icon, keywords]): SlashItem => ({
-    key: `module-${module}`,
-    title,
-    hint: t("A block of a person's page — for the row whose page it is"),
-    icon,
+  // The custom view a plugin brings for the rows of this database (a person's page) — one block; it starts a person's page by itself.
+  {
+    key: "row-view",
+    title: t("Custom view of this entry"),
+    hint: t("What a plugin shows for the rows of this database — a person's page"),
+    icon: "👤",
     group: t("People"),
-    keywords: [...keywords],
-    run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffModule", attrs: { module, key: "" } }).run(),
-  })),
+    keywords: ["person", "people", "profile", "view", "ansicht", "custom"],
+    run: ({ editor, range }) => chain(editor, range).insertContent({ type: "rowView" }).run(),
+  },
   { key: "date", title: t("Today's date"), hint: t("Insert the date"), icon: "📅", group: t("Zeff"), keywords: ["date", "today", "now"], run: ({ editor, range }) => chain(editor, range).insertContent(today()).run() },
   { key: "ai-continue", title: t("Continue writing"), hint: t("The AI goes on from here"), icon: "✨", group: t("AI"), keywords: ["ai", "continue", "write", "go on"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.ai("continue")) },
   { key: "ai-summarize", title: t("Summarize the page"), hint: t("Key points of what's above"), icon: "✨", group: t("AI"), keywords: ["ai", "summarize", "summary", "tldr"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.ai("summarize")) },

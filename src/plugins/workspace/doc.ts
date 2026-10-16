@@ -5,7 +5,7 @@
  * backlinks), and a whitelist that cleans what a client sends. Client-safe.
  */
 
-import { COLORS, PERSON_MODULES } from "./model";
+import { COLORS } from "./model";
 
 export type Mark = { type: string; attrs?: Record<string, unknown> };
 export type DocNode = { type: string; attrs?: Record<string, unknown>; content?: DocNode[]; marks?: Mark[]; text?: string };
@@ -163,6 +163,8 @@ function block(n: DocNode, ctx: { ordered?: number } = {}): string {
       return `:::ai ${n.attrs?.auto ? "auto " : ""}${String(n.attrs?.prompt ?? "").replace(/\n/g, " ")}\n${String(n.attrs?.text ?? "")}\n:::`;
     case "zeffModule":
       return `:::zeff ${String(n.attrs?.module ?? "")}${n.attrs?.key ? ` ${String(n.attrs.key)}` : ""}`;
+    case "rowView":
+      return ":::rowview";
     case "databaseView":
       return `:::database ${String(n.attrs?.dbId ?? "")}${n.attrs?.title ? ` ${String(n.attrs.title)}` : ""}`;
     case "pageEmbed":
@@ -257,6 +259,12 @@ export function markdownToDoc(md: string): Doc {
         while (i < lines.length && lines[i].trim() !== ":::") text.push(lines[i++]);
         i++;
         out.push({ type: "aiBlock", attrs: { prompt: ai[2].trim(), text: text.join("\n").trim(), at: "", auto: !!ai[1] } });
+        continue;
+      }
+      // :::rowview  - the custom view a plugin brings for the rows of this database (a person's page)
+      if (/^:::rowview\s*$/.test(l)) {
+        out.push({ type: "rowView" });
+        i++;
         continue;
       }
       // :::zeff briefing [KEY]  - what Zeff knows about a ticket (its row's, or the key's), as a block
@@ -398,13 +406,14 @@ const NODE_ATTRS: Record<string, string[]> = {
   databaseView: ["dbId", "viewId", "title"],
   pageEmbed: ["pageId", "title"],
   zeffModule: ["module", "key"],
+  rowView: [],
   aiBlock: ["prompt", "text", "at", "auto"],
 };
 
 /** The modules a page can hold as a block (what Zeff knows about a ticket — of its row, or the key given). */
-export const BLOCK_MODULES = ["briefing", "todos", "questions", "actions", "flags", "context", "chat", "properties", "subtasks", "suggested", "page", ...PERSON_MODULES] as const;
+export const BLOCK_MODULES = ["briefing", "todos", "questions", "actions", "flags", "context", "chat", "properties", "subtasks", "suggested", "page"] as const;
 /** The blocks about a row itself (its properties, subtasks, suggested actions, its own page) — in its detail view, or on its page. */
-export const ROW_MODULES = ["properties", "source", "subtasks", "suggested", "page", ...PERSON_MODULES] as const;
+export const ROW_MODULES = ["properties", "source", "subtasks", "suggested", "page"] as const;
 const MARKS: Record<string, string[]> = { bold: [], italic: [], strike: [], underline: [], code: [], highlight: ["color"], link: ["href", "target"] };
 const MAX_NODES = 40000;
 const MAX_DEPTH = 40;
@@ -526,7 +535,7 @@ export function previewLines(doc: DocNode | null | undefined, max = 12): Preview
         }
       } else if (n.type === "bulletList" || n.type === "orderedList") {
         for (const item of n.content ?? []) if (out.length < max) out.push({ kind: "text", text: `• ${docText(item).trim()}` });
-      } else if (n.type === "aiBlock" || n.type === "zeffModule" || n.type === "databaseView" || n.type === "pageEmbed" || n.type === "image") {
+      } else if (n.type === "aiBlock" || n.type === "zeffModule" || n.type === "rowView" || n.type === "databaseView" || n.type === "pageEmbed" || n.type === "image") {
         continue;
       } else if (n.type === "details" || n.type === "blockquote" || n.type === "callout") {
         walk(n.content ?? []);

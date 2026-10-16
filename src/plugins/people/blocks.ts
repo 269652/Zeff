@@ -12,9 +12,6 @@ import { addDate, addRelation, contactsOf, datesOf, deleteDate, deletePerson, de
  * what is known, relations, messages, todos, pages, tickets). They work on the profile the row stands for.
  */
 
-/** The blocks a person's page can have (detail modules). */
-export { PERSON_MODULES as PERSON_BLOCKS } from "@/plugins/workspace/model";
-
 /** The profile a row stands for (its source reference "person:<id>"); null: not one of a person. */
 export function personOfRow(rowId: number, depth = 0): number | null {
   const row = getSqlite().prepare("select props from ws_pages where id = ?").get(rowId) as { props: string } | undefined;

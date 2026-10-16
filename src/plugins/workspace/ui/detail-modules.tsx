@@ -17,7 +17,6 @@ import { CardTodos, extrasOf } from "./card-extras";
 import { SuggestedActions } from "./suggested";
 import { RowProperties } from "./DatabaseView";
 import { Editor } from "./Editor";
-import { PersonBlock } from "@/plugins/people/ui/PersonBlocks";
 
 /**
  * The modules of a row's detail view — the same everywhere: its properties and page, and by its ticket key what Zeff knows
@@ -28,7 +27,7 @@ import { PersonBlock } from "@/plugins/people/ui/PersonBlocks";
 /** A module's name, as the detail view's editor lists it. */
 export function useModuleLabels(): Record<DetailModule, string> {
   const t = useT();
-  return { properties: t("Properties"), source: t("Linked ticket"), subtasks: t("Subtasks"), suggested: t("Suggested actions"), briefing: t("Briefing"), todos: t("Todos"), questions: t("Questions"), actions: t("Suggested actions"), flags: t("Flags"), context: t("Context"), chat: t("Chat"), page: t("Page"), "person-profile": t("Person: profile"), "person-note": t("Person: notes"), "person-summary": t("Person: summary"), "person-dates": t("Person: dates"), "person-knowledge": t("Person: read from messages"), "person-wiki": t("Person: what the knowledge knows"), "person-relations": t("Person: relations"), "person-messages": t("Person: latest messages"), "person-todos": t("Person: todos"), "person-pages": t("Person: pages that mention them"), "person-tickets": t("Person: shared tickets"), "person-manage": t("Person: merge or delete") };
+  return { properties: t("Properties"), source: t("Linked ticket"), subtasks: t("Subtasks"), suggested: t("Suggested actions"), briefing: t("Briefing"), todos: t("Todos"), questions: t("Questions"), actions: t("Suggested actions"), flags: t("Flags"), context: t("Context"), chat: t("Chat"), page: t("Page") };
 }
 
 /** The modules that need the row's ticket key (none without one). */
@@ -53,7 +52,6 @@ export function DetailModules({ modules, data, rowId, bare = false }: { modules:
   }, [rowId, x.key, wantsDetail, wantsPage]);
 
   const one = (m: DetailModule): React.ReactNode => {
-    if (m.startsWith("person-")) return <PersonBlock module={m} rowId={rowId} />;
     if (m === "properties") return <RowProperties initial={data} dbId={data.id} rowId={rowId} />;
     if (m === "source") return <LinkedSourceModule rowId={rowId} />;
     if (m === "subtasks") return <SubtasksModule rowId={rowId} locked={!!data.locked} />;
@@ -261,8 +259,6 @@ export function ModuleBody({ m, k, ticket, detail, todosOn }: { m: DetailModule;
  * row whose page it's on. It reads its data itself, again on a change elsewhere.
  */
 export function ModuleBlock({ module, ticketKey, pageId }: { module: DetailModule; ticketKey: string; pageId: number }) {
-  // A person's blocks read their own bundle (one call for all of them, or none: the server gives it with the page).
-  if (module.startsWith("person-")) return <PersonModuleBlock module={module} rowId={pageId} />;
   if ((ROW_MODULES as readonly string[]).includes(module)) return <RowModuleBlock module={module} rowId={pageId} />;
   return <TicketModuleBlock module={module} ticketKey={ticketKey} pageId={pageId} />;
 }
@@ -318,22 +314,5 @@ function TicketModuleBlock({ module, ticketKey, pageId }: { module: DetailModule
       </div>
       {!data ? <p className="text-sm text-zinc-400">…</p> : !data.key ? <p className="text-sm text-zinc-400">{t("No ticket here — give the block a key (e.g. PROJ-12).")}</p> : (body ?? <p className="text-sm text-zinc-400">{t("Nothing yet.")}</p>)}
     </div>
-  );
-}
-
-
-function PersonModuleBlock({ module, rowId }: { module: DetailModule; rowId: number }) {
-  const t = useT();
-  const labels = useModuleLabels();
-  return (
-    <PersonBlock
-      module={module}
-      rowId={rowId}
-      fallback={
-        <div className="ws-module rounded-lg border border-dashed border-zinc-300 p-3 text-sm text-zinc-500 dark:border-zinc-700">
-          ▤ {labels[module]} — {t("the row's, in its detail view")}
-        </div>
-      }
-    />
   );
 }
