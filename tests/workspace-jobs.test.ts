@@ -147,3 +147,21 @@ test("with the real worker system: a queued run with the job's text, a todo for 
   assert.equal(String(w.getPage(id)!.props[JOB.result]), "Ein Rechenfehler auf Seite 2.");
   assert.equal(getTodo(r.todo)!.status, "dismissed", "the helper todo is put away");
 });
+
+test("starting a job again: the earlier result is material on the page, not the work done — the field starts empty", async () => {
+  const w = await import("@/plugins/workspace/store");
+  const { docToMarkdown } = await import("@/plugins/workspace/doc");
+  const { createJobsDatabase, addJob, dispatchJob, setState, JOB } = await import("@/plugins/workspace/jobs");
+  const jobs = createJobsDatabase(null, "Neustart");
+  const id = addJob(jobs, { title: "Seiten in Ideen anlegen", instruction: "Schreibe ein paar Seiten in Ideen." });
+  w.setCell(id, JOB.result, "# Ideenpapier\n\nAcht Abschnitte über selbstentwickelnde Software.");
+  setState(id, "Fehlgeschlagen");
+  const { deps, calls } = fakeDeps();
+  await dispatchJob(id, deps);
+  assert.equal(w.getPage(id)!.props[JOB.result], undefined, "the result field starts empty: the agent has to deliver again");
+  assert.match(docToMarkdown(w.getPage(id)!.content), /Früheres Ergebnis[\s\S]*Acht Abschnitte/, "the earlier result is kept on the job's page");
+  const text = calls.instructions[0];
+  assert.match(text, /Acht Abschnitte über selbstentwickelnde Software/, "the worker sees it, as material");
+  assert.match(text, /Material — nicht die Erledigung/, "and is told it isn't the job done");
+  assert.match(text, /wirklich existiert/, "it checks that what the job asks for really exists");
+});

@@ -1,5 +1,5 @@
 import { newId, newView, type Option, type Property } from "./model";
-import { addRow, createPage, getDatabase, getPage, rawRows, setCell } from "./store";
+import { addRow, createPage, getDatabase, getPage, rawRows, setCell, updatePage } from "./store";
 
 /**
  * Jobs for agents: a database whose rows are jobs — an instruction (what to do, in words), a status (waiting → at work →
@@ -103,10 +103,11 @@ export async function jobInstruction(rowId: number): Promise<string> {
     `## Auftrag aus dem Workspace — Datenbank „${db.page.title}“, Zeile ${rowId}`,
     `**${row.title}**`,
     task,
-    ...(page ? ["", "### Notizen auf der Seite des Auftrags", page] : []),
+    ...(page ? ["", "### Notizen auf der Seite des Auftrags (was dort steht, auch ein früheres Ergebnis, ist Material — nicht die Erledigung)", page] : []),
     ...(hints.length ? ["", "### Regeln, die für dich gelten", ...hints.map((h) => `- ${h}`)] : []),
     "",
     "### So arbeitest du",
+    "- Was schon in der Zeile oder auf ihrer Seite steht, ist Material — nicht die Erledigung. Prüf selbst, ob das, was der Auftrag verlangt, wirklich existiert (zum Beispiel die Seiten in „Ideen“); wenn nicht, tu es.",
     "- Tu, was der Auftrag sagt — dort, wo er es sagt. Verlangt er, im Workspace etwas anzulegen oder zu ändern (Seiten, Zeilen, Texte), legst du es dort selbst an, mit den MCP-Werkzeugen: workspace_tree und workspace_search finden den Ort („Ideen“, eine Datenbank, eine Seite); workspace_create_page, workspace_write_page, workspace_add_row und workspace_update_row legen an und ändern. Lege es wirklich an — beschreib es nicht nur.",
     `- Zum Schluss trägst du mit workspace_update_row (row: ${rowId}) ins Feld „Ergebnis“ dieser Zeile einen kurzen Bericht ein: was du angelegt oder geändert hast, mit Titel und Seiten-ID. Verlangt der Auftrag nur eine Antwort oder einen Text (nichts im Workspace anzulegen), ist diese Antwort selbst das Ergebnis. Setz dabei „Status“ auf „Zur Prüfung“.`,
     "- Sonst änderst du nichts an dieser Zeile; „Fertig“ setzt nur der Nutzer. Fehlt dir etwas, frag mit todo_needs_input, statt zu raten.",
@@ -114,6 +115,22 @@ export async function jobInstruction(rowId: number): Promise<string> {
   ]
     .join("\n")
     .trim();
+}
+
+/**
+ * A job started again: what an earlier run wrote in "Ergebnis" goes onto the job's page ("Früheres Ergebnis") and the field is
+ * emptied — else the worker finds the old result, takes the job for done and does nothing. The text stays: as material.
+ */
+async function keepEarlierResult(rowId: number): Promise<void> {
+  const row = getPage(rowId);
+  const earlier = String(row?.props[JOB.result] ?? "").trim();
+  if (!row || !earlier) return;
+  const { markdownToDoc } = await import("./doc");
+  const more = markdownToDoc(`## Früheres Ergebnis (${row.props[JOB.run] ? String(row.props[JOB.run]) : "ein früherer Lauf"})
+
+${earlier}`).content ?? [];
+  updatePage(rowId, { content: { ...row.content, content: [...(row.content.content ?? []), ...more] } });
+  setCell(rowId, JOB.result, null);
 }
 
 /** A job given to a worker — by your click. Waiting (or failed) jobs only; the job goes "In Arbeit", the worker's ref on it. */
@@ -124,6 +141,7 @@ export async function dispatchJob(rowId: number, deps?: JobDeps): Promise<{ run:
   const state = stateOf(rowId);
   if (state && state !== "Offen" && state !== "Fehlgeschlagen") throw new Error(`The job is “${state}” — only open or failed jobs are started.`);
   const d = deps ?? (await realDeps());
+  await keepEarlierResult(rowId);
   const instruction = await jobInstruction(rowId);
   const todo = d.addTodo({ ticket: "", text: row.title });
   const run = d.dispatch(todo.id, { instruction });
