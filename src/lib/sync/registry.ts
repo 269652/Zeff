@@ -161,6 +161,8 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
       const { isInstalled } = await import("@/plugins/state");
       if (isInstalled("jira-lage") && isInstalled("workspace"))
         await (await import("@/plugins/jira-lage/to-workspace")).syncJiraBoardDatabases().catch((e) => console.error("[jira] keeping the boards' databases failed", e));
+      // The databases with a pipeline (Jira among their sources) keep their rows; their AI steps go with the briefing.
+      if (isInstalled("workspace")) await (await import("@/plugins/workspace/pipeline")).runPipelines({ ai: false }).catch((e) => console.error("[workspace] the pipelines failed", e));
       return { ok: !unread, message: `${done}${unread}` };
     },
     last: () => recordedOr("jira", jiraTickets.syncedAt),
@@ -352,6 +354,8 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
       if (isInstalled("workspace") && isInstalled("llm")) {
         // (The databases' AI reviews ran in it.) The AI blocks set to go with the briefing (Meine Lage's overall picture among them) written again.
         await (await import("@/plugins/workspace/ai-block")).refreshAiBlocks().catch((e) => console.error("[workspace] the AI blocks failed", e));
+        // The pipelines with their AI steps: the fields of the rows that changed, the summaries.
+        await (await import("@/plugins/workspace/pipeline")).runPipelines({ ai: true }).catch((e) => console.error("[workspace] the pipelines failed", e));
       }
       return r.ok
         ? {

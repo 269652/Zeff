@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, placeRowAction, reviewDatabaseAction, setCellAction, setCollectionAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, placeRowAction, reviewDatabaseAction, runPipelineAction, setCellAction, setCollectionAction, updateSchemaAction, type DatabaseData } from "../actions";
 import { cellText, columnOrder, dateRange, detailModules, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
@@ -14,6 +14,7 @@ import { GalleryView } from "./gallery";
 import { DetailEditor } from "./detail-modules";
 import { FilterEditor, PropertiesMenu, SchemaModal, SortEditor } from "./db-menus";
 import { Dropdown, MenuItem, useSortable } from "./kit";
+import { PipelineEditor, PipelineSummaries } from "./pipeline";
 
 /** A database on a page: its views (table, board, list, gallery, calendar), filters, sorts, groups, and the rows in place. */
 
@@ -221,6 +222,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const [q, setQ] = useState("");
   const [schemaOpen, setSchemaOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [pipelineOpen, setPipelineOpen] = useState(false);
   const [justAdded, setJustAdded] = useState<number | null>(null);
   // A row opens over the database (?row=<id> — a link to it opens it again); the full page is a click further.
   const search = useSearchParams();
@@ -229,8 +231,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const inBrowser = useSyncExternalStore(noSubscribe, () => true, () => false);
   const [databases, setDatabases] = useState<{ id: number; title: string }[]>([]);
   useEffect(() => {
-    if (schemaOpen) void databasesAction().then((r) => r.ok && setDatabases(r.databases.map((d) => ({ id: d.id, title: d.title }))));
-  }, [schemaOpen]);
+    if (schemaOpen || pipelineOpen) void databasesAction().then((r) => r.ok && setDatabases(r.databases.map((d) => ({ id: d.id, title: d.title }))));
+  }, [schemaOpen, pipelineOpen]);
 
   const view = useMemo(() => data?.schema.views.find((v) => v.id === current) ?? data?.schema.views[0], [data, current]);
 
@@ -381,6 +383,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
             <>
               <MenuItem onClick={() => (close(), setSchemaOpen(true))}>⚙ {t("Edit properties …")}</MenuItem>
               <MenuItem onClick={() => (close(), setDetailOpen(true))}>▤ {t("Detail view …")}</MenuItem>
+              {!data.locked && <MenuItem onClick={() => (close(), setPipelineOpen(true))}>⛓ {t("Sources & steps …")}</MenuItem>}
               {personProp && (
                 <MenuItem checked={!!view.mine} onClick={() => (close(), setView({ ...view, mine: !view.mine }))}>
                   {t("Only mine in this view")}
@@ -498,6 +501,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
         />
       )}
 
+      <PipelineSummaries pipeline={schema.pipeline} />
       {view.type === "table" && <TableView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />}
       {view.type === "board" && <BoardView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} newRow={newRow} />}
       {view.type === "list" && <ListView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} />}
@@ -512,6 +516,25 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           custom={!!schema.detail}
           onChange={(next) => api.changeSchema((s) => (next ? { ...s, detail: next } : (({ detail: _, ...rest }) => rest)(s)))}
           onClose={() => setDetailOpen(false)}
+        />
+      )}
+      {pipelineOpen && (
+        <PipelineEditor
+          dbId={dbId}
+          pipeline={schema.pipeline}
+          databases={databases}
+          onSave={async (pipeline) => {
+            const err = await api.saveSchema({ ...(api.data?.schema ?? schema), pipeline });
+            if (err) toast(err, { tone: "error" });
+          }}
+          onRun={async (ai) => {
+            toast(ai ? t("Reading the sources, then the AI …") : t("Reading the sources …"));
+            const r = await runPipelineAction(dbId, ai);
+            await api.reload();
+            if (!r.ok) return void toast(r.error, { tone: "error" });
+            toast(t("{n} rows: {c} new, {u} changed, {a} gone · {f} filled by the AI", { n: r.records, c: r.created, u: r.updated, a: r.archived, f: r.reviewed }), { tone: "ok" });
+          }}
+          onClose={() => setPipelineOpen(false)}
         />
       )}
       {inBrowser && peek !== null && data.rows.some((r) => r.id === peek) && <RowPeek key={peek} data={data} rowId={peek} onClose={closePeek} />}

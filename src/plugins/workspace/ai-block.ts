@@ -15,7 +15,7 @@ import { createPage, getDatabase, getPage, movePage, rawRows, updatePage } from 
 const MAX_ROWS = 80;
 
 /** A database's rows as lines for a prompt: [KEY] title · its values (status, people, AI fields …) · the briefing's lead. */
-async function databaseLines(dbId: number): Promise<string[]> {
+export async function databaseLines(dbId: number): Promise<string[]> {
   const d = getDatabase(dbId);
   if (!d) return [];
   const rows = rawRows(dbId).slice(0, MAX_ROWS);

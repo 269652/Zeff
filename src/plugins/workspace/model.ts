@@ -95,7 +95,79 @@ export type DbSchema = {
   detail?: DetailModule[];
   /** The AI review: its AI properties filled by a run of their own (scheduled, the changed rows only) — see review.ts. */
   review?: { on: boolean; skipBriefed?: boolean; openOnly?: boolean; recentDays?: number };
+  /** Where its rows come from and what's done with them, as steps (blocks) — kept in the database by a run (pipeline.ts). */
+  pipeline?: Pipeline;
 };
+
+/** The sources a pipeline can read: Jira's tickets, Google Keep's notes, the todos, another database of the Workspace. */
+export const PIPELINE_SOURCES = ["jira", "keep", "todos", "database"] as const;
+export type PipelineSource = (typeof PIPELINE_SOURCES)[number];
+/** Which Jira tickets: on you, you're in (on you or followed), moved / commented within days, open, of these projects. */
+export type JiraCriteria = { mine?: boolean; involved?: boolean; recentDays?: number; commented?: boolean; openOnly?: boolean; projects?: string[] };
+
+/**
+ * A step of a pipeline. source: rows from `from` (jira by `jira`, keep by `label`, todos by `todoStatus`, a database by
+ * `dbId`). filter: only the rows with `text`, open (`openOnly`), changed within `recentDays`, the first `limit`. ai: a field
+ * on each row (`output` field: `name`, `prompt`, `choices` — kept as the AI property `prop`), or one text over all of them
+ * (`output` summary: `prompt`, its last `result`).
+ */
+export type PipelineStep = {
+  id: string;
+  kind: "source" | "filter" | "ai";
+  from?: PipelineSource;
+  jira?: JiraCriteria;
+  label?: string;
+  todoStatus?: "open" | "all";
+  dbId?: number;
+  text?: string;
+  openOnly?: boolean;
+  recentDays?: number;
+  limit?: number;
+  output?: "field" | "summary";
+  prop?: string;
+  name?: string;
+  prompt?: string;
+  choices?: string[];
+  result?: { text: string; at: string };
+};
+export type Pipeline = { steps: PipelineStep[]; ranAt?: string };
+
+const posInt = (v: unknown): number | undefined => {
+  const n = Math.floor(Number(v));
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+};
+const str = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+const strs = (v: unknown): string[] | undefined => {
+  const out = Array.isArray(v) ? v.map(str).filter((x): x is string => !!x) : [];
+  return out.length ? out : undefined;
+};
+/** Only what's set (no undefined keys: a step compares as it's stored). */
+const defined = <T extends object>(o: T): T => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== false)) as T;
+
+/** A pipeline as stored: its steps kept to what they can be (unknown ones dropped, each with an id). */
+export function normalizePipeline(raw: unknown): Pipeline {
+  const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const steps: PipelineStep[] = [];
+  for (const x of Array.isArray(o.steps) ? o.steps : []) {
+    if (!x || typeof x !== "object") continue;
+    const s = x as Record<string, unknown>;
+    const id = str(s.id) ?? newId("s");
+    if (s.kind === "source") {
+      if (!(PIPELINE_SOURCES as readonly unknown[]).includes(s.from)) continue;
+      const from = s.from as PipelineSource;
+      const j = (s.jira && typeof s.jira === "object" ? s.jira : {}) as Record<string, unknown>;
+      const jira = from === "jira" ? defined<JiraCriteria>({ mine: j.mine === true, involved: j.involved === true, recentDays: posInt(j.recentDays), commented: j.commented === true, openOnly: j.openOnly === true, projects: strs(j.projects) }) : undefined;
+      steps.push(defined<PipelineStep>({ id, kind: "source", from, jira, label: from === "keep" ? str(s.label) : undefined, todoStatus: from === "todos" && s.todoStatus === "all" ? "all" : undefined, dbId: from === "database" ? posInt(s.dbId) : undefined }));
+    } else if (s.kind === "filter") {
+      steps.push(defined<PipelineStep>({ id, kind: "filter", text: str(s.text), openOnly: s.openOnly === true, recentDays: posInt(s.recentDays), limit: posInt(s.limit) }));
+    } else if (s.kind === "ai" && (s.output === "field" || s.output === "summary")) {
+      const r = s.result as { text?: unknown; at?: unknown } | undefined;
+      const result = r && typeof r.text === "string" && typeof r.at === "string" ? { text: r.text, at: r.at } : undefined;
+      steps.push(defined<PipelineStep>({ id, kind: "ai", output: s.output, prop: s.output === "field" ? str(s.prop) : undefined, name: s.output === "field" ? (str(s.name) ?? "AI") : undefined, prompt: str(s.prompt), choices: s.output === "field" ? strs(s.choices) : undefined, result: s.output === "summary" ? result : undefined }));
+    }
+  }
+  return { steps, ...(typeof o.ranAt === "string" ? { ranAt: o.ranAt } : {}) };
+}
 
 /** The modules a row's detail view can show: its properties and page, and — by its ticket key — what Zeff knows about it. */
 export const DETAIL_MODULES = ["properties", "briefing", "todos", "questions", "actions", "flags", "context", "chat", "page"] as const;
@@ -187,7 +259,7 @@ export function normalizeSchema(raw: unknown): DbSchema {
   const o = (raw && typeof raw === "object" ? raw : {}) as Partial<DbSchema>;
   const props = (Array.isArray(o.properties) ? o.properties : []).filter((p): p is Property => !!p && typeof p.id === "string" && (PROP_TYPES as readonly string[]).includes(p.type));
   const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [] }));
-  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}) };
+  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}) };
 }
 
 export const propById = (props: Property[], id: string): Property | undefined => props.find((p) => p.id === id);

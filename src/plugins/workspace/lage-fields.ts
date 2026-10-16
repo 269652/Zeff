@@ -51,7 +51,8 @@ export function applyTicketLage(tickets: { key: string; attention?: string | nul
 /** Every board of the Workspace (the Jira boards the sync keeps, your own) gets its Lage fields and review. */
 export async function ensureBoardReviews(): Promise<void> {
   const { listCollections } = await import("@/lib/items");
-  for (const c of listCollections({ plugin: "workspace" })) if (c.kind === "board") ensureLageFields(Number(c.id.slice("workspace:".length)));
+  // (Not those with a pipeline: their AI steps are their own.)
+  for (const c of listCollections({ plugin: "workspace" })) if (c.kind === "board" && !getDatabase(Number(c.id.slice("workspace:".length)))?.schema.pipeline?.steps.length) ensureLageFields(Number(c.id.slice("workspace:".length)));
 }
 
 /** A board gets the Lage fields and the AI review (skipping what the Ticket-Lage read) — once; the fields out of its views. */

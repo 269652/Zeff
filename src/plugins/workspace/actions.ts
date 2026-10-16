@@ -328,6 +328,16 @@ export async function reviewDatabaseAction(dbId: number, force = false) {
   });
 }
 
+/** A database's pipeline run now: its sources kept as its rows; with `ai`, its AI steps too (fields, summaries). */
+export async function runPipelineAction(dbId: number, ai = true) {
+  return run(async () => {
+    if (ai && !isInstalled("llm")) throw new Error(t("The LLM plugin is needed for this (Menu → Plugins)."));
+    const r = await (await import("./pipeline")).runPipeline(Number(dbId), { ai: !!ai });
+    if (!r.ok) throw new Error(r.error ?? t("Failed."));
+    return { records: r.records, created: r.created, updated: r.updated, archived: r.archived, reviewed: r.reviewed, summaries: r.summaries };
+  });
+}
+
 /** What an AI block on a page writes by its instruction (from the page and the databases shown in it). */
 export async function aiBlockAction(pageId: number, prompt: string) {
   return run(async () => {

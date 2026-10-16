@@ -34,7 +34,10 @@ export async function syncKeep({ background = false } = {}): Promise<{ ok: boole
     clearAttention("login:keep");
     // Google Keep's database in the Workspace (Google Keep as a data source) follows at once.
     const { isInstalled } = await import("@/plugins/state");
-    if (isInstalled("workspace")) (await import("./google-workspace")).syncGoogleKeepDatabase();
+    if (isInstalled("workspace")) {
+      (await import("./google-workspace")).syncGoogleKeepDatabase();
+      await (await import("@/plugins/workspace/pipeline")).runPipelines({ ai: false }).catch((e) => console.error("[workspace] the pipelines failed", e));
+    }
     return {
       ok: true,
       message: [t("{n} new", { n: r.added }), t("{n} changed", { n: r.changed }), ...(r.removed ? [t("{n} removed", { n: r.removed })] : []), t("{n} in all", { n: r.total })].join(" · "),
