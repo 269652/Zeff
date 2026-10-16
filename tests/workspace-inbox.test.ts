@@ -109,3 +109,19 @@ test("a reply to an inbox row: the target by its channel — a mail's address an
   const b = await draftRowReply(teams.id);
   assert.deepEqual([b.channel, b.to], ["Teams", "Chat mit Rico"]);
 });
+
+test("ensureMailDatabases: the combined inbox is made with Mail and Chats — once, when both kinds of sources are there", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["workspace", "outlook-mail", "teams", "mail-client"]) setInstalled(id, true);
+  const w = await import("@/plugins/workspace/store");
+  const { ensureMailDatabases, homeDatabase } = await import("@/plugins/workspace/mail-databases");
+  await ensureMailDatabases();
+  const inbox = homeDatabase("inbox");
+  assert.ok(inbox, "an Inbox");
+  assert.equal(w.getDatabase(inbox!)!.page.title, "Inbox");
+  assert.equal(w.getDatabase(inbox!)!.schema.dataType, "inbox");
+  assert.ok(w.rawRows(inbox!).length > 0, "its rows read at once");
+  const before = w.tree().length;
+  await ensureMailDatabases();
+  assert.equal(w.tree().length, before, "once");
+});
