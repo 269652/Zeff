@@ -257,7 +257,8 @@ export async function runPipeline(dbId: number, opts: { ai?: boolean; force?: bo
     const valueFor = (p: Property, v: string): unknown =>
       p.type === "select" ? optionOf(p, v) : p.type === "multi_select" ? v.split(/,\s*/).map((x) => optionOf(p, x)).filter(Boolean) : v;
 
-    const rows = new Map(rawRows(dbId).map((r) => [String(r.cells[SRC_REF] ?? ""), r]));
+    // The rows that came from a source (by their ref) — rows of your own (a card, a subtask) aren't the sources' to change.
+    const rows = new Map(rawRows(dbId).filter((r) => r.cells[SRC_REF]).map((r) => [String(r.cells[SRC_REF]), r]));
     const order: number[] = [];
     for (const rec of records) {
       const cells: Record<string, unknown> = { [SRC_REF]: rec.ref, [SRC_EDITED]: rec.updatedAt };
@@ -311,10 +312,13 @@ export async function runPipeline(dbId: number, opts: { ai?: boolean; force?: bo
   return out;
 }
 
-/** The rows in this order (only when it differs). */
+/** The sources' rows in this order (only when it differs) — rows of your own keep their places among them. */
 function place(dbId: number, order: number[]): void {
   const now = rawRows(dbId).map((r) => r.id);
-  if (now.join() !== order.join()) order.forEach((id, i) => placeRow(id, { after: i ? order[i - 1] : null, before: null }));
+  const sourced = new Set(order);
+  let k = 0;
+  const next = now.map((id) => (sourced.has(id) ? order[k++] : id));
+  if (now.join() !== next.join()) next.forEach((id, i) => placeRow(id, { after: i ? next[i - 1] : null, before: null }));
 }
 
 /**

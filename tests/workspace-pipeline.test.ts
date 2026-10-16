@@ -304,3 +304,19 @@ test("startPipeline: a run in the background — one at a time per database, kno
   assert.equal(r.ok, true, r.error);
   assert.equal(pipelineRunning(dbId), false);
 });
+
+test("runPipeline: rows of your own (a card, a subtask) stay — only what came from a source goes when the source drops it", async () => {
+  const w = await import("@/plugins/workspace/store");
+  const m = await import("@/plugins/workspace/model");
+  const { runPipeline } = await import("@/plugins/workspace/pipeline");
+  const from = w.createPage({ kind: "database", title: "Quelle eigen", schema: { titleName: "Name", properties: [], views: [m.newView("Table")] } });
+  const src = w.addRow(from, { title: "Aus der Quelle" });
+  const dbId = w.createPage({ kind: "database", title: "Mit eigenen", schema: { titleName: "Name", properties: [], views: [m.newView("Table")], pipeline: { steps: [{ id: "s", kind: "source", from: "database", dbId: from }] } } });
+  await runPipeline(dbId, { ai: false });
+  const mine = w.addRow(dbId, { title: "Meine eigene Karte" });
+  await runPipeline(dbId, { ai: false });
+  assert.ok(w.rawRows(dbId).some((r) => r.id === mine), "my own row stays");
+  w.archivePage(src);
+  await runPipeline(dbId, { ai: false });
+  assert.deepEqual(w.rawRows(dbId).map((r) => r.title), ["Meine eigene Karte"], "the source's row gone, mine kept");
+});

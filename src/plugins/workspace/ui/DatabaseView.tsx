@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, runPipelineAction, setCellAction, setCollectionAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, runPipelineAction, setCellAction, setCollectionAction, updateSchemaAction, type DatabaseData } from "../actions";
 import { cellText, columnOrder, dateRange, detailModules, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
@@ -750,6 +750,9 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
 }
 
 function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, newRow }: ViewProps & { newRow: (cells?: Record<string, unknown>, templateId?: number, open?: boolean) => Promise<void> }) {
+  // A subtask (its parent named): no subtasks of its own.
+  const parentProp = schema.properties.find((p) => p.type === "relation" && p.relationDb === ctx.data.id && !p.backOf);
+  const isSubtask = (r: Row) => !!parentProp && (Array.isArray(r.cells[parentProp.id]) ? (r.cells[parentProp.id] as unknown[]).length > 0 : !!r.cells[parentProp.id]);
   const t = useT();
   const gp = schema.properties.find((p) => p.id === view.groupBy);
   // Where a dragged card would land: its column and the card it would go before (null: the end).
@@ -808,8 +811,8 @@ function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, new
         >
           <ColumnHead g={g} gp={gp} view={view} rows={rows} api={api} locked={!!ctx.data.locked} />
           {g.rows.map((r) => (
+            <div key={r.id} className="group/sub">
             <div
-              key={r.id}
               data-row={r.id}
               data-attention={ctx.data.extras?.tickets[ctx.data.extras.keys[r.id] ?? ""]?.attention ?? undefined}
               className={`ws-card group/card relative cursor-pointer ${over?.key === g.key && over.before === r.id ? "ws-card-drop-before" : ""}`}
@@ -828,6 +831,9 @@ function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, new
                 <RowMenu row={r} api={api} />
               </span>
               <RowCard row={r} visible={visible.filter((p) => p.id !== gp.id)} ctx={ctx} mode="board" />
+            </div>
+            {/* A subtask's shadow card under it on hover (not under a subtask: one level). */}
+            {!ctx.data.locked && !isSubtask(r) && <SubtaskGhost parentId={r.id} after={() => void api.reload()} />}
             </div>
           ))}
           {over?.key === g.key && over.before === null && <div className="ws-drop-line" aria-hidden />}
@@ -998,6 +1004,58 @@ function AddColumn({ add }: { add: (name: string) => void }) {
  * "+ New" at the end of a board column, as Kanban's "+ Card": a field for the title — Enter makes the card (in this column)
  * and keeps the field open for the next one, Shift+Enter a new line, Escape or leaving it empty closes it.
  */
+/** Under a card on hover: a shadow card — a click, a title, Enter: a subtask of it (in its column, right below it). */
+function SubtaskGhost({ parentId, after }: { parentId: number; after: () => void }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (!open)
+    return (
+      <button
+        type="button"
+        className="mt-1 hidden w-full rounded-md border border-dashed border-zinc-300 px-2 py-1 text-left text-xs text-zinc-400 group-hover/sub:block hover:border-indigo-300 hover:text-indigo-600 dark:border-zinc-700"
+        onClick={() => setOpen(true)}
+        data-subtask-ghost={parentId}
+      >
+        + {t("Subtask")}
+      </button>
+    );
+  const save = async () => {
+    const title = text.trim();
+    if (!title) return setOpen(false);
+    setBusy(true);
+    const r = await addSubtaskAction(parentId, title);
+    if (r.ok) await placeRowAction(r.id, parentId, null);
+    setBusy(false);
+    if (!r.ok) return void toast(r.error, { tone: "error" });
+    setText("");
+    after();
+  };
+  return (
+    <textarea
+      autoFocus
+      rows={1}
+      value={text}
+      readOnly={busy}
+      className="input mt-1 w-full border-dashed text-sm"
+      placeholder={t("Subtask")}
+      aria-label={t("New subtask")}
+      onChange={(e) => setText(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          void save();
+        } else if (e.key === "Escape") {
+          setText("");
+          setOpen(false);
+        }
+      }}
+      onBlur={() => !text.trim() && setOpen(false)}
+    />
+  );
+}
+
 function NewCard({ cells, add }: { cells: Record<string, unknown>; add: (cells: Record<string, unknown>, title: string) => Promise<number | null> }) {
   const t = useT();
   const [open, setOpen] = useState(false);
