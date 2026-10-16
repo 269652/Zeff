@@ -384,7 +384,14 @@ export function PageView({ page, row, database }: { page: PageViewData; row?: { 
           <DatabaseView initial={database ?? null} dbId={page.id} />
         ) : row?.initial.schema.detailPage ? (
           // A row whose database has a detail view: the page is laid out as that view says (its own text is the "page" block).
-          <DetailFromPage pageId={row.initial.schema.detailPage} rowId={page.id} />
+          <>
+            <div className="flex justify-end">
+              <Link href={`/workspace/${row.initial.schema.detailPage}`} className="text-xs text-zinc-400 hover:text-zinc-700 hover:underline dark:hover:text-zinc-200" data-edit-layout>
+                ▤ {t("Edit this layout")}
+              </Link>
+            </div>
+            <DetailFromPage pageId={row.initial.schema.detailPage} rowId={page.id} />
+          </>
         ) : (
           <Editor key={page.id} pageId={page.id} initial={page.content} rev={page.rev} editable={editable} smallText={smallText} onSave={setStatus} />
         )}

@@ -5532,5 +5532,6 @@
   "Jobs a worker takes on your click — a board by status; the result comes back into the row for your check.": "Aufträge, die ein Worker auf deinen Klick übernimmt – ein Board nach Status; das Ergebnis kommt zur Prüfung in die Zeile zurück.",
   "When / then rules a pipeline applies to its records: drop, set a field, hand to an agent — or a hint every agent gets.": "Wenn-Dann-Regeln, die eine Pipeline auf ihre Datensätze anwendet: aussortieren, ein Feld setzen, an einen Agenten geben – oder ein Hinweis, den jeder Agent bekommt.",
   "title, Aliases, Emails (default)": "Titel, Aliases, Emails (Standard)",
-  "Bring from the person:": "Von der Person holen:"
+  "Bring from the person:": "Von der Person holen:",
+  "Edit this layout": "Dieses Layout bearbeiten"
 }
