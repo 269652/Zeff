@@ -68,7 +68,7 @@ export function DocDetails({ d, origin }: { d: DocView; origin?: DocOrigin }) {
       ) : (
         <p className={`text-xs ${d.status === "failed" ? "text-red-600 dark:text-red-400" : "text-zinc-500"}`}>{d.error || statusText(d, t)}</p>
       )}
-      <a href={`/api/documents/${d.id}/file`} target="_blank" rel="noreferrer" className="inline-block text-xs text-indigo-600 hover:underline dark:text-indigo-400">
+      <a href={`/api/documents/${d.id}/file?open=1`} target="_blank" rel="noreferrer" className="inline-block text-xs text-indigo-600 hover:underline dark:text-indigo-400">
         {t("Open the file ↗")}
       </a>
     </div>

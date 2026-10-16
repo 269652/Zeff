@@ -203,7 +203,7 @@ export function DocumentsApp({ docs, reading, origins = {}, todos, knowledge }: 
           {shown.map((d) => (
             <li key={d.id} id={d.ref} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 text-sm">
               <HoverCard width={440} card={<DocDetails d={d} origin={origins[d.id]} />} className="min-w-0 flex-1 basis-64">
-                <a href={`/api/documents/${d.id}/file`} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-2 hover:underline">
+                <a href={`/api/documents/${d.id}/file?open=1`} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-2 hover:underline">
                   <span aria-hidden>{KIND_ICONS[d.kind]}</span>
                   <span className="min-w-0 truncate font-medium">{d.name}</span>
                 </a>
