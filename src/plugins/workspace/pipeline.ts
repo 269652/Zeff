@@ -41,6 +41,8 @@ export const SRC_REF = "srcref";
 export const SRC_STATUS = "srcstatus";
 const SRC_URL = "srcurl";
 const SRC_EDITED = "srcedited";
+/** An inbox row's snooze: until when (ISO) it is away. */
+export const SNOOZE = "commsnooze";
 const HIDDEN = [SRC_REF, SRC_EDITED, SRC_URL, KEY_PROP, NOTE_PROP];
 
 const since = (days: number | undefined) => (days ? Date.now() - days * 864e5 : 0);
@@ -517,6 +519,9 @@ function schemaFor(cur: DbSchema, records: SourceRecord[], steps: PipelineStep[]
   const { dataType: _was, ...rest } = cur;
   // An inbox shows by the inbox view; the views of another type (the mail client's, the chat's) give way.
   if (dataType === "inbox" || cur.dataType === "inbox") {
+    // Snooze: the time (ISO) a conversation is away until — set from the inbox view, kept by runs.
+    if (!next.some((p) => p.id === SNOOZE)) next.push({ id: SNOOZE, name: "Snoozed until", type: "text" });
+    for (const v of views) if (!v.hidden.includes(SNOOZE)) v.hidden = [...v.hidden, SNOOZE];
     const mine = APP_VIEWS.filter((a) => a.dataType === dataType).map((a) => a.id);
     const keep = views.filter((v) => v.type !== "app" || !APP_VIEWS.some((a) => a.id === v.app) || mine.includes(v.app ?? ""));
     if (dataType === "inbox" && !keep.some((v) => v.type === "app" && v.app === "inbox") && appViewsFor("inbox").length) keep.unshift({ ...newView("Inbox", "table"), type: "app", app: "inbox" });

@@ -778,7 +778,9 @@ export function unreadCounts(): Record<number, number> {
   const out: Record<number, number> = {};
   const field: Record<string, string> = { mail: "$.mailunread", message: "$.msgunread", inbox: "$.communread" };
   const dbs = d.prepare(`select id, json_extract(schema, '$.dataType') as dt from ws_pages where kind = 'database' and archived_at is null and json_extract(schema, '$.dataType') in ('mail', 'message', 'inbox')`).all() as { id: number; dt: string }[];
-  const count = d.prepare("select count(*) as n from ws_pages where db_id = ? and archived_at is null and template = 0 and json_extract(props, ?) = 1");
-  for (const x of dbs) out[x.id] = (count.get(x.id, field[x.dt]) as { n: number }).n;
+  // A snoozed row (an inbox's, until a time in the future) is not counted.
+  const count = d.prepare("select count(*) as n from ws_pages where db_id = ? and archived_at is null and template = 0 and json_extract(props, ?) = 1 and coalesce(json_extract(props, '$.commsnooze'), '') <= ?");
+  const now = new Date().toISOString();
+  for (const x of dbs) out[x.id] = (count.get(x.id, field[x.dt], now) as { n: number }).n;
   return out;
 }

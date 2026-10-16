@@ -159,3 +159,23 @@ test("data sources: the catalog lists every database that names a channel as a s
   assert.ok(titles("mail").includes("Inbox"));
   assert.ok(!titles("mail").includes("Chats"), "a chat database names no mail");
 });
+
+test("snooze: the inbox has the Snoozed-until field, and a snoozed row is not counted in the sidebar until its time", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["workspace", "outlook-mail", "teams", "mail-client"]) setInstalled(id, true);
+  const w = await import("@/plugins/workspace/store");
+  const { runPipeline } = await import("@/plugins/workspace/pipeline");
+  const { createSourceDatabase } = await import("@/plugins/workspace/derived");
+  const id = createSourceDatabase("inbox");
+  await runPipeline(id, { ai: false });
+  assert.ok(w.getDatabase(id)!.schema.properties.some((p) => p.id === "commsnooze"), "the field");
+  const unread = w.rawRows(id).filter((r) => r.cells.communread);
+  assert.ok(unread.length >= 2);
+  const before = w.unreadCounts()[id];
+  w.setCell(unread[0].id, "commsnooze", new Date(Date.now() + 3600e3).toISOString());
+  assert.equal(w.unreadCounts()[id], before - 1, "away while snoozed");
+  w.setCell(unread[0].id, "commsnooze", new Date(Date.now() - 3600e3).toISOString());
+  assert.equal(w.unreadCounts()[id], before, "back when the time has come");
+  await runPipeline(id, { ai: false });
+  assert.ok(w.rawRows(id).find((r) => r.id === unread[0].id)!.cells.commsnooze, "a run keeps it");
+});

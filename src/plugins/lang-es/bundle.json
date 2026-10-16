@@ -5452,5 +5452,14 @@
   "fields, comma-separated": "campos, separados por comas",
   "Fields to bring": "Campos a traer",
   "{n} of {total} rows find their row: {titles}": "{n} de {total} filas encuentran su fila: {titles}",
-  "A name matches a row when it is that row's title (or field), or contains it — an address in “Name <address>” too. The fields come onto the row at every run.": "Un nombre coincide con una fila si es su título (o campo) o lo contiene, también una dirección en «Nombre <dirección>». Los campos pasan a la fila en cada ejecución."
+  "A name matches a row when it is that row's title (or field), or contains it — an address in “Name <address>” too. The fields come onto the row at every run.": "Un nombre coincide con una fila si es su título (o campo) o lo contiene, también una dirección en «Nombre <dirección>». Los campos pasan a la fila en cada ejecución.",
+  "Snoozed conversations": "Conversaciones pospuestas",
+  "{n} messages in this conversation": "{n} mensajes en esta conversación",
+  "Snooze": "Posponer",
+  "Later today": "Más tarde hoy",
+  "Tomorrow morning": "Mañana por la mañana",
+  "Wake up now": "Reactivar ahora",
+  "Snoozed — it comes back {when}.": "Pospuesto: vuelve {when}.",
+  "Awake again.": "De vuelta.",
+  "Snoozed until": "Pospuesto hasta"
 }
