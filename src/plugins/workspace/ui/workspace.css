@@ -790,3 +790,30 @@
   .ws-note[data-color="purple"] { border-color: var(--color-purple-900, #581c87); }
   .ws-note[data-color="pink"] { border-color: var(--color-pink-900, #831843); }
 }
+
+/* Table columns: the handle on a head's right edge; a table with set widths is laid out by them. */
+.ws-table th .ws-resize {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 3;
+  touch-action: none;
+}
+.ws-table th .ws-resize:hover,
+.ws-table th .ws-resize:active {
+  background: rgb(99 102 241 / 0.45);
+}
+.ws-table.ws-fixed {
+  min-width: 0;
+}
+.ws-table.ws-fixed th {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ws-table.ws-fixed td {
+  min-width: 0;
+  overflow: hidden;
+}

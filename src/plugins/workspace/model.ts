@@ -92,6 +92,23 @@ export type View = {
   /** Board: a column's WIP limit (by its option id) — more cards than that and its count turns red. */
   wip?: Record<string, number>;
 };
+/** A table column's width in pixels: what a drag may make it, and what "fit to content" may. */
+export const WIDTH_MIN = 60;
+export const WIDTH_MAX = 1200;
+export const FIT_MIN = 80;
+export const FIT_MAX = 520;
+export const DEFAULT_COLUMN = 224;
+
+/** The view with these column widths (by property id, "title" for the title column), kept to the range; none: the table sizes itself again. */
+export function withWidths(view: View, widths: Record<string, number> | null): View {
+  const ok = Object.fromEntries(Object.entries(widths ?? {}).filter((e) => Number.isFinite(e[1])).map(([k, w]) => [k, Math.min(WIDTH_MAX, Math.max(WIDTH_MIN, Math.round(w)))]));
+  const { widths: _was, ...rest } = view;
+  return Object.keys(ok).length ? { ...rest, widths: ok } : rest;
+}
+
+/** The width that fits a column: its widest content or its head (both measured with their padding), within a sensible range. */
+export const fitWidth = (content: number, head: number): number => Math.min(FIT_MAX, Math.max(FIT_MIN, Math.ceil(Math.max(content, head)) + 2));
+
 export type DbSchema = {
   titleName: string;
   properties: Property[];

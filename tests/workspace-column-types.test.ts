@@ -63,3 +63,23 @@ test("aiColors survive a save", async () => {
   const s = m.normalizeSchema({ titleName: "N", properties: [{ id: "a", name: "A", type: "ai", aiChoices: ["x", "y"], aiColors: { x: "red", y: "nope" } }], views: [] });
   assert.deepEqual(s.properties[0].aiColors, { x: "red" }, "only colours of the palette");
 });
+
+test("column widths: kept to a sensible range, per column, removable; a fitted width follows the widest content", async () => {
+  const m = await import("@/plugins/workspace/model");
+  const v = m.newView("Table");
+  const w = m.withWidths(v, { title: 300.4, p_a: 20, p_b: 99999, p_c: Number.NaN, p_d: 150 });
+  assert.deepEqual(w.widths, { title: 300, p_a: m.WIDTH_MIN, p_b: m.WIDTH_MAX, p_d: 150 }, "rounded, clamped, nonsense dropped");
+  assert.equal(m.withWidths(w, null).widths, undefined, "reset: the table sizes itself again");
+  assert.equal(m.withWidths(w, {}).widths, undefined);
+  assert.equal(m.fitWidth(120, 80), 122, "the content when it's wider than the head (+2 for the border)");
+  assert.equal(m.fitWidth(40, 130), 132, "the head when that is wider");
+  assert.equal(m.fitWidth(5000, 80), m.FIT_MAX, "not wider than a sensible maximum");
+  assert.equal(m.fitWidth(10, 10), m.FIT_MIN, "not narrower than a sensible minimum");
+});
+
+test("column widths survive a save of the schema", async () => {
+  const m = await import("@/plugins/workspace/model");
+  const v = m.withWidths(m.newView("Table"), { title: 280 });
+  const s = m.normalizeSchema({ titleName: "N", properties: [], views: [v] });
+  assert.deepEqual(s.views[0].widths, { title: 280 });
+});
