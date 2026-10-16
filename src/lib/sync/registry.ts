@@ -551,6 +551,11 @@ async function runStep(key: SyncKey): Promise<void> {
   } finally {
     l.running.delete(key);
   }
+  // The mails and messages it brought: into the databases whose pipelines read them (their rows only; the AI goes with the briefing).
+  if (outcome?.ok && (key === "mail" || key === "teams" || key === "whatsapp" || key === "signal")) {
+    const { isInstalled } = await import("@/plugins/state");
+    if (isInstalled("workspace")) await (await import("@/plugins/workspace/pipeline")).runPipelines({ ai: false }).catch((e) => console.error("[workspace] the pipelines failed", e));
+  }
   // Over time (since when it fails): a stop isn't a failure. Steps with a record of their own: as they kept it.
   if (STEPS[key].ownRecord && STEPS[key].last) {
     const last = STEPS[key].last!();

@@ -79,10 +79,10 @@ export function saveTeamsMessages(list: TeamsMessageInput[]): { added: number; t
  * Messages, newest first: of one kind, matching words (sender, place, subject or text) — or
  * the one a pasted message link points at — and whether each is already context.
  */
-export function listTeamsMessages(opts: { q?: string; kind?: TeamsKind; limit?: number } = {}): TeamsMessageView[] {
+export function listTeamsMessages(opts: { q?: string; kind?: TeamsKind; limit?: number; /** Every kind (the chats too). */ all?: boolean } = {}): TeamsMessageView[] {
   const conditions = [];
   // A chat's other messages (yours, group chats) only when asked for: the lists are what came to you.
-  conditions.push(opts.kind ? eq(teamsMessages.kind, opts.kind) : sql`${teamsMessages.kind} <> 'chat'`);
+  if (!opts.all) conditions.push(opts.kind ? eq(teamsMessages.kind, opts.kind) : sql`${teamsMessages.kind} <> 'chat'`);
   const link = teamsLinkKey(opts.q);
   if (link) conditions.push(eq(teamsMessages.key, link));
   const words = link ? [] : (opts.q ?? "").trim().split(/\s+/).filter(Boolean).slice(0, 6);

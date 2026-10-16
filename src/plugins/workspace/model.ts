@@ -65,12 +65,14 @@ export type Cond =
 export type Rule = { prop: string; cond: Cond; value?: unknown };
 export type Filter = { op: "and" | "or"; rules: (Rule | Filter)[] };
 export type Sort = { prop: string; dir: "asc" | "desc" };
-export const VIEW_TYPES = ["table", "board", "list", "gallery", "calendar"] as const;
+export const VIEW_TYPES = ["table", "board", "list", "gallery", "calendar", "app"] as const;
 export type ViewType = (typeof VIEW_TYPES)[number];
 export type View = {
   id: string;
   name: string;
   type: ViewType;
+  /** An app's view (type "app"): which (the mail client's "mail", the chat's "chat") — shown while its plugin is installed. */
+  app?: string;
   filter: Filter;
   sorts: Sort[];
   /** Board: the columns; table/list: the groups. */
@@ -99,10 +101,21 @@ export type DbSchema = {
   review?: { on: boolean; skipBriefed?: boolean; openOnly?: boolean; recentDays?: number };
   /** Where its rows come from and what's done with them, as steps (blocks) — kept in the database by a run (pipeline.ts). */
   pipeline?: Pipeline;
+  /** What its rows are (mails, messages — set by its sources): their fixed fields are there for the views that need them. */
+  dataType?: DataType;
 };
 
 /** The sources a pipeline can read: Jira's tickets, Google Keep's notes, the todos, another database of the Workspace. */
-export const PIPELINE_SOURCES = ["jira", "keep", "todos", "database"] as const;
+export const PIPELINE_SOURCES = ["jira", "keep", "todos", "database", "mail", "messages"] as const;
+/** What a database's rows can be, by their sources: mails (Outlook, Gmail), messages (Teams, WhatsApp, Signal). */
+export const DATA_TYPES = ["mail", "message"] as const;
+export type DataType = (typeof DATA_TYPES)[number];
+export const MAIL_ACCOUNTS = ["outlook", "gmail"] as const;
+export const MESSAGE_CHANNELS = ["teams", "whatsapp", "signal"] as const;
+/** Which mails: of these accounts (none: all), in these folders, unread only, received within days. */
+export type MailCriteria = { accounts?: (typeof MAIL_ACCOUNTS)[number][]; folders?: string[]; unreadOnly?: boolean; recentDays?: number };
+/** Which messages: of these channels (none: all), chats named like this, sent within days. */
+export type MessageCriteria = { channels?: (typeof MESSAGE_CHANNELS)[number][]; chat?: string; recentDays?: number };
 export type PipelineSource = (typeof PIPELINE_SOURCES)[number];
 /**
  * Which Jira tickets: on you, or followed, or in the Ticket-Lage (either; none set: any); moved / commented within days;
@@ -121,6 +134,8 @@ export type PipelineStep = {
   kind: "source" | "filter" | "ai" | "sort";
   from?: PipelineSource;
   jira?: JiraCriteria;
+  mail?: MailCriteria;
+  messages?: MessageCriteria;
   label?: string;
   todoStatus?: "open" | "all";
   dbId?: number;
@@ -171,7 +186,11 @@ export function normalizePipeline(raw: unknown): Pipeline {
       const from = s.from as PipelineSource;
       const j = (s.jira && typeof s.jira === "object" ? s.jira : {}) as Record<string, unknown>;
       const jira = from === "jira" ? defined<JiraCriteria>({ mine: j.mine === true, involved: j.involved === true, briefed: j.briefed === true, recentDays: posInt(j.recentDays), commented: j.commented === true, openOnly: j.openOnly === true, doneDays: posInt(j.doneDays), projects: strs(j.projects) }) : undefined;
-      steps.push(defined<PipelineStep>({ id, kind: "source", from, jira, label: from === "keep" ? str(s.label) : undefined, todoStatus: from === "todos" && s.todoStatus === "all" ? "all" : undefined, dbId: from === "database" ? posInt(s.dbId) : undefined }));
+      const ml = (s.mail && typeof s.mail === "object" ? s.mail : {}) as Record<string, unknown>;
+      const mg = (s.messages && typeof s.messages === "object" ? s.messages : {}) as Record<string, unknown>;
+      const mail = from === "mail" ? defined<MailCriteria>({ accounts: strs(ml.accounts)?.filter((a): a is MailCriteria["accounts"] & string => (MAIL_ACCOUNTS as readonly string[]).includes(a)) as MailCriteria["accounts"], folders: strs(ml.folders), unreadOnly: ml.unreadOnly === true, recentDays: posInt(ml.recentDays) }) : undefined;
+      const messages = from === "messages" ? defined<MessageCriteria>({ channels: strs(mg.channels)?.filter((c) => (MESSAGE_CHANNELS as readonly string[]).includes(c)) as MessageCriteria["channels"], chat: str(mg.chat), recentDays: posInt(mg.recentDays) }) : undefined;
+      steps.push(defined<PipelineStep>({ id, kind: "source", from, jira, mail, messages, label: from === "keep" ? str(s.label) : undefined, todoStatus: from === "todos" && s.todoStatus === "all" ? "all" : undefined, dbId: from === "database" ? posInt(s.dbId) : undefined }));
     } else if (s.kind === "filter") {
       steps.push(defined<PipelineStep>({ id, kind: "filter", text: str(s.text), openOnly: s.openOnly === true, recentDays: posInt(s.recentDays), limit: posInt(s.limit) }));
     } else if (s.kind === "sort") {
@@ -275,7 +294,7 @@ export function normalizeSchema(raw: unknown): DbSchema {
   const o = (raw && typeof raw === "object" ? raw : {}) as Partial<DbSchema>;
   const props = (Array.isArray(o.properties) ? o.properties : []).filter((p): p is Property => !!p && typeof p.id === "string" && (PROP_TYPES as readonly string[]).includes(p.type));
   const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [] }));
-  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}) };
+  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}) };
 }
 
 export const propById = (props: Property[], id: string): Property | undefined => props.find((p) => p.id === id);

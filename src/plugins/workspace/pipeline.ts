@@ -4,7 +4,7 @@ import { errorMessage } from "@/lib/errors";
 import { emitChange } from "@/lib/events";
 import { databaseSource, KEY_PROP, NOTE_PROP, rowKey } from "./collections";
 import { docToMarkdown, markdownToDoc } from "./doc";
-import { cellText, COLORS, newId, type DbSchema, type Option, type PipelineStep, type Property, type Row } from "./model";
+import { cellText, COLORS, newId, type DataType, type DbSchema, type Option, type PipelineStep, type Property, type Row } from "./model";
 import { addRow, archivePage, getDatabase, getPage, placeRow, rawRows, setCell, tree, updatePage, updateSchema } from "./store";
 
 /**
@@ -26,7 +26,12 @@ export type SourceRecord = {
   text?: string;
   url?: string;
   updatedAt?: string;
+  /** Fields of fixed id and type (a mail's from, received, unread …) — what a typed database's views rely on. */
+  typed?: TypedField[];
+  /** What the record is (a mail, a message): the database's type when all its records are. */
+  dataType?: DataType;
 };
+type TypedField = { id: string; name: string; type: "text" | "date" | "checkbox" | "select"; value: string | boolean | null };
 
 /** The fixed properties a pipeline keeps its rows by. */
 export const SRC_REF = "srcref";
@@ -126,7 +131,83 @@ function databaseRecords(dbId: number | undefined, self: number): SourceRecord[]
   });
 }
 
+/** An account of a mail by where it's kept (Gmail's conversations: gmail:…; the rest: Outlook). */
+const accountOf = (convId: string): "outlook" | "gmail" => (convId.startsWith("gmail:") ? "gmail" : "outlook");
+
+async function mailRecords(c: NonNullable<PipelineStep["mail"]>): Promise<SourceRecord[]> {
+  const { listMails } = await import("@/lib/mail/store");
+  const { isChatFolder, sourceLink } = await import("@/lib/mail/shared");
+  const from = since(c.recentDays);
+  const folders = c.folders?.map((f) => f.toLowerCase());
+  return listMails({ limit: 2000 })
+    .filter((m) => !isChatFolder(m.folder) && !/^(wa|sg):/.test(m.convId))
+    .filter((m) => (!c.accounts?.length || c.accounts.includes(accountOf(m.convId))) && (!folders?.length || folders.includes(m.folder.toLowerCase())) && (!c.unreadOnly || m.unread) && (!from || at(m.receivedAt) >= from))
+    .map((m) => ({
+      ref: `mail:${m.key}`,
+      title: m.subject || "(ohne Betreff)",
+      fields: {},
+      typed: [
+        { id: "mailfrom", name: "From", type: "text" as const, value: m.fromEmail ? `${m.fromName ?? m.fromEmail} <${m.fromEmail}>` : (m.fromName ?? "") },
+        { id: "mailaccount", name: "Account", type: "select" as const, value: accountOf(m.convId) === "gmail" ? "Gmail" : "Outlook" },
+        { id: "mailfolder", name: "Folder", type: "select" as const, value: m.folder },
+        { id: "mailreceived", name: "Received", type: "date" as const, value: m.receivedAt ? new Date(at(m.receivedAt)).toISOString().slice(0, 16) : null },
+        { id: "mailunread", name: "Unread", type: "checkbox" as const, value: m.unread || null },
+        { id: "mailconv", name: "Conversation", type: "text" as const, value: m.convId },
+      ],
+      dataType: "mail" as const,
+      text: m.preview,
+      url: sourceLink(m)?.href,
+      updatedAt: m.receivedAt ?? undefined,
+    }));
+}
+
+async function messageRecords(c: NonNullable<PipelineStep["messages"]>): Promise<SourceRecord[]> {
+  const want = (ch: string) => !c.channels?.length || (c.channels as string[]).includes(ch);
+  const from = since(c.recentDays);
+  const chat = c.chat?.toLowerCase();
+  const out: SourceRecord[] = [];
+  const message = (v: { ref: string; text: string; sender: string; chat: string; channel: string; sent: string | null; mine: boolean; conv: string; url?: string }): SourceRecord => ({
+    ref: v.ref,
+    title: v.text.split(/\r?\n/)[0].slice(0, 140) || "…",
+    fields: {},
+    typed: [
+      { id: "msgsender", name: "Sender", type: "text", value: v.sender },
+      { id: "msgchat", name: "Chat", type: "text", value: v.chat },
+      { id: "msgchannel", name: "Channel", type: "select", value: v.channel },
+      { id: "msgsent", name: "Sent", type: "date", value: v.sent ? new Date(at(v.sent)).toISOString().slice(0, 16) : null },
+      { id: "msgmine", name: "Mine", type: "checkbox", value: v.mine || null },
+      { id: "msgconv", name: "Conversation", type: "text", value: v.conv },
+    ],
+    dataType: "message",
+    text: v.text,
+    url: v.url,
+    updatedAt: v.sent ?? undefined,
+  });
+  if (want("whatsapp") || want("signal")) {
+    const { listMails } = await import("@/lib/mail/store");
+    const { ME_SENDER } = await import("@/lib/mail/shared");
+    for (const m of listMails({ limit: 2000 })) {
+      const channel = m.folder === "WhatsApp" ? "whatsapp" : m.folder === "Signal" ? "signal" : null;
+      if (!channel || !want(channel) || (from && at(m.receivedAt) < from) || (chat && !m.subject.toLowerCase().includes(chat))) continue;
+      out.push(message({ ref: `mail:${m.key}`, text: m.preview, sender: m.fromName ?? "", chat: m.subject, channel: channel === "whatsapp" ? "WhatsApp" : "Signal", sent: m.receivedAt, mine: m.fromName === ME_SENDER, conv: m.convId, url: channel === "whatsapp" ? "https://web.whatsapp.com/" : undefined }));
+    }
+  }
+  if (want("teams")) {
+    const { listTeamsMessages } = await import("@/lib/teams/store");
+    const { myJiraName } = await import("@/lib/jira/store");
+    const me = myJiraName()?.toLowerCase();
+    for (const t of listTeamsMessages({ all: true, limit: 2000 })) {
+      const sent = t.sentAt ? new Date(t.sentAt).toISOString() : null;
+      if ((from && at(sent) < from) || (chat && !(t.place ?? "").toLowerCase().includes(chat))) continue;
+      out.push(message({ ref: `teams:${t.key}`, text: t.text, sender: t.senderName ?? "", chat: t.place ?? "Teams", channel: "Teams", sent, mine: !!me && (t.senderName ?? "").toLowerCase() === me, conv: t.key.split("|")[0], url: t.link || undefined }));
+    }
+  }
+  return out.sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
+}
+
 async function read(step: PipelineStep, self: number): Promise<SourceRecord[]> {
+  if (step.from === "mail") return mailRecords(step.mail ?? {});
+  if (step.from === "messages") return messageRecords(step.messages ?? {});
   if (step.from === "jira") return jiraRecords(step.jira ?? {});
   if (step.from === "keep") return keepRecords(step.label);
   if (step.from === "todos") return todoRecords(step.todoStatus ?? "open");
@@ -177,6 +258,16 @@ function schemaFor(cur: DbSchema, records: SourceRecord[], steps: PipelineStep[]
   if (records.some((r) => r.key)) ensure({ id: KEY_PROP, name: "Key", type: "text" });
   if (records.some((r) => r.ref.startsWith("keep:"))) ensure({ id: NOTE_PROP, name: "Note", type: "text" });
   if (records.some((r) => r.url)) ensure({ id: SRC_URL, name: "Link", type: "url" });
+  // The typed fields (a mail's, a message's): their fixed ids, a select's values as its options.
+  for (const f of records.flatMap((r) => r.typed ?? [])) {
+    let i = props.findIndex((p) => p.id === f.id);
+    if (i < 0) {
+      props.push({ id: f.id, name: f.name, type: f.type, ...(f.type === "select" ? { options: [] } : {}), ...(f.type === "date" ? { includeTime: true } : {}) });
+      i = props.length - 1;
+    }
+    const p = props[i];
+    if (f.type === "select" && typeof f.value === "string" && f.value && !(p.options ?? []).some((o) => o.name === f.value)) props[i] = { ...p, options: [...(p.options ?? []), option(f.value, (p.options ?? []).length, undefined)] };
+  }
   for (const name of new Set(records.flatMap((r) => Object.keys(r.fields)))) {
     const i = props.findIndex((p) => p.name.toLowerCase() === name.toLowerCase() && p.type !== "ai");
     if (i < 0) {
@@ -209,7 +300,11 @@ function schemaFor(cur: DbSchema, records: SourceRecord[], steps: PipelineStep[]
 
   const statusId = next.find((p) => p.type === "status")?.id;
   const views = cur.views.map((v) => ({ ...v, hidden: [...new Set([...v.hidden, ...HIDDEN.filter((h) => next.some((p) => p.id === h))])], ...(v.type === "board" && statusId && !v.groupBy ? { groupBy: statusId } : {}) }));
-  return { ...cur, properties: next, views, ...(fields.length ? { review: { ...cur.review, on: true } } : {}) };
+  // What its rows are: the type all the records have (mails, messages) — none when mixed or none.
+  const types = new Set(records.map((r) => r.dataType));
+  const dataType = types.size === 1 ? [...types][0] : undefined;
+  const { dataType: _was, ...rest } = cur;
+  return { ...rest, properties: next, views, ...(fields.length ? { review: { ...cur.review, on: true } } : {}), ...(dataType ? { dataType } : records.length ? {} : cur.dataType ? { dataType: cur.dataType } : {}) };
 }
 
 export type PipelineResult = { dbId: number; ok: boolean; records: number; created: number; updated: number; archived: number; reviewed: number; summaries: number; error?: string };
@@ -266,6 +361,10 @@ export async function runPipeline(dbId: number, opts: { ai?: boolean; force?: bo
       if (rec.key) cells[KEY_PROP] = rec.key;
       if (rec.ref.startsWith("keep:")) cells[NOTE_PROP] = rec.ref;
       if (rec.url) cells[SRC_URL] = rec.url;
+      for (const f of rec.typed ?? []) {
+        const p = props.find((x) => x.id === f.id);
+        cells[f.id] = p?.type === "select" && typeof f.value === "string" ? optionOf(p, f.value) : (f.value ?? undefined);
+      }
       for (const [name, v] of Object.entries(rec.fields)) {
         const p = propOf(name);
         if (p) cells[p.id] = valueFor(p, v);

@@ -16,7 +16,7 @@ import { Dropdown, MenuItem, Modal } from "./kit";
  * database), filters, AI steps (a field on each row, a summary over all) — edited, saved, run.
  */
 
-const ICON: Record<string, string> = { jira: "🎫", keep: "🗒", todos: "☑", database: "🗃", filter: "⏷", sort: "⇅", field: "✨", summary: "🧭" };
+const ICON: Record<string, string> = { jira: "🎫", keep: "🗒", todos: "☑", database: "🗃", mail: "✉", messages: "💬", filter: "⏷", sort: "⇅", field: "✨", summary: "🧭" };
 const kindOf = (s: PipelineStep) => (s.kind === "source" ? (s.from ?? "") : s.kind === "ai" ? (s.output ?? "") : s.kind);
 const iconOf = (s: PipelineStep) => ICON[kindOf(s)];
 
@@ -46,7 +46,7 @@ export function PipelineEditor({ dbId, pipeline, synced, fields, databases, onSa
     return next;
   });
   const add = (s: Omit<PipelineStep, "id">) => setSteps((ss) => [...ss, { id: newId("s"), ...s }]);
-  const source = (from: PipelineSource) => add({ kind: "source", from, ...(from === "jira" ? { jira: { mine: true, recentDays: 14, openOnly: true } } : {}) });
+  const source = (from: PipelineSource) => add({ kind: "source", from, ...(from === "jira" ? { jira: { mine: true, recentDays: 14, openOnly: true } } : from === "mail" ? { mail: { recentDays: 30 } } : from === "messages" ? { messages: { recentDays: 14 } } : {}) });
   const save = async (run?: { ai: boolean }) => {
     setBusy(true);
     try {
@@ -57,7 +57,7 @@ export function PipelineEditor({ dbId, pipeline, synced, fields, databases, onSa
       setBusy(false);
     }
   };
-  const labels: Record<string, string> = { jira: t("Jira tickets"), keep: t("Google Keep notes"), todos: t("Todos"), database: t("Another database"), filter: t("Filter"), sort: t("Sort"), field: t("AI: a field on each row"), summary: t("AI: one summary over all rows") };
+  const labels: Record<string, string> = { jira: t("Jira tickets"), keep: t("Google Keep notes"), todos: t("Todos"), database: t("Another database"), mail: t("Mails (Outlook, Gmail)"), messages: t("Messages (Teams, WhatsApp, Signal)"), filter: t("Filter"), sort: t("Sort"), field: t("AI: a field on each row"), summary: t("AI: one summary over all rows") };
   return (
     <Modal title={t("Sources & steps …")} onClose={onClose} wide>
       <p className="text-sm text-zinc-500">{t("Where this database's rows come from and what's done with them, top to bottom. A run keeps the result as its rows (yours stay: AI fields, pages); the AI steps go with the briefing.")}</p>
@@ -94,7 +94,7 @@ export function PipelineEditor({ dbId, pipeline, synced, fields, databases, onSa
       <div className="flex flex-wrap items-center gap-1.5">
         {!synced && (
           <Dropdown label={`+ ${t("Source")}`} className="btn btn-sm">
-          {(close) => (["jira", "keep", "todos", "database"] as const).map((f) => (
+          {(close) => (["jira", "keep", "todos", "database", "mail", "messages"] as const).map((f) => (
             <MenuItem key={f} onClick={() => (close(), source(f))}>
               {ICON[f]} {labels[f]}
             </MenuItem>
@@ -170,7 +170,7 @@ function InstructionPicker({ chosen, all, set, reload }: { chosen: number[]; all
 }
 
 /** How often a source's sync reads it (Jira, Google Keep) — its pipelines refresh after each. */
-export function SyncEvery({ syncKey, name }: { syncKey: "jira" | "keep"; name: string }) {
+export function SyncEvery({ syncKey, name }: { syncKey: "jira" | "keep" | "mail"; name: string }) {
   const t = useT();
   const [sync, setSync] = useState<{ minutes: number; choices: number[] } | null>(null);
   useEffect(() => {
@@ -256,6 +256,42 @@ function StepBody({ step: s, set, databases, fields }: { step: PipelineStep; set
           <input className="input w-40 text-sm" placeholder="PROJ, DISNEY" value={(j.projects ?? []).join(", ")} onChange={(e) => setJ({ projects: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })} />
         </label>
         <SyncEvery syncKey="jira" name="Jira" />
+      </div>
+    );
+  }
+  if (s.kind === "source" && s.from === "mail") {
+    const c = s.mail ?? {};
+    const setC = (p: Partial<NonNullable<PipelineStep["mail"]>>) => set({ mail: { ...c, ...p } });
+    const acc = (a: "outlook" | "gmail", on: boolean) => setC({ accounts: on ? [...new Set([...(c.accounts ?? []), a])] : (c.accounts ?? ["outlook", "gmail"]).filter((x) => x !== a) });
+    return (
+      <div className={row}>
+        <Check label="Outlook" on={!c.accounts?.length || c.accounts.includes("outlook")} set={(v) => acc("outlook", v)} />
+        <Check label="Gmail" on={!c.accounts?.length || c.accounts.includes("gmail")} set={(v) => acc("gmail", v)} />
+        <label className="flex items-center gap-1.5 text-sm">
+          {t("Folders")}
+          <input className="input w-44 text-sm" placeholder={t("(all)")} value={(c.folders ?? []).join(", ")} onChange={(e) => setC({ folders: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })} />
+        </label>
+        <Check label={t("Unread only")} on={c.unreadOnly} set={(v) => setC({ unreadOnly: v })} />
+        <Days label={t("Received within days")} value={c.recentDays} set={(v) => setC({ recentDays: v })} />
+        <SyncEvery syncKey="mail" name={t("Mail")} />
+      </div>
+    );
+  }
+  if (s.kind === "source" && s.from === "messages") {
+    const c = s.messages ?? {};
+    const setC = (p: Partial<NonNullable<PipelineStep["messages"]>>) => set({ messages: { ...c, ...p } });
+    const all = ["teams", "whatsapp", "signal"] as const;
+    const ch = (x: (typeof all)[number], on: boolean) => setC({ channels: on ? [...new Set([...(c.channels ?? []), x])] : (c.channels?.length ? c.channels : [...all]).filter((y) => y !== x) });
+    return (
+      <div className={row}>
+        <Check label="Teams" on={!c.channels?.length || c.channels.includes("teams")} set={(v) => ch("teams", v)} />
+        <Check label="WhatsApp" on={!c.channels?.length || c.channels.includes("whatsapp")} set={(v) => ch("whatsapp", v)} />
+        <Check label="Signal" on={!c.channels?.length || c.channels.includes("signal")} set={(v) => ch("signal", v)} />
+        <label className="flex items-center gap-1.5 text-sm">
+          {t("Chat")}
+          <input className="input w-40 text-sm" placeholder={t("(all)")} value={c.chat ?? ""} onChange={(e) => setC({ chat: e.target.value || undefined })} />
+        </label>
+        <Days label={t("Sent within days")} value={c.recentDays} set={(v) => setC({ recentDays: v })} />
       </div>
     );
   }

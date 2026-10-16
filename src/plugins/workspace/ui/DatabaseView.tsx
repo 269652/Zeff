@@ -15,10 +15,13 @@ import { DetailEditor } from "./detail-modules";
 import { FilterEditor, PropertiesMenu, SchemaModal, SortEditor } from "./db-menus";
 import { Dropdown, MenuItem, useSortable } from "./kit";
 import { PipelineEditor, PipelineSummaries } from "./pipeline";
+import { AppViewHost } from "./app-view";
 
 /** A database on a page: its views (table, board, list, gallery, calendar), filters, sorts, groups, and the rows in place. */
 
-const VIEW_ICON: Record<ViewType, string> = { table: "▦", board: "▥", list: "☰", gallery: "▤", calendar: "📅" };
+const VIEW_ICON: Record<ViewType, string> = { table: "▦", board: "▥", list: "☰", gallery: "▤", calendar: "📅", app: "◫" };
+/** The view types one picks (an app's view comes with its app). */
+const PLAIN_VIEWS = VIEW_TYPES.filter((v) => v !== "app");
 
 const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const countRules = (f: View["filter"]): number => f.rules.reduce((n, r) => n + ("rules" in r ? countRules(r) : 1), 0);
@@ -292,9 +295,10 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const visible = (view.order ? [...schema.properties].sort((a, b) => (view.order!.indexOf(a.id) + 1 || 999) - (view.order!.indexOf(b.id) + 1 || 999)) : schema.properties).filter((p) => !view.hidden.includes(p.id));
   const filters = countRules(view.filter);
 
-  const addView = (type: ViewType) => {
-    const names: Record<ViewType, string> = { table: t("Table"), board: t("Board"), list: t("List"), gallery: t("Gallery"), calendar: t("Calendar") };
+  const addView = (type: ViewType, app?: { id: string; label: string }) => {
+    const names: Record<ViewType, string> = { table: t("Table"), board: t("Board"), list: t("List"), gallery: t("Gallery"), calendar: t("Calendar"), app: app?.label ?? t("App") };
     const v = newView(names[type], type);
+    if (app) v.app = app.id;
     if (type === "board") v.groupBy = schema.properties.find((p) => p.type === "status" || p.type === "select")?.id;
     if (type === "calendar") v.dateProp = schema.properties.find((p) => p.type === "date")?.id;
     api.changeSchema((s) => ({ ...s, views: [...s.views, v] }));
@@ -325,12 +329,12 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
         <div className="flex min-w-0 flex-wrap items-center gap-0.5" role="tablist" aria-label={t("Views")}>
           {schema.views.map((v) => (
             <button key={v.id} type="button" role="tab" aria-selected={v.id === view.id} onClick={() => pick(v.id)} className={`rounded-md px-2 py-1 text-sm ${v.id === view.id ? "bg-zinc-100 font-medium dark:bg-zinc-800" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>
-              {VIEW_ICON[v.type]} {v.name}
+              {v.type === "app" ? (data.extras?.appViews?.find((a) => a.id === v.app)?.icon ?? VIEW_ICON.app) : VIEW_ICON[v.type]} {v.name}
             </button>
           ))}
           <Dropdown label="+" title={t("Add a view")} className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">
             {(close) =>
-              VIEW_TYPES.map((vt) => (
+              [...PLAIN_VIEWS.map((vt) => (
                 <MenuItem
                   key={vt}
                   onClick={() => {
@@ -338,9 +342,21 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
                     close();
                   }}
                 >
-                  {VIEW_ICON[vt]} {{ table: t("Table"), board: t("Board"), list: t("List"), gallery: t("Gallery"), calendar: t("Calendar") }[vt]}
+                  {VIEW_ICON[vt]} {{ table: t("Table"), board: t("Board"), list: t("List"), gallery: t("Gallery"), calendar: t("Calendar"), app: "" }[vt]}
                 </MenuItem>
-              ))
+              )),
+              // The apps' views this database can have (its type: mails, messages — their plugins installed).
+              ...(data.extras?.appViews ?? []).map((a) => (
+                <MenuItem
+                  key={`app-${a.id}`}
+                  onClick={() => {
+                    addView("app", a);
+                    close();
+                  }}
+                >
+                  {a.icon} {a.label}
+                </MenuItem>
+              ))]
             }
           </Dropdown>
         </div>
@@ -444,7 +460,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
               </div>
               <p className="px-2 pt-1 text-xs text-zinc-500">{t("Show this view as — to keep it as it is, add another view with “+”")}</p>
               <div className="flex flex-wrap gap-1 px-2 pb-1">
-                {VIEW_TYPES.map((vt) => (
+                {PLAIN_VIEWS.map((vt) => (
                   <button key={vt} type="button" className={`rounded px-1.5 py-0.5 text-sm ${view.type === vt ? "bg-indigo-100 dark:bg-indigo-950" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"}`} title={vt} aria-pressed={view.type === vt} onClick={() => setView({ ...view, type: vt, groupBy: vt === "board" && !view.groupBy ? schema.properties.find((p) => p.type === "status" || p.type === "select")?.id : view.groupBy, dateProp: vt === "calendar" && !view.dateProp ? schema.properties.find((p) => p.type === "date")?.id : view.dateProp })}>
                     {VIEW_ICON[vt]}
                   </button>
@@ -530,6 +546,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
 
       {data.extras?.running && <p className="text-sm text-indigo-600 dark:text-indigo-400" data-running>✨ {t("The AI is going through the rows — they change as it writes them …")}</p>}
       <PipelineSummaries pipeline={schema.pipeline} />
+      {view.type === "app" && <AppViewHost view={view} data={data} rows={rows} openRow={openRow} reload={() => void api.reload()} fallback={<TableView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />} />}
       {view.type === "table" && <TableView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />}
       {view.type === "board" && <BoardView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} newRow={newRow} />}
       {view.type === "list" && <ListView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} />}

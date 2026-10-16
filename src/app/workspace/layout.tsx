@@ -8,6 +8,8 @@ import { Sidebar } from "@/plugins/workspace/ui/Sidebar";
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   await connection();
   if (!isInstalled("workspace")) return <PluginNotInstalled id="workspace" />;
+  // Your mails and messages as databases (once).
+  await (await import("@/plugins/workspace/mail-databases")).ensureMailDatabases().catch((e) => console.error("[workspace] the mail databases failed", e));
   // System → Prompts: a page for every prompt (made once; an untouched one follows the built-in text).
   await (await import("@/lib/prompts")).ensureSystemPrompts().catch((e) => console.error("[workspace] the system prompts failed", e));
   // My briefing replaced by Meine Lage (once — also before the next Jira sync or start).
