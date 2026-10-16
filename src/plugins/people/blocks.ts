@@ -16,12 +16,16 @@ import { addDate, addRelation, contactsOf, datesOf, deleteDate, deletePerson, de
 export { PERSON_MODULES as PERSON_BLOCKS } from "@/plugins/workspace/model";
 
 /** The profile a row stands for (its source reference "person:<id>"); null: not one of a person. */
-export function personOfRow(rowId: number): number | null {
+export function personOfRow(rowId: number, depth = 0): number | null {
   const row = getSqlite().prepare("select props from ws_pages where id = ?").get(rowId) as { props: string } | undefined;
-  if (!row) return null;
+  if (!row || depth > 6) return null;
   try {
-    const m = /^person:(\d+)$/.exec(String((JSON.parse(row.props) as Record<string, unknown>).srcref ?? ""));
-    return m && getPerson(Number(m[1])) ? Number(m[1]) : null;
+    const ref = String((JSON.parse(row.props) as Record<string, unknown>).srcref ?? "");
+    const m = /^person:(\d+)$/.exec(ref);
+    if (m) return getPerson(Number(m[1])) ? Number(m[1]) : null;
+    // A row of a database made from the people database (a filter of it): it stands for the row it was made from.
+    const from = /^page:(\d+)$/.exec(ref);
+    return from ? personOfRow(Number(from[1]), depth + 1) : null;
   } catch {
     return null;
   }

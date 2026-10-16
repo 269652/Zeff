@@ -242,9 +242,9 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const [peek, setPeek] = useState<number | null>(() => Number(search.get("row")) || null);
   // The panel is drawn in the browser only (a portal): the server's HTML has none, so nothing to mismatch.
   const inBrowser = useSyncExternalStore(noSubscribe, () => true, () => false);
-  const [databases, setDatabases] = useState<{ id: number; title: string; rules?: boolean; jobs?: boolean }[]>([]);
+  const [databases, setDatabases] = useState<{ id: number; title: string; rules?: boolean; jobs?: boolean; people?: boolean }[]>([]);
   useEffect(() => {
-    if (schemaOpen || pipelineOpen) void databasesAction().then((r) => r.ok && setDatabases(r.databases.map((d) => ({ id: d.id, title: d.title, rules: d.rules, jobs: d.jobs }))));
+    if (schemaOpen || pipelineOpen) void databasesAction().then((r) => r.ok && setDatabases(r.databases.map((d) => ({ id: d.id, title: d.title, rules: d.rules, jobs: d.jobs, people: d.people }))));
   }, [schemaOpen, pipelineOpen]);
 
   const view = useMemo(() => data?.schema.views.find((v) => v.id === current) ?? data?.schema.views[0], [data, current]);

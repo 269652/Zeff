@@ -29,7 +29,7 @@ export const BRIEFING_EXAMPLE = (): PipelineStep[] => [
   { id: newId("s"), kind: "ai", output: "summary", prompt: "Die Gesamtlage: was gerade brennt, was als Nächstes kommt, worauf ich warte — in wenigen Sätzen, die wichtigsten Tickets mit Schlüssel." },
 ];
 
-export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, checkboxes, databases, extSources = [], onSave, onRun, onClose }: { /** The sources plugins bring (People …). */ extSources?: { id: string; label: string; icon: string; hint?: string }[]; dbId: number; pipeline: Pipeline | undefined; synced: string | null; dataType?: DataType; fields: string[]; checkboxes: { id: string; name: string }[]; databases: { id: number; title: string; rules?: boolean; jobs?: boolean }[]; onSave: (p: Pipeline) => Promise<void>; onRun: (ai: boolean) => Promise<void>; onClose: () => void }) {
+export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, checkboxes, databases, extSources = [], onSave, onRun, onClose }: { /** The sources plugins bring (People …). */ extSources?: { id: string; label: string; icon: string; hint?: string }[]; dbId: number; pipeline: Pipeline | undefined; synced: string | null; dataType?: DataType; fields: string[]; checkboxes: { id: string; name: string }[]; databases: { id: number; title: string; rules?: boolean; jobs?: boolean; people?: boolean }[]; onSave: (p: Pipeline) => Promise<void>; onRun: (ai: boolean) => Promise<void>; onClose: () => void }) {
   const t = useT();
   // A database a sync keeps: the sync is its source — only AI steps of its own.
   const [auto, setAuto] = useState<{ autoAi: boolean; everyMinutes: number | undefined; keepProp: string | undefined }>({ autoAi: !!pipeline?.autoAi, everyMinutes: pipeline?.everyMinutes, keepProp: pipeline?.keepProp });
@@ -297,7 +297,7 @@ function Days({ label, value, set }: { label: string; value: number | undefined;
   );
 }
 
-function StepBody({ dbId, saved, step: s, allSteps, set, databases, fields }: { dbId: number; saved: boolean; step: PipelineStep; allSteps: PipelineStep[]; set: (p: Partial<PipelineStep>) => void; databases: { id: number; title: string; rules?: boolean; jobs?: boolean }[]; fields: string[] }) {
+function StepBody({ dbId, saved, step: s, allSteps, set, databases, fields }: { dbId: number; saved: boolean; step: PipelineStep; allSteps: PipelineStep[]; set: (p: Partial<PipelineStep>) => void; databases: { id: number; title: string; rules?: boolean; jobs?: boolean; people?: boolean }[]; fields: string[] }) {
   const [trial, setTrial] = useState<"busy" | { title: string; keep: boolean; why: string }[] | null>(null);
   const t = useT();
   const row = "flex flex-wrap items-center gap-x-4 gap-y-1.5";
@@ -361,10 +361,21 @@ function StepBody({ dbId, saved, step: s, allSteps, set, databases, fields }: { 
           </label>
           <label className="flex items-center gap-1.5 text-sm">
             {t("names a row of")}
-            <select className="input w-auto text-sm" value={s.dbId ?? ""} onChange={(e) => set({ dbId: Number(e.target.value) || undefined })} aria-label={t("Which database")}>
+            <select
+              className="input w-auto text-sm"
+              value={s.dbId ?? ""}
+              onChange={(e) => {
+                const id = Number(e.target.value) || undefined;
+                // A people database: the row's sender/author names the person — the keys there (name, aliases, addresses) are the default.
+                const who = databases.find((d) => d.id === id)?.people ? fields.find((f) => /^(from|sender|reporter|assignee|author|creator)/i.test(f)) : undefined;
+                set({ dbId: id, ...(who ? { on: who } : {}) });
+              }}
+              aria-label={t("Which database")}
+            >
               <option value="">{t("Pick a database …")}</option>
               {databases.map((d) => (
                 <option key={d.id} value={d.id}>
+                  {d.people ? "👤 " : ""}
                   {d.title}
                 </option>
               ))}
@@ -374,7 +385,7 @@ function StepBody({ dbId, saved, step: s, allSteps, set, databases, fields }: { 
         <div className={row}>
           <label className="flex items-center gap-1.5 text-sm">
             {t("by its")}
-            <input className="input w-32 text-sm" value={s.by ?? ""} onChange={(e) => set({ by: e.target.value || undefined })} placeholder={t("title")} aria-label={t("Field there")} />
+            <input className="input w-44 text-sm" value={s.by ?? ""} onChange={(e) => set({ by: e.target.value || undefined })} placeholder={databases.find((d) => d.id === s.dbId)?.people ? t("title, Aliases, Emails (default)") : t("title")} aria-label={t("Field there")} />
           </label>
           <label className="flex items-center gap-1.5 text-sm">
             {t("bring")}
@@ -394,6 +405,19 @@ function StepBody({ dbId, saved, step: s, allSteps, set, databases, fields }: { 
             👁 {t("Preview")}
           </button>
         </div>
+        {databases.find((d) => d.id === s.dbId)?.people && (
+          <div className="flex flex-wrap items-center gap-1.5 text-xs" data-people-bring>
+            <span className="text-zinc-500">{t("Bring from the person:")}</span>
+            {["Chat", "Jira", "Context", "Knowledge", "Todos", "Tickets", "Pages", "Note", "Next date"].map((f) => {
+              const on = (s.bring ?? []).some((b) => b.toLowerCase() === f.toLowerCase());
+              return (
+                <button key={f} type="button" aria-pressed={on} className={`rounded-full border px-2 py-0.5 ${on ? "border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-300" : "border-zinc-200 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"}`} onClick={() => set({ bring: on ? (s.bring ?? []).filter((b) => b.toLowerCase() !== f.toLowerCase()) : [...(s.bring ?? []), f] })}>
+                  {f}
+                </button>
+              );
+            })}
+          </div>
+        )}
         <p className="text-xs text-zinc-500">{t("A name matches a row when it is that row's title (or field), or contains it — an address in “Name <address>” too. The fields come onto the row at every run.")}</p>
       </div>
     );

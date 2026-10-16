@@ -5,6 +5,7 @@ import { errorMessage } from "@/lib/errors";
 import { emitChange } from "@/lib/events";
 import { databaseSource, KEY_PROP, NOTE_PROP, rowKey } from "./collections";
 import { APP_VIEWS, appViewsFor } from "./app-views";
+import { peopleDatabase } from "./people-database";
 import { meter, newMeter, noteAi, noteJudged } from "./meter";
 import { docToMarkdown, markdownToDoc } from "./doc";
 import { cellText, COLORS, dateRange, newId, newView, type DataType, type DbSchema, type Option, type PipelineStep, type Property, type Row } from "./model";
@@ -173,6 +174,12 @@ const COMM_FIELDS: Record<string, { id: string; name: string; type: TypedField["
 export function unifyComm(r: SourceRecord): SourceRecord {
   if (r.dataType !== "mail" && r.dataType !== "message") return r;
   return { ...r, dataType: "inbox", typed: (r.typed ?? []).map((f) => (COMM_FIELDS[f.id] ? { ...f, ...COMM_FIELDS[f.id] } : f)) };
+}
+
+/** The person's page of the people database (its detail page), for the databases made from it. */
+function peopleDetailPage(): number | undefined {
+  const home = peopleDatabase();
+  return home ? getDatabase(home)?.schema.detailPage : undefined;
 }
 
 /** An account of a mail by where it's kept (Gmail's conversations: gmail:…; the rest: Outlook). */
@@ -521,6 +528,8 @@ function schemaFor(cur: DbSchema, records: SourceRecord[], steps: PipelineStep[]
   const types = new Set(records.map((r) => r.dataType));
   const dataType = types.size === 1 ? [...types][0] : undefined;
   const { dataType: _was, ...rest } = cur;
+  // A database of people (a filter of the people database): its rows open as the person's page too.
+  const people = dataType === "people" && !cur.detailPage ? peopleDetailPage() : undefined;
   // An inbox shows by the inbox view; the views of another type (the mail client's, the chat's) give way.
   if (dataType === "inbox" || cur.dataType === "inbox") {
     // Snooze: the time (ISO) a conversation is away until — set from the inbox view, kept by runs.
@@ -531,7 +540,7 @@ function schemaFor(cur: DbSchema, records: SourceRecord[], steps: PipelineStep[]
     if (dataType === "inbox" && !keep.some((v) => v.type === "app" && v.app === "inbox") && appViewsFor("inbox").length) keep.unshift({ ...newView("Inbox", "table"), type: "app", app: "inbox" });
     views.splice(0, views.length, ...keep);
   }
-  return { ...rest, properties: next, views, ...(fields.length ? { review: { ...cur.review, on: true } } : {}), ...(dataType ? { dataType } : records.length ? {} : cur.dataType ? { dataType: cur.dataType } : {}) };
+  return { ...rest, properties: next, views, ...(people ? { detailPage: people } : {}), ...(fields.length ? { review: { ...cur.review, on: true } } : {}), ...(dataType ? { dataType } : records.length ? {} : cur.dataType ? { dataType: cur.dataType } : {}) };
 }
 
 export type PipelineResult = { dbId: number; ok: boolean; records: number; created: number; updated: number; archived: number; reviewed: number; summaries: number; error?: string };

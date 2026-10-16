@@ -138,3 +138,25 @@ test("the overview of the people database: what is coming up, what to check — 
   assert.ok(!o.dates.some((d) => d.personId === nora.id), "confirmed: no longer proposed");
   assert.ok(!o.claims.some((c) => c.personId === nora.id));
 });
+
+test("a filtered database of the people database has the person's page too — its rows stand for the same profiles", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["workspace", "people"]) setInstalled(id, true);
+  const p = await import("@/plugins/people/store");
+  const w = await import("@/plugins/workspace/store");
+  const { runPipeline } = await import("@/plugins/workspace/pipeline");
+  const { createDerivedDatabase } = await import("@/plugins/workspace/derived");
+  const { ensurePeopleDatabase, peopleDatabase } = await import("@/plugins/workspace/people-database");
+  const { personOfRow } = await import("@/plugins/people/blocks");
+  const id = p.createPerson({ name: "Derya Abgeleitet" });
+  await ensurePeopleDatabase();
+  const home = peopleDatabase()!;
+  await runPipeline(home, { ai: false });
+  const child = createDerivedDatabase(home, "Gefilterte Leute");
+  await runPipeline(child, { ai: false });
+  const d = w.getDatabase(child)!;
+  assert.equal(d.schema.dataType, "people");
+  assert.equal(d.schema.detailPage, w.getDatabase(home)!.schema.detailPage, "it shows the people database's person page");
+  const row = w.rawRows(child).find((r) => r.title === "Derya Abgeleitet")!;
+  assert.equal(personOfRow(row.id), id, "its row stands for the same profile");
+});

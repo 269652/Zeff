@@ -624,7 +624,7 @@ export async function duplicateRowAction(rowId: number) {
 
 /** Every database, to choose from (relations, linked views). */
 export async function databasesAction() {
-  return run(() => ({ databases: store.tree().filter((x) => x.kind === "database").map((x) => ({ id: x.id, title: x.title || t("Untitled"), icon: x.icon, rules: !!store.getDatabase(x.id)?.schema.rules, jobs: !!store.getDatabase(x.id)?.schema.jobs })) }));
+  return run(() => ({ databases: store.tree().filter((x) => x.kind === "database").map((x) => ({ id: x.id, title: x.title || t("Untitled"), icon: x.icon, rules: !!store.getDatabase(x.id)?.schema.rules, jobs: !!store.getDatabase(x.id)?.schema.jobs, people: store.getDatabase(x.id)?.schema.dataType === "people" })) }));
 }
 
 /** People and open todos to put in person/todo cells. */
