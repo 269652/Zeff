@@ -6,6 +6,7 @@
  */
 import { getSqlite } from "@/db";
 import { isSystemPage, systemPageIds } from "@/lib/prompts/system-pages";
+import { inAgentScope } from "./agent-scope";
 import { emitChange } from "@/lib/events";
 import { docRefs, docText, emptyDoc, sanitizeDoc, type Doc, type DocRef } from "./doc";
 import { computeRows, dateRange, defaultSchema, isComputed, newProperty, normalizeSchema, propById, TITLE, type DbSchema, type Labels, type Property, type Row } from "./model";
@@ -138,6 +139,7 @@ export type NewPage = { parentId?: number | null; title?: string; icon?: string;
 
 /** A page made. A row (`dbId`) takes the database's place in the tree; a database gets a default schema. */
 export function createPage(v: NewPage = {}): number {
+  noAgentOnSystem(v.parentId ?? v.dbId);
   const d = db();
   const kind = v.kind === "database" ? "database" : "page";
   if (v.dbId) {
@@ -197,6 +199,7 @@ const VERSIONS_KEPT = 60;
  * tab, an agent) and the content would be overwritten, nothing is saved and the conflict is reported.
  */
 export function updatePage(id: number, patch: PagePatch, rev?: number): SaveResult {
+  noAgentOnSystem(id);
   const d = db();
   const cur = d.prepare("select * from ws_pages where id = ?").get(id) as PRow | undefined;
   if (!cur) throw new Error("No such page.");
@@ -291,8 +294,23 @@ export function movePage(id: number, parentId: number | null, beforeId?: number 
 }
 
 /** To the trash: the page, what is below it, and its rows. */
+/** A system page, or a page under one (My prompts' pages, the detail views). */
+export function isProtectedPage(id: number | null | undefined): boolean {
+  for (let cur = id ?? null, hops = 0; cur && hops < 30; hops++) {
+    if (isSystemPage(cur)) return true;
+    cur = (db().prepare("select parent_id from ws_pages where id = ?").get(cur) as { parent_id: number | null } | undefined)?.parent_id ?? null;
+  }
+  return false;
+}
+
+/** The AI's tools may read system pages, not change them (or make pages under them). */
+function noAgentOnSystem(id: number | null | undefined): void {
+  if (inAgentScope() && isProtectedPage(id)) throw new Error("System pages (the prompts, the detail views, the instructions) can only be changed by you, not by the AI.");
+}
+
 /** A system page (System, its prompts) stays: not archived, deleted or moved to another parent. */
 function keepSystem(id: number, parentId?: number | null): void {
+  noAgentOnSystem(id);
   if (!isSystemPage(id)) return;
   if (parentId !== undefined && getPage(id)?.parentId === parentId) return; // reordered among its siblings: fine
   throw new Error("A system page stays where it is (System → Prompts): change its text, or reset it.");
@@ -577,6 +595,7 @@ export function labelFns(l: Awaited<ReturnType<typeof labelsFor>>): Labels {
 
 /** The schema changed (properties, views). A removed property's cells go away with it. */
 export function updateSchema(id: number, next: unknown): DbSchema {
+  noAgentOnSystem(id);
   const cur = getDatabase(id);
   if (!cur) throw new Error("No such database.");
   const schema = normalizeSchema(next);

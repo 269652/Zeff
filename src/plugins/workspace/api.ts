@@ -1,8 +1,9 @@
 import { t } from "@/lib/i18n/server";
 import { ApiError, str, type ApiContribution, type Params } from "@/lib/plugins/api-kit";
+import { asAgent } from "./agent-scope";
 import { docText, markdownToDoc, type DocNode } from "./doc";
 import { newId, type Property } from "./model";
-import { addRow, createPage, getDatabase, getPage, rawRows, setCell, tree, updatePage, updateSchema } from "./store";
+import { addRow, createPage, getDatabase, getPage, isProtectedPage, rawRows, setCell, tree, updatePage, updateSchema } from "./store";
 
 /**
  * The Workspace's part of the plugin API — and of the auto actions ("zeff-do"): a row added to a database or changed (by the
@@ -41,10 +42,10 @@ function findRow(dbId: number, v: string): number | null {
 /** A page (not a database) by its id or its title. */
 function findPage(v: string): number | null {
   const id = Number(v);
-  if (Number.isInteger(id) && id > 0 && getPage(id) && !getPage(id)!.archivedAt) return id;
+  if (Number.isInteger(id) && id > 0 && getPage(id) && !getPage(id)!.archivedAt && !isProtectedPage(id)) return id;
   const want = lower(v);
   if (!want) return null;
-  const pages = tree().filter((p) => p.kind === "page");
+  const pages = tree().filter((p) => p.kind === "page" && !isProtectedPage(p.id));
   return pages.find((p) => lower(p.title) === want)?.id ?? (pages.filter((p) => lower(p.title).includes(want)).length === 1 ? pages.find((p) => lower(p.title).includes(want))!.id : null);
 }
 
@@ -117,7 +118,7 @@ function context(q: { ticket: string; text: string }): string[] {
 
 const ok = <T extends Params>(p: T): T | null => p;
 
-export const WORKSPACE_API: ApiContribution = {
+const RAW_API: ApiContribution = {
   permissions: () => ({ "workspace.write": t("Add and change pages and rows of the Workspace") }),
   methods: {
     "workspace.rows.add": {
@@ -224,3 +225,6 @@ export const WORKSPACE_API: ApiContribution = {
     },
   },
 };
+
+/** The methods, each run as the AI (system pages read-only) — whoever calls them: an auto action, a plugin, an agent. */
+export const WORKSPACE_API: ApiContribution = { ...RAW_API, methods: Object.fromEntries(Object.entries(RAW_API.methods).map(([name, m]) => [name, { ...m, run: asAgent(m.run) }])) };

@@ -1,6 +1,7 @@
 import { getPref, setPref } from "@/lib/prefs";
 import { t } from "@/lib/i18n/server";
 import { systemPromptPages } from "@/lib/prompts";
+import { addSystemPage } from "@/lib/prompts/system-pages";
 import { docToMarkdown, markdownToDoc } from "./doc";
 import { createPage, getPage, tree } from "./store";
 
@@ -28,9 +29,13 @@ Automatische Benachrichtigungen (Jira, GitLab, Systeme) wiederholen meist, was s
 export function instructionsFolder(): number {
   const known = getPref<number | null>(FOLDER, null);
   const p = known ? getPage(known) : null;
-  if (p && !p.archivedAt) return p.id;
+  if (p && !p.archivedAt) {
+    addSystemPage(p.id); // (made before it was one)
+    return p.id;
+  }
   const id = createPage({ title: "KI-Anweisungen", icon: "🧠" });
   setPref(FOLDER, id);
+  addSystemPage(id);
   createPage({ title: "Lage", icon: "📋", parentId: id, content: markdownToDoc(LAGE) });
   return id;
 }

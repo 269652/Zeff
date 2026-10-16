@@ -8,6 +8,7 @@ import { z } from "zod";
 import { isInstalled } from "@/plugins/state";
 import { docToMarkdown, markdownToDoc } from "./doc";
 import { cellText, isComputed, sortRows, TITLE, type Row } from "./model";
+import { asAgent } from "./agent-scope";
 import * as store from "./store";
 import { registerWorkspaceDbTools, valuesToCells } from "./mcp-db";
 
@@ -53,7 +54,9 @@ function describePage(p: store.Page): string {
   return head.join("\n");
 }
 
-export function registerWorkspaceTools(server: McpServer, h: Helpers): void {
+export function registerWorkspaceTools(real: McpServer, h: Helpers): void {
+  // Whatever a tool does, it does as the AI: system pages are read-only there (agent-scope.ts).
+  const server = { registerTool: (name: string, meta: unknown, handler: (...a: never[]) => unknown) => (real.registerTool as (...x: unknown[]) => unknown)(name, meta, asAgent(handler)) } as unknown as McpServer;
   server.registerTool(
     "workspace_search",
     {
