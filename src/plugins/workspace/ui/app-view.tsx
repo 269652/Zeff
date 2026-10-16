@@ -13,6 +13,7 @@ const APPS: Record<string, LazyExoticComponent<ComponentType<AppViewProps>>> = {
   chat: lazy(() => import("@/plugins/mail-client/ui/ChatView")),
   inbox: lazy(() => import("@/plugins/mail-client/ui/InboxView")),
   people: lazy(() => import("@/plugins/people/ui/PeopleView")),
+  calendar: lazy(() => import("@/plugins/calendar/ui/CalendarView")),
 };
 
 /** An app's view of the database — or, its app not there (its plugin not installed), the fallback (a table). */

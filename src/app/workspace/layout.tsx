@@ -13,6 +13,8 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   // Your people as a database (once; People installed).
   (await import("@/plugins/workspace/row-views")).retireDetailLayouts();
   await (await import("@/plugins/workspace/people-database")).ensurePeopleDatabase().catch((e) => console.error("[workspace] the people database failed", e));
+  // Your calendar as a database (once; Calendar installed).
+  await (await import("@/plugins/workspace/calendar-database")).ensureCalendarDatabase().catch((e) => console.error("[workspace] the calendar database failed", e));
   // System → Prompts: a page for every prompt (made once; an untouched one follows the built-in text).
   await (await import("@/lib/prompts")).ensureSystemPrompts().catch((e) => console.error("[workspace] the system prompts failed", e));
   // My briefing replaced by Meine Lage (once — also before the next Jira sync or start).

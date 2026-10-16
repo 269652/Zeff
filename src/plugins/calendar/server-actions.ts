@@ -7,6 +7,12 @@ import type { SeriesScope } from "@/lib/calendar/ir-shared";
 
 /** The Kalender app: its server actions (each answers an ActionState). */
 
+/** Something in the calendar changed: pages are read again, and the Workspace's calendar database follows (its rows are these appointments). */
+function changed(): void {
+  revalidateAll();
+  void import("@/plugins/workspace/calendar-database").then((m) => m.refreshCalendarDatabase()).catch(() => undefined);
+}
+
 /**
  * An appointment a todo proposes, dragged or resized in the calendar: its action gets the new start and length
  * (the todo and its other actions stay as they are). Nothing is entered in a calendar by this.
@@ -17,7 +23,7 @@ export async function moveProposedEventAction(todoId: number, index: number, sta
     if (!(minutes > 0)) return { ok: false, error: t("The end has to be after the start.") };
     const { moveCalendarOp } = await import("@/lib/boards/store");
     moveCalendarOp(Number(todoId), Number(index), String(start).slice(0, 16), minutes);
-    revalidateAll();
+    changed();
     return { ok: true, message: t("Appointment moved — it is entered when you run the todo's action.") };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
@@ -36,7 +42,7 @@ const run = async (fn: () => Promise<string> | string): Promise<ActionState> => 
     } catch {
       // the next scheduled turn makes them
     }
-    revalidateAll();
+    changed();
     return { ok: true, message };
   } catch (e) {
     return { ok: false, error: errorMessage(e) };
@@ -161,7 +167,7 @@ export async function syncCalendarsAction(): Promise<ActionState> {
   if (!isInstalled("google-calendar")) return { ok: false, error: t("Google Calendar is not installed (Menu → Plugins).") };
   const { syncAndWait } = await import("@/lib/sync/registry");
   const r = await syncAndWait("gcalendar");
-  revalidateAll();
+  changed();
   return r.lastOk ? { ok: true, message: `Google Calendar: ${r.lastMessage ?? ""}` } : { ok: false, error: r.lastMessage ?? t("Failed.") };
 }
 
@@ -185,4 +191,15 @@ export async function acceptProposedEventAction(todoId: number, index: number, t
     if (r.todoNote) addTodoUserNote(todo.id, `✓ ${r.todoNote}`);
     return r.what;
   });
+}
+
+/** What the calendar app shows around a day (the Workspace's calendar view asks for it as it moves). */
+export async function calendarDataAction(view: string, day: string): Promise<{ ok: true; data: import("./view-data").CalendarData } | { ok: false; error: string }> {
+  try {
+    const { isInstalled } = await import("@/plugins/state");
+    if (!isInstalled("calendar")) return { ok: false, error: t("The Calendar plugin is not installed (Menu → Plugins).") };
+    return { ok: true, data: await (await import("./view-data")).calendarViewData(view, day) };
+  } catch (e) {
+    return { ok: false, error: errorMessage(e) };
+  }
 }

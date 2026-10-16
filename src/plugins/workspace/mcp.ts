@@ -214,6 +214,8 @@ export function registerWorkspaceTools(real: McpServer, h: Helpers): void {
         if (schema !== d.schema) store.updateSchema(p.id, schema);
         const id = store.addRow(p.id, { title, cells });
         if (markdown) store.updatePage(id, { content: markdownToDoc(markdown) });
+        // A row of a two-way source (an appointment) is made there now.
+        await (await import("./pipeline")).syncAfterEdit(id).catch(() => null);
         return h.ok(`Added row ${id} "${title}" to "${p.title || "Untitled"}"${notes.length ? ` (ignored: ${notes.join("; ")})` : ""}. Open: /workspace/${id}`);
       }),
   );

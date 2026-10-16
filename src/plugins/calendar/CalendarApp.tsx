@@ -53,6 +53,8 @@ export function CalendarApp({
   proposed,
   now: serverNow,
   canSync,
+  onNavigate,
+  onChanged,
 }: {
   view: ViewKind;
   /** The day the view is around ("YYYY-MM-DD"). */
@@ -64,6 +66,9 @@ export function CalendarApp({
   proposed: ProposedEvent[];
   now: string;
   canSync: boolean;
+  /** In the Workspace the app is its database's view: moving to another view/day is the host's (else the address changes), and so is reading again after a change. */
+  onNavigate?: (view: ViewKind, day: string) => void;
+  onChanged?: () => void;
 }) {
   const t = useT();
   const locale = LANGUAGES[useLang()].locale;
@@ -87,14 +92,17 @@ export function CalendarApp({
   const { days } = viewRange(view, day);
   const today = now.slice(0, 10);
 
-  const go = useCallback((v: ViewKind, d: string) => router.push(`/kalender?v=${v}&d=${d}`), [router]);
+  const go = useCallback((v: ViewKind, d: string) => (onNavigate ? onNavigate(v, d) : router.push(`/kalender?v=${v}&d=${d}`)), [router, onNavigate]);
 
   // The clock (the now line) once a minute; a narrow screen opens on the day view.
   useEffect(() => {
     const timer = setInterval(() => setNow(clock()), 60000);
-    if (!explicitView && window.innerWidth < 640 && view !== "day") router.replace(`/kalender?v=day&d=${day}`);
+    if (!explicitView && window.innerWidth < 640 && view !== "day") {
+      if (onNavigate) onNavigate("day", day);
+      else router.replace(`/kalender?v=day&d=${day}`);
+    }
     return () => clearInterval(timer);
-  }, [explicitView, view, day, router]);
+  }, [explicitView, view, day, router, onNavigate]);
 
   const items: Item[] = useMemo(
     () => [
@@ -114,10 +122,11 @@ export function CalendarApp({
   const done = useCallback(
     (r: Result, undo?: () => unknown) => {
       toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("That didn't work.")), { tone: r?.ok ? "ok" : "error", action: r?.ok && undo ? { label: t("Undo"), run: undo } : undefined });
-      router.refresh();
+      if (onChanged) onChanged();
+      else router.refresh();
       return !!r?.ok;
     },
-    [router, t],
+    [router, t, onChanged],
   );
 
   const create = useCallback(
@@ -228,7 +237,7 @@ export function CalendarApp({
           <span className="text-xs text-zinc-600 dark:text-zinc-400">{proposed.length}</span>
         </label>
       </div>
-      <Link href="/kalender/einstellungen" className="block text-xs text-zinc-500 hover:underline">
+      <Link href="/settings/calendar" className="block text-xs text-zinc-500 hover:underline">
         {t("Manage calendars …")}
       </Link>
       <details className="text-xs text-zinc-500">

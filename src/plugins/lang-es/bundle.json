@@ -5594,5 +5594,10 @@
   "Sets a field of the entry, moves it to the trash, or reads the sources again": "Fija un campo de la entrada, la mueve a la papelera o vuelve a leer las fuentes",
   "Arrange": "Organizar",
   "Custom view of this entry": "Vista propia de esta entrada",
-  "What a plugin shows for the rows of this database — a person's page": "Lo que un plugin muestra para las filas de esta base de datos: la página de una persona"
+  "What a plugin shows for the rows of this database — a person's page": "Lo que un plugin muestra para las filas de esta base de datos: la página de una persona",
+  "With": "Con",
+  "Your appointments (Zeff's calendars, Google, Outlook) from a month back to three months ahead.": "Tus citas (calendarios de Zeff, Google, Outlook) desde un mes atrás hasta tres meses adelante.",
+  "The Calendar plugin is not installed (Menu → Plugins).": "El plugin Calendar no está instalado (Menú → Plugins).",
+  "Your appointments (Zeff's calendars, Google, Outlook) from a month back to three months ahead — Zeff's own can be changed here.": "Tus citas (calendarios de Zeff, Google, Outlook) desde un mes atrás hasta tres meses adelante — las de los calendarios propios de Zeff se pueden cambiar aquí.",
+  "This appointment is in {source} — delete it there; only appointments in Zeff's own calendars can be deleted here.": "Esta cita está en {source}: elimínala allí; aquí solo se pueden eliminar citas de los calendarios propios de Zeff."
 }
