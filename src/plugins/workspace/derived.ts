@@ -34,7 +34,7 @@ export function createDerivedDatabase(fromId: number, title?: string): number {
   return id;
 }
 
-const SOURCE_TITLES: Record<Exclude<PipelineSource, "database">, string> = { jira: "Jira tickets", keep: "Google Keep notes", todos: "Todos", mail: "Mails", messages: "Messages", knowledge: "Knowledge addresses" };
+const SOURCE_TITLES: Record<Exclude<PipelineSource, "database" | "ext">, string> = { jira: "Jira tickets", keep: "Google Keep notes", todos: "Todos", mail: "Mails", messages: "Messages", knowledge: "Knowledge addresses" };
 const SOURCE_TYPE: Partial<Record<PipelineSource, DataType>> = { mail: "mail", messages: "message" };
 
 /** The channel sources an inbox names — mail and messages, those whose plugins are installed — leaving out the kinds already among `have`. */
@@ -44,6 +44,17 @@ function inboxSources(have: PipelineStep[]): PipelineStep[] {
     ...(!has("mail") && (isInstalled("outlook-mail") || isInstalled("gmail")) ? [{ id: newId("s"), kind: "source" as const, from: "mail" as const, mail: { recentDays: 30 } }] : []),
     ...(!has("messages") && (isInstalled("teams") || isInstalled("whatsapp") || isInstalled("signal")) ? [{ id: newId("s"), kind: "source" as const, from: "messages" as const, messages: { recentDays: 14 } }] : []),
   ];
+}
+
+/** A database straight from a source a plugin brings (People's profiles …): its pipeline that one source, shown as a table. */
+export async function createExtSourceDatabase(ext: string, title?: string): Promise<number> {
+  const src = (await (await import("./source-point")).extSources()).find((x) => x.id === ext);
+  if (!src) throw new Error(t("Unknown source."));
+  const step: PipelineStep = { id: newId("s"), kind: "source", from: "ext", ext };
+  const schema: DbSchema = { titleName: t("Name"), properties: [], views: [newView(t("Table"), "table")], pipeline: { steps: [step] } };
+  const id = createPage({ kind: "database", title: title || t(src.label), icon: src.icon, schema });
+  updatePage(id, { fullWidth: true });
+  return id;
 }
 
 /** Which channel kinds can be sources now (their plugins installed): what "New → Inbox / Mail / Chat" offers. */
@@ -63,7 +74,7 @@ export function makeInbox(dbId: number): void {
 }
 
 /** A database straight from a data source (Jira, Google Keep, todos, mail, messages): its pipeline that source — more steps to add (filters, AI). */
-export function createSourceDatabase(from: Exclude<PipelineSource, "database"> | "inbox", title?: string): number {
+export function createSourceDatabase(from: Exclude<PipelineSource, "database" | "ext"> | "inbox", title?: string): number {
   // A combined inbox: the mail source and the messages source together (the ones whose plugins are installed).
   if (from === "inbox") {
     const sources = inboxSources([]);

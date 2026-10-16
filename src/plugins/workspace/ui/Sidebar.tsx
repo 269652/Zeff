@@ -43,7 +43,7 @@ function useOpen(): [Set<number>, (id: number, on?: boolean) => void] {
 }
 
 /** The page tree, favorites, search and "new" — the left column of the Workspace. */
-export function Sidebar({ items, favorites, unread = {}, channels }: { /** The channels that can be sources (mail, messages) — what the New menu offers as a database of them. */ channels?: { mail: boolean; messages: boolean }; items: TreeItem[]; favorites: { id: number; title: string; icon: string; kind: string }[]; /** Mail databases' unread rows, by id. */ unread?: Record<number, number> }) {
+export function Sidebar({ items, favorites, unread = {}, channels, extSources = [] }: { /** Sources plugins bring (People …): a database of each from the New menu. */ extSources?: { id: string; label: string; icon: string }[]; /** The channels that can be sources (mail, messages) — what the New menu offers as a database of them. */ channels?: { mail: boolean; messages: boolean }; items: TreeItem[]; favorites: { id: number; title: string; icon: string; kind: string }[]; /** Mail databases' unread rows, by id. */ unread?: Record<number, number> }) {
   const t = useT();
   const router = useRouter();
   const path = usePathname();
@@ -250,14 +250,15 @@ export function Sidebar({ items, favorites, unread = {}, channels }: { /** The c
             <>
               <MenuItem onClick={() => (close(), void create({}))}>📄 {t("Page")}</MenuItem>
               <MenuItem onClick={() => (close(), void create({ kind: "database", title: t("Database") }))}>🗂️ {t("Database")}</MenuItem>
-              {channels && (channels.mail || channels.messages) && (
+              {((channels && (channels.mail || channels.messages)) || extSources.length > 0) && (
                 <>
                   <div className="px-2 pt-1 text-xs font-semibold text-zinc-500 uppercase">{t("From channels")}</div>
                   {(
                     [
-                      ...(channels.mail && channels.messages ? [{ k: "inbox", icon: "📬", label: t("Inbox") }] : []),
-                      ...(channels.mail ? [{ k: "mail", icon: "✉", label: t("Mail") }] : []),
-                      ...(channels.messages ? [{ k: "messages", icon: "💬", label: t("Chat") }] : []),
+                      ...extSources.map((x) => ({ k: `ext:${x.id}`, icon: x.icon, label: t(x.label) })),
+                      ...(channels?.mail && channels.messages ? [{ k: "inbox", icon: "📬", label: t("Inbox") }] : []),
+                      ...(channels?.mail ? [{ k: "mail", icon: "✉", label: t("Mail") }] : []),
+                      ...(channels?.messages ? [{ k: "messages", icon: "💬", label: t("Chat") }] : []),
                     ]
                   ).map((c) => (
                     <MenuItem

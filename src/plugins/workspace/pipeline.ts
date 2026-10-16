@@ -34,7 +34,7 @@ export type SourceRecord = {
   /** What the record is (a mail, a message): the database's type when all its records are. */
   dataType?: DataType;
 };
-type TypedField = { id: string; name: string; type: "text" | "date" | "checkbox" | "select" | "url" | "number"; value: string | number | boolean | null };
+export type TypedField = { id: string; name: string; type: "text" | "date" | "checkbox" | "select" | "url" | "number"; value: string | number | boolean | null };
 
 /** The fixed properties a pipeline keeps its rows by. */
 export const SRC_REF = "srcref";
@@ -311,6 +311,7 @@ async function knowledgeRecords(c: NonNullable<PipelineStep["knowledge"]>, self:
 
 async function read(step: PipelineStep, self: number): Promise<SourceRecord[]> {
   if (step.from === "knowledge") return knowledgeRecords(step.knowledge ?? { terms: [] }, self);
+  if (step.from === "ext") return (await (await import("./source-point")).extSources()).find((x) => x.id === step.ext)?.read() ?? [];
   if (step.from === "mail") return mailRecords(step.mail ?? {});
   if (step.from === "messages") return messageRecords(step.messages ?? {});
   if (step.from === "jira") return jiraRecords(step.jira ?? {});
@@ -377,13 +378,16 @@ function applyJoin(records: SourceRecord[], f: PipelineStep): { records: SourceR
   const matched = new Set<string>();
   const target = f.dbId ? getDatabase(f.dbId) : null;
   if (!target || !f.on) return { records, matched };
-  const keyProp = f.by ? target.schema.properties.find((p) => p.name.toLowerCase() === f.by!.toLowerCase()) : null;
+  // The fields a row is named by: `by` (several, comma-separated; "title" is the title) — a people database: name, aliases, addresses.
+  const names = f.by ? f.by.split(",").map((x) => x.trim()).filter(Boolean) : target.schema.dataType === "people" ? ["title", "Aliases", "Emails"] : ["title"];
+  const keyProps = names.flatMap((n) => (n.toLowerCase() === "title" ? [null] : target.schema.properties.filter((p) => p.name.toLowerCase() === n.toLowerCase())));
   const bring = (f.bring ?? []).flatMap((n) => target.schema.properties.filter((p) => p.name.toLowerCase() === n.toLowerCase()));
-  const table = rawRows(f.dbId!).map((row) => ({ key: norm(keyProp ? cellText(keyProp, row.cells[keyProp.id]) : row.title), row }));
+  // A cell may hold several names (aliases, addresses: "a, b" / "a; b").
+  const table = rawRows(f.dbId!).map((row) => ({ keys: [...new Set(keyProps.flatMap((p) => (p ? cellText(p, row.cells[p.id]).split(/[,;\n]+/) : [row.title])).map(norm).filter(Boolean))], row }));
   const out = records.map((r) => {
     const mine = norm(valueOf(r, f.on!));
     const raw = String(valueOf(r, f.on!) ?? "").toLowerCase();
-    const hit = mine ? table.find((x) => x.key && (x.key === mine || mine.includes(x.key) || raw.includes(x.key))) : undefined;
+    const hit = mine ? table.find((x) => x.keys.some((k) => k === mine || (k.length >= 3 && (mine.includes(k) || raw.includes(k))))) : undefined;
     if (!hit) return r;
     matched.add(r.ref);
     return { ...r, fields: { ...r.fields, ...Object.fromEntries(bring.map((p) => [p.name, cellText(p, hit.row.cells[p.id])]).filter((e) => !!e[1])) } };
@@ -555,6 +559,11 @@ async function runPipelineOnce(dbId: number, opts: { ai?: boolean; force?: boole
   }
   if (!steps.some((s) => s.kind === "source")) return out;
   try {
+    // A source that is a two-way view (People): what was edited in the rows goes back first.
+    if (steps.some((s) => s.kind === "source" && s.from === "ext")) {
+      const all = await (await import("./source-point")).extSources();
+      for (const s of steps) if (s.kind === "source" && s.from === "ext") await all.find((x) => x.id === s.ext)?.pull?.(dbId, rawRows(dbId), d.schema);
+    }
     // Sources and filters, in order (a filter narrows what the sources before it gave).
     let records: SourceRecord[] = [];
     // Mail and messages together (a combined inbox): their shared fields, from the first step on (so a rule says "Channel", "From").

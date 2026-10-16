@@ -4,6 +4,7 @@ import "./jira-lage/server";
 import "./kanban/server";
 import "./keep/server";
 import "./llm/server";
+import "./people/server";
 import "./todos/server";
 import "./work/server";
 import "./workspace/server";

@@ -10,6 +10,8 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   if (!isInstalled("workspace")) return <PluginNotInstalled id="workspace" />;
   // Your mails and messages as databases (once).
   await (await import("@/plugins/workspace/mail-databases")).ensureMailDatabases().catch((e) => console.error("[workspace] the mail databases failed", e));
+  // Your people as a database (once; People installed).
+  await (await import("@/plugins/workspace/people-database")).ensurePeopleDatabase().catch((e) => console.error("[workspace] the people database failed", e));
   // System → Prompts: a page for every prompt (made once; an untouched one follows the built-in text).
   await (await import("@/lib/prompts")).ensureSystemPrompts().catch((e) => console.error("[workspace] the system prompts failed", e));
   // My briefing replaced by Meine Lage (once — also before the next Jira sync or start).
@@ -21,7 +23,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   return (
     <div className="page">
       <div className="page-aside">
-        <Sidebar items={tree()} favorites={favorites()} unread={unreadCounts()} channels={(await import("@/plugins/workspace/derived")).channelKinds()} />
+        <Sidebar items={tree()} favorites={favorites()} unread={unreadCounts()} channels={(await import("@/plugins/workspace/derived")).channelKinds()} extSources={(await (await import("@/plugins/workspace/source-point")).extSources()).map((x) => ({ id: x.id, label: x.label, icon: x.icon }))} />
       </div>
       <div className="min-w-0">{children}</div>
     </div>

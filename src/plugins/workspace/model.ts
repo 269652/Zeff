@@ -111,9 +111,9 @@ export type DbSchema = {
 };
 
 /** The sources a pipeline can read: Jira's tickets, Google Keep's notes, the todos, another database of the Workspace, the addresses of the knowledge base. */
-export const PIPELINE_SOURCES = ["jira", "keep", "todos", "database", "mail", "messages", "knowledge"] as const;
+export const PIPELINE_SOURCES = ["jira", "keep", "todos", "database", "mail", "messages", "knowledge", "ext"] as const;
 /** What a database's rows can be, by their sources: mails (Outlook, Gmail), messages (Teams, WhatsApp, Signal). */
-export const DATA_TYPES = ["mail", "message", "inbox"] as const;
+export const DATA_TYPES = ["mail", "message", "inbox", "people"] as const;
 export type DataType = (typeof DATA_TYPES)[number];
 export const MAIL_ACCOUNTS = ["outlook", "gmail"] as const;
 export const MESSAGE_CHANNELS = ["teams", "whatsapp", "signal"] as const;
@@ -144,6 +144,8 @@ export type PipelineStep = {
   mail?: MailCriteria;
   messages?: MessageCriteria;
   knowledge?: KnowledgeCriteria;
+  /** A source a plugin brings (from "ext"): its id — People's profiles ("people"). */
+  ext?: string;
   label?: string;
   todoStatus?: "open" | "all";
   dbId?: number;
@@ -216,7 +218,8 @@ export function normalizePipeline(raw: unknown): Pipeline {
       const kn = (s.knowledge && typeof s.knowledge === "object" ? s.knowledge : {}) as Record<string, unknown>;
       const terms = strs(kn.terms);
       const knowledge = from === "knowledge" && terms ? defined<KnowledgeCriteria>({ terms, excludeDb: posInt(kn.excludeDb) }) : undefined;
-      steps.push(defined<PipelineStep>({ id, kind: "source", from, jira, mail, messages, knowledge, label: from === "keep" ? str(s.label) : undefined, todoStatus: from === "todos" && s.todoStatus === "all" ? "all" : undefined, dbId: from === "database" ? posInt(s.dbId) : undefined }));
+      if (from === "ext" && !str(s.ext)) continue;
+      steps.push(defined<PipelineStep>({ id, kind: "source", from, jira, mail, messages, knowledge, ext: from === "ext" ? str(s.ext) : undefined, label: from === "keep" ? str(s.label) : undefined, todoStatus: from === "todos" && s.todoStatus === "all" ? "all" : undefined, dbId: from === "database" ? posInt(s.dbId) : undefined }));
     } else if (s.kind === "filter") {
       const rules = (Array.isArray(s.rules) ? s.rules : []).flatMap((x): FilterRule[] => {
         const r = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;

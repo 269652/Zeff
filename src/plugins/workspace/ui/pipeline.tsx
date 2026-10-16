@@ -29,7 +29,7 @@ export const BRIEFING_EXAMPLE = (): PipelineStep[] => [
   { id: newId("s"), kind: "ai", output: "summary", prompt: "Die Gesamtlage: was gerade brennt, was als Nächstes kommt, worauf ich warte — in wenigen Sätzen, die wichtigsten Tickets mit Schlüssel." },
 ];
 
-export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, checkboxes, databases, onSave, onRun, onClose }: { dbId: number; pipeline: Pipeline | undefined; synced: string | null; dataType?: DataType; fields: string[]; checkboxes: { id: string; name: string }[]; databases: { id: number; title: string }[]; onSave: (p: Pipeline) => Promise<void>; onRun: (ai: boolean) => Promise<void>; onClose: () => void }) {
+export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, checkboxes, databases, extSources = [], onSave, onRun, onClose }: { /** The sources plugins bring (People …). */ extSources?: { id: string; label: string; icon: string; hint?: string }[]; dbId: number; pipeline: Pipeline | undefined; synced: string | null; dataType?: DataType; fields: string[]; checkboxes: { id: string; name: string }[]; databases: { id: number; title: string }[]; onSave: (p: Pipeline) => Promise<void>; onRun: (ai: boolean) => Promise<void>; onClose: () => void }) {
   const t = useT();
   // A database a sync keeps: the sync is its source — only AI steps of its own.
   const [auto, setAuto] = useState<{ autoAi: boolean; everyMinutes: number | undefined; keepProp: string | undefined }>({ autoAi: !!pipeline?.autoAi, everyMinutes: pipeline?.everyMinutes, keepProp: pipeline?.keepProp });
@@ -84,8 +84,8 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, check
         {steps.map((s, i) => (
           <li key={s.id} className="rounded-lg border border-zinc-200 p-2.5 dark:border-zinc-700" data-step={s.kind}>
             <div className="mb-1.5 flex items-center gap-2 text-sm font-medium">
-              <span aria-hidden>{iconOf(s)}</span>
-              <span className="flex-1">{labels[kindOf(s)]}</span>
+              <span aria-hidden>{s.from === "ext" ? (extSources.find((x) => x.id === s.ext)?.icon ?? "🔌") : iconOf(s)}</span>
+              <span className="flex-1">{s.from === "ext" ? t(extSources.find((x) => x.id === s.ext)?.label ?? s.ext ?? "") : labels[kindOf(s)]}</span>
               <button type="button" className="icon-btn" disabled={i === 0} onClick={() => move(i, -1)} aria-label={t("Up")}>↑</button>
               <button type="button" className="icon-btn" disabled={i === steps.length - 1} onClick={() => move(i, 1)} aria-label={t("Down")}>↓</button>
               <button type="button" className="icon-btn" onClick={() => setSteps((ss) => ss.filter((_, k) => k !== i))} aria-label={t("Remove the step")}>✕</button>
@@ -98,11 +98,18 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, check
       <div className="flex flex-wrap items-center gap-1.5">
         {!synced && (
           <Dropdown label={`+ ${t("Source")}`} className="btn btn-sm">
-          {(close) => (["jira", "keep", "todos", "database", "mail", "messages", "knowledge"] as const).map((f) => (
-            <MenuItem key={f} onClick={() => (close(), source(f))}>
-              {ICON[f]} {labels[f]}
-            </MenuItem>
-          ))}
+          {(close) => [
+            ...(["jira", "keep", "todos", "database", "mail", "messages", "knowledge"] as const).map((f) => (
+              <MenuItem key={f} onClick={() => (close(), source(f))}>
+                {ICON[f]} {labels[f]}
+              </MenuItem>
+            )),
+            ...extSources.map((x) => (
+              <MenuItem key={`ext-${x.id}`} onClick={() => (close(), add({ kind: "source", from: "ext", ext: x.id }))}>
+                {x.icon} {t(x.label)}
+              </MenuItem>
+            )),
+          ]}
         </Dropdown>
         )}
         {!synced && <button type="button" className="btn btn-sm" onClick={() => add({ kind: "filter", openOnly: true })}>+ {t("Filter")}</button>}
@@ -613,7 +620,7 @@ function StepBody({ dbId, saved, step: s, allSteps, set, databases, fields }: { 
 }
 
 /** The fixed fields of a typed database (its sources' — there before its first run). */
-const TYPED_FIELDS: Record<string, string[]> = { mail: ["Title", "From", "Folder", "Account", "Received", "Unread"], message: ["Title", "Sender", "Chat", "Channel", "Sent", "Mine"] };
+const TYPED_FIELDS: Record<string, string[]> = { mail: ["Title", "From", "Folder", "Account", "Received", "Unread"], message: ["Title", "Sender", "Chat", "Channel", "Sent", "Mine"], people: ["Title", "Aliases", "Emails", "Chat", "Jira", "Note", "Starred", "Next date", "Next"] };
 
 /** A filter's rules, as Outlook's: field (by its name, suggested), condition, value — all of them or any. */
 function RulesEditor({ rules, match, fields, set }: { rules: FilterRule[]; match: "all" | "any"; fields: string[]; set: (rules: FilterRule[], match: "all" | "any") => void }) {
