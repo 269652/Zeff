@@ -10,6 +10,7 @@ import { getSqlite } from "@/db";
 import { isSystemPage, systemPageIds } from "@/lib/prompts/system-pages";
 import { inAgentScope } from "./agent-scope";
 import { emitChange } from "@/lib/events";
+import { emitRowEvent } from "./events";
 import { docRefs, docText, emptyDoc, sanitizeDoc, type Doc, type DocRef } from "./doc";
 import { computeRows, dateRange, defaultSchema, isComputed, newProperty, normalizeSchema, propById, TITLE, type DbSchema, type Labels, type Property, type Row } from "./model";
 
@@ -714,6 +715,7 @@ export function setCell(rowId: number, propId: string, value: unknown): void {
   changed();
   syncLinkedFrom(rowId); // (its copies in other databases follow — links.ts)
   afterJobChange(rowId, propId); // (a card moved into Ready: the agents take it — jobs.ts)
+  emitRowEvent("row.changed", { db: row.dbId, row: rowId, field: p.name });
 }
 
 /**
@@ -764,7 +766,9 @@ export function addRow(dbId: number, v: NewRow = {}): number {
     const c = coerceCell(p, val);
     if (c !== null) props[k] = c;
   }
-  return createPage({ dbId, title: v.title ?? (tpl && tpl.dbId === dbId ? tpl.title : ""), icon: tpl?.icon, content: tpl?.dbId === dbId ? tpl.content : undefined, props });
+  const id = createPage({ dbId, title: v.title ?? (tpl && tpl.dbId === dbId ? tpl.title : ""), icon: tpl?.icon, content: tpl?.dbId === dbId ? tpl.content : undefined, props });
+  emitRowEvent("row.added", { db: dbId, row: id });
+  return id;
 }
 
 /** The row templates of a database. */

@@ -5,6 +5,7 @@ import { errorMessage } from "@/lib/errors";
 import { emitChange } from "@/lib/events";
 import { databaseSource, KEY_PROP, NOTE_PROP, rowKey } from "./collections";
 import { APP_VIEWS, appViewsFor } from "./app-views";
+import { quietly } from "./events";
 import { peopleDatabase } from "./people-database";
 import { meter, newMeter, noteAi, noteJudged } from "./meter";
 import { docToMarkdown, markdownToDoc } from "./doc";
@@ -676,13 +677,25 @@ export async function runPipeline(dbId: number, opts: { ai?: boolean; force?: bo
   const m = newMeter();
   const t0 = Date.now();
   const at = new Date().toISOString();
-  const r = await meter.run(m, () => runPipelineOnce(dbId, opts));
+  // Its rows are written quietly (no event per row): the routines hear once when it is through.
+  const r = await meter.run(m, () => quietly(() => runPipelineOnce(dbId, opts)));
   try {
     logRun(dbId, r, m, Date.now() - t0, at);
   } catch (e) {
     console.error("[workspace] the run log failed", errorMessage(e));
   }
+  if (r.ok) tellRoutines(dbId, r, at);
   return r;
+}
+
+/** A run is through: "pipeline.ran" — and, when only a few rows are new, "row.added" for each (a flood of first rows is not an event each). */
+function tellRoutines(dbId: number, r: PipelineResult, since: string): void {
+  void import("./routine-triggers")
+    .then(async (m) => {
+      if (r.created > 0 && r.created <= 20) for (const row of rawRows(dbId).filter((x) => x.createdAt >= since)) await m.fireRoutineEvent("row.added", { db: dbId, row: row.id });
+      await m.fireRoutineEvent("pipeline.ran", { db: dbId, created: r.created });
+    })
+    .catch(() => undefined);
 }
 
 export type PipelineRun = { id: number; dbId: number; at: string; ms: number; ok: boolean; error: string | null; records: number; created: number; updated: number; archived: number; reviewed: number; judged: number; kept: number; aiCalls: number; costUsd: number };
