@@ -100,6 +100,18 @@ test("runPipeline: Jira by criteria, a filter, an AI field and a summary — kep
   assert.equal(sum.result?.text, "Zwei Tickets offen.", "the summary kept with its step");
   assert.match(fs.readFileSync(promptFile, "utf8"), /PROJ-2/);
 
+  // Done lately: still in with doneDays; the who-criteria are either-or.
+  ticket("PROJ-8", { mine: false, assignee: "Anna", statusCategory: "done", status: "Fertig", resolvedAt: daysAgo(1), updatedAt: daysAgo(1) });
+  keepComments([{ id: "c8", ticket: "PROJ-8", author: "Anna", at: daysAgo(1), body: "Erledigt" }]);
+  const { setFollowed } = await import("@/lib/boards/followed");
+  setFollowed("PROJ-8", 1);
+  const cur = w.getDatabase(dbId)!.schema.pipeline!.steps;
+  w.updateSchema(dbId, { ...w.getDatabase(dbId)!.schema, pipeline: { steps: [{ ...cur[0], jira: { mine: true, involved: true, recentDays: 14, commented: true, openOnly: true, doneDays: 3 } }, ...cur.slice(1)] } });
+  const withDone = await runPipeline(dbId, { ai: false });
+  assert.equal(withDone.records, 3, "PROJ-8: not mine but followed, done yesterday");
+  w.updateSchema(dbId, { ...w.getDatabase(dbId)!.schema, pipeline: { steps: cur } });
+  await runPipeline(dbId, { ai: false });
+
   // A filter step narrows; a row gone from the output goes to the trash; the rest stays (its AI field too).
   w.updateSchema(dbId, { ...w.getDatabase(dbId)!.schema, pipeline: { steps: [...w.getDatabase(dbId)!.schema.pipeline!.steps.slice(0, 1), { id: "f", kind: "filter", text: "login" }, ...w.getDatabase(dbId)!.schema.pipeline!.steps.slice(1)] } });
   const third = await runPipeline(dbId, { ai: false });
@@ -142,4 +154,65 @@ test("runPipeline: another database, the todos and Google Keep as sources", asyn
 
   const again = await runPipeline(dbId, { ai: false });
   assert.deepEqual([again.created, again.updated, again.archived], [0, 0, 0], "nothing changed: nothing written");
+});
+
+test("runPipeline: a database a sync keeps (My briefing) — the sync is its source, its AI steps run over the sync's rows", async () => {
+  const w = await import("@/plugins/workspace/store");
+  const m = await import("@/plugins/workspace/model");
+  const { setDatabaseSource } = await import("@/plugins/workspace/collections");
+  const { runPipeline } = await import("@/plugins/workspace/pipeline");
+  const key = { ...m.newProperty("Key", "text"), id: "ticketkey" };
+  const dbId = w.createPage({ kind: "database", title: "My briefing", schema: { titleName: "Summary", properties: [key], views: [m.newView("Board", "board")], review: { on: true, skipBriefed: true, openOnly: true, recentDays: 30 } } });
+  w.updatePage(dbId, { locked: true });
+  setDatabaseSource(dbId, "jira");
+  const a = w.addRow(dbId, { title: "Login kaputt", cells: { ticketkey: "PROJ-7" } });
+  w.updateSchema(dbId, { ...w.getDatabase(dbId)!.schema, pipeline: { steps: [
+    { id: "src", kind: "source", from: "todos" }, // not for a synced database: its sync is the source
+    { id: "f", kind: "filter", text: "nothing matches" },
+    { id: "lage", kind: "ai", output: "field", name: "Lage", prompt: "Ein Satz." },
+  ] } });
+
+  process.env.FAKE_CLAUDE_OUTPUT = JSON.stringify({ rows: [{ id: a, values: { ai_lage: "Kaputt seit gestern." } }], text: "" });
+  const r = await runPipeline(dbId, { ai: true });
+  assert.equal(r.ok, true, r.error);
+  assert.deepEqual([r.created, r.archived], [0, 0], "the sync's rows stay as the sync keeps them");
+  assert.deepEqual(w.rawRows(dbId).map((x) => x.id), [a]);
+  const d = w.getDatabase(dbId)!;
+  assert.ok(d.schema.properties.some((p) => p.id === "ai_lage" && p.type === "ai"), "the AI step's field");
+  assert.ok(!d.schema.properties.some((p) => p.id === "srcref"), "no source bookkeeping");
+  assert.deepEqual(d.schema.review, { on: true, skipBriefed: true, openOnly: true, recentDays: 30 }, "the review's scope kept");
+  assert.equal(r.reviewed, 1);
+  assert.equal(w.getPage(a)!.props.ai_lage, "Kaputt seit gestern.");
+});
+
+test("runPipeline: a database's own status and select properties take the source's values (options added); a summary only again when the rows changed", async () => {
+  const w = await import("@/plugins/workspace/store");
+  const m = await import("@/plugins/workspace/model");
+  const { getDb, schema } = await import("@/db");
+  const { runPipeline } = await import("@/plugins/workspace/pipeline");
+  getDb().insert(schema.jiraTickets).values({ key: "SEL-1", summary: "Auswahl", status: "Review", statusCategory: "inprogress", priority: "Highest", mine: true, updatedAt: daysAgo(1) }).run();
+  const status: import("@/plugins/workspace/model").Property = { id: "jirastatus", name: "Status", type: "status", options: [] };
+  const prio: import("@/plugins/workspace/model").Property = { id: "jirapriority", name: "Priority", type: "select", options: [] };
+  const dbId = w.createPage({ kind: "database", title: "Eigene", schema: { titleName: "Name", properties: [status, prio], views: [{ ...m.newView("Board", "board"), groupBy: "jirastatus" }], pipeline: { steps: [
+    { id: "src", kind: "source", from: "jira", jira: { projects: ["SEL"] } },
+    { id: "sum", kind: "ai", output: "summary", prompt: "Lage." },
+  ] } } });
+  const r = await runPipeline(dbId, { ai: false });
+  assert.equal(r.ok, true, r.error);
+  const d = w.getDatabase(dbId)!;
+  assert.ok(!d.schema.properties.some((p) => p.id === "srcstatus"), "its own status property is used");
+  const row = w.rawRows(dbId)[0];
+  const opt = (pid: string) => d.schema.properties.find((p) => p.id === pid)!.options!.find((o) => o.id === row.cells[pid]);
+  assert.equal(opt("jirastatus")?.name, "Review");
+  assert.equal(opt("jirastatus")?.group, "doing");
+  assert.equal(opt("jirapriority")?.name, "Highest", "a select gets the value as its option");
+
+  process.env.FAKE_CLAUDE_OUTPUT = JSON.stringify({ text: "Eine Sache in Review." });
+  if (fs.existsSync(promptFile)) fs.rmSync(promptFile);
+  await runPipeline(dbId, { ai: true });
+  assert.ok(fs.existsSync(promptFile), "the summary written");
+  fs.rmSync(promptFile);
+  await runPipeline(dbId, { ai: true });
+  assert.ok(!fs.existsSync(promptFile), "rows unchanged: the summary not again");
+  assert.equal(w.getDatabase(dbId)!.schema.pipeline!.steps.find((s) => s.id === "sum")!.result?.text, "Eine Sache in Review.");
 });

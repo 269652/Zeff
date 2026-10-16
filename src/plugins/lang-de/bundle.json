@@ -5129,5 +5129,14 @@
   "Reading the sources, then the AI …": "Liest die Quellen, dann die KI …",
   "Reading the sources …": "Liest die Quellen …",
   "{n} rows: {c} new, {u} changed, {a} gone · {f} filled by the AI": "{n} Zeilen: {c} neu, {u} geändert, {a} weg · {f} von der KI gefüllt",
-  "Lage": "Lage"
+  "Lage": "Lage",
+  "Kept by the {name} sync": "Gehalten von der {name}-Sync",
+  "its rows are this database's source; the AI steps below run over them": "ihre Zeilen sind die Quelle dieser Datenbank; die KI-Schritte darunter laufen über sie",
+  "{name} is read": "{name} wird gelesen",
+  "— the pipelines reading it refresh after each read": "— die Pipelines, die es lesen, aktualisieren sich danach jeweils",
+  "Refresh from the sources": "Aus den Quellen aktualisieren",
+  "{names} syncing — what it brings follows": "{names} synct — was dabei kommt, folgt",
+  "No such database.": "Diese Datenbank gibt es nicht.",
+  "Or in the Ticket-Lage": "Oder in der Ticket-Lage",
+  "Done within days still in": "Erledigt in den letzten Tagen noch drin"
 }

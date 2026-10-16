@@ -1,6 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { saveSyncIntervalAction } from "@/app/actions";
+import { toast } from "@/components/Toaster";
+import { minutesText } from "@/plugins/sync-settings";
+import { sourceSyncsAction } from "../actions";
 import { useT } from "@/components/I18nProvider";
 import { ATTENTIONS } from "@/lib/boards/shared";
 import { newId, type JiraCriteria, type Pipeline, type PipelineSource, type PipelineStep } from "../model";
@@ -22,11 +26,14 @@ export const BRIEFING_EXAMPLE = (): PipelineStep[] => [
   { id: newId("s"), kind: "ai", output: "summary", prompt: "Die Gesamtlage: was gerade brennt, was als Nächstes kommt, worauf ich warte — in wenigen Sätzen, die wichtigsten Tickets mit Schlüssel." },
 ];
 
-export function PipelineEditor({ dbId, pipeline, databases, onSave, onRun, onClose }: { dbId: number; pipeline: Pipeline | undefined; databases: { id: number; title: string }[]; onSave: (p: Pipeline) => Promise<void>; onRun: (ai: boolean) => Promise<void>; onClose: () => void }) {
+export function PipelineEditor({ dbId, pipeline, synced, databases, onSave, onRun, onClose }: { dbId: number; pipeline: Pipeline | undefined; synced: string | null; databases: { id: number; title: string }[]; onSave: (p: Pipeline) => Promise<void>; onRun: (ai: boolean) => Promise<void>; onClose: () => void }) {
   const t = useT();
-  const [steps, setSteps] = useState<PipelineStep[]>(pipeline?.steps ?? []);
+  // A database a sync keeps: the sync is its source — only AI steps of its own.
+  const [steps, setSteps] = useState<PipelineStep[]>((pipeline?.steps ?? []).filter((s) => !synced || s.kind === "ai"));
   const [busy, setBusy] = useState(false);
   const dirty = JSON.stringify(steps) !== JSON.stringify(pipeline?.steps ?? []);
+  const runnable = synced ? steps.some((s) => s.kind === "ai") : steps.some((s) => s.kind === "source");
+  const syncName = synced === "jira" ? "Jira" : synced === "google-keep" ? "Google Keep" : synced;
   const set = (i: number, patch: Partial<PipelineStep>) => setSteps((ss) => ss.map((s, k) => (k === i ? { ...s, ...patch } : s)));
   const move = (i: number, d: -1 | 1) => setSteps((ss) => {
     const next = [...ss];
@@ -48,10 +55,17 @@ export function PipelineEditor({ dbId, pipeline, databases, onSave, onRun, onClo
   return (
     <Modal title={t("Sources & steps …")} onClose={onClose} wide>
       <p className="text-sm text-zinc-500">{t("Where this database's rows come from and what's done with them, top to bottom. A run keeps the result as its rows (yours stay: AI fields, pages); the AI steps go with the briefing.")}</p>
+      {synced && (
+        <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 p-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-900" data-step="sync">
+          <span aria-hidden>{synced === "jira" ? ICON.jira : ICON.keep}</span>
+          <span className="font-medium">{t("Kept by the {name} sync", { name: syncName ?? "" })}</span>
+          <span className="text-zinc-500">— {t("its rows are this database's source; the AI steps below run over them")}</span>
+        </div>
+      )}
       {!steps.length && (
         <div className="rounded-lg border border-dashed border-zinc-300 p-3 text-sm dark:border-zinc-700">
           {t("No steps yet: the rows are your own.")}{" "}
-          <button type="button" className="text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setSteps(BRIEFING_EXAMPLE())}>
+          <button type="button" className="text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setSteps(BRIEFING_EXAMPLE().filter((s) => !synced || s.kind === "ai"))}>
             {t("Start from the example “My briefing”")}
           </button>
         </div>
@@ -71,24 +85,58 @@ export function PipelineEditor({ dbId, pipeline, databases, onSave, onRun, onClo
         ))}
       </ol>
       <div className="flex flex-wrap items-center gap-1.5">
-        <Dropdown label={`+ ${t("Source")}`} className="btn btn-sm">
+        {!synced && (
+          <Dropdown label={`+ ${t("Source")}`} className="btn btn-sm">
           {(close) => (["jira", "keep", "todos", "database"] as const).map((f) => (
             <MenuItem key={f} onClick={() => (close(), source(f))}>
               {ICON[f]} {labels[f]}
             </MenuItem>
           ))}
         </Dropdown>
-        <button type="button" className="btn btn-sm" onClick={() => add({ kind: "filter", openOnly: true })}>+ {t("Filter")}</button>
+        )}
+        {!synced && <button type="button" className="btn btn-sm" onClick={() => add({ kind: "filter", openOnly: true })}>+ {t("Filter")}</button>}
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "ai", output: "field", name: t("Lage"), prompt: "" })}>+ ✨ {t("AI field")}</button>
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "ai", output: "summary", prompt: "" })}>+ 🧭 {t("AI summary")}</button>
       </div>
       <div className="flex flex-wrap items-center justify-end gap-1.5 border-t border-zinc-200 pt-3 dark:border-zinc-700">
         {pipeline?.ranAt && <span className="mr-auto text-xs text-zinc-500">{t("Last run {when}", { when: new Date(pipeline.ranAt).toLocaleString() })}</span>}
         <button type="button" className="btn btn-sm" disabled={busy || !dirty} onClick={() => void save()}>{t("Save")}</button>
-        <button type="button" className="btn btn-sm" disabled={busy || !steps.some((s) => s.kind === "source")} onClick={() => void save({ ai: false })}>{t("Run without AI")}</button>
-        <button type="button" className="btn btn-primary btn-sm" disabled={busy || !steps.some((s) => s.kind === "source")} onClick={() => void save({ ai: true })}>{busy ? "…" : `✨ ${t("Run now")}`}</button>
+        {!synced && <button type="button" className="btn btn-sm" disabled={busy || !runnable} onClick={() => void save({ ai: false })}>{t("Run without AI")}</button>}
+        <button type="button" className="btn btn-primary btn-sm" disabled={busy || !runnable} onClick={() => void save({ ai: true })}>{busy ? "…" : `✨ ${t("Run now")}`}</button>
       </div>
     </Modal>
+  );
+}
+
+/** How often a source's sync reads it (Jira, Google Keep) — its pipelines refresh after each. */
+export function SyncEvery({ syncKey, name }: { syncKey: "jira" | "keep"; name: string }) {
+  const t = useT();
+  const [sync, setSync] = useState<{ minutes: number; choices: number[] } | null>(null);
+  useEffect(() => {
+    void sourceSyncsAction().then((r) => r.ok && setSync(r.syncs[syncKey] ?? null));
+  }, [syncKey]);
+  if (!sync) return null;
+  return (
+    <label className="flex items-center gap-1.5 text-sm text-zinc-500">
+      {t("{name} is read", { name })}
+      <select
+        className="input w-auto text-sm"
+        value={sync.minutes}
+        onChange={async (e) => {
+          const minutes = Number(e.target.value);
+          const r = await saveSyncIntervalAction(syncKey, minutes);
+          if (!r?.ok) return void toast(r?.error ?? t("Failed."), { tone: "error" });
+          setSync({ ...sync, minutes });
+        }}
+      >
+        {sync.choices.map((m) => (
+          <option key={m} value={m}>
+            {minutesText(m, t)}
+          </option>
+        ))}
+      </select>
+      <span>{t("— the pipelines reading it refresh after each read")}</span>
+    </label>
   );
 }
 
@@ -120,22 +168,28 @@ function StepBody({ step: s, set, databases }: { step: PipelineStep; set: (p: Pa
       <div className={row}>
         <Check label={t("Assigned to me")} on={j.mine} set={(v) => setJ({ mine: v })} />
         <Check label={t("Or followed by me")} on={j.involved} set={(v) => setJ({ involved: v })} />
+        <Check label={t("Or in the Ticket-Lage")} on={j.briefed} set={(v) => setJ({ briefed: v })} />
         <Check label={t("Open only")} on={j.openOnly} set={(v) => setJ({ openOnly: v })} />
+        {j.openOnly && <Days label={t("Done within days still in")} value={j.doneDays} set={(v) => setJ({ doneDays: v })} />}
         <Days label={t("Changed within days")} value={j.recentDays} set={(v) => setJ({ recentDays: v })} />
         <Check label={t("With a comment in that time")} on={j.commented} set={(v) => setJ({ commented: v })} />
         <label className="flex items-center gap-1.5 text-sm">
           {t("Projects")}
           <input className="input w-40 text-sm" placeholder="PROJ, DISNEY" value={(j.projects ?? []).join(", ")} onChange={(e) => setJ({ projects: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })} />
         </label>
+        <SyncEvery syncKey="jira" name="Jira" />
       </div>
     );
   }
   if (s.kind === "source" && s.from === "keep")
     return (
-      <label className={`${row} text-sm`}>
-        {t("Only the label")}
-        <input className="input w-48 text-sm" placeholder={t("(all notes)")} value={s.label ?? ""} onChange={(e) => set({ label: e.target.value || undefined })} />
-      </label>
+      <div className={row}>
+        <label className="flex items-center gap-1.5 text-sm">
+          {t("Only the label")}
+          <input className="input w-48 text-sm" placeholder={t("(all notes)")} value={s.label ?? ""} onChange={(e) => set({ label: e.target.value || undefined })} />
+        </label>
+        <SyncEvery syncKey="keep" name="Google Keep" />
+      </div>
     );
   if (s.kind === "source" && s.from === "todos")
     return (

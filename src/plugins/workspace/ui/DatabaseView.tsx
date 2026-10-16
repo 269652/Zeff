@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, placeRowAction, reviewDatabaseAction, runPipelineAction, setCellAction, setCollectionAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, runPipelineAction, setCellAction, setCollectionAction, updateSchemaAction, type DatabaseData } from "../actions";
 import { cellText, columnOrder, dateRange, detailModules, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
@@ -375,6 +375,26 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
             ))}
           </select>
         )}
+        {schema.pipeline?.steps.some((s) => s.kind === "source") && !data.extras?.source && (
+          <button
+            type="button"
+            className="btn btn-sm"
+            title={t("Refresh from the sources")}
+            aria-label={t("Refresh from the sources")}
+            onClick={async () => {
+              toast(t("Reading the sources …"));
+              const r = await refreshPipelineAction(dbId);
+              await api.reload();
+              if (!r.ok) return void toast(r.error, { tone: "error" });
+              toast(
+                [t("{n} rows: {c} new, {u} changed, {a} gone · {f} filled by the AI", { n: r.records, c: r.created, u: r.updated, a: r.archived, f: r.reviewed }), ...(r.syncing.length ? [t("{names} syncing — what it brings follows", { names: r.syncing.join(", ") })] : [])].join(" · "),
+                { tone: "ok" },
+              );
+            }}
+          >
+            ↻
+          </button>
+        )}
         <Dropdown label={t("Properties")} align="right" className="btn btn-sm">
           {() => <PropertiesMenu view={view} schema={schema} onChange={setView} />}
         </Dropdown>
@@ -383,7 +403,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
             <>
               <MenuItem onClick={() => (close(), setSchemaOpen(true))}>⚙ {t("Edit properties …")}</MenuItem>
               <MenuItem onClick={() => (close(), setDetailOpen(true))}>▤ {t("Detail view …")}</MenuItem>
-              {!data.locked && <MenuItem onClick={() => (close(), setPipelineOpen(true))}>⛓ {t("Sources & steps …")}</MenuItem>}
+              <MenuItem onClick={() => (close(), setPipelineOpen(true))}>⛓ {t("Sources & steps …")}</MenuItem>
               {personProp && (
                 <MenuItem checked={!!view.mine} onClick={() => (close(), setView({ ...view, mine: !view.mine }))}>
                   {t("Only mine in this view")}
@@ -522,6 +542,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
         <PipelineEditor
           dbId={dbId}
           pipeline={schema.pipeline}
+          synced={data.extras?.source ?? null}
           databases={databases}
           onSave={async (pipeline) => {
             const err = await api.saveSchema({ ...(api.data?.schema ?? schema), pipeline });

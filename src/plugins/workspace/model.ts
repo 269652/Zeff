@@ -102,8 +102,11 @@ export type DbSchema = {
 /** The sources a pipeline can read: Jira's tickets, Google Keep's notes, the todos, another database of the Workspace. */
 export const PIPELINE_SOURCES = ["jira", "keep", "todos", "database"] as const;
 export type PipelineSource = (typeof PIPELINE_SOURCES)[number];
-/** Which Jira tickets: on you, you're in (on you or followed), moved / commented within days, open, of these projects. */
-export type JiraCriteria = { mine?: boolean; involved?: boolean; recentDays?: number; commented?: boolean; openOnly?: boolean; projects?: string[] };
+/**
+ * Which Jira tickets: on you, or followed, or in the Ticket-Lage (either; none set: any); moved / commented within days;
+ * open (and done within doneDays still); of these projects.
+ */
+export type JiraCriteria = { mine?: boolean; involved?: boolean; briefed?: boolean; recentDays?: number; commented?: boolean; openOnly?: boolean; doneDays?: number; projects?: string[] };
 
 /**
  * A step of a pipeline. source: rows from `from` (jira by `jira`, keep by `label`, todos by `todoStatus`, a database by
@@ -128,7 +131,7 @@ export type PipelineStep = {
   name?: string;
   prompt?: string;
   choices?: string[];
-  result?: { text: string; at: string };
+  result?: { text: string; at: string; hash?: string };
 };
 export type Pipeline = { steps: PipelineStep[]; ranAt?: string };
 
@@ -156,13 +159,13 @@ export function normalizePipeline(raw: unknown): Pipeline {
       if (!(PIPELINE_SOURCES as readonly unknown[]).includes(s.from)) continue;
       const from = s.from as PipelineSource;
       const j = (s.jira && typeof s.jira === "object" ? s.jira : {}) as Record<string, unknown>;
-      const jira = from === "jira" ? defined<JiraCriteria>({ mine: j.mine === true, involved: j.involved === true, recentDays: posInt(j.recentDays), commented: j.commented === true, openOnly: j.openOnly === true, projects: strs(j.projects) }) : undefined;
+      const jira = from === "jira" ? defined<JiraCriteria>({ mine: j.mine === true, involved: j.involved === true, briefed: j.briefed === true, recentDays: posInt(j.recentDays), commented: j.commented === true, openOnly: j.openOnly === true, doneDays: posInt(j.doneDays), projects: strs(j.projects) }) : undefined;
       steps.push(defined<PipelineStep>({ id, kind: "source", from, jira, label: from === "keep" ? str(s.label) : undefined, todoStatus: from === "todos" && s.todoStatus === "all" ? "all" : undefined, dbId: from === "database" ? posInt(s.dbId) : undefined }));
     } else if (s.kind === "filter") {
       steps.push(defined<PipelineStep>({ id, kind: "filter", text: str(s.text), openOnly: s.openOnly === true, recentDays: posInt(s.recentDays), limit: posInt(s.limit) }));
     } else if (s.kind === "ai" && (s.output === "field" || s.output === "summary")) {
-      const r = s.result as { text?: unknown; at?: unknown } | undefined;
-      const result = r && typeof r.text === "string" && typeof r.at === "string" ? { text: r.text, at: r.at } : undefined;
+      const r = s.result as { text?: unknown; at?: unknown; hash?: unknown } | undefined;
+      const result = r && typeof r.text === "string" && typeof r.at === "string" ? { text: r.text, at: r.at, ...(typeof r.hash === "string" ? { hash: r.hash } : {}) } : undefined;
       steps.push(defined<PipelineStep>({ id, kind: "ai", output: s.output, prop: s.output === "field" ? str(s.prop) : undefined, name: s.output === "field" ? (str(s.name) ?? "AI") : undefined, prompt: str(s.prompt), choices: s.output === "field" ? strs(s.choices) : undefined, result: s.output === "summary" ? result : undefined }));
     }
   }

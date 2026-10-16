@@ -11,7 +11,8 @@ import { getDatabase, getPage, setCell, updateSchema } from "./store";
 
 export const LAGE_FIELDS = { attention: "lageattention", lead: "lagelead", summary: "lagesummary" } as const;
 
-const FIELDS = (): Property[] => [
+/** The Lage fields as AI properties (their instructions, attention's choices). */
+export const lageFieldDefs = (): Property[] => [
   {
     id: LAGE_FIELDS.attention,
     name: "Attention",
@@ -52,7 +53,7 @@ export function applyTicketLage(tickets: { key: string; attention?: string | nul
 export async function ensureBoardReviews(): Promise<void> {
   const { listCollections } = await import("@/lib/items");
   // (Not those with a pipeline: their AI steps are their own.)
-  for (const c of listCollections({ plugin: "workspace" })) if (c.kind === "board" && !getDatabase(Number(c.id.slice("workspace:".length)))?.schema.pipeline?.steps.length) ensureLageFields(Number(c.id.slice("workspace:".length)));
+  for (const c of listCollections({ plugin: "workspace" })) if (c.kind === "board" && !getDatabase(Number(c.id.slice("workspace:".length)))?.schema.pipeline?.steps.some((s) => s.kind === "source")) ensureLageFields(Number(c.id.slice("workspace:".length)));
 }
 
 /** A board gets the Lage fields and the AI review (skipping what the Ticket-Lage read) — once; the fields out of its views. */
@@ -60,7 +61,7 @@ export function ensureLageFields(dbId: number): void {
   const d = getDatabase(dbId);
   if (!d) return;
   const ids: string[] = Object.values(LAGE_FIELDS);
-  const missing = FIELDS().filter((f) => !d.schema.properties.some((p) => p.id === f.id));
+  const missing = lageFieldDefs().filter((f) => !d.schema.properties.some((p) => p.id === f.id));
   const hide = (hidden: string[]) => [...new Set([...hidden, ...ids])];
   // As the Board-Lage read them: open cards moved lately (or in progress), not those the Ticket-Lage read.
   const next = { ...d.schema, properties: [...d.schema.properties, ...missing], views: d.schema.views.map((v) => ({ ...v, hidden: hide(v.hidden) })), review: { on: true, skipBriefed: true, openOnly: true, recentDays: 30 } };

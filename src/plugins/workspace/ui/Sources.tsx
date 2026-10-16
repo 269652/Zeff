@@ -9,6 +9,7 @@ import { useT } from "@/components/I18nProvider";
 import { setBoardEnabledAction } from "@/plugins/jira/server-actions";
 import { keepSourceDatabasesAction } from "../actions";
 import type { SourceView } from "../sources";
+import { SyncEvery } from "./pipeline";
 
 /**
  * The Workspace's data sources: Jira (its boards switched on here, each a board database), Google Keep (a gallery
@@ -66,6 +67,7 @@ export function SourcesView({ sources }: { sources: SourceView[] }) {
             )}
           </div>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">{info[s.key]}</p>
+          {(s.key === "jira" || s.key === "keep") && <SyncEvery syncKey={s.key} name={s.name} />}
           {s.boards && (
             <ul className="divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
               {s.boards.map((b) => (

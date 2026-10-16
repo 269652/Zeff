@@ -75,6 +75,8 @@ export async function register() {
     for (const a of listAccounts()) {
       const r = await withAccount(a.id, moveAllBoardsOnce);
       withAccount(a.id, widenMovedBoardsOnce);
+      // My briefing a database with a pipeline like any other.
+      await withAccount(a.id, async () => (await import("./plugins/jira-lage/to-workspace")).briefingToPipelineOnce()).catch((e) => console.error("[jira] My briefing as a pipeline failed", e));
       // Keep's boards too (a copy of the database first).
       const k = await withAccount(a.id, async () => (await import("./plugins/keep/to-workspace")).moveAllKeepBoardsOnce());
       if (k?.moved || k?.failed) console.log(`[keep] ${a.name}: ${k.moved} board(s) moved into the Workspace${k.failed ? `, ${k.failed} failed (tried again at the next start)` : ""} — backup: ${k.backup}`);

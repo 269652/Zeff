@@ -338,6 +338,35 @@ export async function runPipelineAction(dbId: number, ai = true) {
   });
 }
 
+/** The syncs a pipeline's sources are read by (jira, keep): how often each runs by itself, and what can be picked. */
+export async function sourceSyncsAction() {
+  return run(async () => {
+    const { findSyncInterval } = await import("@/plugins/sync-settings-modules");
+    const out: Record<string, { minutes: number; choices: number[] }> = {};
+    for (const key of ["jira", "keep"]) {
+      const i = findSyncInterval(key);
+      if (i) out[key] = { minutes: i.get(), choices: [...new Set([...i.choices, i.get()])].sort((a, b) => a - b) };
+    }
+    return { syncs: out };
+  });
+}
+
+/** A database's pipeline refreshed now: the syncs of its sources run first (Jira, Google Keep), then the pipeline (with its AI steps when there's an AI). */
+export async function refreshPipelineAction(dbId: number) {
+  return run(async () => {
+    const d = store.getDatabase(Number(dbId));
+    if (!d) throw new Error(t("No such database."));
+    const froms = new Set((d.schema.pipeline?.steps ?? []).filter((s) => s.kind === "source").map((s) => s.from));
+    // (In the background — what they bring comes into the pipeline when they're done; already syncing: that one.)
+    const { isSyncKey, startSync } = await import("@/lib/sync/registry");
+    const syncing: string[] = [];
+    for (const key of ["jira", "keep"] as const) if (froms.has(key) && isSyncKey(key) && (await startSync(key)).ok) syncing.push(key === "jira" ? "Jira" : "Google Keep");
+    const r = await (await import("./pipeline")).runPipeline(Number(dbId), { ai: isInstalled("llm") });
+    if (!r.ok) throw new Error(r.error ?? t("Failed."));
+    return { records: r.records, created: r.created, updated: r.updated, archived: r.archived, reviewed: r.reviewed, summaries: r.summaries, syncing };
+  });
+}
+
 /** What an AI block on a page writes by its instruction (from the page and the databases shown in it). */
 export async function aiBlockAction(pageId: number, prompt: string) {
   return run(async () => {

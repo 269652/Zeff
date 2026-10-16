@@ -51,6 +51,8 @@ export function setDatabaseSource(dbId: number, source: string | null): void {
   else delete next[dbId];
   setPref(SOURCES, next);
 }
+/** The sync that keeps a database (jira, google-keep …); null: its own. */
+export const databaseSource = (dbId: number): string | null => sources()[dbId] ?? null;
 const named = (icon: string, title: string) => [icon, title || "Untitled"].filter(Boolean).join(" ");
 
 function itemsOf(dbId: number, schema: DbSchema, rows: Row[]): Item[] {

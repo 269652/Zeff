@@ -161,7 +161,8 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
       const { isInstalled } = await import("@/plugins/state");
       if (isInstalled("jira-lage") && isInstalled("workspace"))
         await (await import("@/plugins/jira-lage/to-workspace")).syncJiraBoardDatabases().catch((e) => console.error("[jira] keeping the boards' databases failed", e));
-      // The databases with a pipeline (Jira among their sources) keep their rows; their AI steps go with the briefing.
+      // My briefing a pipeline database (once); the databases with a pipeline keep their rows; their AI steps go with the briefing.
+      if (isInstalled("jira-lage") && isInstalled("workspace")) await (await import("@/plugins/jira-lage/to-workspace")).briefingToPipelineOnce().catch((e) => console.error("[jira] My briefing as a pipeline failed", e));
       if (isInstalled("workspace")) await (await import("@/plugins/workspace/pipeline")).runPipelines({ ai: false }).catch((e) => console.error("[workspace] the pipelines failed", e));
       return { ok: !unread, message: `${done}${unread}` };
     },
