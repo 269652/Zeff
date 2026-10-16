@@ -1,4 +1,6 @@
 import { getPref, setPref } from "@/lib/prefs";
+import { t } from "@/lib/i18n/server";
+import { systemPromptPages } from "@/lib/prompts";
 import { docToMarkdown, markdownToDoc } from "./doc";
 import { createPage, getPage, tree } from "./store";
 
@@ -33,12 +35,17 @@ export function instructionsFolder(): number {
   return id;
 }
 
-/** The instructions there are (the pages under the folder). */
-export function listInstructions(): { id: number; title: string; icon: string }[] {
+/** The instructions there are: yours (the pages under the folder), then the system prompts (System → Prompts, by group). */
+export function listInstructions(): { id: number; title: string; icon: string; group?: string }[] {
   const folder = instructionsFolder();
-  return tree()
-    .filter((p) => p.parentId === folder && p.kind !== "database")
-    .map((p) => ({ id: p.id, title: p.title || "Untitled", icon: p.icon }));
+  const all = tree();
+  const own = all.filter((p) => p.parentId === folder && p.kind !== "database").map((p) => ({ id: p.id, title: p.title || "Untitled", icon: p.icon }));
+  const byId = new Map(all.map((p) => [p.id, p]));
+  const system = systemPromptPages().flatMap((x) => {
+    const p = byId.get(x.pageId);
+    return p ? [{ id: p.id, title: p.title || "Untitled", icon: p.icon, group: t(x.group) }] : [];
+  });
+  return [...own, ...system];
 }
 
 /** A new instruction (an empty page under the folder). */

@@ -155,3 +155,9 @@ export async function promptHref(key: string): Promise<string | null> {
   const id = pageText(pages()[key]) === null ? null : pages()[key];
   return id ? `/workspace/${id}` : null;
 }
+
+/** The prompts' pages there are now (made, not gone), each with its group — without reading the built-in texts. */
+export function systemPromptPages(): { key: string; pageId: number; group: string }[] {
+  const ids = pages();
+  return PROMPTS.filter(installed).flatMap((e) => (ids[e.key] && pageText(ids[e.key]) !== null ? [{ key: e.key, pageId: ids[e.key], group: e.group }] : []));
+}

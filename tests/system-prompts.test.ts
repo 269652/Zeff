@@ -84,3 +84,15 @@ test("system prompts: the LLM's instructions and context, the workers' house rul
   await p.resetSystemPrompt(page.pageId!);
   assert.doesNotMatch(llmPreamble(), /Sei sehr knapp/, "reset: no instructions of its own (as built in)");
 });
+
+test("system prompts can be chosen as instructions of an AI step (with their group), next to your own", async () => {
+  const p = await import("@/lib/prompts");
+  const { listInstructions, instructionText } = await import("@/plugins/workspace/instructions");
+  await p.ensureSystemPrompts();
+  const list = listInstructions();
+  const lage = list.find((x) => x.title === "Lage" && !x.group);
+  assert.ok(lage, "your own (KI-Anweisungen)");
+  const sys = list.find((x) => x.title === "Ticket-Lage");
+  assert.equal(sys?.group, "Todos & Lage", "a system prompt, by its group");
+  assert.match(instructionText([sys!.id]), /Du erstellst meine Ticket-Lage/);
+});

@@ -116,7 +116,7 @@ export function PipelineEditor({ dbId, pipeline, synced, fields, databases, onSa
   );
 }
 
-type Instruction = { id: number; title: string; icon: string };
+type Instruction = { id: number; title: string; icon: string; group?: string };
 
 /** The instructions an AI step goes by (pages under KI-Anweisungen): chosen, opened to write, a new one made. */
 function InstructionPicker({ chosen, all, set, reload }: { chosen: number[]; all: Instruction[]; set: (ids: number[]) => void; reload: () => void }) {
@@ -141,10 +141,14 @@ function InstructionPicker({ chosen, all, set, reload }: { chosen: number[]; all
       <Dropdown label={`+ ${t("Instruction")}`} className="rounded px-1.5 py-0.5 text-sm text-indigo-600 hover:bg-zinc-100 dark:text-indigo-400 dark:hover:bg-zinc-800">
         {(close) => (
           <>
-            {rest.map((x) => (
-              <MenuItem key={x.id} onClick={() => (close(), set([...chosen, x.id]))}>
-                {x.icon || "📋"} {x.title}
-              </MenuItem>
+            {rest.map((x, i) => (
+              <div key={x.id}>
+                {/* The system prompts by their group, after your own. */}
+                {x.group && x.group !== rest[i - 1]?.group && <p className="px-2 pt-2 text-xs font-semibold text-zinc-500 uppercase">{t("System prompts")} · {x.group}</p>}
+                <MenuItem onClick={() => (close(), set([...chosen, x.id]))}>
+                  {x.icon || "📋"} {x.title}
+                </MenuItem>
+              </div>
             ))}
             <MenuItem
               onClick={async () => {
