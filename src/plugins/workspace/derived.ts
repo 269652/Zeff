@@ -2,7 +2,7 @@ import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { appViewsFor } from "./app-views";
 import { newId, newView, type DataType, type DbSchema, type PipelineSource, type PipelineStep, type View } from "./model";
-import { createPage, getDatabase, rawRows, tree, updatePage } from "./store";
+import { createPage, getDatabase, rawRows, tree, updatePage, updateSchema } from "./store";
 
 /**
  * A database made from another, under it: its pipeline reads the other's rows with their fields as they are (a mail stays
@@ -37,14 +37,36 @@ export function createDerivedDatabase(fromId: number, title?: string): number {
 const SOURCE_TITLES: Record<Exclude<PipelineSource, "database">, string> = { jira: "Jira tickets", keep: "Google Keep notes", todos: "Todos", mail: "Mails", messages: "Messages", knowledge: "Knowledge addresses" };
 const SOURCE_TYPE: Partial<Record<PipelineSource, DataType>> = { mail: "mail", messages: "message" };
 
+/** The channel sources an inbox names — mail and messages, those whose plugins are installed — leaving out the kinds already among `have`. */
+function inboxSources(have: PipelineStep[]): PipelineStep[] {
+  const has = (from: string) => have.some((s) => s.kind === "source" && s.from === from);
+  return [
+    ...(!has("mail") && (isInstalled("outlook-mail") || isInstalled("gmail")) ? [{ id: newId("s"), kind: "source" as const, from: "mail" as const, mail: { recentDays: 30 } }] : []),
+    ...(!has("messages") && (isInstalled("teams") || isInstalled("whatsapp") || isInstalled("signal")) ? [{ id: newId("s"), kind: "source" as const, from: "messages" as const, messages: { recentDays: 14 } }] : []),
+  ];
+}
+
+/** Which channel kinds can be sources now (their plugins installed): what "New → Inbox / Mail / Chat" offers. */
+export function channelKinds(): { mail: boolean; messages: boolean } {
+  const have = inboxSources([]);
+  return { mail: have.some((s) => s.kind === "source" && s.from === "mail"), messages: have.some((s) => s.kind === "source" && s.from === "messages") };
+}
+
+/** Any database made an inbox: the channels named as its sources (the ones missing). Its Inbox view follows when it is read (run). */
+export function makeInbox(dbId: number): void {
+  const d = getDatabase(dbId);
+  if (!d) throw new Error("No such database.");
+  const steps = d.schema.pipeline?.steps ?? [];
+  const add = inboxSources(steps);
+  if (!add.length) return;
+  updateSchema(dbId, { ...d.schema, pipeline: { ...d.schema.pipeline, steps: [...add, ...steps] } });
+}
+
 /** A database straight from a data source (Jira, Google Keep, todos, mail, messages): its pipeline that source — more steps to add (filters, AI). */
 export function createSourceDatabase(from: Exclude<PipelineSource, "database"> | "inbox", title?: string): number {
   // A combined inbox: the mail source and the messages source together (the ones whose plugins are installed).
   if (from === "inbox") {
-    const sources: PipelineStep[] = [
-      ...(isInstalled("outlook-mail") || isInstalled("gmail") ? [{ id: newId("s"), kind: "source" as const, from: "mail" as const, mail: { recentDays: 30 } }] : []),
-      ...(isInstalled("teams") || isInstalled("whatsapp") || isInstalled("signal") ? [{ id: newId("s"), kind: "source" as const, from: "messages" as const, messages: { recentDays: 14 } }] : []),
-    ];
+    const sources = inboxSources([]);
     const both = sources.length > 1;
     const app = appViewsFor(both ? "inbox" : sources[0]?.from === "mail" ? "mail" : "message")[0];
     const views: View[] = [...(app ? [{ ...newView(t(app.label), "table"), type: "app" as const, app: app.id }] : []), newView(t("Table"), "table")];

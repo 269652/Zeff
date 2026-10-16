@@ -125,3 +125,22 @@ test("ensureMailDatabases: the combined inbox is made with Mail and Chats — on
   await ensureMailDatabases();
   assert.equal(w.tree().length, before, "once");
 });
+
+test("any database becomes an inbox: naming the channels as sources — its Inbox view follows, rows of its own stay", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["workspace", "outlook-mail", "teams", "mail-client"]) setInstalled(id, true);
+  const w = await import("@/plugins/workspace/store");
+  const { runPipeline } = await import("@/plugins/workspace/pipeline");
+  const { makeInbox } = await import("@/plugins/workspace/derived");
+  const id = w.createPage({ kind: "database", title: "Eigene" });
+  w.addRow(id, { title: "Von Hand" });
+  makeInbox(id);
+  makeInbox(id); // once: no source twice
+  const d = w.getDatabase(id)!;
+  assert.deepEqual(d.schema.pipeline!.steps.filter((s) => s.kind === "source").map((s) => s.from), ["mail", "messages"]);
+  await runPipeline(id, { ai: false });
+  const after = w.getDatabase(id)!;
+  assert.equal(after.schema.dataType, "inbox");
+  assert.ok(after.schema.views.some((v) => v.type === "app" && v.app === "inbox"));
+  assert.ok(w.rawRows(id).some((r) => r.title === "Von Hand"), "its own row stays");
+});

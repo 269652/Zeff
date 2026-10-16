@@ -5422,5 +5422,7 @@
   "(only this database)": "(solo esta base de datos)",
   "The web addresses the knowledge base holds for these terms, each once with its environment and the page it stands on. Addresses you keep by hand (here or in the other database) are not suggested again.": "Las direcciones web que la base de conocimiento tiene para estos términos, cada una una vez, con su entorno y la página donde aparece. Las direcciones que mantienes a mano (aquí o en la otra base de datos) no se vuelven a sugerir.",
   "Content type": "Tipo de contenido",
-  "Markdown": "Markdown"
+  "Markdown": "Markdown",
+  "From channels": "De canales",
+  "The channels are its sources now — the Inbox view follows.": "Los canales son ahora sus fuentes: la vista Inbox sigue."
 }

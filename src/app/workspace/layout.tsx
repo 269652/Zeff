@@ -21,7 +21,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   return (
     <div className="page">
       <div className="page-aside">
-        <Sidebar items={tree()} favorites={favorites()} unread={unreadCounts()} />
+        <Sidebar items={tree()} favorites={favorites()} unread={unreadCounts()} channels={(await import("@/plugins/workspace/derived")).channelKinds()} />
       </div>
       <div className="min-w-0">{children}</div>
     </div>

@@ -5422,5 +5422,7 @@
   "(only this database)": "(nur diese Datenbank)",
   "The web addresses the knowledge base holds for these terms, each once with its environment and the page it stands on. Addresses you keep by hand (here or in the other database) are not suggested again.": "Die Web-Adressen, die die Wissensdatenbank zu diesen Begriffen hat – jede einmal, mit Umgebung und der Seite, auf der sie steht. Adressen, die du von Hand pflegst (hier oder in der anderen Datenbank), werden nicht noch einmal vorgeschlagen.",
   "Content type": "Inhaltstyp",
-  "Markdown": "Markdown"
+  "Markdown": "Markdown",
+  "From channels": "Aus Kanälen",
+  "The channels are its sources now — the Inbox view follows.": "Die Kanäle sind jetzt seine Quellen – die Inbox-Ansicht folgt."
 }

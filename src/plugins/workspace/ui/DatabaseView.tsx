@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, detailPageAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, runPipelineAction, setCellAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, detailPageAction, makeInboxAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, runPipelineAction, setCellAction, updateSchemaAction, type DatabaseData } from "../actions";
 import { PROP_LABELS, PROP_TYPES, retype, type PropType, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
@@ -340,6 +340,20 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
                 </MenuItem>
               )),
               // The apps' views this database can have (its type: mails, messages — their plugins installed).
+              // A database that is no inbox yet: "Inbox" names the channels as its sources (and shows them by the inbox view).
+              ...(schema.dataType !== "inbox" && data.extras?.inboxPossible
+                ? [
+                    <MenuItem
+                      key="make-inbox"
+                      onClick={() => {
+                        close();
+                        void makeInboxAction(data.id).then((r) => (r.ok ? (toast(t("The channels are its sources now — the Inbox view follows."), { tone: "ok" }), router.refresh()) : toast(r.error, { tone: "error" })));
+                      }}
+                    >
+                      📬 {t("Inbox")}
+                    </MenuItem>,
+                  ]
+                : []),
               ...(data.extras?.appViews ?? []).map((a) => (
                 <MenuItem
                   key={`app-${a.id}`}
