@@ -27,7 +27,8 @@ test("writable sources: what can be written where (by the actions installed); a 
   const { runPipeline } = await import("@/plugins/workspace/pipeline");
   const { createSourceDatabase } = await import("@/plugins/workspace/derived");
   const { capabilitiesOf } = await import("@/plugins/workspace/capabilities");
-  const { runRowAction, draftRowReply } = await import("@/plugins/workspace/row-actions");
+  const { draftRowReply } = await import("@/plugins/workspace/row-actions");
+  const { runRowOp: runRowAction } = await import("@/lib/ops");
   saveMails([
     { convId: "AQ1", folder: "Posteingang", from: "Anna Berg", fromEmail: "anna@example.com", subject: "Termin?", preview: "Passt dir Freitag?", receivedAt: ago(1), unread: true },
   ]);

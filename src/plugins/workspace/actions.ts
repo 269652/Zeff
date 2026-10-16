@@ -392,7 +392,7 @@ export async function rejudgeAction(dbId: number, stepId: string) {
 /** One of Zeff's actions from a row (a draft opened, a message sent, something done in Zeff) — no todo needed. */
 export async function rowActionAction(rowId: number, op: Record<string, unknown>) {
   return run(async () => {
-    const r = await (await import("./row-actions")).runRowAction(Number(rowId), op && typeof op === "object" ? op : {});
+    const r = await (await import("@/lib/ops")).runRowOp(Number(rowId), op && typeof op === "object" ? op : {});
     return { href: r.href ?? null, what: r.what ?? null };
   });
 }

@@ -2,7 +2,7 @@
 import "@/plugins/actions/server";
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
-import { opLabel, opTitle, type TodoView } from "@/lib/boards/shared";
+import { opLabel, opTitle, type TodoOp, type TodoView } from "@/lib/boards/shared";
 import { errorMessage } from "@/lib/errors";
 import { emitChange } from "@/lib/events";
 import { t } from "@/lib/i18n/server";
@@ -137,4 +137,18 @@ export async function runTodoOpsNow(todoId: number, opts: { only?: number[] } = 
   } finally {
     running.delete(todoId);
   }
+}
+
+/**
+ * An action from a row of the Workspace — your click on it (no todo): checked as a row may run it, then a draft's address
+ * (it opens for you) or run (a message, something done in Zeff).
+ */
+export async function runRowOp(rowId: number, raw: Record<string, unknown>): Promise<{ href?: string; what?: string }> {
+  const { checkRowAction } = await import("@/plugins/workspace/row-actions");
+  const { op, href } = await checkRowAction(rowId, raw);
+  if (href) return { href };
+  const runner = RUNNERS[op.type as TodoOp["type"]];
+  if (!runner) throw new Error(t("Unknown action."));
+  const r = await runner(op as unknown as TodoOp, { todo: null as never, note: () => {} });
+  return { what: r.what };
 }

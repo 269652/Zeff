@@ -22,8 +22,12 @@ export async function rowCanRun(type: string): Promise<boolean> {
   return !!spec && opAvailable(type) && (!!spec.href || ROW_RUNNABLE.has(type));
 }
 
-/** An action (as an AI or the views hand it over) run from a row: cleaned, checked, then opened (a draft) or run. */
-export async function runRowAction(rowId: number, raw: Record<string, unknown>): Promise<RowActionResult> {
+/**
+ * An action (as an AI or the views hand it over) for a row, checked and cleaned — what may run from a row: a draft (opens
+ * for you) or one that needs no todo, installed. It's run by the click only (lib/ops runRowOp — no runner here: the
+ * pipeline, an automatic step, reads this module).
+ */
+export async function checkRowAction(rowId: number, raw: Record<string, unknown>): Promise<{ op: Record<string, unknown> & { type: string }; href: string | null }> {
   const row = getPage(rowId);
   if (!row?.dbId) throw new Error(t("Not a row of a database."));
   const { actionOf } = await import("@/plugins/actions/catalog");
@@ -35,12 +39,7 @@ export async function runRowAction(rowId: number, raw: Record<string, unknown>):
   if (!opAvailable(type)) throw new Error(t("{action}: not installed (Menu → Plugins).", { action: spec.label }));
   const op = spec.clean(raw, { ticket: rowKey({ id: row.id, cells: row.props }) ?? "" });
   if (!op) throw new Error(t("The action is incomplete."));
-  if (spec.href) return { href: spec.href(op as never) };
-  const { RUNNERS } = await import("@/plugins/actions/run");
-  const runner = RUNNERS[type as keyof typeof RUNNERS];
-  if (!runner) throw new Error(t("Unknown action."));
-  const r = await runner(op as never, { todo: null as never, note: () => {} });
-  return { what: r.what };
+  return { op: op as never, href: spec.href ? spec.href(op as never) : null };
 }
 
 /** Who a row's reply goes to, and on what: its sender's address and its subject (a mail), its chat (a message). */

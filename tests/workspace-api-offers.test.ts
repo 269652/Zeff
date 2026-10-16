@@ -50,7 +50,7 @@ test("workspace methods offered: rows added and changed by names, pages made and
   assert.match(docText(w.getPage(r.id)!.content), /Milch[\s\S]*Brot/);
 
   // From a row (a mail's, say): zeff-do runs it.
-  const { runRowAction } = await import("@/plugins/workspace/row-actions");
+  const { runRowOp: runRowAction } = await import("@/lib/ops");
   const out = await runRowAction(row.id, { type: "zeff-do", method: "workspace.pages.append", args: JSON.stringify({ page: "Einkauf", markdown: "- Butter" }) });
   assert.ok(out.what);
   assert.match(docText(w.getPage(r.id)!.content), /Butter/);

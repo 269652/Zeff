@@ -75,6 +75,8 @@ test("the automatic steps don't import what runs actions", () => {
     "src/plugins/keep/note-relations.ts",
     "src/plugins/documents/review.ts",
     "src/plugins/documents/relations.ts",
+    "src/plugins/workspace/pipeline.ts",
+    "src/plugins/workspace/row-actions.ts",
   ];
   // The action runners: the ops runner, the plugins' run modules (teams/run, whatsapp/run, signal/run …), GitLab's writes —
   // and the clicks themselves (the server actions: Zeff's and each plugin's).
