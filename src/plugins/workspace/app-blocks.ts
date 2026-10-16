@@ -8,15 +8,9 @@ import { getDatabase, getPage, archivePage, addRow, rawRows, tree } from "./stor
  * here; the editor's blocks (ui/app-blocks.tsx) call it.
  */
 
-/** The database a layout page (or a row of it) is about — the one whose fields the blocks pick from. */
+/** The database a row's page is about — the one whose fields the blocks pick from. */
 export function layoutDatabase(pageId: number): number | null {
-  const page = getPage(pageId);
-  if (!page) return null;
-  if (page.dbId) return page.dbId;
-  const found = tree()
-    .filter((x) => x.kind === "database")
-    .find((x) => getDatabase(x.id)?.schema.detailPage === pageId);
-  return found?.id ?? null;
+  return getPage(pageId)?.dbId ?? null;
 }
 
 export type LayoutChoices = {

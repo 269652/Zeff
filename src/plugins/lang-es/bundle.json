@@ -5592,5 +5592,7 @@
   "The rows of another database that belong to the entry — with a field to add one": "Las filas de otra base de datos que pertenecen a la entrada, con un campo para añadir",
   "Button": "Botón",
   "Sets a field of the entry, moves it to the trash, or reads the sources again": "Fija un campo de la entrada, la mueve a la papelera o vuelve a leer las fuentes",
-  "Arrange": "Organizar"
+  "Arrange": "Organizar",
+  "Custom view of this entry": "Vista propia de esta entrada",
+  "What a plugin shows for the rows of this database — a person's page": "Lo que un plugin muestra para las filas de esta base de datos: la página de una persona"
 }

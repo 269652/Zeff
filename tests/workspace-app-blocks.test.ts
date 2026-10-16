@@ -19,14 +19,12 @@ async function twoDatabases() {
 test("layout choices: the fields of the row's database, and the databases whose rows belong to it", async () => {
   const { w, projects, tasks } = await twoDatabases();
   const { layoutChoices } = await import("@/plugins/workspace/app-blocks");
-  const { ensureDetailPage } = await import("@/plugins/workspace/detail-page");
-  const layout = ensureDetailPage(projects);
-  const c = layoutChoices(layout);
-  assert.equal(c.dbId, projects, "a layout page is about its database");
+  const row = w.addRow(projects, { title: "Relaunch" });
+  const c = layoutChoices(row);
+  assert.equal(c.dbId, projects, "a row's page is about its database");
   assert.deepEqual(c.properties.map((p) => p.id), ["title", "phase"]);
   assert.deepEqual(c.related.map((r) => [r.dbId, r.prop]), [[tasks, "proj"]]);
-  const row = w.addRow(projects, { title: "Relaunch" });
-  assert.equal(layoutChoices(row).dbId, projects, "a row too");
+  assert.equal(layoutChoices(w.createPage({ title: "Seite" })).dbId, null, "a page that isn't a row has none");
 });
 
 test("related list: the rows that point to this one — and a new one made pointing to it", async () => {
