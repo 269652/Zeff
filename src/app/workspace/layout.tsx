@@ -8,6 +8,8 @@ import { Sidebar } from "@/plugins/workspace/ui/Sidebar";
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   await connection();
   if (!isInstalled("workspace")) return <PluginNotInstalled id="workspace" />;
+  // My briefing replaced by Meine Lage (once — also before the next Jira sync or start).
+  if (isInstalled("jira-lage")) await (await import("@/plugins/jira-lage/to-workspace")).replaceBriefingOnce().catch((e) => console.error("[jira] Meine Lage as a pipeline database failed", e));
   return (
     <div className="page">
       <div className="page-aside">

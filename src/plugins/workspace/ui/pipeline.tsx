@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { saveSyncIntervalAction } from "@/app/actions";
 import { toast } from "@/components/Toaster";
 import { minutesText } from "@/plugins/sync-settings";
-import { sourceSyncsAction } from "../actions";
+import { instructionsAction, newInstructionAction, sourceSyncsAction } from "../actions";
 import { useT } from "@/components/I18nProvider";
 import { ATTENTIONS } from "@/lib/boards/shared";
 import { newId, type JiraCriteria, type Pipeline, type PipelineSource, type PipelineStep } from "../model";
@@ -31,6 +31,9 @@ export function PipelineEditor({ dbId, pipeline, synced, databases, onSave, onRu
   // A database a sync keeps: the sync is its source — only AI steps of its own.
   const [steps, setSteps] = useState<PipelineStep[]>((pipeline?.steps ?? []).filter((s) => !synced || s.kind === "ai"));
   const [busy, setBusy] = useState(false);
+  const [instructions, setInstructions] = useState<Instruction[]>([]);
+  const loadInstructions = () => void instructionsAction().then((r) => r.ok && setInstructions(r.instructions));
+  useEffect(loadInstructions, []);
   const dirty = JSON.stringify(steps) !== JSON.stringify(pipeline?.steps ?? []);
   const runnable = synced ? steps.some((s) => s.kind === "ai") : steps.some((s) => s.kind === "source");
   const syncName = synced === "jira" ? "Jira" : synced === "google-keep" ? "Google Keep" : synced;
@@ -82,6 +85,7 @@ export function PipelineEditor({ dbId, pipeline, synced, databases, onSave, onRu
               <button type="button" className="icon-btn" onClick={() => setSteps((ss) => ss.filter((_, k) => k !== i))} aria-label={t("Remove the step")}>✕</button>
             </div>
             <StepBody step={s} set={(p) => set(i, p)} databases={databases.filter((d) => d.id !== dbId)} />
+            {s.kind === "ai" && <InstructionPicker chosen={s.instructions ?? []} all={instructions} set={(ids) => set(i, { instructions: ids.length ? ids : undefined })} reload={loadInstructions} />}
           </li>
         ))}
       </ol>
@@ -106,6 +110,55 @@ export function PipelineEditor({ dbId, pipeline, synced, databases, onSave, onRu
         <button type="button" className="btn btn-primary btn-sm" disabled={busy || !runnable} onClick={() => void save({ ai: true })}>{busy ? "…" : `✨ ${t("Run now")}`}</button>
       </div>
     </Modal>
+  );
+}
+
+type Instruction = { id: number; title: string; icon: string };
+
+/** The instructions an AI step goes by (pages under KI-Anweisungen): chosen, opened to write, a new one made. */
+function InstructionPicker({ chosen, all, set, reload }: { chosen: number[]; all: Instruction[]; set: (ids: number[]) => void; reload: () => void }) {
+  const t = useT();
+  const rest = all.filter((x) => !chosen.includes(x.id));
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-sm" data-instructions>
+      <span className="text-zinc-500">{t("Instructions")}:</span>
+      {chosen.map((id) => {
+        const x = all.find((i) => i.id === id);
+        return (
+          <span key={id} className="ws-chip inline-flex items-center gap-1">
+            <a href={`/workspace/${id}`} target="_blank" rel="noreferrer" className="hover:underline" title={t("Open to write it")}>
+              {x?.icon || "📋"} {x?.title ?? `#${id}`}
+            </a>
+            <button type="button" className="text-zinc-400 hover:text-zinc-700" aria-label={t("Remove")} onClick={() => set(chosen.filter((c) => c !== id))}>
+              ✕
+            </button>
+          </span>
+        );
+      })}
+      <Dropdown label={`+ ${t("Instruction")}`} className="rounded px-1.5 py-0.5 text-sm text-indigo-600 hover:bg-zinc-100 dark:text-indigo-400 dark:hover:bg-zinc-800">
+        {(close) => (
+          <>
+            {rest.map((x) => (
+              <MenuItem key={x.id} onClick={() => (close(), set([...chosen, x.id]))}>
+                {x.icon || "📋"} {x.title}
+              </MenuItem>
+            ))}
+            <MenuItem
+              onClick={async () => {
+                close();
+                const r = await newInstructionAction(t("New instruction"));
+                if (!r.ok) return void toast(r.error, { tone: "error" });
+                set([...chosen, r.id]);
+                reload();
+                window.open(`/workspace/${r.id}`, "_blank");
+              }}
+            >
+              ＋ {t("New instruction …")}
+            </MenuItem>
+          </>
+        )}
+      </Dropdown>
+    </div>
   );
 }
 
@@ -250,17 +303,30 @@ function StepBody({ step: s, set, databases }: { step: PipelineStep; set: (p: Pa
 
 /** What the pipeline's summaries wrote, above the database's view. */
 export function PipelineSummaries({ pipeline }: { pipeline: Pipeline | undefined }) {
-  const t = useT();
   const done = (pipeline?.steps ?? []).filter((s) => s.kind === "ai" && s.output === "summary" && s.result?.text);
   if (!done.length) return null;
   return (
-    <div className="space-y-2">
+    <div className="space-y-1">
       {done.map((s) => (
-        <div key={s.id} className="rounded-lg border border-indigo-200 bg-indigo-50/60 p-3 text-sm dark:border-indigo-900 dark:bg-indigo-950/30" data-summary>
-          <p className="whitespace-pre-wrap">{s.result!.text}</p>
-          <p className="mt-1 text-xs text-zinc-500">🧭 {t("AI summary · {when}", { when: new Date(s.result!.at).toLocaleString() })}</p>
-        </div>
+        <Summary key={s.id} text={s.result!.text} at={s.result!.at} />
       ))}
+    </div>
+  );
+}
+
+/** One summary: a line (its start) — the whole text a click away. */
+function Summary({ text, at }: { text: string; at: string }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 text-sm dark:border-indigo-900 dark:bg-indigo-950/30" data-summary>
+      <button type="button" className="flex w-full items-center gap-2 px-3 py-1.5 text-left" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <span aria-hidden>🧭</span>
+        <span className={`min-w-0 flex-1 ${open ? "font-medium" : "truncate"}`}>{open ? t("AI summary") : text.replace(/\s+/g, " ")}</span>
+        <span className="shrink-0 text-xs text-zinc-500">{new Date(at).toLocaleString()}</span>
+        <span className="shrink-0 text-zinc-400" aria-hidden>{open ? "▴" : "▾"}</span>
+      </button>
+      {open && <p className="whitespace-pre-wrap px-3 pb-3">{text}</p>}
     </div>
   );
 }

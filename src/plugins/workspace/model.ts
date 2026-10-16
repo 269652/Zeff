@@ -51,6 +51,8 @@ export type Property = {
   aiPrompt?: string;
   /** AI: the values it may take (one of them — "blocked", "active" …); none: free text. */
   aiChoices?: string[];
+  /** AI: instructions (pages under KI-Anweisungen) whose text goes with the prompt. */
+  aiInstructions?: number[];
   format?: "number" | "percent" | "euro" | "dollar" | "hours";
   includeTime?: boolean;
 };
@@ -131,6 +133,8 @@ export type PipelineStep = {
   name?: string;
   prompt?: string;
   choices?: string[];
+  /** AI steps: the instructions (pages under KI-Anweisungen) that go with the prompt. */
+  instructions?: number[];
   result?: { text: string; at: string; hash?: string };
 };
 export type Pipeline = { steps: PipelineStep[]; ranAt?: string };
@@ -142,6 +146,10 @@ const posInt = (v: unknown): number | undefined => {
 const str = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 const strs = (v: unknown): string[] | undefined => {
   const out = Array.isArray(v) ? v.map(str).filter((x): x is string => !!x) : [];
+  return out.length ? out : undefined;
+};
+const ids = (v: unknown): number[] | undefined => {
+  const out = [...new Set((Array.isArray(v) ? v : []).map(posInt).filter((x): x is number => !!x))];
   return out.length ? out : undefined;
 };
 /** Only what's set (no undefined keys: a step compares as it's stored). */
@@ -166,7 +174,7 @@ export function normalizePipeline(raw: unknown): Pipeline {
     } else if (s.kind === "ai" && (s.output === "field" || s.output === "summary")) {
       const r = s.result as { text?: unknown; at?: unknown; hash?: unknown } | undefined;
       const result = r && typeof r.text === "string" && typeof r.at === "string" ? { text: r.text, at: r.at, ...(typeof r.hash === "string" ? { hash: r.hash } : {}) } : undefined;
-      steps.push(defined<PipelineStep>({ id, kind: "ai", output: s.output, prop: s.output === "field" ? str(s.prop) : undefined, name: s.output === "field" ? (str(s.name) ?? "AI") : undefined, prompt: str(s.prompt), choices: s.output === "field" ? strs(s.choices) : undefined, result: s.output === "summary" ? result : undefined }));
+      steps.push(defined<PipelineStep>({ id, kind: "ai", output: s.output, prop: s.output === "field" ? str(s.prop) : undefined, name: s.output === "field" ? (str(s.name) ?? "AI") : undefined, prompt: str(s.prompt), choices: s.output === "field" ? strs(s.choices) : undefined, instructions: ids(s.instructions), result: s.output === "summary" ? result : undefined }));
     }
   }
   return { steps, ...(typeof o.ranAt === "string" ? { ranAt: o.ranAt } : {}) };

@@ -166,11 +166,15 @@ export async function replaceBriefingOnce(): Promise<number | null> {
 
   const { lageFieldDefs, LAGE_FIELDS } = await import("@/plugins/workspace/lage-fields");
   const def = (id: string) => lageFieldDefs().find((f) => f.id === id)!;
+  // The Lage's rules, as an instruction its AI steps choose (to change in KI-Anweisungen → Lage).
+  const { listInstructions } = await import("@/plugins/workspace/instructions");
+  const lage = listInstructions().find((i) => i.title === "Lage")?.id;
+  const instructions = lage ? [lage] : undefined;
   const steps = [
     { id: newId("s"), kind: "source" as const, from: "jira" as const, jira: { mine: true, involved: true, openOnly: true, doneDays: 3 } },
-    { id: newId("s"), kind: "ai" as const, output: "field" as const, name: "Attention", prompt: def(LAGE_FIELDS.attention).aiPrompt, choices: def(LAGE_FIELDS.attention).aiChoices },
-    { id: newId("s"), kind: "ai" as const, output: "field" as const, name: "Lage", prompt: def(LAGE_FIELDS.lead).aiPrompt },
-    { id: newId("s"), kind: "ai" as const, output: "summary" as const, prompt: "Die Gesamtlage: was gerade brennt, was als Nächstes kommt, worauf ich warte — in wenigen Sätzen, die wichtigsten Tickets mit Schlüssel." },
+    { id: newId("s"), kind: "ai" as const, output: "field" as const, name: "Attention", prompt: def(LAGE_FIELDS.attention).aiPrompt, choices: def(LAGE_FIELDS.attention).aiChoices, instructions },
+    { id: newId("s"), kind: "ai" as const, output: "field" as const, name: "Lage", prompt: def(LAGE_FIELDS.lead).aiPrompt, instructions },
+    { id: newId("s"), kind: "ai" as const, output: "summary" as const, prompt: "Die Gesamtlage: was gerade brennt, was als Nächstes kommt, worauf ich warte — in wenigen Sätzen, die wichtigsten Tickets mit Schlüssel.", instructions },
   ];
   const id = createPage({ kind: "database", title: "Meine Lage", icon: "🧭", schema: { titleName: "Ticket", properties: [], views: [newView("Board", "board"), newView("Table", "table")], pipeline: { steps }, review: { on: true } } });
   updatePage(id, { fullWidth: true });

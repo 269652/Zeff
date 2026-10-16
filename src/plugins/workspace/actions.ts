@@ -369,6 +369,19 @@ export async function refreshPipelineAction(dbId: number) {
   });
 }
 
+/** The instructions an AI step can choose (pages under KI-Anweisungen). */
+export async function instructionsAction() {
+  return run(async () => {
+    const i = await import("./instructions");
+    return { folder: i.instructionsFolder(), instructions: i.listInstructions() };
+  });
+}
+
+/** A new instruction (a page under KI-Anweisungen) — to write it. */
+export async function newInstructionAction(title: string) {
+  return run(async () => ({ id: (await import("./instructions")).newInstruction(String(title ?? "").trim().slice(0, 200) || t("Instruction")) }));
+}
+
 /** What an AI block on a page writes by its instruction (from the page and the databases shown in it). */
 export async function aiBlockAction(pageId: number, prompt: string) {
   return run(async () => {

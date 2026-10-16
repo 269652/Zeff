@@ -47,6 +47,9 @@ test("replaceBriefingOnce: My briefing replaced by a pipeline database with its 
   assert.ok(fields.every((s) => !s.prop), "fields of its own (not the Ticket-Lage's)");
   assert.ok(fields.some((s) => s.choices?.includes("blocked")));
   assert.ok(steps.some((s) => s.kind === "ai" && s.output === "summary"), "the overall picture");
+  const { listInstructions } = await import("@/plugins/workspace/instructions");
+  const lage = listInstructions().find((i) => i.title === "Lage")!.id;
+  assert.ok(steps.filter((s) => s.kind === "ai").every((s) => s.instructions?.includes(lage)), "its AI steps go by the instruction Lage");
   assert.deepEqual(d.schema.review, { on: true }, "its AI review reads every row");
   assert.deepEqual(w.rawRows(id!).map((r) => r.cells.ticketkey), ["ME-1"], "its rows at once");
   assert.equal(jiraBoardHref("jira-lage"), `/workspace/${id}`, "old links lead to it");

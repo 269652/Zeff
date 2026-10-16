@@ -228,3 +228,43 @@ test("runPipeline: a database's own status and select properties take the source
   assert.ok(!fs.existsSync(promptFile), "rows unchanged: the summary not again");
   assert.equal(w.getDatabase(dbId)!.schema.pipeline!.steps.find((s) => s.id === "sum")!.result?.text, "Eine Sache in Review.");
 });
+
+test("instructions: Workspace pages under KI-Anweisungen, chosen by AI steps — their text goes with the field's and the summary's prompt", async () => {
+  const w = await import("@/plugins/workspace/store");
+  const m = await import("@/plugins/workspace/model");
+  const { markdownToDoc } = await import("@/plugins/workspace/doc");
+  const { listInstructions, newInstruction, instructionsFolder } = await import("@/plugins/workspace/instructions");
+  const { runPipeline } = await import("@/plugins/workspace/pipeline");
+
+  const seeded = listInstructions();
+  assert.ok(seeded.some((i) => i.title === "Lage"), "a first one: the Lage's rules");
+  const folder = instructionsFolder();
+  assert.equal(w.getPage(folder)!.title, "KI-Anweisungen");
+  const id = newInstruction("Ton");
+  assert.equal(w.getPage(id)!.parentId, folder);
+  w.updatePage(id, { content: markdownToDoc("Schreib wie ein Pirat.") });
+  assert.ok(listInstructions().some((i) => i.id === id));
+  assert.equal(m.normalizePipeline({ steps: [{ id: "a", kind: "ai", output: "summary", instructions: [id, "x", -1] }] }).steps[0].instructions?.join(), String(id));
+
+  const { addManualTodo } = await import("@/lib/boards/store");
+  addManualTodo({ ticket: "WS-77", text: "Instruktion testen" });
+  const dbId = w.createPage({ kind: "database", title: "Mit Anweisung", schema: { titleName: "Name", properties: [], views: [m.newView("Table")], pipeline: { steps: [
+    { id: "s", kind: "source", from: "todos" },
+    { id: "f", kind: "filter", text: "Instruktion" },
+    { id: "lage", kind: "ai", output: "field", name: "Lage", prompt: "Ein Satz.", instructions: [id] },
+    { id: "sum", kind: "ai", output: "summary", prompt: "Alles.", instructions: [id] },
+  ] } } });
+  const row = () => w.rawRows(dbId)[0];
+  await runPipeline(dbId, { ai: false });
+  process.env.FAKE_CLAUDE_OUTPUT = JSON.stringify({ rows: [{ id: row().id, values: { ai_lage: "Arr." } }], text: "Arr, alles." });
+  fs.writeFileSync(promptFile, "");
+  await runPipeline(dbId, { ai: true });
+  assert.match(fs.readFileSync(promptFile, "utf8"), /Schreib wie ein Pirat\./, "the instruction in the prompt (the last one: the summary's)");
+  assert.equal(w.getPage(row().id)!.props.ai_lage, "Arr.");
+
+  // The instruction changed: the rows read again.
+  w.updatePage(id, { content: markdownToDoc("Schreib wie ein Seemann.") });
+  fs.rmSync(promptFile);
+  const again = await runPipeline(dbId, { ai: true });
+  assert.equal(again.reviewed, 1, "a changed instruction: read again");
+});

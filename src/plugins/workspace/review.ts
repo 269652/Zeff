@@ -44,8 +44,15 @@ function rowBlock(r: Row, props: Property[], ai: Property[]): string {
   return [`## [${r.id}] ${r.title || "(ohne Titel)"}`, ...cells, ...(page ? [docText(page.content).slice(0, 3000)].filter(Boolean) : []), ...(key ? ticketLines(key) : []), `(${ai.map((p) => p.id).join(",")})`].join("\n");
 }
 
-const instructions = (ai: Property[]) =>
+/** The instructions the fields name (pages under KI-Anweisungen), once each. */
+async function told(ai: Property[]): Promise<string> {
+  const ids = [...new Set(ai.flatMap((p) => p.aiInstructions ?? []))];
+  return ids.length ? (await import("./instructions")).instructionText(ids) : "";
+}
+
+const instructions = (ai: Property[], grounds: string) =>
   [
+    ...(grounds ? ["Grundsätze:", grounds, ""] : []),
     "Du füllst Felder von Zeilen einer Datenbank aus. Je Feld die Anweisung:",
     ...ai.map((p) => `- „${p.name}“ (id ${p.id}): ${p.aiPrompt || "Fasse die Zeile in einem Satz zusammen."}${p.aiChoices?.length ? ` — genau einer von: ${p.aiChoices.join(" | ")}` : ""}`),
     "",
@@ -60,7 +67,8 @@ export async function reviewDatabase(dbId: number, opts: { force?: boolean } = {
   const rows = rawRows(dbId);
   if (!ai.length || !rows.length) return { ...base, rows: rows.length };
   const known = new Map((db().prepare("select row_id, hash from ws_review").all() as { row_id: number; hash: string }[]).map((r) => [r.row_id, r.hash]));
-  const spec = ai.map((p) => `${p.id}:${p.aiPrompt ?? ""}:${(p.aiChoices ?? []).join("|")}`).join(";");
+  const grounds = await told(ai);
+  const spec = `${ai.map((p) => `${p.id}:${p.aiPrompt ?? ""}:${(p.aiChoices ?? []).join("|")}`).join(";")}\n${grounds}`;
   const todo: { row: Row; text: string; hash: string }[] = [];
   // A board's Lage fields: not for the cards the Ticket-Lage read (they have theirs from it).
   const briefed = d.schema.review?.skipBriefed ? (await import("@/lib/boards/ticket-lage")).analyzedByTicketLage() : new Set<string>();
@@ -97,7 +105,7 @@ export async function reviewDatabase(dbId: number, opts: { force?: boolean } = {
   const save = db().prepare("insert into ws_review (row_id, hash, reviewed_at) values (?, ?, ?) on conflict(row_id) do update set hash = excluded.hash, reviewed_at = excluded.reviewed_at");
   for (const batch of batches) {
     try {
-      const r = await runAi<{ rows?: { id?: number; values?: Record<string, unknown> }[] }>(`${instructions(ai)}\n\n${batch.map((b) => b.text).join("\n\n")}`, SCHEMA, { task: "general", timeoutMs: 6 * 60000, maxBudgetUsd: 1 });
+      const r = await runAi<{ rows?: { id?: number; values?: Record<string, unknown> }[] }>(`${instructions(ai, grounds)}\n\n${batch.map((b) => b.text).join("\n\n")}`, SCHEMA, { task: "general", timeoutMs: 6 * 60000, maxBudgetUsd: 1 });
       const byId = new Map((r.output?.rows ?? []).map((x) => [Number(x.id), x.values ?? {}]));
       for (const b of batch) {
         const v = byId.get(b.row.id);
