@@ -1,4 +1,5 @@
 import { discoverFeeds, isPublicUrl, type DiscoverDeps, type FoundFeed } from "./discover";
+import { fillPrompt, promptText } from "@/lib/prompts";
 import { newsFetch } from "./http";
 import { topicFeedUrl, type NewsPrefs } from "./shared";
 
@@ -58,11 +59,12 @@ const OUTLET_SCHEMA = {
   required: ["outlets"],
 };
 
+/** Its instructions — a page of System → Prompts ({{topic}}). */
+export const OUTLET_INSTRUCTIONS = "Du hilfst einer Person, gute Nachrichtenquellen zu finden. Nenne bis zu 10 konkrete, real existierende Medien, Blogs oder Newsletter,\ndie regelmäßig über das Thema „{{topic}}“ berichten und einen öffentlichen RSS-/Atom-Feed haben (Fachmedien und Einzelautoren sind willkommen, nicht nur große Nachrichtenseiten).\nNenne nur Quellen, die du sicher kennst — erfinde keine Domains. Gib die Domain an, nicht die Feed-Adresse.";
+
 export function outletPrompt(topic: string, profile: string[], have: string[]): string {
   return [
-    "Du hilfst einer Person, gute Nachrichtenquellen zu finden. Nenne bis zu 10 konkrete, real existierende Medien, Blogs oder Newsletter,",
-    `die regelmäßig über das Thema „${topic}“ berichten und einen öffentlichen RSS-/Atom-Feed haben (Fachmedien und Einzelautoren sind willkommen, nicht nur große Nachrichtenseiten).`,
-    "Nenne nur Quellen, die du sicher kennst — erfinde keine Domains. Gib die Domain an, nicht die Feed-Adresse.",
+    fillPrompt("news-outlets", OUTLET_INSTRUCTIONS, { topic: topic }),
     `Was über die Person bekannt ist: ${profile.length ? profile.slice(0, 25).join(", ") : "(nichts)"}`,
     `Diese Quellen hat sie schon: ${have.length ? have.slice(0, 40).join(", ") : "(keine)"}`,
   ].join("\n");

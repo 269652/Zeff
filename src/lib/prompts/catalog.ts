@@ -21,7 +21,7 @@ export type PromptEntry = {
   vars?: string[];
 };
 
-export const PROMPT_GROUPS = ["Todos & Lage", "Mail", "Knowledge", "Notes", "Documents", "People", "Workspace", "LLM & Workers"] as const;
+export const PROMPT_GROUPS = ["Todos & Lage", "Mail", "Knowledge", "Notes", "Documents", "People", "News", "Workspace", "LLM & Workers"] as const;
 
 export const PROMPTS: PromptEntry[] = [
   { key: "ticket-lage", group: "Todos & Lage", title: "Ticket-Lage", uses: "The Ticket-Lage: each ticket's attention, lead, summary, todos", plugin: "todos", step: "lage", builtIn: async () => (await import("@/lib/boards/collect")).INSTRUCTIONS },
@@ -52,6 +52,19 @@ export const PROMPTS: PromptEntry[] = [
   { key: "people-import", group: "People", title: "People from your context", uses: "The people you deal with, from the last days", plugin: "people", builtIn: async () => (await import("@/plugins/people/import")).INSTRUCTIONS },
   { key: "people-extract", group: "People", title: "Facts about people", uses: "What new messages say about people", plugin: "people", builtIn: async () => (await import("@/plugins/people/extract")).INSTRUCTIONS },
   { key: "people-compile", group: "People", title: "Person overview", uses: "A person's short overview", plugin: "people", builtIn: async () => (await import("@/plugins/people/compile")).INSTRUCTIONS },
+  { key: "news-digest", group: "News", title: "News: the day's digest", uses: "The overview of your unread news", plugin: "news", builtIn: async () => (await import("@/plugins/news/digest")).DIGEST_INSTRUCTIONS },
+  { key: "news-ask", group: "News", title: "News: ask", uses: "A question answered from your news", plugin: "news", builtIn: async () => (await import("@/plugins/news/ask")).ASK_INSTRUCTIONS },
+  { key: "news-plan", group: "News", title: "News: search plan", uses: "What to search for new news", plugin: "news", builtIn: async () => (await import("@/plugins/news/discover-job")).PLAN_INSTRUCTIONS },
+  { key: "news-tags", group: "News", title: "News: tags", uses: "Tags and stories of the news", plugin: "news", builtIn: async () => (await import("@/plugins/news/retag")).TAGGING_INSTRUCTIONS },
+  { key: "news-similar", group: "News", title: "News: more like this", uses: "More of what you read", plugin: "news", builtIn: async () => (await import("@/plugins/news/similar")).SIMILAR_INSTRUCTIONS },
+  { key: "news-taste", group: "News", title: "News: your taste", uses: "The description of what you like to read", plugin: "news", builtIn: async () => (await import("@/plugins/news/taste")).TASTE_INSTRUCTIONS },
+  { key: "news-outlets", group: "News", title: "News: sources", uses: "News sources for a topic", plugin: "news", vars: ["topic"], builtIn: async () => (await import("@/plugins/news/finder")).OUTLET_INSTRUCTIONS },
+  { key: "todo-refresh", group: "Todos & Lage", title: "One todo brought up to date", uses: "A todo re-read after you wrote a note on it", plugin: "todos", vars: ["attachments", "today"], builtIn: async () => (await import("@/lib/boards/todo-refresh")).TODO_REFRESH_INSTRUCTIONS },
+  { key: "rag", group: "Todos & Lage", title: "Asking for more context", uses: "Added to the steps that may ask Zeff to search (ticket chat, todo refresh)", builtIn: async () => (await import("@/lib/rag")).RAG_INSTRUCTIONS },
+  { key: "people-dates", group: "People", title: "A person's dates", uses: "Birthdays and anniversaries of a person, found", plugin: "people", vars: ["name", "aliases"], builtIn: async () => (await import("@/plugins/people/dates")).PEOPLE_DATES_INSTRUCTIONS },
+  { key: "doc-read", group: "Documents", title: "Reading a file", uses: "A file (PDF, image) read into text by the AI", plugin: "documents", vars: ["file"], builtIn: async () => (await import("@/plugins/documents/extract")).DOC_READ_INSTRUCTIONS },
+  { key: "worker-rules", group: "LLM & Workers", title: "Worker rules", uses: "Every worker's ground rules (the house rules and the actions come after them)", plugin: "work", vars: ["head", "live", "end"], builtIn: async () => (await import("@/lib/work/brief")).WORKER_RULES },
+  { key: "mcp", group: "LLM & Workers", title: "Agents over MCP", uses: "What an agent connected to Zeff over MCP is told first", builtIn: async () => (await import("@/mcp/server")).INSTRUCTIONS },
   { key: "workspace-agent", group: "Workspace", title: "Workspace assistant", uses: "The assistant in the Workspace's sidebar", plugin: "workspace", builtIn: async () => (await import("@/plugins/workspace/agent")).INSTRUCTIONS },
   { key: "editor-ai", group: "Workspace", title: "Editor: writing with AI", uses: "Around every ✨ action in the editor", plugin: "workspace", builtIn: async () => (await import("@/plugins/workspace/prompts")).EDITOR_AI },
   { key: "editor-summarize", group: "Workspace", title: "Editor: Summarize", uses: "The editor's ✨ menu", plugin: "workspace", builtIn: async () => (await import("@/plugins/workspace/prompts")).AI_MODES.summarize },
@@ -65,6 +78,9 @@ export const PROMPTS: PromptEntry[] = [
   { key: "editor-translate_de", group: "Workspace", title: "Editor: Translate to German", uses: "The editor's ✨ menu", plugin: "workspace", builtIn: async () => (await import("@/plugins/workspace/prompts")).AI_MODES.translate_de },
   { key: "editor-translate_es", group: "Workspace", title: "Editor: Translate to Spanish", uses: "The editor's ✨ menu", plugin: "workspace", builtIn: async () => (await import("@/plugins/workspace/prompts")).AI_MODES.translate_es },
   { key: "editor-actions", group: "Workspace", title: "Editor: Action items", uses: "The editor's ✨ menu", plugin: "workspace", builtIn: async () => (await import("@/plugins/workspace/prompts")).AI_MODES.actions },
+  { key: "ai-review", group: "Workspace", title: "AI review of a database", uses: "The AI fields of a database filled for the rows that changed (pipelines, boards)", plugin: "workspace", vars: ["fields"], builtIn: async () => (await import("@/plugins/workspace/review")).AI_REVIEW },
+  { key: "ai-block", group: "Workspace", title: "AI block", uses: "An AI block written on a page", plugin: "workspace", vars: ["instruction", "today"], builtIn: async () => (await import("@/plugins/workspace/ai-block")).AI_BLOCK },
+  { key: "pipeline-summary", group: "Workspace", title: "Pipeline summary", uses: "A pipeline's summary over all rows", plugin: "workspace", vars: ["instruction", "today"], builtIn: async () => (await import("@/plugins/workspace/pipeline")).PIPELINE_SUMMARY },
   { key: "page-todos", group: "Workspace", title: "Todos from a page", uses: "A page made into your todos", plugin: "workspace", builtIn: async () => (await import("@/plugins/workspace/prompts")).PAGE_TODOS },
   { key: "workspace-ask", group: "Workspace", title: "Ask the Workspace", uses: "A question answered from your pages", plugin: "workspace", builtIn: async () => (await import("@/plugins/workspace/prompts")).WORKSPACE_ASK },
   { key: "ai-field", group: "Workspace", title: "AI field, one row", uses: "An AI field filled for one row by hand", plugin: "workspace", vars: ["field", "instruction"], builtIn: async () => (await import("@/plugins/workspace/prompts")).AI_FIELD },

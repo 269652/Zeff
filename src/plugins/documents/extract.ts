@@ -9,6 +9,7 @@
  * A file this can't read: an Unsupported error saying what would make it work. Server only.
  */
 import { execFile } from "node:child_process";
+import { fillPrompt } from "@/lib/prompts";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -257,6 +258,9 @@ export function pdfText(buf: Buffer): string {
 // The Claude CLI: pictures, scanned PDFs
 // ---------------------------------------------------------------------------
 
+/** How a file is read into text by the AI ({{file}}: its copy's path) — a page of System → Prompts. */
+export const DOC_READ_INSTRUCTIONS = "Lies die Datei {{file}} mit dem Read-Werkzeug (ein PDF mit mehr als 20 Seiten in Abschnitten). Antworte NUR mit dem Inhalt der Datei als Text — ohne Einleitung, ohne Kommentar, ohne Nachwort, in der Sprache des Dokuments, ohne etwas zu kürzen oder zusammenzufassen: bei einem Dokument sein vollständiger Text, Seite für Seite (Tabellen als Markdown-Tabellen); bei einem Bild erst der darin sichtbare Text (OCR), dann in zwei, drei Sätzen, was es zeigt. Kannst du die Datei nicht lesen, antworte genau mit „UNREADABLE: “ und dem Grund.";
+
 async function readWithClaude(file: string, name: string, extraPath?: string, timeoutMs = CLAUDE_READ_MS): Promise<string> {
   const { findClaudeCli, runClaude } = await import("@/plugins/claude-cli/cli");
   if (!findClaudeCli()) throw new UnsupportedError(t("The Claude CLI isn't installed — it reads pictures and scanned PDFs."));
@@ -266,7 +270,7 @@ async function readWithClaude(file: string, name: string, extraPath?: string, ti
     const copy = path.join(dir, `file${path.extname(name).toLowerCase()}`);
     fs.copyFileSync(file, copy);
     const r = await runClaude<{ text?: string }>(
-      `Lies die Datei ${copy} mit dem Read-Werkzeug (ein PDF mit mehr als 20 Seiten in Abschnitten). Antworte NUR mit dem Inhalt der Datei als Text — ohne Einleitung, ohne Kommentar, ohne Nachwort, in der Sprache des Dokuments, ohne etwas zu kürzen oder zusammenzufassen: bei einem Dokument sein vollständiger Text, Seite für Seite (Tabellen als Markdown-Tabellen); bei einem Bild erst der darin sichtbare Text (OCR), dann in zwei, drei Sätzen, was es zeigt. Kannst du die Datei nicht lesen, antworte genau mit „UNREADABLE: “ und dem Grund.`,
+      fillPrompt("doc-read", DOC_READ_INSTRUCTIONS, { file: copy }),
       { type: "object", properties: { text: { type: "string" } }, required: ["text"] },
       { readDir: dir, timeoutMs, maxBudgetUsd: 1, extraPath, plain: true },
     );

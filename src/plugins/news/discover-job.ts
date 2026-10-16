@@ -1,9 +1,13 @@
 import { getPref, setPref } from "@/lib/prefs";
+import { fillPrompt, promptText } from "@/lib/prompts";
 import type { FeedItem } from "./feed";
 import { retagAll } from "./retag";
 import { addItems, addSources, getPrefs, listSources, setSimilar, unreadForMatching } from "./store";
 import { getTaste, matchTaste, seedFromHistory, tasteReady, updateTaste, type Taste, type TasteDeps } from "./taste";
 import { syncNews, type NewsSyncDeps } from "./sync";
+
+/** Its instructions — a page of System → Prompts. */
+export const PLAN_INSTRUCTIONS = "Du planst die Suche nach neuen Nachrichten für eine Person. Unten steht eine Beschreibung ihres Nachrichten-Geschmacks.\nGib 10–12 konkrete Suchanfragen (2–5 Wörter, gern englisch, wenn sie englische Quellen mag) für eine Nachrichtensuche — nach Forschung und Berichten, nie nach Produkten, Shopping oder Werbung: die Hauptthemen aus verschiedenen Blickwinkeln und 2–3 Nachbarthemen, die sie überraschen und trotzdem interessieren könnten. Keine Anfragen, die schon zu den letzten gehörten.";
 
 /**
  * Discover: from the written description of your taste —
@@ -27,8 +31,7 @@ const SCHEMA = { type: "object", properties: { queries: { type: "array", items: 
 
 export function planPrompt(taste: Pick<Taste, "text" | "likes" | "avoids">, interests: string[], recent: string[]): string {
   return [
-    "Du planst die Suche nach neuen Nachrichten für eine Person. Unten steht eine Beschreibung ihres Nachrichten-Geschmacks.",
-    "Gib 10–12 konkrete Suchanfragen (2–5 Wörter, gern englisch, wenn sie englische Quellen mag) für eine Nachrichtensuche — nach Forschung und Berichten, nie nach Produkten, Shopping oder Werbung: die Hauptthemen aus verschiedenen Blickwinkeln und 2–3 Nachbarthemen, die sie überraschen und trotzdem interessieren könnten. Keine Anfragen, die schon zu den letzten gehörten.",
+    promptText("news-plan", PLAN_INSTRUCTIONS),
     "",
     `Beschreibung: ${taste.text || "(noch keine)"}`,
     `Mag: ${taste.likes.join(", ") || "-"}; ausdrückliche Interessen: ${interests.join(", ") || "-"}`,

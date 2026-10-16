@@ -1,4 +1,5 @@
 import { getPref, setPref } from "@/lib/prefs";
+import { fillPrompt, promptText } from "@/lib/prompts";
 import { analyze, cosine } from "./keyphrase";
 import { getPrefs, tasteSignals } from "./store";
 
@@ -31,6 +32,9 @@ export function recordSignal(item: { id: number; title: string; summary: string;
   setTaste({ pending: [...rest, { id: item.id, kind, title: item.title, summary: item.summary.slice(0, 300), tags: (item.terms ?? []).slice(0, 4), at: new Date().toISOString() }].slice(-60) });
 }
 
+/** Its instructions — a page of System → Prompts. */
+export const TASTE_INSTRUCTIONS = "Du führst eine kurze Beschreibung davon, was eine Person gern liest — ihr Nachrichten-Geschmack. Sie wächst mit jedem Artikel, den die Person mit 👍 oder Merken markiert (oder mit 👎 ablehnt).\nSchreibe die Beschreibung fort: neue Vorlieben aufnehmen, Vages schärfen, Widersprüche auflösen, Muster erkennen (Themen, Tonfall, Tiefe, Regionen, Quellenarten) — nicht jeden Artikel einzeln erwähnen. Höchstens 900 Zeichen, Fließtext, Du-Form. Was die Person selbst geschrieben hat, bleibt erhalten, außer es widerspricht den Signalen.\nGib außerdem likes (bis 16 konkrete Begriffe, deutsch und englisch), avoids (bis 8) und queries (bis 6 Suchanfragen, 2–5 Wörter, auch Nachbarthemen) heraus. Nutze nur, was unten steht.";
+
 /** A signal taken back (the 👍 removed, the 🔖 undone): it leaves the queue. */
 export function withdrawSignal(itemId: number, kind: Signal["kind"]): void {
   const t = getTaste();
@@ -54,9 +58,7 @@ export function tastePrompt(current: Taste, signals: Signal[], profile: string[]
   const line = (s: Signal) => `- ${s.title}${s.tags.length ? ` [${s.tags.join(", ")}]` : ""}${s.summary ? ` — ${s.summary.slice(0, 160)}` : ""}`;
   const of = (k: Signal["kind"]) => signals.filter((s) => s.kind === k);
   return [
-    "Du führst eine kurze Beschreibung davon, was eine Person gern liest — ihr Nachrichten-Geschmack. Sie wächst mit jedem Artikel, den die Person mit 👍 oder Merken markiert (oder mit 👎 ablehnt).",
-    "Schreibe die Beschreibung fort: neue Vorlieben aufnehmen, Vages schärfen, Widersprüche auflösen, Muster erkennen (Themen, Tonfall, Tiefe, Regionen, Quellenarten) — nicht jeden Artikel einzeln erwähnen. Höchstens 900 Zeichen, Fließtext, Du-Form. Was die Person selbst geschrieben hat, bleibt erhalten, außer es widerspricht den Signalen.",
-    "Gib außerdem likes (bis 16 konkrete Begriffe, deutsch und englisch), avoids (bis 8) und queries (bis 6 Suchanfragen, 2–5 Wörter, auch Nachbarthemen) heraus. Nutze nur, was unten steht.",
+    promptText("news-taste", TASTE_INSTRUCTIONS),
     "",
     `Bisherige Beschreibung: ${current.text || "(noch keine)"}`,
     `Bisherige Begriffe, die sie mag: ${current.likes.join(", ") || "(keine)"}; meiden: ${current.avoids.join(", ") || "(keine)"}`,

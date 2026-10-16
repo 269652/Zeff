@@ -1,3 +1,4 @@
+import { promptText } from "@/lib/prompts";
 import { clip as flatClip } from "@/lib/text";
 import { desc, like, or, type SQL } from "drizzle-orm";
 import { getDb, schema } from "@/db";
@@ -239,5 +240,5 @@ Dazu wurde schon gesucht, mehr gibt es nicht: antworte jetzt mit dem, was da ist
 }
 
 /** For prompts of the steps that can ask: the instructions (see RAG_INSTRUCTIONS) behind the step's own. */
-export const withRagInstructions = (instructions: string) => `${instructions}\n\n${RAG_INSTRUCTIONS}`;
+export const withRagInstructions = (instructions: string) => `${instructions}\n\n${promptText("rag", RAG_INSTRUCTIONS)}`;
 

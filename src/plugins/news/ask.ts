@@ -1,5 +1,9 @@
 import { getContent, searchItems } from "./store";
+import { fillPrompt, promptText } from "@/lib/prompts";
 import type { NewsItem } from "./shared";
+
+/** Its instructions — a page of System → Prompts. */
+export const ASK_INSTRUCTIONS = "Beantworte die Frage nur anhand der Quellen unten (Nachrichten, die die Person gesammelt hat). Erfinde nichts und nutze kein Wissen von außerhalb.\nBelege jede Aussage mit der Nummer der Quelle in eckigen Klammern, z. B. [2]. Sagen die Quellen nichts dazu, antworte genau das.";
 
 /**
  * Ask your news (optional, LLM plugin): a question answered from what Zeff has fetched — like asking a notebook. The
@@ -21,8 +25,7 @@ const SCHEMA = {
 
 export function askPrompt(question: string, sources: { n: number; source: string; title: string; text: string }[]): string {
   return [
-    "Beantworte die Frage nur anhand der Quellen unten (Nachrichten, die die Person gesammelt hat). Erfinde nichts und nutze kein Wissen von außerhalb.",
-    "Belege jede Aussage mit der Nummer der Quelle in eckigen Klammern, z. B. [2]. Sagen die Quellen nichts dazu, antworte genau das.",
+    promptText("news-ask", ASK_INSTRUCTIONS),
     `Frage: ${question}`,
     "",
     "Quellen:",

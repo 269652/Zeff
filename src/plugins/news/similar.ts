@@ -1,9 +1,13 @@
 import { decodeBody, parseFeed, type FeedItem } from "./feed";
+import { fillPrompt, promptText } from "@/lib/prompts";
 import { newsFetch } from "./http";
 import { analyze, cosine } from "./keyphrase";
 import { fetchArticle } from "./reader";
 import { topicFeedUrl } from "./shared";
 import { addItems, addSources, corpusForTagging, getContent, getItem, getPrefs, idsByUrls, learnedTop, listSources, searchItems, setReasons, setSimilar } from "./store";
+
+/** Its instructions — a page of System → Prompts. */
+export const SIMILAR_INSTRUCTIONS = "Du hilfst einer Person, mehr von dem zu finden, was sie liest. Sie hat bei diesem Artikel „Mehr davon“ gewählt.\nLies den Artikel und setze ihn zu dem, was über die Person bekannt ist. Sage in ein bis zwei Sätzen, warum er für sie relevant ist (angle) — nur mit dem, was unten steht, nichts erfinden.\nNenne dann 3–5 Suchanfragen für eine Nachrichtensuche, die weitere passende Artikel finden: konkrete Namen und Themen, verschiedene Blickwinkel (Hintergrund, Folgen, Gegenposition, Nachbarthemen), jeweils 2–6 Wörter.\nkeep: Begriffe, die ein passender Treffer wahrscheinlich enthält. avoid: Begriffe, die auf einen unpassenden Treffer deuten.";
 
 /**
  * "More like this": the article is read, set next to what you like and what Zeff knows about you (your interests, the headlines
@@ -34,10 +38,7 @@ const SCHEMA = {
 
 export function similarPrompt(article: { title: string; text: string }, profile: string[]): string {
   return [
-    "Du hilfst einer Person, mehr von dem zu finden, was sie liest. Sie hat bei diesem Artikel „Mehr davon“ gewählt.",
-    "Lies den Artikel und setze ihn zu dem, was über die Person bekannt ist. Sage in ein bis zwei Sätzen, warum er für sie relevant ist (angle) — nur mit dem, was unten steht, nichts erfinden.",
-    "Nenne dann 3–5 Suchanfragen für eine Nachrichtensuche, die weitere passende Artikel finden: konkrete Namen und Themen, verschiedene Blickwinkel (Hintergrund, Folgen, Gegenposition, Nachbarthemen), jeweils 2–6 Wörter.",
-    "keep: Begriffe, die ein passender Treffer wahrscheinlich enthält. avoid: Begriffe, die auf einen unpassenden Treffer deuten.",
+    promptText("news-similar", SIMILAR_INSTRUCTIONS),
     "",
     `Artikel: ${article.title}`,
     article.text.slice(0, 2500),

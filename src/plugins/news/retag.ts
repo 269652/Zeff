@@ -1,4 +1,5 @@
 import { clusterStories } from "./cluster";
+import { fillPrompt, promptText } from "@/lib/prompts";
 import { analyze } from "./keyphrase";
 import { corpusForTagging, getPrefs, setStories, setTags, untaggedByAi } from "./store";
 
@@ -10,6 +11,9 @@ import { corpusForTagging, getPrefs, setStories, setTags, untaggedByAi } from ".
  *     topics as short nouns, and a label for the concrete story the headline is about (the same label on every item about
  *     it, across sources). The AI's tags replace the corpus tagger's for those items and are kept.
  */
+
+/** Its instructions — a page of System → Prompts. */
+export const TAGGING_INSTRUCTIONS = "Du verschlagwortest Nachrichtenmeldungen für eine Entdecken-Funktion, in der man von Schlagwort zu Schlagwort springt.\nFür jede nummerierte Meldung:\n- tags: 2–4 Schlagworte. Personen, Organisationen, Orte und Unternehmen in kanonischer Schreibweise („Donald Trump“, „Deutsche Bahn“, „Bärbel Bas“), dazu 1–2 Themen als kurze Substantive („Cyberangriff“, „Klimaschutz“). Keine allgemeinen Wörter wie Nachrichten, Politik, Studie, Meldung, Update.\n- story: ein kurzes Label für das konkrete Ereignis, um das es geht („Energie-Waffenruhe Ukraine“, „Rücktritt Bärbel Bas“). Bei mehreren Meldungen über dasselbe Ereignis genau dasselbe Label benutzen. Leer lassen, wenn es kein einzelnes Ereignis ist (Ratgeber, Kolumne, Feature).\nNutze nur, was in Titel und Kurztext steht. Gib für jede Nummer genau einen Eintrag.";
 
 /**
  * The text analytics over the recent items (no AI): keyphrase tags with a normalisation pass, and the stories — reports grouped by
@@ -57,11 +61,7 @@ const SCHEMA = {
 
 export function taggingPrompt(items: { n: number; title: string; summary: string }[]): string {
   return [
-    "Du verschlagwortest Nachrichtenmeldungen für eine Entdecken-Funktion, in der man von Schlagwort zu Schlagwort springt.",
-    "Für jede nummerierte Meldung:",
-    "- tags: 2–4 Schlagworte. Personen, Organisationen, Orte und Unternehmen in kanonischer Schreibweise („Donald Trump“, „Deutsche Bahn“, „Bärbel Bas“), dazu 1–2 Themen als kurze Substantive („Cyberangriff“, „Klimaschutz“). Keine allgemeinen Wörter wie Nachrichten, Politik, Studie, Meldung, Update.",
-    "- story: ein kurzes Label für das konkrete Ereignis, um das es geht („Energie-Waffenruhe Ukraine“, „Rücktritt Bärbel Bas“). Bei mehreren Meldungen über dasselbe Ereignis genau dasselbe Label benutzen. Leer lassen, wenn es kein einzelnes Ereignis ist (Ratgeber, Kolumne, Feature).",
-    "Nutze nur, was in Titel und Kurztext steht. Gib für jede Nummer genau einen Eintrag.",
+    promptText("news-tags", TAGGING_INSTRUCTIONS),
     "",
     ...items.map((i) => `${i.n}. ${i.title}${i.summary ? ` — ${i.summary.slice(0, 160)}` : ""}`),
   ].join("\n");

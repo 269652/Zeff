@@ -1,3 +1,4 @@
+import { promptText } from "@/lib/prompts";
 import { timingSafeEqual } from "node:crypto";
 import { createMcpHandler } from "mcp-handler";
 import { DEFAULT_ACCOUNT, accountById, withAccount } from "@/db/accounts";
@@ -25,7 +26,7 @@ function handlerFor(id: string, name: string): Handler {
   if (!h) {
     h = createMcpHandler((server) => registerZeffTools(server), {
       serverInfo: SERVER_INFO,
-      instructions: `${INSTRUCTIONS}\n\nThis connection is Zeff's account "${name}": everything you book, read and search here is that account's.`,
+      instructions: `${promptText("mcp", INSTRUCTIONS)}\n\nThis connection is Zeff's account "${name}": everything you book, read and search here is that account's.`,
       verboseLogs: process.env.ZEFF_MCP_VERBOSE === "1",
     });
     handlers.set(id, { gen: GENERATION, h });

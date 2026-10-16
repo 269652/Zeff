@@ -1,4 +1,5 @@
 import { inThisAccount } from "@/db/accounts";
+import { fillPrompt } from "@/lib/prompts";
 import { getSqlite } from "@/db";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
@@ -95,13 +96,15 @@ async function evidence(p: Person): Promise<string[]> {
   return out.slice(0, 80);
 }
 
+/** How a person's dates are found ({{name}}; {{aliases}}: " (auch: …)" or nothing) — a page of System → Prompts. */
+export const PEOPLE_DATES_INSTRUCTIONS = "Finde die wichtigen Daten einer Person meines Lebens: ihren Geburtstag, Jahrestage (Hochzeit, Kennenlernen …) und andere Daten, die man sich merken sollte. Die Person: {{name}}{{aliases}}.\nUnten steht, was meine Wissensbasis, meine Fakten und meine Nachrichten über sie sagen (je Zeile mit Quelle). Nimm NUR Daten, die dort ausdrücklich stehen und sicher DIESE Person betreffen — nichts erschließen, nichts raten (ein „morgen hat sie Geburtstag“ in einer Nachricht vom 15.10. heißt 16.10.; das darfst du ausrechnen). Termine, die nur einmal stattfinden (ein Arzttermin, eine Party), nur, wenn sie noch kommen. Zu jedem Datum die belegende Stelle als quote. Nichts gefunden: eine leere Liste. Nur JSON nach diesem Schema:";
+
 /** The AI's dates for them: proposed. How many new. */
 export async function datesWithAi(p: Person): Promise<number> {
   const found = await evidence(p);
   if (!found.length) return 0;
   const { runAi } = await import("@/lib/ai");
-  const prompt = `Finde die wichtigen Daten einer Person meines Lebens: ihren Geburtstag, Jahrestage (Hochzeit, Kennenlernen …) und andere Daten, die man sich merken sollte. Die Person: ${p.name}${p.aliases.length ? ` (auch: ${p.aliases.join(", ")})` : ""}.
-Unten steht, was meine Wissensbasis, meine Fakten und meine Nachrichten über sie sagen (je Zeile mit Quelle). Nimm NUR Daten, die dort ausdrücklich stehen und sicher DIESE Person betreffen — nichts erschließen, nichts raten (ein „morgen hat sie Geburtstag“ in einer Nachricht vom 15.10. heißt 16.10.; das darfst du ausrechnen). Termine, die nur einmal stattfinden (ein Arzttermin, eine Party), nur, wenn sie noch kommen. Zu jedem Datum die belegende Stelle als quote. Nichts gefunden: eine leere Liste. Nur JSON nach diesem Schema:
+  const prompt = `${fillPrompt("people-dates", PEOPLE_DATES_INSTRUCTIONS, { name: p.name, aliases: p.aliases.length ? ` (auch: ${p.aliases.join(", ")})` : "" })}
 ${JSON.stringify(SCHEMA)}
 
 ${found.join("\n")}`;

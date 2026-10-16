@@ -1,5 +1,9 @@
 import { getPref, setPref } from "@/lib/prefs";
+import { fillPrompt, promptText } from "@/lib/prompts";
 import { getContent, getPrefs, listItems } from "./store";
+
+/** Its instructions — a page of System → Prompts. */
+export const DIGEST_INSTRUCTIONS = "Du bist der Nachrichten-Assistent einer Person — wie ein Notizbuch über ihre Nachrichten.\nFasse den Tag zusammen: was ist wichtig (overview), welche 3–6 Themen ziehen sich durch die Meldungen (themes, mit kurzer Zusammenfassung und den Nummern der Meldungen, auf die sie sich stützt) und welche bis zu 5 Meldungen soll sie zuerst lesen (picks).\nErfinde nichts: nur, was in den Titeln und Kurztexten steht. Gib bei jedem Thema die Nummern der Meldungen an, auf die du dich stützt. Antworte auf Deutsch, knapp.";
 
 /**
  * The AI briefing (optional, LLM plugin) — like a notebook over your news: from the best unread items it writes what matters
@@ -40,9 +44,7 @@ export const getDigest = (): Digest | null => {
 
 export function digestPrompt(interests: string[], items: { n: number; source: string; title: string; summary: string }[]): string {
   return [
-    "Du bist der Nachrichten-Assistent einer Person — wie ein Notizbuch über ihre Nachrichten.",
-    "Fasse den Tag zusammen: was ist wichtig (overview), welche 3–6 Themen ziehen sich durch die Meldungen (themes, mit kurzer Zusammenfassung und den Nummern der Meldungen, auf die sie sich stützt) und welche bis zu 5 Meldungen soll sie zuerst lesen (picks).",
-    "Erfinde nichts: nur, was in den Titeln und Kurztexten steht. Gib bei jedem Thema die Nummern der Meldungen an, auf die du dich stützt. Antworte auf Deutsch, knapp.",
+    promptText("news-digest", DIGEST_INSTRUCTIONS),
     `Interessen: ${interests.length ? interests.join(", ") : "(keine angegeben)"}`,
     "",
     "Meldungen:",
