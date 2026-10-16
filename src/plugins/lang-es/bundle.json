@@ -5468,5 +5468,7 @@
   "A new page below this one, written right here": "Una página nueva debajo de esta, escrita aquí mismo",
   "Search pages and databases …": "Buscar páginas y bases de datos …",
   "Below this page": "Debajo de esta página",
-  "Everywhere else": "En cualquier otro lugar"
+  "Everywhere else": "En cualquier otro lugar",
+  "{n} records": "{n} registros",
+  "Your profiles — a row per person with aliases, addresses, chat, Jira account, note, next date, the pages that mention them, context, knowledge, todos and shared tickets. Edits go to the profile.": "Tus perfiles: una fila por persona con alias, direcciones, chat, cuenta de Jira, nota, próxima fecha, las páginas que la mencionan, contexto, conocimiento, todos y tickets compartidos. Los cambios van al perfil."
 }

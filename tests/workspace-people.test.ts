@@ -134,3 +134,51 @@ test("ensurePeopleDatabase: made once with the People plugin — and left alone 
   await ensurePeopleDatabase();
   assert.equal(peopleDatabase(), null, "a removed one is not made again");
 });
+
+test("the people database: pages that mention them, context, knowledge, todos, shared tickets — and the profile as the row's page", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["workspace", "people", "todos"]) setInstalled(id, true);
+  const p = await import("@/plugins/people/store");
+  const g = await import("@/plugins/people/graph");
+  const w = await import("@/plugins/workspace/store");
+  const { addManualTodo } = await import("@/lib/boards/store");
+  const { runPipeline } = await import("@/plugins/workspace/pipeline");
+  const { createExtSourceDatabase } = await import("@/plugins/workspace/derived");
+  const hanna = p.createPerson({ name: "Hanna Acht", aliases: ["Hanni"] });
+  p.setCompiled(hanna, { connection: "Teamleitung im Relaunch", keyFacts: ["Entscheidet über das Budget"], funFacts: [], at: new Date().toISOString(), sources: 3 });
+  g.addClaim({ personId: hanna, kind: "role", text: "Leitet das Frontend-Team", status: "confirmed" });
+  g.addLink({ personId: hanna, rel: "on-ticket", targetType: "ticket", targetRef: "PROJ-77", status: "confirmed" });
+  addManualTodo({ ticket: "", text: "Hanni wegen der Freigabe anrufen" });
+  addManualTodo({ ticket: "", text: "Ganz anderes" });
+  w.createPage({ title: "Kickoff", content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "zeffRef", attrs: { kind: "person", ref: String(hanna), label: "Hanna Acht" } }] }] } });
+
+  const id = await createExtSourceDatabase("people");
+  await runPipeline(id, { ai: false });
+  const d = w.getDatabase(id)!;
+  const row = w.rawRows(id).find((r) => r.title === "Hanna Acht")!;
+  const cell = (name: string) => String(row.cells[d.schema.properties.find((q) => q.name === name)!.id] ?? "");
+  assert.equal(cell("Pages"), "Kickoff");
+  assert.equal(cell("Context"), "Teamleitung im Relaunch");
+  assert.match(cell("Knowledge"), /Leitet das Frontend-Team/);
+  assert.match(cell("Todos"), /Hanni wegen der Freigabe anrufen/);
+  assert.ok(!cell("Todos").includes("Ganz anderes"), "only the todos that name them (by alias too)");
+  assert.equal(cell("Tickets"), "PROJ-77");
+  const page = w.getPage(row.id)!;
+  const text = JSON.stringify(page.content);
+  assert.ok(text.includes("Teamleitung im Relaunch") && text.includes("Entscheidet über das Budget"), "the profile on the row's page");
+});
+
+test("data sources lists what plugins bring — People, with its count and its databases", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["workspace", "people"]) setInstalled(id, true);
+  const p = await import("@/plugins/people/store");
+  const { createExtSourceDatabase } = await import("@/plugins/workspace/derived");
+  const { sourcesOverview } = await import("@/plugins/workspace/sources");
+  const before = p.listPeople().length;
+  const db = await createExtSourceDatabase("people", "Meine Leute");
+  const src = (await sourcesOverview()).find((s) => s.key === "ext:people")!;
+  assert.ok(src, "People is listed");
+  assert.equal(src.name, "People");
+  assert.equal(src.count, before);
+  assert.ok(src.databases.some((x) => x.href === `/workspace/${db}`), "its databases");
+});

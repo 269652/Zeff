@@ -1,4 +1,6 @@
+import "@/plugins/contributions";
 import { getSqlite } from "@/db";
+import { workspaceSources } from "./source-point";
 import { listTodos } from "@/lib/boards/store";
 import { listJiraBoards } from "@/lib/jira/store";
 import { getJiraSyncConfig } from "@/lib/jira/sync";
@@ -14,7 +16,10 @@ import { isInstalled } from "@/plugins/state";
  */
 
 export type SourceView = {
-  key: "jira" | "keep" | "todos" | "mail" | "messages";
+  /** The built-in ones, or "ext:<id>" — a source a plugin brings (People). */
+  key: "jira" | "keep" | "todos" | "mail" | "messages" | `ext:${string}`;
+  /** A plugin source: what the records are. */
+  hint?: string;
   name: string;
   /** Its sync step (the Sync menu's key); none: it's read as it is. */
   step: string | null;
@@ -39,6 +44,7 @@ export function sourcesOverview(): SourceView[] {
   if (isInstalled("todos")) out.push(todoSource());
   if (isInstalled("outlook-mail") || isInstalled("gmail")) out.push(mailSource());
   if (isInstalled("teams") || isInstalled("whatsapp") || isInstalled("signal")) out.push(messageSource());
+  for (const c of workspaceSources.list()) for (const s of c.impl) out.push(extSource(s));
   return out;
 }
 
@@ -92,6 +98,21 @@ function messageSource(): SourceView {
   const chats = (getSqlite().prepare("select count(*) as n from emails where folder in ('WhatsApp', 'Signal')").get() as { n: number }).n;
   const teams = (getSqlite().prepare("select count(*) as n from teams_messages").get() as { n: number }).n;
   return { key: "messages", name: "Teams · WhatsApp · Signal", step: null, ready: true, setup: null, count: chats + teams, databases: databasesUsing("messages"), home: null };
+}
+
+/** A source a plugin brings (People's profiles …): its count, and the databases that name it. */
+function extSource(s: import("./source-point").WorkspaceSource): SourceView {
+  const rows = getSqlite().prepare(`select id, title, schema from ws_pages where kind = 'database' and archived_at is null and schema like ?`).all(`%"ext":"${s.id}"%`) as { id: number; title: string; schema: string }[];
+  const databases = rows
+    .filter((r) => {
+      try {
+        return ((JSON.parse(r.schema) as { pipeline?: { steps?: { kind: string; from?: string; ext?: string }[] } }).pipeline?.steps ?? []).some((x) => x.kind === "source" && x.from === "ext" && x.ext === s.id);
+      } catch {
+        return false;
+      }
+    })
+    .map((r) => ({ title: r.title, href: `/workspace/${r.id}` }));
+  return { key: `ext:${s.id}`, name: s.label, hint: s.hint, step: null, ready: true, setup: null, count: s.count?.() ?? 0, databases };
 }
 
 /** The databases that name this channel as a source (any — the inbox, derived ones, your own): the catalog's links. */

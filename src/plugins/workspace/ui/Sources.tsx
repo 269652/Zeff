@@ -38,7 +38,7 @@ export function SourcesView({ sources }: { sources: SourceView[] }) {
       if (on) await keepSourceDatabasesAction("jira");
       router.refresh();
     });
-  const info: Record<SourceView["key"], string> = {
+  const info: Record<string, string> = {
     jira: t("Each board switched on is a board database here, kept by every Jira sync — read-only (Jira is where tickets change); My briefing a page over the briefing's tickets."),
     keep: t("Google Keep's notes as a gallery database, kept by every Keep sync — read-only."),
     todos: t("Your todos — a database of them, or a step of any database's pipeline."),
@@ -54,8 +54,8 @@ export function SourcesView({ sources }: { sources: SourceView[] }) {
       {sources.map((s) => (
         <section key={s.key} className="card space-y-3 p-4">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-semibold">{s.name}</h2>
-            <span className="text-sm text-zinc-500">{s.key === "jira" ? t("{n} boards on", { n: s.count }) : s.key === "keep" ? t("{n} notes", { n: s.count }) : s.key === "todos" ? t("{n} open todos", { n: s.count }) : s.key === "mail" ? t("{n} mails", { n: s.count }) : t("{n} messages", { n: s.count })}</span>
+            <h2 className="text-lg font-semibold">{s.key.startsWith("ext:") ? t(s.name) : s.name}</h2>
+            <span className="text-sm text-zinc-500">{s.key.startsWith("ext:") ? t("{n} records", { n: s.count }) : s.key === "jira" ? t("{n} boards on", { n: s.count }) : s.key === "keep" ? t("{n} notes", { n: s.count }) : s.key === "todos" ? t("{n} open todos", { n: s.count }) : s.key === "mail" ? t("{n} mails", { n: s.count }) : t("{n} messages", { n: s.count })}</span>
             <span className="flex-1" />
             {s.setup && (
               <Link href={s.setup.href} className="btn btn-sm">
@@ -82,7 +82,7 @@ export function SourcesView({ sources }: { sources: SourceView[] }) {
               </button>
             )}
           </div>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">{info[s.key]}</p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">{info[s.key] ?? (s.hint ? t(s.hint) : "")}</p>
           {(s.key === "jira" || s.key === "keep" || s.key === "mail") && <SyncEvery syncKey={s.key} name={s.name} />}
           {s.boards && (
             <ul className="divide-y divide-zinc-100 text-sm dark:divide-zinc-800">

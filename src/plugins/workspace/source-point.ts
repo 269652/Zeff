@@ -14,6 +14,8 @@ export type WorkspaceSource = {
   icon: string;
   /** One line: what the records are. */
   hint?: string;
+  /** How many records it has (the data sources page). */
+  count?: () => number;
   read: () => SourceRecord[] | Promise<SourceRecord[]>;
   pull?: (dbId: number, rows: Row[], schema: DbSchema) => void | Promise<void>;
 };
