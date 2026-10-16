@@ -96,3 +96,11 @@ test("system prompts can be chosen as instructions of an AI step (with their gro
   assert.equal(sys?.group, "Todos & Lage", "a system prompt, by its group");
   assert.match(instructionText([sys!.id]), /Du erstellst meine Ticket-Lage/);
 });
+
+test("fillPrompt: a prompt with placeholders — the page shows {{today}}, the code fills it in; unknown ones stay as written", async () => {
+  const p = await import("@/lib/prompts");
+  assert.equal(p.fillPrompt("no-such-key", "Heute ist {{today}}. Ich bin{{me}}. {{other}}", { today: "Freitag", me: " Moritz" }), "Heute ist Freitag. Ich bin Moritz. {{other}}");
+  const recap = (await p.systemPrompts()).find((x) => x.key === "recap");
+  assert.ok(recap, "the recap is a system prompt too");
+  assert.deepEqual(p.PROMPTS.find((x) => x.key === "recap")!.vars, ["me", "date"]);
+});

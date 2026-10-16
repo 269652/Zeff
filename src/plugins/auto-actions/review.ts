@@ -7,6 +7,7 @@
  */
 // "Do in Zeff" (what plugins offer to the AI) is registered by this: the dictionary and the checks need it.
 import "@/plugins/actions/server";
+import { fillPrompt, promptText } from "@/lib/prompts";
 import { createHash } from "node:crypto";
 import { pad2 as two } from "@/lib/text";
 import { throwIfAborted } from "@/lib/abort";
@@ -58,7 +59,8 @@ const SCHEMA = {
 };
 type Answer = { todos?: { id?: number; ops?: unknown[]; why?: string }[] };
 
-const INSTRUCTIONS = (me: string, today: string) => `Du machst aus Todos Aktionen, die ich (${me || "der Nutzer"}) mit EINEM Klick ausführe. Heute ist ${today}.
+/** The auto-actions' instructions ({{me}}: your name; {{today}}: the day) — a page of System → Prompts. */
+export const INSTRUCTIONS = `Du machst aus Todos Aktionen, die ich ({{me}}) mit EINEM Klick ausführe. Heute ist {{today}}.
 
 Unten stehen offene Todos — jedes mit seinem Ticket (Status, Beteiligte mit Benutzernamen, mögliche Übergänge), woher es kommt (Kommentare, Teams-Nachrichten, Mails mit Kennung), meinen Notizen und Berichten. Und das Wörterbuch der Aktionen, die ich habe.
 
@@ -246,7 +248,7 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
     const { TODO_OP_TYPES } = await import("@/lib/boards/shared");
     const { getPref, setPref } = await import("@/lib/prefs");
     // (The prompt's own text counts too: a better prompt looks at every todo without actions again, once.)
-    const promptHash = createHash("sha1").update(INSTRUCTIONS("", "")).digest("hex").slice(0, 8);
+    const promptHash = createHash("sha1").update(promptText("auto-actions", INSTRUCTIONS)).digest("hex").slice(0, 8);
     const offered = TODO_OP_TYPES.filter((t) => opAvailable(t)).sort().join(",") + `|${promptHash}`;
     const all = opts.all || getPref("autoactions:offered", "") !== offered;
     // Not looked at yet, or changed since (a new note, a new source).
@@ -315,7 +317,7 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
       const text = batch.map((b) => b.text).join("\n\n");
       const book = addressBook(text);
       const prompt = [
-        INSTRUCTIONS(me, today) + extraBlock("autoactions"),
+        fillPrompt("auto-actions", INSTRUCTIONS, { me: me || "der Nutzer", today }) + extraBlock("autoactions"),
         "",
         dictionary,
         "",

@@ -6,7 +6,7 @@ import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { resetSystemPageAction, systemPageAction } from "../actions";
 
-type Info = { kind: string; title: string; uses: string; modified: boolean; resettable: boolean };
+type Info = { kind: string; title: string; uses: string; modified: boolean; resettable: boolean; vars: string[] };
 
 /** Over a system page: what it is and what uses it, that it stays — changed from its default: back to it. */
 export function SystemPageBar({ pageId }: { pageId: number }) {
@@ -22,6 +22,7 @@ export function SystemPageBar({ pageId }: { pageId: number }) {
       <span className="font-medium">{t("System page")}</span>
       {info.title && <span className="text-zinc-600 dark:text-zinc-400">· {info.kind}</span>}
       {info.uses && <span className="text-zinc-600 dark:text-zinc-400">· {t("used by: {what}", { what: info.uses })}</span>}
+      {info.vars.length > 0 && <span className="text-zinc-600 dark:text-zinc-400">· {t("placeholders:")} {info.vars.map((v) => <code key={v} className="mx-0.5 text-xs">{`{{${v}}}`}</code>)}</span>}
       {info.modified && <span className="rounded bg-amber-200/70 px-1.5 text-xs dark:bg-amber-900/60">{t("changed")}</span>}
       <span className="flex-1" />
       {info.resettable && info.modified && (

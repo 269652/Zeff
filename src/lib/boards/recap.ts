@@ -1,4 +1,5 @@
 import { isoDay } from "@/lib/text";
+import { fillPrompt } from "@/lib/prompts";
 import { mailLink } from "@/lib/mail/shared";
 import { gitText } from "@/lib/git";
 import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
@@ -221,18 +222,23 @@ const KIND_LABEL: Record<RecapFact["kind"], string> = {
 const factLine = (f: RecapFact) =>
   `- ${f.at ? `${new Date(f.at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} ` : ""}[${KIND_LABEL[f.kind]}${f.hours ? ` ${f.hours} h` : ""}] ${f.text}`;
 
+/** The recap's instructions ({{me}}: " (your name)" or nothing; {{date}}: the day) — a page of System → Prompts. */
+export const RECAP_INSTRUCTIONS = [
+  "Schreib auf, was ich{{me}} am {{date}} gemacht habe — für mein Standup und meinen Überblick. Auf Deutsch, in der Ich-Form, nüchtern und konkret: was ich gemacht habe, was fertig wurde, was offen blieb. Nur was in den Daten steht — nichts erfinden, nichts ausschmücken.",
+  "",
+  "Die Daten: meine Buchungen in Zeff (mit Stunden), erledigte Todos, Läufe von Workern (W-…, KI-Agenten, die in meinem Auftrag gearbeitet haben — das zählt als meine Arbeit), meine Jira-Kommentare und -Änderungen, meine Commits und GitLab-Kommentare/Merge Requests.",
+  "",
+  "Gib zurück:",
+  "- summary: der Tag insgesamt in 3–5 Sätzen.",
+  "- tickets: für jedes Ticket unten (Schlüssel wie angegeben) lead — ein Satz, was ich daran gemacht habe und wo es steht — und done — kurze Stichpunkte, Verb zuerst (Commits, Kommentare und Todos zum selben Thema fasst du zusammen).",
+  "- other: Arbeit ohne Ticket (Meetings, Internes) als kurze Stichpunkte.",
+].join("\n");
+
 function promptOf(day: string, facts: RecapFacts, me: string | null): string {
   const [y, m, d] = day.split("-").map(Number);
   const date = new Date(y, m - 1, d).toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   return [
-    `Schreib auf, was ich${me ? ` (${me})` : ""} am ${date} gemacht habe — für mein Standup und meinen Überblick. Auf Deutsch, in der Ich-Form, nüchtern und konkret: was ich gemacht habe, was fertig wurde, was offen blieb. Nur was in den Daten steht — nichts erfinden, nichts ausschmücken.`,
-    "",
-    "Die Daten: meine Buchungen in Zeff (mit Stunden), erledigte Todos, Läufe von Workern (W-…, KI-Agenten, die in meinem Auftrag gearbeitet haben — das zählt als meine Arbeit), meine Jira-Kommentare und -Änderungen, meine Commits und GitLab-Kommentare/Merge Requests.",
-    "",
-    "Gib zurück:",
-    "- summary: der Tag insgesamt in 3–5 Sätzen.",
-    "- tickets: für jedes Ticket unten (Schlüssel wie angegeben) lead — ein Satz, was ich daran gemacht habe und wo es steht — und done — kurze Stichpunkte, Verb zuerst (Commits, Kommentare und Todos zum selben Thema fasst du zusammen).",
-    "- other: Arbeit ohne Ticket (Meetings, Internes) als kurze Stichpunkte.",
+    fillPrompt("recap", RECAP_INSTRUCTIONS, { me: me ? ` (${me})` : "", date }),
     "",
     `# Tickets (${facts.tickets.length})`,
     "",

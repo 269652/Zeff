@@ -1,4 +1,5 @@
 import { runAi } from "@/lib/ai";
+import { fillPrompt } from "@/lib/prompts";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { conversationOf, mailsByKeys } from "@/lib/mail/store";
@@ -21,6 +22,9 @@ const SCHEMA = { type: "object", properties: { reply: { type: "string" } }, requ
  * chat, the mail thread, the Teams message), in its language and tone. Never sent: you copy it
  * and send it yourself.
  */
+/** The reply drafts' instructions ({{channel}}: Mail, Teams-Nachricht, WhatsApp-Unterhaltung …) — a page of System → Prompts. */
+export const INSTRUCTIONS = "Schreib meine Antwort auf diese {{channel}} — ich schicke sie selbst ab.\n\nDie Antwort erledigt dieses Todo, so weit eine Nachricht das kann. Sprache, Anrede (du/Sie) und Ton wie im Verlauf; kurz und natürlich, so wie ich schreibe (meine Nachrichten stehen als „Ich“ im Verlauf). Keine Floskeln, keine Platzhalter in eckigen Klammern — wo etwas fehlt (eine Uhrzeit, ein Datum), schlag etwas Konkretes und Plausibles vor oder frag kurz zurück. Bei Mails ohne Betreffzeile, nur der Text mit Gruß.";
+
 export async function draftReply(todoId: number): Promise<ReplyDraft> {
   const todo = getTodo(todoId);
   if (!todo) return { ok: false, error: t("That todo doesn't exist.") };
@@ -56,8 +60,7 @@ export async function draftReply(todoId: number): Promise<ReplyDraft> {
 
   const notes = todo.userNotes.map((n) => `- ${n.text}`).join("\n");
   const prompt = [
-    `Schreib meine Antwort auf diese ${target.channel === "whatsapp" ? "WhatsApp-Unterhaltung" : target.channel === "signal" ? "Signal-Unterhaltung" : target.channel === "teams" ? "Teams-Nachricht" : "Mail"} — ich schicke sie selbst ab.`,
-    "Die Antwort erledigt dieses Todo, so weit eine Nachricht das kann. Sprache, Anrede (du/Sie) und Ton wie im Verlauf; kurz und natürlich, so wie ich schreibe (meine Nachrichten stehen als „Ich“ im Verlauf). Keine Floskeln, keine Platzhalter in eckigen Klammern — wo etwas fehlt (eine Uhrzeit, ein Datum), schlag etwas Konkretes und Plausibles vor oder frag kurz zurück. Bei Mails ohne Betreffzeile, nur der Text mit Gruß." + extraBlock("replies"),
+    fillPrompt("reply-draft", INSTRUCTIONS, { channel: target.channel === "whatsapp" ? "WhatsApp-Unterhaltung" : target.channel === "signal" ? "Signal-Unterhaltung" : target.channel === "teams" ? "Teams-Nachricht" : "Mail" }) + extraBlock("replies"),
     "",
     `# Todo\n${todo.text}${todo.due ? ` (Frist ${todo.due})` : ""}`,
     notes && `# Meine Notizen dazu\n${notes}`,

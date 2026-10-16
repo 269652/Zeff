@@ -64,7 +64,7 @@ export function promptText(key: string, builtIn: string, before: string = builtI
 /** Whether a step's own instructions are in its prompt's page now (so not added on top). */
 export const stepFolded = (step: string): boolean => getPref<string[]>(FOLDED, []).includes(step);
 
-export type SystemPrompt = { key: string; group: string; title: string; uses: string; pageId: number | null; modified: boolean };
+export type SystemPrompt = { key: string; group: string; title: string; uses: string; pageId: number | null; modified: boolean; vars: string[] };
 
 /** The prompts there are (their plugin installed), each with its page and whether it differs from the built-in text. */
 export async function systemPrompts(): Promise<SystemPrompt[]> {
@@ -72,7 +72,7 @@ export async function systemPrompts(): Promise<SystemPrompt[]> {
   const out: SystemPrompt[] = [];
   for (const e of PROMPTS.filter(installed)) {
     const text = pageText(ids[e.key]);
-    out.push({ key: e.key, group: e.group, title: e.title, uses: e.uses, pageId: text === null ? null : ids[e.key], modified: text !== null && text !== asKept(await e.builtIn()) });
+    out.push({ key: e.key, group: e.group, title: e.title, uses: e.uses, vars: e.vars ?? [], pageId: text === null ? null : ids[e.key], modified: text !== null && text !== asKept(await e.builtIn()) });
   }
   return out;
 }
@@ -160,4 +160,12 @@ export async function promptHref(key: string): Promise<string | null> {
 export function systemPromptPages(): { key: string; pageId: number; group: string }[] {
   const ids = pages();
   return PROMPTS.filter(installed).flatMap((e) => (ids[e.key] && pageText(ids[e.key]) !== null ? [{ key: e.key, pageId: ids[e.key], group: e.group }] : []));
+}
+
+/**
+ * A prompt with placeholders ({{today}}, {{me}} …): its page's text (or the built-in template), the values filled in. A
+ * placeholder without a value stays as written.
+ */
+export function fillPrompt(key: string, template: string, values: Record<string, string>): string {
+  return promptText(key, template).replace(/\{\{(\w+)\}\}/g, (all, name: string) => (name in values ? values[name] : all));
 }
