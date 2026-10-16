@@ -5439,5 +5439,18 @@
   "Field name": "Feldname",
   "{n} rows would get it: {titles}": "{n} Zeilen würden es bekommen: {titles}",
   "No row matches.": "Keine Zeile passt.",
-  "The rows its rules match get the value in that field, at every run. Nothing else changes — remove the step and the field stays empty again.": "Die Zeilen, auf die seine Regeln passen, bekommen bei jedem Lauf den Wert in diesem Feld. Sonst ändert sich nichts – entfernst du den Schritt, bleibt das Feld wieder leer."
+  "The rows its rules match get the value in that field, at every run. Nothing else changes — remove the step and the field stays empty again.": "Die Zeilen, auf die seine Regeln passen, bekommen bei jedem Lauf den Wert in diesem Feld. Sonst ändert sich nichts – entfernst du den Schritt, bleibt das Feld wieder leer.",
+  "Bring fields from another database": "Felder aus einer anderen Datenbank holen",
+  "Join": "Verknüpfen",
+  "The row's": "Das Feld der Zeile",
+  "Field here": "Feld hier",
+  "names a row of": "nennt eine Zeile aus",
+  "by its": "über sein",
+  "title": "Titel",
+  "Field there": "Feld dort",
+  "bring": "hole",
+  "fields, comma-separated": "Felder, durch Komma getrennt",
+  "Fields to bring": "Felder, die geholt werden",
+  "{n} of {total} rows find their row: {titles}": "{n} von {total} Zeilen finden ihre Zeile: {titles}",
+  "A name matches a row when it is that row's title (or field), or contains it — an address in “Name <address>” too. The fields come onto the row at every run.": "Ein Name passt zu einer Zeile, wenn er ihr Titel (oder Feld) ist oder ihn enthält – auch eine Adresse in „Name <Adresse>“. Die Felder kommen bei jedem Lauf auf die Zeile."
 }

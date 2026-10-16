@@ -364,6 +364,49 @@ function applySet(records: SourceRecord[], f: PipelineStep): SourceRecord[] {
   return records.map((r) => (matches(r, f) ? { ...r, fields: { ...r.fields, [f.name!]: f.setValue ?? "" } } : r));
 }
 
+const norm = (v: unknown) => String(v ?? "").toLowerCase().replace(/\s*<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+
+/**
+ * A join step: the field here (a mail's From, a ticket's reporter …) names a row of another database — its title, or the field
+ * `by` — and the fields `bring` of that row come onto the record. A name matches when it is the key, or the key is in it
+ * (an address, "Name <address>"); the first row that does is the one.
+ */
+function applyJoin(records: SourceRecord[], f: PipelineStep): { records: SourceRecord[]; matched: Set<string> } {
+  const matched = new Set<string>();
+  const target = f.dbId ? getDatabase(f.dbId) : null;
+  if (!target || !f.on) return { records, matched };
+  const keyProp = f.by ? target.schema.properties.find((p) => p.name.toLowerCase() === f.by!.toLowerCase()) : null;
+  const bring = (f.bring ?? []).flatMap((n) => target.schema.properties.filter((p) => p.name.toLowerCase() === n.toLowerCase()));
+  const table = rawRows(f.dbId!).map((row) => ({ key: norm(keyProp ? cellText(keyProp, row.cells[keyProp.id]) : row.title), row }));
+  const out = records.map((r) => {
+    const mine = norm(valueOf(r, f.on!));
+    const raw = String(valueOf(r, f.on!) ?? "").toLowerCase();
+    const hit = mine ? table.find((x) => x.key && (x.key === mine || mine.includes(x.key) || raw.includes(x.key))) : undefined;
+    if (!hit) return r;
+    matched.add(r.ref);
+    return { ...r, fields: { ...r.fields, ...Object.fromEntries(bring.map((p) => [p.name, cellText(p, hit.row.cells[p.id])]).filter((e) => !!e[1])) } };
+  });
+  return { records: out, matched };
+}
+
+/** What a join step would do now: each record before it, whether it finds its row — nothing is written. */
+export async function previewJoin(dbId: number, steps: PipelineStep[], stepId: string): Promise<{ title: string; matched: boolean }[]> {
+  const step = steps.find((s) => s.id === stepId && s.kind === "join");
+  if (!step) throw new Error("No such step.");
+  let records: SourceRecord[] = [];
+  for (const s of steps.slice(0, steps.indexOf(step))) {
+    if (s.kind === "source") {
+      const seen = new Set(records.map((r) => r.ref));
+      records = [...records, ...(await read(s, dbId)).filter((r) => !seen.has(r.ref))];
+    } else if (s.kind === "filter") records = filtered(records, s);
+    else if (s.kind === "set") records = applySet(records, s);
+    else if (s.kind === "join") records = applyJoin(records, s).records;
+  }
+  if (new Set(records.map((r) => r.dataType).filter(Boolean)).size > 1) records = records.map(unifyComm);
+  const { matched } = applyJoin(records, step);
+  return records.map((r) => ({ title: r.title, matched: matched.has(r.ref) }));
+}
+
 /** What a set step would change now: the records it matches, with the steps before it applied — nothing is written. */
 export async function previewSet(dbId: number, steps: PipelineStep[], stepId: string): Promise<{ title: string }[]> {
   const step = steps.find((s) => s.id === stepId && s.kind === "set");
@@ -376,6 +419,7 @@ export async function previewSet(dbId: number, steps: PipelineStep[], stepId: st
       records = [...records, ...got.filter((r) => !seen.has(r.ref))];
     } else if (s.kind === "filter") records = filtered(records, s);
     else if (s.kind === "set") records = applySet(records, s);
+    else if (s.kind === "join") records = applyJoin(records, s).records;
   }
   if (new Set(records.map((r) => r.dataType).filter(Boolean)).size > 1) records = records.map(unifyComm);
   return records.filter((r) => matches(r, step)).map((r) => ({ title: r.title }));
@@ -517,6 +561,7 @@ async function runPipelineOnce(dbId: number, opts: { ai?: boolean; force?: boole
         records = [...records, ...(mixed ? got.map(unifyComm) : got).filter((r) => !seen.has(r.ref))];
       } else if (s.kind === "filter") records = filtered(records, s);
       else if (s.kind === "set") records = applySet(records, s);
+      else if (s.kind === "join") records = applyJoin(records, s).records;
       else if (s.kind === "ai" && s.output === "filter") records = await aiFiltered(s, records);
     }
     // Whatever mixes mails and messages (also from other databases): the shared fields.

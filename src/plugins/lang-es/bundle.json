@@ -5439,5 +5439,18 @@
   "Field name": "Nombre del campo",
   "{n} rows would get it: {titles}": "{n} filas lo recibirían: {titles}",
   "No row matches.": "Ninguna fila coincide.",
-  "The rows its rules match get the value in that field, at every run. Nothing else changes — remove the step and the field stays empty again.": "Las filas que cumplen sus reglas reciben el valor en ese campo en cada ejecución. Nada más cambia: si quitas el paso, el campo vuelve a quedar vacío."
+  "The rows its rules match get the value in that field, at every run. Nothing else changes — remove the step and the field stays empty again.": "Las filas que cumplen sus reglas reciben el valor en ese campo en cada ejecución. Nada más cambia: si quitas el paso, el campo vuelve a quedar vacío.",
+  "Bring fields from another database": "Traer campos de otra base de datos",
+  "Join": "Unir",
+  "The row's": "El campo de la fila",
+  "Field here": "Campo aquí",
+  "names a row of": "nombra una fila de",
+  "by its": "por su",
+  "title": "título",
+  "Field there": "Campo allí",
+  "bring": "traer",
+  "fields, comma-separated": "campos, separados por comas",
+  "Fields to bring": "Campos a traer",
+  "{n} of {total} rows find their row: {titles}": "{n} de {total} filas encuentran su fila: {titles}",
+  "A name matches a row when it is that row's title (or field), or contains it — an address in “Name <address>” too. The fields come onto the row at every run.": "Un nombre coincide con una fila si es su título (o campo) o lo contiene, también una dirección en «Nombre <dirección>». Los campos pasan a la fila en cada ejecución."
 }

@@ -138,7 +138,7 @@ export type JiraCriteria = { mine?: boolean; involved?: boolean; briefed?: boole
  */
 export type PipelineStep = {
   id: string;
-  kind: "source" | "filter" | "ai" | "sort" | "write" | "set";
+  kind: "source" | "filter" | "ai" | "sort" | "write" | "set" | "join";
   from?: PipelineSource;
   jira?: JiraCriteria;
   mail?: MailCriteria;
@@ -157,12 +157,15 @@ export type PipelineStep = {
   match?: "all" | "any";
   /** Write: the database the rows that come out are put into (title, the fields of the same name, the text once). */
   to?: number;
-  /** Sort: the field (its name) the rows go by, and which way. */
+  /** Sort: the field (its name) the rows go by, and which way. Join: the field of the other database a name is matched with (default: its title). */
   by?: string;
   dir?: "asc" | "desc";
   prop?: string;
   /** Set: the value the field (`name`) gets on the rows its rules match. */
   setValue?: string;
+  /** Join: the field here (its name) that names a row of the database `dbId`, the field there it is matched with (default: its title), and the fields there brought along. */
+  on?: string;
+  bring?: string[];
   name?: string;
   prompt?: string;
   choices?: string[];
@@ -224,6 +227,8 @@ export function normalizePipeline(raw: unknown): Pipeline {
       steps.push(defined<PipelineStep>({ id, kind: "filter", text: str(s.text), openOnly: s.openOnly === true, recentDays: posInt(s.recentDays), limit: posInt(s.limit), rules: rules.length ? rules : undefined, match: rules.length && s.match === "any" ? "any" : undefined }));
     } else if (s.kind === "write") {
       if (posInt(s.to)) steps.push(defined<PipelineStep>({ id, kind: "write", to: posInt(s.to) }));
+    } else if (s.kind === "join") {
+      if (posInt(s.dbId) && str(s.on)) steps.push(defined<PipelineStep>({ id, kind: "join", dbId: posInt(s.dbId), on: str(s.on), by: str(s.by), bring: strs(s.bring) }));
     } else if (s.kind === "set") {
       const rules = (Array.isArray(s.rules) ? s.rules : []).flatMap((x): FilterRule[] => {
         const r = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;

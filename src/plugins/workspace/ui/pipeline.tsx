@@ -6,7 +6,7 @@ import { Markdown } from "@/components/Markdown";
 import { toast } from "@/components/Toaster";
 import { minutesText } from "@/plugins/sync-settings";
 import { RunLog } from "./RunLog";
-import { previewSetAction, previewAiFilterAction, instructionsAction, newInstructionAction, rejudgeAction, sourceSyncsAction } from "../actions";
+import { previewJoinAction, previewSetAction, previewAiFilterAction, instructionsAction, newInstructionAction, rejudgeAction, sourceSyncsAction } from "../actions";
 import { useT } from "@/components/I18nProvider";
 import { ATTENTIONS } from "@/lib/boards/shared";
 import { FILTER_OPS, newId, type DataType, type FilterRule, type JiraCriteria, type Pipeline, type PipelineSource, type PipelineStep } from "../model";
@@ -17,7 +17,7 @@ import { Dropdown, MenuItem, Modal } from "./kit";
  * database), filters, AI steps (a field on each row, a summary over all) — edited, saved, run.
  */
 
-const ICON: Record<string, string> = { write: "📤", aifilter: "🔎", actions: "⚡", jira: "🎫", keep: "🗒", todos: "☑", database: "🗃", mail: "✉", messages: "💬", knowledge: "📚", filter: "⏷", sort: "⇅", set: "🏷", field: "✨", summary: "🧭" };
+const ICON: Record<string, string> = { write: "📤", aifilter: "🔎", actions: "⚡", jira: "🎫", keep: "🗒", todos: "☑", database: "🗃", mail: "✉", messages: "💬", knowledge: "📚", filter: "⏷", sort: "⇅", set: "🏷", join: "🔗", field: "✨", summary: "🧭" };
 const kindOf = (s: PipelineStep) => (s.kind === "source" ? (s.from ?? "") : s.kind === "ai" ? (s.output === "filter" ? "aifilter" : (s.output ?? "")) : s.kind);
 const iconOf = (s: PipelineStep) => ICON[kindOf(s)];
 
@@ -61,7 +61,7 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, check
       setBusy(false);
     }
   };
-  const labels: Record<string, string> = { jira: t("Jira tickets"), keep: t("Google Keep notes"), todos: t("Todos"), database: t("Another database"), mail: t("Mails (Outlook, Gmail)"), messages: t("Messages (Teams, WhatsApp, Signal)"), knowledge: t("Knowledge: addresses (test, prod …)"), filter: t("Filter"), set: t("Set a field where …"), aifilter: t("AI: keep only what …"), actions: t("AI: suggest actions for each row"), sort: t("Sort"), write: t("Write the rows into another database"), field: t("AI: a field on each row"), summary: t("AI: one summary over all rows") };
+  const labels: Record<string, string> = { jira: t("Jira tickets"), keep: t("Google Keep notes"), todos: t("Todos"), database: t("Another database"), mail: t("Mails (Outlook, Gmail)"), messages: t("Messages (Teams, WhatsApp, Signal)"), knowledge: t("Knowledge: addresses (test, prod …)"), filter: t("Filter"), set: t("Set a field where …"), join: t("Bring fields from another database"), aifilter: t("AI: keep only what …"), actions: t("AI: suggest actions for each row"), sort: t("Sort"), write: t("Write the rows into another database"), field: t("AI: a field on each row"), summary: t("AI: one summary over all rows") };
   return (
     <Modal title={t("Sources & steps …")} onClose={onClose} wide>
       <p className="text-sm text-zinc-500">{t("Where this database's rows come from and what's done with them, top to bottom. A run keeps the result as its rows (yours stay: AI fields, pages); the AI steps go with the briefing.")}</p>
@@ -107,6 +107,7 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, check
         )}
         {!synced && <button type="button" className="btn btn-sm" onClick={() => add({ kind: "filter", openOnly: true })}>+ {t("Filter")}</button>}
         {!synced && <button type="button" className="btn btn-sm" onClick={() => add({ kind: "set", name: "", setValue: "" })}>+ 🏷 {t("Set a field")}</button>}
+        {!synced && <button type="button" className="btn btn-sm" onClick={() => add({ kind: "join", on: fields[0] ?? "", bring: [] })}>+ 🔗 {t("Join")}</button>}
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "sort", by: steps.find((x) => x.kind === "ai" && x.output === "field" && x.choices?.length)?.name ?? fields[0] ?? "" })}>+ ⇅ {t("Sort")}</button>
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "write" })}>+ 📤 {t("Write to a database")}</button>
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "ai", output: "field", name: t("Lage"), prompt: "" })}>+ ✨ {t("AI field")}</button>
@@ -304,6 +305,58 @@ function StepBody({ dbId, saved, step: s, allSteps, set, databases, fields }: { 
           ))}
         </select>
         <p className="text-xs text-zinc-500">{t("Each row that comes out is made once there — its title, the fields of the same name (a status or select by its name), its text. Changes follow; nothing is deleted, and a row you removed there isn't made again.")}</p>
+      </div>
+    );
+  if (s.kind === "join")
+    return (
+      <div className="space-y-2">
+        <div className={row}>
+          <label className="flex items-center gap-1.5 text-sm">
+            {t("The row's")}
+            <select className="input w-auto text-sm" value={s.on ?? ""} onChange={(e) => set({ on: e.target.value })} aria-label={t("Field here")}>
+              {[...new Set([...(s.on ? [s.on] : []), ...fields])].map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-1.5 text-sm">
+            {t("names a row of")}
+            <select className="input w-auto text-sm" value={s.dbId ?? ""} onChange={(e) => set({ dbId: Number(e.target.value) || undefined })} aria-label={t("Which database")}>
+              <option value="">{t("Pick a database …")}</option>
+              {databases.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className={row}>
+          <label className="flex items-center gap-1.5 text-sm">
+            {t("by its")}
+            <input className="input w-32 text-sm" value={s.by ?? ""} onChange={(e) => set({ by: e.target.value || undefined })} placeholder={t("title")} aria-label={t("Field there")} />
+          </label>
+          <label className="flex items-center gap-1.5 text-sm">
+            {t("bring")}
+            <input className="input w-56 text-sm" value={(s.bring ?? []).join(", ")} onChange={(e) => set({ bring: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })} placeholder={t("fields, comma-separated")} aria-label={t("Fields to bring")} />
+          </label>
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={!s.dbId || !s.on}
+            onClick={async () => {
+              const r = await previewJoinAction(dbId, allSteps, s.id);
+              if (!r.ok) return void toast(r.error, { tone: "error" });
+              const hit = r.rows.filter((x) => x.matched);
+              toast(t("{n} of {total} rows find their row: {titles}", { n: hit.length, total: r.rows.length, titles: hit.slice(0, 5).map((x) => x.title).join(" · ") + (hit.length > 5 ? " …" : "") }), { tone: "ok", ms: 12000 });
+            }}
+          >
+            👁 {t("Preview")}
+          </button>
+        </div>
+        <p className="text-xs text-zinc-500">{t("A name matches a row when it is that row's title (or field), or contains it — an address in “Name <address>” too. The fields come onto the row at every run.")}</p>
       </div>
     );
   if (s.kind === "set")

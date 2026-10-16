@@ -104,3 +104,36 @@ test("a set step: rows matching its rules get a field's value — before it is a
   assert.equal(shown("Wichtig"), "high");
   assert.equal(shown("Frage"), "", "the others stay empty");
 });
+
+test("a join step: a field of another database brought onto the rows that name its row — People for mails", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["workspace", "outlook-mail", "mail-client"]) setInstalled(id, true);
+  const m = await import("@/plugins/workspace/model");
+  const n = m.normalizePipeline({ steps: [{ id: "j", kind: "join", dbId: 5, on: " From ", by: "", bring: [" Rolle ", ""] }, { id: "k", kind: "join", on: "From" }] });
+  assert.equal(n.steps.length, 1, "a join names its database and its field");
+  assert.deepEqual([n.steps[0].dbId, n.steps[0].on, n.steps[0].bring], [5, "From", ["Rolle"]]);
+
+  const { saveMails } = await import("@/lib/mail/store");
+  const w = await import("@/plugins/workspace/store");
+  const { runPipeline, previewJoin } = await import("@/plugins/workspace/pipeline");
+  const { createSourceDatabase } = await import("@/plugins/workspace/derived");
+  const people = w.createPage({ kind: "database", title: "Personen" });
+  w.updateSchema(people, { ...w.getDatabase(people)!.schema, properties: [{ id: "rolle", name: "Rolle", type: "text" }] });
+  const p1 = w.addRow(people, { title: "Jonas Joiner" });
+  w.setCell(p1, "rolle", "Teamleiter");
+  saveMails([
+    { convId: "J1", folder: "Posteingang", from: "Jonas Joiner", fromEmail: "jonas@join.example", subject: "Zum Join", preview: "…", receivedAt: ago(1), unread: true },
+    { convId: "J2", folder: "Posteingang", from: "Fremder Absender", fromEmail: "x@other.example", subject: "Ohne Treffer", preview: "…", receivedAt: ago(2), unread: true },
+  ]);
+  const id = createSourceDatabase("mail");
+  await runPipeline(id, { ai: false });
+  const steps = [w.getDatabase(id)!.schema.pipeline!.steps[0], { id: "j", kind: "join", dbId: people, on: "From", bring: ["Rolle"] } as never];
+  assert.deepEqual((await previewJoin(id, steps, "j")).filter((r) => r.matched).map((r) => r.title), ["Zum Join"], "the preview: which rows find their row");
+  w.updateSchema(id, { ...w.getDatabase(id)!.schema, pipeline: { steps } });
+  await runPipeline(id, { ai: false });
+  const d = w.getDatabase(id)!;
+  const prop = d.schema.properties.find((p) => p.name === "Rolle")!;
+  assert.ok(prop, "the brought field is a field here");
+  assert.equal(w.rawRows(id).find((r) => r.title === "Zum Join")!.cells[prop.id], "Teamleiter");
+  assert.ok(!w.rawRows(id).find((r) => r.title === "Ohne Treffer")!.cells[prop.id], "no match, no value");
+});
