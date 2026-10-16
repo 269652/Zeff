@@ -70,13 +70,14 @@ function useChoices(pageId: number, on: boolean) {
 }
 
 /** Where a block can be taken by: dragged elsewhere, a line added after it, removed — shown when it is hovered, while editing the layout. */
-function GripBar({ editor, node, getPos, deleteNode }: Pick<NodeViewProps, "editor" | "node" | "getPos" | "deleteNode">) {
+function GripBar({ editor, node, getPos, deleteNode, label }: Pick<NodeViewProps, "editor" | "node" | "getPos" | "deleteNode"> & { label: string }) {
   if (!editor.isEditable) return null;
   return (
     <div className="ws-grip-bar" contentEditable={false}>
       <span data-drag-handle className="ws-grip-btn" title="Drag to move" aria-label="Drag to move">
         ⠿
       </span>
+      <span className="ws-grip-label">{label}</span>
       <button
         type="button"
         title="A new line after this block"
@@ -112,7 +113,7 @@ function FieldView({ node, updateAttributes, editor, extension, getPos, deleteNo
   const name = choices?.properties.find((p) => p.id === prop)?.name ?? data?.schema.properties.find((p) => p.id === prop)?.name ?? (prop === "title" ? data?.schema.titleName : "") ?? "";
   return (
     <NodeViewWrapper className="ws-app-block ws-module-block my-1" contentEditable={false} data-app-block="field">
-      <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} />
+      <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} label="field" />
       {editor.isEditable && (
         <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
           <select className="input w-auto py-0.5 text-xs" value={prop} onChange={(e) => updateAttributes({ prop: e.target.value })} aria-label={t("Field")}>
@@ -184,7 +185,7 @@ function RelatedView({ node, updateAttributes, editor, extension, getPos, delete
   const label = choices?.related.find((r) => r.dbId === dbId && r.prop === prop);
   return (
     <NodeViewWrapper className="ws-app-block ws-module-block my-2" contentEditable={false} data-app-block="related">
-      <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} />
+      <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} label="related rows" />
       {editor.isEditable && (
         <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
           <select
@@ -210,7 +211,7 @@ function RelatedView({ node, updateAttributes, editor, extension, getPos, delete
       ) : !data ? (
         <Placeholder>{label ? t("{title} of the entry", { title: label.title }) : t("The rows that belong to the entry")}</Placeholder>
       ) : (
-        <section className="ws-module space-y-1.5 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+        <section className="ws-module space-y-1.5 border-t border-zinc-200 pt-3 dark:border-zinc-800">
           <h4 className="text-xs font-semibold text-zinc-500 uppercase">{label?.title ?? t("Related")}</h4>
           {list === null ? (
             <p className="text-sm text-zinc-400">…</p>
@@ -315,7 +316,7 @@ function ButtonView({ node, updateAttributes, editor, extension, getPos, deleteN
   };
   return (
     <NodeViewWrapper className="ws-app-block ws-module-block my-1" contentEditable={false} data-app-block="button">
-      <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} />
+      <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} label="button" />
       {editor.isEditable && (
         <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
           <input className="input w-32 py-0.5 text-xs" value={label} onChange={(e) => updateAttributes({ label: e.target.value })} placeholder={t("Label")} aria-label={t("Label")} />

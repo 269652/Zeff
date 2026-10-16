@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { t } from "@/lib/i18n/server";
+import { getPref } from "@/lib/prefs";
 import { isInstalled } from "@/plugins/state";
 import { loadDatabaseAction } from "@/plugins/workspace/actions";
 import { backlinks, breadcrumbs, getDatabase, getPage, touchOpened, tree } from "@/plugins/workspace/store";
@@ -24,6 +25,9 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
   if (page.archivedAt) return <ArchivedNotice id={page.id} title={page.title} />;
   touchOpened(page.id);
   const isRow = page.dbId !== null;
+  // A database's detail layout (System → Detail views): shown with its arranging controls.
+  const detailFolder = getPref<number | null>("system.detailFolder", null);
+  const arrangeLayout = !!detailFolder && page.parentId === detailFolder;
   // A row whose database has a detail view: the layout and, for a person, what the blocks show come with the page — nothing to fetch after it.
   const detailId = isRow ? getDatabase(page.dbId!)?.schema.detailPage : undefined;
   const layout = detailId ? getPage(detailId) : null;
@@ -62,6 +66,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
           .filter((x) => x.parentId === page.id)
           .map((x) => ({ id: x.id, title: x.title, icon: x.icon, kind: x.kind })),
       }}
+      arrangeLayout={arrangeLayout}
       row={row?.ok ? { initial: row.data, dbId: page.dbId! } : null}
       detail={layout ? { pageId: layout.id, content: layout.content as never, rev: layout.rev, person: person as never, data: rowData?.ok ? rowData.data : null } : null}
       database={database?.ok ? database.data : null}

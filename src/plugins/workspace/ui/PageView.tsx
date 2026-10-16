@@ -110,7 +110,7 @@ function History({ pageId, onClose }: { pageId: number; onClose: () => void }) {
   );
 }
 
-export function PageView({ page, row, database, detail }: { page: PageViewData; row?: { initial: DatabaseData; dbId: number } | null; database?: DatabaseData | null; /** The row's detail view as the server read it: its layout, and (a person) what the blocks show. */ detail?: { pageId: number; content: JSONContent; rev: number; person?: PersonBundle | null; data?: DatabaseData | null } | null }) {
+export function PageView({ page, row, database, detail, arrangeLayout = false }: { /** A detail layout page: shown with the controls for arranging. */ arrangeLayout?: boolean; page: PageViewData; row?: { initial: DatabaseData; dbId: number } | null; database?: DatabaseData | null; /** The row's detail view as the server read it: its layout, and (a person) what the blocks show. */ detail?: { pageId: number; content: JSONContent; rev: number; person?: PersonBundle | null; data?: DatabaseData | null } | null }) {
   const t = useT();
   const router = useRouter();
   const [title, setTitle] = useState(page.title);
@@ -387,7 +387,9 @@ export function PageView({ page, row, database, detail }: { page: PageViewData; 
           // A row whose database has a detail view: the page is laid out as that view says (its own text is the "page" block).
           <DetailFromPage pageId={detail.pageId} rowId={page.id} initial={{ doc: detail.content, rev: detail.rev }} person={detail.person ?? undefined} data={detail.data ?? undefined} />
         ) : (
-          <Editor key={page.id} pageId={page.id} initial={page.content} rev={page.rev} editable={editable} smallText={smallText} onSave={setStatus} />
+          <div data-arrange={arrangeLayout ? "true" : undefined}>
+            <Editor key={page.id} pageId={page.id} initial={page.content} rev={page.rev} editable={editable} smallText={smallText} onSave={setStatus} />
+          </div>
         )}
 
         {page.kind === "page" && (

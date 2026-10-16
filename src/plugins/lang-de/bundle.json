@@ -5591,5 +5591,6 @@
   "Related rows": "Verknüpfte Zeilen",
   "The rows of another database that belong to the entry — with a field to add one": "Die Zeilen einer anderen Datenbank, die zum Eintrag gehören – mit einem Feld zum Hinzufügen",
   "Button": "Knopf",
-  "Sets a field of the entry, moves it to the trash, or reads the sources again": "Setzt ein Feld des Eintrags, legt ihn in den Papierkorb oder liest die Quellen neu"
+  "Sets a field of the entry, moves it to the trash, or reads the sources again": "Setzt ein Feld des Eintrags, legt ihn in den Papierkorb oder liest die Quellen neu",
+  "Arrange": "Anordnen"
 }

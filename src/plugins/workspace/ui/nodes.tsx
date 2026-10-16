@@ -84,6 +84,7 @@ function FlexView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
           <span data-drag-handle className="ws-grip-btn" title="Drag to move" aria-label="Drag to move">
             ⠿
           </span>
+          <span className="ws-grip-label">{dir === "row" ? "row" : "column"}</span>
           <button type="button" title="Row or column" onClick={() => updateAttributes({ dir: dir === "row" ? "col" : "row" })}>
             {dir === "row" ? "↔ row" : "↕ column"}
           </button>
@@ -299,6 +300,7 @@ function ModuleBlockView({ node, updateAttributes, editor, extension, getPos, de
           <span data-drag-handle className="ws-grip-btn" title="Drag to move" aria-label="Drag to move">
             ⠿
           </span>
+          <span className="ws-grip-label">{String(node.attrs.module).replace(/-/g, " ")}</span>
           <button
             type="button"
             title="A new line after this block"

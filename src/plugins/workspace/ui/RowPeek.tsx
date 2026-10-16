@@ -61,33 +61,29 @@ export function DetailFromPage({ pageId, rowId, initial, person, data }: { pageI
     if (data) seedRowData(rowId, data);
   });
   const [content, setContent] = useState<{ doc: JSONContent; rev: number } | null>(initial ?? null);
-  const [layout, setLayout] = useState(false);
+  // Arranging: the structure's controls (grips, boxes, "add a block") — off, the page is just the page: text and fields to edit.
+  const [arrange, setArrange] = useState(false);
   useEffect(() => {
-    // Not given (the panel), or the layout was just edited: read it.
-    if (initial && !layout && content?.doc === initial.doc) return;
+    if (initial) return;
     let live = true;
     void pageContentAction(pageId).then((r) => live && r.ok && setContent({ doc: JSON.parse(r.content) as JSONContent, rev: r.rev }));
     return () => {
       live = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- the layout is read again when editing starts or ends
-  }, [pageId, layout]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- read once when it is not given
+  }, [pageId]);
   if (!content) return <p className="text-sm text-zinc-400">…</p>;
-  // The page is the layout: shown as it is for this row (the blocks edit the row in place) — or, with "Edit layout", edited right here,
-  // on this row's data: add, move and remove blocks, boxes and text, and see the result at once.
+  // The whole page is editable, on this entry's data: its text, boxes and callouts as any page (saved as you go — it is the layout of
+  // every entry), the blocks (fields, a person's profile …) edit the entry in place. "Arrange" shows what moves things around.
   return (
-    <div data-detail-page={pageId} data-layout-editing={layout || undefined}>
+    <div data-detail-page={pageId} data-arrange={arrange ? "true" : undefined}>
       <div className="mb-2 flex items-center justify-end gap-2">
-        {layout && <span className="text-xs text-zinc-500">{t("Drag the ⠿ grips, add with “＋”, type / for blocks — saved as you go; it is the layout of every entry.")}</span>}
-        <button type="button" className={`btn btn-sm ${layout ? "btn-primary" : ""}`} aria-pressed={layout} onClick={() => setLayout(!layout)} data-edit-layout>
-          {layout ? `✓ ${t("Done")}` : `▤ ${t("Edit layout")}`}
+        {arrange && <span className="text-xs text-zinc-500">{t("Drag the ⠿ grips, add with “＋”, type / for blocks — saved as you go; it is the layout of every entry.")}</span>}
+        <button type="button" className={`btn btn-sm ${arrange ? "btn-primary" : ""}`} aria-pressed={arrange} onClick={() => setArrange(!arrange)} data-edit-layout>
+          {arrange ? `✓ ${t("Done")}` : `▦ ${t("Arrange")}`}
         </button>
       </div>
-      {layout ? (
-        <Editor key={`layout-${pageId}`} pageId={pageId} contextRowId={rowId} initial={content.doc} rev={content.rev} editable smallText={false} />
-      ) : (
-        <Editor key={`${pageId}-${rowId}-${content.rev}`} pageId={rowId} initial={content.doc} rev={0} editable={false} smallText={false} />
-      )}
+      <Editor key={`layout-${pageId}-${rowId}`} pageId={pageId} contextRowId={rowId} initial={content.doc} rev={content.rev} editable smallText={false} dragHandles={arrange} />
     </div>
   );
 }
