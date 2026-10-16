@@ -45,8 +45,13 @@ export type Step =
   | { id: string; kind: "if"; when: Condition; then: Step[]; else: Step[] }
   | { id: string; kind: "foreach"; db: number; where?: Condition; steps: Step[] };
 
+export const PROVIDERS = ["claude", "codex", "copilot"] as const;
+export type Provider = (typeof PROVIDERS)[number];
+
 export type RoutineConfig = {
   kind: RoutineKind;
+  /** An agent's worker (none: the LLM plugin's worker). */
+  provider?: Provider;
   enabled: boolean;
   triggers: Trigger[];
   permissions: Permissions;
@@ -157,6 +162,7 @@ export function normalizeRoutine(raw: unknown): RoutineConfig {
   const perms = (o.permissions && typeof o.permissions === "object" ? o.permissions : {}) as Record<string, unknown>;
   return {
     kind: o.kind === "automation" ? "automation" : "agent",
+    ...((PROVIDERS as readonly unknown[]).includes(o.provider) ? { provider: o.provider as Provider } : {}),
     enabled: o.enabled === true,
     triggers: triggers.length ? triggers : [{ kind: "manual" }],
     permissions: { scope: (SCOPES as readonly unknown[]).includes(perms.scope) ? (perms.scope as Scope) : "self" },
@@ -201,16 +207,16 @@ export function createRoutine(pageId: number, kind: RoutineKind, config: Partial
   if (!getPage(pageId)) throw new Error("There is no such page.");
   if (getRoutine(pageId)) throw new Error("This page is a routine already.");
   const c = normalizeRoutine({ ...config, kind, enabled: config.enabled ?? false });
-  db().prepare("insert into ws_routines (page_id, kind, enabled, config) values (?, ?, ?, ?)").run(pageId, c.kind, c.enabled ? 1 : 0, JSON.stringify({ triggers: c.triggers, permissions: c.permissions, steps: c.steps }));
+  db().prepare("insert into ws_routines (page_id, kind, enabled, config) values (?, ?, ?, ?)").run(pageId, c.kind, c.enabled ? 1 : 0, JSON.stringify({ triggers: c.triggers, permissions: c.permissions, steps: c.steps, ...(c.provider ? { provider: c.provider } : {}) }));
   return getRoutine(pageId)!;
 }
 
 /** Changes to a routine (what is given replaces what was). */
-export function updateRoutine(pageId: number, patch: Partial<Pick<RoutineConfig, "enabled" | "triggers" | "permissions" | "steps">>): Routine {
+export function updateRoutine(pageId: number, patch: Partial<Pick<RoutineConfig, "enabled" | "triggers" | "permissions" | "steps" | "provider">>): Routine {
   const cur = getRoutine(pageId);
   if (!cur) throw new Error("This page is no routine.");
   const next = normalizeRoutine({ ...cur, ...patch });
-  db().prepare("update ws_routines set enabled = ?, config = ?, next_run_at = null where page_id = ?").run(next.enabled ? 1 : 0, JSON.stringify({ triggers: next.triggers, permissions: next.permissions, steps: next.steps }), pageId);
+  db().prepare("update ws_routines set enabled = ?, config = ?, next_run_at = null where page_id = ?").run(next.enabled ? 1 : 0, JSON.stringify({ triggers: next.triggers, permissions: next.permissions, steps: next.steps, ...(next.provider ? { provider: next.provider } : {}) }), pageId);
   return getRoutine(pageId)!;
 }
 

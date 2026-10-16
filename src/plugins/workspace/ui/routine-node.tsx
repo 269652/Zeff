@@ -132,6 +132,15 @@ export function RoutineControls({ pageId, editable }: { pageId: number; editable
             <option value="workspace">{t("The whole workspace")}</option>
             <option value="none">{t("Nothing — it only reads")}</option>
           </select>
+          <label className="flex items-center gap-1.5 text-xs text-zinc-500">
+            {t("Worker")}
+            <select className="input w-auto py-0.5 text-sm" value={view.provider ?? ""} disabled={!editable} onChange={(e) => void save({ provider: e.target.value || undefined })} aria-label={t("Worker")}>
+              <option value="">{t("The default worker")}</option>
+              <option value="claude">Claude</option>
+              <option value="codex">ChatGPT (Codex)</option>
+              <option value="copilot">Copilot</option>
+            </select>
+          </label>
           <p className="text-xs text-zinc-500">{t("It reads the instructions below, knows its parent and sibling pages, and works with the workspace tools; system pages stay closed to it.")}</p>
         </div>
       )}

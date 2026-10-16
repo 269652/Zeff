@@ -976,7 +976,7 @@ export async function makeRoutineAction(pageId: number, kind: string) {
 }
 
 /** A routine's settings changed: on or off, when it runs, what it may touch, its steps (what is given replaces what was). */
-export async function saveRoutineAction(pageId: number, patch: { enabled?: boolean; triggers?: unknown; permissions?: unknown; steps?: unknown }) {
+export async function saveRoutineAction(pageId: number, patch: { enabled?: boolean; triggers?: unknown; permissions?: unknown; steps?: unknown; provider?: string }) {
   return run(async () => {
     const r = await import("./routines");
     r.updateRoutine(Number(pageId), {
@@ -984,6 +984,7 @@ export async function saveRoutineAction(pageId: number, patch: { enabled?: boole
       ...(patch.triggers !== undefined ? { triggers: patch.triggers as never } : {}),
       ...(patch.permissions !== undefined ? { permissions: patch.permissions as never } : {}),
       ...(patch.steps !== undefined ? { steps: patch.steps as never } : {}),
+      ...("provider" in patch ? { provider: patch.provider as never } : {}),
     });
     return { view: (await import("./routine-view")).routineView(Number(pageId)) };
   });

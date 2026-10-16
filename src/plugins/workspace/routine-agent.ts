@@ -74,13 +74,13 @@ export function buildAgentPrompt(pageId: number, trigger: Trigger, ctx: { row?: 
 type DispatchResult = { id: number };
 export type AgentDeps = {
   /** Hand the instruction to a worker on this todo. */
-  dispatch: (todoId: number, o: { instruction: string }) => DispatchResult | Promise<DispatchResult>;
+  dispatch: (todoId: number, o: { instruction: string; provider?: string }) => DispatchResult | Promise<DispatchResult>;
 };
 
 const realDeps: AgentDeps = {
   dispatch: async (todoId, o) => {
     const { dispatchTodo } = await import("@/lib/work/runner");
-    return dispatchTodo(todoId, { instruction: o.instruction });
+    return dispatchTodo(todoId, { instruction: o.instruction, ...(o.provider ? { provider: o.provider as never } : {}) });
   },
 };
 
@@ -93,7 +93,7 @@ export async function startAgent(pageId: number, trigger: Trigger, ctx: { row?: 
     const prompt = buildAgentPrompt(pageId, trigger, ctx);
     const { addManualTodo } = await import("@/lib/boards/store");
     const todo = addManualTodo({ ticket: "", text: `Agent: ${page.title || "Untitled"}` });
-    const run = await { ...realDeps, ...deps }.dispatch(todo.id, { instruction: prompt });
+    const run = await { ...realDeps, ...deps }.dispatch(todo.id, { instruction: prompt, provider: getRoutine(pageId)?.provider });
     setWorkRun(runId, run.id);
     return { status: "started", runId, workRunId: run.id };
   } catch (e) {

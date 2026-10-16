@@ -132,3 +132,10 @@ test("an if step being built keeps its place: with no rule yet it is kept — an
   assert.equal(s.then.length, 1, "its steps stay");
   assert.equal(conditionHolds(s.when as never, { title: "x" }), true);
 });
+
+test("an agent can be set to a worker (claude, codex, copilot) — what is not one is dropped", async () => {
+  const { normalizeRoutine } = await import("@/plugins/workspace/routines");
+  assert.equal(normalizeRoutine({ kind: "agent", provider: "codex" }).provider, "codex");
+  assert.equal(normalizeRoutine({ kind: "agent", provider: "skynet" }).provider, undefined);
+  assert.equal(normalizeRoutine({ kind: "agent" }).provider, undefined, "unset: the LLM plugin's worker");
+});

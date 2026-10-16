@@ -13,6 +13,7 @@ export type RoutineView = {
   enabled: boolean;
   triggers: Trigger[];
   permissions: Permissions;
+  provider: string | null;
   steps: Step[];
   runs: RoutineRun[];
   lastRunAt: string | null;
@@ -34,6 +35,7 @@ export function routineView(pageId: number, deps: { workRun?: Parameters<typeof 
     enabled: r.enabled,
     triggers: r.triggers,
     permissions: r.permissions,
+    provider: r.provider ?? null,
     steps: r.steps,
     runs: routineRuns(pageId, 10),
     lastRunAt: r.lastRunAt,

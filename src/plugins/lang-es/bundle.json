@@ -5654,5 +5654,6 @@
   "all of these": "todas estas",
   "any of these": "cualquiera de estas",
   "Routine controls": "Controles de rutina",
-  "Run, schedule and permissions of an agent or an automation — for this page": "Ejecutar, horario y permisos de un agente o una automatización: para esta página"
+  "Run, schedule and permissions of an agent or an automation — for this page": "Ejecutar, horario y permisos de un agente o una automatización: para esta página",
+  "The default worker": "El worker predeterminado"
 }
