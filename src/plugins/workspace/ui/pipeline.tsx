@@ -5,7 +5,7 @@ import { saveSyncIntervalAction } from "@/app/actions";
 import { Markdown } from "@/components/Markdown";
 import { toast } from "@/components/Toaster";
 import { minutesText } from "@/plugins/sync-settings";
-import { instructionsAction, newInstructionAction, sourceSyncsAction } from "../actions";
+import { instructionsAction, newInstructionAction, rejudgeAction, sourceSyncsAction } from "../actions";
 import { useT } from "@/components/I18nProvider";
 import { ATTENTIONS } from "@/lib/boards/shared";
 import { newId, type JiraCriteria, type Pipeline, type PipelineSource, type PipelineStep } from "../model";
@@ -86,7 +86,7 @@ export function PipelineEditor({ dbId, pipeline, synced, fields, databases, onSa
               <button type="button" className="icon-btn" disabled={i === steps.length - 1} onClick={() => move(i, 1)} aria-label={t("Down")}>↓</button>
               <button type="button" className="icon-btn" onClick={() => setSteps((ss) => ss.filter((_, k) => k !== i))} aria-label={t("Remove the step")}>✕</button>
             </div>
-            <StepBody step={s} set={(p) => set(i, p)} databases={databases.filter((d) => d.id !== dbId)} fields={[...new Set([...fields, ...steps.flatMap((x) => (x.kind === "ai" && x.output === "field" && x.name ? [x.name] : []))])]} />
+            <StepBody dbId={dbId} saved={!dirty} step={s} set={(p) => set(i, p)} databases={databases.filter((d) => d.id !== dbId)} fields={[...new Set([...fields, ...steps.flatMap((x) => (x.kind === "ai" && x.output === "field" && x.name ? [x.name] : []))])]} />
             {s.kind === "ai" && <InstructionPicker chosen={s.instructions ?? []} all={instructions} set={(ids) => set(i, { instructions: ids.length ? ids : undefined })} reload={loadInstructions} />}
           </li>
         ))}
@@ -254,7 +254,7 @@ function Days({ label, value, set }: { label: string; value: number | undefined;
   );
 }
 
-function StepBody({ step: s, set, databases, fields }: { step: PipelineStep; set: (p: Partial<PipelineStep>) => void; databases: { id: number; title: string }[]; fields: string[] }) {
+function StepBody({ dbId, saved, step: s, set, databases, fields }: { dbId: number; saved: boolean; step: PipelineStep; set: (p: Partial<PipelineStep>) => void; databases: { id: number; title: string }[]; fields: string[] }) {
   const t = useT();
   const row = "flex flex-wrap items-center gap-x-4 gap-y-1.5";
   if (s.kind === "sort")
@@ -390,7 +390,22 @@ function StepBody({ step: s, set, databases, fields }: { step: PipelineStep; set
     return (
       <div className="space-y-1.5">
         <textarea className="input min-h-16 w-full text-sm" placeholder={t("Which rows stay — e.g. “important, urgent, or needs me to act” …")} value={s.prompt ?? ""} onChange={(e) => set({ prompt: e.target.value })} />
-        <p className="text-xs text-zinc-500">{t("Each row is judged once (again when it changes) — after a sync, only the new ones. The reason goes with the ones that stay (field “Why”).")}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="flex-1 text-xs text-zinc-500">{t("Each row is judged once (again when it changes) — after a sync, only the new ones. The reason goes with the ones that stay (field “Why”).")}</p>
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={!saved}
+            title={saved ? undefined : t("Save first")}
+            onClick={async () => {
+              const r = await rejudgeAction(dbId, s.id);
+              if (!r.ok) return void toast(r.error, { tone: "error" });
+              toast(t("The AI judges all rows again — in the background; the view follows."), { tone: "ok" });
+            }}
+          >
+            ↺ {t("Judge all again")}
+          </button>
+        </div>
       </div>
     );
   if (s.kind === "ai" && s.output === "summary")

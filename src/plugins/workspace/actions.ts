@@ -346,6 +346,12 @@ export async function runPipelineAction(dbId: number, ai = true) {
 async function rowsThenAi(dbId: number, ai: boolean) {
   const p = await import("./pipeline");
   if (p.pipelineRunning(dbId)) return { records: 0, created: 0, updated: 0, archived: 0, background: true, already: true };
+  const d = store.getDatabase(dbId);
+  // Its rows need the AI (an AI filter): all of it in the background — the view follows as the AI judges.
+  if (d && p.needsBackground(d.schema)) {
+    p.startPipeline(dbId, { ai });
+    return { records: store.rawRows(dbId).length, created: 0, updated: 0, archived: 0, background: true, already: false };
+  }
   const r = await p.runPipeline(dbId, { ai: false });
   if (!r.ok) throw new Error(r.error ?? t("Failed."));
   const background = ai && p.startPipeline(dbId, { ai: true }).started;
@@ -373,6 +379,16 @@ export async function createSourceDatabaseAction(from: string) {
   });
 }
 
+/** An AI filter's rows judged all again (its verdicts dropped) — in the background. */
+export async function rejudgeAction(dbId: number, stepId: string) {
+  return run(async () => {
+    if (!isInstalled("llm")) throw new Error(t("The LLM plugin is needed for this (Menu → Plugins)."));
+    const p = await import("./pipeline");
+    p.forgetVerdicts(String(stepId));
+    return { started: p.startPipeline(Number(dbId), { ai: true }).started };
+  });
+}
+
 /** The syncs a pipeline's sources are read by (jira, keep): how often each runs by itself, and what can be picked. */
 export async function sourceSyncsAction() {
   return run(async () => {
@@ -392,6 +408,8 @@ export async function refreshPipelineAction(dbId: number) {
     const d = store.getDatabase(Number(dbId));
     if (!d) throw new Error(t("No such database."));
     const froms = new Set((d.schema.pipeline?.steps ?? []).filter((s) => s.kind === "source").map((s) => s.from));
+    // A database it reads (a derived one's parent): that one's rows first (they're quick — its own AI goes in the background).
+    for (const s of d.schema.pipeline?.steps ?? []) if (s.kind === "source" && s.from === "database" && s.dbId) await rowsThenAi(s.dbId, false).catch(() => null);
     // (In the background — what they bring comes into the pipeline when they're done; already syncing: that one.)
     const { isSyncKey, startSync } = await import("@/lib/sync/registry");
     const syncing: string[] = [];

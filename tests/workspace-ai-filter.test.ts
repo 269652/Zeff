@@ -143,3 +143,25 @@ test("folders from filters: a database's derived databases (count, unread) — a
   assert.equal(derivedFrom(w.getDatabase(important)!.schema), mail);
   assert.equal(derivedFrom(w.getDatabase(mail)!.schema), null);
 });
+
+test("refresh: a pipeline with an AI filter goes to the background whole; the filter's verdicts can be dropped (judged all again)", async () => {
+  const w = await import("@/plugins/workspace/store");
+  const { createSourceDatabase, createDerivedDatabase } = await import("@/plugins/workspace/derived");
+  const { runPipeline, needsBackground, forgetVerdicts } = await import("@/plugins/workspace/pipeline");
+  const mail = createSourceDatabase("mail");
+  await runPipeline(mail, { ai: false });
+  assert.equal(needsBackground(w.getDatabase(mail)!.schema), false, "rows only: right away");
+  const id = createDerivedDatabase(mail, "Streng");
+  const d = w.getDatabase(id)!;
+  const step = { ...d.schema.pipeline!.steps[1], prompt: "Nur Chef." };
+  w.updateSchema(id, { ...d.schema, pipeline: { steps: [d.schema.pipeline!.steps[0], step] } });
+  assert.equal(needsBackground(w.getDatabase(id)!.schema), true, "an AI filter: in the background");
+  process.env.FAKE_CLAUDE_OUTPUT = JSON.stringify({ rows: Array.from({ length: 30 }, (_, i) => ({ n: i + 1, keep: i === 0, why: "x" })) });
+  await runPipeline(id, { ai: false });
+  fs.rmSync(promptFile);
+  await runPipeline(id, { ai: false });
+  assert.ok(!fs.existsSync(promptFile), "judged: not again");
+  forgetVerdicts(step.id);
+  await runPipeline(id, { ai: false });
+  assert.ok(fs.existsSync(promptFile), "forgotten: all judged again");
+});
