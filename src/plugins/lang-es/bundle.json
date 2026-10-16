@@ -5082,5 +5082,17 @@
   "The AI writes here — from this page and the databases in it": "La IA escribe aquí — desde esta página y sus bases de datos",
   "Only mine in this view": "Solo los míos en esta vista",
   "Full screen": "Pantalla completa",
-  "Leave full screen (Esc)": "Salir de pantalla completa (Esc)"
+  "Leave full screen (Esc)": "Salir de pantalla completa (Esc)",
+  "Data sources": "Fuentes de datos",
+  "What fills the Workspace's databases from elsewhere.": "Lo que llena las bases de datos del Workspace desde fuera.",
+  "Each board switched on is a board database here, kept by every Jira sync — read-only (Jira is where tickets change); My briefing a page over the briefing's tickets.": "Cada tablero activado es aquí una base de datos de tablero, actualizada por cada sincronización de Jira — solo lectura (los tickets cambian en Jira); Mi situación es una página sobre los tickets de la situación.",
+  "Google Keep's notes as a gallery database, kept by every Keep sync — read-only.": "Las notas de Google Keep como base de datos de galería, actualizada por cada sincronización de Keep — solo lectura.",
+  "Your todos — to be taken in by a board or any database as a step of its pipeline (coming).": "Tus tareas — un tablero o cualquier base de datos podrá incorporarlas como paso de su pipeline (próximamente).",
+  "{n} boards on": "{n} tableros activos",
+  "{n} open todos": "{n} tareas abiertas",
+  "{name}: synced": "{name}: sincronizado",
+  "Its database comes with the next sync.": "Su base de datos llega con la próxima sincronización.",
+  "No Jira boards known yet — sync Jira first.": "Aún no hay tableros de Jira — sincroniza Jira primero.",
+  "Databases": "Bases de datos",
+  "Set up": "Configurar"
 }

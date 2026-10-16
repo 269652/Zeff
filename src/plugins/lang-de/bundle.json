@@ -5082,5 +5082,17 @@
   "The AI writes here — from this page and the databases in it": "Die KI schreibt hier — aus dieser Seite und ihren Datenbanken",
   "Only mine in this view": "Nur meine in dieser Ansicht",
   "Full screen": "Vollbild",
-  "Leave full screen (Esc)": "Vollbild verlassen (Esc)"
+  "Leave full screen (Esc)": "Vollbild verlassen (Esc)",
+  "Data sources": "Datenquellen",
+  "What fills the Workspace's databases from elsewhere.": "Was die Datenbanken des Workspace von anderswo füllt.",
+  "Each board switched on is a board database here, kept by every Jira sync — read-only (Jira is where tickets change); My briefing a page over the briefing's tickets.": "Jedes eingeschaltete Board ist hier eine Board-Datenbank, die jede Jira-Sync aktuell hält — nur lesbar (Tickets ändern sich in Jira); Meine Lage ist eine Seite über den Tickets der Lage.",
+  "Google Keep's notes as a gallery database, kept by every Keep sync — read-only.": "Die Notizen aus Google Keep als Galerie-Datenbank, die jede Keep-Sync aktuell hält — nur lesbar.",
+  "Your todos — to be taken in by a board or any database as a step of its pipeline (coming).": "Deine Todos — ein Board oder jede Datenbank kann sie als Schritt ihrer Pipeline übernehmen (kommt).",
+  "{n} boards on": "{n} Boards an",
+  "{n} open todos": "{n} offene Todos",
+  "{name}: synced": "{name}: gesynct",
+  "Its database comes with the next sync.": "Die Datenbank kommt mit der nächsten Sync.",
+  "No Jira boards known yet — sync Jira first.": "Noch keine Jira-Boards bekannt — erst Jira syncen.",
+  "Databases": "Datenbanken",
+  "Set up": "Einrichten"
 }

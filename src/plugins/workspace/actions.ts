@@ -336,6 +336,15 @@ export async function aiBlockAction(pageId: number, prompt: string) {
   });
 }
 
+/** A data source's databases kept now from what Zeff has (Jira's boards, Google Keep's notes) — after a sync, or a board switched on. */
+export async function keepSourceDatabasesAction(key: string) {
+  return run(async () => {
+    if (key === "jira" && isInstalled("jira-lage")) await (await import("@/plugins/jira-lage/to-workspace")).syncJiraBoardDatabases();
+    if (key === "keep" && isInstalled("keep")) (await import("@/plugins/keep/google-workspace")).syncGoogleKeepDatabase();
+    return {};
+  });
+}
+
 /** A ticket's detail beyond its card (questions, suggested actions, flags, context, chat) — fetched when its row's panel opens. */
 export async function ticketDetailAction(key: string) {
   return run(async () => ({ detail: (await import("@/lib/items/tickets")).ticketDetail(String(key)) }));

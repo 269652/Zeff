@@ -307,6 +307,9 @@ export function Sidebar({ items, favorites }: { items: TreeItem[]; favorites: { 
         )}
       </section>
 
+      <Link href="/workspace/sources" className="ws-tree-row px-1.5 text-zinc-500" data-active={path === "/workspace/sources"}>
+        🔌 {t("Data sources")}
+      </Link>
       <Link href="/workspace/trash" className="ws-tree-row px-1.5 text-zinc-500" data-active={path === "/workspace/trash"}>
         🗑 {t("Trash")}
       </Link>
