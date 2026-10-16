@@ -28,7 +28,7 @@ export function capabilitiesOf(schema: DbSchema): Capabilities {
   const reply = new Set<string>();
   const drafts = new Set<string>();
   // A derived database (reads another): what it reads is what it is — mail, messages.
-  const kinds = new Set((schema.pipeline?.steps ?? []).filter((s) => s.kind === "source").map((s) => (s.from === "database" ? (schema.dataType === "mail" ? "mail" : schema.dataType === "message" ? "messages" : "") : s.from)));
+  const kinds = new Set((schema.pipeline?.steps ?? []).filter((s) => s.kind === "source").flatMap((s) => (s.from === "database" ? (schema.dataType === "mail" ? ["mail"] : schema.dataType === "message" ? ["messages"] : schema.dataType === "inbox" ? ["mail", "messages"] : []) : [s.from])));
   for (const s of schema.pipeline?.steps ?? []) {
     if (s.kind !== "source") continue;
     const channels: readonly string[] | undefined = s.from === "mail" ? s.mail?.accounts : s.from === "messages" ? s.messages?.channels : undefined;

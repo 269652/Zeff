@@ -134,6 +134,29 @@ export function SourcesView({ sources }: { sources: SourceView[] }) {
           )}
         </section>
       ))}
+      {/* Several sources in one list: a pipeline that names mail and chats gets one set of fields and the inbox view. */}
+      {sources.some((s) => s.key === "mail") && sources.some((s) => s.key === "messages") && (
+        <section className="card flex flex-wrap items-center gap-3 p-4" data-combined-inbox>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-lg font-semibold">📬 {t("A combined inbox")}</h2>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">{t("Mail and chats in one list, by channel — name the sources (more, fewer) in its Sources & steps.")}</p>
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            disabled={pending}
+            onClick={() =>
+              start(async () => {
+                const r = await createSourceDatabaseAction("inbox");
+                if (!r.ok) return void toast(r.error, { tone: "error" });
+                router.push(`/workspace/${r.id}`);
+              })
+            }
+          >
+            ＋ {t("New combined inbox")}
+          </button>
+        </section>
+      )}
     </div>
   );
 }

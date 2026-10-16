@@ -46,11 +46,15 @@ export async function checkRowAction(rowId: number, raw: Record<string, unknown>
 function replyTarget(row: NonNullable<ReturnType<typeof getPage>>): { channel: string; to: string; subject: string; conv: string } {
   const p = row.props;
   const select = (prop: string) => getDatabase(row.dbId!)?.schema.properties.find((x) => x.id === prop)?.options?.find((o) => o.id === p[prop])?.name ?? "";
-  if (typeof p.mailfrom === "string") {
-    const address = /<([^>]+)>/.exec(p.mailfrom)?.[1] ?? (/@/.test(p.mailfrom) ? p.mailfrom : "");
-    return { channel: select("mailaccount") || "Outlook", to: address, subject: /^(AW|RE|Re|Aw):/.test(row.title) ? row.title : `AW: ${row.title}`, conv: String(p.mailconv ?? "") };
+  // A combined inbox's rows carry the shared fields (commfrom, commchannel …); a mail's or a chat's own, the others.
+  const channel = select("commchannel") || select("mailaccount") || select("msgchannel");
+  const from = typeof p.commfrom === "string" ? p.commfrom : typeof p.mailfrom === "string" ? p.mailfrom : "";
+  const conv = String(p.commconv ?? p.mailconv ?? p.msgconv ?? "");
+  if (channel === "Outlook" || channel === "Gmail" || (!channel && typeof p.mailfrom === "string")) {
+    const address = /<([^>]+)>/.exec(from)?.[1] ?? (/@/.test(from) ? from : "");
+    return { channel: channel || "Outlook", to: address, subject: /^(AW|RE|Re|Aw):/.test(row.title) ? row.title : `AW: ${row.title}`, conv };
   }
-  return { channel: select("msgchannel"), to: String(p.msgchat ?? ""), subject: "", conv: String(p.msgconv ?? "") };
+  return { channel, to: String(p.commwhere ?? p.msgchat ?? ""), subject: "", conv };
 }
 
 /** A reply to a row (a mail, a message) drafted by the AI from its conversation — as the reply drafts are (System → Prompts). */

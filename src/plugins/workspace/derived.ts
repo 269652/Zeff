@@ -1,4 +1,5 @@
 import { t } from "@/lib/i18n/server";
+import { isInstalled } from "@/plugins/state";
 import { appViewsFor } from "./app-views";
 import { newId, newView, type DataType, type DbSchema, type PipelineSource, type PipelineStep, type View } from "./model";
 import { createPage, getDatabase, rawRows, tree, updatePage } from "./store";
@@ -37,7 +38,21 @@ const SOURCE_TITLES: Record<Exclude<PipelineSource, "database">, string> = { jir
 const SOURCE_TYPE: Partial<Record<PipelineSource, DataType>> = { mail: "mail", messages: "message" };
 
 /** A database straight from a data source (Jira, Google Keep, todos, mail, messages): its pipeline that source — more steps to add (filters, AI). */
-export function createSourceDatabase(from: Exclude<PipelineSource, "database">, title?: string): number {
+export function createSourceDatabase(from: Exclude<PipelineSource, "database"> | "inbox", title?: string): number {
+  // A combined inbox: the mail source and the messages source together (the ones whose plugins are installed).
+  if (from === "inbox") {
+    const sources: PipelineStep[] = [
+      ...(isInstalled("outlook-mail") || isInstalled("gmail") ? [{ id: newId("s"), kind: "source" as const, from: "mail" as const, mail: { recentDays: 30 } }] : []),
+      ...(isInstalled("teams") || isInstalled("whatsapp") || isInstalled("signal") ? [{ id: newId("s"), kind: "source" as const, from: "messages" as const, messages: { recentDays: 14 } }] : []),
+    ];
+    const both = sources.length > 1;
+    const app = appViewsFor(both ? "inbox" : sources[0]?.from === "mail" ? "mail" : "message")[0];
+    const views: View[] = [...(app ? [{ ...newView(t(app.label), "table"), type: "app" as const, app: app.id }] : []), newView(t("Table"), "table")];
+    const schema: DbSchema = { titleName: t("Subject"), properties: [], views, ...(both ? { dataType: "inbox" as const } : {}), pipeline: { steps: sources } };
+    const id = createPage({ kind: "database", title: title || t("Inbox"), icon: "📬", schema });
+    updatePage(id, { fullWidth: true });
+    return id;
+  }
   const dataType = SOURCE_TYPE[from];
   const app = appViewsFor(dataType)[0];
   const step: PipelineStep = { id: newId("s"), kind: "source", from, ...(from === "jira" ? { jira: { mine: true, openOnly: true } } : from === "mail" ? { mail: { recentDays: 30 } } : from === "messages" ? { messages: { recentDays: 14 } } : {}) };

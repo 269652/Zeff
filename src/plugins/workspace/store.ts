@@ -771,12 +771,13 @@ export function pageHits(words: string[]): { ref: string; title: string; text: s
   }));
 }
 
-/** Every mail database's unread rows (its "Unread" field) — the sidebar's counters, as a mail client's folders have them. */
+/** Every mail, chat and inbox database's unread rows (its "Unread" field) — the sidebar's counters, as a mail client's folders have them. */
 export function unreadCounts(): Record<number, number> {
   const d = db();
   const out: Record<number, number> = {};
-  const dbs = d.prepare(`select id from ws_pages where kind = 'database' and archived_at is null and schema like '%"dataType":"mail"%'`).all() as { id: number }[];
-  const count = d.prepare("select count(*) as n from ws_pages where db_id = ? and archived_at is null and template = 0 and json_extract(props, '$.mailunread') = 1");
-  for (const x of dbs) out[x.id] = (count.get(x.id) as { n: number }).n;
+  const field: Record<string, string> = { mail: "$.mailunread", message: "$.msgunread", inbox: "$.communread" };
+  const dbs = d.prepare(`select id, json_extract(schema, '$.dataType') as dt from ws_pages where kind = 'database' and archived_at is null and json_extract(schema, '$.dataType') in ('mail', 'message', 'inbox')`).all() as { id: number; dt: string }[];
+  const count = d.prepare("select count(*) as n from ws_pages where db_id = ? and archived_at is null and template = 0 and json_extract(props, ?) = 1");
+  for (const x of dbs) out[x.id] = (count.get(x.id, field[x.dt]) as { n: number }).n;
   return out;
 }

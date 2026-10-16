@@ -371,7 +371,7 @@ export async function createDerivedDatabaseAction(dbId: number, title?: string) 
 /** A database straight from a data source (its steps to add) — its id; its rows read at once, in the background. */
 export async function createSourceDatabaseAction(from: string) {
   return run(async () => {
-    const ok = ["jira", "keep", "todos", "mail", "messages"] as const;
+    const ok = ["jira", "keep", "todos", "mail", "messages", "inbox"] as const;
     if (!(ok as readonly string[]).includes(from)) throw new Error(t("Unknown source."));
     const id = (await import("./derived")).createSourceDatabase(from as (typeof ok)[number]);
     (await import("./pipeline")).startPipeline(id, { ai: false });

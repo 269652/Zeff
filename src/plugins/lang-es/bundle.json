@@ -5410,5 +5410,9 @@
   "Try it on a sample": "Probar con una muestra",
   "{k} of {n} would stay — nothing is saved:": "{k} de {n} se quedarían — no se guarda nada:",
   "No such AI filter.": "No existe ese filtro de IA.",
-  "Write a condition first.": "Escribe primero una condición."
+  "Write a condition first.": "Escribe primero una condición.",
+  "A combined inbox": "Una bandeja combinada",
+  "Mail and chats in one list, by channel — name the sources (more, fewer) in its Sources & steps.": "Correo y chats en una lista, por canal — las fuentes (más, menos) las eliges en «Fuentes y pasos».",
+  "Pick a message.": "Elige un mensaje.",
+  "New combined inbox": "Nueva bandeja combinada"
 }

@@ -4,9 +4,10 @@ import { dateOf } from "@/lib/boards/collect";
 import { errorMessage } from "@/lib/errors";
 import { emitChange } from "@/lib/events";
 import { databaseSource, KEY_PROP, NOTE_PROP, rowKey } from "./collections";
+import { APP_VIEWS, appViewsFor } from "./app-views";
 import { meter, newMeter, noteAi, noteJudged } from "./meter";
 import { docToMarkdown, markdownToDoc } from "./doc";
-import { cellText, COLORS, dateRange, newId, type DataType, type DbSchema, type Option, type PipelineStep, type Property, type Row } from "./model";
+import { cellText, COLORS, dateRange, newId, newView, type DataType, type DbSchema, type Option, type PipelineStep, type Property, type Row } from "./model";
 import { addRow, archivePage, getDatabase, getPage, placeRow, rawRows, setCell, tree, updatePage, updateSchema } from "./store";
 
 /**
@@ -147,6 +148,31 @@ function databaseRecords(dbId: number | undefined, self: number): SourceRecord[]
   });
 }
 
+/**
+ * What mails and messages share, under one set of fields — when a pipeline mixes them (a combined inbox): From, Date, Channel
+ * (Outlook, Gmail, Teams, WhatsApp, Signal), Where (a mail's folder, a chat's name), Unread, Mine, Conversation. The type
+ * becomes "inbox". A record that is not a mail or a message passes unchanged.
+ */
+const COMM_FIELDS: Record<string, { id: string; name: string; type: TypedField["type"] }> = {
+  mailfrom: { id: "commfrom", name: "From", type: "text" },
+  msgsender: { id: "commfrom", name: "From", type: "text" },
+  mailreceived: { id: "commwhen", name: "Date", type: "date" },
+  msgsent: { id: "commwhen", name: "Date", type: "date" },
+  mailaccount: { id: "commchannel", name: "Channel", type: "select" },
+  msgchannel: { id: "commchannel", name: "Channel", type: "select" },
+  mailfolder: { id: "commwhere", name: "Where", type: "text" },
+  msgchat: { id: "commwhere", name: "Where", type: "text" },
+  mailunread: { id: "communread", name: "Unread", type: "checkbox" },
+  msgmine: { id: "commmine", name: "Mine", type: "checkbox" },
+  msgunread: { id: "communread", name: "Unread", type: "checkbox" },
+  mailconv: { id: "commconv", name: "Conversation", type: "text" },
+  msgconv: { id: "commconv", name: "Conversation", type: "text" },
+};
+export function unifyComm(r: SourceRecord): SourceRecord {
+  if (r.dataType !== "mail" && r.dataType !== "message") return r;
+  return { ...r, dataType: "inbox", typed: (r.typed ?? []).map((f) => (COMM_FIELDS[f.id] ? { ...f, ...COMM_FIELDS[f.id] } : f)) };
+}
+
 /** An account of a mail by where it's kept (Gmail's conversations: gmail:…; the rest: Outlook). */
 const accountOf = (convId: string): "outlook" | "gmail" => (convId.startsWith("gmail:") ? "gmail" : "outlook");
 
@@ -182,7 +208,7 @@ async function messageRecords(c: NonNullable<PipelineStep["messages"]>): Promise
   const from = since(c.recentDays);
   const chat = c.chat?.toLowerCase();
   const out: SourceRecord[] = [];
-  const message = (v: { ref: string; text: string; sender: string; chat: string; channel: string; sent: string | null; mine: boolean; conv: string; url?: string }): SourceRecord => ({
+  const message = (v: { ref: string; text: string; sender: string; chat: string; channel: string; sent: string | null; mine: boolean; unread?: boolean; conv: string; url?: string }): SourceRecord => ({
     ref: v.ref,
     title: v.text.split(/\r?\n/)[0].slice(0, 140) || "…",
     fields: {},
@@ -192,6 +218,7 @@ async function messageRecords(c: NonNullable<PipelineStep["messages"]>): Promise
       { id: "msgchannel", name: "Channel", type: "select", value: v.channel },
       { id: "msgsent", name: "Sent", type: "date", value: v.sent ? new Date(at(v.sent)).toISOString().slice(0, 16) : null },
       { id: "msgmine", name: "Mine", type: "checkbox", value: v.mine || null },
+      { id: "msgunread", name: "Unread", type: "checkbox", value: v.unread || null },
       { id: "msgconv", name: "Conversation", type: "text", value: v.conv },
     ],
     dataType: "message",
@@ -205,7 +232,7 @@ async function messageRecords(c: NonNullable<PipelineStep["messages"]>): Promise
     for (const m of listMails({ limit: 2000 })) {
       const channel = m.folder === "WhatsApp" ? "whatsapp" : m.folder === "Signal" ? "signal" : null;
       if (!channel || !want(channel) || (from && at(m.receivedAt) < from) || (chat && !m.subject.toLowerCase().includes(chat))) continue;
-      out.push(message({ ref: `mail:${m.key}`, text: m.preview, sender: m.fromName ?? "", chat: m.subject, channel: channel === "whatsapp" ? "WhatsApp" : "Signal", sent: m.receivedAt, mine: m.fromName === ME_SENDER, conv: m.convId, url: channel === "whatsapp" ? "https://web.whatsapp.com/" : undefined }));
+      out.push(message({ ref: `mail:${m.key}`, text: m.preview, sender: m.fromName ?? "", chat: m.subject, channel: channel === "whatsapp" ? "WhatsApp" : "Signal", sent: m.receivedAt, mine: m.fromName === ME_SENDER, unread: m.unread, conv: m.convId, url: channel === "whatsapp" ? "https://web.whatsapp.com/" : undefined }));
     }
   }
   if (want("teams")) {
@@ -355,6 +382,13 @@ function schemaFor(cur: DbSchema, records: SourceRecord[], steps: PipelineStep[]
   const types = new Set(records.map((r) => r.dataType));
   const dataType = types.size === 1 ? [...types][0] : undefined;
   const { dataType: _was, ...rest } = cur;
+  // An inbox shows by the inbox view; the views of another type (the mail client's, the chat's) give way.
+  if (dataType === "inbox" || cur.dataType === "inbox") {
+    const mine = APP_VIEWS.filter((a) => a.dataType === dataType).map((a) => a.id);
+    const keep = views.filter((v) => v.type !== "app" || !APP_VIEWS.some((a) => a.id === v.app) || mine.includes(v.app ?? ""));
+    if (dataType === "inbox" && !keep.some((v) => v.type === "app" && v.app === "inbox") && appViewsFor("inbox").length) keep.unshift({ ...newView("Inbox", "table"), type: "app", app: "inbox" });
+    views.splice(0, views.length, ...keep);
+  }
   return { ...rest, properties: next, views, ...(fields.length ? { review: { ...cur.review, on: true } } : {}), ...(dataType ? { dataType } : records.length ? {} : cur.dataType ? { dataType: cur.dataType } : {}) };
 }
 
@@ -385,13 +419,18 @@ async function runPipelineOnce(dbId: number, opts: { ai?: boolean; force?: boole
   try {
     // Sources and filters, in order (a filter narrows what the sources before it gave).
     let records: SourceRecord[] = [];
+    // Mail and messages together (a combined inbox): their shared fields, from the first step on (so a rule says "Channel", "From").
+    const mixed = steps.some((s) => s.kind === "source" && s.from === "mail") && steps.some((s) => s.kind === "source" && s.from === "messages");
     for (const s of steps) {
       if (s.kind === "source") {
         const seen = new Set(records.map((r) => r.ref));
-        records = [...records, ...(await read(s, dbId)).filter((r) => !seen.has(r.ref))];
+        const got = await read(s, dbId);
+        records = [...records, ...(mixed ? got.map(unifyComm) : got).filter((r) => !seen.has(r.ref))];
       } else if (s.kind === "filter") records = filtered(records, s);
       else if (s.kind === "ai" && s.output === "filter") records = await aiFiltered(s, records);
     }
+    // Whatever mixes mails and messages (also from other databases): the shared fields.
+    if (new Set(records.map((r) => r.dataType).filter(Boolean)).size > 1) records = records.map(unifyComm);
     out.records = records.length;
 
     const next = schemaFor(d.schema, records, steps, false);
