@@ -18,7 +18,7 @@ export function NewInbox({ dbId, dataType }: { dbId: number; dataType: string })
   }, [dataType]);
   const go = (id: number) => (router.push(`/workspace/${id}`), router.refresh());
   return (
-    <Dropdown label={`＋ ${t("Inbox")}`} className="rounded px-2 py-0.5 text-xs text-indigo-600 hover:bg-zinc-100 dark:text-indigo-400 dark:hover:bg-zinc-800" align="right">
+    <Dropdown label={`＋ ${t("New inbox")}`} className="rounded px-2 py-0.5 text-xs text-indigo-600 hover:bg-zinc-100 dark:text-indigo-400 dark:hover:bg-zinc-800" align="right">
       {(close) => (
         <>
           {list.map((x) => (
