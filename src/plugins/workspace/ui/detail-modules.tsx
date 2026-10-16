@@ -261,6 +261,8 @@ export function ModuleBody({ m, k, ticket, detail, todosOn }: { m: DetailModule;
  * row whose page it's on. It reads its data itself, again on a change elsewhere.
  */
 export function ModuleBlock({ module, ticketKey, pageId }: { module: DetailModule; ticketKey: string; pageId: number }) {
+  // A person's blocks read their own bundle (one call for all of them, or none: the server gives it with the page).
+  if (module.startsWith("person-")) return <PersonModuleBlock module={module} rowId={pageId} />;
   if ((ROW_MODULES as readonly string[]).includes(module)) return <RowModuleBlock module={module} rowId={pageId} />;
   return <TicketModuleBlock module={module} ticketKey={ticketKey} pageId={pageId} />;
 }
@@ -319,3 +321,19 @@ function TicketModuleBlock({ module, ticketKey, pageId }: { module: DetailModule
   );
 }
 
+
+function PersonModuleBlock({ module, rowId }: { module: DetailModule; rowId: number }) {
+  const t = useT();
+  const labels = useModuleLabels();
+  return (
+    <PersonBlock
+      module={module}
+      rowId={rowId}
+      fallback={
+        <div className="ws-module rounded-lg border border-dashed border-zinc-300 p-3 text-sm text-zinc-500 dark:border-zinc-700">
+          ▤ {labels[module]} — {t("the row's, in its detail view")}
+        </div>
+      }
+    />
+  );
+}

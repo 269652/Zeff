@@ -10,6 +10,8 @@ import { detailModules } from "../model";
 import { CardKey, extrasOf } from "./card-extras";
 import { DetailModules } from "./detail-modules";
 import { Editor } from "./Editor";
+import { seedPerson } from "@/plugins/people/ui/PersonBlocks";
+import type { PersonBundle } from "@/plugins/people/blocks";
 
 /**
  * A row opened over its database (a card on the board, a note in the gallery) — the board stays
@@ -50,20 +52,38 @@ export function RowPeek({ data, rowId, onClose }: { data: DatabaseData; rowId: n
 }
 
 /** A row's detail view from its database's detail page: the page's blocks (and text), each about this row. */
-export function DetailFromPage({ pageId, rowId }: { pageId: number; rowId: number }) {
-  const [content, setContent] = useState<JSONContent | null>(null);
+export function DetailFromPage({ pageId, rowId, initial, person }: { pageId: number; rowId: number; /** The layout, when the server has it already (no fetch). */ initial?: { doc: JSONContent; rev: number }; /** What a person's blocks show, when the server has it already. */ person?: PersonBundle }) {
+  const t = useT();
+  // The blocks start from what the server read: instantly, no round trip per block.
+  useState(() => (person ? seedPerson(rowId, person) : undefined));
+  const [content, setContent] = useState<{ doc: JSONContent; rev: number } | null>(initial ?? null);
+  const [layout, setLayout] = useState(false);
   useEffect(() => {
+    // Not given (the panel), or the layout was just edited: read it.
+    if (initial && !layout && content?.doc === initial.doc) return;
     let live = true;
-    void pageContentAction(pageId).then((r) => live && r.ok && setContent(JSON.parse(r.content) as JSONContent));
+    void pageContentAction(pageId).then((r) => live && r.ok && setContent({ doc: JSON.parse(r.content) as JSONContent, rev: r.rev }));
     return () => {
       live = false;
     };
-  }, [pageId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the layout is read again when editing starts or ends
+  }, [pageId, layout]);
   if (!content) return <p className="text-sm text-zinc-400">…</p>;
-  // Read-only as a layout (it's edited on its page); its blocks are the row's — their contents editable as ever.
+  // The page is the layout: shown as it is for this row (the blocks edit the row in place) — or, with "Edit layout", edited right here,
+  // on this row's data: add, move and remove blocks, boxes and text, and see the result at once.
   return (
-    <div data-detail-page={pageId}>
-      <Editor key={`${pageId}-${rowId}`} pageId={rowId} initial={content} rev={0} editable={false} smallText={false} />
+    <div data-detail-page={pageId} data-layout-editing={layout || undefined}>
+      <div className="mb-2 flex items-center justify-end gap-2">
+        {layout && <span className="text-xs text-zinc-500">{t("Drag the ⠿ grips, add with “＋”, type / for blocks — saved as you go; it is the layout of every entry.")}</span>}
+        <button type="button" className={`btn btn-sm ${layout ? "btn-primary" : ""}`} aria-pressed={layout} onClick={() => setLayout(!layout)} data-edit-layout>
+          {layout ? `✓ ${t("Done")}` : `▤ ${t("Edit layout")}`}
+        </button>
+      </div>
+      {layout ? (
+        <Editor key={`layout-${pageId}`} pageId={pageId} contextRowId={rowId} initial={content.doc} rev={content.rev} editable smallText={false} />
+      ) : (
+        <Editor key={`${pageId}-${rowId}-${content.rev}`} pageId={rowId} initial={content.doc} rev={0} editable={false} smallText={false} />
+      )}
     </div>
   );
 }

@@ -32,3 +32,39 @@ test("flex blocks: a page of blocks keeps them through markdown for the AI (the 
   assert.match(md, /Links/);
   assert.match(md, /Rechts/);
 });
+
+test("flex boxes: a box in a row can be wider — span 1 to 4; the people page gives the summary two", async () => {
+  const { sanitizeDoc } = await import("@/plugins/workspace/doc");
+  const doc = sanitizeDoc({ type: "doc", content: [{ type: "flexBox", attrs: { dir: "row" }, content: [{ type: "flexBox", attrs: { dir: "col", span: 2 }, content: [p("A")] }, { type: "flexBox", attrs: { dir: "col", span: 9 }, content: [p("B")] }, { type: "flexBox", attrs: { dir: "col", span: "x" }, content: [p("C")] }] }] });
+  const cols = (doc.content![0] as { content: { attrs: Record<string, unknown> }[] }).content;
+  assert.equal(cols[0].attrs.span, 2);
+  assert.equal(cols[1].attrs.span, 4, "at most 4");
+  assert.equal(cols[2].attrs.span, undefined, "not a number: the default");
+  const { peopleLayout } = await import("@/plugins/workspace/detail-page");
+  const summaryCol = JSON.stringify(peopleLayout()).match(/\{"type":"flexBox","attrs":\{[^}]*\},"content":\[\{"type":"zeffModule","attrs":\{"module":"person-summary"/);
+  assert.ok(summaryCol && /"span":2/.test(summaryCol[0]), "the column of the summary is two wide");
+});
+
+test("the people page made before: its summary column gets the width once — and a width you set stays", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["workspace", "people"]) setInstalled(id, true);
+  const w = await import("@/plugins/workspace/store");
+  const { createExtSourceDatabase } = await import("@/plugins/workspace/derived");
+  const { widenSummary } = await import("@/plugins/workspace/people-database");
+  const db = await createExtSourceDatabase("people", "Breite");
+  const layoutId = w.getDatabase(db)!.schema.detailPage!;
+  const colOf = (id: number) => (JSON.parse(JSON.stringify(w.getPage(id)!.content)).content[0].content as { attrs: Record<string, unknown>; content: { attrs: { module: string } }[] }[]).find((c) => c.content.some((m) => m.attrs?.module === "person-summary"))!;
+  assert.equal(colOf(layoutId).attrs.span, 2);
+  // as it was made before: no span
+  const old = JSON.parse(JSON.stringify(w.getPage(layoutId)!.content));
+  delete old.content[0].content[1].attrs.span;
+  w.updatePage(layoutId, { content: old });
+  assert.equal(colOf(layoutId).attrs.span, undefined);
+  widenSummary(layoutId);
+  assert.equal(colOf(layoutId).attrs.span, 2, "widened");
+  const mine = JSON.parse(JSON.stringify(w.getPage(layoutId)!.content));
+  mine.content[0].content[1].attrs.span = 1;
+  w.updatePage(layoutId, { content: mine });
+  widenSummary(layoutId);
+  assert.equal(colOf(layoutId).attrs.span, 1, "a width you chose stays");
+});

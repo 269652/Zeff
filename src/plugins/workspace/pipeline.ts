@@ -849,6 +849,20 @@ async function aiFiltered(step: PipelineStep, records: SourceRecord[]): Promise<
 /** A pipeline whose rows need the AI (an AI filter): run whole in the background — a page's actions wait for each other. */
 export const needsBackground = (schema: DbSchema): boolean => !!schema.pipeline?.steps.some((s) => s.kind === "ai" && s.output === "filter");
 
+/**
+ * After a row was edited (its title, a cell): when its database reads a source that is a two-way view (the people), a run follows
+ * — what was edited goes to where the records come from at once, not at the next scheduled run. Null: nothing to follow.
+ */
+export async function syncAfterEdit(rowId: number): Promise<PipelineResult | null> {
+  const page = getPage(rowId);
+  const d = page?.dbId ? getDatabase(page.dbId) : null;
+  const exts = (d?.schema.pipeline?.steps ?? []).filter((s) => s.kind === "source" && s.from === "ext");
+  if (!page?.dbId || !exts.length) return null;
+  const all = await (await import("./source-point")).extSources();
+  if (!exts.some((s) => all.find((x) => x.id === s.ext)?.pull)) return null;
+  return startPipeline(page.dbId, { ai: false }).done;
+}
+
 /** An AI filter's verdicts dropped: its rows judged all again at the next run. */
 export function forgetVerdicts(stepId: string): void {
   filterDb().prepare("delete from ws_ai_filter where step_id = ?").run(stepId);

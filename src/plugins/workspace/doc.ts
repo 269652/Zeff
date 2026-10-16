@@ -389,7 +389,7 @@ const NODE_ATTRS: Record<string, string[]> = {
   detailsSummary: [],
   detailsContent: [],
   callout: ["icon", "tone"],
-  flexBox: ["dir", "gap", "wrap"],
+  flexBox: ["dir", "gap", "wrap", "span"],
   zeffRef: ["kind", "ref", "label", "href"],
   databaseView: ["dbId", "viewId", "title"],
   pageEmbed: ["pageId", "title"],
@@ -449,6 +449,9 @@ export function sanitizeDoc(input: unknown): Doc {
         attrs.dir = attrs.dir === "col" ? "col" : "row";
         attrs.gap = attrs.gap === "sm" || attrs.gap === "lg" ? attrs.gap : "md";
         if (attrs.wrap !== true) delete attrs.wrap;
+        const span = Math.round(Number(attrs.span));
+        if (Number.isFinite(span) && span > 0) attrs.span = Math.min(4, span);
+        else delete attrs.span;
       }
       if (o.type === "heading") attrs.level = Math.min(3, Math.max(1, Number(attrs.level) || 1));
       if (o.type === "pageEmbed") {

@@ -94,7 +94,10 @@ export async function savePageAction(id: number, patch: store.PagePatch, rev?: n
         throw new Error(t("The page content isn't readable."));
       }
     }
-    return { save: store.updatePage(Number(id), { ...patch, content }, rev) };
+    const save = store.updatePage(Number(id), { ...patch, content }, rev);
+    // A person's name changed on their page: the profile follows now.
+    if (patch.title !== undefined && page.dbId) void import("./pipeline").then((p) => p.syncAfterEdit(Number(id))).catch(() => undefined);
+    return { save };
   });
 }
 
@@ -297,7 +300,12 @@ export async function addRowAction(dbId: number, v: store.NewRow = {}) {
 }
 
 export async function setCellAction(rowId: number, propId: string, value: unknown) {
-  return run(() => (store.setCell(Number(rowId), String(propId), value), {}));
+  return run(() => {
+    store.setCell(Number(rowId), String(propId), value);
+    // A row of a two-way source (a person): the edit goes back to where it comes from.
+    void import("./pipeline").then((p) => p.syncAfterEdit(Number(rowId))).catch(() => undefined);
+    return {};
+  });
 }
 
 /** You, as rows name people: your name (as Jira knows you) and the people of the People plugin with it. For "mine". */

@@ -20,10 +20,29 @@ const subs = new Set<() => void>();
 const emit = () => subs.forEach((s) => s());
 const EMPTY: Entry = { data: null, error: null, loading: true };
 
-async function load(rowId: number) {
-  const r = await personBundleAction(rowId);
-  entries.set(rowId, r.ok ? { data: r.person, error: null, loading: false } : { data: null, error: r.error, loading: false });
-  emit();
+const seeded = new Map<number, number>();
+
+/** What the server read with the page: shown at once (and not read again for a moment). */
+export function seedPerson(rowId: number, data: PersonBundle) {
+  entries.set(rowId, { data, error: null, loading: false });
+  seeded.set(rowId, Date.now());
+}
+
+const inflight = new Map<number, Promise<void>>();
+
+/** The bundle of a row read — once at a time however many blocks ask (and an error is kept for a moment: a page that is no person is not asked again and again). */
+function load(rowId: number): Promise<void> {
+  const running = inflight.get(rowId);
+  if (running) return running;
+  const p = personBundleAction(rowId)
+    .then((r) => {
+      entries.set(rowId, r.ok ? { data: r.person, error: null, loading: false } : { data: null, error: r.error, loading: false });
+      if (!r.ok) seeded.set(rowId, Date.now());
+      emit();
+    })
+    .finally(() => inflight.delete(rowId));
+  inflight.set(rowId, p);
+  return p;
 }
 
 function usePerson(rowId: number) {
@@ -33,7 +52,8 @@ function usePerson(rowId: number) {
     () => EMPTY,
   );
   useEffect(() => {
-    if (!entries.has(rowId)) void load(rowId);
+    // Read when shown (what was cached shows meanwhile) — unless the server just gave it with the page.
+    if (Date.now() - (seeded.get(rowId) ?? 0) > 5000) void load(rowId);
   }, [rowId]);
   const router = useRouter();
   const t = useT();
@@ -81,11 +101,11 @@ const LinkBtn = ({ children, ...p }: React.ButtonHTMLAttributes<HTMLButtonElemen
   </button>
 );
 
-export function PersonBlock({ module, rowId }: { module: string; rowId: number }) {
+export function PersonBlock({ module, rowId, fallback }: { module: string; rowId: number; /** Shown where the row is no person (a layout being laid out). */ fallback?: ReactNode }) {
   const t = useT();
   const p = usePerson(rowId);
   if (p.loading) return <Empty>…</Empty>;
-  if (!p.data) return <Empty>{p.error ?? t("This row is not a person.")}</Empty>;
+  if (!p.data) return fallback ? <>{fallback}</> : <Empty>{p.error ?? t("This row is not a person.")}</Empty>;
   const d = p.data;
   switch (module) {
     case "person-profile":
@@ -186,23 +206,51 @@ export function PersonBlock({ module, rowId }: { module: string; rowId: number }
 
 type RunFn = (op: PersonOperation, done?: string) => Promise<boolean>;
 
+/** A line that saves itself: on leaving it (or Enter) when it changed — "✓" for a moment, no Save button. */
+function useSaved() {
+  const [saved, setSaved] = useState(false);
+  useEffect(() => {
+    if (!saved) return;
+    const id = setTimeout(() => setSaved(false), 1500);
+    return () => clearTimeout(id);
+  }, [saved]);
+  return [saved, () => setSaved(true)] as const;
+}
+
 function Profile({ d, run }: { d: PersonBundle; run: RunFn }) {
   const t = useT();
   const [f, setF] = useState({ name: d.name, aliases: d.aliases.join(", "), emails: d.emails.join(", "), whatsapp: d.whatsapp, jira: d.jira.join(", ") });
+  const [saved, flash] = useSaved();
+  const current = { name: d.name, aliases: d.aliases.join(", "), emails: d.emails.join(", "), whatsapp: d.whatsapp, jira: d.jira.join(", ") };
   useEffect(() => setF({ name: d.name, aliases: d.aliases.join(", "), emails: d.emails.join(", "), whatsapp: d.whatsapp, jira: d.jira.join(", ") }), [d.name, d.aliases, d.emails, d.whatsapp, d.jira]);
+  const commit = async (key: keyof typeof f) => {
+    if (f[key] === current[key]) return;
+    if (key === "name" && !f.name.trim()) return setF({ ...f, name: d.name });
+    if (await run({ op: "profile", [key]: f[key] })) flash();
+  };
   const field = (label: string, key: keyof typeof f, placeholder = "") => (
     <label className="block text-sm">
       <span className="label">{label}</span>
-      <input className="input" value={f[key]} placeholder={placeholder} onChange={(e) => setF({ ...f, [key]: e.target.value })} />
+      <input
+        className="input"
+        value={f[key]}
+        placeholder={placeholder}
+        onChange={(e) => setF({ ...f, [key]: e.target.value })}
+        onBlur={() => void commit(key)}
+        onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+      />
     </label>
   );
   return (
     <Card
       title={t("Profile")}
       extra={
-        <button type="button" className={`text-xl leading-none ${d.starred ? "text-amber-500" : "text-zinc-300 hover:text-amber-400 dark:text-zinc-600"}`} aria-label={d.starred ? t("Remove star") : t("Add star")} onClick={() => void run({ op: "star", on: !d.starred })}>
-          ★
-        </button>
+        <span className="flex items-center gap-2">
+          {saved && <span className="text-xs font-normal normal-case text-emerald-600 dark:text-emerald-400">{t("Saved ✓")}</span>}
+          <button type="button" className={`text-xl leading-none ${d.starred ? "text-amber-500" : "text-zinc-300 hover:text-amber-400 dark:text-zinc-600"}`} aria-label={d.starred ? t("Remove star") : t("Add star")} onClick={() => void run({ op: "star", on: !d.starred })}>
+            ★
+          </button>
+        </span>
       }
     >
       {field(t("Name"), "name")}
@@ -210,9 +258,6 @@ function Profile({ d, run }: { d: PersonBundle; run: RunFn }) {
       {field(t("Mail addresses (comma-separated)"), "emails")}
       {field(t("WhatsApp chat (its name)"), "whatsapp")}
       {field(t("Jira usernames (comma-separated) — for @-mentions in Jira comments"), "jira", "chrlorenz1")}
-      <button type="button" className="btn btn-primary btn-sm" onClick={() => void run({ op: "profile", ...f }, t("Saved ✓"))}>
-        {t("Save")}
-      </button>
     </Card>
   );
 }
@@ -220,19 +265,25 @@ function Profile({ d, run }: { d: PersonBundle; run: RunFn }) {
 function Note({ d, run }: { d: PersonBundle; run: RunFn }) {
   const t = useT();
   const [note, setNote] = useState(d.note);
+  const [saved, flash] = useSaved();
   useEffect(() => setNote(d.note), [d.note]);
+  // Saved while you write (a moment after the last key) and on leaving it — no Save button.
+  useEffect(() => {
+    if (note === d.note) return;
+    const id = setTimeout(() => void run({ op: "note", note }).then((ok) => ok && flash()), 900);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run and flash are stable enough; the text is what restarts the wait
+  }, [note]);
   return (
-    <Card title={t("Notes")}>
+    <Card title={t("Notes")} extra={saved ? <span className="text-xs font-normal normal-case text-emerald-600 dark:text-emerald-400">{t("Saved ✓")}</span> : undefined}>
       <textarea
         className="input resize-y text-sm"
         rows={Math.min(14, Math.max(4, note.split("\n").length + 1))}
         value={note}
         onChange={(e) => setNote(e.target.value)}
+        onBlur={() => note !== d.note && void run({ op: "note", note }).then((ok) => ok && flash())}
         placeholder={t("What you want to remember about them — preferences, gift ideas, what you last talked about…")}
       />
-      <button type="button" className="btn btn-sm" disabled={note === d.note} onClick={() => void run({ op: "note", note }, t("Saved ✓"))}>
-        {t("Save")}
-      </button>
     </Card>
   );
 }

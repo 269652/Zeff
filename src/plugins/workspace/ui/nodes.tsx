@@ -75,9 +75,10 @@ function FlexView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
   const dir = node.attrs.dir === "col" ? "col" : "row";
   const gap = String(node.attrs.gap ?? "md");
   const wrap = !!node.attrs.wrap;
+  const span = Math.max(1, Math.min(4, Number(node.attrs.span) || 1));
   const next = { sm: "md", md: "lg", lg: "sm" } as Record<string, string>;
   return (
-    <NodeViewWrapper className="ws-flex" data-dir={dir} data-gap={gap} data-wrap={wrap ? "true" : undefined}>
+    <NodeViewWrapper className="ws-flex" data-dir={dir} data-gap={gap} data-span={span > 1 ? span : undefined} data-wrap={wrap ? "true" : undefined}>
       {editor.isEditable && (
         <div className="ws-flex-bar" contentEditable={false}>
           <span data-drag-handle className="ws-grip-btn" title="Drag to move" aria-label="Drag to move">
@@ -88,6 +89,9 @@ function FlexView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
           </button>
           <button type="button" title="Wrap onto the next line" aria-pressed={wrap} onClick={() => updateAttributes({ wrap: !wrap })}>
             ⤶ wrap
+          </button>
+          <button type="button" title="How wide this box is next to the others in a row (1 to 4 parts)" onClick={() => updateAttributes({ span: span >= 4 ? 1 : span + 1 })}>
+            ↔ width {span}
           </button>
           <button type="button" title="Space between the blocks" onClick={() => updateAttributes({ gap: next[gap] ?? "md" })}>
             ⇔ {gap}
@@ -122,7 +126,7 @@ export const FlexBox = Node.create({
   defining: true,
   draggable: true,
   addAttributes() {
-    return { dir: { default: "row" }, gap: { default: "md" }, wrap: { default: false } };
+    return { dir: { default: "row" }, gap: { default: "md" }, wrap: { default: false }, span: { default: null } };
   },
   parseHTML() {
     return [{ tag: "div[data-flex-box]" }];

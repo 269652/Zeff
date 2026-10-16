@@ -160,3 +160,24 @@ test("a filtered database of the people database has the person's page too — i
   const row = w.rawRows(child).find((r) => r.title === "Derya Abgeleitet")!;
   assert.equal(personOfRow(row.id), id, "its row stands for the same profile");
 });
+
+test("edit in place: a title or a cell changed on a person's row reaches the profile at once (a run of the people database follows the edit)", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["workspace", "people"]) setInstalled(id, true);
+  const p = await import("@/plugins/people/store");
+  const w = await import("@/plugins/workspace/store");
+  const { runPipeline, syncAfterEdit } = await import("@/plugins/workspace/pipeline");
+  const { createExtSourceDatabase } = await import("@/plugins/workspace/derived");
+  const id = p.createPerson({ name: "Edda Direkt", note: "alt" });
+  const db = await createExtSourceDatabase("people", "Direkt");
+  await runPipeline(db, { ai: false });
+  const row = w.rawRows(db).find((r) => r.title === "Edda Direkt")!;
+  w.updatePage(row.id, { title: "Edda Geändert" });
+  const done = await syncAfterEdit(row.id);
+  assert.ok(done, "a run followed");
+  assert.equal(p.getPerson(id)!.name, "Edda Geändert", "the profile has the new name");
+  // a database without a two-way source: nothing runs
+  const plain = w.createPage({ kind: "database", title: "Plain" });
+  const r2 = w.addRow(plain, { title: "x" });
+  assert.equal(await syncAfterEdit(r2), null);
+});

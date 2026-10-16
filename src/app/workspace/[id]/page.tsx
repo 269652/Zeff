@@ -4,7 +4,7 @@ import { connection } from "next/server";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { loadDatabaseAction } from "@/plugins/workspace/actions";
-import { backlinks, breadcrumbs, getPage, touchOpened, tree } from "@/plugins/workspace/store";
+import { backlinks, breadcrumbs, getDatabase, getPage, touchOpened, tree } from "@/plugins/workspace/store";
 import { PageView } from "@/plugins/workspace/ui/PageView";
 import { ArchivedNotice } from "@/plugins/workspace/ui/Trash";
 
@@ -24,7 +24,16 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
   if (page.archivedAt) return <ArchivedNotice id={page.id} title={page.title} />;
   touchOpened(page.id);
   const isRow = page.dbId !== null;
-  const row = isRow ? await loadDatabaseAction(page.dbId!) : null;
+  // A row whose database has a detail view: the layout and, for a person, what the blocks show come with the page — nothing to fetch after it.
+  const detailId = isRow ? getDatabase(page.dbId!)?.schema.detailPage : undefined;
+  const layout = detailId ? getPage(detailId) : null;
+  let person: unknown = null;
+  if (layout && isInstalled("people")) {
+    const { personOfRow, personBundle } = await import("@/plugins/people/blocks");
+    const pid = personOfRow(page.id);
+    if (pid) person = await personBundle(pid).catch(() => null);
+  }
+  const row = isRow && !layout ? await loadDatabaseAction(page.dbId!) : null;
   const database = page.kind === "database" ? await loadDatabaseAction(page.id) : null;
   return (
     <PageView
@@ -51,6 +60,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
           .map((x) => ({ id: x.id, title: x.title, icon: x.icon, kind: x.kind })),
       }}
       row={row?.ok ? { initial: row.data, dbId: page.dbId! } : null}
+      detail={layout ? { pageId: layout.id, content: layout.content as never, rev: layout.rev, person: person as never } : null}
       database={database?.ok ? database.data : null}
     />
   );

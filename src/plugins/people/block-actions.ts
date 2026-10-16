@@ -48,16 +48,32 @@ export async function personOpAction(rowId: number, op: PersonOperation): Promis
 
 export type KnowledgeOfPerson = { summary: string; related: { name: string; rels: string[] }[]; pages: { id: string; title: string; space: string; href: string }[]; graph: string | null; error: string | null };
 
-/** What the knowledge (the knowledge server) knows of them: by the entity kept with the profile, else by name or alias. */
+const wikiCache = new Map<number, { at: number; wiki: KnowledgeOfPerson | null }>();
+
+/** What the knowledge (the knowledge server) knows of them: by the entity kept with the profile, else by name or alias — kept five minutes, and not waited for longer than a few seconds. */
 export async function personWikiAction(rowId: number): Promise<Result<{ wiki: KnowledgeOfPerson | null }>> {
   return run(async () => {
-    const p = getPerson(personId(rowId));
-    if (!p || !isInstalled("knowledge")) return { wiki: null };
+    const id = personId(rowId);
+    const hit = wikiCache.get(id);
+    if (hit && Date.now() - hit.at < 5 * 60000) return { wiki: hit.wiki };
+    const wiki = await Promise.race([
+      personWiki(id),
+      new Promise<KnowledgeOfPerson>((resolve) => setTimeout(() => resolve({ summary: "", related: [], pages: [], graph: null, error: t("The knowledge server did not answer in time.") }), 4000)),
+    ]);
+    if (!wiki?.error) wikiCache.set(id, { at: Date.now(), wiki });
+    return { wiki };
+  });
+}
+
+async function personWiki(id: number): Promise<KnowledgeOfPerson | null> {
+  {
+    const p = getPerson(id);
+    if (!p || !isInstalled("knowledge")) return null;
     try {
       const { knowledgePerson, knowledgeBrowserUrl } = await import("@/plugins/knowledge/client");
       let entity = p.entityId ? await knowledgePerson({ id: p.entityId }) : null;
       if (!entity) for (const n of [p.name, ...p.aliases]) if ((entity = await knowledgePerson({ name: n }))) break;
-      if (!entity) return { wiki: { summary: "", related: [], pages: [], graph: null, error: null } };
+      if (!entity) return { summary: "", related: [], pages: [], graph: null, error: null };
       if (entity.id !== p.entityId) rememberEntity(p.id, entity.id);
       const h = await headers();
       const base = knowledgeBrowserUrl(h.get("x-forwarded-host") ?? h.get("host"), h.get("x-forwarded-proto"));
@@ -69,18 +85,16 @@ export async function personWikiAction(rowId: number): Promise<Result<{ wiki: Kn
         related.set(r.other.id, g);
       }
       return {
-        wiki: {
-          summary: entity.summary ?? "",
-          related: [...related.values()].slice(0, 15),
-          pages: entity.pages.slice(0, 30).map((pg) => ({ id: pg.id, title: pg.title, space: pg.space, href: `${base}/seite/${encodeURIComponent(pg.id)}` })),
-          graph: `${base}/graph?e=${entity.id}`,
-          error: null,
-        },
+        summary: entity.summary ?? "",
+        related: [...related.values()].slice(0, 15),
+        pages: entity.pages.slice(0, 30).map((pg) => ({ id: pg.id, title: pg.title, space: pg.space, href: `${base}/seite/${encodeURIComponent(pg.id)}` })),
+        graph: `${base}/graph?e=${entity.id}`,
+        error: null,
       };
     } catch (e) {
-      return { wiki: { summary: "", related: [], pages: [], graph: null, error: errorMessage(e) } };
+      return { summary: "", related: [], pages: [], graph: null, error: errorMessage(e) };
     }
-  });
+  }
 }
 
 /** The overview of the people database (its "People" view). */

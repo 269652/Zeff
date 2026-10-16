@@ -3,7 +3,7 @@ import { isInstalled } from "@/plugins/state";
 import { t } from "@/lib/i18n/server";
 import { appViewsFor } from "./app-views";
 import { newView } from "./model";
-import { getDatabase, rawRows, updateSchema } from "./store";
+import { getDatabase, getPage, rawRows, updatePage, updateSchema } from "./store";
 
 const PEOPLE = "workspace.peopleDb";
 
@@ -20,6 +20,8 @@ export async function ensurePeopleDatabase(): Promise<void> {
   const known = peopleDatabase();
   if (known) {
     if (!getDatabase(known)!.schema.detailPage) (await import("./detail-page")).ensureDetailPage(known);
+    const layout = getDatabase(known)!.schema.detailPage;
+    if (layout) widenSummary(layout);
     // The overview view (made before it existed: put first).
     const cur = getDatabase(known)!.schema;
     const app = appViewsFor("people")[0];
@@ -39,6 +41,26 @@ export function personHref(personId: number): string {
   const db = peopleDatabase();
   const row = db ? rawRows(db).find((r) => r.cells.srcref === `person:${personId}`) : null;
   return row ? `/workspace/${row.id}` : db ? `/workspace/${db}` : "/workspace";
+}
+
+/** The people page made before columns had widths: the column of the summary gets two, once (a width set since stays). */
+export function widenSummary(layoutId: number): void {
+  const page = getPage(layoutId);
+  if (!page) return;
+  const doc = JSON.parse(JSON.stringify(page.content)) as { content?: { type: string; attrs?: Record<string, unknown>; content?: unknown[] }[] };
+  let changed = false;
+  const walk = (nodes: { type: string; attrs?: Record<string, unknown>; content?: unknown[] }[]) => {
+    for (const n of nodes) {
+      const kids = (n.content ?? []) as typeof nodes;
+      if (n.type === "flexBox" && n.attrs?.span === undefined && kids.some((k) => k.type === "zeffModule" && k.attrs?.module === "person-summary")) {
+        n.attrs = { ...n.attrs, span: 2 };
+        changed = true;
+      }
+      walk(kids);
+    }
+  };
+  walk(doc.content ?? []);
+  if (changed) updatePage(layoutId, { content: doc });
 }
 
 /** The pages of all the people at once, by profile id (what a screen full of names needs). */

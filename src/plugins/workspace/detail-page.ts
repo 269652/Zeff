@@ -33,13 +33,13 @@ function folder(): number {
 const blocks = (modules: DetailModule[]): DocNode[] => modules.map((module) => ({ type: "zeffModule", attrs: { module, key: "" } }));
 
 const mod = (module: string): DocNode => ({ type: "zeffModule", attrs: { module, key: "" } });
-const flex = (dir: "row" | "col", content: DocNode[]): DocNode => ({ type: "flexBox", attrs: { dir, gap: "md" }, content });
+const flex = (dir: "row" | "col", content: DocNode[], span?: number): DocNode => ({ type: "flexBox", attrs: { dir, gap: "md", ...(span ? { span } : {}) }, content });
 
 /** A person's page as flex boxes: three columns — who they are; what is known; what you have with them — their own page below. */
 export const peopleLayout = (): DocNode[] => [
   flex("row", [
     flex("col", [mod("person-profile"), mod("person-note"), mod("person-dates"), mod("person-manage")]),
-    flex("col", [mod("person-summary"), mod("person-knowledge"), mod("person-wiki"), mod("person-relations")]),
+    flex("col", [mod("person-summary"), mod("person-knowledge"), mod("person-wiki"), mod("person-relations")], 2),
     flex("col", [mod("person-todos"), mod("person-tickets"), mod("person-pages"), mod("person-messages")]),
   ]),
   mod("page"),

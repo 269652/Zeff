@@ -13,6 +13,7 @@ import { archivePageAction, restorePageAction, createPageAction, duplicatePageAc
 import type { DatabaseData } from "../actions";
 import { DatabaseView, RowProperties } from "./DatabaseView";
 import { DetailFromPage } from "./RowPeek";
+import type { PersonBundle } from "@/plugins/people/blocks";
 import { Editor, type SaveState } from "./Editor";
 import { COVERS, coverStyle, Dropdown, EmojiPicker, MenuItem, Modal, pickFile, uploadImage } from "./kit";
 
@@ -109,7 +110,7 @@ function History({ pageId, onClose }: { pageId: number; onClose: () => void }) {
   );
 }
 
-export function PageView({ page, row, database }: { page: PageViewData; row?: { initial: DatabaseData; dbId: number } | null; database?: DatabaseData | null }) {
+export function PageView({ page, row, database, detail }: { page: PageViewData; row?: { initial: DatabaseData; dbId: number } | null; database?: DatabaseData | null; /** The row's detail view as the server read it: its layout, and (a person) what the blocks show. */ detail?: { pageId: number; content: JSONContent; rev: number; person?: PersonBundle | null } | null }) {
   const t = useT();
   const router = useRouter();
   const [title, setTitle] = useState(page.title);
@@ -207,7 +208,7 @@ export function PageView({ page, row, database }: { page: PageViewData; row?: { 
 
   const editable = !locked;
   // A database uses the whole width (a board in a narrow column wastes the screen); a page as you set it.
-  const width = fullWidth || page.kind === "database" || !!row?.initial.schema.detailPage ? "max-w-none" : "max-w-3xl";
+  const width = fullWidth || page.kind === "database" || !!detail ? "max-w-none" : "max-w-3xl";
 
   return (
     <div className="space-y-3">
@@ -377,21 +378,14 @@ export function PageView({ page, row, database }: { page: PageViewData; row?: { 
           )}
         </div>
 
-        {row && !row.initial.schema.detailPage && <RowProperties initial={row.initial} dbId={row.dbId} rowId={page.id} />}
+        {row && !detail && <RowProperties initial={row.initial} dbId={row.dbId} rowId={page.id} />}
 
         <SystemPageBar pageId={page.id} />
         {page.kind === "database" ? (
           <DatabaseView initial={database ?? null} dbId={page.id} />
-        ) : row?.initial.schema.detailPage ? (
+        ) : detail ? (
           // A row whose database has a detail view: the page is laid out as that view says (its own text is the "page" block).
-          <>
-            <div className="flex justify-end">
-              <Link href={`/workspace/${row.initial.schema.detailPage}`} className="text-xs text-zinc-400 hover:text-zinc-700 hover:underline dark:hover:text-zinc-200" data-edit-layout>
-                ▤ {t("Edit this layout")}
-              </Link>
-            </div>
-            <DetailFromPage pageId={row.initial.schema.detailPage} rowId={page.id} />
-          </>
+          <DetailFromPage pageId={detail.pageId} rowId={page.id} initial={{ doc: detail.content, rev: detail.rev }} person={detail.person ?? undefined} />
         ) : (
           <Editor key={page.id} pageId={page.id} initial={page.content} rev={page.rev} editable={editable} smallText={smallText} onSave={setStatus} />
         )}

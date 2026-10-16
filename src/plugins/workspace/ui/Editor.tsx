@@ -37,7 +37,7 @@ const MD_HINT = /(^#{1,6} |^\s*[-*] |^\s*\d+\. |^```|^\|.+\|$|\*\*[^*]+\*\*|\[[^
 
 type Proposal = { markdown: string; mode: AiMode; from: number; to: number; replace: boolean };
 
-export function Editor({ pageId, initial, rev, editable, smallText, onSave }: { pageId: number; initial: JSONContent; rev: number; editable: boolean; smallText: boolean; onSave?: (s: SaveState) => void }) {
+export function Editor({ pageId, contextRowId, initial, rev, editable, smallText, onSave }: { pageId: number; /** The row whose data the modules of this page show (a detail view laid out on a row: the page saves, the modules are the row's). */ contextRowId?: number; initial: JSONContent; rev: number; editable: boolean; smallText: boolean; onSave?: (s: SaveState) => void }) {
   const t = useT();
   const lang = useLang();
   const router = useRouter();
@@ -237,7 +237,7 @@ export function Editor({ pageId, initial, rev, editable, smallText, onSave }: { 
       FlexBox,
       ZeffRef,
       DatabaseViewNode,
-      ZeffModuleNode.configure({ pageId }),
+      ZeffModuleNode.configure({ pageId: contextRowId ?? pageId }),
       PageEmbedNode.configure({ pageId }),
       AiBlockNode.configure({ pageId }),
       // eslint-disable-next-line react-hooks/refs -- read when a command runs, not while rendering

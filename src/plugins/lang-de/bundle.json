@@ -5561,5 +5561,8 @@
   "Linked ticket": "Verknüpftes Ticket",
   "in {board}": "in {board}",
   "Open the ticket": "Ticket öffnen",
-  "Changes there follow here. What Zeff knows of the ticket (Lage, todos, context) is below.": "Änderungen dort ziehen hier nach. Was Zeff über das Ticket weiß (Lage, Todos, Kontext), steht darunter."
+  "Changes there follow here. What Zeff knows of the ticket (Lage, todos, context) is below.": "Änderungen dort ziehen hier nach. Was Zeff über das Ticket weiß (Lage, Todos, Kontext), steht darunter.",
+  "The knowledge server did not answer in time.": "Der Wissensserver hat nicht rechtzeitig geantwortet.",
+  "Drag the ⠿ grips, add with “＋”, type / for blocks — saved as you go; it is the layout of every entry.": "Ziehe an den ⠿-Griffen, füge mit „＋“ hinzu, tippe / für Blöcke – wird beim Arbeiten gespeichert; es ist das Layout jedes Eintrags.",
+  "Edit layout": "Layout bearbeiten"
 }
