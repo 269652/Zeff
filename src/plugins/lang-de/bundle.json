@@ -5557,5 +5557,9 @@
   "For a job without an instruction of its own — a ticket sent here: what the agent does with it.": "Für einen Auftrag ohne eigene Anweisung – ein hierher gesendetes Ticket: was der Agent damit tut.",
   "e.g. Work the linked ticket: read it, do what it asks, report what you did.": "z. B. Arbeite das verknüpfte Ticket ab: lies es, tu, was es verlangt, und berichte, was du getan hast.",
   "This isn't a jobs database.": "Das ist keine Auftrags-Datenbank.",
-  "That column doesn't exist — pick a select or status property and one of its columns.": "Diese Spalte gibt es nicht – wähl eine Auswahl- oder Status-Eigenschaft und eine ihrer Spalten."
+  "That column doesn't exist — pick a select or status property and one of its columns.": "Diese Spalte gibt es nicht – wähl eine Auswahl- oder Status-Eigenschaft und eine ihrer Spalten.",
+  "Linked ticket": "Verknüpftes Ticket",
+  "in {board}": "in {board}",
+  "Open the ticket": "Ticket öffnen",
+  "Changes there follow here. What Zeff knows of the ticket (Lage, todos, context) is below.": "Änderungen dort ziehen hier nach. Was Zeff über das Ticket weiß (Lage, Todos, Kontext), steht darunter."
 }

@@ -1,6 +1,7 @@
 import { getSqlite } from "@/db";
 import { cellText, isComputed, type Property } from "./model";
-import { addRow, coerceCell, getDatabase, getPage, setCell, updatePage } from "./store";
+import { KEY_PROP } from "./collections";
+import { addRow, coerceCell, getDatabase, getPage, setCell, updatePage, updateSchema } from "./store";
 
 /**
  * Rows sent between databases, linked. A database opens to receive rows (schema.receive: the column they land in); a row sent
@@ -89,7 +90,14 @@ function copyFields(sourceRow: number, targetRow: number): void {
   const sd = s?.dbId ? getDatabase(s.dbId) : null;
   const td = t?.dbId ? getDatabase(t.dbId) : null;
   if (!s || !t || !sd || !td) return;
-  for (const tp of td.schema.properties) {
+  // The ticket key travels with it (the Lage, todos and context of that ticket then show on the copy): the copy gets a Key property when it has none.
+  const key = typeof s.props[KEY_PROP] === "string" ? String(s.props[KEY_PROP]).trim() : "";
+  if (key) {
+    if (!td.schema.properties.some((p) => p.id === KEY_PROP)) updateSchema(t.dbId!, { ...td.schema, properties: [...td.schema.properties, { id: KEY_PROP, name: "Key", type: "text" }] });
+    if (t.props[KEY_PROP] !== key) setCell(targetRow, KEY_PROP, key);
+  }
+  for (const tp of getDatabase(t.dbId!)!.schema.properties) {
+    if (tp.id === KEY_PROP) continue;
     if (isComputed(tp) || tp.id === td.schema.receive?.prop || tp.type === "status") continue;
     const sp = sd.schema.properties.find((x) => x.name.toLowerCase() === tp.name.toLowerCase());
     if (!sp) continue;
@@ -153,4 +161,24 @@ export function syncLinkedFrom(sourceRow: number): void {
   } finally {
     syncing.delete(sourceRow);
   }
+}
+
+/** What a copy's original says, for its detail view: its board, its key, its fields (also those the copy has no property for). */
+export function linkedSource(targetRow: number): { sourceId: number; sourceTitle: string; sourceDb: string; sourceDbId: number; key: string; url: string; fields: { name: string; text: string }[] } | null {
+  const l = linkOf(targetRow);
+  const src = l ? getPage(l.source) : null;
+  const sd = src?.dbId ? getDatabase(src.dbId) : null;
+  if (!l || !src || !sd) return null;
+  const fields = sd.schema.properties
+    .filter((p) => !["srcref", "srcedited", "srcurl", KEY_PROP, "noteref"].includes(p.id))
+    .map((p) => ({ name: p.name, text: cellText(p, src.props[p.id]) }))
+    .filter((f) => f.text);
+  const url = typeof src.props.srcurl === "string" ? src.props.srcurl : "";
+  return { sourceId: src.id, sourceTitle: src.title, sourceDb: l.sourceDb, sourceDbId: src.dbId!, key: typeof src.props[KEY_PROP] === "string" ? String(src.props[KEY_PROP]).toUpperCase() : "", url, fields };
+}
+
+/** The copies in a database brought up to date with their originals (a copy made before the key or a field travelled). */
+export function resyncInto(dbId: number): void {
+  const rows = table().prepare("select source_row from ws_row_links where target_db = ?").all(dbId) as { source_row: number }[];
+  for (const r of rows) syncLinkedFrom(r.source_row);
 }

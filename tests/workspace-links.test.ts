@@ -118,3 +118,50 @@ test("the receiving setting is kept only for a column that exists", async () => 
   assert.equal(m.normalizeSchema({ titleName: "N", properties: props, views: [], receive: { prop: "st", value: "gone" } }).receive, undefined, "no such column");
   assert.equal(m.normalizeSchema({ titleName: "N", properties: props, views: [], receive: { prop: "nope", value: "o1" } }).receive, undefined, "no such property");
 });
+
+test("a copy carries the original's ticket key (so the Lage, todos and context of that ticket show), and follows it", async () => {
+  const { w, m, agents } = await boards();
+  const { sendRow } = await import("@/plugins/workspace/links");
+  const { rowKey } = await import("@/plugins/workspace/collections");
+  const lage = w.createPage({
+    kind: "database",
+    title: "Lage mit Key",
+    schema: { titleName: "Ticket", properties: [{ id: "ticketkey", name: "Key", type: "text" }], views: [m.newView("Table")] },
+  });
+  const t = w.addRow(lage, { title: "Kategoriebäume", cells: { ticketkey: "proj-777" } });
+  const { row } = sendRow(t, agents);
+  const target = w.getDatabase(agents)!.schema.properties.find((p) => p.id === "ticketkey");
+  assert.ok(target, "the receiving database got a Key property for it");
+  assert.equal(rowKey({ id: row, cells: w.getPage(row)!.props }), "PROJ-777", "the copy is the ticket now, not WS-<id>");
+  w.setCell(t, "ticketkey", "PROJ-778");
+  assert.equal(rowKey({ id: row, cells: w.getPage(row)!.props }), "PROJ-778", "and follows a changed key");
+});
+
+test("linkedSource: what the original says — its board, its fields, its key — for the copy's detail view", async () => {
+  const { w, m, agents } = await boards();
+  const { sendRow, linkedSource } = await import("@/plugins/workspace/links");
+  const lage = w.createPage({
+    kind: "database",
+    title: "Lage 2",
+    schema: { titleName: "Ticket", properties: [{ id: "ticketkey", name: "Key", type: "text" }, { id: "p_lead", name: "Lage", type: "text" }, { id: "p_x", name: "Nur dort", type: "text" }, { id: "srcref", name: "Source", type: "text" }], views: [m.newView("Table")] },
+  });
+  const t = w.addRow(lage, { title: "Footer", cells: { ticketkey: "PROJ-9", p_lead: "Wartet", p_x: "Nur im Original", srcref: "PROJ-9" } });
+  const { row } = sendRow(t, agents);
+  const s = linkedSource(row)!;
+  assert.equal(s.sourceId, t);
+  assert.equal(s.sourceDb, "Lage 2");
+  assert.equal(s.sourceDbId, lage);
+  assert.equal(s.key, "PROJ-9");
+  assert.deepEqual(s.fields.map((f) => [f.name, f.text]), [["Lage", "Wartet"], ["Nur dort", "Nur im Original"]], "its fields, also those the copy has no property for; not the system ones");
+  assert.equal(linkedSource(t), null, "a row that isn't a copy");
+});
+
+test("a receiving database's detail view shows the linked ticket, then what Zeff knows of it", async () => {
+  const { agents, w } = await boards();
+  const { detailModules } = await import("@/plugins/workspace/model");
+  const d = w.getDatabase(agents)!;
+  const mods = detailModules(d.schema, null);
+  assert.deepEqual(mods.slice(0, 2), ["properties", "source"]);
+  for (const x of ["briefing", "todos", "context", "page"]) assert.ok(mods.includes(x as never), x);
+  assert.ok(!detailModules({ ...d.schema, receive: undefined }, null).includes("source" as never), "a database that doesn't receive: no such module");
+});
