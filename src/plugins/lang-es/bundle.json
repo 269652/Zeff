@@ -5404,5 +5404,7 @@
   "Pipelines": "Pipelines",
   "Every pipeline, what it did in the last 7 days — and what its AI cost.": "Cada pipeline, qué hizo en los últimos 7 días — y cuánto costó su IA.",
   "AI after each sync": "IA tras cada sincronización",
-  "No pipelines yet.": "Aún no hay pipelines."
+  "No pipelines yet.": "Aún no hay pipelines.",
+  "In the Workspace": "En el Workspace",
+  "Read its sources, run its AI": "Leer sus fuentes, ejecutar su IA"
 }

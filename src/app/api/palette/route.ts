@@ -24,6 +24,12 @@ export async function GET(req: Request) {
       const { search } = await import("@/plugins/workspace/store");
       for (const h of search(q, 6)) hits.push({ id: `page:${h.id}`, label: `${h.icon ? `${h.icon} ` : ""}${h.title || "Untitled"}`.slice(0, 140), hint: h.path || undefined, href: `/workspace/${h.id}`, group: "Workspace" });
     }
+    // What it can do in the Workspace (a new page, a pipeline refreshed): the ones the words fit.
+    if (isInstalled("workspace")) {
+      const { workspacePaletteItems } = await import("@/plugins/workspace/palette");
+      const { filterPalette } = await import("@/lib/palette");
+      hits.unshift(...(filterPalette(workspacePaletteItems(), q, 5) as typeof hits));
+    }
     return Response.json({ hits });
   } catch {
     return Response.json({ hits: [] });

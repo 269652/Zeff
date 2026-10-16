@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Overlay } from "@/components/Overlay";
 import { useT } from "@/components/I18nProvider";
+import { toast } from "@/components/Toaster";
 import { filterPalette, opensPalette, opensShortcuts, type PaletteItem } from "@/lib/palette";
 
 /**
@@ -71,14 +72,32 @@ export function CommandPalette({ pages }: { pages: PaletteItem[] }) {
   const results = useMemo(() => {
     const found = filterPalette(pages, q);
     const recs = q.trim().length >= 2 && records.q === q ? records.hits : [];
-    return [...found, ...recs];
+    // What you can do ("＋ New page", "↻ Refresh …") first: it is typed on purpose; then the pages, then the records.
+    return [...recs.filter((r) => r.group === "Actions"), ...found, ...recs.filter((r) => r.group !== "Actions")];
   }, [pages, q, records]);
   const cur = Math.min(active, Math.max(results.length - 1, 0));
-  const group = (g: string) => (g === "Todos" ? t("Todos") : g === "Pages" ? t("Pages") : g);
+  const group = (g: string) => (g === "Todos" ? t("Todos") : g === "Pages" ? t("Pages") : g === "Actions" ? t("Actions") : g);
 
-  const go = (item: PaletteItem | undefined) => {
+  const go = async (item: PaletteItem | undefined) => {
     if (!item) return;
     setOpen(false);
+    // An action ("zeff:new-page", "zeff:refresh:12"): done, then its page opened.
+    if (item.href.startsWith("zeff:")) {
+      const [, what, arg] = item.href.split(":");
+      const { createPageAction, refreshPipelineAction } = await import("@/plugins/workspace/actions");
+      if (what === "refresh") {
+        toast(t("Reading the sources …"));
+        const r = await refreshPipelineAction(Number(arg));
+        if (!r.ok) return void toast(r.error, { tone: "error" });
+        toast(r.background ? t("the AI runs in the background") : t("Done."), { tone: "ok" });
+        router.push(`/workspace/${arg}`);
+      } else {
+        const r = await createPageAction({ kind: what === "new-database" ? "database" : "page" });
+        if (!r.ok) return void toast(r.error, { tone: "error" });
+        router.push(`/workspace/${r.id}`);
+      }
+      return;
+    }
     router.push(item.href);
   };
   const list = `${uid}-list`;
@@ -117,7 +136,7 @@ export function CommandPalette({ pages }: { pages: PaletteItem[] }) {
                 if (results.length) setActive((cur + (e.key === "ArrowDown" ? 1 : results.length - 1)) % results.length);
               } else if (e.key === "Enter") {
                 e.preventDefault();
-                go(results[cur]);
+                void go(results[cur]);
               }
             }}
           />
@@ -130,7 +149,7 @@ export function CommandPalette({ pages }: { pages: PaletteItem[] }) {
               role="option"
               aria-selected={i === cur}
               onMouseMove={() => setActive(i)}
-              onClick={() => go(r)}
+              onClick={() => void go(r)}
               className={`flex cursor-pointer items-baseline justify-between gap-3 rounded-md px-3 py-1.5 ${i === cur ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : ""}`}
             >
               <span className="min-w-0">
