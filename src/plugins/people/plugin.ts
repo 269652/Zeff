@@ -8,9 +8,6 @@ export default definePlugin({
   description: "A profile for everyone who matters to you: your notes, their dates (birthday, anniversaries, whatever you want to remember) with a reminder — on the Today page and as a desktop notification — plus what Zeff knows about them: the knowledge (with the Knowledge plugin), their latest messages (WhatsApp, mail), the todos they appear in. Zeff finds dates in your facts and — with the LLM plugin — the AI finds them in knowledge and messages; you confirm them.",
   category: "app",
   defaultInstalled: false,
-  apps: [
-    { href: "/personen", label: "People", short: "People", hint: "Profiles, birthdays, reminders" },
-  ],
   routes: ["/personen"],
   syncSteps: ["peoplenorm"],
 });

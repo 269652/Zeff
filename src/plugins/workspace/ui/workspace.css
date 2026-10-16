@@ -845,31 +845,31 @@
   color: var(--color-indigo-600, #4f46e5);
   border-color: currentColor;
 }
-.ws-flex-body {
+/* The node view puts the blocks in one inner element: that is the flex container. */
+.ws-flex-body > div {
   display: flex;
   gap: 1rem;
-  border-radius: 0.4rem;
 }
-.ws-flex[data-gap="sm"] > .ws-flex-body {
+.ws-flex[data-gap="sm"] > .ws-flex-body > div {
   gap: 0.4rem;
 }
-.ws-flex[data-gap="lg"] > .ws-flex-body {
+.ws-flex[data-gap="lg"] > .ws-flex-body > div {
   gap: 1.75rem;
 }
-.ws-flex[data-dir="row"] > .ws-flex-body {
+.ws-flex[data-dir="row"] > .ws-flex-body > div {
   flex-direction: row;
 }
-.ws-flex[data-dir="col"] > .ws-flex-body {
+.ws-flex[data-dir="col"] > .ws-flex-body > div {
   flex-direction: column;
 }
-.ws-flex[data-wrap="true"] > .ws-flex-body {
+.ws-flex[data-wrap="true"] > .ws-flex-body > div {
   flex-wrap: wrap;
 }
-.ws-flex[data-dir="row"] > .ws-flex-body > * {
+.ws-flex[data-dir="row"] > .ws-flex-body > div > * {
   flex: 1 1 14rem;
   min-width: 0;
 }
-.ws-flex[data-dir="col"] > .ws-flex-body > * {
+.ws-flex[data-dir="col"] > .ws-flex-body > div > * {
   min-width: 0;
 }
 .ws-editor[contenteditable="true"] .ws-flex-body,
@@ -878,7 +878,7 @@
   outline-offset: 3px;
 }
 @media (max-width: 40rem) {
-  .ws-flex[data-dir="row"] > .ws-flex-body {
+  .ws-flex[data-dir="row"] > .ws-flex-body > div {
     flex-direction: column;
   }
 }

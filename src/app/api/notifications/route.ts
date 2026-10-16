@@ -30,6 +30,7 @@ export async function GET() {
   // Your people's dates (Personen plugin): once when the reminder starts, once on the day.
   if (isInstalled("people")) {
     const { upcoming } = await import("@/plugins/people/store");
+    const { personHref } = await import("@/plugins/workspace/people-database");
     const { inDaysText, upcomingTitle } = await import("@/plugins/people/shared");
     const now = new Date();
     for (const u of upcoming({ withinReminder: true }))
@@ -37,13 +38,14 @@ export async function GET() {
         id: `person-date:${u.date.id}:${u.on}:${u.inDays === 0 ? "today" : "soon"}`,
         title: u.inDays === 0 ? t("Today: {what}", { what: upcomingTitle(u, t) }) : `${upcomingTitle(u, t)} ${inDaysText(u.inDays, u.on, t)}`,
         body: u.date.kind === "birthday" ? t("Don't forget to congratulate.") : u.date.label || "",
-        href: `/personen/${u.person.id}`,
+        href: personHref(u.person.id),
         at: now.toISOString(),
       });
   }
   // What was promised (read from the messages) and falls due today or is overdue.
   if (isInstalled("people")) {
     const { openCommitments } = await import("@/plugins/people/graph");
+    const { personHref } = await import("@/plugins/workspace/people-database");
     const now = new Date();
     const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     for (const c of openCommitments().filter((x) => x.due && x.due <= day).slice(0, 5))
@@ -51,7 +53,7 @@ export async function GET() {
         id: `commitment:${c.id}:${day}`,
         title: c.direction === "mine" ? t("You owe {name}: due {due}", { name: c.personName, due: c.due }) : t("{name} owes you: due {due}", { name: c.personName, due: c.due }),
         body: c.text.slice(0, 200),
-        href: `/personen/${c.personId}`,
+        href: personHref(c.personId),
         at: now.toISOString(),
       });
   }

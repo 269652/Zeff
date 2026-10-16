@@ -562,7 +562,7 @@ export function rowsOf(dbId: number): { schema: DbSchema; rows: Row[] } | null {
 }
 
 /** What the views show for the ids in cells: the people, pages and todos by name. */
-export async function labelsFor(schema: DbSchema, rows: Row[]): Promise<{ people: Record<number, string>; pages: Record<number, { title: string; icon: string }>; todos: Record<number, string> }> {
+export async function labelsFor(schema: DbSchema, rows: Row[]): Promise<{ people: Record<number, string>; personHref: Record<number, string>; pages: Record<number, { title: string; icon: string }>; todos: Record<number, string> }> {
   const people = new Set<number>();
   const pages = new Set<number>();
   const todos = new Set<number>();
@@ -573,10 +573,14 @@ export async function labelsFor(schema: DbSchema, rows: Row[]): Promise<{ people
     for (const r of rows) for (const n of ids(r.cells[p.id])) bag.add(n);
     if (p.type === "rollup" || p.type === "formula") continue;
   }
-  const out = { people: {} as Record<number, string>, pages: {} as Record<number, { title: string; icon: string }>, todos: {} as Record<number, string> };
+  const out = { people: {} as Record<number, string>, personHref: {} as Record<number, string>, pages: {} as Record<number, { title: string; icon: string }>, todos: {} as Record<number, string> };
   if (people.size) {
     const { getPerson } = await import("@/plugins/people/store");
-    for (const id of people) out.people[id] = getPerson(id)?.name ?? `#${id}`;
+    const { personHref } = await import("./people-database");
+    for (const id of people) {
+      out.people[id] = getPerson(id)?.name ?? `#${id}`;
+      out.personHref[id] = personHref(id);
+    }
   }
   for (const id of pages) {
     const p = db().prepare("select title, icon from ws_pages where id = ?").get(id) as { title: string; icon: string } | undefined;

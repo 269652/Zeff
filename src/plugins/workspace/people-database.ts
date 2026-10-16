@@ -34,9 +34,27 @@ export async function ensurePeopleDatabase(): Promise<void> {
   await runPipeline(id, { ai: false });
 }
 
-/** Where a person's mention goes: their row in the people database — their profile page without one (or for a profile not read in yet). */
+/** Where a person's page is: their row in the people database — the database itself without one (a profile not read in yet), the Workspace without a database. */
 export function personHref(personId: number): string {
   const db = peopleDatabase();
   const row = db ? rawRows(db).find((r) => r.cells.srcref === `person:${personId}`) : null;
-  return row ? `/workspace/${row.id}` : `/personen/${personId}`;
+  return row ? `/workspace/${row.id}` : db ? `/workspace/${db}` : "/workspace";
 }
+
+/** The pages of all the people at once, by profile id (what a screen full of names needs). */
+export function personHrefs(): Record<number, string> {
+  const db = peopleDatabase();
+  const out: Record<number, string> = {};
+  if (!db) return out;
+  for (const r of rawRows(db)) {
+    const m = /^person:(\d+)$/.exec(String(r.cells.srcref ?? ""));
+    if (m) out[Number(m[1])] = `/workspace/${r.id}`;
+  }
+  return out;
+}
+
+/** Where the people are (their database), for links to "the people". */
+export const peopleHome = (): string => {
+  const db = peopleDatabase();
+  return db ? `/workspace/${db}` : "/workspace";
+};

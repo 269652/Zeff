@@ -23,7 +23,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-export default function PeopleView({ data, rows, openRow }: AppViewProps) {
+export default function PeopleView({ rows, openRow }: AppViewProps) {
   const t = useT();
   const router = useRouter();
   const [o, setO] = useState<PeopleOverview | null>(null);
@@ -282,7 +282,6 @@ export default function PeopleView({ data, rows, openRow }: AppViewProps) {
         {!o.identities.length && !o.claims.length && !o.dates.length && !o.suggestions.persons.length && !o.suggestions.chats.length && !o.upcoming.length && (
           <p className="text-sm text-zinc-400">{t("Nothing to check right now. The people are the rows of this database — the other views list them.")}</p>
         )}
-        <p className="text-xs text-zinc-400">{data.title}</p>
       </div>
     </div>
   );

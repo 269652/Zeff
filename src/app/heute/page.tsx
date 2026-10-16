@@ -10,6 +10,7 @@ import { dayFrame, dayProgress, freeWindows, phaseOf, workSpan, type DayPhase } 
 import { DayTimeline } from "./DayTimeline";
 import type { TodoView } from "@/lib/boards/shared";
 import { remindedFormAction } from "@/plugins/people/server-actions";
+import { peopleHome, personHref } from "@/plugins/workspace/people-database";
 import { inDaysText, upcomingTitle } from "@/plugins/people/shared";
 import { isInstalled } from "@/plugins/state";
 
@@ -129,7 +130,7 @@ async function heuteData() {
     mine,
     meetings,
     unanswered,
-    dates: reminders.map((r) => ({ key: `${r.date.id}:${r.on}`, title: upcomingTitle(r, t), inDays: r.inDays, href: `/personen/${r.person.id}` })),
+    dates: reminders.map((r) => ({ key: `${r.date.id}:${r.on}`, title: upcomingTitle(r, t), inDays: r.inDays, href: personHref(r.person.id) })),
     hours,
     weeks,
     t,
@@ -419,12 +420,12 @@ export default async function HeutePage() {
         )}
 
         {commitments.length > 0 && (
-          <Card id="commitments" title={t("Commitments due")} count={commitments.length} href="/personen" tone="indigo">
+          <Card id="commitments" title={t("Commitments due")} count={commitments.length} href={peopleHome()} tone="indigo">
             <ul className="space-y-1.5">
               {commitments.map((c) => (
                 <li key={c.id} className="flex items-baseline gap-2 text-sm">
                   <span className={`shrink-0 text-xs font-medium ${c.mine ? "text-amber-700 dark:text-amber-400" : "text-sky-700 dark:text-sky-400"}`}>{c.mine ? t("I owe") : t("They owe")}</span>
-                  <Link href={`/personen/${c.personId}`} className="min-w-0 flex-1 hover:underline">
+                  <Link href={personHref(c.personId)} className="min-w-0 flex-1 hover:underline">
                     {c.personName}: {c.text}
                   </Link>
                   <span className="shrink-0 text-xs text-zinc-500">{c.due}</span>
@@ -435,12 +436,12 @@ export default async function HeutePage() {
         )}
 
         {reminders.length > 0 && (
-          <Card id="reminders" title={t("Reminders")} count={reminders.length} href="/personen" tone="indigo">
+          <Card id="reminders" title={t("Reminders")} count={reminders.length} href={peopleHome()} tone="indigo">
             <ul className="space-y-1.5">
               {reminders.map((r) => (
                 <li key={`${r.date.id}:${r.on}`} className="flex items-baseline gap-2 text-sm">
                   <span className="shrink-0">{r.date.kind === "birthday" ? "🎂" : "📅"}</span>
-                  <Link href={`/personen/${r.person.id}`} className="min-w-0 flex-1 hover:underline">
+                  <Link href={personHref(r.person.id)} className="min-w-0 flex-1 hover:underline">
                     {upcomingTitle(r, t)}
                   </Link>
                   <span className={`shrink-0 text-xs ${r.inDays === 0 ? "font-medium text-amber-700 dark:text-amber-400" : "text-zinc-500"}`}>{inDaysText(r.inDays, r.on, t)}</span>

@@ -81,7 +81,7 @@ export function CellView({ p, row, ctx }: { p: Property; row: Row; ctx: CellCtx 
       return (
         <>
           {asArr(v).map((id) => (
-            <Link key={String(id)} href={`/personen/${id}`} onClick={(e) => e.stopPropagation()} className="ws-chip" data-kind="person">
+            <Link key={String(id)} href={labels.personHref?.[Number(id)] ?? "/workspace"} onClick={(e) => e.stopPropagation()} className="ws-chip" data-kind="person">
               👤 {labels.people[Number(id)] ?? `#${id}`}
             </Link>
           ))}

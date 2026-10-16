@@ -127,7 +127,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               <AgentInstructionsProvider templates={getWorkSettings().agentInstructions}>
                 <SetupGate pending={setupPending} allowed={setupPages()} account={installedPlugins().has("accounts") ? currentAccount().name : undefined}>
                   {/* People named in texts (todos) as links with hover cards — with the People plugin. */}
-                  <PeopleProvider index={installedPlugins().has("people") ? await (await import("@/plugins/people/store")).peopleIndex() : []}>{children}</PeopleProvider>
+                  <PeopleProvider index={installedPlugins().has("people") ? await (await import("@/plugins/people/store")).peopleIndex() : []} hrefs={installedPlugins().has("people") && installedPlugins().has("workspace") ? (await import("@/plugins/workspace/people-database")).personHrefs() : {}}>
+                    {children}
+                  </PeopleProvider>
                 </SetupGate>
               </AgentInstructionsProvider>
             </PluginFlagsProvider>

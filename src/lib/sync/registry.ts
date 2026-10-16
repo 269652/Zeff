@@ -3,6 +3,7 @@ import { getDb, schema } from "@/db";
 import { getBoardSettings, latestRun } from "@/lib/boards/store";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
+import { getPref } from "@/lib/prefs";
 import { driverOf } from "@/lib/connectors/store";
 import { getGitlabSettings } from "@/lib/gitlab/store";
 import { getTeamsSettings } from "@/lib/teams/store";
@@ -447,7 +448,10 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
   },
   peoplenorm: {
     get label() { return t("People matching"); },
-    href: "/personen",
+    get href() {
+      const db = getPref<number | null>("workspace.peopleDb", null);
+      return db ? `/workspace/${db}` : "/workspace";
+    },
     get what() { return t("Who is meant by the names in your todos — aliases added, profiles for contacts made, duplicates merged (after each briefing)"); },
     run: async () => {
       const r = await (await import("@/plugins/people/normalize")).normalizePeople();

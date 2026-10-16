@@ -16,9 +16,17 @@ import { personCardAction, type PersonCardData } from "./server-actions";
  */
 const Ctx = createContext<ReturnType<typeof mentionMatcher>>(null);
 
-export function PeopleProvider({ index, children }: { index: PersonIndexEntry[]; children: ReactNode }) {
+/** Where each person's page is (their row in the people database), by profile id. */
+const Hrefs = createContext<Record<number, string>>({});
+const useHref = (id: number) => useContext(Hrefs)[id] ?? "/workspace";
+
+export function PeopleProvider({ index, hrefs = {}, children }: { index: PersonIndexEntry[]; hrefs?: Record<number, string>; children: ReactNode }) {
   const matcher = useMemo(() => mentionMatcher(index), [index]);
-  return <Ctx.Provider value={matcher}>{children}</Ctx.Provider>;
+  return (
+    <Hrefs.Provider value={hrefs}>
+      <Ctx.Provider value={matcher}>{children}</Ctx.Provider>
+    </Hrefs.Provider>
+  );
 }
 
 /** A text with the people named in it as links; the rest as `render` makes it. */
@@ -117,6 +125,7 @@ function PeopleCarousel({ people, focus }: { people: Named[]; focus: number }) {
 }
 
 export function PersonMention({ id, name, children, tagged = false }: { id: number; name: string; children: ReactNode; tagged?: boolean }) {
+  const href = useHref(id);
   const side = useHoverSide();
   const group = useContext(GroupCtx);
   const underline = tagged
@@ -129,14 +138,14 @@ export function PersonMention({ id, name, children, tagged = false }: { id: numb
       side.open();
     };
     return (
-      <Link href={`/personen/${id}`} className={underline} onClick={(e) => e.stopPropagation()} onMouseEnter={show} onFocus={show}>
+      <Link href={href} className={underline} onClick={(e) => e.stopPropagation()} onMouseEnter={show} onFocus={show}>
         {children}
       </Link>
     );
   }
   return (
     <HoverCard width={360} card={<PersonCard id={id} name={name} />}>
-      <Link href={`/personen/${id}`} className={underline} onClick={(e) => e.stopPropagation()}>
+      <Link href={href} className={underline} onClick={(e) => e.stopPropagation()}>
         {children}
       </Link>
     </HoverCard>
@@ -183,6 +192,7 @@ function SummaryBlock({ summary }: { summary: { connection: string; keyFacts: st
 const cache = new Map<number, PersonCardData | null>();
 
 function PersonCard({ id, name, flat = false }: { id: number; name: string; flat?: boolean }) {
+  const href = useHref(id);
   const t = useT();
   const [data, setData] = useState<PersonCardData | null | undefined>(cache.get(id));
   useEffect(() => {
@@ -201,7 +211,7 @@ function PersonCard({ id, name, flat = false }: { id: number; name: string; flat
   return (
     <div className={flat ? "space-y-2 p-3 text-xs" : "space-y-2 rounded-lg border border-zinc-200 bg-white p-3 text-xs shadow-sm dark:border-zinc-800 dark:bg-zinc-900"}>
       <div className="flex items-baseline justify-between gap-2">
-        <Link href={`/personen/${id}`} className="text-sm font-semibold hover:underline">
+        <Link href={href} className="text-sm font-semibold hover:underline">
           {data?.name ?? name}
         </Link>
         {!!data?.aliases.length && <span className="truncate text-zinc-400">{t("also: {names}", { names: data.aliases.slice(0, 4).join(", ") })}</span>}

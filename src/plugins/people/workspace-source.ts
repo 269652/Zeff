@@ -46,7 +46,6 @@ export async function peopleRecords() {
     title: p.name,
     fields: {} as Record<string, string>,
     text,
-    url: `/personen/${p.id}`,
     updatedAt: p.updatedAt,
     dataType: "people" as const,
     typed: [

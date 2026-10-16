@@ -157,7 +157,7 @@ export async function mentionSearchAction(q: string): Promise<MentionItem[]> {
     for (const p of store.suggestPages(w, 6)) items.push({ kind: "page", ref: String(p.id), label: p.title || t("Untitled"), hint: p.kind === "database" ? t("Database") : t("Page"), icon: p.icon || (p.kind === "database" ? "🗂️" : "📄"), href: `/workspace/${p.id}` });
     if (isInstalled("people")) {
       const { searchPeopleAction } = await import("@/plugins/todos/server-actions");
-      for (const p of await searchPeopleAction(w)) items.push({ kind: "person", ref: String(p.id), label: p.name, hint: t("Person"), icon: "👤", href: `/personen/${p.id}` });
+      for (const p of await searchPeopleAction(w)) items.push({ kind: "person", ref: String(p.id), label: p.name, hint: t("Person"), icon: "👤", href: (await import("./people-database")).personHref(p.id) });
     }
     if (isInstalled("todos")) {
       const { searchTodos } = await import("@/lib/boards/store");

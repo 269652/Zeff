@@ -37,7 +37,7 @@ function describePage(p: store.Page): string {
   if (p.kind === "database") {
     const d = store.rowsOf(p.id);
     if (!d) return head.join("\n");
-    const labels = store.labelFns({ people: {}, pages: {}, todos: {} });
+    const labels = store.labelFns({ people: {}, personHref: {}, pages: {}, todos: {} });
     const props = d.schema.properties;
     head.push(`Database with ${d.rows.length} rows. Properties: ${[d.schema.titleName, ...props.map((x) => `${x.name} (${x.type})`)].join(", ")}.`);
     head.push("", `| ${[d.schema.titleName, ...props.map((x) => x.name)].join(" | ")} |`, `| ${["---", ...props.map(() => "---")].join(" | ")} |`);

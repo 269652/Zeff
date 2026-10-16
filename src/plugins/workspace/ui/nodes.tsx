@@ -153,7 +153,7 @@ function RefView({ node, editor, getPos }: NodeViewProps) {
   const { kind, ref, label, href: written } = node.attrs as { kind: string; ref: string; label: string; href: string };
   const [state, setState] = useState<RefState>({});
   // A person: their row in the people database (the link written with the mention may be the old profile page).
-  const href = state.href ?? written ?? (kind === "person" ? `/personen/${ref}` : "");
+  const href = state.href ?? written ?? (kind === "person" ? "/workspace" : "");
   useEffect(() => {
     let alive = true;
     void refState(kind, ref).then((s) => alive && setState(s));

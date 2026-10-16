@@ -193,7 +193,7 @@ test("a person's mention opens their row in the people database — the profile 
   const { getPref, setPref } = await import("@/lib/prefs");
   void getPref;
   setPref("workspace.peopleDb", 0);
-  assert.equal(personHref(iris), `/personen/${iris}`, "without a database: the profile page");
+  assert.equal(personHref(iris), "/workspace", "without a database: the Workspace");
   setPref("workspace.peopleDb", null);
   await ensurePeopleDatabase();
   const { peopleDatabase } = await import("@/plugins/workspace/people-database");

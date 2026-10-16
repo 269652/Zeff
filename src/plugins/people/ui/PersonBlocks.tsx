@@ -65,10 +65,10 @@ function usePerson(rowId: number) {
 function Card({ title, extra, children }: { title: string; extra?: ReactNode; children: ReactNode }) {
   return (
     <section className="ws-module space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800" data-person-block>
-      <h3 className="flex items-baseline justify-between gap-2 text-xs font-semibold text-zinc-500 uppercase">
+      <div role="heading" aria-level={3} className="flex items-baseline justify-between gap-2 text-xs font-semibold text-zinc-500 uppercase">
         <span>{title}</span>
         {extra}
-      </h3>
+      </div>
       {children}
     </section>
   );
