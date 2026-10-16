@@ -3,6 +3,7 @@ import { ApiError, str, type ApiContribution, type Params } from "@/lib/plugins/
 import { asAgent } from "./agent-scope";
 import { docText, markdownToDoc, type DocNode } from "./doc";
 import { newId, type Property } from "./model";
+import { listRoutines } from "./routines";
 import { addRow, createPage, getDatabase, getPage, isProtectedPage, rawRows, setCell, tree, updatePage, updateSchema } from "./store";
 
 /**
@@ -47,6 +48,24 @@ function findPage(v: string): number | null {
   if (!want) return null;
   const pages = tree().filter((p) => p.kind === "page" && !isProtectedPage(p.id));
   return pages.find((p) => lower(p.title) === want)?.id ?? (pages.filter((p) => lower(p.title).includes(want)).length === 1 ? pages.find((p) => lower(p.title).includes(want))!.id : null);
+}
+
+/** A routine (an automation or an agent) by its page's id or its title. */
+function findRoutine(v: string): number | null {
+  const id = Number(v);
+  const routines = listRoutines();
+  if (Number.isInteger(id) && routines.some((r) => r.pageId === id)) return id;
+  const want = lower(v);
+  if (!want) return null;
+  const exact = routines.find((r) => lower(r.title) === want);
+  if (exact) return exact.pageId;
+  const some = routines.filter((r) => lower(r.title).includes(want));
+  return some.length === 1 ? some[0].pageId : null;
+}
+
+function routinesContext(): string[] {
+  const list = listRoutines();
+  return list.length ? [`Workspace-Routinen: ${list.map((r) => `${r.title} (${r.kind === "agent" ? "Agent" : "Automation"})`).join(" · ")}`] : [];
 }
 
 /** Fields as the AI writes them (a JSON object of name → value, as text). */
@@ -200,6 +219,30 @@ const RAW_API: ApiContribution = {
         check: (raw) => ((raw.title ?? "").trim() ? ok({ title: raw.title!.trim().slice(0, 300), parent: (raw.parent ?? "").trim(), markdown: (raw.markdown ?? "").slice(0, 50000) }) : null),
         describe: (p) => ({ title: t("New page “{title}”", { title: String(p.title) }), body: String(p.markdown ?? "") }),
         context,
+      },
+    },
+    "workspace.routines.run": {
+      perm: "workspace.write",
+      summary: "A routine (an automation or an agent of the Workspace) run now (routine: its page's title or id; row: optional, a row's id it is about).",
+      run: async (p) => {
+        const page = findRoutine(str(p, "routine", { required: true, max: 300 }));
+        if (!page) throw new ApiError("not_found", "routine: no such routine");
+        const row = Number(str(p, "row", { max: 20 })) || undefined;
+        const { runRoutine } = await import("./routine-run");
+        const r = await runRoutine(page, { kind: "called" }, { row });
+        return { id: page, status: r.status, ...(r.runId ? { run: r.runId } : {}), ...(r.error ? { error: r.error } : {}) };
+      },
+      offer: {
+        label: "Run a Workspace routine",
+        when: "Eine Routine meines Workspace (eine Automation oder ein Agent, siehe unten) soll jetzt laufen — etwa ein Agent, der einen Bericht schreibt, oder eine Automation, die Einträge aufräumt.",
+        fields: { routine: "der Titel der Routine, genau wie unten" },
+        example: { routine: "Wochenbericht" },
+        check: (raw) => {
+          const page = findRoutine(raw.routine ?? "");
+          return page ? ok({ routine: String(page) }) : null;
+        },
+        describe: (p) => ({ title: t("Run “{routine}”", { routine: getPage(Number(p.routine))?.title ?? String(p.routine) }), body: "" }),
+        context: () => routinesContext(),
       },
     },
     "workspace.pages.append": {

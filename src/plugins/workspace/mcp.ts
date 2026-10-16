@@ -219,5 +219,65 @@ export function registerWorkspaceTools(real: McpServer, h: Helpers): void {
       }),
   );
 
+  // Routines: automations (steps) and agents (an LLM run on a page's instructions).
+  server.registerTool(
+    "workspace_routines",
+    {
+      title: "List the workspace's routines",
+      description: "The routines of the user's workspace — automations (deterministic steps) and agents (a worker on a page's instructions) — with their page id, whether they are switched on and when they run. Run one with workspace_run_routine.",
+      inputSchema: z.object({}),
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    async () =>
+      h.run(async () => {
+        const gone = off(h);
+        if (gone) return gone;
+        const { listRoutines } = await import("./routines");
+        const list = listRoutines();
+        return h.ok(list.length ? list.map((r) => `- [${r.pageId}] ${r.title || "Untitled"} — ${r.kind}, ${r.enabled ? "on" : "off"}, runs: ${r.triggers.map((t) => t.kind).join(", ")}`).join("\n") : "No routines yet.");
+      }),
+  );
+
+  server.registerTool(
+    "workspace_run_routine",
+    {
+      title: "Run a workspace routine",
+      description: "Run a routine now: an automation runs through its steps and reports how it ended; an agent routine starts a worker of its own (it shows in Zeff's Code tab) and goes on in the background. routine: its page id or title. row: optionally a row's id the routine is about. It runs with your own permissions: an agent that may only change its own page cannot give a routine more.",
+      inputSchema: z.object({ routine: z.union([z.number().int(), z.string()]), row: z.number().int().optional() }),
+      annotations: { readOnlyHint: false, destructiveHint: false },
+    },
+    async ({ routine, row }) =>
+      h.run(async () => {
+        const gone = off(h);
+        if (gone) return gone;
+        const { getRoutine } = await import("./routines");
+        const p = findPage(routine);
+        if (!p || !getRoutine(p.id)) return h.fail(`No routine "${routine}" — see workspace_routines.`);
+        const { runRoutine } = await import("./routine-run");
+        const r = await runRoutine(p.id, { kind: "called" }, { row });
+        return h.ok(`Routine "${p.title || "Untitled"}" (${p.id}): ${r.status}${r.error ? ` — ${r.error}` : ""}${r.runId ? ` (run ${r.runId})` : ""}.`);
+      }),
+  );
+
+  server.registerTool(
+    "workspace_routine_runs",
+    {
+      title: "The runs of a workspace routine",
+      description: "What a routine did lately: its newest runs with how they ended and what each step did. routine: its page id or title.",
+      inputSchema: z.object({ routine: z.union([z.number().int(), z.string()]), limit: z.number().int().min(1).max(20).optional() }),
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    async ({ routine, limit }) =>
+      h.run(async () => {
+        const gone = off(h);
+        if (gone) return gone;
+        const { getRoutine, routineRuns } = await import("./routines");
+        const p = findPage(routine);
+        if (!p || !getRoutine(p.id)) return h.fail(`No routine "${routine}" — see workspace_routines.`);
+        const runs = routineRuns(p.id, limit ?? 5);
+        return h.ok(runs.length ? runs.map((r) => `- run ${r.id} ${r.startedAt.slice(0, 16)} (${r.trigger.kind}): ${r.status}${r.error ? ` — ${r.error}` : ""}\n${r.log.map((l) => `    ${l.status} ${l.kind}: ${l.note}`).join("\n")}`).join("\n") : "No runs yet.");
+      }),
+  );
+
   registerWorkspaceDbTools(server, h);
 }
