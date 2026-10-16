@@ -108,6 +108,12 @@ export function startSyncScheduler(): void {
         } catch (e) {
           console.error("[backup]", e);
         }
+        // The Workspace's pipelines with a clock that are due (their AI outside the quiet hours).
+        try {
+          if ((await import("@/plugins/state")).isInstalled("workspace")) (await import("@/plugins/workspace/pipeline")).runDuePipelines({ ai: !quietAt() });
+        } catch (e) {
+          console.error("[pipelines]", e);
+        }
         // Today's and tomorrow's appointments as todos (calendars set so) — at any hour.
         try {
           await (await import("@/lib/calendar/todos")).calendarTodosWhenDue();

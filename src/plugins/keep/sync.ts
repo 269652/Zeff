@@ -36,7 +36,7 @@ export async function syncKeep({ background = false } = {}): Promise<{ ok: boole
     const { isInstalled } = await import("@/plugins/state");
     if (isInstalled("workspace")) {
       (await import("./google-workspace")).syncGoogleKeepDatabase();
-      await (await import("@/plugins/workspace/pipeline")).runPipelines({ ai: false }).catch((e) => console.error("[workspace] the pipelines failed", e));
+      await (await import("@/plugins/workspace/pipeline")).runPipelinesAfterSync().catch((e) => console.error("[workspace] the pipelines failed", e));
     }
     return {
       ok: true,

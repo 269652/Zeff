@@ -163,7 +163,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
         await (await import("@/plugins/jira-lage/to-workspace")).syncJiraBoardDatabases().catch((e) => console.error("[jira] keeping the boards' databases failed", e));
       // My briefing replaced by Meine Lage, a pipeline database (once); the databases with a pipeline keep their rows; their AI steps go with the briefing.
       if (isInstalled("jira-lage") && isInstalled("workspace")) await (await import("@/plugins/jira-lage/to-workspace")).replaceBriefingOnce().catch((e) => console.error("[jira] Meine Lage as a pipeline database failed", e));
-      if (isInstalled("workspace")) await (await import("@/plugins/workspace/pipeline")).runPipelines({ ai: false }).catch((e) => console.error("[workspace] the pipelines failed", e));
+      if (isInstalled("workspace")) await (await import("@/plugins/workspace/pipeline")).runPipelinesAfterSync().catch((e) => console.error("[workspace] the pipelines failed", e));
       return { ok: !unread, message: `${done}${unread}` };
     },
     last: () => recordedOr("jira", jiraTickets.syncedAt),
@@ -554,7 +554,7 @@ async function runStep(key: SyncKey): Promise<void> {
   // The mails and messages it brought: into the databases whose pipelines read them (their rows only; the AI goes with the briefing).
   if (outcome?.ok && (key === "mail" || key === "teams" || key === "whatsapp" || key === "signal")) {
     const { isInstalled } = await import("@/plugins/state");
-    if (isInstalled("workspace")) await (await import("@/plugins/workspace/pipeline")).runPipelines({ ai: false }).catch((e) => console.error("[workspace] the pipelines failed", e));
+    if (isInstalled("workspace")) await (await import("@/plugins/workspace/pipeline")).runPipelinesAfterSync().catch((e) => console.error("[workspace] the pipelines failed", e));
   }
   // Over time (since when it fails): a stop isn't a failure. Steps with a record of their own: as they kept it.
   if (STEPS[key].ownRecord && STEPS[key].last) {

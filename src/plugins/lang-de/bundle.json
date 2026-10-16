@@ -5386,5 +5386,12 @@
   "It works": "Es funktioniert",
   "No results — the key works, the search found nothing.": "Keine Treffer — der Schlüssel funktioniert, die Suche fand nichts.",
   "Zeff's AI — the Workspace chat and agents over MCP — can search the web and read public pages (web_search, web_fetch). The search uses an official API; nothing is scraped, and pages are only read from the public internet.": "Zeffs KI — der Workspace-Chat und Agenten über MCP — kann im Web suchen und öffentliche Seiten lesen (web_search, web_fetch). Die Suche nutzt eine offizielle API; nichts wird gescrapt, und Seiten werden nur aus dem öffentlichen Internet gelesen.",
-  "Made once in Google: a Programmable Search Engine that searches the whole web (programmablesearchengine.google.com), and an API key with the Custom Search API switched on (console.cloud.google.com). 100 searches a day are free.": "Einmal bei Google anlegen: eine Programmable Search Engine, die das ganze Web durchsucht (programmablesearchengine.google.com), und einen API-Schlüssel mit aktivierter Custom Search API (console.cloud.google.com). 100 Suchen am Tag sind kostenlos."
+  "Made once in Google: a Programmable Search Engine that searches the whole web (programmablesearchengine.google.com), and an API key with the Custom Search API switched on (console.cloud.google.com). 100 searches a day are free.": "Einmal bei Google anlegen: eine Programmable Search Engine, die das ganze Web durchsucht (programmablesearchengine.google.com), und einen API-Schlüssel mit aktivierter Custom Search API (console.cloud.google.com). 100 Suchen am Tag sind kostenlos.",
+  "Write the rows into another database": "Die Zeilen in eine andere Datenbank schreiben",
+  "Write to a database": "In Datenbank schreiben",
+  "Each row that comes out is made once there — its title, the fields of the same name (a status or select by its name), its text. Changes follow; nothing is deleted, and a row you removed there isn't made again.": "Jede Zeile, die herauskommt, wird dort einmal angelegt — ihr Titel, die gleichnamigen Felder (Status oder Auswahl über den Namen), ihr Text. Änderungen folgen; nichts wird gelöscht, und eine dort von dir entfernte Zeile wird nicht neu angelegt.",
+  "Runs by itself": "Läuft von selbst",
+  "its AI after every sync of its sources": "ihre KI nach jedem Sync ihrer Quellen",
+  "and every": "und alle",
+  "minutes": "Minuten"
 }

@@ -19,6 +19,8 @@ export function createDerivedDatabase(fromId: number, title?: string): number {
     views,
     ...(from.schema.dataType ? { dataType: from.schema.dataType } : {}),
     pipeline: {
+      // Its AI filter judges what's new after every sync of what it reads (once it has a condition).
+      autoAi: true,
       steps: [
         { id: newId("s"), kind: "source", from: "database", dbId: fromId },
         // (No condition yet — whatever the rows are: it lets everything through until one is written or a prompt picked.)

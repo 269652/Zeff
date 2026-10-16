@@ -16,7 +16,7 @@ import { Dropdown, MenuItem, Modal } from "./kit";
  * database), filters, AI steps (a field on each row, a summary over all) — edited, saved, run.
  */
 
-const ICON: Record<string, string> = { aifilter: "🔎", actions: "⚡", jira: "🎫", keep: "🗒", todos: "☑", database: "🗃", mail: "✉", messages: "💬", filter: "⏷", sort: "⇅", field: "✨", summary: "🧭" };
+const ICON: Record<string, string> = { write: "📤", aifilter: "🔎", actions: "⚡", jira: "🎫", keep: "🗒", todos: "☑", database: "🗃", mail: "✉", messages: "💬", filter: "⏷", sort: "⇅", field: "✨", summary: "🧭" };
 const kindOf = (s: PipelineStep) => (s.kind === "source" ? (s.from ?? "") : s.kind === "ai" ? (s.output === "filter" ? "aifilter" : (s.output ?? "")) : s.kind);
 const iconOf = (s: PipelineStep) => ICON[kindOf(s)];
 
@@ -31,12 +31,13 @@ export const BRIEFING_EXAMPLE = (): PipelineStep[] => [
 export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, databases, onSave, onRun, onClose }: { dbId: number; pipeline: Pipeline | undefined; synced: string | null; dataType?: DataType; fields: string[]; databases: { id: number; title: string }[]; onSave: (p: Pipeline) => Promise<void>; onRun: (ai: boolean) => Promise<void>; onClose: () => void }) {
   const t = useT();
   // A database a sync keeps: the sync is its source — only AI steps of its own.
+  const [auto, setAuto] = useState<{ autoAi: boolean; everyMinutes: number | undefined }>({ autoAi: !!pipeline?.autoAi, everyMinutes: pipeline?.everyMinutes });
   const [steps, setSteps] = useState<PipelineStep[]>((pipeline?.steps ?? []).filter((s) => !synced || s.kind === "ai"));
   const [busy, setBusy] = useState(false);
   const [instructions, setInstructions] = useState<Instruction[]>([]);
   const loadInstructions = () => void instructionsAction().then((r) => r.ok && setInstructions(r.instructions));
   useEffect(loadInstructions, []);
-  const dirty = JSON.stringify(steps) !== JSON.stringify(pipeline?.steps ?? []);
+  const dirty = JSON.stringify(steps) !== JSON.stringify(pipeline?.steps ?? []) || auto.autoAi !== !!pipeline?.autoAi || auto.everyMinutes !== pipeline?.everyMinutes;
   const runnable = synced ? steps.some((s) => s.kind === "ai") : steps.some((s) => s.kind === "source");
   const syncName = synced === "jira" ? "Jira" : synced === "google-keep" ? "Google Keep" : synced;
   const set = (i: number, patch: Partial<PipelineStep>) => setSteps((ss) => ss.map((s, k) => (k === i ? { ...s, ...patch } : s)));
@@ -50,14 +51,14 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, datab
   const save = async (run?: { ai: boolean }) => {
     setBusy(true);
     try {
-      if (dirty) await onSave({ ...pipeline, steps });
+      if (dirty) await onSave({ ...pipeline, steps, ...(auto.autoAi ? { autoAi: true } : { autoAi: undefined }), everyMinutes: auto.everyMinutes });
       // Saved: what Zeff already has from the sources comes in at once (the AI by hand, or with the briefing).
       if (run || (dirty && runnable && !synced)) await onRun(run?.ai ?? false);
     } finally {
       setBusy(false);
     }
   };
-  const labels: Record<string, string> = { jira: t("Jira tickets"), keep: t("Google Keep notes"), todos: t("Todos"), database: t("Another database"), mail: t("Mails (Outlook, Gmail)"), messages: t("Messages (Teams, WhatsApp, Signal)"), filter: t("Filter"), aifilter: t("AI: keep only what …"), actions: t("AI: suggest actions for each row"), sort: t("Sort"), field: t("AI: a field on each row"), summary: t("AI: one summary over all rows") };
+  const labels: Record<string, string> = { jira: t("Jira tickets"), keep: t("Google Keep notes"), todos: t("Todos"), database: t("Another database"), mail: t("Mails (Outlook, Gmail)"), messages: t("Messages (Teams, WhatsApp, Signal)"), filter: t("Filter"), aifilter: t("AI: keep only what …"), actions: t("AI: suggest actions for each row"), sort: t("Sort"), write: t("Write the rows into another database"), field: t("AI: a field on each row"), summary: t("AI: one summary over all rows") };
   return (
     <Modal title={t("Sources & steps …")} onClose={onClose} wide>
       <p className="text-sm text-zinc-500">{t("Where this database's rows come from and what's done with them, top to bottom. A run keeps the result as its rows (yours stay: AI fields, pages); the AI steps go with the briefing.")}</p>
@@ -103,10 +104,23 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, datab
         )}
         {!synced && <button type="button" className="btn btn-sm" onClick={() => add({ kind: "filter", openOnly: true })}>+ {t("Filter")}</button>}
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "sort", by: steps.find((x) => x.kind === "ai" && x.output === "field" && x.choices?.length)?.name ?? fields[0] ?? "" })}>+ ⇅ {t("Sort")}</button>
+        <button type="button" className="btn btn-sm" onClick={() => add({ kind: "write" })}>+ 📤 {t("Write to a database")}</button>
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "ai", output: "field", name: t("Lage"), prompt: "" })}>+ ✨ {t("AI field")}</button>
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "ai", output: "filter", prompt: "" })}>+ 🔎 {t("AI filter")}</button>
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "ai", output: "actions", prompt: "" })}>+ ⚡ {t("AI actions")}</button>
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "ai", output: "summary", prompt: "" })}>+ 🧭 {t("AI summary")}</button>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm" data-triggers>
+        <span className="font-medium">{t("Runs by itself")}:</span>
+        <label className="flex items-center gap-1.5">
+          <input type="checkbox" checked={auto.autoAi} onChange={(e) => setAuto({ ...auto, autoAi: e.target.checked })} />
+          {t("its AI after every sync of its sources")}
+        </label>
+        <label className="flex items-center gap-1.5">
+          {t("and every")}
+          <input type="number" min={1} className="input w-20 py-0.5 text-sm" value={auto.everyMinutes ?? ""} placeholder="—" onChange={(e) => setAuto({ ...auto, everyMinutes: Number(e.target.value) > 0 ? Math.floor(Number(e.target.value)) : undefined })} aria-label={t("Minutes")} />
+          {t("minutes")}
+        </label>
       </div>
       <div className="flex flex-wrap items-center justify-end gap-1.5 border-t border-zinc-200 pt-3 dark:border-zinc-700">
         {pipeline?.ranAt && <span className="mr-auto text-xs text-zinc-500">{t("Last run {when}", { when: new Date(pipeline.ranAt).toLocaleString() })}</span>}
@@ -258,6 +272,20 @@ function Days({ label, value, set }: { label: string; value: number | undefined;
 function StepBody({ dbId, saved, step: s, set, databases, fields }: { dbId: number; saved: boolean; step: PipelineStep; set: (p: Partial<PipelineStep>) => void; databases: { id: number; title: string }[]; fields: string[] }) {
   const t = useT();
   const row = "flex flex-wrap items-center gap-x-4 gap-y-1.5";
+  if (s.kind === "write")
+    return (
+      <div className="space-y-1.5">
+        <select className="input w-auto text-sm" value={s.to ?? ""} onChange={(e) => set({ to: Number(e.target.value) || undefined })} aria-label={t("Which database")}>
+          <option value="">{t("Pick a database …")}</option>
+          {databases.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.title}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-zinc-500">{t("Each row that comes out is made once there — its title, the fields of the same name (a status or select by its name), its text. Changes follow; nothing is deleted, and a row you removed there isn't made again.")}</p>
+      </div>
+    );
   if (s.kind === "sort")
     return (
       <div className={row}>

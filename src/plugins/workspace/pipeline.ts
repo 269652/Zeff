@@ -454,12 +454,90 @@ export async function runPipeline(dbId: number, opts: { ai?: boolean; force?: bo
     if (opts.ai) await runAiSteps(dbId, out, opts.force);
     // The rows in the sources' order — or the sort steps' (by the values as they are now, the AI's too): placed once.
     place(dbId, sorted(dbId, order, steps));
+    await writeOut(dbId, steps);
     stamp(dbId);
   } catch (e) {
     out.ok = false;
     out.error = errorMessage(e).slice(0, 300);
   }
   return out;
+}
+
+/**
+ * The "write" steps: this database's rows (as they stand after the run, the AI's fields too) put into another database —
+ * made once each, their changes followed (only what differs), never deleted; one you removed over there isn't made again.
+ */
+async function writeOut(dbId: number, steps: PipelineStep[]): Promise<void> {
+  const writes = steps.filter((s) => s.kind === "write" && s.to && s.to !== dbId);
+  if (!writes.length) return;
+  const { createHash } = await import("node:crypto");
+  const { setFields } = await import("./api");
+  const db = getSqlite();
+  db.exec("create table if not exists ws_pipeline_writes (step_id text not null, row_id integer not null, target_row integer not null, hash text not null, primary key (step_id, row_id))");
+  const mine = getDatabase(dbId)!.schema.properties.filter((p) => !HIDDEN.includes(p.id) && !["relation", "rollup", "formula", "person", "todo", "files"].includes(p.type));
+  for (const s of writes) {
+    const target = getDatabase(s.to!);
+    if (!target || target.page.archivedAt) continue;
+    const known = new Map((db.prepare("select row_id, target_row, hash from ws_pipeline_writes where step_id = ?").all(s.id) as { row_id: number; target_row: number; hash: string }[]).map((x) => [x.row_id, x]));
+    const save = db.prepare("insert into ws_pipeline_writes (step_id, row_id, target_row, hash) values (?, ?, ?, ?) on conflict(step_id, row_id) do update set target_row = excluded.target_row, hash = excluded.hash");
+    for (const r of rawRows(dbId)) {
+      const fields = Object.fromEntries(mine.filter((p) => target.schema.properties.some((q) => q.name.toLowerCase() === p.name.toLowerCase())).map((p) => [p.name, cellText(p, r.cells[p.id])]).filter((e) => !!e[1]));
+      const hash = createHash("sha1").update(JSON.stringify([r.title, fields])).digest("hex");
+      const was = known.get(r.id);
+      if (was?.hash === hash) continue;
+      const alive = was && getPage(was.target_row) && !getPage(was.target_row)!.archivedAt;
+      if (was && !alive) {
+        save.run(s.id, r.id, was.target_row, hash); // removed over there: not made again
+        continue;
+      }
+      const row = was ? was.target_row : addRow(s.to!, { title: r.title });
+      if (was && getPage(row)!.title !== r.title) updatePage(row, { title: r.title });
+      setFields(s.to!, row, fields);
+      const page = getPage(r.id);
+      if (!was && page && docToMarkdown(page.content).trim()) updatePage(row, { content: page.content });
+      save.run(s.id, r.id, row, hash);
+    }
+  }
+}
+
+/** What runs after a sync of its sources: every pipeline's rows; its AI too where it asks for that (autoAi). */
+export function afterSyncPlan(): { id: number; ai: boolean }[] {
+  return tree()
+    .filter((x) => x.kind === "database")
+    .flatMap((p) => {
+      const pl = getDatabase(p.id)?.schema.pipeline;
+      return pl?.steps.some((s) => s.kind === "source") ? [{ id: p.id, ai: !!pl.autoAi }] : [];
+    });
+}
+
+/** The pipelines with a clock that are due: every N minutes since they last ran (never run: due). */
+export function duePipelines(now = Date.now()): { id: number }[] {
+  return tree()
+    .filter((x) => x.kind === "database")
+    .flatMap((p) => {
+      const pl = getDatabase(p.id)?.schema.pipeline;
+      if (!pl?.everyMinutes || !pl.steps.some((s) => s.kind === "source")) return [];
+      const last = pl.ranAt ? Date.parse(pl.ranAt) : 0;
+      return now - last >= pl.everyMinutes * 60000 ? [{ id: p.id }] : [];
+    });
+}
+
+/**
+ * After a sync (Jira, Keep, mail, messages): the pipelines' rows are read at once; the ones with autoAi go on with their AI
+ * in the background (one at a time per database).
+ */
+export async function runPipelinesAfterSync(): Promise<void> {
+  for (const x of afterSyncPlan()) {
+    if (x.ai) startPipeline(x.id, { ai: true });
+    else await runPipeline(x.id, { ai: false });
+  }
+}
+
+/** The clock's: the due pipelines started in the background (their AI outside the quiet hours). */
+export function runDuePipelines(opts: { ai: boolean }): number {
+  const due = duePipelines();
+  for (const x of due) startPipeline(x.id, { ai: opts.ai });
+  return due.length;
 }
 
 /** What the AI filter knows of a record (its text as it was judged). */

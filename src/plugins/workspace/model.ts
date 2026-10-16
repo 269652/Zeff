@@ -133,7 +133,7 @@ export type JiraCriteria = { mine?: boolean; involved?: boolean; briefed?: boole
  */
 export type PipelineStep = {
   id: string;
-  kind: "source" | "filter" | "ai" | "sort";
+  kind: "source" | "filter" | "ai" | "sort" | "write";
   from?: PipelineSource;
   jira?: JiraCriteria;
   mail?: MailCriteria;
@@ -149,6 +149,8 @@ export type PipelineStep = {
   /** Filter: rules as Outlook's (a field by its name, a condition, a value) — all of them, or any. */
   rules?: FilterRule[];
   match?: "all" | "any";
+  /** Write: the database the rows that come out are put into (title, the fields of the same name, the text once). */
+  to?: number;
   /** Sort: the field (its name) the rows go by, and which way. */
   by?: string;
   dir?: "asc" | "desc";
@@ -160,7 +162,8 @@ export type PipelineStep = {
   instructions?: number[];
   result?: { text: string; at: string; hash?: string };
 };
-export type Pipeline = { steps: PipelineStep[]; ranAt?: string };
+/** A pipeline: its steps; when it last ran; and how it runs by itself — its AI after every sync of its sources, and/or every N minutes. */
+export type Pipeline = { steps: PipelineStep[]; ranAt?: string; autoAi?: boolean; everyMinutes?: number };
 
 /** A filter's conditions: contains, doesn't contain, is, isn't (a checkbox: yes / no), empty, not empty. */
 export const FILTER_OPS = ["contains", "not_contains", "is", "is_not", "empty", "not_empty"] as const;
@@ -208,6 +211,8 @@ export function normalizePipeline(raw: unknown): Pipeline {
         return [defined<FilterRule>({ field, op: r.op as FilterRule["op"], value: typeof r.value === "string" ? r.value : undefined })];
       });
       steps.push(defined<PipelineStep>({ id, kind: "filter", text: str(s.text), openOnly: s.openOnly === true, recentDays: posInt(s.recentDays), limit: posInt(s.limit), rules: rules.length ? rules : undefined, match: rules.length && s.match === "any" ? "any" : undefined }));
+    } else if (s.kind === "write") {
+      if (posInt(s.to)) steps.push(defined<PipelineStep>({ id, kind: "write", to: posInt(s.to) }));
     } else if (s.kind === "sort") {
       if (str(s.by)) steps.push(defined<PipelineStep>({ id, kind: "sort", by: str(s.by), dir: s.dir === "desc" ? "desc" : undefined }));
     } else if (s.kind === "ai" && (s.output === "field" || s.output === "summary" || s.output === "filter" || s.output === "actions")) {
@@ -216,7 +221,7 @@ export function normalizePipeline(raw: unknown): Pipeline {
       steps.push(defined<PipelineStep>({ id, kind: "ai", output: s.output, prop: s.output === "field" ? str(s.prop) : undefined, name: s.output === "field" ? (str(s.name) ?? "AI") : undefined, prompt: str(s.prompt), choices: s.output === "field" ? strs(s.choices) : undefined, instructions: ids(s.instructions), result: s.output === "summary" ? result : undefined }));
     }
   }
-  return { steps, ...(typeof o.ranAt === "string" ? { ranAt: o.ranAt } : {}) };
+  return { steps, ...(typeof o.ranAt === "string" ? { ranAt: o.ranAt } : {}), ...(o.autoAi === true ? { autoAi: true } : {}), ...(posInt(o.everyMinutes) ? { everyMinutes: Math.min(10080, posInt(o.everyMinutes)!) } : {}) };
 }
 
 /** The modules a row's detail view can show: its properties and page, and — by its ticket key — what Zeff knows about it. */

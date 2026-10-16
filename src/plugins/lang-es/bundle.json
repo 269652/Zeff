@@ -5386,5 +5386,12 @@
   "It works": "Funciona",
   "No results — the key works, the search found nothing.": "Sin resultados — la clave funciona, la búsqueda no encontró nada.",
   "Zeff's AI — the Workspace chat and agents over MCP — can search the web and read public pages (web_search, web_fetch). The search uses an official API; nothing is scraped, and pages are only read from the public internet.": "La IA de Zeff — el chat del Workspace y los agentes por MCP — puede buscar en la web y leer páginas públicas (web_search, web_fetch). La búsqueda usa una API oficial; no se rastrea nada y las páginas solo se leen de internet público.",
-  "Made once in Google: a Programmable Search Engine that searches the whole web (programmablesearchengine.google.com), and an API key with the Custom Search API switched on (console.cloud.google.com). 100 searches a day are free.": "Se crea una vez en Google: un Programmable Search Engine que busque en toda la web (programmablesearchengine.google.com) y una clave de API con la Custom Search API activada (console.cloud.google.com). 100 búsquedas al día son gratis."
+  "Made once in Google: a Programmable Search Engine that searches the whole web (programmablesearchengine.google.com), and an API key with the Custom Search API switched on (console.cloud.google.com). 100 searches a day are free.": "Se crea una vez en Google: un Programmable Search Engine que busque en toda la web (programmablesearchengine.google.com) y una clave de API con la Custom Search API activada (console.cloud.google.com). 100 búsquedas al día son gratis.",
+  "Write the rows into another database": "Escribir las filas en otra base de datos",
+  "Write to a database": "Escribir en una base de datos",
+  "Each row that comes out is made once there — its title, the fields of the same name (a status or select by its name), its text. Changes follow; nothing is deleted, and a row you removed there isn't made again.": "Cada fila que sale se crea una vez allí — su título, los campos del mismo nombre (estado o selección por su nombre), su texto. Los cambios se siguen; no se borra nada, y una fila que quitaste allí no se vuelve a crear.",
+  "Runs by itself": "Se ejecuta sola",
+  "its AI after every sync of its sources": "su IA tras cada sincronización de sus fuentes",
+  "and every": "y cada",
+  "minutes": "minutos"
 }

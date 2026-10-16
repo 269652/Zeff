@@ -64,7 +64,8 @@ function fieldsOf(raw: string | undefined): Record<string, string> {
 const YES = new Set(["yes", "ja", "true", "1", "x", "✓"]);
 
 /** A row's fields set by their names: a select's / status' option by its name (made when new), a date, a checkbox … */
-function setFields(dbId: number, rowId: number, fields: Record<string, string>): void {
+/** A row's fields set by their names (also the pipelines' write step). */
+export function setFields(dbId: number, rowId: number, fields: Record<string, string>): void {
   for (const [name, value] of Object.entries(fields)) {
     const d = getDatabase(dbId)!;
     if (lower(name) === lower(d.schema.titleName) || ["title", "titel", "name"].includes(lower(name))) {

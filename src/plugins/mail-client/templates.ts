@@ -55,7 +55,9 @@ export async function createInbox(parentId: number, templateId: string): Promise
   const id = createDerivedDatabase(parentId, t(tpl.title));
   const d = getDatabase(id)!;
   const source = d.schema.pipeline!.steps.find((s) => s.kind === "source")!;
-  updateSchema(id, { ...d.schema, pipeline: { steps: [source, ...tpl.steps()] } });
+  const steps = tpl.steps();
+  // With an AI step: it judges the new mails after every mail sync (autoAi).
+  updateSchema(id, { ...d.schema, pipeline: { steps: [source, ...steps], ...(steps.some((s) => s.kind === "ai") ? { autoAi: true } : {}) } });
   updatePage(id, { icon: tpl.icon });
   return id;
 }
