@@ -932,3 +932,21 @@
   cursor: grab;
   font-size: 0.7rem;
 }
+
+.ws-flex-add {
+  display: block;
+  width: 100%;
+  margin-top: 0.3rem;
+  border: 1px dashed color-mix(in oklab, var(--color-zinc-500, #71717a) 30%, transparent);
+  border-radius: 0.4rem;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.75rem;
+  text-align: left;
+  color: var(--color-zinc-400, #a1a1aa);
+  background: none;
+  cursor: pointer;
+}
+.ws-flex-add:hover {
+  color: var(--color-indigo-600, #4f46e5);
+  border-color: currentColor;
+}

@@ -92,20 +92,24 @@ function FlexView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
           <button type="button" title="Space between the blocks" onClick={() => updateAttributes({ gap: next[gap] ?? "md" })}>
             ⇔ {gap}
           </button>
-          <button
-            type="button"
-            title="A new line at the end of this box"
-            onClick={() => {
-              const pos = typeof getPos === "function" ? getPos() : undefined;
-              if (pos === undefined) return;
-              editor.chain().focus().insertContentAt(pos + node.nodeSize - 1, { type: "paragraph" }).run();
-            }}
-          >
-            ＋ block
-          </button>
         </div>
       )}
       <NodeViewContent className="ws-flex-body" />
+      {editor.isEditable && (
+        // Always there (a box of modules has no text to click into): a line at the end of the box, with the "/" menu open.
+        <button
+          type="button"
+          contentEditable={false}
+          className="ws-flex-add"
+          onClick={() => {
+            const pos = typeof getPos === "function" ? getPos() : undefined;
+            if (pos === undefined) return;
+            editor.chain().focus().insertContentAt(pos + node.nodeSize - 1, { type: "paragraph", content: [{ type: "text", text: "/" }] }).run();
+          }}
+        >
+          ＋ Add a block
+        </button>
+      )}
     </NodeViewWrapper>
   );
 }
