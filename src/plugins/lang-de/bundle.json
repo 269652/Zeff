@@ -5202,5 +5202,7 @@
   "New subtask": "Neue Unteraufgabe",
   "No longer a subtask": "Keine Unteraufgabe mehr",
   "Parent": "Übergeordnet",
-  "Not a row of a database.": "Keine Zeile einer Datenbank."
+  "Not a row of a database.": "Keine Zeile einer Datenbank.",
+  "Show inline": "Inline anzeigen",
+  "Show as a link": "Als Link anzeigen"
 }

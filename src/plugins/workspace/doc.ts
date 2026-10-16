@@ -165,6 +165,8 @@ function block(n: DocNode, ctx: { ordered?: number } = {}): string {
       return `:::zeff ${String(n.attrs?.module ?? "")}${n.attrs?.key ? ` ${String(n.attrs.key)}` : ""}`;
     case "databaseView":
       return `:::database ${String(n.attrs?.dbId ?? "")}${n.attrs?.title ? ` ${String(n.attrs.title)}` : ""}`;
+    case "pageEmbed":
+      return `:::page ${String(n.attrs?.pageId ?? "")}${n.attrs?.title ? ` ${String(n.attrs.title)}` : ""}`;
     case "doc":
       return blocks(kids);
     default:
@@ -261,6 +263,13 @@ export function markdownToDoc(md: string): Doc {
       const zm = /^:::zeff\s+([a-z]+)\s*([A-Za-z][A-Za-z0-9]*-\d+)?\s*$/.exec(l);
       if (zm && (BLOCK_MODULES as readonly string[]).includes(zm[1])) {
         out.push({ type: "zeffModule", attrs: { module: zm[1], key: (zm[2] ?? "").toUpperCase() } });
+        i++;
+        continue;
+      }
+      // :::page 12 [title]  - another page shown in this one (an inline page)
+      const pg = /^:::page\s+(\d+)\s*(.*)$/.exec(l);
+      if (pg) {
+        out.push({ type: "pageEmbed", attrs: { pageId: Number(pg[1]), title: pg[2].trim() } });
         i++;
         continue;
       }
@@ -382,6 +391,7 @@ const NODE_ATTRS: Record<string, string[]> = {
   callout: ["icon", "tone"],
   zeffRef: ["kind", "ref", "label", "href"],
   databaseView: ["dbId", "viewId", "title"],
+  pageEmbed: ["pageId", "title"],
   zeffModule: ["module", "key"],
   aiBlock: ["prompt", "text", "at", "auto"],
 };
@@ -433,6 +443,12 @@ export function sanitizeDoc(input: unknown): Doc {
         attrs.key = String(attrs.key ?? "").trim().toUpperCase().slice(0, 40);
       }
       if (o.type === "heading") attrs.level = Math.min(3, Math.max(1, Number(attrs.level) || 1));
+      if (o.type === "pageEmbed") {
+        const id = Math.floor(Number(attrs.pageId));
+        if (!(id > 0)) return null;
+        attrs.pageId = id;
+        attrs.title = String(attrs.title ?? "").slice(0, 300);
+      }
       if (Object.keys(attrs).length) out.attrs = attrs;
     }
     if (o.type === "text") {
@@ -486,7 +502,7 @@ export function previewLines(doc: DocNode | null | undefined, max = 12): Preview
         }
       } else if (n.type === "bulletList" || n.type === "orderedList") {
         for (const item of n.content ?? []) if (out.length < max) out.push({ kind: "text", text: `• ${docText(item).trim()}` });
-      } else if (n.type === "aiBlock" || n.type === "zeffModule" || n.type === "databaseView" || n.type === "image") {
+      } else if (n.type === "aiBlock" || n.type === "zeffModule" || n.type === "databaseView" || n.type === "pageEmbed" || n.type === "image") {
         continue;
       } else if (n.type === "details" || n.type === "blockquote" || n.type === "callout") {
         walk(n.content ?? []);

@@ -5202,5 +5202,7 @@
   "New subtask": "Nueva subtarea",
   "No longer a subtask": "Ya no es subtarea",
   "Parent": "Superior",
-  "Not a row of a database.": "No es una fila de una base de datos."
+  "Not a row of a database.": "No es una fila de una base de datos.",
+  "Show inline": "Mostrar en línea",
+  "Show as a link": "Mostrar como enlace"
 }

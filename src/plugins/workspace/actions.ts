@@ -411,6 +411,19 @@ export async function resetSystemPageAction(pageId: number) {
   });
 }
 
+/** A page as an inline page shows it: kind, title, icon, its content, and its sub-pages. */
+export async function pageEmbedAction(id: number) {
+  return run(() => {
+    const p = store.getPage(Number(id));
+    if (!p || p.archivedAt) throw new Error(t("This page is gone."));
+    const children = store
+      .tree()
+      .filter((x) => x.parentId === p.id)
+      .map((x) => ({ id: x.id, title: x.title, icon: x.icon, kind: x.kind }));
+    return { page: { kind: p.kind === "database" ? ("database" as const) : ("page" as const), title: p.title, icon: p.icon, content: JSON.stringify(p.content), rev: p.rev, children } };
+  });
+}
+
 /** A row's subtasks (rows of its database linked to it), with whether each is done. */
 export async function subtasksAction(rowId: number) {
   return run(async () => ({ subtasks: (await import("./subtasks")).subtasksOf(Number(rowId)) }));

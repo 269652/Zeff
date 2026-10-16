@@ -7,6 +7,7 @@ import { aiBlockAction, mentionStateAction } from "../actions";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { DatabaseBlock } from "./DatabaseView";
+import { embedPage } from "./page-embed";
 import { ModuleBlock } from "./detail-modules";
 import type { DetailModule } from "../model";
 
@@ -97,8 +98,9 @@ function refState(kind: string, ref: string): Promise<RefState> {
   });
 }
 
-function RefView({ node }: NodeViewProps) {
+function RefView({ node, editor, getPos }: NodeViewProps) {
   const router = useRouter();
+  const t = useT();
   const { kind, ref, label, href } = node.attrs as { kind: string; ref: string; label: string; href: string };
   const [state, setState] = useState<RefState>({});
   useEffect(() => {
@@ -111,8 +113,11 @@ function RefView({ node }: NodeViewProps) {
   const icon = state.icon ?? (kind === "person" ? "👤" : kind === "todo" ? (state.done ? "✅" : "☑️") : kind === "ticket" ? "🎫" : "📄");
   const text = kind === "todo" || kind === "ticket" ? label : (state.label ?? label);
   const external = /^https?:\/\//.test(href ?? "");
+  // A page's chip: shown inline instead (its content in place) — a click on ⤢.
+  const pageId = kind === "page" ? Number(/^\/workspace\/(\d+)/.exec(href ?? "")?.[1] ?? ref) : 0;
+  const inline = editor.isEditable && pageId > 0 && !state.missing;
   return (
-    <NodeViewWrapper as="span" className="inline">
+    <NodeViewWrapper as="span" className="group/ref inline">
       <a
         className="ws-chip"
         data-kind={kind}
@@ -135,6 +140,21 @@ function RefView({ node }: NodeViewProps) {
         {text}
         {state.status && kind === "todo" && !state.done ? <span className="opacity-60">· {state.status}</span> : null}
       </a>
+      {inline && (
+        <button
+          type="button"
+          contentEditable={false}
+          className="invisible ml-0.5 rounded px-1 text-xs text-zinc-400 group-hover/ref:visible hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800"
+          title={t("Show inline")}
+          aria-label={t("Show inline")}
+          onClick={() => {
+            const pos = typeof getPos === "function" ? getPos() : null;
+            if (pos !== null && pos !== undefined) embedPage(editor, pos, { id: pageId, title: text });
+          }}
+        >
+          ⤢
+        </button>
+      )}
     </NodeViewWrapper>
   );
 }
