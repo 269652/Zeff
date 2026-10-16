@@ -6,7 +6,7 @@ import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { addRowAction, archivePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, detailPageAction, makeInboxAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, runPipelineAction, setCellAction, updateSchemaAction, type DatabaseData } from "../actions";
-import { PROP_LABELS, PROP_TYPES, retype, type PropType, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
+import { DEFAULT_COLUMN, fitWidth, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
 import { RowPeek } from "./RowPeek";
@@ -691,6 +691,74 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
     api.changeSchema((s) => ({ ...s, properties: s.properties.map((q) => (q.id === id ? retype(q, type) : q)) }));
     if (type === "formula") onSchema();
   };
+  // Column widths: a drag on the head's right edge (live while dragging, kept with the view), a double-click or the menu fits one to its content.
+  const tableRef = useRef<HTMLTableElement>(null);
+  const [live, setLive] = useState<Record<string, number> | null>(null);
+  const widths = live ?? view.widths ?? null;
+  const fixed = !!widths && Object.keys(widths).length > 0;
+  /** Every column's width as it is laid out now (so fixing one doesn't make the others jump). */
+  const measure = (): Record<string, number> => {
+    const out: Record<string, number> = {};
+    tableRef.current?.querySelectorAll<HTMLElement>("thead th[data-col]").forEach((th) => {
+      out[th.dataset.col!] = th.getBoundingClientRect().width;
+    });
+    return out;
+  };
+  const startResize = (e: React.PointerEvent, id: string) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const th = (e.currentTarget as HTMLElement).closest("th") as HTMLElement | null;
+    if (th) th.draggable = false; // the head is draggable to move the column
+    const base = { ...measure(), ...(view.widths ?? {}) };
+    const x0 = e.clientX;
+    const w0 = measure()[id] ?? base[id] ?? DEFAULT_COLUMN;
+    let cur: Record<string, number> | null = null;
+    const move = (ev: PointerEvent) => {
+      cur = { ...measure(), ...(view.widths ?? {}), [id]: Math.max(WIDTH_MIN, w0 + ev.clientX - x0) };
+      setLive(cur);
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      if (th) th.draggable = true;
+      setLive(null);
+      if (cur) setView(withWidths(view, cur));
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+  /** Columns fitted to their widest content (the head counts too). */
+  const fit = (ids: string[]) => {
+    const table = tableRef.current;
+    if (!table) return;
+    const next: Record<string, number> = { ...measure(), ...(view.widths ?? {}) };
+    const natural = (el: HTMLElement | null): number => {
+      if (!el) return 0;
+      const was = [el.style.width, el.style.maxWidth, el.style.flex];
+      el.style.width = "max-content";
+      el.style.maxWidth = "none";
+      el.style.flex = "none";
+      const w = el.getBoundingClientRect().width;
+      [el.style.width, el.style.maxWidth, el.style.flex] = was;
+      return w;
+    };
+    for (const id of ids) {
+      const th = [...table.querySelectorAll<HTMLElement>("thead th[data-col]")].find((x) => x.dataset.col === id);
+      if (!th) continue;
+      const at = [...(th.parentElement?.children ?? [])].indexOf(th);
+      let content = 0;
+      table.querySelectorAll<HTMLTableRowElement>("tbody tr").forEach((tr) => {
+        const td = tr.children[at] as HTMLTableCellElement | undefined;
+        if (td && td.colSpan === 1) content = Math.max(content, natural(td.firstElementChild as HTMLElement | null));
+      });
+      next[id] = fitWidth(content, natural(th.firstElementChild as HTMLElement | null) + 24);
+    }
+    setView(withWidths(view, next));
+  };
+  const handle = (id: string) => (
+    <span role="separator" aria-orientation="vertical" className="ws-resize" title={t("Drag to resize — double-click to fit")} onPointerDown={(e) => startResize(e, id)} onDoubleClick={(e) => (e.stopPropagation(), fit([id]))} onClick={(e) => e.stopPropagation()} />
+  );
   const header = (
     <thead>
       <tr>
@@ -700,12 +768,13 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
           const drag = { ...sort.handle(id), ...sort.target(id) };
           if (!p)
             return (
-              <th key={id} className={`min-w-56 cursor-grab ${sort.mark(id)}`} title={t("Drag to move the column")} {...drag}>
-                {schema.titleName}
+              <th key={id} data-col={id} className={`${fixed ? "" : "min-w-56"} cursor-grab ${sort.mark(id)}`} title={t("Drag to move the column")} {...drag}>
+                <span>{schema.titleName}</span>
+                {handle(id)}
               </th>
             );
           return (
-          <th key={p.id} className={`cursor-grab ${sort.mark(p.id)}`} title={t("Drag to move the column")} {...drag}>
+          <th key={p.id} data-col={p.id} className={`cursor-grab ${sort.mark(p.id)}`} title={t("Drag to move the column")} {...drag}>
             <Dropdown label={<span>{p.name}</span>} className="flex items-center gap-1 text-left">
               {(close) => (
                 <>
@@ -718,6 +787,9 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
                       {x === p.type ? "✓" : " "} {t(PROP_LABELS[x])}
                     </MenuItem>
                   ))}
+                  <MenuItem onClick={() => (close(), fit([p.id]))}>↔ {t("Fit column to content")}</MenuItem>
+                  <MenuItem onClick={() => (close(), fit(cols))}>↔ {t("Fit all columns")}</MenuItem>
+                  {view.widths && <MenuItem onClick={() => (close(), setView(withWidths(view, null)))}>⟲ {t("Reset column widths")}</MenuItem>}
                   <MenuItem onClick={() => (close(), onSchema())}>⚙ {t("Edit properties …")}</MenuItem>
                   <MenuItem
                     danger
@@ -733,6 +805,7 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
                 </>
               )}
             </Dropdown>
+            {handle(p.id)}
           </th>
           );
         })}
@@ -746,7 +819,16 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
   );
   return (
     <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
-      <table className="ws-table">
+      <table ref={tableRef} className={`ws-table${fixed ? " ws-fixed" : ""}`} style={fixed ? { tableLayout: "fixed", width: 64 + cols.reduce((n, id) => n + (widths![id] ?? DEFAULT_COLUMN), 0) } : undefined}>
+        {fixed && (
+          <colgroup>
+            <col style={{ width: 32 }} />
+            {cols.map((id) => (
+              <col key={id} style={{ width: widths![id] ?? DEFAULT_COLUMN }} />
+            ))}
+            <col style={{ width: 32 }} />
+          </colgroup>
+        )}
         {header}
         {groups.map((g) => (
           <tbody key={g.key || "all"}>

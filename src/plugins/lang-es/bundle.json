@@ -5470,5 +5470,9 @@
   "Below this page": "Debajo de esta página",
   "Everywhere else": "En cualquier otro lugar",
   "{n} records": "{n} registros",
-  "Your profiles — a row per person with aliases, addresses, chat, Jira account, note, next date, the pages that mention them, context, knowledge, todos and shared tickets. Edits go to the profile.": "Tus perfiles: una fila por persona con alias, direcciones, chat, cuenta de Jira, nota, próxima fecha, las páginas que la mencionan, contexto, conocimiento, todos y tickets compartidos. Los cambios van al perfil."
+  "Your profiles — a row per person with aliases, addresses, chat, Jira account, note, next date, the pages that mention them, context, knowledge, todos and shared tickets. Edits go to the profile.": "Tus perfiles: una fila por persona con alias, direcciones, chat, cuenta de Jira, nota, próxima fecha, las páginas que la mencionan, contexto, conocimiento, todos y tickets compartidos. Los cambios van al perfil.",
+  "Fit column to content": "Ajustar la columna al contenido",
+  "Fit all columns": "Ajustar todas las columnas",
+  "Reset column widths": "Restablecer anchos de columna",
+  "Drag to resize — double-click to fit": "Arrastra para cambiar el ancho; doble clic para ajustar"
 }
