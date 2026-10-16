@@ -6,7 +6,7 @@ import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, detailPageAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, runPipelineAction, setCellAction, updateSchemaAction, type DatabaseData } from "../actions";
-import { cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
+import { PROP_LABELS, PROP_TYPES, retype, type PropType, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
 import { RowPeek } from "./RowPeek";
@@ -659,6 +659,11 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
   const cols = columnOrder(view, schema).filter((id) => id === TITLE || visible.some((p) => p.id === id));
   const byId = new Map(visible.map((p) => [p.id, p]));
   const sort = useSortable((from, to, after) => setView({ ...view, order: moveBefore(columnOrder(view, schema), from, to, after) }), "x", "text/ws-col");
+  // A column's content type from its header; a formula needs its expression: the properties open for that.
+  const retypeColumn = (id: string, type: PropType) => {
+    api.changeSchema((s) => ({ ...s, properties: s.properties.map((q) => (q.id === id ? retype(q, type) : q)) }));
+    if (type === "formula") onSchema();
+  };
   const header = (
     <thead>
       <tr>
@@ -680,6 +685,12 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
                   <MenuItem onClick={() => (close(), setView({ ...view, sorts: [{ prop: p.id, dir: "asc" }] }))}>↑ {t("Sort ascending")}</MenuItem>
                   <MenuItem onClick={() => (close(), setView({ ...view, sorts: [{ prop: p.id, dir: "desc" }] }))}>↓ {t("Sort descending")}</MenuItem>
                   <MenuItem onClick={() => (close(), setView({ ...view, hidden: [...view.hidden, p.id] }))}>🙈 {t("Hide")}</MenuItem>
+                  <div className="px-3 pt-1 text-xs text-zinc-500">{t("Content type")}</div>
+                  {PROP_TYPES.filter((x) => x !== "relation" && x !== "rollup").map((x) => (
+                    <MenuItem key={x} onClick={() => (close(), x !== p.type && retypeColumn(p.id, x))}>
+                      {x === p.type ? "✓" : " "} {t(PROP_LABELS[x])}
+                    </MenuItem>
+                  ))}
                   <MenuItem onClick={() => (close(), onSchema())}>⚙ {t("Edit properties …")}</MenuItem>
                   <MenuItem
                     danger

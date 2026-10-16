@@ -34,7 +34,7 @@ export function createDerivedDatabase(fromId: number, title?: string): number {
   return id;
 }
 
-const SOURCE_TITLES: Record<Exclude<PipelineSource, "database">, string> = { jira: "Jira tickets", keep: "Google Keep notes", todos: "Todos", mail: "Mails", messages: "Messages" };
+const SOURCE_TITLES: Record<Exclude<PipelineSource, "database">, string> = { jira: "Jira tickets", keep: "Google Keep notes", todos: "Todos", mail: "Mails", messages: "Messages", knowledge: "Knowledge addresses" };
 const SOURCE_TYPE: Partial<Record<PipelineSource, DataType>> = { mail: "mail", messages: "message" };
 
 /** A database straight from a data source (Jira, Google Keep, todos, mail, messages): its pipeline that source — more steps to add (filters, AI). */

@@ -86,7 +86,7 @@ export function setFields(dbId: number, rowId: number, fields: Record<string, st
     else if (p.type === "multi_select") setCell(rowId, p.id, value.split(",").map((x) => x.trim()).filter(Boolean).map((x) => option(getDatabase(dbId)!.schema.properties.find((y) => y.id === p.id)!, x)));
     else if (p.type === "checkbox") setCell(rowId, p.id, YES.has(lower(value)));
     else if (p.type === "number") setCell(rowId, p.id, Number.isFinite(Number(value)) ? Number(value) : null);
-    else if (["text", "url", "email", "phone", "date"].includes(p.type)) setCell(rowId, p.id, value.trim() || null);
+    else if (["text", "markdown", "url", "email", "phone", "date"].includes(p.type)) setCell(rowId, p.id, value.trim() || null);
   }
 }
 

@@ -5414,5 +5414,13 @@
   "A combined inbox": "Eine gemeinsame Inbox",
   "Mail and chats in one list, by channel — name the sources (more, fewer) in its Sources & steps.": "Mail und Chats in einer Liste, nach Kanal — die Quellen (mehr, weniger) legst du in „Quellen & Schritte“ fest.",
   "Pick a message.": "Wähle eine Nachricht.",
-  "New combined inbox": "Neue gemeinsame Inbox"
+  "New combined inbox": "Neue gemeinsame Inbox",
+  "Knowledge: addresses (test, prod …)": "Wissen: Adressen (Test, Prod …)",
+  "Search for": "Suche nach",
+  "One per line: a project, a system": "Eins pro Zeile: ein Projekt, ein System",
+  "Not the ones already in": "Nicht die, die schon in … stehen",
+  "(only this database)": "(nur diese Datenbank)",
+  "The web addresses the knowledge base holds for these terms, each once with its environment and the page it stands on. Addresses you keep by hand (here or in the other database) are not suggested again.": "Die Web-Adressen, die die Wissensdatenbank zu diesen Begriffen hat – jede einmal, mit Umgebung und der Seite, auf der sie steht. Adressen, die du von Hand pflegst (hier oder in der anderen Datenbank), werden nicht noch einmal vorgeschlagen.",
+  "Content type": "Inhaltstyp",
+  "Markdown": "Markdown"
 }

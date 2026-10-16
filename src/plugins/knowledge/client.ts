@@ -29,7 +29,7 @@ export const knowledgeSearch = (q: string, limit = 8) => call<{ pages: Knowledge
 export const knowledgeRelated = (text: string, ticket: string | null, limit = 5) => call<{ pages: KnowledgePage[]; entities: KnowledgeEntity[] }>("/api/related", { method: "POST", body: { text, ticket, limit } });
 /** The addresses of the systems a piece of work is about (test, prod …) from the pages that are about it. */
 export const knowledgeLinks = (text: string, ticket: string | null, limit = 40) =>
-  call<{ links: { env: "prod" | "test" | "dev" | "other"; label: string; url: string; pageTitle: string }[] }>("/api/links", { method: "POST", body: { text, ticket, limit } }).then((r) => r.links);
+  call<{ links: { env: "prod" | "test" | "dev" | "other"; label: string; url: string; pageTitle: string; pageUrl?: string }[] }>("/api/links", { method: "POST", body: { text, ticket, limit } }).then((r) => r.links);
 /** What the knowledge holds about a project (search terms → pages with their abstract and address lines), raw material for a summary. */
 export const knowledgeRepoSources = (terms: string[], limit = 14) =>
   call<{ pages: { id: string; title: string; space: string; url: string; summary: string | null; lines: string[] }[] }>("/api/repo-sources", { method: "POST", body: { terms, limit } }).then((r) => r.pages);
