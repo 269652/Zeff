@@ -21,6 +21,12 @@ function make(title: string, icon: string, step: PipelineStep, app: { id: string
   return id;
 }
 
+/** The database "Mail" ("mail") or "Chats" ("message") — null: not made, or gone. */
+export function homeDatabase(kind: "mail" | "message"): number | null {
+  const id = getPref<number | null>(kind === "mail" ? MAIL : CHATS, null);
+  return id && getDatabase(id) && !getDatabase(id)!.page.archivedAt ? id : null;
+}
+
 /** The two made (where their sources are installed and they weren't made before) — and their rows read. */
 export async function ensureMailDatabases(): Promise<void> {
   if (!isInstalled("workspace")) return;

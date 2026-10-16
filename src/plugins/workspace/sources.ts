@@ -1,4 +1,6 @@
 import { getSqlite } from "@/db";
+import { derivedOf } from "./derived";
+import { homeDatabase } from "./mail-databases";
 import { listTodos } from "@/lib/boards/store";
 import { listJiraBoards } from "@/lib/jira/store";
 import { getJiraSyncConfig } from "@/lib/jira/sync";
@@ -28,6 +30,8 @@ export type SourceView = {
   boards?: { id: number; name: string; project: string | null; enabled: boolean; href: string | null }[];
   /** The databases (and pages) it keeps. */
   databases: { title: string; href: string }[];
+  /** Mail, messages: the database the inboxes go under ("Mail", "Chats") — its type for the templates. */
+  home?: { id: number; dataType: "mail" | "message"; inboxes: { title: string; href: string }[] } | null;
 };
 
 export function sourcesOverview(): SourceView[] {
@@ -83,11 +87,18 @@ function todoSource(): SourceView {
 
 function mailSource(): SourceView {
   const n = (getSqlite().prepare("select count(*) as n from emails where folder not in ('WhatsApp', 'Signal')").get() as { n: number }).n;
-  return { key: "mail", name: "Mail", step: "mail", ready: true, setup: { text: "Which folders are read", href: "/settings/mail" }, count: n, databases: [] };
+  return { key: "mail", name: "Mail", step: "mail", ready: true, setup: { text: "Which folders are read", href: "/settings/mail" }, count: n, databases: [], home: home("mail") };
 }
 
 function messageSource(): SourceView {
   const chats = (getSqlite().prepare("select count(*) as n from emails where folder in ('WhatsApp', 'Signal')").get() as { n: number }).n;
   const teams = (getSqlite().prepare("select count(*) as n from teams_messages").get() as { n: number }).n;
-  return { key: "messages", name: "Teams · WhatsApp · Signal", step: null, ready: true, setup: null, count: chats + teams, databases: [] };
+  return { key: "messages", name: "Teams · WhatsApp · Signal", step: null, ready: true, setup: null, count: chats + teams, databases: [], home: home("message") };
+}
+
+/** "Mail" / "Chats" with the inboxes under it (their derived databases). */
+function home(kind: "mail" | "message"): SourceView["home"] {
+  const id = homeDatabase(kind);
+  if (!id) return null;
+  return { id, dataType: kind, inboxes: derivedOf(id).map((d) => ({ title: `${d.icon ? `${d.icon} ` : ""}${d.title}`, href: `/workspace/${d.id}` })) };
 }

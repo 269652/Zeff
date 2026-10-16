@@ -10,6 +10,7 @@ import { setBoardEnabledAction } from "@/plugins/jira/server-actions";
 import { createSourceDatabaseAction, keepSourceDatabasesAction } from "../actions";
 import type { SourceView } from "../sources";
 import { SyncEvery } from "./pipeline";
+import { NewInbox } from "@/plugins/mail-client/ui/NewInbox";
 
 /**
  * The Workspace's data sources: Jira (its boards switched on here, each a board database), Google Keep (a gallery
@@ -104,6 +105,22 @@ export function SourcesView({ sources }: { sources: SourceView[] }) {
               ))}
               {!s.boards.length && <li className="py-1.5 text-zinc-500">{t("No Jira boards known yet — sync Jira first.")}</li>}
             </ul>
+          )}
+          {/* Mail, messages: the inboxes under "Mail" / "Chats" — and a new one from the plugin's templates. */}
+          {s.home && (
+            <div className="flex flex-wrap items-center gap-2 text-sm" data-inboxes>
+              <span className="text-zinc-500">{t("Inboxes")}:</span>
+              <Link href={`/workspace/${s.home.id}`} className="ws-chip hover:underline">
+                {s.home.dataType === "mail" ? "✉️ " : "💬 "}
+                {s.home.dataType === "mail" ? t("Mail") : t("Chats")}
+              </Link>
+              {s.home.inboxes.map((x) => (
+                <Link key={x.href} href={x.href} className="ws-chip hover:underline">
+                  {x.title}
+                </Link>
+              ))}
+              <NewInbox dbId={s.home.id} dataType={s.home.dataType} />
+            </div>
           )}
           {s.databases.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 text-sm">
