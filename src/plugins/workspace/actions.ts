@@ -421,6 +421,16 @@ export async function detailPageAction(dbId: number) {
   return run(async () => ({ id: (await import("./detail-page")).ensureDetailPage(Number(dbId)) }));
 }
 
+/** An AI filter tried on a sample (what it would keep) — nothing saved. */
+export async function previewAiFilterAction(dbId: number, steps: unknown, stepId: string) {
+  return run(async () => {
+    if (!isInstalled("llm")) throw new Error(t("The LLM plugin is needed for this (Menu → Plugins)."));
+    const { normalizePipeline } = await import("./model");
+    const checked = normalizePipeline({ steps }).steps;
+    return { rows: await (await import("./pipeline")).previewAiFilter(Number(dbId), checked, String(stepId), 15) };
+  });
+}
+
 /** A pipeline's last runs (what it did, what the AI did in it and cost). */
 export async function pipelineRunsAction(dbId: number) {
   return run(async () => ({ runs: (await import("./pipeline")).pipelineRuns(Number(dbId), 12) }));

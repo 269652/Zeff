@@ -6,7 +6,7 @@ import { Markdown } from "@/components/Markdown";
 import { toast } from "@/components/Toaster";
 import { minutesText } from "@/plugins/sync-settings";
 import { RunLog } from "./RunLog";
-import { instructionsAction, newInstructionAction, rejudgeAction, sourceSyncsAction } from "../actions";
+import { previewAiFilterAction, instructionsAction, newInstructionAction, rejudgeAction, sourceSyncsAction } from "../actions";
 import { useT } from "@/components/I18nProvider";
 import { ATTENTIONS } from "@/lib/boards/shared";
 import { FILTER_OPS, newId, type DataType, type FilterRule, type JiraCriteria, type Pipeline, type PipelineSource, type PipelineStep } from "../model";
@@ -90,7 +90,7 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, datab
               <button type="button" className="icon-btn" disabled={i === steps.length - 1} onClick={() => move(i, 1)} aria-label={t("Down")}>↓</button>
               <button type="button" className="icon-btn" onClick={() => setSteps((ss) => ss.filter((_, k) => k !== i))} aria-label={t("Remove the step")}>✕</button>
             </div>
-            <StepBody dbId={dbId} saved={!dirty} step={s} set={(p) => set(i, p)} databases={databases.filter((d) => d.id !== dbId)} fields={[...new Set([...fields, ...(TYPED_FIELDS[dataType ?? ""] ?? []), ...steps.flatMap((x) => (x.kind === "ai" && x.output === "field" && x.name ? [x.name] : []))])]} />
+            <StepBody dbId={dbId} saved={!dirty} allSteps={steps} step={s} set={(p) => set(i, p)} databases={databases.filter((d) => d.id !== dbId)} fields={[...new Set([...fields, ...(TYPED_FIELDS[dataType ?? ""] ?? []), ...steps.flatMap((x) => (x.kind === "ai" && x.output === "field" && x.name ? [x.name] : []))])]} />
             {s.kind === "ai" && <InstructionPicker chosen={s.instructions ?? []} all={instructions} set={(ids) => set(i, { instructions: ids.length ? ids : undefined })} reload={loadInstructions} />}
           </li>
         ))}
@@ -273,7 +273,8 @@ function Days({ label, value, set }: { label: string; value: number | undefined;
   );
 }
 
-function StepBody({ dbId, saved, step: s, set, databases, fields }: { dbId: number; saved: boolean; step: PipelineStep; set: (p: Partial<PipelineStep>) => void; databases: { id: number; title: string }[]; fields: string[] }) {
+function StepBody({ dbId, saved, step: s, allSteps, set, databases, fields }: { dbId: number; saved: boolean; step: PipelineStep; allSteps: PipelineStep[]; set: (p: Partial<PipelineStep>) => void; databases: { id: number; title: string }[]; fields: string[] }) {
+  const [trial, setTrial] = useState<"busy" | { title: string; keep: boolean; why: string }[] | null>(null);
   const t = useT();
   const row = "flex flex-wrap items-center gap-x-4 gap-y-1.5";
   if (s.kind === "write")
@@ -441,7 +442,34 @@ function StepBody({ dbId, saved, step: s, set, databases, fields }: { dbId: numb
           >
             ↺ {t("Judge all again")}
           </button>
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={trial === "busy" || (!s.prompt?.trim() && !(s.instructions ?? []).length)}
+            onClick={async () => {
+              setTrial("busy");
+              const r = await previewAiFilterAction(dbId, allSteps, s.id);
+              if (!r.ok) {
+                setTrial(null);
+                return void toast(r.error, { tone: "error" });
+              }
+              setTrial(r.rows);
+            }}
+          >
+            {trial === "busy" ? "…" : `🧪 ${t("Try it on a sample")}`}
+          </button>
         </div>
+        {Array.isArray(trial) && (
+          <ul className="max-h-56 space-y-0.5 overflow-y-auto rounded border border-zinc-200 p-2 text-xs dark:border-zinc-800" data-trial>
+            <li className="text-zinc-500">{t("{k} of {n} would stay — nothing is saved:", { k: trial.filter((x) => x.keep).length, n: trial.length })}</li>
+            {trial.map((x, i) => (
+              <li key={i} className={x.keep ? "text-emerald-700 dark:text-emerald-400" : "text-zinc-500"}>
+                {x.keep ? "✓" : "✗"} {x.title}
+                {x.why ? <span className="text-zinc-400"> — {x.why}</span> : null}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     );
   if (s.kind === "ai" && s.output === "actions")

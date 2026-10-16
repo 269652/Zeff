@@ -5406,5 +5406,9 @@
   "AI after each sync": "IA tras cada sincronización",
   "No pipelines yet.": "Aún no hay pipelines.",
   "In the Workspace": "En el Workspace",
-  "Read its sources, run its AI": "Leer sus fuentes, ejecutar su IA"
+  "Read its sources, run its AI": "Leer sus fuentes, ejecutar su IA",
+  "Try it on a sample": "Probar con una muestra",
+  "{k} of {n} would stay — nothing is saved:": "{k} de {n} se quedarían — no se guarda nada:",
+  "No such AI filter.": "No existe ese filtro de IA.",
+  "Write a condition first.": "Escribe primero una condición."
 }

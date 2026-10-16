@@ -5406,5 +5406,9 @@
   "AI after each sync": "KI nach jedem Sync",
   "No pipelines yet.": "Noch keine Pipelines.",
   "In the Workspace": "Im Workspace",
-  "Read its sources, run its AI": "Ihre Quellen lesen, ihre KI laufen lassen"
+  "Read its sources, run its AI": "Ihre Quellen lesen, ihre KI laufen lassen",
+  "Try it on a sample": "An einer Stichprobe testen",
+  "{k} of {n} would stay — nothing is saved:": "{k} von {n} blieben — nichts wird gespeichert:",
+  "No such AI filter.": "Diesen KI-Filter gibt es nicht.",
+  "Write a condition first.": "Schreib erst eine Bedingung."
 }

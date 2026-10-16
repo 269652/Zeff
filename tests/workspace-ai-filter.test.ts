@@ -196,3 +196,31 @@ test("run log: each run of a pipeline kept — what it did, how many the AI judg
   assert.equal(pipelineRuns(id).length, 2, "newest first");
   assert.ok(allPipelineRuns(7).some((x) => x.dbId === id), "the overview of all");
 });
+
+test("trial run: an AI filter's condition tried on a sample — what it would keep and why — nothing saved, the unsaved condition used", async () => {
+  const w = await import("@/plugins/workspace/store");
+  const { createSourceDatabase, createDerivedDatabase } = await import("@/plugins/workspace/derived");
+  const { runPipeline, previewAiFilter } = await import("@/plugins/workspace/pipeline");
+  const { addManualTodo } = await import("@/lib/boards/store");
+  addManualTodo({ ticket: "WS-41", text: "Probelauf Eins prüfen" });
+  addManualTodo({ ticket: "WS-42", text: "Probelauf Zwei ablegen" });
+  const src = createSourceDatabase("todos");
+  await runPipeline(src, { ai: false });
+  const id = createDerivedDatabase(src, "Probe");
+  const d = w.getDatabase(id)!;
+  const steps = d.schema.pipeline!.steps;
+  const ai = steps[1];
+  process.env.FAKE_CLAUDE_OUTPUT = JSON.stringify({ rows: Array.from({ length: 15 }, (_, i) => ({ n: i + 1, keep: i % 2 === 0, why: `Grund ${i + 1}` })) });
+  fs.writeFileSync(promptFile, "");
+  const r = await previewAiFilter(id, [steps[0], { ...ai, prompt: "Nur Wichtiges (noch nicht gespeichert)." }], ai.id, 15);
+  assert.ok(r.length >= 2 && r.length <= 15);
+  assert.equal(r[0].keep, true);
+  assert.equal(r[0].why, "Grund 1");
+  assert.ok(r.every((x) => x.title), "each with its title");
+  assert.match(fs.readFileSync(promptFile, "utf8"), /noch nicht gespeichert/, "the condition as typed, saved or not");
+  // Nothing saved: the real run still has to judge them all.
+  w.updateSchema(id, { ...d.schema, pipeline: { ...d.schema.pipeline!, steps: [steps[0], { ...ai, prompt: "Nur Wichtiges." }] } });
+  fs.rmSync(promptFile);
+  await runPipeline(id, { ai: false });
+  assert.ok(fs.existsSync(promptFile), "the trial left no verdicts behind");
+});
