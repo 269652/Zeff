@@ -97,3 +97,32 @@ test("any source or database derivable: a database from a data source; an AI fil
   assert.ok(!fs.existsSync(promptFile), "without a condition: no AI");
   assert.ok(w.rawRows(derived).some((r) => r.title.startsWith("Steuererklärung")), "everything through");
 });
+
+test("the AI filter's frame: strict (in doubt: not kept, notifications only when they ask something of me) — a change to it judges again", async () => {
+  const { AI_FILTER } = await import("@/plugins/workspace/pipeline");
+  assert.doesNotMatch(AI_FILTER, /lieber behalten/, "not: keep when in doubt");
+  assert.match(AI_FILTER, /Im Zweifel: nicht behalten/);
+  assert.match(AI_FILTER, /Benachrichtigungen/);
+  const w = await import("@/plugins/workspace/store");
+  const p = await import("@/lib/prompts");
+  const { markdownToDoc } = await import("@/plugins/workspace/doc");
+  const { createSourceDatabase, createDerivedDatabase } = await import("@/plugins/workspace/derived");
+  const { runPipeline } = await import("@/plugins/workspace/pipeline");
+  const { addManualTodo } = await import("@/lib/boards/store");
+  addManualTodo({ ticket: "WS-6", text: "Rahmen prüfen" });
+  const src = createSourceDatabase("todos");
+  await runPipeline(src, { ai: false });
+  const id = createDerivedDatabase(src);
+  const d = w.getDatabase(id)!;
+  w.updateSchema(id, { ...d.schema, pipeline: { steps: [d.schema.pipeline!.steps[0], { ...d.schema.pipeline!.steps[1], prompt: "Nur Wichtiges." }] } });
+  process.env.FAKE_CLAUDE_OUTPUT = JSON.stringify({ rows: Array.from({ length: 30 }, (_, i) => ({ n: i + 1, keep: false, why: "nein" })) });
+  await runPipeline(id, { ai: false });
+  fs.rmSync(promptFile);
+  await runPipeline(id, { ai: false });
+  assert.ok(fs.existsSync(promptFile) === false, "judged: not again");
+  await p.ensureSystemPrompts();
+  const page = (await p.systemPrompts()).find((x) => x.key === "ai-filter")!;
+  w.updatePage(page.pageId!, { content: markdownToDoc("Sei sehr streng. Bedingung: {{instruction}}") });
+  await runPipeline(id, { ai: false });
+  assert.match(fs.readFileSync(promptFile, "utf8"), /Sei sehr streng/, "the frame changed: judged again, by it");
+});
