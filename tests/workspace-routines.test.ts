@@ -90,3 +90,45 @@ test("routine runs: a log of what ran, why, how it went and what each step did",
   for (let i = 0; i < 30; i++) r.finishRun(r.startRun(page, { kind: "manual" }), { status: "done", log: [] });
   assert.ok(r.routineRuns(page, 10).length === 10, "the newest ones");
 });
+
+test("routineView: what the controls block shows — the routine, its newest runs (agents' runs brought up to date), when it runs next, what is missing", async () => {
+  const w = await pageWorkspace();
+  const r = await import("@/plugins/workspace/routines");
+  const { routineView } = await import("@/plugins/workspace/routine-view");
+  const { setInstalled } = await import("@/plugins/state");
+  const page = w.createPage({ title: "Ansicht" });
+  assert.equal(routineView(page), null, "no routine, no view");
+  r.createRoutine(page, "agent", { enabled: true, triggers: [{ kind: "manual" }, { kind: "schedule", everyMinutes: 15 }] });
+  const v = routineView(page, { workRun: () => undefined })!;
+  assert.equal(v.kind, "agent");
+  assert.deepEqual(v.triggers.map((t) => t.kind), ["manual", "schedule"]);
+  assert.ok(v.nextRunAt, "planned: the schedule is on");
+  assert.deepEqual(v.runs, []);
+  // an agent needs the Code plugin (workers): without it the view says so
+  setInstalled("work", false);
+  assert.match(routineView(page, { workRun: () => undefined })!.problem ?? "", /Code/);
+  setInstalled("work", true);
+  assert.equal(routineView(page, { workRun: () => undefined })!.problem, null);
+  // a run of an agent that its worker ended: brought up to date when the view is made
+  const run = r.startRun(page, { kind: "manual" });
+  r.setWorkRun(run, 77);
+  const done = routineView(page, { workRun: (id) => (id === 77 ? { status: "done", summary: "Fertig." } : undefined) })!;
+  assert.equal(done.runs[0].status, "done");
+  assert.equal(done.runs[0].workRunId, 77, "linked to its worker run (the Code tab)");
+  // an automation: its steps
+  const auto = w.createPage({ title: "Schritte" });
+  r.createRoutine(auto, "automation", { steps: [{ id: "n", kind: "notify", text: "x" }] });
+  const a = routineView(auto)!;
+  assert.equal(a.steps.length, 1);
+  assert.equal(a.problem, null, "an automation needs no worker");
+});
+
+test("an if step being built keeps its place: with no rule yet it is kept — and holds for every row until a rule is added", async () => {
+  const { normalizeSteps } = await import("@/plugins/workspace/routines");
+  const { conditionHolds } = await import("@/plugins/workspace/routine-conditions");
+  const [s] = normalizeSteps([{ kind: "if", when: { rules: [{ field: "", op: "is" }] }, then: [{ kind: "notify", text: "x" }], else: [] }]) as { kind: string; when: { rules: unknown[] }; then: unknown[] }[];
+  assert.equal(s.kind, "if");
+  assert.deepEqual(s.when.rules, []);
+  assert.equal(s.then.length, 1, "its steps stay");
+  assert.equal(conditionHolds(s.when as never, { title: "x" }), true);
+});

@@ -134,8 +134,9 @@ export function normalizeSteps(raw: unknown, depth = 0): Step[] {
         break;
       }
       case "if": {
-        const when = normalizeCondition(o.when);
-        if (when) out.push({ id, kind: "if", when, then: normalizeSteps(o.then, depth + 1), else: normalizeSteps(o.else, depth + 1) });
+        // (Being built it may have no rule yet: it stays, and holds until one is added.)
+        const when = normalizeCondition(o.when) ?? { rules: [] };
+        out.push({ id, kind: "if", when, then: normalizeSteps(o.then, depth + 1), else: normalizeSteps(o.else, depth + 1) });
         break;
       }
       case "foreach":

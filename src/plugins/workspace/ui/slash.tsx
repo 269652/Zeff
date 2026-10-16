@@ -106,6 +106,15 @@ export const slashItems = (t: T): SlashItem[] => [
     keywords: [...keywords, "ticket", "zeff"],
     run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffModule", attrs: { module, key: "" } }).run(),
   })),
+  {
+    key: "routine-controls",
+    title: t("Routine controls"),
+    hint: t("Run, schedule and permissions of an agent or an automation — for this page"),
+    icon: "🤖",
+    group: t("App blocks"),
+    keywords: ["agent", "automation", "routine", "schedule", "run", "trigger", "workflow", "automatisierung"],
+    run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffRoutine" }).run(),
+  },
   // The parts an app's layout is made of.
   {
     key: "app-field",
