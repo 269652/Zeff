@@ -441,6 +441,15 @@ export async function previewAiFilterAction(dbId: number, steps: unknown, stepId
   });
 }
 
+/** What a set step would change now (its matching rows) — nothing saved. */
+export async function previewSetAction(dbId: number, steps: unknown, stepId: string) {
+  return run(async () => {
+    const { normalizePipeline } = await import("./model");
+    const checked = normalizePipeline({ steps }).steps;
+    return { rows: await (await import("./pipeline")).previewSet(Number(dbId), checked, String(stepId)) };
+  });
+}
+
 /** A pipeline's last runs (what it did, what the AI did in it and cost). */
 export async function pipelineRunsAction(dbId: number) {
   return run(async () => ({ runs: (await import("./pipeline")).pipelineRuns(Number(dbId), 12) }));

@@ -6,7 +6,7 @@ import { Markdown } from "@/components/Markdown";
 import { toast } from "@/components/Toaster";
 import { minutesText } from "@/plugins/sync-settings";
 import { RunLog } from "./RunLog";
-import { previewAiFilterAction, instructionsAction, newInstructionAction, rejudgeAction, sourceSyncsAction } from "../actions";
+import { previewSetAction, previewAiFilterAction, instructionsAction, newInstructionAction, rejudgeAction, sourceSyncsAction } from "../actions";
 import { useT } from "@/components/I18nProvider";
 import { ATTENTIONS } from "@/lib/boards/shared";
 import { FILTER_OPS, newId, type DataType, type FilterRule, type JiraCriteria, type Pipeline, type PipelineSource, type PipelineStep } from "../model";
@@ -17,7 +17,7 @@ import { Dropdown, MenuItem, Modal } from "./kit";
  * database), filters, AI steps (a field on each row, a summary over all) — edited, saved, run.
  */
 
-const ICON: Record<string, string> = { write: "📤", aifilter: "🔎", actions: "⚡", jira: "🎫", keep: "🗒", todos: "☑", database: "🗃", mail: "✉", messages: "💬", knowledge: "📚", filter: "⏷", sort: "⇅", field: "✨", summary: "🧭" };
+const ICON: Record<string, string> = { write: "📤", aifilter: "🔎", actions: "⚡", jira: "🎫", keep: "🗒", todos: "☑", database: "🗃", mail: "✉", messages: "💬", knowledge: "📚", filter: "⏷", sort: "⇅", set: "🏷", field: "✨", summary: "🧭" };
 const kindOf = (s: PipelineStep) => (s.kind === "source" ? (s.from ?? "") : s.kind === "ai" ? (s.output === "filter" ? "aifilter" : (s.output ?? "")) : s.kind);
 const iconOf = (s: PipelineStep) => ICON[kindOf(s)];
 
@@ -61,7 +61,7 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, check
       setBusy(false);
     }
   };
-  const labels: Record<string, string> = { jira: t("Jira tickets"), keep: t("Google Keep notes"), todos: t("Todos"), database: t("Another database"), mail: t("Mails (Outlook, Gmail)"), messages: t("Messages (Teams, WhatsApp, Signal)"), knowledge: t("Knowledge: addresses (test, prod …)"), filter: t("Filter"), aifilter: t("AI: keep only what …"), actions: t("AI: suggest actions for each row"), sort: t("Sort"), write: t("Write the rows into another database"), field: t("AI: a field on each row"), summary: t("AI: one summary over all rows") };
+  const labels: Record<string, string> = { jira: t("Jira tickets"), keep: t("Google Keep notes"), todos: t("Todos"), database: t("Another database"), mail: t("Mails (Outlook, Gmail)"), messages: t("Messages (Teams, WhatsApp, Signal)"), knowledge: t("Knowledge: addresses (test, prod …)"), filter: t("Filter"), set: t("Set a field where …"), aifilter: t("AI: keep only what …"), actions: t("AI: suggest actions for each row"), sort: t("Sort"), write: t("Write the rows into another database"), field: t("AI: a field on each row"), summary: t("AI: one summary over all rows") };
   return (
     <Modal title={t("Sources & steps …")} onClose={onClose} wide>
       <p className="text-sm text-zinc-500">{t("Where this database's rows come from and what's done with them, top to bottom. A run keeps the result as its rows (yours stay: AI fields, pages); the AI steps go with the briefing.")}</p>
@@ -106,6 +106,7 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, check
         </Dropdown>
         )}
         {!synced && <button type="button" className="btn btn-sm" onClick={() => add({ kind: "filter", openOnly: true })}>+ {t("Filter")}</button>}
+        {!synced && <button type="button" className="btn btn-sm" onClick={() => add({ kind: "set", name: "", setValue: "" })}>+ 🏷 {t("Set a field")}</button>}
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "sort", by: steps.find((x) => x.kind === "ai" && x.output === "field" && x.choices?.length)?.name ?? fields[0] ?? "" })}>+ ⇅ {t("Sort")}</button>
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "write" })}>+ 📤 {t("Write to a database")}</button>
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "ai", output: "field", name: t("Lage"), prompt: "" })}>+ ✨ {t("AI field")}</button>
@@ -303,6 +304,35 @@ function StepBody({ dbId, saved, step: s, allSteps, set, databases, fields }: { 
           ))}
         </select>
         <p className="text-xs text-zinc-500">{t("Each row that comes out is made once there — its title, the fields of the same name (a status or select by its name), its text. Changes follow; nothing is deleted, and a row you removed there isn't made again.")}</p>
+      </div>
+    );
+  if (s.kind === "set")
+    return (
+      <div className="space-y-2">
+        <RulesEditor rules={s.rules ?? []} match={s.match ?? "all"} fields={fields} set={(rules, match) => set({ rules: rules.length ? rules : undefined, match: rules.length && match === "any" ? "any" : undefined })} />
+        <div className={row}>
+          <label className="flex items-center gap-1.5 text-sm">
+            {t("Set the field")}
+            <input className="input w-36 text-sm" value={s.name ?? ""} onChange={(e) => set({ name: e.target.value })} placeholder={t("Priority")} aria-label={t("Field name")} />
+          </label>
+          <label className="flex items-center gap-1.5 text-sm">
+            {t("to")}
+            <input className="input w-36 text-sm" value={s.setValue ?? ""} onChange={(e) => set({ setValue: e.target.value })} placeholder={t("high")} aria-label={t("Value")} />
+          </label>
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={!s.name?.trim()}
+            onClick={async () => {
+              const r = await previewSetAction(dbId, allSteps, s.id);
+              if (!r.ok) return void toast(r.error, { tone: "error" });
+              toast(r.rows.length ? t("{n} rows would get it: {titles}", { n: r.rows.length, titles: r.rows.slice(0, 5).map((x) => x.title).join(" · ") + (r.rows.length > 5 ? " …" : "") }) : t("No row matches."), { tone: "ok", ms: 12000 });
+            }}
+          >
+            👁 {t("Preview")}
+          </button>
+        </div>
+        <p className="text-xs text-zinc-500">{t("The rows its rules match get the value in that field, at every run. Nothing else changes — remove the step and the field stays empty again.")}</p>
       </div>
     );
   if (s.kind === "sort")

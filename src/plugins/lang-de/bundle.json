@@ -5431,5 +5431,13 @@
   "is final: a run neither changes nor archives it, and the AI leaves it.": "abgehakt ist, gilt als endgültig: Ein Lauf ändert oder archiviert sie nicht, und die KI lässt sie in Ruhe.",
   "Colour of {name}": "Farbe von {name}",
   "Used by": "Verwendet von",
-  "An inbox is a database like any other: name the channels as its sources (New → Inbox, or View → Inbox in any database).": "Eine Inbox ist eine Datenbank wie jede andere: Kanäle als Quellen nennen (Neu → Inbox oder Ansicht → Inbox in jeder Datenbank)."
+  "An inbox is a database like any other: name the channels as its sources (New → Inbox, or View → Inbox in any database).": "Eine Inbox ist eine Datenbank wie jede andere: Kanäle als Quellen nennen (Neu → Inbox oder Ansicht → Inbox in jeder Datenbank).",
+  "Set a field where …": "Feld setzen, wo …",
+  "Set a field": "Feld setzen",
+  "Set the field": "Setze das Feld",
+  "to": "auf",
+  "Field name": "Feldname",
+  "{n} rows would get it: {titles}": "{n} Zeilen würden es bekommen: {titles}",
+  "No row matches.": "Keine Zeile passt.",
+  "The rows its rules match get the value in that field, at every run. Nothing else changes — remove the step and the field stays empty again.": "Die Zeilen, auf die seine Regeln passen, bekommen bei jedem Lauf den Wert in diesem Feld. Sonst ändert sich nichts – entfernst du den Schritt, bleibt das Feld wieder leer."
 }

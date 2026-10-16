@@ -73,3 +73,34 @@ test("unread counters: every mail database's unread rows — for the sidebar", a
   const todos = createSourceDatabase("todos");
   assert.equal(unreadCounts()[todos], undefined, "only mail databases");
 });
+
+test("a set step: rows matching its rules get a field's value — before it is applied, a preview says which rows", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["workspace", "outlook-mail", "mail-client"]) setInstalled(id, true);
+  const m = await import("@/plugins/workspace/model");
+  const n = m.normalizePipeline({ steps: [{ id: "s", kind: "set", name: " Priority ", setValue: "high", match: "any", rules: [{ field: "From", op: "contains", value: "setter" }] }, { id: "x", kind: "set", name: "", setValue: "v" }] });
+  assert.equal(n.steps.length, 1, "a set step needs its field");
+  assert.deepEqual([n.steps[0].name, n.steps[0].setValue, n.steps[0].match], ["Priority", "high", "any"]);
+
+  const { saveMails } = await import("@/lib/mail/store");
+  const w = await import("@/plugins/workspace/store");
+  const { runPipeline, previewSet } = await import("@/plugins/workspace/pipeline");
+  const { createSourceDatabase } = await import("@/plugins/workspace/derived");
+  saveMails([
+    { convId: "S1", folder: "Posteingang", from: "Carla Setter", fromEmail: "carla@setter.example", subject: "Wichtig", preview: "…", receivedAt: ago(1), unread: true },
+    { convId: "S2", folder: "Posteingang", from: "Anna Berg", fromEmail: "anna@example.com", subject: "Frage", preview: "…", receivedAt: ago(2), unread: true },
+  ]);
+  const id = createSourceDatabase("mail");
+  await runPipeline(id, { ai: false });
+  const steps = [w.getDatabase(id)!.schema.pipeline!.steps[0], { id: "s", kind: "set", name: "Priority", setValue: "high", rules: [{ field: "From", op: "contains", value: "setter" }] } as never];
+  assert.deepEqual((await previewSet(id, steps, "s")).map((r) => r.title), ["Wichtig"], "the preview: only the rows it would change");
+  assert.equal(w.getDatabase(id)!.schema.properties.some((p) => p.name === "Priority"), false, "a preview changes nothing");
+  w.updateSchema(id, { ...w.getDatabase(id)!.schema, pipeline: { steps } });
+  await runPipeline(id, { ai: false });
+  const d = w.getDatabase(id)!;
+  const prop = d.schema.properties.find((p) => p.name === "Priority")!;
+  const text = (title: string) => String(w.rawRows(id).find((r) => r.title === title)!.cells[prop.id] ?? "");
+  const shown = (title: string) => d.schema.properties.find((p) => p.id === prop.id)?.options?.find((o) => o.id === text(title))?.name ?? text(title);
+  assert.equal(shown("Wichtig"), "high");
+  assert.equal(shown("Frage"), "", "the others stay empty");
+});

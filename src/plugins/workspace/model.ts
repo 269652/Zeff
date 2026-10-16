@@ -138,7 +138,7 @@ export type JiraCriteria = { mine?: boolean; involved?: boolean; briefed?: boole
  */
 export type PipelineStep = {
   id: string;
-  kind: "source" | "filter" | "ai" | "sort" | "write";
+  kind: "source" | "filter" | "ai" | "sort" | "write" | "set";
   from?: PipelineSource;
   jira?: JiraCriteria;
   mail?: MailCriteria;
@@ -161,6 +161,8 @@ export type PipelineStep = {
   by?: string;
   dir?: "asc" | "desc";
   prop?: string;
+  /** Set: the value the field (`name`) gets on the rows its rules match. */
+  setValue?: string;
   name?: string;
   prompt?: string;
   choices?: string[];
@@ -222,6 +224,14 @@ export function normalizePipeline(raw: unknown): Pipeline {
       steps.push(defined<PipelineStep>({ id, kind: "filter", text: str(s.text), openOnly: s.openOnly === true, recentDays: posInt(s.recentDays), limit: posInt(s.limit), rules: rules.length ? rules : undefined, match: rules.length && s.match === "any" ? "any" : undefined }));
     } else if (s.kind === "write") {
       if (posInt(s.to)) steps.push(defined<PipelineStep>({ id, kind: "write", to: posInt(s.to) }));
+    } else if (s.kind === "set") {
+      const rules = (Array.isArray(s.rules) ? s.rules : []).flatMap((x): FilterRule[] => {
+        const r = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+        const field = str(r.field);
+        if (!field || !(FILTER_OPS as readonly unknown[]).includes(r.op)) return [];
+        return [defined<FilterRule>({ field, op: r.op as FilterRule["op"], value: typeof r.value === "string" ? r.value : undefined })];
+      });
+      if (str(s.name)) steps.push(defined<PipelineStep>({ id, kind: "set", name: str(s.name), setValue: typeof s.setValue === "string" ? s.setValue.trim() : "", rules: rules.length ? rules : undefined, match: rules.length && s.match === "any" ? "any" : undefined }));
     } else if (s.kind === "sort") {
       if (str(s.by)) steps.push(defined<PipelineStep>({ id, kind: "sort", by: str(s.by), dir: s.dir === "desc" ? "desc" : undefined }));
     } else if (s.kind === "ai" && (s.output === "field" || s.output === "summary" || s.output === "filter" || s.output === "actions")) {

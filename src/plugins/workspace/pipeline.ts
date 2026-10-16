@@ -352,6 +352,35 @@ function holds(r: SourceRecord, rule: NonNullable<PipelineStep["rules"]>[number]
   return text !== want;
 }
 
+/** Whether a record matches a step's rules (no rules: all of them). */
+const matches = (r: SourceRecord, f: PipelineStep): boolean => {
+  const rules = f.rules ?? [];
+  return !rules.length || (f.match === "any" ? rules.some((x) => holds(r, x)) : rules.every((x) => holds(r, x)));
+};
+
+/** A set step: the records its rules match get the field's value (a plain field, as any source's). */
+function applySet(records: SourceRecord[], f: PipelineStep): SourceRecord[] {
+  if (!f.name) return records;
+  return records.map((r) => (matches(r, f) ? { ...r, fields: { ...r.fields, [f.name!]: f.setValue ?? "" } } : r));
+}
+
+/** What a set step would change now: the records it matches, with the steps before it applied — nothing is written. */
+export async function previewSet(dbId: number, steps: PipelineStep[], stepId: string): Promise<{ title: string }[]> {
+  const step = steps.find((s) => s.id === stepId && s.kind === "set");
+  if (!step) throw new Error("No such step.");
+  let records: SourceRecord[] = [];
+  for (const s of steps.slice(0, steps.indexOf(step))) {
+    if (s.kind === "source") {
+      const seen = new Set(records.map((r) => r.ref));
+      const got = await read(s, dbId);
+      records = [...records, ...got.filter((r) => !seen.has(r.ref))];
+    } else if (s.kind === "filter") records = filtered(records, s);
+    else if (s.kind === "set") records = applySet(records, s);
+  }
+  if (new Set(records.map((r) => r.dataType).filter(Boolean)).size > 1) records = records.map(unifyComm);
+  return records.filter((r) => matches(r, step)).map((r) => ({ title: r.title }));
+}
+
 function filtered(records: SourceRecord[], f: PipelineStep): SourceRecord[] {
   const text = f.text?.toLowerCase();
   const from = since(f.recentDays);
@@ -487,6 +516,7 @@ async function runPipelineOnce(dbId: number, opts: { ai?: boolean; force?: boole
         const got = await read(s, dbId);
         records = [...records, ...(mixed ? got.map(unifyComm) : got).filter((r) => !seen.has(r.ref))];
       } else if (s.kind === "filter") records = filtered(records, s);
+      else if (s.kind === "set") records = applySet(records, s);
       else if (s.kind === "ai" && s.output === "filter") records = await aiFiltered(s, records);
     }
     // Whatever mixes mails and messages (also from other databases): the shared fields.

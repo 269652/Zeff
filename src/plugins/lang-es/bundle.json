@@ -5431,5 +5431,13 @@
   "is final: a run neither changes nor archives it, and the AI leaves it.": "es definitiva: una ejecución no la cambia ni la archiva, y la IA la deja en paz.",
   "Colour of {name}": "Color de {name}",
   "Used by": "Usado por",
-  "An inbox is a database like any other: name the channels as its sources (New → Inbox, or View → Inbox in any database).": "Una bandeja es una base de datos como cualquier otra: nombra los canales como fuentes (Nuevo → Inbox, o Vista → Inbox en cualquier base de datos)."
+  "An inbox is a database like any other: name the channels as its sources (New → Inbox, or View → Inbox in any database).": "Una bandeja es una base de datos como cualquier otra: nombra los canales como fuentes (Nuevo → Inbox, o Vista → Inbox en cualquier base de datos).",
+  "Set a field where …": "Fijar un campo donde …",
+  "Set a field": "Fijar un campo",
+  "Set the field": "Fijar el campo",
+  "to": "en",
+  "Field name": "Nombre del campo",
+  "{n} rows would get it: {titles}": "{n} filas lo recibirían: {titles}",
+  "No row matches.": "Ninguna fila coincide.",
+  "The rows its rules match get the value in that field, at every run. Nothing else changes — remove the step and the field stays empty again.": "Las filas que cumplen sus reglas reciben el valor en ese campo en cada ejecución. Nada más cambia: si quitas el paso, el campo vuelve a quedar vacío."
 }
