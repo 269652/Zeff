@@ -106,9 +106,10 @@ export async function jobInstruction(rowId: number): Promise<string> {
     ...(page ? ["", "### Notizen auf der Seite des Auftrags", page] : []),
     ...(hints.length ? ["", "### Regeln, die für dich gelten", ...hints.map((h) => `- ${h}`)] : []),
     "",
-    "### So lieferst du",
-    `- Schreib dein Ergebnis mit dem MCP-Werkzeug workspace_update_row (row: ${rowId}) in das Feld „Ergebnis“ (Markdown) und setz „Status“ auf „Zur Prüfung“. Änder sonst nichts an der Zeile; „Fertig“ setzt nur der Nutzer.`,
-    "- Tu nur, was der Auftrag sagt. Fehlt dir etwas, frag mit todo_needs_input, statt zu raten.",
+    "### So arbeitest du",
+    "- Tu, was der Auftrag sagt — dort, wo er es sagt. Verlangt er, im Workspace etwas anzulegen oder zu ändern (Seiten, Zeilen, Texte), legst du es dort selbst an, mit den MCP-Werkzeugen: workspace_tree und workspace_search finden den Ort („Ideen“, eine Datenbank, eine Seite); workspace_create_page, workspace_write_page, workspace_add_row und workspace_update_row legen an und ändern. Lege es wirklich an — beschreib es nicht nur.",
+    `- Zum Schluss trägst du mit workspace_update_row (row: ${rowId}) ins Feld „Ergebnis“ dieser Zeile einen kurzen Bericht ein: was du angelegt oder geändert hast, mit Titel und Seiten-ID. Verlangt der Auftrag nur eine Antwort oder einen Text (nichts im Workspace anzulegen), ist diese Antwort selbst das Ergebnis. Setz dabei „Status“ auf „Zur Prüfung“.`,
+    "- Sonst änderst du nichts an dieser Zeile; „Fertig“ setzt nur der Nutzer. Fehlt dir etwas, frag mit todo_needs_input, statt zu raten.",
     "- Beende mit einer kurzen Zusammenfassung.",
   ]
     .join("\n")

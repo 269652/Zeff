@@ -50,6 +50,12 @@ test("a job is started by a click: instruction with the rules' hints, state 'In 
   assert.match(text, /Angebot zusammenfassen/);
   assert.match(text, /fünf Sätzen/);
   assert.match(text, new RegExp(`workspace_update_row \\(row: ${id}\\)`), "where the result goes");
+  // What the job asks for happens where it says (pages, rows in the Workspace); the field only reports it.
+  assert.match(text, /workspace_create_page/, "the tools to make pages and rows are named");
+  assert.match(text, /workspace_tree|workspace_search/, "how to find the place the job names");
+  assert.match(text, /nicht nur/, "make it for real, don't describe it");
+  assert.match(text, /kurzen Bericht/, "the result field holds a short report of what was made, not the content");
+  assert.doesNotMatch(text, /Schreib dein Ergebnis mit dem MCP-Werkzeug/, "no rule that sends all content into the field");
   assert.match(text, /Schreib auf Deutsch, nüchtern\. \(Hausstil\)/, "a hint that holds for every job");
   assert.doesNotMatch(text, /Rechnungen nie bezahlen/, "a hint whose condition doesn't hold for this job");
   assert.doesNotMatch(text, /Das nicht/, "a paused rule's hint");
