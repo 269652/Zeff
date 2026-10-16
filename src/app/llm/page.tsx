@@ -8,6 +8,7 @@ import { AI_PROVIDER_INFO, type AiProvider } from "@/lib/ai/shared";
 import { codexModelsNow } from "@/plugins/codex-cli/cli";
 import { copilotModels } from "@/plugins/copilot-cli/cli";
 import { LlmSettingsForm } from "@/plugins/llm/LlmSettingsForm";
+import { ensureSystemPrompts, systemPrompts } from "@/lib/prompts";
 import { llmChoice } from "@/plugins/llm/run";
 import { getLlmSettings } from "@/plugins/llm/settings";
 import { LLM_TASKS } from "@/plugins/llm/tasks";
@@ -65,8 +66,20 @@ export default async function LlmPage() {
           initial={getLlmSettings()}
           providers={providers.map((p) => ({ id: p.id, label: AI_PROVIDER_INFO[p.id].label }))}
           effective={Object.fromEntries(LLM_TASKS.map((task) => [task.id, llmChoice(task.id)]))}
+          pages={await promptPages()}
         />
       </section>
     </div>
   );
+}
+
+/** The instructions' and the context's pages (System → Prompts), made if not yet. */
+async function promptPages(): Promise<{ instructions: string | null; context: string | null }> {
+  await ensureSystemPrompts();
+  const all = await systemPrompts();
+  const href = (key: string) => {
+    const id = all.find((x) => x.key === key)?.pageId;
+    return id ? `/workspace/${id}` : null;
+  };
+  return { instructions: href("llm-instructions"), context: href("llm-context") };
 }

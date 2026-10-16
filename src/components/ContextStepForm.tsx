@@ -11,7 +11,7 @@ import { useT } from "@/components/I18nProvider";
  * One AI step's context settings: its sources (switches, saved at once), its numbers and your own
  * instructions for it (saved with a button).
  */
-export function ContextStepForm({ step, prefs, installed }: { step: ContextStep; prefs: StepPrefs; installed: string[] }) {
+export function ContextStepForm({ step, prefs, installed, prompt = null }: { step: ContextStep; prefs: StepPrefs; installed: string[]; /** Its prompt as a page of the Workspace (its own instructions are in there now). */ prompt?: { href: string; title: string } | null }) {
   const t = useT();
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -72,6 +72,14 @@ export function ContextStepForm({ step, prefs, installed }: { step: ContextStep;
           ))}
         </div>
       )}
+      {prompt ? (
+        <p className="text-sm">
+          <span className="label">{t("The prompt")}</span>{" "}
+          <a href={prompt.href} className="text-indigo-600 hover:underline dark:text-indigo-400">
+            📝 {prompt.title} → {t("change it in the Workspace")}
+          </a>
+        </p>
+      ) : (
       <label className="block text-sm">
         <span className="label">{t("Your own instructions for this step")}</span>
         <textarea
@@ -82,6 +90,7 @@ export function ContextStepForm({ step, prefs, installed }: { step: ContextStep;
           onChange={(e) => setExtra(e.target.value)}
         />
       </label>
+      )}
       <div className="flex items-center gap-2">
         <button type="button" className="btn btn-sm btn-primary" disabled={pending || !dirty} onClick={() => save({ numbers, extra })}>
           {pending ? t("Saving…") : t("Save")}

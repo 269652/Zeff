@@ -5,6 +5,7 @@
  * made when first needed. Server only.
  */
 import { getSqlite } from "@/db";
+import { isSystemPage, systemPageIds } from "@/lib/prompts/system-pages";
 import { emitChange } from "@/lib/events";
 import { docRefs, docText, emptyDoc, sanitizeDoc, type Doc, type DocRef } from "./doc";
 import { computeRows, dateRange, defaultSchema, isComputed, newProperty, normalizeSchema, propById, TITLE, type DbSchema, type Labels, type Property, type Row } from "./model";
@@ -100,10 +101,11 @@ export function getPage(id: number): Page | null {
 // The tree
 // ---------------------------------------------------------------------------
 
-export type TreeItem = { id: number; parentId: number | null; kind: "page" | "database"; title: string; icon: string; favorite: boolean; position: number };
+export type TreeItem = { id: number; parentId: number | null; kind: "page" | "database"; title: string; icon: string; favorite: boolean; position: number; /** A system page: stays (not to the trash, not moved away). */ system?: boolean };
 
 /** Every page of the tree (not the rows of databases, not the trash, not templates), in sibling order. */
 export function tree(): TreeItem[] {
+  const system = new Set(systemPageIds());
   return (db().prepare("select id, parent_id, kind, title, icon, favorite, position from ws_pages where db_id is null and archived_at is null and template = 0 order by position, id").all() as { id: number; parent_id: number | null; kind: string; title: string; icon: string; favorite: number; position: number }[]).map((r) => ({
     id: r.id,
     parentId: r.parent_id,
@@ -112,6 +114,7 @@ export function tree(): TreeItem[] {
     icon: r.icon,
     favorite: !!r.favorite,
     position: r.position,
+    ...(system.has(r.id) ? { system: true } : {}),
   }));
 }
 
@@ -267,6 +270,7 @@ export function subtree(id: number): number[] {
 
 /** A page moved under another (null: the top), before a sibling (or last). Not into itself or what is below it; rows stay in their database. */
 export function movePage(id: number, parentId: number | null, beforeId?: number | null): void {
+  keepSystem(id, parentId);
   const d = db();
   const p = getPage(id);
   if (!p || p.dbId) throw new Error("No such page.");
@@ -287,7 +291,15 @@ export function movePage(id: number, parentId: number | null, beforeId?: number 
 }
 
 /** To the trash: the page, what is below it, and its rows. */
+/** A system page (System, its prompts) stays: not archived, deleted or moved to another parent. */
+function keepSystem(id: number, parentId?: number | null): void {
+  if (!isSystemPage(id)) return;
+  if (parentId !== undefined && getPage(id)?.parentId === parentId) return; // reordered among its siblings: fine
+  throw new Error("A system page stays where it is (System → Prompts): change its text, or reset it.");
+}
+
 export function archivePage(id: number): void {
+  keepSystem(id);
   const ids = [id, ...subtree(id)];
   const at = now();
   const d = db();
@@ -321,6 +333,7 @@ export function restorePage(id: number): void {
 
 /** Gone for good, with what is below it. */
 export function deletePage(id: number): void {
+  keepSystem(id);
   const d = db();
   const ids = [id, ...subtree(id)];
   d.transaction(() => {

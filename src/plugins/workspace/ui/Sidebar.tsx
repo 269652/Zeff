@@ -176,6 +176,7 @@ export function Sidebar({ items, favorites }: { items: TreeItem[]; favorites: { 
                   >
                     ⧉ {t("Duplicate")}
                   </MenuItem>
+                  {!item.system && (
                   <MenuItem
                     danger
                     onClick={async () => {
@@ -189,6 +190,7 @@ export function Sidebar({ items, favorites }: { items: TreeItem[]; favorites: { 
                   >
                     🗑 {t("Move to trash")}
                   </MenuItem>
+                  )}
                 </>
               )}
             </Dropdown>

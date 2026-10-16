@@ -1,4 +1,5 @@
 import { clip } from "@/lib/text";
+import { promptText } from "@/lib/prompts";
 import { getSqlite } from "@/db";
 import { runAi } from "@/lib/ai";
 import { listTodos } from "@/lib/boards/store";
@@ -32,7 +33,7 @@ const SCHEMA = {
   },
 };
 
-const INSTRUCTIONS = `Du schreibst für mich eine Kurzübersicht über eine Person, mit der ich zu tun habe — aus allem, was Zeff über sie hat (unten).
+export const INSTRUCTIONS = `Du schreibst für mich eine Kurzübersicht über eine Person, mit der ich zu tun habe — aus allem, was Zeff über sie hat (unten).
 
 Gib drei Dinge: connection — was uns verbindet (woher wir uns kennen, woran wir zusammen arbeiten, wie oft und worüber wir Kontakt haben), keyFacts — die wichtigen Fakten über sie (Rolle, Zuständigkeiten, Erreichbarkeit, Absprachen), funFacts — Persönliches und Nettes (Hobbys, Geburtstag, Vorlieben, Anekdoten).
 
@@ -124,7 +125,7 @@ export async function compilePerson(id: number, opts: { ask?: CompileDeps["ask"]
     // no search then
   }
   const prompt = [
-    INSTRUCTIONS,
+    promptText("people-compile", INSTRUCTIONS),
     "",
     `Ich bin ${me ?? "der Nutzer"}.`,
     "",

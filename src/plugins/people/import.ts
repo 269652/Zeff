@@ -1,4 +1,5 @@
 import { clip } from "@/lib/text";
+import { promptText } from "@/lib/prompts";
 import { desc, gte } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { runAi } from "@/lib/ai";
@@ -40,7 +41,7 @@ const SCHEMA = {
   },
 };
 
-const INSTRUCTIONS = `Du ziehst aus meinem Kontext der letzten Tage die Menschen heraus, mit denen ich zu tun habe — für meine Personen-Profile.
+export const INSTRUCTIONS = `Du ziehst aus meinem Kontext der letzten Tage die Menschen heraus, mit denen ich zu tun habe — für meine Personen-Profile.
 
 Unten stehen die Kontakte (Absender, Chats, Beteiligte), einige Texte und meine bestehenden Profile. Gib jede echte Person EINMAL an, mit ihrem vollen Namen; dieselbe Person unter mehreren Namen (Teams-Name, Mail-Absender, Jira-Name, Chat) fasst du zusammen und nennst die anderen Namen unter aliases. Hat sie eine Mail-Adresse, einen Chat oder einen Jira-Benutzernamen in den Daten, gib sie an (emails, whatsapp, jira) — nichts erfinden. Auch Personen, die nur im Text vorkommen („Nikolai und ich …“), gehören dazu, wenn klar ist, dass es ein Mensch ist, mit dem ich arbeite.
 
@@ -138,7 +139,7 @@ export async function importPeopleFromContext(opts: { days?: number; ask?: Impor
   const { myJiraName } = await import("@/lib/jira/store");
   const me = new Set(["ich", ...[myJiraName()].filter((n): n is string => !!n).map((n) => n.toLowerCase())]);
   const prompt = [
-    INSTRUCTIONS,
+    promptText("people-import", INSTRUCTIONS),
     "",
     `Ich bin ${[...me].filter((m) => m !== "ich")[0] ?? "der Nutzer"}.`,
     "",

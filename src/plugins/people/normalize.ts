@@ -6,6 +6,7 @@
  * profile gets one, two profiles that are one person are merged. Only what's unambiguous. Server only.
  */
 import { and, desc, gte, isNotNull, ne } from "drizzle-orm";
+import { promptText } from "@/lib/prompts";
 import { getDb, getSqlite, schema } from "@/db";
 import { runAi } from "@/lib/ai";
 import { listTodos } from "@/lib/boards/store";
@@ -45,7 +46,7 @@ type Answer = {
   relations?: { person?: number; rel?: string; other?: number; evidence?: string }[];
 };
 
-const INSTRUCTIONS = `Du pflegst meine Personen-Profile, damit jede Person EINE Identität hat — egal, wie sie in meinen Todos genannt wird (Vorname, Nachname, „Herr X“, Spitzname, voller Name).
+export const INSTRUCTIONS = `Du pflegst meine Personen-Profile, damit jede Person EINE Identität hat — egal, wie sie in meinen Todos genannt wird (Vorname, Nachname, „Herr X“, Spitzname, voller Name).
 
 Unten stehen meine Profile (id, Name, Aliasse, WhatsApp-Chat, Mail-Adressen), meine Kontakte (WhatsApp-Chats, Mail-Absender) und meine Todos.
 
@@ -182,7 +183,7 @@ async function matchNames(): Promise<NormalizeResult> {
       return r.length ? ` — bekannt: ${r.map((x) => `${x.rel}${x.otherId ? ` von [${x.otherId}]` : ""}`).join(", ")}` : "";
     };
     const prompt = [
-      INSTRUCTIONS,
+      promptText("people-normalize", INSTRUCTIONS),
       "",
       "# Meine Profile",
       ...(people.length ? people.map((p) => `- [${p.id}] ${p.name}${p.aliases.length ? ` — auch: ${p.aliases.join(", ")}` : ""}${p.whatsapp ? ` — WhatsApp: ${p.whatsapp}${sample(p.whatsapp)}` : ""}${p.emails.length ? ` — ${p.emails.join(", ")}` : ""}${hints.get(p.id) ?? ""}${said.get(p.id) ?? ""}${known(p.id)}`) : ["(noch keine)"]),

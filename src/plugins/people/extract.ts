@@ -7,6 +7,7 @@
  * rejected is told to the AI, what is known already isn't asked again). Server only.
  */
 import { getSqlite } from "@/db";
+import { promptText } from "@/lib/prompts";
 import { runAi } from "@/lib/ai";
 import { errorMessage } from "@/lib/errors";
 import { askWithRetrieval, withRagInstructions } from "@/lib/rag";
@@ -60,7 +61,7 @@ type Answer = {
   links?: { person?: number; rel?: string; target_type?: string; target?: string; evidence?: string; source?: string; confidence?: number }[];
 };
 
-const INSTRUCTIONS = `Du liest neue Nachrichten (Mail, Chats, Teams, Jira-Kommentare) und hältst fest, was sie über Personen sagen, die ich als Profil führe — damit ich später weiß, wer was macht, wer wofür zuständig ist und was versprochen wurde.
+export const INSTRUCTIONS = `Du liest neue Nachrichten (Mail, Chats, Teams, Jira-Kommentare) und hältst fest, was sie über Personen sagen, die ich als Profil führe — damit ich später weiß, wer was macht, wer wofür zuständig ist und was versprochen wurde.
 
 Unten stehen die Profile (id, Name, schon Bekanntes), danach die Nachrichten mit Kennung ([m1] …). „Ich“ bin ich, der Nutzer.
 
@@ -191,7 +192,7 @@ export async function extractKnowledge(opts: { ask?: ExtractDeps["ask"]; sinceDa
         return c.length ? ` — bekannt: ${c.join("; ")}` : "";
       };
       const prompt = [
-        INSTRUCTIONS,
+        promptText("people-extract", INSTRUCTIONS),
         "",
         "# Profile",
         ...involved.map((p) => `- [${p.id}] ${p.name}${p.aliases.length ? ` (auch: ${p.aliases.slice(0, 4).join(", ")})` : ""}${known(p)}`),

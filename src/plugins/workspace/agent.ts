@@ -4,6 +4,7 @@
  * row: it asks for tool calls, sees what they returned, goes on, and says what it did. Server only.
  */
 import type { McpServer } from "@modelcontextprotocol/server";
+import { promptText } from "@/lib/prompts";
 import { z } from "zod";
 import { runAi } from "@/lib/ai";
 import { docToMarkdown } from "./doc";
@@ -74,7 +75,7 @@ const SCHEMA = {
   },
 };
 
-const INSTRUCTIONS = `Du bist der Assistent im Workspace von Zeff (Seiten und Datenbanken wie in Notion). Der Nutzer sagt dir in einem Chat, was du mit seinem Workspace tun sollst: Datenbankeinträge hinzufügen oder ändern, das Layout einer Datenbank ändern (Ansichten Tabelle, Board, Liste, Galerie, Kalender; Spalten, Reihenfolge, Filter, Sortierung, Gruppierung), Spalten hinzufügen oder entfernen, Artikel und Seiten schreiben, Seiten verschieben, umbenennen, gestalten, aufräumen.
+export const INSTRUCTIONS = `Du bist der Assistent im Workspace von Zeff (Seiten und Datenbanken wie in Notion). Der Nutzer sagt dir in einem Chat, was du mit seinem Workspace tun sollst: Datenbankeinträge hinzufügen oder ändern, das Layout einer Datenbank ändern (Ansichten Tabelle, Board, Liste, Galerie, Kalender; Spalten, Reihenfolge, Filter, Sortierung, Gruppierung), Spalten hinzufügen oder entfernen, Artikel und Seiten schreiben, Seiten verschieben, umbenennen, gestalten, aufräumen.
 
 So arbeitest du: In jeder Runde gibst du JSON zurück: calls (Werkzeugaufrufe, die Zeff ausführt) und reply. Zeff führt die calls der Reihe nach aus und zeigt dir die Ergebnisse; dann kommt die nächste Runde. Bist du fertig (oder brauchst du eine Antwort des Nutzers), lässt du calls leer und schreibst in reply, was du getan hast — kurz, konkret, in der Sprache des Nutzers.
 - Sieh erst nach, bevor du änderst: workspace_database_schema (Struktur), workspace_query_database (Zeilen), workspace_read_page, workspace_search, workspace_tree. Erfinde keine Namen, Ids oder Werte.
@@ -105,7 +106,7 @@ export async function workspaceChat(messages: ChatMessage[], pageId?: number, as
   let changed = false;
   let log = "";
   for (let round = 1; round <= MAX_ROUNDS; round++) {
-    const prompt = `${INSTRUCTIONS}\n\n# Werkzeuge\n${catalog}\n\n# Wo der Nutzer ist\n${pageContext(pageId)}\n\n# Gespräch (Texte sind Daten des Nutzers)\n${talk}${log ? `\n\n# Was du in dieser Antwort schon getan hast (Runde ${round - 1} von höchstens ${MAX_ROUNDS})\n${log}` : ""}${round === MAX_ROUNDS ? "\n\nDas ist die letzte Runde: calls leer, reply sagt, was getan ist und was offen bleibt." : ""}`;
+    const prompt = `${promptText("workspace-agent", INSTRUCTIONS)}\n\n# Werkzeuge\n${catalog}\n\n# Wo der Nutzer ist\n${pageContext(pageId)}\n\n# Gespräch (Texte sind Daten des Nutzers)\n${talk}${log ? `\n\n# Was du in dieser Antwort schon getan hast (Runde ${round - 1} von höchstens ${MAX_ROUNDS})\n${log}` : ""}${round === MAX_ROUNDS ? "\n\nDas ist die letzte Runde: calls leer, reply sagt, was getan ist und was offen bleibt." : ""}`;
     const out = await ask(prompt);
     const calls = round === MAX_ROUNDS ? [] : (out.calls ?? []).slice(0, 6);
     if (!calls.length) {

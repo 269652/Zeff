@@ -1,4 +1,5 @@
 import { aiChoice, runAi } from "@/lib/ai";
+import { promptText } from "@/lib/prompts";
 import { errorMessage } from "@/lib/errors";
 import { emitChange } from "@/lib/events";
 import { getLanguage, t } from "@/lib/i18n/server";
@@ -17,7 +18,7 @@ type SummaryAnswer = { intro?: string; notes?: string };
 const LANGUAGE_NAMES = { de: "Deutsch", en: "Englisch", es: "Spanisch" } as const;
 
 /** The second stage: the words around the table of systems (which the first stage picked and the code sets). */
-const SUMMARY_INSTRUCTIONS = `Du schreibst für ein Projekt (ein Code-Repo samt Jira-Projekten) eine knappe Beschreibung aus Auszügen der Wissensbasis. Wer an einem Ticket dieses Projekts arbeitet, sieht sie neben seinem Todo: sie soll ihm sagen, was das Projekt ist. Die Tabelle seiner Systeme (Prod, Test, Dev) wird getrennt eingefügt — wiederhole sie nicht.
+export const SUMMARY_INSTRUCTIONS = `Du schreibst für ein Projekt (ein Code-Repo samt Jira-Projekten) eine knappe Beschreibung aus Auszügen der Wissensbasis. Wer an einem Ticket dieses Projekts arbeitet, sieht sie neben seinem Todo: sie soll ihm sagen, was das Projekt ist. Die Tabelle seiner Systeme (Prod, Test, Dev) wird getrennt eingefügt — wiederhole sie nicht.
 
 Antworte mit:
 - "intro": ein bis zwei Sätze, was das Projekt ist (Kunde/Produkt, Technik) — nur was die Quellen sagen.
@@ -51,7 +52,7 @@ const headOf = (r: RepoView, repos: RepoView[]): string =>
  * Stage 1 — the knowledge's pages about the repo go through the AI, which picks the addresses of its systems (your rules from
  * Settings → Todos, else the built-in ones). Only addresses that stand word for word in the pages are kept.
  */
-export async function pickSystems(r: RepoView, repos: RepoView[], pages: Source[], rules = getPickPrompt() || DEFAULT_PICK_PROMPT): Promise<RepoPick[]> {
+export async function pickSystems(r: RepoView, repos: RepoView[], pages: Source[], rules = promptText("repo-pick", DEFAULT_PICK_PROMPT, getPickPrompt() || DEFAULT_PICK_PROMPT)): Promise<RepoPick[]> {
   const head = headOf(r, repos);
   const sources = fitSources(head, pages, budgetOf(), 40);
   if (!sources.length) return [];
@@ -67,7 +68,7 @@ async function writeSummary(r: RepoView, repos: RepoView[], pages: Source[], pic
   try {
     const head = headOf(r, repos);
     const found = picks.length ? `Gefundene Systeme (stehen schon in der Tabelle):\n${picks.map((p) => `- ${p.env}: ${p.label} ${p.url}`).join("\n")}\n\n` : "";
-    const prompt = `${SUMMARY_INSTRUCTIONS}\n\nSchreib auf ${LANGUAGE_NAMES[getLanguage()]}.\n\n${head}\n\n${found}Quellen:\n${fitSources(head + found, pages, budgetOf(), 6).join("\n\n")}`;
+    const prompt = `${promptText("repo-summary", SUMMARY_INSTRUCTIONS)}\n\nSchreib auf ${LANGUAGE_NAMES[getLanguage()]}.\n\n${head}\n\n${found}Quellen:\n${fitSources(head + found, pages, budgetOf(), 6).join("\n\n")}`;
     const answer = await runAi<SummaryAnswer>(prompt, SUMMARY_SCHEMA, { task: "knowledge-relations", timeoutMs: 5 * 60000, maxBudgetUsd: 0.3 });
     words = answer.output ?? {};
   } catch (e) {

@@ -19,6 +19,7 @@ export function WorkSettingsForm({
   defaultModel,
   models,
   provider,
+  rulesPage = null,
 }: {
   s: WorkSettingsView;
   repos: { name: string; ok: boolean }[];
@@ -26,6 +27,8 @@ export function WorkSettingsForm({
   defaultModel: string;
   models: { value: string; label: string }[];
   provider: "claude" | "copilot";
+  /** The house rules as a page of the Workspace (System → Prompts) — changed there. */
+  rulesPage?: string | null;
 }) {
   const t = useT();
   const label = (v: string) => models.find((m) => m.value === v)?.label ?? v;
@@ -149,6 +152,15 @@ export function WorkSettingsForm({
         </p>
       </div>
 
+      {rulesPage ? (
+        <p className="text-sm">
+          <span className="label">{t("House rules for every worker")}</span>{" "}
+          <input type="hidden" name="instructions" value={s.instructions} />
+          <a href={rulesPage} className="text-indigo-600 hover:underline dark:text-indigo-400">
+            📝 {t("change them in the Workspace")}
+          </a>
+        </p>
+      ) : (
       <div>
         <label className="label" htmlFor="work-instructions">
           {t("House rules for every worker")}
@@ -162,6 +174,7 @@ export function WorkSettingsForm({
           placeholder={t("e.g. Run the Playwright suite with npm run test:e2e in packages/proj-core/Build.")}
         />
       </div>
+      )}
 
       <div className="flex items-center gap-3">
         <SubmitButton pending={pending}>{t("Save")}</SubmitButton>

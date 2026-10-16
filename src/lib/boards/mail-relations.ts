@@ -1,4 +1,5 @@
 import { aiChoice, runAi } from "@/lib/ai";
+import { promptText } from "@/lib/prompts";
 import { throwIfAborted } from "@/lib/abort";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { errorMessage } from "@/lib/errors";
@@ -31,7 +32,7 @@ const SCHEMA = {
 };
 type Answer = { todos?: { id?: number; mails?: string[] }[] };
 
-const INSTRUCTIONS = `Du ordnest E-Mails meinen offenen Todos zu. Unten stehen Jira-Tickets, je mit ihren offenen Todos (Nummer in eckigen Klammern) und den Mails aus meinem Posteingang, die das Ticket nennen (Kennung in eckigen Klammern, z. B. [mail:…], dann Datum, Absender, Betreff und die ersten Zeilen, wie Outlooks Liste sie zeigt).
+export const INSTRUCTIONS = `Du ordnest E-Mails meinen offenen Todos zu. Unten stehen Jira-Tickets, je mit ihren offenen Todos (Nummer in eckigen Klammern) und den Mails aus meinem Posteingang, die das Ticket nennen (Kennung in eckigen Klammern, z. B. [mail:…], dann Datum, Absender, Betreff und die ersten Zeilen, wie Outlooks Liste sie zeigt).
 
 Gib für JEDES Todo die Kennungen der Mails an, die für genau dieses Todo relevant sind: aus denen es folgt, die beantworten oder klären, was es verlangt, oder die man kennen muss, um es zu erledigen (bis zu 8, die aussagekräftigsten). Nach Inhalt, nicht nach Ticket: eine Mail zum selben Ticket über etwas anderes gehört NICHT dazu. Automatische Benachrichtigungen (Jira, GitLab, Systeme) nur, wenn sie für das Todo etwas Bestimmtes sagen (z. B. genau den Kommentar oder die Statusänderung, um die es geht). Passt keine Mail, ist die Liste leer.`;
 
@@ -92,7 +93,7 @@ export function relateMails(): Promise<MailRelationResult> {
     let failed = 0;
     for (const batch of batches) {
       throwIfAborted();
-      const instructions = INSTRUCTIONS + extraBlock("relations");
+      const instructions = promptText("mail-relations", INSTRUCTIONS) + extraBlock("relations");
       const prompt = `${instructions}\n\n${batch.map((g) => block(g.key, g.todos, g.mails)).join("\n\n")}`.slice(0, limit + instructions.length + 200);
       // A batch that fails: its todos keep the mails they have.
       const answer = await runAi<Answer>(prompt, SCHEMA, { task: "mail-relations", timeoutMs: 10 * 60000, maxBudgetUsd: 1 }).catch((e) => {

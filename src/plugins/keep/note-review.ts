@@ -1,4 +1,5 @@
 import { getSqlite } from "@/db";
+import { promptText } from "@/lib/prompts";
 import { aiChoice, runAi } from "@/lib/ai";
 import { attributed } from "@/lib/boards/activity";
 import { plain } from "@/lib/boards/collect";
@@ -47,7 +48,7 @@ const SCHEMA = {
 };
 type Answer = { todos?: { text?: string; kind?: string; owner?: string; ticket?: string; due?: string; refs?: string[] }[] };
 
-const INSTRUCTIONS = `Du gehst meine Notizen durch (aus Google Keep und meinen eigenen Notiz-Boards) und findest, was ICH zu tun habe. Unten stehen Notizen (Kennung in eckigen Klammern, z. B. [keep:…], dann zuletzt bearbeitet, wo sie liegt, Titel und Text — Listen als „☐ …“ offen, „☑ …“ erledigt), meine Tickets und die Todos, die schon offen sind.
+export const INSTRUCTIONS = `Du gehst meine Notizen durch (aus Google Keep und meinen eigenen Notiz-Boards) und findest, was ICH zu tun habe. Unten stehen Notizen (Kennung in eckigen Klammern, z. B. [keep:…], dann zuletzt bearbeitet, wo sie liegt, Titel und Text — Listen als „☐ …“ offen, „☑ …“ erledigt), meine Tickets und die Todos, die schon offen sind.
 
 Lege für jede Aufgabe, die eine Notiz enthält, ein Todo an: ein Satz, Verb zuerst, prüfbar, mit Frist, wenn die Notiz eine nennt (die Frist auch als Datum unter due, JJJJ-MM-TT) — z. B. „Steuererklärung 2025 bis 31.7. abgeben“, „Anna wegen der Fotos zurückrufen“, „Reifenwechsel-Termin vereinbaren“. Offene Listenpunkte, die zusammen eine Sache sind (eine Einkaufsliste, Packliste), sind EIN Todo („Einkauf: Milch, Brot, Kaffee besorgen“), nicht eines je Punkt. Zu jedem Todo unter refs die Kennungen der Notizen, aus denen es folgt. Gehört es zu einem meiner Tickets, gib dessen Schlüssel unter ticket an, sonst lass ticket leer. owner = other nur, wenn ich auf jemand anderen warte.
 
@@ -120,7 +121,7 @@ export function reviewNotesForTodos(runId: number | null = null): Promise<NoteTo
       // What you dropped isn't proposed again.
       const dropped = droppedByYou();
       const prompt = [
-        INSTRUCTIONS,
+        promptText("note-review", INSTRUCTIONS),
         "",
         `Heute ist ${new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} (${isoDate(new Date())}).`,
         "",

@@ -4,6 +4,7 @@
  * task or by default), with your instructions and context in front of every prompt. Server only.
  */
 import { aiChoice, defaultModelOf, type AiAnswer } from "@/lib/ai";
+import { promptText } from "@/lib/prompts";
 import { AI_PROVIDER_INFO, type AiProvider } from "@/lib/ai/shared";
 import { onAbort, throwIfAborted } from "@/lib/abort";
 import { answerKey, createAnswerCache, createGate, withNoJsonRetry, type AnswerCache, type Gate } from "@/lib/ai/guard";
@@ -44,9 +45,12 @@ export const liveWorkersOn = (provider: AiProvider): boolean => providerAvailabl
 /** Your instructions and context, as they go in front of a prompt (or to a worker / agent) — "" when there are none. */
 export function llmPreamble(): string {
   const s = getLlmSettings();
+  // (Pages in System → Prompts once they're made.)
+  const instructions = promptText("llm-instructions", "", s.instructions);
+  const context = promptText("llm-context", "", s.context);
   const parts = [
-    s.instructions.trim() && `## Die allgemeinen Anweisungen des Nutzers (gelten für jede Aufgabe — sie gehen allen anderen Regeln oben vor)\n${s.instructions.trim()}`,
-    s.context.trim() && `## Kontext über den Nutzer\n${s.context.trim()}`,
+    instructions.trim() && `## Die allgemeinen Anweisungen des Nutzers (gelten für jede Aufgabe — sie gehen allen anderen Regeln oben vor)\n${instructions.trim()}`,
+    context.trim() && `## Kontext über den Nutzer\n${context.trim()}`,
   ].filter(Boolean) as string[];
   const text = parts.join("\n\n");
   return text.length > LLM_PREAMBLE_MAX ? `${text.slice(0, LLM_PREAMBLE_MAX - 1)}…` : text;

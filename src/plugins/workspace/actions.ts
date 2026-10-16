@@ -390,6 +390,27 @@ export async function newInstructionAction(title: string) {
   return run(async () => ({ id: (await import("./instructions")).newInstruction(String(title ?? "").trim().slice(0, 200) || t("Instruction")) }));
 }
 
+/**
+ * What a system page is (null: not one): where it comes from, what uses it, whether it differs from its default — and
+ * whether it can go back to it. Generic: the Workspace knows system pages; the prompts are what they are today.
+ */
+export async function systemPageAction(pageId: number) {
+  return run(async () => {
+    const p = await import("@/lib/prompts");
+    if (!p.isSystemPage(Number(pageId))) return { page: null };
+    const prompt = await p.systemPromptOf(Number(pageId));
+    return { page: prompt ? { kind: t("Prompt"), title: prompt.title, uses: t(prompt.uses), modified: prompt.modified, resettable: true } : { kind: t("System"), title: "", uses: "", modified: false, resettable: false } };
+  });
+}
+
+/** A system page back to its default (a prompt: its built-in text). */
+export async function resetSystemPageAction(pageId: number) {
+  return run(async () => {
+    await (await import("@/lib/prompts")).resetSystemPrompt(Number(pageId));
+    return {};
+  });
+}
+
 /** What an AI block on a page writes by its instruction (from the page and the databases shown in it). */
 export async function aiBlockAction(pageId: number, prompt: string) {
   return run(async () => {

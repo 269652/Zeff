@@ -1,4 +1,5 @@
 import { getPref, setPref } from "@/lib/prefs";
+import { stepFolded } from "@/lib/prompts";
 import { t } from "@/lib/i18n/server";
 import { CONTEXT_STEPS, withDefaults, type ContextPrefs, type ContextStepId, type StepPrefs } from "./context-prefs-shared";
 
@@ -26,6 +27,8 @@ export function setStepPrefs(step: ContextStepId, patch: Partial<StepPrefs>): Co
 
 /** A step's own instructions as a prompt block (empty: none). */
 export const extraBlock = (step: ContextStepId) => {
+  // In its prompt's page now (System → Prompts): not added on top.
+  if (stepFolded(step)) return "";
   const extra = getContextPrefs()[step].extra.trim();
   return extra ? `\n\n## Meine Anweisungen für diesen Schritt\n${extra}` : "";
 };

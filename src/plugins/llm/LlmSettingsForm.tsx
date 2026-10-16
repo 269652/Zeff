@@ -15,12 +15,15 @@ export function LlmSettingsForm({
   initial,
   providers,
   effective,
+  pages,
 }: {
   initial: LlmSettings;
   /** The installed backends. */
   providers: { id: "copilot" | "claude" | "codex"; label: string }[];
   /** What each task runs with now. */
   effective: Record<string, { provider: string; model: string }>;
+  /** The instructions and the context as pages of the Workspace (System → Prompts) — changed there. */
+  pages?: { instructions: string | null; context: string | null };
 }) {
   const t = useT();
   const router = useRouter();
@@ -38,6 +41,19 @@ export function LlmSettingsForm({
   const used = instructions.length + context.length;
   return (
     <div className="space-y-5">
+      {pages?.instructions && pages.context ? (
+        <p className="text-sm">
+          {t("Your instructions and the context about you are pages of the Workspace (System → Prompts):")}{" "}
+          <a href={pages.instructions} className="text-indigo-600 hover:underline dark:text-indigo-400">
+            📝 {t("General instructions")}
+          </a>
+          {" · "}
+          <a href={pages.context} className="text-indigo-600 hover:underline dark:text-indigo-400">
+            📝 {t("Context about you")}
+          </a>
+        </p>
+      ) : (
+      <>
       <div className="grid gap-4 md:grid-cols-2">
         <label className="space-y-1 text-sm">
           <span className="font-medium">{t("Instructions")}</span>
@@ -63,6 +79,8 @@ export function LlmSettingsForm({
       <p className={`text-xs ${used > 2500 ? "text-amber-700 dark:text-amber-400" : "text-zinc-400"}`}>
         {used > 2500 ? t("{n} characters — the first 2500 go into a prompt (the Copilot CLI takes it on the command line)", { n: used }) : t("{n} characters", { n: used })}
       </p>
+      </>
+      )}
 
       <div>
         <h3 className="mb-2 text-sm font-medium">{t("Tasks")}</h3>

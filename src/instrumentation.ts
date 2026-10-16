@@ -75,6 +75,8 @@ export async function register() {
     for (const a of listAccounts()) {
       const r = await withAccount(a.id, moveAllBoardsOnce);
       withAccount(a.id, widenMovedBoardsOnce);
+      // System → Prompts in the Workspace (a page per prompt; what the settings had goes in once).
+      await withAccount(a.id, async () => (await import("./lib/prompts")).ensureSystemPrompts()).catch((e) => console.error("[prompts] the system pages failed", e));
       // My briefing replaced by Meine Lage, a database with a pipeline like any other (where Jira is in use).
       await withAccount(a.id, async () => {
         const { isInstalled } = await import("./plugins/state");

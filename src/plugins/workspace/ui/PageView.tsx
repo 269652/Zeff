@@ -1,6 +1,7 @@
 "use client";
 
 import { FocusToggle } from "@/components/FocusToggle";
+import { SystemPageBar } from "./system-page";
 import type { JSONContent } from "@tiptap/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -366,6 +367,7 @@ export function PageView({ page, row, database }: { page: PageViewData; row?: { 
 
         {row && <RowProperties initial={row.initial} dbId={row.dbId} rowId={page.id} />}
 
+        <SystemPageBar pageId={page.id} />
         {page.kind === "database" ? (
           <DatabaseView initial={database ?? null} dbId={page.id} />
         ) : (

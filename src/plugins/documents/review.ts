@@ -6,6 +6,7 @@
  * In batches, each its own prompt; one at a time. Server only.
  */
 import { getSqlite } from "@/db";
+import { promptText } from "@/lib/prompts";
 import { runAi, aiChoice } from "@/lib/ai";
 import { attributed } from "@/lib/boards/activity";
 import { plain } from "@/lib/boards/collect";
@@ -48,7 +49,7 @@ const SCHEMA = {
 };
 type Answer = { todos?: { text?: string; kind?: string; owner?: string; ticket?: string; due?: string; refs?: string[] }[] };
 
-const INSTRUCTIONS = `Du gehst meine abgelegten Dokumente durch (Briefe, Rechnungen, Verträge, Berichte, Protokolle, Formulare, Notizen, Scans) und findest, was ICH zu tun habe. Unten stehen die Dokumente (Kennung in eckigen Klammern, z. B. [doc:12], dann Name, Art, Ablagedatum, Kurzfassung und Text — bei langen Dokumenten Anfang und Ende), meine Tickets und die Todos, die schon offen sind.
+export const INSTRUCTIONS = `Du gehst meine abgelegten Dokumente durch (Briefe, Rechnungen, Verträge, Berichte, Protokolle, Formulare, Notizen, Scans) und findest, was ICH zu tun habe. Unten stehen die Dokumente (Kennung in eckigen Klammern, z. B. [doc:12], dann Name, Art, Ablagedatum, Kurzfassung und Text — bei langen Dokumenten Anfang und Ende), meine Tickets und die Todos, die schon offen sind.
 
 Lege für jede Aufgabe, die ein Dokument an mich stellt, ein Todo an: ein Satz, Verb zuerst, prüfbar, mit Frist, wenn das Dokument eine nennt (die Frist auch als Datum unter due, JJJJ-MM-TT) — z. B. „Rechnung 4711 über 186,83 € bis 16.10. bezahlen“, „Mietvertrag bis zum 3. Werktag kündigen, falls nicht verlängert werden soll“, „Offene Frage zur Spalte ‚Anmerkung‘ im Migrationsbericht klären“, „Formular unterschreiben und zurücksenden“. Gehören mehrere Punkte zusammen, ist es EIN Todo. Zu jedem Todo unter refs die Kennungen der Dokumente, aus denen es folgt. Gehört es zu einem meiner Tickets, gib dessen Schlüssel unter ticket an, sonst lass ticket leer. owner = other nur, wenn ich auf jemand anderen warte (eine Antwort, eine Lieferung).
 
@@ -122,7 +123,7 @@ export function reviewDocumentsForTodos(runId: number | null = null): Promise<Do
       // What you dropped isn't proposed again.
       const dropped = droppedByYou();
       const prompt = [
-        INSTRUCTIONS,
+        promptText("doc-review", INSTRUCTIONS),
         "",
         `Heute ist ${new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} (${isoDate(new Date())}).`,
         "",

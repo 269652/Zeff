@@ -1,4 +1,5 @@
 import { aiChoice, runAi } from "@/lib/ai";
+import { promptText } from "@/lib/prompts";
 import { plain } from "@/lib/boards/collect";
 import type { TodoView } from "@/lib/boards/shared";
 import { listTodos, setTodoNoteRefs } from "@/lib/boards/store";
@@ -31,7 +32,7 @@ const SCHEMA = {
 };
 type Answer = { todos?: { id?: number; notes?: string[] }[] };
 
-const INSTRUCTIONS = `Du ordnest Notizen meinen offenen Todos zu. Unten steht je Todo (Nummer in eckigen Klammern) eine Auswahl meiner Notizen aus Google Keep und meinen Notiz-Boards (Kennung in eckigen Klammern, z. B. [keep:…], dann wo sie liegt, Titel und Text).
+export const INSTRUCTIONS = `Du ordnest Notizen meinen offenen Todos zu. Unten steht je Todo (Nummer in eckigen Klammern) eine Auswahl meiner Notizen aus Google Keep und meinen Notiz-Boards (Kennung in eckigen Klammern, z. B. [keep:…], dann wo sie liegt, Titel und Text).
 
 Gib für JEDES Todo die Kennungen der Notizen an, die für genau dieses Todo relevant sind: aus denen es folgt, die etwas dazu festhalten (Absprachen, Daten, Listen, Ideen dazu) oder die man kennen muss, um es zu erledigen (bis zu 4). Nach Inhalt, nicht nach einzelnen gleichen Wörtern. Passt keine, ist die Liste leer.`;
 
@@ -86,7 +87,7 @@ export function relateNotes(): Promise<NoteRelationResult> {
     }
     let failed = 0;
     for (const batch of batches) {
-      const prompt = `${INSTRUCTIONS}\n\n${batch.map((g) => block(g.t, g.list)).join("\n\n")}`;
+      const prompt = `${promptText("note-relations", INSTRUCTIONS)}\n\n${batch.map((g) => block(g.t, g.list)).join("\n\n")}`;
       // A batch that fails: its todos keep the notes they have.
       const answer = await runAi<Answer>(prompt, SCHEMA, { task: "note-relations", timeoutMs: 10 * 60000, maxBudgetUsd: 1 }).catch((e) => {
         console.error("[note-relations]", errorMessage(e));

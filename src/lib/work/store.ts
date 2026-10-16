@@ -1,4 +1,5 @@
 import { AGENT_INSTRUCTION_DEFAULTS } from "@/lib/boards/shared";
+import { promptText } from "@/lib/prompts";
 import { asc, desc, eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { emitChange } from "@/lib/events";
@@ -27,7 +28,7 @@ export function getWorkSettings(): WorkSettingsView {
     isolation: s.workIsolation === "checkout" ? "checkout" : "worktree",
     copilotMode: (COPILOT_MODES as readonly string[]).includes(s.workCopilotMode) ? (s.workCopilotMode as CopilotMode) : "interactive",
     model: s.workModel,
-    instructions: s.workInstructions,
+    instructions: promptText("work-rules", "", s.workInstructions),
     agentInstructions: { code: s.agentInstructionCode || AGENT_INSTRUCTION_DEFAULTS.code, other: s.agentInstructionOther || AGENT_INSTRUCTION_DEFAULTS.other },
   };
 }

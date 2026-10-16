@@ -9,6 +9,7 @@ import { aiQuality, STALE_DAYS, type AiQuality } from "@/lib/ai-quality";
 import { getContextPrefs } from "@/lib/boards/context-prefs";
 import { contextSteps } from "@/lib/boards/context-prefs-shared";
 import { installedPlugins } from "@/plugins/state";
+import { ensureSystemPrompts, PROMPTS, PROMPT_GROUPS, systemPrompts } from "@/lib/prompts";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("Prompts") };
@@ -27,6 +28,13 @@ export default async function AuswertenPage({ searchParams }: { searchParams: Pr
   const sp = await searchParams;
   const all = sp.zeit === "alle";
   const quality = aiQuality(all ? null : 30);
+  // The prompts themselves are pages of the Workspace (System → Prompts): linked from here.
+  await ensureSystemPrompts();
+  const prompts = await systemPrompts();
+  const pageOfStep = (step: string) => {
+    const key = PROMPTS.find((e) => e.step === step)?.key;
+    return prompts.find((x) => x.key === key && x.pageId) ?? null;
+  };
   return (
     <div className="page">
       <div className="page-aside">
@@ -61,6 +69,33 @@ export default async function AuswertenPage({ searchParams }: { searchParams: Pr
           ))}
         </nav>
       </div>
+      <section id="prompts" className="card scroll-mt-4 space-y-3 p-4">
+        <div>
+          <h2 className="font-medium">{t("The prompts")}</h2>
+          <p className="text-sm text-zinc-500">{t("Every prompt is a page of the Workspace (System → Prompts): change it there like any page — it stays, and goes back to the built-in text with a click.")}</p>
+        </div>
+        <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+          {PROMPT_GROUPS.map((g) => {
+            const list = prompts.filter((x) => x.group === g && x.pageId);
+            if (!list.length) return null;
+            return (
+              <div key={g}>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">{t(g)}</h3>
+                <ul className="mt-1 space-y-0.5 text-sm">
+                  {list.map((x) => (
+                    <li key={x.key}>
+                      <Link href={`/workspace/${x.pageId}`} className="text-indigo-600 hover:underline dark:text-indigo-400">
+                        📝 {t(x.title)}
+                      </Link>
+                      {x.modified && <span className="ml-1.5 rounded bg-amber-100 px-1 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300">{t("changed")}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+      </section>
       <Quality q={quality} all={all} />
       {steps.map((s) => (
         <section key={s.id} id={s.id} className="card scroll-mt-4 space-y-3 p-4">
@@ -68,7 +103,10 @@ export default async function AuswertenPage({ searchParams }: { searchParams: Pr
             <h2 className="font-medium">{s.label}</h2>
             <p className="text-sm text-zinc-500">{s.what}</p>
           </div>
-          <ContextStepForm step={s} prefs={prefs[s.id]} installed={[...on]} />
+          <ContextStepForm step={s} prefs={prefs[s.id]} installed={[...on]} prompt={(() => {
+            const x = pageOfStep(s.id);
+            return x ? { href: `/workspace/${x.pageId}`, title: t(x.title) } : null;
+          })()} />
           {s.id === "branchname" && (
             <>
               {sp.error && <p role="alert" className="alert-error text-sm">{sp.error}</p>}

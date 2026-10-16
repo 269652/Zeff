@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { promptText } from "@/lib/prompts";
 import { throwIfAborted } from "@/lib/abort";
 import { getDb, schema } from "@/db";
 import { aiChoice, runAi } from "@/lib/ai";
@@ -42,7 +43,7 @@ const SCHEMA = {
 };
 type Answer = { todos?: { id?: number; pages?: ({ id?: string; why?: string } | string)[]; entities?: number[]; links?: number[] }[] };
 
-const INSTRUCTIONS = `Du ordnest meinen offenen Todos Wissen zu. Zu jedem Todo (Nummer in eckigen Klammern, sein Text, ggf. sein Ticket) stehen Kandidaten aus der Wissensbasis — Seiten [p:…] mit Titel, Bereich und der gefundenen Stelle, Begriffe [e:…] mit ihrer Erklärung —, gefunden über eine Volltextsuche nach den Wörtern des Todos. Viele davon passen nur zufällig (ein gleiches Wort).
+export const INSTRUCTIONS = `Du ordnest meinen offenen Todos Wissen zu. Zu jedem Todo (Nummer in eckigen Klammern, sein Text, ggf. sein Ticket) stehen Kandidaten aus der Wissensbasis — Seiten [p:…] mit Titel, Bereich und der gefundenen Stelle, Begriffe [e:…] mit ihrer Erklärung —, gefunden über eine Volltextsuche nach den Wörtern des Todos. Viele davon passen nur zufällig (ein gleiches Wort).
 
 Wähle je Todo NUR die Kandidaten, die mir beim Erledigen dieses Todos wirklich helfen: es geht um dieselbe Sache, dasselbe System, denselben Ablauf, dieselbe Person — nicht bloß ein gemeinsames Wort. Lieber keine als eine unpassende. Für persönliche Dinge (Freunde, Termine, Behörden, Einkäufe) passt Firmenwissen fast nie. Gib zu jedem Todo die gewählten Seiten-Kennungen (ohne „p:“) und Begriff-Nummern (ohne „e:“) an — leere Listen, wenn nichts passt. Dazu stehen je Todo Adressen der Systeme [l:…] (Prod, Test, Dev …) aus den Seiten: wähle unter links die Nummern (ohne „l:“) der Adressen der Systeme, um die es im Todo geht (Kunde/Projekt/Website laut Todo und Ticket) — von jedem System die Adressen der Umgebungen, die das Todo braucht: ein Test-, Abnahme- oder Fehler-Todo braucht die Test-/Staging-Adresse und die Prod-Adresse zum Vergleich, ein Live-Todo Prod und Test. Nichts wählen, was zu einem anderen Projekt gehört; leer, wenn keine passt. Zu jeder gewählten Seite ein „why“: EIN kurzer Satz (höchstens 90 Zeichen), was mir diese Seite für das Todo bringt — konkret, z. B. „Checkliste der Unterlagen für den Ersttermin“ oder „Wie der Login auf CMS 11 eingerichtet wird“; nicht „passt zum Thema“ und keine Wiederholung des Titels.`;
 
@@ -129,7 +130,7 @@ export function relateKnowledge(): Promise<KnowledgeRelationResult> {
     let failed = 0;
     for (const batch of batches) {
       throwIfAborted();
-      const prompt = `${INSTRUCTIONS} Schreib die „why“-Sätze auf ${LANGUAGE_NAMES[getLanguage()]}.${extraBlock("knowledge")}\n\n${batch.map(block).join("\n\n")}`;
+      const prompt = `${promptText("knowledge-relations", INSTRUCTIONS)} Schreib die „why“-Sätze auf ${LANGUAGE_NAMES[getLanguage()]}.${extraBlock("knowledge")}\n\n${batch.map(block).join("\n\n")}`;
       const answer = await runAi<Answer>(prompt, SCHEMA, { task: "knowledge-relations", timeoutMs: 6 * 60000, maxBudgetUsd: 0.5 }).catch((e) => {
         console.error("[knowledge-relations]", errorMessage(e));
         failed++;

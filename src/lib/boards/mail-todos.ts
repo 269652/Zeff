@@ -1,4 +1,5 @@
 import { and, asc, desc, gte, inArray, isNull, sql } from "drizzle-orm";
+import { promptText } from "@/lib/prompts";
 import { throwIfAborted } from "@/lib/abort";
 import { getDb, schema } from "@/db";
 import { aiChoice, runAi } from "@/lib/ai";
@@ -77,7 +78,7 @@ type Answer = {
   facts?: { subject?: string; text?: string; refs?: string[] }[];
 };
 
-const INSTRUCTIONS = `Du gehst meine neuen E-Mails durch und findest, was ICH zu tun habe. Unten stehen Mails aus meinem Posteingang (Kennung in eckigen Klammern, z. B. [mail:…], dann Datum, Ordner, Absender, Betreff und die ersten Zeilen, wie Outlooks Liste sie zeigt), meine Tickets und die Todos, die schon offen sind.
+export const INSTRUCTIONS = `Du gehst meine neuen E-Mails durch und findest, was ICH zu tun habe. Unten stehen Mails aus meinem Posteingang (Kennung in eckigen Klammern, z. B. [mail:…], dann Datum, Ordner, Absender, Betreff und die ersten Zeilen, wie Outlooks Liste sie zeigt), meine Tickets und die Todos, die schon offen sind.
 
 Lege für jede Aufgabe, die eine Mail an mich stellt, ein Todo an: ein Satz, Verb zuerst, prüfbar, mit Frist, wenn die Mail eine nennt (die Frist auch als Datum unter due, JJJJ-MM-TT) (z. B. „Compliance-Training ‚Datenschutz 2026‘ bis 31.10. absolvieren“, „Reisekostenabrechnung für September einreichen“, „Termin mit Anna für die Abnahme bestätigen“). Auch Erinnerungen und automatische Mails zählen, wenn sie von mir etwas verlangen (Pflichtschulungen, Fristen, Freigaben, Signaturen, Formulare, Zeiterfassung, Umfragen mit Frist). Zu jedem Todo unter refs die Kennungen der Mails, aus denen es folgt (mehrere Mails zur selben Sache → EIN Todo mit allen). Gehört es zu einem meiner Tickets, gib dessen Schlüssel unter ticket an, sonst lass ticket leer. owner = other nur, wenn ich auf jemand anderen warte.
 
@@ -102,7 +103,7 @@ Auch KEINE Todos für: ausdrücklich freiwillige Umfragen und Aufrufe zur Teilna
 Unter „Was ich verworfen habe“ stehen Vorschläge, die ich nicht wollte (mit der Mail, aus der sie kamen): dieselbe Art Mail vom SELBEN Absender ist wieder kein Todo. Mehr schließt du daraus nicht — andere Absender, Pflicht-Mails (⚠) und Menschen beurteilst du wie immer. Unter „Was ich erledigt habe“ stehen Vorschläge, die richtig waren: solche will ich. Fragt mich ein Mensch persönlich etwas, bittet mich um etwas oder wartet auf meine Antwort (in einer Mail oder einem Chat), ist das fast immer ein Todo — das sind die wichtigsten. Im Zweifel legst du das Todo an: ein überflüssiger Vorschlag ist schnell verworfen, eine vergessene Pflicht oder Antwort nicht. Gibt es nichts zu tun, ist die Liste leer.`;
 
 /** Signal's chats (Signal plugin) — told only when its messages are there (the instructions stay as they were). */
-const SIGNAL_NOTE = "Einträge im Ordner „Signal“ sind ebenfalls keine Mails, sondern Signal-Chats — genauso zu lesen wie die WhatsApp-Chats (Betreff = Chat, Absender = wer schrieb, „Ich“ = ich selbst).";
+export const SIGNAL_NOTE = "Einträge im Ordner „Signal“ sind ebenfalls keine Mails, sondern Signal-Chats — genauso zu lesen wie die WhatsApp-Chats (Betreff = Chat, Absender = wer schrieb, „Ich“ = ich selbst).";
 
 const state = globalThis as unknown as { __zeffMailTodos?: Promise<MailTodosResult> | null };
 export type MailTodosResult = { ok: boolean; reviewed: number; added: number; /** New todos that repeated an open one and were merged into it. */ merged?: number; updated?: number; batches: number; error?: string };
@@ -232,9 +233,9 @@ export function mailReviewPrompt(v: {
 }): string {
   const dormant = v.dormant ?? [];
   return [
-    (v.instructions ?? INSTRUCTIONS) + (v.mails.some((m) => m.folder === "Signal") ? `
+    (v.instructions ?? promptText("mail-todos", INSTRUCTIONS)) + (v.mails.some((m) => m.folder === "Signal") ? `
 
-${SIGNAL_NOTE}` : "") + extraBlock("mailtodos"),
+${promptText("mail-signal", SIGNAL_NOTE)}` : "") + extraBlock("mailtodos"),
     "",
     `Heute ist ${new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} (${isoDate(new Date())}).`,
     "",

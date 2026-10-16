@@ -18,6 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function TodoSettingsPage() {
   await connection();
   const off = new Set(getTodoDisplayOff());
+  const repoPromptPage = isInstalled("knowledge") ? await (await import("@/lib/prompts")).promptHref("repo-pick") : null;
   const areas: Record<(typeof AREAS)[number], { label: string; hint: string }> = {
     context: { label: t("Context"), hint: t("The mails, messages, tickets and comments a todo comes from.") },
     actions: { label: t("Actions"), hint: t("The actions the auto-actions review proposes. Off: they stay hidden (actions you added yourself are always shown).") },
@@ -89,13 +90,24 @@ export default async function TodoSettingsPage() {
             <p className="text-xs text-zinc-500">
               {t("A todo shows what the knowledge says about its repo: the Prod, Test and Dev addresses and what the project is. First the AI reads the pages found about the repo and picks the addresses by these rules (German, like all Zeff prompts; the answer format and the pages are added automatically). A change takes effect with the next Knowledge relation, or “Read again” on the Repos page.")}
             </p>
-            <label className="block text-sm">
-              <span className="font-medium">{t("Rules for picking the addresses")}</span>
-              <textarea name="repoPrompt" defaultValue={getPickPrompt() || DEFAULT_PICK_PROMPT} rows={14} spellCheck={false} className="input mt-1 w-full font-mono text-xs" />
-            </label>
-            <button type="submit" name="resetRepoPrompt" value="1" className="btn" disabled={!getPickPrompt()}>
-              {t("Restore the built-in rules")}
-            </button>
+            {repoPromptPage ? (
+              <p className="text-sm">
+                <span className="font-medium">{t("Rules for picking the addresses")}</span>{" "}
+                <a href={repoPromptPage} className="text-indigo-600 hover:underline dark:text-indigo-400">
+                  📝 {t("change them in the Workspace")}
+                </a>
+              </p>
+            ) : (
+              <>
+                <label className="block text-sm">
+                  <span className="font-medium">{t("Rules for picking the addresses")}</span>
+                  <textarea name="repoPrompt" defaultValue={getPickPrompt() || DEFAULT_PICK_PROMPT} rows={14} spellCheck={false} className="input mt-1 w-full font-mono text-xs" />
+                </label>
+                <button type="submit" name="resetRepoPrompt" value="1" className="btn" disabled={!getPickPrompt()}>
+                  {t("Restore the built-in rules")}
+                </button>
+              </>
+            )}
           </section>
         )}
         <SubmitButton className="btn btn-primary">{t("Save")}</SubmitButton>

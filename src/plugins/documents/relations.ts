@@ -7,6 +7,7 @@
  * agents'. Documents you attached by hand stay as they are. Server only.
  */
 import { aiChoice, runAi } from "@/lib/ai";
+import { promptText } from "@/lib/prompts";
 import { plain } from "@/lib/boards/collect";
 import type { TodoView } from "@/lib/boards/shared";
 import { listTodos, setTodoDocRefs } from "@/lib/boards/store";
@@ -28,7 +29,7 @@ const SCHEMA = {
 };
 type Answer = { todos?: { id?: number; docs?: string[] }[] };
 
-const INSTRUCTIONS = `Du ordnest Dokumente meinen offenen Todos zu. Unten steht je Todo (Nummer in eckigen Klammern) eine Auswahl meiner abgelegten Dokumente (Kennung in eckigen Klammern, z. B. [doc:12], dann Name, Art, Kurzfassung und der Textanfang).
+export const INSTRUCTIONS = `Du ordnest Dokumente meinen offenen Todos zu. Unten steht je Todo (Nummer in eckigen Klammern) eine Auswahl meiner abgelegten Dokumente (Kennung in eckigen Klammern, z. B. [doc:12], dann Name, Art, Kurzfassung und der Textanfang).
 
 Gib für JEDES Todo die Kennungen der Dokumente an, die für genau dieses Todo relevant sind: aus denen es folgt, die etwas dazu festhalten (Verträge, Rechnungen, Absprachen, Berichte, Fristen, Zahlen) oder die man kennen muss, um es zu erledigen (bis zu 4). Nach Inhalt, nicht nach einzelnen gleichen Wörtern. Passt keines, ist die Liste leer.`;
 
@@ -80,7 +81,7 @@ export function relateDocuments(): Promise<DocRelationResult> {
     }
     let failed = 0;
     for (const batch of batches) {
-      const prompt = `${INSTRUCTIONS}\n\n${batch.map((g) => block(g.todo, g.list)).join("\n\n")}`;
+      const prompt = `${promptText("doc-relations", INSTRUCTIONS)}\n\n${batch.map((g) => block(g.todo, g.list)).join("\n\n")}`;
       // A batch that fails: its todos keep the documents they have.
       const answer = await runAi<Answer>(prompt, SCHEMA, { task: "doc-relations", timeoutMs: 10 * 60000, maxBudgetUsd: 1 }).catch((e) => {
         console.error("[doc-relations]", errorMessage(e));

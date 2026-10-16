@@ -1,4 +1,5 @@
 import { attachmentLine, todoAttachments } from "@/plugins/documents/attachments";
+import { promptText } from "@/lib/prompts";
 import { isJiraKey, isKanbanKey, isWorkspaceKey } from "@/lib/ticket-keys";
 import { and, desc, eq, gte, like, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
@@ -900,7 +901,7 @@ export async function collectBoard(
   const promptWith = (l: Limits) => {
     const limits = { ...l, comments: l === LIMITS[0] ? comments : Math.min(l.comments, comments) };
     return [
-      INSTRUCTIONS + extraBlock("lage"),
+      promptText("ticket-lage", INSTRUCTIONS) + extraBlock("lage"),
       "",
       `Heute ist ${today}.${me ? ` Ich bin ${me}.` : ""} ${boards.length ? `Jira-Boards: ${boards.map((b) => b.name).join(", ")} · Filter: ${jql}` : "Ohne Jira"}${kanban.length ? ` · eigene Kanban-Karten (KB-…): ${kanban.length}` : ""}`,
       ...(fromCache
