@@ -679,6 +679,7 @@ export function coerceCell(p: Property, v: unknown): unknown {
     case "phone":
       return String(v).trim().slice(0, 500) || null;
     case "text":
+    case "markdown":
     case "ai":
       return String(v).slice(0, 20000) || null;
     default:

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import type { DatabaseData } from "../actions";
 import { checkFormula, FORMULA_FUNCTIONS } from "../formula";
-import { columnOrder, condsFor, COLORS, CREATED, hasDependents, isFilter, moveBefore, needsValue, newId, removeProperty, PROP_LABELS, PROP_TYPES, ROLLUP_FNS, TITLE, UPDATED, type Cond, type DbSchema, type Filter, type Option, type Property, type PropType, type Rule, type Sort, type View } from "../model";
+import { columnOrder, condsFor, COLORS, CREATED, hasDependents, isFilter, moveBefore, needsValue, newId, removeProperty, PROP_LABELS, PROP_TYPES, retype, ROLLUP_FNS, TITLE, UPDATED, type Cond, type DbSchema, type Filter, type Option, type Property, type PropType, type Rule, type Sort, type View } from "../model";
 import { makeOption, Tag } from "./cells";
 import { Modal, useSortable } from "./kit";
 
@@ -289,10 +289,7 @@ function PropertyEditor({ p, schema, data, dbId, onChange, onRemove, databases, 
           aria-label={t("Type")}
           disabled={p.type === "relation" && !!p.backOf}
           onChange={(e) => {
-            const type = e.target.value as PropType;
-            const next: Property = { ...p, type };
-            if ((type === "select" || type === "multi_select" || type === "status") && !next.options?.length) next.options = type === "status" ? [makeOption("Not started", 0, "todo"), makeOption("In progress", 1, "doing"), makeOption("Done", 2, "done")] : [];
-            onChange(next);
+            onChange(retype(p, e.target.value as PropType));
           }}
         >
           {PROP_TYPES.filter((x) => x !== "relation" || p.type === "relation" || true).map((x) => (

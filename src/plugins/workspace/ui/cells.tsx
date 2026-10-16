@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
+import { Markdown } from "@/components/Markdown";
 import { aiFillCellAction, cellChoicesAction, type DatabaseData } from "../actions";
 import { COLORS, dateRange, formatNumber, isComputed, newId, type Option, type Property, type Row } from "../model";
 import { Dropdown, useDismiss } from "./kit";
@@ -139,6 +140,8 @@ export function CellView({ p, row, ctx }: { p: Property; row: Row; ctx: CellCtx 
       if (Array.isArray(v)) return <span>{v.map((x) => (typeof x === "object" ? JSON.stringify(x) : String(x))).join(", ")}</span>;
       return <span>{String(v)}</span>;
     }
+    case "markdown":
+      return v ? <div className="max-h-40 overflow-hidden"><Markdown text={String(v)} /></div> : null;
     case "ai":
       return v ? <span className="line-clamp-3 whitespace-pre-wrap">{String(v)}</span> : <span className="text-xs text-violet-600 dark:text-violet-300">✨ {t("Fill")}</span>;
     default:
@@ -174,7 +177,7 @@ function TextEditor({ p, row, ctx, done }: { p: Property; row: Row; ctx: CellCtx
     ctx.set(row.id, p.id, p.type === "number" ? (raw === "" ? null : raw) : p.type === "ticket" ? raw.split(/[\s,;]+/).filter(Boolean) : raw || null);
     done();
   };
-  const multiline = p.type === "text" || p.type === "ai";
+  const multiline = p.type === "text" || p.type === "markdown" || p.type === "ai";
   const props = {
     autoFocus: true,
     value: text,
@@ -191,7 +194,7 @@ function TextEditor({ p, row, ctx, done }: { p: Property; row: Row; ctx: CellCtx
     "aria-label": p.name,
     placeholder: p.type === "ticket" ? t("PROJ-339, …") : undefined,
   };
-  return multiline ? <textarea rows={2} {...props} /> : <input inputMode={p.type === "number" ? "decimal" : undefined} {...props} />;
+  return multiline ? <textarea rows={p.type === "markdown" ? 6 : 2} {...props} /> : <input inputMode={p.type === "number" ? "decimal" : undefined} {...props} />;
 }
 
 function DateEditor({ p, row, ctx, done }: { p: Property; row: Row; ctx: CellCtx; done: () => void }) {
@@ -400,7 +403,7 @@ export function PopCell({ p, row, ctx }: { p: Property; row: Row; ctx: CellCtx }
   const empty = !p.type.startsWith("check") && (row.cells[p.id] === undefined || row.cells[p.id] === null || row.cells[p.id] === "" || (Array.isArray(row.cells[p.id]) && (row.cells[p.id] as unknown[]).length === 0));
   const hint = <span className="text-zinc-400">{t("Empty")}</span>;
   if (isComputed(p) || p.type === "checkbox" || !ctx.editable) return empty && p.type !== "checkbox" ? hint : <CellView p={p} row={row} ctx={ctx} />;
-  if (p.type === "text" || p.type === "number" || p.type === "url" || p.type === "email" || p.type === "phone" || p.type === "ticket") return <Cell p={p} row={row} ctx={ctx} className="rounded-md" empty={hint} />;
+  if (p.type === "text" || p.type === "markdown" || p.type === "number" || p.type === "url" || p.type === "email" || p.type === "phone" || p.type === "ticket") return <Cell p={p} row={row} ctx={ctx} className="rounded-md" empty={hint} />;
   return (
     <Dropdown label={empty ? hint : <CellView p={p} row={row} ctx={ctx} />} className="flex min-h-7 flex-wrap items-center gap-1 rounded-md px-1 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800">
       {(close) => <CellEditor p={p} row={row} ctx={ctx} done={close} />}

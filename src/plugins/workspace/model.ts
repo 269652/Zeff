@@ -6,10 +6,11 @@
  */
 import { evalFormula, formulaToStored, type FormulaValue } from "./formula";
 
-export const PROP_TYPES = ["text", "number", "select", "multi_select", "status", "date", "checkbox", "url", "email", "phone", "person", "relation", "rollup", "formula", "created_time", "updated_time", "todo", "ticket", "ai"] as const;
+export const PROP_TYPES = ["text", "markdown", "number", "select", "multi_select", "status", "date", "checkbox", "url", "email", "phone", "person", "relation", "rollup", "formula", "created_time", "updated_time", "todo", "ticket", "ai"] as const;
 export type PropType = (typeof PROP_TYPES)[number];
 export const PROP_LABELS: Record<PropType, string> = {
   text: "Text",
+  markdown: "Markdown",
   number: "Number",
   select: "Select",
   multi_select: "Multi-select",
@@ -289,6 +290,16 @@ export function defaultOptions(type: PropType): Option[] | undefined {
     ];
   if (type === "select" || type === "multi_select") return [];
   return undefined;
+}
+
+/** A column turned into another type: its id, name and settings stay; a type with choices starts with some when it has none. */
+export function retype(p: Property, type: PropType): Property {
+  const next: Property = { ...p, type };
+  if (!next.options?.length) {
+    const options = defaultOptions(type);
+    if (options) next.options = options;
+  }
+  return next;
 }
 
 export function newProperty(name: string, type: PropType): Property {
