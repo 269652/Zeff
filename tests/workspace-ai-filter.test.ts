@@ -126,3 +126,20 @@ test("the AI filter's frame: strict (in doubt: not kept, notifications only when
   await runPipeline(id, { ai: false });
   assert.match(fs.readFileSync(promptFile, "utf8"), /Sei sehr streng/, "the frame changed: judged again, by it");
 });
+
+test("folders from filters: a database's derived databases (count, unread) — and a derived one knows where it comes from", async () => {
+  const w = await import("@/plugins/workspace/store");
+  const { createSourceDatabase, createDerivedDatabase, derivedOf, derivedFrom } = await import("@/plugins/workspace/derived");
+  const { runPipeline } = await import("@/plugins/workspace/pipeline");
+  const mail = createSourceDatabase("mail");
+  await runPipeline(mail, { ai: false });
+  const important = createDerivedDatabase(mail, "Wichtig");
+  await runPipeline(important, { ai: false }); // no condition yet: all through
+  const n = w.rawRows(important).length;
+  assert.ok(n > 0);
+  const list = derivedOf(mail);
+  assert.deepEqual(list.map((x) => [x.id, x.title, x.count]), [[important, "Wichtig", n]]);
+  assert.equal(list[0].unread, w.rawRows(important).filter((r) => r.cells.mailunread).length);
+  assert.equal(derivedFrom(w.getDatabase(important)!.schema), mail);
+  assert.equal(derivedFrom(w.getDatabase(mail)!.schema), null);
+});

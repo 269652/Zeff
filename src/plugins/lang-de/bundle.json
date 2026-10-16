@@ -5312,5 +5312,6 @@
   "Your mails (Outlook, Gmail) — a database of them, shown by the mail client; filter them with AI in its steps.": "Deine Mails (Outlook, Gmail) — eine Datenbank daraus, im Mail-Client; in ihren Schritten mit KI filtern.",
   "Your chats (Teams, WhatsApp, Signal) — a database of them, shown by the chat; filter them with AI in its steps.": "Deine Chats (Teams, WhatsApp, Signal) — eine Datenbank daraus, im Chat; in ihren Schritten mit KI filtern.",
   "{n} mails": "{n} Mails",
-  "New database from it": "Neue Datenbank daraus"
+  "New database from it": "Neue Datenbank daraus",
+  "Filtered": "Gefiltert"
 }

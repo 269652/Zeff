@@ -1,7 +1,7 @@
 import { t } from "@/lib/i18n/server";
 import { appViewsFor } from "./app-views";
 import { newId, newView, type DataType, type DbSchema, type PipelineSource, type PipelineStep, type View } from "./model";
-import { createPage, getDatabase, updatePage } from "./store";
+import { createPage, getDatabase, rawRows, tree, updatePage } from "./store";
 
 /**
  * A database made from another, under it: its pipeline reads the other's rows with their fields as they are (a mail stays
@@ -44,4 +44,25 @@ export function createSourceDatabase(from: Exclude<PipelineSource, "database">, 
   const id = createPage({ kind: "database", title: title || t(SOURCE_TITLES[from]), schema });
   updatePage(id, { fullWidth: true });
   return id;
+}
+
+/** The database a derived one reads (its first source another database) — null: none. */
+export const derivedFrom = (schema: DbSchema): number | null => {
+  const first = schema.pipeline?.steps.find((s) => s.kind === "source");
+  return first?.from === "database" && first.dbId ? first.dbId : null;
+};
+
+/**
+ * A database's derived ones — under it, reading it ("Important" under Mail): each with how many rows and how many unread —
+ * what an app shows as its folders (the mail client: extra folders).
+ */
+export function derivedOf(dbId: number): { id: number; title: string; icon: string; count: number; unread: number }[] {
+  return tree()
+    .filter((p) => p.parentId === dbId && p.kind === "database")
+    .flatMap((p) => {
+      const d = getDatabase(p.id);
+      if (!d || derivedFrom(d.schema) !== dbId) return [];
+      const rows = rawRows(p.id);
+      return [{ id: p.id, title: p.title || t("Untitled"), icon: p.icon, count: rows.length, unread: rows.filter((r) => r.cells.mailunread === true).length }];
+    });
 }
