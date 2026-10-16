@@ -1,5 +1,6 @@
 "use server";
 
+import { keepBoardCreated } from "./to-workspace";
 import { revalidatePath } from "next/cache";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
@@ -24,7 +25,12 @@ async function act(fn: () => unknown, message?: string): Promise<Result> {
 const labelsOf = (v: unknown) => (Array.isArray(v) ? v.map(String) : undefined);
 
 export async function createKeepBoardAction(v: { name: string; description?: string; color?: string }): Promise<Result> {
-  return act(() => boards.createKeepBoard({ name: String(v.name ?? ""), description: String(v.description ?? ""), color: String(v.color ?? "") }), t("Board created."));
+  return act(() => {
+    const id = boards.createKeepBoard({ name: String(v.name ?? ""), description: String(v.description ?? ""), color: String(v.color ?? "") });
+    // Once the boards have moved: into the Workspace too (its page here leads there).
+    keepBoardCreated(id);
+    return id;
+  }, t("Board created."));
 }
 
 export async function updateKeepBoardAction(id: number, patch: { name?: string; description?: string; color?: string; archived?: boolean; inLage?: boolean; inKnowledge?: boolean }): Promise<Result> {

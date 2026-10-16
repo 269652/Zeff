@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { googleLinks, keepBoard, listOwnNotes } from "@/plugins/keep/boards";
@@ -17,6 +17,9 @@ export default async function KeepBoardPage({ params, searchParams }: { params: 
   await connection();
   if (!isInstalled("keep")) return <PluginNotInstalled id="keep" />;
   const id = Number((await params).board);
+  // Moved into the Workspace: old links (bookmarks) lead there.
+  const moved = Number.isInteger(id) && isInstalled("workspace") ? (await import("@/plugins/keep/to-workspace")).movedKeepHref(id) : null;
+  if (moved) redirect(moved);
   const board = Number.isInteger(id) ? keepBoard(id) : null;
   if (!board) notFound();
   const sp = await searchParams;

@@ -5,6 +5,19 @@ import type { ActionResult } from "../actions/run-types";
 import { createKeepBoard, createOwnNote, keepBoard, listKeepBoards } from "./boards";
 
 export async function runKeepNote(op: Extract<TodoOp, { type: "keep-note" }>): Promise<ActionResult> {
+  // Keep's boards moved into the Workspace: the note is a row of the board's database (by name; else the first).
+  const { movedNoteDatabases } = await import("./to-workspace");
+  const dbs = movedNoteDatabases();
+  if (dbs.length) {
+    const want = op.board.trim().toLowerCase();
+    const target = (want && dbs.find((d) => d.name.toLowerCase() === want)) || dbs[0];
+    const { addRow, updatePage } = await import("@/plugins/workspace/store");
+    const { markdownToDoc } = await import("@/plugins/workspace/doc");
+    const title = op.title?.trim() || op.text.split("\n")[0].slice(0, 120);
+    const row = addRow(target.dbId, { title });
+    if (op.text.trim()) updatePage(row, { content: markdownToDoc(op.text) });
+    return { what: t("Note “{title}” created in {board}", { title, board: target.name }), ref: `page:${row}`, todoNote: `Note created in the Workspace (${target.name}): “${title}”.` };
+  }
   const boards = listKeepBoards();
   const wanted = op.board.trim().toLowerCase();
   const board = (wanted && boards.find((b) => b.name.toLowerCase() === wanted)) || boards[0] || keepBoard(createKeepBoard({ name: "Notes" }))!;

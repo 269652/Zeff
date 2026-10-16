@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { syncKeepAction } from "@/plugins/keep/server-actions";
 import { BetaBadge, BetaWarning, PluginExperimental } from "@/components/BetaBadge";
@@ -13,6 +14,7 @@ import { KeepBoardView } from "@/plugins/keep/KeepBoardView";
 import { KeepNav } from "@/plugins/keep/KeepNav";
 import { keepLabels, linkedKeepCount, listKeepNotes } from "@/plugins/keep/store";
 import { isInstalled } from "@/plugins/state";
+import { keepCount } from "@/plugins/keep/store";
 import { formatDate } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Google Keep" };
@@ -28,6 +30,13 @@ const day = (iso: string | null) => (iso ? formatDate(iso, { weekday: false, yea
 export default async function GoogleKeepPage({ searchParams }: { searchParams: Promise<{ q?: string; label?: string; archived?: string }> }) {
   await connection();
   if (!isInstalled("keep")) return <PluginNotInstalled id="keep" />;
+  // Google Keep is a database of the Workspace now (Google Keep as a data source): made at the first visit, then there.
+  if (isInstalled("workspace") && keepCount() > 0) {
+    const g = await import("@/plugins/keep/google-workspace");
+    if (!g.googleKeepHref()) g.syncGoogleKeepDatabase();
+    const href = g.googleKeepHref();
+    if (href) redirect(href);
+  }
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
   const label = sp.label?.trim() ?? "";

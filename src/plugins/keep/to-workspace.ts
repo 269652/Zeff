@@ -98,6 +98,20 @@ function move(boardId: number): { dbId: number } {
   return { dbId };
 }
 
+/** Where an old link to a moved Keep board leads now: its database; null: not moved. */
+export function movedKeepHref(boardId: number): string | null {
+  const dbId = movedKeepBoard(boardId);
+  return dbId ? `/workspace/${dbId}` : null;
+}
+
+/** The databases your Keep boards became (their names as now). */
+export function movedNoteDatabases(): { dbId: number; name: string }[] {
+  return (db().prepare("select db_id from keep_moved_boards order by board_id").all() as { db_id: number }[]).flatMap((r) => {
+    const d = getDatabase(r.db_id);
+    return d && !d.page.archivedAt ? [{ dbId: r.db_id, name: d.page.title }] : [];
+  });
+}
+
 const MOVED_ALL = "keep.movedToWorkspace";
 
 /**
@@ -106,6 +120,11 @@ const MOVED_ALL = "keep.movedToWorkspace";
  * turned on. A board that fails is logged and the next start tries again; null: done already (or Keep
  * isn't installed).
  */
+/** A board was made in Keep: once Keep's boards have moved (and the Workspace is there), it goes into the Workspace too. */
+export function keepBoardCreated(boardId: number): void {
+  if (getPref<boolean>(MOVED_ALL, false) && isInstalled("workspace")) moveKeepBoardToWorkspace(boardId);
+}
+
 export async function moveAllKeepBoardsOnce(): Promise<{ moved: number; failed: number; backup: string | null } | null> {
   if (getPref<boolean>(MOVED_ALL, false) || !isInstalled("keep")) return null;
   const boards = listKeepBoards().filter((b) => !movedKeepBoard(b.id));
@@ -127,3 +146,5 @@ export async function moveAllKeepBoardsOnce(): Promise<{ moved: number; failed: 
   if (!failed) setPref(MOVED_ALL, true);
   return { moved: boards.length - failed, failed, backup };
 }
+
+export { googleKeepDatabase, googleKeepHref, syncGoogleKeepDatabase } from "./google-workspace";

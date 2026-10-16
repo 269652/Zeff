@@ -32,6 +32,9 @@ export async function syncKeep({ background = false } = {}): Promise<{ ok: boole
     if (!data || !Array.isArray(data.notes)) throw new Error(typeof out === "string" ? out.replace(/^Error:\s*/, "").slice(0, 300) : t("Keep returned nothing readable."));
     const r = saveKeepNotes(data.notes, !!data.full);
     clearAttention("login:keep");
+    // Google Keep's database in the Workspace (Google Keep as a data source) follows at once.
+    const { isInstalled } = await import("@/plugins/state");
+    if (isInstalled("workspace")) (await import("./google-workspace")).syncGoogleKeepDatabase();
     return {
       ok: true,
       message: [t("{n} new", { n: r.added }), t("{n} changed", { n: r.changed }), ...(r.removed ? [t("{n} removed", { n: r.removed })] : []), t("{n} in all", { n: r.total })].join(" · "),

@@ -80,3 +80,66 @@ test("keep's provider leaves moved notes to the Workspace", async () => {
   moveKeepBoardToWorkspace(b);
   assert.deepEqual(keepCollections.byRefs([n.ref, stays.ref]).map((i) => i.ref), [stays.ref]);
 });
+
+/** At the next start, once: every Keep board (not the archived) moves — after a copy of the database; old links follow. */
+test("moveAllKeepBoardsOnce: a backup first, every open Keep board moved — once; /keep/<board> leads to its database", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("keep", true);
+  setInstalled("workspace", false);
+  const k = await import("@/plugins/keep/boards");
+  const { moveAllKeepBoardsOnce, movedKeepBoard, movedKeepHref } = await import("@/plugins/keep/to-workspace");
+  const a = k.createKeepBoard({ name: "Eins" });
+  k.createOwnNote(a, { title: "N", text: "x" });
+  const old = k.createKeepBoard({ name: "Alt" });
+  k.updateKeepBoard(old, { archived: true });
+
+  const r = await moveAllKeepBoardsOnce();
+  assert.ok(r && r.moved >= 1);
+  assert.equal(path.basename(r.backup!), "zeff-before-keep-move.db");
+  assert.ok(fs.statSync(r.backup!).size > 0);
+  assert.ok(movedKeepBoard(a));
+  assert.equal(movedKeepBoard(old), null, "an archived board stays in Keep's archive");
+  assert.equal(movedKeepHref(a), `/workspace/${movedKeepBoard(a)}`);
+  assert.equal(movedKeepHref(old), null);
+  assert.equal(await moveAllKeepBoardsOnce(), null, "once");
+});
+
+/** Once Keep's boards have moved, a board made in Keep is made in the Workspace too. */
+test("keepBoardCreated: after the move a new Keep board goes straight into the Workspace", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["keep", "workspace"]) setInstalled(id, true);
+  const { setPref } = await import("@/lib/prefs");
+  const k = await import("@/plugins/keep/boards");
+  const { keepBoardCreated, movedKeepHref } = await import("@/plugins/keep/to-workspace");
+  setPref("keep.movedToWorkspace", false);
+  const before = k.createKeepBoard({ name: "Vorher" });
+  keepBoardCreated(before);
+  assert.equal(movedKeepHref(before), null);
+  setPref("keep.movedToWorkspace", true);
+  const after = k.createKeepBoard({ name: "Nachher" });
+  keepBoardCreated(after);
+  assert.match(movedKeepHref(after) ?? "", /^\/workspace\/\d+$/);
+});
+
+/** The auto-action "Create note" writes into the moved board's database (by name), not into an archived Keep board. */
+test("runKeepNote after the move: the note is a row of the board's database", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["keep", "workspace"]) setInstalled(id, true);
+  const k = await import("@/plugins/keep/boards");
+  const w = await import("@/plugins/workspace/store");
+  const { docToMarkdown } = await import("@/plugins/workspace/doc");
+  const { moveKeepBoardToWorkspace } = await import("@/plugins/keep/to-workspace");
+  const { runKeepNote } = await import("@/plugins/keep/run");
+  const b = k.createKeepBoard({ name: "Einkaufsliste" });
+  const { dbId } = moveKeepBoardToWorkspace(b);
+  const before = k.listKeepBoards().length;
+  const r = await runKeepNote({ type: "keep-note", board: "einkaufsliste", title: "Baumarkt", text: "- [ ] Schrauben" } as never);
+  const rows = w.rawRows(dbId);
+  const row = rows.find((x) => x.title === "Baumarkt");
+  assert.ok(row, "a row of the moved board's database");
+  assert.match(docToMarkdown(w.getPage(row.id)!.content), /- \[ \] Schrauben/);
+  assert.equal(r.ref, `page:${row.id}`);
+  assert.equal(k.listKeepBoards().length, before, "no new Keep board made");
+});

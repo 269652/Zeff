@@ -1,4 +1,5 @@
 import { getSqlite } from "@/db";
+import { getPref } from "@/lib/prefs";
 import type { CollectionProvider } from "@/lib/items/point";
 import type { Collection, Item } from "@/lib/items/shared";
 import { isInstalled } from "@/plugins/state";
@@ -11,6 +12,13 @@ import { allKeepNotes, keepCount, type KeepNote } from "./store";
  */
 
 const GOOGLE = "keep:google";
+
+/** Google Keep kept in a Workspace database (see ./google-workspace): the Workspace answers for its notes then. */
+function googleMirrored(): boolean {
+  const id = getPref<number | null>("keep.googleDb", null);
+  if (!id) return false;
+  return !!getSqlite().prepare("select 1 from sqlite_master where name = 'ws_pages'").get() && !!getSqlite().prepare("select 1 from ws_pages where id = ? and archived_at is null").get(id);
+}
 
 /** Your notes moved into the Workspace (keep:n<id>) — the Workspace answers for them now (see ./to-workspace). */
 function movedRefs(): Set<string> {
@@ -59,7 +67,7 @@ export const keepCollections: CollectionProvider = {
         items: b.notes,
       }),
     );
-    if (!keepCount()) return own;
+    if (!keepCount() || googleMirrored()) return own;
     const google: Collection = {
       id: GOOGLE,
       plugin: "keep",
@@ -76,7 +84,7 @@ export const keepCollections: CollectionProvider = {
     return [...own, google];
   },
   items(id, { archived = false } = {}) {
-    if (id === GOOGLE) return keepCount() ? allKeepNotes().filter((n) => archived || !n.archived).map((n) => toItem(googleNote(n), GOOGLE)) : null;
+    if (id === GOOGLE) return keepCount() && !googleMirrored() ? allKeepNotes().filter((n) => archived || !n.archived).map((n) => toItem(googleNote(n), GOOGLE)) : null;
     const m = /^keep:board:(\d+)$/.exec(id);
     if (!m || !listKeepBoards().some((b) => b.id === Number(m[1]))) return null;
     const board = Number(m[1]);
@@ -93,6 +101,7 @@ export const keepCollections: CollectionProvider = {
   act: () => null,
   byRefs: (refs) => {
     const moved = movedRefs();
-    return notesByRefs(refs.filter((r) => !moved.has(r))).map((n) => toItem(n, n.boardId ? ownId(n.boardId) : GOOGLE));
+    const mirrored = googleMirrored();
+    return notesByRefs(refs.filter((r) => !moved.has(r) && !(mirrored && !/^keep:n\d+$/.test(r)))).map((n) => toItem(n, n.boardId ? ownId(n.boardId) : GOOGLE));
   },
 };
