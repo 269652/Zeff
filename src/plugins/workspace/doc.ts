@@ -390,6 +390,7 @@ const NODE_ATTRS: Record<string, string[]> = {
   detailsContent: [],
   callout: ["icon", "tone"],
   flexBox: ["dir", "gap", "wrap", "span"],
+  zeffRoutine: [],
   zeffField: ["prop", "label"],
   zeffRelated: ["dbId", "prop"],
   zeffButton: ["label", "action", "prop", "value"],

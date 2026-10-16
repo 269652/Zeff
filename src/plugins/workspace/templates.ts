@@ -6,6 +6,7 @@ import { markdownToDoc } from "./doc";
 import { createJobsDatabase } from "./jobs";
 import { createRulesDatabase } from "./rules";
 import { COLORS, newId, newProperty, newView, type DbSchema, type Option, type Property, type View } from "./model";
+import { createRoutine } from "./routines";
 import { addRow, createPage, getDatabase, updateSchema } from "./store";
 
 export type TemplateMeta = { key: string; name: string; icon: string; description: string; kind: "page" | "database" };
@@ -18,8 +19,31 @@ const view = (name: string, type: View["type"], extra: Partial<View> = {}): View
 
 type Template = TemplateMeta & { build: (parentId: number | null) => number };
 
+/** A routine's page: its controls block first (run, when, what it may do …), then the blocks that are its instructions (or notes). */
+function routinePage(kind: "agent" | "automation", parentId: number | null, title: string, icon: string, intro: string): number {
+  const doc = { type: "doc", content: [{ type: "zeffRoutine" }, ...(markdownToDoc(intro).content ?? [])] };
+  const id = createPage({ parentId, title, icon, content: doc });
+  createRoutine(id, kind);
+  return id;
+}
+
 const TEMPLATES: Template[] = [
   {
+    key: "agent",
+    name: "Agent",
+    icon: "🤖",
+    description: "An LLM run on the instructions you write here — by hand, on a schedule or on an event; it knows its parent and sibling pages.",
+    kind: "page",
+    build: (parentId) => routinePage("agent", parentId, "New agent", "🤖", "Write what the agent should do — one block per instruction.\n\n- Read the pages next to this one.\n- Write what you find as a short summary under this page.\n"),
+  },
+  {
+    key: "automation",
+    name: "Automation",
+    icon: "⚙️",
+    description: "Steps that run one after another, with gates, branches and conditions — no AI; on a schedule, on an event or by hand.",
+    kind: "page",
+    build: (parentId) => routinePage("automation", parentId, "New automation", "⚙️", "What this automation is for, in a line — its steps are above."),
+  },  {
     key: "agent-jobs",
     name: "Jobs for agents",
     icon: "🤖",

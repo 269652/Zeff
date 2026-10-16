@@ -114,6 +114,15 @@ export function startSyncScheduler(): void {
         } catch (e) {
           console.error("[pipelines]", e);
         }
+        // The routines (automations and agents) with a clock that are due; agents' runs follow their workers.
+        try {
+          if ((await import("@/plugins/state")).isInstalled("workspace")) {
+            await (await import("@/plugins/workspace/routine-triggers")).runDueRoutines();
+            (await import("@/plugins/workspace/routine-agent")).syncAgentRuns();
+          }
+        } catch (e) {
+          console.error("[routines]", e);
+        }
         // The agents of the jobs databases that take their Ready column by themselves (when switched on): ended jobs settled, the next taken.
         try {
           if ((await import("@/plugins/state")).isInstalled("workspace")) await (await import("@/plugins/workspace/jobs")).runAutoJobs();
