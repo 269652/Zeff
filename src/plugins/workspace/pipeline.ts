@@ -231,6 +231,18 @@ const sameUrl = (u: string): string => {
   }
 };
 
+/** An address' name: its label and where it is ("Stage – test.example.de/epa"), the host and path alone when it has no label. */
+function addressTitle(label: string, url: string): string {
+  let where = url;
+  try {
+    const x = new URL(url);
+    where = `${x.host}${x.pathname.replace(/\/+$/, "")}`;
+  } catch {
+    // not an address: as it is
+  }
+  return label.trim() ? `${label.trim()} – ${where}` : where;
+}
+
 /**
  * The addresses the knowledge base holds for the search terms (its link finder: the lines of the pages that are about them,
  * each with the environment its label or host says) — one record per address, with the page it stands on. Not the ones the
@@ -260,8 +272,8 @@ async function knowledgeRecords(c: NonNullable<PipelineStep["knowledge"]>, self:
       const env = l.env in ENV ? ENV[l.env as keyof typeof ENV] : "";
       out.set(key, {
         ref: `klink:${key}`,
-        title: l.label || new URL(l.url).host,
-        fields: Object.fromEntries(Object.entries({ URL: l.url, Environment: env, Page: l.pageTitle }).filter((e) => !!e[1])),
+        title: addressTitle(l.label, l.url),
+        fields: Object.fromEntries(Object.entries({ URL: l.url, Environment: env, Page: l.pageUrl || l.pageTitle }).filter((e) => !!e[1])),
       });
     }
   }

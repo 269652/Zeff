@@ -10,9 +10,9 @@ import { setupTempData } from "./helpers";
  */
 setupTempData();
 
-const LINKS: Record<string, { env: string; label: string; url: string; pageTitle: string }[]> = {
+const LINKS: Record<string, { env: string; label: string; url: string; pageTitle: string; pageUrl?: string }[]> = {
   "PROJ Relaunch": [
-    { env: "test", label: "Test", url: "https://test.relaunch.example/", pageTitle: "Digitas (INTERN)" },
+    { env: "test", label: "Test", url: "https://test.relaunch.example/", pageTitle: "Digitas (INTERN)", pageUrl: "https://wiki.example/digitas" },
     { env: "prod", label: "Prod", url: "https://relaunch.example/", pageTitle: "Digitas (INTERN)" },
   ],
   "PROJ Support": [
@@ -65,11 +65,12 @@ test("addresses from the knowledge base as records: each once, not the ones alre
     const d = w.getDatabase(id)!;
     const cell = (row: ReturnType<typeof w.rawRows>[number], name: string) => row.cells[d.schema.properties.find((p) => p.name === name)!.id];
     const rows = w.rawRows(id);
-    assert.deepEqual(rows.map((x) => x.title).sort(), ["Storybook", "Test"], "the prod address is held by hand; the same one on two pages only once");
-    const test_ = rows.find((x) => x.title === "Test")!;
+    assert.deepEqual(rows.map((x) => x.title).sort(), ["Storybook – story.example", "Test – test.relaunch.example"], "the prod address is held by hand; the same one on two pages only once");
+    const test_ = rows.find((x) => x.title.startsWith("Test"))!;
     assert.equal(cell(test_, "URL"), "https://test.relaunch.example/");
     assert.equal(cell(test_, "Environment"), "Test");
-    assert.equal(cell(test_, "Page"), "Digitas (INTERN)");
+    assert.equal(cell(test_, "Page"), "https://wiki.example/digitas", "the page it stands on, as a link (its title when it has none)");
+    assert.equal(cell(rows.find((x) => x.title.startsWith("Storybook"))!, "Page"), "Technische Dokumentation");
 
     const again = await runPipeline(id, { ai: false });
     assert.deepEqual([again.created, again.updated, again.archived], [0, 0, 0], "a second run changes nothing");
