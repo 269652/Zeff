@@ -16,7 +16,7 @@ import { Dropdown, MenuItem, Modal } from "./kit";
  * database), filters, AI steps (a field on each row, a summary over all) — edited, saved, run.
  */
 
-const ICON: Record<string, string> = { aifilter: "🔎", jira: "🎫", keep: "🗒", todos: "☑", database: "🗃", mail: "✉", messages: "💬", filter: "⏷", sort: "⇅", field: "✨", summary: "🧭" };
+const ICON: Record<string, string> = { aifilter: "🔎", actions: "⚡", jira: "🎫", keep: "🗒", todos: "☑", database: "🗃", mail: "✉", messages: "💬", filter: "⏷", sort: "⇅", field: "✨", summary: "🧭" };
 const kindOf = (s: PipelineStep) => (s.kind === "source" ? (s.from ?? "") : s.kind === "ai" ? (s.output === "filter" ? "aifilter" : (s.output ?? "")) : s.kind);
 const iconOf = (s: PipelineStep) => ICON[kindOf(s)];
 
@@ -57,7 +57,7 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, datab
       setBusy(false);
     }
   };
-  const labels: Record<string, string> = { jira: t("Jira tickets"), keep: t("Google Keep notes"), todos: t("Todos"), database: t("Another database"), mail: t("Mails (Outlook, Gmail)"), messages: t("Messages (Teams, WhatsApp, Signal)"), filter: t("Filter"), aifilter: t("AI: keep only what …"), sort: t("Sort"), field: t("AI: a field on each row"), summary: t("AI: one summary over all rows") };
+  const labels: Record<string, string> = { jira: t("Jira tickets"), keep: t("Google Keep notes"), todos: t("Todos"), database: t("Another database"), mail: t("Mails (Outlook, Gmail)"), messages: t("Messages (Teams, WhatsApp, Signal)"), filter: t("Filter"), aifilter: t("AI: keep only what …"), actions: t("AI: suggest actions for each row"), sort: t("Sort"), field: t("AI: a field on each row"), summary: t("AI: one summary over all rows") };
   return (
     <Modal title={t("Sources & steps …")} onClose={onClose} wide>
       <p className="text-sm text-zinc-500">{t("Where this database's rows come from and what's done with them, top to bottom. A run keeps the result as its rows (yours stay: AI fields, pages); the AI steps go with the briefing.")}</p>
@@ -105,6 +105,7 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, datab
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "sort", by: steps.find((x) => x.kind === "ai" && x.output === "field" && x.choices?.length)?.name ?? fields[0] ?? "" })}>+ ⇅ {t("Sort")}</button>
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "ai", output: "field", name: t("Lage"), prompt: "" })}>+ ✨ {t("AI field")}</button>
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "ai", output: "filter", prompt: "" })}>+ 🔎 {t("AI filter")}</button>
+        <button type="button" className="btn btn-sm" onClick={() => add({ kind: "ai", output: "actions", prompt: "" })}>+ ⚡ {t("AI actions")}</button>
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "ai", output: "summary", prompt: "" })}>+ 🧭 {t("AI summary")}</button>
       </div>
       <div className="flex flex-wrap items-center justify-end gap-1.5 border-t border-zinc-200 pt-3 dark:border-zinc-700">
@@ -409,6 +410,13 @@ function StepBody({ dbId, saved, step: s, set, databases, fields }: { dbId: numb
             ↺ {t("Judge all again")}
           </button>
         </div>
+      </div>
+    );
+  if (s.kind === "ai" && s.output === "actions")
+    return (
+      <div className="space-y-1.5">
+        <textarea className="input min-h-16 w-full text-sm" placeholder={t("What to suggest — e.g. “a reply where someone asks me something; a Teams message to whoever I wait for” …")} value={s.prompt ?? ""} onChange={(e) => set({ prompt: e.target.value })} />
+        <p className="text-xs text-zinc-500">{t("From the actions installed that a row can run: drafts (Outlook, Gmail), messages (Teams, WhatsApp, Signal), things done in Zeff — one-click buttons on the row. Each row asked once per change, with the AI steps' runs.")}</p>
       </div>
     );
   if (s.kind === "ai" && s.output === "summary")

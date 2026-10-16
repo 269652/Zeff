@@ -8,6 +8,7 @@ import type { AppViewProps } from "@/plugins/workspace/ui/app-view";
 import type { Row } from "@/plugins/workspace/model";
 import { draftRowReplyAction, rowActionAction } from "@/plugins/workspace/actions";
 import { NewInbox } from "./NewInbox";
+import { SuggestedActions } from "@/plugins/workspace/ui/suggested";
 
 /**
  * The chat: a message database (Teams, WhatsApp, Signal — its rows a pipeline keeps) as conversations and their messages,
@@ -113,6 +114,11 @@ function Conversation({ list, channel, canReply, openRow, reload }: { list: Row[
           </li>
         ))}
       </ol>
+      {(() => {
+        // The newest message with suggestions (a reply, a follow-up): its buttons over the reply.
+        const withActions = [...list].reverse().find((r) => typeof r.cells.rowactions === "string" && r.cells.rowactions);
+        return withActions ? <div className="px-4 pb-2"><SuggestedActions rowId={withActions.id} value={withActions.cells.rowactions} onDone={reload} /></div> : null;
+      })()}
       {/* The source says whether it can be written to: a reply field, or its read-only version. */}
       {!canReply ? (
         <p className="border-t border-zinc-200 px-4 py-2 text-xs text-zinc-500 dark:border-zinc-800" data-read-only>

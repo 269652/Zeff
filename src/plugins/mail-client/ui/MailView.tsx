@@ -5,6 +5,7 @@ import { useT } from "@/components/I18nProvider";
 import type { AppViewProps } from "@/plugins/workspace/ui/app-view";
 import type { Row } from "@/plugins/workspace/model";
 import { MailReply } from "./MailReply";
+import { SuggestedActions } from "@/plugins/workspace/ui/suggested";
 import { NewInbox } from "./NewInbox";
 
 /**
@@ -121,6 +122,7 @@ function Reading({ row, data, openRow }: { row: Row; data: AppViewProps["data"];
           ))}
         </ol>
       )}
+      <SuggestedActions rowId={row.id} value={row.cells.rowactions} />
       {data.extras?.capabilities?.reply.includes(account || "Outlook") && <MailReply key={row.id} rowId={row.id} account={account || "Outlook"} to={/<([^>]+)>/.exec(String(row.cells.mailfrom ?? ""))?.[1] ?? ""} subject={/^(AW|RE|Re|Aw):/.test(row.title) ? row.title : `AW: ${row.title}`} />}
     </article>
   );

@@ -27,6 +27,7 @@ export const INBOX_TEMPLATES: InboxTemplate[] = [
     steps: () => [
       filter("all", MACHINES.map((x) => rule("From", "not_contains", x))),
       { id: newId("s"), kind: "ai", output: "filter", prompt: "Nur Mails, in denen mich jemand direkt etwas fragt, um eine Entscheidung, Freigabe oder Antwort bittet oder eine Frist setzt — und das noch offen ist." },
+      { id: newId("s"), kind: "ai", output: "actions", prompt: "Eine fertige Antwort (als Entwurf), wo jemand etwas von mir will; ein Termin, wo etwas abgestimmt werden muss." },
     ],
   },
   { id: "teams", dataType: "message", title: "Teams", icon: "🟣", description: "Only Teams", steps: () => [filter("all", [rule("Channel", "is", "Teams")])] },

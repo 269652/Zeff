@@ -13,6 +13,7 @@ import type { TicketExtras } from "@/lib/items/shared";
 import { WS_CHANGED } from "./ChatPanel";
 import { DETAIL_MODULES, moveDetail, toggleDetail, type DetailModule } from "../model";
 import { CardTodos, extrasOf } from "./card-extras";
+import { SuggestedActions } from "./suggested";
 import { RowProperties } from "./DatabaseView";
 import { Editor } from "./Editor";
 import { Modal } from "./kit";
@@ -56,8 +57,11 @@ export function DetailModules({ modules, data, rowId }: { modules: DetailModule[
     if (m === "page") return page ? <Editor key={rowId} pageId={rowId} initial={page.content} rev={page.rev} editable={!data.locked} smallText={false} /> : <p className="text-sm text-zinc-400">…</p>;
     return <ModuleBody m={m} k={x.key!} ticket={x.ticket} detail={detail} todosOn={!!data.extras?.todosOn} />;
   };
+  const row = data.rows.find((r) => r.id === rowId);
   return (
     <>
+      {/* What the pipeline suggests doing with it, first. */}
+      <SuggestedActions rowId={rowId} value={row?.cells.rowactions} />
       {shown.map((m) => (
         <div key={m}>{one(m)}</div>
       ))}

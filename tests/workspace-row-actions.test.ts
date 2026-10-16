@@ -52,3 +52,34 @@ test("writable sources: what can be written where (by the actions installed); a 
   assert.equal(d.subject, "AW: Termin?");
   assert.match(fs.readFileSync(promptFile, "utf8"), /Passt dir Freitag\?/, "the conversation in the prompt");
 });
+
+test("AI step 'suggest actions': per row, ready actions from the installed ones a row can run — kept on the row, once per change", async () => {
+  const w = await import("@/plugins/workspace/store");
+  const { runPipeline } = await import("@/plugins/workspace/pipeline");
+  const { createSourceDatabase } = await import("@/plugins/workspace/derived");
+  const m = await import("@/plugins/workspace/model");
+  assert.equal(m.normalizePipeline({ steps: [{ id: "a", kind: "ai", output: "actions", prompt: "Antworten vorschlagen" }] }).steps[0].output, "actions");
+  const mail = createSourceDatabase("mail");
+  await runPipeline(mail, { ai: false });
+  const d = w.getDatabase(mail)!;
+  w.updateSchema(mail, { ...d.schema, pipeline: { steps: [...d.schema.pipeline!.steps, { id: "act", kind: "ai", output: "actions", prompt: "Was ist zu tun?" }] } });
+  const row = w.rawRows(mail)[0];
+  process.env.FAKE_CLAUDE_OUTPUT = JSON.stringify({ rows: [{ id: row.id, why: "Anna fragt nach Freitag.", ops: [
+    { type: "mail-compose", to: "anna@example.com", subject: "AW: Termin?", body: "Freitag passt." },
+    { type: "whatsapp-message", chat: "Anna", body: "x" },
+    { type: "calendar-entry", title: "x", start: "2026-10-20 10:00", minutes: 30, body: "" },
+  ] }] });
+  fs.writeFileSync(promptFile, "");
+  const r = await runPipeline(mail, { ai: true });
+  assert.equal(r.ok, true, r.error);
+  const prompt = fs.readFileSync(promptFile, "utf8");
+  assert.match(prompt, /mail-compose/, "the dictionary: what a row can run");
+  assert.doesNotMatch(prompt, /- calendar-entry —/, "not what needs a todo");
+  const kept = JSON.parse(String(w.getPage(row.id)!.props.rowactions)) as { ops: { type: string }[]; titles: string[]; why: string };
+  assert.deepEqual(kept.ops.map((o) => o.type), ["mail-compose"], "only installed ones a row can run");
+  assert.equal(kept.why, "Anna fragt nach Freitag.");
+  assert.equal(kept.titles.length, 1);
+  fs.rmSync(promptFile);
+  await runPipeline(mail, { ai: true });
+  assert.ok(!fs.existsSync(promptFile), "unchanged rows: not again");
+});

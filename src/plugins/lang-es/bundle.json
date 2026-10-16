@@ -5352,5 +5352,11 @@
   "Draft with AI": "Redactar con IA",
   "You send it there.": "Lo envías allí.",
   "The action is incomplete.": "La acción está incompleta.",
-  "This action runs from a todo (make one from the row).": "Esta acción se ejecuta desde una tarea (crea una desde la fila)."
+  "This action runs from a todo (make one from the row).": "Esta acción se ejecuta desde una tarea (crea una desde la fila).",
+  "Suggested": "Sugerencia",
+  "AI: suggest actions for each row": "IA: sugerir acciones por fila",
+  "AI actions": "Acciones de IA",
+  "What to suggest — e.g. “a reply where someone asks me something; a Teams message to whoever I wait for” …": "Qué sugerir — p. ej. «una respuesta cuando alguien me pregunta algo; un mensaje de Teams a quien espero» …",
+  "From the actions installed that a row can run: drafts (Outlook, Gmail), messages (Teams, WhatsApp, Signal), things done in Zeff — one-click buttons on the row. Each row asked once per change, with the AI steps' runs.": "De las acciones instaladas que una fila puede ejecutar: borradores (Outlook, Gmail), mensajes (Teams, WhatsApp, Signal), cosas en Zeff — botones de un clic en la fila. Cada fila una vez por cambio, con las ejecuciones de IA.",
+  "A pipeline's AI step that suggests actions for each row": "El paso de IA de una pipeline que sugiere acciones por fila"
 }

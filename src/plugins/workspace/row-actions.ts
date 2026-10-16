@@ -14,6 +14,14 @@ const ROW_RUNNABLE = new Set(["teams-message", "whatsapp-message", "signal-messa
 
 export type RowActionResult = { href?: string; what?: string };
 
+/** Whether a row can run this action now: installed, and a draft (opens for you) or one that needs no todo. */
+export async function rowCanRun(type: string): Promise<boolean> {
+  const { actionOf } = await import("@/plugins/actions/catalog");
+  const { opAvailable } = await import("@/plugins/ops");
+  const spec = actionOf(type as never);
+  return !!spec && opAvailable(type) && (!!spec.href || ROW_RUNNABLE.has(type));
+}
+
 /** An action (as an AI or the views hand it over) run from a row: cleaned, checked, then opened (a draft) or run. */
 export async function runRowAction(rowId: number, raw: Record<string, unknown>): Promise<RowActionResult> {
   const row = getPage(rowId);
