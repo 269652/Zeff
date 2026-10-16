@@ -3,6 +3,7 @@ import { t } from "@/lib/i18n/server";
 import { errorMessage } from "@/lib/errors";
 import { PRIORITIES, type CardView } from "./shared";
 import * as store from "./store";
+import * as ws from "./api-workspace";
 
 /** Kanban's part of the plugin API (docs/plugins/api.md): your boards and cards. */
 
@@ -27,12 +28,21 @@ export const KANBAN_API: ApiContribution = {
     "kanban.boards.list": {
       perm: "kanban.read",
       summary: "Your boards with their card counts.",
-      run: () => store.listBoards().map((b) => ({ id: b.id, name: b.name, description: b.description, cards: b.cards, open: b.open, inLage: b.inLage })),
+      // Kanban's own boards, and the Workspace's (moved ones among them: workspace:<id>).
+      run: () => [
+        ...store.listBoards().map((b) => ({ id: b.id as number | string, name: b.name, description: b.description, cards: b.cards, open: b.open, inLage: b.inLage })),
+        ...ws.workspaceBoardList().map((b) => ({ id: b.id as number | string, name: b.name, description: "", cards: 0, open: 0, inLage: false })),
+      ],
     },
     "kanban.boards.get": {
       perm: "kanban.read",
       summary: "A board with its columns and cards.",
       run: (p) => {
+        if (typeof p.id === "string" && p.id.startsWith("workspace:")) {
+          const v = ws.workspaceBoardView(p.id);
+          if (!v) throw new ApiError("not_found", "No such board.");
+          return v;
+        }
         const b = guard(() => store.getBoard(int(p, "id", { required: true, min: 1 })!));
         return { id: b.id, name: b.name, description: b.description, columns: b.columns.map((c) => ({ id: c.id, name: c.name, done: c.done, wipLimit: c.wipLimit, cards: c.cards.map(card) })) };
       },
@@ -48,6 +58,9 @@ export const KANBAN_API: ApiContribution = {
         check: (raw) => {
           const title = (raw.title ?? "").trim().slice(0, 300);
           if (!title) return null;
+          // The Workspace's boards first (Kanban's moved there), then Kanban's own.
+          const w = ws.findWorkspaceColumn(raw.board ?? "", raw.column ?? "");
+          if (w) return { dbId: w.dbId, statusId: w.statusId, title, description: (raw.description ?? "").trim().slice(0, 2000), board: w.board, column: w.column };
           const boards = store.listBoards();
           const want = (raw.board ?? "").trim().toLowerCase();
           const b = (want && (boards.find((x) => x.name.toLowerCase() === want) ?? boards.find((x) => x.name.toLowerCase().includes(want)))) || boards[0];
@@ -58,11 +71,14 @@ export const KANBAN_API: ApiContribution = {
           return col ? { columnId: col.id, title, description: (raw.description ?? "").trim().slice(0, 2000), board: b.name, column: col.name } : null;
         },
         describe: (p) => ({ title: t("Kanban card “{title}” on {board}", { title: String(p.title), board: String(p.board) }), body: [String(p.column), String(p.description ?? "")].filter(Boolean).join(" — ") }),
-        context: () =>
-          store.listBoards().map((b) => `Board „${b.name}“ — Spalten: ${store.getBoard(b.id).columns.map((c) => c.name).join(", ")}`),
+        context: () => [
+          ...ws.workspaceBoardList().map((b) => `Board „${b.name}“ — Spalten: ${b.columns.map((c) => c.name).join(", ")}`),
+          ...store.listBoards().map((b) => `Board „${b.name}“ — Spalten: ${store.getBoard(b.id).columns.map((c) => c.name).join(", ")}`),
+        ],
       },
       run: (p) =>
         guard(() => {
+          if (p.dbId !== undefined) return ws.addWorkspaceCard(int(p, "dbId", { required: true, min: 1 })!, str(p, "statusId", { required: true }), str(p, "title", { required: true, max: 300 }), typeof p.description === "string" ? p.description : "");
           const c = store.createCard(int(p, "columnId", { required: true, min: 1 })!, str(p, "title", { required: true, max: 300 }));
           const patch = cardPatch(p);
           return card(Object.keys(patch).length ? store.updateCard(c.id, patch) : c);
@@ -71,18 +87,36 @@ export const KANBAN_API: ApiContribution = {
     "kanban.cards.update": {
       perm: "kanban.write",
       summary: "Change a card (id; title, description, labels, priority, due, assignee).",
-      run: (p) => guard(() => card(store.updateCard(int(p, "id", { required: true, min: 1 })!, cardPatch(p)))),
+      run: (p) =>
+        guard(() => {
+          const id = int(p, "id", { required: true, min: 1 })!;
+          const row = ws.movedCardRow(id);
+          if (row) return (ws.updateWorkspaceCard(row, cardPatch(p)), { ref: `KB-${id}` });
+          return card(store.updateCard(id, cardPatch(p)));
+        }),
     },
     "kanban.cards.move": {
       perm: "kanban.write",
       summary: "Move a card into a column, before another card (`before`; none: at the end).",
       run: (p) =>
         guard(() => {
-          store.moveCard(int(p, "id", { required: true, min: 1 })!, int(p, "columnId", { required: true, min: 1 })!, int(p, "before", { min: 1 }) ?? null);
+          const id = int(p, "id", { required: true, min: 1 })!;
+          const row = ws.movedCardRow(id);
+          if (row) return (ws.moveWorkspaceCard(row, str(p, "column", { required: true })), true);
+          store.moveCard(id, int(p, "columnId", { required: true, min: 1 })!, int(p, "before", { min: 1 }) ?? null);
           return true;
         }),
     },
-    "kanban.cards.archive": { perm: "kanban.write", summary: "Archive a card.", run: (p) => guard(() => (store.archiveCard(int(p, "id", { required: true, min: 1 })!), true)) },
+    "kanban.cards.archive": {
+      perm: "kanban.write",
+      summary: "Archive a card.",
+      run: (p) =>
+        guard(() => {
+          const id = int(p, "id", { required: true, min: 1 })!;
+          const row = ws.movedCardRow(id);
+          return (row ? ws.archiveWorkspaceCard(row) : store.archiveCard(id), true);
+        }),
+    },
     "kanban.cards.unarchive": { perm: "kanban.write", summary: "Bring an archived card back.", run: (p) => guard(() => (store.unarchiveCard(int(p, "id", { required: true, min: 1 })!), true)) },
   },
 };
