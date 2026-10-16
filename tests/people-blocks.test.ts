@@ -112,3 +112,29 @@ test("the people database's page: its rows open as a person's page — blocks in
   for (const m of ["person-profile", "person-dates", "person-knowledge", "person-wiki", "person-relations", "person-todos", "person-tickets", "person-pages", "person-messages", "person-note", "person-summary", "person-manage"]) assert.ok(doc.includes(`"${m}"`), m);
   assert.ok((doc.match(/"flexBox"/g) ?? []).length >= 4, "nested: a row of three columns");
 });
+
+test("the overview of the people database: what is coming up, what to check — and the tools", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["workspace", "people"]) setInstalled(id, true);
+  const p = await import("@/plugins/people/store");
+  const g = await import("@/plugins/people/graph");
+  const { peopleOverview, peopleTool } = await import("@/plugins/people/tools");
+  await peopleTool({ tool: "add", name: "Nora Overview" });
+  const nora = p.listPeople().find((x) => x.name === "Nora Overview")!;
+  assert.ok(nora, "a person added by the tool");
+  const soon = new Date(Date.now() + 3 * 864e5);
+  p.addDate(nora.id, { kind: "birthday", day: soon.getDate(), month: soon.getMonth() + 1, year: 1990 });
+  p.addDate(nora.id, { kind: "anniversary", day: 1, month: 1, year: 2015, confirmed: false, source: "ai", sourceText: "Hochzeit 2015" });
+  g.addClaim({ personId: nora.id, kind: "role", text: "Leitet die Buchhaltung", status: "proposed", confidence: 0.6 });
+
+  let o = await peopleOverview();
+  assert.ok(o.upcoming.some((u) => u.personId === nora.id), "her birthday is coming up");
+  assert.ok(o.dates.some((d) => d.personId === nora.id && d.source === "Hochzeit 2015"), "a date found, to confirm");
+  assert.ok(o.claims.some((c) => c.personId === nora.id && c.text === "Leitet die Buchhaltung"), "a claim to check");
+
+  await peopleTool({ tool: "dateConfirm", id: o.dates.find((d) => d.personId === nora.id)!.id });
+  await peopleTool({ tool: "claim", id: o.claims.find((c) => c.personId === nora.id)!.id, action: "confirm" });
+  o = await peopleOverview();
+  assert.ok(!o.dates.some((d) => d.personId === nora.id), "confirmed: no longer proposed");
+  assert.ok(!o.claims.some((c) => c.personId === nora.id));
+});

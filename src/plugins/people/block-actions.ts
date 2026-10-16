@@ -82,3 +82,20 @@ export async function personWikiAction(rowId: number): Promise<Result<{ wiki: Kn
     }
   });
 }
+
+/** The overview of the people database (its "People" view). */
+export async function peopleOverviewAction(): Promise<Result<{ overview: import("./tools").PeopleOverview }>> {
+  return run(async () => ({ overview: await (await import("./tools")).peopleOverview() }));
+}
+
+/** A tool of the overview; the people database reads the profiles again after it. */
+export async function peopleToolAction(tool: import("./tools").PeopleTool): Promise<Result<{ message?: string }>> {
+  return run(async () => {
+    const r = await (await import("./tools")).peopleTool(tool);
+    if (isInstalled("workspace")) {
+      const db = (await import("@/plugins/workspace/people-database")).peopleDatabase();
+      if (db) (await import("@/plugins/workspace/pipeline")).startPipeline(db, { ai: false });
+    }
+    return r;
+  });
+}

@@ -5505,5 +5505,15 @@
   "Blocks side by side — nest more boxes in it": "Blöcke nebeneinander – weitere Boxen darin verschachteln",
   "Blocks one under the other — nest more boxes in it": "Blöcke untereinander – weitere Boxen darin verschachteln",
   "Layout": "Layout",
-  "A block of a person's page — for the row whose page it is": "Ein Block der Personenseite – für die Zeile, deren Seite es ist"
+  "A block of a person's page — for the row whose page it is": "Ein Block der Personenseite – für die Zeile, deren Seite es ist",
+  "Searching dates …": "Suche Termine …",
+  "The AI goes through the last 14 days of your mails, WhatsApp and Teams and makes profiles of the people in them.": "Die KI geht die letzten 14 Tage deiner Mails, WhatsApp- und Teams-Nachrichten durch und legt Profile der Personen darin an.",
+  "The AI reads the messages that came in since the last time (mail, chats, Teams, Jira) and notes what they say about people: roles, responsibilities, facts, commitments — to confirm.": "Die KI liest die Nachrichten seit dem letzten Mal (Mail, Chats, Teams, Jira) und notiert, was sie über Personen sagen: Rollen, Zuständigkeiten, Fakten, Zusagen – zum Bestätigen.",
+  "Ties Jira users to the profiles by their names — so @-mentions in notes synced to Jira point to the right person. No AI.": "Verknüpft Jira-Nutzer über ihre Namen mit den Profilen – damit @-Erwähnungen in nach Jira übertragenen Notizen die richtige Person treffen. Ohne KI.",
+  "again": "nochmal",
+  "Two profiles that are one person? Open one: “Merge or delete” merges it into the other.": "Zwei Profile, eine Person? Öffne eins: „Zusammenführen oder löschen“ führt es mit dem anderen zusammen.",
+  "What the AI read — please check": "Was die KI gelesen hat – bitte prüfen",
+  "you owe": "du schuldest",
+  "they owe": "schuldet dir",
+  "Nothing to check right now. The people are the rows of this database — the other views list them.": "Gerade ist nichts zu prüfen. Die Personen sind die Zeilen dieser Datenbank – die anderen Ansichten listen sie."
 }

@@ -5505,5 +5505,15 @@
   "Blocks side by side — nest more boxes in it": "Bloques lado a lado: anida más cajas dentro",
   "Blocks one under the other — nest more boxes in it": "Bloques uno bajo otro: anida más cajas dentro",
   "Layout": "Diseño",
-  "A block of a person's page — for the row whose page it is": "Un bloque de la página de una persona: para la fila cuya página es"
+  "A block of a person's page — for the row whose page it is": "Un bloque de la página de una persona: para la fila cuya página es",
+  "Searching dates …": "Buscando fechas …",
+  "The AI goes through the last 14 days of your mails, WhatsApp and Teams and makes profiles of the people in them.": "La IA revisa los últimos 14 días de tus correos, WhatsApp y Teams y crea perfiles de las personas que aparecen.",
+  "The AI reads the messages that came in since the last time (mail, chats, Teams, Jira) and notes what they say about people: roles, responsibilities, facts, commitments — to confirm.": "La IA lee los mensajes desde la última vez (correo, chats, Teams, Jira) y anota lo que dicen de las personas: roles, responsabilidades, hechos, compromisos, para confirmar.",
+  "Ties Jira users to the profiles by their names — so @-mentions in notes synced to Jira point to the right person. No AI.": "Vincula usuarios de Jira con los perfiles por sus nombres, para que las @-menciones en notas sincronizadas con Jira apunten a la persona correcta. Sin IA.",
+  "again": "otra vez",
+  "Two profiles that are one person? Open one: “Merge or delete” merges it into the other.": "¿Dos perfiles de una misma persona? Abre uno: «Fusionar o eliminar» lo une con el otro.",
+  "What the AI read — please check": "Lo que leyó la IA: por favor, revisa",
+  "you owe": "tú debes",
+  "they owe": "te debe",
+  "Nothing to check right now. The people are the rows of this database — the other views list them.": "Nada que revisar ahora. Las personas son las filas de esta base de datos: las otras vistas las listan."
 }
