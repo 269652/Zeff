@@ -357,6 +357,8 @@ export function Editor({ pageId, initial, rev, editable, smallText, onSave }: { 
       {editable && (
         <DragHandle
           editor={editor}
+          // Blocks inside a flex box or a toggle have their handle too: drag them into another box, add a block after them.
+          nested
           onNodeChange={({ node, pos }) => {
             handleNode.current = node ? { pos, size: node.nodeSize } : null;
           }}

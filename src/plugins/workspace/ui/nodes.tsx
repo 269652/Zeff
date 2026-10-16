@@ -71,7 +71,7 @@ export const Callout = Node.create({
 // Flex: a row or a column of blocks — nest them to lay a page out
 // ---------------------------------------------------------------------------
 
-function FlexView({ node, updateAttributes, editor }: NodeViewProps) {
+function FlexView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
   const dir = node.attrs.dir === "col" ? "col" : "row";
   const gap = String(node.attrs.gap ?? "md");
   const wrap = !!node.attrs.wrap;
@@ -80,6 +80,9 @@ function FlexView({ node, updateAttributes, editor }: NodeViewProps) {
     <NodeViewWrapper className="ws-flex" data-dir={dir} data-gap={gap} data-wrap={wrap ? "true" : undefined}>
       {editor.isEditable && (
         <div className="ws-flex-bar" contentEditable={false}>
+          <span data-drag-handle className="ws-grip-btn" title="Drag to move" aria-label="Drag to move">
+            ⠿
+          </span>
           <button type="button" title="Row or column" onClick={() => updateAttributes({ dir: dir === "row" ? "col" : "row" })}>
             {dir === "row" ? "↔ row" : "↕ column"}
           </button>
@@ -88,6 +91,17 @@ function FlexView({ node, updateAttributes, editor }: NodeViewProps) {
           </button>
           <button type="button" title="Space between the blocks" onClick={() => updateAttributes({ gap: next[gap] ?? "md" })}>
             ⇔ {gap}
+          </button>
+          <button
+            type="button"
+            title="A new line at the end of this box"
+            onClick={() => {
+              const pos = typeof getPos === "function" ? getPos() : undefined;
+              if (pos === undefined) return;
+              editor.chain().focus().insertContentAt(pos + node.nodeSize - 1, { type: "paragraph" }).run();
+            }}
+          >
+            ＋ block
           </button>
         </div>
       )}
@@ -102,6 +116,7 @@ export const FlexBox = Node.create({
   group: "block",
   content: "block+",
   defining: true,
+  draggable: true,
   addAttributes() {
     return { dir: { default: "row" }, gap: { default: "md" }, wrap: { default: false } };
   },
@@ -266,10 +281,32 @@ export const DatabaseViewNode = Node.create({
 });
 
 /** A detail module as a block (/Lage, /Todos …): its key in a small field (empty: its page's row's), the module below. */
-function ModuleBlockView({ node, updateAttributes, editor, extension }: NodeViewProps) {
+function ModuleBlockView({ node, updateAttributes, editor, extension, getPos, deleteNode }: NodeViewProps) {
   const [key, setKey] = useState(String(node.attrs.key ?? ""));
   return (
     <NodeViewWrapper className="ws-module-block my-2" contentEditable={false}>
+      {editor.isEditable && (
+        // Where a module can be taken by: dragged into another box or place, a line added after it, or removed.
+        <div className="ws-grip-bar" contentEditable={false}>
+          <span data-drag-handle className="ws-grip-btn" title="Drag to move" aria-label="Drag to move">
+            ⠿
+          </span>
+          <button
+            type="button"
+            title="A new line after this block"
+            aria-label="A new line after this block"
+            onClick={() => {
+              const pos = typeof getPos === "function" ? getPos() : undefined;
+              if (pos !== undefined) editor.chain().focus().insertContentAt(pos + node.nodeSize, { type: "paragraph" }).run();
+            }}
+          >
+            ＋
+          </button>
+          <button type="button" title="Remove this block" aria-label="Remove this block" onClick={() => deleteNode()}>
+            ✕
+          </button>
+        </div>
+      )}
       {editor.isEditable && !String(node.attrs.module).startsWith("person-") && (
         <input
           value={key}

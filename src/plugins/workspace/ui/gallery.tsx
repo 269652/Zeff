@@ -41,7 +41,8 @@ export function GalleryView({ rows, visible, ctx, openRow, add, locked }: Props)
   );
   return (
     <div className="space-y-3">
-      {!locked && <NoteComposer add={add} />}
+      {/* Not on a database whose rows come from a source (people, mails …): a note there would be a new person or mail. */}
+      {!locked && !schema.dataType && <NoteComposer add={add} />}
       {used.length > 0 && (
         <div className="flex flex-wrap items-center gap-1" role="group" aria-label={t("Filter by label")}>
           {used.map((o) => {

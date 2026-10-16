@@ -286,6 +286,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
     window.history.replaceState(null, "", u);
   };
   const openRow = (id: number) => {
+    // A person is a page of their own (their profile, dates, what is known …): opened as one, not in a side panel.
+    if (schema.dataType === "people") return void router.push(`/workspace/${id}`);
     setPeek(id);
     withRow(id);
   };
