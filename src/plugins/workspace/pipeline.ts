@@ -1,4 +1,5 @@
 import { getDb, getSqlite, schema } from "@/db";
+import { dateOf } from "@/lib/boards/collect";
 import { errorMessage } from "@/lib/errors";
 import { databaseSource, KEY_PROP, NOTE_PROP, rowKey } from "./collections";
 import { docToMarkdown, markdownToDoc } from "./doc";
@@ -34,7 +35,8 @@ const SRC_EDITED = "srcedited";
 const HIDDEN = [SRC_REF, SRC_EDITED, SRC_URL, KEY_PROP, NOTE_PROP];
 
 const since = (days: number | undefined) => (days ? Date.now() - days * 864e5 : 0);
-const at = (iso: string | null | undefined) => (iso ? Date.parse(iso) || 0 : 0);
+/** A time as the sources keep it (ISO, or Jira's local "2026-10-15 17:34:18 Mitteleuropäische Sommerzeit") in ms; 0: none. */
+const at = (s: string | null | undefined) => dateOf(s)?.getTime() || 0;
 
 // ---------------------------------------------------------------------------
 // Sources
@@ -321,7 +323,8 @@ async function runAiSteps(dbId: number, out: PipelineResult, force?: boolean): P
     if (!r.ok) throw new Error(r.error ?? "The AI review failed.");
   }
   const summaries = steps.filter((s) => s.kind === "ai" && s.output === "summary");
-  if (!summaries.length) return;
+  // (No rows: nothing to sum up.)
+  if (!summaries.length || !rawRows(dbId).length) return;
   const { runAi } = await import("@/lib/ai");
   const { databaseLines } = await import("./ai-block");
   const lines = (await databaseLines(dbId)).join("\n");

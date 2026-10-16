@@ -57,21 +57,6 @@ test("writeAiBlock: from the page and the databases in it; refreshAiBlocks keeps
   assert.equal(w.getPage(pageId)!.content.content.length, 3, "the rest of the page as it was");
 });
 
-test("ensureMyBriefingPage: Meine Lage as a page — an AI block over the briefing database, made once", async () => {
-  await setup();
-  const w = await import("@/plugins/workspace/store");
-  const { ensureMyBriefingPage } = await import("@/plugins/workspace/ai-block");
-  const dbId = w.createPage({ kind: "database", title: "My briefing" });
-  const id = ensureMyBriefingPage(dbId, "Meine Lage");
-  const p = w.getPage(id)!;
-  assert.equal(p.title, "Meine Lage");
-  assert.deepEqual(p.content.content.map((n) => n.type), ["aiBlock", "databaseView"]);
-  assert.equal(p.content.content[0].attrs?.auto, true);
-  assert.equal(p.content.content[1].attrs?.dbId, dbId);
-  assert.equal(w.getPage(dbId)!.parentId, id, "the database under the page: one entry in the tree");
-  assert.equal(ensureMyBriefingPage(dbId, "Meine Lage"), id, "made once");
-});
-
 test("a view can show only your rows (saved)", async () => {
   const m = await import("@/plugins/workspace/model");
   const v = { ...m.newView("Mine"), mine: true };

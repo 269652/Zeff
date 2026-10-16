@@ -55,6 +55,10 @@ test("runPipeline: Jira by criteria, a filter, an AI field and a summary — kep
   ticket("PROJ-4", { updatedAt: daysAgo(40) }); // too old
   ticket("PROJ-5", { statusCategory: "done", status: "Fertig", resolvedAt: daysAgo(1) }); // done
   ticket("PROJ-6", { summary: "Login ohne Kommentar" }); // no comment lately
+  // As Jira's sync keeps some times: local, with the zone's name.
+  const local = new Date(Date.now() - 864e5);
+  const p2 = (n: number) => String(n).padStart(2, "0");
+  ticket("PROJ-9", { summary: "Lokale Zeit", updatedAt: `${local.getFullYear()}-${p2(local.getMonth() + 1)}-${p2(local.getDate())} ${p2(local.getHours())}:${p2(local.getMinutes())}:00 Mitteleuropäische Sommerzeit` });
   keepComments([
     { id: "c1", ticket: "PROJ-1", author: "Anna", at: daysAgo(1), body: "Bitte prüfen" },
     { id: "c2", ticket: "PROJ-2", author: "Ich", at: daysAgo(3), body: "Login geht wieder nicht" },
@@ -74,6 +78,14 @@ test("runPipeline: Jira by criteria, a filter, an AI field and a summary — kep
   });
 
   // Without the AI: the rows only.
+  // Changed within 14 days, no comment asked for: the local time read as a time.
+  const plain = { ...w.getDatabase(dbId)!.schema };
+  w.updateSchema(dbId, { ...plain, pipeline: { steps: [{ id: "src", kind: "source", from: "jira", jira: { mine: true, recentDays: 14, openOnly: true } }] } });
+  const byTime = await runPipeline(dbId, { ai: false });
+  assert.ok(w.rawRows(dbId).some((r) => r.cells.ticketkey === "PROJ-9"), `a ticket changed yesterday, by Jira's local time (${byTime.records} rows)`);
+  for (const r of w.rawRows(dbId)) w.archivePage(r.id);
+  w.updateSchema(dbId, plain);
+
   const first = await runPipeline(dbId, { ai: false });
   assert.equal(first.ok, true, first.error);
   assert.deepEqual([first.records, first.created], [2, 2], "mine, open, commented within 14 days: PROJ-1, PROJ-2");

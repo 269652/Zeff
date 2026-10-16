@@ -35,7 +35,8 @@ export function applyTicketLage(tickets: { key: string; attention?: string | nul
   for (const t of tickets) {
     for (const row of rowsByKeys([t.key.trim().toUpperCase()])) {
       const db = getPage(row)?.dbId;
-      if (!db) continue;
+      // (A database with a pipeline: its AI steps are its own.)
+      if (!db || getDatabase(db)?.schema.pipeline?.steps.some((s) => s.kind === "source")) continue;
       if (!ready.has(db)) {
         ensureLageFields(db);
         ready.add(db);

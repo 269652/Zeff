@@ -257,6 +257,8 @@ export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: D
       if (k) keys[r.id] = k;
     }
     const tickets = ticketExtras(Object.values(keys));
+    // A database with a pipeline shows its own fields (its AI steps'), not the Ticket-Lage's — its tickets' todos stay.
+    if (d.schema.pipeline?.steps.some((s) => s.kind === "source")) for (const k of Object.keys(tickets)) tickets[k] = { ...tickets[k], attention: null, attentionLabel: null, lead: null, summary: null, happened: [] };
     // A board's Lage fields (its AI review): the card's stripe, lead and summary from them.
     const { LAGE_FIELDS } = await import("./lage-fields");
     const { attentionLabels, isAttention } = await import("@/lib/boards/shared");

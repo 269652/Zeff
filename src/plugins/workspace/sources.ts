@@ -1,7 +1,7 @@
 import { listTodos } from "@/lib/boards/store";
 import { listJiraBoards } from "@/lib/jira/store";
 import { getJiraSyncConfig } from "@/lib/jira/sync";
-import { jiraBoardDatabase } from "@/plugins/jira-lage/to-workspace";
+import { briefingDatabase, jiraBoardDatabase } from "@/plugins/jira-lage/to-workspace";
 import { googleKeepHref } from "@/plugins/keep/google-workspace";
 import { keepCount } from "@/plugins/keep/store";
 import { isInstalled } from "@/plugins/state";
@@ -47,7 +47,8 @@ function jiraSource(): SourceView {
   const boards = listJiraBoards()
     .map((b) => ({ id: b.id, name: b.name, project: b.projectKey, enabled: b.enabled, href: b.enabled ? href(`jira-${b.id}`) : null }))
     .sort((a, b) => Number(b.enabled) - Number(a.enabled));
-  const mine = href("jira-lage");
+  const briefing = briefingDatabase();
+  const mine = briefing ? `/workspace/${briefing}` : null;
   return {
     key: "jira",
     name: "Jira",
@@ -56,7 +57,7 @@ function jiraSource(): SourceView {
     setup: cfg.configured ? null : { text: "Jira isn't set up.", href: "/jira" },
     count: boards.filter((b) => b.enabled).length,
     boards,
-    databases: [...(mine ? [{ title: "My briefing", href: mine }] : []), ...boards.flatMap((b) => (b.href ? [{ title: b.name, href: b.href }] : []))],
+    databases: [...(mine ? [{ title: "Meine Lage", href: mine }] : []), ...boards.flatMap((b) => (b.href ? [{ title: b.name, href: b.href }] : []))],
   };
 }
 

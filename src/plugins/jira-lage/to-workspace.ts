@@ -3,14 +3,13 @@ import { getDb, getSqlite, schema } from "@/db";
 import { setCollection } from "@/lib/items";
 import { KEY_PROP, setDatabaseSource } from "@/plugins/workspace/collections";
 import { COLORS, newId, newProperty, newView, type DbSchema, type Option, type Property } from "@/plugins/workspace/model";
-import { addRow, archivePage, createPage, getDatabase, placeRow, rawRows, setCell, updatePage, updateSchema } from "@/plugins/workspace/store";
+import { addRow, archivePage, createPage, getDatabase, getPage, placeRow, rawRows, setCell, updatePage, updateSchema } from "@/plugins/workspace/store";
 import { t } from "@/lib/i18n/server";
 import { getPref, setPref } from "@/lib/prefs";
-import { ensureMyBriefingPage } from "@/plugins/workspace/ai-block";
 import { lageBoard, lageBoards } from "./board";
 
 /**
- * Jira as a data source of the Workspace: each Jira board (and "My briefing") a board database the
+ * Jira as a data source of the Workspace: each Jira board a board database the
  * sync keeps — its tickets rows (Key PROJ-…), their column the status (the columns as on the Jira
  * board, else the status categories), type, priority, assignee, when changed, the link to Jira; in
  * the order the board shows them (most pressing first). Read-only and marked as Jira's: what changes,
@@ -62,13 +61,12 @@ function newSchema(): DbSchema {
 
 type Counts = { boards: number; created: number; updated: number; archived: number };
 
-/** Every Jira board (and My briefing) into its database: rows made, changed, archived as Jira has them now. */
+/** Every Jira board into its database: rows made, changed, archived as Jira has them now. */
 export async function syncJiraBoardDatabases(): Promise<Counts> {
   const out: Counts = { boards: 0, created: 0, updated: 0, archived: 0 };
-  const ownBriefing = getPref<number | null>(BRIEFING_PIPELINE, null);
   for (const summary of lageBoards()) {
-    // My briefing as a pipeline database: its pipeline keeps it, not this sync.
-    if (summary.id === "jira-lage" && ownBriefing) continue;
+    // (My briefing isn't a board of its own any more: Meine Lage is a database with a pipeline.)
+    if (summary.id === "jira-lage") continue;
     const board = await lageBoard(summary.id);
     if (!board) continue;
     out.boards++;
@@ -146,40 +144,44 @@ export async function syncJiraBoardDatabases(): Promise<Counts> {
   return out;
 }
 
-const BRIEFING_PIPELINE = "workspace.briefingPipeline";
-
-/**
- * My briefing becomes a database like any other — once: its rows from a pipeline (Jira: on you or followed, open), the
- * Lage as its AI steps (attention, lead, summary — what the Ticket-Lage writes stays theirs); yours to change, the Jira
- * sync leaves it. Its rows stay the same rows (each by its key), with their Lage. The database, or null: nothing to do.
- */
-export async function briefingToPipelineOnce(): Promise<number | null> {
-  if (getPref<number | null>(BRIEFING_PIPELINE, null)) return null;
-  const dbId = jiraBoardDatabase("jira-lage");
-  if (!dbId) return null;
-  const d = getDatabase(dbId)!;
-  const { lageFieldDefs } = await import("@/plugins/workspace/lage-fields");
-  const { runPipeline, SRC_REF } = await import("@/plugins/workspace/pipeline");
-  const steps = [
-    { id: newId("s"), kind: "source" as const, from: "jira" as const, jira: { mine: true, involved: true, briefed: true, openOnly: true, doneDays: 3 } },
-    ...lageFieldDefs().map((f) => ({ id: newId("s"), kind: "ai" as const, output: "field" as const, prop: f.id, name: f.name, prompt: f.aiPrompt, choices: f.aiChoices })),
-  ];
-  // The status takes Jira's statuses now (its options were the Lage's lanes).
-  const properties = [...d.schema.properties.map((p) => (p.id === STATUS ? { ...p, options: [] } : p)), ...(d.schema.properties.some((p) => p.id === SRC_REF) ? [] : [{ id: SRC_REF, name: "Source", type: "text" as const }])];
-  updateSchema(dbId, { ...d.schema, properties, pipeline: { steps }, review: { ...(d.schema.review ?? {}), on: true } });
-  for (const r of rawRows(dbId)) if (r.cells[KEY_PROP]) setCell(r.id, SRC_REF, String(r.cells[KEY_PROP]));
-  updatePage(dbId, { locked: false });
-  setDatabaseSource(dbId, null);
-  setCollection(`workspace:${dbId}`, { briefing: false });
-  setPref(BRIEFING_PIPELINE, dbId);
-  await runPipeline(dbId, { ai: false });
-  return dbId;
+/** The database "Meine Lage" (null: none, or it's gone). */
+const BRIEFING_DB = "workspace.briefingDb";
+const REPLACED = "workspace.briefingReplaced";
+export function briefingDatabase(): number | null {
+  const id = getPref<number | null>(BRIEFING_DB, null);
+  return id && getDatabase(id) && !getDatabase(id)!.page.archivedAt ? id : null;
 }
 
-/** Where an old link to a Jira board (/kanban/jira-…) leads now: its database — My briefing: the page Meine Lage over it; null: not kept yet. */
+/**
+ * My briefing goes for good — once: the board the Jira sync kept (its rows from the Ticket-Lage, its Lage written onto
+ * it) and the page "Meine Lage" over it into the trash. In their place a database like any other, "Meine Lage": a
+ * pipeline (Jira: on you or followed, open, done in the last days), its AI steps the Lage — attention, a sentence per
+ * ticket — and one overall summary; its own AI review reads every row. Its rows come at once (what Zeff has from Jira).
+ */
+export async function replaceBriefingOnce(): Promise<number | null> {
+  if (getPref<boolean>(REPLACED, false)) return null;
+  const legacy = [jiraBoardDatabase("jira-lage"), getPref<number | null>("workspace.briefingPipeline", null), getPref<number | null>("workspace.myBriefingPage", null)];
+  for (const id of new Set(legacy)) if (id && getPage(id) && !getPage(id)!.archivedAt) archivePage(id);
+  db().prepare("delete from jira_board_dbs where board_id = 'jira-lage'").run();
+
+  const { lageFieldDefs, LAGE_FIELDS } = await import("@/plugins/workspace/lage-fields");
+  const def = (id: string) => lageFieldDefs().find((f) => f.id === id)!;
+  const steps = [
+    { id: newId("s"), kind: "source" as const, from: "jira" as const, jira: { mine: true, involved: true, openOnly: true, doneDays: 3 } },
+    { id: newId("s"), kind: "ai" as const, output: "field" as const, name: "Attention", prompt: def(LAGE_FIELDS.attention).aiPrompt, choices: def(LAGE_FIELDS.attention).aiChoices },
+    { id: newId("s"), kind: "ai" as const, output: "field" as const, name: "Lage", prompt: def(LAGE_FIELDS.lead).aiPrompt },
+    { id: newId("s"), kind: "ai" as const, output: "summary" as const, prompt: "Die Gesamtlage: was gerade brennt, was als Nächstes kommt, worauf ich warte — in wenigen Sätzen, die wichtigsten Tickets mit Schlüssel." },
+  ];
+  const id = createPage({ kind: "database", title: "Meine Lage", icon: "🧭", schema: { titleName: "Ticket", properties: [], views: [newView("Board", "board"), newView("Table", "table")], pipeline: { steps }, review: { on: true } } });
+  updatePage(id, { fullWidth: true });
+  setPref(BRIEFING_DB, id);
+  setPref(REPLACED, true);
+  await (await import("@/plugins/workspace/pipeline")).runPipeline(id, { ai: false });
+  return id;
+}
+
+/** Where an old link to a Jira board (/kanban/jira-…) leads now: its database — My briefing: Meine Lage; null: not kept yet. */
 export const jiraBoardHref = (boardId: string): string | null => {
-  const dbId = jiraBoardDatabase(boardId);
-  if (!dbId) return null;
-  if (boardId === "jira-lage") return `/workspace/${ensureMyBriefingPage(dbId, t("My briefing"))}`;
-  return `/workspace/${dbId}`;
+  const dbId = boardId === "jira-lage" ? briefingDatabase() : jiraBoardDatabase(boardId);
+  return dbId ? `/workspace/${dbId}` : null;
 };

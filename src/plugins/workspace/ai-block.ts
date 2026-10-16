@@ -8,8 +8,7 @@ import { createPage, getDatabase, getPage, movePage, rawRows, updatePage } from 
 /**
  * AI in any page: an AI block (aiBlock) writes by its instruction from what the page holds — its text, and the databases
  * shown in it (each row with its key, its status and other values, its AI fields, what the briefing says). What it wrote
- * stays in the page; by hand it's written again, and an "auto" one with the briefing (refreshAiBlocks). "Meine Lage" is
- * such a page: an AI block over the briefing's database.
+ * stays in the page; by hand it's written again, and an "auto" one with the briefing (refreshAiBlocks).
  */
 
 const MAX_ROWS = 80;
@@ -88,28 +87,4 @@ export async function refreshAiBlocks(): Promise<{ pages: number; written: numbe
     updatePage(id, { content: { ...cur.content, content: (cur.content.content ?? []).map((n) => (n.type === "aiBlock" && n.attrs?.auto ? (byPrompt.get(String(n.attrs.prompt ?? "")) ?? n) : n)) } });
   }
   return out;
-}
-
-const MY_BRIEFING = "workspace.myBriefingPage";
-
-/** "Meine Lage" as a page of the Workspace: an AI block writing the overall picture over the briefing's database — made once. */
-export function ensureMyBriefingPage(dbId: number, title: string): number {
-  const known = getPref<number | null>(MY_BRIEFING, null);
-  const p = known ? getPage(known) : null;
-  if (p && !p.archivedAt) return p.id;
-  const id = createPage({
-    title,
-    icon: "🧭",
-    content: {
-      type: "doc",
-      content: [
-        { type: "aiBlock", attrs: { prompt: "Die Gesamtlage: was gerade brennt, was als Nächstes kommt, worauf ich warte — in wenigen Sätzen, die wichtigsten Tickets mit Schlüssel.", text: "", at: "", auto: true } },
-        { type: "databaseView", attrs: { dbId, viewId: "", title } },
-      ],
-    },
-  });
-  updatePage(id, { fullWidth: true });
-  movePage(dbId, id); // the database under its page: one entry in the tree
-  setPref(MY_BRIEFING, id);
-  return id;
 }

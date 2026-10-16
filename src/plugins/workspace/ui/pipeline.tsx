@@ -46,7 +46,8 @@ export function PipelineEditor({ dbId, pipeline, synced, databases, onSave, onRu
     setBusy(true);
     try {
       if (dirty) await onSave({ ...pipeline, steps });
-      if (run) await onRun(run.ai);
+      // Saved: what Zeff already has from the sources comes in at once (the AI by hand, or with the briefing).
+      if (run || (dirty && runnable && !synced)) await onRun(run?.ai ?? false);
     } finally {
       setBusy(false);
     }

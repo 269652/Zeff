@@ -6,44 +6,55 @@ setupTempData();
 delete process.env.JIRA_URL;
 
 /**
- * My briefing becomes a database like any other: its rows from a pipeline (Jira: on me or followed, open) with the Lage as
- * AI fields — not kept by the Jira sync any more. Its rows (and their Lage) stay; once.
+ * My briefing goes for good: the board the Jira sync kept (its rows from the Ticket-Lage, its Lage written onto it) and the
+ * page over it go to the trash. In their place a database like any other — "Meine Lage": a pipeline (Jira: on me or
+ * followed, open, done lately), its AI steps the Lage (attention, a sentence per ticket) and one overall summary — only
+ * what any pipeline can choose. The Ticket-Lage writes nothing into it; its own AI review reads every row.
  */
-test("briefingToPipelineOnce: My briefing a pipeline database, its rows and Lage kept, the Jira sync leaves it", async () => {
+test("replaceBriefingOnce: My briefing replaced by a pipeline database with its own AI steps", async () => {
   const { setInstalled } = await import("@/plugins/state");
   for (const id of ["kanban", "jira-lage", "workspace"]) setInstalled(id, true);
   const { getDb, schema } = await import("@/db");
   const w = await import("@/plugins/workspace/store");
   const { databaseSource } = await import("@/plugins/workspace/collections");
-  const { syncJiraBoardDatabases, jiraBoardDatabase, briefingToPipelineOnce } = await import("@/plugins/jira-lage/to-workspace");
+  const { applyTicketLage } = await import("@/plugins/workspace/lage-fields");
+  const { syncJiraBoardDatabases, jiraBoardDatabase, jiraBoardHref, replaceBriefingOnce, briefingDatabase } = await import("@/plugins/jira-lage/to-workspace");
   const now = new Date().toISOString();
   getDb().insert(schema.jiraTickets).values({ key: "ME-1", summary: "Meins", status: "In Arbeit", statusCategory: "inprogress", assignee: "Ich", mine: true, updatedAt: now }).run();
-  await syncJiraBoardDatabases();
-  const dbId = jiraBoardDatabase("jira-lage")!;
-  assert.ok(dbId, "My briefing kept by the sync first");
-  // (Its rows come from the Ticket-Lage's runs — one as the sync keeps it.)
-  const row = { id: w.addRow(dbId, { title: "Meins", cells: { ticketkey: "ME-1" } }) };
-  (await import("@/plugins/workspace/lage-fields")).ensureLageFields(dbId);
-  w.setCell(row.id, "lagelead", "Läuft.");
+  getDb().insert(schema.jiraTickets).values({ key: "OT-1", summary: "Fremd", status: "Offen", statusCategory: "todo", assignee: "Anna", mine: false, updatedAt: now }).run();
 
-  const r = await briefingToPipelineOnce();
-  assert.equal(r, dbId);
-  const d = w.getDatabase(dbId)!;
-  assert.equal(d.page.locked, false, "yours to change now");
-  assert.equal(databaseSource(dbId), null, "not the Jira sync's any more");
-  const src = d.schema.pipeline!.steps.find((s) => s.kind === "source")!;
-  assert.deepEqual([src.from, src.jira?.mine, src.jira?.involved, src.jira?.briefed, src.jira?.openOnly, src.jira?.doneDays], ["jira", true, true, true, true, 3], "on me, followed or in the Ticket-Lage; open, or done lately");
-  assert.ok(d.schema.pipeline!.steps.some((s) => s.kind === "ai" && s.prop === "lagelead"), "the Lage as AI steps");
-  const after = w.rawRows(dbId);
-  assert.ok(after.some((x) => x.id === row.id), "the same rows");
-  assert.equal(w.getPage(row.id)!.props.lagelead, "Läuft.", "their Lage kept");
-  assert.equal(await briefingToPipelineOnce(), null, "once");
+  // As before: the sync kept My briefing.
+  const { createPage } = w;
+  const legacy = createPage({ kind: "database", title: "My briefing", schema: { titleName: "Summary", properties: [], views: [] } });
+  const { getSqlite } = await import("@/db");
+  getSqlite().exec("create table if not exists jira_board_dbs (board_id text primary key, db_id integer not null)");
+  getSqlite().prepare("insert into jira_board_dbs (board_id, db_id) values ('jira-lage', ?)").run(legacy);
+  assert.equal(jiraBoardDatabase("jira-lage"), legacy);
 
-  // The Jira sync leaves it alone now.
-  const title = d.page.title;
-  w.updatePage(dbId, { title: "Meine Lage (mein Titel)" });
+  const id = await replaceBriefingOnce();
+  assert.ok(id && id !== legacy);
+  assert.ok(w.getPage(legacy)!.archivedAt, "the old one in the trash");
+  assert.equal(briefingDatabase(), id);
+  const d = w.getDatabase(id!)!;
+  assert.equal(d.page.title, "Meine Lage");
+  assert.equal(d.page.locked, false);
+  assert.equal(databaseSource(id!), null, "no sync keeps it: its pipeline does");
+  const steps = d.schema.pipeline!.steps;
+  const src = steps.find((s) => s.kind === "source")!;
+  assert.deepEqual([src.from, src.jira?.mine, src.jira?.involved, src.jira?.openOnly, src.jira?.doneDays, src.jira?.briefed], ["jira", true, true, true, 3, undefined], "only what a pipeline can choose — not the Ticket-Lage's tickets");
+  const fields = steps.filter((s) => s.kind === "ai" && s.output === "field");
+  assert.equal(fields.length, 2, "attention and the Lage sentence");
+  assert.ok(fields.every((s) => !s.prop), "fields of its own (not the Ticket-Lage's)");
+  assert.ok(fields.some((s) => s.choices?.includes("blocked")));
+  assert.ok(steps.some((s) => s.kind === "ai" && s.output === "summary"), "the overall picture");
+  assert.deepEqual(d.schema.review, { on: true }, "its AI review reads every row");
+  assert.deepEqual(w.rawRows(id!).map((r) => r.cells.ticketkey), ["ME-1"], "its rows at once");
+  assert.equal(jiraBoardHref("jira-lage"), `/workspace/${id}`, "old links lead to it");
+
+  // The Ticket-Lage writes nothing into it; the sync doesn't make My briefing again.
+  applyTicketLage([{ key: "ME-1", lead: "Von der Ticket-Lage." }]);
+  assert.ok(!w.getDatabase(id!)!.schema.properties.some((p) => p.id === "lagelead"));
   await syncJiraBoardDatabases();
-  assert.equal(w.getDatabase(dbId)!.page.title, "Meine Lage (mein Titel)");
-  assert.equal(jiraBoardDatabase("jira-lage"), dbId, "still found as My briefing");
-  assert.ok(title);
+  assert.equal(jiraBoardDatabase("jira-lage"), null);
+  assert.equal(await replaceBriefingOnce(), null, "once");
 });

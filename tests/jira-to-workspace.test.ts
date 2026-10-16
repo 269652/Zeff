@@ -30,7 +30,7 @@ test("syncJiraBoardDatabases: a Jira board becomes a read-only board database, k
   ticket("PROJ-4", "Fertig", "done", { resolvedAt: "2020-01-01T00:00:00Z" });
 
   const r = await syncJiraBoardDatabases();
-  assert.ok(r.boards >= 2, "the board and My briefing");
+  assert.equal(r.boards, 1, "the board (My briefing isn't one any more: Meine Lage is a pipeline database)");
   const dbId = jiraBoardDatabase("jira-3359")!;
   const d = w.getDatabase(dbId)!;
   assert.equal(d.page.title, "PROJ Board");
