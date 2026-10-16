@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { toast } from "@/components/Toaster";
+import { foldedLines } from "../card-fold";
 import { useT } from "@/components/I18nProvider";
 import { savePageAction, toggleTaskAction } from "../actions";
 import { markdownToDoc } from "../doc";
@@ -17,6 +18,8 @@ import { WS_CHANGED } from "./ChatPanel";
  */
 
 const PINNED = "pinned";
+/** A card's picture: a database whose rows have one (the news: its article's picture) keeps its address in this property. */
+const IMAGE = "newsimage";
 const COLOR = "color";
 
 type Props = { rows: Row[]; visible: Property[]; ctx: CellCtx; openRow: (id: number) => void; add: (cells: Record<string, unknown>, title: string) => Promise<number | null>; locked: boolean };
@@ -30,7 +33,7 @@ export function GalleryView({ rows, visible, ctx, openRow, add, locked }: Props)
   const shownRows = picked.size && tags ? rows.filter((r) => [...picked].every((id) => ((r.cells[tags.id] as string[] | undefined) ?? []).includes(id))) : rows;
   const { pinned, others } = pinnable ? splitPinned(shownRows) : { pinned: [], others: shownRows };
   // The card shows what the gallery is for: not the pin and the colour as values (they're the card itself).
-  const cardProps = visible.filter((p) => p.id !== PINNED && p.id !== COLOR);
+  const cardProps = visible.filter((p) => p.id !== PINNED && p.id !== COLOR && p.id !== IMAGE);
   const used = tags ? (tags.options ?? []).filter((o) => rows.some((r) => ((r.cells[tags.id] as string[] | undefined) ?? []).includes(o.id))) : [];
   const grid = (list: Row[]) => (
     <div className="ws-masonry">
@@ -81,6 +84,12 @@ function NoteCard({ row, visible, ctx, openRow, pinnable }: { row: Row; visible:
   // A note without a title of its own got its first line as one: not twice on the card.
   const lines = (ctx.data.extras?.previews?.[row.id] ?? []).filter((l, i) => !(i === 0 && l.kind === "text" && l.text === row.title));
   const [ticks, setTicks] = useState<Record<number, boolean>>({});
+  // The text of a row that comes from a source (an article, a mail …) is folded: the first lines, "more" for the rest.
+  const folds = !!ctx.data.schema.dataType;
+  const [open, setOpen] = useState(false);
+  const { shown, more } = folds && !open ? foldedLines(lines) : { shown: lines, more: folds && foldedLines(lines).more };
+  const picture = typeof row.cells[IMAGE] === "string" && /^https?:\/\//.test(String(row.cells[IMAGE])) ? String(row.cells[IMAGE]) : "";
+  const [pictureOk, setPictureOk] = useState(true);
   const tick = (index: number, checked: boolean) => {
     setTicks((cur) => ({ ...cur, [index]: checked }));
     void toggleTaskAction(row.id, index, checked).then((r) => {
@@ -106,10 +115,14 @@ function NoteCard({ row, visible, ctx, openRow, pinnable }: { row: Row; visible:
           📌
         </button>
       )}
+      {picture && pictureOk && (
+        // eslint-disable-next-line @next/next/no-img-element -- an article's picture from anywhere on the web: no loader
+        <img src={picture} alt="" loading="lazy" referrerPolicy="no-referrer" className="mb-2 max-h-44 w-full rounded-md object-cover" onError={() => setPictureOk(false)} />
+      )}
       <RowCard row={row} visible={visible} ctx={ctx} mode="gallery" />
       {lines.length > 0 && (
         <ul className="space-y-0.5 text-sm" onClick={(e) => e.stopPropagation()}>
-          {lines.map((l, i) =>
+          {shown.map((l, i) =>
             l.kind === "task" ? (
               <li key={i} className="flex items-start gap-1.5">
                 <input type="checkbox" className="mt-1 size-3.5 shrink-0" checked={ticks[l.index] ?? l.checked} disabled={!ctx.editable} onChange={(e) => tick(l.index, e.target.checked)} aria-label={l.text} />
@@ -122,6 +135,19 @@ function NoteCard({ row, visible, ctx, openRow, pinnable }: { row: Row; visible:
             ),
           )}
         </ul>
+      )}
+      {more && (
+        <button
+          type="button"
+          className="mt-1 text-xs text-indigo-600 hover:underline dark:text-indigo-400"
+          aria-expanded={open}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(!open);
+          }}
+        >
+          {open ? `${t("Show less")} ▴` : `${t("Show more")} ▾`}
+        </button>
       )}
     </div>
   );

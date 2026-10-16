@@ -5663,5 +5663,6 @@
   "Your appointments (Zeff's calendars, Google, Outlook) from a month back to three months ahead.": "Deine Termine (Zeffs Kalender, Google, Outlook) von einem Monat zurück bis drei Monate voraus.",
   "The Calendar plugin is not installed (Menu → Plugins).": "Das Kalender-Plugin ist nicht installiert (Menü → Plugins).",
   "Your appointments (Zeff's calendars, Google, Outlook) from a month back to three months ahead — Zeff's own can be changed here.": "Deine Termine (Zeffs Kalender, Google, Outlook) von einem Monat zurück bis drei Monate voraus — die in Zeffs eigenen Kalendern lassen sich hier ändern.",
-  "This appointment is in {source} — delete it there; only appointments in Zeff's own calendars can be deleted here.": "Dieser Termin liegt in {source} — lösche ihn dort; hier lassen sich nur Termine in Zeffs eigenen Kalendern löschen."
+  "This appointment is in {source} — delete it there; only appointments in Zeff's own calendars can be deleted here.": "Dieser Termin liegt in {source} — lösche ihn dort; hier lassen sich nur Termine in Zeffs eigenen Kalendern löschen.",
+  "Cards": "Karten"
 }

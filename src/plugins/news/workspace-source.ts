@@ -9,7 +9,7 @@ import { getContent, getItem, keptItems, setState, vote } from "./store";
  */
 
 const REF = /^news:(\d+)$/;
-const F = { source: "newssource", published: "newspublished", score: "newsscore", saved: "newssaved", liked: "newsliked", link: "newslink", tags: "newstags", story: "newsstory" };
+const F = { image: "newsimage", source: "newssource", published: "newspublished", score: "newsscore", saved: "newssaved", liked: "newsliked", link: "newslink", tags: "newstags", story: "newsstory" };
 const marker = (state: string, voteValue: number) => `${state}:${voteValue}`;
 
 export function newsRecords() {
@@ -31,6 +31,8 @@ export function newsRecords() {
         { id: F.saved, name: "Saved", type: "checkbox" as const, value: i.state === "saved" || null },
         { id: F.liked, name: "Liked", type: "checkbox" as const, value: i.vote === 1 || null },
         { id: F.link, name: "Link", type: "url" as const, value: i.url },
+        // The article's picture (when it has one): the gallery shows it on the card.
+        { id: F.image, name: "Image", type: "url" as const, value: /^https?:\/\//.test(i.image) ? i.image : null },
         { id: F.tags, name: "Tags", type: "text" as const, value: i.terms.join(", ") },
         { id: F.story, name: "Story", type: "text" as const, value: i.story },
       ],

@@ -97,3 +97,71 @@ test("ensureNewsDatabase: made once with the News plugin — a gone one is not m
   const { buildAgentPrompt } = await import("@/plugins/workspace/routine-agent");
   assert.match(buildAgentPrompt(agent, { kind: "manual" }), /Gemerkte News|Saved news/i, "it is told which database to read");
 });
+
+test("an article's picture comes along as the Image field — only a real address, never the 'none found' marker", async () => {
+  const { n, w, runPipeline, createExtSourceDatabase, id } = await world();
+  n.setState(id("a"), "saved");
+  n.setState(id("b"), "saved");
+  n.setContent(id("a"), "Text des Artikels, lang genug.", "https://cdn.example/bild.jpg");
+  n.markNoImage(id("b"));
+  const db = await createExtSourceDatabase("news", "Bilder");
+  await runPipeline(db, { ai: false });
+  const d = w.getDatabase(db)!;
+  const image = d.schema.properties.find((p) => p.name === "Image")!;
+  assert.equal(image.id, "newsimage");
+  const rows = w.rawRows(db);
+  assert.equal(rows.find((x) => x.title.startsWith("Neues"))!.cells.newsimage, "https://cdn.example/bild.jpg");
+  assert.ok(!rows.find((x) => x.title.startsWith("Sicherheit"))!.cells.newsimage, "no picture: no value");
+});
+
+test("the news database opens as cards (a gallery, first); one made before gets it once — and a view you remove stays removed", async () => {
+  const { w } = await world();
+  const { ensureNewsDatabase, newsDatabase } = await import("@/plugins/workspace/news-database");
+  const { setPref } = await import("@/lib/prefs");
+  setPref("workspace.newsDb", null); // (an earlier test's database is gone: start fresh)
+  await ensureNewsDatabase();
+  const db = newsDatabase()!;
+  assert.ok(db);
+  const types = () => w.getDatabase(db)!.schema.views.map((v) => v.type);
+  assert.equal(types()[0], "gallery", "cards first");
+  assert.ok(types().includes("table"));
+  // one made before cards existed: no gallery, the marker not set
+  w.updateSchema(db, { ...w.getDatabase(db)!.schema, views: w.getDatabase(db)!.schema.views.filter((v) => v.type !== "gallery") });
+  setPref("workspace.newsCards", null);
+  await ensureNewsDatabase();
+  assert.equal(types()[0], "gallery", "added once");
+  w.updateSchema(db, { ...w.getDatabase(db)!.schema, views: w.getDatabase(db)!.schema.views.filter((v) => v.type !== "gallery") });
+  await ensureNewsDatabase();
+  assert.ok(!types().includes("gallery"), "removed by you: not made again");
+});
+
+test("the cards hide the pipeline's own fields and the details — what stays is publisher, date, link and the checks", async () => {
+  const { w } = await world();
+  const { ensureNewsDatabase, newsDatabase } = await import("@/plugins/workspace/news-database");
+  const { setPref } = await import("@/lib/prefs");
+  setPref("workspace.newsDb", null);
+  await ensureNewsDatabase();
+  const cards = w.getDatabase(newsDatabase()!)!.schema.views[0];
+  assert.equal(cards.type, "gallery");
+  for (const id of ["srcref", "srcedited", "newsscore", "newstags", "newsstory", "newsimage"]) assert.ok(cards.hidden.includes(id), `${id} is not on the cards`);
+  for (const id of ["newssource", "newspublished", "newslink", "newssaved", "newsliked"]) assert.ok(!cards.hidden.includes(id), `${id} stays`);
+});
+
+test("cards made before they hid the fields get that once", async () => {
+  const { w } = await world();
+  const { ensureNewsDatabase, newsDatabase } = await import("@/plugins/workspace/news-database");
+  const { setPref } = await import("@/lib/prefs");
+  setPref("workspace.newsDb", null);
+  await ensureNewsDatabase();
+  const db = newsDatabase()!;
+  const cur = w.getDatabase(db)!.schema;
+  w.updateSchema(db, { ...cur, views: cur.views.map((v) => (v.type === "gallery" ? { ...v, hidden: [] } : v)) });
+  setPref("workspace.newsCardsHidden", null);
+  await ensureNewsDatabase();
+  assert.ok(w.getDatabase(db)!.schema.views.find((v) => v.type === "gallery")!.hidden.includes("srcref"));
+  // set by you since: left alone
+  const again = w.getDatabase(db)!.schema;
+  w.updateSchema(db, { ...again, views: again.views.map((v) => (v.type === "gallery" ? { ...v, hidden: [] } : v)) });
+  await ensureNewsDatabase();
+  assert.deepEqual(w.getDatabase(db)!.schema.views.find((v) => v.type === "gallery")!.hidden, [], "once only");
+});
