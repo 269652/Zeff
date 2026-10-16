@@ -296,6 +296,12 @@ export function listItems(opts: { view?: NewsView; sourceId?: number; category?:
   return (db().prepare(sql).all(...args, opts.limit ?? 60, opts.offset ?? 0) as IRow[]).map(toItem);
 }
 
+/** What you kept: the saved and the liked items, newest first — not the hidden, however liked. */
+export function keptItems(limit = 500): NewsItem[] {
+  const sql = `select ${ICOLS} from ${IFROM} where (i.state = 'saved' or (i.vote = 1 and i.state != 'hidden')) order by i.published_at desc, i.id desc limit ?`;
+  return (db().prepare(sql).all(limit) as IRow[]).map(toItem);
+}
+
 /**
  * The items a question is about: its words in the headline, summary or the whole article (all words, else any), the best
  * by how many words fit — then newest. For "ask your news".

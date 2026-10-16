@@ -6,6 +6,7 @@ import { markdownToDoc } from "./doc";
 import { createJobsDatabase } from "./jobs";
 import { createRulesDatabase } from "./rules";
 import { COLORS, newId, newProperty, newView, type DbSchema, type Option, type Property, type View } from "./model";
+import { newsDatabaseTitle } from "./news-database";
 import { createRoutine } from "./routines";
 import { addRow, createPage, getDatabase, updateSchema } from "./store";
 
@@ -35,6 +36,26 @@ const TEMPLATES: Template[] = [
     description: "An LLM run on the instructions you write here — by hand, on a schedule or on an event; it knows its parent and sibling pages.",
     kind: "page",
     build: (parentId) => routinePage("agent", parentId, "New agent", "🤖", "Write what the agent should do — one block per instruction.\n\n- Read the pages next to this one.\n- Write what you find as a short summary under this page.\n"),
+  },
+  {
+    key: "news-summary",
+    name: "News summary (agent)",
+    icon: "📰",
+    description: "An agent that reads the news you saved or liked and writes a summary for you — start it by hand or on a schedule.",
+    kind: "page",
+    build: (parentId) =>
+      routinePage(
+        "agent",
+        parentId,
+        "News summary",
+        "📰",
+        `Read the database “${newsDatabaseTitle()}” (the news I saved or liked — find it with workspace_search, read it with workspace_read_page).
+
+- Group the items by topic and write a short summary per topic, with the headlines as links.
+- Say what is new since your last summary (look at the sub pages of this page).
+- Write the result as a new sub page of this page, titled with today's date.
+`,
+      ),
   },
   {
     key: "automation",
