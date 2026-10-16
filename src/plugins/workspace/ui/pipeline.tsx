@@ -29,17 +29,17 @@ export const BRIEFING_EXAMPLE = (): PipelineStep[] => [
   { id: newId("s"), kind: "ai", output: "summary", prompt: "Die Gesamtlage: was gerade brennt, was als Nächstes kommt, worauf ich warte — in wenigen Sätzen, die wichtigsten Tickets mit Schlüssel." },
 ];
 
-export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, databases, onSave, onRun, onClose }: { dbId: number; pipeline: Pipeline | undefined; synced: string | null; dataType?: DataType; fields: string[]; databases: { id: number; title: string }[]; onSave: (p: Pipeline) => Promise<void>; onRun: (ai: boolean) => Promise<void>; onClose: () => void }) {
+export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, checkboxes, databases, onSave, onRun, onClose }: { dbId: number; pipeline: Pipeline | undefined; synced: string | null; dataType?: DataType; fields: string[]; checkboxes: { id: string; name: string }[]; databases: { id: number; title: string }[]; onSave: (p: Pipeline) => Promise<void>; onRun: (ai: boolean) => Promise<void>; onClose: () => void }) {
   const t = useT();
   // A database a sync keeps: the sync is its source — only AI steps of its own.
-  const [auto, setAuto] = useState<{ autoAi: boolean; everyMinutes: number | undefined }>({ autoAi: !!pipeline?.autoAi, everyMinutes: pipeline?.everyMinutes });
+  const [auto, setAuto] = useState<{ autoAi: boolean; everyMinutes: number | undefined; keepProp: string | undefined }>({ autoAi: !!pipeline?.autoAi, everyMinutes: pipeline?.everyMinutes, keepProp: pipeline?.keepProp });
   const [steps, setSteps] = useState<PipelineStep[]>((pipeline?.steps ?? []).filter((s) => !synced || s.kind === "ai"));
   const [busy, setBusy] = useState(false);
   const [ran, setRan] = useState(0);
   const [instructions, setInstructions] = useState<Instruction[]>([]);
   const loadInstructions = () => void instructionsAction().then((r) => r.ok && setInstructions(r.instructions));
   useEffect(loadInstructions, []);
-  const dirty = JSON.stringify(steps) !== JSON.stringify(pipeline?.steps ?? []) || auto.autoAi !== !!pipeline?.autoAi || auto.everyMinutes !== pipeline?.everyMinutes;
+  const dirty = JSON.stringify(steps) !== JSON.stringify(pipeline?.steps ?? []) || auto.autoAi !== !!pipeline?.autoAi || auto.everyMinutes !== pipeline?.everyMinutes || auto.keepProp !== pipeline?.keepProp;
   const runnable = synced ? steps.some((s) => s.kind === "ai") : steps.some((s) => s.kind === "source");
   const syncName = synced === "jira" ? "Jira" : synced === "google-keep" ? "Google Keep" : synced;
   const set = (i: number, patch: Partial<PipelineStep>) => setSteps((ss) => ss.map((s, k) => (k === i ? { ...s, ...patch } : s)));
@@ -53,7 +53,7 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, datab
   const save = async (run?: { ai: boolean }) => {
     setBusy(true);
     try {
-      if (dirty) await onSave({ ...pipeline, steps, ...(auto.autoAi ? { autoAi: true } : { autoAi: undefined }), everyMinutes: auto.everyMinutes });
+      if (dirty) await onSave({ ...pipeline, steps, ...(auto.autoAi ? { autoAi: true } : { autoAi: undefined }), everyMinutes: auto.everyMinutes, keepProp: auto.keepProp });
       // Saved: what Zeff already has from the sources comes in at once (the AI by hand, or with the briefing).
       if (run || (dirty && runnable && !synced)) await onRun(run?.ai ?? false);
       setRan((n) => n + 1);
@@ -126,6 +126,20 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, datab
           {t("minutes")}
         </label>
       </div>
+      {!synced && checkboxes.length > 0 && (
+        <label className="flex flex-wrap items-center gap-1.5 text-sm">
+          {t("A row ticked in")}
+          <select className="input w-auto text-sm" value={auto.keepProp ?? ""} onChange={(e) => setAuto({ ...auto, keepProp: e.target.value || undefined })} aria-label={t("Checkbox that keeps a row")}>
+            <option value="">{t("(none)")}</option>
+            {checkboxes.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          {t("is final: a run neither changes nor archives it, and the AI leaves it.")}
+        </label>
+      )}
       <div className="flex flex-wrap items-center justify-end gap-1.5 border-t border-zinc-200 pt-3 dark:border-zinc-700">
         {pipeline?.ranAt && <span className="mr-auto text-xs text-zinc-500">{t("Last run {when}", { when: new Date(pipeline.ranAt).toLocaleString() })}</span>}
         {dirty ? (

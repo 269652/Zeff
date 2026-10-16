@@ -167,7 +167,7 @@ export type PipelineStep = {
   result?: { text: string; at: string; hash?: string };
 };
 /** A pipeline: its steps; when it last ran; and how it runs by itself — its AI after every sync of its sources, and/or every N minutes. */
-export type Pipeline = { steps: PipelineStep[]; ranAt?: string; autoAi?: boolean; everyMinutes?: number };
+export type Pipeline = { steps: PipelineStep[]; ranAt?: string; autoAi?: boolean; everyMinutes?: number; /** A checkbox property (its id): a row ticked in it is final — a run neither changes nor archives it, and the AI leaves it. */ keepProp?: string };
 
 /** A filter's conditions: contains, doesn't contain, is, isn't (a checkbox: yes / no), empty, not empty. */
 export const FILTER_OPS = ["contains", "not_contains", "is", "is_not", "empty", "not_empty"] as const;
@@ -228,7 +228,7 @@ export function normalizePipeline(raw: unknown): Pipeline {
       steps.push(defined<PipelineStep>({ id, kind: "ai", output: s.output, prop: s.output === "field" ? str(s.prop) : undefined, name: s.output === "field" ? (str(s.name) ?? "AI") : undefined, prompt: str(s.prompt), choices: s.output === "field" ? strs(s.choices) : undefined, instructions: ids(s.instructions), result: s.output === "summary" ? result : undefined }));
     }
   }
-  return { steps, ...(typeof o.ranAt === "string" ? { ranAt: o.ranAt } : {}), ...(o.autoAi === true ? { autoAi: true } : {}), ...(posInt(o.everyMinutes) ? { everyMinutes: Math.min(10080, posInt(o.everyMinutes)!) } : {}) };
+  return { steps, ...(typeof o.ranAt === "string" ? { ranAt: o.ranAt } : {}), ...(o.autoAi === true ? { autoAi: true } : {}), ...(posInt(o.everyMinutes) ? { everyMinutes: Math.min(10080, posInt(o.everyMinutes)!) } : {}), ...(str(o.keepProp) ? { keepProp: str(o.keepProp) } : {}) };
 }
 
 /** The modules a row's detail view can show: its properties and page, and — by its ticket key — what Zeff knows about it. */

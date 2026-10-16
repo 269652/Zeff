@@ -78,3 +78,44 @@ test("addresses from the knowledge base as records: each once, not the ones alre
     server.close();
   }
 });
+
+test("a row ticked in the keep checkbox is final: a refresh neither changes nor archives it, the AI leaves it", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("knowledge", true);
+  const server = await fakeKnowledge();
+  try {
+    const w = await import("@/plugins/workspace/store");
+    const m = await import("@/plugins/workspace/model");
+    const { runPipeline } = await import("@/plugins/workspace/pipeline");
+    const id = w.createPage({
+      kind: "database",
+      title: "Kept",
+      schema: { titleName: "Name", properties: [{ id: "p_ok", name: "Checked", type: "checkbox" }], views: [m.newView("Table")], pipeline: { keepProp: "p_ok", steps: [{ id: "s", kind: "source", from: "knowledge", knowledge: { terms: ["PROJ Relaunch"] } }] } },
+    });
+    await runPipeline(id, { ai: false });
+    const rows = () => w.rawRows(id);
+    assert.equal(rows().length, 2);
+    const mine = rows().find((r) => r.title.startsWith("Test"))!;
+    w.updatePage(mine.id, { title: "Mein Test" });
+    w.setCell(mine.id, "p_ok", true);
+    const other = rows().find((r) => r.id !== mine.id)!;
+    LINKS["PROJ Relaunch"] = [{ env: "dev", label: "Dev", url: "https://dev.relaunch.example/", pageTitle: "x" }];
+    const r = await runPipeline(id, { ai: false });
+    assert.equal(r.ok, true, r.error);
+    assert.equal(w.getPage(mine.id)!.title, "Mein Test", "ticked: its title stays as you set it");
+    assert.equal(w.getPage(mine.id)!.archivedAt, null, "ticked: kept although the knowledge no longer has it");
+    assert.equal(w.getPage(other.id)!.archivedAt !== null, true, "not ticked: gone with the source");
+  } finally {
+    LINKS["PROJ Relaunch"] = [
+      { env: "test", label: "Test", url: "https://test.relaunch.example/", pageTitle: "Digitas (INTERN)", pageUrl: "https://wiki.example/digitas" },
+      { env: "prod", label: "Prod", url: "https://relaunch.example/", pageTitle: "Digitas (INTERN)" },
+    ];
+    server.close();
+  }
+});
+
+test("the keep checkbox is part of a pipeline as stored", async () => {
+  const { normalizePipeline } = await import("@/plugins/workspace/model");
+  assert.equal(normalizePipeline({ keepProp: " p_ok ", steps: [] }).keepProp, "p_ok");
+  assert.equal(normalizePipeline({ steps: [] }).keepProp, undefined);
+});

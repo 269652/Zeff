@@ -78,8 +78,9 @@ export async function reviewDatabase(dbId: number, opts: { force?: boolean } = {
   const status = d.schema.properties.find((p) => p.type === "status");
   const phase = (r: Row) => status?.options?.find((o) => o.id === r.cells[status.id])?.group ?? "todo";
   const since = d.schema.review?.recentDays ? Date.now() - d.schema.review.recentDays * 864e5 : 0;
+  const keepId = d.schema.pipeline?.keepProp;
   const skipped = (r: Row) =>
-    (d.schema.review?.openOnly && phase(r) === "done") || (since > 0 && phase(r) !== "doing" && Date.parse(r.updatedAt) < since) || briefed.has(rowKey(r) ?? "");
+    (!!keepId && r.cells[keepId] === true) || (d.schema.review?.openOnly && phase(r) === "done") || (since > 0 && phase(r) !== "doing" && Date.parse(r.updatedAt) < since) || briefed.has(rowKey(r) ?? "");
   for (const row of rows) {
     if (skipped(row)) continue;
     const text = rowBlock(row, d.schema.properties, ai);

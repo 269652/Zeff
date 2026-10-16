@@ -572,6 +572,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           synced={data.extras?.source ?? null}
           dataType={schema.dataType}
           fields={schema.properties.filter((p) => !["srcref", "srcedited", "srcurl", "ticketkey", "noteref"].includes(p.id)).map((p) => p.name)}
+          checkboxes={schema.properties.filter((p) => p.type === "checkbox").map((p) => ({ id: p.id, name: p.name }))}
           databases={databases}
           onSave={async (pipeline) => {
             const err = await api.saveSchema({ ...(api.data?.schema ?? schema), pipeline });

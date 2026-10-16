@@ -5422,5 +5422,9 @@
   "(only this database)": "(nur diese Datenbank)",
   "The web addresses the knowledge base holds for these terms, each once with its environment and the page it stands on. Addresses you keep by hand (here or in the other database) are not suggested again.": "Die Web-Adressen, die die Wissensdatenbank zu diesen Begriffen hat – jede einmal, mit Umgebung und der Seite, auf der sie steht. Adressen, die du von Hand pflegst (hier oder in der anderen Datenbank), werden nicht noch einmal vorgeschlagen.",
   "Content type": "Inhaltstyp",
-  "Markdown": "Markdown"
+  "Markdown": "Markdown",
+  "A row ticked in": "Eine Zeile, die in",
+  "Checkbox that keeps a row": "Haken, der eine Zeile behält",
+  "(none)": "(keiner)",
+  "is final: a run neither changes nor archives it, and the AI leaves it.": "abgehakt ist, gilt als endgültig: Ein Lauf ändert oder archiviert sie nicht, und die KI lässt sie in Ruhe."
 }
