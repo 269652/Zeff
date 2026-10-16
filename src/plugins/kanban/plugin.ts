@@ -9,11 +9,6 @@ export default definePlugin({
   category: "app",
   defaultInstalled: false,
   settings: { href: "/kanban/settings", what: "Create your own boards, columns, in the briefing" },
-  tabs: [
-    { href: "/kanban", label: "Kanban", short: "Kanban" },
-  ],
-  nav: [
-    { href: "/kanban/settings", label: "Kanban boards", hint: "Manage your boards" },
-  ],
+  // No tab of its own any more: its boards are the Workspace's (old /kanban links lead there).
   routes: ["/kanban"],
 });

@@ -12,9 +12,7 @@ export default definePlugin({
   experimental: "Zeff reads Google Keep through its web page in the automation Chrome — Google offers no API for personal Keep notes. If Google changes the page, the sync can fail or miss notes, and Google can object to automated access to your account.",
   requires: "For Google Keep: the account's automation Chrome, signed in to Google (keep.google.com). Your own boards need nothing.",
   settings: { href: "/keep/settings", what: "Your own note boards, the Google account" },
-  tabs: [
-    { href: "/keep", label: "Keep", short: "Keep" },
-  ],
+  // No tab of its own any more: the notes are the Workspace's (Google Keep a database its sync keeps; /keep leads there).
   routes: ["/keep", "/apps/keep"],
   syncSteps: ["keep"],
   services: ["keep"],
