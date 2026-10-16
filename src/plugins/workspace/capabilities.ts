@@ -16,7 +16,7 @@ export type Capabilities = {
 };
 
 /** Each channel and the action that writes to it (a draft: opened for you; else sent by Zeff). */
-export const CHANNEL_ACTIONS = [
+export const WRITE_CHANNELS = [
   { channel: "outlook", name: "Outlook", action: "mail-compose", draft: true, source: "mail" },
   { channel: "gmail", name: "Gmail", action: "gmail-compose", draft: true, source: "mail" },
   { channel: "teams", name: "Teams", action: "teams-message", draft: false, source: "messages" },
@@ -32,7 +32,7 @@ export function capabilitiesOf(schema: DbSchema): Capabilities {
   for (const s of schema.pipeline?.steps ?? []) {
     if (s.kind !== "source") continue;
     const channels: readonly string[] | undefined = s.from === "mail" ? s.mail?.accounts : s.from === "messages" ? s.messages?.channels : undefined;
-    for (const x of CHANNEL_ACTIONS) {
+    for (const x of WRITE_CHANNELS) {
       if (!kinds.has(x.source)) continue;
       if (channels?.length && (s.from === "mail" || s.from === "messages") && !channels.includes(x.channel)) continue;
       if (!opAvailable(x.action)) continue;

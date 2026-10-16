@@ -5373,5 +5373,18 @@
   "Dismiss “{text}”?": "¿Descartar «{text}»?",
   "New todo": "Nueva tarea",
   "A todo's text can't be empty.": "El texto de una tarea no puede estar vacío.",
-  "Detail views": "Vistas de detalle"
+  "Detail views": "Vistas de detalle",
+  "Web search": "Búsqueda web",
+  "Search with": "Buscar con",
+  "API key": "Clave de API",
+  "Search engine ID (cx)": "ID del buscador (cx)",
+  "(set — leave empty to keep)": "(definida — déjala vacía para conservarla)",
+  "Try a search": "Probar una búsqueda",
+  "Ready.": "Listo.",
+  "Not set up yet.": "Aún sin configurar.",
+  "Add the key first.": "Añade primero la clave.",
+  "It works": "Funciona",
+  "No results — the key works, the search found nothing.": "Sin resultados — la clave funciona, la búsqueda no encontró nada.",
+  "Zeff's AI — the Workspace chat and agents over MCP — can search the web and read public pages (web_search, web_fetch). The search uses an official API; nothing is scraped, and pages are only read from the public internet.": "La IA de Zeff — el chat del Workspace y los agentes por MCP — puede buscar en la web y leer páginas públicas (web_search, web_fetch). La búsqueda usa una API oficial; no se rastrea nada y las páginas solo se leen de internet público.",
+  "Made once in Google: a Programmable Search Engine that searches the whole web (programmablesearchengine.google.com), and an API key with the Custom Search API switched on (console.cloud.google.com). 100 searches a day are free.": "Se crea una vez en Google: un Programmable Search Engine que busque en toda la web (programmablesearchengine.google.com) y una clave de API con la Custom Search API activada (console.cloud.google.com). 100 búsquedas al día son gratis."
 }

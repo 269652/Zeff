@@ -5373,5 +5373,18 @@
   "Dismiss “{text}”?": "„{text}“ verwerfen?",
   "New todo": "Neues Todo",
   "A todo's text can't be empty.": "Der Text eines Todos darf nicht leer sein.",
-  "Detail views": "Detailansichten"
+  "Detail views": "Detailansichten",
+  "Web search": "Websuche",
+  "Search with": "Suchen mit",
+  "API key": "API-Schlüssel",
+  "Search engine ID (cx)": "Suchmaschinen-ID (cx)",
+  "(set — leave empty to keep)": "(gesetzt — leer lassen, um ihn zu behalten)",
+  "Try a search": "Suche ausprobieren",
+  "Ready.": "Bereit.",
+  "Not set up yet.": "Noch nicht eingerichtet.",
+  "Add the key first.": "Erst den Schlüssel eintragen.",
+  "It works": "Es funktioniert",
+  "No results — the key works, the search found nothing.": "Keine Treffer — der Schlüssel funktioniert, die Suche fand nichts.",
+  "Zeff's AI — the Workspace chat and agents over MCP — can search the web and read public pages (web_search, web_fetch). The search uses an official API; nothing is scraped, and pages are only read from the public internet.": "Zeffs KI — der Workspace-Chat und Agenten über MCP — kann im Web suchen und öffentliche Seiten lesen (web_search, web_fetch). Die Suche nutzt eine offizielle API; nichts wird gescrapt, und Seiten werden nur aus dem öffentlichen Internet gelesen.",
+  "Made once in Google: a Programmable Search Engine that searches the whole web (programmablesearchengine.google.com), and an API key with the Custom Search API switched on (console.cloud.google.com). 100 searches a day are free.": "Einmal bei Google anlegen: eine Programmable Search Engine, die das ganze Web durchsucht (programmablesearchengine.google.com), und einen API-Schlüssel mit aktivierter Custom Search API (console.cloud.google.com). 100 Suchen am Tag sind kostenlos."
 }

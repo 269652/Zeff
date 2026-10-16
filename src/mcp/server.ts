@@ -1,5 +1,6 @@
 import { isInstalled } from "@/plugins/state";
 import { registerWorkspaceTools } from "@/plugins/workspace/mcp";
+import { registerWebSearchTools } from "@/plugins/web-search/mcp";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { ConflictError, NotFoundError, ValidationError, errorMessage } from "@/lib/errors";
@@ -972,4 +973,5 @@ export function registerZeffTools(server: McpServer): void {
 
   // The Workspace's pages and databases (when that plugin is installed, the tools say so otherwise).
   registerWorkspaceTools(server, { run, ok, fail });
+  registerWebSearchTools(server, { run, ok, fail } as never);
 }

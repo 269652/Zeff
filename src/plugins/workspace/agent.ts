@@ -9,6 +9,7 @@ import { z } from "zod";
 import { runAi } from "@/lib/ai";
 import { docToMarkdown } from "./doc";
 import { registerWorkspaceTools } from "./mcp";
+import { registerWebSearchTools } from "@/plugins/web-search/mcp";
 import * as store from "./store";
 
 export type ChatMessage = { role: "user" | "assistant"; text: string };
@@ -26,17 +27,20 @@ function collectTools(): Map<string, Tool> {
     },
   } as unknown as McpServer;
   const text = (t: string, isError = false) => ({ content: [{ type: "text" as const, text: t }], ...(isError ? { isError: true } : {}) });
-  registerWorkspaceTools(stand, {
-    run: async (fn) => {
+  const helpers = {
+    run: async (fn: () => unknown) => {
       try {
         return (await fn()) as never;
       } catch (e) {
         return text(e instanceof Error ? e.message : String(e), true) as never;
       }
     },
-    ok: (t) => text(t) as never,
-    fail: (t) => text(t, true) as never,
-  });
+    ok: (t: string) => text(t) as never,
+    fail: (t: string) => text(t, true) as never,
+  };
+  registerWorkspaceTools(stand, helpers);
+  // The web (search, read a page) — while its plugin is installed: the chat can look up facts and fill a database with them.
+  registerWebSearchTools(stand, helpers);
   return tools;
 }
 
