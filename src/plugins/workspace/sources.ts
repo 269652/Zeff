@@ -1,3 +1,4 @@
+import { getSqlite } from "@/db";
 import { listTodos } from "@/lib/boards/store";
 import { listJiraBoards } from "@/lib/jira/store";
 import { getJiraSyncConfig } from "@/lib/jira/sync";
@@ -13,7 +14,7 @@ import { isInstalled } from "@/plugins/state";
  */
 
 export type SourceView = {
-  key: "jira" | "keep" | "todos";
+  key: "jira" | "keep" | "todos" | "mail" | "messages";
   name: string;
   /** Its sync step (the Sync menu's key); none: it's read as it is. */
   step: string | null;
@@ -34,6 +35,8 @@ export function sourcesOverview(): SourceView[] {
   if (isInstalled("jira-lage") || isInstalled("jira")) out.push(jiraSource());
   if (isInstalled("keep")) out.push(keepSource());
   if (isInstalled("todos")) out.push(todoSource());
+  if (isInstalled("outlook-mail") || isInstalled("gmail")) out.push(mailSource());
+  if (isInstalled("teams") || isInstalled("whatsapp") || isInstalled("signal")) out.push(messageSource());
   return out;
 }
 
@@ -76,4 +79,15 @@ function keepSource(): SourceView {
 
 function todoSource(): SourceView {
   return { key: "todos", name: "Todos", step: null, ready: true, setup: null, count: listTodos({ status: "open" }).length, databases: [] };
+}
+
+function mailSource(): SourceView {
+  const n = (getSqlite().prepare("select count(*) as n from emails where folder not in ('WhatsApp', 'Signal')").get() as { n: number }).n;
+  return { key: "mail", name: "Mail", step: "mail", ready: true, setup: { text: "Which folders are read", href: "/settings/mail" }, count: n, databases: [] };
+}
+
+function messageSource(): SourceView {
+  const chats = (getSqlite().prepare("select count(*) as n from emails where folder in ('WhatsApp', 'Signal')").get() as { n: number }).n;
+  const teams = (getSqlite().prepare("select count(*) as n from teams_messages").get() as { n: number }).n;
+  return { key: "messages", name: "Teams · WhatsApp · Signal", step: null, ready: true, setup: null, count: chats + teams, databases: [] };
 }

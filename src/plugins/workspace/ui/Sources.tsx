@@ -7,7 +7,7 @@ import { runSyncAction } from "@/app/actions";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { setBoardEnabledAction } from "@/plugins/jira/server-actions";
-import { keepSourceDatabasesAction } from "../actions";
+import { createSourceDatabaseAction, keepSourceDatabasesAction } from "../actions";
 import type { SourceView } from "../sources";
 import { SyncEvery } from "./pipeline";
 
@@ -41,7 +41,9 @@ export function SourcesView({ sources }: { sources: SourceView[] }) {
   const info: Record<SourceView["key"], string> = {
     jira: t("Each board switched on is a board database here, kept by every Jira sync — read-only (Jira is where tickets change); My briefing a page over the briefing's tickets."),
     keep: t("Google Keep's notes as a gallery database, kept by every Keep sync — read-only."),
-    todos: t("Your todos — to be taken in by a board or any database as a step of its pipeline (coming)."),
+    todos: t("Your todos — a database of them, or a step of any database's pipeline."),
+    mail: t("Your mails (Outlook, Gmail) — a database of them, shown by the mail client; filter them with AI in its steps."),
+    messages: t("Your chats (Teams, WhatsApp, Signal) — a database of them, shown by the chat; filter them with AI in its steps."),
   };
   return (
     <div className="space-y-6">
@@ -53,13 +55,27 @@ export function SourcesView({ sources }: { sources: SourceView[] }) {
         <section key={s.key} className="card space-y-3 p-4">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-lg font-semibold">{s.name}</h2>
-            <span className="text-sm text-zinc-500">{s.key === "jira" ? t("{n} boards on", { n: s.count }) : s.key === "keep" ? t("{n} notes", { n: s.count }) : t("{n} open todos", { n: s.count })}</span>
+            <span className="text-sm text-zinc-500">{s.key === "jira" ? t("{n} boards on", { n: s.count }) : s.key === "keep" ? t("{n} notes", { n: s.count }) : s.key === "todos" ? t("{n} open todos", { n: s.count }) : s.key === "mail" ? t("{n} mails", { n: s.count }) : t("{n} messages", { n: s.count })}</span>
             <span className="flex-1" />
             {s.setup && (
               <Link href={s.setup.href} className="btn btn-sm">
                 {s.ready ? t("Settings") : t("Set up")}
               </Link>
             )}
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={pending}
+              onClick={() =>
+                start(async () => {
+                  const r = await createSourceDatabaseAction(s.key);
+                  if (!r.ok) return void toast(r.error, { tone: "error" });
+                  router.push(`/workspace/${r.id}?steps=1`);
+                })
+              }
+            >
+              ＋ {t("New database from it")}
+            </button>
             {s.step && (
               <button type="button" className="btn btn-primary btn-sm" disabled={pending} onClick={() => sync(s)}>
                 {pending ? "…" : t("Sync now")}
@@ -67,7 +83,7 @@ export function SourcesView({ sources }: { sources: SourceView[] }) {
             )}
           </div>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">{info[s.key]}</p>
-          {(s.key === "jira" || s.key === "keep") && <SyncEvery syncKey={s.key} name={s.name} />}
+          {(s.key === "jira" || s.key === "keep" || s.key === "mail") && <SyncEvery syncKey={s.key} name={s.name} />}
           {s.boards && (
             <ul className="divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
               {s.boards.map((b) => (

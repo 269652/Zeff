@@ -445,6 +445,8 @@ async function aiFiltered(step: PipelineStep, records: SourceRecord[]): Promise<
   const { createHash } = await import("node:crypto");
   const { instructionText } = await import("./instructions");
   const told = instructionText(step.instructions);
+  // No condition (no instruction, no prompt picked): everything through.
+  if (!step.prompt?.trim() && !told.trim()) return records;
   const spec = `${step.prompt ?? ""}\n${told}`;
   const hashOf = (r: SourceRecord) => createHash("sha1").update(`${spec}\n${recordText(r)}`).digest("hex");
   const db = filterDb();

@@ -74,3 +74,26 @@ test("derived database with an AI filter: important mails only, judged once each
   assert.doesNotMatch(again, /Wochenrückblick/, "the ones judged before aren't asked again");
   assert.deepEqual(w.rawRows(id).map((x) => x.title).sort(), ["Bitte bis heute freigeben", "Server down!"]);
 });
+
+test("any source or database derivable: a database from a data source; an AI filter without a condition lets everything through", async () => {
+  const w = await import("@/plugins/workspace/store");
+  const { createSourceDatabase, createDerivedDatabase } = await import("@/plugins/workspace/derived");
+  const { runPipeline } = await import("@/plugins/workspace/pipeline");
+  for (const from of ["jira", "keep", "todos", "mail", "messages"] as const) {
+    const id = createSourceDatabase(from);
+    const steps = w.getDatabase(id)!.schema.pipeline!.steps;
+    assert.equal(steps[0].from, from, `a database from ${from}`);
+  }
+  const todos = createSourceDatabase("todos");
+  const { addManualTodo } = await import("@/lib/boards/store");
+  addManualTodo({ ticket: "WS-5", text: "Steuererklärung abgeben" });
+  await runPipeline(todos, { ai: false });
+  const derived = createDerivedDatabase(todos);
+  const s = w.getDatabase(derived)!.schema.pipeline!.steps;
+  assert.equal(s[1].output, "filter");
+  assert.equal(s[1].prompt, undefined, "no condition yet (not a mail's)");
+  if (fs.existsSync(promptFile)) fs.rmSync(promptFile);
+  await runPipeline(derived, { ai: false });
+  assert.ok(!fs.existsSync(promptFile), "without a condition: no AI");
+  assert.ok(w.rawRows(derived).some((r) => r.title.startsWith("Steuererklärung")), "everything through");
+});

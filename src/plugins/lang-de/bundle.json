@@ -5307,5 +5307,10 @@
   "My prompts": "Meine Prompts",
   "New prompt": "Neuer Prompt",
   "New prompt “{title}”": "Neuer Prompt „{title}“",
-  "New prompt …": "Neuer Prompt …"
+  "New prompt …": "Neuer Prompt …",
+  "Your todos — a database of them, or a step of any database's pipeline.": "Deine Todos — eine Datenbank daraus oder ein Schritt in der Pipeline jeder Datenbank.",
+  "Your mails (Outlook, Gmail) — a database of them, shown by the mail client; filter them with AI in its steps.": "Deine Mails (Outlook, Gmail) — eine Datenbank daraus, im Mail-Client; in ihren Schritten mit KI filtern.",
+  "Your chats (Teams, WhatsApp, Signal) — a database of them, shown by the chat; filter them with AI in its steps.": "Deine Chats (Teams, WhatsApp, Signal) — eine Datenbank daraus, im Chat; in ihren Schritten mit KI filtern.",
+  "{n} mails": "{n} Mails",
+  "New database from it": "Neue Datenbank daraus"
 }
