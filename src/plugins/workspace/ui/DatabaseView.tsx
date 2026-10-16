@@ -448,13 +448,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
                   </MenuItem>
                 </>
               )}
-              {/* As Kanban's and Keep's boards: its rows go into the briefing (cards: tickets, notes: notes) and the knowledge. */}
-              <MenuItem checked={!!data.extras?.briefing} onClick={() => (close(), void switchCollection({ briefing: !data.extras?.briefing }))}>
-                {t("In the briefing")}
-              </MenuItem>
-              <MenuItem checked={!!data.extras?.knowledge} onClick={() => (close(), void switchCollection({ knowledge: !data.extras?.knowledge }))}>
-                {t("In the knowledge")}
-              </MenuItem>
+              {/* What goes out of it (into the Ticket-Lage; the knowledge server picks for itself): the Workspace's settings. */}
+              <MenuItem onClick={() => (close(), router.push(`/workspace/settings/outputs#db-${dbId}`))}>📤 {t("Outputs …")}</MenuItem>
               <div className="px-2 py-1">
                 <input className="input w-full text-sm" value={view.name} aria-label={t("View name")} onChange={(e) => setView({ ...view, name: e.target.value })} />
               </div>

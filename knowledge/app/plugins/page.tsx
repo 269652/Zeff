@@ -78,6 +78,11 @@ export default async function PluginsPage({ searchParams }: { searchParams: Prom
                   </div>
                   {p.requires && <p className="text-xs text-zinc-500">Needs: {p.requires}</p>}
                   {where && <p className="text-xs text-zinc-500">Here: {where}</p>}
+                  {p.id === "zeff" && installed && (
+                    <Link href="/plugins/zeff" className="text-sm text-indigo-600 hover:underline dark:text-indigo-400">
+                      Choose what to read →
+                    </Link>
+                  )}
                 </li>
               );
             })}

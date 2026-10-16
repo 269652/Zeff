@@ -2,7 +2,7 @@ import { isoDay } from "@/lib/text";
 import { getSqlite } from "@/db";
 import { currentAccount } from "@/db/accounts";
 import { weekFromDate } from "@/lib/week";
-import { knowledgeItems } from "@/lib/items";
+import { collectionItems, knowledgeItems, listCollections } from "@/lib/items";
 import { documentDocs } from "@/plugins/documents/export";
 import { isInstalled } from "@/plugins/state";
 import { pushTo } from "@/lib/collections";
@@ -52,8 +52,10 @@ const KIND_DE = { card: "Karte", note: "Notiz", row: "Eintrag" } as const;
  * collections in the knowledge, archived ones too — one each, in its collection's space.
  * `plugin`: one plugin's only.
  */
-export function collectionDocs(plugin?: string): KnowledgeDoc[] {
-  return knowledgeItems(plugin ? { plugin } : {})
+export function collectionDocs(plugin?: string, ids?: Set<string>): KnowledgeDoc[] {
+  // Picked by the knowledge server (its ids): those collections, whatever their old switch; else the switch's.
+  const placed = ids ? listCollections().filter((c) => ids.has(c.id)).flatMap((collection) => (collectionItems(collection.id, { archived: true }) ?? []).map((item) => ({ item, collection }))) : knowledgeItems(plugin ? { plugin } : {});
+  return placed
     .filter(({ item: n }) => n.title || n.text)
     .map(({ item: n, collection: c }) => {
       const meta = [`${KIND_DE[n.kind]} in „${c.name}“`, n.status ? `Status: ${n.status.name}` : "", n.labels.length ? `Labels: ${n.labels.join(", ")}` : "", n.pinned ? "angeheftet" : "", n.archived ? "archiviert" : ""].filter(Boolean).join(" · ");
@@ -70,7 +72,7 @@ export function collectionDocs(plugin?: string): KnowledgeDoc[] {
 }
 
 /** `only: "keep"`: just Google Keep's notes (the knowledge server's own Google Keep source). */
-export function knowledgeDocs(zeffUrl: string, only?: "keep"): { account: string; docs: KnowledgeDoc[] } {
+export function knowledgeDocs(zeffUrl: string, only?: "keep", include?: string[]): { account: string; docs: KnowledgeDoc[] } {
   if (only === "keep") return { account: currentAccount().name, docs: collectionDocs("keep") };
   const db = getSqlite();
   const all = <T>(sql: string, ...args: unknown[]) => db.prepare(sql).all(...args) as T[];
@@ -235,7 +237,8 @@ ${clean(r.body)}` }));
     docs.push(doc({ id: `zeff:context:${c.id}`, space: "Zeff · Notizen", title: c.title || `${c.kind}${c.ticket ? ` zu ${c.ticket}` : ""} ${c.date ?? ""}`.trim(), url: "", updatedAt: c.updated_at ?? c.date, author: c.author, body: `${c.ticket ? `Zu ${c.ticket}. ` : ""}${clean(c.body)}` }));
 
   // Google Keep's notes.
-  docs.push(...collectionDocs());
+  const pick = include ? new Set(include) : null;
+  docs.push(...collectionDocs(undefined, pick ? new Set(include!.filter((x) => !x.startsWith("space:"))) : undefined));
 
   // Facts the Mail-Durchsicht found in your messages ("Nadines Geburtstag: 16.10.") — each its own page.
   for (const f of all<{ id: number; subject: string; text: string; updated_at: string }>("select id, subject, text, updated_at from facts"))
@@ -244,5 +247,25 @@ ${clean(r.body)}` }));
   // The Documents plugin's files (their text read) — compiled to abstracts, searchable, context for todos.
   if (isInstalled("documents")) docs.push(...documentDocs(zeffUrl));
 
+  if (pick) {
+    // The sources picked (by their space); the collections were picked above.
+    const collections = new Set(listCollections().map((c) => c.space ?? c.name));
+    return { account: currentAccount().name, docs: docs.filter((d) => pick.has(`space:${d.space}`) || (collections.has(d.space) && !d.id.startsWith("zeff:"))) };
+  }
   return { account: currentAccount().name, docs };
+}
+
+export type CatalogEntry = { id: string; name: string; kind: "source" | "database"; count: number; /** In the export when nothing is picked (as before). */ selected: boolean };
+
+/**
+ * What the knowledge server can pick from Zeff: each source as its space ("Zeff · Jira" — with how many pages), each
+ * collection of the Workspace, Keep, Kanban (with how many items; selected: its old "in the knowledge" switch).
+ */
+export function knowledgeCatalog(): CatalogEntry[] {
+  const spaces = new Map<string, number>();
+  const collections = new Set(listCollections().map((c) => c.space ?? c.name));
+  for (const d of knowledgeDocs("").docs) if (d.id.startsWith("zeff:") || !collections.has(d.space)) spaces.set(d.space, (spaces.get(d.space) ?? 0) + 1);
+  const sources: CatalogEntry[] = [...spaces.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([space, count]) => ({ id: `space:${space}`, name: space.replace(/^Zeff · /, ""), kind: "source", count, selected: true }));
+  const dbs: CatalogEntry[] = listCollections().map((c) => ({ id: c.id, name: c.name, kind: "database", count: (collectionItems(c.id) ?? []).length, selected: !!c.knowledge }));
+  return [...sources, ...dbs];
 }

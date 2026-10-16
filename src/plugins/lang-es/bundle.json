@@ -5252,5 +5252,16 @@
   "Sent within days": "Enviados en los últimos días",
   "Subject": "Asunto",
   "App": "App",
-  "Mail & Chat": "Correo y chat"
+  "Mail & Chat": "Correo y chat",
+  "Workspace settings": "Ajustes del Workspace",
+  "Outputs": "Salidas",
+  "Outputs …": "Salidas …",
+  "Into the Ticket-Lage": "A la Ticket-Lage",
+  "The databases whose rows the Ticket-Lage reads as context (notes, boards).": "Las bases de datos cuyas filas lee la Ticket-Lage como contexto (notas, tableros).",
+  "Into the knowledge": "Al conocimiento",
+  "The knowledge server picks what it reads — every source and every database of the Workspace: on the knowledge server, Plugins → Zeff → Choose what to read.": "El servidor de conocimiento elige qué lee — cada fuente y cada base de datos del Workspace: en el servidor, Plugins → Zeff → Elegir qué leer.",
+  "Apps show databases of their type their way — a view like any of the database's. Without its plugin, such a database is a table.": "Las apps muestran las bases de datos de su tipo a su manera — una vista como cualquiera. Sin su plugin, es una tabla.",
+  "For databases of mails (Outlook, Gmail).": "Para bases de datos de correos (Outlook, Gmail).",
+  "For databases of messages (Teams, WhatsApp, Signal).": "Para bases de datos de mensajes (Teams, WhatsApp, Signal).",
+  "Install it (Menu → Plugins)": "Instálalo (Menú → Plugins)"
 }

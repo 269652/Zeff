@@ -148,9 +148,11 @@ export type Settings = {
   importDir: string;
   /** Whose knowledge it is (a name): "Ich", "Verfasser", "Autor" … in it mean them — for normalizing. */
   owner: string;
+  /** What it reads from Zeff (ids from Zeff's catalog, comma-separated); empty: everything Zeff exports by default. */
+  zeffInclude: string;
 };
 
-const DEFAULTS: Settings = { spaces: "", maxPages: 2000, compileBackend: "copilot", compileModel: "claude-haiku-5.5", askBackend: "copilot", askModel: "claude-sonnet-5.5", importDir: "", owner: "" };
+const DEFAULTS: Settings = { spaces: "", maxPages: 2000, compileBackend: "copilot", compileModel: "claude-haiku-5.5", askBackend: "copilot", askModel: "claude-sonnet-5.5", importDir: "", owner: "", zeffInclude: "" };
 const backend = (v: string | undefined, d: "copilot" | "claude") => (v === "copilot" || v === "claude" ? v : d);
 
 export function getSettings(): Settings {
@@ -165,6 +167,7 @@ export function getSettings(): Settings {
     askModel: v.askModel ?? DEFAULTS.askModel,
     importDir: v.importDir ?? DEFAULTS.importDir,
     owner: v.owner ?? DEFAULTS.owner,
+    zeffInclude: v.zeffInclude ?? DEFAULTS.zeffInclude,
   };
 }
 
