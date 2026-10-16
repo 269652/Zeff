@@ -16,8 +16,8 @@ import { Dropdown, MenuItem, Modal } from "./kit";
  * database), filters, AI steps (a field on each row, a summary over all) — edited, saved, run.
  */
 
-const ICON: Record<string, string> = { jira: "🎫", keep: "🗒", todos: "☑", database: "🗃", mail: "✉", messages: "💬", filter: "⏷", sort: "⇅", field: "✨", summary: "🧭" };
-const kindOf = (s: PipelineStep) => (s.kind === "source" ? (s.from ?? "") : s.kind === "ai" ? (s.output ?? "") : s.kind);
+const ICON: Record<string, string> = { aifilter: "🔎", jira: "🎫", keep: "🗒", todos: "☑", database: "🗃", mail: "✉", messages: "💬", filter: "⏷", sort: "⇅", field: "✨", summary: "🧭" };
+const kindOf = (s: PipelineStep) => (s.kind === "source" ? (s.from ?? "") : s.kind === "ai" ? (s.output === "filter" ? "aifilter" : (s.output ?? "")) : s.kind);
 const iconOf = (s: PipelineStep) => ICON[kindOf(s)];
 
 /** The example "My briefing": your Jira tickets of the last 14 days, commented, open — their Lage, one overall picture. */
@@ -57,7 +57,7 @@ export function PipelineEditor({ dbId, pipeline, synced, fields, databases, onSa
       setBusy(false);
     }
   };
-  const labels: Record<string, string> = { jira: t("Jira tickets"), keep: t("Google Keep notes"), todos: t("Todos"), database: t("Another database"), mail: t("Mails (Outlook, Gmail)"), messages: t("Messages (Teams, WhatsApp, Signal)"), filter: t("Filter"), sort: t("Sort"), field: t("AI: a field on each row"), summary: t("AI: one summary over all rows") };
+  const labels: Record<string, string> = { jira: t("Jira tickets"), keep: t("Google Keep notes"), todos: t("Todos"), database: t("Another database"), mail: t("Mails (Outlook, Gmail)"), messages: t("Messages (Teams, WhatsApp, Signal)"), filter: t("Filter"), aifilter: t("AI: keep only what …"), sort: t("Sort"), field: t("AI: a field on each row"), summary: t("AI: one summary over all rows") };
   return (
     <Modal title={t("Sources & steps …")} onClose={onClose} wide>
       <p className="text-sm text-zinc-500">{t("Where this database's rows come from and what's done with them, top to bottom. A run keeps the result as its rows (yours stay: AI fields, pages); the AI steps go with the briefing.")}</p>
@@ -104,6 +104,7 @@ export function PipelineEditor({ dbId, pipeline, synced, fields, databases, onSa
         {!synced && <button type="button" className="btn btn-sm" onClick={() => add({ kind: "filter", openOnly: true })}>+ {t("Filter")}</button>}
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "sort", by: steps.find((x) => x.kind === "ai" && x.output === "field" && x.choices?.length)?.name ?? fields[0] ?? "" })}>+ ⇅ {t("Sort")}</button>
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "ai", output: "field", name: t("Lage"), prompt: "" })}>+ ✨ {t("AI field")}</button>
+        <button type="button" className="btn btn-sm" onClick={() => add({ kind: "ai", output: "filter", prompt: "" })}>+ 🔎 {t("AI filter")}</button>
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "ai", output: "summary", prompt: "" })}>+ 🧭 {t("AI summary")}</button>
       </div>
       <div className="flex flex-wrap items-center justify-end gap-1.5 border-t border-zinc-200 pt-3 dark:border-zinc-700">
@@ -118,10 +119,28 @@ export function PipelineEditor({ dbId, pipeline, synced, fields, databases, onSa
 
 type Instruction = { id: number; title: string; icon: string; group?: string };
 
-/** The instructions an AI step goes by (pages under KI-Anweisungen): chosen, opened to write, a new one made. */
+/**
+ * The instructions an AI step goes by — your prompts and the system prompts (System → Prompts): chosen as chips, found by
+ * typing (an autocomplete), a new one of your own made from what's typed (System → Prompts → My prompts) and opened to write.
+ */
 function InstructionPicker({ chosen, all, set, reload }: { chosen: number[]; all: Instruction[]; set: (ids: number[]) => void; reload: () => void }) {
   const t = useT();
-  const rest = all.filter((x) => !chosen.includes(x.id));
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const words = q.trim().toLowerCase();
+  const found = all.filter((x) => !chosen.includes(x.id) && (!words || `${x.title} ${x.group ?? ""}`.toLowerCase().includes(words))).slice(0, 12);
+  const pick = (id: number) => {
+    set([...chosen, id]);
+    setQ("");
+    setOpen(false);
+  };
+  const create = async () => {
+    const r = await newInstructionAction(q.trim() || t("New prompt"));
+    if (!r.ok) return void toast(r.error, { tone: "error" });
+    pick(r.id);
+    reload();
+    window.open(`/workspace/${r.id}`, "_blank");
+  };
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-sm" data-instructions>
       <span className="text-zinc-500">{t("Instructions")}:</span>
@@ -138,33 +157,43 @@ function InstructionPicker({ chosen, all, set, reload }: { chosen: number[]; all
           </span>
         );
       })}
-      <Dropdown label={`+ ${t("Instruction")}`} className="rounded px-1.5 py-0.5 text-sm text-indigo-600 hover:bg-zinc-100 dark:text-indigo-400 dark:hover:bg-zinc-800">
-        {(close) => (
-          <>
-            {rest.map((x, i) => (
-              <div key={x.id}>
-                {/* The system prompts by their group, after your own. */}
-                {x.group && x.group !== rest[i - 1]?.group && <p className="px-2 pt-2 text-xs font-semibold text-zinc-500 uppercase">{t("System prompts")} · {x.group}</p>}
-                <MenuItem onClick={() => (close(), set([...chosen, x.id]))}>
+      <span className="relative">
+        <input
+          className="input w-56 py-0.5 text-sm"
+          value={q}
+          placeholder={`+ ${t("Prompt …")}`}
+          aria-label={t("Add a prompt")}
+          role="combobox"
+          aria-expanded={open}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          onChange={(e) => (setQ(e.target.value), setOpen(true))}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              if (found[0]) pick(found[0].id);
+              else if (q.trim()) void create();
+            } else if (e.key === "Escape") setOpen(false);
+          }}
+        />
+        {open && (
+          <ul className="absolute top-full left-0 z-30 mt-1 max-h-72 w-80 overflow-y-auto rounded-md border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900" role="listbox">
+            {found.map((x, i) => (
+              <li key={x.id}>
+                {(i === 0 || x.group !== found[i - 1]?.group) && <p className="px-2 pt-1.5 text-[11px] font-semibold text-zinc-500 uppercase">{x.group ? `${t("System prompts")} · ${x.group}` : t("My prompts")}</p>}
+                <button type="button" role="option" aria-selected={false} className="block w-full rounded px-2 py-1 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800" onMouseDown={(e) => e.preventDefault()} onClick={() => pick(x.id)}>
                   {x.icon || "📋"} {x.title}
-                </MenuItem>
-              </div>
+                </button>
+              </li>
             ))}
-            <MenuItem
-              onClick={async () => {
-                close();
-                const r = await newInstructionAction(t("New instruction"));
-                if (!r.ok) return void toast(r.error, { tone: "error" });
-                set([...chosen, r.id]);
-                reload();
-                window.open(`/workspace/${r.id}`, "_blank");
-              }}
-            >
-              ＋ {t("New instruction …")}
-            </MenuItem>
-          </>
+            <li>
+              <button type="button" className="block w-full rounded px-2 py-1 text-left text-indigo-600 hover:bg-zinc-100 dark:text-indigo-400 dark:hover:bg-zinc-800" onMouseDown={(e) => e.preventDefault()} onClick={() => void create()}>
+                ＋ {q.trim() ? t("New prompt “{title}”", { title: q.trim() }) : t("New prompt …")}
+              </button>
+            </li>
+          </ul>
         )}
-      </Dropdown>
+      </span>
     </div>
   );
 }
@@ -349,6 +378,13 @@ function StepBody({ step: s, set, databases, fields }: { step: PipelineStep; set
           </label>
         </div>
         <textarea className="input min-h-16 w-full text-sm" placeholder={t("What the AI writes into the field, for each row …")} value={s.prompt ?? ""} onChange={(e) => set({ prompt: e.target.value })} />
+      </div>
+    );
+  if (s.kind === "ai" && s.output === "filter")
+    return (
+      <div className="space-y-1.5">
+        <textarea className="input min-h-16 w-full text-sm" placeholder={t("Which rows stay — e.g. “important, urgent, or needs me to act” …")} value={s.prompt ?? ""} onChange={(e) => set({ prompt: e.target.value })} />
+        <p className="text-xs text-zinc-500">{t("Each row is judged once (again when it changes) — after a sync, only the new ones. The reason goes with the ones that stay (field “Why”).")}</p>
       </div>
     );
   if (s.kind === "ai" && s.output === "summary")

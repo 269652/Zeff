@@ -39,7 +39,8 @@ export function instructionsFolder(): number {
 export function listInstructions(): { id: number; title: string; icon: string; group?: string }[] {
   const folder = instructionsFolder();
   const all = tree();
-  const own = all.filter((p) => p.parentId === folder && p.kind !== "database").map((p) => ({ id: p.id, title: p.title || "Untitled", icon: p.icon }));
+  const mineFolder = getPref<number | null>(MINE, null);
+  const own = all.filter((p) => (p.parentId === folder || (mineFolder && p.parentId === mineFolder)) && p.kind !== "database").map((p) => ({ id: p.id, title: p.title || "Untitled", icon: p.icon }));
   const byId = new Map(all.map((p) => [p.id, p]));
   const system = systemPromptPages().flatMap((x) => {
     const p = byId.get(x.pageId);
@@ -48,8 +49,22 @@ export function listInstructions(): { id: number; title: string; icon: string; g
   return [...own, ...system];
 }
 
-/** A new instruction (an empty page under the folder). */
-export const newInstruction = (title: string): number => createPage({ title, parentId: instructionsFolder() });
+const MINE = "system.myPromptsFolder";
+
+/** A prompt of your own: a page under System → Prompts → My prompts (the folder made once, and it stays) — offered to every AI step. */
+export async function newInstruction(title: string): Promise<number> {
+  const { ensureSystemPrompts, promptsFolder } = await import("@/lib/prompts");
+  const { addSystemPage } = await import("@/lib/prompts/system-pages");
+  await ensureSystemPrompts();
+  const top = promptsFolder();
+  let folder = getPref<number | null>(MINE, null);
+  if (!folder || !getPage(folder) || getPage(folder)!.archivedAt) {
+    folder = createPage({ title: t("My prompts"), icon: "✍️", parentId: top ?? instructionsFolder() });
+    setPref(MINE, folder);
+    addSystemPage(folder);
+  }
+  return createPage({ title, icon: "📝", parentId: folder });
+}
 
 /** The instructions' text for a prompt: each with its title (gone ones left out). */
 export function instructionText(ids: number[] | undefined): string {

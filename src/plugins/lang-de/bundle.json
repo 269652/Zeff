@@ -5294,5 +5294,18 @@
   "The AI fields of a database filled for the rows that changed (pipelines, boards)": "Die KI-Felder einer Datenbank, gefüllt für geänderte Zeilen (Pipelines, Boards)",
   "An AI block written on a page": "Ein KI-Block auf einer Seite",
   "Pipeline summary": "Pipeline-Zusammenfassung",
-  "A pipeline's summary over all rows": "Die Zusammenfassung einer Pipeline über alle Zeilen"
+  "A pipeline's summary over all rows": "Die Zusammenfassung einer Pipeline über alle Zeilen",
+  "Derived database …": "Abgeleitete Datenbank …",
+  "AI: keep only what …": "KI: nur behalten, was …",
+  "AI filter": "KI-Filter",
+  "Which rows stay — e.g. “important, urgent, or needs me to act” …": "Welche Zeilen bleiben — z. B. „wichtig, dringend oder ich muss handeln“ …",
+  "Each row is judged once (again when it changes) — after a sync, only the new ones. The reason goes with the ones that stay (field “Why”).": "Jede Zeile wird einmal beurteilt (neu, wenn sie sich ändert) — nach einem Sync nur die neuen. Der Grund steht bei denen, die bleiben (Feld „Why“).",
+  "{name} (filtered)": "{name} (gefiltert)",
+  "A pipeline's AI filter: which rows stay": "Der KI-Filter einer Pipeline: welche Zeilen bleiben",
+  "Prompt …": "Prompt …",
+  "Add a prompt": "Prompt hinzufügen",
+  "My prompts": "Meine Prompts",
+  "New prompt": "Neuer Prompt",
+  "New prompt “{title}”": "Neuer Prompt „{title}“",
+  "New prompt …": "Neuer Prompt …"
 }

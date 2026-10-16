@@ -352,6 +352,11 @@ async function rowsThenAi(dbId: number, ai: boolean) {
   return { records: r.records, created: r.created, updated: r.updated, archived: r.archived, background, already: false };
 }
 
+/** A database made from this one, under it: its rows (fields as they are), an AI filter after — its id. */
+export async function createDerivedDatabaseAction(dbId: number, title?: string) {
+  return run(async () => ({ id: (await import("./derived")).createDerivedDatabase(Number(dbId), title ? String(title).slice(0, 200) : undefined) }));
+}
+
 /** The syncs a pipeline's sources are read by (jira, keep): how often each runs by itself, and what can be picked. */
 export async function sourceSyncsAction() {
   return run(async () => {
@@ -389,7 +394,7 @@ export async function instructionsAction() {
 
 /** A new instruction (a page under KI-Anweisungen) — to write it. */
 export async function newInstructionAction(title: string) {
-  return run(async () => ({ id: (await import("./instructions")).newInstruction(String(title ?? "").trim().slice(0, 200) || t("Instruction")) }));
+  return run(async () => ({ id: await (await import("./instructions")).newInstruction(String(title ?? "").trim().slice(0, 200) || t("Instruction")) }));
 }
 
 /**

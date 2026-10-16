@@ -104,3 +104,19 @@ test("fillPrompt: a prompt with placeholders — the page shows {{today}}, the c
   assert.ok(recap, "the recap is a system prompt too");
   assert.deepEqual(p.PROMPTS.find((x) => x.key === "recap")!.vars, ["me", "date"]);
 });
+
+test("your own prompts: made under System → Prompts → My prompts, offered to the AI steps with the rest", async () => {
+  const p = await import("@/lib/prompts");
+  const w = await import("@/plugins/workspace/store");
+  const { newInstruction, listInstructions } = await import("@/plugins/workspace/instructions");
+  await p.ensureSystemPrompts();
+  const id = await newInstruction("Wichtige Mails");
+  const page = w.getPage(id)!;
+  const folder = w.getPage(page.parentId!)!;
+  assert.equal(folder.title, "My prompts");
+  assert.equal(w.getPage(folder.parentId!)!.title, "Prompts", "under System → Prompts");
+  assert.equal(p.isSystemPage(folder.id), true, "the folder stays");
+  assert.equal(p.isSystemPage(id), false, "your prompt is yours (to delete)");
+  const mine = listInstructions().find((x) => x.id === id);
+  assert.equal(mine?.group, undefined, "with your own, before the system's");
+});

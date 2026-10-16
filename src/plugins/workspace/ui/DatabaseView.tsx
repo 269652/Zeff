@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, runPipelineAction, setCellAction, setCollectionAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, runPipelineAction, setCellAction, setCollectionAction, updateSchemaAction, type DatabaseData } from "../actions";
 import { cellText, columnOrder, dateRange, detailModules, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
@@ -225,10 +225,11 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const [q, setQ] = useState("");
   const [schemaOpen, setSchemaOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [pipelineOpen, setPipelineOpen] = useState(false);
+  const search = useSearchParams();
+  // ?steps=1 (a derived database just made): its Sources & steps open, to say what it keeps.
+  const [pipelineOpen, setPipelineOpen] = useState(() => search.get("steps") === "1");
   const [justAdded, setJustAdded] = useState<number | null>(null);
   // A row opens over the database (?row=<id> — a link to it opens it again); the full page is a click further.
-  const search = useSearchParams();
   const [peek, setPeek] = useState<number | null>(() => Number(search.get("row")) || null);
   // The panel is drawn in the browser only (a portal): the server's HTML has none, so nothing to mismatch.
   const inBrowser = useSyncExternalStore(noSubscribe, () => true, () => false);
@@ -427,6 +428,17 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
               <MenuItem onClick={() => (close(), setSchemaOpen(true))}>⚙ {t("Edit properties …")}</MenuItem>
               <MenuItem onClick={() => (close(), setDetailOpen(true))}>▤ {t("Detail view …")}</MenuItem>
               <MenuItem onClick={() => (close(), setPipelineOpen(true))}>⛓ {t("Sources & steps …")}</MenuItem>
+              <MenuItem
+                onClick={async () => {
+                  close();
+                  const r = await createDerivedDatabaseAction(dbId);
+                  if (!r.ok) return void toast(r.error, { tone: "error" });
+                  router.push(`/workspace/${r.id}?steps=1`);
+                  router.refresh();
+                }}
+              >
+                ＋ {t("Derived database …")}
+              </MenuItem>
               {personProp && (
                 <MenuItem checked={!!view.mine} onClick={() => (close(), setView({ ...view, mine: !view.mine }))}>
                   {t("Only mine in this view")}

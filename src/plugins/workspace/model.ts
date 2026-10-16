@@ -143,7 +143,7 @@ export type PipelineStep = {
   openOnly?: boolean;
   recentDays?: number;
   limit?: number;
-  output?: "field" | "summary";
+  output?: "field" | "summary" | "filter";
   /** Sort: the field (its name) the rows go by, and which way. */
   by?: string;
   dir?: "asc" | "desc";
@@ -195,7 +195,7 @@ export function normalizePipeline(raw: unknown): Pipeline {
       steps.push(defined<PipelineStep>({ id, kind: "filter", text: str(s.text), openOnly: s.openOnly === true, recentDays: posInt(s.recentDays), limit: posInt(s.limit) }));
     } else if (s.kind === "sort") {
       if (str(s.by)) steps.push(defined<PipelineStep>({ id, kind: "sort", by: str(s.by), dir: s.dir === "desc" ? "desc" : undefined }));
-    } else if (s.kind === "ai" && (s.output === "field" || s.output === "summary")) {
+    } else if (s.kind === "ai" && (s.output === "field" || s.output === "summary" || s.output === "filter")) {
       const r = s.result as { text?: unknown; at?: unknown; hash?: unknown } | undefined;
       const result = r && typeof r.text === "string" && typeof r.at === "string" ? { text: r.text, at: r.at, ...(typeof r.hash === "string" ? { hash: r.hash } : {}) } : undefined;
       steps.push(defined<PipelineStep>({ id, kind: "ai", output: s.output, prop: s.output === "field" ? str(s.prop) : undefined, name: s.output === "field" ? (str(s.name) ?? "AI") : undefined, prompt: str(s.prompt), choices: s.output === "field" ? strs(s.choices) : undefined, instructions: ids(s.instructions), result: s.output === "summary" ? result : undefined }));

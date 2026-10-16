@@ -169,3 +169,9 @@ export function systemPromptPages(): { key: string; pageId: number; group: strin
 export function fillPrompt(key: string, template: string, values: Record<string, string>): string {
   return promptText(key, template).replace(/\{\{(\w+)\}\}/g, (all, name: string) => (name in values ? values[name] : all));
 }
+
+/** The page the prompts are under (System → Prompts) — null: not made yet. */
+export function promptsFolder(): number | null {
+  const id = getPref<number | null>(FOLDER, null);
+  return id && pageText(id) !== null ? id : null;
+}

@@ -240,8 +240,8 @@ test("instructions: Workspace pages under KI-Anweisungen, chosen by AI steps —
   assert.ok(seeded.some((i) => i.title === "Lage"), "a first one: the Lage's rules");
   const folder = instructionsFolder();
   assert.equal(w.getPage(folder)!.title, "KI-Anweisungen");
-  const id = newInstruction("Ton");
-  assert.equal(w.getPage(id)!.parentId, folder);
+  const id = await newInstruction("Ton");
+  assert.equal(w.getPage(w.getPage(id)!.parentId!)!.title, "My prompts", "made under System → Prompts → My prompts");
   w.updatePage(id, { content: markdownToDoc("Schreib wie ein Pirat.") });
   assert.ok(listInstructions().some((i) => i.id === id));
   assert.equal(m.normalizePipeline({ steps: [{ id: "a", kind: "ai", output: "summary", instructions: [id, "x", -1] }] }).steps[0].instructions?.join(), String(id));
