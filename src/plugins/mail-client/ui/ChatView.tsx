@@ -6,7 +6,7 @@ import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import type { AppViewProps } from "@/plugins/workspace/ui/app-view";
 import type { Row } from "@/plugins/workspace/model";
-import { sendChatMessageAction } from "../server-actions";
+import { draftRowReplyAction, rowActionAction } from "@/plugins/workspace/actions";
 import { NewInbox } from "./NewInbox";
 
 /**
@@ -83,7 +83,8 @@ function Conversation({ list, channel, canReply, openRow, reload }: { list: Row[
     const body = text.trim();
     if (!body || !confirmAction(t("Send to “{chat}” via {channel}?", { chat: name, channel }))) return;
     setBusy(true);
-    const r = await sendChatMessageAction(channel, name, body);
+    const op = channel === "Teams" ? { type: "teams-message", to: name, body } : channel === "WhatsApp" ? { type: "whatsapp-message", chat: name, body } : { type: "signal-message", chat: name, body };
+    const r = await rowActionAction(list.at(-1)!.id, op);
     setBusy(false);
     if (!r.ok) return void toast(r.error, { tone: "error" });
     setText("");
@@ -140,6 +141,21 @@ function Conversation({ list, channel, canReply, openRow, reload }: { list: Row[
             }
           }}
         />
+        <button
+          type="button"
+          className="btn btn-sm"
+          disabled={busy}
+          title={t("Draft with AI")}
+          onClick={async () => {
+            setBusy(true);
+            const r = await draftRowReplyAction(list.at(-1)!.id);
+            setBusy(false);
+            if (!r.ok) return void toast(r.error, { tone: "error" });
+            setText(r.text);
+          }}
+        >
+          ✨
+        </button>
         <button type="submit" className="btn btn-primary btn-sm" disabled={busy || !text.trim()}>
           {busy ? "…" : t("Send")}
         </button>

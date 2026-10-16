@@ -237,7 +237,7 @@ export type DatabaseData = {
   /** What the cards show beyond the cells: each row's ticket key, its subtasks, and — by key — its Lage and todos. */
   /** Locked (a database a sync keeps, as Jira's): shown, not changed here — its cards don't move, its cells aren't edited. */
   locked: boolean;
-  extras: { keys: Record<number, string>; subtasks: Record<number, { done: number; total: number }>; tickets: Record<string, TicketExtras>; todosOn: boolean; briefing: boolean; knowledge: boolean; me: { names: string[]; ids: number[] }; source: string | null; running?: boolean; /** The app views it can have (mail client, chat — their plugins installed). */ appViews?: { id: string; label: string; icon: string }[]; /** What its sources let you do (reply where they send; read-only else). */ capabilities?: { reply: string[]; readOnly: boolean }; /** Its derived databases (an app shows them as folders), and the one it is derived from. */ derived?: { id: number; title: string; icon: string; count: number; unread: number }[]; derivedFrom?: number | null; previews: Record<number, PreviewLine[]> };
+  extras: { keys: Record<number, string>; subtasks: Record<number, { done: number; total: number }>; tickets: Record<string, TicketExtras>; todosOn: boolean; briefing: boolean; knowledge: boolean; me: { names: string[]; ids: number[] }; source: string | null; running?: boolean; /** The app views it can have (mail client, chat — their plugins installed). */ appViews?: { id: string; label: string; icon: string }[]; /** What its sources let you do (reply where they send; read-only else). */ capabilities?: { reply: string[]; drafts: string[]; readOnly: boolean }; /** Its derived databases (an app shows them as folders), and the one it is derived from. */ derived?: { id: number; title: string; icon: string; count: number; unread: number }[]; derivedFrom?: number | null; previews: Record<number, PreviewLine[]> };
 };
 
 export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: DatabaseData }>> {
@@ -386,6 +386,22 @@ export async function rejudgeAction(dbId: number, stepId: string) {
     const p = await import("./pipeline");
     p.forgetVerdicts(String(stepId));
     return { started: p.startPipeline(Number(dbId), { ai: true }).started };
+  });
+}
+
+/** One of Zeff's actions from a row (a draft opened, a message sent, something done in Zeff) — no todo needed. */
+export async function rowActionAction(rowId: number, op: Record<string, unknown>) {
+  return run(async () => {
+    const r = await (await import("./row-actions")).runRowAction(Number(rowId), op && typeof op === "object" ? op : {});
+    return { href: r.href ?? null, what: r.what ?? null };
+  });
+}
+
+/** A reply to a row (a mail, a message) drafted by the AI from its conversation. */
+export async function draftRowReplyAction(rowId: number) {
+  return run(async () => {
+    if (!isInstalled("llm")) throw new Error(t("The LLM plugin is needed for this (Menu → Plugins)."));
+    return await (await import("./row-actions")).draftRowReply(Number(rowId));
   });
 }
 

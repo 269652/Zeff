@@ -5345,5 +5345,12 @@
   "The AI keeps what asks something of you": "La IA conserva lo que te pide algo",
   "New inbox": "Nueva bandeja",
   "Inboxes": "Bandejas",
-  "{n} unread": "{n} sin leer"
+  "{n} unread": "{n} sin leer",
+  "Draft a reply with AI": "Redactar respuesta con IA",
+  "Your reply …": "Tu respuesta …",
+  "Open as a draft in {app}": "Abrir como borrador en {app}",
+  "Draft with AI": "Redactar con IA",
+  "You send it there.": "Lo envías allí.",
+  "The action is incomplete.": "La acción está incompleta.",
+  "This action runs from a todo (make one from the row).": "Esta acción se ejecuta desde una tarea (crea una desde la fila)."
 }

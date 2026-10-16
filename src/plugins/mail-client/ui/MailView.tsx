@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import type { AppViewProps } from "@/plugins/workspace/ui/app-view";
 import type { Row } from "@/plugins/workspace/model";
+import { MailReply } from "./MailReply";
 import { NewInbox } from "./NewInbox";
 
 /**
@@ -101,7 +102,7 @@ function Reading({ row, data, openRow }: { row: Row; data: AppViewProps["data"];
           <button type="button" className="btn btn-sm" onClick={() => openRow(row.id)}>
             ▤ {t("Open as row")}
           </button>
-          {data.extras?.capabilities?.readOnly && <span className="self-center text-xs text-zinc-500" data-read-only>🔒 {t("Read-only — reply in Outlook / Gmail")}</span>}
+          {!data.extras?.capabilities?.reply.includes(account || "Outlook") && <span className="self-center text-xs text-zinc-500" data-read-only>🔒 {t("Read-only — reply in Outlook / Gmail")}</span>}
         </div>
       </header>
       {typeof row.cells.filterwhy === "string" && row.cells.filterwhy && <p className="rounded bg-amber-50 px-2 py-1 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">⭐ {row.cells.filterwhy}</p>}
@@ -120,6 +121,7 @@ function Reading({ row, data, openRow }: { row: Row; data: AppViewProps["data"];
           ))}
         </ol>
       )}
+      {data.extras?.capabilities?.reply.includes(account || "Outlook") && <MailReply key={row.id} rowId={row.id} account={account || "Outlook"} to={/<([^>]+)>/.exec(String(row.cells.mailfrom ?? ""))?.[1] ?? ""} subject={/^(AW|RE|Re|Aw):/.test(row.title) ? row.title : `AW: ${row.title}`} />}
     </article>
   );
 }

@@ -5345,5 +5345,12 @@
   "The AI keeps what asks something of you": "Die KI behält, was etwas von dir will",
   "New inbox": "Neuer Posteingang",
   "Inboxes": "Posteingänge",
-  "{n} unread": "{n} ungelesen"
+  "{n} unread": "{n} ungelesen",
+  "Draft a reply with AI": "Antwort mit KI entwerfen",
+  "Your reply …": "Deine Antwort …",
+  "Open as a draft in {app}": "Als Entwurf in {app} öffnen",
+  "Draft with AI": "Mit KI entwerfen",
+  "You send it there.": "Du sendest dort selbst.",
+  "The action is incomplete.": "Die Aktion ist unvollständig.",
+  "This action runs from a todo (make one from the row).": "Diese Aktion läuft von einem Todo aus (mach eins aus der Zeile)."
 }

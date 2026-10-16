@@ -93,7 +93,11 @@ test("capabilities: what a database's sources let you do — reply in the channe
   setInstalled("whatsapp", false);
   assert.deepEqual(capabilitiesOf(msgs).reply, ["Teams"], "Teams sends; WhatsApp's plugin is off; Signal isn't read");
   const mail = m.normalizeSchema({ titleName: "T", properties: [], views: [], dataType: "mail", pipeline: { steps: [{ id: "s", kind: "source", from: "mail" }] } });
-  assert.deepEqual(capabilitiesOf(mail).reply, [], "mail: read-only (no sending from Zeff yet)");
-  assert.equal(capabilitiesOf(mail).readOnly, true);
+  setInstalled("outlook-mail", true);
+  assert.deepEqual(capabilitiesOf(mail).reply.sort(), ["Gmail", "Outlook"], "mail: a draft in Outlook, in Gmail (their plugins installed)");
+  assert.deepEqual(capabilitiesOf(mail).drafts.sort(), ["Gmail", "Outlook"], "a draft you send yourself");
+  setInstalled("outlook-mail", false);
+  setInstalled("gmail", false);
+  assert.equal(capabilitiesOf(mail).readOnly, true, "no mail plugin: read-only");
   setInstalled("whatsapp", true);
 });
