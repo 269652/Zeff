@@ -237,13 +237,18 @@ export type DatabaseData = {
   /** What the cards show beyond the cells: each row's ticket key, its subtasks, and — by key — its Lage and todos. */
   /** Locked (a database a sync keeps, as Jira's): shown, not changed here — its cards don't move, its cells aren't edited. */
   locked: boolean;
-  extras: { keys: Record<number, string>; subtasks: Record<number, { done: number; total: number }>; tickets: Record<string, TicketExtras>; todosOn: boolean; briefing: boolean; knowledge: boolean; me: { names: string[]; ids: number[] }; source: string | null; running?: boolean; /** The app views it can have (mail client, chat — their plugins installed). */ appViews?: { id: string; label: string; icon: string }[]; /** The sources plugins bring (People …), for the pipeline editor. */ extSources?: { id: string; label: string; icon: string; hint?: string }[]; /** Mail or message channels can be named as sources (the View menu offers "Inbox"). */ inboxPossible?: boolean; /** What its sources let you do (reply where they send; read-only else). */ capabilities?: { reply: string[]; drafts: string[]; readOnly: boolean }; /** Its derived databases (an app shows them as folders), and the one it is derived from. */ derived?: { id: number; title: string; icon: string; count: number; unread: number }[]; derivedFrom?: number | null; previews: Record<number, PreviewLine[]> };
+  extras: { keys: Record<number, string>; subtasks: Record<number, { done: number; total: number }>; tickets: Record<string, TicketExtras>; todosOn: boolean; briefing: boolean; knowledge: boolean; me: { names: string[]; ids: number[] }; source: string | null; running?: boolean; /** The app views it can have (mail client, chat — their plugins installed). */ appViews?: { id: string; label: string; icon: string }[]; /** The sources plugins bring (People …), for the pipeline editor. */ extSources?: { id: string; label: string; icon: string; hint?: string }[]; /** Mail or message channels can be named as sources (the View menu offers "Inbox"). */ inboxPossible?: boolean; /** What its sources let you do (reply where they send; read-only else). */ capabilities?: { reply: string[]; drafts: string[]; readOnly: boolean }; /** Its derived databases (an app shows them as folders), and the one it is derived from. */ derived?: { id: number; title: string; icon: string; count: number; unread: number }[]; derivedFrom?: number | null; previews: Record<number, PreviewLine[]>; /** Rows that are linked copies of a row in another database. */ links?: Record<number, { source: number; sourceTitle: string; sourceDb: string }> };
 };
 
 export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: DatabaseData }>> {
   return run(async () => {
     // A jobs database: the jobs whose worker has finished are taken in first (the page shows how they ended).
-    if (store.getDatabase(Number(dbId))?.schema.jobs) await (await import("./jobs")).settleJobs().catch(() => 0);
+    if (store.getDatabase(Number(dbId))?.schema.jobs) {
+      const jobs = await import("./jobs");
+      jobs.ensureJobStates(Number(dbId)); // (an older jobs database gets Eingang and Ready)
+      await jobs.settleJobs().catch(() => 0);
+      void jobs.pumpJobs(Number(dbId)).catch(() => undefined); // (the agents take what is Ready, when they are on)
+    }
     const d = store.rowsOf(Number(dbId));
     const page = store.getPage(Number(dbId));
     if (!d || !page) throw new Error(t("This database is gone."));
@@ -275,7 +280,7 @@ export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: D
       const attention = typeof att === "string" && isAttention(att) ? att : (cur?.attention ?? null);
       tickets[k] = { attention, attentionLabel: attention && isAttention(attention) ? attentionLabels(t)[attention] : null, lead: typeof lead === "string" ? lead : (cur?.lead ?? null), summary: typeof r.cells[LAGE_FIELDS.summary] === "string" ? String(r.cells[LAGE_FIELDS.summary]) : (cur?.summary ?? null), happened: cur?.happened ?? [], todos: cur?.todos ?? [] };
     }
-    const extras: DatabaseData["extras"] = { keys, subtasks: subtaskCounts(d.schema, d.rows, page.id), tickets, todosOn: isInstalled("todos"), ...collectionSwitches(page.id), me: await whoAmI(), source: collectionSource(page.id), running: (await import("./pipeline")).pipelineRunning(page.id), extSources: (await (await import("./source-point")).extSources()).map((x) => ({ id: x.id, label: x.label, icon: x.icon, hint: x.hint })), inboxPossible: (await import("./derived")).channelKinds().mail || (await import("./derived")).channelKinds().messages, appViews: (await import("./app-views")).appViewsFor(d.schema.dataType).map((a) => ({ id: a.id, label: t(a.label), icon: a.icon })), capabilities: (await import("./capabilities")).capabilitiesOf(d.schema), derived: (await import("./derived")).derivedOf(page.id), derivedFrom: (await import("./derived")).derivedFrom(d.schema), previews: Object.fromEntries(d.rows.map((r) => [r.id, previewLines(store.getPage(r.id)?.content, 10)])) };
+    const extras: DatabaseData["extras"] = { keys, subtasks: subtaskCounts(d.schema, d.rows, page.id), tickets, todosOn: isInstalled("todos"), ...collectionSwitches(page.id), me: await whoAmI(), source: collectionSource(page.id), running: (await import("./pipeline")).pipelineRunning(page.id), extSources: (await (await import("./source-point")).extSources()).map((x) => ({ id: x.id, label: x.label, icon: x.icon, hint: x.hint })), inboxPossible: (await import("./derived")).channelKinds().mail || (await import("./derived")).channelKinds().messages, appViews: (await import("./app-views")).appViewsFor(d.schema.dataType).map((a) => ({ id: a.id, label: t(a.label), icon: a.icon })), capabilities: (await import("./capabilities")).capabilitiesOf(d.schema), derived: (await import("./derived")).derivedOf(page.id), derivedFrom: (await import("./derived")).derivedFrom(d.schema), previews: Object.fromEntries(d.rows.map((r) => [r.id, previewLines(store.getPage(r.id)?.content, 10)])), links: (await import("./links")).linksIn(d.rows.map((r) => r.id)) };
     return { data: { id: page.id, title: page.title, icon: page.icon, locked: page.locked, schema: d.schema, rows: d.rows, labels, templates: store.rowTemplates(page.id).map((r) => ({ id: r.id, title: r.title || t("Untitled") })), related, extras } };
   });
 }
@@ -862,5 +867,50 @@ export async function runOpenJobsAction(dbId: number) {
   return run(async () => {
     if (!isInstalled("work")) throw new Error(t("Code is not installed (Menu → Plugins) — without it no worker takes a job."));
     return (await import("./jobs")).dispatchOpenJobs(Number(dbId));
+  });
+}
+
+/** The databases that receive rows (a landing column set), for "Send to …". */
+export async function receivingDatabasesAction() {
+  return run(async () => ({ databases: (await import("./links")).receivingDatabases() }));
+}
+
+/** A row sent to another database — a linked copy in its landing column (sent once). */
+export async function sendRowAction(rowId: number, targetDb: number) {
+  return run(async () => {
+    const r = (await import("./links")).sendRow(Number(rowId), Number(targetDb));
+    const to = store.getPage(Number(targetDb));
+    return { row: r.row, existing: r.existing, database: to?.title ?? "" };
+  });
+}
+
+/** A copy's link taken off: it's a plain row from now on. */
+export async function unlinkRowAction(rowId: number) {
+  return run(async () => ({ unlinked: (await import("./links")).unlink(Number(rowId)) }));
+}
+
+/** A database opened (or closed) to receive rows: the property and the column they land in. */
+export async function setReceiveAction(dbId: number, receive: { prop: string; value: string } | null) {
+  return run(() => {
+    const d = store.getDatabase(Number(dbId));
+    if (!d) throw new Error(t("This database is gone."));
+    const { receive: _was, ...rest } = d.schema;
+    const next = receive ? { ...rest, receive } : rest;
+    store.updateSchema(Number(dbId), next);
+    if (receive && !store.getDatabase(Number(dbId))!.schema.receive) throw new Error(t("That column doesn't exist — pick a select or status property and one of its columns."));
+    return {};
+  });
+}
+
+/** The agents of a jobs database: taking Ready cards by themselves (off unless you switch it on), how many at once, how many a day, the default instruction. */
+export async function setAgentsAction(dbId: number, cfg: { auto: boolean; parallel: number; perDay: number; defaultInstruction: string }) {
+  return run(async () => {
+    const d = store.getDatabase(Number(dbId));
+    if (!d?.schema.jobs) throw new Error(t("This isn't a jobs database."));
+    if (cfg.auto && !isInstalled("work")) throw new Error(t("Code is not installed (Menu → Plugins) — without it no worker takes a job."));
+    store.updateSchema(Number(dbId), { ...d.schema, agents: { ...(cfg.auto ? { auto: true as const } : {}), parallel: cfg.parallel, perDay: cfg.perDay, defaultInstruction: cfg.defaultInstruction } });
+    // Switched on: what is Ready already is taken now (in the background — the page doesn't wait for the workers).
+    if (cfg.auto) void (await import("./jobs")).pumpJobs(Number(dbId)).catch(() => undefined);
+    return {};
   });
 }

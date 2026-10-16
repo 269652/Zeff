@@ -4,6 +4,8 @@
  * todos and tickets (backlinks); a history of earlier versions; a full-text index. Its own tables,
  * made when first needed. Server only.
  */
+import { afterJobChange } from "./jobs";
+import { syncLinkedFrom } from "./links";
 import { getSqlite } from "@/db";
 import { isSystemPage, systemPageIds } from "@/lib/prompts/system-pages";
 import { inAgentScope } from "./agent-scope";
@@ -242,6 +244,7 @@ export function updatePage(id: number, patch: PagePatch, rev?: number): SaveResu
   if (patch.title !== undefined || doc) index(id);
   if (doc) relink(id, doc);
   changed();
+  if (cur.db_id && (patch.title !== undefined || doc)) syncLinkedFrom(id); // (its copies in other databases follow — links.ts)
   return { ok: true, rev: newRev, updatedAt: editing ? at : cur.updated_at };
 }
 
@@ -709,6 +712,8 @@ export function setCell(rowId: number, propId: string, value: unknown): void {
   else props[propId] = v;
   db().prepare("update ws_pages set props = ?, updated_at = ? where id = ?").run(JSON.stringify(props), now(), rowId);
   changed();
+  syncLinkedFrom(rowId); // (its copies in other databases follow — links.ts)
+  afterJobChange(rowId, propId); // (a card moved into Ready: the agents take it — jobs.ts)
 }
 
 /**

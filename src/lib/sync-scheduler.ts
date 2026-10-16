@@ -114,6 +114,12 @@ export function startSyncScheduler(): void {
         } catch (e) {
           console.error("[pipelines]", e);
         }
+        // The agents of the jobs databases that take their Ready column by themselves (when switched on): ended jobs settled, the next taken.
+        try {
+          if ((await import("@/plugins/state")).isInstalled("workspace")) await (await import("@/plugins/workspace/jobs")).runAutoJobs();
+        } catch (e) {
+          console.error("[agent jobs]", e);
+        }
         // Today's and tomorrow's appointments as todos (calendars set so) — at any hour.
         try {
           await (await import("@/lib/calendar/todos")).calendarTodosWhenDue();

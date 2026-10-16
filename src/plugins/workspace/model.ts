@@ -109,6 +109,7 @@ export function withWidths(view: View, widths: Record<string, number> | null): V
 /** The width that fits a column: its widest content or its head (both measured with their padding), within a sensible range. */
 export const fitWidth = (content: number, head: number): number => Math.min(FIT_MAX, Math.max(FIT_MIN, Math.ceil(Math.max(content, head)) + 2));
 
+export type AgentsConfig = { auto?: true; parallel: number; perDay: number; defaultInstruction?: string };
 export type DbSchema = {
   titleName: string;
   properties: Property[];
@@ -125,6 +126,10 @@ export type DbSchema = {
   pipeline?: Pipeline;
   /** What its rows are (mails, messages — set by its sources): their fixed fields are there for the views that need them. */
   dataType?: DataType;
+  /** The database receives rows sent from others (links.ts): they land in this column (`value`: its option's id) of this select / status property. */
+  receive?: { prop: string; value: string };
+  /** A jobs database's agents: Ready cards taken by themselves (`auto`), at most `parallel` at a time and `perDay` a day; `defaultInstruction` for a job without words of its own. */
+  agents?: AgentsConfig;
   /** A database of rules (when / then): a pipeline's rules step reads it, agents read its hints. */
   rules?: boolean;
   /** A database of jobs for agents: a row is a job a worker can be given (a click), its result comes back into the row. */
@@ -373,6 +378,22 @@ const normalizeReview = (r: Record<string, unknown>): NonNullable<DbSchema["revi
 });
 
 /** A schema from stored JSON, repaired: every view and property has what the code relies on. */
+/** The agents setting as it is kept: sane limits (1–8 workers, 1–200 a day), off unless switched on. */
+function agentsOf(raw: unknown): AgentsConfig | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+  const n = (v: unknown, lo: number, hi: number, d: number) => (Number.isFinite(Number(v)) && Number(v) >= 1 ? Math.min(hi, Math.max(lo, Math.floor(Number(v)))) : d);
+  const text = typeof r.defaultInstruction === "string" ? r.defaultInstruction.trim().slice(0, 2000) : "";
+  return { ...(r.auto === true ? { auto: true as const } : {}), parallel: n(r.parallel, 1, 8, 1), perDay: n(r.perDay, 1, 200, 20), ...(text ? { defaultInstruction: text } : {}) };
+}
+
+/** The receiving setting as it is kept: only for a select / status property that has the landing column. */
+function receiveOf(raw: unknown, props: Property[]): { prop: string; value: string } | undefined {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const p = props.find((x) => x.id === r.prop);
+  return p && (p.type === "status" || p.type === "select") && p.options?.some((o) => o.id === r.value) ? { prop: p.id, value: String(r.value) } : undefined;
+}
+
 /** An AI property's colours kept to the palette (and to colours given at all). */
 function withAiColors(p: Property): Property {
   if (!p.aiColors) return p;
@@ -392,7 +413,7 @@ export function normalizeSchema(raw: unknown): DbSchema {
   const o = (raw && typeof raw === "object" ? raw : {}) as Partial<DbSchema>;
   const props = (Array.isArray(o.properties) ? o.properties : []).filter((p): p is Property => !!p && typeof p.id === "string" && (PROP_TYPES as readonly string[]).includes(p.type)).map(withAiColors);
   const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [] }));
-  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(Number.isInteger(o.detailPage) && Number(o.detailPage) > 0 ? { detailPage: Number(o.detailPage) } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(o.rules === true ? { rules: true } : {}), ...(o.jobs === true ? { jobs: true } : {}) };
+  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(Number.isInteger(o.detailPage) && Number(o.detailPage) > 0 ? { detailPage: Number(o.detailPage) } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(o.rules === true ? { rules: true } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}) };
 }
 
 export const propById = (props: Property[], id: string): Property | undefined => props.find((p) => p.id === id);

@@ -5,14 +5,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { addRowAction, archivePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, detailPageAction, makeInboxAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, runJobAction, runOpenJobsAction, runPipelineAction, setCellAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { addRowAction, archivePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, detailPageAction, makeInboxAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
 import { DEFAULT_COLUMN, fitWidth, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
 import { RowPeek } from "./RowPeek";
 import { GalleryView } from "./gallery";
 import { FilterEditor, PropertiesMenu, SchemaModal, SortEditor } from "./db-menus";
-import { Dropdown, MenuItem, useSortable } from "./kit";
+import { Dropdown, MenuItem, Modal, useSortable } from "./kit";
 import { PipelineEditor, PipelineSummaries } from "./pipeline";
 import { AppViewHost } from "./app-view";
 
@@ -242,6 +242,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const [peek, setPeek] = useState<number | null>(() => Number(search.get("row")) || null);
   // The panel is drawn in the browser only (a portal): the server's HTML has none, so nothing to mismatch.
   const inBrowser = useSyncExternalStore(noSubscribe, () => true, () => false);
+  const [receiveOpen, setReceiveOpen] = useState(false);
+  const [agentsOpen, setAgentsOpen] = useState(false);
   const [databases, setDatabases] = useState<{ id: number; title: string; rules?: boolean; jobs?: boolean; people?: boolean }[]>([]);
   useEffect(() => {
     if (schemaOpen || pipelineOpen) void databasesAction().then((r) => r.ok && setDatabases(r.databases.map((d) => ({ id: d.id, title: d.title, rules: d.rules, jobs: d.jobs, people: d.people }))));
@@ -456,6 +458,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
                 ▤ {t("Detail view …")}
               </MenuItem>
               <MenuItem onClick={() => (close(), setPipelineOpen(true))}>⛓ {t("Sources & steps …")}</MenuItem>
+              <MenuItem onClick={() => (close(), setReceiveOpen(true))}>➜ {t("Receive tickets …")}</MenuItem>
+              {schema.jobs && <MenuItem onClick={() => (close(), setAgentsOpen(true))}>🤖 {t("Agents …")}</MenuItem>}
               {schema.jobs && (
                 <MenuItem
                   onClick={async () => {
@@ -603,6 +607,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
       <p className="text-xs text-zinc-500">{rows.length === data.rows.length ? (rows.length === 1 ? t("1 row") : t("{n} rows", { n: rows.length })) : t("{n} of {total} rows", { n: rows.length, total: data.rows.length })}</p>
 
       {schemaOpen && <SchemaModal schema={schema} data={data} dbId={dbId} databases={databases} onSave={api.saveSchema} onClose={() => setSchemaOpen(false)} />}
+      {agentsOpen && <AgentsModal schema={schema} dbId={dbId} onSaved={() => api.reload()} onClose={() => setAgentsOpen(false)} />}
+      {receiveOpen && <ReceiveModal schema={schema} dbId={dbId} onSaved={() => api.reload()} onClose={() => setReceiveOpen(false)} />}
       {pipelineOpen && (
         <PipelineEditor
           dbId={dbId}
@@ -635,30 +641,87 @@ type ViewProps = { view: View; rows: Row[]; visible: Property[]; schema: DbSchem
 
 function RowMenu({ row, api }: { row: Row; api: Api }) {
   const t = useT();
-  if (api.data?.locked) return null; // a sync keeps its rows
+  const [send, setSend] = useState<{ id: number; title: string; icon: string; column: string }[] | null>(null);
+  const locked = !!api.data?.locked; // a sync keeps its rows — they can still be sent elsewhere
+  const linked = api.data?.extras.links?.[row.id];
   return (
-    <Dropdown label="⋮" title={t("Row actions")} className="icon-btn" align="left">
-      {(close) => (
-        <>
-          {api.data?.schema.jobs && (
+    <>
+      <Dropdown label="⋮" title={t("Row actions")} className="icon-btn" align="left">
+        {(close) => (
+          <>
+            {!locked && api.data?.schema.jobs && (
+              <MenuItem
+                onClick={async () => {
+                  close();
+                  const r = await runJobAction(row.id);
+                  await api.reload();
+                  toast(r.ok ? t("Given to a worker — the result comes back into the row.") : r.error, { tone: r.ok ? "ok" : "error" });
+                }}
+              >
+                ▶ {t("Start the agent")}
+              </MenuItem>
+            )}
             <MenuItem
               onClick={async () => {
                 close();
-                const r = await runJobAction(row.id);
-                await api.reload();
-                toast(r.ok ? t("Given to a worker — the result comes back into the row.") : r.error, { tone: r.ok ? "ok" : "error" });
+                const r = await receivingDatabasesAction();
+                if (!r.ok) return void toast(r.error, { tone: "error" });
+                const mine = api.data?.id;
+                setSend(r.databases.filter((d) => d.id !== mine));
               }}
             >
-              ▶ {t("Start the agent")}
+              ➜ {t("Send to board …")}
             </MenuItem>
+            {linked && !locked && (
+              <MenuItem
+                onClick={async () => {
+                  close();
+                  const r = await unlinkRowAction(row.id);
+                  await api.reload();
+                  toast(r.ok ? t("Unlinked — this is a copy now.") : r.error, { tone: r.ok ? "ok" : "error" });
+                }}
+              >
+                ⛓ {t("Unlink — make it a copy")}
+              </MenuItem>
+            )}
+            {!locked && <MenuItem onClick={() => (close(), void api.duplicateRow(row.id))}>⧉ {t("Duplicate")}</MenuItem>}
+            {!locked && (
+              <MenuItem danger onClick={() => (close(), void api.removeRow(row.id))}>
+                🗑 {t("Delete")}
+              </MenuItem>
+            )}
+          </>
+        )}
+      </Dropdown>
+      {send && (
+        <Modal title={t("Send to board")} onClose={() => setSend(null)}>
+          {send.length ? (
+            <ul className="space-y-0.5">
+              {send.map((d) => (
+                <li key={d.id}>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    onClick={async () => {
+                      setSend(null);
+                      const r = await sendRowAction(row.id, d.id);
+                      if (!r.ok) return void toast(r.error, { tone: "error" });
+                      toast(r.existing ? t("Already there: {board}.", { board: r.database }) : t("Sent to {board} ({column}), linked.", { board: r.database, column: d.column }), { tone: "ok" });
+                    }}
+                  >
+                    <span>{d.icon || "🗂️"}</span>
+                    <span className="min-w-0 flex-1 truncate">{d.title}</span>
+                    <span className="text-xs text-zinc-400">→ {d.column}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-zinc-500">{t("No board receives rows yet — open one with “Receive tickets …” in its menu.")}</p>
           )}
-          <MenuItem onClick={() => (close(), void api.duplicateRow(row.id))}>⧉ {t("Duplicate")}</MenuItem>
-          <MenuItem danger onClick={() => (close(), void api.removeRow(row.id))}>
-            🗑 {t("Delete")}
-          </MenuItem>
-        </>
+        </Modal>
       )}
-    </Dropdown>
+    </>
   );
 }
 
@@ -696,6 +759,11 @@ function TitleCell({ row, ctx, openRow, autoEdit = false, onEdited }: { row: Row
       <button type="button" className="min-w-0 flex-1 truncate text-left font-medium hover:underline" onClick={() => openRow(row.id)} title={t("Open")}>
         {row.title || <span className="text-zinc-400">{t("Untitled")}</span>}
       </button>
+      {ctx.data.extras?.links?.[row.id] && (
+        <span className="ws-chip shrink-0" data-kind="link" title={t("Linked to “{title}” in {board} — it follows changes there.", { title: ctx.data.extras.links[row.id].sourceTitle, board: ctx.data.extras.links[row.id].sourceDb })}>
+          🔗
+        </span>
+      )}
       <button type="button" className="icon-btn opacity-0 group-hover/title:opacity-100" onClick={() => setEditing(true)} aria-label={t("Rename")} title={t("Rename")}>
         ✎
       </button>
@@ -1450,5 +1518,112 @@ export function RowProperties({ initial, dbId, rowId }: { initial: DatabaseData;
         </div>
       ))}
     </dl>
+  );
+}
+
+/** Open a database to receive rows from others: the select / status property and the column they land in. */
+function ReceiveModal({ schema, dbId, onSaved, onClose }: { schema: DbSchema; dbId: number; onSaved: () => void; onClose: () => void }) {
+  const t = useT();
+  const choices = schema.properties.filter((p) => (p.type === "status" || p.type === "select") && (p.options?.length ?? 0) > 0);
+  const [on, setOn] = useState(!!schema.receive);
+  const [prop, setProp] = useState(schema.receive?.prop ?? choices[0]?.id ?? "");
+  const [value, setValue] = useState(schema.receive?.value ?? choices[0]?.options?.[0]?.id ?? "");
+  const options = choices.find((p) => p.id === prop)?.options ?? [];
+  const save = async () => {
+    const r = await setReceiveAction(dbId, on && prop && value ? { prop, value } : null);
+    if (!r.ok) return void toast(r.error, { tone: "error" });
+    onSaved();
+    onClose();
+  };
+  return (
+    <Modal title={t("Receive tickets")} onClose={onClose}>
+      <div className="space-y-3 text-sm">
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={on} onChange={(e) => setOn(e.target.checked)} /> {t("Open to receive rows from other boards")}
+        </label>
+        {choices.length === 0 ? (
+          <p className="text-zinc-500">{t("It needs a select or status property with a column to land in — add one first.")}</p>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            {t("Land in")}
+            <select className="input w-auto text-sm" value={prop} disabled={!on} onChange={(e) => (setProp(e.target.value), setValue(choices.find((p) => p.id === e.target.value)?.options?.[0]?.id ?? ""))} aria-label={t("Property")}>
+              {choices.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <select className="input w-auto text-sm" value={value} disabled={!on} onChange={(e) => setValue(e.target.value)} aria-label={t("Column")}>
+              {options.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        <p className="text-xs text-zinc-500">{t("A row sent here stays linked to its source: what changes there (title, fields of the same name, its text) is followed here. “Unlink” makes it a copy.")}</p>
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn btn-sm" onClick={onClose}>
+            {t("Cancel")}
+          </button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => void save()}>
+            {t("Save")}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/** A jobs database's agents: Ready cards taken by themselves (off by default), how many at once, how many a day, a default instruction. */
+function AgentsModal({ schema, dbId, onSaved, onClose }: { schema: DbSchema; dbId: number; onSaved: () => void; onClose: () => void }) {
+  const t = useT();
+  const cur = schema.agents;
+  const [auto, setAuto] = useState(!!cur?.auto);
+  const [parallel, setParallel] = useState(cur?.parallel ?? 1);
+  const [perDay, setPerDay] = useState(cur?.perDay ?? 20);
+  const [text, setText] = useState(cur?.defaultInstruction ?? "");
+  const save = async () => {
+    const r = await setAgentsAction(dbId, { auto, parallel, perDay, defaultInstruction: text });
+    if (!r.ok) return void toast(r.error, { tone: "error" });
+    onSaved();
+    onClose();
+  };
+  return (
+    <Modal title={t("Agents")} onClose={onClose}>
+      <div className="space-y-3 text-sm">
+        <label className="flex items-start gap-2">
+          <input type="checkbox" className="mt-1" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
+          <span>
+            {t("Agents take the cards in Ready by themselves")}
+            <span className="block text-xs text-zinc-500">{t("Each one runs as a worker (it costs, like any worker run). Cards already in Ready start as soon as you save. Off: a job starts only when you start it.")}</span>
+          </span>
+        </label>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <label className="flex items-center gap-1.5">
+            {t("Workers at once")}
+            <input type="number" min={1} max={8} className="input w-20 py-0.5 text-sm" value={parallel} disabled={!auto} onChange={(e) => setParallel(Math.max(1, Math.min(8, Number(e.target.value) || 1)))} />
+          </label>
+          <label className="flex items-center gap-1.5">
+            {t("At most per day")}
+            <input type="number" min={1} max={200} className="input w-20 py-0.5 text-sm" value={perDay} disabled={!auto} onChange={(e) => setPerDay(Math.max(1, Math.min(200, Number(e.target.value) || 1)))} />
+          </label>
+        </div>
+        <label className="block">
+          {t("Default instruction")}
+          <span className="block text-xs text-zinc-500">{t("For a job without an instruction of its own — a ticket sent here: what the agent does with it.")}</span>
+          <textarea className="input mt-1 w-full text-sm" rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder={t("e.g. Work the linked ticket: read it, do what it asks, report what you did.")} />
+        </label>
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn btn-sm" onClick={onClose}>
+            {t("Cancel")}
+          </button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => void save()}>
+            {t("Save")}
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }
