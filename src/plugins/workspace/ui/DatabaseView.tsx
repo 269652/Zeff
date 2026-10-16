@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, detailPageAction, makeInboxAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, runPipelineAction, setCellAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { addRowAction, archivePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, detailPageAction, makeInboxAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, runPipelineAction, setCellAction, updateSchemaAction, type DatabaseData } from "../actions";
 import { PROP_LABELS, PROP_TYPES, retype, type PropType, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
@@ -167,9 +167,20 @@ function useDatabase(initial: DatabaseData | null, dbId: number) {
     async (rowId: number) => {
       const r = await archivePageAction(rowId);
       if (!r.ok) toast(r.error, { tone: "error" });
+      else
+        toast(t("Moved to the trash."), {
+          action: {
+            label: t("Undo"),
+            run: async () => {
+              const back = await restorePageAction(rowId);
+              if (!back.ok) toast(back.error, { tone: "error" });
+              await reload();
+            },
+          },
+        });
       await reload();
     },
-    [reload],
+    [reload, t],
   );
 
   const duplicateRow = useCallback(

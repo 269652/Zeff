@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { archivePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, savePageAction, searchAction, templatesAction, todayPageAction } from "../actions";
+import { archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, savePageAction, searchAction, templatesAction, todayPageAction } from "../actions";
 import type { TreeItem } from "../store";
 import { ChatPanel } from "./ChatPanel";
 import { Dropdown, MenuItem } from "./kit";
@@ -192,6 +192,16 @@ export function Sidebar({ items, favorites, unread = {}, channels }: { /** The c
                       if (!r.ok) return toast(r.error, { tone: "error" });
                       if (current === item.id) router.push("/workspace");
                       router.refresh();
+                      toast(t("Moved to the trash."), {
+                        action: {
+                          label: t("Undo"),
+                          run: async () => {
+                            const back = await restorePageAction(item.id);
+                            if (!back.ok) return toast(back.error, { tone: "error" });
+                            router.refresh();
+                          },
+                        },
+                      });
                     }}
                   >
                     🗑 {t("Move to trash")}

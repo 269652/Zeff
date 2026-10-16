@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { archivePageAction, createPageAction, duplicatePageAction, exportMarkdownAction, historyAction, restoreVersionAction, savePageAction, versionAction } from "../actions";
+import { archivePageAction, restorePageAction, createPageAction, duplicatePageAction, exportMarkdownAction, historyAction, restoreVersionAction, savePageAction, versionAction } from "../actions";
 import type { DatabaseData } from "../actions";
 import { DatabaseView, RowProperties } from "./DatabaseView";
 import { Editor, type SaveState } from "./Editor";
@@ -300,7 +300,18 @@ export function PageView({ page, row, database }: { page: PageViewData; row?: { 
                   if (!confirmAction(t("Move “{title}” to the trash?", { title: title || t("Untitled") }))) return;
                   const r = await archivePageAction(page.id);
                   if (!r.ok) return toast(r.error, { tone: "error" });
-                  toast(t("Moved to the trash."), { tone: "ok" });
+                  toast(t("Moved to the trash."), {
+                    tone: "ok",
+                    action: {
+                      label: t("Undo"),
+                      run: async () => {
+                        const back = await restorePageAction(page.id);
+                        if (!back.ok) return toast(back.error, { tone: "error" });
+                        router.push(`/workspace/${page.id}`);
+                        router.refresh();
+                      },
+                    },
+                  });
                   const up = page.crumbs[page.crumbs.length - 1];
                   router.push(up ? `/workspace/${up.id}` : "/workspace");
                 }}
