@@ -5358,5 +5358,11 @@
   "AI actions": "KI-Aktionen",
   "What to suggest — e.g. “a reply where someone asks me something; a Teams message to whoever I wait for” …": "Was vorgeschlagen wird — z. B. „eine Antwort, wo mich jemand etwas fragt; eine Teams-Nachricht an die, auf die ich warte“ …",
   "From the actions installed that a row can run: drafts (Outlook, Gmail), messages (Teams, WhatsApp, Signal), things done in Zeff — one-click buttons on the row. Each row asked once per change, with the AI steps' runs.": "Aus den installierten Aktionen, die eine Zeile ausführen kann: Entwürfe (Outlook, Gmail), Nachrichten (Teams, WhatsApp, Signal), Dinge in Zeff — als Ein-Klick-Knöpfe an der Zeile. Jede Zeile einmal je Änderung, mit den KI-Läufen.",
-  "A pipeline's AI step that suggests actions for each row": "Der KI-Schritt einer Pipeline, der je Zeile Aktionen vorschlägt"
+  "A pipeline's AI step that suggests actions for each row": "Der KI-Schritt einer Pipeline, der je Zeile Aktionen vorschlägt",
+  "Add and change pages and rows of the Workspace": "Seiten und Zeilen im Workspace anlegen und ändern",
+  "“{title}” into {database}": "„{title}“ in {database}",
+  "Change “{row}”": "„{row}“ ändern",
+  "New page “{title}”": "Neue Seite „{title}“",
+  "Add to “{page}”": "An „{page}“ anhängen",
+  "Todo: {text}": "Todo: {text}"
 }

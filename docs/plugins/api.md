@@ -153,7 +153,18 @@ The instructions and numbers of the AI steps (Menu → Prompts: the briefing, th
 | `llm.steps.list` | `llm.read` | — | `{ id, label, extra, numbers }[]` |
 | `llm.steps.update` | `llm.write` | `step`*, `extra` (the whole new instruction text), `numbers` (`{ key: value }`, held to the step's limits) | `true` |
 
-The AI may also propose `llm.steps.update` (and `kanban.cards.add`) as an **Auto-Aktion** from what a colleague wrote
+### Workspace
+
+Pages and databases of the Workspace — by their names (or ids).
+
+| Method | Permission | Params | Result |
+| --- | --- | --- | --- |
+| `workspace.rows.add` | `workspace.write` | `database`* (name or id), `title`, `fields` (a JSON object, field name → value: a select's / status' option by its name, a date `YYYY-MM-DD`, a checkbox yes / no), `markdown` (its page's text) | `{ id }` |
+| `workspace.rows.update` | `workspace.write` | `database`*, `row`* (title or id), `fields`, `markdown` (added at its page's end) | `{ id }` |
+| `workspace.pages.create` | `workspace.write` | `title`*, `parent` (a page's title or id), `markdown` | `{ id }` |
+| `workspace.pages.append` | `workspace.write` | `page`* (title or id), `markdown`* | `{ id, text }` |
+
+The AI may also propose `llm.steps.update` (and `kanban.cards.add`, the `workspace.*` methods, `todos.add`) as an **Auto-Aktion** from what a colleague wrote
 ("Do in Zeff"): a method is offered to the AI by an `offer` on it (`ApiOffer` in `lib/plugins/api-kit.ts`), with the
 current state as context so the new text adjusts what is there.
 

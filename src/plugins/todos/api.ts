@@ -32,6 +32,18 @@ export const TODOS_API: ApiContribution = {
         const todo = addSessionTodo({ ticket, text: str(p, "text", { required: true, max: 500 }) });
         return { id: todo.id, ref: todo.ref };
       },
+      offer: {
+        label: "Make a todo",
+        when: "Aus etwas (einer Mail, einer Nachricht, einem Eintrag) folgt eine Aufgabe für mich, die keine der anderen Aktionen gleich erledigt — sie kommt als Todo auf meine Liste (mit dem Ticket, wenn es eins gibt).",
+        fields: { text: "die Aufgabe in einem Satz, Verb zuerst", ticket: "optional: der Ticket-Schlüssel (z. B. PROJ-123)" },
+        example: { text: "Anna die Freigabe für die Startseite bis Freitag geben", ticket: "" },
+        check: (raw) => {
+          const text = (raw.text ?? "").trim().slice(0, 500);
+          const ticket = (raw.ticket ?? "").trim().toUpperCase();
+          return text ? { text, ticket: TICKET.test(ticket) ? ticket : "" } : null;
+        },
+        describe: (p) => ({ title: t("Todo: {text}", { text: String(p.text) }), body: p.ticket ? String(p.ticket) : undefined }),
+      },
     },
   },
 };
