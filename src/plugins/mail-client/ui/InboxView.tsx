@@ -54,11 +54,11 @@ export default function InboxView({ data, rows, openRow, reload }: AppViewProps)
       <div className="flex min-h-0 flex-col border-r border-zinc-200 dark:border-zinc-800">
         <div className="flex flex-wrap items-center gap-1 border-b border-zinc-100 px-3 py-1.5 dark:border-zinc-800">
           <button type="button" className={chip(!channel)} aria-pressed={!channel} onClick={() => setChannel("")}>
-            {t("All")} {unread > 0 && <b className="text-indigo-600">{unread}</b>}
+            {t("All")} {rows.length} {unread > 0 && <b className="text-indigo-600" title={t("{n} unread", { n: unread })}>· {unread}</b>}
           </button>
           {channels.map(([c, v]) => (
             <button key={c} type="button" className={chip(channel === c)} aria-pressed={channel === c} onClick={() => setChannel(channel === c ? "" : c)}>
-              {ICON[c] ?? "•"} {c} {v.unread > 0 ? <b className="text-indigo-600">{v.unread}</b> : <span className="text-zinc-400">{v.all}</span>}
+              {ICON[c] ?? "•"} {c} <span className="text-zinc-400">{v.all}</span> {v.unread > 0 && <b className="text-indigo-600" title={t("{n} unread", { n: v.unread })}>· {v.unread}</b>}
             </button>
           ))}
           <span className="flex-1" />

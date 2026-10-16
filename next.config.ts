@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  turbopack: { root: "C:/Users/morrossl" }, // LOCAL ONLY (worktree test server) — never commit
   // `npm run deploy` builds into a side folder (ZEFF_DIST_DIR=.next-build) while prod keeps
   // serving .next, and swaps the two just before the restart (scripts/swap-dist.mjs). Everything
   // else — next start, next dev (.next/dev), a plain next build — uses .next.
