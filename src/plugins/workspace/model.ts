@@ -118,7 +118,7 @@ export type JiraCriteria = { mine?: boolean; involved?: boolean; briefed?: boole
  */
 export type PipelineStep = {
   id: string;
-  kind: "source" | "filter" | "ai";
+  kind: "source" | "filter" | "ai" | "sort";
   from?: PipelineSource;
   jira?: JiraCriteria;
   label?: string;
@@ -129,6 +129,9 @@ export type PipelineStep = {
   recentDays?: number;
   limit?: number;
   output?: "field" | "summary";
+  /** Sort: the field (its name) the rows go by, and which way. */
+  by?: string;
+  dir?: "asc" | "desc";
   prop?: string;
   name?: string;
   prompt?: string;
@@ -171,6 +174,8 @@ export function normalizePipeline(raw: unknown): Pipeline {
       steps.push(defined<PipelineStep>({ id, kind: "source", from, jira, label: from === "keep" ? str(s.label) : undefined, todoStatus: from === "todos" && s.todoStatus === "all" ? "all" : undefined, dbId: from === "database" ? posInt(s.dbId) : undefined }));
     } else if (s.kind === "filter") {
       steps.push(defined<PipelineStep>({ id, kind: "filter", text: str(s.text), openOnly: s.openOnly === true, recentDays: posInt(s.recentDays), limit: posInt(s.limit) }));
+    } else if (s.kind === "sort") {
+      if (str(s.by)) steps.push(defined<PipelineStep>({ id, kind: "sort", by: str(s.by), dir: s.dir === "desc" ? "desc" : undefined }));
     } else if (s.kind === "ai" && (s.output === "field" || s.output === "summary")) {
       const r = s.result as { text?: unknown; at?: unknown; hash?: unknown } | undefined;
       const result = r && typeof r.text === "string" && typeof r.at === "string" ? { text: r.text, at: r.at, ...(typeof r.hash === "string" ? { hash: r.hash } : {}) } : undefined;

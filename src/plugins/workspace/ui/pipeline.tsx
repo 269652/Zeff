@@ -15,8 +15,9 @@ import { Dropdown, MenuItem, Modal } from "./kit";
  * database), filters, AI steps (a field on each row, a summary over all) — edited, saved, run.
  */
 
-const ICON: Record<string, string> = { jira: "🎫", keep: "🗒", todos: "☑", database: "🗃", filter: "⏷", field: "✨", summary: "🧭" };
-const iconOf = (s: PipelineStep) => ICON[s.kind === "source" ? (s.from ?? "") : s.kind === "filter" ? "filter" : (s.output ?? "")];
+const ICON: Record<string, string> = { jira: "🎫", keep: "🗒", todos: "☑", database: "🗃", filter: "⏷", sort: "⇅", field: "✨", summary: "🧭" };
+const kindOf = (s: PipelineStep) => (s.kind === "source" ? (s.from ?? "") : s.kind === "ai" ? (s.output ?? "") : s.kind);
+const iconOf = (s: PipelineStep) => ICON[kindOf(s)];
 
 /** The example "My briefing": your Jira tickets of the last 14 days, commented, open — their Lage, one overall picture. */
 export const BRIEFING_EXAMPLE = (): PipelineStep[] => [
@@ -26,7 +27,7 @@ export const BRIEFING_EXAMPLE = (): PipelineStep[] => [
   { id: newId("s"), kind: "ai", output: "summary", prompt: "Die Gesamtlage: was gerade brennt, was als Nächstes kommt, worauf ich warte — in wenigen Sätzen, die wichtigsten Tickets mit Schlüssel." },
 ];
 
-export function PipelineEditor({ dbId, pipeline, synced, databases, onSave, onRun, onClose }: { dbId: number; pipeline: Pipeline | undefined; synced: string | null; databases: { id: number; title: string }[]; onSave: (p: Pipeline) => Promise<void>; onRun: (ai: boolean) => Promise<void>; onClose: () => void }) {
+export function PipelineEditor({ dbId, pipeline, synced, fields, databases, onSave, onRun, onClose }: { dbId: number; pipeline: Pipeline | undefined; synced: string | null; fields: string[]; databases: { id: number; title: string }[]; onSave: (p: Pipeline) => Promise<void>; onRun: (ai: boolean) => Promise<void>; onClose: () => void }) {
   const t = useT();
   // A database a sync keeps: the sync is its source — only AI steps of its own.
   const [steps, setSteps] = useState<PipelineStep[]>((pipeline?.steps ?? []).filter((s) => !synced || s.kind === "ai"));
@@ -55,7 +56,7 @@ export function PipelineEditor({ dbId, pipeline, synced, databases, onSave, onRu
       setBusy(false);
     }
   };
-  const labels: Record<string, string> = { jira: t("Jira tickets"), keep: t("Google Keep notes"), todos: t("Todos"), database: t("Another database"), filter: t("Filter"), field: t("AI: a field on each row"), summary: t("AI: one summary over all rows") };
+  const labels: Record<string, string> = { jira: t("Jira tickets"), keep: t("Google Keep notes"), todos: t("Todos"), database: t("Another database"), filter: t("Filter"), sort: t("Sort"), field: t("AI: a field on each row"), summary: t("AI: one summary over all rows") };
   return (
     <Modal title={t("Sources & steps …")} onClose={onClose} wide>
       <p className="text-sm text-zinc-500">{t("Where this database's rows come from and what's done with them, top to bottom. A run keeps the result as its rows (yours stay: AI fields, pages); the AI steps go with the briefing.")}</p>
@@ -79,12 +80,12 @@ export function PipelineEditor({ dbId, pipeline, synced, databases, onSave, onRu
           <li key={s.id} className="rounded-lg border border-zinc-200 p-2.5 dark:border-zinc-700" data-step={s.kind}>
             <div className="mb-1.5 flex items-center gap-2 text-sm font-medium">
               <span aria-hidden>{iconOf(s)}</span>
-              <span className="flex-1">{labels[s.kind === "source" ? (s.from ?? "") : s.kind === "filter" ? "filter" : (s.output ?? "")]}</span>
+              <span className="flex-1">{labels[kindOf(s)]}</span>
               <button type="button" className="icon-btn" disabled={i === 0} onClick={() => move(i, -1)} aria-label={t("Up")}>↑</button>
               <button type="button" className="icon-btn" disabled={i === steps.length - 1} onClick={() => move(i, 1)} aria-label={t("Down")}>↓</button>
               <button type="button" className="icon-btn" onClick={() => setSteps((ss) => ss.filter((_, k) => k !== i))} aria-label={t("Remove the step")}>✕</button>
             </div>
-            <StepBody step={s} set={(p) => set(i, p)} databases={databases.filter((d) => d.id !== dbId)} />
+            <StepBody step={s} set={(p) => set(i, p)} databases={databases.filter((d) => d.id !== dbId)} fields={[...new Set([...fields, ...steps.flatMap((x) => (x.kind === "ai" && x.output === "field" && x.name ? [x.name] : []))])]} />
             {s.kind === "ai" && <InstructionPicker chosen={s.instructions ?? []} all={instructions} set={(ids) => set(i, { instructions: ids.length ? ids : undefined })} reload={loadInstructions} />}
           </li>
         ))}
@@ -100,6 +101,7 @@ export function PipelineEditor({ dbId, pipeline, synced, databases, onSave, onRu
         </Dropdown>
         )}
         {!synced && <button type="button" className="btn btn-sm" onClick={() => add({ kind: "filter", openOnly: true })}>+ {t("Filter")}</button>}
+        <button type="button" className="btn btn-sm" onClick={() => add({ kind: "sort", by: steps.find((x) => x.kind === "ai" && x.output === "field" && x.choices?.length)?.name ?? fields[0] ?? "" })}>+ ⇅ {t("Sort")}</button>
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "ai", output: "field", name: t("Lage"), prompt: "" })}>+ ✨ {t("AI field")}</button>
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "ai", output: "summary", prompt: "" })}>+ 🧭 {t("AI summary")}</button>
       </div>
@@ -212,9 +214,26 @@ function Days({ label, value, set }: { label: string; value: number | undefined;
   );
 }
 
-function StepBody({ step: s, set, databases }: { step: PipelineStep; set: (p: Partial<PipelineStep>) => void; databases: { id: number; title: string }[] }) {
+function StepBody({ step: s, set, databases, fields }: { step: PipelineStep; set: (p: Partial<PipelineStep>) => void; databases: { id: number; title: string }[]; fields: string[] }) {
   const t = useT();
   const row = "flex flex-wrap items-center gap-x-4 gap-y-1.5";
+  if (s.kind === "sort")
+    return (
+      <div className={row}>
+        <select className="input w-auto text-sm" value={s.by ?? ""} onChange={(e) => set({ by: e.target.value })} aria-label={t("Sort by")}>
+          {!s.by && <option value="">{t("Pick a field …")}</option>}
+          {[...new Set([...(s.by ? [s.by] : []), ...fields])].map((f) => (
+            <option key={f} value={f}>
+              {f}
+            </option>
+          ))}
+        </select>
+        <select className="input w-auto text-sm" value={s.dir ?? "asc"} onChange={(e) => set({ dir: e.target.value === "desc" ? "desc" : undefined })} aria-label={t("Direction")}>
+          <option value="asc">{t("Ascending (a field with choices: in their order)")}</option>
+          <option value="desc">{t("Descending")}</option>
+        </select>
+      </div>
+    );
   if (s.kind === "source" && s.from === "jira") {
     const j = s.jira ?? {};
     const setJ = (p: Partial<JiraCriteria>) => set({ jira: { ...j, ...p } });

@@ -175,6 +175,7 @@ export async function replaceBriefingOnce(): Promise<number | null> {
     { id: newId("s"), kind: "ai" as const, output: "field" as const, name: "Attention", prompt: def(LAGE_FIELDS.attention).aiPrompt, choices: def(LAGE_FIELDS.attention).aiChoices, instructions },
     { id: newId("s"), kind: "ai" as const, output: "field" as const, name: "Lage", prompt: def(LAGE_FIELDS.lead).aiPrompt, instructions },
     { id: newId("s"), kind: "ai" as const, output: "summary" as const, prompt: "Die Gesamtlage: was gerade brennt, was als Nächstes kommt, worauf ich warte — in wenigen Sätzen, die wichtigsten Tickets mit Schlüssel.", instructions },
+    { id: newId("s"), kind: "sort" as const, by: "Attention" },
   ];
   const id = createPage({ kind: "database", title: "Meine Lage", icon: "🧭", schema: { titleName: "Ticket", properties: [], views: [newView("Board", "board"), newView("Table", "table")], pipeline: { steps }, review: { on: true } } });
   updatePage(id, { fullWidth: true });
@@ -182,6 +183,16 @@ export async function replaceBriefingOnce(): Promise<number | null> {
   setPref(REPLACED, true);
   await (await import("@/plugins/workspace/pipeline")).runPipeline(id, { ai: false });
   return id;
+}
+
+/** Meine Lage made before it had its sort: the most pressing first (by Attention) — once. */
+export function sortBriefingOnce(): void {
+  const id = briefingDatabase();
+  if (!id || getPref<boolean>("workspace.briefingSorted", false)) return;
+  const d = getDatabase(id)!;
+  const steps = d.schema.pipeline?.steps ?? [];
+  if (!steps.some((s) => s.kind === "sort")) updateSchema(id, { ...d.schema, pipeline: { ...(d.schema.pipeline ?? { steps: [] }), steps: [...steps, { id: newId("s"), kind: "sort", by: "Attention" }] } });
+  setPref("workspace.briefingSorted", true);
 }
 
 /** Where an old link to a Jira board (/kanban/jira-…) leads now: its database — My briefing: Meine Lage; null: not kept yet. */

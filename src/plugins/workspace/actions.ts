@@ -235,7 +235,7 @@ export type DatabaseData = {
   /** What the cards show beyond the cells: each row's ticket key, its subtasks, and — by key — its Lage and todos. */
   /** Locked (a database a sync keeps, as Jira's): shown, not changed here — its cards don't move, its cells aren't edited. */
   locked: boolean;
-  extras: { keys: Record<number, string>; subtasks: Record<number, { done: number; total: number }>; tickets: Record<string, TicketExtras>; todosOn: boolean; briefing: boolean; knowledge: boolean; me: { names: string[]; ids: number[] }; source: string | null; previews: Record<number, PreviewLine[]> };
+  extras: { keys: Record<number, string>; subtasks: Record<number, { done: number; total: number }>; tickets: Record<string, TicketExtras>; todosOn: boolean; briefing: boolean; knowledge: boolean; me: { names: string[]; ids: number[] }; source: string | null; running?: boolean; previews: Record<number, PreviewLine[]> };
 };
 
 export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: DatabaseData }>> {
@@ -271,7 +271,7 @@ export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: D
       const attention = typeof att === "string" && isAttention(att) ? att : (cur?.attention ?? null);
       tickets[k] = { attention, attentionLabel: attention && isAttention(attention) ? attentionLabels(t)[attention] : null, lead: typeof lead === "string" ? lead : (cur?.lead ?? null), summary: typeof r.cells[LAGE_FIELDS.summary] === "string" ? String(r.cells[LAGE_FIELDS.summary]) : (cur?.summary ?? null), happened: cur?.happened ?? [], todos: cur?.todos ?? [] };
     }
-    const extras: DatabaseData["extras"] = { keys, subtasks: subtaskCounts(d.schema, d.rows, page.id), tickets, todosOn: isInstalled("todos"), ...collectionSwitches(page.id), me: await whoAmI(), source: collectionSource(page.id), previews: Object.fromEntries(d.rows.map((r) => [r.id, previewLines(store.getPage(r.id)?.content, 10)])) };
+    const extras: DatabaseData["extras"] = { keys, subtasks: subtaskCounts(d.schema, d.rows, page.id), tickets, todosOn: isInstalled("todos"), ...collectionSwitches(page.id), me: await whoAmI(), source: collectionSource(page.id), running: (await import("./pipeline")).pipelineRunning(page.id), previews: Object.fromEntries(d.rows.map((r) => [r.id, previewLines(store.getPage(r.id)?.content, 10)])) };
     return { data: { id: page.id, title: page.title, icon: page.icon, locked: page.locked, schema: d.schema, rows: d.rows, labels, templates: store.rowTemplates(page.id).map((r) => ({ id: r.id, title: r.title || t("Untitled") })), related, extras } };
   });
 }
@@ -330,14 +330,24 @@ export async function reviewDatabaseAction(dbId: number, force = false) {
   });
 }
 
-/** A database's pipeline run now: its sources kept as its rows; with `ai`, its AI steps too (fields, summaries). */
+/**
+ * A database's pipeline run now: its sources kept as its rows (at once); with `ai`, its AI steps then in the background —
+ * the page stays usable (a page's actions wait for each other), the view reads the rows as the AI fills them.
+ */
 export async function runPipelineAction(dbId: number, ai = true) {
   return run(async () => {
     if (ai && !isInstalled("llm")) throw new Error(t("The LLM plugin is needed for this (Menu → Plugins)."));
-    const r = await (await import("./pipeline")).runPipeline(Number(dbId), { ai: !!ai });
-    if (!r.ok) throw new Error(r.error ?? t("Failed."));
-    return { records: r.records, created: r.created, updated: r.updated, archived: r.archived, reviewed: r.reviewed, summaries: r.summaries };
+    return rowsThenAi(Number(dbId), !!ai);
   });
+}
+
+async function rowsThenAi(dbId: number, ai: boolean) {
+  const p = await import("./pipeline");
+  if (p.pipelineRunning(dbId)) return { records: 0, created: 0, updated: 0, archived: 0, background: true, already: true };
+  const r = await p.runPipeline(dbId, { ai: false });
+  if (!r.ok) throw new Error(r.error ?? t("Failed."));
+  const background = ai && p.startPipeline(dbId, { ai: true }).started;
+  return { records: r.records, created: r.created, updated: r.updated, archived: r.archived, background, already: false };
 }
 
 /** The syncs a pipeline's sources are read by (jira, keep): how often each runs by itself, and what can be picked. */
@@ -363,9 +373,7 @@ export async function refreshPipelineAction(dbId: number) {
     const { isSyncKey, startSync } = await import("@/lib/sync/registry");
     const syncing: string[] = [];
     for (const key of ["jira", "keep"] as const) if (froms.has(key) && isSyncKey(key) && (await startSync(key)).ok) syncing.push(key === "jira" ? "Jira" : "Google Keep");
-    const r = await (await import("./pipeline")).runPipeline(Number(dbId), { ai: isInstalled("llm") });
-    if (!r.ok) throw new Error(r.error ?? t("Failed."));
-    return { records: r.records, created: r.created, updated: r.updated, archived: r.archived, reviewed: r.reviewed, summaries: r.summaries, syncing };
+    return { ...(await rowsThenAi(Number(dbId), isInstalled("llm"))), syncing };
   });
 }
 

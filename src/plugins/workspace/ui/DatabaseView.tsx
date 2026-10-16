@@ -301,6 +301,16 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
     pick(v.id);
   };
 
+  /** What a run did: the rows at once; the AI in the background (the view reads what it writes). */
+  const ranText = (r: { records: number; created: number; updated: number; archived: number; background: boolean; already: boolean }, syncing: string[]) =>
+    r.already
+      ? t("The pipeline is running already — the rows follow as it writes them.")
+      : [
+          t("{n} rows: {c} new, {u} changed, {a} gone", { n: r.records, c: r.created, u: r.updated, a: r.archived }),
+          ...(r.background ? [t("the AI runs in the background")] : []),
+          ...(syncing.length ? [t("{names} syncing — what it brings follows", { names: syncing.join(", ") })] : []),
+        ].join(" · ");
+
   const newRow = async (cells: Record<string, unknown> = {}, templateId?: number, open = false) => {
     const id = await api.addRow(cells, "", templateId);
     if (!id) return;
@@ -381,18 +391,15 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
             className="btn btn-sm"
             title={t("Refresh from the sources")}
             aria-label={t("Refresh from the sources")}
+            disabled={!!data.extras?.running}
             onClick={async () => {
-              toast(t("Reading the sources …"));
               const r = await refreshPipelineAction(dbId);
               await api.reload();
               if (!r.ok) return void toast(r.error, { tone: "error" });
-              toast(
-                [t("{n} rows: {c} new, {u} changed, {a} gone · {f} filled by the AI", { n: r.records, c: r.created, u: r.updated, a: r.archived, f: r.reviewed }), ...(r.syncing.length ? [t("{names} syncing — what it brings follows", { names: r.syncing.join(", ") })] : [])].join(" · "),
-                { tone: "ok" },
-              );
+              toast(ranText(r, r.syncing), { tone: "ok" });
             }}
           >
-            ↻
+            {data.extras?.running ? <span className="inline-block animate-spin">↻</span> : "↻"}
           </button>
         )}
         <Dropdown label={t("Properties")} align="right" className="btn btn-sm">
@@ -521,6 +528,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
         />
       )}
 
+      {data.extras?.running && <p className="text-sm text-indigo-600 dark:text-indigo-400" data-running>✨ {t("The AI is going through the rows — they change as it writes them …")}</p>}
       <PipelineSummaries pipeline={schema.pipeline} />
       {view.type === "table" && <TableView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />}
       {view.type === "board" && <BoardView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} newRow={newRow} />}
@@ -543,17 +551,17 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           dbId={dbId}
           pipeline={schema.pipeline}
           synced={data.extras?.source ?? null}
+          fields={schema.properties.filter((p) => !["srcref", "srcedited", "srcurl", "ticketkey", "noteref"].includes(p.id)).map((p) => p.name)}
           databases={databases}
           onSave={async (pipeline) => {
             const err = await api.saveSchema({ ...(api.data?.schema ?? schema), pipeline });
             if (err) toast(err, { tone: "error" });
           }}
           onRun={async (ai) => {
-            toast(ai ? t("Reading the sources, then the AI …") : t("Reading the sources …"));
             const r = await runPipelineAction(dbId, ai);
             await api.reload();
             if (!r.ok) return void toast(r.error, { tone: "error" });
-            toast(t("{n} rows: {c} new, {u} changed, {a} gone · {f} filled by the AI", { n: r.records, c: r.created, u: r.updated, a: r.archived, f: r.reviewed }), { tone: "ok" });
+            toast(ranText(r, []), { tone: "ok" });
           }}
           onClose={() => setPipelineOpen(false)}
         />

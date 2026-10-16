@@ -268,3 +268,39 @@ test("instructions: Workspace pages under KI-Anweisungen, chosen by AI steps —
   const again = await runPipeline(dbId, { ai: true });
   assert.equal(again.reviewed, 1, "a changed instruction: read again");
 });
+
+test("sort step: the rows in the order of a field — a field with choices by its choices (the most pressing first), empty ones last", async () => {
+  const w = await import("@/plugins/workspace/store");
+  const m = await import("@/plugins/workspace/model");
+  const { runPipeline } = await import("@/plugins/workspace/pipeline");
+  assert.deepEqual(m.normalizePipeline({ steps: [{ id: "o", kind: "sort", by: " Attention ", dir: "desc" }, { kind: "sort" }] }).steps, [{ id: "o", kind: "sort", by: "Attention", dir: "desc" }], "a sort needs its field");
+  const from = w.createPage({ kind: "database", title: "Unsortiert", schema: { titleName: "Name", properties: [], views: [m.newView("Table")] } });
+  for (const x of ["Sortiert A", "Sortiert B", "Sortiert C"]) w.addRow(from, { title: x });
+  const dbId = w.createPage({ kind: "database", title: "Sortiert", schema: { titleName: "Name", properties: [], views: [m.newView("Table")], pipeline: { steps: [
+    { id: "s", kind: "source", from: "database", dbId: from },
+    { id: "att", kind: "ai", output: "field", name: "Attention", choices: ["feedback", "active", "stale"] },
+    { id: "o", kind: "sort", by: "Attention" },
+  ] } } });
+  await runPipeline(dbId, { ai: false });
+  const id = (title: string) => w.rawRows(dbId).find((r) => r.title === title)!.id;
+  const ids = { a: id("Sortiert A"), b: id("Sortiert B"), c: id("Sortiert C") };
+  process.env.FAKE_CLAUDE_OUTPUT = JSON.stringify({ rows: [{ id: ids.a, values: { ai_att: "stale" } }, { id: ids.c, values: { ai_att: "feedback" } }], text: "" });
+  await runPipeline(dbId, { ai: true });
+  assert.deepEqual(w.rawRows(dbId).map((r) => r.title), ["Sortiert C", "Sortiert A", "Sortiert B"], "feedback before stale, the one without last");
+  await runPipeline(dbId, { ai: false });
+  assert.deepEqual(w.rawRows(dbId).map((r) => r.title), ["Sortiert C", "Sortiert A", "Sortiert B"], "kept so by the next run");
+});
+
+test("startPipeline: a run in the background — one at a time per database, known as running until it's done", async () => {
+  const w = await import("@/plugins/workspace/store");
+  const m = await import("@/plugins/workspace/model");
+  const { startPipeline, pipelineRunning } = await import("@/plugins/workspace/pipeline");
+  const dbId = w.createPage({ kind: "database", title: "Hinten", schema: { titleName: "Name", properties: [], views: [m.newView("Table")], pipeline: { steps: [{ id: "s", kind: "source", from: "todos" }] } } });
+  const first = startPipeline(dbId, { ai: false });
+  assert.equal(first.started, true);
+  assert.equal(pipelineRunning(dbId), true);
+  assert.equal(startPipeline(dbId, { ai: false }).started, false, "already running: not twice");
+  const r = await first.done;
+  assert.equal(r.ok, true, r.error);
+  assert.equal(pipelineRunning(dbId), false);
+});

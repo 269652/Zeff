@@ -5141,5 +5141,12 @@
   "Done within days still in": "Hechos en los últimos días siguen dentro",
   "Open to write it": "Abrir para escribirla",
   "New instruction": "Nueva instrucción",
-  "New instruction …": "Nueva instrucción …"
+  "New instruction …": "Nueva instrucción …",
+  "Sort by": "Ordenar por",
+  "Pick a field …": "Elige un campo …",
+  "Ascending (a field with choices: in their order)": "Ascendente (campo con opciones: en su orden)",
+  "The pipeline is running already — the rows follow as it writes them.": "La pipeline ya está en marcha — las filas llegan a medida que las escribe.",
+  "{n} rows: {c} new, {u} changed, {a} gone": "{n} filas: {c} nuevas, {u} cambiadas, {a} fuera",
+  "the AI runs in the background": "la IA trabaja en segundo plano",
+  "The AI is going through the rows — they change as it writes them …": "La IA recorre las filas — cambian a medida que escribe …"
 }

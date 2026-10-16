@@ -1,6 +1,7 @@
 import { getDb, getSqlite, schema } from "@/db";
 import { dateOf } from "@/lib/boards/collect";
 import { errorMessage } from "@/lib/errors";
+import { emitChange } from "@/lib/events";
 import { databaseSource, KEY_PROP, NOTE_PROP, rowKey } from "./collections";
 import { docToMarkdown, markdownToDoc } from "./doc";
 import { cellText, COLORS, newId, type DbSchema, type Option, type PipelineStep, type Property, type Row } from "./model";
@@ -299,16 +300,82 @@ export async function runPipeline(dbId: number, opts: { ai?: boolean; force?: bo
       archivePage(gone.id);
       out.archived++;
     }
-    const now = rawRows(dbId).map((r) => r.id);
-    if (now.join() !== order.join()) order.forEach((id, i) => placeRow(id, { after: i ? order[i - 1] : null, before: null }));
-
     if (opts.ai) await runAiSteps(dbId, out, opts.force);
+    // The rows in the sources' order — or the sort steps' (by the values as they are now, the AI's too): placed once.
+    place(dbId, sorted(dbId, order, steps));
     stamp(dbId);
   } catch (e) {
     out.ok = false;
     out.error = errorMessage(e).slice(0, 300);
   }
   return out;
+}
+
+/** The rows in this order (only when it differs). */
+function place(dbId: number, order: number[]): void {
+  const now = rawRows(dbId).map((r) => r.id);
+  if (now.join() !== order.join()) order.forEach((id, i) => placeRow(id, { after: i ? order[i - 1] : null, before: null }));
+}
+
+/**
+ * The rows ordered by the sort steps (the first the main one): a field with choices by its choices (the first first),
+ * a number as a number, else as text; empty ones last. None: as they came.
+ */
+function sorted(dbId: number, order: number[], steps: PipelineStep[]): number[] {
+  const sorts = steps.filter((s) => s.kind === "sort" && s.by);
+  if (!sorts.length) return order;
+  const d = getDatabase(dbId)!;
+  const rows = new Map(rawRows(dbId).map((r) => [r.id, r]));
+  const keys = sorts.flatMap((s) => {
+    const p = d.schema.properties.find((x) => x.name.toLowerCase() === s.by!.toLowerCase());
+    if (!p) return [];
+    const choices = p.aiChoices ?? p.options?.map((o) => o.id);
+    const key = (r: Row | undefined): number | string | null => {
+      const v = r?.cells[p.id];
+      if (v === undefined || v === null || v === "") return null;
+      if (choices?.length) {
+        const i = choices.indexOf(String(v));
+        return i < 0 ? choices.length : i;
+      }
+      return typeof v === "number" ? v : cellText(p, v).toLowerCase();
+    };
+    return [{ key, dir: s.dir === "desc" ? -1 : 1 }];
+  });
+  const at = new Map(order.map((id, i) => [id, i]));
+  return [...order].sort((a, b) => {
+    for (const k of keys) {
+      const x = k.key(rows.get(a));
+      const y = k.key(rows.get(b));
+      if (x === y) continue;
+      if (x === null) return 1;
+      if (y === null) return -1;
+      return (x < y ? -1 : 1) * k.dir;
+    }
+    return at.get(a)! - at.get(b)!;
+  });
+}
+
+const running = (globalThis as unknown as { __zeffPipelines?: Map<number, Promise<PipelineResult>> }).__zeffPipelines ??= new Map();
+(globalThis as unknown as { __zeffPipelines?: Map<number, Promise<PipelineResult>> }).__zeffPipelines = running;
+
+/** Whether a database's pipeline is running now. */
+export const pipelineRunning = (dbId: number): boolean => running.has(dbId);
+
+/** A database's pipeline started in the background (one at a time; the page stays usable — the view reads the rows as they come). */
+export function startPipeline(dbId: number, opts: { ai?: boolean; force?: boolean } = {}): { started: boolean; done: Promise<PipelineResult> } {
+  const cur = running.get(dbId);
+  if (cur) return { started: false, done: cur };
+  const done = runPipeline(dbId, opts)
+    .then((r) => {
+      if (!r.ok) console.error(`[workspace] the pipeline of ${dbId} failed: ${r.error}`);
+      return r;
+    })
+    .finally(() => {
+      running.delete(dbId);
+      emitChange("workspace");
+    });
+  running.set(dbId, done);
+  return { started: true, done };
 }
 
 /** When the pipeline last ran. */
