@@ -70,8 +70,8 @@ export function addRelatedRow(rowId: number, dbId: number, prop: string, title: 
 }
 
 /** What a button does: set a field of the row, move it to the trash, or read the database's sources again. */
-export const BUTTON_ACTIONS = ["set", "trash", "refresh"] as const;
-export type ButtonSpec = { action: (typeof BUTTON_ACTIONS)[number]; prop?: string; value?: string };
+export const BUTTON_KINDS = ["set", "trash", "refresh"] as const;
+export type ButtonSpec = { action: (typeof BUTTON_KINDS)[number]; prop?: string; value?: string };
 
 /** A button pressed on a row. What it did, in words. */
 export async function runRowButton(rowId: number, spec: ButtonSpec): Promise<{ message: string; undo?: { prop: string; value: string } }> {

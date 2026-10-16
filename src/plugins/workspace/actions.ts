@@ -969,7 +969,7 @@ export async function addRelatedRowAction(rowId: number, dbId: number, prop: str
 export async function rowButtonAction(rowId: number, spec: { action: string; prop?: string; value?: string }) {
   return run(async () => {
     const b = await import("./app-blocks");
-    const action = (b.BUTTON_ACTIONS as readonly string[]).includes(spec?.action) ? (spec.action as (typeof b.BUTTON_ACTIONS)[number]) : "set";
+    const action = (b.BUTTON_KINDS as readonly string[]).includes(spec?.action) ? (spec.action as (typeof b.BUTTON_KINDS)[number]) : "set";
     return b.runRowButton(Number(rowId), { action, prop: spec?.prop ? String(spec.prop) : undefined, value: spec?.value !== undefined ? String(spec.value) : undefined });
   });
 }
