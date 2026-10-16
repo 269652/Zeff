@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { Markdown } from "@/components/Markdown";
 import { aiFillCellAction, cellChoicesAction, type DatabaseData } from "../actions";
-import { COLORS, dateRange, formatNumber, isComputed, newId, type Option, type Property, type Row } from "../model";
+import { choiceColor, COLORS, dateRange, formatNumber, isComputed, newId, type Option, type Property, type Row } from "../model";
 import { Dropdown, useDismiss } from "./kit";
 
 /** The cells of a database: how each property type is shown, and edited in place. */
@@ -143,6 +143,8 @@ export function CellView({ p, row, ctx }: { p: Property; row: Row; ctx: CellCtx 
     case "markdown":
       return v ? <div className="max-h-40 overflow-hidden"><Markdown text={String(v)} /></div> : null;
     case "ai":
+      // A choice of its own list: a coloured tag, as a select's.
+      if (v && p.aiChoices?.includes(String(v))) return <Tag option={{ id: String(v), name: String(v), color: choiceColor(p, String(v)) }} />;
       return v ? <span className="line-clamp-3 whitespace-pre-wrap">{String(v)}</span> : <span className="text-xs text-violet-600 dark:text-violet-300">✨ {t("Fill")}</span>;
     default:
       return v ? <span className="line-clamp-4 break-words whitespace-pre-wrap">{String(v)}</span> : null;

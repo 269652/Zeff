@@ -52,6 +52,8 @@ export type Property = {
   aiPrompt?: string;
   /** AI: the values it may take (one of them — "blocked", "active" …); none: free text. */
   aiChoices?: string[];
+  /** AI: a colour (of the palette) per choice; the others take one by their place. */
+  aiColors?: Record<string, string>;
   /** AI: instructions (pages under KI-Anweisungen) whose text goes with the prompt. */
   aiInstructions?: number[];
   format?: "number" | "percent" | "euro" | "dollar" | "hours";
@@ -167,7 +169,7 @@ export type PipelineStep = {
   result?: { text: string; at: string; hash?: string };
 };
 /** A pipeline: its steps; when it last ran; and how it runs by itself — its AI after every sync of its sources, and/or every N minutes. */
-export type Pipeline = { steps: PipelineStep[]; ranAt?: string; autoAi?: boolean; everyMinutes?: number };
+export type Pipeline = { steps: PipelineStep[]; ranAt?: string; autoAi?: boolean; everyMinutes?: number; /** A checkbox property (its id): a row ticked in it is final — a run neither changes nor archives it, and the AI leaves it. */ keepProp?: string };
 
 /** A filter's conditions: contains, doesn't contain, is, isn't (a checkbox: yes / no), empty, not empty. */
 export const FILTER_OPS = ["contains", "not_contains", "is", "is_not", "empty", "not_empty"] as const;
@@ -228,7 +230,7 @@ export function normalizePipeline(raw: unknown): Pipeline {
       steps.push(defined<PipelineStep>({ id, kind: "ai", output: s.output, prop: s.output === "field" ? str(s.prop) : undefined, name: s.output === "field" ? (str(s.name) ?? "AI") : undefined, prompt: str(s.prompt), choices: s.output === "field" ? strs(s.choices) : undefined, instructions: ids(s.instructions), result: s.output === "summary" ? result : undefined }));
     }
   }
-  return { steps, ...(typeof o.ranAt === "string" ? { ranAt: o.ranAt } : {}), ...(o.autoAi === true ? { autoAi: true } : {}), ...(posInt(o.everyMinutes) ? { everyMinutes: Math.min(10080, posInt(o.everyMinutes)!) } : {}) };
+  return { steps, ...(typeof o.ranAt === "string" ? { ranAt: o.ranAt } : {}), ...(o.autoAi === true ? { autoAi: true } : {}), ...(posInt(o.everyMinutes) ? { everyMinutes: Math.min(10080, posInt(o.everyMinutes)!) } : {}), ...(str(o.keepProp) ? { keepProp: str(o.keepProp) } : {}) };
 }
 
 /** The modules a row's detail view can show: its properties and page, and — by its ticket key — what Zeff knows about it. */
@@ -327,9 +329,24 @@ const normalizeReview = (r: Record<string, unknown>): NonNullable<DbSchema["revi
 });
 
 /** A schema from stored JSON, repaired: every view and property has what the code relies on. */
+/** An AI property's colours kept to the palette (and to colours given at all). */
+function withAiColors(p: Property): Property {
+  if (!p.aiColors) return p;
+  const ok = Object.fromEntries(Object.entries(p.aiColors).filter((e) => (COLORS as readonly string[]).includes(e[1])));
+  const { aiColors: _was, ...rest } = p;
+  return Object.keys(ok).length ? { ...rest, aiColors: ok } : rest;
+}
+
+/** The colour of one of an AI property's choices: the one set, else one of the palette by its place (grey when it isn't a choice). */
+export function choiceColor(p: Property, name: string): string {
+  const i = p.aiChoices?.indexOf(name) ?? -1;
+  if (i < 0) return "gray";
+  return p.aiColors?.[name] ?? COLORS[(i + 1) % COLORS.length];
+}
+
 export function normalizeSchema(raw: unknown): DbSchema {
   const o = (raw && typeof raw === "object" ? raw : {}) as Partial<DbSchema>;
-  const props = (Array.isArray(o.properties) ? o.properties : []).filter((p): p is Property => !!p && typeof p.id === "string" && (PROP_TYPES as readonly string[]).includes(p.type));
+  const props = (Array.isArray(o.properties) ? o.properties : []).filter((p): p is Property => !!p && typeof p.id === "string" && (PROP_TYPES as readonly string[]).includes(p.type)).map(withAiColors);
   const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [] }));
   return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(Number.isInteger(o.detailPage) && Number(o.detailPage) > 0 ? { detailPage: Number(o.detailPage) } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}) };
 }
@@ -647,6 +664,9 @@ export function groupRows(rows: Row[], groupBy: string, props: Property[], label
     return groups.get(key)!;
   };
   if (p.type === "select" || p.type === "status" || p.type === "multi_select") for (const o of p.options ?? []) ensure(o.id, o.name, o.color);
+  // An AI column with choices: its choices are the groups, in their order, each with its colour (a board's columns).
+  const aiChoices = p.type === "ai" && p.aiChoices?.length ? p.aiChoices : null;
+  if (aiChoices) for (const c of aiChoices) ensure(c, c, choiceColor(p, c));
   if (p.type === "checkbox") {
     ensure("true", "Checked");
     ensure("false", "Not checked");
@@ -669,7 +689,7 @@ export function groupRows(rows: Row[], groupBy: string, props: Property[], label
     }
   }
   const list = [...groups.values()];
-  if (!(p.type === "select" || p.type === "status" || p.type === "multi_select" || p.type === "checkbox")) list.sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
+  if (!(p.type === "select" || p.type === "status" || p.type === "multi_select" || p.type === "checkbox" || aiChoices)) list.sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
   return none.rows.length || !list.length ? [...list, none] : list;
 }
 

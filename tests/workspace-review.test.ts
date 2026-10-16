@@ -67,3 +67,21 @@ test("reviewDatabase: the AI properties of the changed rows, choices kept to, un
   const all = await reviewDatabases();
   assert.deepEqual(all.map((x) => x.dbId), [dbId], "only the databases with the review on");
 });
+
+test("reviewDatabase: a row ticked in the pipeline's keep checkbox is final — the AI leaves it", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["llm", "claude-cli", "workspace"]) setInstalled(id, true);
+  const w = await import("@/plugins/workspace/store");
+  const m = await import("@/plugins/workspace/model");
+  const { reviewDatabase } = await import("@/plugins/workspace/review");
+  const ok: import("@/plugins/workspace/model").Property = { id: "ok", name: "Checked", type: "checkbox" };
+  const kind: import("@/plugins/workspace/model").Property = { id: "kind", name: "Kind", type: "ai", aiPrompt: "What it is.", aiChoices: ["a", "b"] };
+  const dbId = w.createPage({ kind: "database", title: "Final", schema: { titleName: "Name", properties: [ok, kind], views: [m.newView("Table")], review: { on: true }, pipeline: { steps: [], keepProp: "ok" } } });
+  const done = w.addRow(dbId, { title: "Geprüft", cells: { ok: true, kind: "a" } });
+  const open = w.addRow(dbId, { title: "Offen" });
+  process.env.FAKE_CLAUDE_OUTPUT = JSON.stringify({ rows: [{ id: done, values: { kind: "b" } }, { id: open, values: { kind: "b" } }] });
+  const r = await reviewDatabase(dbId);
+  assert.equal(r.ok, true, r.error);
+  assert.equal(w.getPage(done)!.props.kind, "a", "ticked: its value stays");
+  assert.equal(w.getPage(open)!.props.kind, "b", "not ticked: filled");
+});

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import type { DatabaseData } from "../actions";
 import { checkFormula, FORMULA_FUNCTIONS } from "../formula";
-import { columnOrder, condsFor, COLORS, CREATED, hasDependents, isFilter, moveBefore, needsValue, newId, removeProperty, PROP_LABELS, PROP_TYPES, retype, ROLLUP_FNS, TITLE, UPDATED, type Cond, type DbSchema, type Filter, type Option, type Property, type PropType, type Rule, type Sort, type View } from "../model";
+import { choiceColor, columnOrder, condsFor, COLORS, CREATED, hasDependents, isFilter, moveBefore, needsValue, newId, removeProperty, PROP_LABELS, PROP_TYPES, retype, ROLLUP_FNS, TITLE, UPDATED, type Cond, type DbSchema, type Filter, type Option, type Property, type PropType, type Rule, type Sort, type View } from "../model";
 import { makeOption, Tag } from "./cells";
 import { Modal, useSortable } from "./kit";
 
@@ -337,6 +337,27 @@ function PropertyEditor({ p, schema, data, dbId, onChange, onRemove, databases, 
               }}
               aria-label={t("Choices")}
             />
+          )}
+          {p.type === "ai" && !!p.aiChoices?.length && (
+            <div className="flex flex-wrap items-center gap-2">
+              {p.aiChoices.map((c) => (
+                <label key={c} className="flex items-center gap-1">
+                  <Tag option={{ id: c, name: c, color: choiceColor(p, c) }} />
+                  <select
+                    className="input w-auto py-0.5 text-xs"
+                    value={choiceColor(p, c)}
+                    aria-label={t("Colour of {name}", { name: c })}
+                    onChange={(e) => onChange({ ...p, aiColors: { ...(p.aiColors ?? {}), [c]: e.target.value } })}
+                  >
+                    {COLORS.map((col) => (
+                      <option key={col} value={col}>
+                        {col}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+            </div>
           )}
           {p.type === "formula" && (
             <div className="space-y-1">

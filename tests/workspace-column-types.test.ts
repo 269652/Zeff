@@ -45,3 +45,21 @@ test("a text column turned into a link or a Markdown column keeps its cells", as
   w.updateSchema(db, { ...cur, properties: cur.properties.map((p) => m.retype(p, "url")) });
   assert.equal(w.rawRows(db).find((r) => r.id === row)!.cells.p_u, "https://example.org/");
 });
+
+test("an AI column with choices groups in the order of its choices, each with its colour", async () => {
+  const m = await import("@/plugins/workspace/model");
+  const env: import("@/plugins/workspace/model").Property = { id: "env", name: "Umgebung", type: "ai", aiChoices: ["Dev", "Test", "Prod"], aiColors: { Dev: "gray", Prod: "red" } };
+  assert.equal(m.choiceColor(env, "Dev"), "gray");
+  assert.equal(m.choiceColor(env, "Prod"), "red");
+  assert.ok((m.COLORS as readonly string[]).includes(m.choiceColor(env, "Test")), "no colour set: one of the palette, by its place");
+  assert.equal(m.choiceColor(env, "Something else"), "gray", "not a choice: grey");
+  const row = (id: number, v: string | undefined) => ({ id, title: String(id), icon: "", cells: v ? { env: v } : {}, createdAt: "", updatedAt: "" });
+  const groups = m.groupRows([row(1, "Prod"), row(2, "Dev"), row(3, "Prod"), row(4, undefined)], "env", [env]);
+  assert.deepEqual(groups.map((g) => [g.label, g.rows.length, g.color]), [["Dev", 1, "gray"], ["Test", 0, m.choiceColor(env, "Test")], ["Prod", 2, "red"], ["No value", 1, undefined]], "choices in their order, empty ones too (a board's columns)");
+});
+
+test("aiColors survive a save", async () => {
+  const m = await import("@/plugins/workspace/model");
+  const s = m.normalizeSchema({ titleName: "N", properties: [{ id: "a", name: "A", type: "ai", aiChoices: ["x", "y"], aiColors: { x: "red", y: "nope" } }], views: [] });
+  assert.deepEqual(s.properties[0].aiColors, { x: "red" }, "only colours of the palette");
+});

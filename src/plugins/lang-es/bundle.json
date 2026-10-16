@@ -5424,5 +5424,10 @@
   "Content type": "Tipo de contenido",
   "Markdown": "Markdown",
   "From channels": "De canales",
-  "The channels are its sources now — the Inbox view follows.": "Los canales son ahora sus fuentes: la vista Inbox sigue."
+  "The channels are its sources now — the Inbox view follows.": "Los canales son ahora sus fuentes: la vista Inbox sigue.",
+  "A row ticked in": "Una fila marcada en",
+  "Checkbox that keeps a row": "Casilla que conserva una fila",
+  "(none)": "(ninguna)",
+  "is final: a run neither changes nor archives it, and the AI leaves it.": "es definitiva: una ejecución no la cambia ni la archiva, y la IA la deja en paz.",
+  "Colour of {name}": "Color de {name}"
 }

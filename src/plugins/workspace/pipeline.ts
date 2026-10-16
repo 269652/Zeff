@@ -504,6 +504,8 @@ async function runPipelineOnce(dbId: number, opts: { ai?: boolean; force?: boole
       p.type === "select" ? optionOf(p, v) : p.type === "multi_select" ? v.split(/,\s*/).map((x) => optionOf(p, x)).filter(Boolean) : v;
 
     // The rows that came from a source (by their ref) — rows of your own (a card, a subtask) aren't the sources' to change.
+    const keepId = d.schema.pipeline?.keepProp;
+    const kept = (r: Row) => !!keepId && r.cells[keepId] === true;
     const rows = new Map(rawRows(dbId).filter((r) => r.cells[SRC_REF]).map((r) => [String(r.cells[SRC_REF]), r]));
     const order: number[] = [];
     for (const rec of records) {
@@ -521,6 +523,12 @@ async function runPipelineOnce(dbId: number, opts: { ai?: boolean; force?: boole
         if (p) cells[p.id] = valueFor(p, v);
       }
       const row: Row | undefined = rows.get(rec.ref);
+      // A row you ticked as final: the source doesn't change it.
+      if (row && kept(row)) {
+        rows.delete(rec.ref);
+        order.push(row.id);
+        continue;
+      }
       if (!row) {
         const id = addRow(dbId, { title: rec.title, cells });
         if (rec.text?.trim()) updatePage(id, { content: markdownToDoc(rec.text) });
@@ -548,6 +556,7 @@ async function runPipelineOnce(dbId: number, opts: { ai?: boolean; force?: boole
       if (changed) out.updated++;
     }
     for (const gone of rows.values()) {
+      if (kept(gone)) continue;
       archivePage(gone.id);
       out.archived++;
     }
