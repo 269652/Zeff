@@ -182,3 +182,22 @@ test("data sources lists what plugins bring — People, with its count and its d
   assert.equal(src.count, before);
   assert.ok(src.databases.some((x) => x.href === `/workspace/${db}`), "its databases");
 });
+
+test("a person's mention opens their row in the people database — the profile page when there is none", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["workspace", "people"]) setInstalled(id, true);
+  const p = await import("@/plugins/people/store");
+  const w = await import("@/plugins/workspace/store");
+  const { ensurePeopleDatabase, personHref } = await import("@/plugins/workspace/people-database");
+  const iris = p.createPerson({ name: "Iris Neun" });
+  const { getPref, setPref } = await import("@/lib/prefs");
+  void getPref;
+  setPref("workspace.peopleDb", 0);
+  assert.equal(personHref(iris), `/personen/${iris}`, "without a database: the profile page");
+  setPref("workspace.peopleDb", null);
+  await ensurePeopleDatabase();
+  const { peopleDatabase } = await import("@/plugins/workspace/people-database");
+  const row = w.rawRows(peopleDatabase()!).find((r) => r.cells.srcref === `person:${iris}`);
+  assert.ok(row);
+  assert.equal(personHref(iris), `/workspace/${row!.id}`);
+});

@@ -186,8 +186,8 @@ export async function mentionSearchAction(q: string): Promise<MentionItem[]> {
 }
 
 /** What a mention shows live: a todo's status, a ticket's status, a page's title and icon. */
-export async function mentionStateAction(refs: { kind: DocRef["kind"]; ref: string }[]): Promise<Record<string, { label?: string; icon?: string; status?: string; done?: boolean; missing?: boolean }>> {
-  const out: Record<string, { label?: string; icon?: string; status?: string; done?: boolean; missing?: boolean }> = {};
+export async function mentionStateAction(refs: { kind: DocRef["kind"]; ref: string }[]): Promise<Record<string, { label?: string; icon?: string; status?: string; done?: boolean; missing?: boolean; href?: string }>> {
+  const out: Record<string, { label?: string; icon?: string; status?: string; done?: boolean; missing?: boolean; href?: string }> = {};
   try {
     guard();
     for (const r of refs.slice(0, 60)) {
@@ -206,7 +206,7 @@ export async function mentionStateAction(refs: { kind: DocRef["kind"]; ref: stri
       } else if (r.kind === "person" && isInstalled("people")) {
         const { getPerson } = await import("@/plugins/people/store");
         const p = getPerson(Number(r.ref));
-        out[key] = p ? { label: p.name } : { missing: true };
+        out[key] = p ? { label: p.name, href: (await import("./people-database")).personHref(p.id) } : { missing: true };
       }
     }
   } catch {

@@ -1,6 +1,6 @@
 import { getPref, setPref } from "@/lib/prefs";
 import { isInstalled } from "@/plugins/state";
-import { getDatabase } from "./store";
+import { getDatabase, rawRows } from "./store";
 
 const PEOPLE = "workspace.peopleDb";
 
@@ -18,4 +18,11 @@ export async function ensurePeopleDatabase(): Promise<void> {
   setPref(PEOPLE, id);
   const { runPipeline } = await import("./pipeline");
   await runPipeline(id, { ai: false });
+}
+
+/** Where a person's mention goes: their row in the people database — their profile page without one (or for a profile not read in yet). */
+export function personHref(personId: number): string {
+  const db = peopleDatabase();
+  const row = db ? rawRows(db).find((r) => r.cells.srcref === `person:${personId}`) : null;
+  return row ? `/workspace/${row.id}` : `/personen/${personId}`;
 }

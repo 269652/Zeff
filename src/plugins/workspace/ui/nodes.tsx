@@ -71,7 +71,7 @@ export const Callout = Node.create({
 // Mentions: @person, @page, @todo, @ticket
 // ---------------------------------------------------------------------------
 
-type RefState = { label?: string; icon?: string; status?: string; done?: boolean; missing?: boolean };
+type RefState = { label?: string; icon?: string; status?: string; done?: boolean; missing?: boolean; href?: string };
 const stateCache = new Map<string, { at: number; state: RefState }>();
 let pending: { kind: string; ref: string; resolve: (s: RefState) => void }[] = [];
 let timer: ReturnType<typeof setTimeout> | null = null;
@@ -101,8 +101,10 @@ function refState(kind: string, ref: string): Promise<RefState> {
 function RefView({ node, editor, getPos }: NodeViewProps) {
   const router = useRouter();
   const t = useT();
-  const { kind, ref, label, href } = node.attrs as { kind: string; ref: string; label: string; href: string };
+  const { kind, ref, label, href: written } = node.attrs as { kind: string; ref: string; label: string; href: string };
   const [state, setState] = useState<RefState>({});
+  // A person: their row in the people database (the link written with the mention may be the old profile page).
+  const href = state.href ?? written ?? (kind === "person" ? `/personen/${ref}` : "");
   useEffect(() => {
     let alive = true;
     void refState(kind, ref).then((s) => alive && setState(s));
