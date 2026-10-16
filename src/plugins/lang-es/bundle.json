@@ -5410,5 +5410,11 @@
   "Try it on a sample": "Probar con una muestra",
   "{k} of {n} would stay — nothing is saved:": "{k} de {n} se quedarían — no se guarda nada:",
   "No such AI filter.": "No existe ese filtro de IA.",
-  "Write a condition first.": "Escribe primero una condición."
+  "Write a condition first.": "Escribe primero una condición.",
+  "Knowledge: addresses (test, prod …)": "Conocimiento: direcciones (test, prod …)",
+  "Search for": "Buscar",
+  "One per line: a project, a system": "Una por línea: un proyecto, un sistema",
+  "Not the ones already in": "No las que ya están en",
+  "(only this database)": "(solo esta base de datos)",
+  "The web addresses the knowledge base holds for these terms, each once with its environment and the page it stands on. Addresses you keep by hand (here or in the other database) are not suggested again.": "Las direcciones web que la base de conocimiento tiene para estos términos, cada una una vez, con su entorno y la página donde aparece. Las direcciones que mantienes a mano (aquí o en la otra base de datos) no se vuelven a sugerir."
 }

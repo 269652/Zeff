@@ -107,8 +107,8 @@ export type DbSchema = {
   dataType?: DataType;
 };
 
-/** The sources a pipeline can read: Jira's tickets, Google Keep's notes, the todos, another database of the Workspace. */
-export const PIPELINE_SOURCES = ["jira", "keep", "todos", "database", "mail", "messages"] as const;
+/** The sources a pipeline can read: Jira's tickets, Google Keep's notes, the todos, another database of the Workspace, the addresses of the knowledge base. */
+export const PIPELINE_SOURCES = ["jira", "keep", "todos", "database", "mail", "messages", "knowledge"] as const;
 /** What a database's rows can be, by their sources: mails (Outlook, Gmail), messages (Teams, WhatsApp, Signal). */
 export const DATA_TYPES = ["mail", "message"] as const;
 export type DataType = (typeof DATA_TYPES)[number];
@@ -118,6 +118,8 @@ export const MESSAGE_CHANNELS = ["teams", "whatsapp", "signal"] as const;
 export type MailCriteria = { accounts?: (typeof MAIL_ACCOUNTS)[number][]; folders?: string[]; unreadOnly?: boolean; recentDays?: number };
 /** Which messages: of these channels (none: all), chats named like this, sent within days. */
 export type MessageCriteria = { channels?: (typeof MESSAGE_CHANNELS)[number][]; chat?: string; recentDays?: number };
+/** Which addresses: those the knowledge base holds for these search terms (a project, a system); not the ones the database `excludeDb` (or this one, by hand) has already. */
+export type KnowledgeCriteria = { terms: string[]; excludeDb?: number };
 export type PipelineSource = (typeof PIPELINE_SOURCES)[number];
 /**
  * Which Jira tickets: on you, or followed, or in the Ticket-Lage (either; none set: any); moved / commented within days;
@@ -138,6 +140,7 @@ export type PipelineStep = {
   jira?: JiraCriteria;
   mail?: MailCriteria;
   messages?: MessageCriteria;
+  knowledge?: KnowledgeCriteria;
   label?: string;
   todoStatus?: "open" | "all";
   dbId?: number;
@@ -202,7 +205,10 @@ export function normalizePipeline(raw: unknown): Pipeline {
       const mg = (s.messages && typeof s.messages === "object" ? s.messages : {}) as Record<string, unknown>;
       const mail = from === "mail" ? defined<MailCriteria>({ accounts: strs(ml.accounts)?.filter((a): a is MailCriteria["accounts"] & string => (MAIL_ACCOUNTS as readonly string[]).includes(a)) as MailCriteria["accounts"], folders: strs(ml.folders), unreadOnly: ml.unreadOnly === true, recentDays: posInt(ml.recentDays) }) : undefined;
       const messages = from === "messages" ? defined<MessageCriteria>({ channels: strs(mg.channels)?.filter((c) => (MESSAGE_CHANNELS as readonly string[]).includes(c)) as MessageCriteria["channels"], chat: str(mg.chat), recentDays: posInt(mg.recentDays) }) : undefined;
-      steps.push(defined<PipelineStep>({ id, kind: "source", from, jira, mail, messages, label: from === "keep" ? str(s.label) : undefined, todoStatus: from === "todos" && s.todoStatus === "all" ? "all" : undefined, dbId: from === "database" ? posInt(s.dbId) : undefined }));
+      const kn = (s.knowledge && typeof s.knowledge === "object" ? s.knowledge : {}) as Record<string, unknown>;
+      const terms = strs(kn.terms);
+      const knowledge = from === "knowledge" && terms ? defined<KnowledgeCriteria>({ terms, excludeDb: posInt(kn.excludeDb) }) : undefined;
+      steps.push(defined<PipelineStep>({ id, kind: "source", from, jira, mail, messages, knowledge, label: from === "keep" ? str(s.label) : undefined, todoStatus: from === "todos" && s.todoStatus === "all" ? "all" : undefined, dbId: from === "database" ? posInt(s.dbId) : undefined }));
     } else if (s.kind === "filter") {
       const rules = (Array.isArray(s.rules) ? s.rules : []).flatMap((x): FilterRule[] => {
         const r = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;

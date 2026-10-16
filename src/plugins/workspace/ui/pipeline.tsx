@@ -17,7 +17,7 @@ import { Dropdown, MenuItem, Modal } from "./kit";
  * database), filters, AI steps (a field on each row, a summary over all) — edited, saved, run.
  */
 
-const ICON: Record<string, string> = { write: "📤", aifilter: "🔎", actions: "⚡", jira: "🎫", keep: "🗒", todos: "☑", database: "🗃", mail: "✉", messages: "💬", filter: "⏷", sort: "⇅", field: "✨", summary: "🧭" };
+const ICON: Record<string, string> = { write: "📤", aifilter: "🔎", actions: "⚡", jira: "🎫", keep: "🗒", todos: "☑", database: "🗃", mail: "✉", messages: "💬", knowledge: "📚", filter: "⏷", sort: "⇅", field: "✨", summary: "🧭" };
 const kindOf = (s: PipelineStep) => (s.kind === "source" ? (s.from ?? "") : s.kind === "ai" ? (s.output === "filter" ? "aifilter" : (s.output ?? "")) : s.kind);
 const iconOf = (s: PipelineStep) => ICON[kindOf(s)];
 
@@ -61,7 +61,7 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, datab
       setBusy(false);
     }
   };
-  const labels: Record<string, string> = { jira: t("Jira tickets"), keep: t("Google Keep notes"), todos: t("Todos"), database: t("Another database"), mail: t("Mails (Outlook, Gmail)"), messages: t("Messages (Teams, WhatsApp, Signal)"), filter: t("Filter"), aifilter: t("AI: keep only what …"), actions: t("AI: suggest actions for each row"), sort: t("Sort"), write: t("Write the rows into another database"), field: t("AI: a field on each row"), summary: t("AI: one summary over all rows") };
+  const labels: Record<string, string> = { jira: t("Jira tickets"), keep: t("Google Keep notes"), todos: t("Todos"), database: t("Another database"), mail: t("Mails (Outlook, Gmail)"), messages: t("Messages (Teams, WhatsApp, Signal)"), knowledge: t("Knowledge: addresses (test, prod …)"), filter: t("Filter"), aifilter: t("AI: keep only what …"), actions: t("AI: suggest actions for each row"), sort: t("Sort"), write: t("Write the rows into another database"), field: t("AI: a field on each row"), summary: t("AI: one summary over all rows") };
   return (
     <Modal title={t("Sources & steps …")} onClose={onClose} wide>
       <p className="text-sm text-zinc-500">{t("Where this database's rows come from and what's done with them, top to bottom. A run keeps the result as its rows (yours stay: AI fields, pages); the AI steps go with the briefing.")}</p>
@@ -98,7 +98,7 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, datab
       <div className="flex flex-wrap items-center gap-1.5">
         {!synced && (
           <Dropdown label={`+ ${t("Source")}`} className="btn btn-sm">
-          {(close) => (["jira", "keep", "todos", "database", "mail", "messages"] as const).map((f) => (
+          {(close) => (["jira", "keep", "todos", "database", "mail", "messages", "knowledge"] as const).map((f) => (
             <MenuItem key={f} onClick={() => (close(), source(f))}>
               {ICON[f]} {labels[f]}
             </MenuItem>
@@ -361,6 +361,32 @@ function StepBody({ dbId, saved, step: s, allSteps, set, databases, fields }: { 
           <input className="input w-40 text-sm" placeholder={t("(all)")} value={c.chat ?? ""} onChange={(e) => setC({ chat: e.target.value || undefined })} />
         </label>
         <Days label={t("Sent within days")} value={c.recentDays} set={(v) => setC({ recentDays: v })} />
+      </div>
+    );
+  }
+  if (s.kind === "source" && s.from === "knowledge") {
+    const c = s.knowledge ?? { terms: [] };
+    const setC = (p: Partial<NonNullable<PipelineStep["knowledge"]>>) => set({ knowledge: { ...c, ...p } });
+    return (
+      <div className="space-y-1.5">
+        <div className={row}>
+          <label className="flex items-start gap-1.5 text-sm">
+            {t("Search for")}
+            <textarea className="input w-64 text-sm" rows={2} placeholder={t("One per line: a project, a system")} value={c.terms.join("\n")} onChange={(e) => setC({ terms: e.target.value.split("\n") })} />
+          </label>
+          <label className="flex items-center gap-1.5 text-sm">
+            {t("Not the ones already in")}
+            <select className="input w-auto text-sm" value={c.excludeDb ?? ""} onChange={(e) => setC({ excludeDb: Number(e.target.value) || undefined })}>
+              <option value="">{t("(only this database)")}</option>
+              {databases.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <p className="text-xs text-zinc-500">{t("The web addresses the knowledge base holds for these terms, each once with its environment and the page it stands on. Addresses you keep by hand (here or in the other database) are not suggested again.")}</p>
       </div>
     );
   }

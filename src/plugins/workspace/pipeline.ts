@@ -221,7 +221,55 @@ async function messageRecords(c: NonNullable<PipelineStep["messages"]>): Promise
   return out.sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
 }
 
+/** An address as it is compared: its host in lower case, no fragment, no closing slash. */
+const sameUrl = (u: string): string => {
+  try {
+    const x = new URL(u.trim());
+    return `${x.protocol}//${x.host.toLowerCase()}${x.pathname.replace(/\/+$/, "")}${x.search}`;
+  } catch {
+    return u.trim().toLowerCase();
+  }
+};
+
+/**
+ * The addresses the knowledge base holds for the search terms (its link finder: the lines of the pages that are about them,
+ * each with the environment its label or host says) — one record per address, with the page it stands on. Not the ones the
+ * database has by hand already (its rows without a source), nor those of `excludeDb`: what you keep isn't suggested again.
+ */
+async function knowledgeRecords(c: NonNullable<PipelineStep["knowledge"]>, self: number): Promise<SourceRecord[]> {
+  const { isInstalled } = await import("@/plugins/state");
+  if (!isInstalled("knowledge")) return [];
+  const { knowledgeLinks } = await import("@/plugins/knowledge/client");
+  const held = new Set<string>();
+  const hold = (dbId: number, onlyOwn: boolean) => {
+    const d = getDatabase(dbId);
+    if (!d) return;
+    for (const r of rawRows(dbId)) {
+      if (onlyOwn && r.cells[SRC_REF]) continue;
+      for (const p of d.schema.properties) for (const m of cellText(p, r.cells[p.id]).match(/https?:\/\/[^\s|)<>"]+/g) ?? []) held.add(sameUrl(m));
+    }
+  };
+  hold(self, true);
+  if (c.excludeDb && c.excludeDb !== self) hold(c.excludeDb, false);
+  const ENV = { prod: "Prod", test: "Test", dev: "Dev" } as const;
+  const out = new Map<string, SourceRecord>();
+  for (const term of c.terms) {
+    for (const l of await knowledgeLinks(term, null, 80)) {
+      const key = sameUrl(l.url);
+      if (held.has(key) || out.has(key)) continue;
+      const env = l.env in ENV ? ENV[l.env as keyof typeof ENV] : "";
+      out.set(key, {
+        ref: `klink:${key}`,
+        title: l.label || new URL(l.url).host,
+        fields: Object.fromEntries(Object.entries({ URL: l.url, Environment: env, Page: l.pageTitle }).filter((e) => !!e[1])),
+      });
+    }
+  }
+  return [...out.values()];
+}
+
 async function read(step: PipelineStep, self: number): Promise<SourceRecord[]> {
+  if (step.from === "knowledge") return knowledgeRecords(step.knowledge ?? { terms: [] }, self);
   if (step.from === "mail") return mailRecords(step.mail ?? {});
   if (step.from === "messages") return messageRecords(step.messages ?? {});
   if (step.from === "jira") return jiraRecords(step.jira ?? {});
