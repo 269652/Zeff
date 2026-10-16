@@ -5461,5 +5461,12 @@
   "Wake up now": "Reactivar ahora",
   "Snoozed — it comes back {when}.": "Pospuesto: vuelve {when}.",
   "Awake again.": "De vuelta.",
-  "Snoozed until": "Pospuesto hasta"
+  "Snoozed until": "Pospuesto hasta",
+  "Embed page": "Incrustar página",
+  "A page or database shown right here — editable, not just a link": "Una página o base de datos aquí mismo: editable, no solo un enlace",
+  "Sub-page (inline)": "Subpágina (incrustada)",
+  "A new page below this one, written right here": "Una página nueva debajo de esta, escrita aquí mismo",
+  "Search pages and databases …": "Buscar páginas y bases de datos …",
+  "Below this page": "Debajo de esta página",
+  "Everywhere else": "En cualquier otro lugar"
 }

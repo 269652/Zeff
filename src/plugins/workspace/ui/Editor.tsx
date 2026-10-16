@@ -16,8 +16,10 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/Toaster";
 import { useLang, useT } from "@/components/I18nProvider";
-import { aiTextAction, aiTodosFromPageAction, createPageAction, createTodosAction, databasesAction, pageContentAction, savePageAction, type AiMode } from "../actions";
+import { aiTextAction, aiTodosFromPageAction, createPageAction, createTodosAction, databasesAction, pageContentAction, savePageAction, treeAction, type AiMode } from "../actions";
 import { markdownToDoc } from "../doc";
+import { embedChoices } from "../embed-picker";
+import type { TreeItem } from "../store";
 import { Modal } from "./kit";
 import { pickFile, uploadImage } from "./kit";
 import { MentionCommand } from "./mention";
@@ -51,6 +53,8 @@ export function Editor({ pageId, initial, rev, editable, smallText, onSave }: { 
   const [aiBusy, setAiBusy] = useState(false);
   const [askAi, setAskAi] = useState(false);
   const [dbPicker, setDbPicker] = useState<{ id: number; title: string; icon: string }[] | null>(null);
+  const [embedPicker, setEmbedPicker] = useState<TreeItem[] | null>(null);
+  const [embedQuery, setEmbedQuery] = useState("");
   const [todos, setTodos] = useState<{ text: string; ticket: string; on: boolean }[] | null>(null);
   const [todosBusy, setTodosBusy] = useState(false);
   const handleNode = useRef<{ pos: number; size: number } | null>(null);
@@ -182,6 +186,17 @@ export function Editor({ pageId, initial, rev, editable, smallText, onSave }: { 
       void createPageAction({ parentId: pageId, kind: "database", title: t("Database") }).then((r) => {
         if (!r.ok) return toast(r.error, { tone: "error" });
         editorRef.current?.chain().focus().insertContent({ type: "databaseView", attrs: { dbId: r.id, viewId: "", title: t("Database") } }).run();
+        router.refresh();
+      });
+    },
+    embedPage: () => {
+      setEmbedQuery("");
+      void treeAction().then((r) => (r.ok ? setEmbedPicker(r.items) : toast(r.error, { tone: "error" })));
+    },
+    newInlinePage: () => {
+      void createPageAction({ parentId: pageId }).then((r) => {
+        if (!r.ok) return toast(r.error, { tone: "error" });
+        editorRef.current?.chain().focus().insertContent({ type: "pageEmbed", attrs: { pageId: r.id, title: "" } }).run();
         router.refresh();
       });
     },
@@ -476,6 +491,43 @@ export function Editor({ pageId, initial, rev, editable, smallText, onSave }: { 
               <button className="btn btn-primary btn-sm">{t("Write")}</button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {embedPicker && (
+        <Modal title={t("Embed page")} onClose={() => setEmbedPicker(null)}>
+          <input autoFocus className="input mb-2 w-full text-sm" value={embedQuery} onChange={(e) => setEmbedQuery(e.target.value)} placeholder={t("Search pages and databases …")} aria-label={t("Search")} />
+          {(() => {
+            const { below, other } = embedChoices(embedPicker, pageId, embedQuery);
+            const pick = (i: TreeItem) => {
+              editor.chain().focus().insertContent(i.kind === "database" ? { type: "databaseView", attrs: { dbId: i.id, viewId: "", title: i.title } } : { type: "pageEmbed", attrs: { pageId: i.id, title: i.title } }).run();
+              setEmbedPicker(null);
+            };
+            const list = (items: TreeItem[], heading?: string) =>
+              items.length > 0 && (
+                <div className="mb-2">
+                  {heading && <p className="px-2 pb-1 text-xs font-medium text-zinc-500">{heading}</p>}
+                  <ul className="space-y-0.5">
+                    {items.slice(0, 60).map((i) => (
+                      <li key={i.id}>
+                        <button type="button" className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => pick(i)}>
+                          <span>{i.icon || (i.kind === "database" ? "🗂️" : "📄")}</span>
+                          <span className="min-w-0 flex-1 truncate">{i.title || t("Untitled")}</span>
+                          {i.kind === "database" && <span className="text-xs text-zinc-400">{t("Database")}</span>}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            return (
+              <div className="max-h-80 overflow-y-auto">
+                {list(below, t("Below this page"))}
+                {list(other, below.length ? t("Everywhere else") : undefined)}
+                {!below.length && !other.length && <p className="text-sm text-zinc-500">{t("Nothing found.")}</p>}
+              </div>
+            );
+          })()}
         </Modal>
       )}
 

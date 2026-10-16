@@ -5461,5 +5461,12 @@
   "Wake up now": "Jetzt zurückholen",
   "Snoozed — it comes back {when}.": "Zurückgestellt – es kommt wieder: {when}.",
   "Awake again.": "Wieder da.",
-  "Snoozed until": "Zurückgestellt bis"
+  "Snoozed until": "Zurückgestellt bis",
+  "Embed page": "Seite einbetten",
+  "A page or database shown right here — editable, not just a link": "Eine Seite oder Datenbank direkt hier – bearbeitbar, nicht nur ein Link",
+  "Sub-page (inline)": "Unterseite (eingebettet)",
+  "A new page below this one, written right here": "Eine neue Seite unter dieser, direkt hier geschrieben",
+  "Search pages and databases …": "Seiten und Datenbanken suchen …",
+  "Below this page": "Unter dieser Seite",
+  "Everywhere else": "Überall sonst"
 }
