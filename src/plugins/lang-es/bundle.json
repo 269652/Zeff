@@ -5426,5 +5426,6 @@
   "A row ticked in": "Una fila marcada en",
   "Checkbox that keeps a row": "Casilla que conserva una fila",
   "(none)": "(ninguna)",
-  "is final: a run neither changes nor archives it, and the AI leaves it.": "es definitiva: una ejecución no la cambia ni la archiva, y la IA la deja en paz."
+  "is final: a run neither changes nor archives it, and the AI leaves it.": "es definitiva: una ejecución no la cambia ni la archiva, y la IA la deja en paz.",
+  "Colour of {name}": "Color de {name}"
 }
