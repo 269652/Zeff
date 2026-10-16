@@ -8,12 +8,12 @@ import { sourcesOverview } from "@/plugins/workspace/sources";
 import { SourcesView } from "@/plugins/workspace/ui/Sources";
 import { OutputsView } from "@/plugins/workspace/ui/Outputs";
 
-const TABS = ["sources", "outputs", "prompts", "apps"] as const;
+const TABS = ["sources", "outputs", "pipelines", "prompts", "apps"] as const;
 type Tab = (typeof TABS)[number];
 const isTab = (v: string): v is Tab => (TABS as readonly string[]).includes(v);
 
-const label = (tab: Tab) => ({ sources: t("Data sources"), outputs: t("Outputs"), prompts: t("Prompts"), apps: t("Apps") })[tab];
-const ICON: Record<Tab, string> = { sources: "🔌", outputs: "📤", prompts: "💬", apps: "◫" };
+const label = (tab: Tab) => ({ sources: t("Data sources"), outputs: t("Outputs"), pipelines: t("Pipelines"), prompts: t("Prompts"), apps: t("Apps") })[tab];
+const ICON: Record<Tab, string> = { sources: "🔌", outputs: "📤", pipelines: "⛓", prompts: "💬", apps: "◫" };
 
 export async function generateMetadata({ params }: { params: Promise<{ tab: string }> }): Promise<Metadata> {
   const { tab } = await params;
@@ -57,6 +57,49 @@ async function body(tab: Tab) {
     const { listCollections } = await import("@/lib/items");
     const dbs = listCollections({ plugin: "workspace" }).map((c) => ({ id: Number(c.id.slice("workspace:".length)), name: c.name, briefing: !!c.briefing, source: c.source ?? null }));
     return <OutputsView databases={dbs} knowledgeOn={isInstalled("knowledge")} />;
+  }
+  if (tab === "pipelines") {
+    const { allPipelineRuns, afterSyncPlan } = await import("@/plugins/workspace/pipeline");
+    const { getDatabase } = await import("@/plugins/workspace/store");
+    const { RunLine } = await import("@/plugins/workspace/ui/RunLog");
+    const runs = allPipelineRuns(7);
+    const ids = [...new Set([...afterSyncPlan().map((x) => x.id), ...runs.map((r) => r.dbId)])];
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-zinc-500">{t("Every pipeline, what it did in the last 7 days — and what its AI cost.")}</p>
+        <ul className="card divide-y divide-zinc-100 dark:divide-zinc-800">
+          {ids.map((id) => {
+            const db = getDatabase(id);
+            if (!db || db.page.archivedAt) return null;
+            const mine = runs.filter((r) => r.dbId === id);
+            const cost = mine.reduce((n, r) => n + r.costUsd, 0);
+            const calls = mine.reduce((n, r) => n + r.aiCalls, 0);
+            const pl = db.schema.pipeline;
+            return (
+              <li key={id} className="space-y-0.5 px-3 py-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <Link href={`/workspace/${id}`} className="min-w-0 flex-1 truncate font-medium hover:underline">
+                    {db.page.icon || "⛓"} {db.page.title || t("Untitled")}
+                  </Link>
+                  <span className="text-xs text-zinc-500">
+                    {pl?.autoAi ? `${t("AI after each sync")} · ` : ""}
+                    {pl?.everyMinutes ? `${t("every {n} min", { n: pl.everyMinutes })} · ` : ""}
+                    {mine.length} {t("runs")} · {calls} {t("AI calls")}
+                    {cost > 0 ? ` · $${cost.toFixed(2)}` : ""}
+                  </span>
+                </div>
+                {mine[0] && (
+                  <div className="text-xs text-zinc-500">
+                    <RunLine r={mine[0]} />
+                  </div>
+                )}
+              </li>
+            );
+          })}
+          {!ids.length && <li className="px-3 py-3 text-sm text-zinc-500">{t("No pipelines yet.")}</li>}
+        </ul>
+      </div>
+    );
   }
   if (tab === "prompts") {
     const { ensureSystemPrompts, systemPrompts, PROMPT_GROUPS } = await import("@/lib/prompts");

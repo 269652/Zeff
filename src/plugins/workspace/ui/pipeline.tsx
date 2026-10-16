@@ -5,6 +5,7 @@ import { saveSyncIntervalAction } from "@/app/actions";
 import { Markdown } from "@/components/Markdown";
 import { toast } from "@/components/Toaster";
 import { minutesText } from "@/plugins/sync-settings";
+import { RunLog } from "./RunLog";
 import { instructionsAction, newInstructionAction, rejudgeAction, sourceSyncsAction } from "../actions";
 import { useT } from "@/components/I18nProvider";
 import { ATTENTIONS } from "@/lib/boards/shared";
@@ -34,6 +35,7 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, datab
   const [auto, setAuto] = useState<{ autoAi: boolean; everyMinutes: number | undefined }>({ autoAi: !!pipeline?.autoAi, everyMinutes: pipeline?.everyMinutes });
   const [steps, setSteps] = useState<PipelineStep[]>((pipeline?.steps ?? []).filter((s) => !synced || s.kind === "ai"));
   const [busy, setBusy] = useState(false);
+  const [ran, setRan] = useState(0);
   const [instructions, setInstructions] = useState<Instruction[]>([]);
   const loadInstructions = () => void instructionsAction().then((r) => r.ok && setInstructions(r.instructions));
   useEffect(loadInstructions, []);
@@ -54,6 +56,7 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, datab
       if (dirty) await onSave({ ...pipeline, steps, ...(auto.autoAi ? { autoAi: true } : { autoAi: undefined }), everyMinutes: auto.everyMinutes });
       // Saved: what Zeff already has from the sources comes in at once (the AI by hand, or with the briefing).
       if (run || (dirty && runnable && !synced)) await onRun(run?.ai ?? false);
+      setRan((n) => n + 1);
     } finally {
       setBusy(false);
     }
@@ -110,6 +113,7 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, datab
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "ai", output: "actions", prompt: "" })}>+ ⚡ {t("AI actions")}</button>
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "ai", output: "summary", prompt: "" })}>+ 🧭 {t("AI summary")}</button>
       </div>
+      <RunLog dbId={dbId} tick={ran} />
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm" data-triggers>
         <span className="font-medium">{t("Runs by itself")}:</span>
         <label className="flex items-center gap-1.5">

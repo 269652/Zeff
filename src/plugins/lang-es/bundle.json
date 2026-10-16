@@ -5393,5 +5393,16 @@
   "Runs by itself": "Se ejecuta sola",
   "its AI after every sync of its sources": "su IA tras cada sincronización de sus fuentes",
   "and every": "y cada",
-  "minutes": "minutos"
+  "minutes": "minutos",
+  "{c} new · {u} changed · {a} gone": "{c} nuevas · {u} cambiadas · {a} fuera",
+  "no changes": "sin cambios",
+  "{j} judged, {k} kept": "{j} juzgadas, {k} conservadas",
+  "{n} AI fields filled": "{n} campos de IA rellenados",
+  "AI calls": "llamadas de IA",
+  "Runs": "Ejecuciones",
+  "runs": "ejecuciones",
+  "Pipelines": "Pipelines",
+  "Every pipeline, what it did in the last 7 days — and what its AI cost.": "Cada pipeline, qué hizo en los últimos 7 días — y cuánto costó su IA.",
+  "AI after each sync": "IA tras cada sincronización",
+  "No pipelines yet.": "Aún no hay pipelines."
 }

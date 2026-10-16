@@ -4,6 +4,7 @@ import { dateOf } from "@/lib/boards/collect";
 import { errorMessage } from "@/lib/errors";
 import { emitChange } from "@/lib/events";
 import { databaseSource, KEY_PROP, NOTE_PROP, rowKey } from "./collections";
+import { meter, newMeter, noteAi, noteJudged } from "./meter";
 import { docToMarkdown, markdownToDoc } from "./doc";
 import { cellText, COLORS, dateRange, newId, type DataType, type DbSchema, type Option, type PipelineStep, type Property, type Row } from "./model";
 import { addRow, archivePage, getDatabase, getPage, placeRow, rawRows, setCell, tree, updatePage, updateSchema } from "./store";
@@ -360,7 +361,7 @@ function schemaFor(cur: DbSchema, records: SourceRecord[], steps: PipelineStep[]
 export type PipelineResult = { dbId: number; ok: boolean; records: number; created: number; updated: number; archived: number; reviewed: number; summaries: number; error?: string };
 
 /** The pipeline of a database run: sources, filters, kept as its rows; with `ai`, its AI steps too. */
-export async function runPipeline(dbId: number, opts: { ai?: boolean; force?: boolean } = {}): Promise<PipelineResult> {
+async function runPipelineOnce(dbId: number, opts: { ai?: boolean; force?: boolean } = {}): Promise<PipelineResult> {
   const out: PipelineResult = { dbId, ok: true, records: 0, created: 0, updated: 0, archived: 0, reviewed: 0, summaries: 0 };
   const d = getDatabase(dbId);
   if (!d) return { ...out, ok: false, error: "No such database." };
@@ -462,6 +463,43 @@ export async function runPipeline(dbId: number, opts: { ai?: boolean; force?: bo
   }
   return out;
 }
+
+/** A pipeline run — and its log: what it did, what the AI did in it (calls, cost, rows judged and kept), how long. */
+export async function runPipeline(dbId: number, opts: { ai?: boolean; force?: boolean } = {}): Promise<PipelineResult> {
+  const m = newMeter();
+  const t0 = Date.now();
+  const at = new Date().toISOString();
+  const r = await meter.run(m, () => runPipelineOnce(dbId, opts));
+  try {
+    logRun(dbId, r, m, Date.now() - t0, at);
+  } catch (e) {
+    console.error("[workspace] the run log failed", errorMessage(e));
+  }
+  return r;
+}
+
+export type PipelineRun = { id: number; dbId: number; at: string; ms: number; ok: boolean; error: string | null; records: number; created: number; updated: number; archived: number; reviewed: number; judged: number; kept: number; aiCalls: number; costUsd: number };
+
+function runsDb() {
+  const db = getSqlite();
+  db.exec("create table if not exists ws_pipeline_runs (id integer primary key autoincrement, db_id integer not null, at text not null, ms integer not null, ok integer not null, error text, records integer not null, created integer not null, updated integer not null, archived integer not null, reviewed integer not null, judged integer not null, kept integer not null, ai_calls integer not null, cost_usd real not null)");
+  return db;
+}
+
+/** A run kept (the last 40 of a database; a run that did nothing — nothing new, no AI — isn't worth a line, unless it failed). */
+function logRun(dbId: number, r: PipelineResult, m: { aiCalls: number; costUsd: number; judged: number; kept: number }, ms: number, at: string): void {
+  const db = runsDb();
+  db.prepare("insert into ws_pipeline_runs (db_id, at, ms, ok, error, records, created, updated, archived, reviewed, judged, kept, ai_calls, cost_usd) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run(dbId, at, ms, r.ok ? 1 : 0, r.error ?? null, r.records, r.created, r.updated, r.archived, r.reviewed, m.judged, m.kept, m.aiCalls, m.costUsd);
+  db.prepare("delete from ws_pipeline_runs where db_id = ? and id not in (select id from ws_pipeline_runs where db_id = ? order by id desc limit 40)").run(dbId, dbId);
+}
+
+const toRun = (r: Record<string, unknown>): PipelineRun => ({ id: Number(r.id), dbId: Number(r.db_id), at: String(r.at), ms: Number(r.ms), ok: !!r.ok, error: (r.error as string | null) ?? null, records: Number(r.records), created: Number(r.created), updated: Number(r.updated), archived: Number(r.archived), reviewed: Number(r.reviewed), judged: Number(r.judged), kept: Number(r.kept), aiCalls: Number(r.ai_calls), costUsd: Number(r.cost_usd) });
+
+/** A database's last runs, newest first. */
+export const pipelineRuns = (dbId: number, limit = 10): PipelineRun[] => (runsDb().prepare("select * from ws_pipeline_runs where db_id = ? order by id desc limit ?").all(dbId, limit) as Record<string, unknown>[]).map(toRun);
+
+/** Every database's runs of the last `days` days — the overview. */
+export const allPipelineRuns = (days = 7): PipelineRun[] => (runsDb().prepare("select * from ws_pipeline_runs where at >= ? order by id desc limit 500").all(new Date(Date.now() - days * 864e5).toISOString()) as Record<string, unknown>[]).map(toRun);
 
 /**
  * The "write" steps: this database's rows (as they stand after the run, the AI's fields too) put into another database —
@@ -580,7 +618,9 @@ async function aiFiltered(step: PipelineStep, records: SourceRecord[]): Promise<
           SCHEMA,
           { task: "general", timeoutMs: 5 * 60000, maxBudgetUsd: 0.5 },
         );
+        noteAi(r);
         const verdicts = new Map((r.output?.rows ?? []).map((x) => [Number(x.n), x]));
+        noteJudged(batch.filter((_, k) => verdicts.has(k + 1)).length, batch.filter((_, k) => verdicts.get(k + 1)?.keep).length);
         batch.forEach((b, k) => {
           const v = verdicts.get(k + 1);
           if (!v) return;
@@ -650,6 +690,7 @@ async function suggestActions(dbId: number, step: PipelineStep, force?: boolean)
       SCHEMA,
       { task: "auto-actions", timeoutMs: 6 * 60000, maxBudgetUsd: 1 },
     );
+    noteAi(r);
     const byId = new Map((r.output?.rows ?? []).map((x) => [Number(x.id), x]));
     for (const row of batch) {
       const v = byId.get(row.id);
@@ -775,6 +816,7 @@ async function runAiSteps(dbId: number, out: PipelineResult, force?: boolean): P
       { type: "object", required: ["text"], properties: { text: { type: "string" } } },
       { task: "general", timeoutMs: 4 * 60000, maxBudgetUsd: 0.5 },
     );
+    noteAi(r);
     const text = String(r.output?.text ?? "").trim().slice(0, 8000);
     const cur = getDatabase(dbId)!.schema;
     const pipeline = cur.pipeline ?? { steps: [] };

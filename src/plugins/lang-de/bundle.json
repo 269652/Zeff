@@ -5393,5 +5393,16 @@
   "Runs by itself": "Läuft von selbst",
   "its AI after every sync of its sources": "ihre KI nach jedem Sync ihrer Quellen",
   "and every": "und alle",
-  "minutes": "Minuten"
+  "minutes": "Minuten",
+  "{c} new · {u} changed · {a} gone": "{c} neu · {u} geändert · {a} weg",
+  "no changes": "keine Änderungen",
+  "{j} judged, {k} kept": "{j} beurteilt, {k} behalten",
+  "{n} AI fields filled": "{n} KI-Felder gefüllt",
+  "AI calls": "KI-Aufrufe",
+  "Runs": "Läufe",
+  "runs": "Läufe",
+  "Pipelines": "Pipelines",
+  "Every pipeline, what it did in the last 7 days — and what its AI cost.": "Jede Pipeline, was sie in den letzten 7 Tagen getan hat — und was ihre KI gekostet hat.",
+  "AI after each sync": "KI nach jedem Sync",
+  "No pipelines yet.": "Noch keine Pipelines."
 }

@@ -421,6 +421,11 @@ export async function detailPageAction(dbId: number) {
   return run(async () => ({ id: (await import("./detail-page")).ensureDetailPage(Number(dbId)) }));
 }
 
+/** A pipeline's last runs (what it did, what the AI did in it and cost). */
+export async function pipelineRunsAction(dbId: number) {
+  return run(async () => ({ runs: (await import("./pipeline")).pipelineRuns(Number(dbId), 12) }));
+}
+
 /** The syncs a pipeline's sources are read by (jira, keep): how often each runs by itself, and what can be picked. */
 export async function sourceSyncsAction() {
   return run(async () => {

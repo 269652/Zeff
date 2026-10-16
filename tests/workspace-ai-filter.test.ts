@@ -165,3 +165,34 @@ test("refresh: a pipeline with an AI filter goes to the background whole; the fi
   await runPipeline(id, { ai: false });
   assert.ok(fs.existsSync(promptFile), "forgotten: all judged again");
 });
+
+test("run log: each run of a pipeline kept — what it did, how many the AI judged and kept, its calls and cost, how long, what failed", async () => {
+  const w = await import("@/plugins/workspace/store");
+  const { createSourceDatabase, createDerivedDatabase } = await import("@/plugins/workspace/derived");
+  const { runPipeline, pipelineRuns, allPipelineRuns } = await import("@/plugins/workspace/pipeline");
+  const { addManualTodo } = await import("@/lib/boards/store");
+  addManualTodo({ ticket: "WS-31", text: "Laufprotokoll prüfen" });
+  addManualTodo({ ticket: "WS-32", text: "Etwas ganz anderes erledigen" });
+  const src = createSourceDatabase("todos");
+  await runPipeline(src, { ai: false });
+  const id = createDerivedDatabase(src, "Protokolliert");
+  const d = w.getDatabase(id)!;
+  w.updateSchema(id, { ...d.schema, pipeline: { ...d.schema.pipeline!, steps: [d.schema.pipeline!.steps[0], { ...d.schema.pipeline!.steps[1], prompt: "Nur Laufprotokoll." }] } });
+  process.env.FAKE_CLAUDE_OUTPUT = JSON.stringify({ rows: Array.from({ length: 30 }, (_, i) => ({ n: i + 1, keep: i === 0, why: i === 0 ? "ja" : "nein" })) });
+  await runPipeline(id, { ai: false });
+  const runs = pipelineRuns(id);
+  assert.equal(runs.length, 1);
+  const r = runs[0];
+  assert.equal(r.ok, true);
+  assert.ok(r.judged >= 2, `judged ${r.judged}`);
+  assert.equal(r.kept, 1);
+  assert.ok(r.judged <= 10, "only the rows of the batch, not the AI's extra verdicts");
+  assert.equal(r.aiCalls, 1);
+  assert.ok(r.costUsd > 0, "the call's cost");
+  assert.ok(r.ms >= 0 && r.at);
+  assert.equal(r.created, 1);
+  await runPipeline(id, { ai: false });
+  assert.equal(pipelineRuns(id)[0].aiCalls, 0, "the second run: nothing judged again");
+  assert.equal(pipelineRuns(id).length, 2, "newest first");
+  assert.ok(allPipelineRuns(7).some((x) => x.dbId === id), "the overview of all");
+});
