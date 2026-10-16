@@ -40,7 +40,7 @@ test("a job is started by a click: instruction with the rules' hints, state 'In 
   addRule(rules, { title: "Pausiert", then: "Hinweis für Agenten", target: "Das nicht.", paused: true });
   const jobs = createJobsDatabase(null);
   const id = addJob(jobs, { title: "Angebot zusammenfassen", instruction: "Fasse das Angebot in fünf Sätzen zusammen.", by: "Regel „Angebote“" });
-  assert.equal(stateOf(id), "Offen");
+  assert.equal(stateOf(id), "Eingang");
 
   const { deps, calls } = fakeDeps();
   const r = await dispatchJob(id, deps);

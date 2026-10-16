@@ -60,7 +60,7 @@ test("a rules step: records dropped, a field set, a job made once per record —
   const job = made[0];
   assert.equal(job.title, "Erledige die Pflichtschulung: Pflichtschulung Datenschutz");
   const status = w.getDatabase(jobs)!.schema.properties.find((p) => p.id === "job_status")!;
-  assert.equal(status.options?.find((o) => o.id === job.cells.job_status)?.name, "Offen", "waiting for you to start it");
+  assert.equal(status.options?.find((o) => o.id === job.cells.job_status)?.name, "Eingang", "waiting for you to start it");
   assert.match(String(job.cells.job_by), /Schulungen als Auftrag/, "which rule made it");
 
   await runPipeline(out, { ai: false });

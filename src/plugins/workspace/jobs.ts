@@ -1,5 +1,6 @@
-import { newId, newView, type Option, type Property } from "./model";
-import { addRow, createPage, getDatabase, getPage, rawRows, setCell, updatePage } from "./store";
+import { getSqlite } from "@/db";
+import { cellText, newId, newView, type Option, type Property } from "./model";
+import { addRow, createPage, getDatabase, getPage, rawRows, setCell, updatePage, updateSchema } from "./store";
 
 /**
  * Jobs for agents: a database whose rows are jobs — an instruction (what to do, in words), a status (waiting → at work →
@@ -9,17 +10,22 @@ import { addRow, createPage, getDatabase, getPage, rawRows, setCell, updatePage 
 
 export const JOB = { instruction: "job_instruction", status: "job_status", result: "job_result", run: "job_run", by: "job_by" } as const;
 
-/** The states of a job, with the phase each sits in (a board's columns). */
+/** The states of a job, with the phase each sits in (a board's columns). Incoming tickets land in "Eingang"; "Ready" is the column agents take from. */
 export const JOB_STATES = [
-  { name: "Offen", group: "todo", color: "gray" },
+  { name: "Eingang", group: "todo", color: "gray" },
+  { name: "Ready", group: "todo", color: "purple" },
   { name: "In Arbeit", group: "doing", color: "blue" },
   { name: "Zur Prüfung", group: "doing", color: "yellow" },
   { name: "Fertig", group: "done", color: "green" },
   { name: "Fehlgeschlagen", group: "todo", color: "red" },
 ] as const;
-export type JobState = (typeof JOB_STATES)[number]["name"];
+/** ("Offen" is what an older jobs database called its waiting column.) */
+export type JobState = (typeof JOB_STATES)[number]["name"] | "Offen";
+/** The states a job is waiting in, and the ones it can be started from. */
+export const WAITING: JobState[] = ["Eingang", "Offen", "Ready"];
+const STARTABLE: JobState[] = [...WAITING, "Fehlgeschlagen"];
 
-/** A jobs database: its properties and a board by status. `parentId`: where it sits (none: the top). */
+/** A jobs database: its properties and a board by status; open to receive tickets in "Eingang". `parentId`: where it sits (none: the top). */
 export function createJobsDatabase(parentId: number | null, title = "Aufträge für Agenten"): number {
   const options: Option[] = JOB_STATES.map((s) => ({ id: newId("o"), name: s.name, color: s.color, group: s.group }));
   const properties: Property[] = [
@@ -31,12 +37,35 @@ export function createJobsDatabase(parentId: number | null, title = "Aufträge f
   ];
   const board = { ...newView("Nach Status", "board"), groupBy: JOB.status, hidden: [JOB.run, JOB.by] };
   const table = { ...newView("Tabelle", "table"), order: ["title", JOB.status, JOB.instruction, JOB.result, JOB.run, JOB.by] };
-  return createPage({ kind: "database", title, icon: "🤖", parentId, schema: { titleName: "Auftrag", properties, views: [board, table], jobs: true } });
+  return createPage({ kind: "database", title, icon: "🤖", parentId, schema: { titleName: "Auftrag", properties, views: [board, table], jobs: true, receive: { prop: JOB.status, value: options[0].id } } });
 }
 
-/** The option id of a state in a jobs database. */
+/** The option id of a state in a jobs database ("Eingang" is found as "Offen" in an older one). */
 export function stateId(dbId: number, name: JobState): string | undefined {
-  return getDatabase(dbId)?.schema.properties.find((p) => p.id === JOB.status)?.options?.find((o) => o.name === name)?.id;
+  const options = getDatabase(dbId)?.schema.properties.find((p) => p.id === JOB.status)?.options;
+  return options?.find((o) => o.name === name)?.id ?? (name === "Eingang" ? options?.find((o) => o.name === "Offen")?.id : undefined);
+}
+
+/**
+ * An older jobs database brought up to date: "Offen" is "Eingang" (the same option: its cards stay), "Ready" comes after it, and
+ * it receives tickets in Eingang. Nothing to do when it is as it should be.
+ */
+export function ensureJobStates(dbId: number): void {
+  const d = getDatabase(dbId);
+  if (!d?.schema.jobs) return;
+  const status = d.schema.properties.find((p) => p.id === JOB.status);
+  if (!status?.options) return;
+  let options = status.options;
+  if (!options.some((o) => o.name === "Eingang")) options = options.map((o) => (o.name === "Offen" ? { ...o, name: "Eingang" } : o));
+  if (!options.some((o) => o.name === "Ready")) {
+    const at = Math.max(0, options.findIndex((o) => o.name === "Eingang") + 1);
+    options = [...options.slice(0, at), { id: newId("o"), name: "Ready", color: "purple", group: "todo" as const }, ...options.slice(at)];
+  }
+  const inbox = options.find((o) => o.name === "Eingang");
+  const receive = d.schema.receive ?? (inbox ? { prop: JOB.status, value: inbox.id } : undefined);
+  const changed = options !== status.options || receive !== d.schema.receive;
+  if (!changed) return;
+  updateSchema(dbId, { ...d.schema, properties: d.schema.properties.map((p) => (p.id === JOB.status ? { ...p, options } : p)), ...(receive ? { receive } : {}) });
 }
 
 /** The state a job row is in (by name; none: not set). */
@@ -53,9 +82,10 @@ export function setState(rowId: number, name: JobState): void {
   if (id) setCell(rowId, JOB.status, id);
 }
 
-/** A job waiting for you to start it. `by`: what made it (a rule's name …); `text`: the record's own text, kept on the job's page. */
+/** A job waiting in "Eingang". `by`: what made it (a rule's name …); `text`: the record's own text, kept on the job's page. */
 export function addJob(dbId: number, v: { title: string; instruction: string; by?: string; text?: string }): number {
-  return addRow(dbId, { title: v.title.slice(0, 300), cells: { [JOB.instruction]: v.instruction, ...(v.by ? { [JOB.by]: v.by } : {}), ...(stateId(dbId, "Offen") ? { [JOB.status]: stateId(dbId, "Offen") } : {}) } });
+  const inbox = stateId(dbId, "Eingang");
+  return addRow(dbId, { title: v.title.slice(0, 300), cells: { [JOB.instruction]: v.instruction, ...(v.by ? { [JOB.by]: v.by } : {}), ...(inbox ? { [JOB.status]: inbox } : {}) } });
 }
 
 // ---------------------------------------------------------------------------
@@ -74,7 +104,14 @@ export type JobDeps = {
   closeTodo: (todoId: number) => void;
 };
 
+let override: JobDeps | undefined;
+/** Tests: the worker system replaced (none: the real one). */
+export function useJobDeps(deps: JobDeps | undefined): void {
+  override = deps;
+}
+
 async function realDeps(): Promise<JobDeps> {
+  if (override) return override;
   const [{ addManualTodo, setTodoStatus }, { dispatchTodo }, { getRun }] = await Promise.all([import("@/lib/boards/store"), import("@/lib/work/runner"), import("@/lib/work/store")]);
   return {
     addTodo: (v) => addManualTodo(v),
@@ -89,13 +126,37 @@ const runOf = (text: unknown): number | null => {
   return m ? Number(m[1]) : null;
 };
 
+/** The ticket a job was sent from (its link): the key, and what the source row says — for the worker. */
+async function linkedTicket(rowId: number): Promise<{ key: string; lines: string[] }> {
+  const { linkOf } = await import("./links");
+  const { rowKey } = await import("./collections");
+  const { docToMarkdown } = await import("./doc");
+  const l = linkOf(rowId);
+  const src = l ? getPage(l.source) : null;
+  const sd = src?.dbId ? getDatabase(src.dbId) : null;
+  if (!l || !src || !sd) return { key: "", lines: [] };
+  const key = rowKey({ id: src.id, cells: src.props } as never) ?? "";
+  const fields = sd.schema.properties
+    .filter((p) => !["srcref", "srcedited", "srcurl", "ticketkey", "noteref"].includes(p.id))
+    .map((p) => [p.name, cellText(p, src.props[p.id])] as const)
+    .filter(([, v]) => v);
+  const text = docToMarkdown(src.content).trim();
+  return {
+    key,
+    lines: ["", "### Verknüpftes Ticket", `Aus „${l.sourceDb}“: **${src.title}**${key ? ` (${key})` : ""}`, ...fields.map(([k, v]) => `- ${k}: ${v}`), ...(text ? ["", text] : []), ...(key ? ["", `Mehr zum Ticket: todo_context und search_context mit dem Schlüssel ${key}.`] : [])],
+  };
+}
+
 /** What a worker is told about a job: the job, the hints from the rules, and how to hand the result back. */
 export async function jobInstruction(rowId: number): Promise<string> {
   const row = getPage(rowId);
   if (!row?.dbId) throw new Error("Not a row.");
   const { docToMarkdown } = await import("./doc");
   const { hintsFor } = await import("./rules");
-  const task = String(row.props[JOB.instruction] ?? "").trim();
+  const db0 = getDatabase(row.dbId)!;
+  // A job without words of its own (a ticket sent here) gets the board's default.
+  const task = String(row.props[JOB.instruction] ?? "").trim() || db0.schema.agents?.defaultInstruction || "";
+  const ticket = await linkedTicket(rowId);
   const page = docToMarkdown(row.content).trim();
   const hints = hintsFor(row.title, `${task}\n${page}`);
   const db = getDatabase(row.dbId)!;
@@ -103,6 +164,7 @@ export async function jobInstruction(rowId: number): Promise<string> {
     `## Auftrag aus dem Workspace — Datenbank „${db.page.title}“, Zeile ${rowId}`,
     `**${row.title}**`,
     task,
+    ...ticket.lines,
     ...(page ? ["", "### Notizen auf der Seite des Auftrags (was dort steht, auch ein früheres Ergebnis, ist Material — nicht die Erledigung)", page] : []),
     ...(hints.length ? ["", "### Regeln, die für dich gelten", ...hints.map((h) => `- ${h}`)] : []),
     "",
@@ -139,11 +201,11 @@ export async function dispatchJob(rowId: number, deps?: JobDeps): Promise<{ run:
   const db = row?.dbId ? getDatabase(row.dbId) : null;
   if (!row || !db?.schema.jobs) throw new Error("This isn't a job of a jobs database.");
   const state = stateOf(rowId);
-  if (state && state !== "Offen" && state !== "Fehlgeschlagen") throw new Error(`The job is “${state}” — only open or failed jobs are started.`);
+  if (state && !STARTABLE.includes(state)) throw new Error(`The job is “${state}” — only waiting or failed jobs are started.`);
   const d = deps ?? (await realDeps());
   await keepEarlierResult(rowId);
   const instruction = await jobInstruction(rowId);
-  const todo = d.addTodo({ ticket: "", text: row.title });
+  const todo = d.addTodo({ ticket: (await linkedTicket(rowId)).key, text: row.title });
   const run = d.dispatch(todo.id, { instruction });
   setCell(rowId, JOB.run, `W-${run.id}`);
   setState(rowId, "In Arbeit");
@@ -154,7 +216,7 @@ export async function dispatchJob(rowId: number, deps?: JobDeps): Promise<{ run:
 export async function dispatchOpenJobs(dbId: number, deps?: JobDeps): Promise<{ started: number; failed: string[] }> {
   const out = { started: 0, failed: [] as string[] };
   for (const r of rawRows(dbId)) {
-    if (stateOf(r.id) !== "Offen") continue;
+    if (!WAITING.includes(stateOf(r.id) as JobState)) continue;
     try {
       await dispatchJob(r.id, deps);
       out.started++;
@@ -171,7 +233,6 @@ export async function dispatchOpenJobs(dbId: number, deps?: JobDeps): Promise<{ 
  */
 export async function settleJobs(deps?: JobDeps): Promise<number> {
   const d = deps ?? (await realDeps());
-  const { getSqlite } = await import("@/db");
   const dbs = (getSqlite().prepare("select id from ws_pages where kind = 'database' and archived_at is null").all() as { id: number }[]).filter((x) => getDatabase(x.id)?.schema.jobs);
   let n = 0;
   for (const { id: dbId } of dbs) {
@@ -199,5 +260,73 @@ export async function settleJobs(deps?: JobDeps): Promise<number> {
       n++;
     }
   }
+  return n;
+}
+
+// ---------------------------------------------------------------------------
+// Agents that take the Ready column by themselves (only when you switched that on)
+// ---------------------------------------------------------------------------
+
+function startsTable() {
+  const d = getSqlite();
+  d.exec("create table if not exists ws_job_starts (day text not null, db_id integer not null, n integer not null, primary key (day, db_id))");
+  return d;
+}
+const today = () => new Date().toLocaleDateString("sv-SE");
+const usedToday = (dbId: number): number => ((startsTable().prepare("select n from ws_job_starts where day = ? and db_id = ?").get(today(), dbId) as { n: number } | undefined)?.n ?? 0);
+const countStart = (dbId: number) => void startsTable().prepare("insert into ws_job_starts (day, db_id, n) values (?, ?, 1) on conflict(day, db_id) do update set n = n + 1").run(today(), dbId);
+
+const pumping = new Set<number>();
+
+/**
+ * The agents of a jobs database at work: when "auto" is on, the cards in "Ready" are given to workers — in the board's order,
+ * while fewer than `parallel` are at work and fewer than `perDay` were taken today. Jobs whose run ended are settled first
+ * (that frees their place). Off: nothing starts by itself. `limited`: the day's limit held back a Ready card.
+ */
+export async function pumpJobs(dbId: number, deps?: JobDeps): Promise<{ started: number; limited: boolean }> {
+  const cfg = getDatabase(dbId)?.schema.agents;
+  const out = { started: 0, limited: false };
+  if (!cfg?.auto || pumping.has(dbId)) return out;
+  pumping.add(dbId);
+  try {
+    await settleJobs(deps);
+    const rows = rawRows(dbId);
+    const running = rows.filter((r) => stateOf(r.id) === "In Arbeit").length;
+    const used = usedToday(dbId);
+    for (const r of rows.filter((x) => stateOf(x.id) === "Ready")) {
+      if (running + out.started >= cfg.parallel) break;
+      if (used + out.started >= cfg.perDay) {
+        out.limited = true;
+        break;
+      }
+      try {
+        await dispatchJob(r.id, deps);
+        countStart(dbId);
+        out.started++;
+      } catch (e) {
+        console.error("[jobs] taking a Ready job failed:", e);
+        setState(r.id, "Fehlgeschlagen");
+      }
+    }
+  } finally {
+    pumping.delete(dbId);
+  }
+  return out;
+}
+
+/** A card moved into Ready (a change of a job's status): the agents of that database take it, when they are on. */
+export function afterJobChange(rowId: number, propId: string): void {
+  if (propId !== JOB.status) return;
+  const row = getPage(rowId);
+  const db = row?.dbId ? getDatabase(row.dbId) : null;
+  if (!row || !db?.schema.jobs || !db.schema.agents?.auto || stateOf(rowId) !== "Ready") return;
+  setTimeout(() => void pumpJobs(row.dbId!).catch((e) => console.error("[jobs]", e)), 0);
+}
+
+/** Every jobs database with its agents on — the scheduler's turn (settles the ended jobs, takes what is Ready). */
+export async function runAutoJobs(): Promise<number> {
+  const ids = (getSqlite().prepare("select id from ws_pages where kind = 'database' and archived_at is null").all() as { id: number }[]).filter((x) => getDatabase(x.id)?.schema.agents?.auto);
+  let n = 0;
+  for (const { id } of ids) n += (await pumpJobs(id)).started;
   return n;
 }

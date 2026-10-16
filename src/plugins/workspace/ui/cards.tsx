@@ -63,6 +63,11 @@ export function RowCard({ row, visible, ctx, mode }: { row: Row; visible: Proper
       <div className="ws-card-title">
         {row.icon && <span aria-hidden>{row.icon}</span>}
         <span className="min-w-0 flex-1 break-words">{row.title || <span className="text-zinc-400">{t("Untitled")}</span>}</span>
+        {ctx.data.extras?.links?.[row.id] && (
+          <span className="ws-chip shrink-0" data-kind="link" title={t("Linked to “{title}” in {board} — it follows changes there.", { title: ctx.data.extras.links[row.id].sourceTitle, board: ctx.data.extras.links[row.id].sourceDb })}>
+            🔗
+          </span>
+        )}
         {!gallery && <CardKey k={x.key} />}
       </div>
       <CardLead ticket={x.ticket} />
