@@ -354,7 +354,12 @@ async function rowsThenAi(dbId: number, ai: boolean) {
 
 /** A database made from this one, under it: its rows (fields as they are), an AI filter after — its id. */
 export async function createDerivedDatabaseAction(dbId: number, title?: string) {
-  return run(async () => ({ id: (await import("./derived")).createDerivedDatabase(Number(dbId), title ? String(title).slice(0, 200) : undefined) }));
+  return run(async () => {
+    const id = (await import("./derived")).createDerivedDatabase(Number(dbId), title ? String(title).slice(0, 200) : undefined);
+    // Its rows right away, in the background (its AI filter judges them — the view follows as it does).
+    (await import("./pipeline")).startPipeline(id, { ai: false });
+    return { id };
+  });
 }
 
 /** The syncs a pipeline's sources are read by (jira, keep): how often each runs by itself, and what can be picked. */

@@ -109,7 +109,13 @@ export function PipelineEditor({ dbId, pipeline, synced, fields, databases, onSa
       </div>
       <div className="flex flex-wrap items-center justify-end gap-1.5 border-t border-zinc-200 pt-3 dark:border-zinc-700">
         {pipeline?.ranAt && <span className="mr-auto text-xs text-zinc-500">{t("Last run {when}", { when: new Date(pipeline.ranAt).toLocaleString() })}</span>}
-        <button type="button" className="btn btn-sm" disabled={busy || !dirty} onClick={() => void save()}>{t("Save")}</button>
+        {dirty ? (
+          <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void save()}>
+            {t("Save")}
+          </button>
+        ) : (
+          <span className="text-xs text-zinc-500">✓ {t("Saved")}</span>
+        )}
         {!synced && <button type="button" className="btn btn-sm" disabled={busy || !runnable} onClick={() => void save({ ai: false })}>{t("Run without AI")}</button>}
         <button type="button" className="btn btn-primary btn-sm" disabled={busy || !runnable} onClick={() => void save({ ai: true })}>{busy ? "…" : `✨ ${t("Run now")}`}</button>
       </div>
