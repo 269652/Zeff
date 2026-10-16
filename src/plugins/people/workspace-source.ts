@@ -106,6 +106,7 @@ export const PEOPLE_SOURCE: WorkspaceSource = {
   id: "people",
   label: "People",
   icon: "👤",
+  dataType: "people",
   hint: "Your profiles — a row per person with aliases, addresses, chat, Jira account, note, next date, the pages that mention them, context, knowledge, todos and shared tickets. Edits go to the profile.",
   read: peopleRecords,
   count: () => listPeople().length,

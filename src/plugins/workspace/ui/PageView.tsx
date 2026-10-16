@@ -12,6 +12,7 @@ import { useT } from "@/components/I18nProvider";
 import { archivePageAction, restorePageAction, createPageAction, duplicatePageAction, exportMarkdownAction, historyAction, restoreVersionAction, savePageAction, versionAction } from "../actions";
 import type { DatabaseData } from "../actions";
 import { DatabaseView, RowProperties } from "./DatabaseView";
+import { DetailFromPage } from "./RowPeek";
 import { Editor, type SaveState } from "./Editor";
 import { COVERS, coverStyle, Dropdown, EmojiPicker, MenuItem, Modal, pickFile, uploadImage } from "./kit";
 
@@ -376,11 +377,14 @@ export function PageView({ page, row, database }: { page: PageViewData; row?: { 
           )}
         </div>
 
-        {row && <RowProperties initial={row.initial} dbId={row.dbId} rowId={page.id} />}
+        {row && !row.initial.schema.detailPage && <RowProperties initial={row.initial} dbId={row.dbId} rowId={page.id} />}
 
         <SystemPageBar pageId={page.id} />
         {page.kind === "database" ? (
           <DatabaseView initial={database ?? null} dbId={page.id} />
+        ) : row?.initial.schema.detailPage ? (
+          // A row whose database has a detail view: the page is laid out as that view says (its own text is the "page" block).
+          <DetailFromPage pageId={row.initial.schema.detailPage} rowId={page.id} />
         ) : (
           <Editor key={page.id} pageId={page.id} initial={page.content} rev={page.rev} editable={editable} smallText={smallText} onSave={setStatus} />
         )}

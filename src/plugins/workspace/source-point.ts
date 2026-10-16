@@ -1,5 +1,5 @@
 import { extensionPoint } from "@/lib/plugin-kit/extension-point";
-import type { DbSchema, Row } from "./model";
+import type { DataType, DbSchema, Row } from "./model";
 import type { SourceRecord } from "./pipeline";
 
 /**
@@ -12,6 +12,8 @@ export type WorkspaceSource = {
   id: string;
   label: string;
   icon: string;
+  /** What its records are (a database of them has this type from the start). */
+  dataType?: DataType;
   /** One line: what the records are. */
   hint?: string;
   /** How many records it has (the data sources page). */

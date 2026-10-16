@@ -817,3 +817,68 @@
   min-width: 0;
   overflow: hidden;
 }
+
+/* flex boxes: rows and columns of blocks, nested */
+.ws-flex {
+  position: relative;
+  margin: 0.4rem 0;
+}
+.ws-flex-bar {
+  display: none;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  margin-bottom: 0.15rem;
+}
+.ws-flex:hover > .ws-flex-bar,
+.ws-flex:focus-within > .ws-flex-bar {
+  display: flex;
+}
+.ws-flex-bar button {
+  border: 1px solid color-mix(in oklab, var(--color-zinc-500, #71717a) 30%, transparent);
+  border-radius: 0.3rem;
+  padding: 0 0.35rem;
+  color: var(--color-zinc-500, #71717a);
+  background: none;
+  cursor: pointer;
+}
+.ws-flex-bar button[aria-pressed="true"] {
+  color: var(--color-indigo-600, #4f46e5);
+  border-color: currentColor;
+}
+.ws-flex-body {
+  display: flex;
+  gap: 1rem;
+  border-radius: 0.4rem;
+}
+.ws-flex[data-gap="sm"] > .ws-flex-body {
+  gap: 0.4rem;
+}
+.ws-flex[data-gap="lg"] > .ws-flex-body {
+  gap: 1.75rem;
+}
+.ws-flex[data-dir="row"] > .ws-flex-body {
+  flex-direction: row;
+}
+.ws-flex[data-dir="col"] > .ws-flex-body {
+  flex-direction: column;
+}
+.ws-flex[data-wrap="true"] > .ws-flex-body {
+  flex-wrap: wrap;
+}
+.ws-flex[data-dir="row"] > .ws-flex-body > * {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+.ws-flex[data-dir="col"] > .ws-flex-body > * {
+  min-width: 0;
+}
+.ws-editor[contenteditable="true"] .ws-flex-body,
+.ws-editor .ProseMirror[contenteditable="true"] .ws-flex-body {
+  outline: 1px dashed color-mix(in oklab, var(--color-zinc-500, #71717a) 22%, transparent);
+  outline-offset: 3px;
+}
+@media (max-width: 40rem) {
+  .ws-flex[data-dir="row"] > .ws-flex-body {
+    flex-direction: column;
+  }
+}

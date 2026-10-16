@@ -51,6 +51,17 @@ export const slashItems = (t: T): SlashItem[] => [
   { key: "todo", title: t("To-do list"), hint: t("Tick things off"), icon: "☑", group: t("Basic blocks"), keywords: ["todo", "task", "check", "checkbox", "[]"], run: ({ editor, range }) => chain(editor, range).toggleTaskList().run() },
   { key: "toggle", title: t("Toggle"), hint: t("Hide content inside"), icon: "▸", group: t("Basic blocks"), keywords: ["toggle", "details", "collapse", "fold"], run: ({ editor, range }) => chain(editor, range).setDetails().run() },
   { key: "quote", title: t("Quote"), hint: t("A quotation"), icon: "❝", group: t("Basic blocks"), keywords: ["quote", "blockquote", ">"], run: ({ editor, range }) => chain(editor, range).toggleBlockquote().run() },
+  ...(["row", "col"] as const).map(
+    (dir): SlashItem => ({
+      key: `flex-${dir}`,
+      title: dir === "row" ? t("Flex row") : t("Flex column"),
+      hint: dir === "row" ? t("Blocks side by side — nest more boxes in it") : t("Blocks one under the other — nest more boxes in it"),
+      icon: dir === "row" ? "↔" : "↕",
+      group: t("Layout"),
+      keywords: ["flex", "layout", "row", "column", "columns", "spalten", "zeile", "grid", dir],
+      run: ({ editor, range }) => chain(editor, range).insertContent({ type: "flexBox", attrs: { dir, gap: "md" }, content: [{ type: "paragraph" }, { type: "paragraph" }] }).run(),
+    }),
+  ),
   {
     key: "callout",
     title: t("Callout"),
@@ -93,6 +104,31 @@ export const slashItems = (t: T): SlashItem[] => [
     icon,
     group: t("Zeff"),
     keywords: [...keywords, "ticket", "zeff"],
+    run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffModule", attrs: { module, key: "" } }).run(),
+  })),
+  // The blocks of a person's page (the people database's detail view).
+  ...(
+    [
+      ["person-profile", t("Person: profile"), "👤", ["person", "profile", "name", "alias", "aliases", "mail", "person"]],
+      ["person-note", t("Person: notes"), "📝", ["person", "notes", "notiz"]],
+      ["person-summary", t("Person: summary"), "🧭", ["person", "summary", "compile", "zusammenfassung"]],
+      ["person-dates", t("Person: dates"), "🎂", ["person", "dates", "birthday", "geburtstag"]],
+      ["person-knowledge", t("Person: read from messages"), "🧠", ["person", "claims", "knowledge", "wissen"]],
+      ["person-wiki", t("Person: what the knowledge knows"), "📚", ["person", "knowledge", "wiki", "wissen"]],
+      ["person-relations", t("Person: relations"), "🔗", ["person", "relations", "beziehungen"]],
+      ["person-messages", t("Person: latest messages"), "💬", ["person", "messages", "nachrichten"]],
+      ["person-todos", t("Person: todos"), "☑", ["person", "todos"]],
+      ["person-pages", t("Person: pages that mention them"), "📄", ["person", "pages", "seiten"]],
+      ["person-tickets", t("Person: shared tickets"), "🎫", ["person", "tickets"]],
+      ["person-manage", t("Person: merge or delete"), "⚙", ["person", "merge", "delete", "zusammenführen"]],
+    ] as const
+  ).map(([module, title, icon, keywords]): SlashItem => ({
+    key: `module-${module}`,
+    title,
+    hint: t("A block of a person's page — for the row whose page it is"),
+    icon,
+    group: t("People"),
+    keywords: [...keywords],
     run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffModule", attrs: { module, key: "" } }).run(),
   })),
   { key: "date", title: t("Today's date"), hint: t("Insert the date"), icon: "📅", group: t("Zeff"), keywords: ["date", "today", "now"], run: ({ editor, range }) => chain(editor, range).insertContent(today()).run() },

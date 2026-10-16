@@ -51,9 +51,11 @@ export async function createExtSourceDatabase(ext: string, title?: string): Prom
   const src = (await (await import("./source-point")).extSources()).find((x) => x.id === ext);
   if (!src) throw new Error(t("Unknown source."));
   const step: PipelineStep = { id: newId("s"), kind: "source", from: "ext", ext };
-  const schema: DbSchema = { titleName: t("Name"), properties: [], views: [newView(t("Table"), "table")], pipeline: { steps: [step], everyMinutes: 60 } };
+  const schema: DbSchema = { titleName: t("Name"), properties: [], views: [newView(t("Table"), "table")], ...(src.dataType ? { dataType: src.dataType } : {}), pipeline: { steps: [step], everyMinutes: 60 } };
   const id = createPage({ kind: "database", title: title || t(src.label), icon: src.icon, schema });
   updatePage(id, { fullWidth: true });
+  // A people database: its rows open as a person's page (blocks in flex boxes — change them like any page).
+  if (src.dataType === "people") (await import("./detail-page")).ensureDetailPage(id);
   return id;
 }
 

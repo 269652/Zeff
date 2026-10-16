@@ -17,6 +17,7 @@ import { CardTodos, extrasOf } from "./card-extras";
 import { SuggestedActions } from "./suggested";
 import { RowProperties } from "./DatabaseView";
 import { Editor } from "./Editor";
+import { PersonBlock } from "@/plugins/people/ui/PersonBlocks";
 
 /**
  * The modules of a row's detail view — the same everywhere: its properties and page, and by its ticket key what Zeff knows
@@ -27,7 +28,7 @@ import { Editor } from "./Editor";
 /** A module's name, as the detail view's editor lists it. */
 export function useModuleLabels(): Record<DetailModule, string> {
   const t = useT();
-  return { properties: t("Properties"), subtasks: t("Subtasks"), suggested: t("Suggested actions"), briefing: t("Briefing"), todos: t("Todos"), questions: t("Questions"), actions: t("Suggested actions"), flags: t("Flags"), context: t("Context"), chat: t("Chat"), page: t("Page") };
+  return { properties: t("Properties"), subtasks: t("Subtasks"), suggested: t("Suggested actions"), briefing: t("Briefing"), todos: t("Todos"), questions: t("Questions"), actions: t("Suggested actions"), flags: t("Flags"), context: t("Context"), chat: t("Chat"), page: t("Page"), "person-profile": t("Person: profile"), "person-note": t("Person: notes"), "person-summary": t("Person: summary"), "person-dates": t("Person: dates"), "person-knowledge": t("Person: read from messages"), "person-wiki": t("Person: what the knowledge knows"), "person-relations": t("Person: relations"), "person-messages": t("Person: latest messages"), "person-todos": t("Person: todos"), "person-pages": t("Person: pages that mention them"), "person-tickets": t("Person: shared tickets"), "person-manage": t("Person: merge or delete") };
 }
 
 /** The modules that need the row's ticket key (none without one). */
@@ -52,6 +53,7 @@ export function DetailModules({ modules, data, rowId, bare = false }: { modules:
   }, [rowId, x.key, wantsDetail, wantsPage]);
 
   const one = (m: DetailModule): React.ReactNode => {
+    if (m.startsWith("person-")) return <PersonBlock module={m} rowId={rowId} />;
     if (m === "properties") return <RowProperties initial={data} dbId={data.id} rowId={rowId} />;
     if (m === "subtasks") return <SubtasksModule rowId={rowId} locked={!!data.locked} />;
     if (m === "suggested") return <SuggestedActions rowId={rowId} value={data.rows.find((r) => r.id === rowId)?.cells.rowactions} />;

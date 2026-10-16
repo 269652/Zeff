@@ -50,7 +50,7 @@ export function RowPeek({ data, rowId, onClose }: { data: DatabaseData; rowId: n
 }
 
 /** A row's detail view from its database's detail page: the page's blocks (and text), each about this row. */
-function DetailFromPage({ pageId, rowId }: { pageId: number; rowId: number }) {
+export function DetailFromPage({ pageId, rowId }: { pageId: number; rowId: number }) {
   const [content, setContent] = useState<JSONContent | null>(null);
   useEffect(() => {
     let live = true;

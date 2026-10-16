@@ -68,6 +68,55 @@ export const Callout = Node.create({
 });
 
 // ---------------------------------------------------------------------------
+// Flex: a row or a column of blocks — nest them to lay a page out
+// ---------------------------------------------------------------------------
+
+function FlexView({ node, updateAttributes, editor }: NodeViewProps) {
+  const dir = node.attrs.dir === "col" ? "col" : "row";
+  const gap = String(node.attrs.gap ?? "md");
+  const wrap = !!node.attrs.wrap;
+  const next = { sm: "md", md: "lg", lg: "sm" } as Record<string, string>;
+  return (
+    <NodeViewWrapper className="ws-flex" data-dir={dir} data-gap={gap} data-wrap={wrap ? "true" : undefined}>
+      {editor.isEditable && (
+        <div className="ws-flex-bar" contentEditable={false}>
+          <button type="button" title="Row or column" onClick={() => updateAttributes({ dir: dir === "row" ? "col" : "row" })}>
+            {dir === "row" ? "↔ row" : "↕ column"}
+          </button>
+          <button type="button" title="Wrap onto the next line" aria-pressed={wrap} onClick={() => updateAttributes({ wrap: !wrap })}>
+            ⤶ wrap
+          </button>
+          <button type="button" title="Space between the blocks" onClick={() => updateAttributes({ gap: next[gap] ?? "md" })}>
+            ⇔ {gap}
+          </button>
+        </div>
+      )}
+      <NodeViewContent className="ws-flex-body" />
+    </NodeViewWrapper>
+  );
+}
+
+/** A row or a column of blocks (any blocks — more flex boxes too): the layout of a page, a row's detail view. */
+export const FlexBox = Node.create({
+  name: "flexBox",
+  group: "block",
+  content: "block+",
+  defining: true,
+  addAttributes() {
+    return { dir: { default: "row" }, gap: { default: "md" }, wrap: { default: false } };
+  },
+  parseHTML() {
+    return [{ tag: "div[data-flex-box]" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["div", mergeAttributes(HTMLAttributes, { "data-flex-box": "" }), 0];
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(FlexView);
+  },
+});
+
+// ---------------------------------------------------------------------------
 // Mentions: @person, @page, @todo, @ticket
 // ---------------------------------------------------------------------------
 
@@ -221,7 +270,7 @@ function ModuleBlockView({ node, updateAttributes, editor, extension }: NodeView
   const [key, setKey] = useState(String(node.attrs.key ?? ""));
   return (
     <NodeViewWrapper className="ws-module-block my-2" contentEditable={false}>
-      {editor.isEditable && (
+      {editor.isEditable && !String(node.attrs.module).startsWith("person-") && (
         <input
           value={key}
           onChange={(e) => setKey(e.target.value)}

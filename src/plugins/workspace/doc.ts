@@ -5,7 +5,7 @@
  * backlinks), and a whitelist that cleans what a client sends. Client-safe.
  */
 
-import { COLORS } from "./model";
+import { COLORS, PERSON_MODULES } from "./model";
 
 export type Mark = { type: string; attrs?: Record<string, unknown> };
 export type DocNode = { type: string; attrs?: Record<string, unknown>; content?: DocNode[]; marks?: Mark[]; text?: string };
@@ -389,6 +389,7 @@ const NODE_ATTRS: Record<string, string[]> = {
   detailsSummary: [],
   detailsContent: [],
   callout: ["icon", "tone"],
+  flexBox: ["dir", "gap", "wrap"],
   zeffRef: ["kind", "ref", "label", "href"],
   databaseView: ["dbId", "viewId", "title"],
   pageEmbed: ["pageId", "title"],
@@ -397,9 +398,9 @@ const NODE_ATTRS: Record<string, string[]> = {
 };
 
 /** The modules a page can hold as a block (what Zeff knows about a ticket — of its row, or the key given). */
-export const BLOCK_MODULES = ["briefing", "todos", "questions", "actions", "flags", "context", "chat", "properties", "subtasks", "suggested", "page"] as const;
+export const BLOCK_MODULES = ["briefing", "todos", "questions", "actions", "flags", "context", "chat", "properties", "subtasks", "suggested", "page", ...PERSON_MODULES] as const;
 /** The blocks about a row itself (its properties, subtasks, suggested actions, its own page) — in its detail view, or on its page. */
-export const ROW_MODULES = ["properties", "subtasks", "suggested", "page"] as const;
+export const ROW_MODULES = ["properties", "subtasks", "suggested", "page", ...PERSON_MODULES] as const;
 const MARKS: Record<string, string[]> = { bold: [], italic: [], strike: [], underline: [], code: [], highlight: ["color"], link: ["href", "target"] };
 const MAX_NODES = 40000;
 const MAX_DEPTH = 40;
@@ -443,6 +444,11 @@ export function sanitizeDoc(input: unknown): Doc {
       if (o.type === "zeffModule") {
         if (!(BLOCK_MODULES as readonly unknown[]).includes(attrs.module)) return null;
         attrs.key = String(attrs.key ?? "").trim().toUpperCase().slice(0, 40);
+      }
+      if (o.type === "flexBox") {
+        attrs.dir = attrs.dir === "col" ? "col" : "row";
+        attrs.gap = attrs.gap === "sm" || attrs.gap === "lg" ? attrs.gap : "md";
+        if (attrs.wrap !== true) delete attrs.wrap;
       }
       if (o.type === "heading") attrs.level = Math.min(3, Math.max(1, Number(attrs.level) || 1));
       if (o.type === "pageEmbed") {

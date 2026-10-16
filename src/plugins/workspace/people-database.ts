@@ -12,7 +12,14 @@ export function peopleDatabase(): number | null {
 
 /** Your profiles as a database of the Workspace — once, when the People plugin is installed (a gone one isn't made again). */
 export async function ensurePeopleDatabase(): Promise<void> {
-  if (!isInstalled("workspace") || !isInstalled("people") || getPref<number | null>(PEOPLE, null) !== null) return;
+  if (!isInstalled("workspace") || !isInstalled("people")) return;
+  // Made before the person's page existed: it gets one.
+  const known = peopleDatabase();
+  if (known) {
+    if (!getDatabase(known)!.schema.detailPage) (await import("./detail-page")).ensureDetailPage(known);
+    return;
+  }
+  if (getPref<number | null>(PEOPLE, null) !== null) return;
   const { createExtSourceDatabase } = await import("./derived");
   const id = await createExtSourceDatabase("people");
   setPref(PEOPLE, id);

@@ -23,7 +23,7 @@ import type { TreeItem } from "../store";
 import { Modal } from "./kit";
 import { pickFile, uploadImage } from "./kit";
 import { MentionCommand } from "./mention";
-import { AiBlockNode, Callout, DatabaseViewNode, ZeffModuleNode, ZeffRef } from "./nodes";
+import { AiBlockNode, Callout, DatabaseViewNode, FlexBox, ZeffModuleNode, ZeffRef } from "./nodes";
 import { PageEmbedNode } from "./page-embed";
 import { SlashCommand, type SlashContext } from "./slash";
 import "./workspace.css";
@@ -234,6 +234,7 @@ export function Editor({ pageId, initial, rev, editable, smallText, onSave }: { 
       DetailsContent,
       Highlight,
       Callout,
+      FlexBox,
       ZeffRef,
       DatabaseViewNode,
       ZeffModuleNode.configure({ pageId }),
