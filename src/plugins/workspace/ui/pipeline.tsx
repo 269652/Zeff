@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { saveSyncIntervalAction } from "@/app/actions";
+import { Markdown } from "@/components/Markdown";
 import { toast } from "@/components/Toaster";
 import { minutesText } from "@/plugins/sync-settings";
 import { instructionsAction, newInstructionAction, sourceSyncsAction } from "../actions";
@@ -341,11 +342,11 @@ function Summary({ text, at }: { text: string; at: string }) {
     <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 text-sm dark:border-indigo-900 dark:bg-indigo-950/30" data-summary>
       <button type="button" className="flex w-full items-center gap-2 px-3 py-1.5 text-left" aria-expanded={open} onClick={() => setOpen(!open)}>
         <span aria-hidden>🧭</span>
-        <span className={`min-w-0 flex-1 ${open ? "font-medium" : "truncate"}`}>{open ? t("AI summary") : text.replace(/\s+/g, " ")}</span>
+        <span className={`min-w-0 flex-1 ${open ? "font-medium" : "truncate"}`}>{open ? t("AI summary") : text.replace(/[*_#`>]+/g, "").replace(/\s+/g, " ")}</span>
         <span className="shrink-0 text-xs text-zinc-500">{new Date(at).toLocaleString()}</span>
         <span className="shrink-0 text-zinc-400" aria-hidden>{open ? "▴" : "▾"}</span>
       </button>
-      {open && <p className="whitespace-pre-wrap px-3 pb-3">{text}</p>}
+      {open && <Markdown text={text} className="px-3 pb-3" />}
     </div>
   );
 }
