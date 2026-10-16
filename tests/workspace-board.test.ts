@@ -185,7 +185,7 @@ test("detailModules: a database's detail view — set, or by its kind", async ()
   const plain: import("@/plugins/workspace/model").DbSchema = { titleName: "Name", properties: [status], views: [m.newView("Table")] };
   const board = { ...plain, views: [{ ...m.newView("Board", "board"), groupBy: status.id }] };
   assert.deepEqual(m.detailModules(plain, null), ["properties", "page"]);
-  assert.deepEqual(m.detailModules(board, null), ["properties", "briefing", "todos", "page"], "a board: its cards' briefing and todos");
+  assert.deepEqual(m.detailModules(board, null), ["properties", "subtasks", "briefing", "todos", "page"], "a board: its subtasks (as Kanban had them), its cards' briefing and todos");
   assert.deepEqual(m.detailModules(board, "jira"), ["properties", "briefing", "todos", "questions", "actions", "flags", "context", "chat"], "Jira's: the briefing panel as Jira Lage had it");
   const set = { ...plain, detail: ["todos", "page", "nonsense"] as never };
   assert.deepEqual(m.detailModules(m.normalizeSchema(set), null), ["todos", "page"], "the set one, the unknown left out");

@@ -5197,5 +5197,10 @@
   "The assistant in the Workspace's sidebar": "El asistente en la barra lateral del Workspace",
   "In front of every AI task, every worker and agent — they go before the other rules": "Delante de cada tarea de IA, cada worker y agente — van antes que las demás reglas",
   "In front of every AI task, every worker and agent": "Delante de cada tarea de IA, cada worker y agente",
-  "Added to every worker's rules": "Se añade a las reglas de cada worker"
+  "Added to every worker's rules": "Se añade a las reglas de cada worker",
+  "Subtask": "Subtarea",
+  "New subtask": "Nueva subtarea",
+  "No longer a subtask": "Ya no es subtarea",
+  "Parent": "Superior",
+  "Not a row of a database.": "No es una fila de una base de datos."
 }

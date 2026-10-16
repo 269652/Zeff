@@ -411,6 +411,26 @@ export async function resetSystemPageAction(pageId: number) {
   });
 }
 
+/** A row's subtasks (rows of its database linked to it), with whether each is done. */
+export async function subtasksAction(rowId: number) {
+  return run(async () => ({ subtasks: (await import("./subtasks")).subtasksOf(Number(rowId)) }));
+}
+
+/** A subtask added to a row (the relation Parent made with the first). */
+export async function addSubtaskAction(parentId: number, title: string) {
+  return run(async () => ({ id: (await import("./subtasks")).addSubtask(Number(parentId), String(title ?? "").slice(0, 500)) }));
+}
+
+/** A subtask made a row of its own again. */
+export async function detachSubtaskAction(rowId: number) {
+  return run(async () => ((await import("./subtasks")).detachSubtask(Number(rowId)), {}));
+}
+
+/** A subtask checked off (done) or open again. */
+export async function setSubtaskDoneAction(rowId: number, done: boolean) {
+  return run(async () => ((await import("./subtasks")).setSubtaskDone(Number(rowId), !!done), {}));
+}
+
 /** What an AI block on a page writes by its instruction (from the page and the databases shown in it). */
 export async function aiBlockAction(pageId: number, prompt: string) {
   return run(async () => {

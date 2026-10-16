@@ -5197,5 +5197,10 @@
   "The assistant in the Workspace's sidebar": "Der Assistent in der Seitenleiste des Workspace",
   "In front of every AI task, every worker and agent — they go before the other rules": "Vor jeder KI-Aufgabe, jedem Worker und Agenten — sie gehen den anderen Regeln vor",
   "In front of every AI task, every worker and agent": "Vor jeder KI-Aufgabe, jedem Worker und Agenten",
-  "Added to every worker's rules": "Kommt zu den Regeln jedes Workers"
+  "Added to every worker's rules": "Kommt zu den Regeln jedes Workers",
+  "Subtask": "Unteraufgabe",
+  "New subtask": "Neue Unteraufgabe",
+  "No longer a subtask": "Keine Unteraufgabe mehr",
+  "Parent": "Übergeordnet",
+  "Not a row of a database.": "Keine Zeile einer Datenbank."
 }

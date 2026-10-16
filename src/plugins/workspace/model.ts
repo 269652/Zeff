@@ -186,7 +186,7 @@ export function normalizePipeline(raw: unknown): Pipeline {
 }
 
 /** The modules a row's detail view can show: its properties and page, and — by its ticket key — what Zeff knows about it. */
-export const DETAIL_MODULES = ["properties", "briefing", "todos", "questions", "actions", "flags", "context", "chat", "page"] as const;
+export const DETAIL_MODULES = ["properties", "subtasks", "briefing", "todos", "questions", "actions", "flags", "context", "chat", "page"] as const;
 export type DetailModule = (typeof DETAIL_MODULES)[number];
 const isDetailModule = (v: unknown): v is DetailModule => (DETAIL_MODULES as readonly unknown[]).includes(v);
 
@@ -709,7 +709,9 @@ export function detailModules(schema: DbSchema, source: string | null | undefine
   if (source === "jira") return ["properties", "briefing", "todos", "questions", "actions", "flags", "context", "chat"];
   const status = schema.properties.find((p) => p.type === "status");
   const board = !!status && schema.views.some((v) => v.type === "board" && v.groupBy === status.id);
-  return board ? ["properties", "briefing", "todos", "page"] : ["properties", "page"];
+  // Subtasks: on a board (as Kanban had them), and wherever rows have a parent already.
+  const parents = schema.properties.some((p) => p.type === "relation" && p.relationDb !== undefined && !p.backOf && p.name === "Parent");
+  return board ? ["properties", "subtasks", "briefing", "todos", "page"] : parents ? ["properties", "subtasks", "page"] : ["properties", "page"];
 }
 
 /** A module shown (at the end) or not any more. */

@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { JSONContent } from "@tiptap/react";
 import { useT } from "@/components/I18nProvider";
+import { toast } from "@/components/Toaster";
 import { ContextList } from "@/components/boards/TodoSources";
 import { TicketChat } from "@/components/boards/TicketChat";
 import { TicketQuestions } from "@/components/boards/TicketQuestions";
 import type { TicketDetail } from "@/lib/items/tickets";
-import { pageContentAction, ticketBlockAction, ticketDetailAction, type DatabaseData } from "../actions";
+import { addSubtaskAction, detachSubtaskAction, pageContentAction, setSubtaskDoneAction, subtasksAction, ticketBlockAction, ticketDetailAction, type DatabaseData } from "../actions";
 import type { TicketExtras } from "@/lib/items/shared";
 import { WS_CHANGED } from "./ChatPanel";
 import { DETAIL_MODULES, moveDetail, toggleDetail, type DetailModule } from "../model";
@@ -25,7 +26,7 @@ import { Modal } from "./kit";
 /** A module's name, as the detail view's editor lists it. */
 export function useModuleLabels(): Record<DetailModule, string> {
   const t = useT();
-  return { properties: t("Properties"), briefing: t("Briefing"), todos: t("Todos"), questions: t("Questions"), actions: t("Suggested actions"), flags: t("Flags"), context: t("Context"), chat: t("Chat"), page: t("Page") };
+  return { properties: t("Properties"), subtasks: t("Subtasks"), briefing: t("Briefing"), todos: t("Todos"), questions: t("Questions"), actions: t("Suggested actions"), flags: t("Flags"), context: t("Context"), chat: t("Chat"), page: t("Page") };
 }
 
 /** The modules that need the row's ticket key (none without one). */
@@ -51,6 +52,7 @@ export function DetailModules({ modules, data, rowId }: { modules: DetailModule[
 
   const one = (m: DetailModule): React.ReactNode => {
     if (m === "properties") return <RowProperties initial={data} dbId={data.id} rowId={rowId} />;
+    if (m === "subtasks") return <SubtasksModule rowId={rowId} locked={!!data.locked} />;
     if (m === "page") return page ? <Editor key={rowId} pageId={rowId} initial={page.content} rev={page.rev} editable={!data.locked} smallText={false} /> : <p className="text-sm text-zinc-400">…</p>;
     return <ModuleBody m={m} k={x.key!} ticket={x.ticket} detail={detail} todosOn={!!data.extras?.todosOn} />;
   };
@@ -60,6 +62,55 @@ export function DetailModules({ modules, data, rowId }: { modules: DetailModule[
         <div key={m}>{one(m)}</div>
       ))}
     </>
+  );
+}
+
+type Sub = { id: number; title: string; done: boolean; status: string | null };
+
+/** A row's subtasks (as on Kanban's cards): checked off, opened, made a row of their own again — and a new one added. */
+function SubtasksModule({ rowId, locked }: { rowId: number; locked: boolean }) {
+  const t = useT();
+  const [list, setList] = useState<Sub[] | null>(null);
+  const [title, setTitle] = useState("");
+  const load = useCallback(() => void subtasksAction(rowId).then((r) => r.ok && setList(r.subtasks)), [rowId]);
+  useEffect(load, [load]);
+  const after = (r: { ok: boolean; error?: string }) => (r.ok ? load() : toast(r.error ?? t("Failed."), { tone: "error" }));
+  if (!list) return null;
+  const done = list.filter((x) => x.done).length;
+  return (
+    <section className="space-y-1.5" data-subtasks>
+      <h3 className="label">
+        {t("Subtasks")}
+        {list.length > 0 && <span className="ml-1 font-normal text-zinc-500">{done}/{list.length}</span>}
+      </h3>
+      <ul className="space-y-0.5 text-sm">
+        {list.map((x) => (
+          <li key={x.id} className="group flex items-center gap-2">
+            <input type="checkbox" checked={x.done} disabled={locked} aria-label={x.title} onChange={(e) => void setSubtaskDoneAction(x.id, e.target.checked).then(after)} />
+            <a href={`?row=${x.id}`} className={`min-w-0 flex-1 truncate hover:underline ${x.done ? "text-zinc-400 line-through" : ""}`}>
+              {x.title || t("Untitled")}
+            </a>
+            {x.status && <span className="text-xs text-zinc-400">{x.status}</span>}
+            {!locked && (
+              <button type="button" className="icon-btn invisible text-xs group-hover:visible" title={t("No longer a subtask")} aria-label={t("No longer a subtask")} onClick={() => void detachSubtaskAction(x.id).then(after)}>
+                ⤴
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      {!locked && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!title.trim()) return;
+            void addSubtaskAction(rowId, title).then((r) => (setTitle(""), after(r)));
+          }}
+        >
+          <input className="input w-full text-sm" value={title} placeholder={`+ ${t("Subtask")} …`} aria-label={t("New subtask")} onChange={(e) => setTitle(e.target.value)} />
+        </form>
+      )}
+    </section>
   );
 }
 
