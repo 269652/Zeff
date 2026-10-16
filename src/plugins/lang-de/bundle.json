@@ -5364,5 +5364,14 @@
   "Change “{row}”": "„{row}“ ändern",
   "New page “{title}”": "Neue Seite „{title}“",
   "Add to “{page}”": "An „{page}“ anhängen",
-  "Todo: {text}": "Todo: {text}"
+  "Todo: {text}": "Todo: {text}",
+  "the row's, in its detail view": "die der Zeile, in ihrer Detailansicht",
+  "Suggested actions (AI step)": "Vorgeschlagene Aktionen (KI-Schritt)",
+  "The row's page": "Die Seite der Zeile",
+  "Todo text": "Todo-Text",
+  "Click to change": "Klicken zum Ändern",
+  "Dismiss “{text}”?": "„{text}“ verwerfen?",
+  "New todo": "Neues Todo",
+  "A todo's text can't be empty.": "Der Text eines Todos darf nicht leer sein.",
+  "Detail views": "Detailansichten"
 }

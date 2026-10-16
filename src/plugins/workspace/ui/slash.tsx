@@ -75,6 +75,10 @@ export const slashItems = (t: T): SlashItem[] => [
       ["flags", t("Flags"), "⚑", ["flags", "risks", "markierungen"]],
       ["context", t("Context"), "🔗", ["context", "kontext", "sources"]],
       ["chat", t("Chat"), "💬", ["chat", "ask", "frag"]],
+      ["properties", t("Properties"), "📋", ["properties", "eigenschaften", "fields", "felder"]],
+      ["subtasks", t("Subtasks"), "⧉", ["subtasks", "unteraufgaben"]],
+      ["suggested", t("Suggested actions (AI step)"), "⚡", ["suggested", "vorschläge", "ai"]],
+      ["page", t("The row's page"), "📄", ["page", "seite", "text", "content"]],
     ] as const
   ).map(([module, title, icon, keywords]): SlashItem => ({
     key: `module-${module}`,

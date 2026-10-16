@@ -50,6 +50,18 @@ export async function addCardTodoAction(ticket: string, text: string): Promise<A
   }
 }
 
+/** A todo's text changed in the todo block. */
+export async function setTodoTextAction(id: number, text: string): Promise<ActionState> {
+  try {
+    const { setTodoText } = await import("@/lib/boards/store");
+    setTodoText(Number(id), String(text ?? ""));
+    revalidateAll();
+    return { ok: true, message: t("Saved.") };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
 export async function setTodoStatusAction(id: number, status: "open" | "done" | "dismissed"): Promise<ActionState> {
   try {
     if (!Number.isInteger(id) || !["open", "done", "dismissed"].includes(status)) return { ok: false, error: t("Unknown todo.") };

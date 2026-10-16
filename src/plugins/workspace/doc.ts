@@ -397,7 +397,9 @@ const NODE_ATTRS: Record<string, string[]> = {
 };
 
 /** The modules a page can hold as a block (what Zeff knows about a ticket — of its row, or the key given). */
-export const BLOCK_MODULES = ["briefing", "todos", "questions", "actions", "flags", "context", "chat"] as const;
+export const BLOCK_MODULES = ["briefing", "todos", "questions", "actions", "flags", "context", "chat", "properties", "subtasks", "suggested", "page"] as const;
+/** The blocks about a row itself (its properties, subtasks, suggested actions, its own page) — in its detail view, or on its page. */
+export const ROW_MODULES = ["properties", "subtasks", "suggested", "page"] as const;
 const MARKS: Record<string, string[]> = { bold: [], italic: [], strike: [], underline: [], code: [], highlight: ["color"], link: ["href", "target"] };
 const MAX_NODES = 40000;
 const MAX_DEPTH = 40;

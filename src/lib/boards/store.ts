@@ -924,6 +924,15 @@ export function promoteSessionTodo(id: number, text: string): TodoView {
 }
 
 /** A todo's operations, replaced (e.g. merging straight into main instead of a merge request). */
+/** A todo's text changed where it shows (the todo block): trimmed, not empty; the rest as it was. */
+export function setTodoText(id: number, text: string): TodoView {
+  const v = text.trim().slice(0, 500);
+  if (!v) throw new ValidationError(t("A todo's text can't be empty."));
+  getDb().update(todos).set({ text: v, updatedAt: new Date().toISOString() }).where(eq(todos.id, id)).run();
+  emitChange("todos");
+  return getTodo(id)!;
+}
+
 export function setTodoOps(id: number, ops: TodoView["ops"], text?: string): TodoView {
   emitChange("todos");
   getDb()

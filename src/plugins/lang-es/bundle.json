@@ -5364,5 +5364,14 @@
   "Change “{row}”": "Cambiar «{row}»",
   "New page “{title}”": "Nueva página «{title}»",
   "Add to “{page}”": "Añadir a «{page}»",
-  "Todo: {text}": "Tarea: {text}"
+  "Todo: {text}": "Tarea: {text}",
+  "the row's, in its detail view": "las de la fila, en su vista de detalle",
+  "Suggested actions (AI step)": "Acciones sugeridas (paso de IA)",
+  "The row's page": "La página de la fila",
+  "Todo text": "Texto de la tarea",
+  "Click to change": "Haz clic para cambiar",
+  "Dismiss “{text}”?": "¿Descartar «{text}»?",
+  "New todo": "Nueva tarea",
+  "A todo's text can't be empty.": "El texto de una tarea no puede estar vacío.",
+  "Detail views": "Vistas de detalle"
 }

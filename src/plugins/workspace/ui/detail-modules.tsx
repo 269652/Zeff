@@ -8,15 +8,15 @@ import { ContextList } from "@/components/boards/TodoSources";
 import { TicketChat } from "@/components/boards/TicketChat";
 import { TicketQuestions } from "@/components/boards/TicketQuestions";
 import type { TicketDetail } from "@/lib/items/tickets";
-import { addSubtaskAction, detachSubtaskAction, pageContentAction, setSubtaskDoneAction, subtasksAction, ticketBlockAction, ticketDetailAction, type DatabaseData } from "../actions";
+import { addSubtaskAction, detachSubtaskAction, pageContentAction, rowContextAction, setSubtaskDoneAction, subtasksAction, ticketBlockAction, ticketDetailAction, type DatabaseData } from "../actions";
 import type { TicketExtras } from "@/lib/items/shared";
 import { WS_CHANGED } from "./ChatPanel";
-import { DETAIL_MODULES, moveDetail, toggleDetail, type DetailModule } from "../model";
+import type { DetailModule } from "../model";
+import { ROW_MODULES } from "../doc";
 import { CardTodos, extrasOf } from "./card-extras";
 import { SuggestedActions } from "./suggested";
 import { RowProperties } from "./DatabaseView";
 import { Editor } from "./Editor";
-import { Modal } from "./kit";
 
 /**
  * The modules of a row's detail view — the same everywhere: its properties and page, and by its ticket key what Zeff knows
@@ -27,7 +27,7 @@ import { Modal } from "./kit";
 /** A module's name, as the detail view's editor lists it. */
 export function useModuleLabels(): Record<DetailModule, string> {
   const t = useT();
-  return { properties: t("Properties"), subtasks: t("Subtasks"), briefing: t("Briefing"), todos: t("Todos"), questions: t("Questions"), actions: t("Suggested actions"), flags: t("Flags"), context: t("Context"), chat: t("Chat"), page: t("Page") };
+  return { properties: t("Properties"), subtasks: t("Subtasks"), suggested: t("Suggested actions"), briefing: t("Briefing"), todos: t("Todos"), questions: t("Questions"), actions: t("Suggested actions"), flags: t("Flags"), context: t("Context"), chat: t("Chat"), page: t("Page") };
 }
 
 /** The modules that need the row's ticket key (none without one). */
@@ -35,7 +35,7 @@ const BY_KEY = new Set<DetailModule>(["briefing", "todos", "questions", "actions
 /** The ones that need what's fetched when the panel opens. */
 const HEAVY = new Set<DetailModule>(["questions", "actions", "flags", "context", "chat"]);
 
-export function DetailModules({ modules, data, rowId }: { modules: DetailModule[]; data: DatabaseData; rowId: number }) {
+export function DetailModules({ modules, data, rowId, bare = false }: { modules: DetailModule[]; data: DatabaseData; rowId: number; /** One module as a block (no suggestions on top). */ bare?: boolean }) {
   const x = extrasOf(data, rowId);
   const shown = modules.filter((m) => !BY_KEY.has(m) || x.key);
   const [detail, setDetail] = useState<TicketDetail | null>(null);
@@ -54,6 +54,7 @@ export function DetailModules({ modules, data, rowId }: { modules: DetailModule[
   const one = (m: DetailModule): React.ReactNode => {
     if (m === "properties") return <RowProperties initial={data} dbId={data.id} rowId={rowId} />;
     if (m === "subtasks") return <SubtasksModule rowId={rowId} locked={!!data.locked} />;
+    if (m === "suggested") return <SuggestedActions rowId={rowId} value={data.rows.find((r) => r.id === rowId)?.cells.rowactions} />;
     if (m === "page") return page ? <Editor key={rowId} pageId={rowId} initial={page.content} rev={page.rev} editable={!data.locked} smallText={false} /> : <p className="text-sm text-zinc-400">…</p>;
     return <ModuleBody m={m} k={x.key!} ticket={x.ticket} detail={detail} todosOn={!!data.extras?.todosOn} />;
   };
@@ -61,7 +62,7 @@ export function DetailModules({ modules, data, rowId }: { modules: DetailModule[
   return (
     <>
       {/* What the pipeline suggests doing with it, first. */}
-      <SuggestedActions rowId={rowId} value={row?.cells.rowactions} />
+      {!bare && !modules.includes("suggested") && <SuggestedActions rowId={rowId} value={row?.cells.rowactions} />}
       {shown.map((m) => (
         <div key={m}>{one(m)}</div>
       ))}
@@ -197,6 +198,39 @@ export function ModuleBody({ m, k, ticket, detail, todosOn }: { m: DetailModule;
  * row whose page it's on. It reads its data itself, again on a change elsewhere.
  */
 export function ModuleBlock({ module, ticketKey, pageId }: { module: DetailModule; ticketKey: string; pageId: number }) {
+  if ((ROW_MODULES as readonly string[]).includes(module)) return <RowModuleBlock module={module} rowId={pageId} />;
+  return <TicketModuleBlock module={module} ticketKey={ticketKey} pageId={pageId} />;
+}
+
+/**
+ * A block about the row itself (its properties, subtasks, suggested actions, its own page) — in its detail view, or on its
+ * page. On a page that isn't a row (a detail view being laid out): what it will show, as a placeholder.
+ */
+function RowModuleBlock({ module, rowId }: { module: DetailModule; rowId: number }) {
+  const t = useT();
+  const labels = useModuleLabels();
+  const [data, setData] = useState<DatabaseData | null | undefined>(undefined);
+  useEffect(() => {
+    let live = true;
+    const read = () => void rowContextAction(rowId).then((r) => live && setData(r.ok ? r.data : null));
+    read();
+    window.addEventListener(WS_CHANGED, read);
+    return () => {
+      live = false;
+      window.removeEventListener(WS_CHANGED, read);
+    };
+  }, [rowId]);
+  if (data === undefined) return <p className="text-sm text-zinc-400">…</p>;
+  if (!data)
+    return (
+      <div className="ws-module rounded-lg border border-dashed border-zinc-300 p-3 text-sm text-zinc-500 dark:border-zinc-700">
+        ▤ {labels[module]} — {t("the row's, in its detail view")}
+      </div>
+    );
+  return <DetailModules modules={[module]} data={data} rowId={rowId} bare />;
+}
+
+function TicketModuleBlock({ module, ticketKey, pageId }: { module: DetailModule; ticketKey: string; pageId: number }) {
   const t = useT();
   const labels = useModuleLabels();
   const [data, setData] = useState<{ key: string | null; ticket: TicketExtras | null; detail: TicketDetail | null; todosOn: boolean } | null>(null);
@@ -222,39 +256,3 @@ export function ModuleBlock({ module, ticketKey, pageId }: { module: DetailModul
   );
 }
 
-/** The detail view's editor: which modules a row's panel shows, in which order — or back to what fits the database. */
-export function DetailEditor({ modules, custom, onChange, onClose }: { modules: DetailModule[]; custom: boolean; onChange: (next: DetailModule[] | null) => void; onClose: () => void }) {
-  const t = useT();
-  const labels = useModuleLabels();
-  const rest = DETAIL_MODULES.filter((m) => !modules.includes(m));
-  return (
-    <Modal title={t("Detail view …")} onClose={onClose}>
-      <p className="text-sm text-zinc-500">{t("Shown in a row's detail view, in this order")}</p>
-      <ul className="space-y-1">
-        {modules.map((m, i) => (
-          <li key={m} className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked onChange={() => onChange(toggleDetail(modules, m))} aria-label={labels[m]} />
-            <span className="flex-1">{labels[m]}</span>
-            <button type="button" className="icon-btn" disabled={i === 0} onClick={() => onChange(moveDetail(modules, m, -1))} aria-label={t("Up")}>
-              ↑
-            </button>
-            <button type="button" className="icon-btn" disabled={i === modules.length - 1} onClick={() => onChange(moveDetail(modules, m, 1))} aria-label={t("Down")}>
-              ↓
-            </button>
-          </li>
-        ))}
-        {rest.map((m) => (
-          <li key={m} className="flex items-center gap-2 text-sm text-zinc-500">
-            <input type="checkbox" checked={false} onChange={() => onChange(toggleDetail(modules, m))} aria-label={labels[m]} />
-            <span className="flex-1">{labels[m]}</span>
-          </li>
-        ))}
-      </ul>
-      {custom && (
-        <button type="button" className="text-sm text-zinc-500 hover:underline" onClick={() => onChange(null)}>
-          {t("Back to the default")}
-        </button>
-      )}
-    </Modal>
-  );
-}

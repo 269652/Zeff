@@ -405,6 +405,22 @@ export async function draftRowReplyAction(rowId: number) {
   });
 }
 
+/** A row's database as its views load it (its detail page's blocks read the row from it) — null: not a row. */
+export async function rowContextAction(rowId: number) {
+  return run(async () => {
+    const p = store.getPage(Number(rowId));
+    if (!p?.dbId) return { data: null };
+    const r = await loadDatabaseAction(p.dbId);
+    if (!r.ok) throw new Error(r.error);
+    return { data: r.data };
+  });
+}
+
+/** A database's detail page (its row panel as blocks) — made when it has none; its id, to open it. */
+export async function detailPageAction(dbId: number) {
+  return run(async () => ({ id: (await import("./detail-page")).ensureDetailPage(Number(dbId)) }));
+}
+
 /** The syncs a pipeline's sources are read by (jira, keep): how often each runs by itself, and what can be picked. */
 export async function sourceSyncsAction() {
   return run(async () => {

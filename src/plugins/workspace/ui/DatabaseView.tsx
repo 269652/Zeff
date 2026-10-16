@@ -5,13 +5,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, runPipelineAction, setCellAction, setCollectionAction, updateSchemaAction, type DatabaseData } from "../actions";
-import { cellText, columnOrder, dateRange, detailModules, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
+import { addRowAction, archivePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, detailPageAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, runPipelineAction, setCellAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
 import { RowPeek } from "./RowPeek";
 import { GalleryView } from "./gallery";
-import { DetailEditor } from "./detail-modules";
 import { FilterEditor, PropertiesMenu, SchemaModal, SortEditor } from "./db-menus";
 import { Dropdown, MenuItem, useSortable } from "./kit";
 import { PipelineEditor, PipelineSummaries } from "./pipeline";
@@ -224,7 +223,6 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const [current, setCurrent] = useState(viewId ?? "");
   const [q, setQ] = useState("");
   const [schemaOpen, setSchemaOpen] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
   const search = useSearchParams();
   // ?steps=1 (a derived database just made): its Sources & steps open, to say what it keeps.
   const [pipelineOpen, setPipelineOpen] = useState(() => search.get("steps") === "1");
@@ -268,11 +266,6 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   // A locked database (one a sync keeps, as Jira's) is shown, not changed: its cells, cards and columns stay as they are.
   const ctx: CellCtx = { data, set: api.set, addOption: api.addOption, editable: !data.locked, openRow: (id) => openRow(id) };
   void embedded;
-  const switchCollection = async (patch: { briefing?: boolean; knowledge?: boolean }) => {
-    const r = await setCollectionAction(dbId, patch);
-    if (!r.ok) toast(r.error, { tone: "error" });
-    await api.reload();
-  };
   const withRow = (id: number | null) => {
     const u = new URL(window.location.href);
     if (id) u.searchParams.set("row", String(id));
@@ -426,7 +419,17 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           {(close) => (
             <>
               <MenuItem onClick={() => (close(), setSchemaOpen(true))}>⚙ {t("Edit properties …")}</MenuItem>
-              <MenuItem onClick={() => (close(), setDetailOpen(true))}>▤ {t("Detail view …")}</MenuItem>
+              <MenuItem
+                onClick={async () => {
+                  close();
+                  // The detail view is a page of blocks (System → Detail views): opened to lay it out.
+                  const r = await detailPageAction(dbId);
+                  if (!r.ok) return void toast(r.error, { tone: "error" });
+                  router.push(`/workspace/${r.id}`);
+                }}
+              >
+                ▤ {t("Detail view …")}
+              </MenuItem>
               <MenuItem onClick={() => (close(), setPipelineOpen(true))}>⛓ {t("Sources & steps …")}</MenuItem>
               <MenuItem
                 onClick={async () => {
@@ -562,14 +565,6 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
       <p className="text-xs text-zinc-500">{rows.length === data.rows.length ? (rows.length === 1 ? t("1 row") : t("{n} rows", { n: rows.length })) : t("{n} of {total} rows", { n: rows.length, total: data.rows.length })}</p>
 
       {schemaOpen && <SchemaModal schema={schema} data={data} dbId={dbId} databases={databases} onSave={api.saveSchema} onClose={() => setSchemaOpen(false)} />}
-      {detailOpen && (
-        <DetailEditor
-          modules={detailModules(schema, data.extras?.source)}
-          custom={!!schema.detail}
-          onChange={(next) => api.changeSchema((s) => (next ? { ...s, detail: next } : (({ detail: _, ...rest }) => rest)(s)))}
-          onClose={() => setDetailOpen(false)}
-        />
-      )}
       {pipelineOpen && (
         <PipelineEditor
           dbId={dbId}
