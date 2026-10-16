@@ -43,7 +43,7 @@ function useOpen(): [Set<number>, (id: number, on?: boolean) => void] {
 }
 
 /** The page tree, favorites, search and "new" — the left column of the Workspace. */
-export function Sidebar({ items, favorites }: { items: TreeItem[]; favorites: { id: number; title: string; icon: string; kind: string }[] }) {
+export function Sidebar({ items, favorites, unread = {} }: { items: TreeItem[]; favorites: { id: number; title: string; icon: string; kind: string }[]; /** Mail databases' unread rows, by id. */ unread?: Record<number, number> }) {
   const t = useT();
   const router = useRouter();
   const path = usePathname();
@@ -150,6 +150,12 @@ export function Sidebar({ items, favorites }: { items: TreeItem[]; favorites: { 
           <Link href={`/workspace/${item.id}`} className="flex min-w-0 flex-1 items-center gap-1.5 py-0.5">
             <span className="shrink-0">{item.icon || (item.kind === "database" ? "🗂️" : "📄")}</span>
             <span className="truncate">{item.title || t("Untitled")}</span>
+            {/* A mail inbox's unread, as a mail client's folders show it. */}
+            {(unread[item.id] ?? 0) > 0 && (
+              <span className="ml-auto shrink-0 pl-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400" title={t("{n} unread", { n: unread[item.id] })} data-unread>
+                {unread[item.id]}
+              </span>
+            )}
           </Link>
           <span data-hover className="flex shrink-0 items-center">
             <Dropdown label="⋯" title={t("More")} className="icon-btn size-5 text-xs" align="left">

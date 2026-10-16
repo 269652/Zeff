@@ -100,5 +100,5 @@ function messageSource(): SourceView {
 function home(kind: "mail" | "message"): SourceView["home"] {
   const id = homeDatabase(kind);
   if (!id) return null;
-  return { id, dataType: kind, inboxes: derivedOf(id).map((d) => ({ title: `${d.icon ? `${d.icon} ` : ""}${d.title}`, href: `/workspace/${d.id}` })) };
+  return { id, dataType: kind, inboxes: derivedOf(id).map((d) => ({ title: `${d.icon ? `${d.icon} ` : ""}${d.title}${d.unread ? ` · ${d.unread}` : ""}`, href: `/workspace/${d.id}` })) };
 }

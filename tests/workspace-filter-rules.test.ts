@@ -59,3 +59,17 @@ test("the plugin's templates: an inbox under Mail in one click — its rules set
   await runPipeline(id, { ai: false });
   assert.deepEqual(w.rawRows(id).map((r) => r.title), ["Kurze Frage"], "from people: no Jira, no noreply");
 });
+
+test("unread counters: every mail database's unread rows — for the sidebar", async () => {
+  const w = await import("@/plugins/workspace/store");
+  const { runPipeline } = await import("@/plugins/workspace/pipeline");
+  const { createSourceDatabase } = await import("@/plugins/workspace/derived");
+  const { unreadCounts } = await import("@/plugins/workspace/store");
+  const mail = createSourceDatabase("mail");
+  await runPipeline(mail, { ai: false });
+  const unread = w.rawRows(mail).filter((r) => r.cells.mailunread === true).length;
+  assert.ok(unread > 0);
+  assert.equal(unreadCounts()[mail], unread);
+  const todos = createSourceDatabase("todos");
+  assert.equal(unreadCounts()[todos], undefined, "only mail databases");
+});

@@ -5344,5 +5344,6 @@
   "Only Signal": "Solo Signal",
   "The AI keeps what asks something of you": "La IA conserva lo que te pide algo",
   "New inbox": "Nueva bandeja",
-  "Inboxes": "Bandejas"
+  "Inboxes": "Bandejas",
+  "{n} unread": "{n} sin leer"
 }
