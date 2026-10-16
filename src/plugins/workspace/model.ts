@@ -125,6 +125,10 @@ export type DbSchema = {
   pipeline?: Pipeline;
   /** What its rows are (mails, messages — set by its sources): their fixed fields are there for the views that need them. */
   dataType?: DataType;
+  /** A database of rules (when / then): a pipeline's rules step reads it, agents read its hints. */
+  rules?: boolean;
+  /** A database of jobs for agents: a row is a job a worker can be given (a click), its result comes back into the row. */
+  jobs?: boolean;
 };
 
 /** The sources a pipeline can read: Jira's tickets, Google Keep's notes, the todos, another database of the Workspace, the addresses of the knowledge base. */
@@ -155,7 +159,7 @@ export type JiraCriteria = { mine?: boolean; involved?: boolean; briefed?: boole
  */
 export type PipelineStep = {
   id: string;
-  kind: "source" | "filter" | "ai" | "sort" | "write" | "set" | "join";
+  kind: "source" | "filter" | "ai" | "sort" | "write" | "set" | "join" | "rules";
   from?: PipelineSource;
   jira?: JiraCriteria;
   mail?: MailCriteria;
@@ -245,6 +249,9 @@ export function normalizePipeline(raw: unknown): Pipeline {
         return [defined<FilterRule>({ field, op: r.op as FilterRule["op"], value: typeof r.value === "string" ? r.value : undefined })];
       });
       steps.push(defined<PipelineStep>({ id, kind: "filter", text: str(s.text), openOnly: s.openOnly === true, recentDays: posInt(s.recentDays), limit: posInt(s.limit), rules: rules.length ? rules : undefined, match: rules.length && s.match === "any" ? "any" : undefined }));
+    } else if (s.kind === "rules") {
+      // Rules read from a rules database (`dbId`); a rule that hands a record to an agent makes its job in `to`.
+      if (posInt(s.dbId)) steps.push(defined<PipelineStep>({ id, kind: "rules", dbId: posInt(s.dbId), to: posInt(s.to) }));
     } else if (s.kind === "write") {
       if (posInt(s.to)) steps.push(defined<PipelineStep>({ id, kind: "write", to: posInt(s.to) }));
     } else if (s.kind === "join") {
@@ -383,7 +390,7 @@ export function normalizeSchema(raw: unknown): DbSchema {
   const o = (raw && typeof raw === "object" ? raw : {}) as Partial<DbSchema>;
   const props = (Array.isArray(o.properties) ? o.properties : []).filter((p): p is Property => !!p && typeof p.id === "string" && (PROP_TYPES as readonly string[]).includes(p.type)).map(withAiColors);
   const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [] }));
-  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(Number.isInteger(o.detailPage) && Number(o.detailPage) > 0 ? { detailPage: Number(o.detailPage) } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}) };
+  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(Number.isInteger(o.detailPage) && Number(o.detailPage) > 0 ? { detailPage: Number(o.detailPage) } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(o.rules === true ? { rules: true } : {}), ...(o.jobs === true ? { jobs: true } : {}) };
 }
 
 export const propById = (props: Property[], id: string): Property | undefined => props.find((p) => p.id === id);

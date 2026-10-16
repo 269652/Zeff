@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { addRowAction, archivePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, detailPageAction, makeInboxAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, runPipelineAction, setCellAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { addRowAction, archivePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, detailPageAction, makeInboxAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, runJobAction, runOpenJobsAction, runPipelineAction, setCellAction, updateSchemaAction, type DatabaseData } from "../actions";
 import { DEFAULT_COLUMN, fitWidth, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
@@ -61,7 +61,7 @@ function useDatabase(initial: DatabaseData | null, dbId: number) {
   // read again — this database only, not the page (an editor being typed in stays as it is). A burst is one read, at most
   // every 1.5 s; in a hidden tab it waits until the tab is shown.
   useEffect(() => {
-    const topics = new Set(["workspace", "todos", "attention", "kanban"]);
+    const topics = new Set(["workspace", "todos", "attention", "kanban", "work"]) /* a run that ends: a jobs database settles it as it reloads */;
     const source = new EventSource("/api/events");
     let timer: ReturnType<typeof setTimeout> | null = null;
     let stale = false;
@@ -242,9 +242,9 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const [peek, setPeek] = useState<number | null>(() => Number(search.get("row")) || null);
   // The panel is drawn in the browser only (a portal): the server's HTML has none, so nothing to mismatch.
   const inBrowser = useSyncExternalStore(noSubscribe, () => true, () => false);
-  const [databases, setDatabases] = useState<{ id: number; title: string }[]>([]);
+  const [databases, setDatabases] = useState<{ id: number; title: string; rules?: boolean; jobs?: boolean }[]>([]);
   useEffect(() => {
-    if (schemaOpen || pipelineOpen) void databasesAction().then((r) => r.ok && setDatabases(r.databases.map((d) => ({ id: d.id, title: d.title }))));
+    if (schemaOpen || pipelineOpen) void databasesAction().then((r) => r.ok && setDatabases(r.databases.map((d) => ({ id: d.id, title: d.title, rules: d.rules, jobs: d.jobs }))));
   }, [schemaOpen, pipelineOpen]);
 
   const view = useMemo(() => data?.schema.views.find((v) => v.id === current) ?? data?.schema.views[0], [data, current]);
@@ -456,6 +456,19 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
                 ▤ {t("Detail view …")}
               </MenuItem>
               <MenuItem onClick={() => (close(), setPipelineOpen(true))}>⛓ {t("Sources & steps …")}</MenuItem>
+              {schema.jobs && (
+                <MenuItem
+                  onClick={async () => {
+                    close();
+                    const r = await runOpenJobsAction(dbId);
+                    await api.reload();
+                    if (!r.ok) return void toast(r.error, { tone: "error" });
+                    toast(t("{n} jobs given to workers.", { n: r.started }) + (r.failed.length ? ` ${r.failed[0]}` : ""), { tone: r.failed.length ? "error" : "ok" });
+                  }}
+                >
+                  ▶ {t("Start all open jobs")}
+                </MenuItem>
+              )}
               <MenuItem
                 onClick={async () => {
                   close();
@@ -627,6 +640,18 @@ function RowMenu({ row, api }: { row: Row; api: Api }) {
     <Dropdown label="⋮" title={t("Row actions")} className="icon-btn" align="left">
       {(close) => (
         <>
+          {api.data?.schema.jobs && (
+            <MenuItem
+              onClick={async () => {
+                close();
+                const r = await runJobAction(row.id);
+                await api.reload();
+                toast(r.ok ? t("Given to a worker — the result comes back into the row.") : r.error, { tone: r.ok ? "ok" : "error" });
+              }}
+            >
+              ▶ {t("Start the agent")}
+            </MenuItem>
+          )}
           <MenuItem onClick={() => (close(), void api.duplicateRow(row.id))}>⧉ {t("Duplicate")}</MenuItem>
           <MenuItem danger onClick={() => (close(), void api.removeRow(row.id))}>
             🗑 {t("Delete")}
