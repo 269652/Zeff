@@ -675,7 +675,7 @@ function StepBody({ dbId, saved, step: s, allSteps, set, databases, fields }: { 
 }
 
 /** The fixed fields of a typed database (its sources' — there before its first run). */
-const TYPED_FIELDS: Record<string, string[]> = { mail: ["Title", "From", "Folder", "Account", "Received", "Unread"], message: ["Title", "Sender", "Chat", "Channel", "Sent", "Mine"], people: ["Title", "Aliases", "Emails", "Chat", "Jira", "Note", "Starred", "Next date", "Next"] };
+const TYPED_FIELDS: Record<string, string[]> = { mail: ["Title", "From", "Folder", "Account", "Received", "Unread"], message: ["Title", "Sender", "Chat", "Channel", "Sent", "Mine"], people: ["Title", "Aliases", "Emails", "Chat", "Jira", "Note", "Starred", "Next date", "Next"], calendar: ["Title", "Start", "End", "All day", "Calendar", "Source", "Location", "Organizer", "Attendees", "Online", "Shown as", "Response"] };
 
 /** A filter's rules, as Outlook's: field (by its name, suggested), condition, value — all of them or any. */
 function RulesEditor({ rules, match, fields, set }: { rules: FilterRule[]; match: "all" | "any"; fields: string[]; set: (rules: FilterRule[], match: "all" | "any") => void }) {

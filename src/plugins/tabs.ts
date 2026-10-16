@@ -32,7 +32,7 @@ export function allApps(): AppView[] {
   const seen = new Set<string>();
   const apps: AppView[] = [];
   for (const [list, defaultPlace] of [
-    [plugins.flatMap((p) => (p.tabs ?? []).map((x) => ({ ...x, label: tr(x.label), short: tr(x.short), hint: tr(p.name), pluginName: tr(p.name) }))), "header"],
+    [plugins.flatMap((p) => (p.tabs ?? []).filter((x) => !x.unless || !on.has(x.unless as never)).map((x) => ({ ...x, label: tr(x.label), short: tr(x.short), hint: tr(p.name), pluginName: tr(p.name) }))), "header"],
     [[...plugins.flatMap((p) => (p.apps ?? []).map((a) => ({ ...a, label: tr(a.label), short: tr(a.short), hint: tr(a.hint), pluginName: tr(p.name) }))), ...external], "menu"],
   ] as const) {
     for (const a of list) {

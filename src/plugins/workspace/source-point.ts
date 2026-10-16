@@ -20,6 +20,8 @@ export type WorkspaceSource = {
   count?: () => number;
   read: () => SourceRecord[] | Promise<SourceRecord[]>;
   pull?: (dbId: number, rows: Row[], schema: DbSchema) => void | Promise<void>;
+  /** A row of it deleted in the database: the record it came from goes too (`ref` as the record had it). Throws when it can't (a read-only record) - the row then stays. */
+  remove?: (dbId: number, ref: string) => void | Promise<void>;
 };
 
 export const workspaceSources = extensionPoint<WorkspaceSource[]>("workspace.sources");

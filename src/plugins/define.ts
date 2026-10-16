@@ -41,7 +41,7 @@ export type PluginShape<Id extends string = string> = {
   /** The plugins it builds on — without them it isn't there either (installing it installs them). */
   dependsOn?: string[];
   /** Its tabs in the header (an application's). */
-  tabs?: { href: string; label: string; short: string; also?: string[] }[];
+  tabs?: { href: string; label: string; short: string; also?: string[]; /** Not shown while this plugin is installed (it takes over: the Calendar is a database of the Workspace there). */ unless?: string }[];
   /** Its settings page — the setup's "Set up" step and the menu link to it. */
   settings?: { href: string; what: string };
   /** Its applications beside the tabs — views of what it reads (Mail, Gmail, WhatsApp …): under "Apps" in the menu by default (the layout settings move them). */

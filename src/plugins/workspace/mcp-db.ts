@@ -279,6 +279,8 @@ export function registerWorkspaceDbTools(server: McpServer, h: Helpers): void {
       for (const [k, v] of Object.entries(c.cells)) store.setCell(r.id, k, v);
       if (title !== undefined) store.updatePage(r.id, { title });
       if (markdown !== undefined) store.updatePage(r.id, { content: markdownToDoc(markdown) });
+      // A row of a two-way source (an appointment): the change goes to where it comes from now.
+      await (await import("./pipeline")).syncAfterEdit(r.id).catch(() => null);
       return h.ok(`Updated row ${r.id}${c.notes.length ? ` (ignored: ${c.notes.join("; ")})` : ""}.`);
     }),
   );
@@ -306,7 +308,7 @@ export function registerWorkspaceDbTools(server: McpServer, h: Helpers): void {
       }),
       annotations: { readOnlyHint: false, destructiveHint: true },
     },
-    guard(({ page, parent, before, archive, duplicate, ...patch }: { page: string | number; parent?: string | number; before?: number; archive?: boolean; duplicate?: boolean; title?: string; icon?: string; cover?: string; favorite?: boolean; fullWidth?: boolean; smallText?: boolean; locked?: boolean }) => {
+    guard(async ({ page, parent, before, archive, duplicate, ...patch }: { page: string | number; parent?: string | number; before?: number; archive?: boolean; duplicate?: boolean; title?: string; icon?: string; cover?: string; favorite?: boolean; fullWidth?: boolean; smallText?: boolean; locked?: boolean }) => {
       const p = findPage(page) ?? (/^\d+$/.test(String(page)) ? store.trash().find((x) => x.id === Number(page)) && store.getPage(Number(page)) : null);
       if (!p) return h.fail(`No page "${page}".`);
       const did: string[] = [];
@@ -328,6 +330,7 @@ export function registerWorkspaceDbTools(server: McpServer, h: Helpers): void {
       }
       if (duplicate) did.push(`duplicated as page ${store.duplicatePage(p.id, { suffix: true })}`);
       if (archive) {
+        await (await import("./source-write")).removeFromSource(p.id);
         store.archivePage(p.id);
         did.push("archived");
       }

@@ -13,6 +13,7 @@ export const APP_VIEWS: AppView[] = [
   { id: "chat", plugin: "mail-client", dataType: "message", label: "Chat", icon: "💬" },
   { id: "inbox", plugin: "mail-client", dataType: "inbox", label: "Inbox", icon: "📬" },
   { id: "people", plugin: "people", dataType: "people", label: "Overview", icon: "👥" },
+  { id: "calendar", plugin: "calendar", dataType: "calendar", label: "Calendar", icon: "📅" },
 ];
 
 /** The app views a database of this type can have now (their plugins installed). */

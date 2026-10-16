@@ -233,6 +233,20 @@ export function eventsBetween(from: string, to: string, only: { visible?: boolea
     .sort((a, b) => a.start.localeCompare(b.start));
 }
 
+/** One appointment by id (a series as its first occurrence; `occurrence` - the day - gives that occurrence), with its calendar; null: gone. */
+export function eventById(id: number, occurrence?: string): (CalendarEventView & { calendar: CalendarView }) | null {
+  const e = getDb().select().from(calendarEvents).where(eq(calendarEvents.id, id)).get();
+  const c = e && listCalendars().find((x) => x.id === e.calendarId);
+  if (!e || !c) return null;
+  const view = eventView(e);
+  if (!view.recurrence || !occurrence) return { ...view, calendar: c };
+  const day = occurrence.slice(0, 10);
+  const next = new Date(`${day}T12:00:00`);
+  next.setDate(next.getDate() + 1);
+  const to = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`;
+  return eventsBetween(day, to).find((x) => x.id === id && x.occurrence === occurrence) ?? null;
+}
+
 /** An appointment in one of Zeff's own calendars. */
 export function addEvent(calendarId: number, e: Omit<EventInput, "key">): CalendarEventView {
   const c = getDb().select().from(calendars).where(eq(calendars.id, calendarId)).get();

@@ -106,7 +106,12 @@ export async function movePageAction(id: number, parentId: number | null, before
 }
 
 export async function archivePageAction(id: number) {
-  return run(() => (store.archivePage(Number(id)), {}));
+  // A row of a two-way source (an appointment): the record goes first - one that can't be deleted there keeps the row.
+  return run(async () => {
+    await (await import("./source-write")).removeFromSource(Number(id));
+    store.archivePage(Number(id));
+    return {};
+  });
 }
 
 export async function restorePageAction(id: number) {
@@ -296,7 +301,12 @@ export async function updateSchemaAction(dbId: number, schema: unknown) {
 }
 
 export async function addRowAction(dbId: number, v: store.NewRow = {}) {
-  return run(() => ({ id: store.addRow(Number(dbId), v) }));
+  return run(() => {
+    const id = store.addRow(Number(dbId), v);
+    // A row with a title in a two-way source (an appointment) is made there at once.
+    if (v.title?.trim()) void import("./pipeline").then((p) => p.syncAfterEdit(id)).catch(() => undefined);
+    return { id };
+  });
 }
 
 export async function setCellAction(rowId: number, propId: string, value: unknown) {
