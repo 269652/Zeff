@@ -8,7 +8,7 @@ import { ContextList } from "@/components/boards/TodoSources";
 import { TicketChat } from "@/components/boards/TicketChat";
 import { TicketQuestions } from "@/components/boards/TicketQuestions";
 import type { TicketDetail } from "@/lib/items/tickets";
-import { addSubtaskAction, detachSubtaskAction, pageContentAction, rowContextAction, setSubtaskDoneAction, subtasksAction, ticketBlockAction, ticketDetailAction, type DatabaseData } from "../actions";
+import { addSubtaskAction, detachSubtaskAction, linkedSourceAction, pageContentAction, rowContextAction, setSubtaskDoneAction, subtasksAction, ticketBlockAction, ticketDetailAction, unlinkRowAction, type DatabaseData } from "../actions";
 import type { TicketExtras } from "@/lib/items/shared";
 import { WS_CHANGED } from "./ChatPanel";
 import type { DetailModule } from "../model";
@@ -28,7 +28,7 @@ import { PersonBlock } from "@/plugins/people/ui/PersonBlocks";
 /** A module's name, as the detail view's editor lists it. */
 export function useModuleLabels(): Record<DetailModule, string> {
   const t = useT();
-  return { properties: t("Properties"), subtasks: t("Subtasks"), suggested: t("Suggested actions"), briefing: t("Briefing"), todos: t("Todos"), questions: t("Questions"), actions: t("Suggested actions"), flags: t("Flags"), context: t("Context"), chat: t("Chat"), page: t("Page"), "person-profile": t("Person: profile"), "person-note": t("Person: notes"), "person-summary": t("Person: summary"), "person-dates": t("Person: dates"), "person-knowledge": t("Person: read from messages"), "person-wiki": t("Person: what the knowledge knows"), "person-relations": t("Person: relations"), "person-messages": t("Person: latest messages"), "person-todos": t("Person: todos"), "person-pages": t("Person: pages that mention them"), "person-tickets": t("Person: shared tickets"), "person-manage": t("Person: merge or delete") };
+  return { properties: t("Properties"), source: t("Linked ticket"), subtasks: t("Subtasks"), suggested: t("Suggested actions"), briefing: t("Briefing"), todos: t("Todos"), questions: t("Questions"), actions: t("Suggested actions"), flags: t("Flags"), context: t("Context"), chat: t("Chat"), page: t("Page"), "person-profile": t("Person: profile"), "person-note": t("Person: notes"), "person-summary": t("Person: summary"), "person-dates": t("Person: dates"), "person-knowledge": t("Person: read from messages"), "person-wiki": t("Person: what the knowledge knows"), "person-relations": t("Person: relations"), "person-messages": t("Person: latest messages"), "person-todos": t("Person: todos"), "person-pages": t("Person: pages that mention them"), "person-tickets": t("Person: shared tickets"), "person-manage": t("Person: merge or delete") };
 }
 
 /** The modules that need the row's ticket key (none without one). */
@@ -55,6 +55,7 @@ export function DetailModules({ modules, data, rowId, bare = false }: { modules:
   const one = (m: DetailModule): React.ReactNode => {
     if (m.startsWith("person-")) return <PersonBlock module={m} rowId={rowId} />;
     if (m === "properties") return <RowProperties initial={data} dbId={data.id} rowId={rowId} />;
+    if (m === "source") return <LinkedSourceModule rowId={rowId} />;
     if (m === "subtasks") return <SubtasksModule rowId={rowId} locked={!!data.locked} />;
     if (m === "suggested") return <SuggestedActions rowId={rowId} value={data.rows.find((r) => r.id === rowId)?.cells.rowactions} />;
     if (m === "page") return page ? <Editor key={rowId} pageId={rowId} initial={page.content} rev={page.rev} editable={!data.locked} smallText={false} /> : <p className="text-sm text-zinc-400">…</p>;
@@ -69,6 +70,66 @@ export function DetailModules({ modules, data, rowId, bare = false }: { modules:
         <div key={m}>{one(m)}</div>
       ))}
     </>
+  );
+}
+
+type Linked = NonNullable<Awaited<ReturnType<typeof linkedSourceAction>> extends infer R ? (R extends { ok: true; source: infer S } ? S : never) : never>;
+
+/** The ticket a copy was sent from: its board, its key, its fields — and "unlink" (it becomes a copy). Nothing for a row that isn't one. */
+function LinkedSourceModule({ rowId }: { rowId: number }) {
+  const t = useT();
+  const [s, setS] = useState<Linked | null | undefined>(undefined);
+  useEffect(() => {
+    let live = true;
+    const read = () => void linkedSourceAction(rowId).then((r) => live && setS(r.ok ? (r.source as Linked | null) : null));
+    read();
+    window.addEventListener(WS_CHANGED, read);
+    return () => {
+      live = false;
+      window.removeEventListener(WS_CHANGED, read);
+    };
+  }, [rowId]);
+  if (!s) return null;
+  return (
+    <section className="ws-module space-y-2 rounded-lg border border-indigo-200 bg-indigo-50/40 p-3 text-sm dark:border-indigo-900 dark:bg-indigo-950/20">
+      <div className="flex flex-wrap items-center gap-2">
+        <span aria-hidden>🔗</span>
+        <span className="font-medium">{t("Linked ticket")}</span>
+        <a href={`/workspace/${s.sourceDbId}?row=${s.sourceId}`} className="min-w-0 truncate text-indigo-700 underline dark:text-indigo-300">
+          {s.sourceTitle || t("Untitled")}
+        </a>
+        <span className="text-xs text-zinc-500">{t("in {board}", { board: s.sourceDb })}</span>
+        {s.key && <span className="ws-chip" data-kind="ticket">{s.key}</span>}
+        {s.url && (
+          <a href={s.url} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 underline dark:text-indigo-400">
+            {t("Open the ticket")} ↗
+          </a>
+        )}
+        <button
+          type="button"
+          className="ml-auto text-xs text-zinc-500 hover:underline"
+          onClick={async () => {
+            const r = await unlinkRowAction(rowId);
+            if (!r.ok) return void toast(r.error, { tone: "error" });
+            toast(t("Unlinked — this is a copy now."), { tone: "ok" });
+            window.dispatchEvent(new Event(WS_CHANGED));
+          }}
+        >
+          ⛓ {t("Unlink — make it a copy")}
+        </button>
+      </div>
+      {s.fields.length > 0 && (
+        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+          {s.fields.map((f) => (
+            <div key={f.name} className="contents">
+              <dt className="text-zinc-500">{f.name}</dt>
+              <dd className="min-w-0 break-words whitespace-pre-wrap">{f.text}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      <p className="text-xs text-zinc-500">{t("Changes there follow here. What Zeff knows of the ticket (Lage, todos, context) is below.")}</p>
+    </section>
   );
 }
 

@@ -249,6 +249,7 @@ export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: D
       await jobs.settleJobs().catch(() => 0);
       void jobs.pumpJobs(Number(dbId)).catch(() => undefined); // (the agents take what is Ready, when they are on)
     }
+    if (store.getDatabase(Number(dbId))?.schema.receive) (await import("./links")).resyncInto(Number(dbId)); // (copies follow their originals, also those made before something travelled)
     const d = store.rowsOf(Number(dbId));
     const page = store.getPage(Number(dbId));
     if (!d || !page) throw new Error(t("This database is gone."));
@@ -913,4 +914,9 @@ export async function setAgentsAction(dbId: number, cfg: { auto: boolean; parall
     if (cfg.auto) void (await import("./jobs")).pumpJobs(Number(dbId)).catch(() => undefined);
     return {};
   });
+}
+
+/** What a copy's original says (its board, its key, its fields) — for the copy's detail view. Null: not a copy. */
+export async function linkedSourceAction(rowId: number) {
+  return run(async () => ({ source: (await import("./links")).linkedSource(Number(rowId)) }));
 }

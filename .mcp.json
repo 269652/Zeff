@@ -13,7 +13,7 @@
 
     "chrono": {
       "command": "node",
-      "args": ["${workspaceFolder}/scripts/chrono-mcp.mjs"]
+      "args": ["${workspaceFolder}/integrations/booking/chrono/scripts/chrono-mcp.mjs"]
     }
   }
 }

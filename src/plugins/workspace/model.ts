@@ -283,7 +283,7 @@ export function normalizePipeline(raw: unknown): Pipeline {
 /** The modules a row's detail view can show: its properties and page, and — by its ticket key — what Zeff knows about it. */
 /** The blocks of a person's page (the people database's detail view): profile, notes, summary, dates, what is known, relations, messages … */
 export const PERSON_MODULES = ["person-profile", "person-note", "person-summary", "person-dates", "person-knowledge", "person-wiki", "person-relations", "person-messages", "person-todos", "person-pages", "person-tickets", "person-manage"] as const;
-export const DETAIL_MODULES = ["properties", "subtasks", "suggested", "briefing", "todos", "questions", "actions", "flags", "context", "chat", "page", ...PERSON_MODULES] as const;
+export const DETAIL_MODULES = ["properties", "source", "subtasks", "suggested", "briefing", "todos", "questions", "actions", "flags", "context", "chat", "page", ...PERSON_MODULES] as const;
 export type DetailModule = (typeof DETAIL_MODULES)[number];
 const isDetailModule = (v: unknown): v is DetailModule => (DETAIL_MODULES as readonly unknown[]).includes(v);
 
@@ -849,6 +849,8 @@ export function detailModules(schema: DbSchema, source: string | null | undefine
   if (schema.detail) return schema.detail;
   if (schema.dataType === "people") return [...PERSON_MODULES, "page"];
   if (source === "jira") return ["properties", "briefing", "todos", "questions", "actions", "flags", "context", "chat"];
+  // A database that receives rows from others: the linked ticket first, then what Zeff knows of it (by the key the copy carries).
+  if (schema.receive) return ["properties", "source", "briefing", "todos", "context", "page"];
   const status = schema.properties.find((p) => p.type === "status");
   const board = !!status && schema.views.some((v) => v.type === "board" && v.groupBy === status.id);
   // Subtasks: on a board (as Kanban had them), and wherever rows have a parent already.
