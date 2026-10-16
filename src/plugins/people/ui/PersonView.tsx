@@ -102,8 +102,8 @@ const LinkBtn = ({ children, ...p }: React.ButtonHTMLAttributes<HTMLButtonElemen
 
 /**
  * A person's page — the custom view of the people database's rows, ONE block of the row's own page (the rest of the page is free
- * text and blocks): who they are, your notes, their dates on the left; what is known of them — the summary, what was read from
- * messages, the knowledge, relations — in the middle, and what you have with them (messages, todos, pages, tickets) below.
+ * text and blocks): who they are, your notes, their dates on the left; the summary, what was read from messages and the relations on the right;
+ * below, over the full width, one row each: what the knowledge knows, the latest messages, the todos — then pages and tickets.
  */
 export default function PersonView({ rowId }: { rowId: number }) {
   const t = useT();
@@ -112,7 +112,8 @@ export default function PersonView({ rowId }: { rowId: number }) {
   if (!p.data) return <Empty>{p.error ?? t("This row is not a person.")}</Empty>;
   const d = p.data;
   return (
-    <div className="@container" data-person-view>
+    <div className="@container space-y-5" data-person-view>
+      {/* Who they are on the left, what Zeff made of them on the right … */}
       <div className="ws-person grid gap-x-8 gap-y-5 @2xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
         <aside className="space-y-5">
           <Profile d={d} run={p.run} />
@@ -123,15 +124,16 @@ export default function PersonView({ rowId }: { rowId: number }) {
         <div className="space-y-5">
           <Summary d={d} run={p.run} />
           <Known d={d} run={p.run} />
-          <Wiki rowId={rowId} />
           <Relations d={d} run={p.run} />
-          <div className="grid gap-x-8 gap-y-5 @4xl:grid-cols-2">
-            <Messages d={d} />
-            <TodosOf d={d} />
-            <Pages d={d} />
-            <Tickets d={d} />
-          </div>
         </div>
+      </div>
+      {/* … then, each over the full width: what the knowledge knows, the latest messages, the todos they appear in. */}
+      <Wiki rowId={rowId} />
+      <Messages d={d} />
+      <TodosOf d={d} />
+      <div className="grid gap-x-8 gap-y-5 @2xl:grid-cols-2">
+        <Pages d={d} />
+        <Tickets d={d} />
       </div>
     </div>
   );
