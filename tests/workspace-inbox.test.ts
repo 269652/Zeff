@@ -144,3 +144,18 @@ test("any database becomes an inbox: naming the channels as sources — its Inbo
   assert.ok(after.schema.views.some((v) => v.type === "app" && v.app === "inbox"));
   assert.ok(w.rawRows(id).some((r) => r.title === "Von Hand"), "its own row stays");
 });
+
+test("data sources: the catalog lists every database that names a channel as a source — the inbox, derived ones, own ones", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["workspace", "outlook-mail", "teams", "mail-client"]) setInstalled(id, true);
+  const w = await import("@/plugins/workspace/store");
+  const { makeInbox } = await import("@/plugins/workspace/derived");
+  const { sourcesOverview } = await import("@/plugins/workspace/sources");
+  const own = w.createPage({ kind: "database", title: "Meine Kanäle" });
+  makeInbox(own);
+  const sources = sourcesOverview();
+  const titles = (k: string) => sources.find((s) => s.key === k)!.databases.map((d) => d.title);
+  assert.ok(titles("mail").includes("Meine Kanäle") && titles("messages").includes("Meine Kanäle"), "its channels, from the database itself");
+  assert.ok(titles("mail").includes("Inbox"));
+  assert.ok(!titles("mail").includes("Chats"), "a chat database names no mail");
+});

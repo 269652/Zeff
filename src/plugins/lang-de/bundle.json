@@ -5429,5 +5429,7 @@
   "Checkbox that keeps a row": "Haken, der eine Zeile behält",
   "(none)": "(keiner)",
   "is final: a run neither changes nor archives it, and the AI leaves it.": "abgehakt ist, gilt als endgültig: Ein Lauf ändert oder archiviert sie nicht, und die KI lässt sie in Ruhe.",
-  "Colour of {name}": "Farbe von {name}"
+  "Colour of {name}": "Farbe von {name}",
+  "Used by": "Verwendet von",
+  "An inbox is a database like any other: name the channels as its sources (New → Inbox, or View → Inbox in any database).": "Eine Inbox ist eine Datenbank wie jede andere: Kanäle als Quellen nennen (Neu → Inbox oder Ansicht → Inbox in jeder Datenbank)."
 }

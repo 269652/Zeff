@@ -1,6 +1,4 @@
 import { getSqlite } from "@/db";
-import { derivedOf } from "./derived";
-import { homeDatabase } from "./mail-databases";
 import { listTodos } from "@/lib/boards/store";
 import { listJiraBoards } from "@/lib/jira/store";
 import { getJiraSyncConfig } from "@/lib/jira/sync";
@@ -87,18 +85,25 @@ function todoSource(): SourceView {
 
 function mailSource(): SourceView {
   const n = (getSqlite().prepare("select count(*) as n from emails where folder not in ('WhatsApp', 'Signal')").get() as { n: number }).n;
-  return { key: "mail", name: "Mail", step: "mail", ready: true, setup: { text: "Which folders are read", href: "/settings/mail" }, count: n, databases: [], home: home("mail") };
+  return { key: "mail", name: "Mail", step: "mail", ready: true, setup: { text: "Which folders are read", href: "/settings/mail" }, count: n, databases: databasesUsing("mail"), home: null };
 }
 
 function messageSource(): SourceView {
   const chats = (getSqlite().prepare("select count(*) as n from emails where folder in ('WhatsApp', 'Signal')").get() as { n: number }).n;
   const teams = (getSqlite().prepare("select count(*) as n from teams_messages").get() as { n: number }).n;
-  return { key: "messages", name: "Teams · WhatsApp · Signal", step: null, ready: true, setup: null, count: chats + teams, databases: [], home: home("message") };
+  return { key: "messages", name: "Teams · WhatsApp · Signal", step: null, ready: true, setup: null, count: chats + teams, databases: databasesUsing("messages"), home: null };
 }
 
-/** "Mail" / "Chats" with the inboxes under it (their derived databases). */
-function home(kind: "mail" | "message"): SourceView["home"] {
-  const id = homeDatabase(kind);
-  if (!id) return null;
-  return { id, dataType: kind, inboxes: derivedOf(id).map((d) => ({ title: `${d.icon ? `${d.icon} ` : ""}${d.title}${d.unread ? ` · ${d.unread}` : ""}`, href: `/workspace/${d.id}` })) };
+/** The databases that name this channel as a source (any — the inbox, derived ones, your own): the catalog's links. */
+function databasesUsing(from: "mail" | "messages"): { title: string; href: string }[] {
+  const rows = getSqlite().prepare(`select id, title, schema from ws_pages where kind = 'database' and archived_at is null and schema like ?`).all(`%"from":"${from}"%`) as { id: number; title: string; schema: string }[];
+  return rows
+    .filter((r) => {
+      try {
+        return ((JSON.parse(r.schema) as { pipeline?: { steps?: { kind: string; from?: string }[] } }).pipeline?.steps ?? []).some((x) => x.kind === "source" && x.from === from);
+      } catch {
+        return false;
+      }
+    })
+    .map((r) => ({ title: r.title, href: `/workspace/${r.id}` }));
 }

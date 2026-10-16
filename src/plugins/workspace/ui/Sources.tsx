@@ -10,7 +10,6 @@ import { setBoardEnabledAction } from "@/plugins/jira/server-actions";
 import { createSourceDatabaseAction, keepSourceDatabasesAction } from "../actions";
 import type { SourceView } from "../sources";
 import { SyncEvery } from "./pipeline";
-import { NewInbox } from "@/plugins/mail-client/ui/NewInbox";
 
 /**
  * The Workspace's data sources: Jira (its boards switched on here, each a board database), Google Keep (a gallery
@@ -106,25 +105,9 @@ export function SourcesView({ sources }: { sources: SourceView[] }) {
               {!s.boards.length && <li className="py-1.5 text-zinc-500">{t("No Jira boards known yet — sync Jira first.")}</li>}
             </ul>
           )}
-          {/* Mail, messages: the inboxes under "Mail" / "Chats" — and a new one from the plugin's templates. */}
-          {s.home && (
-            <div className="flex flex-wrap items-center gap-2 text-sm" data-inboxes>
-              <span className="text-zinc-500">{t("Inboxes")}:</span>
-              <Link href={`/workspace/${s.home.id}`} className="ws-chip hover:underline">
-                {s.home.dataType === "mail" ? "✉️ " : "💬 "}
-                {s.home.dataType === "mail" ? t("Mail") : t("Chats")}
-              </Link>
-              {s.home.inboxes.map((x) => (
-                <Link key={x.href} href={x.href} className="ws-chip hover:underline">
-                  {x.title}
-                </Link>
-              ))}
-              <NewInbox dbId={s.home.id} dataType={s.home.dataType} />
-            </div>
-          )}
           {s.databases.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-zinc-500">{t("Databases")}:</span>
+              <span className="text-zinc-500">{t("Used by")}:</span>
               {s.databases.map((d) => (
                 <Link key={d.href} href={d.href} className="ws-chip hover:underline">
                   {d.title}
@@ -134,29 +117,9 @@ export function SourcesView({ sources }: { sources: SourceView[] }) {
           )}
         </section>
       ))}
-      {/* Several sources in one list: a pipeline that names mail and chats gets one set of fields and the inbox view. */}
-      {sources.some((s) => s.key === "mail") && sources.some((s) => s.key === "messages") && (
-        <section className="card flex flex-wrap items-center gap-3 p-4" data-combined-inbox>
-          <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-semibold">📬 {t("A combined inbox")}</h2>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">{t("Mail and chats in one list, by channel — name the sources (more, fewer) in its Sources & steps.")}</p>
-          </div>
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            disabled={pending}
-            onClick={() =>
-              start(async () => {
-                const r = await createSourceDatabaseAction("inbox");
-                if (!r.ok) return void toast(r.error, { tone: "error" });
-                router.push(`/workspace/${r.id}`);
-              })
-            }
-          >
-            ＋ {t("New combined inbox")}
-          </button>
-        </section>
-      )}
+      <p className="text-sm text-zinc-500" data-catalog-hint>
+        {t("An inbox is a database like any other: name the channels as its sources (New → Inbox, or View → Inbox in any database).")}
+      </p>
     </div>
   );
 }

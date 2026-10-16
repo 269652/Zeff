@@ -5429,5 +5429,7 @@
   "Checkbox that keeps a row": "Casilla que conserva una fila",
   "(none)": "(ninguna)",
   "is final: a run neither changes nor archives it, and the AI leaves it.": "es definitiva: una ejecución no la cambia ni la archiva, y la IA la deja en paz.",
-  "Colour of {name}": "Color de {name}"
+  "Colour of {name}": "Color de {name}",
+  "Used by": "Usado por",
+  "An inbox is a database like any other: name the channels as its sources (New → Inbox, or View → Inbox in any database).": "Una bandeja es una base de datos como cualquier otra: nombra los canales como fuentes (Nuevo → Inbox, o Vista → Inbox en cualquier base de datos)."
 }
