@@ -995,3 +995,52 @@
 .ws-editor .ProseMirror .ws-widget li {
   margin: 0;
 }
+
+/* tabs: the panel of the active tab shows, the others wait (the node views sit in renderer elements, counted from 1) */
+.ws-tabs-body > div > .react-renderer {
+  display: none;
+}
+.ws-tabs[data-active="0"] .ws-tabs-body > div > .react-renderer:nth-child(1) {
+  display: block;
+}
+.ws-tabs[data-active="1"] .ws-tabs-body > div > .react-renderer:nth-child(2) {
+  display: block;
+}
+.ws-tabs[data-active="2"] .ws-tabs-body > div > .react-renderer:nth-child(3) {
+  display: block;
+}
+.ws-tabs[data-active="3"] .ws-tabs-body > div > .react-renderer:nth-child(4) {
+  display: block;
+}
+.ws-tabs[data-active="4"] .ws-tabs-body > div > .react-renderer:nth-child(5) {
+  display: block;
+}
+.ws-tabs[data-active="5"] .ws-tabs-body > div > .react-renderer:nth-child(6) {
+  display: block;
+}
+.ws-tabs[data-active="6"] .ws-tabs-body > div > .react-renderer:nth-child(7) {
+  display: block;
+}
+.ws-tabs[data-active="7"] .ws-tabs-body > div > .react-renderer:nth-child(8) {
+  display: block;
+}
+.ws-tabs[data-active="8"] .ws-tabs-body > div > .react-renderer:nth-child(9) {
+  display: block;
+}
+.ws-tabs[data-active="9"] .ws-tabs-body > div > .react-renderer:nth-child(10) {
+  display: block;
+}
+.ws-tabs[data-active="10"] .ws-tabs-body > div > .react-renderer:nth-child(11) {
+  display: block;
+}
+.ws-tabs[data-active="11"] .ws-tabs-body > div > .react-renderer:nth-child(12) {
+  display: block;
+}
+
+/* blocks shown only when a condition holds: not shown for this entry — dimmed while editing, gone otherwise */
+.ws-if-off > .ws-if-body {
+  opacity: 0.45;
+}
+.ws-if-hidden {
+  display: none;
+}

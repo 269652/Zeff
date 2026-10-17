@@ -28,6 +28,7 @@ import { ZeffButton, ZeffField, ZeffRelated } from "./app-nodes";
 import { DATA_BLOCKS } from "./block-nodes";
 import { ZeffRoutine } from "./routine-node";
 import { ZeffWidget } from "./widget-node";
+import { ZeffForm, ZeffIf, ZeffTabs } from "./form-nodes";
 import { PageEmbedNode } from "./page-embed";
 import { SlashCommand, type SlashContext } from "./slash";
 import "./workspace.css";
@@ -244,6 +245,9 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
       ZeffModuleNode.configure({ pageId: contextRowId ?? pageId }),
       ZeffRoutine.configure({ pageId }),
       ZeffWidget,
+      ZeffForm,
+      ZeffIf.configure({ pageId: contextRowId ?? pageId }),
+      ZeffTabs,
       RowViewNode.configure({ pageId: contextRowId ?? pageId }),
       ZeffField.configure({ pageId: contextRowId ?? pageId }),
       ZeffRelated.configure({ pageId: contextRowId ?? pageId }),

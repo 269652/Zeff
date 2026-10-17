@@ -107,6 +107,43 @@ export const slashItems = (t: T): SlashItem[] => [
     run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffModule", attrs: { module, key: "" } }).run(),
   })),
   {
+    key: "app-form",
+    title: t("Form"),
+    hint: t("Inputs that make a row of a database — routines on new rows go on from there"),
+    icon: "📝",
+    group: t("App blocks"),
+    keywords: ["form", "input", "formular", "submit", "new row", "intake"],
+    run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffForm", attrs: { dbId: null, fields: "[]", label: "" } }).run(),
+  },
+  {
+    key: "app-if",
+    title: t("Shown only if …"),
+    hint: t("Blocks that show only when a field of the entry has a value"),
+    icon: "🔍",
+    group: t("App blocks"),
+    keywords: ["if", "condition", "conditional", "show", "hide", "bedingung", "nur wenn"],
+    run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffIf", attrs: { field: "", op: "is", value: "" }, content: [{ type: "paragraph" }] }).run(),
+  },
+  {
+    key: "app-tabs",
+    title: t("Tabs"),
+    hint: t("Boxes of blocks behind tab titles"),
+    icon: "🗂",
+    group: t("App blocks"),
+    keywords: ["tabs", "tab", "reiter", "sections"],
+    run: ({ editor, range }) =>
+      chain(editor, range)
+        .insertContent({
+          type: "zeffTabs",
+          attrs: { titles: JSON.stringify([t("Tab 1"), t("Tab 2")]), active: 0 },
+          content: [
+            { type: "flexBox", attrs: { dir: "col", gap: "md" }, content: [{ type: "paragraph" }] },
+            { type: "flexBox", attrs: { dir: "col", gap: "md" }, content: [{ type: "paragraph" }] },
+          ],
+        })
+        .run(),
+  },
+  {
     key: "widget",
     title: t("Widget"),
     hint: t("What a plugin shows live — unread, dates coming up, workers, news — with its buttons"),

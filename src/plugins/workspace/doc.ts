@@ -424,6 +424,9 @@ const NODE_ATTRS: Record<string, string[]> = {
   flexBox: ["dir", "gap", "wrap", "span"],
   zeffRoutine: [],
   zeffWidget: ["widget", "config"],
+  zeffForm: ["dbId", "fields", "label"],
+  zeffIf: ["field", "op", "value"],
+  zeffTabs: ["titles", "active"],
   zeffField: ["prop", "label"],
   zeffRelated: ["dbId", "prop"],
   zeffButton: ["label", "action", "prop", "value"],
@@ -491,6 +494,36 @@ export function sanitizeDoc(input: unknown): Doc {
       if (o.type === "zeffModule") {
         if (!(BLOCK_MODULES as readonly unknown[]).includes(attrs.module)) return null;
         attrs.key = String(attrs.key ?? "").trim().toUpperCase().slice(0, 40);
+      }
+      if (o.type === "zeffForm") {
+        const id = Math.floor(Number(attrs.dbId));
+        if (!(id > 0)) return null;
+        attrs.dbId = id;
+        let fields: string[] = [];
+        try {
+          const parsed = JSON.parse(String(attrs.fields ?? "[]")) as unknown;
+          if (Array.isArray(parsed)) fields = parsed.filter((x): x is string => typeof x === "string").slice(0, 40);
+        } catch {
+          // no fields
+        }
+        attrs.fields = JSON.stringify(fields);
+        attrs.label = String(attrs.label ?? "").slice(0, 80);
+      }
+      if (o.type === "zeffIf") {
+        if (!["contains", "not_contains", "is", "is_not", "empty", "not_empty"].includes(String(attrs.op))) attrs.op = "is";
+        attrs.field = String(attrs.field ?? "").slice(0, 120);
+        attrs.value = String(attrs.value ?? "").slice(0, 200);
+      }
+      if (o.type === "zeffTabs") {
+        let titles: string[] = [];
+        try {
+          const parsed = JSON.parse(String(attrs.titles ?? "[]")) as unknown;
+          if (Array.isArray(parsed)) titles = parsed.filter((x): x is string => typeof x === "string").map((x) => x.slice(0, 60)).slice(0, 12);
+        } catch {
+          // no titles
+        }
+        attrs.titles = JSON.stringify(titles);
+        attrs.active = Math.max(0, Math.min(11, Math.floor(Number(attrs.active)) || 0));
       }
       if (o.type === "zeffWidget") {
         const widget = String(attrs.widget ?? "").trim().slice(0, 80);

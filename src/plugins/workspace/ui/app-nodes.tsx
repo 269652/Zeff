@@ -44,7 +44,7 @@ function loadRow(rowId: number): Promise<void> {
   return p;
 }
 
-function useRowData(rowId: number): Entry {
+export function useRowData(rowId: number): Entry {
   const entry = useSyncExternalStore(
     (cb) => (subs.add(cb), () => void subs.delete(cb)),
     () => rows.get(rowId) ?? LOADING,

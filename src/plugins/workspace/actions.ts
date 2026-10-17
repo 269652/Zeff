@@ -1110,3 +1110,28 @@ export async function widgetDataAction(id: string, config: Record<string, unknow
 export async function widgetActAction(id: string, action: string, payload: Record<string, string>, config: Record<string, unknown>) {
   return run(async () => ({ data: await (await import("./widgets")).widgetAct(String(id), String(action), payload && typeof payload === "object" ? payload : {}, config && typeof config === "object" ? config : {}) }));
 }
+
+// ---------------------------------------------------------------------------
+// Forms
+// ---------------------------------------------------------------------------
+
+/** What a form block can ask for in a database: its title's name and its fields (with the options of a choice). */
+export async function formChoicesAction(dbId: number) {
+  return run(() => {
+    const d = store.getDatabase(Number(dbId));
+    if (!d) throw new Error(t("No such database."));
+    return {
+      choices: {
+        titleName: d.schema.titleName,
+        properties: d.schema.properties
+          .filter((p) => ["text", "number", "date", "select", "status", "checkbox", "url", "email", "phone"].includes(p.type) && !["srcref", "srcedited", "srcurl", "ticketkey", "noteref"].includes(p.id))
+          .map((p) => ({ id: p.id, name: p.name, type: p.type, options: (p.options ?? []).map((o) => o.name) })),
+      },
+    };
+  });
+}
+
+/** A form sent: a row from what was typed (values by property id, "title" for the title). */
+export async function submitFormAction(dbId: number, fields: string[], values: Record<string, string>) {
+  return run(async () => ({ id: (await import("./app-blocks")).submitForm(Number(dbId), Array.isArray(fields) ? fields.map(String) : [], values && typeof values === "object" ? values : {}) }));
+}
