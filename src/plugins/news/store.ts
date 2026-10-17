@@ -471,8 +471,14 @@ export function withoutContent(limit: number, maxAgeDays: number): { id: number;
     .all(new Date(Date.now() - maxAgeDays * 864e5).toISOString(), limit) as { id: number; url: string }[];
 }
 
+/** What you keep is a database of the Workspace (searchable there): it takes a saved or liked item in at once, not at its next hourly read. */
+function keptChanged(): void {
+  void import("@/plugins/workspace/news-database").then((m) => m.refreshNewsDatabase()).catch(() => undefined);
+}
+
 export function setState(id: number, state: NewsState): void {
   db().prepare("update news_items set state = ? where id = ?").run(state, id);
+  keptChanged();
 }
 
 /**
@@ -486,6 +492,7 @@ export function vote(id: number, value: -1 | 0 | 1): void {
   const delta = value - item.vote;
   d.prepare("update news_items set vote = ? where id = ?").run(value, id);
   if (!delta) return;
+  keptChanged();
   if (item.source_id) d.prepare("update news_sources set votes = votes + ? where id = ?").run(delta, item.source_id);
   const bump = d.prepare("insert into news_terms (term, score) values (?, ?) on conflict (term) do update set score = max(-3, min(3, score + excluded.score))");
   d.transaction(() => {

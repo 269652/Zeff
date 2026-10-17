@@ -17,6 +17,13 @@ export function newsDatabase(): number | null {
 /** The cards: the picture on top, the headline, publisher, date, link and its checks, the text folded — the pipeline's own fields and the rest stay in the table. */
 const cardsView = () => ({ ...newView(t("Cards"), "gallery"), hidden: ["srcref", "srcedited", "srcurl", "newsscore", "newstags", "newsstory", "newsimage"] });
 
+/** The kept news read again - something was saved, liked or taken back in News (in the background). */
+export function refreshNewsDatabase(): void {
+  const id = newsDatabase();
+  if (!id) return;
+  void import("./pipeline").then((p) => p.startPipeline(id, { ai: false })).catch(() => undefined);
+}
+
 /** The title of that database — the summary agent's instructions name it. */
 export const newsDatabaseTitle = (): string => t("Saved news");
 
@@ -37,6 +44,9 @@ export async function ensureNewsDatabase(): Promise<void> {
       const cur = getDatabase(known)!.schema;
       if (cur.views.some((v) => v.type === "gallery" && !v.hidden.length)) updateSchema(known, { ...cur, views: cur.views.map((v) => (v.type === "gallery" && !v.hidden.length ? { ...v, hidden: cardsView().hidden } : v)) });
     }
+    // Opening the Workspace reads it again when the last read is a while ago (a field the source gained, what was kept meanwhile).
+    const ran = Date.parse(getDatabase(known)?.schema.pipeline?.ranAt ?? "");
+    if (!ran || Date.now() - ran > 2 * 60000) refreshNewsDatabase();
     return;
   }
   if (getPref<number | null>(NEWS, null) !== null) return;

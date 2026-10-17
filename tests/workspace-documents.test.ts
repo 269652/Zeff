@@ -89,3 +89,35 @@ test("the first version of the inbox (one table, a filter step on Unread) become
   await ensureDocumentDatabases();
   assert.equal(store.getDatabase(id)!.schema.views.length, count, "mended once");
 });
+
+test("a document database turned into a mail inbox (View → Inbox: mail and chats as sources, no type) is put right again", async () => {
+  const st = await import("@/plugins/state");
+  st.setInstalled("workspace", true);
+  st.setInstalled("documents", true);
+  const store = await import("@/plugins/workspace/store");
+  const { setPref } = await import("@/lib/prefs");
+  const { newView, newId, newProperty } = await import("@/plugins/workspace/model");
+  const { ensureDocumentDatabases, documentInbox } = await import("@/plugins/workspace/document-databases");
+  const comm = { ...newProperty("From", "text"), id: "commfrom" };
+  const unread = { ...newProperty("Unread", "checkbox"), id: "docunread" };
+  const id = store.createPage({
+    kind: "database",
+    title: "Document inbox",
+    schema: {
+      titleName: "Name",
+      properties: [comm, unread],
+      views: [{ ...newView("Inbox", "table"), hidden: ["commfrom"] }, newView("All", "table")],
+      pipeline: { steps: [{ id: newId("s"), kind: "source", from: "mail", mail: { recentDays: 30 } }, { id: newId("s"), kind: "source", from: "messages", messages: { recentDays: 14 } }, { id: newId("s"), kind: "source", from: "ext", ext: "documents" }] },
+    },
+  });
+  setPref("workspace.docInboxDb", id);
+  setPref("workspace.docInboxDb.v2", true);
+  assert.equal(documentInbox(), id);
+  await ensureDocumentDatabases();
+  const s = store.getDatabase(id)!.schema;
+  assert.equal(s.dataType, "documents");
+  assert.deepEqual(s.pipeline!.steps.map((x) => (x.kind === "source" ? (x.from === "ext" ? x.ext : x.from) : x.kind)), ["documents"], "only the documents are its source");
+  assert.ok(!s.properties.some((p) => p.id.startsWith("comm")), "the mail fields are gone");
+  assert.ok(s.properties.some((p) => p.id === "docunread"), "its own fields stay");
+  assert.deepEqual([s.views[0].type, s.views[0].app], ["app", "documents"]);
+});

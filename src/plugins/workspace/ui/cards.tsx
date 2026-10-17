@@ -11,7 +11,9 @@ import { CellView, type CellCtx } from "./cells";
  * label/value pairs (or one quiet line on a board), checked boxes as badges — only what has a value, the rest counted ("+3").
  */
 
-const IMAGE = /\.(png|jpe?g|gif|webp|avif|svg)(\?.*)?$/i;
+const IMAGE = /\.(png|jpe?g|gif|webp|avif|svg)$/i;
+/** A property that is meant to hold a picture (by its name): any address in it is one. */
+const PICTURE_NAME = /image|cover|thumb|poster|photo|picture|bild|foto|imagen/i;
 
 type Kind = "chip" | "flag" | "text" | "meta";
 const kindOf = (p: Property): Kind => (p.type === "select" || p.type === "status" || p.type === "multi_select" ? "chip" : p.type === "checkbox" ? "flag" : p.type === "text" || p.type === "ai" ? "text" : "meta");
@@ -25,19 +27,25 @@ const filled = (p: Property, row: Row): boolean => {
   return true;
 };
 
-/** The first URL cell that holds a picture: the card's cover. */
-function coverOf(visible: Property[], row: Row): { prop: Property; src: string } | null {
-  for (const p of visible) {
+/**
+ * The first URL cell that holds a picture: the card's cover - of any property of the database, a hidden one too (a feed's "Image"
+ * is not shown as text on the card, it is its cover). A picture is an address with an image ending (its query left out), or
+ * whatever a property named like a picture holds (Image, Cover, Photo ...).
+ */
+function coverOf(props: Property[], row: Row): { prop: Property; src: string } | null {
+  for (const p of props) {
     const v = row.cells[p.id];
-    if (p.type === "url" && typeof v === "string" && IMAGE.test(v.trim())) return { prop: p, src: v.trim() };
+    if (p.type !== "url" || typeof v !== "string" || !/^https?:\/\//i.test(v.trim())) continue;
+    const src = v.trim();
+    if (PICTURE_NAME.test(p.name) || IMAGE.test(src.split(/[?#]/)[0])) return { prop: p, src };
   }
   return null;
 }
 
-export function RowCard({ row, visible, ctx, mode }: { row: Row; visible: Property[]; ctx: CellCtx; mode: "gallery" | "board" }) {
+export function RowCard({ row, visible, all, ctx, mode }: { row: Row; visible: Property[]; /** Every property of the database: a cover may be one that is not shown. */ all?: Property[]; ctx: CellCtx; mode: "gallery" | "board" }) {
   const t = useT();
   const gallery = mode === "gallery";
-  const cover = coverOf(visible, row);
+  const cover = coverOf(all ?? visible, row);
   const props = visible.filter((p) => p.id !== cover?.prop.id && filled(p, row));
   const chips = props.filter((p) => kindOf(p) === "chip");
   const flags = props.filter((p) => kindOf(p) === "flag");

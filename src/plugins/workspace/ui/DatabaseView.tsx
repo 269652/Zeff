@@ -356,7 +356,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
               )),
               // The apps' views this database can have (its type: mails, messages — their plugins installed).
               // A database that is no inbox yet: "Inbox" names the channels as its sources (and shows them by the inbox view).
-              ...(schema.dataType !== "inbox" && data.extras?.inboxPossible
+              ...((!schema.dataType || schema.dataType === "mail" || schema.dataType === "message") && data.extras?.inboxPossible
                 ? [
                     <MenuItem
                       key="make-inbox"
@@ -1054,7 +1054,7 @@ function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, new
               <span className="absolute top-1 right-1 rounded bg-white/90 opacity-0 group-hover/card:opacity-100 dark:bg-zinc-900/90" onClick={(e) => e.stopPropagation()}>
                 <RowMenu row={r} api={api} />
               </span>
-              <RowCard row={r} visible={visible.filter((p) => p.id !== gp.id)} ctx={ctx} mode="board" />
+              <RowCard row={r} visible={visible.filter((p) => p.id !== gp.id)} all={schema.properties} ctx={ctx} mode="board" />
             </div>
             {/* A subtask's shadow card under it on hover (not under a subtask: one level). */}
             {!ctx.data.locked && !isSubtask(r) && <SubtaskGhost parentId={r.id} after={() => void api.reload()} />}

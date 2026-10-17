@@ -174,3 +174,25 @@ test("a document with every kind of block saves and comes back whole", async () 
   for (const kind of ["callout", "bulletList", "taskList", "codeBlock", "details", "detailsSummary", "detailsContent", "table", "tableHeader", "tableCell", "horizontalRule", "databaseView", "zeffRef"]) assert.ok(back.includes(`"${kind}"`), `${kind} kept`);
   assert.ok(back.includes("https://example.com"));
 });
+
+test("the search finds what a row's cells say (a publisher, tags, a choice's name) - changed cells too - and reindexOnce reads old pages in", async () => {
+  const store = await import("@/plugins/workspace/store");
+  const { newProperty } = await import("@/plugins/workspace/model");
+  const id = store.createPage({ kind: "database", title: "Reading", schema: { titleName: "Title", properties: [{ ...newProperty("Publisher", "text") }, { ...newProperty("Kind", "select"), options: [{ id: "o1", name: "Longread", color: "blue" }] }], views: [] } });
+  const sch = store.getDatabase(id)!.schema;
+  const publisher = sch.properties.find((p) => p.name === "Publisher")!;
+  const kind = sch.properties.find((p) => p.name === "Kind")!;
+  const row = store.addRow(id, { title: "An article", cells: { [publisher.id]: "Zeitgeistzeitung", [kind.id]: "o1" } });
+  const ids = (q: string) => store.search(q, 10).map((h) => h.id);
+  assert.ok(ids("Zeitgeistzeitung").includes(row), "found by a text cell");
+  assert.ok(ids("longread").includes(row), "found by the name of a choice");
+  store.setCell(row, publisher.id, "Quantumblatt");
+  assert.ok(ids("Quantumblatt").includes(row), "found by a cell changed later");
+  assert.ok(!ids("Zeitgeistzeitung").includes(row), "the old value is gone");
+  // Old entries (titles and texts only) are read in again, once.
+  (await import("@/db")).getSqlite().prepare("delete from ws_fts where rowid = ?").run(row);
+  assert.ok(!ids("Quantumblatt").includes(row));
+  (await import("@/lib/prefs")).setPref("workspace.ftsCells", false);
+  store.reindexOnce();
+  assert.ok(ids("Quantumblatt").includes(row));
+});

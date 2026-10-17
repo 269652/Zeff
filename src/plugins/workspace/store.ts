@@ -7,12 +7,13 @@
 import { afterJobChange } from "./jobs";
 import { syncLinkedFrom } from "./links";
 import { getSqlite } from "@/db";
+import { getPref, setPref } from "@/lib/prefs";
 import { isSystemPage, systemPageIds } from "@/lib/prompts/system-pages";
 import { inAgentScope, runAgentGuards } from "./agent-scope";
 import { emitChange } from "@/lib/events";
 import { emitRowEvent } from "./events";
 import { docRefs, docText, emptyDoc, sanitizeDoc, type Doc, type DocRef } from "./doc";
-import { computeRows, dateRange, defaultSchema, isComputed, newProperty, normalizeSchema, propById, TITLE, type DbSchema, type Labels, type Property, type Row } from "./model";
+import { cellText, computeRows, dateRange, defaultSchema, isComputed, SYSTEM_PROPS, newProperty, normalizeSchema, propById, TITLE, type DbSchema, type Labels, type Property, type Row } from "./model";
 
 function db() {
   const d = getSqlite();
@@ -176,11 +177,40 @@ export function createPage(v: NewPage = {}): number {
   return id;
 }
 
+/**
+ * What a row's cells say, as words for the search: its texts, links, numbers, dates and the names of its choices (a publisher, a
+ * sender, tags, a status) - not the ones that are ids (people, relations, todos) and not what Zeff keeps for itself.
+ */
+function cellWords(dbId: number | null, propsJson: string): string {
+  if (!dbId) return "";
+  const schema = getDatabase(dbId)?.schema;
+  if (!schema) return "";
+  const props = parse<Record<string, unknown>>(propsJson, {});
+  const skip = new Set(["person", "relation", "todo", "checkbox", "rollup", "formula", "created_time", "updated_time", "ai"]);
+  return schema.properties
+    .filter((q) => !SYSTEM_PROPS.has(q.id) && !skip.has(q.type) && props[q.id] !== undefined)
+    .map((q) => cellText(q, props[q.id]))
+    .filter(Boolean)
+    .join("\n");
+}
+
 function index(id: number) {
   const d = db();
-  const p = d.prepare("select title, body_text, archived_at from ws_pages where id = ?").get(id) as { title: string; body_text: string; archived_at: string | null } | undefined;
+  const p = d.prepare("select title, body_text, archived_at, db_id, props from ws_pages where id = ?").get(id) as { title: string; body_text: string; archived_at: string | null; db_id: number | null; props: string } | undefined;
   d.prepare("delete from ws_fts where rowid = ?").run(id);
-  if (p && !p.archived_at) d.prepare("insert into ws_fts (rowid, title, body) values (?, ?, ?)").run(id, p.title, p.body_text);
+  if (p && !p.archived_at) d.prepare("insert into ws_fts (rowid, title, body) values (?, ?, ?)").run(id, p.title, [p.body_text, cellWords(p.db_id, p.props)].filter(Boolean).join("\n"));
+}
+
+/**
+ * Every page read into the search again, once: the cells of the rows (a publisher, a sender, tags) are in it now, not only titles
+ * and texts. A row that is changed later keeps its entry up to date by itself.
+ */
+export function reindexOnce(): void {
+  const flag = "workspace.ftsCells";
+  if (getPref<boolean>(flag, false)) return;
+  const ids = (db().prepare("select id from ws_pages where archived_at is null").all() as { id: number }[]).map((r) => r.id);
+  db().transaction(() => ids.forEach(index))();
+  setPref(flag, true);
 }
 
 function relink(id: number, doc: Doc) {
@@ -715,6 +745,7 @@ export function setCell(rowId: number, propId: string, value: unknown): void {
   if (v === null) delete props[propId];
   else props[propId] = v;
   db().prepare("update ws_pages set props = ?, updated_at = ? where id = ?").run(JSON.stringify(props), now(), rowId);
+  index(rowId); // (what a cell says is searchable)
   changed();
   syncLinkedFrom(rowId); // (its copies in other databases follow — links.ts)
   afterJobChange(rowId, propId); // (a card moved into Ready: the agents take it — jobs.ts)

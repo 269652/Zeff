@@ -2,7 +2,7 @@ import { getPref, setPref } from "@/lib/prefs";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { appViewsFor } from "./app-views";
-import { emptyFilter, newId, newView, type DbSchema, type View } from "./model";
+import { emptyFilter, newId, newView, removeProperty, type DbSchema, type View } from "./model";
 import { createPage, getDatabase, updatePage, updateSchema } from "./store";
 
 const INBOX = "workspace.docInboxDb";
@@ -29,12 +29,9 @@ export async function ensureDocumentDatabases(): Promise<void> {
   const known = documentInbox();
   if (known) {
     mend(known);
-    // Read again once per server start (what changed while it was down - and the baseline mended, see documents/seen).
-    const once = globalThis as unknown as { __zeffDocInboxRead?: boolean };
-    if (!once.__zeffDocInboxRead) {
-      once.__zeffDocInboxRead = true;
-      refreshDocumentDatabases();
-    }
+    // Opening the Workspace reads it again when the last read is a while ago (what came while it was away, a mended database).
+    const ran = Date.parse(getDatabase(known)?.schema.pipeline?.ranAt ?? "");
+    if (!ran || Date.now() - ran > 2 * 60000) refreshDocumentDatabases();
     return;
   }
   if (getPref<number | null>(INBOX, null) !== null) return;
@@ -67,15 +64,26 @@ export async function ensureDocumentDatabases(): Promise<void> {
 function mend(id: number): void {
   const cur = getDatabase(id)!.schema;
   let next: DbSchema = cur;
+  // Turned into a mail inbox (the View menu's "Inbox" names mail and chats as sources, drops the type and the app): back to the documents.
+  const foreign = (cur.pipeline?.steps ?? []).some((s) => s.kind === "source" && (s.from === "mail" || s.from === "messages"));
+  if (foreign || cur.dataType !== "documents") {
+    let schema: DbSchema = { ...cur, dataType: "documents" as const, views: cur.views.filter((v) => !(v.type === "app" && v.app !== "documents")), ...(cur.pipeline ? { pipeline: { ...cur.pipeline, steps: cur.pipeline.steps.filter((s) => !(s.kind === "source" && (s.from === "mail" || s.from === "messages"))) } } : {}) };
+    for (const p of cur.properties) if (p.id.startsWith("comm")) schema = removeProperty(schema, p.id);
+    next = schema;
+  }
   if (!getPref<boolean>(V2, false)) {
-    const steps = (cur.pipeline?.steps ?? []).filter((s) => !(s.kind === "filter" && (s.rules ?? []).some((r) => r.field === "Unread")));
-    const views = cur.views.map((v) => (v.type === "table" && v.name === t("Table") ? { ...v, name: t("All") } : v));
-    next = { ...cur, views: [{ ...newView(t("Inbox"), "table"), filter: unreadOnly(), sorts: byAdded }, ...views], ...(cur.pipeline ? { pipeline: { ...cur.pipeline, steps } } : {}) };
+    const steps = (next.pipeline?.steps ?? []).filter((s) => !(s.kind === "filter" && (s.rules ?? []).some((r) => r.field === "Unread")));
+    const views = next.views.map((v) => (v.type === "table" && v.name === t("Table") ? { ...v, name: t("All") } : v));
+    next = { ...next, views: [{ ...newView(t("Inbox"), "table"), filter: unreadOnly(), sorts: byAdded }, ...views], ...(next.pipeline ? { pipeline: { ...next.pipeline, steps } } : {}) };
     setPref(V2, true);
   }
   const app = appViewsFor("documents")[0];
   if (app && !next.views.some((v) => v.type === "app" && v.app === app.id)) next = { ...next, views: [{ ...newView(t(app.label), "table"), type: "app" as const, app: app.id }, ...next.views] };
-  if (next !== cur) updateSchema(id, next);
+  if (next !== cur) {
+    updateSchema(id, next);
+    // What the database got wrongly (mail rows) goes at the next read: now.
+    refreshDocumentDatabases();
+  }
 }
 
 /** The documents databases read again - a document came, was opened or marked (in the background). */
