@@ -15,14 +15,14 @@ import { getPage } from "./store";
 export const ROUTINE_KINDS = ["agent", "automation"] as const;
 export type RoutineKind = (typeof ROUTINE_KINDS)[number];
 
-export const EVENTS = ["row.added", "row.changed", "pipeline.ran"] as const;
+export const EVENTS = ["row.added", "row.changed", "pipeline.ran", "signal"] as const;
 export type RoutineEvent = (typeof EVENTS)[number];
 
 /** When a routine runs: when you start it, on a schedule, when something happens, or when something else calls it. */
 export type Trigger =
   | { kind: "manual" }
   | { kind: "schedule"; everyMinutes?: number; at?: string; days?: number[] }
-  | { kind: "event"; event: RoutineEvent; db?: number; field?: string }
+  | { kind: "event"; event: RoutineEvent; db?: number; field?: string; /** A signal: its name. */ name?: string }
   | { kind: "called" };
 
 /** What a routine may change: only its own page and what is below it, its parent's pages, the whole workspace, or nothing. */
@@ -41,6 +41,10 @@ export type Step =
   | { id: string; kind: "pipeline"; db: number }
   | { id: string; kind: "run"; page: number }
   | { id: string; kind: "notify"; text: string }
+  /** A method of a plugin that is safe for automations (routine-methods.ts), its parameters texts with templates. */
+  | { id: string; kind: "call"; method: string; params: Record<string, string> }
+  /** A named signal: the routines that listen to it run, with this payload. */
+  | { id: string; kind: "signal"; name: string; payload?: Record<string, string> }
   | { id: string; kind: "stop"; when?: Condition }
   | { id: string; kind: "if"; when: Condition; then: Step[]; else: Step[] }
   | { id: string; kind: "foreach"; db: number; where?: Condition; steps: Step[] };
@@ -89,7 +93,9 @@ function normalizeTrigger(raw: unknown): Trigger | null {
     if (!(EVENTS as readonly unknown[]).includes(o.event)) return null;
     const db = posInt(o.db);
     const field = str(o.field);
-    return { kind: "event", event: o.event as RoutineEvent, ...(db ? { db } : {}), ...(field ? { field } : {}) };
+    const name = str(o.name);
+    if (o.event === "signal" && !name) return null;
+    return { kind: "event", event: o.event as RoutineEvent, ...(db ? { db } : {}), ...(field ? { field } : {}), ...(o.event === "signal" ? { name } : {}) };
   }
   return null;
 }
@@ -104,6 +110,12 @@ function normalizeCondition(raw: unknown): Condition | null {
   });
   return rules.length ? { rules, ...(o.match === "any" ? { match: "any" as const } : {}) } : null;
 }
+
+/** A record of text values; anything else is left out. */
+const texts = (v: unknown): Record<string, string> =>
+  v && typeof v === "object" && !Array.isArray(v)
+    ? Object.fromEntries(Object.entries(v as Record<string, unknown>).flatMap(([k, x]): [string, string][] => (typeof x === "string" ? [[k, x]] : [])))
+    : {};
 
 export function normalizeSteps(raw: unknown, depth = 0): Step[] {
   if (!Array.isArray(raw) || depth > 6) return [];
@@ -132,6 +144,15 @@ export function normalizeSteps(raw: unknown, depth = 0): Step[] {
         break;
       case "notify":
         out.push({ id, kind: "notify", text: typeof o.text === "string" ? o.text : "" });
+        break;
+      case "call":
+        if (str(o.method)) out.push({ id, kind: "call", method: str(o.method), params: texts(o.params) });
+        break;
+      case "signal":
+        if (str(o.name)) {
+          const payload = texts(o.payload);
+          out.push({ id, kind: "signal", name: str(o.name), ...(Object.keys(payload).length ? { payload } : {}) });
+        }
         break;
       case "stop": {
         const when = normalizeCondition(o.when);

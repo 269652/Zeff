@@ -51,7 +51,7 @@ export type ApiOffer = {
 };
 
 /** One method: `perm` the permission it needs (none: any caller), `summary` for the docs, `offer` to let the AI propose it. */
-export type ApiMethod = { perm?: string; summary: string; offer?: ApiOffer; run: (p: Params, caller: ApiCaller) => unknown | Promise<unknown> };
+export type ApiMethod = { perm?: string; summary: string; offer?: ApiOffer; /** Safe to run from an automation step by itself: it works inside Zeff only (a row, a todo, a signal) and sends nothing out. */ automatic?: boolean; run: (p: Params, caller: ApiCaller) => unknown | Promise<unknown> };
 
 /** An event a hook can listen to: `topic` ties it to the app's change bus (lib/events.ts) — fired, at most every half second, when that topic changes. */
 export type ApiEvent = { description: string; topic?: string };

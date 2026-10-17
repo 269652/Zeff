@@ -143,6 +143,7 @@ const RAW_API: ApiContribution = {
   methods: {
     "workspace.rows.add": {
       perm: "workspace.write",
+      automatic: true,
       summary: "A row in a database (database: its name or id; title; fields: a JSON object name → value; markdown: its page's text).",
       run: async (p) => {
         const db = findDatabase(str(p, "database", { required: true, max: 200 }));
@@ -173,6 +174,7 @@ const RAW_API: ApiContribution = {
     },
     "workspace.rows.update": {
       perm: "workspace.write",
+      automatic: true,
       summary: "A row of a database changed (database, row: its title or id; fields: JSON name → value; markdown: text added to its page).",
       run: async (p) => {
         const db = findDatabase(str(p, "database", { required: true, max: 200 }));
@@ -204,6 +206,7 @@ const RAW_API: ApiContribution = {
     },
     "workspace.pages.create": {
       perm: "workspace.write",
+      automatic: true,
       summary: "A page (title; parent: a page's title or id; markdown: its text).",
       run: async (p) => {
         const parent = str(p, "parent", { max: 200 });
@@ -223,6 +226,7 @@ const RAW_API: ApiContribution = {
     },
     "workspace.routines.run": {
       perm: "workspace.write",
+      automatic: true,
       summary: "A routine (an automation or an agent of the Workspace) run now (routine: its page's title or id; row: optional, a row's id it is about).",
       run: async (p) => {
         const page = findRoutine(str(p, "routine", { required: true, max: 300 }));
@@ -245,8 +249,36 @@ const RAW_API: ApiContribution = {
         context: () => routinesContext(),
       },
     },
+    "workspace.signals.send": {
+      perm: "workspace.write",
+      automatic: true,
+      summary: "A signal sent: the routines that listen to its name run (name: e.g. \"invoice.paid\"; payload: a JSON object of text values they can use as {{payload.x}}).",
+      run: async (p) => {
+        const name = str(p, "name", { required: true, max: 120 });
+        let payload: Record<string, string> = {};
+        try {
+          const o = JSON.parse(str(p, "payload", { max: 4000 }) || "{}") as unknown;
+          if (o && typeof o === "object" && !Array.isArray(o)) payload = Object.fromEntries(Object.entries(o as Record<string, unknown>).filter(([, v]) => typeof v === "string" || typeof v === "number").map(([k, v]) => [k, String(v)]));
+        } catch {
+          throw new ApiError("bad_request", "payload: a JSON object");
+        }
+        const { fireRoutineEvent } = await import("./routine-triggers");
+        void fireRoutineEvent("signal", { name, payload }, { force: true }).catch(() => undefined);
+        return { sent: name };
+      },
+      offer: {
+        label: "Send a Workspace signal",
+        when: "Etwas ist passiert, worauf andere Routinen meines Workspace hören sollen (z. B. eine Rechnung ist bezahlt) — als benanntes Signal.",
+        fields: { name: "der Name des Signals, z. B. rechnung.bezahlt", payload: "optional: ein JSON-Objekt (als Text) mit Angaben, die die Routinen als Platzhalter nutzen" },
+        example: { name: "rechnung.bezahlt", payload: '{"kunde": "Anna"}' },
+        check: (raw) => ((raw.name ?? "").trim() ? ok({ name: raw.name!.trim().slice(0, 120), payload: raw.payload ?? "" }) : null),
+        describe: (p) => ({ title: t("Signal “{name}”", { name: String(p.name) }), body: String(p.payload ?? "") }),
+        context: () => [],
+      },
+    },
     "workspace.pages.append": {
       perm: "workspace.write",
+      automatic: true,
       summary: "Text added at a page's end (page: its title or id; markdown).",
       run: async (p) => {
         const page = findPage(str(p, "page", { required: true, max: 300 }));

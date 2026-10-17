@@ -19,6 +19,10 @@ export type Deps = {
   runRoutine: (pageId: number, trigger: Trigger, ctx: { row?: number; payload?: Record<string, string>; depth: number }) => Promise<{ status: RunStatus | "started"; error?: string }>;
   /** A note for you: shown with the run, and to the open pages. */
   notify: (text: string) => void;
+  /** A method a plugin offers to automations, called. */
+  call: (method: string, params: Record<string, string>) => Promise<unknown>;
+  /** A signal sent: the routines that listen run (one after another) — `depth` carries how deep signals have gone. */
+  signal: (name: string, payload: Record<string, string>, depth: number) => Promise<void>;
 };
 
 export type RunOptions = {
@@ -60,6 +64,10 @@ const realDeps = (): Deps => ({
     // Kept with the run (its log line); the pages refresh.
     void text;
     emitChange("workspace");
+  },
+  call: async (method, params) => (await import("./routine-methods")).callAutomatic(method, params),
+  signal: async (name, payload, depth) => {
+    await (await import("./routine-triggers")).fireRoutineEvent("signal", { name, payload }, { force: true, depth });
   },
 });
 
@@ -121,6 +129,19 @@ export async function runAutomation(pageId: number, trigger: Trigger, opts: RunO
             const text = fillTemplate(step.text, ctx);
             deps.notify(text);
             say(step, "ok", text, level);
+            break;
+          }
+          case "call": {
+            const params = Object.fromEntries(Object.entries(step.params).map(([k, v]) => [k, fillTemplate(v, ctx)]));
+            const answer = await deps.call(step.method, params);
+            say(step, "ok", `${step.method}${answer && typeof answer === "object" && "id" in answer ? ` → ${String((answer as { id: unknown }).id)}` : ""}`, level);
+            break;
+          }
+          case "signal": {
+            if (depth + 1 > limits.depth) throw new Fail("Signals go round too deep (a loop?).");
+            const payload = Object.fromEntries(Object.entries(step.payload ?? {}).map(([k, v]) => [k, fillTemplate(v, ctx)]));
+            await deps.signal(step.name, payload, depth + 1);
+            say(step, "ok", `Signal ${step.name}`, level);
             break;
           }
           case "stop": {

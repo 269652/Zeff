@@ -1023,6 +1023,7 @@ export async function routineChoicesAction() {
     return {
       databases: store.tree().filter((x) => x.kind === "database" && !x.system).map((x) => ({ id: x.id, title: x.title || t("Untitled"), fields: (store.getDatabase(x.id)?.schema.properties ?? []).filter((p) => !["srcref", "srcedited", "srcurl", "ticketkey", "noteref"].includes(p.id)).map((p) => p.name) })),
       routines: listRoutines().map((r) => ({ id: r.pageId, title: r.title || t("Untitled"), kind: r.kind })),
+      methods: (await import("./routine-methods")).automaticMethods().map((m) => ({ name: m.name, label: m.label, fields: m.fields })),
     };
   });
 }

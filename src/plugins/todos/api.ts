@@ -23,6 +23,7 @@ export const TODOS_API: ApiContribution = {
       },
     },
     "todos.add": {
+      automatic: true,
       perm: "todos.write",
       summary: "Add a todo (text, ticket).",
       run: async (p) => {

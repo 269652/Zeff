@@ -16,16 +16,16 @@ import { FILTER_OPS } from "../model";
  * a schedule, on an event, called), what it may touch (an agent), its steps (an automation), and what it did lately.
  */
 
-type Choices = { databases: { id: number; title: string; fields: string[] }[]; routines: { id: number; title: string; kind: string }[] };
+type Choices = { databases: { id: number; title: string; fields: string[] }[]; routines: { id: number; title: string; kind: string }[]; methods: { name: string; label: string; fields: Record<string, string> }[] };
 const DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 function useRoutine(pageId: number) {
   const [view, setView] = useState<RoutineView | null | undefined>(undefined);
-  const [choices, setChoices] = useState<Choices>({ databases: [], routines: [] });
+  const [choices, setChoices] = useState<Choices>({ databases: [], routines: [], methods: [] });
   const load = useCallback(() => void routineViewAction(pageId).then((r) => r.ok && setView(r.view)), [pageId]);
   useEffect(() => {
     load();
-    void routineChoicesAction().then((r) => r.ok && setChoices({ databases: r.databases, routines: r.routines }));
+    void routineChoicesAction().then((r) => r.ok && setChoices({ databases: r.databases, routines: r.routines, methods: r.methods }));
     // The agents' runs end by themselves: look again while one goes.
   }, [load]);
   useEffect(() => {
@@ -243,7 +243,12 @@ function TriggerLine({ tr, choices, editable, onChange }: { tr: Trigger; choices
         <option value="row.added">{t("A row is added")}</option>
         <option value="row.changed">{t("A row is changed")}</option>
         <option value="pipeline.ran">{t("A database's sources were read")}</option>
+        <option value="signal">{t("A signal is sent")}</option>
       </select>
+      {tr.event === "signal" ? (
+        <input className="input w-48 py-0.5 text-sm" placeholder={t("Signal name")} value={tr.name ?? ""} disabled={!editable} onChange={(e) => onChange({ ...tr, name: e.target.value })} aria-label={t("Signal name")} />
+      ) : (
+        <>
       {t("in")}
       <select className="input w-auto py-0.5 text-sm" value={tr.db ?? ""} disabled={!editable} onChange={(e) => onChange({ ...tr, db: Number(e.target.value) || undefined })} aria-label={t("Database")}>
         <option value="">{t("any database")}</option>
@@ -254,6 +259,8 @@ function TriggerLine({ tr, choices, editable, onChange }: { tr: Trigger; choices
         ))}
       </select>
       {tr.event === "row.changed" && <input className="input w-32 py-0.5 text-sm" placeholder={t("field (any)")} value={tr.field ?? ""} disabled={!editable} onChange={(e) => onChange({ ...tr, field: e.target.value || undefined })} aria-label={t("Field")} />}
+        </>
+      )}
     </span>
   );
 }
@@ -262,7 +269,7 @@ function TriggerLine({ tr, choices, editable, onChange }: { tr: Trigger; choices
 // Steps
 // ---------------------------------------------------------------------------
 
-const STEP_KINDS = ["set", "create", "archive", "pipeline", "run", "notify", "stop", "if", "foreach"] as const;
+const STEP_KINDS = ["set", "create", "archive", "pipeline", "run", "call", "signal", "notify", "stop", "if", "foreach"] as const;
 const newStep = (kind: (typeof STEP_KINDS)[number]): Step => {
   const id = `st_${Math.random().toString(36).slice(2, 8)}`;
   switch (kind) {
@@ -276,6 +283,10 @@ const newStep = (kind: (typeof STEP_KINDS)[number]): Step => {
       return { id, kind, page: 0 };
     case "notify":
       return { id, kind, text: "" };
+    case "call":
+      return { id, kind, method: "", params: {} };
+    case "signal":
+      return { id, kind, name: "" };
     case "stop":
       return { id, kind };
     case "if":
@@ -295,6 +306,8 @@ function StepList({ steps, choices, editable, onChange, depth = 0 }: { steps: St
     archive: t("Move the row to the trash"),
     pipeline: t("Read a database's sources again"),
     run: t("Run another routine"),
+    call: t("Call a function of a plugin"),
+    signal: t("Send a signal"),
     notify: t("Note"),
     stop: t("Gate: stop (when …)"),
     if: t("If … then … else"),
@@ -388,6 +401,50 @@ function StepBody({ s, choices, editable, onChange, depth }: { s: Step; choices:
       );
     case "notify":
       return text(s.text, (v) => onChange({ ...s, text: v }), t("Text, or a template"), "w-96");
+    case "call": {
+      const m = choices.methods.find((x) => x.name === s.method);
+      return (
+        <div className="space-y-1.5">
+          <select className="input w-auto py-0.5 text-sm" value={s.method} disabled={!editable} onChange={(e) => onChange({ ...s, method: e.target.value, params: {} })} aria-label={t("Function")}>
+            <option value="">{t("Pick a function …")}</option>
+            {choices.methods.map((x) => (
+              <option key={x.name} value={x.name}>
+                {x.label}
+              </option>
+            ))}
+          </select>
+          {m &&
+            Object.entries(m.fields).map(([k, hint]) => (
+              <label key={k} className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                <span className="w-24 shrink-0 font-mono">{k}</span>
+                <input className="input w-96 py-0.5 text-sm" value={s.params[k] ?? ""} disabled={!editable} placeholder={hint} title={hint} onChange={(e) => onChange({ ...s, params: { ...s.params, [k]: e.target.value } })} aria-label={k} />
+              </label>
+            ))}
+        </div>
+      );
+    }
+    case "signal":
+      return (
+        <div className="space-y-1.5">
+          {text(s.name, (name) => onChange({ ...s, name }), t("Signal name, e.g. invoice.paid"), "w-72")}
+          {Object.entries(s.payload ?? {}).map(([k, v]) => (
+            <div key={k} className="flex flex-wrap items-center gap-2">
+              <span className="w-24 shrink-0 font-mono text-xs text-zinc-500">{k}</span>
+              {text(v, (val) => onChange({ ...s, payload: { ...s.payload, [k]: val } }), t("Value, or a template"), "w-72")}
+              {editable && (
+                <button type="button" className="icon-btn" aria-label={t("Remove")} onClick={() => onChange({ ...s, payload: Object.fromEntries(Object.entries(s.payload ?? {}).filter(([x]) => x !== k)) })}>
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+          {editable && (
+            <button type="button" className="btn btn-sm" onClick={() => onChange({ ...s, payload: { ...s.payload, [`key${Object.keys(s.payload ?? {}).length + 1}`]: "" } })}>
+              ＋ {t("Detail")}
+            </button>
+          )}
+        </div>
+      );
     case "stop":
       return (
         <div className="space-y-1">

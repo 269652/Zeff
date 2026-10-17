@@ -5750,5 +5750,14 @@
   "A document from Documents with its preview, abstract and where it came from": "Un documento de Documents con vista previa, resumen y origen",
   "Cards of people — your starred ones, or the ones you pick": "Tarjetas de personas — las destacadas o las que elijas",
   "Data": "Datos",
-  "Unknown block.": "Bloque desconocido."
+  "Unknown block.": "Bloque desconocido.",
+  "Signal “{name}”": "Señal «{name}»",
+  "A signal is sent": "Se envía una señal",
+  "Signal name": "Nombre de la señal",
+  "Call a function of a plugin": "Llamar a una función de un plugin",
+  "Send a signal": "Enviar una señal",
+  "Function": "Función",
+  "Pick a function …": "Elige una función …",
+  "Signal name, e.g. invoice.paid": "Nombre de la señal, p. ej. factura.pagada",
+  "Detail": "Dato"
 }

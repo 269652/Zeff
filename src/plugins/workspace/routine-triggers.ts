@@ -54,20 +54,21 @@ export async function runDueRoutines(now = new Date()): Promise<number> {
   return ran;
 }
 
-export type EventInfo = { db?: number; row?: number; field?: string; created?: number };
+export type EventInfo = { db?: number; row?: number; field?: string; created?: number; /** A signal: its name and what it carries. */ name?: string; payload?: Record<string, string> };
 
 /** Something happened: the routines that listen run — in turn, with the row in hand. Not while a routine runs or a pipeline writes. */
-export async function fireRoutineEvent(event: RowEvent | "pipeline.ran", info: EventInfo): Promise<number> {
-  if (isQuiet() || !isInstalled("workspace")) return 0;
+export async function fireRoutineEvent(event: RowEvent | "pipeline.ran" | "signal", info: EventInfo, opts: { force?: boolean; depth?: number } = {}): Promise<number> {
+  // (A signal is sent on purpose, also from inside a routine: `force`. How deep signals went is carried along.)
+  if ((isQuiet() && !opts.force) || !isInstalled("workspace")) return 0;
   const fieldName = info.field?.toLowerCase();
   const title = info.row ? (getPage(info.row)?.title ?? "") : "";
   let ran = 0;
   for (const r of listRoutines()) {
     if (!r.enabled) continue;
-    const t = r.triggers.find((x) => x.kind === "event" && x.event === event && (!x.db || x.db === info.db) && (!x.field || x.field.toLowerCase() === fieldName));
+    const t = r.triggers.find((x) => x.kind === "event" && x.event === event && (!x.db || x.db === info.db) && (!x.field || x.field.toLowerCase() === fieldName) && (event !== "signal" || x.name === info.name));
     if (!t) continue;
     try {
-      await quietly(() => runRoutine(r.pageId, t, { row: info.row, payload: { event, title, field: info.field ?? "", db: String(info.db ?? "") } }));
+      await quietly(() => runRoutine(r.pageId, t, { row: info.row, depth: opts.depth, payload: { event, title, field: info.field ?? "", db: String(info.db ?? ""), ...(info.name ? { name: info.name } : {}), ...(info.payload ?? {}) } }));
     } catch (e) {
       console.error(`[workspace] the routine ${r.pageId} failed: ${e instanceof Error ? e.message : e}`);
     }
