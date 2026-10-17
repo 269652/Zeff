@@ -423,6 +423,7 @@ const NODE_ATTRS: Record<string, string[]> = {
   callout: ["icon", "tone"],
   flexBox: ["dir", "gap", "wrap", "span"],
   zeffRoutine: [],
+  zeffWidget: ["widget", "config"],
   zeffField: ["prop", "label"],
   zeffRelated: ["dbId", "prop"],
   zeffButton: ["label", "action", "prop", "value"],
@@ -490,6 +491,19 @@ export function sanitizeDoc(input: unknown): Doc {
       if (o.type === "zeffModule") {
         if (!(BLOCK_MODULES as readonly unknown[]).includes(attrs.module)) return null;
         attrs.key = String(attrs.key ?? "").trim().toUpperCase().slice(0, 40);
+      }
+      if (o.type === "zeffWidget") {
+        const widget = String(attrs.widget ?? "").trim().slice(0, 80);
+        if (!widget) return null;
+        attrs.widget = widget;
+        let config = "{}";
+        try {
+          const parsed = JSON.parse(String(attrs.config ?? "{}")) as unknown;
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) config = JSON.stringify(parsed).slice(0, 1000);
+        } catch {
+          // not JSON: no settings
+        }
+        attrs.config = config;
       }
       if (o.type === "zeffRelated") {
         const id = Math.floor(Number(attrs.dbId));
