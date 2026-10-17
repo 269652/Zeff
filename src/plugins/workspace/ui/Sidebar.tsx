@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, savePageAction, searchAction, templatesAction, todayPageAction } from "../actions";
+import { archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, savePageAction, installPackageAction, searchAction, templatesAction, todayPageAction } from "../actions";
 import type { TreeItem } from "../store";
 import { ChatPanel } from "./ChatPanel";
 import { Dropdown, MenuItem } from "./kit";
@@ -278,6 +278,25 @@ export function Sidebar({ items, favorites, unread = {}, channels, extSources = 
                   ))}
                 </>
               )}
+              <MenuItem
+                onClick={() => {
+                  close();
+                  const input = document.createElement("input");
+                  input.type = "file";
+                  input.accept = ".json,application/json";
+                  input.onchange = async () => {
+                    const file = input.files?.[0];
+                    if (!file) return;
+                    const r = await installPackageAction(await file.text(), null);
+                    if (!r.ok) return toast(r.error, { tone: "error" });
+                    router.push(`/workspace/${r.id}`);
+                    router.refresh();
+                  };
+                  input.click();
+                }}
+              >
+                📦 {t("Import a package …")}
+              </MenuItem>
               <div className="px-2 pt-1 text-xs font-semibold text-zinc-500 uppercase">{t("From a template")}</div>
               {templates === null ? (
                 <MenuItem onClick={() => void templatesAction().then((r) => setTemplates(r.ok ? r.templates : []))}>{t("Show templates …")}</MenuItem>

@@ -5794,5 +5794,6 @@
   "This is not a package file.": "Este no es un archivo de paquete.",
   "Projects & tasks": "Proyectos y tareas",
   "Projects with their tasks, a cockpit with a form to add tasks, and an automation that tells you when a task is done (switched off until you want it).": "Proyectos con sus tareas, un panel con un formulario para añadir tareas y una automatización que te avisa cuando una tarea está hecha (apagada hasta que la quieras).",
-  "No such page.": "No existe esa página."
+  "No such page.": "No existe esa página.",
+  "Import a package …": "Importar un paquete …"
 }
