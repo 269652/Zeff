@@ -405,6 +405,24 @@ function StepBody({ dbId, saved, step: s, allSteps, set, databases, fields }: { 
             👁 {t("Preview")}
           </button>
         </div>
+        <div className={row}>
+          <label className="flex items-center gap-1.5 text-sm">
+            <input type="checkbox" className="size-4 accent-indigo-600" checked={s.joinType === "inner"} onChange={(e) => set({ joinType: e.target.checked ? "inner" : undefined })} />
+            {t("Only rows that find one")}
+          </label>
+          <label className="flex items-center gap-1.5 text-sm">
+            <input type="checkbox" className="size-4 accent-indigo-600" checked={!!s.exact} onChange={(e) => set({ exact: e.target.checked || undefined })} />
+            {t("Exact match")}
+          </label>
+          <label className="flex items-center gap-1.5 text-sm">
+            {t("Several matches:")}
+            <select className="input w-auto text-sm" value={s.many ?? ""} onChange={(e) => set({ many: (e.target.value || undefined) as "all" | "expand" | undefined })} aria-label={t("Several matches")}>
+              <option value="">{t("the first")}</option>
+              <option value="all">{t("all, in one field")}</option>
+              <option value="expand">{t("one row each")}</option>
+            </select>
+          </label>
+        </div>
         {databases.find((d) => d.id === s.dbId)?.people && (
           <div className="flex flex-wrap items-center gap-1.5 text-xs" data-people-bring>
             <span className="text-zinc-500">{t("Bring from the person:")}</span>

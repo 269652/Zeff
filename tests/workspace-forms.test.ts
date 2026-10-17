@@ -210,3 +210,45 @@ test("history: a changed cell is put back from the activity line; what the log c
   await undo("title");
   assert.equal(store.getPage(row)!.title, "R");
 });
+
+test("repeating rows: days, weekdays every N weeks and the day of the month are worked out; a due rule makes one row, filled from its template", async () => {
+  (await import("@/plugins/state")).setInstalled("workspace", true);
+  const store = await import("@/plugins/workspace/store");
+  const { applyOps } = await import("@/plugins/workspace/schema-ops");
+  const { occursOn, nextDue, saveRecurrence, runDueRecurrences, recurrences } = await import("@/plugins/workspace/recurring");
+  const D = (y: number, m: number, d: number, h = 0, min = 0) => new Date(y, m - 1, d, h, min);
+  // Mondays and Thursdays every 2nd week, counted from Monday 5 Oct 2026.
+  const biweekly = { unit: "week" as const, interval: 2, weekdays: [1, 4], start: "2026-10-05" };
+  assert.equal(occursOn(biweekly, D(2026, 10, 5)), true);
+  assert.equal(occursOn(biweekly, D(2026, 10, 8)), true);
+  assert.equal(occursOn(biweekly, D(2026, 10, 12)), false, "the week between");
+  assert.equal(occursOn(biweekly, D(2026, 10, 19)), true);
+  assert.equal(occursOn(biweekly, D(2026, 10, 4)), false, "before the start");
+  const monthly = { unit: "month" as const, interval: 1, start: "2026-01-31" };
+  assert.equal(occursOn(monthly, D(2026, 2, 28)), true, "the 31st falls on the last day of a short month");
+  assert.equal(occursOn(monthly, D(2026, 3, 31)), true);
+  assert.equal(occursOn({ unit: "day", interval: 3, start: "2026-10-01" }, D(2026, 10, 7)), true);
+
+  const db = store.createPage({ kind: "database", title: "Chores" });
+  const { schema } = applyOps(store.getDatabase(db)!.schema, [{ op: "add_property", name: "Due", type: "date" }, { op: "add_property", name: "Note", type: "text" }], { related: () => null });
+  const saved = store.saveSchema(db, schema);
+  const due = saved.properties.find((p) => p.name === "Due")!;
+  const note = saved.properties.find((p) => p.name === "Note")!;
+  const tpl = store.addRow(db, { title: "Water the plants", cells: { [note.id]: "Week {{week}}" } });
+  store.updatePage(tpl, { template: true });
+  assert.deepEqual(store.templateParams(tpl), [], "a built-in placeholder is not asked for");
+  const now = D(2026, 10, 19, 7, 0);
+  const rule = saveRecurrence({ db, templateId: tpl, unit: "day", interval: 1, at: "08:00", start: "2026-10-19", dateProp: due.id }, now);
+  assert.equal(new Date(rule.nextAt).getTime(), D(2026, 10, 19, 8, 0).getTime(), "today at eight, its time still ahead");
+  assert.equal(runDueRecurrences(D(2026, 10, 19, 7, 30)), 0, "not yet");
+  const before = store.rowsOf(db)!.rows.length;
+  assert.equal(runDueRecurrences(D(2026, 10, 21, 9, 0)), 1, "two days missed: one row, not three");
+  const rows = store.rowsOf(db)!.rows;
+  assert.equal(rows.length, before + 1);
+  const made = rows.find((r) => r.id === recurrences(db)[0].lastRow)!;
+  assert.equal(made.title, "Water the plants");
+  assert.match(String(made.cells[note.id]), /^Week \d+$/, "the built-in {{week}} is filled");
+  assert.equal(made.cells[due.id], "2026-10-19", "the day it was due");
+  assert.equal(new Date(recurrences(db)[0].nextAt).getTime(), D(2026, 10, 22, 8, 0).getTime());
+  assert.equal(nextDue(rule, D(2026, 10, 21, 9, 0))!.getDate(), 22);
+});

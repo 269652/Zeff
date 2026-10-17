@@ -376,7 +376,7 @@ const norm = (v: unknown) => String(v ?? "").toLowerCase().replace(/\s*<[^>]*>/g
  * `by` — and the fields `bring` of that row come onto the record. A name matches when it is the key, or the key is in it
  * (an address, "Name <address>"); the first row that does is the one.
  */
-function applyJoin(records: SourceRecord[], f: PipelineStep): { records: SourceRecord[]; matched: Set<string> } {
+export function applyJoin(records: SourceRecord[], f: PipelineStep): { records: SourceRecord[]; matched: Set<string> } {
   const matched = new Set<string>();
   const target = f.dbId ? getDatabase(f.dbId) : null;
   if (!target || !f.on) return { records, matched };
@@ -386,13 +386,26 @@ function applyJoin(records: SourceRecord[], f: PipelineStep): { records: SourceR
   const bring = (f.bring ?? []).flatMap((n) => target.schema.properties.filter((p) => p.name.toLowerCase() === n.toLowerCase()));
   // A cell may hold several names (aliases, addresses: "a, b" / "a; b").
   const table = rawRows(f.dbId!).map((row) => ({ keys: [...new Set(keyProps.flatMap((p) => (p ? cellText(p, row.cells[p.id]).split(/[,;\n]+/) : [row.title])).map(norm).filter(Boolean))], row }));
-  const out = records.map((r) => {
+  const wantsTitle = (f.bring ?? []).some((n) => n.toLowerCase() === "title");
+  const take = (r: SourceRecord, rows: typeof table): SourceRecord => {
+    // Several rows: the values of each field come together (without doubles).
+    const value = (get: (x: (typeof table)[number]) => string) => [...new Set(rows.map(get).filter(Boolean))].join(", ");
+    return {
+      ...r,
+      fields: {
+        ...r.fields,
+        ...Object.fromEntries([...(wantsTitle ? [["Title", value((x) => x.row.title)]] : []), ...bring.map((p) => [p.name, value((x) => cellText(p, x.row.cells[p.id]))])].filter((e) => !!e[1])),
+      },
+    };
+  };
+  const out = records.flatMap((r) => {
     const mine = norm(valueOf(r, f.on!));
     const raw = String(valueOf(r, f.on!) ?? "").toLowerCase();
-    const hit = mine ? table.find((x) => x.keys.some((k) => k === mine || (k.length >= 3 && (mine.includes(k) || raw.includes(k))))) : undefined;
-    if (!hit) return r;
+    const hits = mine ? table.filter((x) => x.keys.some((k) => k === mine || (!f.exact && k.length >= 3 && (mine.includes(k) || raw.includes(k))))) : [];
+    if (!hits.length) return f.joinType === "inner" ? [] : [r];
     matched.add(r.ref);
-    return { ...r, fields: { ...r.fields, ...Object.fromEntries(bring.map((p) => [p.name, cellText(p, hit.row.cells[p.id])]).filter((e) => !!e[1])) } };
+    if (f.many === "expand" && hits.length > 1) return hits.map((h) => ({ ...take(r, [h]), ref: `${r.ref}#${h.row.id}` }));
+    return [take(r, f.many === "all" ? hits : [hits[0]])];
   });
   return { records: out, matched };
 }
