@@ -1026,3 +1026,67 @@ export async function routineChoicesAction() {
     };
   });
 }
+
+// ---------------------------------------------------------------------------
+// The data blocks of a page: a figure, a chart, appointments, todos, a document, people (blocks.ts)
+// ---------------------------------------------------------------------------
+
+type BlockSpecs = {
+  metric: import("./blocks").MetricSpec;
+  chart: import("./blocks").ChartSpec;
+  events: import("./blocks").EventsSpec;
+  tasks: import("./blocks").TasksSpec;
+  document: import("./blocks").DocumentSpec;
+  people: import("./blocks").PeopleSpec;
+};
+
+/** What a data block shows now - computed from what Zeff holds, never stored in the page. */
+export async function blockDataAction<K extends keyof BlockSpecs>(kind: K, spec: BlockSpecs[K]) {
+  return run(async () => {
+    const b = await import("./blocks");
+    switch (kind) {
+      case "metric":
+        return { data: b.metricData(spec as BlockSpecs["metric"]) as unknown };
+      case "chart":
+        return { data: b.chartData(spec as BlockSpecs["chart"]) as unknown };
+      case "events":
+        return { data: (await b.eventsData(spec as BlockSpecs["events"])) as unknown };
+      case "tasks":
+        return { data: (await b.tasksData(spec as BlockSpecs["tasks"])) as unknown };
+      case "document":
+        return { data: (await b.documentData(spec as BlockSpecs["document"])) as unknown };
+      case "people":
+        return { data: (await b.peopleData(spec as BlockSpecs["people"])) as unknown };
+      default:
+        throw new Error(t("Unknown block."));
+    }
+  });
+}
+
+/** What a block can be pointed at: the views and fields of a database. */
+export async function blockChoicesAction(dbId: number) {
+  return run(() => {
+    const d = store.getDatabase(Number(dbId));
+    if (!d) throw new Error(t("No such database."));
+    return {
+      views: d.schema.views.map((v) => ({ id: v.id, name: v.name })),
+      properties: [{ id: "title", name: d.schema.titleName, type: "title" }, ...d.schema.properties.filter((p) => !["srcref", "srcedited", "srcurl", "ticketkey", "noteref"].includes(p.id)).map((p) => ({ id: p.id, name: p.name, type: p.type }))],
+    };
+  });
+}
+
+/** Documents or people to pick from for a block. */
+export async function blockPickAction(kind: "document" | "person", q: string) {
+  return run(async () => {
+    const b = await import("./blocks");
+    return kind === "document" ? { items: (await b.documentChoices(String(q ?? ""))).map((x) => ({ id: x.id, label: x.name })) } : { items: (await b.personChoices(String(q ?? ""))).map((x) => ({ id: x.id, label: x.name })) };
+  });
+}
+
+/** A todo ticked off (or back) in a todos block. */
+export async function taskDoneAction(id: number, done: boolean) {
+  return run(async () => {
+    await (await import("./blocks")).setTaskDone(Number(id), !!done);
+    return {};
+  });
+}

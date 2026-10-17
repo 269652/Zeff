@@ -70,7 +70,7 @@ function useChoices(pageId: number, on: boolean) {
 }
 
 /** Where a block can be taken by: dragged elsewhere, a line added after it, removed — shown when it is hovered, while editing the layout. */
-function GripBar({ editor, node, getPos, deleteNode, label }: Pick<NodeViewProps, "editor" | "node" | "getPos" | "deleteNode"> & { label: string }) {
+export function GripBar({ editor, node, getPos, deleteNode, label }: Pick<NodeViewProps, "editor" | "node" | "getPos" | "deleteNode"> & { label: string }) {
   if (!editor.isEditable) return null;
   return (
     <div className="ws-grip-bar" contentEditable={false}>

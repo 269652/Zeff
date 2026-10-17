@@ -165,6 +165,16 @@ function block(n: DocNode, ctx: { ordered?: number } = {}): string {
       return `:::zeff ${String(n.attrs?.module ?? "")}${n.attrs?.key ? ` ${String(n.attrs.key)}` : ""}`;
     case "rowView":
       return ":::rowview";
+    case "zeffMetric":
+    case "zeffChart":
+    case "zeffEvents":
+    case "zeffTasks":
+    case "zeffDocument":
+    case "zeffPeople": {
+      // A data block as one line: its kind and what it looks at (lossless - written back it is the same block).
+      const a = Object.fromEntries(Object.entries(n.attrs ?? {}).filter(([, v]) => v !== "" && v !== null && v !== undefined && !(Array.isArray(v) && !v.length)));
+      return `:::block ${DATA_BLOCK_TYPES[n.type]} ${JSON.stringify(a)}`;
+    }
     case "databaseView":
       return `:::database ${String(n.attrs?.dbId ?? "")}${n.attrs?.title ? ` ${String(n.attrs.title)}` : ""}`;
     case "pageEmbed":
@@ -288,6 +298,20 @@ export function markdownToDoc(md: string): Doc {
         i++;
         continue;
       }
+      // :::block metric {"dbId":12,"calc":"count"}  - a data block (figure, chart, events, tasks, document, people)
+      const blk = /^:::block\s+(metric|chart|events|tasks|document|people)\s*(\{.*\})?\s*$/.exec(l);
+      if (blk) {
+        let attrs: Record<string, unknown> = {};
+        try {
+          attrs = blk[2] ? (JSON.parse(blk[2]) as Record<string, unknown>) : {};
+        } catch {
+          attrs = {};
+        }
+        const type = Object.keys(DATA_BLOCK_TYPES).find((k) => DATA_BLOCK_TYPES[k] === blk[1])!;
+        out.push({ type, attrs: Object.fromEntries(Object.entries(attrs).filter(([k]) => (NODE_ATTRS[type] ?? []).includes(k))) });
+        i++;
+        continue;
+      }
       // :::callout 💡 blue ... :::   and   :::toggle Summary ... :::   (nested blocks inside; they may nest)
       const dir = /^:::(callout|toggle)\s*(.*)$/.exec(l);
       if (dir) {
@@ -402,6 +426,12 @@ const NODE_ATTRS: Record<string, string[]> = {
   zeffField: ["prop", "label"],
   zeffRelated: ["dbId", "prop"],
   zeffButton: ["label", "action", "prop", "value"],
+  zeffMetric: ["dbId", "viewId", "calc", "prop", "label", "style"],
+  zeffChart: ["dbId", "viewId", "type", "groupBy", "calc", "prop", "bucket", "limit", "title"],
+  zeffEvents: ["days", "q", "calendar", "limit", "title"],
+  zeffTasks: ["q", "ticket", "status", "limit", "title"],
+  zeffDocument: ["docId"],
+  zeffPeople: ["ids", "q", "limit", "title"],
   zeffRef: ["kind", "ref", "label", "href"],
   databaseView: ["dbId", "viewId", "title"],
   pageEmbed: ["pageId", "title"],
@@ -409,6 +439,9 @@ const NODE_ATTRS: Record<string, string[]> = {
   rowView: [],
   aiBlock: ["prompt", "text", "at", "auto"],
 };
+
+/** The data blocks (figure, chart, appointments, todos, document, people) and the word each has in Markdown. */
+export const DATA_BLOCK_TYPES: Record<string, string> = { zeffMetric: "metric", zeffChart: "chart", zeffEvents: "events", zeffTasks: "tasks", zeffDocument: "document", zeffPeople: "people" };
 
 /** The modules a page can hold as a block (what Zeff knows about a ticket — of its row, or the key given). */
 export const BLOCK_MODULES = ["briefing", "todos", "questions", "actions", "flags", "context", "chat", "properties", "subtasks", "suggested", "page"] as const;
@@ -462,6 +495,18 @@ export function sanitizeDoc(input: unknown): Doc {
         const id = Math.floor(Number(attrs.dbId));
         if (!(id > 0)) return null;
         attrs.dbId = id;
+      }
+      if (o.type in DATA_BLOCK_TYPES) {
+        // The data blocks keep what to look at: numbers and short words, nothing else.
+        for (const k of Object.keys(attrs)) {
+          const v = attrs[k];
+          if (k === "ids") attrs[k] = (Array.isArray(v) ? v : []).map((x) => Math.floor(Number(x))).filter((n) => n > 0).slice(0, 60);
+          else if (["dbId", "docId", "days", "limit"].includes(k)) {
+            const n = Math.floor(Number(v));
+            if (n > 0) attrs[k] = Math.min(n, 100000);
+            else delete attrs[k];
+          } else attrs[k] = String(v ?? "").slice(0, 200);
+        }
       }
       if (o.type === "zeffButton") {
         if (!["set", "trash", "refresh"].includes(String(attrs.action))) attrs.action = "set";
