@@ -101,6 +101,11 @@ export async function savePageAction(id: number, patch: store.PagePatch, rev?: n
   });
 }
 
+/** The favorites put in a new order (dragged in the sidebar). */
+export async function favoriteOrderAction(ids: number[]) {
+  return run(() => (store.setFavoriteOrder(ids), {}));
+}
+
 export async function movePageAction(id: number, parentId: number | null, beforeId?: number | null) {
   return run(() => (store.movePage(Number(id), parentId, beforeId), {}));
 }
@@ -245,6 +250,8 @@ export type DatabaseData = {
   /** What the cards show beyond the cells: each row's ticket key, its subtasks, and — by key — its Lage and todos. */
   /** Locked (a database a sync keeps, as Jira's): shown, not changed here — its cards don't move, its cells aren't edited. */
   locked: boolean;
+  /** Its source only lends records (automations, their runs): no row can be made by hand. */
+  noNewRows?: boolean;
   extras: { keys: Record<number, string>; subtasks: Record<number, { done: number; total: number }>; tickets: Record<string, TicketExtras>; todosOn: boolean; briefing: boolean; knowledge: boolean; me: { names: string[]; ids: number[] }; source: string | null; running?: boolean; /** The app views it can have (mail client, chat — their plugins installed). */ appViews?: { id: string; label: string; icon: string }[]; /** The sources plugins bring (People …), for the pipeline editor. */ extSources?: { id: string; label: string; icon: string; hint?: string }[]; /** Mail or message channels can be named as sources (the View menu offers "Inbox"). */ inboxPossible?: boolean; /** What its sources let you do (reply where they send; read-only else). */ capabilities?: { reply: string[]; drafts: string[]; readOnly: boolean }; /** Its derived databases (an app shows them as folders), and the one it is derived from. */ derived?: { id: number; title: string; icon: string; count: number; unread: number }[]; derivedFrom?: number | null; previews: Record<number, PreviewLine[]>; /** Rows that are linked copies of a row in another database. */ links?: Record<number, { source: number; sourceTitle: string; sourceDb: string }>; /** The custom view its rows have (a plugin's): its id. */ rowView?: string | null };
 };
 
@@ -290,7 +297,7 @@ export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: D
       tickets[k] = { attention, attentionLabel: attention && isAttention(attention) ? attentionLabels(t)[attention] : null, lead: typeof lead === "string" ? lead : (cur?.lead ?? null), summary: typeof r.cells[LAGE_FIELDS.summary] === "string" ? String(r.cells[LAGE_FIELDS.summary]) : (cur?.summary ?? null), happened: cur?.happened ?? [], todos: cur?.todos ?? [] };
     }
     const extras: DatabaseData["extras"] = { keys, subtasks: subtaskCounts(d.schema, d.rows, page.id), tickets, todosOn: isInstalled("todos"), ...collectionSwitches(page.id), me: await whoAmI(), source: collectionSource(page.id), running: (await import("./pipeline")).pipelineRunning(page.id), extSources: (await (await import("./source-point")).extSources()).map((x) => ({ id: x.id, label: x.label, icon: x.icon, hint: x.hint })), inboxPossible: (await import("./derived")).channelKinds().mail || (await import("./derived")).channelKinds().messages, appViews: (await import("./app-views")).appViewsFor(d.schema.dataType).map((a) => ({ id: a.id, label: t(a.label), icon: a.icon })), capabilities: (await import("./capabilities")).capabilitiesOf(d.schema), derived: (await import("./derived")).derivedOf(page.id), derivedFrom: (await import("./derived")).derivedFrom(d.schema), previews: Object.fromEntries(d.rows.map((r) => [r.id, previewLines(store.getPage(r.id)?.content, 10)])), links: (await import("./links")).linksIn(d.rows.map((r) => r.id)), rowView: (await import("./row-views")).rowViewOf(d.schema.dataType)?.id ?? null };
-    return { data: { id: page.id, title: page.title, icon: page.icon, locked: page.locked, schema: d.schema, rows: d.rows, labels, templates: store.rowTemplates(page.id).map((r) => ({ id: r.id, title: r.title || t("Untitled") })), related, extras } };
+    return { data: { id: page.id, title: page.title, icon: page.icon, locked: page.locked, noNewRows: await readOnlyRows(page.id), schema: d.schema, rows: d.rows, labels, templates: store.rowTemplates(page.id).map((r) => ({ id: r.id, title: r.title || t("Untitled") })), related, extras } };
   });
 }
 
@@ -300,8 +307,16 @@ export async function updateSchemaAction(dbId: number, schema: unknown) {
   });
 }
 
+/** A database whose source only lends its records (a row made by hand would have nothing to belong to). */
+async function readOnlyRows(dbId: number): Promise<boolean> {
+  const step = store.getDatabase(dbId)?.schema.pipeline?.steps.find((s) => s.kind === "source" && s.from === "ext");
+  if (!step?.ext) return false;
+  return (await (await import("./source-point")).extSources()).find((s) => s.id === step.ext)?.noNewRows === true;
+}
+
 export async function addRowAction(dbId: number, v: store.NewRow = {}) {
-  return run(() => {
+  return run(async () => {
+    if (await readOnlyRows(Number(dbId))) throw new Error(t("This database only shows records from its source — rows cannot be added here."));
     const id = store.addRow(Number(dbId), v);
     // A row with a title in a two-way source (an appointment) is made there at once.
     if (v.title?.trim()) void import("./pipeline").then((p) => p.syncAfterEdit(id)).catch(() => undefined);
@@ -633,6 +648,63 @@ export async function placeRowAction(rowId: number, after: number | null, before
   return run(() => (store.placeRow(Number(rowId), { after: after === null ? null : Number(after), before: before === null ? null : Number(before) }), {}));
 }
 
+/** The {{placeholders}} a row template asks for (to be filled in when a row is made from it). */
+export async function templateParamsAction(templateId: number) {
+  return run(() => ({ params: store.templateParams(Number(templateId)) }));
+}
+
+/** An answered form: the row it makes (a form is asked at workspace/form/<database id>). */
+export async function submitFormAction(dbId: number, title: string, answers: Record<string, unknown>) {
+  return run(async () => {
+    const id = (await import("./form")).submitForm(Number(dbId), String(title ?? ""), answers && typeof answers === "object" ? answers : {});
+    return { id };
+  });
+}
+
+/** One field set for several rows at once - what could not be set (a computed field, a value that does not fit) is told. */
+export async function bulkSetAction(rowIds: number[], propId: string, value: unknown) {
+  return run(() => {
+    let done = 0;
+    const failed: string[] = [];
+    for (const id of rowIds.map(Number).slice(0, 500)) {
+      try {
+        store.setCell(id, String(propId), value);
+        done++;
+      } catch (e) {
+        failed.push(errorMessage(e));
+      }
+    }
+    void Promise.all(rowIds.map((id) => import("./pipeline").then((p) => p.syncAfterEdit(Number(id))).catch(() => undefined)));
+    return { done, failed: [...new Set(failed)] };
+  });
+}
+
+/** Several rows moved to another database (see store.moveRowsToDatabase). */
+export async function moveRowsAction(rowIds: number[], targetId: number) {
+  return run(async () => {
+    for (const id of rowIds) await (await import("./source-write")).removeFromSource(Number(id)).catch(() => undefined);
+    return store.moveRowsToDatabase(rowIds.map(Number).slice(0, 500), Number(targetId));
+  });
+}
+
+/** Several rows to the trash at once (a row of a source that can't be deleted there stays - it is told). */
+export async function archiveRowsAction(rowIds: number[]) {
+  return run(async () => {
+    const gone: number[] = [];
+    const kept: string[] = [];
+    for (const id of rowIds.map(Number).slice(0, 500)) {
+      try {
+        await (await import("./source-write")).removeFromSource(id);
+        store.archivePage(id);
+        gone.push(id);
+      } catch (e) {
+        kept.push(errorMessage(e));
+      }
+    }
+    return { gone, kept: [...new Set(kept)] };
+  });
+}
+
 export async function duplicateRowAction(rowId: number) {
   return run(() => {
     const r = store.getPage(Number(rowId));
@@ -698,6 +770,11 @@ export async function exportMarkdownAction(pageId: number) {
     if (!p) throw new Error(t("This page is gone."));
     return { filename: `${(p.title || "page").replace(/[^\p{L}\p{N}_-]+/gu, "_")}.md`, markdown: `${p.title ? `# ${p.title}\n\n` : ""}${docToMarkdown(p.content)}` };
   });
+}
+
+/** A page (or a database as its table) as one HTML file that cannot be changed - for sending to a colleague. */
+export async function exportHtmlAction(pageId: number) {
+  return run(async () => (await import("./export-html")).pageToHtml(Number(pageId)));
 }
 
 /** A page from Markdown: its first "# Heading" is the title, else `fallbackTitle` (the file's name). */
@@ -1131,7 +1208,7 @@ export async function formChoicesAction(dbId: number) {
 }
 
 /** A form sent: a row from what was typed (values by property id, "title" for the title). */
-export async function submitFormAction(dbId: number, fields: string[], values: Record<string, string>) {
+export async function submitFormBlockAction(dbId: number, fields: string[], values: Record<string, string>) {
   return run(async () => ({ id: (await import("./app-blocks")).submitForm(Number(dbId), Array.isArray(fields) ? fields.map(String) : [], values && typeof values === "object" ? values : {}) }));
 }
 
@@ -1160,4 +1237,31 @@ export async function installPackageAction(json: string, parentId: number | null
     }
     return { id: (await import("./packages")).installPackage(pkg as never, parentId ?? null).rootId };
   });
+}
+
+// ---------------------------------------------------------------------------
+// The detail view's blocks: what happened to a row, and everything that belongs to it
+// ---------------------------------------------------------------------------
+
+/** A change from the history undone: the cell gets its old value (the undo is logged like any change). */
+export async function restoreChangeAction(lineId: number) {
+  return run(async () => {
+    const { restoreChange } = await import("./activity");
+    return await restoreChange(Number(lineId));
+  });
+}
+
+/** The lines of what happened to a page or row (who changed what), newest first. */
+export async function activityAction(pageId: number, limit = 30) {
+  return run(async () => {
+    const { activityOf } = await import("./activity");
+    const p = store.getPage(Number(pageId));
+    if (!p) throw new Error(t("This page is gone."));
+    return { lines: activityOf(p.id, limit), title: p.title };
+  });
+}
+
+/** Everything Zeff knows that belongs to a page or row: linked pages, related rows, todos, tickets, pages about the same. */
+export async function belongsAction(pageId: number) {
+  return run(async () => ({ belongs: await (await import("./belongs")).belongsTo(Number(pageId)) }));
 }

@@ -165,6 +165,14 @@ function block(n: DocNode, ctx: { ordered?: number } = {}): string {
       return `:::zeff ${String(n.attrs?.module ?? "")}${n.attrs?.key ? ` ${String(n.attrs.key)}` : ""}`;
     case "rowView":
       return ":::rowview";
+    case "zeffActivity":
+      return `:::block activity {"limit":${Number(n.attrs?.limit) || 12}}`;
+    case "zeffBelongs":
+      return ":::block belongs";
+    case "zeffTabs":
+      return `:::tabs\n${kids.map((c) => block(c)).join("\n")}\n:::`;
+    case "zeffTab":
+      return `:::tab ${String(n.attrs?.title ?? "Tab")}\n${blocks(kids)}\n:::`;
     case "zeffMetric":
     case "zeffChart":
     case "zeffEvents":
@@ -299,7 +307,7 @@ export function markdownToDoc(md: string): Doc {
         continue;
       }
       // :::block metric {"dbId":12,"calc":"count"}  - a data block (figure, chart, events, tasks, document, people)
-      const blk = /^:::block\s+(metric|chart|events|tasks|document|people)\s*(\{.*\})?\s*$/.exec(l);
+      const blk = /^:::block\s+(metric|chart|events|tasks|document|people|activity|belongs)\s*(\{.*\})?\s*$/.exec(l);
       if (blk) {
         let attrs: Record<string, unknown> = {};
         try {
@@ -308,18 +316,23 @@ export function markdownToDoc(md: string): Doc {
           attrs = {};
         }
         const type = Object.keys(DATA_BLOCK_TYPES).find((k) => DATA_BLOCK_TYPES[k] === blk[1])!;
+        if (!type) {
+          out.push({ type: blk[1] === "activity" ? "zeffActivity" : "zeffBelongs", attrs: blk[1] === "activity" && typeof attrs.limit === "number" ? { limit: attrs.limit } : {} });
+          i++;
+          continue;
+        }
         out.push({ type, attrs: Object.fromEntries(Object.entries(attrs).filter(([k]) => (NODE_ATTRS[type] ?? []).includes(k))) });
         i++;
         continue;
       }
       // :::callout 💡 blue ... :::   and   :::toggle Summary ... :::   (nested blocks inside; they may nest)
-      const dir = /^:::(callout|toggle)\s*(.*)$/.exec(l);
+      const dir = /^:::(callout|toggle|tabs|tab)\s*(.*)$/.exec(l);
       if (dir) {
         const inner: string[] = [];
         let depth = 1;
         i++;
         while (i < lines.length) {
-          if (/^:::(callout|toggle)\b/.test(lines[i])) depth++;
+          if (/^:::(callout|toggle|tabs|tab)\b/.test(lines[i])) depth++;
           else if (/^:::\s*$/.test(lines[i]) && --depth === 0) break;
           inner.push(lines[i++]);
         }
@@ -330,7 +343,11 @@ export function markdownToDoc(md: string): Doc {
           const tone = parts.find((x) => (COLORS as readonly string[]).includes(x));
           const icon = parts.find((x) => x !== tone) ?? "💡";
           out.push({ type: "callout", attrs: { icon, tone: tone ?? "gray" }, content: kids });
-        } else out.push({ type: "details", attrs: { open: false }, content: [{ type: "detailsSummary", content: parseInline(dir[2].trim() || "Details") }, { type: "detailsContent", content: kids }] });
+        } else if (dir[1] === "tabs") {
+          const tabs = kids.filter((k) => k.type === "zeffTab");
+          if (tabs.length) out.push({ type: "zeffTabs", attrs: { active: 0 }, content: tabs });
+        } else if (dir[1] === "tab") out.push({ type: "zeffTab", attrs: { title: dir[2].trim().slice(0, 60) || "Tab" }, content: kids.length ? kids : [{ type: "paragraph" }] });
+        else out.push({ type: "details", attrs: { open: false }, content: [{ type: "detailsSummary", content: parseInline(dir[2].trim() || "Details") }, { type: "detailsContent", content: kids }] });
         continue;
       }
       if (/^>\s?/.test(l)) {
@@ -426,7 +443,6 @@ const NODE_ATTRS: Record<string, string[]> = {
   zeffWidget: ["widget", "config"],
   zeffForm: ["dbId", "fields", "label"],
   zeffIf: ["field", "op", "value"],
-  zeffTabs: ["titles", "active"],
   zeffField: ["prop", "label"],
   zeffRelated: ["dbId", "prop"],
   zeffButton: ["label", "action", "prop", "value"],
@@ -435,6 +451,10 @@ const NODE_ATTRS: Record<string, string[]> = {
   zeffEvents: ["days", "q", "calendar", "limit", "title"],
   zeffTasks: ["q", "ticket", "status", "limit", "title"],
   zeffDocument: ["docId"],
+  zeffActivity: ["limit"],
+  zeffBelongs: [],
+  zeffTabs: ["active"],
+  zeffTab: ["title"],
   zeffPeople: ["ids", "q", "limit", "title"],
   zeffRef: ["kind", "ref", "label", "href"],
   databaseView: ["dbId", "viewId", "title"],
@@ -514,17 +534,6 @@ export function sanitizeDoc(input: unknown): Doc {
         attrs.field = String(attrs.field ?? "").slice(0, 120);
         attrs.value = String(attrs.value ?? "").slice(0, 200);
       }
-      if (o.type === "zeffTabs") {
-        let titles: string[] = [];
-        try {
-          const parsed = JSON.parse(String(attrs.titles ?? "[]")) as unknown;
-          if (Array.isArray(parsed)) titles = parsed.filter((x): x is string => typeof x === "string").map((x) => x.slice(0, 60)).slice(0, 12);
-        } catch {
-          // no titles
-        }
-        attrs.titles = JSON.stringify(titles);
-        attrs.active = Math.max(0, Math.min(11, Math.floor(Number(attrs.active)) || 0));
-      }
       if (o.type === "zeffWidget") {
         const widget = String(attrs.widget ?? "").trim().slice(0, 80);
         if (!widget) return null;
@@ -555,6 +564,9 @@ export function sanitizeDoc(input: unknown): Doc {
           } else attrs[k] = String(v ?? "").slice(0, 200);
         }
       }
+      if (o.type === "zeffTabs") attrs.active = Math.max(0, Math.min(40, Math.floor(Number(attrs.active)) || 0));
+      if (o.type === "zeffTab") attrs.title = String(attrs.title ?? "").trim().slice(0, 60) || "Tab";
+      if (o.type === "zeffActivity") attrs.limit = Math.max(1, Math.min(100, Math.floor(Number(attrs.limit)) || 12));
       if (o.type === "zeffButton") {
         if (!["set", "trash", "refresh"].includes(String(attrs.action))) attrs.action = "set";
         attrs.label = String(attrs.label ?? "").slice(0, 80);

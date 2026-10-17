@@ -11,7 +11,9 @@ import { getPref, setPref } from "@/lib/prefs";
 import { isSystemPage, systemPageIds } from "@/lib/prompts/system-pages";
 import { inAgentScope, runAgentGuards } from "./agent-scope";
 import { emitChange } from "@/lib/events";
-import { emitRowEvent } from "./events";
+import { emitRowEvent, isViaSource } from "./events";
+import { workspaceSources } from "./source-point";
+import { logChange } from "./activity";
 import { docRefs, docText, emptyDoc, sanitizeDoc, type Doc, type DocRef } from "./doc";
 import { cellText, computeRows, dateRange, defaultSchema, isComputed, SYSTEM_PROPS, newProperty, normalizeSchema, propById, TITLE, type DbSchema, type Labels, type Property, type Row } from "./model";
 
@@ -173,6 +175,7 @@ export function createPage(v: NewPage = {}): number {
   const id = Number(r.lastInsertRowid);
   index(id);
   relink(id, doc);
+  logChange(id, "created");
   changed();
   return id;
 }
@@ -241,7 +244,10 @@ export function updatePage(id: number, patch: PagePatch, rev?: number): SaveResu
   const args: unknown[] = [];
   const set = (col: string, v: unknown) => (sets.push(`${col} = ?`), args.push(v));
   let doc: Doc | null = null;
-  if (patch.title !== undefined) set("title", clip(patch.title, 300));
+  if (patch.title !== undefined) {
+    set("title", clip(patch.title, 300));
+    logChange(id, "title", cur.title, clip(patch.title, 300));
+  }
   if (patch.icon !== undefined) set("icon", clip(patch.icon, 16));
   if (patch.cover !== undefined) set("cover", /^(gradient:[a-z0-9-]+|\/api\/workspace\/files\/[\w.-]+|https?:\/\/\S+)?$/i.test(patch.cover) ? patch.cover : "");
   if (patch.favorite !== undefined) set("favorite", patch.favorite ? 1 : 0);
@@ -262,6 +268,7 @@ export function updatePage(id: number, patch: PagePatch, rev?: number): SaveResu
       }
       set("content", json);
       set("body_text", docText(doc));
+      logChange(id, "text");
       newRev = cur.rev + 1;
       set("rev", newRev);
     } else doc = null;
@@ -354,6 +361,8 @@ function keepSystem(id: number, parentId?: number | null): void {
 
 export function archivePage(id: number): void {
   keepSystem(id);
+  logChange(id, "trash");
+  const was = getPage(id);
   const ids = [id, ...subtree(id)];
   const at = now();
   const d = db();
@@ -364,12 +373,14 @@ export function archivePage(id: number): void {
     }
   })();
   changed();
+  if (was?.dbId && !was.archivedAt) emitRowEvent("row.removed", { db: was.dbId, row: id });
 }
 
 export function restorePage(id: number): void {
   const d = db();
   const p = getPage(id);
   if (!p) return;
+  logChange(id, "restored");
   const ids = [id, ...subtree(id)];
   d.transaction(() => {
     // A page whose parent is in the trash too comes back to the top.
@@ -496,7 +507,21 @@ export type PageRef = { id: number; title: string; icon: string; kind: string; u
 
 const refOf = (r: { id: number; title: string; icon: string; kind: string; updated_at: string; db_id: number | null }): PageRef => ({ id: r.id, title: r.title, icon: r.icon, kind: r.kind, updatedAt: r.updated_at, dbId: r.db_id });
 
-export const favorites = (): PageRef[] => (db().prepare("select id, title, icon, kind, updated_at, db_id from ws_pages where favorite = 1 and archived_at is null order by title").all() as never[]).map(refOf);
+const FAVORITE_ORDER = "workspace.favoriteOrder";
+
+/** The favorites in the order you put them in (those not placed yet follow, by title). */
+export function favorites(): PageRef[] {
+  const list = (db().prepare("select id, title, icon, kind, updated_at, db_id from ws_pages where favorite = 1 and archived_at is null order by title").all() as never[]).map(refOf);
+  const order = getPref<number[]>(FAVORITE_ORDER, []);
+  const rank = (id: number) => (order.includes(id) ? order.indexOf(id) : order.length);
+  return [...list].sort((a, b) => rank(a.id) - rank(b.id));
+}
+
+/** The favorites' order, as put by dragging. */
+export function setFavoriteOrder(ids: number[]): void {
+  setPref(FAVORITE_ORDER, ids.map(Number).filter((n) => Number.isInteger(n) && n > 0).slice(0, 200));
+  changed();
+}
 
 /** The last pages you opened or edited. */
 export const recent = (limit = 12): PageRef[] =>
@@ -742,14 +767,16 @@ export function setCell(rowId: number, propId: string, value: unknown): void {
   noAgentOnSystem(rowId);
   const props = { ...row.props };
   const v = coerceCell(p, value);
+  const was = cellText(p, props[propId]);
   if (v === null) delete props[propId];
   else props[propId] = v;
+  logChange(rowId, p.name, was, cellText(p, v));
   db().prepare("update ws_pages set props = ?, updated_at = ? where id = ?").run(JSON.stringify(props), now(), rowId);
   index(rowId); // (what a cell says is searchable)
   changed();
   syncLinkedFrom(rowId); // (its copies in other databases follow — links.ts)
   afterJobChange(rowId, propId); // (a card moved into Ready: the agents take it — jobs.ts)
-  emitRowEvent("row.changed", { db: row.dbId, row: rowId, field: p.name });
+  emitRowEvent("row.changed", { db: row.dbId, row: rowId, field: p.name, value: cellText(p, v) });
 }
 
 /**
@@ -786,12 +813,48 @@ export function placeRow(rowId: number, at: { after: number | null; before: numb
   changed();
 }
 
-export type NewRow = { title?: string; cells?: Record<string, unknown>; templateId?: number };
+export type NewRow = { title?: string; cells?: Record<string, unknown>; templateId?: number; /** Values for the {{placeholders}} of a template. */ params?: Record<string, string> };
+
+const PLACEHOLDER = /\{\{\s*([\p{L}\p{N} _.-]{1,40}?)\s*\}\}/gu;
+
+/** The {{placeholders}} a row template holds - in its title, its texts and its page - in the order they first appear. */
+export function templateParams(templateId: number): string[] {
+  const tpl = getPage(templateId);
+  if (!tpl) return [];
+  const found: string[] = [];
+  const scan = (s: unknown) => {
+    for (const m of String(s ?? "").matchAll(PLACEHOLDER)) if (!found.includes(m[1])) found.push(m[1]);
+  };
+  scan(tpl.title);
+  for (const v of Object.values(tpl.props)) if (typeof v === "string") scan(v);
+  scan(JSON.stringify(tpl.content));
+  return found;
+}
+
+const fill = (s: string, params: Record<string, string>) => s.replace(PLACEHOLDER, (all, name: string) => (name in params ? params[name] : all));
+/** A document with the placeholders of its texts filled in (a text node is changed, nothing else). */
+function fillDoc(node: unknown, params: Record<string, string>): unknown {
+  if (Array.isArray(node)) return node.map((x) => fillDoc(x, params));
+  if (node && typeof node === "object") {
+    const o = node as Record<string, unknown>;
+    return Object.fromEntries(Object.entries(o).map(([k, v]) => [k, k === "text" && typeof v === "string" ? fill(v, params) : fillDoc(v, params)]));
+  }
+  return node;
+}
 
 /** A row added: its title and cells (fitted to the properties); from a template: its content and cells come along. */
+/** Whether rows may be made in a database by anyone but its source: not in one that only shows a source's records (the automations, their runs). */
+export function rowsAddable(dbId: number): boolean {
+  if (isViaSource()) return true;
+  const step = getDatabase(dbId)?.schema.pipeline?.steps.find((s) => s.kind === "source" && s.from === "ext");
+  if (!step?.ext) return true;
+  return !workspaceSources.list().some((c) => c.impl.some((s) => s.id === step.ext && s.noNewRows));
+}
+
 export function addRow(dbId: number, v: NewRow = {}): number {
   const d = getDatabase(dbId);
   if (!d) throw new Error("No such database.");
+  if (!rowsAddable(dbId)) throw new Error("This database only shows records from its source — rows cannot be added here.");
   const tpl = v.templateId ? getPage(v.templateId) : null;
   const props: Record<string, unknown> = {};
   for (const [k, val] of Object.entries({ ...(tpl?.dbId === dbId ? tpl.props : {}), ...(v.cells ?? {}) })) {
@@ -800,7 +863,10 @@ export function addRow(dbId: number, v: NewRow = {}): number {
     const c = coerceCell(p, val);
     if (c !== null) props[k] = c;
   }
-  const id = createPage({ dbId, title: v.title ?? (tpl && tpl.dbId === dbId ? tpl.title : ""), icon: tpl?.icon, content: tpl?.dbId === dbId ? tpl.content : undefined, props });
+  const params = v.params ?? {};
+  if (tpl?.dbId === dbId && Object.keys(params).length) for (const [k, val] of Object.entries(props)) if (typeof val === "string") props[k] = fill(val, params);
+  const title = v.title ?? (tpl && tpl.dbId === dbId ? tpl.title : "");
+  const id = createPage({ dbId, title: Object.keys(params).length ? fill(title, params) : title, icon: tpl?.icon, content: tpl?.dbId === dbId ? (Object.keys(params).length ? (fillDoc(tpl.content, params) as typeof tpl.content) : tpl.content) : undefined, props });
   emitRowEvent("row.added", { db: dbId, row: id });
   return id;
 }
@@ -830,4 +896,47 @@ export function unreadCounts(): Record<number, number> {
   const now = new Date().toISOString();
   for (const x of dbs) out[x.id] = (count.get(x.id, field[x.dt], now) as { n: number }).n;
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Several rows at once
+// ---------------------------------------------------------------------------
+
+/**
+ * Rows moved to another database: each becomes a row there - with its title, icon, its page, and the cells whose property has the same
+ * name and kind there (a choice by the name of its option, one the target lacks is dropped) - and the old row goes to the trash. What
+ * could not come along is named. The new rows' ids.
+ */
+export function moveRowsToDatabase(ids: number[], targetId: number): { moved: number[]; dropped: string[] } {
+  const target = getDatabase(targetId);
+  if (!target) throw new Error("No such database.");
+  const moved: number[] = [];
+  const dropped = new Set<string>();
+  const sameKind = (a: Property, b: Property) => a.type === b.type;
+  for (const id of ids) {
+    const row = getPage(id);
+    const from = row?.dbId ? getDatabase(row.dbId) : null;
+    if (!row || !from || row.dbId === targetId) continue;
+    const cells: Record<string, unknown> = {};
+    for (const q of from.schema.properties) {
+      const v = row.props[q.id];
+      if (v === undefined || SYSTEM_PROPS.has(q.id) || isComputed(q)) continue;
+      const t = target.schema.properties.find((x) => x.name.toLowerCase() === q.name.toLowerCase() && sameKind(x, q) && !isComputed(x));
+      if (!t) {
+        dropped.add(q.name);
+        continue;
+      }
+      if (q.type === "select" || q.type === "status" || q.type === "multi_select") {
+        const names = (Array.isArray(v) ? v : [v]).map((o) => q.options?.find((x) => x.id === o)?.name).filter((n): n is string => !!n);
+        const ids2 = names.map((n) => t.options?.find((x) => x.name.toLowerCase() === n.toLowerCase())?.id).filter((x): x is string => !!x);
+        if (ids2.length < names.length) dropped.add(q.name);
+        if (ids2.length) cells[t.id] = q.type === "multi_select" ? ids2 : ids2[0];
+      } else cells[t.id] = v;
+    }
+    const nid = addRow(targetId, { title: row.title, cells });
+    updatePage(nid, { icon: row.icon, content: row.content });
+    archivePage(id);
+    moved.push(nid);
+  }
+  return { moved, dropped: [...dropped] };
 }

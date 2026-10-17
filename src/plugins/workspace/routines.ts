@@ -15,14 +15,14 @@ import { getPage } from "./store";
 export const ROUTINE_KINDS = ["agent", "automation"] as const;
 export type RoutineKind = (typeof ROUTINE_KINDS)[number];
 
-export const EVENTS = ["row.added", "row.changed", "pipeline.ran", "signal"] as const;
+export const EVENTS = ["row.added", "row.changed", "row.removed", "pipeline.ran", "signal"] as const;
 export type RoutineEvent = (typeof EVENTS)[number];
 
 /** When a routine runs: when you start it, on a schedule, when something happens, or when something else calls it. */
 export type Trigger =
   | { kind: "manual" }
   | { kind: "schedule"; everyMinutes?: number; at?: string; days?: number[] }
-  | { kind: "event"; event: RoutineEvent; db?: number; field?: string; /** A signal: its name. */ name?: string }
+  | { kind: "event"; event: RoutineEvent; db?: number; field?: string; /** Only when the field has this value now (row.changed): "Status becomes Done". */ equals?: string; /** A signal: its name. */ name?: string }
   | { kind: "called" };
 
 /** What a routine may change: only its own page and what is below it, its parent's pages, the whole workspace, or nothing. */
@@ -95,7 +95,8 @@ function normalizeTrigger(raw: unknown): Trigger | null {
     const field = str(o.field);
     const name = str(o.name);
     if (o.event === "signal" && !name) return null;
-    return { kind: "event", event: o.event as RoutineEvent, ...(db ? { db } : {}), ...(field ? { field } : {}), ...(o.event === "signal" ? { name } : {}) };
+    const equals = field && o.event === "row.changed" ? str(o.equals) : "";
+    return { kind: "event", event: o.event as RoutineEvent, ...(db ? { db } : {}), ...(field ? { field } : {}), ...(equals ? { equals } : {}), ...(o.event === "signal" ? { name } : {}) };
   }
   return null;
 }
@@ -274,6 +275,7 @@ export function startRun(pageId: number, trigger: Trigger): number {
   const at = new Date().toISOString();
   const r = db().prepare("insert into ws_routine_runs (page_id, trigger, status, started_at) values (?, ?, 'running', ?)").run(pageId, JSON.stringify(trigger), at);
   db().prepare("update ws_routines set last_run_at = ? where page_id = ?").run(at, pageId);
+  void import("./automation-databases").then((m) => m.refreshAutomationDatabases()).catch(() => undefined);
   return Number(r.lastInsertRowid);
 }
 
@@ -282,6 +284,7 @@ export function finishRun(runId: number, v: { status: Exclude<RunStatus, "runnin
   db()
     .prepare("update ws_routine_runs set status = ?, ended_at = ?, log = ?, error = ?, work_run_id = coalesce(?, work_run_id) where id = ?")
     .run(v.status, new Date().toISOString(), JSON.stringify(v.log), v.error ?? null, v.workRunId ?? null, runId);
+  void import("./automation-databases").then((m) => m.refreshAutomationDatabases()).catch(() => undefined);
 }
 
 /** The worker run an agent's run is (it shows in the Code tab). */

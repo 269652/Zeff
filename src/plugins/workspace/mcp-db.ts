@@ -344,7 +344,7 @@ export function registerWorkspaceDbTools(server: McpServer, h: Helpers): void {
       title: "Write a workspace page with full design",
       description:
         "Replace or append to a page's text in the extended Markdown the workspace reads and writes losslessly: # ## ### headings, lists, - [ ] tasks, tables, code fences, quotes, **bold**, *italic*, ~~strike~~, ==highlight==, [links](url), ![images](url), --- rules, " +
-        "callouts `:::callout 💡 blue` … `:::` (tones: gray brown orange yellow green blue purple pink red), toggles `:::toggle Summary` … `:::` (blocks inside, they nest), a database shown in the page `:::database 12 Optional title` (on a line of its own), " +
+        "tabs `:::tabs` containing `:::tab Title` … `:::` for each tab (blocks inside) closed by `:::`, the entry's own blocks `:::block activity {\"limit\":12}` (who changed what) and `:::block belongs` (everything that belongs to the row: linked pages, related rows, todos, tickets), callouts `:::callout 💡 blue` … `:::` (tones: gray brown orange yellow green blue purple pink red), toggles `:::toggle Summary` … `:::` (blocks inside, they nest), a database shown in the page `:::database 12 Optional title` (on a line of its own), " +
         "and mentions `[[page:12|Label]]`, `[[todo:5]]`, `[[ticket:PROJ-1]]`, `[[person:3|Name]]`. workspace_read_page shows a page in the same syntax — read, change, write back. mode: replace (default; the old text is kept in the history) or append.",
       inputSchema: z.object({ page: ref, markdown: z.string().max(300000), mode: z.enum(["replace", "append"]).optional() }),
       annotations: { readOnlyHint: false, destructiveHint: true },

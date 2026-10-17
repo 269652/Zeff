@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
-import { formChoicesAction, routineChoicesAction, submitFormAction } from "../actions";
+import { formChoicesAction, routineChoicesAction, submitFormBlockAction } from "../actions";
 import { cellText, type Property } from "../model";
 import { conditionHolds, type RecordOf } from "../routine-conditions";
 import { useRowData } from "./app-nodes";
@@ -55,7 +55,7 @@ function FormView({ node, updateAttributes, editor }: NodeViewProps) {
   const shown = (choices?.properties ?? []).filter((p) => fields.includes(p.id));
   const submit = async () => {
     setBusy(true);
-    const r = await submitFormAction(dbId, fields, values);
+    const r = await submitFormBlockAction(dbId, fields, values);
     setBusy(false);
     if (!r.ok) return void toast(r.error, { tone: "error" });
     setValues({});
@@ -228,82 +228,3 @@ export const ZeffIf = Node.create<{ pageId: number }>({
 // ---------------------------------------------------------------------------
 // Tabs
 // ---------------------------------------------------------------------------
-
-function TabsView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
-  const t = useT();
-  const titles = asList(node.attrs.titles);
-  const panels = node.childCount;
-  const [shown, setShown] = useState(Math.min(Number(node.attrs.active) || 0, Math.max(0, panels - 1)));
-  const active = Math.min(shown, Math.max(0, panels - 1));
-  const names = Array.from({ length: panels }, (_, i) => titles[i] || `${t("Tab")} ${i + 1}`);
-  const setTitle = (i: number, v: string) => updateAttributes({ titles: JSON.stringify(names.map((n, k) => (k === i ? v : n))) });
-  const addTab = () => {
-    const pos = typeof getPos === "function" ? getPos() : undefined;
-    if (pos === undefined) return;
-    editor.chain().focus().insertContentAt(pos + node.nodeSize - 1, { type: "flexBox", attrs: { dir: "col", gap: "md" }, content: [{ type: "paragraph" }] }).run();
-    updateAttributes({ titles: JSON.stringify([...names, `${t("Tab")} ${panels + 1}`]) });
-    setShown(panels);
-  };
-  const removeTab = () => {
-    const pos = typeof getPos === "function" ? getPos() : undefined;
-    if (pos === undefined || panels <= 1) return;
-    let from = pos + 1;
-    for (let i = 0; i < active; i++) from += node.child(i).nodeSize;
-    editor.chain().focus().deleteRange({ from, to: from + node.child(active).nodeSize }).run();
-    updateAttributes({ titles: JSON.stringify(names.filter((_, i) => i !== active)) });
-    setShown(Math.max(0, active - 1));
-  };
-  return (
-    <NodeViewWrapper className="ws-tabs my-2" data-active={active}>
-      <div className="mb-2 flex flex-wrap items-center gap-1 border-b border-zinc-200 dark:border-zinc-800" role="tablist" contentEditable={false}>
-        {names.map((n, i) => (
-          <button
-            key={i}
-            type="button"
-            role="tab"
-            aria-selected={i === active}
-            className={`-mb-px border-b-2 px-3 py-1 text-sm ${i === active ? "border-indigo-500 font-medium text-indigo-700 dark:text-indigo-300" : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}
-            onClick={() => {
-              setShown(i);
-              if (editor.isEditable) updateAttributes({ active: i });
-            }}
-          >
-            {n}
-          </button>
-        ))}
-        {editor.isEditable && (
-          <>
-            <input className="input ml-2 w-28 py-0.5 text-xs" value={names[active] ?? ""} onChange={(e) => setTitle(active, e.target.value)} aria-label={t("Tab name")} />
-            <button type="button" className="icon-btn" title={t("Add a tab")} aria-label={t("Add a tab")} onClick={addTab}>
-              ＋
-            </button>
-            <button type="button" className="icon-btn" title={t("Remove this tab")} aria-label={t("Remove this tab")} disabled={panels <= 1} onClick={removeTab}>
-              ✕
-            </button>
-          </>
-        )}
-      </div>
-      <NodeViewContent className="ws-tabs-body" />
-    </NodeViewWrapper>
-  );
-}
-
-/** Tabs: each tab is a box of blocks (the first shows; the others wait behind their titles). */
-export const ZeffTabs = Node.create({
-  name: "zeffTabs",
-  group: "block",
-  content: "flexBox+",
-  defining: true,
-  addAttributes() {
-    return { titles: { default: "[]" }, active: { default: 0 } };
-  },
-  parseHTML() {
-    return [{ tag: "div[data-zeff-tabs]" }];
-  },
-  renderHTML({ HTMLAttributes }) {
-    return ["div", mergeAttributes(HTMLAttributes, { "data-zeff-tabs": "" }), 0];
-  },
-  addNodeView() {
-    return ReactNodeViewRenderer(TabsView);
-  },
-});
