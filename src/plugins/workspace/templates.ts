@@ -2,11 +2,12 @@
  * Ready-made pages and databases (the Workspace plugin): a meeting, a project brief, a weekly review,
  * a decision log, tasks tied to Zeff's todos, projects with their tasks and a progress rollup. Server only.
  */
-import { markdownToDoc } from "./doc";
+import { markdownToDoc, type DocNode } from "./doc";
 import { createJobsDatabase } from "./jobs";
 import { createRulesDatabase } from "./rules";
 import { COLORS, newId, newProperty, newView, type DbSchema, type Option, type Property, type View } from "./model";
 import { newsDatabaseTitle } from "./news-database";
+import { widgetCatalog } from "./widgets";
 import { createRoutine } from "./routines";
 import { addRow, createPage, getDatabase, updateSchema } from "./store";
 
@@ -28,7 +29,30 @@ function routinePage(kind: "agent" | "automation", parentId: number | null, titl
   return id;
 }
 
+/** The dashboard: the widgets of the installed plugins in boxes — what is unread and coming up, the news, the workers, the routines. */
+function dashboardPage(parentId: number | null): number {
+  const have = new Set(widgetCatalog().map((w) => w.id));
+  const widget = (id: string): DocNode[] => (have.has(id) ? [{ type: "zeffWidget", attrs: { widget: id, config: "{}" } }] : []);
+  const col = (...ids: string[]): DocNode => ({ type: "flexBox", attrs: { dir: "col", gap: "md" }, content: ids.flatMap(widget).length ? ids.flatMap(widget) : [{ type: "paragraph" }] });
+  const doc = {
+    type: "doc",
+    content: [
+      { type: "flexBox", attrs: { dir: "row", gap: "md" }, content: [col("mail.unread", "people.upcoming"), col("news.top"), col("work.runs", "workspace.routines")] },
+      { type: "paragraph" },
+    ],
+  };
+  return createPage({ parentId, title: "Dashboard", icon: "🧭", content: doc });
+}
+
 const TEMPLATES: Template[] = [
+  {
+    key: "dashboard",
+    name: "Dashboard",
+    icon: "🧭",
+    description: "Widgets of your plugins on one page: what is unread and coming up, the news for you, the workers, your routines.",
+    kind: "page",
+    build: (parentId) => dashboardPage(parentId),
+  },
   {
     key: "agent",
     name: "Agent",

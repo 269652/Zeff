@@ -27,6 +27,7 @@ import { AiBlockNode, Callout, DatabaseViewNode, FlexBox, RowViewNode, ZeffModul
 import { ZeffButton, ZeffField, ZeffRelated } from "./app-nodes";
 import { DATA_BLOCKS } from "./block-nodes";
 import { ZeffRoutine } from "./routine-node";
+import { ZeffWidget } from "./widget-node";
 import { PageEmbedNode } from "./page-embed";
 import { SlashCommand, type SlashContext } from "./slash";
 import "./workspace.css";
@@ -242,6 +243,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
       DatabaseViewNode,
       ZeffModuleNode.configure({ pageId: contextRowId ?? pageId }),
       ZeffRoutine.configure({ pageId }),
+      ZeffWidget,
       RowViewNode.configure({ pageId: contextRowId ?? pageId }),
       ZeffField.configure({ pageId: contextRowId ?? pageId }),
       ZeffRelated.configure({ pageId: contextRowId ?? pageId }),

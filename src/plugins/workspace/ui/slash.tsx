@@ -107,6 +107,15 @@ export const slashItems = (t: T): SlashItem[] => [
     run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffModule", attrs: { module, key: "" } }).run(),
   })),
   {
+    key: "widget",
+    title: t("Widget"),
+    hint: t("What a plugin shows live — unread, dates coming up, workers, news — with its buttons"),
+    icon: "🧩",
+    group: t("App blocks"),
+    keywords: ["widget", "dashboard", "live", "unread", "news", "workers", "routines", "birthdays"],
+    run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffWidget", attrs: { widget: "", config: "{}" } }).run(),
+  },
+  {
     key: "routine-controls",
     title: t("Routine controls"),
     hint: t("Run, schedule and permissions of an agent or an automation — for this page"),

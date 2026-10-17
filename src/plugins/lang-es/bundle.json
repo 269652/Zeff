@@ -5759,5 +5759,15 @@
   "Function": "Función",
   "Pick a function …": "Elige una función …",
   "Signal name, e.g. invoice.paid": "Nombre de la señal, p. ej. factura.pagada",
-  "Detail": "Dato"
+  "Detail": "Dato",
+  "Nothing unread.": "Nada sin leer.",
+  "Nothing new.": "Nada nuevo.",
+  "No worker is working.": "Ningún worker está trabajando.",
+  "{n} working": "{n} trabajando",
+  "Widget": "Widget",
+  "What a plugin shows live — unread, dates coming up, workers, news — with its buttons": "Lo que un plugin muestra en vivo: no leídos, fechas próximas, workers, noticias, con sus botones",
+  "Pick a widget": "Elige un widget",
+  "No plugin brings a widget yet.": "Ningún plugin aporta aún un widget.",
+  "No routines yet.": "Aún no hay rutinas.",
+  "never run": "nunca ejecutada"
 }
