@@ -132,7 +132,31 @@ export type DbSchema = {
   rules?: boolean;
   /** A database of jobs for agents: a row is a job a worker can be given (a click), its result comes back into the row. */
   jobs?: boolean;
+  /** A form that adds rows (workspace/form/<id>): which fields it asks, which are required, what is prefilled. */
+  form?: FormSpec;
 };
+
+/**
+ * A database's form: the title and the fields in the order asked. A field may be `hidden` - then it is not asked and its `default` is
+ * set on every row the form makes (a status "New", a source "Form"). Required fields must be filled.
+ */
+export type FormField = { prop: string; label?: string; required?: boolean; hidden?: boolean; default?: string };
+export type FormSpec = { enabled: boolean; title: string; intro: string; thanks: string; titleLabel: string; titleRequired: boolean; fields: FormField[] };
+/** The properties a form can ask (the others hold ids or are computed). */
+export const FORM_TYPES: PropType[] = ["text", "number", "select", "multi_select", "status", "date", "checkbox", "url", "email", "phone"];
+
+function formOf(raw: unknown, props: Property[]): FormSpec | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const o = raw as Record<string, unknown>;
+  const str = (v: unknown, n: number) => (typeof v === "string" ? v.slice(0, n) : "");
+  const fields = (Array.isArray(o.fields) ? o.fields : []).flatMap((f): FormField[] => {
+    const x = (f ?? {}) as Record<string, unknown>;
+    const p = props.find((q) => q.id === x.prop);
+    if (!p || !FORM_TYPES.includes(p.type)) return [];
+    return [{ prop: p.id, ...(str(x.label, 120) ? { label: str(x.label, 120) } : {}), ...(x.required === true ? { required: true } : {}), ...(x.hidden === true ? { hidden: true } : {}), ...(str(x.default, 500) ? { default: str(x.default, 500) } : {}) }];
+  });
+  return { enabled: o.enabled === true, title: str(o.title, 120), intro: str(o.intro, 1000), thanks: str(o.thanks, 500), titleLabel: str(o.titleLabel, 80), titleRequired: o.titleRequired !== false, fields: fields.filter((f, i, all) => all.findIndex((g) => g.prop === f.prop) === i) };
+}
 
 /** The sources a pipeline can read: Jira's tickets, Google Keep's notes, the todos, another database of the Workspace, the addresses of the knowledge base. */
 export const PIPELINE_SOURCES = ["jira", "keep", "todos", "database", "mail", "messages", "knowledge", "ext"] as const;
@@ -409,7 +433,7 @@ export function normalizeSchema(raw: unknown): DbSchema {
   const o = (raw && typeof raw === "object" ? raw : {}) as Partial<DbSchema>;
   const props = (Array.isArray(o.properties) ? o.properties : []).filter((p): p is Property => !!p && typeof p.id === "string" && (PROP_TYPES as readonly string[]).includes(p.type)).map(withAiColors);
   const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [] }));
-  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(o.rules === true ? { rules: true } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}) };
+  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(formOf(o.form, props) ? { form: formOf(o.form, props) } : {}), ...(o.rules === true ? { rules: true } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}) };
 }
 
 export const propById = (props: Property[], id: string): Property | undefined => props.find((p) => p.id === id);

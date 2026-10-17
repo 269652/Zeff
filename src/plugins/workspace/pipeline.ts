@@ -5,7 +5,7 @@ import { errorMessage } from "@/lib/errors";
 import { emitChange } from "@/lib/events";
 import { databaseSource, KEY_PROP, NOTE_PROP, rowKey } from "./collections";
 import { APP_VIEWS, appViewsFor } from "./app-views";
-import { quietly } from "./events";
+import { quietly, viaSource } from "./events";
 import { peopleDatabase } from "./people-database";
 import { meter, newMeter, noteAi, noteJudged } from "./meter";
 import { docToMarkdown, markdownToDoc } from "./doc";
@@ -670,7 +670,7 @@ export async function runPipeline(dbId: number, opts: { ai?: boolean; force?: bo
   const t0 = Date.now();
   const at = new Date().toISOString();
   // Its rows are written quietly (no event per row): the routines hear once when it is through.
-  const r = await meter.run(m, () => quietly(() => runPipelineOnce(dbId, opts)));
+  const r = await meter.run(m, () => quietly(() => viaSource(() => runPipelineOnce(dbId, opts))));
   try {
     logRun(dbId, r, m, Date.now() - t0, at);
   } catch (e) {

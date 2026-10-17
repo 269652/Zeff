@@ -54,7 +54,7 @@ export async function runDueRoutines(now = new Date()): Promise<number> {
   return ran;
 }
 
-export type EventInfo = { db?: number; row?: number; field?: string; created?: number };
+export type EventInfo = { db?: number; row?: number; field?: string; value?: string; created?: number };
 
 /** Something happened: the routines that listen run — in turn, with the row in hand. Not while a routine runs or a pipeline writes. */
 export async function fireRoutineEvent(event: RowEvent | "pipeline.ran", info: EventInfo): Promise<number> {
@@ -64,7 +64,7 @@ export async function fireRoutineEvent(event: RowEvent | "pipeline.ran", info: E
   let ran = 0;
   for (const r of listRoutines()) {
     if (!r.enabled) continue;
-    const t = r.triggers.find((x) => x.kind === "event" && x.event === event && (!x.db || x.db === info.db) && (!x.field || x.field.toLowerCase() === fieldName));
+    const t = r.triggers.find((x) => x.kind === "event" && x.event === event && (!x.db || x.db === info.db) && (!x.field || x.field.toLowerCase() === fieldName) && (!x.equals || x.equals.trim().toLowerCase() === (info.value ?? "").trim().toLowerCase()));
     if (!t) continue;
     try {
       await quietly(() => runRoutine(r.pageId, t, { row: info.row, payload: { event, title, field: info.field ?? "", db: String(info.db ?? "") } }));

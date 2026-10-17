@@ -19,6 +19,8 @@ export type WorkspaceSource = {
   /** How many records it has (the data sources page). */
   count?: () => number;
   read: () => SourceRecord[] | Promise<SourceRecord[]>;
+  /** Its records are only read from where they live: a row cannot be made by hand in a database of it. */
+  noNewRows?: boolean;
   pull?: (dbId: number, rows: Row[], schema: DbSchema) => void | Promise<void>;
   /** A row of it deleted in the database: the record it came from goes too (`ref` as the record had it). Throws when it can't (a read-only record) - the row then stays. */
   remove?: (dbId: number, ref: string) => void | Promise<void>;

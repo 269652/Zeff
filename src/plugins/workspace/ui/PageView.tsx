@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { archivePageAction, restorePageAction, createPageAction, duplicatePageAction, exportMarkdownAction, historyAction, restoreVersionAction, savePageAction, versionAction } from "../actions";
+import { exportHtmlAction, archivePageAction, restorePageAction, createPageAction, duplicatePageAction, exportMarkdownAction, historyAction, restoreVersionAction, savePageAction, versionAction } from "../actions";
 import type { DatabaseData } from "../actions";
 import { DatabaseView, RowProperties } from "./DatabaseView";
 import { seedPerson } from "@/plugins/people/ui/PersonView";
@@ -279,6 +279,16 @@ export function PageView({ page, row, database, person }: { page: PageViewData; 
                 }}
               >
                 ⇩ {t("Export as Markdown")}
+              </MenuItem>
+              <MenuItem
+                onClick={async () => {
+                  close();
+                  const r = await exportHtmlAction(page.id);
+                  if (r.ok) download(r.filename, r.html, "text/html;charset=utf-8");
+                  else toast(r.error, { tone: "error" });
+                }}
+              >
+                📤 {t("Share as a read-only file (HTML)")}
               </MenuItem>
               <MenuItem
                 onClick={async () => {

@@ -143,6 +143,44 @@ export const slashItems = (t: T): SlashItem[] => [
     keywords: ["button", "action", "knopf", "aktion", "done", "erledigt"],
     run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffButton", attrs: { label: "", action: "set", prop: "", value: "" } }).run(),
   },
+  // The detail view's blocks: tabs to put the rest in, what happened to the entry, everything that belongs to it.
+  {
+    key: "tabs",
+    title: t("Tabs"),
+    hint: t("Sections of a page, one shown at a time — rename them with a double click"),
+    icon: "🗂",
+    group: t("Entry"),
+    keywords: ["tabs", "tab", "sections", "reiter", "abschnitte", "register"],
+    run: ({ editor, range }) =>
+      chain(editor, range)
+        .insertContent({
+          type: "zeffTabs",
+          attrs: { active: 0 },
+          content: [
+            { type: "zeffTab", attrs: { title: t("Overview") }, content: [{ type: "paragraph" }] },
+            { type: "zeffTab", attrs: { title: t("Details") }, content: [{ type: "paragraph" }] },
+          ],
+        })
+        .run(),
+  },
+  {
+    key: "activity",
+    title: t("Activity"),
+    hint: t("What happened to this entry — who changed what (you, the AI, a source)"),
+    icon: "🕑",
+    group: t("Entry"),
+    keywords: ["activity", "history", "log", "verlauf", "aktivität", "changes", "änderungen"],
+    run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffActivity", attrs: { limit: 12 } }).run(),
+  },
+  {
+    key: "belongs",
+    title: t("Everything that belongs"),
+    hint: t("Linked pages, related rows, todos, tickets and pages about the same — gathered for this entry"),
+    icon: "🧲",
+    group: t("Entry"),
+    keywords: ["belongs", "related", "links", "backlinks", "everything", "dazugehört", "verknüpft", "zusammenhang"],
+    run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffBelongs" }).run(),
+  },
   // Blocks that show what Zeff holds - read when the page is shown, never stored in it.
   ...(
     [

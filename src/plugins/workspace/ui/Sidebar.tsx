@@ -6,10 +6,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, savePageAction, searchAction, templatesAction, todayPageAction } from "../actions";
+import { favoriteOrderAction, archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, savePageAction, searchAction, templatesAction, todayPageAction } from "../actions";
+import { moveBefore } from "../model";
 import type { TreeItem } from "../store";
 import { ChatPanel } from "./ChatPanel";
-import { Dropdown, MenuItem } from "./kit";
+import { Dropdown, MenuItem, useSortable } from "./kit";
 import "./workspace.css";
 
 type Hit = { id: number; title: string; icon: string; kind: string; snippet: string; path: string };
@@ -54,6 +55,15 @@ export function Sidebar({ items, favorites, unread = {}, channels, extSources = 
   const [templates, setTemplates] = useState<Meta[] | null>(null);
   const [over, setOver] = useState<{ id: number; where: "before" | "into" | "after" } | null>(null);
   const dragging = useRef<number | null>(null);
+  // The favorites: dragged into the order you want (shown at once, saved a moment later).
+  const [favOrder, setFavOrder] = useState<number[] | null>(null);
+  const favs = favOrder ? [...favorites].sort((a, b) => favOrder.indexOf(a.id) - favOrder.indexOf(b.id)) : favorites;
+  const favSort = useSortable((from, to, after) => {
+    const ids = favs.map((f) => f.id);
+    const next = moveBefore(ids.map(String), from, to, after).map(Number);
+    setFavOrder(next);
+    void favoriteOrderAction(next).then(() => router.refresh());
+  }, "y", "text/ws-fav");
 
   const byParent = useMemo(() => {
     const m = new Map<number | null, TreeItem[]>();
@@ -320,9 +330,9 @@ export function Sidebar({ items, favorites, unread = {}, channels, extSources = 
         <section>
           <h2 className="mb-0.5 px-1 text-xs font-semibold text-zinc-500 uppercase">{t("Favorites")}</h2>
           <ul>
-            {favorites.map((f) => (
-              <li key={f.id}>
-                <Link href={`/workspace/${f.id}`} className="ws-tree-row px-1.5" data-active={f.id === current}>
+            {favs.map((f) => (
+              <li key={f.id} className={favSort.mark(String(f.id))} {...favSort.handle(String(f.id))} {...favSort.target(String(f.id))}>
+                <Link href={`/workspace/${f.id}`} draggable={false} className="ws-tree-row px-1.5" data-active={f.id === current}>
                   <span>{f.icon || (f.kind === "database" ? "🗂️" : "📄")}</span>
                   <span className="truncate">{f.title || t("Untitled")}</span>
                 </Link>

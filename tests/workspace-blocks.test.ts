@@ -105,3 +105,60 @@ test("data blocks in a page's Markdown: one line each, written back they are the
   assert.equal("evil" in chart.attrs!, false);
   assert.deepEqual(people.attrs!.ids, [1, 2]);
 });
+
+test("the activity of a row: who changed what - you, the AI, a source - and the text edited once, not per keystroke", async () => {
+  const store = await import("@/plugins/workspace/store");
+  const { activityOf } = await import("@/plugins/workspace/activity");
+  const { asAgent } = await import("@/plugins/workspace/agent-scope");
+  const { quietly } = await import("@/plugins/workspace/events");
+  const { newProperty } = await import("@/plugins/workspace/model");
+  const id = store.createPage({ kind: "database", title: "Log", schema: { titleName: "Name", properties: [{ ...newProperty("Note", "text") }], views: [] } });
+  const note = store.getDatabase(id)!.schema.properties[0].id;
+  const row = store.addRow(id, { title: "First" });
+  store.setCell(row, note, "hello");
+  asAgent(() => store.setCell(row, note, "hello world"))();
+  quietly(() => store.setCell(row, note, "from the source"));
+  store.updatePage(row, { title: "Second" });
+  store.setCell(row, note, "from the source"); // no change: nothing told
+  store.updatePage(row, { content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "a" }] }] } });
+  store.updatePage(row, { content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "ab" }] }] } });
+  const lines = activityOf(row, 20).reverse();
+  assert.deepEqual(lines.map((l) => [l.actor, l.field]), [["you", "created"], ["you", "Note"], ["ai", "Note"], ["source", "Note"], ["you", "title"], ["you", "text"]]);
+  assert.deepEqual([lines[1].from, lines[1].to], ["", "hello"]);
+  assert.deepEqual([lines[4].from, lines[4].to], ["First", "Second"]);
+});
+
+test("everything that belongs: pages it links to and that link to it, related rows both ways, todos and tickets it names", async () => {
+  const store = await import("@/plugins/workspace/store");
+  const { belongsTo } = await import("@/plugins/workspace/belongs");
+  const { markdownToDoc } = await import("@/plugins/workspace/doc");
+  const { addFollowUp } = await import("@/lib/boards/store");
+  const todo = addFollowUp({ ticket: "ABC-7", text: "Send the quote", kind: "other", parentId: null as unknown as number, workRunId: null, source: "test" });
+  const other = store.createPage({ title: "Roadmap" });
+  const back = store.createPage({ title: "Meeting notes", content: markdownToDoc("See [[page:" + other + "|Roadmap]] too") });
+  const page = store.createPage({ title: "Quarterly planning", content: markdownToDoc(`Plan with [[page:${other}|Roadmap]], the todo [[todo:${todo.id}]] and [[ticket:ABC-7]].`) });
+  store.updatePage(other, { content: markdownToDoc(`Mentioned in [[page:${page}|Quarterly planning]]`) });
+  const b = await belongsTo(page);
+  const titles = (key: string) => b.groups.find((g) => g.key === key)?.items.map((x) => x.title) ?? [];
+  assert.deepEqual(titles("linked"), ["Roadmap"]);
+  assert.deepEqual(titles("linking"), ["Roadmap"].filter(() => false), "a page already listed is not listed twice");
+  assert.deepEqual(b.todos.map((x) => x.text), ["Send the quote"]);
+  assert.deepEqual(b.tickets.map((x) => x.key), ["ABC-7"]);
+  const r = await belongsTo(other);
+  assert.ok(r.groups.some((g) => g.items.some((x) => x.id === page)), "the page it is linked with, listed once");
+  assert.ok(r.groups.some((g) => g.key === "linking" && g.items.some((x) => x.id === back)), "a page that only links here");
+  assert.ok(back > 0);
+});
+
+test("tabs in a page's Markdown: :::tabs with :::tab inside, both ways", async () => {
+  const { markdownToDoc, docToMarkdown, sanitizeDoc } = await import("@/plugins/workspace/doc");
+  const md = ":::tabs\n:::tab Overview\nText of the overview\n:::\n:::tab Details\n- a\n- b\n:::\n:::\n\n:::block activity {\"limit\":5}\n\n:::block belongs\n";
+  const doc = markdownToDoc(md);
+  assert.deepEqual(doc.content.map((n) => n.type), ["zeffTabs", "zeffActivity", "zeffBelongs"]);
+  assert.deepEqual(doc.content[0].content!.map((x) => [x.type, x.attrs!.title]), [["zeffTab", "Overview"], ["zeffTab", "Details"]]);
+  const out = docToMarkdown(doc);
+  assert.equal(docToMarkdown(markdownToDoc(out)), out);
+  const clean = sanitizeDoc({ type: "doc", content: [{ type: "zeffTabs", attrs: { active: "x" }, content: [{ type: "zeffTab", attrs: { title: "   " }, content: [{ type: "paragraph" }] }] }] });
+  assert.equal(clean.content[0].attrs!.active, 0);
+  assert.equal(clean.content[0].content![0].attrs!.title, "Tab");
+});

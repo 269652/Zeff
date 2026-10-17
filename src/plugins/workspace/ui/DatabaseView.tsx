@@ -5,12 +5,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { addRowAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, makeInboxAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { templateParamsAction, addRowAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, makeInboxAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
 import { DEFAULT_COLUMN, fitWidth, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
 import { RowPeek } from "./RowPeek";
 import { GalleryView } from "./gallery";
+import { BulkBar } from "./bulk";
+import { FormDesigner } from "./form-designer";
 import { FilterEditor, PropertiesMenu, SchemaModal, SortEditor } from "./db-menus";
 import { Dropdown, MenuItem, Modal, useSortable } from "./kit";
 import { PipelineEditor, PipelineSummaries } from "./pipeline";
@@ -150,9 +152,9 @@ function useDatabase(initial: DatabaseData | null, dbId: number) {
   );
 
   const addRow = useCallback(
-    async (cells: Record<string, unknown> = {}, title = "", templateId?: number): Promise<number | null> => {
+    async (cells: Record<string, unknown> = {}, title = "", templateId?: number, params?: Record<string, string>): Promise<number | null> => {
       await schemaSaving.current;
-      const r = await addRowAction(dbId, { title, cells, templateId });
+      const r = await addRowAction(dbId, { title, cells, templateId, params });
       if (!r.ok) {
         toast(r.error, { tone: "error" });
         return null;
@@ -238,6 +240,21 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   // ?steps=1 (a derived database just made): its Sources & steps open, to say what it keeps.
   const [pipelineOpen, setPipelineOpen] = useState(() => search.get("steps") === "1");
   const [justAdded, setJustAdded] = useState<number | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [asking, setAsking] = useState<{ id: number; title: string; names: string[] } | null>(null);
+  // Rows ticked in the table (shift-click: a range): what the bulk bar acts on.
+  const [picked, setPicked] = useState<Set<number>>(new Set());
+  const lastPicked = useRef<number | null>(null);
+  // A narrow toolbar keeps the views, the search, "New" and "⋯": the rest goes into one "View" menu (the toolbar below says when).
+  const [narrow, setNarrow] = useState(false);
+  const bar = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = bar.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const watch = new ResizeObserver(([e]) => setNarrow(e.contentRect.width < 780));
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, [data]);
   // A row opens over the database (?row=<id> — a link to it opens it again); the full page is a click further.
   const [peek, setPeek] = useState<number | null>(() => Number(search.get("row")) || null);
   // The panel is drawn in the browser only (a portal): the server's HTML has none, so nothing to mismatch.
@@ -303,6 +320,24 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   };
   const visible = (view.order ? [...schema.properties].sort((a, b) => (view.order!.indexOf(a.id) + 1 || 999) - (view.order!.indexOf(b.id) + 1 || 999)) : schema.properties).filter((p) => !view.hidden.includes(p.id));
   const filters = countRules(view.filter);
+  const selection: Selection = {
+    has: (id) => picked.has(id),
+    any: picked.size > 0,
+    toggle: (id, range, order) => {
+      setPicked((cur) => {
+        const next = new Set(cur);
+        if (range && lastPicked.current !== null) {
+          const a = order.indexOf(lastPicked.current);
+          const b = order.indexOf(id);
+          if (a >= 0 && b >= 0) for (const x of order.slice(Math.min(a, b), Math.max(a, b) + 1)) next.add(x);
+        } else if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+      lastPicked.current = id;
+    },
+    all: (ids) => setPicked((cur) => (ids.every((x) => cur.has(x)) ? new Set() : new Set(ids))),
+  };
 
   const addView = (type: ViewType, app?: { id: string; label: string }) => {
     const names: Record<ViewType, string> = { table: t("Table"), board: t("Board"), list: t("List"), gallery: t("Gallery"), calendar: t("Calendar"), app: app?.label ?? t("App") };
@@ -324,17 +359,109 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           ...(syncing.length ? [t("{names} syncing — what it brings follows", { names: syncing.join(", ") })] : []),
         ].join(" · ");
 
-  const newRow = async (cells: Record<string, unknown> = {}, templateId?: number, open = false) => {
-    const id = await api.addRow(cells, "", templateId);
+  const newRow = async (cells: Record<string, unknown> = {}, templateId?: number, open = false, params?: Record<string, string>) => {
+    const id = await api.addRow(cells, "", templateId, params);
     if (!id) return;
     // A row from a template opens as a page; a plain one is named in place.
     if (open) openRow(id);
     else setJustAdded(id);
   };
 
+  // A narrow toolbar keeps the views, the search, "New" and "⋯" - filter, sort, grouping, the date field and the properties go into one "View" menu.
+  const groupNode = (
+    <>
+    {(view.type === "board" || view.type === "table" || view.type === "list") && (
+      <select className="input w-auto text-sm" value={view.groupBy ?? ""} aria-label={t("Group by")} onChange={(e) => setView({ ...view, groupBy: e.target.value || undefined })}>
+        <option value="">{view.type === "board" ? t("Group by …") : t("No grouping")}</option>
+        {schema.properties.filter((p) => ["select", "status", "multi_select", "person", "checkbox", "relation"].includes(p.type)).map((p) => (
+          <option key={p.id} value={p.id}>
+            {t("Group by {name}", { name: p.name })}
+          </option>
+        ))}
+      </select>
+    )}
+    </>
+  );
+  const dateNode = (
+    <>
+    {view.type === "calendar" && (
+      <select className="input w-auto text-sm" value={view.dateProp ?? ""} aria-label={t("Date property")} onChange={(e) => setView({ ...view, dateProp: e.target.value || undefined })}>
+        <option value="">{t("Date by …")}</option>
+        {schema.properties.filter((p) => p.type === "date").map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+    )}
+    </>
+  );
+  const propsDropdown = (
+    <>
+    <Dropdown label={t("Properties")} align="right" className="btn btn-sm">
+      {() => <PropertiesMenu view={view} schema={schema} onChange={setView} />}
+    </Dropdown>
+    </>
+  );
+  const controlsNode = (
+    <>
+    <Dropdown label={`${t("Filter")}${filters ? ` · ${filters}` : ""}`} className={`btn btn-sm ${filters ? "text-indigo-600 dark:text-indigo-400" : ""}`}>
+      {() => (
+        <div className="w-[34rem] max-w-[90vw] space-y-2 p-2">
+          <FilterEditor filter={view.filter} schema={schema} data={data} onChange={(filter) => setView({ ...view, filter })} />
+          {filters > 0 && (
+            <button type="button" className="text-sm text-zinc-500 hover:underline" onClick={() => setView({ ...view, filter: { op: "and", rules: [] } })}>
+              {t("Clear the filter")}
+            </button>
+          )}
+        </div>
+      )}
+    </Dropdown>
+    <Dropdown label={`${t("Sort")}${view.sorts.length ? ` · ${view.sorts.length}` : ""}`} className={`btn btn-sm ${view.sorts.length ? "text-indigo-600 dark:text-indigo-400" : ""}`}>
+      {() => (
+        <div className="w-80 p-2">
+          <SortEditor sorts={view.sorts} schema={schema} onChange={(sorts) => setView({ ...view, sorts })} />
+        </div>
+      )}
+    </Dropdown>
+      {groupNode}
+      {dateNode}
+    </>
+  );
+  const viewMenu = (
+    <Dropdown label={`${t("View")}${filters + view.sorts.length ? ` · ${filters + view.sorts.length}` : ""}`} align="right" className={`btn btn-sm ${filters + view.sorts.length ? "text-indigo-600 dark:text-indigo-400" : ""}`}>
+      {() => (
+        <div className="w-[min(32rem,92vw)] space-y-2 p-2 text-sm">
+          <details>
+            <summary className="cursor-pointer py-1 font-medium">{`${t("Filter")}${filters ? ` · ${filters}` : ""}`}</summary>
+            <div className="pt-1">
+              <FilterEditor filter={view.filter} schema={schema} data={data} onChange={(filter) => setView({ ...view, filter })} />
+            </div>
+          </details>
+          <details>
+            <summary className="cursor-pointer py-1 font-medium">{`${t("Sort")}${view.sorts.length ? ` · ${view.sorts.length}` : ""}`}</summary>
+            <div className="pt-1">
+              <SortEditor sorts={view.sorts} schema={schema} onChange={(sorts) => setView({ ...view, sorts })} />
+            </div>
+          </details>
+          <div className="flex flex-wrap items-center gap-2">
+            {groupNode}
+            {dateNode}
+          </div>
+          <details>
+            <summary className="cursor-pointer py-1 font-medium">{t("Properties")}</summary>
+            <div className="pt-1">
+              <PropertiesMenu view={view} schema={schema} onChange={setView} />
+            </div>
+          </details>
+        </div>
+      )}
+    </Dropdown>
+  );
+
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-1">
+      <div ref={bar} className="flex flex-wrap items-center gap-1">
         <div className="flex min-w-0 flex-wrap items-center gap-0.5" role="tablist" aria-label={t("Views")}>
           {schema.views.map((v) => (
             <button key={v.id} type="button" role="tab" aria-selected={v.id === view.id} onClick={() => pick(v.id)} className={`rounded-md px-2 py-1 text-sm ${v.id === view.id ? "bg-zinc-100 font-medium dark:bg-zinc-800" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>
@@ -385,45 +512,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
         </div>
         <span className="flex-1" />
         <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Search …")} aria-label={t("Search the rows")} className="input w-36 text-sm" />
-        <Dropdown label={`${t("Filter")}${filters ? ` · ${filters}` : ""}`} className={`btn btn-sm ${filters ? "text-indigo-600 dark:text-indigo-400" : ""}`}>
-          {() => (
-            <div className="w-[34rem] max-w-[90vw] space-y-2 p-2">
-              <FilterEditor filter={view.filter} schema={schema} data={data} onChange={(filter) => setView({ ...view, filter })} />
-              {filters > 0 && (
-                <button type="button" className="text-sm text-zinc-500 hover:underline" onClick={() => setView({ ...view, filter: { op: "and", rules: [] } })}>
-                  {t("Clear the filter")}
-                </button>
-              )}
-            </div>
-          )}
-        </Dropdown>
-        <Dropdown label={`${t("Sort")}${view.sorts.length ? ` · ${view.sorts.length}` : ""}`} className={`btn btn-sm ${view.sorts.length ? "text-indigo-600 dark:text-indigo-400" : ""}`}>
-          {() => (
-            <div className="w-80 p-2">
-              <SortEditor sorts={view.sorts} schema={schema} onChange={(sorts) => setView({ ...view, sorts })} />
-            </div>
-          )}
-        </Dropdown>
-        {(view.type === "board" || view.type === "table" || view.type === "list") && (
-          <select className="input w-auto text-sm" value={view.groupBy ?? ""} aria-label={t("Group by")} onChange={(e) => setView({ ...view, groupBy: e.target.value || undefined })}>
-            <option value="">{view.type === "board" ? t("Group by …") : t("No grouping")}</option>
-            {schema.properties.filter((p) => ["select", "status", "multi_select", "person", "checkbox", "relation"].includes(p.type)).map((p) => (
-              <option key={p.id} value={p.id}>
-                {t("Group by {name}", { name: p.name })}
-              </option>
-            ))}
-          </select>
-        )}
-        {view.type === "calendar" && (
-          <select className="input w-auto text-sm" value={view.dateProp ?? ""} aria-label={t("Date property")} onChange={(e) => setView({ ...view, dateProp: e.target.value || undefined })}>
-            <option value="">{t("Date by …")}</option>
-            {schema.properties.filter((p) => p.type === "date").map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        )}
+        {!narrow && controlsNode}
+        {narrow && viewMenu}
         {schema.pipeline?.steps.some((s) => s.kind === "source") && !data.extras?.source && (
           <button
             type="button"
@@ -441,13 +531,12 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
             {data.extras?.running ? <span className="inline-block animate-spin">↻</span> : "↻"}
           </button>
         )}
-        <Dropdown label={t("Properties")} align="right" className="btn btn-sm">
-          {() => <PropertiesMenu view={view} schema={schema} onChange={setView} />}
-        </Dropdown>
+        {!narrow && propsDropdown}
         <Dropdown label="⋯" align="right" title={t("More")} className="btn btn-sm">
           {(close) => (
             <>
               <MenuItem onClick={() => (close(), setSchemaOpen(true))}>⚙ {t("Edit properties …")}</MenuItem>
+              <MenuItem onClick={() => (close(), setFormOpen(true))}>📝 {t("Form …")}</MenuItem>
               <MenuItem onClick={() => (close(), setPipelineOpen(true))}>⛓ {t("Sources & steps …")}</MenuItem>
               <MenuItem onClick={() => (close(), setReceiveOpen(true))}>➜ {t("Receive tickets …")}</MenuItem>
               {schema.jobs && <MenuItem onClick={() => (close(), setAgentsOpen(true))}>🤖 {t("Agents …")}</MenuItem>}
@@ -549,7 +638,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
             </>
           )}
         </Dropdown>
-        <div className={`flex ${data.locked ? "hidden" : ""}`}>
+        <div className={`flex ${data.locked || data.noNewRows ? "hidden" : ""}`}>
           <button type="button" className="btn btn-primary btn-sm rounded-r-none" onClick={() => void newRow({}, undefined, false)}>
             {t("New")}
           </button>
@@ -557,7 +646,16 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
             {(close) => (
               <>
                 {data.templates.map((tp) => (
-                  <MenuItem key={tp.id} onClick={() => (close(), void newRow({}, tp.id, true))}>
+                  <MenuItem
+                    key={tp.id}
+                    onClick={async () => {
+                      close();
+                      // A template with {{placeholders}} asks for their values first.
+                      const r = await templateParamsAction(tp.id);
+                      if (r.ok && r.params.length) setAsking({ id: tp.id, title: tp.title, names: r.params });
+                      else void newRow({}, tp.id, true);
+                    }}
+                  >
                     📋 {tp.title}
                   </MenuItem>
                 ))}
@@ -590,13 +688,44 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
       {data.extras?.running && <p className="text-sm text-indigo-600 dark:text-indigo-400" data-running>✨ {t("The AI is going through the rows — they change as it writes them …")}</p>}
       <PipelineSummaries pipeline={schema.pipeline} />
       {view.type === "app" && <AppViewHost view={view} data={data} rows={rows} openRow={openRow} reload={() => void api.reload()} fallback={<TableView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />} />}
-      {view.type === "table" && <TableView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />}
+      {view.type === "table" && picked.size > 0 && <BulkBar ids={[...picked]} schema={schema} dbId={dbId} onChanged={() => void api.reload()} onClear={() => setPicked(new Set())} />}
+      {view.type === "table" && <TableView sel={selection} view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />}
       {view.type === "board" && <BoardView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} newRow={newRow} />}
       {view.type === "list" && <ListView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} />}
-      {view.type === "gallery" && <GalleryView rows={rows} visible={visible} ctx={ctx} openRow={openRow} add={(cells, title) => api.addRow(cells, title)} locked={!!data.locked} />}
-      {view.type === "calendar" && <CalendarView view={view} rows={rows} schema={schema} api={api} openRow={openRow} newRow={newRow} />}
+      {view.type === "gallery" && <GalleryView rows={rows} visible={visible} ctx={ctx} openRow={openRow} add={(cells, title) => api.addRow(cells, title)} locked={!!data.locked || !!data.noNewRows} />}
+      {view.type === "calendar" && <CalendarView canAdd={!data.noNewRows} view={view} rows={rows} schema={schema} api={api} openRow={openRow} newRow={newRow} />}
       <p className="text-xs text-zinc-500">{rows.length === data.rows.length ? (rows.length === 1 ? t("1 row") : t("{n} rows", { n: rows.length })) : t("{n} of {total} rows", { n: rows.length, total: data.rows.length })}</p>
 
+      {asking && (
+        <Modal title={asking.title} onClose={() => setAsking(null)}>
+          <form
+            className="space-y-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const fd = new FormData(e.currentTarget);
+              const params = Object.fromEntries(asking.names.map((n, i) => [n, String(fd.get(`p${i}`) ?? "")]));
+              const id = asking.id;
+              setAsking(null);
+              void newRow({}, id, true, params);
+            }}
+          >
+            <p className="text-sm text-zinc-500">{t("This template asks for:")}</p>
+            {asking.names.map((n, i) => (
+              <label key={n} className="block space-y-1">
+                <span className="label">{n}</span>
+                <input name={`p${i}`} className="input text-sm" autoFocus={i === 0} />
+              </label>
+            ))}
+            <div className="flex justify-end gap-2 pt-1">
+              <button type="button" className="btn btn-sm" onClick={() => setAsking(null)}>
+                {t("Cancel")}
+              </button>
+              <button className="btn btn-primary btn-sm">{t("Create")}</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+      {formOpen && <FormDesigner schema={schema} dbId={dbId} onSave={api.saveSchema} onClose={() => setFormOpen(false)} />}
       {schemaOpen && <SchemaModal schema={schema} data={data} dbId={dbId} databases={databases} onSave={api.saveSchema} onClose={() => setSchemaOpen(false)} />}
       {agentsOpen && <AgentsModal schema={schema} dbId={dbId} onSaved={() => api.reload()} onClose={() => setAgentsOpen(false)} />}
       {receiveOpen && <ReceiveModal schema={schema} dbId={dbId} onSaved={() => api.reload()} onClose={() => setReceiveOpen(false)} />}
@@ -627,6 +756,9 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
     </div>
   );
 }
+
+/** The rows ticked in a table: asked and told by the table's checkboxes. */
+type Selection = { has: (id: number) => boolean; any: boolean; toggle: (id: number, range: boolean, order: number[]) => void; all: (ids: number[]) => void };
 
 type ViewProps = { view: View; rows: Row[]; visible: Property[]; schema: DbSchema; ctx: CellCtx; api: Api; labels: Labels; openRow: (id: number) => void };
 
@@ -762,7 +894,7 @@ function TitleCell({ row, ctx, openRow, autoEdit = false, onEdited }: { row: Row
   );
 }
 
-function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, setView, onSchema, justAdded, onEdited }: ViewProps & { setView: (v: View) => void; onSchema: () => void; justAdded: number | null; onEdited: () => void }) {
+function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, setView, onSchema, justAdded, onEdited, sel }: ViewProps & { setView: (v: View) => void; onSchema: () => void; justAdded: number | null; onEdited: () => void; sel?: Selection }) {
   const t = useT();
   const groups = view.groupBy ? groupRows(rows, view.groupBy, schema.properties, labels) : [{ key: "", label: "", color: undefined as string | undefined, rows }];
   const [folded, setFolded] = useState<Set<string>>(new Set());
@@ -846,7 +978,11 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
   const header = (
     <thead>
       <tr>
-        <th className="w-8" />
+        <th className="w-14">
+          {sel && rows.length > 0 && (
+            <input type="checkbox" className="size-4 accent-indigo-600" checked={rows.every((r) => sel.has(r.id))} ref={(el) => void (el && (el.indeterminate = sel.any && !rows.every((r) => sel.has(r.id))))} onChange={() => sel.all(rows.map((r) => r.id))} aria-label={t("Select all rows")} />
+          )}
+        </th>
         {cols.map((id) => {
           const p = byId.get(id);
           const drag = { ...sort.handle(id), ...sort.target(id) };
@@ -930,9 +1066,12 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
             {!folded.has(g.key) &&
               g.rows.map((r) => (
                 <tr key={r.id} className="group/row">
-                  <td className="w-8 text-center align-middle">
-                    <span className="opacity-0 group-hover/row:opacity-100">
-                      <RowMenu row={r} api={api} />
+                  <td className="w-14 text-center align-middle">
+                    <span className="inline-flex items-center gap-1">
+                      {sel && <input type="checkbox" className={`size-4 accent-indigo-600 ${sel.has(r.id) || sel.any ? "" : "opacity-0 group-hover/row:opacity-100 focus:opacity-100"}`} checked={sel.has(r.id)} onChange={() => undefined} onClick={(e) => sel.toggle(r.id, e.shiftKey, rows.map((x) => x.id))} aria-label={t("Select {name}", { name: r.title || t("Untitled") })} />}
+                      <span className="opacity-0 group-hover/row:opacity-100">
+                        <RowMenu row={r} api={api} />
+                      </span>
                     </span>
                   </td>
                   {cols.map((id) => {
@@ -950,7 +1089,7 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
                   <td />
                 </tr>
               ))}
-            {!folded.has(g.key) && (
+            {!folded.has(g.key) && !ctx.data.noNewRows && (
               <tr>
                 <td colSpan={visible.length + 3}>
                   <button
@@ -1061,7 +1200,7 @@ function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, new
             </div>
           ))}
           {over?.key === g.key && over.before === null && <div className="ws-drop-line" aria-hidden />}
-          {!ctx.data.locked && <NewCard cells={{ [gp.id]: valueFor(g.key) }} add={(cells, title) => api.addRow(cells, title)} />}
+          {!ctx.data.locked && !ctx.data.noNewRows && <NewCard cells={{ [gp.id]: valueFor(g.key) }} add={(cells, title) => api.addRow(cells, title)} />}
         </div>
       ))}
       {!ctx.data.locked && (gp.type === "status" || gp.type === "select" || gp.type === "multi_select") && <AddColumn add={(name) => void api.addOption(gp.id, name)} />}
@@ -1359,7 +1498,7 @@ function ListView({ view, rows, visible, schema, ctx, api, labels, openRow }: Vi
   );
 }
 
-function CalendarView({ view, rows, schema, api, openRow, newRow }: { view: View; rows: Row[]; schema: DbSchema; api: Api; openRow: (id: number) => void; newRow: (cells?: Record<string, unknown>, templateId?: number, open?: boolean) => Promise<void> }) {
+function CalendarView({ canAdd = true, view, rows, schema, api, openRow, newRow }: { canAdd?: boolean; view: View; rows: Row[]; schema: DbSchema; api: Api; openRow: (id: number) => void; newRow: (cells?: Record<string, unknown>, templateId?: number, open?: boolean) => Promise<void> }) {
   const t = useT();
   const prop = schema.properties.find((p) => p.id === view.dateProp);
   const [month, setMonth] = useState(() => {
@@ -1433,7 +1572,7 @@ function CalendarView({ view, rows, schema, api, openRow, newRow }: { view: View
             >
               <div className="flex items-center justify-between">
                 <span className={k === today ? "rounded-full bg-indigo-600 px-1.5 text-white" : ""}>{d.getDate()}</span>
-                <button type="button" className="icon-btn opacity-0 group-hover/day:opacity-100" aria-label={t("New row on {day}", { day: k })} onClick={() => void newRow({ [prop.id]: k })}>
+                <button type="button" hidden={!canAdd} className="icon-btn opacity-0 group-hover/day:opacity-100" aria-label={t("New row on {day}", { day: k })} onClick={() => void newRow({ [prop.id]: k })}>
                   +
                 </button>
               </div>

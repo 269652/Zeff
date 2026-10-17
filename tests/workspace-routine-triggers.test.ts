@@ -128,3 +128,17 @@ test("a pipeline run is one event: its rows are written quietly, then the routin
   assert.ok(await until(() => r.routineRuns(ran).length === 2));
   assert.equal(r.routineRuns(added).length, before);
 });
+
+test("events: a field trigger can wait for a value (Status becomes Done), and a row sent to the trash is an event", async () => {
+  const { w, r, tasks, automation } = await world();
+  const { fireRoutineEvent } = await import("@/plugins/workspace/routine-triggers");
+  const done = automation([{ kind: "event", event: "row.changed", db: tasks, field: "Status", equals: "Done" }], [{ kind: "notify", text: "fertig" }]);
+  const gone = automation([{ kind: "event", event: "row.removed", db: tasks }], [{ kind: "notify", text: "weg" }]);
+  const row = w.addRow(tasks, { title: "Aufgabe" });
+  await fireRoutineEvent("row.changed", { db: tasks, row, field: "Status", value: "In progress" });
+  assert.equal(r.routineRuns(done).length, 0, "another value");
+  await fireRoutineEvent("row.changed", { db: tasks, row, field: "Status", value: " done " });
+  assert.equal(r.routineRuns(done).length, 1, "the value counts without case and spaces");
+  await fireRoutineEvent("row.removed", { db: tasks, row });
+  assert.equal(r.routineRuns(gone).length, 1);
+});

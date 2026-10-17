@@ -242,6 +242,7 @@ function TriggerLine({ tr, choices, editable, onChange }: { tr: Trigger; choices
       <select className="input w-auto py-0.5 text-sm" value={tr.event} disabled={!editable} onChange={(e) => onChange({ ...tr, event: e.target.value as "row.added" })} aria-label={t("Event")}>
         <option value="row.added">{t("A row is added")}</option>
         <option value="row.changed">{t("A row is changed")}</option>
+        <option value="row.removed">{t("A row is moved to the trash")}</option>
         <option value="pipeline.ran">{t("A database's sources were read")}</option>
       </select>
       {t("in")}
@@ -254,6 +255,7 @@ function TriggerLine({ tr, choices, editable, onChange }: { tr: Trigger; choices
         ))}
       </select>
       {tr.event === "row.changed" && <input className="input w-32 py-0.5 text-sm" placeholder={t("field (any)")} value={tr.field ?? ""} disabled={!editable} onChange={(e) => onChange({ ...tr, field: e.target.value || undefined })} aria-label={t("Field")} />}
+      {tr.event === "row.changed" && tr.field && <input className="input w-32 py-0.5 text-sm" placeholder={t("becomes … (any)")} value={tr.equals ?? ""} disabled={!editable} onChange={(e) => onChange({ ...tr, equals: e.target.value || undefined })} aria-label={t("Value")} />}
     </span>
   );
 }

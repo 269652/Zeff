@@ -26,6 +26,7 @@ import { MentionCommand } from "./mention";
 import { AiBlockNode, Callout, DatabaseViewNode, FlexBox, RowViewNode, ZeffModuleNode, ZeffRef } from "./nodes";
 import { ZeffButton, ZeffField, ZeffRelated } from "./app-nodes";
 import { DATA_BLOCKS } from "./block-nodes";
+import { ROW_BLOCKS, ZeffActivity, ZeffBelongs } from "./row-blocks";
 import { ZeffRoutine } from "./routine-node";
 import { PageEmbedNode } from "./page-embed";
 import { SlashCommand, type SlashContext } from "./slash";
@@ -247,6 +248,9 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
       ZeffRelated.configure({ pageId: contextRowId ?? pageId }),
       ZeffButton.configure({ pageId: contextRowId ?? pageId }),
       ...DATA_BLOCKS,
+      ...ROW_BLOCKS,
+      ZeffActivity.configure({ pageId: contextRowId ?? pageId }),
+      ZeffBelongs.configure({ pageId: contextRowId ?? pageId }),
       PageEmbedNode.configure({ pageId }),
       AiBlockNode.configure({ pageId }),
       // eslint-disable-next-line react-hooks/refs -- read when a command runs, not while rendering
