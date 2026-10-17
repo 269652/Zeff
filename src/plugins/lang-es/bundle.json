@@ -5795,5 +5795,8 @@
   "Projects & tasks": "Proyectos y tareas",
   "Projects with their tasks, a cockpit with a form to add tasks, and an automation that tells you when a task is done (switched off until you want it).": "Proyectos con sus tareas, un panel con un formulario para añadir tareas y una automatización que te avisa cuando una tarea está hecha (apagada hasta que la quieras).",
   "No such page.": "No existe esa página.",
-  "Import a package …": "Importar un paquete …"
+  "Import a package …": "Importar un paquete …",
+  "Make this an agent": "Convertir en agente",
+  "Make this an automation": "Convertir en automatización",
+  "The page is a routine now — its controls are at the top.": "La página ahora es una rutina: sus controles están arriba."
 }

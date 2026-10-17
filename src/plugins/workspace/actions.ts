@@ -986,8 +986,7 @@ export async function routineViewAction(pageId: number) {
 /** A page made a routine (an agent or an automation) — off, started by hand. */
 export async function makeRoutineAction(pageId: number, kind: string) {
   return run(async () => {
-    const r = await import("./routines");
-    r.createRoutine(Number(pageId), kind === "automation" ? "automation" : "agent");
+    (await import("./routine-make")).makeRoutinePage(Number(pageId), kind === "automation" ? "automation" : "agent");
     return { view: (await import("./routine-view")).routineView(Number(pageId)) };
   });
 }

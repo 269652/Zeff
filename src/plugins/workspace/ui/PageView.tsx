@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { archivePageAction, restorePageAction, createPageAction, duplicatePageAction, exportMarkdownAction, exportPackageAction, historyAction, restoreVersionAction, savePageAction, versionAction } from "../actions";
+import { archivePageAction, restorePageAction, createPageAction, duplicatePageAction, exportMarkdownAction, exportPackageAction, historyAction, makeRoutineAction, restoreVersionAction, savePageAction, versionAction } from "../actions";
 import type { DatabaseData } from "../actions";
 import { DatabaseView, RowProperties } from "./DatabaseView";
 import { seedPerson } from "@/plugins/people/ui/PersonView";
@@ -280,6 +280,25 @@ export function PageView({ page, row, database, person }: { page: PageViewData; 
               >
                 ⇩ {t("Export as Markdown")}
               </MenuItem>
+              {page.kind === "page" && (
+                <>
+                  {([["agent", "🤖", t("Make this an agent")], ["automation", "⚡", t("Make this an automation")]] as const).map(([kind, icon, label]) => (
+                    <MenuItem
+                      key={kind}
+                      onClick={async () => {
+                        close();
+                        const r = await makeRoutineAction(page.id, kind);
+                        if (!r.ok) return toast(r.error, { tone: "error" });
+                        toast(t("The page is a routine now — its controls are at the top."), { tone: "ok" });
+                        // The editor holds the old text in memory: a reload brings the page with its controls.
+                        setTimeout(() => window.location.reload(), 300);
+                      }}
+                    >
+                      {icon} {label}
+                    </MenuItem>
+                  ))}
+                </>
+              )}
               {page.kind === "page" && (
                 <MenuItem
                   onClick={async () => {
