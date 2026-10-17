@@ -8,6 +8,7 @@ import { AI_PROVIDER_INFO, type AiProvider } from "@/lib/ai/shared";
 import { codexModelsNow } from "@/plugins/codex-cli/cli";
 import { copilotModels } from "@/plugins/copilot-cli/cli";
 import { LlmSettingsForm } from "@/plugins/llm/LlmSettingsForm";
+import { UsagePanel } from "@/plugins/llm/UsagePanel";
 import { ensureSystemPrompts, systemPrompts } from "@/lib/prompts";
 import { llmChoice } from "@/plugins/llm/run";
 import { getLlmSettings } from "@/plugins/llm/settings";
@@ -55,6 +56,7 @@ export default async function LlmPage() {
           found={found}
         />
       </section>
+      <UsagePanel />
       <section className="card space-y-3 p-4">
         <div>
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Instructions, context & tasks")}</h2>

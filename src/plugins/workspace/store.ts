@@ -823,12 +823,20 @@ export function templateParams(templateId: number): string[] {
   if (!tpl) return [];
   const found: string[] = [];
   const scan = (s: unknown) => {
-    for (const m of String(s ?? "").matchAll(PLACEHOLDER)) if (!found.includes(m[1])) found.push(m[1]);
+    for (const m of String(s ?? "").matchAll(PLACEHOLDER)) if (!found.includes(m[1]) && !(m[1] in builtinParams())) found.push(m[1]);
   };
   scan(tpl.title);
   for (const v of Object.values(tpl.props)) if (typeof v === "string") scan(v);
   scan(JSON.stringify(tpl.content));
   return found;
+}
+
+/** The placeholders every template knows without being asked: the day, the week (ISO number), the month, the weekday. */
+export function builtinParams(now = new Date()): Record<string, string> {
+  const p = (n: number) => String(n).padStart(2, "0");
+  const thursday = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 3 - ((now.getDay() + 6) % 7)));
+  const week = Math.ceil(((thursday.getTime() - Date.UTC(thursday.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7);
+  return { date: `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`, week: String(week), month: `${now.getFullYear()}-${p(now.getMonth() + 1)}`, weekday: now.toLocaleDateString(undefined, { weekday: "long" }) };
 }
 
 const fill = (s: string, params: Record<string, string>) => s.replace(PLACEHOLDER, (all, name: string) => (name in params ? params[name] : all));
@@ -863,7 +871,7 @@ export function addRow(dbId: number, v: NewRow = {}): number {
     const c = coerceCell(p, val);
     if (c !== null) props[k] = c;
   }
-  const params = v.params ?? {};
+  const params = tpl?.dbId === dbId ? { ...builtinParams(), ...(v.params ?? {}) } : (v.params ?? {});
   if (tpl?.dbId === dbId && Object.keys(params).length) for (const [k, val] of Object.entries(props)) if (typeof val === "string") props[k] = fill(val, params);
   const title = v.title ?? (tpl && tpl.dbId === dbId ? tpl.title : "");
   const id = createPage({ dbId, title: Object.keys(params).length ? fill(title, params) : title, icon: tpl?.icon, content: tpl?.dbId === dbId ? (Object.keys(params).length ? (fillDoc(tpl.content, params) as typeof tpl.content) : tpl.content) : undefined, props });

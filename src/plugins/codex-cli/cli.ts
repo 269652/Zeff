@@ -263,7 +263,7 @@ export function runCodex<T>(prompt: string, schema: object, opts: { model?: stri
           .split("\n")
           .map((l) => {
             try {
-              return JSON.parse(l) as { type?: string; item?: { type?: string; text?: string }; error?: { message?: string }; message?: string };
+              return JSON.parse(l) as { type?: string; item?: { type?: string; text?: string }; error?: { message?: string }; message?: string; usage?: { input_tokens?: number; cached_input_tokens?: number; output_tokens?: number } };
             } catch {
               return null;
             }
@@ -282,7 +282,10 @@ export function runCodex<T>(prompt: string, schema: object, opts: { model?: stri
         } catch {
           return reject(new NoJsonError(`The Codex CLI answered with no JSON: ${text.slice(0, 600)}`));
         }
-        resolve({ output, model: opts.model || null, costUsd: null, durationMs: Date.now() - started });
+        // The turns' tokens, when the CLI says them (no price: a ChatGPT login has none per token).
+        const used = events.filter((e) => e.type === "turn.completed" && e.usage).map((e) => e.usage!);
+        const usage = used.length ? { input: used.reduce((n, u) => n + (u.input_tokens ?? 0), 0), output: used.reduce((n, u) => n + (u.output_tokens ?? 0), 0), cacheRead: used.reduce((n, u) => n + (u.cached_input_tokens ?? 0), 0), cacheWrite: 0 } : undefined;
+        resolve({ output, model: opts.model || null, costUsd: null, durationMs: Date.now() - started, usage });
       }),
     );
     child.stdin.on("error", () => {}); // a CLI that quits early closes its stdin: its exit says why

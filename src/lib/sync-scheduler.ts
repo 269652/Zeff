@@ -123,6 +123,12 @@ export function startSyncScheduler(): void {
         } catch (e) {
           console.error("[routines]", e);
         }
+        // Rows that come back by themselves (the Workspace's repeating rules) that are due.
+        try {
+          if ((await import("@/plugins/state")).isInstalled("workspace")) (await import("@/plugins/workspace/recurring")).runDueRecurrences();
+        } catch (e) {
+          console.error("[repeating rows]", e);
+        }
         // The agents of the jobs databases that take their Ready column by themselves (when switched on): ended jobs settled, the next taken.
         try {
           if ((await import("@/plugins/state")).isInstalled("workspace")) await (await import("@/plugins/workspace/jobs")).runAutoJobs();

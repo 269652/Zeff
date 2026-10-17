@@ -13,6 +13,7 @@ import { RowPeek } from "./RowPeek";
 import { GalleryView } from "./gallery";
 import { BulkBar } from "./bulk";
 import { FormDesigner } from "./form-designer";
+import { RecurringDialog } from "./recurring";
 import { FilterEditor, PropertiesMenu, SchemaModal, SortEditor } from "./db-menus";
 import { Dropdown, MenuItem, Modal, useSortable } from "./kit";
 import { PipelineEditor, PipelineSummaries } from "./pipeline";
@@ -241,6 +242,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const [pipelineOpen, setPipelineOpen] = useState(() => search.get("steps") === "1");
   const [justAdded, setJustAdded] = useState<number | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [repeatOpen, setRepeatOpen] = useState(false);
   const [asking, setAsking] = useState<{ id: number; title: string; names: string[] } | null>(null);
   // Rows ticked in the table (shift-click: a range): what the bulk bar acts on.
   const [picked, setPicked] = useState<Set<number>>(new Set());
@@ -537,6 +539,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
             <>
               <MenuItem onClick={() => (close(), setSchemaOpen(true))}>⚙ {t("Edit properties …")}</MenuItem>
               <MenuItem onClick={() => (close(), setFormOpen(true))}>📝 {t("Form …")}</MenuItem>
+              <MenuItem onClick={() => (close(), setRepeatOpen(true))}>🔁 {t("Repeating rows …")}</MenuItem>
               <MenuItem onClick={() => (close(), setPipelineOpen(true))}>⛓ {t("Sources & steps …")}</MenuItem>
               <MenuItem onClick={() => (close(), setReceiveOpen(true))}>➜ {t("Receive tickets …")}</MenuItem>
               {schema.jobs && <MenuItem onClick={() => (close(), setAgentsOpen(true))}>🤖 {t("Agents …")}</MenuItem>}
@@ -725,6 +728,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           </form>
         </Modal>
       )}
+      {repeatOpen && <RecurringDialog dbId={dbId} schema={schema} templates={data.templates} onClose={() => setRepeatOpen(false)} />}
       {formOpen && <FormDesigner schema={schema} dbId={dbId} onSave={api.saveSchema} onClose={() => setFormOpen(false)} />}
       {schemaOpen && <SchemaModal schema={schema} data={data} dbId={dbId} databases={databases} onSave={api.saveSchema} onClose={() => setSchemaOpen(false)} />}
       {agentsOpen && <AgentsModal schema={schema} dbId={dbId} onSaved={() => api.reload()} onClose={() => setAgentsOpen(false)} />}

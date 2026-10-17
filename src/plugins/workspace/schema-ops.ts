@@ -22,7 +22,7 @@ export type PropIn = {
 export type FilterIn = { property: string; cond: string; value?: unknown };
 export type SortIn = { property: string; dir?: "asc" | "desc" };
 /** A view as an agent says it: properties by name ("title" is the title column). `filter` rules are all required (and). */
-export type ViewIn = { name?: string; type?: string; groupBy?: string | null; dateProp?: string | null; hidden?: string[]; order?: string[]; sorts?: SortIn[]; filter?: FilterIn[]; wrap?: boolean };
+export type ViewIn = { name?: string; type?: string; groupBy?: string | null; dateProp?: string | null; endProp?: string | null; chartKind?: string; chartCalc?: string; chartProp?: string | null; hidden?: string[]; order?: string[]; sorts?: SortIn[]; filter?: FilterIn[]; wrap?: boolean };
 
 export type DbOp =
   | ({ op: "add_property"; name: string; position?: number } & PropIn)
@@ -128,6 +128,10 @@ function fillView(schema: DbSchema, into: View, v: ViewIn): View {
   }
   if (v.groupBy !== undefined) out.groupBy = v.groupBy ? prop(schema, v.groupBy).id : undefined;
   if (v.dateProp !== undefined) out.dateProp = v.dateProp ? prop(schema, v.dateProp).id : undefined;
+  if (v.endProp !== undefined) out.endProp = v.endProp ? prop(schema, v.endProp).id : undefined;
+  if (v.chartKind !== undefined) out.chartKind = (["bar", "column", "line", "pie"] as const).find((k) => k === v.chartKind);
+  if (v.chartCalc !== undefined) out.chartCalc = (["count", "sum", "avg"] as const).find((k) => k === v.chartCalc);
+  if (v.chartProp !== undefined) out.chartProp = v.chartProp ? prop(schema, v.chartProp).id : undefined;
   if (v.hidden) out.hidden = ids(schema, v.hidden).filter((x) => x !== TITLE);
   if (v.order) out.order = columnOrder({ order: ids(schema, v.order) }, schema);
   if (v.sorts) out.sorts = v.sorts.map((s): Sort => ({ prop: lc(s.property) === "title" ? TITLE : prop(schema, s.property).id, dir: s.dir === "desc" ? "desc" : "asc" }));
@@ -135,7 +139,8 @@ function fillView(schema: DbSchema, into: View, v: ViewIn): View {
   if (v.wrap !== undefined) out.wrap = v.wrap;
   // A board needs the property its columns are by, a calendar the date it is laid out by - the first fitting one when none is said.
   if (out.type === "board" && !out.groupBy) out.groupBy = schema.properties.find((p) => p.type === "status" || p.type === "select")?.id;
-  if (out.type === "calendar" && !out.dateProp) out.dateProp = schema.properties.find((p) => p.type === "date")?.id;
+  if (out.type === "chart" && !out.groupBy) out.groupBy = schema.properties.find((p) => p.type === "status" || p.type === "select")?.id;
+  if ((out.type === "calendar" || out.type === "timeline") && !out.dateProp) out.dateProp = schema.properties.find((p) => p.type === "date")?.id;
   return out;
 }
 

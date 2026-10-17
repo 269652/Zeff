@@ -648,6 +648,19 @@ export async function placeRowAction(rowId: number, after: number | null, before
   return run(() => (store.placeRow(Number(rowId), { after: after === null ? null : Number(after), before: before === null ? null : Number(before) }), {}));
 }
 
+/** The rules that make rows by themselves, of a database. */
+export async function recurrencesAction(dbId: number) {
+  return run(async () => ({ rules: (await import("./recurring")).recurrences(Number(dbId)) }));
+}
+
+export async function saveRecurrenceAction(v: import("./recurring").RecurrenceInput) {
+  return run(async () => ({ rule: (await import("./recurring")).saveRecurrence(v) }));
+}
+
+export async function removeRecurrenceAction(id: string) {
+  return run(async () => ((await import("./recurring")).removeRecurrence(String(id)), {}));
+}
+
 /** The {{placeholders}} a row template asks for (to be filled in when a row is made from it). */
 export async function templateParamsAction(templateId: number) {
   return run(() => ({ params: store.templateParams(Number(templateId)) }));

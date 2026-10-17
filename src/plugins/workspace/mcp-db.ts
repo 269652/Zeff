@@ -71,9 +71,13 @@ const propSchema = z.object({
 });
 
 const viewShape = {
-  type: z.enum(VIEW_TYPES).optional().describe("table, board (columns by groupBy), list, gallery, calendar (by dateProp)."),
+  type: z.enum(VIEW_TYPES).optional().describe("table, board (columns by groupBy), list, gallery, calendar (by dateProp), timeline (bars from dateProp to endProp, or the end of the date range), chart (the rows by groupBy as chartKind, counting rows or the sum/average of chartProp)."),
   groupBy: z.string().nullable().optional().describe("A select/status/multi-select/person/checkbox/relation property: the board's columns, or the groups of a table or list."),
-  dateProp: z.string().nullable().optional().describe("The date property a calendar is laid out by."),
+  dateProp: z.string().nullable().optional().describe("The date property a calendar is laid out by (a timeline: where a bar starts)."),
+  endProp: z.string().nullable().optional().describe("Timeline: the date property where a bar ends."),
+  chartKind: z.enum(["bar", "column", "line", "pie"]).optional().describe("Chart view: how it is drawn."),
+  chartCalc: z.enum(["count", "sum", "avg"]).optional().describe("Chart view: count rows, or the sum / average of chartProp."),
+  chartProp: z.string().nullable().optional().describe("Chart view: the number property summed or averaged."),
   hidden: z.array(z.string()).optional().describe("Properties this view does not show."),
   order: z.array(z.string()).optional().describe('The columns in order, property names; "title" is the title column and may be anywhere.'),
   sorts: z.array(z.object({ property: z.string(), dir: z.enum(["asc", "desc"]).optional() })).optional(),

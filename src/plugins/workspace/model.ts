@@ -68,7 +68,7 @@ export type Cond =
 export type Rule = { prop: string; cond: Cond; value?: unknown };
 export type Filter = { op: "and" | "or"; rules: (Rule | Filter)[] };
 export type Sort = { prop: string; dir: "asc" | "desc" };
-export const VIEW_TYPES = ["table", "board", "list", "gallery", "calendar", "app"] as const;
+export const VIEW_TYPES = ["table", "board", "list", "gallery", "calendar", "timeline", "chart", "app"] as const;
 export type ViewType = (typeof VIEW_TYPES)[number];
 export type View = {
   id: string;
@@ -81,8 +81,14 @@ export type View = {
   /** Board: the columns; table/list: the groups. */
   groupBy?: string;
   hidden: string[];
-  /** Calendar: the date property the rows sit on. */
+  /** Calendar / timeline: the date property the rows sit on (a timeline: where a bar starts). */
   dateProp?: string;
+  /** Timeline: the date property where a bar ends (none: the end of the start's own range, else one day). */
+  endProp?: string;
+  /** Chart: how the rows by `groupBy` are drawn (bars, columns, a line, a pie), what is counted - rows, or the sum / average of a number property. */
+  chartKind?: "bar" | "column" | "line" | "pie";
+  chartCalc?: "count" | "sum" | "avg";
+  chartProp?: string;
   wrap?: boolean;
   widths?: Record<string, number>;
   /** Shows only your rows (the person filter's "Mine", kept with the view). */
@@ -216,6 +222,12 @@ export type PipelineStep = {
   /** Join: the field here (its name) that names a row of the database `dbId`, the field there it is matched with (default: its title), and the fields there brought along. */
   on?: string;
   bring?: string[];
+  /** Join: "inner" drops the records that find no row (default: they stay). */
+  joinType?: "inner";
+  /** Join: a name matches only when it is the key (default: the key may be inside it - an address in "Name <address>"). */
+  exact?: boolean;
+  /** Join: with several rows that match - "all": their values come together ("a, b"); "expand": one record per row. Default: the first. */
+  many?: "all" | "expand";
   name?: string;
   prompt?: string;
   choices?: string[];
@@ -282,7 +294,7 @@ export function normalizePipeline(raw: unknown): Pipeline {
     } else if (s.kind === "write") {
       if (posInt(s.to)) steps.push(defined<PipelineStep>({ id, kind: "write", to: posInt(s.to) }));
     } else if (s.kind === "join") {
-      if (posInt(s.dbId) && str(s.on)) steps.push(defined<PipelineStep>({ id, kind: "join", dbId: posInt(s.dbId), on: str(s.on), by: str(s.by), bring: strs(s.bring) }));
+      if (posInt(s.dbId) && str(s.on)) steps.push(defined<PipelineStep>({ id, kind: "join", dbId: posInt(s.dbId), on: str(s.on), by: str(s.by), bring: strs(s.bring), joinType: s.joinType === "inner" ? "inner" : undefined, exact: s.exact === true ? true : undefined, many: s.many === "all" || s.many === "expand" ? s.many : undefined }));
     } else if (s.kind === "set") {
       const rules = (Array.isArray(s.rules) ? s.rules : []).flatMap((x): FilterRule[] => {
         const r = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;

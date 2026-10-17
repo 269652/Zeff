@@ -16,6 +16,7 @@ import { liveDriverFor } from "@/lib/work/live-driver";
 import { claudeSessionSettings } from "@/lib/work/store";
 import { runCopilot } from "@/plugins/copilot-cli/cli";
 import { isInstalled, providerAvailable } from "@/plugins/state";
+import { recordUsage } from "@/lib/ai/usage";
 import { getLlmSettings } from "./settings";
 import { IDEMPOTENT_TASKS, LLM_PREAMBLE_MAX, type LlmTaskId } from "./tasks";
 
@@ -90,6 +91,7 @@ export function llm<T>(task: LlmTaskId, prompt: string, schema: object, opts: { 
     .run(() => withNoJsonRetry(provider, attempt, () => throwIfAborted()), stop.signal)
     .then((answer) => {
       if (key) cache().set(key, structuredClone(answer));
+      recordUsage(task, provider, model, answer);
       return answer;
     })
     .finally(off);

@@ -3,12 +3,20 @@ import { ABORTED, killTree, onAbort } from "@/lib/abort";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { AiAnswer } from "@/lib/ai/shared";
+import type { AiAnswer, AiUsage } from "@/lib/ai/shared";
 
 /**
  * Where the Claude CLI is: CLAUDE_CLI, else the native claude(.exe) that the npm shim on the
  * PATH starts (a .cmd can't be started without a shell), else claude(.exe) on the PATH.
  */
+/** The tokens of all the models a run used (Claude Code also asks a small one on the side). */
+function usageOf(modelUsage: Record<string, unknown> | undefined): AiUsage | undefined {
+  const all = Object.values((modelUsage ?? {}) as Record<string, { inputTokens?: number; outputTokens?: number; cacheReadInputTokens?: number; cacheCreationInputTokens?: number }>);
+  if (!all.length) return undefined;
+  const sum = (k: "inputTokens" | "outputTokens" | "cacheReadInputTokens" | "cacheCreationInputTokens") => all.reduce((n, m) => n + (typeof m?.[k] === "number" ? m[k]! : 0), 0);
+  return { input: sum("inputTokens"), output: sum("outputTokens"), cacheRead: sum("cacheReadInputTokens"), cacheWrite: sum("cacheCreationInputTokens") };
+}
+
 export function findClaudeCli(): string | null {
   const own = process.env.CLAUDE_CLI?.trim();
   if (own && fs.existsSync(/*turbopackIgnore: true*/ own)) return own;
@@ -131,6 +139,7 @@ export function runClaude<T>(
             )[0]?.[0] ?? null,
           costUsd: typeof j.total_cost_usd === "number" ? j.total_cost_usd : null,
           durationMs: typeof j.duration_ms === "number" ? j.duration_ms : null,
+          usage: usageOf(j.modelUsage),
         });
       }),
     );

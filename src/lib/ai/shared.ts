@@ -4,7 +4,10 @@ import { translator, type T as Translate } from "@/lib/i18n/shared";
 const en = translator("en");
 
 /** An AI provider's answer: the output (JSON as asked for), the model, what it cost, how long it took. */
-export type AiAnswer<T> = { output: T; model: string | null; costUsd: number | null; durationMs: number | null };
+/** The tokens an answer used (what the CLI reports; none: it does not say). */
+export type AiUsage = { input: number; output: number; cacheRead: number; cacheWrite: number };
+
+export type AiAnswer<T> = { output: T; model: string | null; costUsd: number | null; durationMs: number | null; usage?: AiUsage };
 
 export const AI_PROVIDERS = ["claude", "copilot", "codex"] as const;
 export type AiProvider = (typeof AI_PROVIDERS)[number];
