@@ -1135,3 +1135,30 @@ export async function formChoicesAction(dbId: number) {
 export async function submitFormAction(dbId: number, fields: string[], values: Record<string, string>) {
   return run(async () => ({ id: (await import("./app-blocks")).submitForm(Number(dbId), Array.isArray(fields) ? fields.map(String) : [], values && typeof values === "object" ? values : {}) }));
 }
+
+// ---------------------------------------------------------------------------
+// Packages
+// ---------------------------------------------------------------------------
+
+/** A page and what is below it as a package file (JSON) — to keep, send, or have a plugin ship. */
+export async function exportPackageAction(pageId: number, includeRows = false) {
+  return run(async () => {
+    const p = store.getPage(Number(pageId));
+    if (!p) throw new Error(t("No such page."));
+    const pkg = (await import("./packages")).exportPackage(p.id, { name: p.title || t("Untitled"), icon: p.icon || undefined, includeRows: !!includeRows });
+    return { filename: `${(p.title || "package").replace(/[^\p{L}\p{N}_-]+/gu, "_")}.zeff-package.json`, json: JSON.stringify(pkg, null, 2) };
+  });
+}
+
+/** A package file (its text) made into pages below a page (or at the top). */
+export async function installPackageAction(json: string, parentId: number | null) {
+  return run(async () => {
+    let pkg: unknown;
+    try {
+      pkg = JSON.parse(String(json));
+    } catch {
+      throw new Error(t("This is not a package file."));
+    }
+    return { id: (await import("./packages")).installPackage(pkg as never, parentId ?? null).rootId };
+  });
+}

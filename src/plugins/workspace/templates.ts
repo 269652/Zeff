@@ -2,11 +2,13 @@
  * Ready-made pages and databases (the Workspace plugin): a meeting, a project brief, a weekly review,
  * a decision log, tasks tied to Zeff's todos, projects with their tasks and a progress rollup. Server only.
  */
+import { t } from "@/lib/i18n/server";
 import { markdownToDoc, type DocNode } from "./doc";
 import { createJobsDatabase } from "./jobs";
 import { createRulesDatabase } from "./rules";
 import { COLORS, newId, newProperty, newView, type DbSchema, type Option, type Property, type View } from "./model";
 import { newsDatabaseTitle } from "./news-database";
+import { installPackage, listPackages } from "./packages";
 import { widgetCatalog } from "./widgets";
 import { createRoutine } from "./routines";
 import { addRow, createPage, getDatabase, updateSchema } from "./store";
@@ -235,10 +237,15 @@ const TEMPLATES: Template[] = [
   },
 ];
 
-export const templateMetas = (): TemplateMeta[] => TEMPLATES.map(({ key, name, icon, description, kind }) => ({ key, name, icon, description, kind }));
+export const templateMetas = (): TemplateMeta[] => [
+  ...TEMPLATES.map(({ key, name, icon, description, kind }) => ({ key, name, icon, description, kind })),
+  ...listPackages().map((p): TemplateMeta => ({ key: `pkg:${p.id}`, name: t(p.name), icon: p.icon, description: p.description ? t(p.description) : "", kind: "page" })),
+];
 
 /** A template made as a new page (a database: with what belongs to it). Returns the new page's id. */
 export function fromTemplate(key: string, parentId: number | null): number {
+  const pkg = key.startsWith("pkg:") ? listPackages().find((p) => `pkg:${p.id}` === key) : undefined;
+  if (pkg) return installPackage(pkg.pkg, parentId).rootId;
   const t = TEMPLATES.find((x) => x.key === key);
   if (!t) throw new Error("No such template.");
   return t.build(parentId);
