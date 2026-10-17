@@ -257,6 +257,12 @@ export function upcoming({ days = 60, withinReminder = false, today = new Date()
 }
 
 /** A reminder done (congratulated, thought of): not shown again for this time. */
+/** The dates coming up in the next days that are not marked done for this time. */
+export function upcomingOpen(days: number): Upcoming[] {
+  const done = new Set((db().prepare("select date_id, occurrence from people_reminded").all() as { date_id: number; occurrence: string }[]).map((r) => `${r.date_id}:${r.occurrence}`));
+  return upcoming({ days }).filter((u) => !done.has(`${u.date.id}:${u.on}`));
+}
+
 export function markReminded(dateId: number, occurrence: string): void {
   db().prepare("insert or ignore into people_reminded (date_id, occurrence, done_at) values (?, ?, ?)").run(dateId, occurrence, now());
   changed();
