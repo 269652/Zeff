@@ -36,7 +36,7 @@ export const PROVIDERS: Record<Provider, ProviderInfo> = {
     endpoints: () => ({
       authUrl: process.env.ZEFF_GOOGLE_AUTH_URL || "https://accounts.google.com/o/oauth2/v2/auth",
       tokenUrl: process.env.ZEFF_GOOGLE_TOKEN_URL || "https://oauth2.googleapis.com/token",
-      scope: [...GOOGLE_SCOPES, ...(gmailWriteAllowed() ? ["https://www.googleapis.com/auth/gmail.modify"] : [])].join(" "),
+      scope: [...GOOGLE_SCOPES, ...(gmailWriteAllowed() ? ["https://www.googleapis.com/auth/gmail.modify", "https://www.googleapis.com/auth/gmail.settings.basic"] : [])].join(" "),
       // A refresh token every time (else only the first sign-in gets one), and the account chooser.
       extra: { access_type: "offline", prompt: "consent select_account" },
     }),

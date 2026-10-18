@@ -34,6 +34,7 @@ export default async function ConnectionsPage({ searchParams }: { searchParams: 
       granted: {
         gmailRead: row.scope.includes("gmail.readonly") || row.scope.includes("gmail.modify"),
         gmailModify: row.scope.includes("gmail.modify"),
+        gmailFilters: row.scope.includes("gmail.settings.basic"),
         calendar: row.scope.includes("calendar"),
       },
       connected: apiConnected(row),

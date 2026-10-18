@@ -53,6 +53,58 @@ export function registerGmailTools(server: McpServer, { run, ok, fail }: Helpers
   );
 
   server.registerTool(
+    "gmail_filters",
+    {
+      title: "List Gmail filters",
+      description: "The filters (rules) Gmail has now, with what they match and do. Read-only. Needs the Google sign-in with filter access (Connections).",
+      inputSchema: z.object({}),
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    async () =>
+      run(async () => {
+        const gone = off();
+        if (gone) return gone;
+        const { listGmailFilters, gmailLabels } = await import("@/lib/google/gmail-write");
+        const names = new Map((await gmailLabels()).map((l) => [l.id, l.name]));
+        const name = (id: string) => names.get(id) ?? id;
+        const rows = await listGmailFilters();
+        if (!rows.length) return ok("No filters.");
+        return ok(rows.map((f) => `${f.id} | ${[f.from && `from:${f.from}`, f.to && `to:${f.to}`, f.subject && `subject:${f.subject}`, f.query].filter(Boolean).join(" ")} -> ${[...f.addLabelIds.map((l) => `+${name(l)}`), ...f.removeLabelIds.map((l) => `-${name(l)}`)].join(" ")}`).join("\n"));
+      }),
+  );
+
+  server.registerTool(
+    "gmail_filter",
+    {
+      title: "Make a Gmail filter",
+      description:
+        "Makes a filter (rule) in Gmail: mails from a sender / with a subject / with words get a label, skip the inbox (archive) and/or are marked read, from now on. With applyToExisting the mails that match now get the same (up to 1000). Never forwards, never trashes. Works only when the agent routine's permissions allow changing Gmail.",
+      inputSchema: z.object({
+        from: z.string().optional().describe("Sender: a name or address part, e.g. 'flink' or 'calendar-notification@google.com'"),
+        to: z.string().optional(),
+        subject: z.string().optional(),
+        query: z.string().optional().describe("Gmail search words the mail has"),
+        hasAttachment: z.boolean().optional(),
+        addLabels: z.array(z.string()).optional().describe("Labels to put on (made when missing; 'a/b' nests)"),
+        skipInbox: z.boolean().optional().describe("Skip the inbox (archive)"),
+        markRead: z.boolean().optional(),
+        applyToExisting: z.boolean().optional().describe("Also the mails that match now"),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false },
+    },
+    async (args) =>
+      run(async () => {
+        const gone = off();
+        if (gone) return gone;
+        if (!mayChangeGmail(callerRunId())) return fail("This agent may not change Gmail. Turn on the Gmail permission in the permissions of its routine page (and allow changes to Gmail on the Connections page).");
+        const { createGmailFilter } = await import("@/lib/google/gmail-write");
+        const { from, to, subject, query, hasAttachment, ...rest } = args;
+        const r = await createGmailFilter({ criteria: { from, to, subject, query, hasAttachment }, ...rest });
+        return ok(`Filter ${r.filterId} made.${r.createdLabels.length ? ` New labels: ${r.createdLabels.join(", ")}.` : ""}${args.applyToExisting ? ` Applied to ${r.applied} mail(s) there already.` : ""}`);
+      }),
+  );
+
+  server.registerTool(
     "gmail_change",
     {
       title: "Change mails in Gmail (labels, read, spam)",

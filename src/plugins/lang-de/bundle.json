@@ -5994,5 +5994,14 @@
   "Web search and fetching pages": "Websuche und Seiten abrufen",
   "Search Gmail": "Gmail durchsuchen",
   "Find mails with Gmail's search and list its labels": "Mails mit Gmails Suche finden und seine Labels auflisten",
-  "What it may use": "Was er nutzen darf"
+  "What it may use": "Was er nutzen darf",
+  "Find mails with Gmail's search, list its labels and filters": "Mails mit Gmails Suche finden, seine Labels und Filter auflisten",
+  "Google was not asked for filters yet. Allow changes to Gmail on the Connections page and sign in to Google again.": "Google wurde noch nicht nach Filtern gefragt. Erlaube Änderungen an Gmail auf der Verbindungen-Seite und melde dich bei Google neu an.",
+  "Say what mails the filter is for (sender, subject or words).": "Sag, für welche Mails der Filter gilt (Absender, Betreff oder Wörter).",
+  "The filter has nothing to do: a label, skipping the inbox or marking read.": "Der Filter hat nichts zu tun: ein Label, den Posteingang überspringen oder als gelesen markieren.",
+  "Gmail refused the filter ({status}).": "Gmail hat den Filter abgelehnt ({status}).",
+  "Make Gmail filters": "Gmail-Filter anlegen",
+  "Labels, read/unread, spam and filters — only for agents whose permissions say so. Nothing is deleted, forwarded or sent.": "Labels, gelesen/ungelesen, Spam und Filter – nur für Agenten, deren Berechtigungen es erlauben. Nichts wird gelöscht, weitergeleitet oder gesendet.",
+  "May change Gmail (labels, read, spam, filters)": "Darf Gmail ändern (Labels, gelesen, Spam, Filter)",
+  "Labels, read/unread, spam and filters in Gmail — never deleting. Needs “Allow changes to Gmail” on the Connections page.": "Labels, gelesen/ungelesen, Spam und Filter in Gmail – nie löschen. Braucht „Änderungen an Gmail erlauben“ auf der Verbindungen-Seite."
 }

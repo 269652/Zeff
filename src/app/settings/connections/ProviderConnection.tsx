@@ -17,7 +17,7 @@ export type ProviderView = {
   /** Google: changes to Gmail (labels, read, spam) are asked for at sign-in. */
   gmailWrite: boolean;
   /** What the sign-in holds now (Google). */
-  granted: { gmailRead: boolean; gmailModify: boolean; calendar: boolean };
+  granted: { gmailRead: boolean; gmailModify: boolean; gmailFilters: boolean; calendar: boolean };
   connected: boolean;
   account: string;
   redirectUri: string;
@@ -64,7 +64,7 @@ export function ProviderConnection({ v, error, justConnected }: { v: ProviderVie
   }, []);
   const clientSaved = clientId === v.clientId && !secret && (google || tenant === v.tenant);
   const hasClient = clientSaved && !!v.clientId && (!google || v.hasSecret);
-  const needsReSignIn = google && v.connected && v.gmailWrite && !v.granted.gmailModify;
+  const needsReSignIn = google && v.connected && v.gmailWrite && !(v.granted.gmailModify && v.granted.gmailFilters);
   const copy = async () => {
     await navigator.clipboard?.writeText(v.redirectUri).catch(() => undefined);
     toast(t("Copied."), { tone: "ok" });
@@ -204,12 +204,13 @@ export function ProviderConnection({ v, error, justConnected }: { v: ProviderVie
                 <Pill tone={v.connected && v.granted.gmailRead ? "ok" : "idle"}>{v.connected && v.granted.gmailRead ? "✓" : "–"} {t("Read Gmail")}</Pill>
                 <Pill tone={v.connected && v.granted.calendar ? "ok" : "idle"}>{v.connected && v.granted.calendar ? "✓" : "–"} {t("Read the calendar")}</Pill>
                 <Pill tone={v.connected && v.granted.gmailModify ? "ok" : "idle"}>{v.connected && v.granted.gmailModify ? "✓" : "–"} {t("Change Gmail (labels, read, spam)")}</Pill>
+                <Pill tone={v.connected && v.granted.gmailFilters ? "ok" : "idle"}>{v.connected && v.granted.gmailFilters ? "✓" : "–"} {t("Make Gmail filters")}</Pill>
               </div>
               <label className="flex items-start gap-2 text-sm">
                 <input type="checkbox" className="mt-1" checked={v.gmailWrite} disabled={pending} onChange={(e) => run(() => setGmailWriteAction(e.target.checked))} />
                 <span>
                   {t("Allow changes to Gmail")}
-                  <span className="block text-xs text-zinc-500">{t("Labels, read/unread and spam — only for agents whose permissions say so. Nothing is deleted or sent.")}</span>
+                  <span className="block text-xs text-zinc-500">{t("Labels, read/unread, spam and filters — only for agents whose permissions say so. Nothing is deleted, forwarded or sent.")}</span>
                 </span>
               </label>
               {needsReSignIn && (

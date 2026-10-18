@@ -171,9 +171,9 @@ export function RoutineControls({ pageId, editable }: { pageId: number; editable
             <option value="workspace">{t("The whole workspace")}</option>
             <option value="none">{t("Nothing — it only reads")}</option>
           </select>
-          <label className="flex items-center gap-1.5 text-xs text-zinc-500" title={t("Labels, read/unread and spam in Gmail — never deleting. Needs “Allow changes to Gmail” on the Connections page.")}>
+          <label className="flex items-center gap-1.5 text-xs text-zinc-500" title={t("Labels, read/unread, spam and filters in Gmail — never deleting. Needs “Allow changes to Gmail” on the Connections page.")}>
             <input type="checkbox" checked={!!view.permissions.gmail} disabled={!editable} onChange={(e) => void save({ permissions: { ...view.permissions, gmail: e.target.checked || undefined } })} />
-            {t("May change Gmail (labels, read, spam)")}
+            {t("May change Gmail (labels, read, spam, filters)")}
           </label>
           <div className="space-y-1 pt-1">
             <h4 className="text-xs font-semibold text-zinc-500 uppercase">{t("What it may use")}</h4>

@@ -5994,5 +5994,14 @@
   "Web search and fetching pages": "Búsqueda web y obtención de páginas",
   "Search Gmail": "Buscar en Gmail",
   "Find mails with Gmail's search and list its labels": "Encontrar correos con la búsqueda de Gmail y listar sus etiquetas",
-  "What it may use": "Qué puede usar"
+  "What it may use": "Qué puede usar",
+  "Find mails with Gmail's search, list its labels and filters": "Encontrar correos con la búsqueda de Gmail y listar sus etiquetas y filtros",
+  "Google was not asked for filters yet. Allow changes to Gmail on the Connections page and sign in to Google again.": "Aún no se pidió a Google acceso a los filtros. Permite los cambios en Gmail en la página de conexiones e inicia sesión de nuevo en Google.",
+  "Say what mails the filter is for (sender, subject or words).": "Indica para qué correos es el filtro (remitente, asunto o palabras).",
+  "The filter has nothing to do: a label, skipping the inbox or marking read.": "El filtro no tiene nada que hacer: una etiqueta, saltar la bandeja de entrada o marcar como leído.",
+  "Gmail refused the filter ({status}).": "Gmail rechazó el filtro ({status}).",
+  "Make Gmail filters": "Crear filtros de Gmail",
+  "Labels, read/unread, spam and filters — only for agents whose permissions say so. Nothing is deleted, forwarded or sent.": "Etiquetas, leído/no leído, spam y filtros: solo para agentes cuyos permisos lo permitan. No se borra, reenvía ni envía nada.",
+  "May change Gmail (labels, read, spam, filters)": "Puede cambiar Gmail (etiquetas, leído, spam, filtros)",
+  "Labels, read/unread, spam and filters in Gmail — never deleting. Needs “Allow changes to Gmail” on the Connections page.": "Etiquetas, leído/no leído, spam y filtros en Gmail, sin borrar nunca. Necesita «Permitir cambios en Gmail» en la página de conexiones."
 }

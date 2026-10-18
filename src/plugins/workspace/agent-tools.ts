@@ -16,7 +16,7 @@ export const AGENT_TOOL_GROUPS: ToolGroup[] = [
   { id: "merge.read", label: "Read merge-request comments", hint: "Comments and discussions on a merge request", tools: ["mr_comments"], default: true },
   { id: "merge.write", label: "Comment on merge requests", hint: "Comment, reply and resolve on GitLab — it leaves Zeff", tools: ["mr_comment", "mr_reply", "mr_resolve"], default: false },
   { id: "web", label: "Search and read the web", hint: "Web search and fetching pages", tools: ["web_search", "web_fetch"], default: true },
-  { id: "gmail.read", label: "Search Gmail", hint: "Find mails with Gmail's search and list its labels", tools: ["gmail_find", "gmail_labels"], default: true },
+  { id: "gmail.read", label: "Search Gmail", hint: "Find mails with Gmail's search, list its labels and filters", tools: ["gmail_find", "gmail_labels", "gmail_filters"], default: true },
 ];
 
 const BY_TOOL = new Map(AGENT_TOOL_GROUPS.flatMap((g) => g.tools.map((t) => [t, g] as const)));
