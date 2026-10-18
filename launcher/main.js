@@ -203,8 +203,8 @@ function showWindow() {
     return;
   }
   win = new BrowserWindow({
-    width: 480,
-    height: 480,
+    width: 520,
+    height: 780,
     resizable: true,
     minimizable: true,
     maximizable: false,
