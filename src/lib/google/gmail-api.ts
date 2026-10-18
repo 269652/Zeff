@@ -9,31 +9,31 @@ import path from "node:path";
 import { apiGet } from "@/lib/connectors/http";
 import type { MailInput } from "@/lib/mail/store";
 
-const GM = "/gmail/v1/users/me";
+export const GM = "/gmail/v1/users/me";
 
 type Part = { partId?: string; mimeType?: string; filename?: string; headers?: { name: string; value: string }[]; body?: { attachmentId?: string; size?: number; data?: string }; parts?: Part[] };
-type Msg = { id: string; threadId: string; labelIds?: string[]; snippet?: string; internalDate?: string; payload?: Part };
+export type Msg = { id: string; threadId: string; labelIds?: string[]; snippet?: string; internalDate?: string; payload?: Part };
 
-const flat = (s: unknown) => String(s ?? "").replace(/\s+/g, " ").trim();
-const enc = encodeURIComponent;
+export const flat = (s: unknown) => String(s ?? "").replace(/\s+/g, " ").trim();
+export const enc = encodeURIComponent;
 
 /** Gmail's snippet comes HTML-escaped. */
-const unescapeHtml = (s: string) => s.replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+export const unescapeHtml = (s: string) => s.replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
 
 /** The id the Chrome driver names a message by (msg-f:<decimal>) — the same rows whichever driver reads. */
-const refOf = (id: string) => `msg-f:${BigInt(`0x${id}`).toString()}`;
+export const refOf = (id: string) => `msg-f:${BigInt(`0x${id}`).toString()}`;
 /** …and back: the API's hex id of a ref (a bare hex id is accepted too). */
-function apiId(ref: string): string {
+export function apiId(ref: string): string {
   const m = /^msg-f:(\d+)$/.exec(String(ref ?? "").trim());
   if (m) return BigInt(m[1]).toString(16);
   if (/^[0-9a-f]{8,}$/i.test(String(ref ?? "").trim())) return String(ref).trim().toLowerCase();
   throw new Error(`Not a Gmail message id: ${String(ref).slice(0, 40)}`);
 }
 
-const header = (m: Msg | Part, name: string): string => (m as Msg).payload?.headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? (m as Part).headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? "";
+export const header = (m: Msg | Part, name: string): string => (m as Msg).payload?.headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? (m as Part).headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? "";
 
 /** "Name <a@b.de>" → name and address. */
-function parseFrom(v: string): { name: string; email: string | null } {
+export function parseFrom(v: string): { name: string; email: string | null } {
   const m = /^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/.exec(v);
   if (m) return { name: flat(m[1]) || m[2], email: m[2].trim().toLowerCase() };
   const bare = v.trim();
@@ -94,7 +94,7 @@ function attachmentsOf(p: Part | undefined): ApiAttachment[] {
 }
 
 /** All pages (up to `maxPages`) of a message search: the ids. */
-async function search(q: string, maxPages: number): Promise<{ id: string; threadId: string }[]> {
+export async function search(q: string, maxPages: number): Promise<{ id: string; threadId: string }[]> {
   const out: { id: string; threadId: string }[] = [];
   let token = "";
   for (let i = 0; i < maxPages; i++) {
@@ -113,7 +113,7 @@ async function each<T, R>(items: T[], fn: (x: T) => Promise<R>, width = 4): Prom
   return out;
 }
 
-const getMeta = (id: string) => apiGet<Msg>("google", `${GM}/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`);
+export const getMeta = (id: string) => apiGet<Msg>("google", `${GM}/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`);
 
 function toInput(m: Msg, folder: string, o: { attach: boolean; text?: string }): MailInput {
   const mine = !!m.labelIds?.includes("SENT");

@@ -19,6 +19,8 @@ export type ProviderInfo = {
 
 /** Google: read access to Gmail and Calendar (nothing is written to either). */
 const GOOGLE_SCOPES = ["openid", "email", "https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/calendar.readonly"];
+/** Changing Gmail (labels, read, spam — no deleting): asked for only when you allow it on the Connections page. */
+export const gmailWriteAllowed = () => extraOf("google").gmailWrite === "1";
 /** Microsoft: read access to the mail, the calendar and your chats (channels need an administrator's consent: not asked for). */
 const MICROSOFT_SCOPES = ["offline_access", "User.Read", "Mail.Read", "Calendars.Read", "Chat.Read"];
 
@@ -34,7 +36,7 @@ export const PROVIDERS: Record<Provider, ProviderInfo> = {
     endpoints: () => ({
       authUrl: process.env.ZEFF_GOOGLE_AUTH_URL || "https://accounts.google.com/o/oauth2/v2/auth",
       tokenUrl: process.env.ZEFF_GOOGLE_TOKEN_URL || "https://oauth2.googleapis.com/token",
-      scope: GOOGLE_SCOPES.join(" "),
+      scope: [...GOOGLE_SCOPES, ...(gmailWriteAllowed() ? ["https://www.googleapis.com/auth/gmail.modify"] : [])].join(" "),
       // A refresh token every time (else only the first sign-in gets one), and the account chooser.
       extra: { access_type: "offline", prompt: "consent select_account" },
     }),

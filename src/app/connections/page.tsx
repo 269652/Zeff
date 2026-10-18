@@ -30,6 +30,7 @@ export default async function ConnectionsPage({ searchParams }: { searchParams: 
       clientId: client.clientId,
       hasSecret: !!client.clientSecret,
       tenant: id === "microsoft" ? (extraOf("microsoft").tenant ?? "") : "",
+      gmailWrite: id === "google" && extraOf("google").gmailWrite === "1",
       connected: apiConnected(row),
       account: row.account,
       redirectUri: `${proto}://${host}/api/connectors/${id}/callback`,

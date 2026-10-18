@@ -126,12 +126,16 @@ export function RoutineControls({ pageId, editable }: { pageId: number; editable
       {view.kind === "agent" && (
         <div className="space-y-1">
           <h4 className="text-xs font-semibold text-zinc-500 uppercase">{t("What it may change")}</h4>
-          <select className="input w-auto text-sm" value={view.permissions.scope} disabled={!editable} onChange={(e) => void save({ permissions: { scope: e.target.value } })} aria-label={t("Permissions")}>
+          <select className="input w-auto text-sm" value={view.permissions.scope} disabled={!editable} onChange={(e) => void save({ permissions: { ...view.permissions, scope: e.target.value } })} aria-label={t("Permissions")}>
             <option value="self">{t("Only this page and what is below it")}</option>
             <option value="parent">{t("Its parent's pages (siblings too)")}</option>
             <option value="workspace">{t("The whole workspace")}</option>
             <option value="none">{t("Nothing — it only reads")}</option>
           </select>
+          <label className="flex items-center gap-1.5 text-xs text-zinc-500" title={t("Labels, read/unread and spam in Gmail — never deleting. Needs “Allow changes to Gmail” on the Connections page.")}>
+            <input type="checkbox" checked={!!view.permissions.gmail} disabled={!editable} onChange={(e) => void save({ permissions: { ...view.permissions, gmail: e.target.checked || undefined } })} />
+            {t("May change Gmail (labels, read, spam)")}
+          </label>
           <label className="flex items-center gap-1.5 text-xs text-zinc-500">
             {t("Worker")}
             <select className="input w-auto py-0.5 text-sm" value={view.provider ?? ""} disabled={!editable} onChange={(e) => void save({ provider: e.target.value || undefined })} aria-label={t("Worker")}>

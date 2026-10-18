@@ -20,7 +20,7 @@ export async function setDriverAction(service: string, driver: string): Promise<
 }
 
 /** Your OAuth client of a provider (Google, Microsoft) — a secret only when one is typed (else the saved one stays). A new client signs you out. */
-export async function saveProviderAction(v: { provider: string; clientId: string; clientSecret?: string; tenant?: string }): Promise<ActionState> {
+export async function saveProviderAction(v: { provider: string; clientId: string; clientSecret?: string; tenant?: string; gmailWrite?: boolean }): Promise<ActionState> {
   try {
     const { isProvider } = await import("@/lib/connectors/providers");
     const { clientOf, getConnector, updateConnector, disconnectConnector } = await import("@/lib/connectors/store");
@@ -35,6 +35,7 @@ export async function saveProviderAction(v: { provider: string; clientId: string
     const row = getConnector(v.provider);
     let extra = row.extra;
     if (v.provider === "microsoft") extra = JSON.stringify({ tenant });
+    if (v.provider === "google") extra = JSON.stringify({ gmailWrite: v.gmailWrite ? "1" : "0" });
     const changed = clientId !== row.clientId || (secret !== "" && secret !== row.clientSecret) || extra !== row.extra;
     if (changed && row.refreshToken) disconnectConnector(v.provider);
     updateConnector(v.provider, { authKind: "oauth", clientId, extra, ...(secret ? { clientSecret: secret } : {}) });

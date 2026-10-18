@@ -14,6 +14,8 @@ export type ProviderView = {
   clientId: string;
   hasSecret: boolean;
   tenant: string;
+  /** Google: changes to Gmail (labels, read, spam) are asked for at sign-in. */
+  gmailWrite: boolean;
   connected: boolean;
   account: string;
   redirectUri: string;
@@ -30,6 +32,7 @@ export function ProviderConnection({ v, error, justConnected }: { v: ProviderVie
   const [clientId, setClientId] = useState(v.clientId);
   const [secret, setSecret] = useState("");
   const [tenant, setTenant] = useState(v.tenant);
+  const [gmailWrite, setGmailWrite] = useState(v.gmailWrite);
   const google = v.provider === "google";
   const anyApi = v.services.some((s) => s.driver === "api");
   useEffect(() => {
@@ -38,7 +41,7 @@ export function ProviderConnection({ v, error, justConnected }: { v: ProviderVie
     // (once, as the page opens)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const clientSaved = clientId === v.clientId && !secret && (google || tenant === v.tenant);
+  const clientSaved = clientId === v.clientId && !secret && (google ? gmailWrite === v.gmailWrite : tenant === v.tenant);
 
   return (
     <section className="card space-y-3 p-4">
@@ -107,8 +110,17 @@ export function ProviderConnection({ v, error, justConnected }: { v: ProviderVie
               </Field>
             )}
           </div>
+          {google && (
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-1" checked={gmailWrite} onChange={(e) => setGmailWrite(e.target.checked)} />
+              <span>
+                {t("Allow changes to Gmail")}
+                <span className="block text-xs text-zinc-500">{t("Labels, read/unread and spam — for agents whose permissions say so. Nothing is deleted or sent. Saving asks you to sign in to Google again.")}</span>
+              </span>
+            </label>
+          )}
           <div className="flex flex-wrap items-center gap-2">
-            <button className="btn btn-primary" disabled={pending || !clientId.trim() || clientSaved} onClick={() => run(() => saveProviderAction({ provider: v.provider, clientId, clientSecret: secret, tenant }), () => setSecret(""))}>
+            <button className="btn btn-primary" disabled={pending || !clientId.trim() || clientSaved} onClick={() => run(() => saveProviderAction({ provider: v.provider, clientId, clientSecret: secret, tenant, gmailWrite }), () => setSecret(""))}>
               {t("Save the client")}
             </button>
             {clientSaved && v.clientId && !v.connected && (

@@ -155,4 +155,11 @@ function agentScopeGuard(target: number | null): void {
   if (!within(target, root)) refuse();
 }
 
+/** Whether the worker of this run (a work run's id) may change Gmail: it belongs to an agent routine whose permissions say so. */
+export function mayChangeGmail(workRunId: number | undefined): boolean {
+  if (!workRunId) return false;
+  const pageId = routineOfWorkRun(workRunId);
+  return !!pageId && getRoutine(pageId)?.permissions.gmail === true;
+}
+
 addAgentGuard(agentScopeGuard);
