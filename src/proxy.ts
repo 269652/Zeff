@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { lockPage } from "@/lib/lock/page";
-import { COOKIE, readConfig, readState, sessionValid } from "@/lib/lock/shared";
+import { activeAccountNow, COOKIE, lockOpenFor, readConfig, readState, sessionValid } from "@/lib/lock/shared";
 
 /**
  * The lock (Settings → Lock): while it is on and this browser has no live session — the key's PIN and a touch, key still
@@ -13,6 +13,8 @@ import { COOKIE, readConfig, readState, sessionValid } from "@/lib/lock/shared";
 export function proxy(req: NextRequest) {
   const cfg = readConfig();
   if (!cfg) return NextResponse.next();
+  // The private account is not locked (see lockOpenFor): the lock guards the others.
+  if (lockOpenFor(cfg, activeAccountNow())) return NextResponse.next();
   if (req.nextUrl.pathname === "/api/lock") return NextResponse.next();
   if (!req.headers.get("sec-fetch-site")) return NextResponse.next();
   if (sessionValid(req.cookies.get(COOKIE)?.value, cfg, readState(), Date.now())) return NextResponse.next();
