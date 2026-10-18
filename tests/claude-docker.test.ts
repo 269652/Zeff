@@ -68,7 +68,7 @@ test("the call: docker exec -i in the mapped folder, the run's identity in, the 
   assert.deepEqual(env.sort(), ["ANTHROPIC_API_KEY=k", "ZEFF_WORK_ACCOUNT=privat", "ZEFF_WORK_RUN=42"], "Claude's and the run's variables only — not the host's PATH, not the nesting guards");
   const at = call.indexOf("sh");
   assert.equal(call[at - 1], "zeff-claude");
-  assert.match(call[at + 2], /echo \$\$ > \/tmp\/zeff-run\/42\.pid; exec setsid "\$@"/);
+  assert.match(call[at + 2], /exec setsid -w sh -c 'echo \$\$ > \/tmp\/zeff-run\/42\.pid; exec "\$@"' sh "\$@"/);
   assert.deepEqual(call.slice(at + 3, at + 5), ["sh", "claude"]);
   const rest = call.slice(at + 5);
   assert.deepEqual(rest.slice(0, 3), ["-p", "--output-format", "stream-json"]);
@@ -77,7 +77,7 @@ test("the call: docker exec -i in the mapped folder, the run's identity in, the 
   // A folder that is not mounted (the temp folder of the mail review): the container's /tmp. No run: no pid file.
   const headless = execArgs({ argv: ["-p"], cwd: "C:\\Users\\me\\AppData\\Local\\Temp\\zeff-boards", env: {}, mounts: MOUNTS });
   assert.equal(headless[3], "/tmp");
-  assert.equal(headless[headless.indexOf("-c") + 1], 'exec setsid "$@"');
+  assert.equal(headless[headless.indexOf("-c") + 1], 'exec setsid -w "$@"', "setsid waits: its parent would end at once otherwise");
 });
 
 test("the service container: detached or in the foreground, the mounts and the volume, the host reachable, no new privileges", async () => {

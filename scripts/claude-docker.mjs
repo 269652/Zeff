@@ -166,8 +166,9 @@ export function execArgs({ argv, cwd, env, mounts, container = "zeff-claude", re
   const passEnv = Object.entries(env)
     .filter(([k, v]) => v !== undefined && ENV_ALLOW.test(k) && !ENV_BLOCK.test(k))
     .flatMap(([k, v]) => ["-e", `${k}=${v}`]);
-  // setsid: the CLI leads a process group of its own — what it starts can be ended with it (--kill); its pid is kept per run.
-  const script = run ? `mkdir -p /tmp/zeff-run; echo $$ > /tmp/zeff-run/${run}.pid; exec setsid "$@"` : 'exec setsid "$@"';
+  // setsid -w: the CLI leads a session and process group of its own — what it starts can be ended with it (--kill) — and the exec waits for it
+  // (without -w setsid forks and the exec ends at once, "without a result"). The inner shell writes its pid — the group's — and becomes the CLI.
+  const script = run ? `mkdir -p /tmp/zeff-run; exec setsid -w sh -c 'echo $$ > /tmp/zeff-run/${run}.pid; exec "$@"' sh "$@"` : 'exec setsid -w "$@"';
   return ["exec", "-i", "-w", workdir, ...passEnv, container, "sh", "-c", script, "sh", "claude", ...args];
 }
 
