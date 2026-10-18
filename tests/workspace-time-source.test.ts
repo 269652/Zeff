@@ -58,6 +58,13 @@ test("booked time as the source of a matching relation: hours per ticket, with a
   book(0.5, "PROJ-3", "Nachfrage");
   assert.equal(w.rowsOf(tickets)!.rows.find((r) => r.title === "PROJ-3")!.cells.total, 0.5);
 
+  // The matched entries are not pages: nothing is looked up as a page (the ids are the table's row numbers), and a text export says how many.
+  const shown = w.rowsOf(tickets)!;
+  const labels = await w.labelsFor(shown.schema, shown.rows);
+  assert.deepEqual(labels.pages, {}, "no page titles for a source's rows");
+  const { cellText } = await import("@/plugins/workspace/model");
+  assert.equal(cellText(shown.schema.properties[0], shown.rows.find((r) => r.title === "PROJ-1")!.cells.booked, labels as never), "2");
+
   // What the rollup wizard offers.
   const { relationSourcesAction } = await import("@/plugins/workspace/actions");
   const r = await relationSourcesAction();

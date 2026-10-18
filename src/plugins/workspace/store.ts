@@ -701,7 +701,7 @@ export async function labelsFor(schema: DbSchema, rows: Row[]): Promise<{ people
   const ids = (v: unknown) => (Array.isArray(v) ? v : [v]).map(Number).filter((n) => Number.isInteger(n) && n > 0);
   for (const p of schema.properties) {
     const bag = p.type === "person" ? people : p.type === "relation" ? pages : p.type === "todo" ? todos : null;
-    if (!bag) continue;
+    if (!bag || (p.type === "relation" && p.relationSource !== undefined)) continue; // (a source's rows are no pages)
     for (const r of rows) for (const n of ids(r.cells[p.id])) bag.add(n);
     if (p.type === "rollup" || p.type === "formula") continue;
   }

@@ -559,6 +559,8 @@ export function cellText(p: Property | undefined, v: unknown, labels: Labels = n
     case "person":
       return asArray(v).map((x) => labels.person(Number(x))).join(", ");
     case "relation":
+      // The rows of a source (the booked time) aren't pages: how many there are.
+      if (p.relationSource !== undefined) return String(asArray(v).length);
       return asArray(v).map((x) => labels.page(Number(x))).join(", ");
     case "todo":
       return asArray(v).map((x) => labels.todo(Number(x))).join(", ");

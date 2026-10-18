@@ -143,6 +143,8 @@ export function CellView({ p, row, ctx }: { p: Property; row: Row; ctx: CellCtx 
         </>
       );
     case "relation":
+      // The rows of a source (the booked time) aren't pages to open: how many entries it found.
+      if (p.relationSource !== undefined) return asArr(v).length ? <span className="ws-chip">{t("{n} entries", { n: asArr(v).length })}</span> : null;
       return (
         <>
           {asArr(v).map((id) => {
