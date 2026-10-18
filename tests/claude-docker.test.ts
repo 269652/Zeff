@@ -144,3 +144,24 @@ test("a worktree's .git file names its repo relative — the same place on the h
   assert.equal(fs.readFileSync(path.join(lost, ".git"), "utf8"), "gitdir: C:/gone/repo/.git/worktrees/x\n");
   assert.equal(relativizeWorktreeLink(path.join(root, "nothing")), false);
 });
+
+test("Zeff's own folders: the attachments and documents of every account, read-only; the data folder of a worktree is the main checkout's", async () => {
+  const { dataMounts, dataDirOf } = await mod;
+  const os = await import("node:os");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "data-"));
+  fs.mkdirSync(path.join(dir, "accounts", "privat"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "accounts", "weird name!"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "accounts", "file.txt"), "x");
+  const mounts = dataMounts(dir);
+  assert.deepEqual(
+    mounts.map((m: { local: string }) => m.local),
+    ["/host/zeff/attachments", "/host/zeff/documents", "/host/zeff/accounts/privat/attachments", "/host/zeff/accounts/privat/documents"],
+    "an odd folder name and a file are not mounted",
+  );
+  assert.ok(mounts.every((m: { readOnly?: boolean }) => m.readOnly), "what Zeff hands over is read-only");
+  assert.equal(path.normalize(mounts[2].host), path.join(dir, "accounts", "privat", "work", "attachments"));
+  assert.equal(dataDirOf({ ZEFF_DATA_DIR: "D:\\data" }, "C:\\Zeff"), "D:\\data");
+  assert.equal(dataDirOf({}, "C:\\Users\\me\\Zeff\\.claude\\worktrees\\docker"), path.join("C:\\Users\\me\\Zeff", "data"), "a worktree: the main checkout's data");
+  assert.equal(dataDirOf({}, "C:/Users/me/Zeff/.claude/worktrees/w1"), path.join("C:/Users/me/Zeff", "data"));
+  assert.equal(dataDirOf({}, "C:\\Zeff"), path.join("C:\\Zeff", "data"));
+});

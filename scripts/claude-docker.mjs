@@ -58,20 +58,44 @@ export function parseMounts(text) {
 
 /**
  * What Zeff itself hands to Claude from its data folder (the pictures sent with a prompt, the documents Claude reads) is mounted
- * read-only — and only those folders: Zeff's databases and tokens stay out of reach.
+ * read-only — and only those folders: Zeff's databases and tokens stay out of reach. Each account has its own (data/accounts/<id>/…).
  * @param {string} dataDir
+ * @param {{ fs?: typeof fs }} [io]
  * @returns {Mount[]}
  */
-export function dataMounts(dataDir) {
-  return [
+export function dataMounts(dataDir, { fs: f = fs } = {}) {
+  /** @type {Mount[]} */
+  const out = [
     { host: path.join(dataDir, "work", "attachments"), local: "/host/zeff/attachments", readOnly: true },
     { host: path.join(dataDir, "documents"), local: "/host/zeff/documents", readOnly: true },
   ];
+  try {
+    for (const e of f.readdirSync(path.join(dataDir, "accounts"), { withFileTypes: true })) {
+      if (!e.isDirectory() || !/^[\w.-]+$/.test(e.name)) continue;
+      out.push({ host: path.join(dataDir, "accounts", e.name, "work", "attachments"), local: `/host/zeff/accounts/${e.name}/attachments`, readOnly: true });
+      out.push({ host: path.join(dataDir, "accounts", e.name, "documents"), local: `/host/zeff/accounts/${e.name}/documents`, readOnly: true });
+    }
+  } catch {
+    // no accounts folder
+  }
+  return out;
+}
+
+/**
+ * Zeff's data folder as the shim finds it: ZEFF_DATA_DIR, else the data folder of the checkout this file lives in — for a git worktree
+ * of Zeff (.claude/worktrees/<name>) that is the main checkout's, where the data really is.
+ * @param {Record<string, string | undefined>} [env]
+ * @param {string} [root]
+ */
+export function dataDirOf(env = process.env, root = ROOT) {
+  if (env.ZEFF_DATA_DIR) return env.ZEFF_DATA_DIR;
+  const m = /^(.*?)[\\/]\.claude[\\/]worktrees[\\/][^\\/]+$/.exec(root);
+  return path.join(m ? m[1] : root, "data");
 }
 
 export function defaultMounts(env = process.env, home = os.homedir()) {
   const own = parseMounts(env.ZEFF_CLAUDE_MOUNTS);
-  return [...(own.length ? own : [{ host: path.join(home, "Documents"), local: "/host/documents" }]), ...dataMounts(env.ZEFF_DATA_DIR || path.join(ROOT, "data"))];
+  return [...(own.length ? own : [{ host: path.join(home, "Documents"), local: "/host/documents" }]), ...dataMounts(dataDirOf(env))];
 }
 
 const slash = (p) => String(p).replace(/\\/g, "/").replace(/\/+$/, "");
