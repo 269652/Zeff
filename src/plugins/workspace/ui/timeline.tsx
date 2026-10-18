@@ -142,7 +142,7 @@ export function TimelineView({ view, rows, schema, api, openRow, locked }: { vie
                     onKeyDown={(e) => e.key === "Enter" && openRow(b.row.id)}
                   >
                     <span className="truncate">{b.row.title}</span>
-                    {!locked && <span className="absolute inset-y-0 right-0 w-2 cursor-ew-resize" onPointerDown={(e) => begin(e, b, "end")} onPointerMove={move} onPointerUp={() => void finish(b)} aria-hidden />}
+                    {!locked && <span className="absolute inset-y-0 right-0 w-2 cursor-ew-resize" onPointerDown={(e) => begin(e, b, "end")} onPointerMove={move} onPointerUp={(e) => (e.stopPropagation(), void finish(b))} aria-hidden />}
                   </div>
                 </div>
               </div>

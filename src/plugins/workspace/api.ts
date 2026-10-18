@@ -303,4 +303,4 @@ const RAW_API: ApiContribution = {
 };
 
 /** The methods, each run as the AI (system pages read-only) — whoever calls them: an auto action, a plugin, an agent. */
-export const WORKSPACE_API: ApiContribution = { ...RAW_API, methods: Object.fromEntries(Object.entries(RAW_API.methods).map(([name, m]) => [name, { ...m, run: asAgent(m.run) }])) };
+export const WORKSPACE_API: ApiContribution = { ...RAW_API, methods: Object.fromEntries(Object.entries(RAW_API.methods).map(([name, m]) => [name, { ...m, run: asAgent(m.run, `AI: ${name}`) }])) };

@@ -6,7 +6,7 @@
  */
 import { evalFormula, formulaToStored, type FormulaValue } from "./formula";
 
-export const PROP_TYPES = ["text", "markdown", "number", "select", "multi_select", "status", "date", "checkbox", "url", "email", "phone", "person", "relation", "rollup", "formula", "created_time", "updated_time", "todo", "ticket", "ai"] as const;
+export const PROP_TYPES = ["text", "markdown", "number", "select", "multi_select", "status", "date", "checkbox", "url", "email", "phone", "person", "relation", "custom", "rollup", "formula", "created_time", "updated_time", "todo", "ticket", "ai"] as const;
 export type PropType = (typeof PROP_TYPES)[number];
 export const PROP_LABELS: Record<PropType, string> = {
   text: "Text",
@@ -24,6 +24,7 @@ export const PROP_LABELS: Record<PropType, string> = {
   relation: "Relation",
   rollup: "Rollup",
   formula: "Formula",
+  custom: "Custom",
   created_time: "Created time",
   updated_time: "Last edited time",
   todo: "Zeff todo",
@@ -48,6 +49,8 @@ export type Property = {
   backOf?: string;
   rollup?: { relation: string; property: string; fn: RollupFn };
   formula?: string;
+  /** Custom: the id of the field type (a plugin's, "workspace.rating") that checks and draws the entries. */
+  custom?: string;
   /** AI: the instruction the AI fills the cell by, from the row's other cells. */
   aiPrompt?: string;
   /** AI: the values it may take (one of them — "blocked", "active" …); none: free text. */
@@ -140,7 +143,23 @@ export type DbSchema = {
   jobs?: boolean;
   /** A form that adds rows (workspace/form/<id>): which fields it asks, which are required, what is prefilled. */
   form?: FormSpec;
+  /** What may be done to its rows (the store holds to it, for you and the AI alike; a source writing its own records is let through). */
+  protect?: Protect;
 };
+
+/**
+ * `lock`: its rows can't be added, changed or removed. `ai`: what the AI may do - "read" (nothing) or "append" (add rows, not change or remove
+ * them); unset: everything. `unique`: fields (their ids, "title" for the title) whose values may not repeat among the rows.
+ */
+export type Protect = { lock?: boolean; ai?: "read" | "append"; unique?: string[] };
+
+function protectOf(raw: unknown, props: Property[]): Protect | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const o = raw as Record<string, unknown>;
+  const unique = (Array.isArray(o.unique) ? o.unique : []).filter((id): id is string => typeof id === "string" && (id === "title" || props.some((p) => p.id === id && !isComputed(p))));
+  const out: Protect = { ...(o.lock === true ? { lock: true } : {}), ...(o.ai === "read" || o.ai === "append" ? { ai: o.ai } : {}), ...(unique.length ? { unique: [...new Set(unique)] } : {}) };
+  return Object.keys(out).length ? out : undefined;
+}
 
 /**
  * A database's form: the title and the fields in the order asked. A field may be `hidden` - then it is not asked and its `default` is
@@ -378,6 +397,7 @@ export function defaultOptions(type: PropType): Option[] | undefined {
 /** A column turned into another type: its id, name and settings stay; a type with choices starts with some when it has none. */
 export function retype(p: Property, type: PropType): Property {
   const next: Property = { ...p, type };
+  if (type !== "custom") delete next.custom;
   if (!next.options?.length) {
     const options = defaultOptions(type);
     if (options) next.options = options;
@@ -445,7 +465,7 @@ export function normalizeSchema(raw: unknown): DbSchema {
   const o = (raw && typeof raw === "object" ? raw : {}) as Partial<DbSchema>;
   const props = (Array.isArray(o.properties) ? o.properties : []).filter((p): p is Property => !!p && typeof p.id === "string" && (PROP_TYPES as readonly string[]).includes(p.type)).map(withAiColors);
   const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [] }));
-  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(formOf(o.form, props) ? { form: formOf(o.form, props) } : {}), ...(o.rules === true ? { rules: true } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}) };
+  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(formOf(o.form, props) ? { form: formOf(o.form, props) } : {}), ...(protectOf(o.protect, props) ? { protect: protectOf(o.protect, props) } : {}), ...(o.rules === true ? { rules: true } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}) };
 }
 
 export const propById = (props: Property[], id: string): Property | undefined => props.find((p) => p.id === id);

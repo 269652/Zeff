@@ -252,7 +252,7 @@ export type DatabaseData = {
   locked: boolean;
   /** Its source only lends records (automations, their runs): no row can be made by hand. */
   noNewRows?: boolean;
-  extras: { keys: Record<number, string>; subtasks: Record<number, { done: number; total: number }>; tickets: Record<string, TicketExtras>; todosOn: boolean; briefing: boolean; knowledge: boolean; me: { names: string[]; ids: number[] }; source: string | null; running?: boolean; /** The app views it can have (mail client, chat — their plugins installed). */ appViews?: { id: string; label: string; icon: string }[]; /** The sources plugins bring (People …), for the pipeline editor. */ extSources?: { id: string; label: string; icon: string; hint?: string }[]; /** Mail or message channels can be named as sources (the View menu offers "Inbox"). */ inboxPossible?: boolean; /** What its sources let you do (reply where they send; read-only else). */ capabilities?: { reply: string[]; drafts: string[]; readOnly: boolean }; /** Its derived databases (an app shows them as folders), and the one it is derived from. */ derived?: { id: number; title: string; icon: string; count: number; unread: number }[]; derivedFrom?: number | null; previews: Record<number, PreviewLine[]>; /** Rows that are linked copies of a row in another database. */ links?: Record<number, { source: number; sourceTitle: string; sourceDb: string }>; /** The custom view its rows have (a plugin's): its id. */ rowView?: string | null };
+  extras: { keys: Record<number, string>; subtasks: Record<number, { done: number; total: number }>; tickets: Record<string, TicketExtras>; todosOn: boolean; briefing: boolean; knowledge: boolean; me: { names: string[]; ids: number[] }; source: string | null; /** The field types the databases can have (the Workspace's and the plugins'). */ fieldTypes?: import("./field-point").FieldTypeInfo[]; running?: boolean; /** The app views it can have (mail client, chat — their plugins installed). */ appViews?: { id: string; label: string; icon: string }[]; /** The sources plugins bring (People …), for the pipeline editor. */ extSources?: { id: string; label: string; icon: string; hint?: string }[]; /** Mail or message channels can be named as sources (the View menu offers "Inbox"). */ inboxPossible?: boolean; /** What its sources let you do (reply where they send; read-only else). */ capabilities?: { reply: string[]; drafts: string[]; readOnly: boolean }; /** Its derived databases (an app shows them as folders), and the one it is derived from. */ derived?: { id: number; title: string; icon: string; count: number; unread: number }[]; derivedFrom?: number | null; previews: Record<number, PreviewLine[]>; /** Rows that are linked copies of a row in another database. */ links?: Record<number, { source: number; sourceTitle: string; sourceDb: string }>; /** The custom view its rows have (a plugin's): its id. */ rowView?: string | null };
 };
 
 export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: DatabaseData }>> {
@@ -296,8 +296,8 @@ export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: D
       const attention = typeof att === "string" && isAttention(att) ? att : (cur?.attention ?? null);
       tickets[k] = { attention, attentionLabel: attention && isAttention(attention) ? attentionLabels(t)[attention] : null, lead: typeof lead === "string" ? lead : (cur?.lead ?? null), summary: typeof r.cells[LAGE_FIELDS.summary] === "string" ? String(r.cells[LAGE_FIELDS.summary]) : (cur?.summary ?? null), happened: cur?.happened ?? [], todos: cur?.todos ?? [] };
     }
-    const extras: DatabaseData["extras"] = { keys, subtasks: subtaskCounts(d.schema, d.rows, page.id), tickets, todosOn: isInstalled("todos"), ...collectionSwitches(page.id), me: await whoAmI(), source: collectionSource(page.id), running: (await import("./pipeline")).pipelineRunning(page.id), extSources: (await (await import("./source-point")).extSources()).map((x) => ({ id: x.id, label: x.label, icon: x.icon, hint: x.hint })), inboxPossible: (await import("./derived")).channelKinds().mail || (await import("./derived")).channelKinds().messages, appViews: (await import("./app-views")).appViewsFor(d.schema.dataType).map((a) => ({ id: a.id, label: t(a.label), icon: a.icon })), capabilities: (await import("./capabilities")).capabilitiesOf(d.schema), derived: (await import("./derived")).derivedOf(page.id), derivedFrom: (await import("./derived")).derivedFrom(d.schema), previews: Object.fromEntries(d.rows.map((r) => [r.id, previewLines(store.getPage(r.id)?.content, 10)])), links: (await import("./links")).linksIn(d.rows.map((r) => r.id)), rowView: (await import("./row-views")).rowViewOf(d.schema.dataType)?.id ?? null };
-    return { data: { id: page.id, title: page.title, icon: page.icon, locked: page.locked, noNewRows: await readOnlyRows(page.id), schema: d.schema, rows: d.rows, labels, templates: store.rowTemplates(page.id).map((r) => ({ id: r.id, title: r.title || t("Untitled") })), related, extras } };
+    const extras: DatabaseData["extras"] = { keys, subtasks: subtaskCounts(d.schema, d.rows, page.id), tickets, todosOn: isInstalled("todos"), ...collectionSwitches(page.id), me: await whoAmI(), source: collectionSource(page.id), fieldTypes: await (async () => (await import("@/plugins/contributions"), (await import("./field-types")).fieldTypeInfos()))(), running: (await import("./pipeline")).pipelineRunning(page.id), extSources: (await (await import("./source-point")).extSources()).map((x) => ({ id: x.id, label: x.label, icon: x.icon, hint: x.hint })), inboxPossible: (await import("./derived")).channelKinds().mail || (await import("./derived")).channelKinds().messages, appViews: (await import("./app-views")).appViewsFor(d.schema.dataType).map((a) => ({ id: a.id, label: t(a.label), icon: a.icon })), capabilities: (await import("./capabilities")).capabilitiesOf(d.schema), derived: (await import("./derived")).derivedOf(page.id), derivedFrom: (await import("./derived")).derivedFrom(d.schema), previews: Object.fromEntries(d.rows.map((r) => [r.id, previewLines(store.getPage(r.id)?.content, 10)])), links: (await import("./links")).linksIn(d.rows.map((r) => r.id)), rowView: (await import("./row-views")).rowViewOf(d.schema.dataType)?.id ?? null };
+    return { data: { id: page.id, title: page.title, icon: page.icon, locked: page.locked || !!d.schema.protect?.lock, noNewRows: await readOnlyRows(page.id), schema: d.schema, rows: d.rows, labels, templates: store.rowTemplates(page.id).map((r) => ({ id: r.id, title: r.title || t("Untitled") })), related, extras } };
   });
 }
 
@@ -675,8 +675,30 @@ export async function submitFormAction(dbId: number, title: string, answers: Rec
 }
 
 /** One field set for several rows at once - what could not be set (a computed field, a value that does not fit) is told. */
+/** An action done as one that can be undone: its result, and the id of its entry in the history (null: it changed nothing, or was too big to keep). */
+async function asUndoable<T extends object>(label: string, fn: () => Promise<T> | T, actor: "you" | "ai" | "source" = "you"): Promise<T & { undoId: number | null }> {
+  const { undoable } = await import("./undo");
+  const { value, undoId } = await undoable(label, fn, actor);
+  return { ...value, undoId };
+}
+
+/** The recent actions that can be undone as a whole. */
+export async function undoEntriesAction() {
+  return run(async () => ({ entries: (await import("./undo")).undoEntries() }));
+}
+
+/** How many pages an undo would touch, and how many of them were changed again since. */
+export async function undoPreviewAction(id: number) {
+  return run(async () => (await import("./undo")).undoPreview(Number(id)));
+}
+
+/** An action undone: its pages put back as they were, the ones it made in the trash. */
+export async function undoAction(id: number) {
+  return run(async () => (await import("./undo")).undo(Number(id)));
+}
+
 export async function bulkSetAction(rowIds: number[], propId: string, value: unknown) {
-  return run(() => {
+  return run(() => asUndoable(t("Bulk edit: {n} rows", { n: rowIds.length }), () => {
     let done = 0;
     const failed: string[] = [];
     for (const id of rowIds.map(Number).slice(0, 500)) {
@@ -689,20 +711,22 @@ export async function bulkSetAction(rowIds: number[], propId: string, value: unk
     }
     void Promise.all(rowIds.map((id) => import("./pipeline").then((p) => p.syncAfterEdit(Number(id))).catch(() => undefined)));
     return { done, failed: [...new Set(failed)] };
-  });
+  }));
 }
 
 /** Several rows moved to another database (see store.moveRowsToDatabase). */
 export async function moveRowsAction(rowIds: number[], targetId: number) {
-  return run(async () => {
-    for (const id of rowIds) await (await import("./source-write")).removeFromSource(Number(id)).catch(() => undefined);
-    return store.moveRowsToDatabase(rowIds.map(Number).slice(0, 500), Number(targetId));
-  });
+  return run(() =>
+    asUndoable(t("Moved {n} rows to another database", { n: rowIds.length }), async () => {
+      for (const id of rowIds) await (await import("./source-write")).removeFromSource(Number(id)).catch(() => undefined);
+      return store.moveRowsToDatabase(rowIds.map(Number).slice(0, 500), Number(targetId));
+    }),
+  );
 }
 
 /** Several rows to the trash at once (a row of a source that can't be deleted there stays - it is told). */
 export async function archiveRowsAction(rowIds: number[]) {
-  return run(async () => {
+  return run(() => asUndoable(t("Moved {n} rows to the trash", { n: rowIds.length }), async () => {
     const gone: number[] = [];
     const kept: string[] = [];
     for (const id of rowIds.map(Number).slice(0, 500)) {
@@ -715,7 +739,7 @@ export async function archiveRowsAction(rowIds: number[]) {
       }
     }
     return { gone, kept: [...new Set(kept)] };
-  });
+  }));
 }
 
 export async function duplicateRowAction(rowId: number) {
@@ -899,7 +923,7 @@ export async function workspaceChatAction(messages: { role: "user" | "assistant"
     const talk = (Array.isArray(messages) ? messages : []).filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.text === "string");
     if (!talk.length || talk[talk.length - 1].role !== "user") throw new Error(t("Say what the AI should do."));
     const { workspaceChat } = await import("./agent");
-    return await workspaceChat(talk, pageId ? Number(pageId) : undefined);
+    return await asUndoable(t("AI chat: {text}", { text: talk[talk.length - 1].text.replace(/\s+/g, " ").slice(0, 80) }), () => workspaceChat(talk, pageId ? Number(pageId) : undefined), "ai");
   });
 }
 

@@ -14,6 +14,8 @@ import { emitChange } from "@/lib/events";
 import { emitRowEvent, isViaSource } from "./events";
 import { workspaceSources } from "./source-point";
 import { logChange } from "./activity";
+import { parseCustom } from "./field-types";
+import { made, touch } from "./undo";
 import { docRefs, docText, emptyDoc, sanitizeDoc, type Doc, type DocRef } from "./doc";
 import { cellText, computeRows, dateRange, defaultSchema, isComputed, SYSTEM_PROPS, newProperty, normalizeSchema, propById, TITLE, type DbSchema, type Labels, type Property, type Row } from "./model";
 
@@ -143,9 +145,37 @@ const maxPosition = (parentId: number | null): number => ((db().prepare("select 
 
 export type NewPage = { parentId?: number | null; title?: string; icon?: string; kind?: "page" | "database"; dbId?: number | null; content?: unknown; props?: Record<string, unknown>; schema?: DbSchema; template?: boolean };
 
+/** Whether a value is already another row's in a field that may not repeat (`TITLE`: the title). Empty values never clash. */
+function clashes(dbId: number, propId: string, text: string, exceptRow?: number): boolean {
+  const key = text.trim().toLowerCase();
+  if (!key) return false;
+  const d = getDatabase(dbId);
+  const p = propId === TITLE ? undefined : d?.schema.properties.find((q) => q.id === propId);
+  return rawRows(dbId).some((r) => r.id !== exceptRow && (propId === TITLE ? r.title : p ? cellText(p, r.cells[p.id]) : "").trim().toLowerCase() === key);
+}
+
+/**
+ * What the database's protection (schema.protect) lets through - for you and for the AI; a source writing its own records is let through.
+ * `fields`: the values a row would have (a new row, or the one cell being set) in the fields that may not repeat.
+ */
+function protectCheck(dbId: number, act: "add" | "set" | "remove", fields: Record<string, string> = {}, rowId?: number): void {
+  const rule = getDatabase(dbId)?.schema.protect;
+  if (!rule || isViaSource()) return;
+  if (rule.lock) throw new Error("This database is locked — its rows can't be added, changed or removed.");
+  if (inAgentScope() && rule.ai && (rule.ai === "read" || act !== "add")) throw new Error(rule.ai === "read" ? "The AI may not change this database (set by you)." : "The AI may only add rows to this database, not change or remove them (set by you).");
+  for (const id of rule.unique ?? []) {
+    if (id in fields && clashes(dbId, id, fields[id], rowId)) throw new Error(`"${id === TITLE ? "title" : (getDatabase(dbId)?.schema.properties.find((p) => p.id === id)?.name ?? id)}" must be unique — "${fields[id]}" is already taken.`);
+  }
+}
+
 /** A page made. A row (`dbId`) takes the database's place in the tree; a database gets a default schema. */
 export function createPage(v: NewPage = {}): number {
   noAgentOnSystem(v.parentId ?? v.dbId);
+  if (v.dbId && getDatabase(v.dbId)?.schema.protect) {
+    const schema = getDatabase(v.dbId)!.schema;
+    const props = v.props ?? {};
+    protectCheck(v.dbId, "add", Object.fromEntries((schema.protect?.unique ?? []).map((id) => [id, id === TITLE ? (v.title ?? "") : cellText(schema.properties.find((p) => p.id === id)!, props[id])])));
+  }
   const d = db();
   const kind = v.kind === "database" ? "database" : "page";
   if (v.dbId) {
@@ -173,6 +203,7 @@ export function createPage(v: NewPage = {}): number {
       at,
     );
   const id = Number(r.lastInsertRowid);
+  made(id);
   index(id);
   relink(id, doc);
   logChange(id, "created");
@@ -239,12 +270,14 @@ export function updatePage(id: number, patch: PagePatch, rev?: number): SaveResu
   const d = db();
   const cur = d.prepare("select * from ws_pages where id = ?").get(id) as PRow | undefined;
   if (!cur) throw new Error("No such page.");
+  touch(id);
   if (patch.content !== undefined && rev !== undefined && rev !== cur.rev) return { ok: false, conflict: true, rev: cur.rev };
   const sets: string[] = [];
   const args: unknown[] = [];
   const set = (col: string, v: unknown) => (sets.push(`${col} = ?`), args.push(v));
   let doc: Doc | null = null;
   if (patch.title !== undefined) {
+    if (cur.db_id && clip(patch.title, 300) !== cur.title) protectCheck(cur.db_id, "set", { [TITLE]: clip(patch.title, 300) }, id);
     set("title", clip(patch.title, 300));
     logChange(id, "title", cur.title, clip(patch.title, 300));
   }
@@ -330,6 +363,7 @@ export function movePage(id: number, parentId: number | null, beforeId?: number 
     const prev = at > 0 ? siblings[at - 1].position : siblings[at].position - 2;
     position = (prev + siblings[at].position) / 2;
   } else position = (siblings.length ? siblings[siblings.length - 1].position : 0) + 1;
+  touch(id);
   d.prepare("update ws_pages set parent_id = ?, position = ?, updated_at = ? where id = ?").run(parentId, position, now(), id);
   changed();
 }
@@ -361,9 +395,12 @@ function keepSystem(id: number, parentId?: number | null): void {
 
 export function archivePage(id: number): void {
   keepSystem(id);
+  const target = getPage(id);
+  if (target?.dbId) protectCheck(target.dbId, "remove");
   logChange(id, "trash");
   const was = getPage(id);
   const ids = [id, ...subtree(id)];
+  touch(...ids);
   const at = now();
   const d = db();
   d.transaction(() => {
@@ -376,12 +413,40 @@ export function archivePage(id: number): void {
   if (was?.dbId && !was.archivedAt) emitRowEvent("row.removed", { db: was.dbId, row: id });
 }
 
+/**
+ * Pages put back as an undone action had them (`rows`: their raw state before), and the pages it made sent to the trash.
+ * A page that was removed since comes back; the search index follows. Used by undo.ts.
+ */
+export function restoreRaw(rows: Record<string, unknown>[], madeIds: number[]): { restored: number; trashed: number } {
+  const d = db();
+  let restored = 0;
+  let trashed = 0;
+  d.transaction(() => {
+    for (const row of rows) {
+      const id = Number(row.id);
+      const cols = Object.keys(row).filter((k) => k !== "id");
+      const found = d.prepare(`update ws_pages set ${cols.map((c) => `${c} = ?`).join(", ")} where id = ?`).run(...cols.map((c) => row[c] as never), id).changes;
+      if (!found) d.prepare(`insert into ws_pages (id, ${cols.join(", ")}) values (?, ${cols.map(() => "?").join(", ")})`).run(id, ...cols.map((c) => row[c] as never));
+      index(id);
+      restored++;
+    }
+    for (const id of madeIds) {
+      if (rows.some((r) => Number(r.id) === id)) continue;
+      trashed += d.prepare("update ws_pages set archived_at = ? where id = ? and archived_at is null").run(now(), id).changes;
+      index(id);
+    }
+  })();
+  changed();
+  return { restored, trashed };
+}
+
 export function restorePage(id: number): void {
   const d = db();
   const p = getPage(id);
   if (!p) return;
   logChange(id, "restored");
   const ids = [id, ...subtree(id)];
+  touch(...ids);
   d.transaction(() => {
     // A page whose parent is in the trash too comes back to the top.
     if (p.parentId) {
@@ -433,7 +498,7 @@ function cleanRelations(pageId: number) {
           dirty = true;
         }
       }
-      if (dirty) d.prepare("update ws_pages set props = ? where id = ?").run(JSON.stringify(props), r.id);
+      if (dirty) (touch(r.id), d.prepare("update ws_pages set props = ? where id = ?").run(JSON.stringify(props), r.id));
     }
   }
 }
@@ -674,6 +739,7 @@ export function updateSchema(id: number, next: unknown): DbSchema {
   }
   const dropped = cur.schema.properties.filter((p) => !ids.has(p.id)).map((p) => p.id);
   const d = db();
+  touch(id);
   d.transaction(() => {
     d.prepare("update ws_pages set schema = ?, updated_at = ? where id = ?").run(JSON.stringify(schema), now(), id);
     if (dropped.length) {
@@ -686,7 +752,7 @@ export function updateSchema(id: number, next: unknown): DbSchema {
             dirty = true;
           }
         }
-        if (dirty) d.prepare("update ws_pages set props = ? where id = ?").run(JSON.stringify(props), r.id);
+        if (dirty) (touch(r.id), d.prepare("update ws_pages set props = ? where id = ?").run(JSON.stringify(props), r.id));
       }
     }
   })();
@@ -743,6 +809,8 @@ export function coerceCell(p: Property, v: unknown): unknown {
     case "email":
     case "phone":
       return String(v).trim().slice(0, 500) || null;
+    case "custom":
+      return parseCustom(p.custom, v);
     case "text":
     case "markdown":
     case "ai":
@@ -767,10 +835,12 @@ export function setCell(rowId: number, propId: string, value: unknown): void {
   noAgentOnSystem(rowId);
   const props = { ...row.props };
   const v = coerceCell(p, value);
+  protectCheck(row.dbId, "set", { [p.id]: cellText(p, v) }, rowId);
   const was = cellText(p, props[propId]);
   if (v === null) delete props[propId];
   else props[propId] = v;
   logChange(rowId, p.name, was, cellText(p, v));
+  touch(rowId);
   db().prepare("update ws_pages set props = ?, updated_at = ? where id = ?").run(JSON.stringify(props), now(), rowId);
   index(rowId); // (what a cell says is searchable)
   changed();
@@ -808,7 +878,7 @@ export function placeRow(rowId: number, at: { after: number | null; before: numb
       (d.prepare("select id from ws_pages where db_id = ? order by position, id").all(row.dbId) as { id: number }[]).forEach((r, i) => set.run(i + 1, r.id));
       p = between();
     }
-    if (p !== null) d.prepare("update ws_pages set position = ? where id = ?").run(p, rowId);
+    if (p !== null) (touch(rowId), d.prepare("update ws_pages set position = ? where id = ?").run(p, rowId));
   })();
   changed();
 }

@@ -285,16 +285,22 @@ function PropertyEditor({ p, schema, data, dbId, onChange, onRemove, databases, 
         <input className="input min-w-0 flex-1 basis-40 text-sm" value={p.name} aria-label={t("Name")} onChange={(e) => onChange({ ...p, name: e.target.value })} />
         <select
           className="input w-auto shrink-0 text-sm"
-          value={p.type}
+          value={p.type === "custom" ? `custom:${p.custom ?? ""}` : p.type}
           aria-label={t("Type")}
           disabled={p.type === "relation" && !!p.backOf}
           onChange={(e) => {
-            onChange(retype(p, e.target.value as PropType));
+            const v = e.target.value;
+            onChange(v.startsWith("custom:") ? { ...retype(p, "custom"), custom: v.slice(7) } : retype(p, v as PropType));
           }}
         >
-          {PROP_TYPES.filter((x) => x !== "relation" || p.type === "relation" || true).map((x) => (
+          {PROP_TYPES.filter((x) => x !== "custom").map((x) => (
             <option key={x} value={x}>
               {t(PROP_LABELS[x])}
+            </option>
+          ))}
+          {(data.extras?.fieldTypes ?? []).map((f) => (
+            <option key={f.id} value={`custom:${f.id}`}>
+              {f.icon} {f.label}
             </option>
           ))}
         </select>

@@ -5,6 +5,8 @@ import { WORKSPACE_API } from "./api";
 import { workspaceWidgets } from "./widget-point";
 import { WORKSPACE_WIDGETS } from "./widgets-workspace";
 import { workspaceSources } from "./source-point";
+import { workspaceFieldTypes } from "./field-point";
+import { CORE_FIELD_TYPES } from "./field-types";
 import { ROUTINES_SOURCE, RUNS_SOURCE } from "./automation-databases";
 
 /** What Workspace registers for other plugins (loaded through plugins/contributions). */
@@ -14,3 +16,4 @@ apiPoint.contribute("workspace", WORKSPACE_API);
 workspaceWidgets.contribute("workspace", WORKSPACE_WIDGETS);
 // Its automations and their runs as rows (the databases "Automations" and "Automation runs").
 workspaceSources.contribute("workspace", [ROUTINES_SOURCE, RUNS_SOURCE]);
+workspaceFieldTypes.contribute("workspace", CORE_FIELD_TYPES);
