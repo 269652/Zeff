@@ -4,12 +4,10 @@ import { accountDir, currentAccountId } from "@/db/accounts";
 import { setCollection } from "@/lib/items";
 import { getPref, setPref } from "@/lib/prefs";
 import { isInstalled, setInstalled } from "@/plugins/state";
-import { COLOR_PROP, NOTE_PROP, PINNED_PROP } from "@/plugins/workspace/collections";
 import { markdownToDoc } from "@/plugins/workspace/doc";
-import { COLORS, newId, newProperty, newView, type DbSchema, type Option, type Property } from "@/plugins/workspace/model";
 import { addRow, archivePage, createPage, getDatabase, updatePage } from "@/plugins/workspace/store";
 import { listKeepBoards, listOwnNotes, updateKeepBoard, type NoteView } from "./boards";
-import { KEEP_COLORS } from "./colors";
+import { notesBoardSchema } from "@/plugins/workspace/notes-board";
 
 /**
  * A Keep board moved into the Workspace: a database with a gallery view (pinned on top) — its notes
@@ -37,33 +35,8 @@ export function movedKeepBoard(boardId: number): number | null {
   return r && getDatabase(r.db_id) ? r.db_id : null;
 }
 
-/** Keep's colours as the Workspace's (those it has; teal and cerulean nearest). */
-const WS_COLOR: Record<string, string> = { teal: "green", cerulean: "blue" };
-const wsColor = (c: string) => WS_COLOR[c] ?? ((COLORS as readonly string[]).includes(c) ? c : "gray");
 /** A Keep time as the Workspace keeps it (ISO). */
 const iso = (t: string | null) => new Date(t && !t.includes("T") ? `${t.replace(" ", "T")}Z` : (t ?? Date.now())).toISOString();
-const option = (name: string, color: string): Option => ({ id: newId("o"), name, color });
-
-/** The layout of a note board in the Workspace: colour, pinned, labels (the given ones as options) and the note ref; a gallery (pinned on top) and a table. */
-export function notesBoardSchema(labelNames: string[] = []) {
-  const color: Property = { id: COLOR_PROP, name: "Color", type: "select", options: Object.keys(KEEP_COLORS).map((c) => option(c, wsColor(c))) };
-  const pinned: Property = { id: PINNED_PROP, name: "Pinned", type: "checkbox" };
-  const labels: Property = { ...newProperty("Labels", "multi_select"), options: labelNames.map((n, i) => option(n, COLORS[(i + 3) % COLORS.length])) };
-  const ref: Property = { id: NOTE_PROP, name: "Note", type: "text" };
-  const schema: DbSchema = {
-    titleName: "Title",
-    properties: [color, pinned, labels, ref],
-    views: [{ ...newView("Notes", "gallery"), sorts: [{ prop: pinned.id, dir: "desc" }], hidden: [ref.id, pinned.id] }, newView("Table", "table")],
-  };
-  return { schema, color, pinned, labels, ref };
-}
-
-/** "New → Keep board": an empty note board (a Workspace database), no Keep needed. Returns its id. */
-export function createNotesBoard(parentId: number | null = null, title = "Keep board"): number {
-  const dbId = createPage({ kind: "database", parentId, title, schema: notesBoardSchema().schema });
-  updatePage(dbId, { fullWidth: true });
-  return dbId;
-}
 
 export function moveKeepBoardToWorkspace(boardId: number): { dbId: number } {
   const already = movedKeepBoard(boardId);

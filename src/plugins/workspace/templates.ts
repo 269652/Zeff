@@ -7,6 +7,7 @@ import { markdownToDoc, type DocNode } from "./doc";
 import { createJobsDatabase } from "./jobs";
 import { createRulesDatabase } from "./rules";
 import { COLORS, newId, newProperty, newView, type DbSchema, type Option, type Property, type View } from "./model";
+import { createNotesBoard } from "./notes-board";
 import { newsDatabaseTitle } from "./news-database";
 import { installPackage, listPackages } from "./packages";
 import { widgetCatalog } from "./widgets";
@@ -179,6 +180,14 @@ const TEMPLATES: Template[] = [
       addRow(id, { title: "Try the board view", cells: { [status.id]: status.options![1].id, [priority.id]: priority.options![1].id } });
       return id;
     },
+  },
+  {
+    key: "keep-board",
+    name: "Keep board",
+    icon: "🗒️",
+    description: "Notes like in Google Keep: cards with colours, labels and pinning, lists as checkboxes.",
+    kind: "database",
+    build: (parentId) => createNotesBoard(parentId, t("Keep board")),
   },
   {
     key: "decisions",
