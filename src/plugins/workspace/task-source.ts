@@ -31,6 +31,7 @@ export function taskRecords(onlyKey?: string) {
           typed: [
             { id: F.done, name: "Done", type: "checkbox" as const, value: i.checked },
             { id: F.list, name: "List", type: "text" as const, value: l.path },
+            { id: "taskdue", name: "Due", type: "date" as const, value: i.due },
           ],
         })),
     );

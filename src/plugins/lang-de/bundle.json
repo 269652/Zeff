@@ -6052,5 +6052,11 @@
   "Add a todo": "Todo hinzufügen",
   "The open rows are todos of the Todos tab too — ticking one there ticks it here.": "Die offenen Zeilen sind auch Todos im Todos-Tab — dort abhaken hakt sie hier ab.",
   "Open the Todos tab": "Todos-Tab öffnen",
-  "Everything is done. 🎉": "Alles erledigt. 🎉"
+  "Everything is done. 🎉": "Alles erledigt. 🎉",
+  "Todo database turned into a list": "Todo-Datenbank in eine Liste umgewandelt",
+  "Turn this database into a list in a page? Its rows become the items; the database goes to the trash.": "Diese Datenbank in eine Liste in einer Seite umwandeln? Ihre Zeilen werden die Einträge; die Datenbank kommt in den Papierkorb.",
+  "The database is a list now.": "Die Datenbank ist jetzt eine Liste.",
+  "Turn into a list": "In Liste umwandeln",
+  "Hide the title": "Titel verbergen",
+  "Hide titles automatically": "Titel automatisch verstecken"
 }

@@ -6052,5 +6052,11 @@
   "Add a todo": "Añadir una tarea",
   "The open rows are todos of the Todos tab too — ticking one there ticks it here.": "Las filas abiertas también son tareas de la pestaña Todos: al marcar una allí se marca aquí.",
   "Open the Todos tab": "Abrir la pestaña Todos",
-  "Everything is done. 🎉": "Todo hecho. 🎉"
+  "Everything is done. 🎉": "Todo hecho. 🎉",
+  "Todo database turned into a list": "Base de datos de tareas convertida en lista",
+  "Turn this database into a list in a page? Its rows become the items; the database goes to the trash.": "¿Convertir esta base de datos en una lista dentro de una página? Sus filas pasan a ser los elementos; la base de datos va a la papelera.",
+  "The database is a list now.": "La base de datos ya es una lista.",
+  "Turn into a list": "Convertir en lista",
+  "Hide the title": "Ocultar el título",
+  "Hide titles automatically": "Ocultar los títulos automáticamente"
 }

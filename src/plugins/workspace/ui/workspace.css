@@ -58,29 +58,6 @@
   list-style: none;
   padding-left: 0.1rem;
 }
-.ws-editor .ProseMirror ul[data-type="taskList"] li {
-  display: flex;
-  gap: 0.5rem;
-  align-items: flex-start;
-}
-.ws-editor .ProseMirror ul[data-type="taskList"] li > label {
-  margin-top: 0.3rem;
-  user-select: none;
-}
-.ws-editor .ProseMirror ul[data-type="taskList"] li > label input {
-  width: 1rem;
-  height: 1rem;
-  accent-color: var(--color-indigo-600, #4f46e5);
-  cursor: pointer;
-}
-.ws-editor .ProseMirror ul[data-type="taskList"] li > div {
-  flex: 1;
-  min-width: 0;
-}
-.ws-editor .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
-  color: var(--color-zinc-400, #a1a1aa);
-  text-decoration: line-through;
-}
 .ws-editor .ProseMirror blockquote {
   border-left: 3px solid var(--color-zinc-300, #d4d4d8);
   padding-left: 1rem;
@@ -1056,8 +1033,25 @@
 .ws-todo-title::placeholder { color: rgba(127, 127, 127, 0.8); font-weight: 500; }
 .ws-todo-count { font-size: 0.75rem; opacity: 0.65; font-variant-numeric: tabular-nums; }
 .ws-todo-block ul[data-type="taskList"] { margin: 0; }
-.ws-todo-embed-items { margin: 0; padding: 0; list-style: none; }
-.ws-todo-embed-items li { display: flex; align-items: center; gap: 0.5rem; padding: 0.12rem 0; }
-.ws-todo-embed-text { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; }
-.ws-todo-embed-add { width: 100%; margin-top: 0.2rem; padding: 0.3rem 0; background: transparent; border: 0; border-top: 1px dashed rgba(127, 127, 127, 0.35); outline: 0; font-size: 0.9rem; }
 .ws-tasklist-nested { margin-left: 0.2rem; }
+
+/* One look for every to-do list: a block in a page, a list shown in another page, a database with its Todo view. */
+.ws-todo-items { margin: 0; padding: 0; list-style: none; }
+.ws-todo-row { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.08rem 0.25rem; border-radius: 6px; }
+.ws-todo-row:hover { background: rgba(127, 127, 127, 0.07); }
+.ws-todo-check { flex: none; width: 1rem; height: 1rem; margin-top: 0.32rem; accent-color: var(--color-indigo-600, #4f46e5); cursor: pointer; }
+.ws-todo-text { flex: 1; min-width: 0; }
+.ws-todo-text-input { padding: 0.1rem 0; font: inherit; background: transparent; border: 0; outline: 0; }
+.ws-todo-row[data-checked="true"] > .ws-todo-text, .ws-todo-row[data-checked="true"] > .ws-todo-text-input { color: var(--color-zinc-400, #a1a1aa); text-decoration: line-through; }
+.ws-todo-due { flex: none; width: 8.3rem; margin-top: 0.12rem; font-size: 0.75rem; color: rgba(127, 127, 127, 0.95); background: transparent; border: 0; outline: 0; }
+.ws-todo-due.is-late { color: #dc2626; }
+.ws-todo-due.is-empty { opacity: 0; }
+.ws-todo-row:hover .ws-todo-due.is-empty, .ws-todo-due.is-empty:focus { opacity: 1; }
+.ws-todo-hover { opacity: 0; }
+.ws-todo-row:hover .ws-todo-hover { opacity: 1; }
+.ws-todo-group { padding: 0.1rem 0.25rem; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.65; background: none; border: 0; }
+.ws-todo-group.is-late { color: #dc2626; opacity: 1; }
+.ws-todo-add { display: block; width: 100%; padding: 0.35rem 0.25rem; font-size: 0.9rem; background: transparent; border: 0; border-top: 1px dashed rgba(127, 127, 127, 0.35); outline: 0; }
+.ws-todo-items .ws-todo-row { align-items: center; }
+.ws-todo-items .ws-todo-check, .ws-todo-items .ws-todo-due { margin-top: 0; }
+.ws-todo-block.is-headless { padding-top: 0; padding-bottom: 0; border-color: transparent; }

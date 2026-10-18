@@ -173,3 +173,68 @@ test("block to-do lists in Markdown: the head keeps id, title and engine; items 
   const fl = lists.allTaskLists().find((x) => x.pageId === fresh)!;
   assert.ok(fl.listId && fl.items.every((i) => i.itemId) && new Set(fl.items.map((i) => i.itemId)).size === 2);
 });
+
+test("one model for lists and databases: a due day on an item, in Markdown, in the engine and across a conversion", async () => {
+  const { lists, page, store } = await world();
+  const { docToMarkdown, markdownToDoc } = await import("@/plugins/workspace/doc");
+  const { todoByRef } = await import("@/lib/boards/store");
+  const l = lists.allTaskLists().find((x) => x.pageId === page)!;
+  lists.setItemDue(page, l.listId, l.items[0].itemId, "2026-11-02");
+  assert.equal(lists.getTaskList(page, l.listId)!.items[0].due, "2026-11-02");
+  const md = docToMarkdown(store.getPage(page)!.content);
+  assert.ok(md.includes("- [ ] Call the office @due(2026-11-02)"), md);
+  assert.equal(markdownToDoc(md).content.some((n) => n.type === "taskList" && n.content?.[0].attrs?.due === "2026-11-02"), true);
+  lists.setListMeta(page, l.listId, { engine: true });
+  assert.equal(todoByRef(`bt:${l.items[0].itemId}`)!.due, "2026-11-02", "the day is the todo's");
+  lists.setItemDue(page, l.listId, l.items[0].itemId, "2026-12-24");
+  lists.syncPageLists(page);
+  assert.equal(todoByRef(`bt:${l.items[0].itemId}`)!.due, "2026-12-24");
+  const { dbId } = await lists.convertToDatabase(page, l.listId);
+  const row = store.rowsOf(dbId)!.rows[0];
+  assert.equal(row.cells.todo_due, "2026-12-24", "the day became the row's");
+});
+
+test("a todo database turned back into a list: the rows are its items, the database's place is taken, the todos stay the same ones", async () => {
+  const { lists, page, store } = await world();
+  const { convertToList } = await import("@/plugins/workspace/todo-lists");
+  const { todoByRef } = await import("@/lib/boards/store");
+  const l = lists.allTaskLists().find((x) => x.pageId === page)!;
+  lists.setItemDue(page, l.listId, l.items[0].itemId, "2026-11-02");
+  lists.setListMeta(page, l.listId, { title: "Office tasks", engine: true });
+  const before = todoByRef(`bt:${l.items[0].itemId}`)!;
+  // list -> database -> list again: the same items, the same todo.
+  const { dbId } = await lists.convertToDatabase(page, l.listId);
+  const asRow = todoByRef(`ws:${store.rowsOf(dbId)!.rows[0].id}`)!;
+  assert.equal(asRow.id, before.id);
+  const back = convertToList(dbId);
+  assert.equal(back.pageId, page, "in the page that showed the database");
+  const now = lists.getTaskList(page, back.listId)!;
+  assert.deepEqual(now.items.map((i) => [i.text, i.checked, i.due]), [["Call the office", false, "2026-11-02"], ["Send papers", true, null]]);
+  assert.deepEqual([now.title, now.engine], ["Office tasks", true]);
+  assert.equal(todoByRef(`bt:${now.items[0].itemId}`)!.id, before.id, "the todo follows to the item");
+  assert.notEqual(store.getPage(dbId)!.archivedAt, null, "the database is in the trash");
+  assert.ok(!JSON.stringify(store.getPage(page)!.content).includes('"databaseView"'));
+  // A database that is nowhere shown: under its page the list is appended; with no page, a page of its own.
+  const { createTodoDatabase } = await import("@/plugins/workspace/todo-lists");
+  const under = createTodoDatabase({ title: "Chores", parentId: page, items: [{ title: "Wash up" }] });
+  const r1 = convertToList(under.dbId);
+  assert.equal(r1.pageId, page);
+  assert.ok(lists.getTaskList(page, r1.listId)!.items.some((i) => i.text === "Wash up"));
+  const loose = createTodoDatabase({ title: "Loose", items: [{ title: "One" }, { title: "Two", done: true }] });
+  const r2 = convertToList(loose.dbId);
+  assert.notEqual(r2.pageId, page);
+  assert.equal(store.getPage(r2.pageId)!.title, "Loose");
+  assert.deepEqual(lists.getTaskList(r2.pageId, r2.listId)!.items.map((i) => [i.text, i.checked]), [["One", false], ["Two", true]]);
+  assert.throws(() => convertToList(store.createPage({ kind: "database", title: "No box" })), /checkbox/);
+});
+
+test("the setting 'Hide titles automatically': on unless switched off, and it stays", async () => {
+  const { autoHideTitlesAction } = await import("@/plugins/workspace/actions");
+  const first = await autoHideTitlesAction();
+  assert.ok(first.ok && first.value === true);
+  const off = await autoHideTitlesAction(false);
+  assert.ok(off.ok && off.value === false);
+  const again = await autoHideTitlesAction();
+  assert.ok(again.ok && again.value === false);
+  await autoHideTitlesAction(true);
+});

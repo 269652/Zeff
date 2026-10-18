@@ -185,7 +185,9 @@ function block(n: DocNode, ctx: { ordered?: number; nested?: boolean } = {}): st
     case "taskItem": {
       const mark = n.type === "taskItem" ? (n.attrs?.checked ? "- [x] " : "- [ ] ") : ctx.ordered ? `${ctx.ordered}. ` : "- ";
       const parts = kids.map((c) => (c.type === "bulletList" || c.type === "orderedList" || c.type === "taskList" ? indentLines(block(c, { nested: true }), "  ") : block(c)));
-      const [first = "", ...rest] = parts;
+      const [first0 = "", ...rest] = parts;
+      // A to-do item's due day closes its first line: "@due(2026-11-02)".
+      const first = n.type === "taskItem" && /^\d{4}-\d{2}-\d{2}$/.test(String(n.attrs?.due ?? "")) ? `${first0} @due(${String(n.attrs?.due)})` : first0;
       return `${mark}${first}${rest.length ? `\n${rest.map((r) => (/^\s*(-|\d+\.) /.test(r) ? r : indentLines(r, "  "))).join("\n")}` : ""}`;
     }
     case "blockquote":
@@ -473,7 +475,15 @@ export function markdownToDoc(md: string): Doc {
       i++;
       let text = m[4];
       const task = /^\[( |x|X)\]\s+(.*)$/.exec(text);
-      if (task) text = task[2];
+      let due = "";
+      if (task) {
+        text = task[2];
+        const d = /\s@due\((\d{4}-\d{2}-\d{2})\)\s*$/.exec(text);
+        if (d) {
+          due = d[1];
+          text = text.slice(0, d.index);
+        }
+      }
       const kids: DocNode[] = [para(text)];
       // Nested lists and continuation lines belong to the item.
       while (i < lines.length) {
@@ -481,7 +491,7 @@ export function markdownToDoc(md: string): Doc {
         if (nm && nm[1].length > indent) kids.push(parseList(nm[1].length));
         else break;
       }
-      items.push(task ? { type: "taskItem", attrs: { checked: task[1] !== " " }, content: kids } : { type: "listItem", content: kids });
+      items.push(task ? { type: "taskItem", attrs: { checked: task[1] !== " ", ...(due ? { due } : {}) }, content: kids } : { type: "listItem", content: kids });
     }
     return tasks ? { type: "taskList", content: items } : ordered ? { type: "orderedList", attrs: { start: Number(first[2]) || 1 }, content: items } : { type: "bulletList", content: items };
   };
@@ -502,7 +512,7 @@ const NODE_ATTRS: Record<string, string[]> = {
   orderedList: ["start", "type"],
   listItem: [],
   taskList: ["listId", "title", "engine"],
-  taskItem: ["checked", "itemId"],
+  taskItem: ["checked", "itemId", "due"],
   blockquote: [],
   codeBlock: ["language"],
   horizontalRule: [],
@@ -675,6 +685,9 @@ export function sanitizeDoc(input: unknown): Doc {
         if (/^[\w-]{1,24}$/.test(id)) attrs.itemId = id;
         else delete attrs.itemId;
         attrs.checked = attrs.checked === true;
+        const due = String(attrs.due ?? "");
+        if (/^\d{4}-\d{2}-\d{2}$/.test(due)) attrs.due = due;
+        else delete attrs.due;
       }
       if (o.type === "todoListEmbed") {
         const id = Math.floor(Number(attrs.pageId));

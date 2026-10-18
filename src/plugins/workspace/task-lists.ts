@@ -1,5 +1,5 @@
 import { getSqlite } from "@/db";
-import { addCalendarTodo, getTodo, setTodoStatus, setTodoText, todoByRef } from "@/lib/boards/store";
+import { addCalendarTodo, getTodo, setTodoDue, setTodoStatus, setTodoText, todoByRef } from "@/lib/boards/store";
 import { docText, withTaskIds, type Doc, type DocNode } from "./doc";
 import { newId } from "./model";
 import { breadcrumbs, getPage, updatePage } from "./store";
@@ -11,7 +11,7 @@ import { breadcrumbs, getPage, updatePage } from "./store";
  * database. Server only.
  */
 
-export type ListItem = { itemId: string; text: string; checked: boolean; depth: number };
+export type ListItem = { itemId: string; text: string; checked: boolean; depth: number; /** YYYY-MM-DD */ due: string | null };
 export type TaskList = {
   /** "<page id>:<list id>" */
   key: string;
@@ -51,7 +51,7 @@ const itemText = (item: DocNode): string =>
 
 function itemsOf(list: DocNode, depth = 0): ListItem[] {
   return (list.content ?? []).flatMap((item) => [
-    { itemId: String(item.attrs?.itemId ?? ""), text: itemText(item), checked: item.attrs?.checked === true, depth },
+    { itemId: String(item.attrs?.itemId ?? ""), text: itemText(item), checked: item.attrs?.checked === true, depth, due: /^\d{4}-\d{2}-\d{2}$/.test(String(item.attrs?.due ?? "")) ? String(item.attrs?.due) : null },
     ...(item.content ?? []).filter((c) => c.type === "taskList").flatMap((l) => itemsOf(l, depth + 1)),
   ]);
 }
@@ -131,12 +131,25 @@ export function setItemText(pageId: number, listId: string, itemId: string, text
   });
 }
 
-export function addItem(pageId: number, listId: string, text: string): string {
+/** An item's due day (null: none). */
+export function setItemDue(pageId: number, listId: string, itemId: string, due: string | null): void {
+  editDoc(pageId, (doc) => {
+    const item = findItem(findList(doc, listId) ?? { type: "taskList" }, itemId);
+    if (!item || (item.attrs?.due ?? null) === due) return false;
+    const attrs = { ...(item.attrs ?? {}) };
+    if (due && /^\d{4}-\d{2}-\d{2}$/.test(due)) attrs.due = due;
+    else delete attrs.due;
+    item.attrs = attrs;
+    return true;
+  });
+}
+
+export function addItem(pageId: number, listId: string, text: string, due?: string | null): string {
   const id = newId("i");
   editDoc(pageId, (doc) => {
     const list = findList(doc, listId);
     if (!list) throw new Error("That list is gone.");
-    list.content = [...(list.content ?? []), { type: "taskItem", attrs: { checked: false, itemId: id }, content: [paragraph(text.trim().slice(0, 500))] }];
+    list.content = [...(list.content ?? []), { type: "taskItem", attrs: { checked: false, itemId: id, ...(due && /^\d{4}-\d{2}-\d{2}$/.test(due) ? { due } : {}) }, content: [paragraph(text.trim().slice(0, 500))] }];
     return true;
   });
   return id;
@@ -190,9 +203,9 @@ export async function convertToDatabase(pageId: number, listId: string): Promise
       parents.length = i.depth;
       const title = [...parents, i.text].join(" › ");
       parents[i.depth] = i.text;
-      return { itemId: i.itemId, title, done: i.checked };
+      return { itemId: i.itemId, title, done: i.checked, due: i.due ?? undefined };
     });
-  const made = createTodoDatabase({ title: list.title || list.pageTitle, parentId: pageId, items: items.map((i) => ({ title: i.title, done: i.done })), engine: list.engine });
+  const made = createTodoDatabase({ title: list.title || list.pageTitle, parentId: pageId, items: items.map((i) => ({ title: i.title, done: i.done, due: i.due })), engine: list.engine });
   // Its todos in the engine follow to the rows.
   const rows = getSqlite().prepare("select id from ws_pages where db_id = ? and template = 0 order by position, id").all(made.dbId) as { id: number }[];
   const rowOf = new Map(items.map((i, n) => [i.itemId, rows[n]?.id]));
@@ -233,14 +246,17 @@ export function syncPageLists(pageId: number): void {
       const todo = todoByRef(ref);
       const text = item.text.slice(0, 500);
       if (!todo) {
-        if (!item.checked) addCalendarTodo({ text, due: "", ref, source: `Workspace „${list.path}“` });
+        if (!item.checked) addCalendarTodo({ text, due: item.due ?? "", ref, source: `Workspace „${list.path}“` });
       } else if (item.checked) {
         if (todo.status === "open") setTodoStatus(todo.id, "done", "Done in the Workspace.");
       } else if (todo.status !== "open") {
         if (Date.parse(todo.doneAt ?? "") > at) {
           if (todo.status === "done") setItemChecked(pageId, list.listId, item.itemId, true);
         } else setTodoStatus(todo.id, "open");
-      } else if (todo.text !== text) setTodoText(todo.id, text);
+      } else {
+        if (todo.text !== text) setTodoText(todo.id, text);
+        if ((todo.due ?? null) !== item.due) setTodoDue(todo.id, item.due);
+      }
     }
   }
   // Items of this page that left the engine (removed, the list switched off, the page in the trash).

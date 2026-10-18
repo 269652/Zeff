@@ -4,14 +4,15 @@ import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { Extension, mergeAttributes, Node } from "@tiptap/core";
 import { Plugin, PluginKey, type EditorState } from "@tiptap/pm/state";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { confirmAction } from "@/components/confirm";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
-import { convertTaskListAction, taskItemAction, taskListAction } from "../actions";
+import { convertTaskListAction, taskItemAction, taskListAction, taskListMetaAction } from "../actions";
 import { WS_CHANGED } from "./ChatPanel";
-import { Dropdown, MenuItem } from "./kit";
+import { MenuItem } from "./kit";
+import { TodoAddLine, TodoCheck, TodoDue, TodoHeader, TodoList, useCollapsibleHead } from "./todo-ui";
 
 /**
  * To-do lists as blocks with a head: a title, how many are done, and a "…" menu - turn the list into a database (with its Todo view), let its
@@ -60,12 +61,28 @@ export const TaskIds = Extension.create({
   },
 });
 
+function TaskItemView({ node, editor, updateAttributes }: NodeViewProps) {
+  const t = useT();
+  const checked = node.attrs.checked === true;
+  return (
+    <NodeViewWrapper as={"li" as "div"} className="ws-todo-row" data-type="taskItem" data-checked={checked}>
+      <TodoCheck checked={checked} disabled={!editor.isEditable} onChange={(v) => updateAttributes({ checked: v })} label={t("Todo")} />
+      <NodeViewContent className="ws-todo-text" />
+      <TodoDue value={(node.attrs.due as string | null) ?? null} done={checked} disabled={!editor.isEditable} onChange={(v) => updateAttributes({ due: v })} label={t("Due")} />
+    </NodeViewWrapper>
+  );
+}
+
 export const TaskItemWithId = TaskItem.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
       itemId: { default: null, parseHTML: (el: HTMLElement) => el.getAttribute("data-item-id"), renderHTML: (a: Record<string, unknown>) => (a.itemId ? { "data-item-id": String(a.itemId) } : {}) },
+      due: { default: null, parseHTML: (el: HTMLElement) => el.getAttribute("data-due"), renderHTML: (a: Record<string, unknown>) => (a.due ? { "data-due": String(a.due) } : {}) },
     };
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(TaskItemView);
   },
 });
 
@@ -78,6 +95,7 @@ function TaskListView({ node, editor, getPos, updateAttributes, extension }: Nod
   const done = items.filter((n) => n.attrs.checked).length;
   const listId = String(node.attrs.listId ?? "");
   const [busy, setBusy] = useState(false);
+  const head = useCollapsibleHead();
 
   if (nested)
     return (
@@ -98,38 +116,27 @@ function TaskListView({ node, editor, getPos, updateAttributes, extension }: Nod
   };
 
   return (
-    <NodeViewWrapper className="ws-todo-block" data-todo-block>
-      <div className="ws-todo-head" contentEditable={false}>
-        <span aria-hidden>☑</span>
-        <input
-          className="ws-todo-title"
-          value={String(node.attrs.title ?? "")}
-          placeholder={t("To-do list")}
-          aria-label={t("Title of the list")}
-          disabled={!editor.isEditable}
-          onChange={(e) => updateAttributes({ title: e.target.value })}
-        />
-        <span className="ws-todo-count" title={t("{done} of {n} done", { done, n: items.length })}>
-          {done}/{items.length}
-        </span>
-        {node.attrs.engine === true && (
-          <span className="ws-tag" title={t("Its open items are todos of the Todo engine")}>
-            ✓ {t("Todos")}
-          </span>
+    <NodeViewWrapper className={`ws-todo-block ${head.visible ? "" : "is-headless"}`} data-todo-block {...head.frame}>
+      {head.visible && (
+      <TodoHeader
+        onHide={head.hide}
+        title={String(node.attrs.title ?? "")}
+        onTitle={(v) => updateAttributes({ title: v })}
+        placeholder={t("To-do list")}
+        done={done}
+        total={items.length}
+        engine={node.attrs.engine === true}
+        disabled={!editor.isEditable}
+        menu={(close) => (
+          <>
+            <MenuItem onClick={() => (close(), updateAttributes({ engine: node.attrs.engine === true ? false : true }))}>
+              {node.attrs.engine === true ? "☑" : "☐"} {t("Open items are todos (Todo engine)")}
+            </MenuItem>
+            <MenuItem onClick={() => (close(), void convert())}>▦ {busy ? "…" : t("Turn into a database")}</MenuItem>
+          </>
         )}
-        {editor.isEditable && (
-          <Dropdown label="…" align="right" title={t("List settings")} className="icon-btn">
-            {(close) => (
-              <>
-                <MenuItem onClick={() => (close(), updateAttributes({ engine: node.attrs.engine === true ? false : true }))}>
-                  {node.attrs.engine === true ? "☑" : "☐"} {t("Open items are todos (Todo engine)")}
-                </MenuItem>
-                <MenuItem onClick={() => (close(), void convert())}>▦ {busy ? "…" : t("Turn into a database")}</MenuItem>
-              </>
-            )}
-          </Dropdown>
-        )}
-      </div>
+      />
+      )}
       <NodeViewContent as={"ul" as "div"} data-type="taskList" />
     </NodeViewWrapper>
   );
@@ -156,19 +163,23 @@ export const TaskListBlock = TaskList.extend<{ pageId: number; flush: () => Prom
 // A list embedded elsewhere
 // ---------------------------------------------------------------------------
 
-type Loaded = { path: string; title: string; pageId: number; items: { itemId: string; text: string; checked: boolean; depth: number }[] };
+type Loaded = { path: string; title: string; pageId: number; listId: string; engine: boolean; items: { itemId: string; text: string; checked: boolean; depth: number; due: string | null }[] };
 
 function TodoListEmbedView({ node, editor }: NodeViewProps) {
   const t = useT();
+  const router = useRouter();
   const pageId = Number(node.attrs.pageId);
   const listId = String(node.attrs.listId);
   const [list, setList] = useState<Loaded | null | "gone">(null);
-  const [text, setText] = useState("");
   const editable = editor.isEditable;
-  const load = useCallback(async () => {
-    const r = await taskListAction(pageId, listId);
-    setList(r.ok ? r.list : "gone");
-  }, [pageId, listId]);
+  const head = useCollapsibleHead();
+  const load = useCallback(
+    () =>
+      taskListAction(pageId, listId).then((r) => {
+        setList(r.ok ? { ...r.list, listId } : "gone");
+      }),
+    [pageId, listId],
+  );
   useEffect(() => {
     void load();
     window.addEventListener(WS_CHANGED, load);
@@ -184,57 +195,60 @@ function TodoListEmbedView({ node, editor }: NodeViewProps) {
   };
 
   return (
-    <NodeViewWrapper className="ws-todo-block ws-todo-embed" contentEditable={false} data-todo-embed>
+    <NodeViewWrapper className={`ws-todo-block ws-todo-embed ${head.visible ? "" : "is-headless"}`} contentEditable={false} data-todo-embed {...head.frame}>
       {list === null ? (
         <p className="text-sm text-zinc-400">…</p>
       ) : list === "gone" ? (
         <p className="text-sm text-zinc-500">{t("This list is gone (or its page).")}</p>
       ) : (
         <>
-          <div className="ws-todo-head">
-            <span aria-hidden>☑</span>
-            <Link href={`/workspace/${list.pageId}`} className="ws-todo-title-link" title={list.path}>
-              {list.title || list.path.split(" / ").slice(-2).join(" / ")}
-            </Link>
-            <span className="ws-todo-count">
-              {list.items.filter((i) => i.checked).length}/{list.items.length}
-            </span>
-          </div>
-          <ul className="ws-todo-embed-items">
-            {list.items.map((i) => (
-              <li key={i.itemId} style={{ marginLeft: `${i.depth * 1.25}rem` }}>
-                <input type="checkbox" className="size-4 accent-indigo-600" checked={i.checked} disabled={!editable} onChange={(e) => void act({ kind: "check", itemId: i.itemId, checked: e.target.checked })} aria-label={i.text} />
-                <input
-                  className={`ws-todo-embed-text ${i.checked ? "line-through opacity-60" : ""}`}
-                  defaultValue={i.text}
-                  disabled={!editable}
-                  onBlur={(e) => e.target.value.trim() !== i.text && void act({ kind: "text", itemId: i.itemId, text: e.target.value })}
-                  onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-                  aria-label={t("Item")}
-                />
-                {editable && (
-                  <button type="button" className="icon-btn" aria-label={t("Remove")} onClick={() => void act({ kind: "remove", itemId: i.itemId })}>
-                    ✕
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-          {editable && (
-            <input
-              className="ws-todo-embed-add"
-              value={text}
-              placeholder={t("+ Add an item")}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter" || !text.trim()) return;
-                const v = text;
-                setText("");
-                void act({ kind: "add", text: v });
-              }}
-              aria-label={t("Add an item")}
-            />
+          {head.visible && (
+          <TodoHeader
+            onHide={head.hide}
+            title={list.title || list.path.split(" / ").slice(-2).join(" / ")}
+            href={`/workspace/${list.pageId}`}
+            placeholder=""
+            done={list.items.filter((i) => i.checked).length}
+            total={list.items.length}
+            engine={list.engine}
+            disabled={!editable}
+            menu={(close) => (
+              <>
+                <MenuItem
+                  onClick={async () => {
+                    close();
+                    const r = await taskListMetaAction(pageId, listId, { engine: !list.engine });
+                    if (!r.ok) toast(r.error, { tone: "error" });
+                    await load();
+                  }}
+                >
+                  {list.engine ? "☑" : "☐"} {t("Open items are todos (Todo engine)")}
+                </MenuItem>
+                <MenuItem
+                  onClick={async () => {
+                    close();
+                    if (!confirmAction(t("Turn this list into a database? Its items become rows with a Todo view, right here."))) return;
+                    const r = await convertTaskListAction(pageId, listId);
+                    if (!r.ok) return void toast(r.error, { tone: "error" });
+                    router.push(`/workspace/${r.dbId}`);
+                  }}
+                >
+                  ▦ {t("Turn into a database")}
+                </MenuItem>
+              </>
+            )}
+          />
           )}
+          <TodoList
+            withDue
+            disabled={!editable}
+            items={list.items.map((i) => ({ id: i.itemId, text: i.text, done: i.checked, due: i.due, depth: i.depth }))}
+            onCheck={(id, checked) => void act({ kind: "check", itemId: String(id), checked })}
+            onText={(id, text) => void act({ kind: "text", itemId: String(id), text })}
+            onDue={(id, due) => void act({ kind: "due", itemId: String(id), due })}
+            onRemove={(id) => void act({ kind: "remove", itemId: String(id) })}
+          />
+          <TodoAddLine disabled={!editable} onAdd={(text) => void act({ kind: "add", text })} />
         </>
       )}
     </NodeViewWrapper>

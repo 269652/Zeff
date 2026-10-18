@@ -672,14 +672,15 @@ export async function taskListAction(pageId: number, listId: string) {
 }
 
 /** An item of a list ticked, written, added or removed - in its own page, wherever the list is shown. */
-export async function taskItemAction(pageId: number, listId: string, op: { kind: "check"; itemId: string; checked: boolean } | { kind: "text"; itemId: string; text: string } | { kind: "add"; text: string } | { kind: "remove"; itemId: string }) {
+export async function taskItemAction(pageId: number, listId: string, op: { kind: "check"; itemId: string; checked: boolean } | { kind: "text"; itemId: string; text: string } | { kind: "due"; itemId: string; due: string | null } | { kind: "add"; text: string; due?: string | null } | { kind: "remove"; itemId: string }) {
   return run(async () => {
     const m = await import("./task-lists");
     const p = Number(pageId);
     let itemId = "";
     if (op.kind === "check") m.setItemChecked(p, listId, op.itemId, !!op.checked);
     else if (op.kind === "text") m.setItemText(p, listId, op.itemId, String(op.text ?? ""));
-    else if (op.kind === "add") itemId = m.addItem(p, listId, String(op.text ?? ""));
+    else if (op.kind === "due") m.setItemDue(p, listId, op.itemId, op.due ? String(op.due) : null);
+    else if (op.kind === "add") itemId = m.addItem(p, listId, String(op.text ?? ""), op.due ?? null);
     else m.removeItem(p, listId, op.itemId);
     // A list that feeds the Todo engine: its todos follow at once.
     m.syncPageLists(p);
@@ -695,6 +696,20 @@ export async function taskListMetaAction(pageId: number, listId: string, v: { ti
 /** A list turned into a database (its place in the page taken by the database's Todo view). */
 export async function convertTaskListAction(pageId: number, listId: string) {
   return run(() => asUndoable(t("To-do list turned into a database"), async () => await (await import("./task-lists")).convertToDatabase(Number(pageId), listId)));
+}
+
+/** The setting "Hide titles automatically" of to-do lists (default: on) - read, or set when `set` is given. */
+export async function autoHideTitlesAction(set?: boolean) {
+  return run(async () => {
+    const { getPref, setPref } = await import("@/lib/prefs");
+    if (typeof set === "boolean") setPref("workspace.autoHideListTitles", set);
+    return { value: getPref<boolean>("workspace.autoHideListTitles", true) };
+  });
+}
+
+/** A todo database turned into a list in a page (the way back of "Turn into a database"). */
+export async function convertTodoDatabaseAction(dbId: number) {
+  return run(() => asUndoable(t("Todo database turned into a list"), async () => (await import("./todo-lists")).convertToList(Number(dbId))));
 }
 
 /** A database that follows one list (a data source of its own), with the Todo view. */
