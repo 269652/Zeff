@@ -55,7 +55,7 @@ const at = (s: string | null | undefined) => dateOf(s)?.getTime() || 0;
 // Sources
 // ---------------------------------------------------------------------------
 
-async function jiraRecords(c: NonNullable<PipelineStep["jira"]>): Promise<SourceRecord[]> {
+export async function jiraRecords(c: NonNullable<PipelineStep["jira"]>): Promise<SourceRecord[]> {
   const from = since(c.recentDays);
   const followed = c.involved ? new Set([...(await import("@/lib/boards/followed")).followedTickets().keys()].map((k) => k.toUpperCase())) : null;
   const briefed = c.briefed ? new Set([...(await import("@/lib/boards/ticket-lage")).analyzedByTicketLage()].map((k) => k.toUpperCase())) : null;
@@ -64,6 +64,9 @@ async function jiraRecords(c: NonNullable<PipelineStep["jira"]>): Promise<Source
     ? new Set((getSqlite().prepare("select distinct upper(ticket) as t from jira_comments where at >= ?").all(new Date(from || 0).toISOString()) as { t: string }[]).map((r) => r.t))
     : null;
   const projects = c.projects?.map((p) => p.toUpperCase());
+  // "Mine" is mine on the selected boards (the sync reads everything assigned to you, in projects whose boards you deselected too).
+  const boards = new Set((await import("@/lib/jira/store")).enabledBoardIds());
+  const mineHere = (t: { boardId: number | null }) => !boards.size || (t.boardId !== null && boards.has(t.boardId));
   return getDb()
     .select()
     .from(schema.jiraTickets)
@@ -71,7 +74,7 @@ async function jiraRecords(c: NonNullable<PipelineStep["jira"]>): Promise<Source
     .filter((t) => {
       const key = t.key.toUpperCase();
       // Whose: on you, or followed, or in the Ticket-Lage — either.
-      if ((c.mine || followed || briefed) && !((c.mine && t.mine) || followed?.has(key) || briefed?.has(key))) return false;
+      if ((c.mine || followed || briefed) && !((c.mine && t.mine && mineHere(t)) || followed?.has(key) || briefed?.has(key))) return false;
       const done = t.statusCategory === "done" || !!t.resolvedAt;
       if (c.openOnly && done && !(doneFrom && at(t.resolvedAt ?? t.updatedAt) >= doneFrom)) return false;
       if (from && at(t.updatedAt) < from && !commented?.has(key)) return false;
