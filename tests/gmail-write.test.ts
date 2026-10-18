@@ -194,3 +194,22 @@ test("starting an agent whose routine may change Gmail hands its worker the appr
   grantTools(7100, ["mcp__zeff__gmail_change", "mcp__zeff__gmail_change"]);
   assert.deepEqual(approvedToolsFor(7100), ["mcp__zeff__gmail_change"]);
 });
+
+test("a follow-up message to an agent (a new worker run on the same todo) is still that routine's worker", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["workspace", "work", "todos"]) setInstalled(id, true);
+  const w = await import("@/plugins/workspace/store");
+  const r = await import("@/plugins/workspace/routines");
+  const { createRun } = await import("@/lib/work/store");
+  const { mayChangeGmail } = await import("@/plugins/workspace/routine-agent");
+  const page = w.createPage({ title: "Gmail-Agent 2" });
+  r.createRoutine(page, "agent", { permissions: { scope: "self", gmail: true } });
+  const base = { ticket: "", todoId: 880, mode: "code", provider: "claude", model: null, permissionMode: null, repo: null, prompt: "x" } as const;
+  const first = createRun({ ...base });
+  r.setWorkRun(r.startRun(page, { kind: "manual" }), first.id);
+  const followUp = createRun({ ...base, afterRun: first.id });
+  assert.equal(mayChangeGmail(first.id), true);
+  assert.equal(mayChangeGmail(followUp.id), true, "same todo: the same routine");
+  const other = createRun({ ...base, todoId: 881 });
+  assert.equal(mayChangeGmail(other.id), false, "a run on another todo");
+});

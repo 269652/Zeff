@@ -310,5 +310,10 @@ export function runningAgentRuns(): RoutineRun[] {
 /** The routine whose agent a worker run is (the newest run of it) — what an MCP request from that worker is allowed to do follows from it. */
 export function routineOfWorkRun(workRunId: number): number | null {
   const r = db().prepare("select page_id from ws_routine_runs where work_run_id = ? order by id desc limit 1").get(workRunId) as { page_id: number } | undefined;
-  return r?.page_id ?? null;
+  if (r) return r.page_id;
+  // A message you sent to the agent afterwards is a worker run of its own — on the same todo, so still this routine's.
+  const same = db()
+    .prepare("select rr.page_id from ws_routine_runs rr join work_runs w on w.id = rr.work_run_id where w.todo_id = (select todo_id from work_runs where id = ?) order by rr.id desc limit 1")
+    .get(workRunId) as { page_id: number } | undefined;
+  return same?.page_id ?? null;
 }
