@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: "Keep" };
 /** One of your Keep boards: notes like Keep's — written here, in the Lage as context, todos from them. */
 export default async function KeepBoardPage({ params, searchParams }: { params: Promise<{ board: string }>; searchParams: Promise<{ q?: string; archived?: string }> }) {
   await connection();
-  if (!isInstalled("keep")) return <PluginNotInstalled id="keep" />;
+  if (!isInstalled("notes")) return <PluginNotInstalled id="notes" />;
   const id = Number((await params).board);
   // Moved into the Workspace: old links (bookmarks) lead there.
   const moved = Number.isInteger(id) && isInstalled("workspace") ? (await import("@/plugins/keep/to-workspace")).movedKeepHref(id) : null;

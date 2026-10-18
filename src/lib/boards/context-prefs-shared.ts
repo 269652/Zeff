@@ -47,7 +47,7 @@ export const contextSteps = (t: T): ContextStep[] => [
       { key: "gitlab", label: "GitLab", what: t("Merge requests and comments on the ticket"), plugin: "gitlab", default: true },
       { key: "git", label: "Git", what: t("Branches and commits in the ticket's repos"), default: true },
       { key: "related", label: t("Related tickets"), what: t("Tickets it mentions (or that mention it), with their new comments"), default: true },
-      { key: "keep", label: t("Notes (Keep)"), what: t("Your notes on the ticket"), plugin: "keep", default: true },
+      { key: "keep", label: t("Notes (Keep)"), what: t("Your notes on the ticket"), plugin: "notes", default: true },
     ],
     numbers: [
       { key: "chatDays", label: t("Teams chats from the last"), min: 1, max: 30, default: 3, unit: t("days") },
@@ -64,7 +64,7 @@ export const contextSteps = (t: T): ContextStep[] => [
       { key: "mail", label: t("Mails"), what: t("Outlook and Gmail"), default: true },
       { key: "whatsapp", label: "WhatsApp", plugin: "whatsapp", default: true },
       { key: "signal", label: "Signal", plugin: "signal", default: true },
-      { key: "keep", label: t("Notes (Keep)"), plugin: "keep", default: true },
+      { key: "keep", label: t("Notes (Keep)"), plugin: "notes", default: true },
     ],
     numbers: [
       { key: "days", label: t("New ones from the last"), min: 1, max: 60, default: 14, unit: t("days") },

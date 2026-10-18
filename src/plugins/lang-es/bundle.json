@@ -6060,5 +6060,13 @@
   "Hide the title": "Ocultar el título",
   "Hide titles automatically": "Ocultar los títulos automáticamente",
   "What you sent (Gmail's sent folder)": "Lo que enviaste (la carpeta de enviados de Gmail)",
-  "What left the Gmail inbox (archived or filed under a label) — still kept": "Lo que salió de la bandeja de entrada de Gmail (archivado o archivado bajo una etiqueta); se conserva"
+  "What left the Gmail inbox (archived or filed under a label) — still kept": "Lo que salió de la bandeja de entrada de Gmail (archivado o archivado bajo una etiqueta); se conserva",
+  "Google Keep Sync": "Google Keep Sync",
+  "Keep board": "Tablero Keep",
+  "Notes like in Google Keep: note boards in the Workspace (New → Keep board) with notes, lists, colours, labels and pinning — in knowledge, for agents, and with its extensions in the briefing and the todos. Needs nothing; Google Keep only adds your Google notes.": "Notas como en Google Keep: tableros de notas en el Workspace (Nuevo → Tablero Keep) con notas, listas, colores, etiquetas y fijado — en el conocimiento, para agentes y con sus extensiones en el briefing y las tareas. No necesita nada; Google Keep solo añade tus notas de Google.",
+  "Your own note boards": "Tus propios tableros de notas",
+  "Your Google Keep notes in Zeff, read in the account's automation Chrome (Keep opened in a new tab, what Keep loads taken over, tab closed; nothing changes in Keep) into a Workspace database. The note boards and what is done with notes (knowledge, agents, briefing, todos) are the Notes plugin's.": "Tus notas de Google Keep en Zeff, leídas en el Chrome de automatización de la cuenta (Keep abierto en una pestaña nueva, lo que carga Keep recogido, pestaña cerrada; en Keep no cambia nada) en una base de datos del Workspace. Los tableros de notas y todo lo que se hace con las notas (conocimiento, agentes, briefing, tareas) son del plugin Notas.",
+  "For Google Keep: the account's automation Chrome, signed in to Google (keep.google.com).": "Para Google Keep: el Chrome de automatización de la cuenta, con sesión de Google iniciada (keep.google.com).",
+  "The Google account": "La cuenta de Google",
+  "That entry is not there (any more).": "Esa entrada ya no existe."
 }

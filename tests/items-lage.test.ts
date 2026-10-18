@@ -12,7 +12,7 @@ const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s)
  */
 test("lage: a ticket's notes — linked by its todos or naming it, from boards in the Lage", async () => {
   const { setInstalled } = await import("@/plugins/state");
-  setInstalled("keep", true);
+  setInstalled("notes", true);
   const k = await import("@/plugins/keep/boards");
   const g = await import("@/plugins/keep/store");
   const { addNoteTodo } = await import("@/lib/boards/store");
@@ -39,8 +39,8 @@ test("lage: a ticket's notes — linked by its todos or naming it, from boards i
   assert.match(lines.at(-1)!, /keep:g1/, "newest first: the old Google note last");
 
   assert.deepEqual(lageNoteLines("PROJ-99", 200, cut), [], "nothing about it: no lines");
-  setInstalled("keep", false);
-  assert.deepEqual(lageNoteLines("PROJ-12", 200, cut), [], "Keep not installed: no notes");
+  setInstalled("notes", false);
+  assert.deepEqual(lageNoteLines("PROJ-12", 200, cut), [], "Notes not installed: no notes");
 });
 
 /** Any collection in the briefing brings its notes — not boards: their cards are tickets in the Lage themselves. */
@@ -48,7 +48,7 @@ test("lage: notes come from every collection in the briefing, not from boards", 
   const { setInstalled } = await import("@/plugins/state");
   const { collectionProviders } = await import("@/lib/items/point");
   const { lageNoteLines } = await import("@/plugins/keep/lage");
-  setInstalled("keep", true);
+  setInstalled("notes", true);
   setInstalled("signal", true);
   const item = (ref: string, collectionId: string, text: string) => ({ ref, key: null, collectionId, kind: "row" as const, title: ref, text, labels: [], status: null, due: null, assignee: null, color: null, pinned: false, archived: false, parentRef: null, href: "/x", createdAt: null, updatedAt: "2030-01-01T00:00:00Z" });
   const col = (id: string, kind: "notes" | "board" | "database", briefing: boolean) => ({ id, plugin: "signal", kind, name: `Sammlung ${id}`, description: "", color: null, href: "/x", readOnly: true, briefing, knowledge: false, items: 1 });

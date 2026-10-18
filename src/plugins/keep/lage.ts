@@ -31,7 +31,7 @@ function todoRefs(key: string): string[] {
 }
 
 /** Whether notes go into the Lage: Keep and its extension on. */
-export const notesInLage = () => isInstalled("keep") && extensionInstalled("keep:lage-context");
+export const notesInLage = () => isInstalled("notes") && extensionInstalled("notes:lage-context");
 
 let cache: { key: string; at: number; notes: PlacedItem[] } | null = null;
 /** All notes the Lage may read — kept for a minute (one run reads them per ticket), per account and installed providers. */

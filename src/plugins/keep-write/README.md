@@ -93,7 +93,7 @@ Roughly in order of value:
 5. **After a write that failed or wasn't confirmed, sync that note.** A half-done write can leave Zeff's copy behind Keep. Read the note again (or run a Keep sync) and show what Keep really has.
 6. **Keep sync: deletions on incremental reads.** When Keep hands only what changed (`full: false`), notes deleted in Keep stay in `keep_notes`. Use Keep's own markers for removed nodes, or do a full read now and then.
 7. **New note in a label view** (`/keep/google?label=X`): give it that label in the composer.
-8. **Auto-Aktionen "Notiz anlegen"** (`keep:note-action`) could offer Google Keep as a target while `keep-write` is installed.
+8. **Auto-Aktionen "Notiz anlegen"** (`notes:note-action`) could offer Google Keep as a target while `keep-write` is installed.
 9. **English Keep UI:** the word lists in `write.mjs` (`re([...])`, `COLOR_UI`) have English alternatives, but they're untested. The picker's input label in English is a guess.
 10. **Tests without Keep:** unit tests for `model.mjs` (`decodeModel`, `textToItems`, `itemsToText`) and `isChecklist` from recorded nodes. The rest needs a real Keep (the check script).
 

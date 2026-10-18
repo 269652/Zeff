@@ -7,7 +7,7 @@ import { t } from "@/lib/i18n/server";
 
 /** "Keep syncen" in the Keep app: your Google Keep notes — through the Sync menu's step, so it records how it went. */
 export async function syncKeepAction(): Promise<ActionState> {
-  if (!(await import("@/plugins/state")).isInstalled("keep")) return { ok: false, error: t("Google Keep is not installed (Menu → Plugins).") };
+  if (!(await import("@/plugins/state")).isInstalled("notes")) return { ok: false, error: t("Google Keep is not installed (Menu → Plugins).") };
   const { syncAndWait } = await import("@/lib/sync/registry");
   const r = await syncAndWait("keep");
   revalidateAll();

@@ -44,6 +44,27 @@ const wsColor = (c: string) => WS_COLOR[c] ?? ((COLORS as readonly string[]).inc
 const iso = (t: string | null) => new Date(t && !t.includes("T") ? `${t.replace(" ", "T")}Z` : (t ?? Date.now())).toISOString();
 const option = (name: string, color: string): Option => ({ id: newId("o"), name, color });
 
+/** The layout of a note board in the Workspace: colour, pinned, labels (the given ones as options) and the note ref; a gallery (pinned on top) and a table. */
+export function notesBoardSchema(labelNames: string[] = []) {
+  const color: Property = { id: COLOR_PROP, name: "Color", type: "select", options: Object.keys(KEEP_COLORS).map((c) => option(c, wsColor(c))) };
+  const pinned: Property = { id: PINNED_PROP, name: "Pinned", type: "checkbox" };
+  const labels: Property = { ...newProperty("Labels", "multi_select"), options: labelNames.map((n, i) => option(n, COLORS[(i + 3) % COLORS.length])) };
+  const ref: Property = { id: NOTE_PROP, name: "Note", type: "text" };
+  const schema: DbSchema = {
+    titleName: "Title",
+    properties: [color, pinned, labels, ref],
+    views: [{ ...newView("Notes", "gallery"), sorts: [{ prop: pinned.id, dir: "desc" }], hidden: [ref.id, pinned.id] }, newView("Table", "table")],
+  };
+  return { schema, color, pinned, labels, ref };
+}
+
+/** "New → Keep board": an empty note board (a Workspace database), no Keep needed. Returns its id. */
+export function createNotesBoard(parentId: number | null = null, title = "Keep board"): number {
+  const dbId = createPage({ kind: "database", parentId, title, schema: notesBoardSchema().schema });
+  updatePage(dbId, { fullWidth: true });
+  return dbId;
+}
+
 export function moveKeepBoardToWorkspace(boardId: number): { dbId: number } {
   const already = movedKeepBoard(boardId);
   if (already) return { dbId: already };
@@ -59,15 +80,7 @@ function move(boardId: number): { dbId: number } {
   const archived = listOwnNotes(boardId, { archived: true });
   const notes: NoteView[] = [...live, ...archived];
 
-  const color: Property = { id: COLOR_PROP, name: "Color", type: "select", options: Object.keys(KEEP_COLORS).map((c) => option(c, wsColor(c))) };
-  const pinned: Property = { id: PINNED_PROP, name: "Pinned", type: "checkbox" };
-  const labels: Property = { ...newProperty("Labels", "multi_select"), options: [...new Set(notes.flatMap((n) => n.labels))].map((n, i) => option(n, COLORS[(i + 3) % COLORS.length])) };
-  const ref: Property = { id: NOTE_PROP, name: "Note", type: "text" };
-  const schema: DbSchema = {
-    titleName: "Title",
-    properties: [color, pinned, labels, ref],
-    views: [{ ...newView("Notes", "gallery"), sorts: [{ prop: pinned.id, dir: "desc" }], hidden: [ref.id, pinned.id] }, newView("Table", "table")],
-  };
+  const { schema, color, pinned, labels, ref } = notesBoardSchema([...new Set(notes.flatMap((n) => n.labels))]);
   const dbId = createPage({ kind: "database", title: board.name, schema });
   updatePage(dbId, { fullWidth: true }); // the notes use the whole width, as Keep's did
 
@@ -126,7 +139,7 @@ export function keepBoardCreated(boardId: number): void {
 }
 
 export async function moveAllKeepBoardsOnce(): Promise<{ moved: number; failed: number; backup: string | null } | null> {
-  if (getPref<boolean>(MOVED_ALL, false) || !isInstalled("keep")) return null;
+  if (getPref<boolean>(MOVED_ALL, false) || !isInstalled("notes")) return null;
   const boards = listKeepBoards().filter((b) => !movedKeepBoard(b.id));
   let backup: string | null = null;
   if (boards.length) {

@@ -8,7 +8,7 @@ import { isInstalled } from "@/plugins/state";
 /** Keep: to Google Keep when it has notes (or no board of yours yet), else to your first board. */
 export default async function KeepPage() {
   await connection();
-  if (!isInstalled("keep")) return <PluginNotInstalled id="keep" />;
+  if (!isInstalled("notes")) return <PluginNotInstalled id="notes" />;
   // Keep's boards moved into the Workspace: there (Google Keep's database first, once it's kept there).
   if (isInstalled("workspace")) {
     const w = await import("@/plugins/keep/to-workspace");

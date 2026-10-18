@@ -43,6 +43,25 @@ export async function templatesAction() {
   return run(async () => ({ templates: (await import("./templates")).templateMetas() }));
 }
 
+/** The extra entries of the "New" menu that plugins bring (Notes: a Keep board). */
+export async function newItemsAction() {
+  return run(async () => {
+    await import("@/plugins/contributions");
+    const { newItems } = await import("./new-items-point");
+    return { items: newItems.list().map((c) => ({ key: `${c.plugin}:${c.impl.id}`, icon: c.impl.icon, label: t(c.impl.label) })) };
+  });
+}
+
+export async function createNewItemAction(key: string, parentId: number | null) {
+  return run(async () => {
+    await import("@/plugins/contributions");
+    const { newItems } = await import("./new-items-point");
+    const c = newItems.list().find((x) => `${x.plugin}:${x.impl.id}` === key);
+    if (!c) throw new Error(t("That entry is not there (any more)."));
+    return { id: c.impl.create(parentId) };
+  });
+}
+
 export async function createPageAction(v: { parentId?: number | null; kind?: "page" | "database"; title?: string; templateKey?: string }) {
   return run(async () => {
     if (v.templateKey) {

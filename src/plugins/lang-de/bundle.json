@@ -6060,5 +6060,13 @@
   "Hide the title": "Titel verbergen",
   "Hide titles automatically": "Titel automatisch verstecken",
   "What you sent (Gmail's sent folder)": "Was du gesendet hast (Gmails Ordner „Gesendet“)",
-  "What left the Gmail inbox (archived or filed under a label) — still kept": "Was den Gmail-Posteingang verlassen hat (archiviert oder unter einem Label abgelegt) – bleibt gespeichert"
+  "What left the Gmail inbox (archived or filed under a label) — still kept": "Was den Gmail-Posteingang verlassen hat (archiviert oder unter einem Label abgelegt) – bleibt gespeichert",
+  "Google Keep Sync": "Google Keep Sync",
+  "Keep board": "Keep-Board",
+  "Notes like in Google Keep: note boards in the Workspace (New → Keep board) with notes, lists, colours, labels and pinning — in knowledge, for agents, and with its extensions in the briefing and the todos. Needs nothing; Google Keep only adds your Google notes.": "Notizen wie in Google Keep: Notiz-Boards im Workspace (Neu → Keep-Board) mit Notizen, Listen, Farben, Labels und Anheften — im Wissen, für Agenten und mit seinen Erweiterungen im Briefing und in den Todos. Braucht nichts; Google Keep bringt nur deine Google-Notizen dazu.",
+  "Your own note boards": "Deine eigenen Notiz-Boards",
+  "Your Google Keep notes in Zeff, read in the account's automation Chrome (Keep opened in a new tab, what Keep loads taken over, tab closed; nothing changes in Keep) into a Workspace database. The note boards and what is done with notes (knowledge, agents, briefing, todos) are the Notes plugin's.": "Deine Google-Keep-Notizen in Zeff, gelesen im Automations-Chrome des Kontos (Keep in einem neuen Tab geöffnet, was Keep lädt übernommen, Tab geschlossen; in Keep ändert sich nichts) in eine Workspace-Datenbank. Die Notiz-Boards und alles, was mit Notizen geschieht (Wissen, Agenten, Briefing, Todos), gehört zum Plugin Notizen.",
+  "For Google Keep: the account's automation Chrome, signed in to Google (keep.google.com).": "Für Google Keep: der Automations-Chrome des Kontos, bei Google angemeldet (keep.google.com).",
+  "The Google account": "Das Google-Konto",
+  "That entry is not there (any more).": "Diesen Eintrag gibt es (nicht mehr)."
 }

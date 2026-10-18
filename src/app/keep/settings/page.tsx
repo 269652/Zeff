@@ -17,18 +17,18 @@ export async function generateMetadata(): Promise<Metadata> {
 /** Keep's settings: your boards (order, names, colours, in the Lage, archived ones, a new one) and which Google account's Keep is read. */
 export default async function KeepSettingsPage() {
   await connection();
-  if (!isInstalled("keep")) return <PluginNotInstalled id="keep" />;
+  if (!isInstalled("notes")) return <PluginNotInstalled id="notes" />;
   const boards = listKeepBoards({ archived: true }).map((b) => ({ id: b.id, name: b.name, description: b.description, color: b.color, archived: b.archived, inLage: b.inLage, inKnowledge: b.inKnowledge, notes: b.notes }));
   return (
     <div className="page">
       <div className="page-aside">
-        <PluginExperimental id="keep" />
+        {isInstalled("keep") && <PluginExperimental id="keep" />}
         <h1 className="text-lg font-semibold">{t("Manage Keep")}</h1>
         <KeepNav current="settings" />
         <p className="text-sm text-zinc-500">
           {t("Your own note boards — in the order Keep shows them. A board “in the briefing” brings its notes into the briefing: as context, as todos, attached to todos.")}
         </p>
-        <KeepAccountForm account={keepSettings().account} />
+        {isInstalled("keep") && <KeepAccountForm account={keepSettings().account} />}
       </div>
       <KeepBoardsManager boards={boards} />
     </div>

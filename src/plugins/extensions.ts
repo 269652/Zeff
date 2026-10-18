@@ -15,7 +15,7 @@ import { catalogText } from "./catalog-text";
 export type ExtensionDecl = Omit<ExtensionShape, "for" | "requires"> & { for: PluginId; requires?: PluginId[] };
 
 export type Extension = ExtensionDecl & {
-  /** "<by>:<key>" — "keep:note-action". */
+  /** "<by>:<key>" — "notes:note-action". */
   id: string;
   /** The plugin that brings it. */
   by: PluginId;

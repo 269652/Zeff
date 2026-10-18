@@ -76,7 +76,7 @@ test("keep: your boards and Google Keep are collections of notes", async () => {
   const own = cols.find((x) => x.id === `keep:board:${b}`);
   assert.ok(own);
   assert.equal(own.kind, "notes");
-  assert.equal(own.plugin, "keep");
+  assert.equal(own.plugin, "notes");
   assert.equal(own.color, "sky");
   assert.equal(own.href, `/keep/${b}`);
   assert.equal(own.briefing, true);
@@ -156,9 +156,9 @@ test("an uninstalled plugin's collections aren't there", async () => {
   await install("kanban", "keep", "workspace");
   const c = await import("@/lib/items");
   const plugins = () => new Set(c.listCollections().map((x) => x.plugin));
-  assert.deepEqual([...plugins()].sort(), ["kanban", "keep", "workspace"]);
+  assert.deepEqual([...plugins()].sort(), ["kanban", "keep", "notes", "workspace"]);
   await install("keep");
-  assert.deepEqual([...plugins()], ["keep"]);
+  assert.deepEqual([...plugins()].sort(), ["keep", "notes"]);
   assert.equal(c.collectionItems("kanban:1"), null);
   assert.equal(c.itemsByRefs(["KB-1"]).size, 0);
 });

@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { favoriteOrderAction, archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, savePageAction, installPackageAction, searchAction, templatesAction, todayPageAction } from "../actions";
+import { favoriteOrderAction, archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, newItemsAction, createNewItemAction, duplicatePageAction, movePageAction, savePageAction, installPackageAction, searchAction, templatesAction, todayPageAction } from "../actions";
 import { moveBefore } from "../model";
 import type { TreeItem } from "../store";
 import { ChatPanel } from "./ChatPanel";
@@ -53,6 +53,11 @@ export function Sidebar({ items, favorites, unread = {}, channels, extSources = 
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<Hit[] | null>(null);
   const [templates, setTemplates] = useState<Meta[] | null>(null);
+  // What plugins add to New (Notes: a Keep board).
+  const [extra, setExtra] = useState<{ key: string; icon: string; label: string }[]>([]);
+  useEffect(() => {
+    void newItemsAction().then((r) => r.ok && setExtra(r.items));
+  }, []);
   const [over, setOver] = useState<{ id: number; where: "before" | "into" | "after" } | null>(null);
   const dragging = useRef<number | null>(null);
   // The favorites: dragged into the order you want (shown at once, saved a moment later).
@@ -260,6 +265,22 @@ export function Sidebar({ items, favorites, unread = {}, channels, extSources = 
             <>
               <MenuItem onClick={() => (close(), void create({}))}>📄 {t("Page")}</MenuItem>
               <MenuItem onClick={() => (close(), void create({ kind: "database", title: t("Database") }))}>🗂️ {t("Database")}</MenuItem>
+              {extra.map((x) => (
+                <MenuItem
+                  key={x.key}
+                  onClick={() =>
+                    void (async () => {
+                      close();
+                      const r = await createNewItemAction(x.key, null);
+                      if (!r.ok) return toast(r.error, { tone: "error" });
+                      router.push(`/workspace/${r.id}`);
+                      router.refresh();
+                    })()
+                  }
+                >
+                  {x.icon} {t(x.label)}
+                </MenuItem>
+              ))}
               {((channels && (channels.mail || channels.messages)) || extSources.length > 0) && (
                 <>
                   <div className="px-2 pt-1 text-xs font-semibold text-zinc-500 uppercase">{t("From channels")}</div>

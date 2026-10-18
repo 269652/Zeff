@@ -13,7 +13,7 @@ type Result = { ok: boolean; error?: string; message?: string; id?: number };
 
 async function act(fn: () => unknown, message?: string): Promise<Result> {
   try {
-    if (!isInstalled("keep")) return { ok: false, error: t("Google Keep is not installed (Menu → Plugins).") };
+    if (!isInstalled("notes")) return { ok: false, error: t("Google Keep is not installed (Menu → Plugins).") };
     const r = fn();
     revalidatePath("/keep", "layout");
     return { ok: true, message, ...(typeof r === "number" ? { id: r } : {}) };

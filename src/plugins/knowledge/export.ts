@@ -73,7 +73,7 @@ export function collectionDocs(plugin?: string, ids?: Set<string>): KnowledgeDoc
 
 /** `only: "keep"`: just Google Keep's notes (the knowledge server's own Google Keep source). */
 export function knowledgeDocs(zeffUrl: string, only?: "keep", include?: string[]): { account: string; docs: KnowledgeDoc[] } {
-  if (only === "keep") return { account: currentAccount().name, docs: collectionDocs("keep") };
+  if (only === "keep") return { account: currentAccount().name, docs: [...collectionDocs("keep"), ...collectionDocs("notes")] };
   const db = getSqlite();
   const all = <T>(sql: string, ...args: unknown[]) => db.prepare(sql).all(...args) as T[];
   const docs: KnowledgeDoc[] = [];
