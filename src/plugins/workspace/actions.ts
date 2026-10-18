@@ -246,7 +246,7 @@ export type DatabaseData = {
   labels: Awaited<ReturnType<typeof store.labelsFor>>;
   templates: { id: number; title: string }[];
   /** Related databases (for relation pickers): their rows' titles. */
-  related: Record<number, { title: string; properties: { id: string; name: string; type: string }[]; rows: { id: number; title: string; icon: string }[] }>;
+  related: Record<string, { title: string; properties: { id: string; name: string; type: string }[]; /** Its whole schema (a rollup's filter picks from its options). */ schema?: DbSchema; rows: { id: number; title: string; icon: string }[] }>;
   /** What the cards show beyond the cells: each row's ticket key, its subtasks, and — by key — its Lage and todos. */
   /** Locked (a database a sync keeps, as Jira's): shown, not changed here — its cards don't move, its cells aren't edited. */
   locked: boolean;
@@ -271,9 +271,12 @@ export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: D
     const labels = await store.labelsFor(d.schema, d.rows);
     const related: DatabaseData["related"] = {};
     for (const p of d.schema.properties) {
-      if (p.type === "relation" && p.relationDb !== undefined && !related[p.relationDb]) {
+      if (p.type === "relation" && p.relationSource !== undefined && !related[p.relationSource]) {
+        const st = (await import("./source-table")).sourceTable(p.relationSource);
+        if (st) related[p.relationSource] = { title: st.schema.titleName, properties: st.schema.properties.map((q) => ({ id: q.id, name: q.name, type: q.type })), schema: st.schema, rows: [] };
+      } else if (p.type === "relation" && p.relationDb !== undefined && !related[p.relationDb]) {
         const o = store.getPage(p.relationDb);
-        if (o) related[p.relationDb] = { title: o.title, properties: (o.schema?.properties ?? []).map((q) => ({ id: q.id, name: q.name, type: q.type })), rows: store.rawRows(p.relationDb).map((r) => ({ id: r.id, title: r.title, icon: r.icon })) };
+        if (o) related[p.relationDb] = { title: o.title, properties: (o.schema?.properties ?? []).map((q) => ({ id: q.id, name: q.name, type: q.type })), schema: o.schema ?? undefined, rows: store.rawRows(p.relationDb).map((r) => ({ id: r.id, title: r.title, icon: r.icon })) };
       }
     }
     const keys: Record<number, string> = {};
@@ -840,6 +843,23 @@ export async function duplicateRowAction(rowId: number) {
 }
 
 /** Every database, to choose from (relations, linked views). */
+/** What a relation can point at besides databases (the booked time …), with its properties — for the rollup wizard. */
+export async function relationSourcesAction() {
+  return run(async () => {
+    const st = await import("./source-table");
+    return { sources: st.relationSources().flatMap((x) => { const tbl = st.sourceTable(x.id); return tbl ? [{ ...x, schema: tbl.schema }] : []; }) };
+  });
+}
+
+/** What a rollup wizard needs of another database: its schema (properties and their options). */
+export async function databaseSchemaAction(id: number) {
+  return run(() => {
+    const d = store.getDatabase(Number(id));
+    if (!d) throw new Error(t("This database is gone."));
+    return { title: d.page.title, schema: d.schema };
+  });
+}
+
 export async function databasesAction() {
   return run(() => ({ databases: store.tree().filter((x) => x.kind === "database").map((x) => ({ id: x.id, title: x.title || t("Untitled"), icon: x.icon, rules: !!store.getDatabase(x.id)?.schema.rules, jobs: !!store.getDatabase(x.id)?.schema.jobs, people: store.getDatabase(x.id)?.schema.dataType === "people" })) }));
 }

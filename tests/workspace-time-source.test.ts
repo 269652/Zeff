@@ -5,62 +5,100 @@ import { setupTempData } from "./helpers";
 setupTempData();
 
 /**
- * The time you booked is a source of the Workspace: a database "Time booked" with one row per entry (date, hours, ticket, job, project,
- * type). A database of tickets (or projects, jobs) rolls it up through a matching relation — "Hours booked" per ticket, live.
+ * The time you booked is something a relation can point at — no database of it is made. A database of tickets (or projects, jobs) matches
+ * its rows to the entries and rolls them up: "Hours booked" per ticket, live, also over a filtered part (this month, one kind of work).
  */
-test("time booked as a database: rows per entry; a matching relation + rollup gives the hours per ticket", async () => {
+test("booked time as the source of a matching relation: hours per ticket, with and without a filter; no database of its own", async () => {
   const { setInstalled } = await import("@/plugins/state");
   setInstalled("workspace", true);
   const { createJob } = await import("@/lib/jobs");
   const { createEntry } = await import("@/lib/entries");
   createJob({ number: "100200", name: "Relaunch" });
-  const book = (hours: number, ticket: string | undefined, description: string, date = "2026-10-12") => createEntry({ jobNumber: "100200", date, hours, description, ticket } as never, "web");
+  const book = (hours: number, ticket: string | undefined, description: string, date = "2026-10-12", type = "ticket") => createEntry({ jobNumber: "100200", date, hours, description, ticket, type } as never, "web");
   book(1.5, "PROJ-1", "Analyse");
-  book(2, "PROJ-1", "Umsetzung");
+  book(2, "PROJ-1", "Umsetzung", "2026-09-30", "meeting");
   book(4, "PROJ-2", "Review");
   book(1, undefined, "Meeting");
 
-  const derived = await import("@/plugins/workspace/derived");
-  const { runPipeline } = await import("@/plugins/workspace/pipeline");
   const w = await import("@/plugins/workspace/store");
-  const { extSources } = await import("@/plugins/workspace/source-point");
-  const src = (await extSources()).find((s) => s.id === "time");
-  assert.ok(src, "Time tracking brings the source");
-  assert.equal(src.count!(), 4);
+  const { relationSources, sourceTable } = await import("@/plugins/workspace/source-table");
+  const { sourcesOverview } = await import("@/plugins/workspace/sources");
+  w.tree(); // (makes the Workspace tables)
+  assert.deepEqual(relationSources().map((s) => s.id), ["time"]);
+  assert.ok(!sourcesOverview().some((s) => s.key === "ext:time"), "it is not offered as a database of its own");
+  const table = sourceTable("time")!;
+  assert.equal(table.rows.length, 4);
+  const prop = (name: string) => table.schema.properties.find((p) => p.name === name)!;
+  assert.deepEqual(table.schema.properties.map((p) => p.name), ["Date", "Hours", "Ticket", "Job", "Project", "Type", "Reported by"]);
 
-  const timeDb = await derived.createExtSourceDatabase("time");
-  await runPipeline(timeDb, { ai: false });
-  const time = w.rowsOf(timeDb)!;
-  assert.equal(time.rows.length, 4);
-  const byTitle = Object.fromEntries(time.rows.map((r) => [r.title, r]));
-  const prop = (name: string) => time.schema.properties.find((p) => p.name === name)!;
-  assert.equal(byTitle["Analyse"].cells[prop("Hours").id], 1.5);
-  assert.equal(byTitle["Analyse"].cells[prop("Ticket").id], "PROJ-1");
-  assert.equal(byTitle["Analyse"].cells[prop("Date").id], "2026-10-12");
-  assert.match(String(byTitle["Analyse"].cells[prop("Job").id]), /100200/);
-
-  // Tickets roll the hours up through a matching relation on their title.
   const tickets = w.createPage({
     kind: "database",
     title: "Tickets",
     schema: {
       titleName: "Ticket",
       properties: [
-        { id: "booked", name: "Booked", type: "relation", relationDb: timeDb, match: { from: "title", to: prop("Ticket").id } },
+        { id: "booked", name: "Time booked", type: "relation", relationSource: "time", match: { from: "title", to: prop("Ticket").id } },
         { id: "total", name: "Hours booked", type: "rollup", rollup: { relation: "booked", property: prop("Hours").id, fn: "sum" } },
+        { id: "oct", name: "Hours in October", type: "rollup", rollup: { relation: "booked", property: prop("Hours").id, fn: "sum", filter: { op: "and", rules: [{ prop: prop("Date").id, cond: "on_or_after", value: "2026-10-01" }] } } },
+        { id: "meet", name: "Meetings", type: "rollup", rollup: { relation: "booked", property: prop("Hours").id, fn: "sum", filter: { op: "and", rules: [{ prop: prop("Type").id, cond: "is", value: "meeting" }] } } },
       ],
       views: [],
     },
   });
   for (const t of ["PROJ-1", "PROJ-2", "PROJ-3"]) w.addRow(tickets, { title: t, cells: {} });
   const out = w.rowsOf(tickets)!.rows;
-  const total = (t: string) => out.find((r) => r.title === t)!.cells.total;
-  assert.equal(total("PROJ-1"), 3.5);
-  assert.equal(total("PROJ-2"), 4);
-  assert.equal(total("PROJ-3"), 0);
+  const cell = (t: string, id: string) => out.find((r) => r.title === t)!.cells[id];
+  assert.equal(cell("PROJ-1", "total"), 3.5);
+  assert.equal(cell("PROJ-1", "oct"), 1.5, "the filter: only entries from October on");
+  assert.equal(cell("PROJ-1", "meet"), 2, "the filter: only meetings");
+  assert.equal(cell("PROJ-2", "total"), 4);
+  assert.equal(cell("PROJ-3", "total"), 0);
 
-  // A new booking shows after the next read of the source.
+  // A new booking is there at the next read - nothing to refresh.
   book(0.5, "PROJ-3", "Nachfrage");
-  await runPipeline(timeDb, { ai: false, force: true });
   assert.equal(w.rowsOf(tickets)!.rows.find((r) => r.title === "PROJ-3")!.cells.total, 0.5);
+
+  // What the rollup wizard offers.
+  const { relationSourcesAction } = await import("@/plugins/workspace/actions");
+  const r = await relationSourcesAction();
+  assert.ok(r.ok && r.sources[0].id === "time" && r.sources[0].schema.properties.some((p) => p.name === "Hours"));
+});
+
+test("date filters by calendar month and year (a rollup of this month's hours)", async () => {
+  const { matchRule, newProperty } = await import("@/plugins/workspace/model");
+  const d = newProperty("Date", "date");
+  const row = (v: string) => ({ id: 1, title: "", icon: "", cells: { [d.id]: v }, createdAt: "", updatedAt: "" });
+  const rule = (cond: "this_month" | "last_month" | "this_year") => ({ prop: d.id, cond });
+  const now = new Date();
+  const iso = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+  const thisMonth = iso(new Date(now.getFullYear(), now.getMonth(), 1));
+  const lastMonth = iso(new Date(now.getFullYear(), now.getMonth() - 1, 15));
+  assert.equal(matchRule(row(thisMonth), rule("this_month"), [d]), true);
+  assert.equal(matchRule(row(lastMonth), rule("this_month"), [d]), false);
+  assert.equal(matchRule(row(lastMonth), rule("last_month"), [d]), true);
+  assert.equal(matchRule(row(iso(new Date(now.getFullYear() - 1, 5, 1))), rule("this_year"), [d]), false);
+  assert.equal(matchRule(row(thisMonth), rule("this_year"), [d]), true);
+});
+
+test("an agent sets up the same through the schema operations: a relation to the source with a match, a rollup with a filter", async () => {
+  const { applyOps } = await import("@/plugins/workspace/schema-ops");
+  const { sourceTable } = await import("@/plugins/workspace/source-table");
+  const { normalizeSchema } = await import("@/plugins/workspace/model");
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("workspace", true);
+  const base = normalizeSchema({ titleName: "Ticket", properties: [], views: [] });
+  const related = (k: number | string) => (typeof k === "string" ? (sourceTable(k)?.schema ?? null) : null);
+  const { schema } = applyOps(
+    base,
+    [
+      { op: "add_property", name: "Booked", type: "relation", relation: { source: "time", match: { from: "title", to: "Ticket" } } },
+      { op: "add_property", name: "Hours this month", type: "rollup", rollup: { relation: "Booked", property: "Hours", fn: "sum", filter: [{ property: "Date", cond: "this_month" }] } },
+    ] as never,
+    { related },
+  );
+  const rel = schema.properties[0];
+  assert.equal(rel.relationSource, "time");
+  assert.equal(rel.match?.from, "title");
+  assert.equal(schema.properties[1].rollup?.filter?.rules.length, 1);
+  assert.throws(() => applyOps(base, [{ op: "add_property", name: "X", type: "relation", relation: { source: "time" } }] as never, { related }), /needs relation.match/);
 });

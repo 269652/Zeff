@@ -20,6 +20,10 @@ export type WorkspaceSource = {
   count?: () => number;
   /** `label`: the step's own word - a database that follows only a part of the source (one list) names it. */
   read: (ctx?: { label?: string }) => SourceRecord[] | Promise<SourceRecord[]>;
+  /** Its records, read at once: with this the source can be what a relation points at (a rollup over the booked time) — no database of it is made. */
+  table?: () => SourceRecord[];
+  /** Only for relations (`table`): it isn't offered as a database of its own. */
+  relationOnly?: boolean;
   /** Its records are only read from where they live: a row cannot be made by hand in a database of it. */
   noNewRows?: boolean;
   pull?: (dbId: number, rows: Row[], schema: DbSchema) => void | Promise<void>;

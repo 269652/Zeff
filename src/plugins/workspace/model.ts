@@ -49,7 +49,10 @@ export type Property = {
   backOf?: string;
   /** Relation: linked by itself — the rows of the related database whose `to` value equals this row's `from` value (a property id, or "title"); computed, not stored. */
   match?: { from: string; to: string };
-  rollup?: { relation: string; property: string; fn: RollupFn };
+  /** Relation: instead of a database, a source of Zeff's own ("time": the booked time) — read where it lives, never stored; always with `match`. */
+  relationSource?: string;
+  /** `filter`: only the related rows that pass it count. */
+  rollup?: { relation: string; property: string; fn: RollupFn; filter?: Filter };
   formula?: string;
   /** Custom: the id of the field type (a plugin's, "workspace.rating") that checks and draws the entries. */
   custom?: string;
@@ -68,7 +71,7 @@ export type Property = {
 export type Cond =
   | "contains" | "not_contains" | "is" | "is_not" | "starts_with" | "ends_with" | "is_empty" | "not_empty"
   | "eq" | "neq" | "gt" | "lt" | "gte" | "lte"
-  | "before" | "after" | "on_or_before" | "on_or_after" | "past_week" | "past_month" | "next_week" | "next_month" | "this_week" | "today"
+  | "before" | "after" | "on_or_before" | "on_or_after" | "past_week" | "past_month" | "next_week" | "next_month" | "this_week" | "today" | "this_month" | "last_month" | "this_year"
   | "checked" | "unchecked";
 export type Rule = { prop: string; cond: Cond; value?: unknown };
 export type Filter = { op: "and" | "or"; rules: (Rule | Filter)[] };
@@ -672,7 +675,7 @@ export function condsFor(type: PropType | "title"): Cond[] {
     case "date":
     case "created_time":
     case "updated_time":
-      return ["is", "before", "after", "on_or_before", "on_or_after", "today", "this_week", "past_week", "past_month", "next_week", "next_month", "is_empty", "not_empty"];
+      return ["is", "before", "after", "on_or_before", "on_or_after", "today", "this_week", "this_month", "last_month", "this_year", "past_week", "past_month", "next_week", "next_month", "is_empty", "not_empty"];
     case "checkbox":
       return ["checked", "unchecked"];
     default:
@@ -680,7 +683,7 @@ export function condsFor(type: PropType | "title"): Cond[] {
   }
 }
 
-export const needsValue = (c: Cond): boolean => !["is_empty", "not_empty", "checked", "unchecked", "past_week", "past_month", "next_week", "next_month", "this_week", "today"].includes(c);
+export const needsValue = (c: Cond): boolean => !["is_empty", "not_empty", "checked", "unchecked", "past_week", "past_month", "next_week", "next_month", "this_week", "this_month", "last_month", "this_year", "today"].includes(c);
 
 export function matchRule(row: Row, rule: Rule, props: Property[], labels: Labels = noLabels): boolean {
   const p = propOrVirtual(props, rule.prop);
@@ -768,6 +771,12 @@ function matchDate(r: { start: string; end?: string } | null, cond: Cond, want: 
       return within(today, today);
     case "this_week":
       return within(weekStart(today), addDays(weekStart(today), 6));
+    case "this_month":
+      return within(new Date(today.getFullYear(), today.getMonth(), 1), new Date(today.getFullYear(), today.getMonth() + 1, 0));
+    case "last_month":
+      return within(new Date(today.getFullYear(), today.getMonth() - 1, 1), new Date(today.getFullYear(), today.getMonth(), 0));
+    case "this_year":
+      return within(new Date(today.getFullYear(), 0, 1), new Date(today.getFullYear(), 11, 31));
     case "past_week":
       return within(addDays(today, -7), today);
     case "past_month":
@@ -1035,7 +1044,8 @@ export function subtaskCounts(schema: DbSchema, rows: Row[], dbId: number): Reco
 // ---------------------------------------------------------------------------
 
 /** What another database offers a rollup: its schema and its rows (stored values). */
-export type DbLookup = (dbId: number) => { schema: DbSchema; rows: Row[] } | null;
+/** (a lookup of databases only may take just a number: the key is a string for a source.) */
+export type DbLookup = { bivarianceHack(dbId: number | string): { schema: DbSchema; rows: Row[] } | null }["bivarianceHack"];
 
 const num = (v: unknown): number | null => (typeof v === "number" && !Number.isNaN(v) ? v : typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v)) ? Number(v) : null);
 
@@ -1111,19 +1121,21 @@ export function computeRows(schema: DbSchema, rows: Row[], lookup: DbLookup, sel
     return copy;
   });
   // Related databases, computed once (a rollup of a formula there needs it computed; deeper than 2 is left null).
-  const related = new Map<number, { schema: DbSchema; rows: Row[] } | null>();
-  const other = (dbId: number) => {
+  const related = new Map<number | string, { schema: DbSchema; rows: Row[] } | null>();
+  const other = (dbId: number | string) => {
     if (!related.has(dbId)) {
       const d = dbId === selfId ? { schema, rows } : lookup(dbId);
       related.set(dbId, d);
     }
     return related.get(dbId) ?? null;
   };
-  const computedOther = new Map<number, Row[]>();
-  const rowsOf = (dbId: number, needComputed: boolean): Row[] => {
+  const computedOther = new Map<number | string, Row[]>();
+  /** What a relation points at: its database, or its source. */
+  const relKey = (p: Property): number | string | undefined => p.relationSource ?? p.relationDb;
+  const rowsOf = (dbId: number | string, needComputed: boolean): Row[] => {
     const d = other(dbId);
     if (!d) return [];
-    if (!needComputed || depth >= 2 || dbId === selfId) return dbId === selfId ? out : d.rows;
+    if (!needComputed || depth >= 2 || dbId === selfId || typeof dbId === "string") return dbId === selfId ? out : d.rows;
     if (!computedOther.has(dbId)) computedOther.set(dbId, computeRows(d.schema, d.rows, lookup, dbId, depth + 1, now));
     return computedOther.get(dbId)!;
   };
@@ -1137,9 +1149,9 @@ export function computeRows(schema: DbSchema, rows: Row[], lookup: DbLookup, sel
   // 1b. Matching relations: the rows of the other database whose value equals this row's (case and edge spaces don't count).
   const keys = (v: unknown): string[] => asArray(v).map((x) => String(x ?? "").trim().toLowerCase()).filter(Boolean);
   for (const p of props) {
-    if (p.type !== "relation" || p.backOf || !p.match || p.relationDb === undefined) continue;
+    if (p.type !== "relation" || p.backOf || !p.match || relKey(p) === undefined) continue;
     const { from, to } = p.match;
-    const d = p.relationDb === selfId ? { schema, rows: out } : other(p.relationDb);
+    const d = relKey(p) === selfId ? { schema, rows: out } : other(relKey(p)!);
     const index = new Map<string, number[]>();
     for (const x of d?.rows ?? []) for (const k of keys(to === TITLE ? x.title : x.cells[to])) index.set(k, [...(index.get(k) ?? []), x.id]);
     for (const r of out) r.cells[p.id] = [...new Set(keys(from === TITLE ? r.title : r.cells[from]).flatMap((k) => index.get(k) ?? []))];
@@ -1166,9 +1178,12 @@ export function computeRows(schema: DbSchema, rows: Row[], lookup: DbLookup, sel
       if (p.type === "rollup" && p.rollup) {
         const rel = propById(props, p.rollup.relation);
         const ids = asArray(rel ? valueOf(row, rel) : null).map(Number);
-        const d = rel?.relationDb !== undefined ? other(rel.relationDb) : null;
+        const key = rel ? relKey(rel) : undefined;
+        const d = key !== undefined ? other(key) : null;
         const target = d ? propById(d.schema.properties, p.rollup.property) : undefined;
-        const pool = rel?.relationDb !== undefined ? rowsOf(rel.relationDb, !!target && isComputed(target)) : [];
+        const filter = p.rollup.filter?.rules.length ? p.rollup.filter : undefined;
+        const base = key !== undefined ? rowsOf(key, (!!target && isComputed(target)) || !!filter) : [];
+        const pool = filter && d ? filterRows(base, filter, d.schema.properties) : base;
         const picked = ids.map((id) => pool.find((x) => x.id === id)).filter((x): x is Row => !!x);
         const cellsOf = picked.map((x) => (p.rollup!.property === TITLE ? x.title : x.cells[p.rollup!.property]));
         row.cells[p.id] = rollup(p.rollup.fn, p.rollup.property === TITLE ? { id: TITLE, name: "Title", type: "text" } : target, cellsOf);

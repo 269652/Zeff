@@ -187,3 +187,27 @@ test("a matching relation links rows by equal values (no stored links) — rollu
   const tasks: Row[] = [{ id: 5, title: "Relaunch", icon: "", cells: { key: "PROJ-2" }, createdAt: at, updatedAt: at }];
   assert.equal(computeRows(bySchema, tasks, (id) => (id === 2 ? { schema: timeSchema, rows: entries } : null), 9)[0].cells.total, 4);
 });
+
+test("a relation can match a source (no database made of it), and a rollup takes only the related rows that pass its filter", () => {
+  const at = "2026-10-01T00:00:00Z";
+  const hours = { id: "h", name: "Hours", type: "number" as const };
+  const ticket = { id: "tk", name: "Ticket", type: "text" as const };
+  const type = { id: "ty", name: "Type", type: "text" as const };
+  const timeSchema: DbSchema = normalizeSchema({ titleName: "Description", properties: [hours, ticket, type], views: [] });
+  const entries: Row[] = [
+    { id: 1, title: "a", icon: "", cells: { h: 1, tk: "PROJ-1", ty: "dev" }, createdAt: at, updatedAt: at },
+    { id: 2, title: "b", icon: "", cells: { h: 2, tk: "PROJ-1", ty: "meeting" }, createdAt: at, updatedAt: at },
+    { id: 3, title: "c", icon: "", cells: { h: 4, tk: "PROJ-2", ty: "dev" }, createdAt: at, updatedAt: at },
+  ];
+  const booked = { id: "booked", name: "Booked", type: "relation" as const, relationSource: "time", match: { from: "title", to: "tk" } };
+  const all = { id: "all", name: "All", type: "rollup" as const, rollup: { relation: "booked", property: "h", fn: "sum" as const } };
+  const dev = { id: "dev", name: "Dev", type: "rollup" as const, rollup: { relation: "booked", property: "h", fn: "sum" as const, filter: { op: "and" as const, rules: [{ prop: "ty", cond: "is" as const, value: "dev" }] } } };
+  const schema: DbSchema = normalizeSchema({ titleName: "Ticket", properties: [booked, all, dev], views: [] });
+  const rows: Row[] = [{ id: 7, title: "PROJ-1", icon: "", cells: {}, createdAt: at, updatedAt: at }];
+  const seen: unknown[] = [];
+  const out = computeRows(schema, rows, (k) => (seen.push(k), k === "time" ? { schema: timeSchema, rows: entries } : null), 9);
+  assert.equal(out[0].cells.all, 3);
+  assert.equal(out[0].cells.dev, 1, "the filter keeps only the dev entries");
+  assert.deepEqual(out[0].cells.booked, [1, 2]);
+  assert.ok(seen.includes("time"), "the source is asked for by its id");
+});

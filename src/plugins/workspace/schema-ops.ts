@@ -17,8 +17,8 @@ export type PropIn = {
   aiPrompt?: string;
   format?: "number" | "percent" | "euro" | "dollar" | "hours";
   includeTime?: boolean;
-  relation?: { database: number; twoWay?: boolean; /** Linked by itself: this row's `from` value (a property name or "title") equals the related row's `to` value. */ match?: { from: string; to: string } };
-  rollup?: { relation: string; property: string; fn: string };
+  relation?: { database?: number; /** Instead of a database: a source of Zeff's own ("time" = the booked time). Needs `match`. */ source?: string; twoWay?: boolean; /** Linked by itself: this row's `from` value (a property name or "title") equals the related row's `to` value. */ match?: { from: string; to: string } };
+  rollup?: { relation: string; property: string; fn: string; /** Only the related rows that pass (properties of the related database or source, by name). */ filter?: FilterIn[] };
 };
 
 export type FilterIn = { property: string; cond: string; value?: unknown };
@@ -37,7 +37,7 @@ export type DbOp =
   | { op: "remove_view"; view: string }
   | { op: "order_columns"; view?: string; order: string[] };
 
-export type OpsContext = { /** The schema of another database (for rollups through a relation). */ related: (dbId: number) => DbSchema | null };
+export type OpsContext = { /** The schema of another database, or of a source by its id (for rollups through a relation). */ related: (key: number | string) => DbSchema | null };
 
 const lc = (s: unknown) => String(s ?? "").trim().toLowerCase();
 
@@ -87,12 +87,18 @@ function fillProperty(schema: DbSchema, into: Property, v: PropIn, ctx: OpsConte
   if (v.format !== undefined) p.format = v.format;
   if (v.includeTime !== undefined) p.includeTime = v.includeTime;
   if (v.relation) {
-    p.relationDb = v.relation.database;
+    if (v.relation.source) {
+      if (!v.relation.match) throw new Error(`A relation to the source "${v.relation.source}" needs relation.match (it links by matching values).`);
+      if (!ctx.related(v.relation.source)) throw new Error(`Unknown source "${v.relation.source}".`);
+      p.relationSource = v.relation.source;
+      delete p.relationDb;
+    } else p.relationDb = v.relation.database;
     p.twoWay = !!v.relation.twoWay;
     if (v.relation.match) {
       const side = (s: DbSchema | null, name: string) => (lc(name) === "title" || name === TITLE ? TITLE : s?.properties.find((x) => x.id === name || lc(x.name) === lc(name))?.id);
       const from = side(schema, v.relation.match.from);
-      const to = side(v.relation.database === undefined ? null : ctx.related(v.relation.database), v.relation.match.to);
+      const key = v.relation.source ?? v.relation.database;
+      const to = side(key === undefined ? null : ctx.related(key), v.relation.match.to);
       if (!from) throw new Error(`This database has no property "${v.relation.match.from}".`);
       if (!to) throw new Error(`The related database has no property "${v.relation.match.to}".`);
       p.match = { from, to };
@@ -101,16 +107,17 @@ function fillProperty(schema: DbSchema, into: Property, v: PropIn, ctx: OpsConte
   }
   if (v.rollup) {
     const rel = prop(schema, v.rollup.relation, "relation");
-    if (rel.type !== "relation" || rel.relationDb === undefined) throw new Error(`"${rel.name}" is not a relation — a rollup goes through one.`);
-    const other = ctx.related(rel.relationDb);
+    if (rel.type !== "relation" || (rel.relationDb === undefined && rel.relationSource === undefined)) throw new Error(`"${rel.name}" is not a relation — a rollup goes through one.`);
+    const other = ctx.related((rel.relationSource ?? rel.relationDb)!);
     const target = v.rollup.property === TITLE || lc(v.rollup.property) === "title" ? TITLE : other?.properties.find((x) => x.id === v.rollup!.property || lc(x.name) === lc(v.rollup!.property))?.id;
     if (!target) throw new Error(`The related database has no property "${v.rollup.property}".`);
     if (!(ROLLUP_FNS as readonly string[]).includes(v.rollup.fn)) throw new Error(`Unknown rollup function "${v.rollup.fn}" — ${ROLLUP_FNS.join(", ")}.`);
-    p.rollup = { relation: rel.id, property: target, fn: v.rollup.fn as RollupFn };
+    const rules = (v.rollup.filter ?? []).map((f) => (other ? ruleOf(other, f) : null)).filter((x): x is Rule => !!x);
+    p.rollup = { relation: rel.id, property: target, fn: v.rollup.fn as RollupFn, ...(rules.length ? { filter: { op: "and" as const, rules } } : {}) };
   }
   if (p.type === "formula" && !p.formula) throw new Error(`The formula property "${p.name}" needs a formula.`);
   if (p.type === "rollup" && !p.rollup) throw new Error(`The rollup property "${p.name}" needs a rollup (relation, property, fn).`);
-  if (p.type === "relation" && !p.backOf && p.relationDb === undefined) throw new Error(`The relation property "${p.name}" needs relation.database.`);
+  if (p.type === "relation" && !p.backOf && p.relationDb === undefined && p.relationSource === undefined) throw new Error(`The relation property "${p.name}" needs relation.database.`);
   return p;
 }
 

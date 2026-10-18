@@ -17,6 +17,7 @@ import { logChange } from "./activity";
 import { parseCustom } from "./field-types";
 import { made, touch } from "./undo";
 import { docRefs, docText, emptyDoc, sanitizeDoc, withTaskIds, type Doc, type DocRef } from "./doc";
+import { sourceTable } from "./source-table";
 import { cellText, computeRows, dateRange, defaultSchema, isComputed, SYSTEM_PROPS, newProperty, normalizeSchema, propById, TITLE, type DbSchema, type Labels, type Property, type Row } from "./model";
 
 function db() {
@@ -684,7 +685,8 @@ export function rawRows(dbId: number, opts: { templates?: boolean } = {}): Row[]
 export function rowsOf(dbId: number): { schema: DbSchema; rows: Row[] } | null {
   const d = getDatabase(dbId);
   if (!d) return null;
-  const lookup = (id: number) => {
+  const lookup = (id: number | string) => {
+    if (typeof id === "string") return sourceTable(id);
     const o = getDatabase(id);
     return o ? { schema: o.schema, rows: rawRows(id) } : null;
   };

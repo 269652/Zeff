@@ -7,6 +7,7 @@ import { checkFormula, FORMULA_FUNCTIONS } from "../formula";
 import { choiceColor, isComputed, columnOrder, condsFor, COLORS, CREATED, hasDependents, isFilter, moveBefore, needsValue, newId, removeProperty, PROP_LABELS, PROP_TYPES, retype, ROLLUP_FNS, TITLE, UPDATED, type Cond, type DbSchema, type Filter, type Option, type Property, type PropType, type Rule, type Sort, type View } from "../model";
 import { makeOption, Tag } from "./cells";
 import { Modal, useSortable } from "./kit";
+import { RollupWizard } from "./rollup-wizard";
 
 /** The menus of a database: filter, sort, properties, and the schema editor. */
 
@@ -38,6 +39,9 @@ const condLabel = (t: ReturnType<typeof useT>): Record<Cond, string> => ({
   next_week: t("in the next week"),
   next_month: t("in the next month"),
   this_week: t("is this week"),
+  this_month: t("is this month"),
+  last_month: t("was last month"),
+  this_year: t("is this year"),
   today: t("is today"),
   checked: t("is checked"),
   unchecked: t("is not checked"),
@@ -274,7 +278,9 @@ function PropertyEditor({ p, schema, data, dbId, onChange, onRemove, databases, 
   const [open, setOpen] = useState(false);
   const formulaError = p.type === "formula" && p.formula ? checkFormula(p.formula) : null;
   const rel = p.type === "rollup" ? schema.properties.find((x) => x.id === p.rollup?.relation) : undefined;
-  const relatedProps = rel?.relationDb !== undefined ? data.related[rel.relationDb]?.properties ?? [] : [];
+  const relKey = rel?.relationSource ?? rel?.relationDb;
+  const relatedProps = relKey !== undefined ? data.related[relKey]?.properties ?? [] : [];
+  const relatedSchema = relKey !== undefined ? data.related[relKey]?.schema : undefined;
   const computed = p.type === "rollup" || p.type === "formula" || p.type === "created_time" || p.type === "updated_time" || (p.type === "relation" && (!!p.backOf || !!p.match));
   const matchTo = p.type === "relation" && p.relationDb !== undefined ? (p.relationDb === dbId ? schema.properties : data.related[p.relationDb]?.properties ?? []) : [];
   return (
@@ -372,7 +378,10 @@ function PropertyEditor({ p, schema, data, dbId, onChange, onRemove, databases, 
               {formulaError ? <p className="text-xs text-red-600 dark:text-red-400">{formulaError}</p> : <p className="text-xs text-zinc-500">{t("Functions: {list}", { list: FORMULA_FUNCTIONS.join(", ") })}</p>}
             </div>
           )}
-          {p.type === "relation" && !p.backOf && (
+          {p.type === "relation" && !p.backOf && p.relationSource !== undefined && (
+            <p className="text-xs text-zinc-500">{t("Linked to {name} by matching values.", { name: data.related[p.relationSource]?.title ?? p.relationSource })}</p>
+          )}
+          {p.type === "relation" && !p.backOf && p.relationSource === undefined && (
             <div className="space-y-1">
               <label className="flex items-center gap-2">
                 {t("Related database")}
@@ -451,6 +460,21 @@ function PropertyEditor({ p, schema, data, dbId, onChange, onRemove, databases, 
               </select>
             </div>
           )}
+          {p.type === "rollup" && p.rollup && relatedSchema && (
+            <div className="space-y-1">
+              <div className="text-xs text-zinc-500">{t("Only the related rows that match:")}</div>
+              {p.rollup.filter?.rules.length ? (
+                <>
+                  <FilterEditor filter={p.rollup.filter} schema={relatedSchema} data={data} onChange={(f) => onChange({ ...p, rollup: { ...p.rollup!, filter: f.rules.length ? f : undefined } })} />
+                </>
+              ) : (
+                <button type="button" className="text-sm text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => onChange({ ...p, rollup: { ...p.rollup!, filter: { op: "and", rules: [{ prop: relatedSchema.properties[0]?.id ?? TITLE, cond: condsFor(relatedSchema.properties[0]?.type ?? "text")[0], value: "" }] } } })}>
+                  + {t("Add a filter")}
+                </button>
+              )}
+            </div>
+          )}
+          {p.type === "rollup" && !schema.properties.some((x) => x.type === "relation") && <p className="text-xs text-zinc-500">{t("A rollup needs a relation first — or use “Calculate from other data” below, which adds both.")}</p>}
           {computed && p.type !== "formula" && p.type !== "rollup" && <p className="text-xs text-zinc-500">{t("Computed — it can't be edited by hand.")}</p>}
         </div>
       )}
@@ -464,6 +488,7 @@ export function SchemaModal({ schema, data, dbId, databases, onSave, onClose }: 
   const [draft, setDraft] = useState<DbSchema>(schema);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [wizard, setWizard] = useState(false);
   const sort = useSortable((from, to, after) => {
     const ids = moveBefore(draft.properties.map((p) => p.id), from, to, after);
     setDraft({ ...draft, properties: ids.map((id) => draft.properties.find((p) => p.id === id)!) });
@@ -493,7 +518,20 @@ export function SchemaModal({ schema, data, dbId, databases, onSave, onClose }: 
             />
           ))}
         </ul>
+        {wizard && (
+          <RollupWizard
+            draft={draft}
+            data={data}
+            databases={databases}
+            dbId={dbId}
+            onClose={() => setWizard(false)}
+            onAdd={(props, hide) => setDraft({ ...draft, properties: [...draft.properties, ...props], views: draft.views.map((v) => ({ ...v, hidden: [...(v.hidden ?? []), hide] })) })}
+          />
+        )}
         <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className="btn btn-sm" title={t("A total over other data — hours booked per ticket, tasks per project")} onClick={() => setWizard(true)}>
+            Σ {t("Calculate from other data …")}
+          </button>
           <button type="button" className="btn btn-sm" onClick={() => setDraft({ ...draft, properties: [...draft.properties, { id: newId("p"), name: t("Property {n}", { n: draft.properties.length + 1 }), type: "text" }] })}>
             + {t("Add a property")}
           </button>

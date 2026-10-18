@@ -38,5 +38,7 @@ export const TIME_SOURCE: WorkspaceSource = {
   },
   count: () => listBookedEntries().length,
   read: timeRecords,
+  table: timeRecords,
+  relationOnly: true,
   noNewRows: true,
 };
