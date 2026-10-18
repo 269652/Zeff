@@ -6068,5 +6068,12 @@
   "Your Google Keep notes in Zeff, read in the account's automation Chrome (Keep opened in a new tab, what Keep loads taken over, tab closed; nothing changes in Keep) into a Workspace database. The note boards and what is done with notes (knowledge, agents, briefing, todos) are the Notes plugin's.": "Deine Google-Keep-Notizen in Zeff, gelesen im Automations-Chrome des Kontos (Keep in einem neuen Tab geöffnet, was Keep lädt übernommen, Tab geschlossen; in Keep ändert sich nichts) in eine Workspace-Datenbank. Die Notiz-Boards und alles, was mit Notizen geschieht (Wissen, Agenten, Briefing, Todos), gehört zum Plugin Notizen.",
   "For Google Keep: the account's automation Chrome, signed in to Google (keep.google.com).": "Für Google Keep: der Automations-Chrome des Kontos, bei Google angemeldet (keep.google.com).",
   "The Google account": "Das Google-Konto",
-  "That entry is not there (any more).": "Diesen Eintrag gibt es (nicht mehr)."
+  "That entry is not there (any more).": "Diesen Eintrag gibt es (nicht mehr).",
+  "The links are not picked by hand: a row is linked to every row of the related database whose value equals its own (the ticket key of a time entry, say).": "Die Verknüpfungen werden nicht von Hand gewählt: Eine Zeile ist mit jeder Zeile der verknüpften Datenbank verbunden, deren Wert ihrem eigenen entspricht (etwa der Ticket-Schlüssel einer Zeitbuchung).",
+  "Link by matching values": "Über gleiche Werte verknüpfen",
+  "This row's value": "Wert dieser Zeile",
+  "equals the related row's": "ist gleich dem Wert der verknüpften Zeile",
+  "Related row's value": "Wert der verknüpften Zeile",
+  "Time booked": "Gebuchte Zeit",
+  "Your booked time, one row per entry — with date, hours, ticket, job and project. Tickets, projects or jobs can add it up (a matching relation and a rollup).": "Deine gebuchte Zeit, eine Zeile je Buchung — mit Datum, Stunden, Ticket, Job und Projekt. Tickets, Projekte oder Jobs können sie aufsummieren (eine Verknüpfung über gleiche Werte und eine Rollup-Spalte)."
 }

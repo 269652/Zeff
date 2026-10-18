@@ -54,7 +54,7 @@ export async function createExtSourceDatabase(ext: string, title?: string, label
   const step: PipelineStep = { id: newId("s"), kind: "source", from: "ext", ext, ...(label ? { label } : {}) };
   const app = appViewsFor(src.dataType)[0];
   const views: View[] = [...(app ? [{ ...newView(t(app.label), "table"), type: "app" as const, app: app.id }] : []), ...(ext === "page-tasks" ? [newView(t("Todos"), "todo")] : []), newView(t("Table"), "table")];
-  const schema: DbSchema = { titleName: t("Name"), properties: [], views, ...(src.dataType ? { dataType: src.dataType } : {}), pipeline: { steps: [step], everyMinutes: 60 } };
+  const schema: DbSchema = { titleName: t("Name"), properties: [], views, ...(src.dataType ? { dataType: src.dataType } : {}), pipeline: { steps: [step], everyMinutes: ext === "time" ? 5 : 60 } };
   const id = createPage({ kind: "database", title: title || t(src.label), icon: src.icon, schema });
   updatePage(id, { fullWidth: true });
   return id;

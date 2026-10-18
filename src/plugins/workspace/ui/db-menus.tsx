@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import type { DatabaseData } from "../actions";
 import { checkFormula, FORMULA_FUNCTIONS } from "../formula";
-import { choiceColor, columnOrder, condsFor, COLORS, CREATED, hasDependents, isFilter, moveBefore, needsValue, newId, removeProperty, PROP_LABELS, PROP_TYPES, retype, ROLLUP_FNS, TITLE, UPDATED, type Cond, type DbSchema, type Filter, type Option, type Property, type PropType, type Rule, type Sort, type View } from "../model";
+import { choiceColor, isComputed, columnOrder, condsFor, COLORS, CREATED, hasDependents, isFilter, moveBefore, needsValue, newId, removeProperty, PROP_LABELS, PROP_TYPES, retype, ROLLUP_FNS, TITLE, UPDATED, type Cond, type DbSchema, type Filter, type Option, type Property, type PropType, type Rule, type Sort, type View } from "../model";
 import { makeOption, Tag } from "./cells";
 import { Modal, useSortable } from "./kit";
 
@@ -275,7 +275,8 @@ function PropertyEditor({ p, schema, data, dbId, onChange, onRemove, databases, 
   const formulaError = p.type === "formula" && p.formula ? checkFormula(p.formula) : null;
   const rel = p.type === "rollup" ? schema.properties.find((x) => x.id === p.rollup?.relation) : undefined;
   const relatedProps = rel?.relationDb !== undefined ? data.related[rel.relationDb]?.properties ?? [] : [];
-  const computed = p.type === "rollup" || p.type === "formula" || p.type === "created_time" || p.type === "updated_time" || (p.type === "relation" && !!p.backOf);
+  const computed = p.type === "rollup" || p.type === "formula" || p.type === "created_time" || p.type === "updated_time" || (p.type === "relation" && (!!p.backOf || !!p.match));
+  const matchTo = p.type === "relation" && p.relationDb !== undefined ? (p.relationDb === dbId ? schema.properties : data.related[p.relationDb]?.properties ?? []) : [];
   return (
     <li className={`rounded-lg border border-zinc-200 p-2 dark:border-zinc-700 ${sort.mark(p.id)}`} {...sort.target(p.id)}>
       <div className="flex flex-wrap items-center gap-1.5">
@@ -385,7 +386,33 @@ function PropertyEditor({ p, schema, data, dbId, onChange, onRemove, databases, 
                   ))}
                 </select>
               </label>
-              {p.relationDb !== undefined && p.relationDb !== dbId && (
+              {p.relationDb !== undefined && (
+                <label className="flex items-center gap-2" title={t("The links are not picked by hand: a row is linked to every row of the related database whose value equals its own (the ticket key of a time entry, say).")}>
+                  <input type="checkbox" checked={!!p.match} onChange={(e) => onChange({ ...p, twoWay: false, match: e.target.checked ? { from: TITLE, to: TITLE } : undefined })} /> {t("Link by matching values")}
+                </label>
+              )}
+              {p.match && (
+                <div className="flex flex-wrap items-center gap-1.5 pl-5">
+                  <select className="input text-sm" value={p.match.from} aria-label={t("This row's value")} onChange={(e) => onChange({ ...p, match: { from: e.target.value, to: p.match!.to } })}>
+                    <option value={TITLE}>{t("Title")}</option>
+                    {schema.properties.filter((x) => x.id !== p.id && !isComputed(x)).map((x) => (
+                      <option key={x.id} value={x.id}>
+                        {x.name}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-xs text-zinc-500">{t("equals the related row's")}</span>
+                  <select className="input text-sm" value={p.match.to} aria-label={t("Related row's value")} onChange={(e) => onChange({ ...p, match: { from: p.match!.from, to: e.target.value } })}>
+                    <option value={TITLE}>{t("Title")}</option>
+                    {matchTo.filter((x) => x.id !== p.id && !isComputed(x as Property)).map((x) => (
+                      <option key={x.id} value={x.id}>
+                        {x.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {p.relationDb !== undefined && p.relationDb !== dbId && !p.match && (
                 <label className="flex items-center gap-2">
                   <input type="checkbox" checked={!!p.twoWay} onChange={(e) => onChange({ ...p, twoWay: e.target.checked })} /> {t("Show it on the related database too")}
                 </label>

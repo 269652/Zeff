@@ -67,7 +67,7 @@ const propSchema = z.object({
   aiPrompt: z.string().optional().describe("ai: what the AI fills the cell by, from the row's other cells."),
   format: z.enum(["number", "percent", "euro", "dollar", "hours"]).optional(),
   includeTime: z.boolean().optional().describe("date: with a time."),
-  relation: z.object({ database: z.number().int(), twoWay: z.boolean().optional() }).optional().describe("relation: the id of the related database (the database's page id)."),
+  relation: z.object({ database: z.number().int(), twoWay: z.boolean().optional(), match: z.object({ from: z.string(), to: z.string() }).optional() }).optional().describe("relation: the id of the related database (the database's page id). match: link the rows by themselves — this row's `from` property (or \"title\") equals the related row's `to` property (case-insensitive); read-only, computed. With the \"Time booked\" database (source: time) and match {from: \"title\", to: \"Ticket\"} plus a rollup (sum of Hours) a ticket database totals the booked time."),
   rollup: z.object({ relation: z.string(), property: z.string(), fn: z.enum(ROLLUP_FNS) }).optional().describe("rollup: through one of this database's relations, a property (name, or \"title\") of the related rows, calculated by fn."),
 });
 
@@ -106,7 +106,7 @@ function describeSchema(p: store.Page, schema: DbSchema): string {
     if (q.options?.length) bits.push(`options: ${q.options.map((o) => o.name).join(", ")}`);
     if (q.formula) bits.push(`formula: ${q.formula}`);
     if (q.rollup) bits.push(`rollup: ${schema.properties.find((x) => x.id === q.rollup!.relation)?.name ?? "?"} → ${q.rollup.property} (${q.rollup.fn})`);
-    if (q.relationDb !== undefined) bits.push(`${q.backOf ? "back-relation of" : "relation to"} database ${q.relationDb}`);
+    if (q.relationDb !== undefined) bits.push(`${q.backOf ? "back-relation of" : "relation to"} database ${q.relationDb}${q.match ? ` (matching ${q.match.from} = ${q.match.to})` : ""}`);
     if (q.aiPrompt) bits.push(`ai: ${q.aiPrompt}`);
     lines.push(`- ${q.name} (${bits.join("; ")})`);
   }

@@ -17,7 +17,7 @@ export type PropIn = {
   aiPrompt?: string;
   format?: "number" | "percent" | "euro" | "dollar" | "hours";
   includeTime?: boolean;
-  relation?: { database: number; twoWay?: boolean };
+  relation?: { database: number; twoWay?: boolean; /** Linked by itself: this row's `from` value (a property name or "title") equals the related row's `to` value. */ match?: { from: string; to: string } };
   rollup?: { relation: string; property: string; fn: string };
 };
 
@@ -89,6 +89,15 @@ function fillProperty(schema: DbSchema, into: Property, v: PropIn, ctx: OpsConte
   if (v.relation) {
     p.relationDb = v.relation.database;
     p.twoWay = !!v.relation.twoWay;
+    if (v.relation.match) {
+      const side = (s: DbSchema | null, name: string) => (lc(name) === "title" || name === TITLE ? TITLE : s?.properties.find((x) => x.id === name || lc(x.name) === lc(name))?.id);
+      const from = side(schema, v.relation.match.from);
+      const to = side(v.relation.database === undefined ? null : ctx.related(v.relation.database), v.relation.match.to);
+      if (!from) throw new Error(`This database has no property "${v.relation.match.from}".`);
+      if (!to) throw new Error(`The related database has no property "${v.relation.match.to}".`);
+      p.match = { from, to };
+      p.twoWay = false;
+    } else if (v.relation.match === undefined) delete p.match;
   }
   if (v.rollup) {
     const rel = prop(schema, v.rollup.relation, "relation");

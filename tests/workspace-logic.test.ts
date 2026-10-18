@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { docRefs, docText, docToMarkdown, markdownToDoc, sanitizeDoc, type DocNode } from "@/plugins/workspace/doc";
 import { checkFormula, evalFormula } from "@/plugins/workspace/formula";
-import { computeRows, filterRows, groupRows, newProperty, normalizeSchema, rollup, rowsToCsv, sortRows, type DbSchema, type Row } from "@/plugins/workspace/model";
+import { computeRows, filterRows, groupRows, isComputed, newProperty, normalizeSchema, rollup, rowsToCsv, sortRows, type DbSchema, type Row } from "@/plugins/workspace/model";
 
 const NOW = new Date(2026, 9, 14, 12, 0); // Wed 14 Oct 2026
 
@@ -151,4 +151,39 @@ test("databases: CSV export in the view's order, hidden properties left out", ()
   assert.equal(csv.split("\n")[0], "Task;Hours;Status;Due");
   assert.match(csv, /Write docs;3;In progress;2026-10-14/);
   void status;
+});
+
+test("a matching relation links rows by equal values (no stored links) — rollups go through it like through any relation", () => {
+  // Tickets (db 1) and booked time (db 2): a ticket's rows are the entries whose Ticket equals its title.
+  const hours = { id: "h", name: "Hours", type: "number" as const };
+  const ticket = { id: "tk", name: "Ticket", type: "text" as const };
+  const timeSchema: DbSchema = normalizeSchema({ titleName: "Description", properties: [hours, ticket], views: [] });
+  const at = "2026-10-01T00:00:00Z";
+  const entries: Row[] = [
+    { id: 21, title: "a", icon: "", cells: { h: 1.5, tk: "PROJ-1" }, createdAt: at, updatedAt: at },
+    { id: 22, title: "b", icon: "", cells: { h: 2, tk: "proj-1 " }, createdAt: at, updatedAt: at },
+    { id: 23, title: "c", icon: "", cells: { h: 4, tk: "PROJ-2" }, createdAt: at, updatedAt: at },
+    { id: 24, title: "d", icon: "", cells: { h: 8 }, createdAt: at, updatedAt: at },
+  ];
+  const booked = { id: "booked", name: "Booked", type: "relation" as const, relationDb: 2, match: { from: "title", to: "tk" } };
+  const total = { id: "total", name: "Hours booked", type: "rollup" as const, rollup: { relation: "booked", property: "h", fn: "sum" as const } };
+  const ticketsSchema: DbSchema = normalizeSchema({ titleName: "Ticket", properties: [booked, total], views: [] });
+  const tickets: Row[] = [
+    { id: 1, title: "PROJ-1", icon: "", cells: {}, createdAt: at, updatedAt: at },
+    { id: 2, title: "PROJ-2", icon: "", cells: {}, createdAt: at, updatedAt: at },
+    { id: 3, title: "PROJ-3", icon: "", cells: {}, createdAt: at, updatedAt: at },
+  ];
+  assert.equal(isComputed(booked), true, "its values are not stored");
+  const lookup = (id: number) => (id === 2 ? { schema: timeSchema, rows: entries } : id === 1 ? { schema: ticketsSchema, rows: tickets } : null);
+  const out = computeRows(ticketsSchema, tickets, lookup, 1);
+  assert.deepEqual(out[0].cells.booked, [21, 22], "case and spaces don't matter");
+  assert.equal(out[0].cells.total, 3.5);
+  assert.equal(out[1].cells.total, 4);
+  assert.equal(out[2].cells.total, 0, "nothing booked: 0");
+  assert.deepEqual(out[2].cells.booked, []);
+  // From a property of this database (a ticket key kept in a text field), to the entries' Ticket.
+  const key = { id: "key", name: "Key", type: "text" as const };
+  const bySchema: DbSchema = normalizeSchema({ titleName: "Task", properties: [key, { ...booked, match: { from: "key", to: "tk" } }, total], views: [] });
+  const tasks: Row[] = [{ id: 5, title: "Relaunch", icon: "", cells: { key: "PROJ-2" }, createdAt: at, updatedAt: at }];
+  assert.equal(computeRows(bySchema, tasks, (id) => (id === 2 ? { schema: timeSchema, rows: entries } : null), 9)[0].cells.total, 4);
 });

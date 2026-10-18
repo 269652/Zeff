@@ -6068,5 +6068,12 @@
   "Your Google Keep notes in Zeff, read in the account's automation Chrome (Keep opened in a new tab, what Keep loads taken over, tab closed; nothing changes in Keep) into a Workspace database. The note boards and what is done with notes (knowledge, agents, briefing, todos) are the Notes plugin's.": "Tus notas de Google Keep en Zeff, leídas en el Chrome de automatización de la cuenta (Keep abierto en una pestaña nueva, lo que carga Keep recogido, pestaña cerrada; en Keep no cambia nada) en una base de datos del Workspace. Los tableros de notas y todo lo que se hace con las notas (conocimiento, agentes, briefing, tareas) son del plugin Notas.",
   "For Google Keep: the account's automation Chrome, signed in to Google (keep.google.com).": "Para Google Keep: el Chrome de automatización de la cuenta, con sesión de Google iniciada (keep.google.com).",
   "The Google account": "La cuenta de Google",
-  "That entry is not there (any more).": "Esa entrada ya no existe."
+  "That entry is not there (any more).": "Esa entrada ya no existe.",
+  "The links are not picked by hand: a row is linked to every row of the related database whose value equals its own (the ticket key of a time entry, say).": "Los vínculos no se eligen a mano: una fila se vincula con cada fila de la base de datos relacionada cuyo valor sea igual al suyo (por ejemplo, la clave de ticket de un registro de tiempo).",
+  "Link by matching values": "Vincular por valores iguales",
+  "This row's value": "Valor de esta fila",
+  "equals the related row's": "es igual al de la fila relacionada",
+  "Related row's value": "Valor de la fila relacionada",
+  "Time booked": "Tiempo registrado",
+  "Your booked time, one row per entry — with date, hours, ticket, job and project. Tickets, projects or jobs can add it up (a matching relation and a rollup).": "Tu tiempo registrado, una fila por registro — con fecha, horas, ticket, trabajo y proyecto. Los tickets, proyectos o trabajos pueden sumarlo (una relación por valores iguales y un rollup)."
 }

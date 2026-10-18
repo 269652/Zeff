@@ -47,6 +47,8 @@ export type Property = {
   /** Relation: also show it on the related database (made when the schema is saved). */
   twoWay?: boolean;
   backOf?: string;
+  /** Relation: linked by itself — the rows of the related database whose `to` value equals this row's `from` value (a property id, or "title"); computed, not stored. */
+  match?: { from: string; to: string };
   rollup?: { relation: string; property: string; fn: RollupFn };
   formula?: string;
   /** Custom: the id of the field type (a plugin's, "workspace.rating") that checks and draws the entries. */
@@ -403,7 +405,7 @@ export const newId = (prefix = "x"): string => `${prefix}${Math.random().toStrin
 export const emptyFilter = (): Filter => ({ op: "and", rules: [] });
 export const isFilter = (r: Rule | Filter): r is Filter => "rules" in r;
 
-export const isComputed = (p: Property): boolean => p.type === "rollup" || p.type === "formula" || p.type === "created_time" || p.type === "updated_time" || (p.type === "relation" && !!p.backOf);
+export const isComputed = (p: Property): boolean => p.type === "rollup" || p.type === "formula" || p.type === "created_time" || p.type === "updated_time" || (p.type === "relation" && (!!p.backOf || !!p.match));
 
 export function defaultOptions(type: PropType): Option[] | undefined {
   if (type === "status")
@@ -1131,6 +1133,16 @@ export function computeRows(schema: DbSchema, rows: Row[], lookup: DbLookup, sel
     if (p.type !== "relation" || !p.backOf || p.relationDb === undefined) continue;
     const d = other(p.relationDb);
     for (const r of out) r.cells[p.id] = (d?.rows ?? []).filter((x) => asArray(x.cells[p.backOf!]).some((id) => Number(id) === r.id)).map((x) => x.id);
+  }
+  // 1b. Matching relations: the rows of the other database whose value equals this row's (case and edge spaces don't count).
+  const keys = (v: unknown): string[] => asArray(v).map((x) => String(x ?? "").trim().toLowerCase()).filter(Boolean);
+  for (const p of props) {
+    if (p.type !== "relation" || p.backOf || !p.match || p.relationDb === undefined) continue;
+    const { from, to } = p.match;
+    const d = p.relationDb === selfId ? { schema, rows: out } : other(p.relationDb);
+    const index = new Map<string, number[]>();
+    for (const x of d?.rows ?? []) for (const k of keys(to === TITLE ? x.title : x.cells[to])) index.set(k, [...(index.get(k) ?? []), x.id]);
+    for (const r of out) r.cells[p.id] = [...new Set(keys(from === TITLE ? r.title : r.cells[from]).flatMap((k) => index.get(k) ?? []))];
   }
   // 2. Rollups, 3. formulas (by property, memoised; a formula may use a rollup or another formula).
   const done = new Set<string>();

@@ -12,3 +12,4 @@ import "./people/server";
 import "./todos/server";
 import "./work/server";
 import "./workspace/server";
+import "./zeiterfassung/server";
