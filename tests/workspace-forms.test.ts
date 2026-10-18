@@ -295,3 +295,36 @@ test("protection: unique values, a locked database, and what the AI may do - the
   const loaded = await loadDatabaseAction(id);
   assert.equal(loaded.ok && loaded.data.locked, true, "the page shows it as locked");
 });
+
+test("field types: the Workspace's rating and progress, and a type a plugin brings - entries are checked by the type, shown by its display", async () => {
+  (await import("@/plugins/state")).setInstalled("workspace", true);
+  await import("@/plugins/contributions");
+  const store = await import("@/plugins/workspace/store");
+  const { workspaceFieldTypes } = await import("@/plugins/workspace/field-point");
+  const { fieldTypeInfos } = await import("@/plugins/workspace/field-types");
+  const { loadDatabaseAction } = await import("@/plugins/workspace/actions");
+  workspaceFieldTypes.contribute("core", [
+    { id: "core.ticket", label: "Ticket", icon: "🎫", description: "A ticket key", display: "link", href: "https://jira.example/browse/{value}", suggestions: () => ["ABC-1", "ABC-2"], parse: (s) => { if (!s) return null; if (!/^[A-Z]+-\d+$/i.test(s)) throw new Error("not a key"); return s.toUpperCase(); } },
+  ]);
+  const ids = fieldTypeInfos().map((f) => f.id);
+  assert.ok(["workspace.rating", "workspace.progress", "core.ticket"].every((x) => ids.includes(x)));
+  const id = store.createPage({ kind: "database", title: "Typed" });
+  const cur = store.getDatabase(id)!.schema;
+  const mk = (name: string, custom: string) => ({ id: `p_${name}`, name, type: "custom" as const, custom });
+  store.saveSchema(id, { ...cur, properties: [...cur.properties, mk("Stars", "workspace.rating"), mk("Done", "workspace.progress"), mk("Key", "core.ticket"), mk("Gone", "nobody.nothing")] });
+  const row = store.addRow(id, { title: "R", cells: { p_Stars: "4", p_Done: 150, p_Key: "abc-12", p_Gone: "free text" } });
+  const cells = () => store.rowsOf(id)!.rows.find((r) => r.id === row)!.cells;
+  assert.equal(cells().p_Stars, 4);
+  assert.equal(cells().p_Done, undefined, "150 is no percentage: dropped");
+  assert.equal(cells().p_Key, "ABC-12", "put into shape by the type");
+  assert.equal(cells().p_Gone, "free text", "a type that is gone keeps the text");
+  store.setCell(row, "p_Stars", 9);
+  assert.equal(cells().p_Stars, undefined, "9 stars: refused, the cell is cleared like any entry that does not fit");
+  store.setCell(row, "p_Done", "75");
+  assert.equal(cells().p_Done, 75);
+  store.setCell(row, "p_Key", "nonsense");
+  assert.equal(cells().p_Key, undefined);
+  const loaded = await loadDatabaseAction(id);
+  assert.ok(loaded.ok && loaded.data.extras.fieldTypes?.some((f) => f.id === "core.ticket" && f.suggestions.length === 2 && f.display === "link"));
+  assert.equal(loaded.ok && loaded.data.schema.properties.find((p) => p.name === "Key")!.custom, "core.ticket", "the type stays in the property");
+});

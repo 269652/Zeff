@@ -36,7 +36,8 @@ export function chartPoints(view: View, rows: Row[], schema: DbSchema, noValue: 
     if (!["select", "status", "multi_select", "checkbox"].includes(g.type)) groups.sort((a, b) => b.rows.length - a.rows.length);
   }
   const points = groups
-    .filter((x) => x.rows.length)
+    // (summing or averaging: a group in which no row has the number has nothing to show)
+    .filter((x) => x.rows.length && (calc === "count" || !v || x.rows.some((r) => num(r.cells[v.id]) !== null)))
     .slice(0, 30)
     .map((x, i): ChartPoint => ({ label: x.label, value: Math.round(measure(x.rows) * 100) / 100, color: (x.color && COLOR_HEX[x.color]) || PALETTE[i % PALETTE.length] }));
   const unit = calc === "count" || !v ? "" : v.format === "euro" ? "€" : v.format === "dollar" ? "$" : v.format === "hours" ? "h" : v.format === "percent" ? "%" : "";

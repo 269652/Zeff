@@ -5957,5 +5957,9 @@
   "Every run": "Cada ejecución",
   "Load older runs": "Cargar ejecuciones anteriores",
   "It never deletes mails and never opens system pages for writing.": "Nunca borra correos ni escribe en páginas del sistema.",
-  "An automation does only what its steps say — nothing else. Its steps run inside Zeff; they send nothing out by themselves.": "Una automatización hace solo lo que dicen sus pasos. Sus pasos se ejecutan dentro de Zeff y no envían nada al exterior por sí solos."
+  "An automation does only what its steps say — nothing else. Its steps run inside Zeff; they send nothing out by themselves.": "Una automatización hace solo lo que dicen sus pasos. Sus pasos se ejecutan dentro de Zeff y no envían nada al exterior por sí solos.",
+  "Rating": "Valoración",
+  "1 to 5 stars": "De 1 a 5 estrellas",
+  "Progress": "Progreso",
+  "0 to 100 percent, drawn as a bar": "De 0 a 100 por ciento, dibujado como barra"
 }
