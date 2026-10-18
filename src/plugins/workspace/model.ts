@@ -370,6 +370,8 @@ export type Row = { id: number; title: string; icon: string; cells: Record<strin
 
 /** The pseudo-properties every database has. */
 export const TITLE = "title";
+/** The property a ticket row keeps its key in (collections.ts: KEY_PROP). */
+const TICKET_KEY = "ticketkey";
 export const CREATED = "created_at";
 export const UPDATED = "updated_at";
 
@@ -1156,7 +1158,8 @@ export function computeRows(schema: DbSchema, rows: Row[], lookup: DbLookup, sel
     const d = relKey(p) === selfId ? { schema, rows: out } : other(relKey(p)!);
     const index = new Map<string, number[]>();
     for (const x of d?.rows ?? []) for (const k of keys(to === TITLE ? x.title : x.cells[to])) index.set(k, [...(index.get(k) ?? []), x.id]);
-    for (const r of out) r.cells[p.id] = [...new Set(keys(from === TITLE ? r.title : r.cells[from]).flatMap((k) => index.get(k) ?? []))];
+    // (A ticket's row is named by its key: "title" also tries the Key cell — Jira rows keep the summary as their title.)
+    for (const r of out) r.cells[p.id] = [...new Set(keys(from === TITLE ? [r.title, r.cells[TICKET_KEY]] : r.cells[from]).flatMap((k) => index.get(k) ?? []))];
   }
   // 2. Rollups, 3. formulas (by property, memoised; a formula may use a rollup or another formula).
   const done = new Set<string>();

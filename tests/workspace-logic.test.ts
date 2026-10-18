@@ -211,3 +211,16 @@ test("a relation can match a source (no database made of it), and a rollup takes
   assert.deepEqual(out[0].cells.booked, [1, 2]);
   assert.ok(seen.includes("time"), "the source is asked for by its id");
 });
+
+test("a matching relation from the title also finds a ticket row by its Key (Jira rows keep the summary as title)", () => {
+  const at = "2026-10-01T00:00:00Z";
+  const entries: Row[] = [{ id: 1, title: "a", icon: "", cells: { h: 2, tk: "PROJ-9" }, createdAt: at, updatedAt: at }];
+  const timeSchema: DbSchema = normalizeSchema({ titleName: "Description", properties: [{ id: "h", name: "Hours", type: "number" }, { id: "tk", name: "Ticket", type: "text" }], views: [] });
+  const schema: DbSchema = normalizeSchema({
+    titleName: "Ticket",
+    properties: [{ id: "ticketkey", name: "Key", type: "text" }, { id: "rel", name: "Booked", type: "relation", relationSource: "time", match: { from: "title", to: "tk" } }, { id: "sum", name: "Hours", type: "rollup", rollup: { relation: "rel", property: "h", fn: "sum" } }],
+    views: [],
+  });
+  const rows: Row[] = [{ id: 5, title: "Footer umbauen", icon: "", cells: { ticketkey: "PROJ-9" }, createdAt: at, updatedAt: at }];
+  assert.equal(computeRows(schema, rows, (k) => (k === "time" ? { schema: timeSchema, rows: entries } : null), 9)[0].cells.sum, 2);
+});
