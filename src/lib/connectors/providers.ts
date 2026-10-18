@@ -32,7 +32,7 @@ export const PROVIDERS: Record<Provider, ProviderInfo> = {
   google: {
     id: "google",
     label: "Google",
-    page: "/connections",
+    page: "/settings/connections",
     endpoints: () => ({
       authUrl: process.env.ZEFF_GOOGLE_AUTH_URL || "https://accounts.google.com/o/oauth2/v2/auth",
       tokenUrl: process.env.ZEFF_GOOGLE_TOKEN_URL || "https://oauth2.googleapis.com/token",
@@ -48,7 +48,7 @@ export const PROVIDERS: Record<Provider, ProviderInfo> = {
   microsoft: {
     id: "microsoft",
     label: "Microsoft",
-    page: "/connections",
+    page: "/settings/connections",
     endpoints: () => ({
       authUrl: `${microsoftLogin()}/${microsoftTenant()}/oauth2/v2.0/authorize`,
       tokenUrl: `${microsoftLogin()}/${microsoftTenant()}/oauth2/v2.0/token`,

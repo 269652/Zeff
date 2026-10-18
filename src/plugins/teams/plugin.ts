@@ -10,7 +10,7 @@ export default definePlugin({
   category: "connector",
   defaultInstalled: true,
   requires: "The automation Chrome with Teams Web, signed in — or Microsoft's API with your own sign-in (Connections page).",
-  settings: { href: "/connections", what: "How it is reached: the automation Chrome or its API" },
+  settings: { href: "/settings/connections", what: "How it is reached: the automation Chrome or its API" },
   apps: [
     { href: "/teams", label: "Teams", short: "Teams", hint: "Your mentions and messages" },
   ],

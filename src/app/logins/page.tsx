@@ -32,7 +32,7 @@ export default async function LoginsPage({ searchParams }: { searchParams: Promi
         <p className="text-sm text-zinc-500">
           {rich(t("These are the logins in the automation Chrome. Services that Zeff reads through an API (OAuth) are set up under <link>Connections</link>."), {
             link: (s) => (
-              <Link href="/connections" className="text-indigo-600 hover:underline dark:text-indigo-400">
+              <Link href="/settings/connections" className="text-indigo-600 hover:underline dark:text-indigo-400">
                 {s}
               </Link>
             ),

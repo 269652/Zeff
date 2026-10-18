@@ -48,7 +48,7 @@ export default async function GmailSettingsPage() {
         <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
           {rich(t("Gmail is read through Google's API: the accounts below apply to the automation Chrome only. The API reads the account signed in on the <connections>Connections</connections> page."), {
             connections: (s) => (
-              <Link href="/connections" className="underline">
+              <Link href="/settings/connections" className="underline">
                 {s}
               </Link>
             ),

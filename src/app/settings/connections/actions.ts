@@ -23,7 +23,7 @@ export async function setDriverAction(service: string, driver: string): Promise<
 export async function saveProviderAction(v: { provider: string; clientId: string; clientSecret?: string; tenant?: string; gmailWrite?: boolean }): Promise<ActionState> {
   try {
     const { isProvider } = await import("@/lib/connectors/providers");
-    const { clientOf, getConnector, updateConnector, disconnectConnector } = await import("@/lib/connectors/store");
+    const { clientOf, extraOf, getConnector, updateConnector, disconnectConnector } = await import("@/lib/connectors/store");
     if (!isProvider(v.provider) || v.provider === "gitlab") return { ok: false, error: t("Unknown provider.") };
     const clientId = String(v.clientId ?? "").trim();
     const secret = String(v.clientSecret ?? "").trim();
@@ -35,8 +35,8 @@ export async function saveProviderAction(v: { provider: string; clientId: string
     const row = getConnector(v.provider);
     let extra = row.extra;
     if (v.provider === "microsoft") extra = JSON.stringify({ tenant });
-    if (v.provider === "google") extra = JSON.stringify({ gmailWrite: v.gmailWrite ? "1" : "0" });
-    const changed = clientId !== row.clientId || (secret !== "" && secret !== row.clientSecret) || extra !== row.extra;
+    if (v.provider === "google" && v.gmailWrite !== undefined) extra = JSON.stringify({ ...extraOf("google"), gmailWrite: v.gmailWrite ? "1" : "0" });
+    const changed = clientId !== row.clientId || (secret !== "" && secret !== row.clientSecret) || (v.provider === "microsoft" && extra !== row.extra);
     if (changed && row.refreshToken) disconnectConnector(v.provider);
     updateConnector(v.provider, { authKind: "oauth", clientId, extra, ...(secret ? { clientSecret: secret } : {}) });
     revalidateAll();
@@ -68,6 +68,18 @@ export async function testProviderAction(provider: string): Promise<ActionState>
     (await import("@/lib/connectors/store")).updateConnector(provider, { account: who });
     revalidateAll();
     return { ok: true, message: t("Signed in to {provider} as {who}.", { provider: PROVIDERS[provider].label, who }) };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** Whether Google is asked for the right to change Gmail (labels, read, spam) at the next sign-in. The sign-in stays; it has to be made again to hold the new right. */
+export async function setGmailWriteAction(on: boolean): Promise<ActionState> {
+  try {
+    const { extraOf, updateConnector } = await import("@/lib/connectors/store");
+    updateConnector("google", { extra: JSON.stringify({ ...extraOf("google"), gmailWrite: on ? "1" : "0" }) });
+    revalidateAll();
+    return { ok: true, message: on ? t("Allowed. Sign in to Google again to hold the new right.") : t("Switched off. Agents can no longer change Gmail.") };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

@@ -23,7 +23,7 @@ export default async function SettingsHubPage() {
   ];
   const time: Area[] = isInstalled("zeiterfassung") || isInstalled("work") ? [{ href: "/settings", label: t("Time-tracking settings"), what: t("Weekly hours, breaks, flex time, rules, absences") }] : [];
   const connections: Area[] = [
-    { href: "/connections", label: t("Connections"), what: t("Per service: read through the automation Chrome or through its API (OAuth)") },
+    { href: "/settings/connections", label: t("Connections"), what: t("Per service: read through the automation Chrome or through its API (OAuth)") },
     { href: "/logins", label: t("Browser sign-ins"), what: t("Whether you are signed in to each site in the automation Chrome") },
   ];
   const plugins: Area[] = [
