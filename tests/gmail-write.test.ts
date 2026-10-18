@@ -173,3 +173,24 @@ test("the worker of a routine that may change Gmail has that one tool approved i
   assert.deepEqual(approvedToolsFor(9002), []);
   assert.deepEqual(approvedToolsFor(9003), [], "a run that belongs to no routine");
 });
+
+test("starting an agent whose routine may change Gmail hands its worker the approved tool — before the run is known to the routine", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["workspace", "work", "todos"]) setInstalled(id, true);
+  const w = await import("@/plugins/workspace/store");
+  const r = await import("@/plugins/workspace/routines");
+  const { startAgent } = await import("@/plugins/workspace/routine-agent");
+  const { grantTools, approvedToolsFor } = await import("@/lib/work/approved-tools");
+  const asked: { approvedTools?: string[] }[] = [];
+  const dispatch = (_todo: number, o: { approvedTools?: string[] }) => (asked.push(o), { id: 7001 });
+  const withG = w.createPage({ title: "Darf" });
+  r.createRoutine(withG, "agent", { permissions: { scope: "self", gmail: true } });
+  const without = w.createPage({ title: "Darf nicht" });
+  r.createRoutine(without, "agent");
+  await startAgent(withG, { kind: "manual" }, {}, { dispatch });
+  await startAgent(without, { kind: "manual" }, {}, { dispatch });
+  assert.deepEqual(asked[0].approvedTools, ["mcp__zeff__gmail_change"]);
+  assert.equal(asked[1].approvedTools, undefined);
+  grantTools(7100, ["mcp__zeff__gmail_change", "mcp__zeff__gmail_change"]);
+  assert.deepEqual(approvedToolsFor(7100), ["mcp__zeff__gmail_change"]);
+});

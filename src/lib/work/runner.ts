@@ -38,7 +38,7 @@ import { liveDriverFor, liveDriverOf, liveDrivers, liveIdle } from "./live-drive
 import { errPath, lastJson, logPath, readErrors, readLog, readOutput, workDir } from "./log";
 import { applyOutcome, normalizeResult } from "./outcome";
 import { ensureActions } from "./ensure-actions";
-import { approvedToolsFor } from "./approved-tools";
+import { approvedToolsFor, grantTools } from "./approved-tools";
 import { claudeSessionSettings, createRun, getRun, getWorkSettings, runsByStatus, toRunView, updateRun } from "./store";
 import { parseMrTarget, WORK_RESULT_SCHEMA, workModeOf, workRef, type SessionOptions, type WorkResult, type WorkRunView } from "./shared";
 
@@ -145,6 +145,8 @@ export function dispatchTodo(
     session?: SessionOptions;
     /** Pictures and documents sent with it: files for the CLI to read. */
     attachments?: { name: string; path: string }[];
+    /** Tools its worker may use without asking (set by Zeff's own code — a routine's permissions —, never by a request). */
+    approvedTools?: string[];
   } = {},
 ): WorkRunView {
   if (!isInstalled("work")) throw new ValidationError(t("Code is not installed (Menu → Plugins) — without it no worker works on todos."));
@@ -241,6 +243,7 @@ ${instruction}`
     ...(resume ? { sessionId: resume.sessionId, cwd: resume.cwd, branch: resume.branch, base: resume.base, baseSha: resume.baseSha } : {}),
     ...(waitFor ? { afterRun: waitFor.id } : {}),
   });
+  if (opts.approvedTools?.length) grantTools(run.id, opts.approvedTools);
   if (live) saveSessionOpts(run.id, { ...so, permissionMode: liveMode, conversation: !!opts.conversation });
   // Your instruction on the todo, as your words (context for the Lage, workers and agents too).
   if (instruction) addTodoInstruction(todoId, shown, run.id);

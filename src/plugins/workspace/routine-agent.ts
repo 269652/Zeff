@@ -72,16 +72,19 @@ export function buildAgentPrompt(pageId: number, trigger: Trigger, ctx: { row?: 
   ].join("\n");
 }
 
+/** The MCP tool that changes Gmail, as the CLI names it — approved in advance for a worker whose routine may change Gmail. */
+const GMAIL_CHANGE_TOOL = "mcp__zeff__gmail_change";
+
 type DispatchResult = { id: number };
 export type AgentDeps = {
   /** Hand the instruction to a worker on this todo. */
-  dispatch: (todoId: number, o: { instruction: string; provider?: string }) => DispatchResult | Promise<DispatchResult>;
+  dispatch: (todoId: number, o: { instruction: string; provider?: string; approvedTools?: string[] }) => DispatchResult | Promise<DispatchResult>;
 };
 
 const realDeps: AgentDeps = {
   dispatch: async (todoId, o) => {
     const { dispatchTodo } = await import("@/lib/work/runner");
-    return dispatchTodo(todoId, { instruction: o.instruction, ...(o.provider ? { provider: o.provider as never } : {}) });
+    return dispatchTodo(todoId, { instruction: o.instruction, ...(o.provider ? { provider: o.provider as never } : {}), ...(o.approvedTools?.length ? { approvedTools: o.approvedTools } : {}) });
   },
 };
 
@@ -94,7 +97,7 @@ export async function startAgent(pageId: number, trigger: Trigger, ctx: { row?: 
     const prompt = buildAgentPrompt(pageId, trigger, ctx);
     const { addManualTodo } = await import("@/lib/boards/store");
     const todo = addManualTodo({ ticket: "", text: `Agent: ${page.title || "Untitled"}` });
-    const run = await { ...realDeps, ...deps }.dispatch(todo.id, { instruction: prompt, provider: getRoutine(pageId)?.provider });
+    const run = await { ...realDeps, ...deps }.dispatch(todo.id, { instruction: prompt, provider: getRoutine(pageId)?.provider, ...(getRoutine(pageId)?.permissions.gmail ? { approvedTools: [GMAIL_CHANGE_TOOL] } : {}) });
     setWorkRun(runId, run.id);
     return { status: "started", runId, workRunId: run.id };
   } catch (e) {
@@ -165,4 +168,4 @@ export function mayChangeGmail(workRunId: number | undefined): boolean {
 
 addAgentGuard(agentScopeGuard);
 // The worker of an agent that may change Gmail has the tool approved for the CLI (its own check would refuse a write to the outside).
-addApprovedTools((workRunId) => (mayChangeGmail(workRunId) ? ["mcp__zeff__gmail_change"] : []));
+addApprovedTools((workRunId) => (mayChangeGmail(workRunId) ? [GMAIL_CHANGE_TOOL] : []));
