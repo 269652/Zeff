@@ -101,3 +101,23 @@ test("capabilities: what a database's sources let you do — reply in the channe
   assert.equal(capabilitiesOf(mail).readOnly, true, "no mail plugin: read-only");
   setInstalled("whatsapp", true);
 });
+
+test("mail source: what left a mirrored inbox (the archive) and what you sent are not the inbox's — unless the folder is asked for", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["workspace", "gmail"]) setInstalled(id, true);
+  const { saveMails } = await import("@/lib/mail/store");
+  const w = await import("@/plugins/workspace/store");
+  const m = await import("@/plugins/workspace/model");
+  const { runPipeline } = await import("@/plugins/workspace/pipeline");
+  const mk = (id: string, subject: string, folder: string, from = "Ben") => ({ id, convId: `gmail:${id}`, folder, from, fromEmail: from === "Ich" ? null : "ben@example.com", subject, preview: subject, receivedAt: ago(3), unread: false });
+  saveMails([mk("i1", "Im Posteingang", "Gmail"), mk("a1", "Archiviert", "Gmail · Archive"), mk("s1", "Gesendet", "Gmail · Sent", "Ich"), mk("s2", "Gesendet alt abgelegt", "Gmail", "Ich")]);
+  const db = (folders?: string[]) => w.createPage({ kind: "database", title: "Post", schema: { titleName: "Subject", properties: [], views: [m.newView("Table")], pipeline: { steps: [{ id: "s", kind: "source", from: "mail", mail: folders ? { folders } : {} }] } } as never });
+  const a = db();
+  assert.equal((await runPipeline(a, { ai: false })).ok, true);
+  const titles = (id: number) => w.rawRows(id).map((x) => x.title);
+  assert.ok(titles(a).includes("Im Posteingang"));
+  for (const gone of ["Archiviert", "Gesendet", "Gesendet alt abgelegt"]) assert.ok(!titles(a).includes(gone), `${gone}: not the inbox's`);
+  const b = db(["Gmail · Archive"]);
+  await runPipeline(b, { ai: false });
+  assert.deepEqual(titles(b), ["Archiviert"], "the archive when it is named");
+});

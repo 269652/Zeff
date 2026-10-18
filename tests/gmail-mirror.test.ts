@@ -9,12 +9,13 @@ setupTempData();
 /** The Gmail folder follows Gmail like an IMAP mirror: what leaves the inbox (or a chosen label) there leaves it here, into the archive. */
 const A = "18a2b3c4d5e6f701";
 const B = "18a2b3c4d5e6f702";
+const S = "18a2b3c4d5e6f703";
 const hours = (h: number) => String(Date.now() - h * 3600e3);
 
 async function fakeGmail() {
-  const state = { inbox: [A, B], labels: {} as Record<string, string[]> };
+  const state = { inbox: [A, B], sent: [] as string[], labels: {} as Record<string, string[]> };
   const meta = (id: string, subject: string, from: string, ago: number) => ({ id, threadId: id, labelIds: ["INBOX"], snippet: subject, internalDate: hours(ago), payload: { headers: [{ name: "From", value: from }, { name: "Subject", value: subject }] } });
-  const msgs: Record<string, unknown> = { [A]: meta(A, "Bestelldetails", "Flink <info@flink.com>", 5), [B]: meta(B, "Hallo", "Anna <anna@example.com>", 6) };
+  const msgs: Record<string, unknown> = { [A]: meta(A, "Bestelldetails", "Flink <info@flink.com>", 5), [B]: meta(B, "Hallo", "Anna <anna@example.com>", 6), [S]: { ...meta(S, "Re: Hallo", "Ich <me@example.com>", 4), labelIds: ["SENT"] } };
   const server = http.createServer((req, res) => {
     const u = new URL(req.url ?? "/", "http://x");
     const json = (v: unknown) => (res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify(v)));
@@ -23,7 +24,7 @@ async function fakeGmail() {
     if (u.pathname === "/gmail/v1/users/me/messages") {
       const q = u.searchParams.get("q") ?? "";
       const label = u.searchParams.get("labelIds");
-      const ids = label ? (state.labels[label] ?? []) : q.startsWith("in:inbox") ? state.inbox : [];
+      const ids = label ? (state.labels[label] ?? []) : q.startsWith("in:inbox") ? state.inbox : q.startsWith("in:sent") ? state.sent : [];
       return json(q.includes("has:attachment") ? {} : { messages: ids.map((id) => ({ id, threadId: id })) });
     }
     const m = /\/messages\/([0-9a-f]+)$/.exec(u.pathname);
@@ -74,8 +75,12 @@ test("a mail that leaves the inbox leaves the folder (to the archive); a chosen 
     f = await folders();
     assert.equal(f["Bestelldetails"], "Gmail · Archive", "gone from the inbox: in the archive, still kept");
     assert.equal(f["Hallo"], "Gmail");
-    assert.equal(f["Meine Antwort"], "Gmail", "your own mails stay");
+    assert.equal(f["Meine Antwort"], "Gmail · Sent", "your own mails are the sent folder's, not the inbox's");
     assert.equal(f["Uralt"], "Gmail · Archive", "however old: it is not in the inbox");
+    // A mail you send is read into the sent folder.
+    g.state.sent = [S];
+    await syncMail();
+    assert.equal((await folders())["Re: Hallo"], "Gmail · Sent");
     // The label is added by hand: its mails are the folder "Gmail/notifications/Flink".
     setPref(GMAIL_LABELS_PREF, ["notifications/Flink"]);
     g.state.labels.Label_1 = [A];

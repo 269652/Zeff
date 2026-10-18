@@ -25,7 +25,7 @@ async function chromeUp(): Promise<boolean> {
   return automationUp("outlook");
 }
 
-import { archiveGone, type MirrorRead } from "./mirror";
+import { archiveGone, moveSent, type MirrorRead } from "./mirror";
 
 /** The Gmail labels kept as folders of their own (names, added by hand on the Mail settings page). */
 export const GMAIL_LABELS_PREF = "mail:gmailLabels";
@@ -97,6 +97,7 @@ async function syncSource(source: Source, days: number, background: boolean, pre
     const { added, total } = saveMails(r.messages);
     // A mirror (Gmail through its API): what left the inbox or a chosen label there leaves it here — to the archive.
     for (const read of r.mirrors ?? []) archiveGone({ read });
+    if (r.mirrors?.length) moveSent(gmail?.folder ?? "Gmail");
     if (source === "gmail") {
       const k = `gmail:full:${gmail?.account ?? "0"}`;
       const full = r.messages.filter((m) => m.full && m.id).map((m) => m.id!);

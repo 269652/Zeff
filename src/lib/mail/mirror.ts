@@ -12,6 +12,23 @@ export const ARCHIVE_SUFFIX = " · Archive";
 export const archiveOf = (folder: string): string => `${folder.split("/")[0]}${ARCHIVE_SUFFIX}`;
 export const isArchiveFolder = (folder: string): boolean => folder.endsWith(ARCHIVE_SUFFIX);
 
+/** What you sent is a folder of its own, like IMAP's Sent — not the inbox's. */
+export const SENT_SUFFIX = " · Sent";
+export const sentOf = (folder: string): string => `${folder.split("/")[0]}${SENT_SUFFIX}`;
+export const isSentFolder = (folder: string): boolean => folder.endsWith(SENT_SUFFIX);
+/** Folders the Workspace's mail databases leave out unless asked for (what left the inbox, what you sent). */
+export const isSideFolder = (folder: string): boolean => isArchiveFolder(folder) || isSentFolder(folder);
+
+/** Your own mails kept in the folder (before the sent folder was there) go to it. How many. */
+export function moveSent(folder: string, me = "Ich"): number {
+  const r = getDb()
+    .update(schema.emails)
+    .set({ folder: sentOf(folder) })
+    .where(and(sql`${schema.emails.folder} = ${folder}`, sql`${schema.emails.convId} like 'gmail:%'`, sql`coalesce(${schema.emails.fromName}, '') = ${me}`))
+    .run();
+  return r.changes;
+}
+
 /** What the mailbox holds in a folder now: the keys of its mails here, their conversations, and whether the list was read to its end. */
 export type MirrorRead = { folder: string; complete: boolean; keys: string[]; convIds: string[] };
 

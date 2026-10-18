@@ -7,6 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { apiGet } from "@/lib/connectors/http";
+import { sentOf } from "@/lib/mail/mirror";
 import { keyOf, type MailInput } from "@/lib/mail/store";
 
 export const GM = "/gmail/v1/users/me";
@@ -127,7 +128,7 @@ function toInput(m: Msg, folder: string, o: { attach: boolean; text?: string }):
   return {
     id: refOf(m.id),
     convId: `gmail:${m.threadId}`,
-    folder,
+    folder: mine ? sentOf(folder) : folder,
     from: mine ? "Ich" : from.name,
     fromEmail: mine ? null : from.email,
     subject: flat(header(m, "subject")),
