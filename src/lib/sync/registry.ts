@@ -12,6 +12,7 @@ import { SYNC_KEYS, type SyncKey, type SyncOverview, type SyncView } from "./sha
 import { stepAvailable } from "@/plugins/state";
 import { inThisAccount } from "@/db/accounts";
 import { ABORTED, sleep, withAbort } from "@/lib/abort";
+import { emitChange } from "@/lib/events";
 import { noteSyncResult } from "./health";
 import { stepMinutes } from "./intervals";
 import { callHost, HostDownError } from "@/lib/host/client";
@@ -560,6 +561,8 @@ async function runStep(key: SyncKey): Promise<void> {
     const { isInstalled } = await import("@/plugins/state");
     if (isInstalled("workspace")) await (await import("@/plugins/workspace/pipeline")).runPipelinesAfterSync().catch((e) => console.error("[workspace] the pipelines failed", e));
   }
+  // Whatever the step brought (mails, chats, tickets, news …) is in the data now: the open pages read it again — the sync host tells the web server.
+  emitChange("sync");
   // Over time (since when it fails): a stop isn't a failure. Steps with a record of their own: as they kept it.
   if (STEPS[key].ownRecord && STEPS[key].last) {
     const last = STEPS[key].last!();

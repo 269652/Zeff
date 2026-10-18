@@ -2,17 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-
-/** The pages that show runs and todos — they follow the changes they show (not the others'). */
-const LIVE: [RegExp, string[]][] = [
-  [/^\/$/, ["work", "todos", "attention"]],
-  [/^\/work/, ["work", "todos", "attention"]],
-  [/^\/todos/, ["work", "todos", "attention"]],
-  [/^\/tickets/, ["work", "todos", "attention"]],
-  [/^\/kanban/, ["kanban", "todos"]],
-  [/^\/t\//, ["work", "todos", "attention"]],
-  [/^\/heute/, ["work", "todos", "attention"]],
-];
+import { topicsFor } from "./live-topics";
 
 /**
  * Follows Zeff's changes (/api/events) and refreshes the page when a run starts or ends or a
@@ -26,7 +16,7 @@ const MIN_GAP = 3000;
 export function LiveRefresh() {
   const router = useRouter();
   const path = usePathname();
-  const topics = LIVE.find(([r]) => r.test(path))?.[1].join(",") ?? "";
+  const topics = topicsFor(path).join(",");
   useEffect(() => {
     if (!topics) return;
     const wanted = new Set(topics.split(","));

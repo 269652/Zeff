@@ -68,7 +68,7 @@ function useDatabase(initial: DatabaseData | null, dbId: number) {
   // read again — this database only, not the page (an editor being typed in stays as it is). A burst is one read, at most
   // every 1.5 s; in a hidden tab it waits until the tab is shown.
   useEffect(() => {
-    const topics = new Set(["workspace", "todos", "attention", "kanban", "work"]) /* a run that ends: a jobs database settles it as it reloads */;
+    const topics = new Set(["workspace", "todos", "attention", "kanban", "work", "sync"]) /* a run that ends: a jobs database settles it as it reloads */;
     const source = new EventSource("/api/events");
     let timer: ReturnType<typeof setTimeout> | null = null;
     let stale = false;

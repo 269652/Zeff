@@ -6058,5 +6058,7 @@
   "The database is a list now.": "La base de datos ya es una lista.",
   "Turn into a list": "Convertir en lista",
   "Hide the title": "Ocultar el título",
-  "Hide titles automatically": "Ocultar los títulos automáticamente"
+  "Hide titles automatically": "Ocultar los títulos automáticamente",
+  "What you sent (Gmail's sent folder)": "Lo que enviaste (la carpeta de enviados de Gmail)",
+  "What left the Gmail inbox (archived or filed under a label) — still kept": "Lo que salió de la bandeja de entrada de Gmail (archivado o archivado bajo una etiqueta); se conserva"
 }

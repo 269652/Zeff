@@ -121,3 +121,26 @@ test("mail source: what left a mirrored inbox (the archive) and what you sent ar
   await runPipeline(b, { ai: false });
   assert.deepEqual(titles(b), ["Archiviert"], "the archive when it is named");
 });
+
+test("the plugin's templates: Sent and Archive of a mirrored Gmail — the folders the inbox leaves out", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["workspace", "gmail", "mail-client"]) setInstalled(id, true);
+  const { saveMails } = await import("@/lib/mail/store");
+  const w = await import("@/plugins/workspace/store");
+  const { runPipeline } = await import("@/plugins/workspace/pipeline");
+  const { createSourceDatabase } = await import("@/plugins/workspace/derived");
+  const { inboxTemplates, createInbox } = await import("@/plugins/mail-client/templates");
+  const mk = (id: string, subject: string, folder: string, from = "Ben") => ({ id, convId: `gmail:${id}`, folder, from, fromEmail: from === "Ich" ? null : "ben@example.com", subject, preview: subject, receivedAt: ago(2), unread: false });
+  saveMails([mk("t1", "Meine Zusage", "Gmail · Sent", "Ich"), mk("t2", "Alt und weg", "Gmail · Archive")]);
+  assert.ok(inboxTemplates("mail").some((x) => x.id === "sent") && inboxTemplates("mail").some((x) => x.id === "archive"));
+  const mail = createSourceDatabase("mail");
+  await runPipeline(mail, { ai: false });
+  const sent = await createInbox(mail, "sent");
+  await runPipeline(sent, { ai: false });
+  const sentTitles = w.rawRows(sent).map((r) => r.title);
+  assert.ok(sentTitles.includes("Meine Zusage") && !sentTitles.includes("Alt und weg"), "what you sent");
+  const archive = await createInbox(mail, "archive");
+  await runPipeline(archive, { ai: false });
+  const archiveTitles = w.rawRows(archive).map((r) => r.title);
+  assert.ok(archiveTitles.includes("Alt und weg") && !archiveTitles.includes("Meine Zusage"), "what left the inbox");
+});

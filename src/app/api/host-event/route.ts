@@ -4,7 +4,7 @@ import { authorized } from "@/lib/host/role";
 
 export const dynamic = "force-dynamic";
 
-const TOPICS: readonly string[] = ["work", "todos", "attention", "kanban"];
+const TOPICS: readonly string[] = ["work", "todos", "attention", "kanban", "workspace", "sync"];
 
 /** The sync host says something changed: the open pages of this server refresh, and what the host is doing is read again. */
 export async function POST(req: Request) {
