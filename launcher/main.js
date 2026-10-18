@@ -343,6 +343,8 @@ async function start() {
   // A CLI in the AI-tools container: Zeff runs the CLI through its shim, which forwards into the container (scripts/<tool>-docker.mjs).
   const shims = modes.cliEnv(state.modes, paths.app);
   Object.assign(env, shims);
+  // A CLI switched back to the host: the config must not keep sending it through its shim.
+  for (const [id, v] of Object.entries({ claude: "CLAUDE_CLI", copilot: "COPILOT_CLI", codex: "CODEX_CLI" })) if (state.modes[id] === "host" && new RegExp(`${id}-docker\\.mjs$`).test(String(env[v] ?? ""))) delete env[v];
   if (Object.values(state.modes).includes("docker")) {
     // Where the data is and which host folders the containers see (config: dockerMounts / claudeMounts).
     env.ZEFF_DATA_DIR = paths.data;

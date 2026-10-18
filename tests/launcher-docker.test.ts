@@ -20,6 +20,9 @@ test("by default everything runs on the host; what is read is held to what exist
   const m = await modes();
   assert.deepEqual(m.defaults(), { stack: "host", knowledge: "host", claude: "host", copilot: "host", codex: "host" });
   assert.equal(m.defaults({ claudeDocker: true }).claude, "docker", "the older setting still asks for it");
+  const shim = { env: { CLAUDE_CLI: path.join("C:", "Zeff", "scripts", "claude-docker.mjs") } };
+  assert.equal(m.defaults(shim).claude, "docker", "a CLI the config already sends through its shim counts as in Docker");
+  assert.equal(m.defaults({ env: { CLAUDE_CLI: "claude" } }).claude, "host");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "modes-"));
   assert.deepEqual(m.read(dir, {}), m.defaults(), "no file: all on the host");
   fs.writeFileSync(path.join(dir, "modes.json"), JSON.stringify({ stack: "docker", claude: "docker", copilot: "nonsense", unknown: "docker", knowledge: 5 }));
@@ -126,6 +129,7 @@ test("the launcher: the switches rebuild the services; the window lists the cont
   assert.ok(supervisor.includes("onStop"), "a service can say what stopping it also takes");
   const html = fs.readFileSync(path.join(__dirname, "..", "launcher", "status.html"), "utf8");
   assert.ok(html.includes('id="modes"') && html.includes('id="containers"'));
+  assert.ok(html.includes('data-tab="docker"') && html.includes('id="tab-docker"'), "the Docker settings are a tab of their own");
   const preload = fs.readFileSync(path.join(__dirname, "..", "launcher", "preload.js"), "utf8");
   for (const needle of ["modes:", "setModes:", "docker:"]) assert.ok(preload.includes(needle), needle);
 });

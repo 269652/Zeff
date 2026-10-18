@@ -64,13 +64,28 @@
       .ctr .sub2 { grid-column: 2 / span 2; color: var(--muted); font-size: 12px; }
       .badge { font-size: 11px; padding: 1px 6px; border-radius: 9px; background: var(--accent); color: #fff; margin-left: 6px; }
       .empty { color: var(--muted); font-size: 13px; }
+      .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin: 0 0 14px; }
+      .tab { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 6px 14px; font-size: 14px; }
+      .tab.on { border-bottom-color: var(--accent); font-weight: 600; }
+      [hidden] { display: none !important; }
       .note { color: var(--muted); font-size: 12px; margin-top: 6px; }
     </style>
   </head>
   <body>
     <h1>Zeff</h1>
     <p class="sub"><a id="url"></a></p>
+    <div class="tabs" role="tablist">
+      <button class="tab on" data-tab="status" role="tab">Status</button>
+      <button class="tab" data-tab="docker" role="tab">Docker</button>
+    </div>
+    <section id="tab-status">
     <div id="services"></div>
+    <div class="card">
+      <div class="row"><span class="name">https</span><button id="setup">Set up…</button></div>
+      <div class="meta" id="checks" style="margin-bottom: 0"></div>
+    </div>
+    </section>
+    <section id="tab-docker" hidden>
     <div class="card">
       <h2>Run in</h2>
       <div id="modes"></div>
@@ -83,10 +98,7 @@
       <div class="row"><h2 style="flex: 1; margin: 0">Docker</h2><span class="empty" id="dockerState"></span><button id="dockerRefresh">Refresh</button></div>
       <div id="containers" style="margin-top: 8px"></div>
     </div>
-    <div class="card">
-      <div class="row"><span class="name">https</span><button id="setup">Set up…</button></div>
-      <div class="meta" id="checks" style="margin-bottom: 0"></div>
-    </div>
+    </section>
     <footer>
       <label><input type="checkbox" id="autostart" /> Start with Windows</label>
       <span class="row"><button id="data">Data folder</button><button id="plugins">Plugins folder</button><button id="quit">Quit Zeff</button></span>

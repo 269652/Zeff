@@ -21,8 +21,11 @@ const CLIS = ["claude", "copilot", "codex"];
 const CLI_VARS = { claude: "CLAUDE_CLI", copilot: "COPILOT_CLI", codex: "CODEX_CLI" };
 const MODES = ["host", "docker"];
 
-/** Everything on the host — except what the older setting `claudeDocker` asked for. */
-const defaults = (cfg = {}) => ({ stack: "host", knowledge: "host", claude: cfg.claudeDocker === true ? "docker" : "host", copilot: "host", codex: "host" });
+/** A CLI the config already sends through its shim (env CLAUDE_CLI … = scripts/<tool>-docker.mjs) counts as in Docker. */
+const shimmed = (cfg, id) => new RegExp(`${id}-docker\\.mjs$`).test(String(cfg?.env?.[CLI_VARS[id]] ?? ""));
+
+/** Everything on the host — except what the config asks for (the older setting `claudeDocker`, a CLI env var pointing at a shim). */
+const defaults = (cfg = {}) => ({ stack: "host", knowledge: "host", claude: cfg.claudeDocker === true || shimmed(cfg, "claude") ? "docker" : "host", copilot: shimmed(cfg, "copilot") ? "docker" : "host", codex: shimmed(cfg, "codex") ? "docker" : "host" });
 
 /** What is given, held to what exists: a known service, "host" or "docker"; the rest as the base has it. */
 function sanitize(input, base = defaults()) {

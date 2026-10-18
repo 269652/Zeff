@@ -137,6 +137,18 @@ $("dockerRefresh").onclick = loadDocker;
 // While the window is open and shown: Docker is asked every few seconds (one bounded `docker ps`).
 setInterval(() => document.visibilityState === "visible" && loadDocker(), 5000);
 
+// The tabs: Status (the services) and Docker (where each part runs, the containers); the chosen one is kept while the window lives.
+function showTab(name) {
+  for (const t of document.querySelectorAll(".tab")) t.classList.toggle("on", t.dataset.tab === name);
+  for (const id of ["status", "docker"]) $(`tab-${id}`).hidden = id !== name;
+  try {
+    sessionStorage.setItem("tab", name);
+  } catch {}
+}
+for (const t of document.querySelectorAll(".tab")) t.onclick = () => showTab(t.dataset.tab);
+try {
+  showTab(sessionStorage.getItem("tab") === "docker" ? "docker" : "status");
+} catch {}
 $("setup").onclick = () => act("setup");
 $("autostart").onchange = () => act("autostart");
 $("data").onclick = () => act("data");
