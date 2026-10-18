@@ -6007,5 +6007,10 @@
   "One report per session: the agent writes it (tell it to report); it is final when you give your OK — tick its todo off, or press the button.": "Ein Bericht pro Sitzung: Der Agent schreibt ihn (sag ihm, er soll berichten); er ist endgültig, wenn du dein OK gibst – hake sein Todo ab oder drücke den Knopf.",
   "Final": "Endgültig",
   "Waiting for your OK": "Wartet auf dein OK",
-  "OK — accept": "OK – abnehmen"
+  "OK — accept": "OK – abnehmen",
+  "Gmail labels as folders": "Gmail-Labels als Ordner",
+  "The inbox is mirrored always: what is archived or labelled away in Gmail leaves it here too (it stays kept, in “Gmail · Archive”). Every label you add here becomes a folder “Gmail/<label>” the same way.": "Der Posteingang wird immer gespiegelt: Was in Gmail archiviert oder mit einem Label weggeräumt wird, verschwindet auch hier (es bleibt gespeichert, in „Gmail · Archive“). Jedes Label, das du hier hinzufügst, wird genauso zum Ordner „Gmail/<Label>“.",
+  "Gmail has no label called {names} — the others are saved.": "Gmail hat kein Label namens {names} – die anderen sind gespeichert.",
+  "Saved. The labels come as folders with the next mail sync.": "Gespeichert. Die Labels kommen mit dem nächsten Mail-Abgleich als Ordner.",
+  "Saved. Only the inbox is mirrored.": "Gespeichert. Nur der Posteingang wird gespiegelt."
 }

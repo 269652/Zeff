@@ -183,10 +183,13 @@ const accountOf = (convId: string): "outlook" | "gmail" => (convId.startsWith("g
 async function mailRecords(c: NonNullable<PipelineStep["mail"]>): Promise<SourceRecord[]> {
   const { listMails } = await import("@/lib/mail/store");
   const { isChatFolder, sourceLink } = await import("@/lib/mail/shared");
+  const { isArchiveFolder } = await import("@/lib/mail/mirror");
   const from = since(c.recentDays);
   const folders = c.folders?.map((f) => f.toLowerCase());
   return listMails({ limit: 2000 })
     .filter((m) => !isChatFolder(m.folder) && !/^(wa|sg):/.test(m.convId))
+    // (a mirrored folder's archive — what left the inbox there — only when its folder is asked for)
+    .filter((m) => !isArchiveFolder(m.folder) || !!folders?.includes(m.folder.toLowerCase()))
     .filter((m) => (!c.accounts?.length || c.accounts.includes(accountOf(m.convId))) && (!folders?.length || folders.includes(m.folder.toLowerCase())) && (!c.unreadOnly || m.unread) && (!from || at(m.receivedAt) >= from))
     .map((m) => ({
       ref: `mail:${m.key}`,

@@ -1,3 +1,7 @@
+import { GmailLabelsForm } from "@/components/GmailLabelsForm";
+import { driverOf } from "@/lib/connectors/store";
+import { GMAIL_LABELS_PREF } from "@/lib/mail/sync";
+import { getPref } from "@/lib/prefs";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
@@ -36,6 +40,7 @@ export default async function MailSettingsPage() {
       <section className="card space-y-2 p-4">
         <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Mailboxes")}</h2>
         {outlook && <MailFoldersForm folders={settings.folders} />}
+        {gmail && driverOf("gmail") === "api" && <GmailLabelsForm labels={getPref<string[]>(GMAIL_LABELS_PREF, [])} />}
         <ul className="space-y-1 text-sm">
           {gmail && (
             <li>

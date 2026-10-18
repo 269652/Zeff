@@ -93,17 +93,22 @@ function attachmentsOf(p: Part | undefined): ApiAttachment[] {
   return out;
 }
 
-/** All pages (up to `maxPages`) of a message search: the ids. */
-export async function search(q: string, maxPages: number): Promise<{ id: string; threadId: string }[]> {
+/** All pages (up to `maxPages`) of a message search (in one label, when `labelId` is given): the ids, and whether there were more pages than were read. */
+export async function searchPages(q: string, maxPages: number, labelId?: string): Promise<{ ids: { id: string; threadId: string }[]; truncated: boolean }> {
   const out: { id: string; threadId: string }[] = [];
   let token = "";
   for (let i = 0; i < maxPages; i++) {
-    const r = await apiGet<{ messages?: { id: string; threadId: string }[]; nextPageToken?: string }>("google", `${GM}/messages?q=${enc(q)}&maxResults=100${token ? `&pageToken=${enc(token)}` : ""}`);
+    const r = await apiGet<{ messages?: { id: string; threadId: string }[]; nextPageToken?: string }>("google", `${GM}/messages?q=${enc(q)}&maxResults=100${labelId ? `&labelIds=${enc(labelId)}` : ""}${token ? `&pageToken=${enc(token)}` : ""}`);
     out.push(...(r.messages ?? []));
     token = r.nextPageToken ?? "";
-    if (!token) break;
+    if (!token) return { ids: out, truncated: false };
   }
-  return out;
+  return { ids: out, truncated: true };
+}
+
+/** All pages (up to `maxPages`) of a message search: the ids. */
+export async function search(q: string, maxPages: number): Promise<{ id: string; threadId: string }[]> {
+  return (await searchPages(q, maxPages)).ids;
 }
 
 /** `fn` over the items, a few at a time (Gmail allows about 250 quota units a second per user; a message read costs 5). */
@@ -139,24 +144,51 @@ function toInput(m: Msg, folder: string, o: { attach: boolean; text?: string }):
  * conversation you wrote in, whole, with the full text of the messages not in `fullKnown`.
  * Nothing is opened or marked read.
  */
-export async function readGmail(o: { days: number; maxPages?: number; folder?: string; fullKnown?: string[] }): Promise<{ messages: MailInput[] }> {
+export type GmailMirror = { folder: string; /** Every mail of the folder within the days was read (not cut off by the page limit). */ complete: boolean; /** The oldest mail read (when it was cut off, nothing older says anything). */ oldest: string | null };
+
+export async function readGmail(o: { days: number; maxPages?: number; folder?: string; fullKnown?: string[]; /** Labels (names) kept as folders of their own: "<folder>/<label>". */ labels?: string[] }): Promise<{ messages: MailInput[]; mirrors: GmailMirror[] }> {
   const folder = o.folder ?? "Gmail";
   const span = Math.min(120, Math.max(1, Math.round(Number(o.days) || 3)));
   const maxPages = Math.min(30, Math.max(1, Number(o.maxPages) || 10));
   const messages: MailInput[] = [];
   const have = new Set<string>();
   const sentThreads = new Map<string, string>();
+  const mirrors: GmailMirror[] = [];
+  const oldestOf = (list: MailInput[]) => list.reduce<string | null>((o, m) => (m.receivedAt && (!o || m.receivedAt < o) ? m.receivedAt : o), null);
   for (const box of ["inbox", "sent"] as const) {
     const q = `in:${box} newer_than:${span}d`;
-    const ids = await search(q, maxPages);
+    const found = await searchPages(q, maxPages);
     const withAttachment = new Set((await search(`${q} has:attachment`, maxPages)).map((x) => x.id));
-    const metas = await each(ids, (x) => getMeta(x.id));
+    const metas = await each(found.ids, (x) => getMeta(x.id));
+    const read: MailInput[] = [];
     for (const m of metas) {
-      const input = toInput(m, folder, { attach: withAttachment.has(m.id) });
+      const input = { ...toInput(m, folder, { attach: withAttachment.has(m.id) }), ...(box === "inbox" ? { mirror: true } : {}) };
       if (!input.subject || have.has(input.id!)) continue;
       have.add(input.id!);
       messages.push(input);
+      read.push(input);
       if (box === "sent" && !sentThreads.has(m.threadId)) sentThreads.set(m.threadId, input.subject);
+    }
+    if (box === "inbox") mirrors.push({ folder, complete: !found.truncated, oldest: oldestOf(read) });
+  }
+  // The labels you chose: each a folder of its own (a mail in the inbox stays in the inbox's folder).
+  if (o.labels?.length) {
+    const all = (await apiGet<{ labels?: { id: string; name: string }[] }>("google", `${GM}/labels`)).labels ?? [];
+    for (const name of o.labels) {
+      const label = all.find((l) => l.name.toLowerCase() === name.trim().toLowerCase());
+      if (!label) continue;
+      const lf = `${folder}/${label.name}`;
+      const found = await searchPages(`newer_than:${span}d`, maxPages, label.id);
+      const withAttachment = new Set((await searchPages("has:attachment newer_than:" + span + "d", maxPages, label.id)).ids.map((x) => x.id));
+      const read: MailInput[] = [];
+      for (const m of await each(found.ids, (x) => getMeta(x.id))) {
+        const input = { ...toInput(m, lf, { attach: withAttachment.has(m.id) }), mirror: true };
+        if (!input.subject || have.has(input.id!)) continue;
+        have.add(input.id!);
+        messages.push(input);
+        read.push(input);
+      }
+      mirrors.push({ folder: lf, complete: !found.truncated, oldest: oldestOf(read) });
     }
   }
   const known = new Set(o.fullKnown ?? []);
@@ -184,7 +216,7 @@ export async function readGmail(o: { days: number; maxPages?: number; folder?: s
       }
     }
   }
-  return { messages };
+  return { messages, mirrors };
 }
 
 const fileSafe = (name: string) => String(name).replace(/[\/:*?"<>|\u0000-\u001f]+/g, "_").replace(/^\.+/, "").trim().slice(0, 120) || "file";
