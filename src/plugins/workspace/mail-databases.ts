@@ -13,6 +13,7 @@ import { createPage, getDatabase, updatePage } from "./store";
 const MAIL = "workspace.mailDb";
 const CHATS = "workspace.chatsDb";
 const INBOX = "workspace.inboxDb";
+const SENT = "workspace.sentDb";
 
 function make(title: string, icon: string, step: PipelineStep, app: { id: string; label: string }): number {
   const view = { ...newView(app.label, "table"), type: "app" as const, app: app.id };
@@ -40,6 +41,14 @@ export async function ensureMailDatabases(): Promise<void> {
   if (getPref<number | null>(CHATS, null) === null && (isInstalled("teams") || isInstalled("whatsapp") || isInstalled("signal"))) {
     const id = make(t("Chats"), "💬", { id: newId("s"), kind: "source", from: "messages", messages: { recentDays: 14 } }, { id: "chat", label: t("Chat") });
     setPref(CHATS, id);
+    made.push(id);
+  }
+  // Gmail's sent mails sit in a folder of their own that "Mail" leaves out: a "Sent" database under it, once (a deleted one isn't made again).
+  const mailId = homeDatabase("mail");
+  if (mailId && isInstalled("gmail") && isInstalled("mail-client") && getPref<number | null>(SENT, null) === null) {
+    const { createInbox } = await import("@/plugins/mail-client/templates");
+    const id = await createInbox(mailId, "sent");
+    setPref(SENT, id);
     made.push(id);
   }
   // Both kinds of sources there: the combined inbox too (one list across channels) — made first in the tree's order of use.
