@@ -24,6 +24,10 @@ const guess = (other: DbSchema, mine: string): string => {
   return TITLE;
 };
 
+/** The property of this database that holds what the other data names its rows by — a ticket's Key (Jira rows keep it apart from their title), else the title. */
+const mineGuess = (draft: DbSchema): string =>
+  draft.properties.find((p) => p.id === "ticketkey")?.id ?? draft.properties.find((p) => p.type === "text" && /^(key|ticket|ticket key|issue)$/i.test(p.name.trim()))?.id ?? TITLE;
+
 export function RollupWizard({ draft, data, databases, dbId, onAdd, onClose }: { draft: DbSchema; data: DatabaseData; databases: { id: number; title: string }[]; dbId: number; onAdd: (props: Property[], hide: string) => void; onClose: () => void }) {
   const t = useT();
   const FNS: [RollupFn, string][] = [["sum", t("Sum")], ["count", t("Count")], ["average", t("Average")], ["min", t("Smallest")], ["max", t("Largest")], ["latest", t("Latest date")], ["earliest", t("Earliest date")]];
@@ -54,7 +58,7 @@ export function RollupWizard({ draft, data, databases, dbId, onAdd, onClose }: {
     }
     setOther(o);
     if (o) {
-      setMine(TITLE);
+      setMine(mineGuess(draft));
       setTheirs(guess(o.schema, draft.titleName));
       const num = o.schema.properties.find((p) => p.type === "number");
       setProp(num?.id ?? "");
