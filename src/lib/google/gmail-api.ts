@@ -7,7 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { apiGet } from "@/lib/connectors/http";
-import type { MailInput } from "@/lib/mail/store";
+import { keyOf, type MailInput } from "@/lib/mail/store";
 
 export const GM = "/gmail/v1/users/me";
 
@@ -144,7 +144,16 @@ function toInput(m: Msg, folder: string, o: { attach: boolean; text?: string }):
  * conversation you wrote in, whole, with the full text of the messages not in `fullKnown`.
  * Nothing is opened or marked read.
  */
-export type GmailMirror = { folder: string; /** Every mail of the folder within the days was read (not cut off by the page limit). */ complete: boolean; /** The oldest mail read (when it was cut off, nothing older says anything). */ oldest: string | null };
+/** What Gmail holds in a folder now — every mail of it, of any age: their keys here and their conversations. `complete`: the list was read to its end. */
+export type GmailMirror = { folder: string; complete: boolean; keys: string[]; convIds: string[] };
+
+const ID_PAGES = 60;
+
+/** The mirror of a folder: Gmail's own list of it (ids only — cheap), as the keys the mails have here. */
+async function mirrorOf(folder: string, q: string, labelId?: string): Promise<GmailMirror> {
+  const found = await searchPages(q, ID_PAGES, labelId);
+  return { folder, complete: !found.truncated, keys: found.ids.map((x) => keyOf({ convId: `gmail:${x.threadId}`, id: refOf(x.id) } as MailInput)), convIds: [...new Set(found.ids.map((x) => `gmail:${x.threadId}`))] };
+}
 
 export async function readGmail(o: { days: number; maxPages?: number; folder?: string; fullKnown?: string[]; /** Labels (names) kept as folders of their own: "<folder>/<label>". */ labels?: string[] }): Promise<{ messages: MailInput[]; mirrors: GmailMirror[] }> {
   const folder = o.folder ?? "Gmail";
@@ -154,22 +163,19 @@ export async function readGmail(o: { days: number; maxPages?: number; folder?: s
   const have = new Set<string>();
   const sentThreads = new Map<string, string>();
   const mirrors: GmailMirror[] = [];
-  const oldestOf = (list: MailInput[]) => list.reduce<string | null>((o, m) => (m.receivedAt && (!o || m.receivedAt < o) ? m.receivedAt : o), null);
   for (const box of ["inbox", "sent"] as const) {
     const q = `in:${box} newer_than:${span}d`;
     const found = await searchPages(q, maxPages);
     const withAttachment = new Set((await search(`${q} has:attachment`, maxPages)).map((x) => x.id));
     const metas = await each(found.ids, (x) => getMeta(x.id));
-    const read: MailInput[] = [];
     for (const m of metas) {
       const input = { ...toInput(m, folder, { attach: withAttachment.has(m.id) }), ...(box === "inbox" ? { mirror: true } : {}) };
       if (!input.subject || have.has(input.id!)) continue;
       have.add(input.id!);
       messages.push(input);
-      read.push(input);
       if (box === "sent" && !sentThreads.has(m.threadId)) sentThreads.set(m.threadId, input.subject);
     }
-    if (box === "inbox") mirrors.push({ folder, complete: !found.truncated, oldest: oldestOf(read) });
+    if (box === "inbox") mirrors.push(await mirrorOf(folder, "in:inbox"));
   }
   // The labels you chose: each a folder of its own (a mail in the inbox stays in the inbox's folder).
   if (o.labels?.length) {
@@ -180,15 +186,13 @@ export async function readGmail(o: { days: number; maxPages?: number; folder?: s
       const lf = `${folder}/${label.name}`;
       const found = await searchPages(`newer_than:${span}d`, maxPages, label.id);
       const withAttachment = new Set((await searchPages("has:attachment newer_than:" + span + "d", maxPages, label.id)).ids.map((x) => x.id));
-      const read: MailInput[] = [];
       for (const m of await each(found.ids, (x) => getMeta(x.id))) {
         const input = { ...toInput(m, lf, { attach: withAttachment.has(m.id) }), mirror: true };
         if (!input.subject || have.has(input.id!)) continue;
         have.add(input.id!);
         messages.push(input);
-        read.push(input);
       }
-      mirrors.push({ folder: lf, complete: !found.truncated, oldest: oldestOf(read) });
+      mirrors.push(await mirrorOf(lf, "", label.id));
     }
   }
   const known = new Set(o.fullKnown ?? []);

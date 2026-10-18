@@ -96,10 +96,7 @@ async function syncSource(source: Source, days: number, background: boolean, pre
     const r = await readMailbox(source, days, background, gmail);
     const { added, total } = saveMails(r.messages);
     // A mirror (Gmail through its API): what left the inbox or a chosen label there leaves it here — to the archive.
-    if (r.mirrors?.length) {
-      const sinceIso = new Date(Date.now() - days * 86400000).toISOString();
-      for (const read of r.mirrors) archiveGone({ read, seen: r.messages, sinceIso });
-    }
+    for (const read of r.mirrors ?? []) archiveGone({ read });
     if (source === "gmail") {
       const k = `gmail:full:${gmail?.account ?? "0"}`;
       const full = r.messages.filter((m) => m.full && m.id).map((m) => m.id!);
