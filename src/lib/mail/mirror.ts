@@ -1,40 +1,48 @@
 import { and, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
-import { keyOf, type MailInput } from "./store";
 
 /**
  * A mailbox folder that follows the mailbox like an IMAP mirror (Gmail through its API: the inbox, and the labels you chose): what
- * leaves it there — archived, moved under another label — leaves it here. The mail itself stays (todos and the knowledge base
- * cite it): it goes to the folder's archive, "<folder> · Archive", which the Workspace's mail databases leave out unless asked.
- * Server only.
+ * leaves it there — archived, moved under another label — leaves it here, however old it is. The mail itself stays (todos and the
+ * knowledge base cite it): it goes to the folder's archive, "<folder> · Archive", which the Workspace's mail databases leave out
+ * unless asked. Server only.
  */
 
 export const ARCHIVE_SUFFIX = " · Archive";
 export const archiveOf = (folder: string): string => `${folder.split("/")[0]}${ARCHIVE_SUFFIX}`;
 export const isArchiveFolder = (folder: string): boolean => folder.endsWith(ARCHIVE_SUFFIX);
 
-export type MirrorRead = { folder: string; complete: boolean; oldest: string | null };
+/** What the mailbox holds in a folder now: the keys of its mails here, their conversations, and whether the list was read to its end. */
+export type MirrorRead = { folder: string; complete: boolean; keys: string[]; convIds: string[] };
 
 /**
- * After a read of a mirrored folder: the mails kept in it, received within the days read, that were not among the mails read go to
- * the archive. A read that was cut off (more pages than were read) says nothing about mails older than the oldest it got. Your own
- * mails ("Ich") are never moved. How many were moved.
+ * After a read of a mirrored folder: the mails kept in it that the mailbox no longer holds there go to the archive. A mail kept in
+ * the days before ids (its key is not the id's) stays as long as its conversation is in the folder; your own mails ("Ich") never
+ * move; a list cut off before its end says nothing at all. How many were moved.
  */
-export function archiveGone(o: { read: MirrorRead; seen: MailInput[]; sinceIso: string; me?: string }): number {
-  const { folder, complete, oldest } = o.read;
-  const cutoff = complete || !oldest ? o.sinceIso : oldest > o.sinceIso ? oldest : o.sinceIso;
-  const keys = new Set(o.seen.map(keyOf));
-  const pairs = new Set(o.seen.map((m) => `${m.convId}|${m.receivedAt}`));
+export function archiveGone(o: { read: MirrorRead; me?: string }): number {
+  const { folder, complete, keys, convIds } = o.read;
+  if (!complete) return 0;
+  const have = new Set(keys);
+  const threads = new Set(convIds);
   const db = getDb();
   const rows = db
-    .select({ key: schema.emails.key, convId: schema.emails.convId, receivedAt: schema.emails.receivedAt })
+    .select({ key: schema.emails.key, convId: schema.emails.convId })
     .from(schema.emails)
-    .where(and(sql`${schema.emails.folder} = ${folder}`, sql`${schema.emails.convId} like 'gmail:%'`, sql`coalesce(${schema.emails.fromName}, '') <> ${o.me ?? "Ich"}`, sql`${schema.emails.receivedAt} >= ${cutoff}`))
+    .where(and(sql`${schema.emails.folder} = ${folder}`, sql`${schema.emails.convId} like 'gmail:%'`, sql`coalesce(${schema.emails.fromName}, '') <> ${o.me ?? "Ich"}`))
     .all();
-  const gone = rows.filter((r) => !keys.has(r.key) && !pairs.has(`${r.convId}|${r.receivedAt}`));
-  if (!gone.length) return 0;
+  const gone = rows.filter((r) => !have.has(r.key) && !threads.has(r.convId));
+  // And what the mailbox holds here again (put back in the inbox, or under the label) comes back out of the archive, whatever its age.
+  const back = db
+    .select({ key: schema.emails.key })
+    .from(schema.emails)
+    .where(and(sql`${schema.emails.folder} = ${archiveOf(folder)}`, sql`${schema.emails.convId} like 'gmail:%'`))
+    .all()
+    .filter((r) => have.has(r.key));
+  if (!gone.length && !back.length) return 0;
   db.transaction((tx) => {
     for (const r of gone) tx.update(schema.emails).set({ folder: archiveOf(folder) }).where(sql`${schema.emails.key} = ${r.key}`).run();
+    for (const r of back) tx.update(schema.emails).set({ folder }).where(sql`${schema.emails.key} = ${r.key}`).run();
   });
   return gone.length;
 }
