@@ -170,7 +170,7 @@ function buildMenu() {
     { label: "Status…", click: showWindow },
     { type: "separator" },
     serviceMenu(zeff()),
-    ...state.services.filter((s) => s.name === "Work" || s.name === "Sync").map((w) => serviceMenu(w)),
+    ...state.services.filter((s) => s.name === "Work" || s.name === "Sync" || s.name === "Claude").map((w) => serviceMenu(w)),
     ...knowledges().map((k) => serviceMenu(k, [{ label: "Open knowledge", click: () => shell.openExternal(knowledgeUrl(k)) }, { type: "separator" }])),
     { label: "Dev mode (hot reload)", type: "checkbox", checked: state.dev, click: (item) => setDev(item.checked) },
     { type: "separator" },
@@ -335,6 +335,13 @@ async function start() {
     ...(ownData ? { DATABASE_PATH: path.join(paths.data, "zeff.db"), ZEFF_CALENDAR_INBOX: path.join(paths.data, "calendar-inbox.json") } : {}),
     ...cfg.env,
   };
+  // Claude Code in a container: Zeff runs the CLI through the shim, which forwards into the container (see scripts/claude-docker.mjs).
+  const claudeShim = path.join(paths.app, "scripts", "claude-docker.mjs");
+  if (cfg.claudeDocker) {
+    env.CLAUDE_CLI = claudeShim;
+    if (cfg.claudeMounts) env.ZEFF_CLAUDE_MOUNTS = cfg.claudeMounts;
+    env.ZEFF_DATA_DIR = paths.data;
+  }
   delete env.ELECTRON_RUN_AS_NODE;
   const spec = (name, dir, port) => ({
     name,
@@ -382,6 +389,8 @@ async function start() {
     const hostScript = path.join(paths.app, "scripts", "work-host.mjs");
     add(new Service({ ...spec("Work", null, cfg.workPort), args: [hostScript], buildMarker: hostScript }));
   }
+  // The Claude container: kept up (it outlives the launcher — restart: unless-stopped), watched; the CLI calls go into it.
+  if (cfg.claudeDocker) add(new Service({ ...spec("Claude", null, cfg.claudePort), args: [claudeShim, "--serve"], buildMarker: claudeShim }));
 
   const routes = { knowledgeHost: cfg.knowledge ? cfg.knowledgeHost : null, zeffPort: cfg.zeffPort, knowledgePort: cfg.knowledgePort };
 
@@ -498,7 +507,7 @@ const SMOKE_CONTENT = { "/ext/docs": "external plugins", "/ext/docs/api": "exten
  */
 async function runSmokeTest() {
   const deadline = Date.now() + 5 * 60 * 1000;
-  const wanted = () => [zeff(), ...state.services.filter((s) => s.name === "Work" || s.name === "Sync"), ...(state.cfg.knowledge ? [activeKnowledge()] : [])];
+  const wanted = () => [zeff(), ...state.services.filter((s) => s.name === "Work" || s.name === "Sync" || s.name === "Claude"), ...(state.cfg.knowledge ? [activeKnowledge()] : [])];
   // The status — or, with `text`, { status, body } (the first 2 MB).
   const get = (host, urlPath = "/", text = false) =>
     new Promise((resolve, reject) => {

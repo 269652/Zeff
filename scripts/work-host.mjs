@@ -141,6 +141,16 @@ function start(spec) {
   return c.pid;
 }
 
+/**
+ * Claude in a container (CLAUDE_CLI = scripts/claude-docker.mjs): the process here is only the shim of `docker exec` — ending it does not
+ * end the claude in the container (nor what it started). That is asked for there, by the run's number.
+ */
+function killInContainer(runId) {
+  const cli = process.env.CLAUDE_CLI ?? "";
+  if (!/claude-docker\.mjs$/i.test(cli) || !Number.isInteger(runId)) return;
+  spawn(process.execPath, [cli, "--kill", String(runId)], { stdio: "ignore", windowsHide: true, detached: true }).unref();
+}
+
 /** A run's process and everything it started (tests, servers) — gone. */
 function killTree(pid) {
   if (!pid) return;
@@ -236,6 +246,7 @@ const server = http.createServer((req, res) => {
         const c = children.get(runId);
         if (!c) return send(404, { error: "unknown run" });
         if (req.url === "/kill") {
+          killInContainer(runId);
           killTree(c.pid);
           return send(200, { ok: true });
         }

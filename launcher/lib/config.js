@@ -42,6 +42,14 @@ const DEFAULTS = {
   httpsPorts: [443, 1337],
   /** Redirect http://<host> (port 80) to https. */
   httpRedirect: true,
+  /**
+   * Claude Code in a Docker container (docker/claude, scripts/claude-docker.mjs) — for a computer that cannot have the CLI. The launcher keeps
+   * the container up as the "Claude" service and tells Zeff to run the CLI through it (CLAUDE_CLI). Your repos are mounted: the folders in
+   * claudeMounts ("C:\Users\you\Documents=/host/documents;…"; none: your Documents folder).
+   */
+  claudeDocker: false,
+  claudePort: 9335,
+  claudeMounts: "",
   /** Run Zeff as `next dev` (hot reload) instead of `next start`. Also: --dev, or the tray toggle (kept in <data>/launcher/dev-mode). */
   dev: false,
   /** Start the servers with the launcher. */
