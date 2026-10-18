@@ -4,13 +4,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
-import { workspaceChatAction } from "../actions";
+import { undoAction, workspaceChatAction } from "../actions";
 import type { ChatStep } from "../agent";
 
 /** Tell this to the editors and databases on screen: the workspace was changed by the assistant - read it again. */
 export const WS_CHANGED = "ws-changed";
 
-type Msg = { role: "user" | "assistant"; text: string; steps?: ChatStep[]; error?: boolean };
+type Msg = { role: "user" | "assistant"; text: string; steps?: ChatStep[]; error?: boolean; /** The history entry of what this answer changed (Undo). */ undoId?: number | null; undone?: boolean };
 
 const KEY = "zeff.workspace.chat";
 const OPEN = "zeff.workspace.chat.open";
@@ -73,7 +73,7 @@ export function ChatPanel() {
       const r = await workspaceChatAction(next.map((m) => ({ role: m.role, text: m.text })), pageId);
       if (!r.ok) setMsgs([...next, { role: "assistant", text: r.error, error: true }]);
       else {
-        setMsgs([...next, { role: "assistant", text: r.reply || t("Done."), steps: r.steps }]);
+        setMsgs([...next, { role: "assistant", text: r.reply || t("Done."), steps: r.steps, undoId: r.undoId }]);
         if (r.changed) {
           router.refresh();
           window.dispatchEvent(new Event(WS_CHANGED));
@@ -127,6 +127,22 @@ export function ChatPanel() {
                   </details>
                 )}
                 <div className="whitespace-pre-wrap">{m.text}</div>
+                {m.role === "assistant" && m.undoId && (
+                  <button
+                    type="button"
+                    className="text-xs text-zinc-500 hover:underline disabled:opacity-50"
+                    disabled={m.undone}
+                    onClick={async () => {
+                      const u = await undoAction(m.undoId!);
+                      if (!u.ok) return void toast(u.error, { tone: "error" });
+                      setMsgs((cur) => cur.map((x, j) => (j === i ? { ...x, undone: true } : x)));
+                      router.refresh();
+                      window.dispatchEvent(new Event(WS_CHANGED));
+                    }}
+                  >
+                    ↩ {m.undone ? t("undone") : t("Undo what this answer changed")}
+                  </button>
+                )}
               </div>
             ))}
             {busy && <p className="text-xs text-violet-700 dark:text-violet-300">✨ {t("The AI is working …")}</p>}

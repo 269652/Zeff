@@ -252,3 +252,46 @@ test("repeating rows: days, weekdays every N weeks and the day of the month are 
   assert.equal(new Date(recurrences(db)[0].nextAt).getTime(), D(2026, 10, 22, 8, 0).getTime());
   assert.equal(nextDue(rule, D(2026, 10, 21, 9, 0))!.getDate(), 22);
 });
+
+test("protection: unique values, a locked database, and what the AI may do - the store holds to it for every caller", async () => {
+  (await import("@/plugins/state")).setInstalled("workspace", true);
+  const store = await import("@/plugins/workspace/store");
+  const { agentScope } = await import("@/plugins/workspace/agent-scope");
+  const { viaSource } = await import("@/plugins/workspace/events");
+  const { applyOps } = await import("@/plugins/workspace/schema-ops");
+  const id = store.createPage({ kind: "database", title: "Customers" });
+  const { schema } = applyOps(store.getDatabase(id)!.schema, [{ op: "add_property", name: "Email", type: "email" }], { related: () => null });
+  const saved = store.saveSchema(id, schema);
+  const email = saved.properties.find((p) => p.name === "Email")!;
+  store.saveSchema(id, { ...saved, protect: { unique: ["title", email.id] } });
+  assert.deepEqual(store.getDatabase(id)!.schema.protect, { unique: ["title", email.id] }, "kept with the schema");
+  const a = store.addRow(id, { title: "Ann", cells: { [email.id]: "ann@x.io" } });
+  assert.throws(() => store.addRow(id, { title: "ann" }), /title" must be unique/, "the title, without case");
+  assert.throws(() => store.addRow(id, { title: "Bob", cells: { [email.id]: "ANN@x.io" } }), /Email" must be unique/);
+  const b = store.addRow(id, { title: "Bob" });
+  assert.throws(() => store.setCell(b, email.id, "ann@x.io"), /must be unique/);
+  assert.throws(() => store.updatePage(b, { title: "Ann" }), /must be unique/);
+  store.setCell(b, email.id, "bob@x.io");
+  store.setCell(a, email.id, "ann@x.io"); // (its own value again: no clash)
+  store.addRow(id, { title: "" });
+  store.addRow(id, { title: "" }); // (empty values never clash)
+
+  store.saveSchema(id, { ...store.getDatabase(id)!.schema, protect: { ai: "append" } });
+  agentScope.run(true, () => {
+    store.addRow(id, { title: "By the AI" });
+    assert.throws(() => store.setCell(b, email.id, "x@y.z"), /only add rows/);
+    assert.throws(() => store.archivePage(b), /only add rows/);
+  });
+  store.setCell(b, email.id, "you@x.io"); // (you may)
+  store.saveSchema(id, { ...store.getDatabase(id)!.schema, protect: { ai: "read" } });
+  agentScope.run(true, () => assert.throws(() => store.addRow(id, { title: "no" }), /may not change/));
+
+  store.saveSchema(id, { ...store.getDatabase(id)!.schema, protect: { lock: true } });
+  assert.throws(() => store.addRow(id, { title: "locked" }), /locked/);
+  assert.throws(() => store.setCell(b, email.id, "z@z.zz"), /locked/);
+  assert.throws(() => store.archivePage(b), /locked/);
+  viaSource(() => store.addRow(id, { title: "From the source" })); // (a source still writes its records)
+  const { loadDatabaseAction } = await import("@/plugins/workspace/actions");
+  const loaded = await loadDatabaseAction(id);
+  assert.equal(loaded.ok && loaded.data.locked, true, "the page shows it as locked");
+});

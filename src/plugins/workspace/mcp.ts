@@ -57,7 +57,7 @@ function describePage(p: store.Page): string {
 
 export function registerWorkspaceTools(real: McpServer, h: Helpers): void {
   // Whatever a tool does, it does as the AI: system pages are read-only there (agent-scope.ts).
-  const server = { registerTool: (name: string, meta: unknown, handler: (...a: never[]) => unknown) => (real.registerTool as (...x: unknown[]) => unknown)(name, meta, asAgent(handler)) } as unknown as McpServer;
+  const server = { registerTool: (name: string, meta: unknown, handler: (...a: never[]) => unknown) => (real.registerTool as (...x: unknown[]) => unknown)(name, meta, asAgent(handler, `AI: ${name}`)) } as unknown as McpServer;
   server.registerTool(
     "workspace_search",
     {

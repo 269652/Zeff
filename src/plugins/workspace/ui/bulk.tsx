@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { confirmAction } from "@/components/confirm";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
-import { archiveRowsAction, bulkSetAction, databasesAction, moveRowsAction, restorePageAction } from "../actions";
+import { archiveRowsAction, bulkSetAction, databasesAction, moveRowsAction, restorePageAction, undoAction } from "../actions";
 import { isComputed, type DbSchema, type Property } from "../model";
 import { Dropdown } from "./kit";
 
@@ -69,7 +69,10 @@ export function BulkBar({ ids, schema, dbId, onChanged, onClear }: { ids: number
     setBusy(false);
     if (!r.ok) return void toast(r.error, { tone: "error" });
     close();
-    toast(r.failed.length ? t("{done} of {n} set — {why}", { done: r.done, n: ids.length, why: r.failed[0] }) : t("{field} set for {n} rows.", { field: p.name, n: ids.length }), { tone: r.failed.length ? "error" : "ok" });
+    toast(r.failed.length ? t("{done} of {n} set — {why}", { done: r.done, n: ids.length, why: r.failed[0] }) : t("{field} set for {n} rows.", { field: p.name, n: ids.length }), {
+      tone: r.failed.length ? "error" : "ok",
+      action: r.undoId ? { label: t("Undo"), run: async () => (await undoAction(r.undoId!), onChanged()) } : undefined,
+    });
     onChanged();
   };
   const move = async (target: { id: number; title: string }, close: () => void) => {

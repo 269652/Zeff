@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { journaled } from "./undo";
 
 /**
  * Whether the code running is an AI's tool (the MCP server's, the Workspace chat's, an auto action's method) — not you. The
@@ -9,7 +10,7 @@ export const agentScope = new AsyncLocalStorage<boolean>();
 export const inAgentScope = (): boolean => agentScope.getStore() === true;
 
 /** A tool handler run in the agent scope. */
-export const asAgent = <A extends unknown[], R>(fn: (...a: A) => R) => (...a: A): R => agentScope.run(true, () => fn(...a));
+export const asAgent = <A extends unknown[], R>(fn: (...a: A) => R, label = "AI") => (...a: A): R => agentScope.run(true, () => journaled(label, () => fn(...a), "ai"));
 
 /**
  * Further checks of what an AI's tool may write — a page (or the parent a page is made under; null: at the top). An agent routine's

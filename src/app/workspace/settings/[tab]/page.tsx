@@ -8,12 +8,12 @@ import { sourcesOverview } from "@/plugins/workspace/sources";
 import { SourcesView } from "@/plugins/workspace/ui/Sources";
 import { OutputsView } from "@/plugins/workspace/ui/Outputs";
 
-const TABS = ["sources", "outputs", "pipelines", "prompts", "apps"] as const;
+const TABS = ["sources", "outputs", "pipelines", "history", "prompts", "apps"] as const;
 type Tab = (typeof TABS)[number];
 const isTab = (v: string): v is Tab => (TABS as readonly string[]).includes(v);
 
-const label = (tab: Tab) => ({ sources: t("Data sources"), outputs: t("Outputs"), pipelines: t("Pipelines"), prompts: t("Prompts"), apps: t("Apps") })[tab];
-const ICON: Record<Tab, string> = { sources: "🔌", outputs: "📤", pipelines: "⛓", prompts: "💬", apps: "◫" };
+const label = (tab: Tab) => ({ sources: t("Data sources"), outputs: t("Outputs"), pipelines: t("Pipelines"), history: t("History"), prompts: t("Prompts"), apps: t("Apps") })[tab];
+const ICON: Record<Tab, string> = { sources: "🔌", outputs: "📤", pipelines: "⛓", history: "↩", prompts: "💬", apps: "◫" };
 
 export async function generateMetadata({ params }: { params: Promise<{ tab: string }> }): Promise<Metadata> {
   const { tab } = await params;
@@ -98,6 +98,15 @@ async function body(tab: Tab) {
           })}
           {!ids.length && <li className="px-3 py-3 text-sm text-zinc-500">{t("No pipelines yet.")}</li>}
         </ul>
+      </div>
+    );
+  }
+  if (tab === "history") {
+    const { HistoryList } = await import("@/plugins/workspace/ui/history");
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-zinc-500">{t("What the AI, the automations and bulk edits did — each as one entry you can take back. Kept for 30 days (the last 40).")}</p>
+        <HistoryList />
       </div>
     );
   }

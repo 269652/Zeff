@@ -14,6 +14,9 @@ import { GalleryView } from "./gallery";
 import { BulkBar } from "./bulk";
 import { FormDesigner } from "./form-designer";
 import { RecurringDialog } from "./recurring";
+import { ProtectDialog } from "./protect";
+import { TimelineView } from "./timeline";
+import { ChartView } from "./view-chart";
 import { FilterEditor, PropertiesMenu, SchemaModal, SortEditor } from "./db-menus";
 import { Dropdown, MenuItem, Modal, useSortable } from "./kit";
 import { PipelineEditor, PipelineSummaries } from "./pipeline";
@@ -21,7 +24,7 @@ import { AppViewHost } from "./app-view";
 
 /** A database on a page: its views (table, board, list, gallery, calendar), filters, sorts, groups, and the rows in place. */
 
-const VIEW_ICON: Record<ViewType, string> = { table: "▦", board: "▥", list: "☰", gallery: "▤", calendar: "📅", app: "◫" };
+const VIEW_ICON: Record<ViewType, string> = { table: "▦", board: "▥", list: "☰", gallery: "▤", calendar: "📅", timeline: "▬", chart: "📊", app: "◫" };
 /** The view types one picks (an app's view comes with its app). */
 const PLAIN_VIEWS = VIEW_TYPES.filter((v) => v !== "app");
 
@@ -243,6 +246,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const [justAdded, setJustAdded] = useState<number | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [repeatOpen, setRepeatOpen] = useState(false);
+  const [protectOpen, setProtectOpen] = useState(false);
   const [asking, setAsking] = useState<{ id: number; title: string; names: string[] } | null>(null);
   // Rows ticked in the table (shift-click: a range): what the bulk bar acts on.
   const [picked, setPicked] = useState<Set<number>>(new Set());
@@ -342,11 +346,12 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   };
 
   const addView = (type: ViewType, app?: { id: string; label: string }) => {
-    const names: Record<ViewType, string> = { table: t("Table"), board: t("Board"), list: t("List"), gallery: t("Gallery"), calendar: t("Calendar"), app: app?.label ?? t("App") };
+    const names: Record<ViewType, string> = { table: t("Table"), board: t("Board"), list: t("List"), gallery: t("Gallery"), calendar: t("Calendar"), timeline: t("Timeline"), chart: t("Chart"), app: app?.label ?? t("App") };
     const v = newView(names[type], type);
     if (app) v.app = app.id;
     if (type === "board") v.groupBy = schema.properties.find((p) => p.type === "status" || p.type === "select")?.id;
-    if (type === "calendar") v.dateProp = schema.properties.find((p) => p.type === "date")?.id;
+    if (type === "calendar" || type === "timeline") v.dateProp = schema.properties.find((p) => p.type === "date")?.id;
+    if (type === "chart") v.groupBy = schema.properties.find((p) => p.type === "status" || p.type === "select")?.id;
     api.changeSchema((s) => ({ ...s, views: [...s.views, v] }));
     pick(v.id);
   };
@@ -372,10 +377,10 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   // A narrow toolbar keeps the views, the search, "New" and "⋯" - filter, sort, grouping, the date field and the properties go into one "View" menu.
   const groupNode = (
     <>
-    {(view.type === "board" || view.type === "table" || view.type === "list") && (
+    {(view.type === "board" || view.type === "table" || view.type === "list" || view.type === "chart") && (
       <select className="input w-auto text-sm" value={view.groupBy ?? ""} aria-label={t("Group by")} onChange={(e) => setView({ ...view, groupBy: e.target.value || undefined })}>
         <option value="">{view.type === "board" ? t("Group by …") : t("No grouping")}</option>
-        {schema.properties.filter((p) => ["select", "status", "multi_select", "person", "checkbox", "relation"].includes(p.type)).map((p) => (
+        {schema.properties.filter((p) => ["select", "status", "multi_select", "person", "checkbox", "relation", ...(view.type === "chart" ? ["date", "text"] : [])].includes(p.type)).map((p) => (
           <option key={p.id} value={p.id}>
             {t("Group by {name}", { name: p.name })}
           </option>
@@ -386,7 +391,34 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   );
   const dateNode = (
     <>
-    {view.type === "calendar" && (
+    {view.type === "timeline" && (
+      <select className="input w-auto text-sm" value={view.endProp ?? ""} aria-label={t("End date property")} onChange={(e) => setView({ ...view, endProp: e.target.value || undefined })}>
+        <option value="">{t("Ends at … (the date's own end)")}</option>
+        {schema.properties.filter((p) => p.type === "date" && p.id !== view.dateProp).map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+    )}
+    {view.type === "chart" && (
+      <>
+        <select className="input w-auto text-sm" value={view.chartKind ?? "column"} aria-label={t("Chart type")} onChange={(e) => setView({ ...view, chartKind: e.target.value as "bar" })}>
+          <option value="column">{t("Columns")}</option>
+          <option value="bar">{t("Bars")}</option>
+          <option value="line">{t("Line")}</option>
+          <option value="pie">{t("Pie")}</option>
+        </select>
+        <select className="input w-auto text-sm" value={view.chartProp ? `${view.chartCalc ?? "sum"}:${view.chartProp}` : "count"} aria-label={t("What is counted")} onChange={(e) => (e.target.value === "count" ? setView({ ...view, chartCalc: undefined, chartProp: undefined }) : setView({ ...view, chartCalc: e.target.value.split(":")[0] as "sum", chartProp: e.target.value.split(":")[1] }))}>
+          <option value="count">{t("Number of rows")}</option>
+          {schema.properties.filter((p) => p.type === "number").flatMap((p) => [
+            <option key={`s${p.id}`} value={`sum:${p.id}`}>{t("Sum of {name}", { name: p.name })}</option>,
+            <option key={`a${p.id}`} value={`avg:${p.id}`}>{t("Average of {name}", { name: p.name })}</option>,
+          ])}
+        </select>
+      </>
+    )}
+    {(view.type === "calendar" || view.type === "timeline") && (
       <select className="input w-auto text-sm" value={view.dateProp ?? ""} aria-label={t("Date property")} onChange={(e) => setView({ ...view, dateProp: e.target.value || undefined })}>
         <option value="">{t("Date by …")}</option>
         {schema.properties.filter((p) => p.type === "date").map((p) => (
@@ -480,7 +512,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
                     close();
                   }}
                 >
-                  {VIEW_ICON[vt]} {{ table: t("Table"), board: t("Board"), list: t("List"), gallery: t("Gallery"), calendar: t("Calendar"), app: "" }[vt]}
+                  {VIEW_ICON[vt]} {{ table: t("Table"), board: t("Board"), list: t("List"), gallery: t("Gallery"), calendar: t("Calendar"), timeline: t("Timeline"), chart: t("Chart"), app: "" }[vt]}
                 </MenuItem>
               )),
               // The apps' views this database can have (its type: mails, messages — their plugins installed).
@@ -540,6 +572,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
               <MenuItem onClick={() => (close(), setSchemaOpen(true))}>⚙ {t("Edit properties …")}</MenuItem>
               <MenuItem onClick={() => (close(), setFormOpen(true))}>📝 {t("Form …")}</MenuItem>
               <MenuItem onClick={() => (close(), setRepeatOpen(true))}>🔁 {t("Repeating rows …")}</MenuItem>
+              <MenuItem onClick={() => (close(), setProtectOpen(true))}>🛡 {t("Protection …")}</MenuItem>
               <MenuItem onClick={() => (close(), setPipelineOpen(true))}>⛓ {t("Sources & steps …")}</MenuItem>
               <MenuItem onClick={() => (close(), setReceiveOpen(true))}>➜ {t("Receive tickets …")}</MenuItem>
               {schema.jobs && <MenuItem onClick={() => (close(), setAgentsOpen(true))}>🤖 {t("Agents …")}</MenuItem>}
@@ -696,6 +729,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
       {view.type === "board" && <BoardView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} newRow={newRow} />}
       {view.type === "list" && <ListView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} />}
       {view.type === "gallery" && <GalleryView rows={rows} visible={visible} ctx={ctx} openRow={openRow} add={(cells, title) => api.addRow(cells, title)} locked={!!data.locked || !!data.noNewRows} />}
+      {view.type === "timeline" && <TimelineView view={view} rows={rows} schema={schema} api={api} openRow={openRow} locked={!!data.locked} />}
+      {view.type === "chart" && <ChartView view={view} rows={rows} schema={schema} />}
       {view.type === "calendar" && <CalendarView canAdd={!data.noNewRows} view={view} rows={rows} schema={schema} api={api} openRow={openRow} newRow={newRow} />}
       <p className="text-xs text-zinc-500">{rows.length === data.rows.length ? (rows.length === 1 ? t("1 row") : t("{n} rows", { n: rows.length })) : t("{n} of {total} rows", { n: rows.length, total: data.rows.length })}</p>
 
@@ -728,6 +763,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           </form>
         </Modal>
       )}
+      {protectOpen && <ProtectDialog schema={schema} onSave={api.saveSchema} onClose={() => setProtectOpen(false)} />}
       {repeatOpen && <RecurringDialog dbId={dbId} schema={schema} templates={data.templates} onClose={() => setRepeatOpen(false)} />}
       {formOpen && <FormDesigner schema={schema} dbId={dbId} onSave={api.saveSchema} onClose={() => setFormOpen(false)} />}
       {schemaOpen && <SchemaModal schema={schema} data={data} dbId={dbId} databases={databases} onSave={api.saveSchema} onClose={() => setSchemaOpen(false)} />}
@@ -1006,9 +1042,14 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
                   <MenuItem onClick={() => (close(), setView({ ...view, sorts: [{ prop: p.id, dir: "desc" }] }))}>↓ {t("Sort descending")}</MenuItem>
                   <MenuItem onClick={() => (close(), setView({ ...view, hidden: [...view.hidden, p.id] }))}>🙈 {t("Hide")}</MenuItem>
                   <div className="px-3 pt-1 text-xs text-zinc-500">{t("Content type")}</div>
-                  {PROP_TYPES.filter((x) => x !== "relation" && x !== "rollup").map((x) => (
+                  {PROP_TYPES.filter((x) => x !== "relation" && x !== "rollup" && x !== "custom").map((x) => (
                     <MenuItem key={x} onClick={() => (close(), x !== p.type && retypeColumn(p.id, x))}>
                       {x === p.type ? "✓" : " "} {t(PROP_LABELS[x])}
+                    </MenuItem>
+                  ))}
+                  {(data.extras?.fieldTypes ?? []).map((f) => (
+                    <MenuItem key={f.id} onClick={() => (close(), api.changeSchema((s) => ({ ...s, properties: s.properties.map((q) => (q.id === p.id ? { ...retype(q, "custom"), custom: f.id } : q)) })))}>
+                      {p.type === "custom" && p.custom === f.id ? "✓" : " "} {f.icon} {f.label}
                     </MenuItem>
                   ))}
                   <MenuItem onClick={() => (close(), fit([p.id]))}>↔ {t("Fit column to content")}</MenuItem>
