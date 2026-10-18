@@ -7,6 +7,7 @@ import { getDb, schema } from "@/db";
 import type { Repo } from "@/db/schema";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
+import { toHostPath, toLocalPath } from "@/lib/hostpath";
 import { listJiraBoards } from "@/lib/jira/store";
 
 const { repos, gitlabItems, jiraTickets } = schema;
@@ -48,18 +49,20 @@ function branchOf(dir: string): string | null {
 }
 
 function toView(r: Repo): RepoView {
-  const ok = isRepo(r.path);
+  // Kept as the host's path; in a container (ZEFF_PATH_MAP) used as the mounted one.
+  const dir = toLocalPath(r.path);
+  const ok = isRepo(dir);
   return {
     id: r.id,
     name: r.name,
-    path: r.path,
+    path: dir,
     gitlabProject: r.gitlabProject,
     boards: parse<number[]>(r.boards, []).filter(Number.isInteger),
     tickets: parse<string[]>(r.tickets, []).filter((t) => typeof t === "string"),
     instructions: r.instructions,
     delivery: r.delivery === "direct" ? "direct" : "mr",
     ok,
-    branch: ok ? branchOf(r.path) : null,
+    branch: ok ? branchOf(dir) : null,
   };
 }
 
@@ -74,13 +77,14 @@ const KEY = /^[A-Z][A-Z0-9]+-\d+$/;
 function clean(input: RepoInput): RepoInput {
   const p = input.path.trim().replace(/^["']|["']$/g, "");
   if (!p) throw new ValidationError(t("The repo's folder is needed."));
-  if (!isRepo(p)) throw new ValidationError(t("{path} isn't a git repo (no .git there).", { path: p }));
+  if (!isRepo(toLocalPath(p))) throw new ValidationError(t("{path} isn't a git repo (no .git there).", { path: p }));
   const tickets = [...new Set(input.tickets.map((t) => t.trim().toUpperCase()).filter(Boolean))];
   const bad = tickets.find((t) => !KEY.test(t));
   if (bad) throw new ValidationError(t("\"{key}\" isn't a ticket key (like PROJ-321).", { key: bad }));
   return {
     name: input.name.trim() || path.basename(p),
-    path: p,
+    // (a mounted path is kept as the host's)
+    path: toHostPath(p),
     gitlabProject: input.gitlabProject?.trim() || null,
     boards: [...new Set(input.boards.filter(Number.isInteger))],
     tickets,

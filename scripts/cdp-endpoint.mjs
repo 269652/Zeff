@@ -7,7 +7,10 @@
 
 /** @typedef {Record<string, string | undefined>} Env */
 
-/** The bridge's settings from the environment, or null when Zeff runs on the host itself. */
+/**
+ * The bridge's settings from the environment, or null when Zeff runs on the host itself.
+ * @param {Env} [env]
+ */
 export function bridgeEnv(env = process.env) {
   const base = String(env.ZEFF_CDP_BASE ?? "").replace(/\/+$/, "");
   const token = String(env.ZEFF_BRIDGE_TOKEN ?? "");
@@ -15,13 +18,21 @@ export function bridgeEnv(env = process.env) {
   return { base, token, offset: Number(env.ZEFF_CDP_OFFSET) || 1000, controlPort: Number(env.ZEFF_BRIDGE_CONTROL_PORT) || 9230 };
 }
 
-/** The debug endpoint of the browser on a debug port (the host's number): direct, or through the bridge. */
+/**
+ * The debug endpoint of the browser on a debug port (the host's number): direct, or through the bridge.
+ * @param {number} port
+ * @param {Env} [env]
+ */
 export function cdpEndpoint(port, env = process.env) {
   const b = bridgeEnv(env);
   return b ? `${b.base}:${port + b.offset}/${b.token}` : `http://127.0.0.1:${port}`;
 }
 
-/** The debug port (the host's number) an endpoint through the bridge stands for; null for any other endpoint. */
+/**
+ * The debug port (the host's number) an endpoint through the bridge stands for; null for any other endpoint.
+ * @param {string} endpoint
+ * @param {Env} [env]
+ */
 export function bridgedPort(endpoint, env = process.env) {
   const b = bridgeEnv(env);
   if (!b) return null;
@@ -36,7 +47,13 @@ export function bridgedPort(endpoint, env = process.env) {
   }
 }
 
-/** Ask the bridge to start the browser on a debug port (it knows the profile of that port's account). Throws with the bridge's words. */
+/**
+ * Ask the bridge to start the browser on a debug port (it knows the profile of that port's account). Throws with the bridge's words.
+ * @param {number} port
+ * @param {string[]} [urls]
+ * @param {Env} [env]
+ * @param {typeof fetch} [fetchImpl]
+ */
 export async function bridgeLaunch(port, urls = [], env = process.env, fetchImpl = fetch) {
   const b = bridgeEnv(env);
   if (!b) throw new Error("No bridge to the host's browser is set (ZEFF_CDP_BASE, ZEFF_BRIDGE_TOKEN).");

@@ -106,6 +106,8 @@ function macPresent(vendor: string): Promise<boolean> {
 /** Start the watcher (once per process). Returns at once; the first reading follows within a second or two. */
 export function startKeyWatch(): void {
   if (watch.started) return;
+  // In a container (a USB key is not visible there) the host's bridge watches and writes lock-state.json: scripts/chrome-bridge.mjs.
+  if (process.env.ZEFF_LOCK_WATCH === "host") return;
   watch.started = true;
   watch.stop = false;
   const vendor = readConfig()?.vendor ?? YUBICO;

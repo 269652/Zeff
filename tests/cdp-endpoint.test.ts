@@ -3,7 +3,6 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import test from "node:test";
 
-// @ts-expect-error — a plain .mjs script
 const mod = import("../scripts/cdp-endpoint.mjs");
 
 const BRIDGED = { ZEFF_CDP_BASE: "http://host.docker.internal", ZEFF_BRIDGE_TOKEN: "tok".repeat(10) };

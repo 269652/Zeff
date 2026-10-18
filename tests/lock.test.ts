@@ -91,3 +91,14 @@ test("lock: the private account is not locked — the lock guards the others; th
   fs.rmSync(path.join(dir, "accounts.json"));
   assert.equal(activeAccountNow(), "default");
 });
+
+test("lock: in a container the key is watched on the host — the server's own watcher stays out of the state file", async () => {
+  process.env.ZEFF_LOCK_WATCH = "host";
+  const { startKeyWatch } = await import("@/lib/lock/detect");
+  const { readState, writeState } = await import("@/lib/lock/shared");
+  writeState({ present: true, removedAt: 5, beat: 1234 });
+  startKeyWatch();
+  await new Promise((r) => setTimeout(r, 1200));
+  assert.deepEqual(readState(), { present: true, removedAt: 5, beat: 1234 }, "what the host wrote stays");
+  delete process.env.ZEFF_LOCK_WATCH;
+});

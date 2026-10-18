@@ -8,7 +8,6 @@ import test from "node:test";
  * The bridge between a container and the automation browser on the host: a proxy per debug port that sets Chrome's Host header
  * right, points the websocket addresses back at itself, and lets in only private addresses with the token in the path.
  */
-// @ts-expect-error — a plain .mjs script
 const bridgeModule = import("../scripts/chrome-bridge.mjs");
 
 const TOKEN = "t".repeat(32);
@@ -32,7 +31,7 @@ async function fakeChrome() {
     seen.push({ host: String(req.headers.host), url: req.url ?? "" });
     socket.write("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n");
     socket.on("data", (d) => socket.write(d));
-    sockets.add(socket);
+    sockets.add(socket as net.Socket);
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   return { port: (server.address() as AddressInfo).port, seen, close: () => (server.close(), server.closeAllConnections(), sockets.forEach((x) => x.destroy())) };
@@ -69,7 +68,7 @@ test("through the bridge: version and list answered, websocket upgrade piped, no
   // The bridge listens on port + offset: the offset is chosen so that it lands on a free port.
   const offset = 2000;
   const bridge = await startBridge({ token: TOKEN, ports: [chrome.port], host: "127.0.0.1", controlPort: 0, offset, launch: async () => {} });
-  const at = bridge.ports[chrome.port];
+  const at = (bridge.ports as Record<number, number>)[chrome.port];
   try {
     const v = await get(at, `/${TOKEN}/json/version`, `host.docker.internal:${at}`);
     assert.equal(v.status, 200, v.body);
