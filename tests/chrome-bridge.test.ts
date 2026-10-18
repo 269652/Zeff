@@ -65,10 +65,15 @@ test("the token is the first segment of the path — and only that opens the way
 test("through the bridge: version and list answered, websocket upgrade piped, no token no way, a stopped browser is a 502", async () => {
   const { startBridge } = await bridgeModule;
   const chrome = await fakeChrome();
-  // The bridge listens on port + offset: the offset is chosen so that it lands on a free port.
-  const offset = 2000;
-  const bridge = await startBridge({ token: TOKEN, ports: [chrome.port], host: "127.0.0.1", controlPort: 0, offset, launch: async () => {} });
-  const at = (bridge.ports as Record<number, number>)[chrome.port];
+  // The bridge listens on port + offset: an offset that lands on a free port (tried until one does — other tests hold ports too).
+  let bridge: Awaited<ReturnType<typeof startBridge>> | null = null;
+  for (let i = 0; i < 10 && !bridge; i++) {
+    const offset = 2000 + Math.floor(Math.random() * 20000);
+    if (chrome.port + offset > 65000) continue;
+    bridge = await startBridge({ token: TOKEN, ports: [chrome.port], host: "127.0.0.1", controlPort: 0, offset, launch: async () => {} }).catch(() => null);
+  }
+  if (!bridge) throw new Error("no free port for the bridge");
+  const at = (bridge!.ports as Record<number, number>)[chrome.port];
   try {
     const v = await get(at, `/${TOKEN}/json/version`, `host.docker.internal:${at}`);
     assert.equal(v.status, 200, v.body);
@@ -116,7 +121,7 @@ test("through the bridge: version and list answered, websocket upgrade piped, no
     const gone = await get(at, `/${TOKEN}/json/version`);
     assert.equal(gone.status, 502);
   } finally {
-    await bridge.close();
+    await bridge!.close();
   }
 });
 
