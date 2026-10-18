@@ -15,7 +15,14 @@ import path from "node:path";
  * session at once, and putting it back does not bring one back — the PIN and a touch do.
  */
 
-export type LockConfig = { enabled: boolean; secret: string; /** USB vendor id (hex) of the key; Yubico's 1050 by default. */ vendor?: string };
+export type LockConfig = {
+  enabled: boolean;
+  secret: string;
+  /** USB vendor id (hex) of the key; Yubico's 1050 by default. */
+  vendor?: string;
+  /** Accounts the lock lets through (ids); unset: the one called "privat". */
+  openAccounts?: string[];
+};
 export type LockState = { present: boolean; removedAt: number; beat: number };
 
 export const COOKIE = "zeff_lock";
@@ -41,6 +48,15 @@ function writeJson(file: string, value: unknown): void {
   const tmp = `${file}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(value));
   fs.renameSync(tmp, file);
+}
+
+/** Whether the lock lets this account through: it is one of the open accounts (unset: "privat"). */
+export const lockOpenFor = (cfg: LockConfig, account: string): boolean => (cfg.openAccounts ?? ["privat"]).includes(account);
+
+/** The account in use (data/accounts.json — one for the whole server; the first one without the Accounts plugin). A small file, read with the lock's own. */
+export function activeAccountNow(): string {
+  const r = readJson<{ active?: string; installed?: boolean }>(path.join(dataDir(), "accounts.json"));
+  return r?.installed && typeof r.active === "string" ? r.active : "default";
 }
 
 /** Read often (every request): a short cache. */

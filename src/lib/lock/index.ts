@@ -1,7 +1,7 @@
 import { beginUnlockAssertion, finishUnlockAssertion, listCredentials, type AssertOptions } from "@/lib/touch";
 import type { AssertionInput } from "@/lib/touch/webauthn";
 import { keyPresentNow, startKeyWatch } from "./detect";
-import { newSecret, readConfig, readState, sessionValid, sign, writeConfig, writeState, SESSION_MS, YUBICO } from "./shared";
+import { activeAccountNow, lockOpenFor, newSecret, readConfig, readState, sessionValid, sign, writeConfig, writeState, SESSION_MS, YUBICO } from "./shared";
 
 /**
  * The lock: Zeff's pages open only with the key's PIN and a touch, and shut the moment the key is pulled out. Server-only
@@ -20,7 +20,7 @@ export function lockView(cookie: string | undefined): LockView {
   const state = readState();
   const keyPresent = state && Date.now() - state.beat < 20_000 ? state.present : null;
   if (!cfg) return { enabled: false, locked: false, keyPresent };
-  return { enabled: true, locked: !sessionValid(cookie, cfg, state, Date.now()), keyPresent };
+  return { enabled: true, locked: !lockOpenFor(cfg, activeAccountNow()) && !sessionValid(cookie, cfg, state, Date.now()), keyPresent };
 }
 
 /** Step 1 of unlocking (or of switching the lock on): what the browser asks the key. */

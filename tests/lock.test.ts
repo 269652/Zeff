@@ -70,3 +70,24 @@ test("lock: the unlock needs the key's PIN (user verification), not only a touch
   const c = touch.beginUnlockAssertion(ORIGIN);
   assert.throws(() => touch.finishAssertion(ORIGIN, c.challenge, publicKey.answer(c.challenge, 0x05, 4)), /expired/);
 });
+
+test("lock: the private account is not locked — the lock guards the others; the choice is in the lock's file", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { lockOpenFor, activeAccountNow, newSecret } = await import("@/lib/lock/shared");
+  const dir = path.dirname(process.env.DATABASE_PATH!);
+  const cfg = { enabled: true, secret: newSecret() };
+  // Nothing chosen: the account called "privat" stays open, the first one is locked.
+  assert.equal(lockOpenFor(cfg, "privat"), true);
+  assert.equal(lockOpenFor(cfg, "default"), false);
+  assert.equal(lockOpenFor({ ...cfg, openAccounts: [] }, "privat"), false, "an empty choice: every account is locked");
+  assert.equal(lockOpenFor({ ...cfg, openAccounts: ["work"] }, "work"), true);
+  assert.equal(lockOpenFor({ ...cfg, openAccounts: ["work"] }, "privat"), false);
+  // The account in use is the one data/accounts.json says (the Accounts plugin on), else the first.
+  fs.writeFileSync(path.join(dir, "accounts.json"), JSON.stringify({ active: "privat", installed: true, accounts: [] }));
+  assert.equal(activeAccountNow(), "privat");
+  fs.writeFileSync(path.join(dir, "accounts.json"), JSON.stringify({ active: "privat", installed: false, accounts: [] }));
+  assert.equal(activeAccountNow(), "default", "without the plugin there is only the first account");
+  fs.rmSync(path.join(dir, "accounts.json"));
+  assert.equal(activeAccountNow(), "default");
+});
