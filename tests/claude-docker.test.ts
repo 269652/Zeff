@@ -109,15 +109,12 @@ test("the files of the image: Claude Code, git, a user that is not root, a healt
   assert.match(fs.readFileSync(path.join(dir, "health.js"), "utf8"), /9335/);
 });
 
-test("the launcher: the Claude service is off by default; switched on it sets CLAUDE_CLI and the work host ends a run's claude in the container", async () => {
+test("the work host ends a run's CLI in the container (the shim's end on the host is not its end there)", async () => {
   const root = path.resolve(__dirname, "..");
-  const config = fs.readFileSync(path.join(root, "launcher", "lib", "config.js"), "utf8");
-  assert.match(config, /claudeDocker: false/);
-  const main = fs.readFileSync(path.join(root, "launcher", "main.js"), "utf8");
-  assert.match(main, /if \(cfg\.claudeDocker\) \{\s*env\.CLAUDE_CLI = claudeShim;/);
-  assert.match(main, /new Service\(\{ \.\.\.spec\("Claude"/);
   const host = fs.readFileSync(path.join(root, "scripts", "work-host.mjs"), "utf8");
-  assert.match(host, /killInContainer\(runId\);\s*killTree\(c\.pid\);/, "the shim's end on the host is not the claude's end in the container");
+  assert.match(host, /killInContainer\(runId\);\s*killTree\(c\.pid\);/);
+  for (const v of ["CLAUDE_CLI", "COPILOT_CLI", "CODEX_CLI"]) assert.ok(host.includes(v), v);
+  for (const tool of ["claude", "copilot", "codex"]) assert.ok(fs.existsSync(path.join(root, "scripts", `${tool}-docker.mjs`)), `${tool}-docker.mjs`);
 });
 
 test("a worktree's .git file names its repo relative — the same place on the host and in the container; a repo itself and a missing target are left alone", async () => {
@@ -143,4 +140,25 @@ test("a worktree's .git file names its repo relative — the same place on the h
   assert.equal(relativizeWorktreeLink(lost), false);
   assert.equal(fs.readFileSync(path.join(lost, ".git"), "utf8"), "gitdir: C:/gone/repo/.git/worktrees/x\n");
   assert.equal(relativizeWorktreeLink(path.join(root, "nothing")), false);
+});
+
+test("Zeff's own folders: the attachments and documents of every account, read-only; the data folder of a worktree is the main checkout's", async () => {
+  const { dataMounts, dataDirOf } = await mod;
+  const os = await import("node:os");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "data-"));
+  fs.mkdirSync(path.join(dir, "accounts", "privat"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "accounts", "weird name!"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "accounts", "file.txt"), "x");
+  const mounts = dataMounts(dir);
+  assert.deepEqual(
+    mounts.map((m: { local: string }) => m.local),
+    ["/host/zeff/attachments", "/host/zeff/documents", "/host/zeff/accounts/privat/attachments", "/host/zeff/accounts/privat/documents"],
+    "an odd folder name and a file are not mounted",
+  );
+  assert.ok(mounts.every((m: { readOnly?: boolean }) => m.readOnly), "what Zeff hands over is read-only");
+  assert.equal(path.normalize(mounts[2].host), path.join(dir, "accounts", "privat", "work", "attachments"));
+  assert.equal(dataDirOf({ ZEFF_DATA_DIR: "D:\\data" }, "C:\\Zeff"), "D:\\data");
+  assert.equal(dataDirOf({}, "C:\\Users\\me\\Zeff\\.claude\\worktrees\\docker"), path.join("C:\\Users\\me\\Zeff", "data"), "a worktree: the main checkout's data");
+  assert.equal(dataDirOf({}, "C:/Users/me/Zeff/.claude/worktrees/w1"), path.join("C:/Users/me/Zeff", "data"));
+  assert.equal(dataDirOf({}, "C:\\Zeff"), path.join("C:\\Zeff", "data"));
 });

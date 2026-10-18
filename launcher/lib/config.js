@@ -48,6 +48,8 @@ const DEFAULTS = {
    * claudeMounts ("C:\Users\you\Documents=/host/documents;…"; none: your Documents folder).
    */
   claudeDocker: false,
+  /** The host folders the containers see (the repos): "C:\\Users\\you\\Documents=/host/documents;…"; none: your Documents folder. */
+  dockerMounts: "",
   claudePort: 9335,
   claudeMounts: "",
   /** Run Zeff as `next dev` (hot reload) instead of `next start`. Also: --dev, or the tray toggle (kept in <data>/launcher/dev-mode). */

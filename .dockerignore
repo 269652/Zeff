@@ -1,0 +1,15 @@
+# What the app image build does not need (and must not copy: the data is mounted, the builds are made inside).
+.git
+.claude
+.next
+.next-*
+node_modules
+knowledge/.next
+knowledge/data
+data
+dist
+launcher/node_modules
+launcher/dist
+tsconfig.tsbuildinfo
+*.log
+.env*

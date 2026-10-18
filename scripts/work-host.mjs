@@ -142,13 +142,13 @@ function start(spec) {
 }
 
 /**
- * Claude in a container (CLAUDE_CLI = scripts/claude-docker.mjs): the process here is only the shim of `docker exec` — ending it does not
- * end the claude in the container (nor what it started). That is asked for there, by the run's number.
+ * A CLI in the container (CLAUDE_CLI / COPILOT_CLI / CODEX_CLI = scripts/<tool>-docker.mjs): the process here is only the shim of
+ * `docker exec` — ending it does not end the CLI in the container (nor what it started). That is asked for there, by the run's number.
  */
 function killInContainer(runId) {
-  const cli = process.env.CLAUDE_CLI ?? "";
-  if (!/claude-docker\.mjs$/i.test(cli) || !Number.isInteger(runId)) return;
-  spawn(process.execPath, [cli, "--kill", String(runId)], { stdio: "ignore", windowsHide: true, detached: true }).unref();
+  if (!Number.isInteger(runId)) return;
+  const shim = ["CLAUDE_CLI", "COPILOT_CLI", "CODEX_CLI"].map((k) => process.env[k] ?? "").find((v) => /-docker\.mjs$/i.test(v));
+  if (shim) spawn(process.execPath, [shim, "--kill", String(runId)], { stdio: "ignore", windowsHide: true, detached: true }).unref();
 }
 
 /** A run's process and everything it started (tests, servers) — gone. */

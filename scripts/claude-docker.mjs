@@ -58,20 +58,44 @@ export function parseMounts(text) {
 
 /**
  * What Zeff itself hands to Claude from its data folder (the pictures sent with a prompt, the documents Claude reads) is mounted
- * read-only — and only those folders: Zeff's databases and tokens stay out of reach.
+ * read-only — and only those folders: Zeff's databases and tokens stay out of reach. Each account has its own (data/accounts/<id>/…).
  * @param {string} dataDir
+ * @param {{ fs?: typeof fs }} [io]
  * @returns {Mount[]}
  */
-export function dataMounts(dataDir) {
-  return [
+export function dataMounts(dataDir, { fs: f = fs } = {}) {
+  /** @type {Mount[]} */
+  const out = [
     { host: path.join(dataDir, "work", "attachments"), local: "/host/zeff/attachments", readOnly: true },
     { host: path.join(dataDir, "documents"), local: "/host/zeff/documents", readOnly: true },
   ];
+  try {
+    for (const e of f.readdirSync(path.join(dataDir, "accounts"), { withFileTypes: true })) {
+      if (!e.isDirectory() || !/^[\w.-]+$/.test(e.name)) continue;
+      out.push({ host: path.join(dataDir, "accounts", e.name, "work", "attachments"), local: `/host/zeff/accounts/${e.name}/attachments`, readOnly: true });
+      out.push({ host: path.join(dataDir, "accounts", e.name, "documents"), local: `/host/zeff/accounts/${e.name}/documents`, readOnly: true });
+    }
+  } catch {
+    // no accounts folder
+  }
+  return out;
+}
+
+/**
+ * Zeff's data folder as the shim finds it: ZEFF_DATA_DIR, else the data folder of the checkout this file lives in — for a git worktree
+ * of Zeff (.claude/worktrees/<name>) that is the main checkout's, where the data really is.
+ * @param {Record<string, string | undefined>} [env]
+ * @param {string} [root]
+ */
+export function dataDirOf(env = process.env, root = ROOT) {
+  if (env.ZEFF_DATA_DIR) return env.ZEFF_DATA_DIR;
+  const m = /^(.*?)[\\/]\.claude[\\/]worktrees[\\/][^\\/]+$/.exec(root);
+  return path.join(m ? m[1] : root, "data");
 }
 
 export function defaultMounts(env = process.env, home = os.homedir()) {
   const own = parseMounts(env.ZEFF_CLAUDE_MOUNTS);
-  return [...(own.length ? own : [{ host: path.join(home, "Documents"), local: "/host/documents" }]), ...dataMounts(env.ZEFF_DATA_DIR || path.join(ROOT, "data"))];
+  return [...(own.length ? own : [{ host: path.join(home, "Documents"), local: "/host/documents" }]), ...dataMounts(dataDirOf(env))];
 }
 
 const slash = (p) => String(p).replace(/\\/g, "/").replace(/\/+$/, "");
@@ -190,14 +214,18 @@ export function relativizeWorktreeLink(dir, { fs: f = fs } = {}) {
 // ---------------------------------------------------------------------------------------------------------------------
 
 /** What of the environment goes into the container: Claude's own settings and the run's identity — nothing else of the host's. */
-const ENV_ALLOW = /^(CLAUDE_|ANTHROPIC_|MAX_THINKING_TOKENS$|DISABLE_|ZEFF_WORK_(RUN|ACCOUNT|VIA_HOST)$|ZEFF_MCP_TOKEN$|TERM$|LANG$|LC_)/;
-const ENV_BLOCK = /^(CLAUDECODE|CLAUDE_CODE_ENTRYPOINT|CLAUDE_CLI)$/;
+const ENV_ALLOW = /^(CLAUDE_|ANTHROPIC_|COPILOT_|GH_|GITHUB_|OPENAI_|CODEX_|MAX_THINKING_TOKENS$|DISABLE_|ZEFF_WORK_(RUN|ACCOUNT|VIA_HOST)$|ZEFF_MCP_TOKEN$|TERM$|LANG$|LC_)/;
+/** The nesting guards, and the variables that name the shims themselves (a path on the host). */
+const ENV_BLOCK = /^(CLAUDECODE|CLAUDE_CODE_ENTRYPOINT|CLAUDE_CLI|COPILOT_CLI|CODEX_CLI)$/;
+
+/** The programs the container has: Zeff runs each through its own shim file (scripts/<tool>-docker.mjs). */
+export const TOOLS = ["claude", "copilot", "codex"];
 
 /**
  * The `docker exec` for one call of the CLI: the argument list after `docker`. Pure — the tests give it everything it needs.
- * @param {{ argv: string[], cwd: string, env: Record<string, string | undefined>, mounts: Mount[], container?: string, read?: (p: string) => string, warn?: (s: string) => void }} o
+ * @param {{ argv: string[], cwd: string, env: Record<string, string | undefined>, mounts: Mount[], container?: string, tool?: string, read?: (p: string) => string, warn?: (s: string) => void }} o
  */
-export function execArgs({ argv, cwd, env, mounts, container = "zeff-claude", read, warn }) {
+export function execArgs({ argv, cwd, env, mounts, container = "zeff-claude", tool = "claude", read, warn }) {
   const args = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -218,7 +246,7 @@ export function execArgs({ argv, cwd, env, mounts, container = "zeff-claude", re
   // setsid -w: the CLI leads a session and process group of its own — what it starts can be ended with it (--kill) — and the exec waits for it
   // (without -w setsid forks and the exec ends at once, "without a result"). The inner shell writes its pid — the group's — and becomes the CLI.
   const script = run ? `mkdir -p /tmp/zeff-run; exec setsid -w sh -c 'echo $$ > /tmp/zeff-run/${run}.pid; exec "$@"' sh "$@"` : 'exec setsid -w "$@"';
-  return ["exec", "-i", "-w", workdir, ...passEnv, container, "sh", "-c", script, "sh", "claude", ...args];
+  return ["exec", "-i", "-w", workdir, ...passEnv, container, "sh", "-c", script, "sh", tool, ...args];
 }
 
 /**
@@ -315,7 +343,8 @@ function kill(runId) {
   return r.status ?? 1;
 }
 
-function shim() {
+/** What Zeff runs in place of a CLI: this file's `main` as `tool` (scripts/claude-docker.mjs, copilot-docker.mjs, codex-docker.mjs). */
+export function shim(tool = "claude") {
   const { container } = names();
   if (!running(container)) {
     try {
@@ -331,7 +360,7 @@ function shim() {
   } catch {
     // not ours to fix: git says what is wrong
   }
-  const call = execArgs({ argv: process.argv.slice(2), cwd: process.cwd(), env: process.env, mounts: defaultMounts(), container });
+  const call = execArgs({ argv: process.argv.slice(2), cwd: process.cwd(), env: process.env, mounts: defaultMounts(), container, tool });
   const child = spawn("docker", call, { stdio: "inherit", windowsHide: true });
   for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => child.kill(sig));
   child.on("exit", (code, signal) => process.exit(code ?? (signal ? 143 : 1)));
@@ -348,7 +377,8 @@ const listening = (port) =>
     s.once("error", () => resolve(false));
   });
 
-async function main() {
+/** The commands of every shim file: the management flags, else the shim itself for `tool`. */
+export async function main(tool = "claude") {
   const [cmd, ...rest] = process.argv.slice(2);
   switch (cmd) {
     case "--serve":
@@ -367,12 +397,12 @@ async function main() {
       return;
     }
     default:
-      return shim();
+      return shim(tool);
   }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  Promise.resolve(main()).catch((e) => {
+  Promise.resolve(main("claude")).catch((e) => {
     process.stderr.write(`[claude-docker] ${e?.message ?? e}\n`);
     process.exit(1);
   });
