@@ -9,6 +9,8 @@
 //   Zeff.exe --config <file>  another zeff-launcher.json
 //   Zeff.exe --smoke-test     start everything, check it answers over https, quit (exit code 0 = ok)
 const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, shell } = require("electron");
+const modes = require("./lib/modes");
+const dockerLib = require("./lib/docker");
 const { execFile } = require("node:child_process");
 const { X509Certificate } = require("node:crypto");
 const fs = require("node:fs");
@@ -116,6 +118,7 @@ function snapshot() {
     trusted: state.trusted,
     autostart: state.autostart,
     host: state.cfg.host,
+    modes: state.modes,
     services: state.services.map((s) => s.snapshot()),
   };
 }
@@ -295,6 +298,8 @@ async function start() {
   }
   const { cfg, paths } = loaded;
   Object.assign(state, { cfg, paths });
+  // Where each part runs: host (as it always was) or Docker — set in the status window (lib/modes.js).
+  state.modes = modes.read(paths.state, cfg);
   initLog(path.join(paths.logs, "launcher.log"));
   log(`launcher ${app.getVersion()} (Electron ${process.versions.electron}, ${PLATFORM}) — app ${paths.app}, data ${paths.data}, node ${paths.node}`);
   if (PLATFORM === "darwin" && app.isPackaged) unquarantine();
@@ -335,13 +340,17 @@ async function start() {
     ...(ownData ? { DATABASE_PATH: path.join(paths.data, "zeff.db"), ZEFF_CALENDAR_INBOX: path.join(paths.data, "calendar-inbox.json") } : {}),
     ...cfg.env,
   };
-  // Claude Code in a container: Zeff runs the CLI through the shim, which forwards into the container (see scripts/claude-docker.mjs).
-  const claudeShim = path.join(paths.app, "scripts", "claude-docker.mjs");
-  if (cfg.claudeDocker) {
-    env.CLAUDE_CLI = claudeShim;
-    if (cfg.claudeMounts) env.ZEFF_CLAUDE_MOUNTS = cfg.claudeMounts;
+  // A CLI in the AI-tools container: Zeff runs the CLI through its shim, which forwards into the container (scripts/<tool>-docker.mjs).
+  const shims = modes.cliEnv(state.modes, paths.app);
+  Object.assign(env, shims);
+  if (Object.values(state.modes).includes("docker")) {
+    // Where the data is and which host folders the containers see (config: dockerMounts / claudeMounts).
     env.ZEFF_DATA_DIR = paths.data;
+    if (cfg.dockerMounts || cfg.claudeMounts) env.ZEFF_DOCKER_MOUNTS = cfg.dockerMounts || cfg.claudeMounts;
   }
+  const claudeShim = path.join(paths.app, "scripts", "claude-docker.mjs");
+  const appDocker = path.join(paths.app, "scripts", "app-docker.mjs");
+  const bridgeScript = path.join(paths.app, "scripts", "chrome-bridge.mjs");
   delete env.ELECTRON_RUN_AS_NODE;
   const spec = (name, dir, port) => ({
     name,
@@ -368,6 +377,12 @@ async function start() {
   // Dev mode (tray, --dev, "dev": true): `next dev` on the same port - no build needed, edits show at once. It writes .next/dev,
   // not the build `npm run deploy` swaps; the sync host goes on running its own build, so its code is only as new as the last deploy.
   state.dev = cfg.dev === true || flag("--dev") || fs.existsSync(path.join(paths.state, "dev-mode"));
+  if (state.modes.stack === "docker") {
+    // The pages, the sync host and the work host in ONE container (they share the database), reached on the same port as ever. The
+    // automation browser and the key stay on the host: the bridge (scripts/chrome-bridge.mjs) is theirs.
+    add(new Service({ ...spec("Zeff", null, cfg.zeffPort), args: [appDocker, "--serve", "stack"], buildMarker: appDocker, onStop: () => dockerLib.remove("zeff-stack") }));
+    add(new Service({ ...spec("Bridge", null, 9230), args: [bridgeScript], buildMarker: bridgeScript }));
+  } else {
   const zeffSpec = spec("Zeff", null, cfg.zeffPort);
   zeffSpec.args = () => [next, state.dev ? "dev" : "start", "-H", "127.0.0.1", "-p", String(cfg.zeffPort)];
   zeffSpec.buildMarker = () => (state.dev ? path.join(paths.app, "package.json") : path.join(paths.app, ".next", "BUILD_ID"));
@@ -389,8 +404,10 @@ async function start() {
     const hostScript = path.join(paths.app, "scripts", "work-host.mjs");
     add(new Service({ ...spec("Work", null, cfg.workPort), args: [hostScript], buildMarker: hostScript }));
   }
-  // The Claude container: kept up (it outlives the launcher — restart: unless-stopped), watched; the CLI calls go into it.
-  if (cfg.claudeDocker) add(new Service({ ...spec("Claude", null, cfg.claudePort), args: [claudeShim, "--serve"], buildMarker: claudeShim }));
+  }
+  // The AI-tools container (Claude / Copilot / Codex): kept up (it outlives the launcher — restart: unless-stopped), watched; the CLI
+  // calls of the host's services go into it. Not needed while the stack runs in Docker (its container has the CLIs).
+  if (modes.aiContainerNeeded(state.modes)) add(new Service({ ...spec("AI tools", null, cfg.claudePort), args: [claudeShim, "--serve"], buildMarker: claudeShim, onStop: () => dockerLib.remove("zeff-claude") }));
 
   const routes = { knowledgeHost: cfg.knowledge ? cfg.knowledgeHost : null, zeffPort: cfg.zeffPort, knowledgePort: cfg.knowledgePort };
 
@@ -405,6 +422,13 @@ async function start() {
     const s = spec(first ? "Knowledge" : `Knowledge · ${k.name}`, "knowledge", first ? cfg.knowledgePort : k.port);
     s.logFile = path.join(paths.logs, first ? "knowledge.log" : `knowledge-${k.account}.log`);
     s.env = { ...env, KNOWLEDGE_ACCOUNT: k.account, KNOWLEDGE_ACCOUNT_NAME: first ? "" : k.name, ...(k.dataDir ? { KNOWLEDGE_DATA_DIR: k.dataDir } : {}) };
+    if (state.modes.knowledge === "docker") {
+      // In a container of its own (its data folder mounted); published on the same port, so the proxy and Zeff find it as ever.
+      const dataDir = k.dataDir || firstDataDir || path.join(paths.app, "knowledge", "data");
+      s.args = [appDocker, "--serve", "knowledge", k.account, String(s.port), dataDir];
+      s.buildMarker = appDocker;
+      s.onStop = () => dockerLib.remove(first ? "zeff-knowledge" : `zeff-knowledge-${k.account}`);
+    }
     return s;
   };
   const reconcile = async () => {
@@ -568,6 +592,17 @@ async function runSmokeTest() {
 }
 
 ipcMain.handle("state", () => snapshot());
+// The switches: where each part of Zeff runs. Saved, then the launcher starts again — the services are built from the modes at start.
+ipcMain.handle("modes", () => ({ modes: state.modes, services: modes.SERVICES, notes: modes.notes(state.modes) }));
+ipcMain.handle("setModes", (_e, next) => {
+  const saved = modes.write(state.paths.state, next);
+  log(`modes: ${JSON.stringify(saved)} — restarting the launcher`);
+  app.relaunch();
+  app.quit();
+  return { modes: saved, services: modes.SERVICES, notes: modes.notes(saved) };
+});
+// The containers Docker has (Zeff's marked).
+ipcMain.handle("docker", () => dockerLib.list());
 ipcMain.handle("do", async (_e, action, name) => {
   const s = state.services.find((x) => x.name === name);
   switch (action) {

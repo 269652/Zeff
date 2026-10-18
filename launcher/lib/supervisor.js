@@ -45,6 +45,15 @@ class Service extends EventEmitter {
     this.timer = setInterval(() => this.tick(), 1000);
   }
 
+  /** What stopping the service also takes: a service that runs in a container ends with its container (spec.onStop). */
+  async onStop() {
+    try {
+      await this.spec.onStop?.();
+    } catch (e) {
+      log(`[${this.name}] stop hook: ${e.message}`);
+    }
+  }
+
   get label() {
     return LABELS[this.status];
   }
@@ -70,12 +79,14 @@ class Service extends EventEmitter {
   async stop() {
     this.desired = false;
     await this.kill();
+    await this.onStop();
     this.set("stopped", null);
   }
 
   async restart() {
     this.desired = true;
     await this.kill();
+    await this.onStop();
     this.backoff = 0;
     this.notBefore = 0;
     this.tick();
