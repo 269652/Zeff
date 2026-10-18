@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n/server";
 import { workspaceFieldTypes, type FieldTypeInfo, type WorkspaceFieldType } from "./field-point";
 
 /** The field types of the installed plugins (and the Workspace's own: a rating, a percentage). Server only. */
@@ -16,7 +17,7 @@ export function fieldTypeInfos(): FieldTypeInfo[] {
     } catch {
       // no suggestions then
     }
-    return { id: f.id, label: f.label, icon: f.icon, description: f.description, display: f.display, max: f.max, href: f.href, suggestions };
+    return { id: f.id, label: t(f.label), icon: f.icon, description: t(f.description), display: f.display, max: f.max, href: f.href, suggestions };
   });
 }
 

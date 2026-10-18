@@ -6,7 +6,7 @@ import { listAttention } from "@/lib/attention";
 import { activityNewsIds } from "@/lib/boards/activity";
 import { getWorkSettings } from "@/lib/work/store";
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import { SiteHeader, type MenuGroup, type MenuLink } from "@/components/SiteHeader";
 import { PLUGINS } from "@/plugins/catalog";
 import { catalogText } from "@/plugins/catalog-text";
@@ -80,8 +80,9 @@ import { I18nProvider } from "@/components/I18nProvider";
 import { applyLanguage, t } from "@/lib/i18n/server";
 import "./globals.css";
 
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+// The fonts are files of the repository (Geist, SIL Open Font License): Zeff builds and runs without a connection.
+const geistSans = localFont({ src: "./fonts/Geist-latin.woff2", variable: "--font-geist-sans", weight: "100 900", fallback: ["system-ui", "Arial"] });
+const geistMono = localFont({ src: "./fonts/GeistMono-latin.woff2", variable: "--font-geist-mono", weight: "100 900", fallback: ["ui-monospace", "Consolas"] });
 
 export async function generateMetadata(): Promise<Metadata> {
   return {

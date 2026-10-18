@@ -1047,7 +1047,7 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
                       {x === p.type ? "✓" : " "} {t(PROP_LABELS[x])}
                     </MenuItem>
                   ))}
-                  {(data.extras?.fieldTypes ?? []).map((f) => (
+                  {(ctx.data.extras?.fieldTypes ?? []).map((f) => (
                     <MenuItem key={f.id} onClick={() => (close(), api.changeSchema((s) => ({ ...s, properties: s.properties.map((q) => (q.id === p.id ? { ...retype(q, "custom"), custom: f.id } : q)) })))}>
                       {p.type === "custom" && p.custom === f.id ? "✓" : " "} {f.icon} {f.label}
                     </MenuItem>

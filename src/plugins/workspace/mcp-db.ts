@@ -63,6 +63,7 @@ const propSchema = z.object({
   type: z.enum(PROP_TYPES).optional().describe(`One of: ${PROP_TYPES.join(", ")}. Default text.`),
   options: z.array(z.union([z.string(), z.object({ name: z.string(), color: z.string().optional(), group: z.enum(["todo", "doing", "done"]).optional() })])).optional().describe("select / multi_select / status: the choices (a status's group: todo, doing, done)."),
   formula: z.string().optional().describe('formula: e.g. prop("Hours") * 80 — functions are listed in the editor; prop("Name") reads a property.'),
+  custom: z.string().optional().describe("custom: the field type - workspace.rating (1-5 stars), workspace.progress (0-100 %), or a plugin's \"plugin.what\"; its entries are checked by the type."),
   aiPrompt: z.string().optional().describe("ai: what the AI fills the cell by, from the row's other cells."),
   format: z.enum(["number", "percent", "euro", "dollar", "hours"]).optional(),
   includeTime: z.boolean().optional().describe("date: with a time."),

@@ -77,6 +77,41 @@ export function CellView({ p, row, ctx }: { p: Property; row: Row; ctx: CellCtx 
         </a>
       );
     }
+    case "custom": {
+      const ft = ctx.data.extras?.fieldTypes?.find((f) => f.id === p.custom);
+      if (v === null || v === undefined || v === "") return null;
+      if (ft?.display === "rating") {
+        const n = Math.round(Number(v)) || 0;
+        const max = ft.max ?? 5;
+        return (
+          <span className="whitespace-nowrap text-amber-500" aria-label={`${n}/${max}`} title={`${n}/${max}`}>
+            {"★".repeat(Math.min(n, max))}
+            <span className="text-zinc-300 dark:text-zinc-600">{"★".repeat(Math.max(0, max - n))}</span>
+          </span>
+        );
+      }
+      if (ft?.display === "progress") {
+        const n = Math.max(0, Math.min(100, Number(v) || 0));
+        return (
+          <span className="flex w-full min-w-16 items-center gap-1.5" title={`${n} %`}>
+            <span className="h-2 flex-1 overflow-hidden rounded bg-zinc-200 dark:bg-zinc-700">
+              <span className="block h-full rounded bg-indigo-500" style={{ width: `${n}%` }} />
+            </span>
+            <span className="text-xs text-zinc-500 tabular-nums">{n}</span>
+          </span>
+        );
+      }
+      if (ft?.display === "badge") return <span className="ws-tag">{String(v)}</span>;
+      if (ft?.display === "link" && ft.href) {
+        const href = ft.href.replace("{value}", encodeURIComponent(String(v)));
+        return (
+          <a href={/^https?:\/\//i.test(href) ? href : undefined} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="truncate text-indigo-600 underline dark:text-indigo-400">
+            {String(v)}
+          </a>
+        );
+      }
+      return <span>{String(v)}</span>;
+    }
     case "person":
       return (
         <>
@@ -172,6 +207,7 @@ export function Cell({ p, row, ctx, className = "", empty }: { p: Property; row:
 
 function TextEditor({ p, row, ctx, done }: { p: Property; row: Row; ctx: CellCtx; done: () => void }) {
   const t = useT();
+  const ft = p.type === "custom" ? ctx.data.extras?.fieldTypes?.find((f) => f.id === p.custom) : undefined;
   const v = row.cells[p.id];
   const [text, setText] = useState(Array.isArray(v) ? v.join(", ") : typeof v === "string" || typeof v === "number" ? String(v) : "");
   const commit = () => {
@@ -196,7 +232,20 @@ function TextEditor({ p, row, ctx, done }: { p: Property; row: Row; ctx: CellCtx
     "aria-label": p.name,
     placeholder: p.type === "ticket" ? t("PROJ-339, …") : undefined,
   };
-  return multiline ? <textarea rows={p.type === "markdown" ? 6 : 2} {...props} /> : <input inputMode={p.type === "number" ? "decimal" : undefined} {...props} />;
+  if (multiline) return <textarea rows={p.type === "markdown" ? 6 : 2} {...props} />;
+  const listId = ft?.suggestions.length ? `ft-${p.id}-${row.id}` : undefined;
+  return (
+    <>
+      <input inputMode={p.type === "number" || ft?.display === "rating" || ft?.display === "progress" ? "decimal" : undefined} list={listId} {...props} />
+      {listId && (
+        <datalist id={listId}>
+          {ft!.suggestions.map((s) => (
+            <option key={s} value={s} />
+          ))}
+        </datalist>
+      )}
+    </>
+  );
 }
 
 function DateEditor({ p, row, ctx, done }: { p: Property; row: Row; ctx: CellCtx; done: () => void }) {
@@ -388,7 +437,31 @@ function AiEditor({ p, row, ctx, done }: { p: Property; row: Row; ctx: CellCtx; 
   );
 }
 
+/** Stars to click: the same star again clears the rating. */
+function StarsEditor({ p, row, ctx, max, done }: { p: Property; row: Row; ctx: CellCtx; max: number; done: () => void }) {
+  const now = Math.round(Number(row.cells[p.id])) || 0;
+  return (
+    <span className="flex gap-0.5 text-lg text-amber-500" role="group" aria-label={p.name}>
+      {Array.from({ length: max }, (_, i) => (
+        <button
+          key={i}
+          type="button"
+          autoFocus={i === 0}
+          aria-label={`${i + 1}`}
+          className={i < now ? "" : "text-zinc-300 hover:text-amber-400 dark:text-zinc-600"}
+          onClick={() => (ctx.set(row.id, p.id, now === i + 1 ? null : i + 1), done())}
+          onKeyDown={(e) => e.key === "Escape" && done()}
+        >
+          ★
+        </button>
+      ))}
+    </span>
+  );
+}
+
 export function CellEditor({ p, row, ctx, done }: { p: Property; row: Row; ctx: CellCtx; done: () => void }) {
+  const ft = p.type === "custom" ? ctx.data.extras?.fieldTypes?.find((f) => f.id === p.custom) : undefined;
+  if (ft?.display === "rating") return <StarsEditor p={p} row={row} ctx={ctx} max={ft.max ?? 5} done={done} />;
   if (p.type === "ai") return <AiEditor p={p} row={row} ctx={ctx} done={done} />;
   if (p.type === "date") return <DateEditor p={p} row={row} ctx={ctx} done={done} />;
   if (p.type === "select" || p.type === "status" || p.type === "multi_select") return <OptionEditor p={p} row={row} ctx={ctx} done={done} />;
@@ -405,7 +478,7 @@ export function PopCell({ p, row, ctx }: { p: Property; row: Row; ctx: CellCtx }
   const empty = !p.type.startsWith("check") && (row.cells[p.id] === undefined || row.cells[p.id] === null || row.cells[p.id] === "" || (Array.isArray(row.cells[p.id]) && (row.cells[p.id] as unknown[]).length === 0));
   const hint = <span className="text-zinc-400">{t("Empty")}</span>;
   if (isComputed(p) || p.type === "checkbox" || !ctx.editable) return empty && p.type !== "checkbox" ? hint : <CellView p={p} row={row} ctx={ctx} />;
-  if (p.type === "text" || p.type === "markdown" || p.type === "number" || p.type === "url" || p.type === "email" || p.type === "phone" || p.type === "ticket") return <Cell p={p} row={row} ctx={ctx} className="rounded-md" empty={hint} />;
+  if (p.type === "text" || p.type === "markdown" || p.type === "number" || p.type === "url" || p.type === "email" || p.type === "phone" || p.type === "ticket" || p.type === "custom") return <Cell p={p} row={row} ctx={ctx} className="rounded-md" empty={hint} />;
   return (
     <Dropdown label={empty ? hint : <CellView p={p} row={row} ctx={ctx} />} className="flex min-h-7 flex-wrap items-center gap-1 rounded-md px-1 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800">
       {(close) => <CellEditor p={p} row={row} ctx={ctx} done={close} />}

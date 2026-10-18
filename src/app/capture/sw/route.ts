@@ -14,5 +14,5 @@ self.addEventListener("fetch", (e) => {
 `;
 
 export function GET() {
-  return new Response(SCRIPT, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } });
+  return new Response(SCRIPT, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache", "service-worker-allowed": "/capture" } });
 }

@@ -12,6 +12,8 @@ export type PropIn = {
   type?: string;
   options?: OptionIn[];
   formula?: string;
+  /** custom: the id of the field type ("workspace.rating", "workspace.progress", a plugin's "plugin.what"). */
+  custom?: string;
   aiPrompt?: string;
   format?: "number" | "percent" | "euro" | "dollar" | "hours";
   includeTime?: boolean;
@@ -79,6 +81,8 @@ function fillProperty(schema: DbSchema, into: Property, v: PropIn, ctx: OpsConte
     else if (!p.options) p.options = p.type === "status" ? options(["Not started", "In progress", "Done"].map((n, i) => ({ name: n, group: (["todo", "doing", "done"] as const)[i] })), true) : [];
   } else delete p.options;
   if (v.formula !== undefined) p.formula = v.formula;
+  if (v.custom !== undefined) p.custom = v.custom.trim() || undefined;
+  if (p.type !== "custom") delete p.custom;
   if (v.aiPrompt !== undefined) p.aiPrompt = v.aiPrompt;
   if (v.format !== undefined) p.format = v.format;
   if (v.includeTime !== undefined) p.includeTime = v.includeTime;

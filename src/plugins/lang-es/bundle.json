@@ -6012,5 +6012,9 @@
   "The inbox is mirrored always: what is archived or labelled away in Gmail leaves it here too (it stays kept, in “Gmail · Archive”). Every label you add here becomes a folder “Gmail/<label>” the same way.": "La bandeja de entrada siempre se refleja: lo que se archiva o se mueve a una etiqueta en Gmail desaparece también aquí (se conserva, en «Gmail · Archive»). Cada etiqueta que añadas aquí se convierte del mismo modo en una carpeta «Gmail/<etiqueta>».",
   "Gmail has no label called {names} — the others are saved.": "Gmail no tiene ninguna etiqueta llamada {names}; las demás se han guardado.",
   "Saved. The labels come as folders with the next mail sync.": "Guardado. Las etiquetas llegarán como carpetas con la próxima sincronización del correo.",
-  "Saved. Only the inbox is mirrored.": "Guardado. Solo se refleja la bandeja de entrada."
+  "Saved. Only the inbox is mirrored.": "Guardado. Solo se refleja la bandeja de entrada.",
+  "Rating": "Valoración",
+  "1 to 5 stars": "De 1 a 5 estrellas",
+  "Progress": "Progreso",
+  "0 to 100 percent, drawn as a bar": "De 0 a 100 por ciento, dibujado como barra"
 }
