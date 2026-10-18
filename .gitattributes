@@ -1,2 +1,5 @@
 # Shell scripts run on macOS and Linux: LF, whatever the checkout
 *.sh text eol=lf
+# The image build reads these on Linux: line endings must stay LF (a CRLF breaks the RUN continuations).
+docker/claude/Dockerfile text eol=lf
+docker/claude/health.js text eol=lf
