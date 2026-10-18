@@ -3,6 +3,7 @@ import path from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { t } from "@/lib/i18n/server";
 import { zeffUserDir } from "../../scripts/browser-find.mjs";
+import { cdpEndpoint } from "../../scripts/cdp-endpoint.mjs";
 
 /**
  * Accounts (the Accounts plugin): Zeff more than once — business and private, say. Each account is
@@ -211,8 +212,8 @@ export function accountChrome(id = currentAccountId()): { endpoint: string; prof
   const own = accountById(id);
   // A copy of another account: that one's Chrome, its sign-ins (one step — no chains).
   const a = own?.chromeFrom && own.chromeFrom !== own.id ? (accountById(own.chromeFrom) ?? own) : own;
-  if (!a || a.id === DEFAULT_ACCOUNT || !a.chromePort) return { endpoint: `http://127.0.0.1:${DEFAULT_CHROME_PORT}`, profile: null, port: DEFAULT_CHROME_PORT };
-  return { endpoint: `http://127.0.0.1:${a.chromePort}`, profile: path.join(zeffUserDir(), `chrome-${a.id}`), port: a.chromePort };
+  if (!a || a.id === DEFAULT_ACCOUNT || !a.chromePort) return { endpoint: cdpEndpoint(DEFAULT_CHROME_PORT), profile: null, port: DEFAULT_CHROME_PORT };
+  return { endpoint: cdpEndpoint(a.chromePort), profile: path.join(zeffUserDir(), `chrome-${a.id}`), port: a.chromePort };
 }
 
 /**

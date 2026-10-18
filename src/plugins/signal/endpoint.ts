@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { cdpEndpoint } from "../../../scripts/cdp-endpoint.mjs";
 import { cdpUp } from "@/plugins/drivers";
 
 /**
@@ -7,7 +8,7 @@ import { cdpUp } from "@/plugins/drivers";
  * Local only (127.0.0.1). SIGNAL_CDP_ENDPOINT overrides it.
  */
 export const SIGNAL_PORT = 9339;
-export const signalCdp = () => (process.env.SIGNAL_CDP_ENDPOINT || `http://127.0.0.1:${SIGNAL_PORT}`).replace(/\/$/, "");
+export const signalCdp = () => (process.env.SIGNAL_CDP_ENDPOINT || cdpEndpoint(SIGNAL_PORT)).replace(/\/$/, "");
 
 /** Whether Signal answers on its debug port. */
 export const signalUp = (): Promise<boolean> =>

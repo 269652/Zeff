@@ -17,6 +17,7 @@ import os from "node:os";
 import path from "node:path";
 import { chromium } from "playwright-core";
 import { NO_BROWSER_MESSAGE, chromeProfileDir, findBrowser } from "./browser-find.mjs";
+import { bridgeLaunch, bridgedPort } from "./cdp-endpoint.mjs";
 import { startCdpFilter } from "./cdp-filter.mjs";
 
 const isAlive = (pid) => {
@@ -185,12 +186,15 @@ export async function connectToChrome(cdp, { timeout = 20000, launchUrls = [] } 
     targets = await listTargets(cdp).catch(async () => (await sleep(1500), listTargets(cdp)));
   } catch {
     const { hostname, port } = new URL(cdp);
-    if (!launchUrls.length || !["127.0.0.1", "localhost"].includes(hostname)) {
+    // In a container the browser is the host's: started by asking the bridge (scripts/chrome-bridge.mjs).
+    const bridged = bridgedPort(cdp);
+    if (!launchUrls.length || (!bridged && !["127.0.0.1", "localhost"].includes(hostname))) {
       throw new ChromeConnectError(
         `The automation browser isn't running (nothing answers on ${cdp}). Open Menu → Sign-ins in Zeff and use "Sign in" (that starts it), sign in to Chrono/Punch there if asked, and try again.`,
       );
     }
-    launchChrome(port || "9222", launchUrls);
+    if (bridged) await bridgeLaunch(bridged, launchUrls).catch((e) => { throw new ChromeConnectError(e.message); });
+    else launchChrome(port || "9222", launchUrls);
     await waitForLaunch(cdp, launchUrls);
     targets = await listTargets(cdp);
   }
