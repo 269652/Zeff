@@ -10,6 +10,7 @@ import { makeRoutineAction, routineChoicesAction, routineRunsAction, routineView
 import type { RoutineView } from "../routine-view";
 import type { Condition, Step, Trigger } from "../routines";
 import { FILTER_OPS } from "../model";
+import { AGENT_TOOL_GROUPS } from "../agent-tools";
 
 /**
  * The controls of an agent or an automation page — the block at the top of its page: switch it on, run it, when it runs (by hand, on
@@ -170,10 +171,25 @@ export function RoutineControls({ pageId, editable }: { pageId: number; editable
             <option value="workspace">{t("The whole workspace")}</option>
             <option value="none">{t("Nothing — it only reads")}</option>
           </select>
-          <label className="flex items-center gap-1.5 text-xs text-zinc-500" title={t("Labels, read/unread and spam in Gmail — never deleting. Needs “Allow changes to Gmail” on the Connections page.")}>
+          <label className="flex items-center gap-1.5 text-xs text-zinc-500" title={t("Labels, read/unread, spam and filters in Gmail — never deleting. Needs “Allow changes to Gmail” on the Connections page.")}>
             <input type="checkbox" checked={!!view.permissions.gmail} disabled={!editable} onChange={(e) => void save({ permissions: { ...view.permissions, gmail: e.target.checked || undefined } })} />
-            {t("May change Gmail (labels, read, spam)")}
+            {t("May change Gmail (labels, read, spam, filters)")}
           </label>
+          <div className="space-y-1 pt-1">
+            <h4 className="text-xs font-semibold text-zinc-500 uppercase">{t("What it may use")}</h4>
+            {AGENT_TOOL_GROUPS.map((g) => {
+              const on = view.permissions.tools?.[g.id] ?? g.default;
+              return (
+                <label key={g.id} className="flex items-start gap-1.5 text-xs" title={t(g.hint)}>
+                  <input type="checkbox" className="mt-0.5" checked={on} disabled={!editable} onChange={(e) => void save({ permissions: { ...view.permissions, tools: { ...view.permissions.tools, [g.id]: e.target.checked } } })} />
+                  <span>
+                    {t(g.label)}
+                    <span className="block text-zinc-500">{t(g.hint)}</span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
           <label className="flex items-center gap-1.5 text-xs text-zinc-500">
             {t("Worker")}
             <select className="input w-auto py-0.5 text-sm" value={view.provider ?? ""} disabled={!editable} onChange={(e) => void save({ provider: e.target.value || undefined })} aria-label={t("Worker")}>

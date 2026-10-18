@@ -33,6 +33,10 @@ async function fakeGmail() {
         labels.push(l);
         return json(200, l);
       }
+      if (u.pathname === "/gmail/v1/users/me/settings/filters" && req.method === "POST") return json(200, { id: "filter1", ...body });
+      if (u.pathname === "/gmail/v1/users/me/settings/filters" && req.method === "GET") return json(200, { filter: [{ id: "filter1", criteria: { from: "flink" }, action: { addLabelIds: ["Label_1"], removeLabelIds: ["INBOX"] } }] });
+      if (u.pathname === "/gmail/v1/users/me/messages" && (u.searchParams.get("q") ?? "").includes("bulk"))
+        return json(200, { messages: Array.from({ length: 450 }, (_, i) => ({ id: (0x18a2b3c4d5e70000 + i).toString(16), threadId: "t" })) });
       if (u.pathname === "/gmail/v1/users/me/messages/batchModify") return json(204, null);
       if (u.pathname === "/gmail/v1/users/me/messages")
         return json(200, { messages: [{ id: "18a2b3c4d5e6f701", threadId: "18a2b3c4d5e6f701" }] });
@@ -169,7 +173,7 @@ test("the worker of a routine that may change Gmail has that one tool approved i
   mk(page, 9001);
   mk(plain, 9002);
   void getSqlite;
-  assert.deepEqual(approvedToolsFor(9001), ["mcp__zeff__gmail_change"]);
+  assert.deepEqual(approvedToolsFor(9001), ["mcp__zeff__gmail_change", "mcp__zeff__gmail_filter"]);
   assert.deepEqual(approvedToolsFor(9002), []);
   assert.deepEqual(approvedToolsFor(9003), [], "a run that belongs to no routine");
 });
@@ -189,7 +193,7 @@ test("starting an agent whose routine may change Gmail hands its worker the appr
   r.createRoutine(without, "agent");
   await startAgent(withG, { kind: "manual" }, {}, { dispatch });
   await startAgent(without, { kind: "manual" }, {}, { dispatch });
-  assert.deepEqual(asked[0].approvedTools, ["mcp__zeff__gmail_change"]);
+  assert.deepEqual(asked[0].approvedTools, ["mcp__zeff__gmail_change", "mcp__zeff__gmail_filter"]);
   assert.equal(asked[1].approvedTools, undefined);
   grantTools(7100, ["mcp__zeff__gmail_change", "mcp__zeff__gmail_change"]);
   assert.deepEqual(approvedToolsFor(7100), ["mcp__zeff__gmail_change"]);
@@ -212,4 +216,52 @@ test("a follow-up message to an agent (a new worker run on the same todo) is sti
   assert.equal(mayChangeGmail(followUp.id), true, "same todo: the same routine");
   const other = createRun({ ...base, todoId: 881 });
   assert.equal(mayChangeGmail(other.id), false, "a run on another todo");
+});
+
+const FILTERS = `${MODIFY} https://www.googleapis.com/auth/gmail.settings.basic`;
+
+test("a filter: skip the inbox + a label, on what matches now too — never forwarding, never the trash", async () => {
+  const g = await fakeGmail();
+  try {
+    await signIn(MODIFY);
+    const { gmailCanFilter, createGmailFilter } = await import("@/lib/google/gmail-write");
+    assert.equal(gmailCanFilter(), false);
+    await assert.rejects(createGmailFilter({ criteria: { from: "flink" }, addLabels: ["x"] }), /filters|sign in/i);
+    await signIn(FILTERS);
+    assert.equal(gmailCanFilter(), true);
+    await assert.rejects(createGmailFilter({ criteria: {}, addLabels: ["x"] }), /criteria|what mails/i);
+    await assert.rejects(createGmailFilter({ criteria: { from: "flink" } }), /nothing to do|action/i);
+    await assert.rejects(createGmailFilter({ criteria: { from: "flink" }, addLabels: ["TRASH"] }), /trash|delete/i);
+    const r = await createGmailFilter({ criteria: { from: "flink" }, addLabels: ["notifications/Flink"], skipInbox: true, markRead: true, applyToExisting: true });
+    assert.equal(r.filterId, "filter1");
+    assert.deepEqual(r.createdLabels, ["notifications/Flink"]);
+    const post = g.seen.find((s) => s.method === "POST" && s.path.endsWith("/settings/filters"))!.body as { criteria: { from: string }; action: { addLabelIds: string[]; removeLabelIds: string[] } };
+    assert.equal(post.criteria.from, "flink");
+    assert.deepEqual(post.action.addLabelIds, ["Label_6"]);
+    assert.deepEqual(post.action.removeLabelIds.sort(), ["INBOX", "UNREAD"]);
+    assert.equal(JSON.stringify(post).includes("forward"), false);
+    assert.equal(r.applied, 1, "what the search found (one mail in this Gmail) was changed too");
+    const mod = g.seen.filter((s) => s.path.endsWith("/batchModify")).at(-1)!.body as { addLabelIds: string[]; removeLabelIds: string[] };
+    assert.deepEqual(mod.addLabelIds, ["Label_6"]);
+    assert.deepEqual(mod.removeLabelIds.sort(), ["INBOX", "UNREAD"]);
+    const list = await (await import("@/lib/google/gmail-write")).listGmailFilters();
+    assert.equal(list[0].from, "flink");
+  } finally {
+    g.close();
+  }
+});
+
+test("applying to what is there goes in pieces, with a ceiling", async () => {
+  const g = await fakeGmail();
+  try {
+    await signIn(FILTERS);
+    const { createGmailFilter, MAX_APPLY } = await import("@/lib/google/gmail-write");
+    const r = await createGmailFilter({ criteria: { query: "bulk" }, addLabels: ["Bulk"], applyToExisting: true });
+    assert.equal(r.applied, 450);
+    const calls = g.seen.filter((s) => s.path.endsWith("/batchModify"));
+    assert.deepEqual(calls.map((c) => (c.body as { ids: string[] }).ids.length), [200, 200, 50]);
+    assert.ok(MAX_APPLY >= 450);
+  } finally {
+    g.close();
+  }
 });

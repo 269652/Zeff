@@ -1,4 +1,5 @@
 import { getSqlite } from "@/db";
+import { isToolGroup } from "./agent-tools";
 import { FILTER_OPS, newId, type FilterRule } from "./model";
 import { getPage } from "./store";
 
@@ -28,7 +29,7 @@ export type Trigger =
 /** What a routine may change: only its own page and what is below it, its parent's pages, the whole workspace, or nothing. */
 export const SCOPES = ["self", "parent", "workspace", "none"] as const;
 export type Scope = (typeof SCOPES)[number];
-export type Permissions = { scope: Scope; /** The agent may change Gmail (labels, read, spam) — never delete. Off unless you turn it on. */ gmail?: boolean };
+export type Permissions = { scope: Scope; /** Groups of Zeff's tools switched on or off for an agent (agent-tools.ts); not named: the group's default. */ tools?: Record<string, boolean>; /** The agent may change Gmail (labels, read, spam) — never delete. Off unless you turn it on. */ gmail?: boolean };
 
 /** Conditions on a record (the row in hand, or what triggered the run): all of the rules, or any. */
 export type Condition = { match?: "all" | "any"; rules: FilterRule[] };
@@ -62,6 +63,14 @@ export type RoutineConfig = {
   /** An automation's steps. */
   steps: Step[];
 };
+
+/** The tool groups' choices as they are kept: only known groups, only true/false. */
+function toolChoices(v: unknown): { tools?: Record<string, boolean> } {
+  if (!v || typeof v !== "object") return {};
+  const out: Record<string, boolean> = {};
+  for (const [k, on] of Object.entries(v as Record<string, unknown>)) if (isToolGroup(k) && typeof on === "boolean") out[k] = on;
+  return Object.keys(out).length ? { tools: out } : {};
+}
 
 const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 const posInt = (v: unknown): number | undefined => {
@@ -187,7 +196,7 @@ export function normalizeRoutine(raw: unknown): RoutineConfig {
     ...((PROVIDERS as readonly unknown[]).includes(o.provider) ? { provider: o.provider as Provider } : {}),
     enabled: o.enabled === true,
     triggers: triggers.length ? triggers : [{ kind: "manual" }],
-    permissions: { scope: (SCOPES as readonly unknown[]).includes(perms.scope) ? (perms.scope as Scope) : "self", ...(perms.gmail === true ? { gmail: true } : {}) },
+    permissions: { scope: (SCOPES as readonly unknown[]).includes(perms.scope) ? (perms.scope as Scope) : "self", ...(perms.gmail === true ? { gmail: true } : {}), ...toolChoices(perms.tools) },
     steps: normalizeSteps(o.steps),
   };
 }

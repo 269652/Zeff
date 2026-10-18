@@ -10,7 +10,7 @@ export default definePlugin({
   defaultInstalled: false,
   requires: "The account's automation Chrome, signed in to Google (calendar.google.com) — or Google's API with your own sign-in (Connections page).",
   dependsOn: ["calendar"],
-  settings: { href: "/connections", what: "How it is reached: the automation Chrome or its API" },
+  settings: { href: "/settings/connections", what: "How it is reached: the automation Chrome or its API" },
   syncSteps: ["gcalendar"],
   services: ["gcalendar"],
   extensions: [

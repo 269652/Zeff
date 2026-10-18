@@ -1,4 +1,5 @@
 import { isInstalled } from "@/plugins/state";
+import { guardTools } from "@/mcp/tool-guard";
 import { registerGmailTools } from "@/plugins/gmail/mcp";
 import { registerWorkspaceTools } from "@/plugins/workspace/mcp";
 import { registerWebSearchTools } from "@/plugins/web-search/mcp";
@@ -146,6 +147,8 @@ function pluginOff(id: "todos" | "work") {
 }
 
 export function registerZeffTools(server: McpServer): void {
+  // (the worker of an agent routine gets only the tools its permissions allow)
+  guardTools(server);
   server.registerTool(
     "report_time",
     {

@@ -48,7 +48,7 @@ export default async function MailSettingsPage() {
             <span className="text-xs text-zinc-500"> — {t("How often the mail sync runs")}</span>
           </li>
           <li>
-            <Link href="/connections" className="text-indigo-600 hover:underline dark:text-indigo-400">{t("Connections")}</Link>
+            <Link href="/settings/connections" className="text-indigo-600 hover:underline dark:text-indigo-400">{t("Connections")}</Link>
             <span className="text-xs text-zinc-500"> — {t("Per service: read through the automation Chrome or through its API (OAuth)")}</span>
           </li>
         </ul>
