@@ -119,3 +119,28 @@ test("the launcher: the Claude service is off by default; switched on it sets CL
   const host = fs.readFileSync(path.join(root, "scripts", "work-host.mjs"), "utf8");
   assert.match(host, /killInContainer\(runId\);\s*killTree\(c\.pid\);/, "the shim's end on the host is not the claude's end in the container");
 });
+
+test("a worktree's .git file names its repo relative — the same place on the host and in the container; a repo itself and a missing target are left alone", async () => {
+  const { relativizeWorktreeLink } = await mod;
+  const os = await import("node:os");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "wt-"));
+  const gitdir = path.join(root, "Private", "Zeff", ".git", "worktrees", "Zeff-w61");
+  fs.mkdirSync(gitdir, { recursive: true });
+  const wt = path.join(root, "Private", ".zeff-worktrees", "Zeff-w61");
+  fs.mkdirSync(path.join(wt, "src", "deep"), { recursive: true });
+  fs.writeFileSync(path.join(wt, ".git"), `gitdir: ${gitdir.replace(/\\/g, "/")}\n`);
+  // asked from a folder inside the worktree
+  assert.equal(relativizeWorktreeLink(path.join(wt, "src", "deep")), true);
+  assert.equal(fs.readFileSync(path.join(wt, ".git"), "utf8"), "gitdir: ../../Zeff/.git/worktrees/Zeff-w61\n");
+  assert.equal(path.resolve(wt, "../../Zeff/.git/worktrees/Zeff-w61"), path.resolve(gitdir), "it still names the same folder");
+  assert.equal(relativizeWorktreeLink(wt), false, "twice changes nothing");
+  // a repo itself (.git is a folder), a worktree whose repo is gone, no .git at all
+  const repo = path.join(root, "Private", "Zeff");
+  assert.equal(relativizeWorktreeLink(repo), false);
+  const lost = path.join(root, "lost");
+  fs.mkdirSync(lost);
+  fs.writeFileSync(path.join(lost, ".git"), "gitdir: C:/gone/repo/.git/worktrees/x\n");
+  assert.equal(relativizeWorktreeLink(lost), false);
+  assert.equal(fs.readFileSync(path.join(lost, ".git"), "utf8"), "gitdir: C:/gone/repo/.git/worktrees/x\n");
+  assert.equal(relativizeWorktreeLink(path.join(root, "nothing")), false);
+});

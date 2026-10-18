@@ -137,6 +137,55 @@ export function containerMcpConfig(value, { read = (p) => fs.readFileSync(p, "ut
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
+// git worktrees: the .git file of a worktree names the repo's folder by its Windows path
+// ---------------------------------------------------------------------------------------------------------------------
+
+/**
+ * A worktree's `.git` file says `gitdir: C:/Users/me/…/repo/.git/worktrees/name` — a path the container does not have (git reads it
+ * as a folder under the worktree: "not a git repository"). Written relative (`gitdir: ../repo/.git/worktrees/name`, which git has always
+ * accepted) it names the same place on both sides, as long as the worktree and its repo are under the mounted folders. Changed only for a
+ * worktree whose absolute gitdir exists. Returns whether it changed the file.
+ * @param {string} dir  the working folder (any folder inside the worktree)
+ * @param {{ fs?: typeof fs }} [io]
+ */
+export function relativizeWorktreeLink(dir, { fs: f = fs } = {}) {
+  let at = path.resolve(dir);
+  for (let i = 0; i < 12; i++) {
+    const gitFile = path.join(at, ".git");
+    let stat = null;
+    try {
+      stat = f.statSync(gitFile);
+    } catch {
+      // none here
+    }
+    if (stat?.isDirectory()) return false; // a repo itself: nothing to fix
+    if (stat?.isFile()) {
+      const text = f.readFileSync(gitFile, "utf8");
+      const m = /^gitdir:\s*(.+?)\s*$/m.exec(text);
+      if (!m) return false;
+      const target = m[1];
+      const absolute = path.isAbsolute(target) || /^[A-Za-z]:[\\/]/.test(target);
+      if (!absolute || !f.existsSync(target)) return false;
+      const rel = path.relative(at, target).split(path.sep).join("/");
+      if (!rel || rel === target) return false;
+      // (r+ and truncate: git marks the file hidden, and Windows refuses to open a hidden file for a plain write)
+      const fd = f.openSync(gitFile, "r+");
+      try {
+        f.ftruncateSync(fd, 0);
+        f.writeSync(fd, `gitdir: ${rel}\n`, 0);
+      } finally {
+        f.closeSync(fd);
+      }
+      return true;
+    }
+    const up = path.dirname(at);
+    if (up === at) return false;
+    at = up;
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
 // The call: arguments, folder, environment
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -275,6 +324,12 @@ function shim() {
       process.stderr.write(`[claude-docker] ${e.message}\n`);
       process.exit(127);
     }
+  }
+  // A worktree's .git file must name its repo in a way the container can follow too.
+  try {
+    relativizeWorktreeLink(process.cwd());
+  } catch {
+    // not ours to fix: git says what is wrong
   }
   const call = execArgs({ argv: process.argv.slice(2), cwd: process.cwd(), env: process.env, mounts: defaultMounts(), container });
   const child = spawn("docker", call, { stdio: "inherit", windowsHide: true });
