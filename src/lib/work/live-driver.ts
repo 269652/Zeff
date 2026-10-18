@@ -33,6 +33,8 @@ export type LiveStart = {
   name: string;
   /** Tools it must not use (Zeff's booking tools; edits for runs that only look). */
   disallowedTools: string[];
+  /** Tools approved in advance (the CLI doesn't ask or refuse them). */
+  allowedTools?: string[];
   /** Going on in a conversation (resume it), or a new one's id (where the CLI takes one). */
   resumeSession: string | null;
   newSessionId: string | null;

@@ -1097,6 +1097,15 @@ export async function routineViewAction(pageId: number) {
   return run(async () => ({ view: (await import("./routine-view")).routineView(Number(pageId)) }));
 }
 
+/** Older runs of a routine (the log tab): a page of them after the run given, and whether there are more. */
+export async function routineRunsAction(pageId: number, beforeId?: number) {
+  return run(async () => {
+    const { routineRuns } = await import("./routines");
+    const rows = routineRuns(Number(pageId), 21, beforeId ? Number(beforeId) : undefined);
+    return { runs: rows.slice(0, 20), more: rows.length > 20 };
+  });
+}
+
 /** A page made a routine (an agent or an automation) — off, started by hand. */
 export async function makeRoutineAction(pageId: number, kind: string) {
   return run(async () => {

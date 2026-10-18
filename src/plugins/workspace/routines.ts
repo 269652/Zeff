@@ -292,9 +292,9 @@ export function setWorkRun(runId: number, workRunId: number): void {
   db().prepare("update ws_routine_runs set work_run_id = ? where id = ?").run(workRunId, runId);
 }
 
-/** The newest runs of a routine first. */
-export function routineRuns(pageId: number, limit = 20): RoutineRun[] {
-  return (db().prepare("select * from ws_routine_runs where page_id = ? order by id desc limit ?").all(pageId, limit) as LRow[]).map(toRun);
+/** The newest runs of a routine first (`beforeId`: the ones older than that run). */
+export function routineRuns(pageId: number, limit = 20, beforeId?: number): RoutineRun[] {
+  return (db().prepare("select * from ws_routine_runs where page_id = ? and id < ? order by id desc limit ?").all(pageId, beforeId ?? Number.MAX_SAFE_INTEGER, limit) as LRow[]).map(toRun);
 }
 
 export const getRun = (runId: number): RoutineRun | null => {

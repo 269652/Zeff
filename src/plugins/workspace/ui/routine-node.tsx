@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
-import { makeRoutineAction, routineChoicesAction, routineViewAction, runRoutineAction, saveRoutineAction } from "../actions";
+import { makeRoutineAction, routineChoicesAction, routineRunsAction, routineViewAction, runRoutineAction, saveRoutineAction } from "../actions";
 import type { RoutineView } from "../routine-view";
 import type { Condition, Step, Trigger } from "../routines";
 import { FILTER_OPS } from "../model";
@@ -45,6 +45,10 @@ export function RoutineControls({ pageId, editable }: { pageId: number; editable
   const t = useT();
   const { view, setView, choices, save, load } = useRoutine(pageId);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<"schedule" | "permissions" | "log">("schedule");
+  const [older, setOlder] = useState<NonNullable<typeof view>["runs"]>([]);
+  const [more, setMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   if (view === undefined) return <p className="text-sm text-zinc-400">…</p>;
   if (view === null)
     return (
@@ -57,6 +61,16 @@ export function RoutineControls({ pageId, editable }: { pageId: number; editable
         ))}
       </div>
     );
+  // The log: the newest runs come with the view; older ones are fetched a page at a time.
+  const allRuns = [...view.runs, ...older.filter((o) => !view.runs.some((r) => r.id === o.id))];
+  const loadOlder = async () => {
+    setLoadingMore(true);
+    const r = await routineRunsAction(pageId, allRuns.at(-1)?.id);
+    setLoadingMore(false);
+    if (!r.ok) return void toast(r.error, { tone: "error" });
+    setOlder([...older, ...r.runs]);
+    setMore(r.more);
+  };
   const schedules = view.triggers.filter((x) => x.kind === "schedule");
   const setTriggers = (triggers: Trigger[]) => void save({ triggers });
   const run = async () => {
@@ -88,6 +102,25 @@ export function RoutineControls({ pageId, editable }: { pageId: number; editable
       </div>
       {view.problem && <p className="text-xs text-amber-700 dark:text-amber-400">{view.problem}</p>}
 
+      {view.kind === "automation" && (
+        <div className="space-y-1.5">
+          <h4 className="text-xs font-semibold text-zinc-500 uppercase">{t("Steps")}</h4>
+          <StepList steps={view.steps} choices={choices} editable={editable} onChange={(steps) => void save({ steps })} />
+          <p className="text-xs text-zinc-400">
+            {t("Templates fill in the row in hand and the trigger:")} <code>{"{{row.Field}}"}</code> <code>{"{{row.title}}"}</code> <code>{"{{trigger.kind}}"}</code> <code>{"{{payload.title}}"}</code> <code>{"{{today}}"}</code>
+          </p>
+        </div>
+      )}
+
+      <div className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800" role="tablist">
+        {([["schedule", t("Schedule")], ["permissions", t("Permissions")], ["log", t("Log")]] as const).map(([k, label]) => (
+          <button key={k} type="button" role="tab" aria-selected={tab === k} className={`-mb-px border-b-2 px-3 py-1.5 text-sm ${tab === k ? "border-indigo-500 font-medium" : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`} onClick={() => setTab(k)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab === "schedule" && (
+        <>
       <div className="space-y-1.5">
         <h4 className="text-xs font-semibold text-zinc-500 uppercase">{t("When it runs")}</h4>
         <ul className="space-y-1">
@@ -123,6 +156,11 @@ export function RoutineControls({ pageId, editable }: { pageId: number; editable
         {!schedules.length && !view.triggers.some((x) => x.kind === "event") && view.enabled && <p className="text-xs text-zinc-500">{t("Only by hand (or when called) — add a schedule or an event to run it by itself.")}</p>}
       </div>
 
+        </>
+      )}
+
+      {tab === "permissions" && (
+        <>
       {view.kind === "agent" && (
         <div className="space-y-1">
           <h4 className="text-xs font-semibold text-zinc-500 uppercase">{t("What it may change")}</h4>
@@ -145,32 +183,29 @@ export function RoutineControls({ pageId, editable }: { pageId: number; editable
               <option value="copilot">Copilot</option>
             </select>
           </label>
+          <p className="text-xs text-zinc-500">{t("It never deletes mails and never opens system pages for writing.")}</p>
           <p className="text-xs text-zinc-500">{t("It reads the instructions below, knows its parent and sibling pages, and works with the workspace tools; system pages stay closed to it.")}</p>
         </div>
       )}
 
-      {view.kind === "automation" && (
-        <div className="space-y-1.5">
-          <h4 className="text-xs font-semibold text-zinc-500 uppercase">{t("Steps")}</h4>
-          <StepList steps={view.steps} choices={choices} editable={editable} onChange={(steps) => void save({ steps })} />
-          <p className="text-xs text-zinc-400">
-            {t("Templates fill in the row in hand and the trigger:")} <code>{"{{row.Field}}"}</code> <code>{"{{row.title}}"}</code> <code>{"{{trigger.kind}}"}</code> <code>{"{{payload.title}}"}</code> <code>{"{{today}}"}</code>
-          </p>
-        </div>
+        </>
       )}
+      {tab === "permissions" && view.kind === "automation" && <p className="text-xs text-zinc-500">{t("An automation does only what its steps say — nothing else. Its steps run inside Zeff; they send nothing out by themselves.")}</p>}
 
+      {tab === "log" && (
+        <>
       <div className="space-y-1">
         <h4 className="flex items-center gap-2 text-xs font-semibold text-zinc-500 uppercase">
-          {t("Runs")}
+          {t("Every run")}
           <button type="button" className="text-xs font-normal normal-case text-indigo-600 hover:underline dark:text-indigo-400" onClick={load}>
             ↻
           </button>
         </h4>
-        {view.runs.length === 0 ? (
+        {allRuns.length === 0 ? (
           <p className="text-xs text-zinc-400">{t("None yet.")}</p>
         ) : (
           <ul className="space-y-1">
-            {view.runs.map((r) => (
+            {allRuns.map((r) => (
               <li key={r.id}>
                 <details>
                   <summary className="flex cursor-pointer flex-wrap items-baseline gap-2">
@@ -197,7 +232,14 @@ export function RoutineControls({ pageId, editable }: { pageId: number; editable
             ))}
           </ul>
         )}
+        {more && view.runs.length >= 10 && (
+          <button type="button" className="btn btn-sm" disabled={loadingMore} onClick={() => void loadOlder()}>
+            {t("Load older runs")}
+          </button>
+        )}
       </div>
+        </>
+      )}
     </section>
   );
 }

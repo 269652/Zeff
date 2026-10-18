@@ -1,6 +1,7 @@
 import { getSqlite } from "@/db";
 import { callerRunId } from "@/mcp/caller";
 import { t } from "@/lib/i18n/server";
+import { addApprovedTools } from "@/lib/work/approved-tools";
 import { addAgentGuard } from "./agent-scope";
 import { docToMarkdown } from "./doc";
 import { recordOfRow } from "./automation";
@@ -163,3 +164,5 @@ export function mayChangeGmail(workRunId: number | undefined): boolean {
 }
 
 addAgentGuard(agentScopeGuard);
+// The worker of an agent that may change Gmail has the tool approved for the CLI (its own check would refuse a write to the outside).
+addApprovedTools((workRunId) => (mayChangeGmail(workRunId) ? ["mcp__zeff__gmail_change"] : []));

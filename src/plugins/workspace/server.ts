@@ -2,6 +2,7 @@ import { collectionProviders } from "@/lib/items/point";
 import { workspaceCollections } from "./collections";
 import { apiPoint } from "@/lib/plugins/api-point";
 import { WORKSPACE_API } from "./api";
+import "./routine-agent"; // (an agent routine's permissions: guards and the tools approved for its worker)
 import { workspaceWidgets } from "./widget-point";
 import { WORKSPACE_WIDGETS } from "./widgets-workspace";
 import { workspaceSources } from "./source-point";

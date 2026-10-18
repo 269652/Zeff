@@ -149,3 +149,27 @@ test("a routine may change Gmail only when its permissions say so — and its wo
   const { mayChangeGmail } = await import("@/plugins/workspace/routine-agent");
   assert.equal(mayChangeGmail(undefined), false, "not a routine's worker: no");
 });
+
+test("the worker of a routine that may change Gmail has that one tool approved in advance — no one else", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const id of ["workspace", "work", "todos"]) setInstalled(id, true);
+  await import("@/plugins/workspace/server");
+  const w = await import("@/plugins/workspace/store");
+  const r = await import("@/plugins/workspace/routines");
+  const { approvedToolsFor } = await import("@/lib/work/approved-tools");
+  const { getSqlite } = await import("@/db");
+  const page = w.createPage({ title: "Gmail-Agent" });
+  r.createRoutine(page, "agent", { permissions: { scope: "self", gmail: true } });
+  const plain = w.createPage({ title: "Ohne" });
+  r.createRoutine(plain, "agent");
+  const mk = (pageId: number, workRunId: number) => {
+    const run = r.startRun(pageId, { kind: "manual" });
+    r.setWorkRun(run, workRunId);
+  };
+  mk(page, 9001);
+  mk(plain, 9002);
+  void getSqlite;
+  assert.deepEqual(approvedToolsFor(9001), ["mcp__zeff__gmail_change"]);
+  assert.deepEqual(approvedToolsFor(9002), []);
+  assert.deepEqual(approvedToolsFor(9003), [], "a run that belongs to no routine");
+});

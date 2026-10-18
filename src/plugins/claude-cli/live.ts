@@ -1033,6 +1033,7 @@ async function startFrom(s: LiveStart): Promise<void> {
         s.rules,
         "--disallowedTools",
         [...s.disallowedTools, ...NOT_HERE].join(","),
+        ...(s.allowedTools?.length ? ["--allowedTools", s.allowedTools.join(",")] : []),
         ...(s.allowBypass ? ["--allow-dangerously-skip-permissions"] : []),
         // External plugins' MCP servers (src/lib/ext): added to the project's and user's own.
         // Zeff's own, of this run's account, with the run's id: start_todo in a session without a ticket moves this session under the todo's ticket.

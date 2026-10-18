@@ -5952,5 +5952,10 @@
   "Values that may not repeat": "Valores que no pueden repetirse",
   "A row whose value is already taken is refused — empty values never clash.": "Se rechaza una fila cuyo valor ya está en uso; los valores vacíos nunca chocan.",
   "Pick the field the chart is grouped by (“Group by …” above).": "Elige el campo por el que se agrupa el gráfico («Agrupar por …» arriba).",
-  "Nothing to draw — no row has a value in that field.": "Nada que dibujar: ninguna fila tiene valor en ese campo."
+  "Nothing to draw — no row has a value in that field.": "Nada que dibujar: ninguna fila tiene valor en ese campo.",
+  "Log": "Registro",
+  "Every run": "Cada ejecución",
+  "Load older runs": "Cargar ejecuciones anteriores",
+  "It never deletes mails and never opens system pages for writing.": "Nunca borra correos ni escribe en páginas del sistema.",
+  "An automation does only what its steps say — nothing else. Its steps run inside Zeff; they send nothing out by themselves.": "Una automatización hace solo lo que dicen sus pasos. Sus pasos se ejecutan dentro de Zeff y no envían nada al exterior por sí solos."
 }

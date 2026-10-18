@@ -38,6 +38,7 @@ import { liveDriverFor, liveDriverOf, liveDrivers, liveIdle } from "./live-drive
 import { errPath, lastJson, logPath, readErrors, readLog, readOutput, workDir } from "./log";
 import { applyOutcome, normalizeResult } from "./outcome";
 import { ensureActions } from "./ensure-actions";
+import { approvedToolsFor } from "./approved-tools";
 import { claudeSessionSettings, createRun, getRun, getWorkSettings, runsByStatus, toRunView, updateRun } from "./store";
 import { parseMrTarget, WORK_RESULT_SCHEMA, workModeOf, workRef, type SessionOptions, type WorkResult, type WorkRunView } from "./shared";
 
@@ -396,6 +397,7 @@ function start(id: number): void {
           prompt,
           name: `Zeff ${workRef(id)} · ${r.ticket || "session"}`,
           disallowedTools: [...ZEFF_TOOLS, ...(codeLike(mode) ? [] : ["Edit", "Write", "MultiEdit", "NotebookEdit"])],
+          allowedTools: approvedToolsFor(id),
           resumeSession: resume ? sessionId : null,
           newSessionId: resume ? null : sessionId,
         })
@@ -479,7 +481,9 @@ function start(id: number): void {
         extra = { "zeff-jira": { type: "stdio", command: jira.command, args: jira.args, env: jira.env } };
       }
       fs.writeFileSync(/*turbopackIgnore: true*/ jiraConfigPath(id), JSON.stringify(workerMcpServers(currentAccountId(), extra)), { mode: 0o600 });
-      args.push("--mcp-config", jiraConfigPath(id), ...(mode === "send" ? ["--allowedTools", JIRA_SEND_TOOLS.join(",")] : []));
+      args.push("--mcp-config", jiraConfigPath(id));
+      const preApproved = [...(mode === "send" ? JIRA_SEND_TOOLS : []), ...approvedToolsFor(id)];
+      if (preApproved.length) args.push("--allowedTools", preApproved.join(","));
       stdin = prompt;
     }
 

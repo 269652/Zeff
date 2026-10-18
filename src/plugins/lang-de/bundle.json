@@ -5952,5 +5952,10 @@
   "Values that may not repeat": "Werte, die sich nicht wiederholen dürfen",
   "A row whose value is already taken is refused — empty values never clash.": "Eine Zeile, deren Wert schon vergeben ist, wird abgelehnt — leere Werte kollidieren nie.",
   "Pick the field the chart is grouped by (“Group by …” above).": "Wähle das Feld, nach dem das Diagramm gruppiert wird („Gruppieren nach …“ oben).",
-  "Nothing to draw — no row has a value in that field.": "Nichts zu zeichnen — keine Zeile hat in diesem Feld einen Wert."
+  "Nothing to draw — no row has a value in that field.": "Nichts zu zeichnen — keine Zeile hat in diesem Feld einen Wert.",
+  "Log": "Protokoll",
+  "Every run": "Jeder Lauf",
+  "Load older runs": "Ältere Läufe laden",
+  "It never deletes mails and never opens system pages for writing.": "Es löscht nie Mails und schreibt nie auf Systemseiten.",
+  "An automation does only what its steps say — nothing else. Its steps run inside Zeff; they send nothing out by themselves.": "Eine Automation tut nur, was ihre Schritte sagen – sonst nichts. Ihre Schritte laufen in Zeff und senden von sich aus nichts nach außen."
 }
