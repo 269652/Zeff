@@ -6003,5 +6003,9 @@
   "Make Gmail filters": "Crear filtros de Gmail",
   "Labels, read/unread, spam and filters — only for agents whose permissions say so. Nothing is deleted, forwarded or sent.": "Etiquetas, leído/no leído, spam y filtros: solo para agentes cuyos permisos lo permitan. No se borra, reenvía ni envía nada.",
   "May change Gmail (labels, read, spam, filters)": "Puede cambiar Gmail (etiquetas, leído, spam, filtros)",
-  "Labels, read/unread, spam and filters in Gmail — never deleting. Needs “Allow changes to Gmail” on the Connections page.": "Etiquetas, leído/no leído, spam y filtros en Gmail, sin borrar nunca. Necesita «Permitir cambios en Gmail» en la página de conexiones."
+  "Labels, read/unread, spam and filters in Gmail — never deleting. Needs “Allow changes to Gmail” on the Connections page.": "Etiquetas, leído/no leído, spam y filtros en Gmail, sin borrar nunca. Necesita «Permitir cambios en Gmail» en la página de conexiones.",
+  "One report per session: the agent writes it (tell it to report); it is final when you give your OK — tick its todo off, or press the button.": "Un informe por sesión: el agente lo escribe (dile que informe); es definitivo cuando das tu OK: marca su tarea como hecha o pulsa el botón.",
+  "Final": "Definitivo",
+  "Waiting for your OK": "Esperando tu OK",
+  "OK — accept": "OK: aceptar"
 }

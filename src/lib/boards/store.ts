@@ -11,6 +11,7 @@ import { emitChange } from "@/lib/events";
 import type { BoardRun, BoardSettings, Todo } from "@/db/schema";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
+import { runTodoDoneHooks } from "./done-hooks";
 import { resolveRefs, unresolveRefs } from "@/lib/resolved";
 import { cleanOps, cleanPlan, DELIVERY_OP_TYPES, dueDay, isTodoKind, parseTodoRef, todoRef, type BoardResult, type BoardRunView, type BoardTicket, type TodoOp, type TodoPath, type TodoStatus, type TodoStep, type TodoView } from "./shared";
 
@@ -487,7 +488,10 @@ export function setTodoStatus(id: number, status: TodoStatus, note?: string | nu
     })
     .where(eq(todos.id, id))
     .run();
-  if (status === "done" && before.status !== "done") afterDone(id);
+  if (status === "done" && before.status !== "done") {
+    afterDone(id);
+    runTodoDoneHooks(id);
+  }
   // After the status and the follow-ups it brings are written: a page that refreshes on this finds both the closed todo and the next one.
   emitChange("todos");
   return getTodo(id)!;
