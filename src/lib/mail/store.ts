@@ -26,6 +26,8 @@ export type MailInput = {
   hasAttachments?: boolean;
   /** How the driver finds the message again to fetch its attachments (Outlook: the item id; Gmail: its id, msg-f:…). */
   attachRef?: string;
+  /** The folder is a mirror of the mailbox's (Gmail's inbox or a label): a mail kept already moves to this folder. */
+  mirror?: boolean;
   /** A chat (WhatsApp, Signal): written in a group. */
   group?: boolean;
   /** A chat, in a group: it mentions you or quotes your message. */
@@ -53,7 +55,7 @@ export function updateMailSettings(patch: Partial<MailSettings>): void {
 }
 
 /** A mail's key: its conversation, and what it says (a new mail in it — another preview — is another row). */
-const keyOf = (m: MailInput) =>
+export const keyOf = (m: MailInput) =>
   m.id ? `${m.convId}|${createHash("sha1").update(m.id).digest("hex").slice(0, 16)}` :
   `${m.convId}|${createHash("sha1").update(`${m.from}\n${m.subject}\n${m.preview}${isChatConv(m.convId) ? "" : `\n${m.receivedAt ?? ""}`}`).digest("hex").slice(0, 16)}`;
 
@@ -90,7 +92,7 @@ export function saveMails(list: MailInput[]): { added: number; total: number } {
       }
       if (known) {
         tx.update(emails)
-          .set({ unread: m.unread, syncedAt: now, ...attachmentFields(m), ...(m.full ? { preview: m.preview.slice(0, 1000) } : {}), ...(m.group !== undefined ? { isGroup: m.group, toMe: !!m.toMe } : {}) })
+          .set({ unread: m.unread, syncedAt: now, ...(m.mirror && m.folder ? { folder: m.folder } : {}), ...attachmentFields(m), ...(m.full ? { preview: m.preview.slice(0, 1000) } : {}), ...(m.group !== undefined ? { isGroup: m.group, toMe: !!m.toMe } : {}) })
           .where(sql`${emails.key} = ${key}`)
           .run();
         continue;

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
-import { makeRoutineAction, routineChoicesAction, routineRunsAction, routineViewAction, runRoutineAction, saveRoutineAction } from "../actions";
+import { approveReportAction, makeRoutineAction, routineChoicesAction, routineReportsAction, routineRunsAction, routineViewAction, runRoutineAction, saveRoutineAction } from "../actions";
 import type { RoutineView } from "../routine-view";
 import type { Condition, Step, Trigger } from "../routines";
 import { FILTER_OPS } from "../model";
@@ -46,7 +46,8 @@ export function RoutineControls({ pageId, editable }: { pageId: number; editable
   const t = useT();
   const { view, setView, choices, save, load } = useRoutine(pageId);
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<"schedule" | "permissions" | "log">("schedule");
+  const [tab, setTab] = useState<"schedule" | "permissions" | "reports" | "log">("schedule");
+  const [reports, setReports] = useState<Awaited<ReturnType<typeof routineReportsAction>> extends infer R ? (R extends { ok: true; reports: infer L } ? L : never) : never>([]);
   const [older, setOlder] = useState<NonNullable<typeof view>["runs"]>([]);
   const [more, setMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -114,8 +115,8 @@ export function RoutineControls({ pageId, editable }: { pageId: number; editable
       )}
 
       <div className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800" role="tablist">
-        {([["schedule", t("Schedule")], ["permissions", t("Permissions")], ["log", t("Log")]] as const).map(([k, label]) => (
-          <button key={k} type="button" role="tab" aria-selected={tab === k} className={`-mb-px border-b-2 px-3 py-1.5 text-sm ${tab === k ? "border-indigo-500 font-medium" : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`} onClick={() => setTab(k)}>
+        {([["schedule", t("Schedule")], ["permissions", t("Permissions")], ...(view.kind === "agent" ? ([["reports", t("Reports")]] as const) : []), ["log", t("Log")]] as const).map(([k, label]) => (
+          <button key={k} type="button" role="tab" aria-selected={tab === k} className={`-mb-px border-b-2 px-3 py-1.5 text-sm ${tab === k ? "border-indigo-500 font-medium" : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`} onClick={() => { setTab(k); if (k === "reports") void routineReportsAction(pageId).then((r) => r.ok && setReports(r.reports)); }}>
             {label}
           </button>
         ))}
@@ -207,6 +208,32 @@ export function RoutineControls({ pageId, editable }: { pageId: number; editable
         </>
       )}
       {tab === "permissions" && view.kind === "automation" && <p className="text-xs text-zinc-500">{t("An automation does only what its steps say — nothing else. Its steps run inside Zeff; they send nothing out by themselves.")}</p>}
+
+      {tab === "reports" && (
+        <div className="space-y-2">
+          <p className="text-xs text-zinc-500">{t("One report per session: the agent writes it (tell it to report); it is final when you give your OK — tick its todo off, or press the button.")}</p>
+          {reports.length === 0 ? (
+            <p className="text-xs text-zinc-400">{t("No reports yet.")}</p>
+          ) : (
+            reports.map((r) => (
+              <article key={r.id} className="space-y-1 rounded-md border border-zinc-200 p-2 dark:border-zinc-800">
+                <header className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">{r.title}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-xs ${r.status === "final" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"}`}>{r.status === "final" ? t("Final") : t("Waiting for your OK")}</span>
+                  <span className="text-xs text-zinc-500">{new Date(r.finalAt ?? r.updatedAt).toLocaleString()}</span>
+                  <span className="flex-1" />
+                  {r.status === "draft" && editable && (
+                    <button type="button" className="btn btn-primary btn-sm" onClick={async () => void ((x) => (x.ok ? routineReportsAction(pageId).then((y) => y.ok && setReports(y.reports)) : toast(x.error, { tone: "error" })))(await approveReportAction(r.id))}>
+                      ✓ {t("OK — accept")}
+                    </button>
+                  )}
+                </header>
+                <pre className="max-h-96 overflow-auto text-xs whitespace-pre-wrap">{r.body}</pre>
+              </article>
+            ))
+          )}
+        </div>
+      )}
 
       {tab === "log" && (
         <>

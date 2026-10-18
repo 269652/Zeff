@@ -12,6 +12,9 @@ import { mayChangeGmail } from "@/plugins/workspace/routine-agent";
 type Result = { content: { type: "text"; text: string }[]; isError?: boolean };
 type Helpers = { run: (fn: () => Promise<Result> | Result) => Promise<Result>; ok: (text: string) => Result; fail: (text: string) => Result };
 
+/** After a change in Gmail: the mirror here catches up now (a sync in the background; one already running does it). */
+const refreshMirror = (): void => void import("@/lib/mail/sync").then((m) => m.syncMail({ background: true })).catch(() => undefined);
+
 export function registerGmailTools(server: McpServer, { run, ok, fail }: Helpers): void {
   const off = () => (isInstalled("gmail") ? null : fail("The Gmail plugin is not installed in Zeff (Menu → Plugins) — this tool isn't available."));
 
@@ -100,6 +103,7 @@ export function registerGmailTools(server: McpServer, { run, ok, fail }: Helpers
         const { createGmailFilter } = await import("@/lib/google/gmail-write");
         const { from, to, subject, query, hasAttachment, ...rest } = args;
         const r = await createGmailFilter({ criteria: { from, to, subject, query, hasAttachment }, ...rest });
+        if (args.applyToExisting) refreshMirror();
         return ok(`Filter ${r.filterId} made.${r.createdLabels.length ? ` New labels: ${r.createdLabels.join(", ")}.` : ""}${args.applyToExisting ? ` Applied to ${r.applied} mail(s) there already.` : ""}`);
       }),
   );
@@ -126,6 +130,7 @@ export function registerGmailTools(server: McpServer, { run, ok, fail }: Helpers
         if (!mayChangeGmail(callerRunId())) return fail("This agent may not change Gmail. Turn on “May change Gmail” in the permissions of its routine page (and allow changes to Gmail on the Connections page).");
         const { changeGmail } = await import("@/lib/google/gmail-write");
         const r = await changeGmail(args);
+        refreshMirror();
         return ok(`Changed ${r.changed} mail(s).${r.createdLabels.length ? ` New labels: ${r.createdLabels.join(", ")}.` : ""}`);
       }),
   );

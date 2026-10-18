@@ -1106,6 +1106,20 @@ export async function routineRunsAction(pageId: number, beforeId?: number) {
   });
 }
 
+/** The reports of an agent (the Reports tab): one per session, drafts waiting for your OK and the final ones. */
+export async function routineReportsAction(pageId: number) {
+  return run(async () => ({ reports: (await import("./routine-reports")).listReports(Number(pageId)) }));
+}
+
+/** Your OK on a report: its todo is closed, the report is final. */
+export async function approveReportAction(reportId: number) {
+  return run(async () => {
+    const m = await import("./routine-reports");
+    m.approveReport(Number(reportId));
+    return { ok: true as const };
+  });
+}
+
 /** A page made a routine (an agent or an automation) — off, started by hand. */
 export async function makeRoutineAction(pageId: number, kind: string) {
   return run(async () => {

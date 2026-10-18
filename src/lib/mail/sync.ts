@@ -25,6 +25,11 @@ async function chromeUp(): Promise<boolean> {
   return automationUp("outlook");
 }
 
+import { archiveGone, type MirrorRead } from "./mirror";
+
+/** The Gmail labels kept as folders of their own (names, added by hand on the Mail settings page). */
+export const GMAIL_LABELS_PREF = "mail:gmailLabels";
+
 type Source = "outlook" | "gmail" | "whatsapp" | "signal";
 const SOURCE_LABELS: Record<Source, string> = { outlook: "Outlook", gmail: "Gmail", whatsapp: "WhatsApp", signal: "Signal" };
 const SOURCE_PLUGINS = { outlook: "outlook-mail", gmail: "gmail", whatsapp: "whatsapp" } as const;
@@ -46,11 +51,11 @@ async function whatsappRead(call: (name: string, args: Record<string, unknown>) 
 }
 
 /** One source read (Outlook's or Gmail's list, WhatsApp's chat list) — as shown: no mail or chat opened, none marked read. */
-async function readMailbox(source: Source, days: number, background: boolean, gmail?: { account: string; folder: string }): Promise<{ messages: MailInput[]; missing?: string[] }> {
+async function readMailbox(source: Source, days: number, background: boolean, gmail?: { account: string; folder: string }): Promise<{ messages: MailInput[]; missing?: string[]; mirrors?: MirrorRead[] }> {
   // Gmail through Google's API: no automation Chrome.
   if (source === "gmail" && isApi(source)) {
     const { readGmail } = await import("@/lib/google/gmail-api");
-    return readGmail({ days, maxPages: days > DAYS ? 20 : 3, folder: gmail?.folder ?? "Gmail", fullKnown: getPref<string[]>(`gmail:full:${gmail?.account ?? "0"}`, []) });
+    return readGmail({ days, maxPages: days > DAYS ? 20 : 3, folder: gmail?.folder ?? "Gmail", fullKnown: getPref<string[]>(`gmail:full:${gmail?.account ?? "0"}`, []), labels: getPref<string[]>(GMAIL_LABELS_PREF, []) });
   }
   // Outlook through Microsoft Graph: no automation Chrome.
   if (source === "outlook" && isApi(source)) return (await import("@/lib/microsoft/mail-api")).readMail({ days, folders: getMailSettings().folders });
@@ -90,6 +95,11 @@ async function syncSource(source: Source, days: number, background: boolean, pre
   try {
     const r = await readMailbox(source, days, background, gmail);
     const { added, total } = saveMails(r.messages);
+    // A mirror (Gmail through its API): what left the inbox or a chosen label there leaves it here — to the archive.
+    if (r.mirrors?.length) {
+      const sinceIso = new Date(Date.now() - days * 86400000).toISOString();
+      for (const read of r.mirrors) archiveGone({ read, seen: r.messages, sinceIso });
+    }
     if (source === "gmail") {
       const k = `gmail:full:${gmail?.account ?? "0"}`;
       const full = r.messages.filter((m) => m.full && m.id).map((m) => m.id!);

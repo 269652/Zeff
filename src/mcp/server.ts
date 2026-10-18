@@ -1,5 +1,6 @@
 import { isInstalled } from "@/plugins/state";
 import { guardTools } from "@/mcp/tool-guard";
+import { registerReportTool } from "@/plugins/workspace/mcp-report";
 import { registerGmailTools } from "@/plugins/gmail/mcp";
 import { registerWorkspaceTools } from "@/plugins/workspace/mcp";
 import { registerWebSearchTools } from "@/plugins/web-search/mcp";
@@ -979,4 +980,5 @@ export function registerZeffTools(server: McpServer): void {
   registerWorkspaceTools(server, { run, ok, fail });
   registerWebSearchTools(server, { run, ok, fail } as never);
   registerGmailTools(server, { run, ok, fail } as never);
+  registerReportTool(server, { run, ok, fail } as never);
 }
