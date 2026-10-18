@@ -23,6 +23,50 @@ export type DocRef = { kind: RefKind; ref: string; label: string };
 const BLOCKS = new Set(["paragraph", "heading", "listItem", "taskItem", "blockquote", "codeBlock", "tableRow", "detailsSummary", "callout", "horizontalRule"]);
 
 /** The text of a document, a block per line — for search and for the AI. */
+/** A document with an id on every to-do list and every item that has none (or shares one) - the ones that have one keep it. */
+export function withTaskIds(doc: Doc, previous?: Doc | null): Doc {
+  if (!JSON.stringify(doc).includes('"taskList"')) return doc;
+  const seen = new Set<string>();
+  // A document written anew (an AI's Markdown) keeps the ids of the lists it names and of the items whose text is the same.
+  const before = new Map<string, { text: string; id: string; used: boolean }[]>();
+  const collect = (n: DocNode) => {
+    if (n.type === "taskList" && n.attrs?.listId) before.set(String(n.attrs.listId), (n.content ?? []).map((i) => ({ text: taskItemText(i), id: String(i.attrs?.itemId ?? ""), used: false })).filter((i) => i.id));
+    for (const c of n.content ?? []) collect(c);
+  };
+  if (previous) collect(previous as DocNode);
+  const claim = (listId: string, text: string): string => {
+    const hit = before.get(listId)?.find((i) => !i.used && i.text === text);
+    if (hit) hit.used = true;
+    return hit?.id ?? "";
+  };
+  const listOf = new WeakMap<DocNode, string>();
+  const fresh = (p: string) => `${p}${Math.random().toString(36).slice(2, 8)}${Date.now().toString(36).slice(-3)}`;
+  const fix = (n: DocNode): DocNode => {
+    let attrs = n.attrs;
+    const key = n.type === "taskList" ? "listId" : n.type === "taskItem" ? "itemId" : "";
+    if (key) {
+      let have = String(attrs?.[key] ?? "");
+      if (key === "itemId" && !have) have = claim(listOf.get(n) ?? "", taskItemText(n));
+      let id = have && !seen.has(have) ? have : fresh(key === "listId" ? "t" : "i");
+      while (seen.has(id)) id = fresh(key === "listId" ? "t" : "i");
+      seen.add(id);
+      if (id !== String(attrs?.[key] ?? "")) attrs = { ...(attrs ?? {}), [key]: id };
+    }
+    if (n.type === "taskList") for (const i of n.content ?? []) listOf.set(i, String(attrs?.listId ?? ""));
+    return { ...n, ...(attrs ? { attrs } : {}), ...(n.content ? { content: n.content.map(fix) } : {}) };
+  };
+  return fix(doc as DocNode) as Doc;
+}
+
+/** What a to-do item says: its own text, not the items below it. */
+const taskItemText = (item: DocNode): string =>
+  (item.content ?? [])
+    .filter((c) => c.type !== "taskList")
+    .map((c) => docText(c))
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+
 export function docText(doc: DocNode | null | undefined): string {
   const out: string[] = [];
   let line = "";
@@ -116,7 +160,7 @@ function inline(nodes: DocNode[] | undefined): string {
 
 const indentLines = (s: string, pad: string) => s.split("\n").map((l) => (l ? pad + l : l)).join("\n");
 
-function block(n: DocNode, ctx: { ordered?: number } = {}): string {
+function block(n: DocNode, ctx: { ordered?: number; nested?: boolean } = {}): string {
   const kids = n.content ?? [];
   const blocks = (list: DocNode[]) => list.map((c) => block(c)).filter((s) => s !== "").join("\n\n");
   switch (n.type) {
@@ -128,12 +172,19 @@ function block(n: DocNode, ctx: { ordered?: number } = {}): string {
       return kids.map((li) => block(li, {})).join("\n");
     case "orderedList":
       return kids.map((li, i) => block(li, { ordered: Number(n.attrs?.start ?? 1) + i })).join("\n");
-    case "taskList":
-      return kids.map((li) => block(li, {})).join("\n");
+    case "taskList": {
+      const head: Record<string, unknown> = {};
+      if (!ctx.nested) {
+        if (n.attrs?.listId) head.id = n.attrs.listId;
+        if (n.attrs?.title) head.title = n.attrs.title;
+        if (n.attrs?.engine === true) head.engine = true;
+      }
+      return `${Object.keys(head).length ? `:::list ${JSON.stringify(head)}\n` : ""}${kids.map((li) => block(li, {})).join("\n")}`;
+    }
     case "listItem":
     case "taskItem": {
       const mark = n.type === "taskItem" ? (n.attrs?.checked ? "- [x] " : "- [ ] ") : ctx.ordered ? `${ctx.ordered}. ` : "- ";
-      const parts = kids.map((c) => (c.type === "bulletList" || c.type === "orderedList" || c.type === "taskList" ? indentLines(block(c), "  ") : block(c)));
+      const parts = kids.map((c) => (c.type === "bulletList" || c.type === "orderedList" || c.type === "taskList" ? indentLines(block(c, { nested: true }), "  ") : block(c)));
       const [first = "", ...rest] = parts;
       return `${mark}${first}${rest.length ? `\n${rest.map((r) => (/^\s*(-|\d+\.) /.test(r) ? r : indentLines(r, "  "))).join("\n")}` : ""}`;
     }
@@ -185,6 +236,8 @@ function block(n: DocNode, ctx: { ordered?: number } = {}): string {
     }
     case "databaseView":
       return `:::database ${String(n.attrs?.dbId ?? "")}${n.attrs?.title ? ` ${String(n.attrs.title)}` : ""}`;
+    case "todoListEmbed":
+      return `:::todolist ${String(n.attrs?.pageId ?? "")} ${String(n.attrs?.listId ?? "")}`;
     case "pageEmbed":
       return `:::page ${String(n.attrs?.pageId ?? "")}${n.attrs?.title ? ` ${String(n.attrs.title)}` : ""}`;
     case "doc":
@@ -241,6 +294,8 @@ export function markdownToDoc(md: string): Doc {
   const lines = md.replace(/\r\n?/g, "\n").split("\n");
   let i = 0;
 
+  // The head of a to-do list (":::list {...}") waits here for the list that follows.
+  let pendingList: Record<string, unknown> | null = null;
   const parseBlocks = (stop: (l: string) => boolean = () => false): DocNode[] => {
     const out: DocNode[] = [];
     while (i < lines.length && !stop(lines[i])) {
@@ -289,6 +344,24 @@ export function markdownToDoc(md: string): Doc {
       const zm = /^:::zeff\s+([a-z]+)\s*([A-Za-z][A-Za-z0-9]*-\d+)?\s*$/.exec(l);
       if (zm && (BLOCK_MODULES as readonly string[]).includes(zm[1])) {
         out.push({ type: "zeffModule", attrs: { module: zm[1], key: (zm[2] ?? "").toUpperCase() } });
+        i++;
+        continue;
+      }
+      // :::list {"id":"t1","title":"…","engine":true}  - the head of the to-do list that follows (its id, its title, whether it feeds the Todo engine)
+      const lm = /^:::list\s+(\{.*\})\s*$/.exec(l);
+      if (lm) {
+        try {
+          pendingList = JSON.parse(lm[1]) as Record<string, unknown>;
+        } catch {
+          pendingList = null;
+        }
+        i++;
+        continue;
+      }
+      // :::todolist 12 t3k9  - the to-do list t3k9 of page 12, shown here
+      const tl = /^:::todolist\s+(\d+)\s+([\w-]+)\s*$/.exec(l);
+      if (tl) {
+        out.push({ type: "todoListEmbed", attrs: { pageId: Number(tl[1]), listId: tl[2] } });
         i++;
         continue;
       }
@@ -358,7 +431,13 @@ export function markdownToDoc(md: string): Doc {
         continue;
       }
       if (/^\s*([-*+]|\d+\.)\s+/.test(l)) {
-        out.push(parseList(l.match(/^\s*/)![0].length));
+        const list = parseList(l.match(/^\s*/)![0].length);
+        if (pendingList && list.type === "taskList") {
+          const { id, title, engine } = pendingList;
+          list.attrs = { ...(typeof id === "string" ? { listId: id } : {}), ...(typeof title === "string" ? { title } : {}), ...(engine === true ? { engine: true } : {}) };
+        }
+        pendingList = null;
+        out.push(list);
         continue;
       }
       if (/^\|.*\|\s*$/.test(l) && i + 1 < lines.length && /^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(lines[i + 1])) {
@@ -422,8 +501,8 @@ const NODE_ATTRS: Record<string, string[]> = {
   bulletList: [],
   orderedList: ["start", "type"],
   listItem: [],
-  taskList: [],
-  taskItem: ["checked"],
+  taskList: ["listId", "title", "engine"],
+  taskItem: ["checked", "itemId"],
   blockquote: [],
   codeBlock: ["language"],
   horizontalRule: [],
@@ -459,6 +538,7 @@ const NODE_ATTRS: Record<string, string[]> = {
   zeffRef: ["kind", "ref", "label", "href"],
   databaseView: ["dbId", "viewId", "title"],
   pageEmbed: ["pageId", "title"],
+  todoListEmbed: ["pageId", "listId"],
   zeffModule: ["module", "key"],
   rowView: [],
   aiBlock: ["prompt", "text", "at", "auto"],
@@ -580,6 +660,29 @@ export function sanitizeDoc(input: unknown): Doc {
         else delete attrs.span;
       }
       if (o.type === "heading") attrs.level = Math.min(3, Math.max(1, Number(attrs.level) || 1));
+      if (o.type === "taskList") {
+        const id = String(attrs.listId ?? "");
+        if (/^[\w-]{1,24}$/.test(id)) attrs.listId = id;
+        else delete attrs.listId;
+        const title = String(attrs.title ?? "").trim().slice(0, 120);
+        if (title) attrs.title = title;
+        else delete attrs.title;
+        if (attrs.engine === true) attrs.engine = true;
+        else delete attrs.engine;
+      }
+      if (o.type === "taskItem") {
+        const id = String(attrs.itemId ?? "");
+        if (/^[\w-]{1,24}$/.test(id)) attrs.itemId = id;
+        else delete attrs.itemId;
+        attrs.checked = attrs.checked === true;
+      }
+      if (o.type === "todoListEmbed") {
+        const id = Math.floor(Number(attrs.pageId));
+        const list = String(attrs.listId ?? "");
+        if (!(id > 0) || !/^[\w-]{1,24}$/.test(list)) return null;
+        attrs.pageId = id;
+        attrs.listId = list;
+      }
       if (o.type === "pageEmbed") {
         const id = Math.floor(Number(attrs.pageId));
         if (!(id > 0)) return null;
@@ -639,7 +742,7 @@ export function previewLines(doc: DocNode | null | undefined, max = 12): Preview
         }
       } else if (n.type === "bulletList" || n.type === "orderedList") {
         for (const item of n.content ?? []) if (out.length < max) out.push({ kind: "text", text: `• ${docText(item).trim()}` });
-      } else if (n.type === "aiBlock" || n.type === "zeffModule" || n.type === "rowView" || n.type === "databaseView" || n.type === "pageEmbed" || n.type === "image") {
+      } else if (n.type === "aiBlock" || n.type === "zeffModule" || n.type === "rowView" || n.type === "databaseView" || n.type === "pageEmbed" || n.type === "todoListEmbed" || n.type === "image") {
         continue;
       } else if (n.type === "details" || n.type === "blockquote" || n.type === "callout") {
         walk(n.content ?? []);

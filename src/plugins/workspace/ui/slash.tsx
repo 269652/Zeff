@@ -26,6 +26,10 @@ export type SlashContext = {
   embedPage: () => void;
   /** A new page below this one, shown in it at once. */
   newInlinePage: () => void;
+  /** A to-do list of any page shown here, ticked and written in place (the picker). */
+  embedTodoList: () => void;
+  /** A new todo list (a database with its Todo view) under this page, shown here. */
+  newTodoList: () => void;
   /** The AI works: `mode` on the text before the caret (or the page), the answer inserted. */
   ai: (mode: "continue" | "summarize" | "actions" | "custom") => void;
   /** Make todos of the page (the AI proposes, you choose). */
@@ -79,6 +83,8 @@ export const slashItems = (t: T): SlashItem[] => [
   { key: "database", title: t("Database"), hint: t("A new table, board or calendar here"), icon: "🗂", group: t("Pages & databases"), keywords: ["database", "table", "board", "kanban", "calendar", "gallery", "new"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.newDatabase()) },
   { key: "linked-db", title: t("Linked database"), hint: t("A view of an existing database"), icon: "🔗", group: t("Pages & databases"), keywords: ["linked", "database", "view", "embed"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.linkDatabase()) },
   { key: "embed", title: t("Embed page"), hint: t("A page or database shown right here — editable, not just a link"), icon: "⧉", group: t("Pages & databases"), keywords: ["embed", "inline", "page", "subpage", "database", "synced", "einbetten", "seite"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.embedPage()) },
+  { key: "todo-embed", title: t("Embed a to-do list"), hint: t("A to-do list of another page, ticked and written right here"), icon: "☑", group: t("Pages & databases"), keywords: ["todo", "to-do", "list", "task", "embed", "aufgaben", "einbetten", "liste"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.embedTodoList()) },
+  { key: "todo-db", title: t("Todo list (database)"), hint: t("A database with a Todo view - it can feed the Todo engine"), icon: "✅", group: t("Pages & databases"), keywords: ["todo", "to-do", "list", "task", "database", "aufgaben", "datenbank"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.newTodoList()) },
   { key: "subpage-inline", title: t("Sub-page (inline)"), hint: t("A new page below this one, written right here"), icon: "📑", group: t("Pages & databases"), keywords: ["page", "subpage", "inline", "embed", "new page", "unterseite", "einbetten"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.newInlinePage()) },
   { key: "mention", title: t("Mention"), hint: t("A person, page, todo or ticket"), icon: "@", group: t("Zeff"), keywords: ["mention", "person", "page", "todo", "ticket", "link", "@"], run: ({ editor, range }) => chain(editor, range).insertContent("@").run() },
   { key: "ai-block", title: t("AI block"), hint: t("The AI writes here — from this page and the databases in it"), icon: "✨", group: t("Zeff"), keywords: ["ai", "ki", "write", "summary", "briefing", "lage", "gpt", "claude"], run: ({ editor, range }) => chain(editor, range).insertContent({ type: "aiBlock", attrs: { prompt: "", text: "", at: "", auto: false } }).run() },

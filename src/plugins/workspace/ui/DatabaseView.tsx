@@ -17,6 +17,7 @@ import { RecurringDialog } from "./recurring";
 import { ProtectDialog } from "./protect";
 import { TimelineView } from "./timeline";
 import { ChartView } from "./view-chart";
+import { TodoView } from "./todo-view";
 import { FilterEditor, PropertiesMenu, SchemaModal, SortEditor } from "./db-menus";
 import { Dropdown, MenuItem, Modal, useSortable } from "./kit";
 import { PipelineEditor, PipelineSummaries } from "./pipeline";
@@ -24,7 +25,7 @@ import { AppViewHost } from "./app-view";
 
 /** A database on a page: its views (table, board, list, gallery, calendar), filters, sorts, groups, and the rows in place. */
 
-const VIEW_ICON: Record<ViewType, string> = { table: "▦", board: "▥", list: "☰", gallery: "▤", calendar: "📅", timeline: "▬", chart: "📊", app: "◫" };
+const VIEW_ICON: Record<ViewType, string> = { table: "▦", board: "▥", list: "☰", gallery: "▤", calendar: "📅", timeline: "▬", chart: "📊", todo: "☑", app: "◫" };
 /** The view types one picks (an app's view comes with its app). */
 const PLAIN_VIEWS = VIEW_TYPES.filter((v) => v !== "app");
 
@@ -346,7 +347,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   };
 
   const addView = (type: ViewType, app?: { id: string; label: string }) => {
-    const names: Record<ViewType, string> = { table: t("Table"), board: t("Board"), list: t("List"), gallery: t("Gallery"), calendar: t("Calendar"), timeline: t("Timeline"), chart: t("Chart"), app: app?.label ?? t("App") };
+    const names: Record<ViewType, string> = { table: t("Table"), board: t("Board"), list: t("List"), gallery: t("Gallery"), calendar: t("Calendar"), timeline: t("Timeline"), chart: t("Chart"), todo: t("Todos"), app: app?.label ?? t("App") };
     const v = newView(names[type], type);
     if (app) v.app = app.id;
     if (type === "board") v.groupBy = schema.properties.find((p) => p.type === "status" || p.type === "select")?.id;
@@ -512,7 +513,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
                     close();
                   }}
                 >
-                  {VIEW_ICON[vt]} {{ table: t("Table"), board: t("Board"), list: t("List"), gallery: t("Gallery"), calendar: t("Calendar"), timeline: t("Timeline"), chart: t("Chart"), app: "" }[vt]}
+                  {VIEW_ICON[vt]} {{ table: t("Table"), board: t("Board"), list: t("List"), gallery: t("Gallery"), calendar: t("Calendar"), timeline: t("Timeline"), chart: t("Chart"), todo: t("Todos"), app: "" }[vt]}
                 </MenuItem>
               )),
               // The apps' views this database can have (its type: mails, messages — their plugins installed).
@@ -730,6 +731,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
       {view.type === "list" && <ListView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} />}
       {view.type === "gallery" && <GalleryView rows={rows} visible={visible} ctx={ctx} openRow={openRow} add={(cells, title) => api.addRow(cells, title)} locked={!!data.locked || !!data.noNewRows} />}
       {view.type === "timeline" && <TimelineView view={view} rows={rows} schema={schema} api={api} openRow={openRow} locked={!!data.locked} />}
+      {view.type === "todo" && <TodoView dbId={dbId} rows={rows} schema={schema} api={api} openRow={openRow} locked={!!data.locked} canAdd={!data.noNewRows} />}
       {view.type === "chart" && <ChartView view={view} rows={rows} schema={schema} />}
       {view.type === "calendar" && <CalendarView canAdd={!data.noNewRows} view={view} rows={rows} schema={schema} api={api} openRow={openRow} newRow={newRow} />}
       <p className="text-xs text-zinc-500">{rows.length === data.rows.length ? (rows.length === 1 ? t("1 row") : t("{n} rows", { n: rows.length })) : t("{n} of {total} rows", { n: rows.length, total: data.rows.length })}</p>

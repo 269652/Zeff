@@ -18,7 +18,8 @@ export type WorkspaceSource = {
   hint?: string;
   /** How many records it has (the data sources page). */
   count?: () => number;
-  read: () => SourceRecord[] | Promise<SourceRecord[]>;
+  /** `label`: the step's own word - a database that follows only a part of the source (one list) names it. */
+  read: (ctx?: { label?: string }) => SourceRecord[] | Promise<SourceRecord[]>;
   /** Its records are only read from where they live: a row cannot be made by hand in a database of it. */
   noNewRows?: boolean;
   pull?: (dbId: number, rows: Row[], schema: DbSchema) => void | Promise<void>;

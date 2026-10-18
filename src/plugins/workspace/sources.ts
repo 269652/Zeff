@@ -8,6 +8,7 @@ import { briefingDatabase, jiraBoardDatabase } from "@/plugins/jira-lage/to-work
 import { googleKeepHref } from "@/plugins/keep/google-workspace";
 import { keepCount } from "@/plugins/keep/store";
 import { isInstalled } from "@/plugins/state";
+import { allTaskLists } from "./task-lists";
 
 /**
  * The Workspace's data sources — what fills its databases from elsewhere: Jira (each board you switch on is a board
@@ -33,6 +34,8 @@ export type SourceView = {
   boards?: { id: number; name: string; project: string | null; enabled: boolean; href: string | null }[];
   /** The databases (and pages) it keeps. */
   databases: { title: string; href: string }[];
+  /** To-do lists in pages: each list by its path, its Todo-engine switch, and the database that follows it (if any). */
+  lists?: { key: string; pageId: number; listId: string; path: string; title: string; engine: boolean; open: number; total: number; database: string | null }[];
   /** Mail, messages: the database the inboxes go under ("Mail", "Chats") — its type for the templates. */
   home?: { id: number; dataType: "mail" | "message"; inboxes: { title: string; href: string }[] } | null;
 };
@@ -112,7 +115,21 @@ function extSource(s: import("./source-point").WorkspaceSource): SourceView {
       }
     })
     .map((r) => ({ title: r.title, href: `/workspace/${r.id}` }));
-  return { key: `ext:${s.id}`, name: s.label, hint: s.hint, step: null, ready: true, setup: null, count: s.count?.() ?? 0, databases };
+  const lists =
+    s.id === "page-tasks"
+      ? allTaskLists().map((l) => ({
+          key: l.key,
+          pageId: l.pageId,
+          listId: l.listId,
+          path: l.path,
+          title: l.title,
+          engine: l.engine,
+          open: l.items.filter((i) => !i.checked && i.text).length,
+          total: l.items.filter((i) => i.text).length,
+          database: (rows.find((r) => r.schema.includes(`"label":"${l.key}"`)) ? `/workspace/${rows.find((r) => r.schema.includes(`"label":"${l.key}"`))!.id}` : null) as string | null,
+        }))
+      : undefined;
+  return { key: `ext:${s.id}`, name: s.label, hint: s.hint, step: null, ready: true, setup: null, count: s.count?.() ?? 0, databases, ...(lists ? { lists } : {}) };
 }
 
 /** The databases that name this channel as a source (any — the inbox, derived ones, your own): the catalog's links. */

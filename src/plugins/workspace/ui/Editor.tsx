@@ -7,7 +7,7 @@ import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { Details, DetailsContent, DetailsSummary } from "@tiptap/extension-details";
 import Highlight from "@tiptap/extension-highlight";
 import Image from "@tiptap/extension-image";
-import { TaskItem, TaskList } from "@tiptap/extension-list";
+import { TaskIds, TaskItemWithId, TaskListBlock, TodoListEmbedNode } from "./task-list-node";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
 import { Placeholder } from "@tiptap/extensions";
 import StarterKit from "@tiptap/starter-kit";
@@ -16,7 +16,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/Toaster";
 import { useLang, useT } from "@/components/I18nProvider";
-import { aiTextAction, aiTodosFromPageAction, createPageAction, createTodosAction, databasesAction, pageContentAction, savePageAction, treeAction, type AiMode } from "../actions";
+import { aiTextAction, aiTodosFromPageAction, createPageAction, createTodoListAction, createTodosAction, databasesAction, pageContentAction, savePageAction, taskListsAction, treeAction, type AiMode, type TaskListInfo } from "../actions";
 import { markdownToDoc } from "../doc";
 import { embedChoices } from "../embed-picker";
 import type { TreeItem } from "../store";
@@ -61,6 +61,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
   const [dbPicker, setDbPicker] = useState<{ id: number; title: string; icon: string }[] | null>(null);
   const [embedPicker, setEmbedPicker] = useState<TreeItem[] | null>(null);
   const [embedQuery, setEmbedQuery] = useState("");
+  const [listPicker, setListPicker] = useState<TaskListInfo[] | null>(null);
   const [todos, setTodos] = useState<{ text: string; ticket: string; on: boolean }[] | null>(null);
   const [todosBusy, setTodosBusy] = useState(false);
   const handleNode = useRef<{ pos: number; size: number } | null>(null);
@@ -199,6 +200,14 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
       setEmbedQuery("");
       void treeAction().then((r) => (r.ok ? setEmbedPicker(r.items) : toast(r.error, { tone: "error" })));
     },
+    embedTodoList: () => void taskListsAction().then((r) => (r.ok ? setListPicker(r.lists) : toast(r.error, { tone: "error" }))),
+    newTodoList: () => {
+      void createTodoListAction(t("To-do list"), pageId).then((r) => {
+        if (!r.ok) return toast(r.error, { tone: "error" });
+        editorRef.current?.chain().focus().insertContent({ type: "databaseView", attrs: { dbId: r.dbId, viewId: r.viewId, title: t("To-do list") } }).run();
+        router.refresh();
+      });
+    },
     newInlinePage: () => {
       void createPageAction({ parentId: pageId }).then((r) => {
         if (!r.ok) return toast(r.error, { tone: "error" });
@@ -228,8 +237,10 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
       StarterKit.configure({ codeBlock: false, heading: { levels: [1, 2, 3] }, link: { openOnClick: false, autolink: true, HTMLAttributes: { rel: "noopener noreferrer nofollow", target: "_blank" } } }),
       CodeBlockLowlight.configure({ lowlight, defaultLanguage: null }),
       Placeholder.configure({ placeholder: ({ node }) => (node.type.name === "heading" ? `${t("Heading")} ${node.attrs.level}` : t("Type '/' for blocks, '@' to mention …")), showOnlyCurrent: true }),
-      TaskList,
-      TaskItem.configure({ nested: true }),
+      TaskListBlock.configure({ pageId, flush: () => flush() }),
+      TaskItemWithId.configure({ nested: true }),
+      TaskIds,
+      TodoListEmbedNode,
       Table.configure({ resizable: true }),
       TableRow,
       TableHeader,
@@ -512,6 +523,33 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
               <button className="btn btn-primary btn-sm">{t("Write")}</button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {listPicker && (
+        <Modal title={t("Embed a to-do list")} onClose={() => setListPicker(null)}>
+          {listPicker.length === 0 ? (
+            <p className="text-sm text-zinc-500">{t("No to-do lists in your pages yet — type “/to-do list” to make one.")}</p>
+          ) : (
+            <ul className="space-y-0.5">
+              {listPicker.map((l) => (
+                <li key={l.key}>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    onClick={() => {
+                      editor.chain().focus().insertContent({ type: "todoListEmbed", attrs: { pageId: l.pageId, listId: l.listId } }).run();
+                      setListPicker(null);
+                    }}
+                  >
+                    <span>☑</span>
+                    <span className="min-w-0 flex-1 truncate">{l.path}</span>
+                    <span className="text-xs text-zinc-400">{l.open}/{l.total}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </Modal>
       )}
 

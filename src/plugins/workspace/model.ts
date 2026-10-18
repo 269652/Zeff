@@ -71,7 +71,7 @@ export type Cond =
 export type Rule = { prop: string; cond: Cond; value?: unknown };
 export type Filter = { op: "and" | "or"; rules: (Rule | Filter)[] };
 export type Sort = { prop: string; dir: "asc" | "desc" };
-export const VIEW_TYPES = ["table", "board", "list", "gallery", "calendar", "timeline", "chart", "app"] as const;
+export const VIEW_TYPES = ["table", "board", "list", "gallery", "calendar", "timeline", "chart", "todo", "app"] as const;
 export type ViewType = (typeof VIEW_TYPES)[number];
 export type View = {
   id: string;
@@ -143,9 +143,31 @@ export type DbSchema = {
   jobs?: boolean;
   /** A form that adds rows (workspace/form/<id>): which fields it asks, which are required, what is prefilled. */
   form?: FormSpec;
+  /** A todo list: which checkbox says done and which date says due (ids), and whether its open rows are todos of the Todo engine too (todo-engine.ts). */
+  todoList?: TodoListSpec;
   /** What may be done to its rows (the store holds to it, for you and the AI alike; a source writing its own records is let through). */
   protect?: Protect;
 };
+
+export type TodoListSpec = { done: string; due?: string; engine?: boolean };
+
+/** The checkbox and date a todo list goes by - what it says, else its first checkbox and date (null: no checkbox, so no todo list). */
+export function todoColumns(schema: Pick<DbSchema, "properties" | "todoList">): { done: Property; due?: Property; engine: boolean } | null {
+  const spec = schema.todoList;
+  const done = schema.properties.find((p) => p.id === spec?.done && p.type === "checkbox") ?? schema.properties.find((p) => p.type === "checkbox" && !p.id.startsWith("src"));
+  if (!done) return null;
+  const due = schema.properties.find((p) => p.id === spec?.due && p.type === "date") ?? (spec ? undefined : schema.properties.find((p) => p.type === "date"));
+  return { done, due, engine: !!spec?.engine };
+}
+
+function todoListOf(raw: unknown, props: Property[]): TodoListSpec | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const o = raw as Record<string, unknown>;
+  const done = props.find((p) => p.id === o.done && p.type === "checkbox");
+  if (!done) return undefined;
+  const due = props.find((p) => p.id === o.due && p.type === "date");
+  return { done: done.id, ...(due ? { due: due.id } : {}), ...(o.engine === true ? { engine: true } : {}) };
+}
 
 /**
  * `lock`: its rows can't be added, changed or removed. `ai`: what the AI may do - "read" (nothing) or "append" (add rows, not change or remove
@@ -298,7 +320,7 @@ export function normalizePipeline(raw: unknown): Pipeline {
       const terms = strs(kn.terms);
       const knowledge = from === "knowledge" && terms ? defined<KnowledgeCriteria>({ terms, excludeDb: posInt(kn.excludeDb) }) : undefined;
       if (from === "ext" && !str(s.ext)) continue;
-      steps.push(defined<PipelineStep>({ id, kind: "source", from, jira, mail, messages, knowledge, ext: from === "ext" ? str(s.ext) : undefined, label: from === "keep" ? str(s.label) : undefined, todoStatus: from === "todos" && s.todoStatus === "all" ? "all" : undefined, dbId: from === "database" ? posInt(s.dbId) : undefined }));
+      steps.push(defined<PipelineStep>({ id, kind: "source", from, jira, mail, messages, knowledge, ext: from === "ext" ? str(s.ext) : undefined, label: from === "keep" || from === "ext" ? str(s.label) : undefined, todoStatus: from === "todos" && s.todoStatus === "all" ? "all" : undefined, dbId: from === "database" ? posInt(s.dbId) : undefined }));
     } else if (s.kind === "filter") {
       const rules = (Array.isArray(s.rules) ? s.rules : []).flatMap((x): FilterRule[] => {
         const r = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
@@ -465,7 +487,7 @@ export function normalizeSchema(raw: unknown): DbSchema {
   const o = (raw && typeof raw === "object" ? raw : {}) as Partial<DbSchema>;
   const props = (Array.isArray(o.properties) ? o.properties : []).filter((p): p is Property => !!p && typeof p.id === "string" && (PROP_TYPES as readonly string[]).includes(p.type)).map(withAiColors);
   const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [] }));
-  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(formOf(o.form, props) ? { form: formOf(o.form, props) } : {}), ...(protectOf(o.protect, props) ? { protect: protectOf(o.protect, props) } : {}), ...(o.rules === true ? { rules: true } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}) };
+  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(formOf(o.form, props) ? { form: formOf(o.form, props) } : {}), ...(protectOf(o.protect, props) ? { protect: protectOf(o.protect, props) } : {}), ...(todoListOf(o.todoList, props) ? { todoList: todoListOf(o.todoList, props) } : {}), ...(o.rules === true ? { rules: true } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}) };
 }
 
 export const propById = (props: Property[], id: string): Property | undefined => props.find((p) => p.id === id);

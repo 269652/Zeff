@@ -16,7 +16,7 @@ import { workspaceSources } from "./source-point";
 import { logChange } from "./activity";
 import { parseCustom } from "./field-types";
 import { made, touch } from "./undo";
-import { docRefs, docText, emptyDoc, sanitizeDoc, type Doc, type DocRef } from "./doc";
+import { docRefs, docText, emptyDoc, sanitizeDoc, withTaskIds, type Doc, type DocRef } from "./doc";
 import { cellText, computeRows, dateRange, defaultSchema, isComputed, SYSTEM_PROPS, newProperty, normalizeSchema, propById, TITLE, type DbSchema, type Labels, type Property, type Row } from "./model";
 
 function db() {
@@ -183,7 +183,7 @@ export function createPage(v: NewPage = {}): number {
     if (!parent || parent.kind !== "database") throw new Error("No such database.");
   }
   if (v.parentId && !getPage(v.parentId)) throw new Error("No such page.");
-  const doc = v.content === undefined ? emptyDoc() : sanitizeDoc(v.content);
+  const doc = v.content === undefined ? emptyDoc() : withTaskIds(sanitizeDoc(v.content));
   const at = now();
   const r = d
     .prepare("insert into ws_pages (parent_id, db_id, kind, title, icon, content, body_text, props, schema, position, template, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
@@ -290,7 +290,7 @@ export function updatePage(id: number, patch: PagePatch, rev?: number): SaveResu
   if (patch.template !== undefined) set("template", patch.template ? 1 : 0);
   let newRev = cur.rev;
   if (patch.content !== undefined) {
-    doc = sanitizeDoc(patch.content);
+    doc = withTaskIds(sanitizeDoc(patch.content), parse<Doc | null>(cur.content, null));
     const json = JSON.stringify(doc);
     if (json !== cur.content) {
       // The state before this change is kept as a version — at most one every ten minutes.
@@ -315,7 +315,10 @@ export function updatePage(id: number, patch: PagePatch, rev?: number): SaveResu
   if (patch.title !== undefined || doc) index(id);
   if (doc) relink(id, doc);
   changed();
+  if (cur.db_id && patch.title !== undefined) afterTodoRowChange(id);
   if (cur.db_id && (patch.title !== undefined || doc)) syncLinkedFrom(id); // (its copies in other databases follow — links.ts)
+  // A page with to-do lists that feed the Todo engine (or did): the engine follows (task-lists.ts).
+  if (doc && (cur.content.includes('"engine":true') || JSON.stringify(doc).includes('"engine":true'))) void import("./task-lists").then((m) => m.syncPageLists(id)).catch(() => undefined);
   return { ok: true, rev: newRev, updatedAt: editing ? at : cur.updated_at };
 }
 
@@ -411,6 +414,7 @@ export function archivePage(id: number): void {
   })();
   changed();
   if (was?.dbId && !was.archivedAt) emitRowEvent("row.removed", { db: was.dbId, row: id });
+  if (was?.dbId) afterTodoRowChange(id);
 }
 
 /**
@@ -847,6 +851,7 @@ export function setCell(rowId: number, propId: string, value: unknown): void {
   syncLinkedFrom(rowId); // (its copies in other databases follow — links.ts)
   afterJobChange(rowId, propId); // (a card moved into Ready: the agents take it — jobs.ts)
   emitRowEvent("row.changed", { db: row.dbId, row: rowId, field: p.name, value: cellText(p, v) });
+  afterTodoRowChange(rowId);
 }
 
 /**
@@ -929,6 +934,12 @@ export function rowsAddable(dbId: number): boolean {
   return !workspaceSources.list().some((c) => c.impl.some((s) => s.id === step.ext && s.noNewRows));
 }
 
+/** A row of a todo list that feeds the Todo engine was changed: its todo follows (todo-engine.ts). */
+function afterTodoRowChange(rowId: number): void {
+  const row = getPage(rowId);
+  if (row?.dbId && getDatabase(row.dbId)?.schema.todoList?.engine) void import("./todo-engine").then((m) => m.syncRow(rowId)).catch(() => undefined);
+}
+
 export function addRow(dbId: number, v: NewRow = {}): number {
   const d = getDatabase(dbId);
   if (!d) throw new Error("No such database.");
@@ -946,6 +957,7 @@ export function addRow(dbId: number, v: NewRow = {}): number {
   const title = v.title ?? (tpl && tpl.dbId === dbId ? tpl.title : "");
   const id = createPage({ dbId, title: Object.keys(params).length ? fill(title, params) : title, icon: tpl?.icon, content: tpl?.dbId === dbId ? (Object.keys(params).length ? (fillDoc(tpl.content, params) as typeof tpl.content) : tpl.content) : undefined, props });
   emitRowEvent("row.added", { db: dbId, row: id });
+  afterTodoRowChange(id);
   return id;
 }
 

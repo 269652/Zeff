@@ -865,6 +865,12 @@ export function addCalendarTodo(v: { text: string; due: string; ref: string; sou
   return toTodo(row);
 }
 
+/** The todo that carries a reference ("ws:12" - a row of a Workspace todo list), done or not. */
+export function todoByRef(ref: string): TodoView | undefined {
+  const r = getDb().select().from(todos).where(sql`${todos.refs} like ${`%"${ref}"%`}`).get();
+  return r ? toTodo(r) : undefined;
+}
+
 export function addManualTodo(v: { ticket: string; text: string }): Gated {
   const g = gateTodo({ ticket: v.ticket, text: v.text, byWorker: false, source: "From you", actor: "you" });
   if (g) return g;

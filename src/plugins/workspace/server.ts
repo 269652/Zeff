@@ -10,6 +10,10 @@ import { workspaceSources } from "./source-point";
 import { workspaceFieldTypes } from "./field-point";
 import { CORE_FIELD_TYPES } from "./field-types";
 import { ROUTINES_SOURCE, RUNS_SOURCE } from "./automation-databases";
+import { TASKS_SOURCE } from "./task-source";
+import { onTodoDone } from "@/lib/boards/done-hooks";
+import { blockTodoDone } from "./task-lists";
+import { todoDone } from "./todo-engine";
 
 /** What Workspace registers for other plugins (loaded through plugins/contributions). */
 collectionProviders.contribute("workspace", workspaceCollections);
@@ -17,5 +21,7 @@ collectionProviders.contribute("workspace", workspaceCollections);
 apiPoint.contribute("workspace", WORKSPACE_API);
 workspaceWidgets.contribute("workspace", WORKSPACE_WIDGETS);
 // Its automations and their runs as rows (the databases "Automations" and "Automation runs").
-workspaceSources.contribute("workspace", [ROUTINES_SOURCE, RUNS_SOURCE]);
+workspaceSources.contribute("workspace", [ROUTINES_SOURCE, RUNS_SOURCE, TASKS_SOURCE]);
+// A todo closed in the engine ticks the row or the list item it came from.
+onTodoDone((id) => (todoDone(id), blockTodoDone(id)));
 workspaceFieldTypes.contribute("workspace", CORE_FIELD_TYPES);

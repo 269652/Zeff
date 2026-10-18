@@ -7,7 +7,7 @@ import { runSyncAction } from "@/app/actions";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { setBoardEnabledAction } from "@/plugins/jira/server-actions";
-import { createSourceDatabaseAction, keepSourceDatabasesAction } from "../actions";
+import { convertTaskListAction, createSourceDatabaseAction, followTaskListAction, keepSourceDatabasesAction, taskListMetaAction } from "../actions";
 import type { SourceView } from "../sources";
 import { SyncEvery } from "./pipeline";
 
@@ -103,6 +103,69 @@ export function SourcesView({ sources }: { sources: SourceView[] }) {
                 </li>
               ))}
               {!s.boards.length && <li className="py-1.5 text-zinc-500">{t("No Jira boards known yet — sync Jira first.")}</li>}
+            </ul>
+          )}
+          {s.lists && (
+            <ul className="divide-y divide-zinc-100 text-sm dark:divide-zinc-800" data-task-lists>
+              {s.lists.map((l) => (
+                <li key={l.key} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5">
+                  <Link href={`/workspace/${l.pageId}`} className="min-w-0 flex-1 truncate hover:underline" title={l.key}>
+                    ☑ {l.path}
+                  </Link>
+                  <span className="text-xs text-zinc-500 tabular-nums">{l.open}/{l.total}</span>
+                  <label className="flex items-center gap-1 text-xs" title={t("Its open items are todos of the Todos tab too.")}>
+                    <input
+                      type="checkbox"
+                      checked={l.engine}
+                      disabled={pending}
+                      onChange={(e) =>
+                        start(async () => {
+                          const r = await taskListMetaAction(l.pageId, l.listId, { engine: e.target.checked });
+                          if (!r.ok) toast(r.error, { tone: "error" });
+                          router.refresh();
+                        })
+                      }
+                    />
+                    {t("Todo engine")}
+                  </label>
+                  {l.database ? (
+                    <Link href={l.database} className="ws-chip hover:underline">
+                      {t("Followed by a database")}
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      disabled={pending}
+                      onClick={() =>
+                        start(async () => {
+                          const r = await followTaskListAction(l.pageId, l.listId);
+                          if (!r.ok) return void toast(r.error, { tone: "error" });
+                          router.push(`/workspace/${r.dbId}`);
+                        })
+                      }
+                    >
+                      {t("Follow as a database")}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={pending}
+                    title={t("The list becomes a database in its page; this is how the block turns into rows.")}
+                    onClick={() =>
+                      start(async () => {
+                        const r = await convertTaskListAction(l.pageId, l.listId);
+                        if (!r.ok) return void toast(r.error, { tone: "error" });
+                        router.push(`/workspace/${r.dbId}`);
+                      })
+                    }
+                  >
+                    ▦ {t("Turn into a database")}
+                  </button>
+                </li>
+              ))}
+              {!s.lists.length && <li className="py-1.5 text-zinc-500">{t("No to-do lists in your pages yet — type “/to-do list” in a page.")}</li>}
             </ul>
           )}
           {s.databases.length > 0 && (

@@ -123,6 +123,15 @@ export function startSyncScheduler(): void {
         } catch (e) {
           console.error("[routines]", e);
         }
+        // The Workspace's todo lists that feed the Todo engine (rows and list items), brought together with their todos.
+        try {
+          if ((await import("@/plugins/state")).isInstalled("workspace")) {
+            (await import("@/plugins/workspace/todo-engine")).syncTodoEngine();
+            (await import("@/plugins/workspace/task-lists")).syncTaskListsEngine();
+          }
+        } catch (e) {
+          console.error("[todo engine]", e);
+        }
         // Rows that come back by themselves (the Workspace's repeating rules) that are due.
         try {
           if ((await import("@/plugins/state")).isInstalled("workspace")) (await import("@/plugins/workspace/recurring")).runDueRecurrences();
