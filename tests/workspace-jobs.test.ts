@@ -165,3 +165,65 @@ test("starting a job again: the earlier result is material on the page, not the 
   assert.match(text, /Material — nicht die Erledigung/, "and is told it isn't the job done");
   assert.match(text, /wirklich existiert/, "it checks that what the job asks for really exists");
 });
+
+/** A jobs database whose agents take the Ready column by themselves. */
+async function autoJobs() {
+  const w = await import("@/plugins/workspace/store");
+  const { createJobsDatabase } = await import("@/plugins/workspace/jobs");
+  const jobs = createJobsDatabase(null);
+  w.updateSchema(jobs, { ...w.getDatabase(jobs)!.schema, agents: { auto: true, parallel: 3, perDay: 50 } });
+  return jobs;
+}
+
+test("a job is started by one taker only: a second one at the same time backs off and does not mark it failed", async () => {
+  const { addJob, dispatchJob, stateOf, JOB } = await import("@/plugins/workspace/jobs");
+  const w = await import("@/plugins/workspace/store");
+  const jobs = await autoJobs();
+  const id = addJob(jobs, { title: "Einmal starten", instruction: "Tu es." });
+  const { deps, calls } = fakeDeps();
+  const results = await Promise.allSettled([dispatchJob(id, deps), dispatchJob(id, deps)]);
+  assert.equal(results.filter((r) => r.status === "fulfilled").length, 1, "one start");
+  assert.equal(calls.instructions.length, 1, "the worker got it once");
+  assert.equal(stateOf(id), "In Arbeit");
+  assert.match(String(w.getPage(id)!.props[JOB.run]), /^W-\d+$/);
+});
+
+test("the agents taking Ready: a job another process took meanwhile stays 'In Arbeit'; a real failure says why in the result", async () => {
+  const { addJob, pumpJobs, setState, stateOf, JOB } = await import("@/plugins/workspace/jobs");
+  const w = await import("@/plugins/workspace/store");
+  const jobs = await autoJobs();
+  const taken = addJob(jobs, { title: "Schon genommen", instruction: "a" });
+  const broken = addJob(jobs, { title: "Kaputt", instruction: "b" });
+  setState(taken, "Ready");
+  setState(broken, "Ready");
+  const { deps } = fakeDeps();
+  const failing = {
+    ...deps,
+    dispatch: (todoId: number, v: { instruction: string }) => {
+      if (stateOf(taken) === "Ready") {
+        // (another process dispatched it and flipped the state, then ours trips over the todo)
+        setState(taken, "In Arbeit");
+        w.setCell(taken, JOB.run, "W-1");
+        throw new Error("T-9 is with W-1 already.");
+      }
+      throw new Error("The CLI is not installed.");
+    },
+  };
+  await pumpJobs(jobs, failing);
+  assert.equal(stateOf(taken), "In Arbeit", "not marked failed over the other taker's start");
+  assert.equal(stateOf(broken), "Fehlgeschlagen");
+  assert.match(String(w.getPage(broken)!.props[JOB.result]), /The CLI is not installed/, "the reason is in the row");
+});
+
+test("settling: a failed job whose worker is in fact still running goes back to 'In Arbeit'", async () => {
+  const { addJob, settleJobs, setState, stateOf, JOB } = await import("@/plugins/workspace/jobs");
+  const w = await import("@/plugins/workspace/store");
+  const jobs = await autoJobs();
+  const id = addJob(jobs, { title: "Zu Unrecht gescheitert", instruction: "c" });
+  const { deps, runs } = fakeDeps();
+  runs.set(4242, { status: "running", todoId: 5, summary: null, error: null, result: null });
+  w.setCell(id, JOB.run, "W-4242");
+  setState(id, "Fehlgeschlagen");
+  await settleJobs(deps);
+  assert.equal(stateOf(id), "In Arbeit");
+});

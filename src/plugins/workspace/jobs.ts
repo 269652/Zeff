@@ -76,6 +76,45 @@ export function stateOf(rowId: number): JobState | undefined {
   return getDatabase(row.dbId)?.schema.properties.find((p) => p.id === JOB.status)?.options?.find((o) => o.id === id)?.name as JobState | undefined;
 }
 
+/**
+ * What happens to a job, in the server's log (data/logs): "[jobs] #6843 “title” → In Arbeit (W-90)". Every start, settle, failure
+ * and back-off says so — with the reason — so a job that went wrong can be followed there.
+ */
+export function jobLog(rowId: number, message: string, error?: unknown): void {
+  const title = getPage(rowId)?.title ?? "?";
+  const line = `[jobs] #${rowId} “${title.slice(0, 60)}” ${message}`;
+  if (error === undefined) console.log(line);
+  else console.error(line, error instanceof Error ? (error.stack ?? error.message) : error);
+}
+
+/** Another taker (a second server process, a double click) is starting this job right now. */
+export class JobBusy extends Error {
+  constructor(rowId: number) {
+    super(`Job #${rowId} is being started by someone else right now.`);
+    this.name = "JobBusy";
+  }
+}
+
+/**
+ * Who starts a job: the one whose claim is in the database (a row per job, shared by every process of Zeff). A claim older than five
+ * minutes is a crashed taker's and is taken over.
+ */
+function claim(rowId: number): boolean {
+  const d = getSqlite();
+  d.exec("create table if not exists ws_job_claims (row_id integer primary key, at integer not null)");
+  const now = Date.now();
+  d.prepare("delete from ws_job_claims where row_id = ? and at < ?").run(rowId, now - 5 * 60_000);
+  return d.prepare("insert or ignore into ws_job_claims (row_id, at) values (?, ?)").run(rowId, now).changes === 1;
+}
+const release = (rowId: number) => void getSqlite().prepare("delete from ws_job_claims where row_id = ?").run(rowId);
+
+/** A job that couldn't be started: failed, with the reason in its result (and in the log). */
+function failJob(rowId: number, why: string, error?: unknown): void {
+  setCell(rowId, JOB.result, `⚠ ${why}`);
+  setState(rowId, "Fehlgeschlagen");
+  jobLog(rowId, `→ Fehlgeschlagen: ${why}`, error);
+}
+
 export function setState(rowId: number, name: JobState): void {
   const row = getPage(rowId);
   const id = row?.dbId ? stateId(row.dbId, name) : undefined;
@@ -200,16 +239,26 @@ export async function dispatchJob(rowId: number, deps?: JobDeps): Promise<{ run:
   const row = getPage(rowId);
   const db = row?.dbId ? getDatabase(row.dbId) : null;
   if (!row || !db?.schema.jobs) throw new Error("This isn't a job of a jobs database.");
-  const state = stateOf(rowId);
-  if (state && !STARTABLE.includes(state)) throw new Error(`The job is “${state}” — only waiting or failed jobs are started.`);
-  const d = deps ?? (await realDeps());
-  await keepEarlierResult(rowId);
-  const instruction = await jobInstruction(rowId);
-  const todo = d.addTodo({ ticket: (await linkedTicket(rowId)).key, text: row.title });
-  const run = d.dispatch(todo.id, { instruction });
-  setCell(rowId, JOB.run, `W-${run.id}`);
-  setState(rowId, "In Arbeit");
-  return { run: run.id, todo: todo.id };
+  if (!claim(rowId)) {
+    jobLog(rowId, "is being started by another taker — left to it");
+    throw new JobBusy(rowId);
+  }
+  try {
+    // (Checked under the claim: the one who was first has moved the job on by now.)
+    const state = stateOf(rowId);
+    if (state && !STARTABLE.includes(state)) throw new Error(`The job is “${state}” — only waiting or failed jobs are started.`);
+    const d = deps ?? (await realDeps());
+    await keepEarlierResult(rowId);
+    const instruction = await jobInstruction(rowId);
+    const todo = d.addTodo({ ticket: (await linkedTicket(rowId)).key, text: row.title });
+    const run = d.dispatch(todo.id, { instruction });
+    setCell(rowId, JOB.run, `W-${run.id}`);
+    setState(rowId, "In Arbeit");
+    jobLog(rowId, `→ In Arbeit (worker W-${run.id}, todo T-${todo.id})`);
+    return { run: run.id, todo: todo.id };
+  } finally {
+    release(rowId);
+  }
 }
 
 /** Every open job of a database started (each by your one click on "start all"). */
@@ -237,9 +286,19 @@ export async function settleJobs(deps?: JobDeps): Promise<number> {
   let n = 0;
   for (const { id: dbId } of dbs) {
     for (const r of rawRows(dbId)) {
-      if (stateOf(r.id) !== "In Arbeit") continue;
+      const state = stateOf(r.id);
+      if (state !== "In Arbeit" && state !== "Fehlgeschlagen") continue;
       const runId = runOf(r.cells[JOB.run]);
       const run = runId ? d.run(runId) : undefined;
+      if (state === "Fehlgeschlagen") {
+        // Marked failed although its worker is at work (a second taker tripped over the first one's start): back to work.
+        if (run && (run.status === "queued" || run.status === "running")) {
+          setState(r.id, "In Arbeit");
+          jobLog(r.id, `→ In Arbeit again: it was marked failed, but worker W-${runId} is still ${run.status}`);
+          n++;
+        }
+        continue;
+      }
       if (!run || run.status === "queued" || run.status === "running") continue;
       const has = String(r.cells[JOB.result] ?? "").trim();
       if (run.status === "done") {
@@ -252,9 +311,12 @@ export async function settleJobs(deps?: JobDeps): Promise<number> {
         }
         if (!has && text) setCell(r.id, JOB.result, text);
         setState(r.id, "Zur Prüfung");
+        jobLog(r.id, `→ Zur Prüfung (worker W-${runId} done)`);
       } else {
-        if (!has) setCell(r.id, JOB.result, run.error || `The worker ended: ${run.status}.`);
+        const why = run.error || `The worker ended: ${run.status}.`;
+        if (!has) setCell(r.id, JOB.result, why);
         setState(r.id, "Fehlgeschlagen");
+        jobLog(r.id, `→ Fehlgeschlagen (worker W-${runId} ${run.status}): ${why}`);
       }
       d.closeTodo(run.todoId);
       n++;
@@ -304,8 +366,12 @@ export async function pumpJobs(dbId: number, deps?: JobDeps): Promise<{ started:
         countStart(dbId);
         out.started++;
       } catch (e) {
-        console.error("[jobs] taking a Ready job failed:", e);
-        setState(r.id, "Fehlgeschlagen");
+        // Taken by someone else meanwhile (a second server process, the click): not a failure of the job.
+        if (e instanceof JobBusy || stateOf(r.id) === "In Arbeit") {
+          jobLog(r.id, `taken by another taker meanwhile (${(e as Error).message})`);
+          continue;
+        }
+        failJob(r.id, (e as Error).message || String(e), e);
       }
     }
   } finally {
