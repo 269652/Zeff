@@ -905,6 +905,60 @@ export function findSessionTodo(instruction: string, ticket: string): TodoView |
  * it carries the session, stays in the Worker tab (never in yours), and offers one action — "Create todo" with
  * your instruction's first line as the title — that makes it a todo of yours (promoteSessionTodo).
  */
+/** The source an agent's own todos carry — what lets it tick them off itself (and only those). */
+export const AGENT_SOURCE = "From agent";
+
+/**
+ * A step the agent writes on the ticket as a todo (add_todo): in your list like any other, open — so you can add more and send the
+ * agent for another round. One that repeats an open todo is that todo (the gate), never a second.
+ */
+export function addAgentTodo(v: { ticket: string; text: string; owner?: "me" | "other" }): Gated {
+  const g = gateTodo({ ticket: v.ticket, text: v.text, byWorker: false, source: AGENT_SOURCE, actor: "agent:MCP", owner: v.owner });
+  if (g) return g;
+  const now = new Date().toISOString();
+  const row = getDb()
+    .insert(todos)
+    .values({ ticket: v.ticket.trim().toUpperCase(), text: v.text.trim().slice(0, 500), kind: "other", owner: v.owner ?? "me", status: "open", source: AGENT_SOURCE, refs: "[]", runId: null, createdAt: now, updatedAt: now })
+    .returning()
+    .get();
+  emitChange("todos");
+  return toTodo(row);
+}
+
+/**
+ * The delivery of a branch (push, merge request) as a todo of its own with those actions. It does not go through the todo gate
+ * (that folds a todo into a similar one of the ticket — the delivery would vanish into an unrelated todo); instead: an open todo that
+ * already pushes this branch is that todo (it gets the merge request, if it has none), else a new one. `created`: a new todo was made.
+ */
+export function deliveryTodo(v: { ticket: string; text: string; runId: number | null; branch: string; ops: TodoOp[] }): { todo: TodoView; created: boolean } {
+  const ticket = v.ticket.trim().toUpperCase();
+  const existing = listTodos({ status: "open" }).find((t) => t.ticket === ticket && t.ops.some((o) => o.type === "git-push" && o.branch === v.branch));
+  if (existing) {
+    const mr = v.ops.find((o) => o.type === "gitlab-open-mr");
+    const push = existing.ops.find((o) => o.type === "git-push");
+    if (mr && push && push.type === "git-push" && !existing.ops.some((o) => o.type === "gitlab-open-mr")) {
+      return { todo: setTodoOps(existing.id, [...existing.ops, { ...mr, source: push.remote }]), created: false };
+    }
+    return { todo: existing, created: false };
+  }
+  const now = new Date().toISOString();
+  const row = getDb()
+    .insert(todos)
+    .values({ ticket, text: v.text.trim().slice(0, 500), kind: "merge", owner: "me", status: "open", source: v.runId ? `Follow-up from W-${v.runId}` : "Delivery", refs: "[]", ops: JSON.stringify(cleanOps(v.ops, ticket)), runId: v.runId, createdAt: now, updatedAt: now })
+    .returning()
+    .get();
+  emitChange("todos");
+  return { todo: toTodo(row), created: true };
+}
+
+/** An agent ticks off a todo it wrote itself; one of anyone else's it can only report done (markWorkerDone: yours to close). */
+export function tickAgentTodo(id: number, note?: string | null): { todo: TodoView; ticked: boolean } {
+  const t = getTodo(id);
+  if (!t) throw new NotFoundError(`Todo ${todoRef(id)} not found.`);
+  if (t.source === AGENT_SOURCE) return { todo: setTodoStatus(id, "done", note?.trim() || "Erledigt vom Agenten"), ticked: true };
+  return { todo: markWorkerDone(id, "MCP", note ?? null), ticked: false };
+}
+
 export function addSessionTodo(v: { ticket: string; text: string }): Gated {
   const g = gateTodo({ ticket: v.ticket, text: v.text, byWorker: true, source: "Work-Session", actor: "you" });
   if (g) return g;

@@ -197,7 +197,7 @@ export function useJobDeps(deps: JobDeps | undefined): void {
 
 async function realDeps(): Promise<JobDeps> {
   if (override) return override;
-  const [{ addManualTodo, setTodoStatus, getTodo, setTodoNeedsInput, addFollowUp }, runner, { getRun }] = await Promise.all([import("@/lib/boards/store"), import("@/lib/work/runner"), import("@/lib/work/store")]);
+  const [{ addManualTodo, setTodoStatus, getTodo, setTodoNeedsInput, deliveryTodo }, runner, { getRun }] = await Promise.all([import("@/lib/boards/store"), import("@/lib/work/runner"), import("@/lib/work/store")]);
   return {
     addTodo: (v) => addManualTodo(v),
     dispatch: (todoId, v) => runner.dispatchTodo(todoId, { instruction: v.instruction }),
@@ -214,8 +214,8 @@ async function realDeps(): Promise<JobDeps> {
       const run = getRun(runId);
       const plan = run ? await runner.deliveryPlan(run) : null;
       if (!run || !plan) return null;
-      const t = addFollowUp({ ticket: run.ticket, text: plan.text, kind: "merge", parentId: null, workRunId: run.id, source: `Follow-up from W-${run.id}`, ops: plan.ops, owner: "me" });
-      return { todoId: t.id, text: plan.text };
+      const { todo } = deliveryTodo({ ticket: run.ticket, text: plan.text, runId: run.id, branch: run.branch ?? plan.branch, ops: plan.ops });
+      return { todoId: todo.id, text: todo.text };
     },
   };
 }

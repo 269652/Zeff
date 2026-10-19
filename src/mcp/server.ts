@@ -15,7 +15,7 @@ import {
   type WeeklyReport,
 } from "@/lib/entries";
 import { attributed } from "@/lib/boards/activity";
-import { getTodo, listTodos, markWorkerDone, setTodoStatus } from "@/lib/boards/store";
+import { addAgentTodo, getTodo, listTodos, markWorkerDone, setTodoStatus, tickAgentTodo } from "@/lib/boards/store";
 import { parseTodoRef, todoRef } from "@/lib/boards/shared";
 import { formatHours } from "@/lib/format";
 import { getTicketDefaultJob } from "@/lib/jira/store";
@@ -765,6 +765,28 @@ export function registerZeffTools(server: McpServer): void {
   );
 
   server.registerTool(
+    "add_todo",
+    {
+      title: "Write a todo on a ticket",
+      description:
+        "Write a step of your work as a todo on the ticket (the ticket key, e.g. PROJ-436) — the user sees it in their todo list and can add more. Write the steps you plan at the start, one line each, and tick them off as you finish them: complete_todo with tick: true (only todos you wrote yourself can be ticked by you). A todo that repeats an open one is that one. For what only the user (or someone else) can do: owner 'other' is for someone else, default 'me' is the user.",
+      inputSchema: z.object({
+        ticket: z.string().min(1).describe("The ticket key, e.g. 'PROJ-436'."),
+        text: z.string().min(1).describe("The step, one short line."),
+        owner: z.enum(["me", "other"]).optional().describe("Whose it is: me (the user, default) or other (someone else)."),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    },
+    async (args) =>
+      run(() => {
+        const off = pluginOff("todos");
+        if (off) return off;
+        const t = attributed("agent:MCP", () => addAgentTodo({ ticket: args.ticket, text: args.text, owner: args.owner }));
+        return ok(`${t.ref} (${t.ticket}) is on the ticket: ${t.text}${t.outcome ? ` (it repeats an open todo — that one is meant)` : ""}. Tick it off when it's done: complete_todo { todo: "${t.ref}", tick: true }.`);
+      }),
+  );
+
+  server.registerTool(
     "complete_todo",
     {
       title: "Complete a board todo",
@@ -773,6 +795,7 @@ export function registerZeffTools(server: McpServer): void {
         todo: z.string().min(1).describe("The todo, e.g. 'T-12'."),
         note: z.string().optional().describe("What settled it, one short line."),
         dismiss: z.boolean().optional().describe("Dismiss instead of done (it doesn't apply). Default false."),
+        tick: z.boolean().optional().describe("Tick it off as done — only a todo you wrote yourself with add_todo; anyone else's is only reported done (the user ticks it)."),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     },
@@ -782,6 +805,10 @@ export function registerZeffTools(server: McpServer): void {
         if (off) return off;
         const id = parseTodoRef(args.todo);
         if (id === null) return fail(`"${args.todo}" isn't a todo reference like T-12.`);
+        if (args.tick && !args.dismiss) {
+          const r = attributed("agent:MCP", () => tickAgentTodo(id, args.note ?? null));
+          return ok(r.ticked ? `${r.todo.ref} (${r.todo.ticket}) is ticked off: ${r.todo.text}` : `${r.todo.ref} (${r.todo.ticket}) isn't yours (you didn't write it with add_todo): reported done and highlighted — the user closes it: ${r.todo.text}`);
+        }
         const t = attributed("agent:MCP", () => (args.dismiss ? setTodoStatus(id, "dismissed", args.note ?? null) : markWorkerDone(id, "MCP", args.note ?? null)));
         return ok(args.dismiss ? `${t.ref} (${t.ticket}) is ${t.status}: ${t.text}` : `${t.ref} (${t.ticket}) is reported done and highlighted — it stays open, the user closes it: ${t.text}`);
       }),
