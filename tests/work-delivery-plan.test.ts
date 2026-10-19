@@ -98,3 +98,36 @@ test("deliveryPlan: a branch that is on the remote already needs only the merge 
   assert.deepEqual(after!.ops.map((o) => o.type), ["gitlab-open-mr"], "on the remote already: the merge request only");
   assert.match(after!.text, /merge request/i);
 });
+
+test("deliveryPlan: a branch with a merge request open already gets only its new commits pushed — no second merge request", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "plan-"));
+  git(dir, "init", "-q", "-b", "main");
+  git(dir, "config", "user.email", "t@example.com");
+  git(dir, "config", "user.name", "T");
+  fs.writeFileSync(path.join(dir, "a.txt"), "a");
+  git(dir, "add", ".");
+  git(dir, "commit", "-q", "-m", "base");
+  git(dir, "update-ref", "refs/remotes/origin/main", "HEAD");
+  git(dir, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
+  const base = git(dir, "rev-parse", "HEAD");
+  git(dir, "checkout", "-q", "-b", "feature/PROJ-8-open-mr");
+  fs.writeFileSync(path.join(dir, "b.txt"), "b");
+  git(dir, "add", ".");
+  git(dir, "commit", "-q", "-m", "feat(PROJ-8): b");
+  git(dir, "update-ref", "refs/remotes/origin/feature/PROJ-8-open-mr", "HEAD"); // pushed
+  fs.writeFileSync(path.join(dir, "c.txt"), "c");
+  git(dir, "add", ".");
+  git(dir, "commit", "-q", "-m", "feat(PROJ-8): c (the next round)");
+  const { saveRepo } = await import("@/lib/repos");
+  saveRepo({ name: "plan2", path: dir, gitlabProject: "grp/proj2", boards: [], tickets: [], instructions: "", delivery: "mr" } as never);
+  const { recordOpenedMr } = await import("@/lib/gitlab/store");
+  recordOpenedMr({ project: "grp/proj2", iid: 185, url: "https://git.example.com/grp/proj2/-/merge_requests/185", title: "feat(PROJ-8)", description: "", source: "feature/PROJ-8-open-mr", author: null });
+  const { deliveryPlan } = await import("@/lib/work/runner");
+  const run = { id: 6, cwd: dir, branch: "feature/PROJ-8-open-mr", baseSha: base, repo: dir, todoId: 0, ticket: "PROJ-8", entryLine: "C", summary: "s" } as never;
+  const plan = await deliveryPlan(run);
+  assert.deepEqual(plan!.ops.map((o) => o.type), ["git-push"], "push the new commit; the merge request exists");
+  assert.match(plan!.text, /!185|merge request.*(already|open)/i);
+  // Nothing new beyond what is pushed: nothing to deliver.
+  git(dir, "update-ref", "refs/remotes/origin/feature/PROJ-8-open-mr", "HEAD");
+  assert.equal(await deliveryPlan(run), null);
+});

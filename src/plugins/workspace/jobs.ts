@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { getSqlite } from "@/db";
 import { cellText, newId, newView, type Option, type Property } from "./model";
 import { addRow, createPage, getDatabase, getPage, rawRows, setCell, updatePage, updateSchema } from "./store";
@@ -90,12 +91,13 @@ export type JobLinks = { branch: { name: string; url: string | null } | null; mr
  * The links of a job's card. `local`: the branch the worker committed on, `remote`: the name it is pushed as; `pushed`: it is (the
  * delivery ran); `mrs`: the merge requests Zeff knows of the repo. A merge request of the branch means it is pushed.
  */
-export function jobLinks(v: { baseUrl: string; project: string; local: string; remote: string; pushed: boolean; mrs: { ref: string; url: string; state: string | null; branch: string | null }[] }): JobLinks {
+export function jobLinks(v: { baseUrl: string; project: string; local: string; remote: string; pushed: boolean; /** The ticket's key: its open merge request counts when the worker's own branch has none (the work went on the branch the merge request is from). */ ticket?: string; mrs: { ref: string; url: string; state: string | null; branch: string | null }[] }): JobLinks {
   const names = [v.remote, v.local].filter(Boolean);
   const mine = v.mrs.filter((m) => m.branch && names.includes(m.branch));
-  const mr = mine.find((m) => /opened/i.test(m.state ?? "")) ?? mine[0];
+  const ofTicket = v.ticket ? v.mrs.filter((m) => m.branch && /opened/i.test(m.state ?? "") && m.branch.toLowerCase().includes(`/${v.ticket!.toLowerCase()}-`)) : [];
+  const mr = mine.find((m) => /opened/i.test(m.state ?? "")) ?? mine[0] ?? ofTicket[0];
   const pushed = v.pushed || !!mr;
-  const name = pushed ? v.remote || v.local : v.local || v.remote;
+  const name = mr?.branch ?? (pushed ? v.remote || v.local : v.local || v.remote);
   const base = v.baseUrl.replace(/\/+$/, "");
   return {
     branch: name ? { name, url: pushed && base && v.project ? `${base}/${v.project}/-/tree/${encodeURI(name)}` : null } : null,
@@ -164,6 +166,7 @@ export async function jobPanels(rows: { id: number; cells: Record<string, unknow
         remote: push && push.type === "git-push" ? push.remote : mrOp && mrOp.type === "gitlab-open-mr" ? mrOp.source : "",
         // (Run actions are taken off the todo: a merge request left without its push means the push is done.)
         pushed: todo?.status === "done" || (!!mrOp && !push),
+        ticket: run.ticket,
         mrs: mrs.filter((m) => !project || m.project === project),
       });
       if (links.branch || links.mr) panel.links = links;
@@ -241,11 +244,13 @@ export type JobDeps = {
   /** A todo for the job (the worker's handle on it) — its id. */
   addTodo: (v: { ticket: string; text: string }) => { id: number };
   /** The todo handed to a worker with this instruction — its run's id. */
-  dispatch: (todoId: number, v: { instruction: string }) => { id: number };
+  dispatch: (todoId: number, v: { instruction: string; /** Go on in this run's session (its folder, branch and everything it knows) instead of starting from scratch. */ continueRun?: number }) => { id: number };
   /** A run as it stands. */
   run: (id: number) => { status: string; todoId: number; summary: string | null; error: string | null; result: string | null } | undefined;
   /** The todo not needed any more. */
   closeTodo: (todoId: number) => void;
+  /** The earlier worker of a job: its todo, and whether its session can be gone on in (finished well, its folder still there). */
+  previous?: (runId: number) => { todoId: number; canContinue: boolean } | undefined;
   /** What the worker on this todo asked (todo_needs_input) and still waits for — none: it isn't waiting. */
   asking?: (todoId: number) => string | null;
   /** The question answered: the todo no longer waits. */
@@ -267,8 +272,12 @@ async function realDeps(): Promise<JobDeps> {
   const [{ addManualTodo, setTodoStatus, getTodo, setTodoNeedsInput, deliveryTodo }, runner, { getRun }] = await Promise.all([import("@/lib/boards/store"), import("@/lib/work/runner"), import("@/lib/work/store")]);
   return {
     addTodo: (v) => addManualTodo(v),
-    dispatch: (todoId, v) => runner.dispatchTodo(todoId, { instruction: v.instruction }),
+    dispatch: (todoId, v) => runner.dispatchTodo(todoId, { instruction: v.instruction, ...(v.continueRun ? { continueRun: v.continueRun } : {}) }),
     run: (id) => getRun(id),
+    previous: (runId) => {
+      const r = getRun(runId);
+      return r ? { todoId: r.todoId, canContinue: r.status === "done" && !!r.sessionId && !!r.cwd && fs.existsSync(r.cwd) } : undefined;
+    },
     closeTodo: (id) => void setTodoStatus(id, "dismissed"),
     asking: (todoId) => getTodo(todoId)?.needsInput ?? null,
     answered: (todoId) => setTodoNeedsInput(todoId, null),
@@ -324,6 +333,7 @@ export async function jobInstruction(rowId: number): Promise<string> {
   const task = String(row.props[JOB.instruction] ?? "").trim() || db0.schema.agents?.defaultInstruction || "";
   const ticket = await linkedTicket(rowId);
   const page = docToMarkdown(row.content).trim();
+  const again = /^## Früheres Ergebnis/m.test(page);
   const hints = hintsFor(row.title, `${task}\n${page}`);
   const db = getDatabase(row.dbId)!;
   return [
@@ -342,6 +352,8 @@ export async function jobInstruction(rowId: number): Promise<string> {
     "- Fehlt dir etwas oder musst du etwas entscheiden: ruf zuerst todo_needs_input mit deiner Frage auf (ein, zwei Zeilen), dann stell sie und warte — der Nutzer antwortet in der Zeile, und du machst weiter. Rate nicht.",
     `- Todos am Ticket: Schau mit list_todos, was am Ticket${ticket.key ? ` ${ticket.key}` : ""} schon offen ist (der Nutzer ergänzt dort laufend welche — arbeite alle offenen ab, nicht nur deine). Schreib deine geplanten Schritte mit add_todo (eine kurze Zeile je Schritt) aufs Ticket und hake jeden erledigten mit complete_todo (tick: true) ab. So sieht der Nutzer, was getan ist und was fehlt, und kann dich noch eine Runde drehen lassen.`,
     "- Code: Arbeite auf einem Feature-Branch nach dem Schema feature/<TICKET>-<kurze-beschreibung> (fix/<TICKET>-… bei Fehlern; <TICKET> ist der Schlüssel des Tickets, kleingeschrieben und kurz die Beschreibung). Passt der Branch-Name, den Zeff angelegt hat, nicht zur Änderung (2–4 Wörter, die beschreiben, was du im Code änderst — nicht der Titel des Tickets, nicht „Ergebnis geprüft“), benenne ihn am Ende um: git branch -m feature/<TICKET>-<kurze-beschreibung>. Committe dort; du musst nicht pushen und keinen Merge Request anlegen — Zeff schlägt dem Nutzer den Push und den Merge Request als Aktion vor, wenn du fertig bist. Du darfst also nicht pushen.",
+    "- Das Feld „Ergebnis“ beschreibt immer den jetzigen Stand — schreib es in jeder Runde neu (was jetzt auf dem Branch und im Merge Request ist, was seit der letzten Runde dazugekommen ist), auch wenn du nichts geändert hast.",
+    ...(again ? ["- Das ist eine weitere Runde: Der frühere Stand steht unter „Früheres Ergebnis“ auf der Seite. Mach auf demselben Branch weiter und schreib das Ergebnis für den Stand nach dieser Runde."] : []),
     "- Beende mit einer kurzen Zusammenfassung.",
   ]
     .join("\n")
@@ -380,12 +392,17 @@ export async function dispatchJob(rowId: number, deps?: JobDeps, opts: { extra?:
     const d = deps ?? (await realDeps());
     await keepEarlierResult(rowId);
     const instruction = [await jobInstruction(rowId), opts.extra].filter(Boolean).join("\n\n");
-    const todo = d.addTodo({ ticket: (await linkedTicket(rowId)).key, text: row.title });
-    const run = d.dispatch(todo.id, { instruction });
+    // A job that had a worker goes on in ITS session — same todo, same worktree and branch (the one the merge request is from), all it knew —
+    // not in a new worktree on a new branch next to it.
+    const earlierId = runOf(row.props[JOB.run]);
+    const earlier = earlierId ? d.previous?.(earlierId) : undefined;
+    const goOn = earlier?.canContinue ? earlier : undefined;
+    const todo = goOn ? { id: goOn.todoId } : d.addTodo({ ticket: (await linkedTicket(rowId)).key, text: row.title });
+    const run = d.dispatch(todo.id, { instruction, ...(goOn ? { continueRun: earlierId! } : {}) });
     setCell(rowId, JOB.run, `W-${run.id}`);
     setCell(rowId, JOB.question, null);
     setState(rowId, "In Arbeit");
-    jobLog(rowId, `→ In Arbeit (worker W-${run.id}, todo T-${todo.id})`);
+    jobLog(rowId, `→ In Arbeit (worker W-${run.id}, todo T-${todo.id}${goOn ? `, goes on in the session of W-${earlierId}` : ""})`);
     return { run: run.id, todo: todo.id };
   } finally {
     release(rowId);

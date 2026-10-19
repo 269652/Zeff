@@ -395,3 +395,48 @@ test("the card follows the branch: when the named delivery is closed, the open t
   assert.deepEqual(panel.delivery?.ops.map((o) => o.type), ["gitlab-open-mr"]);
   assert.equal(panel.delivery?.status, "open");
 });
+
+test("a job that had a worker goes on in its session: same todo, same branch and folder — no new branch, no new todo", async () => {
+  const w = await import("@/plugins/workspace/store");
+  const { addJob, dispatchJob, settleJobs, setState, stateOf, JOB } = await import("@/plugins/workspace/jobs");
+  const jobs = await autoJobs();
+  const id = addJob(jobs, { title: "Zweite Runde", instruction: "Baue es." });
+  const { deps, runs, calls } = fakeDeps();
+  const continued: { todo: number; run: number | undefined }[] = [];
+  let canContinue = true;
+  const d = {
+    ...deps,
+    dispatch: (todoId: number, v: { instruction: string; continueRun?: number }) => {
+      continued.push({ todo: todoId, run: v.continueRun });
+      return deps.dispatch(todoId, v);
+    },
+    previous: (runId: number) => (runs.has(runId) ? { todoId: runs.get(runId)!.todoId, canContinue } : undefined),
+  };
+  const first = await dispatchJob(id, d);
+  runs.get(first.run)!.status = "done";
+  await settleJobs(d);
+  assert.equal(stateOf(id), "Zur Prüfung");
+  // The user moves it back to Ready: the next round goes on in that session.
+  setState(id, "Ready");
+  const second = await dispatchJob(id, d);
+  assert.equal(second.todo, first.todo, "the same todo");
+  assert.deepEqual(continued.at(-1), { todo: first.todo, run: first.run }, "continuing the first worker's session");
+  assert.equal(calls.todos.length, 1, "no second todo was made");
+  assert.match(calls.instructions.at(-1)!, /Ergebnis/, "told to write the result anew for the current state");
+  assert.match(String(w.getPage(id)!.props[JOB.run]), new RegExp(`W-${second.run}`));
+  // No session to go on in (the folder is gone): a fresh start like the first.
+  runs.get(second.run)!.status = "done";
+  await settleJobs(d);
+  canContinue = false;
+  setState(id, "Ready");
+  const third = await dispatchJob(id, d);
+  assert.notEqual(third.todo, first.todo);
+  assert.equal(continued.at(-1)!.run, undefined);
+});
+
+test("links: the ticket's open merge request is shown when the worker's own branch has none", async () => {
+  const { jobLinks } = await import("@/plugins/workspace/jobs");
+  const l = jobLinks({ baseUrl: "https://git.example.com", project: "grp/proj", local: "feature/PROJ-9-responsive-fuer-3", remote: "", pushed: false, ticket: "PROJ-9", mrs: [{ ref: "!185", url: "https://git.example.com/grp/proj/-/merge_requests/185", state: "opened", branch: "feature/PROJ-9-svg-direct-output" }] });
+  assert.equal(l.mr?.label, "!185");
+  assert.deepEqual(l.branch, { name: "feature/PROJ-9-svg-direct-output", url: "https://git.example.com/grp/proj/-/tree/feature/PROJ-9-svg-direct-output" });
+});

@@ -711,13 +711,16 @@ export async function deliveryPlan(r: WorkRun, res?: { summary?: string; entry?:
   // Already on the remote (the remote-tracking branch is at this commit — pushed by you or by an earlier step): only the merge request is left.
   const head = await gitAsync(r.cwd, ["rev-parse", "HEAD"]).catch(() => "");
   const onRemote = !!head && (await gitAsync(r.cwd, ["rev-parse", "--verify", "--quiet", `refs/remotes/origin/${remote}`]).catch(() => "")) === head;
+  // A merge request is open for this branch already (an earlier round's): the new commits are only pushed to it.
+  const openMr = direct ? undefined : listGitlabItems({ kind: "mr", limit: 500 }).find((m) => m.project === repo!.gitlabProject && m.branch === remote && /opened/i.test(m.state ?? ""));
   const ops: TodoOp[] = direct
     ? [{ type: "git-merge-main", repo: r.repo, branch: local, target: base }]
     : [
         ...(onRemote ? [] : [{ type: "git-push" as const, repo: r.repo, branch: local, remote, target: base, title, description }]),
-        { type: "gitlab-open-mr" as const, repo: r.repo, project: repo!.gitlabProject!, source: remote, target: base, title, description },
+        ...(openMr ? [] : [{ type: "gitlab-open-mr" as const, repo: r.repo, project: repo!.gitlabProject!, source: remote, target: base, title, description }]),
       ];
-  const text = direct ? `Merge ${local} into ${base} and push` : onRemote ? `Open the merge request for ${remote} into ${base}` : `Deliver ${local}: push as ${remote}, merge request into ${base}`;
+  if (!ops.length) return null; // (pushed already, merge request open: nothing left to deliver)
+  const text = direct ? `Merge ${local} into ${base} and push` : openMr ? `Push the new commits of ${local} to ${remote} (${openMr.ref} is open already)` : onRemote ? `Open the merge request for ${remote} into ${base}` : `Deliver ${local}: push as ${remote}, merge request into ${base}`;
   return { text, ops, branch: direct ? local : remote, local, direct };
 }
 
