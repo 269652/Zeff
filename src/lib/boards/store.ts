@@ -951,12 +951,15 @@ export function deliveryTodo(v: { ticket: string; text: string; runId: number | 
   return { todo: toTodo(row), created: true };
 }
 
-/** An agent ticks off a todo it wrote itself; one of anyone else's it can only report done (markWorkerDone: yours to close). */
+/**
+ * An agent ticks off a todo it has done — its own, and one you added on the ticket (you let it work through them): done, with its note,
+ * and you can open it again. A closed one stays as it is.
+ */
 export function tickAgentTodo(id: number, note?: string | null): { todo: TodoView; ticked: boolean } {
   const t = getTodo(id);
   if (!t) throw new NotFoundError(`Todo ${todoRef(id)} not found.`);
-  if (t.source === AGENT_SOURCE) return { todo: setTodoStatus(id, "done", note?.trim() || "Erledigt vom Agenten"), ticked: true };
-  return { todo: markWorkerDone(id, "MCP", note ?? null), ticked: false };
+  if (t.status !== "open") return { todo: t, ticked: false };
+  return { todo: setTodoStatus(id, "done", note?.trim() || "Erledigt vom Agenten"), ticked: true };
 }
 
 export function addSessionTodo(v: { ticket: string; text: string }): Gated {

@@ -795,7 +795,7 @@ export function registerZeffTools(server: McpServer): void {
         todo: z.string().min(1).describe("The todo, e.g. 'T-12'."),
         note: z.string().optional().describe("What settled it, one short line."),
         dismiss: z.boolean().optional().describe("Dismiss instead of done (it doesn't apply). Default false."),
-        tick: z.boolean().optional().describe("Tick it off as done — only a todo you wrote yourself with add_todo; anyone else's is only reported done (the user ticks it)."),
+        tick: z.boolean().optional().describe("Tick it off as done (it is closed, the user can open it again) — for a todo you really did: your own (add_todo) or one the user added on the ticket. Not for what only the user can do."),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     },
@@ -807,7 +807,7 @@ export function registerZeffTools(server: McpServer): void {
         if (id === null) return fail(`"${args.todo}" isn't a todo reference like T-12.`);
         if (args.tick && !args.dismiss) {
           const r = attributed("agent:MCP", () => tickAgentTodo(id, args.note ?? null));
-          return ok(r.ticked ? `${r.todo.ref} (${r.todo.ticket}) is ticked off: ${r.todo.text}` : `${r.todo.ref} (${r.todo.ticket}) isn't yours (you didn't write it with add_todo): reported done and highlighted — the user closes it: ${r.todo.text}`);
+          return ok(r.ticked ? `${r.todo.ref} (${r.todo.ticket}) is ticked off: ${r.todo.text}` : `${r.todo.ref} (${r.todo.ticket}) is ${r.todo.status} already: ${r.todo.text}`);
         }
         const t = attributed("agent:MCP", () => (args.dismiss ? setTodoStatus(id, "dismissed", args.note ?? null) : markWorkerDone(id, "MCP", args.note ?? null)));
         return ok(args.dismiss ? `${t.ref} (${t.ticket}) is ${t.status}: ${t.text}` : `${t.ref} (${t.ticket}) is reported done and highlighted — it stays open, the user closes it: ${t.text}`);

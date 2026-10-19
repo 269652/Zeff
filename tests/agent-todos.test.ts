@@ -39,11 +39,13 @@ test("add_todo: the agent's steps as todos on the ticket, none twice; complete_t
   const after = listTodos({ status: "all" }).find((x) => x.ref === ref)!;
   assert.equal(after.status, "done", "its own todo: ticked off");
 
-  // A todo of yours: only reported done (you tick it).
+  // A todo of yours that the agent did: ticked off too (you let it work through the ticket's todos); and one already closed stays.
   const yours = addManualTodo({ ticket: "PROJ-1", text: "Backend dazu abstimmen" });
-  const r = await t.complete_todo({ todo: yours.ref, tick: true });
-  assert.equal(listTodos({ status: "all" }).find((x) => x.id === yours.id)!.status, "open", "not closed behind your back");
-  assert.match(text(r), /user closes|reported done/i);
+  const r = await t.complete_todo({ todo: yours.ref, note: "abgestimmt", tick: true });
+  assert.ok(!r.isError, text(r));
+  assert.equal(listTodos({ status: "all" }).find((x) => x.id === yours.id)!.status, "done");
+  const again = await t.complete_todo({ todo: yours.ref, tick: true });
+  assert.match(text(again), /already/i);
 });
 
 /**
