@@ -80,6 +80,7 @@ const viewShape = {
   chartKind: z.enum(["bar", "column", "line", "pie"]).optional().describe("Chart view: how it is drawn."),
   chartCalc: z.enum(["count", "sum", "avg"]).optional().describe("Chart view: count rows, or the sum / average of chartProp."),
   chartProp: z.string().nullable().optional().describe("Chart view: the number property summed or averaged."),
+  card: z.string().nullable().optional().describe("Board / gallery view: how a card looks — a template: tags <row gap=2> <col> <grow/> <b> <muted> <small> <clamp lines=3> <chip> <bar value=.. max=..> <img src=.. h=..> <a href=..>, values {{ title }} {{ key }} {{ Property }} ({{ [Name with spaces] }}), filters {{ Status | chip }} {{ Due | date }} {{ Due | relative }} {{ Hours | hours }} {{ x | truncate(40) }} {{ x | default(\"–\") }}, and {{#if Due < today()}}…{{#else}}…{{/if}} / {{#each Labels}}{{ this }}{{/each}}. Null or empty: the automatic card."),
   hidden: z.array(z.string()).optional().describe("Properties this view does not show."),
   order: z.array(z.string()).optional().describe('The columns in order, property names; "title" is the title column and may be anywhere.'),
   sorts: z.array(z.object({ property: z.string(), dir: z.enum(["asc", "desc"]).optional() })).optional(),

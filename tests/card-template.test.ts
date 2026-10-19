@@ -101,3 +101,25 @@ test("a view keeps its card template (cut to a sane length); other values are dr
   assert.equal(s.views[1].card, undefined);
   assert.equal(s.views[2].card!.length, 8000);
 });
+
+test("an agent sets a view's card template through the schema operations; one with errors is refused", async () => {
+  const { applyOps } = await import("@/plugins/workspace/schema-ops");
+  const base = normalizeSchema({ titleName: "Ticket", properties: [newProperty("Status", "status")], views: [{ id: "v", name: "Board", type: "board", filter: { op: "and", rules: [] }, sorts: [], hidden: [], groupBy: undefined }] });
+  const ok = applyOps(base, [{ op: "update_view", view: "Board", card: "<b>{{ title }}</b>" }] as never, { related: () => null });
+  assert.equal(ok.schema.views[0].card, "<b>{{ title }}</b>");
+  const cleared = applyOps(ok.schema, [{ op: "update_view", view: "Board", card: null }] as never, { related: () => null });
+  assert.equal(cleared.schema.views[0].card, undefined);
+  assert.throws(() => applyOps(base, [{ op: "update_view", view: "Board", card: "<row><b>x</row>" }] as never, { related: () => null }), /card template has errors/);
+});
+
+test("a starter template is made of the database's own properties and parses cleanly", async () => {
+  const { starterTemplate } = await import("@/plugins/workspace/card-template");
+  const src = starterTemplate(props);
+  assert.match(src, /\{\{ title \}\}/);
+  assert.match(src, /Status \| chip/);
+  assert.match(src, /\[Hours booked\]|Hours/);
+  assert.deepEqual(parseTemplate(src).errors, []);
+  const out = renderTemplate(parseTemplate(src).nodes, cardScope({ row: row({ st: "o1", d: "2026-10-23", h: 2 }), props, titleName: "Ticket", now: NOW }));
+  assert.deepEqual(out.errors, []);
+  assert.match(vnodeToString(out.nodes), /In Arbeit/);
+});

@@ -6121,5 +6121,22 @@
   "Delivery proposed.": "Auslieferung vorgeschlagen.",
   "Look at the worker's branch and propose push and merge request": "Den Branch des Workers ansehen und Push und Merge Request vorschlagen",
   "Propose delivery": "Auslieferung vorschlagen",
-  "Merge into main": "In main mergen"
+  "Merge into main": "In main mergen",
+  "Card — how the cards look": "Karte — wie die Karten aussehen",
+  "Write the card as a template. Without one, Zeff makes the card by itself from the row's values.": "Schreib die Karte als Vorlage. Ohne eine macht Zeff die Karte selbst aus den Werten der Zeile.",
+  "Start from": "Beginnen mit",
+  "Hide the reference": "Referenz ausblenden",
+  "Reference": "Referenz",
+  "Names you can use:": "Namen, die du verwenden kannst:",
+  "(automatic)": "(automatisch)",
+  "Card template": "Kartenvorlage",
+  "The automatic card — write a template or start from one of the examples.": "Die automatische Karte — schreib eine Vorlage oder beginne mit einem der Beispiele.",
+  "Fix the errors to see the preview.": "Behebe die Fehler, um die Vorschau zu sehen.",
+  "No rows to show it on yet.": "Noch keine Zeilen, an denen man es zeigen kann.",
+  "Line {n}": "Zeile {n}",
+  "Use the automatic card": "Automatische Karte verwenden",
+  "How the cards look — a card template": "Wie die Karten aussehen — eine Kartenvorlage",
+  "From my fields": "Aus meinen Feldern",
+  "Compact": "Kompakt",
+  "Cover": "Titelbild"
 }

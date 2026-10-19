@@ -1,7 +1,10 @@
 "use client";
 
 import { useT } from "@/components/I18nProvider";
+import { parsedTemplate, renderTemplate } from "../card-template";
 import { cellText, dueTone, type Property, type Row } from "../model";
+import { scopeFor } from "./card-editor";
+import { TemplateBody } from "./card-template";
 import { JobPanel } from "./job-panel";
 import { CardKey, CardLead, CardTodos, extrasOf, SubtaskBadge } from "./card-extras";
 import { CellView, type CellCtx } from "./cells";
@@ -43,7 +46,7 @@ function coverOf(props: Property[], row: Row): { prop: Property; src: string } |
   return null;
 }
 
-export function RowCard({ row, visible, all, ctx, mode }: { row: Row; visible: Property[]; /** Every property of the database: a cover may be one that is not shown. */ all?: Property[]; ctx: CellCtx; mode: "gallery" | "board" }) {
+export function RowCard({ row, visible, all, ctx, mode, template }: { row: Row; visible: Property[]; /** Every property of the database: a cover may be one that is not shown. */ all?: Property[]; ctx: CellCtx; mode: "gallery" | "board"; /** The view's card template: how this card looks instead of the automatic one. */ template?: string }) {
   const t = useT();
   const gallery = mode === "gallery";
   const cover = coverOf(all ?? visible, row);
@@ -58,6 +61,18 @@ export function RowCard({ row, visible, all, ctx, mode }: { row: Row; visible: P
   const meta = metaAll.slice(0, metaMax);
   const more = metaAll.length - meta.length;
   const x = extrasOf(ctx.data, row.id);
+  // The view's own card template (a template with an error is not used: the automatic card shows, the editor says what is wrong).
+  const tpl = template ? parsedTemplate(template) : null;
+  if (tpl && !tpl.errors.length) {
+    const scope = scopeFor(row, ctx.data, all ?? visible, x.key);
+    return (
+      <>
+        <TemplateBody nodes={renderTemplate(tpl.nodes, scope).nodes} />
+        {!gallery && x.key && ctx.data.extras?.todosOn && <CardTodos k={x.key} ticket={x.ticket} />}
+        {!gallery && ctx.data.extras?.jobs?.[row.id] && <JobPanel rowId={row.id} panel={ctx.data.extras.jobs[row.id]} todosShown={!!x.key && !!ctx.data.extras.todosOn} />}
+      </>
+    );
+  }
   // A date's alarm (as Kanban's ⏰): red past it, amber on the day — none once the row is done.
   const status = ctx.data.schema.properties.find((p) => p.type === "status");
   const done = !!status && status.options?.find((o) => o.id === row.cells[status.id])?.group === "done";

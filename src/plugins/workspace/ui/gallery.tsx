@@ -22,9 +22,9 @@ const PINNED = "pinned";
 const IMAGE = "newsimage";
 const COLOR = "color";
 
-type Props = { rows: Row[]; visible: Property[]; ctx: CellCtx; openRow: (id: number) => void; add: (cells: Record<string, unknown>, title: string) => Promise<number | null>; locked: boolean };
+type Props = { rows: Row[]; visible: Property[]; ctx: CellCtx; openRow: (id: number) => void; add: (cells: Record<string, unknown>, title: string) => Promise<number | null>; locked: boolean; /** The view's card template. */ template?: string };
 
-export function GalleryView({ rows, visible, ctx, openRow, add, locked }: Props) {
+export function GalleryView({ rows, visible, ctx, openRow, add, locked, template }: Props) {
   const t = useT();
   const schema = ctx.data.schema;
   const pinnable = schema.properties.some((p) => p.id === PINNED);
@@ -38,7 +38,7 @@ export function GalleryView({ rows, visible, ctx, openRow, add, locked }: Props)
   const grid = (list: Row[]) => (
     <div className="ws-masonry">
       {list.map((r) => (
-        <NoteCard key={r.id} row={r} visible={cardProps} ctx={ctx} openRow={openRow} pinnable={pinnable && !locked} />
+        <NoteCard key={r.id} row={r} visible={cardProps} ctx={ctx} openRow={openRow} pinnable={pinnable && !locked} template={template} />
       ))}
     </div>
   );
@@ -76,7 +76,7 @@ export function GalleryView({ rows, visible, ctx, openRow, add, locked }: Props)
 }
 
 /** A note's card: its colour, its pin, its fields, its text and checklist (ticked in place). */
-function NoteCard({ row, visible, ctx, openRow, pinnable }: { row: Row; visible: Property[]; ctx: CellCtx; openRow: (id: number) => void; pinnable: boolean }) {
+function NoteCard({ row, visible, ctx, openRow, pinnable, template }: { row: Row; visible: Property[]; ctx: CellCtx; openRow: (id: number) => void; pinnable: boolean; template?: string }) {
   const t = useT();
   const colorProp = ctx.data.schema.properties.find((p) => p.id === COLOR);
   const color = colorProp?.options?.find((o) => o.id === row.cells[COLOR])?.color;
@@ -115,12 +115,12 @@ function NoteCard({ row, visible, ctx, openRow, pinnable }: { row: Row; visible:
           📌
         </button>
       )}
-      {picture && pictureOk && (
+      {picture && pictureOk && !template && (
         // eslint-disable-next-line @next/next/no-img-element -- an article's picture from anywhere on the web: no loader
         <img src={picture} alt="" loading="lazy" referrerPolicy="no-referrer" className="mb-2 max-h-44 w-full rounded-md object-cover" onError={() => setPictureOk(false)} />
       )}
-      <RowCard row={row} visible={visible} ctx={ctx} mode="gallery" />
-      {lines.length > 0 && (
+      <RowCard row={row} visible={visible} all={template ? ctx.data.schema.properties : undefined} ctx={ctx} mode="gallery" template={template} />
+      {lines.length > 0 && !template && (
         <ul className="space-y-0.5 text-sm" onClick={(e) => e.stopPropagation()}>
           {shown.map((l, i) =>
             l.kind === "task" ? (

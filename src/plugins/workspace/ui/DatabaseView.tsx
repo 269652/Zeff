@@ -18,6 +18,7 @@ import { ProtectDialog } from "./protect";
 import { TimelineView } from "./timeline";
 import { ChartView } from "./view-chart";
 import { TodoView } from "./todo-view";
+import { CardEditor } from "./card-editor";
 import { FilterEditor, PropertiesMenu, SchemaModal, SortEditor } from "./db-menus";
 import { Dropdown, MenuItem, Modal, useSortable } from "./kit";
 import { PipelineEditor, PipelineSummaries } from "./pipeline";
@@ -241,6 +242,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const [current, setCurrent] = useState(viewId ?? "");
   const [q, setQ] = useState("");
   const [schemaOpen, setSchemaOpen] = useState(false);
+  const [cardOpen, setCardOpen] = useState(false);
   const search = useSearchParams();
   // ?steps=1 (a derived database just made): its Sources & steps open, to say what it keeps.
   const [pipelineOpen, setPipelineOpen] = useState(() => search.get("steps") === "1");
@@ -567,6 +569,11 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           </button>
         )}
         {!narrow && propsDropdown}
+        {(view.type === "board" || view.type === "gallery") && (
+          <button type="button" className={`btn btn-sm ${view.card ? "text-indigo-600 dark:text-indigo-400" : ""}`} title={t("How the cards look — a card template")} onClick={() => setCardOpen(true)}>
+            {t("Card")}
+          </button>
+        )}
         <Dropdown label="⋯" align="right" title={t("More")} className="btn btn-sm">
           {(close) => (
             <>
@@ -729,7 +736,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
       {view.type === "table" && <TableView sel={selection} view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />}
       {view.type === "board" && <BoardView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} newRow={newRow} />}
       {view.type === "list" && <ListView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} />}
-      {view.type === "gallery" && <GalleryView rows={rows} visible={visible} ctx={ctx} openRow={openRow} add={(cells, title) => api.addRow(cells, title)} locked={!!data.locked || !!data.noNewRows} />}
+      {view.type === "gallery" && <GalleryView rows={rows} visible={visible} ctx={ctx} openRow={openRow} add={(cells, title) => api.addRow(cells, title)} locked={!!data.locked || !!data.noNewRows} template={view.card} />}
       {view.type === "timeline" && <TimelineView view={view} rows={rows} schema={schema} api={api} openRow={openRow} locked={!!data.locked} />}
       {view.type === "todo" && <TodoView dbId={dbId} rows={rows} schema={schema} api={api} openRow={openRow} locked={!!data.locked} canAdd={!data.noNewRows} />}
       {view.type === "chart" && <ChartView view={view} rows={rows} schema={schema} />}
@@ -768,6 +775,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
       {protectOpen && <ProtectDialog schema={schema} onSave={api.saveSchema} onClose={() => setProtectOpen(false)} />}
       {repeatOpen && <RecurringDialog dbId={dbId} schema={schema} templates={data.templates} onClose={() => setRepeatOpen(false)} />}
       {formOpen && <FormDesigner schema={schema} dbId={dbId} onSave={api.saveSchema} onClose={() => setFormOpen(false)} />}
+      {cardOpen && <CardEditor view={view} schema={schema} rows={rows} data={data} keys={data.extras?.keys ?? {}} onSave={(card) => setView({ ...view, card })} onClose={() => setCardOpen(false)} />}
       {schemaOpen && <SchemaModal schema={schema} data={data} dbId={dbId} databases={databases} onSave={api.saveSchema} onClose={() => setSchemaOpen(false)} />}
       {agentsOpen && <AgentsModal schema={schema} dbId={dbId} onSaved={() => api.reload()} onClose={() => setAgentsOpen(false)} />}
       {receiveOpen && <ReceiveModal schema={schema} dbId={dbId} onSaved={() => api.reload()} onClose={() => setReceiveOpen(false)} />}
@@ -1240,7 +1248,7 @@ function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, new
               <span className="absolute top-1 right-1 rounded bg-white/90 opacity-0 group-hover/card:opacity-100 dark:bg-zinc-900/90" onClick={(e) => e.stopPropagation()}>
                 <RowMenu row={r} api={api} />
               </span>
-              <RowCard row={r} visible={visible.filter((p) => p.id !== gp.id)} all={schema.properties} ctx={ctx} mode="board" />
+              <RowCard row={r} visible={visible.filter((p) => p.id !== gp.id)} all={schema.properties} ctx={ctx} mode="board" template={view.card} />
             </div>
             {/* A subtask's shadow card under it on hover (not under a subtask: one level). */}
             {!ctx.data.locked && !isSubtask(r) && <SubtaskGhost parentId={r.id} after={() => void api.reload()} />}
