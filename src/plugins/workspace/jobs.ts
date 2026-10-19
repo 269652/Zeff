@@ -8,13 +8,14 @@ import { addRow, createPage, getDatabase, getPage, rawRows, setCell, updatePage,
  * itself; what comes back waits for your check. The fixed property ids let the code, the AI over the MCP and the views meet.
  */
 
-export const JOB = { instruction: "job_instruction", status: "job_status", result: "job_result", run: "job_run", by: "job_by" } as const;
+export const JOB = { instruction: "job_instruction", status: "job_status", result: "job_result", run: "job_run", by: "job_by", question: "job_question", delivery: "job_delivery" } as const;
 
 /** The states of a job, with the phase each sits in (a board's columns). Incoming tickets land in "Eingang"; "Ready" is the column agents take from. */
 export const JOB_STATES = [
   { name: "Eingang", group: "todo", color: "gray" },
   { name: "Ready", group: "todo", color: "purple" },
   { name: "In Arbeit", group: "doing", color: "blue" },
+  { name: "Rückfrage", group: "doing", color: "orange" },
   { name: "Zur Prüfung", group: "doing", color: "yellow" },
   { name: "Fertig", group: "done", color: "green" },
   { name: "Fehlgeschlagen", group: "todo", color: "red" },
@@ -34,9 +35,11 @@ export function createJobsDatabase(parentId: number | null, title = "Aufträge f
     { id: JOB.result, name: "Ergebnis", type: "markdown" },
     { id: JOB.run, name: "Worker", type: "text" },
     { id: JOB.by, name: "Ausgelöst von", type: "text" },
+    { id: JOB.question, name: "Rückfrage", type: "text" },
+    { id: JOB.delivery, name: "Auslieferung", type: "text" },
   ];
-  const board = { ...newView("Nach Status", "board"), groupBy: JOB.status, hidden: [JOB.run, JOB.by] };
-  const table = { ...newView("Tabelle", "table"), order: ["title", JOB.status, JOB.instruction, JOB.result, JOB.run, JOB.by] };
+  const board = { ...newView("Nach Status", "board"), groupBy: JOB.status, hidden: [JOB.run, JOB.by, JOB.question, JOB.delivery] };
+  const table = { ...newView("Tabelle", "table"), order: ["title", JOB.status, JOB.question, JOB.instruction, JOB.result, JOB.delivery, JOB.run, JOB.by] };
   return createPage({ kind: "database", title, icon: "🤖", parentId, schema: { titleName: "Auftrag", properties, views: [board, table], jobs: true, receive: { prop: JOB.status, value: options[0].id } } });
 }
 
@@ -61,11 +64,23 @@ export function ensureJobStates(dbId: number): void {
     const at = Math.max(0, options.findIndex((o) => o.name === "Eingang") + 1);
     options = [...options.slice(0, at), { id: newId("o"), name: "Ready", color: "purple", group: "todo" as const }, ...options.slice(at)];
   }
+  if (!options.some((o) => o.name === "Rückfrage")) {
+    const at = Math.max(0, options.findIndex((o) => o.name === "In Arbeit") + 1);
+    options = [...options.slice(0, at), { id: newId("o"), name: "Rückfrage", color: "orange", group: "doing" as const }, ...options.slice(at)];
+  }
+  // The fields a question and a delivery are kept in.
+  const have = new Set(d.schema.properties.map((p) => p.id));
+  const extra: Property[] = [
+    ...(have.has(JOB.question) ? [] : [{ id: JOB.question, name: "Rückfrage", type: "text" as const }]),
+    ...(have.has(JOB.delivery) ? [] : [{ id: JOB.delivery, name: "Auslieferung", type: "text" as const }]),
+  ];
   const inbox = options.find((o) => o.name === "Eingang");
   const receive = d.schema.receive ?? (inbox ? { prop: JOB.status, value: inbox.id } : undefined);
-  const changed = options !== status.options || receive !== d.schema.receive;
+  const changed = options !== status.options || receive !== d.schema.receive || extra.length > 0;
   if (!changed) return;
-  updateSchema(dbId, { ...d.schema, properties: d.schema.properties.map((p) => (p.id === JOB.status ? { ...p, options } : p)), ...(receive ? { receive } : {}) });
+  // (A board view hides them: the card has its own panel for both.)
+  const views = extra.length ? d.schema.views.map((v) => (v.type === "board" ? { ...v, hidden: [...new Set([...(v.hidden ?? []), ...extra.map((e) => e.id)])] } : v)) : d.schema.views;
+  updateSchema(dbId, { ...d.schema, properties: [...d.schema.properties.map((p) => (p.id === JOB.status ? { ...p, options } : p)), ...extra], views, ...(receive ? { receive } : {}) });
 }
 
 /** The state a job row is in (by name; none: not set). */
@@ -141,6 +156,14 @@ export type JobDeps = {
   run: (id: number) => { status: string; todoId: number; summary: string | null; error: string | null; result: string | null } | undefined;
   /** The todo not needed any more. */
   closeTodo: (todoId: number) => void;
+  /** What the worker on this todo asked (todo_needs_input) and still waits for — none: it isn't waiting. */
+  asking?: (todoId: number) => string | null;
+  /** The question answered: the todo no longer waits. */
+  answered?: (todoId: number) => void;
+  /** An answer into the worker's running session — false: there is none to answer into (the worker ended). */
+  message?: (runId: number, text: string) => Promise<boolean | void>;
+  /** The delivery for a finished run with commits (push the branch, open the merge request) as a todo with those actions — none: nothing to deliver. */
+  propose?: (runId: number) => Promise<{ todoId: number; text: string } | null> | { todoId: number; text: string } | null;
 };
 
 let override: JobDeps | undefined;
@@ -151,12 +174,26 @@ export function useJobDeps(deps: JobDeps | undefined): void {
 
 async function realDeps(): Promise<JobDeps> {
   if (override) return override;
-  const [{ addManualTodo, setTodoStatus }, { dispatchTodo }, { getRun }] = await Promise.all([import("@/lib/boards/store"), import("@/lib/work/runner"), import("@/lib/work/store")]);
+  const [{ addManualTodo, setTodoStatus, getTodo, setTodoNeedsInput, addFollowUp }, runner, { getRun }] = await Promise.all([import("@/lib/boards/store"), import("@/lib/work/runner"), import("@/lib/work/store")]);
   return {
     addTodo: (v) => addManualTodo(v),
-    dispatch: (todoId, v) => dispatchTodo(todoId, { instruction: v.instruction }),
+    dispatch: (todoId, v) => runner.dispatchTodo(todoId, { instruction: v.instruction }),
     run: (id) => getRun(id),
     closeTodo: (id) => void setTodoStatus(id, "dismissed"),
+    asking: (todoId) => getTodo(todoId)?.needsInput ?? null,
+    answered: (todoId) => setTodoNeedsInput(todoId, null),
+    message: async (runId, text) => {
+      if (getRun(runId)?.status !== "running") return false;
+      await runner.messageRunningSession(runId, text);
+      return true;
+    },
+    propose: async (runId) => {
+      const run = getRun(runId);
+      const plan = run ? await runner.deliveryPlan(run) : null;
+      if (!run || !plan) return null;
+      const t = addFollowUp({ ticket: run.ticket, text: plan.text, kind: "merge", parentId: null, workRunId: run.id, source: `Follow-up from W-${run.id}`, ops: plan.ops, owner: "me" });
+      return { todoId: t.id, text: plan.text };
+    },
   };
 }
 
@@ -211,7 +248,9 @@ export async function jobInstruction(rowId: number): Promise<string> {
     "- Was schon in der Zeile oder auf ihrer Seite steht, ist Material — nicht die Erledigung. Prüf selbst, ob das, was der Auftrag verlangt, wirklich existiert (zum Beispiel die Seiten in „Ideen“); wenn nicht, tu es.",
     "- Tu, was der Auftrag sagt — dort, wo er es sagt. Verlangt er, im Workspace etwas anzulegen oder zu ändern (Seiten, Zeilen, Texte), legst du es dort selbst an, mit den MCP-Werkzeugen: workspace_tree und workspace_search finden den Ort („Ideen“, eine Datenbank, eine Seite); workspace_create_page, workspace_write_page, workspace_add_row und workspace_update_row legen an und ändern. Lege es wirklich an — beschreib es nicht nur.",
     `- Zum Schluss trägst du mit workspace_update_row (row: ${rowId}) ins Feld „Ergebnis“ dieser Zeile einen kurzen Bericht ein: was du angelegt oder geändert hast, mit Titel und Seiten-ID. Verlangt der Auftrag nur eine Antwort oder einen Text (nichts im Workspace anzulegen), ist diese Antwort selbst das Ergebnis. Setz dabei „Status“ auf „Zur Prüfung“.`,
-    "- Sonst änderst du nichts an dieser Zeile; „Fertig“ setzt nur der Nutzer. Fehlt dir etwas, frag mit todo_needs_input, statt zu raten.",
+    "- Sonst änderst du nichts an dieser Zeile; „Fertig“ setzt nur der Nutzer.",
+    "- Fehlt dir etwas oder musst du etwas entscheiden: ruf zuerst todo_needs_input mit deiner Frage auf (ein, zwei Zeilen), dann stell sie und warte — der Nutzer antwortet in der Zeile, und du machst weiter. Rate nicht.",
+    "- Code: Arbeite auf einem Feature-Branch nach dem Schema feature/<TICKET>-<kurze-beschreibung> (fix/<TICKET>-… bei Fehlern; <TICKET> ist der Schlüssel des Tickets, kleingeschrieben und kurz die Beschreibung). Committe dort; du musst nicht pushen und keinen Merge Request anlegen — Zeff schlägt dem Nutzer den Push und den Merge Request als Aktion vor, wenn du fertig bist. Du darfst also nicht pushen.",
     "- Beende mit einer kurzen Zusammenfassung.",
   ]
     .join("\n")
@@ -235,7 +274,7 @@ ${earlier}`).content ?? [];
 }
 
 /** A job given to a worker — by your click. Waiting (or failed) jobs only; the job goes "In Arbeit", the worker's ref on it. */
-export async function dispatchJob(rowId: number, deps?: JobDeps): Promise<{ run: number; todo: number }> {
+export async function dispatchJob(rowId: number, deps?: JobDeps, opts: { extra?: string; answering?: boolean } = {}): Promise<{ run: number; todo: number }> {
   const row = getPage(rowId);
   const db = row?.dbId ? getDatabase(row.dbId) : null;
   if (!row || !db?.schema.jobs) throw new Error("This isn't a job of a jobs database.");
@@ -246,13 +285,14 @@ export async function dispatchJob(rowId: number, deps?: JobDeps): Promise<{ run:
   try {
     // (Checked under the claim: the one who was first has moved the job on by now.)
     const state = stateOf(rowId);
-    if (state && !STARTABLE.includes(state)) throw new Error(`The job is “${state}” — only waiting or failed jobs are started.`);
+    if (state && !STARTABLE.includes(state) && !(opts.answering && state === "Rückfrage")) throw new Error(`The job is “${state}” — only waiting or failed jobs are started.`);
     const d = deps ?? (await realDeps());
     await keepEarlierResult(rowId);
-    const instruction = await jobInstruction(rowId);
+    const instruction = [await jobInstruction(rowId), opts.extra].filter(Boolean).join("\n\n");
     const todo = d.addTodo({ ticket: (await linkedTicket(rowId)).key, text: row.title });
     const run = d.dispatch(todo.id, { instruction });
     setCell(rowId, JOB.run, `W-${run.id}`);
+    setCell(rowId, JOB.question, null);
     setState(rowId, "In Arbeit");
     jobLog(rowId, `→ In Arbeit (worker W-${run.id}, todo T-${todo.id})`);
     return { run: run.id, todo: todo.id };
@@ -287,19 +327,39 @@ export async function settleJobs(deps?: JobDeps): Promise<number> {
   for (const { id: dbId } of dbs) {
     for (const r of rawRows(dbId)) {
       const state = stateOf(r.id);
-      if (state !== "In Arbeit" && state !== "Fehlgeschlagen") continue;
+      if (state !== "In Arbeit" && state !== "Fehlgeschlagen" && state !== "Rückfrage") continue;
       const runId = runOf(r.cells[JOB.run]);
       const run = runId ? d.run(runId) : undefined;
+      const live = !!run && (run.status === "queued" || run.status === "running");
+      const question = run ? (d.asking?.(run.todoId) ?? null) : null;
       if (state === "Fehlgeschlagen") {
         // Marked failed although its worker is at work (a second taker tripped over the first one's start): back to work.
-        if (run && (run.status === "queued" || run.status === "running")) {
+        if (live) {
           setState(r.id, "In Arbeit");
-          jobLog(r.id, `→ In Arbeit again: it was marked failed, but worker W-${runId} is still ${run.status}`);
+          jobLog(r.id, `→ In Arbeit again: it was marked failed, but worker W-${runId} is still ${run!.status}`);
           n++;
         }
         continue;
       }
-      if (!run || run.status === "queued" || run.status === "running") continue;
+      if (state === "Rückfrage") {
+        // The worker went on without the answer through here (answered in its own session): back to work.
+        if (live && !question) {
+          setCell(r.id, JOB.question, null);
+          setState(r.id, "In Arbeit");
+          jobLog(r.id, `→ In Arbeit again: worker W-${runId} goes on`);
+          n++;
+        }
+        continue;
+      }
+      // At work: and asking you something (while it waits, or when it ended on the question).
+      if (question) {
+        setCell(r.id, JOB.question, question);
+        setState(r.id, "Rückfrage");
+        jobLog(r.id, `→ Rückfrage (worker W-${runId}): ${question}`);
+        n++;
+        continue;
+      }
+      if (!run || live) continue;
       const has = String(r.cells[JOB.result] ?? "").trim();
       if (run.status === "done") {
         let text = run.summary ?? "";
@@ -312,6 +372,16 @@ export async function settleJobs(deps?: JobDeps): Promise<number> {
         if (!has && text) setCell(r.id, JOB.result, text);
         setState(r.id, "Zur Prüfung");
         jobLog(r.id, `→ Zur Prüfung (worker W-${runId} done)`);
+        // Commits on a feature branch: the delivery (push, merge request) proposed as an action under the job.
+        try {
+          const p = await d.propose?.(runId!);
+          if (p) {
+            setCell(r.id, JOB.delivery, `T-${p.todoId}`);
+            jobLog(r.id, `delivery proposed: T-${p.todoId} — ${p.text}`);
+          }
+        } catch (e) {
+          jobLog(r.id, "the delivery couldn't be proposed", e);
+        }
       } else {
         const why = run.error || `The worker ended: ${run.status}.`;
         if (!has) setCell(r.id, JOB.result, why);
@@ -323,6 +393,32 @@ export async function settleJobs(deps?: JobDeps): Promise<number> {
     }
   }
   return n;
+}
+
+/**
+ * The user's answer to a worker's question. The worker still there: the answer goes into its session and the job is at work
+ * again. The worker gone (it ended on the question): a new worker starts with the job, the question and the answer.
+ */
+export async function answerJob(rowId: number, answer: string, deps?: JobDeps): Promise<void> {
+  const text = answer.trim();
+  if (!text) throw new Error("An answer is needed.");
+  if (stateOf(rowId) !== "Rückfrage") throw new Error("The job isn't asking anything.");
+  const d = deps ?? (await realDeps());
+  const row = getPage(rowId)!;
+  const question = String(row.props[JOB.question] ?? "").trim();
+  const runId = runOf(row.props[JOB.run]);
+  const run = runId ? d.run(runId) : undefined;
+  if (run && (run.status === "queued" || run.status === "running") && d.message && (await d.message(runId!, text)) !== false) {
+    d.answered?.(run.todoId);
+    setCell(rowId, JOB.question, null);
+    setState(rowId, "In Arbeit");
+    jobLog(rowId, `→ In Arbeit: answered, worker W-${runId} goes on`);
+    return;
+  }
+  if (run) d.answered?.(run.todoId);
+  const extra = ["### Deine Rückfrage und die Antwort des Nutzers", `Du hattest gefragt: ${question || "(eine Rückfrage)"}`, `Die Antwort: ${text}`, "Mach damit weiter, wo du aufgehört hast (was schon getan ist, steht im Branch und auf der Seite)."].join("\n");
+  await dispatchJob(rowId, d, { extra, answering: true });
+  jobLog(rowId, "answered — started again with the question and the answer");
 }
 
 // ---------------------------------------------------------------------------

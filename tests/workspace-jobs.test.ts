@@ -227,3 +227,103 @@ test("settling: a failed job whose worker is in fact still running goes back to 
   await settleJobs(deps);
   assert.equal(stateOf(id), "In Arbeit");
 });
+
+// ---- Rückfragen, the feature branch, the delivery proposed under the job ----
+
+test("a jobs database has the Rückfrage state and the question/delivery fields — an older one is brought up to date", async () => {
+  const w = await import("@/plugins/workspace/store");
+  const { createJobsDatabase, ensureJobStates, stateId, JOB } = await import("@/plugins/workspace/jobs");
+  const fresh = createJobsDatabase(null);
+  assert.ok(stateId(fresh, "Rückfrage"));
+  const props = (id: number) => w.getDatabase(id)!.schema.properties.map((p) => p.id);
+  assert.ok(props(fresh).includes(JOB.question) && props(fresh).includes(JOB.delivery));
+  // An older one: without them.
+  const old = createJobsDatabase(null);
+  const s = w.getDatabase(old)!.schema;
+  w.updateSchema(old, { ...s, properties: s.properties.filter((p) => p.id !== JOB.question && p.id !== JOB.delivery).map((p) => (p.id === JOB.status ? { ...p, options: p.options!.filter((o) => o.name !== "Rückfrage") } : p)) });
+  assert.equal(stateId(old, "Rückfrage"), undefined);
+  ensureJobStates(old);
+  assert.ok(stateId(old, "Rückfrage"));
+  assert.ok(props(old).includes(JOB.question) && props(old).includes(JOB.delivery));
+});
+
+test("a worker that asks (todo_needs_input) puts the job in 'Rückfrage' with its question; the answer goes to the running worker", async () => {
+  const w = await import("@/plugins/workspace/store");
+  const { addJob, dispatchJob, settleJobs, answerJob, stateOf, JOB } = await import("@/plugins/workspace/jobs");
+  const jobs = await autoJobs();
+  const id = addJob(jobs, { title: "Mit Rückfrage", instruction: "Mach X." });
+  const { deps, runs } = fakeDeps();
+  const sent: { run: number; text: string }[] = [];
+  let question: string | null = null;
+  const d = { ...deps, asking: () => question, message: async (run: number, text: string) => void sent.push({ run, text }) };
+  const { run, todo } = await dispatchJob(id, d);
+  void todo;
+  await settleJobs(d);
+  assert.equal(stateOf(id), "In Arbeit", "nothing asked yet");
+  question = "Soll das auch für PNG gelten?";
+  await settleJobs(d);
+  assert.equal(stateOf(id), "Rückfrage");
+  assert.equal(w.getPage(id)!.props[JOB.question], "Soll das auch für PNG gelten?");
+  await answerJob(id, "Nein, nur SVG.", d);
+  assert.deepEqual(sent, [{ run, text: "Nein, nur SVG." }]);
+  assert.equal(stateOf(id), "In Arbeit");
+  assert.equal(w.getPage(id)!.props[JOB.question], undefined, "the question is answered");
+  question = null;
+  runs.get(run)!.status = "done";
+  await settleJobs(d);
+  assert.equal(stateOf(id), "Zur Prüfung");
+});
+
+test("a question whose worker is gone is answered by a new run that knows the question and the answer", async () => {
+  const w = await import("@/plugins/workspace/store");
+  const { addJob, dispatchJob, settleJobs, answerJob, stateOf, JOB } = await import("@/plugins/workspace/jobs");
+  const jobs = await autoJobs();
+  const id = addJob(jobs, { title: "Worker weg", instruction: "Mach Y." });
+  const { deps, runs, calls } = fakeDeps();
+  let question: string | null = "Welchen Branch?";
+  const d = { ...deps, asking: () => question };
+  const first = await dispatchJob(id, d);
+  await settleJobs(d);
+  assert.equal(stateOf(id), "Rückfrage");
+  runs.get(first.run)!.status = "stopped"; // (the worker ended while waiting: no session to answer into)
+  question = null;
+  const before = calls.instructions.length;
+  await answerJob(id, "Den von main.", d);
+  assert.equal(calls.instructions.length, before + 1, "started again");
+  const again = calls.instructions.at(-1)!;
+  assert.match(again, /Welchen Branch\?/);
+  assert.match(again, /Den von main\./);
+  assert.equal(stateOf(id), "In Arbeit");
+  assert.notEqual(w.getPage(id)!.props[JOB.run], `W-${first.run}`, "a new worker is on it");
+});
+
+test("a finished job with commits gets the delivery proposed: its todo (push, merge request) is named in the row", async () => {
+  const w = await import("@/plugins/workspace/store");
+  const { addJob, dispatchJob, settleJobs, stateOf, JOB } = await import("@/plugins/workspace/jobs");
+  const jobs = await autoJobs();
+  const withCode = addJob(jobs, { title: "Mit Code", instruction: "Baue es." });
+  const noCode = addJob(jobs, { title: "Ohne Code", instruction: "Fasse zusammen." });
+  const { deps, runs } = fakeDeps();
+  const proposed: number[] = [];
+  const d = { ...deps, propose: (run: number) => (proposed.push(run), runs.get(run)?.summary === "code" ? { todoId: 777, text: "Deliver feature/X-1-y" } : null) };
+  const a = await dispatchJob(withCode, d);
+  const b = await dispatchJob(noCode, d);
+  runs.get(a.run)!.status = "done";
+  runs.get(a.run)!.summary = "code";
+  runs.get(b.run)!.status = "done";
+  await settleJobs(d);
+  assert.equal(stateOf(withCode), "Zur Prüfung");
+  assert.equal(w.getPage(withCode)!.props[JOB.delivery], "T-777");
+  assert.equal(w.getPage(noCode)!.props[JOB.delivery], undefined);
+  assert.deepEqual(proposed.sort(), [a.run, b.run].sort());
+});
+
+test("what a worker is told: the feature branch's name, to commit but not push, and to ask through todo_needs_input", async () => {
+  const { addJob, jobInstruction } = await import("@/plugins/workspace/jobs");
+  const jobs = await autoJobs();
+  const id = addJob(jobs, { title: "Anweisungen", instruction: "Tu etwas." });
+  const text = await jobInstruction(id);
+  assert.match(text, /feature\/<TICKET>-/);
+  assert.match(text, /todo_needs_input/);
+  assert.match(text, /nicht pushen|nicht push/i);
+});

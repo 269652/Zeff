@@ -665,18 +665,33 @@ async function proposeDelivery(r: WorkRun, res: WorkResult): Promise<string> {
   if (r.workspace === "branch") return `
 
 Die Commits liegen auf ${r.branch} (dem gewählten Branch) - nichts wird von Zeff gemergt.`;
-  if (!r.cwd || !r.branch || !r.baseSha || !r.repo) return "";
-  const commits = await gitAsync(r.cwd, ["rev-list", "--count", `${r.baseSha}..HEAD`]).catch(() => "0");
-  if (!Number(commits)) return "";
   const todo = getTodo(r.todoId);
-  if (!todo) return "";
+  const plan = todo ? await deliveryPlan(r, { summary: res.summary, entry: res.entry }) : null;
+  if (!todo || !plan) return "";
+  // First tested by hand — the delivery (its buttons) comes once that's ticked off.
+  addTestedDelivery({ from: todo, workRunId: r.id, source: `Follow-up from ${workRef(r.id)}`, branch: plan.branch, delivery: { text: plan.text, ops: plan.ops } });
+  linkBranchContext([todo.id]);
+  return `\n\n${t("Once {ref} is ticked off: test by hand first — then the delivery: {text}", { ref: todoRef(todo.id), text: plan.text })}`;
+}
+
+/**
+ * What delivering a run's commits takes: per the repo's setting either push the branch as a feature branch (named
+ * feature/<TICKET>-<what>, fix/ for a fix) and open the merge request into the default branch — or merge it straight in.
+ * Null: no commits, or no branch/repo to deliver from. `branch`: where the commits will be (the pushed name, or the local one).
+ */
+export async function deliveryPlan(r: WorkRun, res?: { summary?: string; entry?: string }): Promise<{ text: string; ops: TodoOp[]; branch: string; direct: boolean } | null> {
+  if (!r.cwd || !r.branch || !r.baseSha || !r.repo) return null;
+  const commits = await gitAsync(r.cwd, ["rev-list", "--count", `${r.baseSha}..HEAD`]).catch(() => "0");
+  if (!Number(commits)) return null;
+  const todo = getTodo(r.todoId);
   const repo = listRepos().find((x) => x.path === r.repo);
   // Delivered into the default branch (main) — whatever branch the worker started from.
   const base = (await gitAsync(r.cwd, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]).catch(() => "origin/main")).replace(/^origin\//, "") || "main";
-  const what = res.entry || todo.text;
+  const what = res?.entry || r.entryLine || todo?.text || r.branch;
+  const summary = res?.summary || r.summary || "";
   const title = `${r.ticket}: ${what}`;
-  const description = `${res.summary}\n\nZeff ${workRef(r.id)} · ${todoRef(todo.id)}`;
-  const remote = `${todo.kind === "fix" ? "fix" : "feature"}/${r.ticket}-${slug(what) || `w${r.id}`}`;
+  const description = `${summary}\n\nZeff ${workRef(r.id)}${todo ? ` · ${todoRef(todo.id)}` : ""}`;
+  const remote = `${todo?.kind === "fix" ? "fix" : "feature"}/${r.ticket}-${slug(what) || `w${r.id}`}`;
   // One todo: push and open the merge request in one go (its "Merge into main" alternative
   // merges straight instead) — or merge straight in, for a repo that delivers so.
   const direct = repo?.delivery === "direct" || !repo?.gitlabProject;
@@ -687,10 +702,7 @@ Die Commits liegen auf ${r.branch} (dem gewählten Branch) - nichts wird von Zef
         { type: "gitlab-open-mr", repo: r.repo, project: repo!.gitlabProject!, source: remote, target: base, title, description },
       ];
   const text = direct ? `Merge ${r.branch} into ${base} and push` : `Deliver ${r.branch}: push as ${remote}, merge request into ${base}`;
-  // First tested by hand — the delivery (its buttons) comes once that's ticked off.
-  addTestedDelivery({ from: todo, workRunId: r.id, source: `Follow-up from ${workRef(r.id)}`, branch: direct ? r.branch : remote, delivery: { text, ops } });
-  linkBranchContext([todo.id]);
-  return `\n\n${t("Once {ref} is ticked off: test by hand first — then the delivery: {text}", { ref: todoRef(todo.id), text })}`;
+  return { text, ops, branch: direct ? r.branch : remote, direct };
 }
 
 /** Runs being finished right now (finishing can wait for Copilot), so a second exit signal doesn't finish them twice. */
