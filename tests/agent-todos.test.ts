@@ -44,8 +44,8 @@ test("add_todo: the agent's steps as todos on the ticket, none twice; complete_t
   const r = await t.complete_todo({ todo: yours.ref, note: "abgestimmt", tick: true });
   assert.ok(!r.isError, text(r));
   assert.equal(listTodos({ status: "all" }).find((x) => x.id === yours.id)!.status, "done");
-  const again = await t.complete_todo({ todo: yours.ref, tick: true });
-  assert.match(text(again), /already/i);
+  const closed = await t.complete_todo({ todo: yours.ref, tick: true });
+  assert.match(text(closed), /already/i);
 });
 
 /**
