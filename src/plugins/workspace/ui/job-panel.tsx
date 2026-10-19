@@ -55,7 +55,9 @@ export function JobPanel({ rowId, panel, todosShown = false }: { rowId: number; 
   };
 
   const d = panel.delivery;
-  const hasPush = !!d?.delivers;
+  // A delivery to run (open); a dismissed or finished one leaves room to propose it again for what the worker did since.
+  const hasPush = !!d?.delivers && d.status === "open";
+  const shown = !!d?.delivers;
   const todos = panel.todos ?? [];
   const doneCount = todos.filter((x) => x.status === "done").length;
   const link = "inline-flex max-w-full items-center gap-1 truncate rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700";
@@ -131,7 +133,7 @@ export function JobPanel({ rowId, panel, todosShown = false }: { rowId: number; 
         </div>
       )}
 
-      {d && hasPush && (
+      {d && shown && (
         <div>
           <button
             type="button"
