@@ -71,7 +71,7 @@ test("an older jobs database gets Eingang (its Offen renamed), Ready and the rec
   assert.equal(w.getPage(row)!.props[JOB.status], "o_open");
   assert.deepEqual(d.schema.receive, { prop: JOB.status, value: "o_open" });
   ensureJobStates(old);
-  assert.equal(w.getDatabase(old)!.schema.properties.find((p) => p.id === JOB.status)!.options!.length, 3, "once");
+  assert.equal(w.getDatabase(old)!.schema.properties.find((p) => p.id === JOB.status)!.options!.length, 4, "once");
 });
 
 test("the agents setting is kept to sane limits", async () => {
