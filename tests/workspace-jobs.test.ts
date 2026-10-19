@@ -371,3 +371,27 @@ test("links on a job's card: the branch (a link once it is pushed) and the merge
   assert.deepEqual(jobLinks({ baseUrl: "", project: "", local: "", remote: "", pushed: false, mrs: [] }), { branch: null, mr: null });
 });
 
+
+test("the card follows the branch: when the named delivery is closed, the open todo that now carries its actions is shown (the merge request after the push)", async () => {
+  const w = await import("@/plugins/workspace/store");
+  const { addJob, setState, jobPanels, JOB } = await import("@/plugins/workspace/jobs");
+  const store = await import("@/lib/boards/store");
+  const { createRun } = await import("@/lib/work/store");
+  const jobs = await autoJobs();
+  const id = addJob(jobs, { title: "Folgt dem Branch", instruction: "x" });
+  const run = createRun({ ticket: "FOL-1", todoId: 1, mode: "instruct", provider: "claude", model: "sonnet", permissionMode: "auto", repo: "C:\r", prompt: "p", branch: "feature/FOL-1-x" });
+  w.setCell(id, JOB.run, `W-${run.id}`);
+  setState(id, "Zur Prüfung");
+  const push = { type: "git-push" as const, repo: "C:\r", branch: "feature/FOL-1-x", remote: "feature/FOL-1-x", target: "main", title: "t", description: "d" };
+  const first = store.deliveryTodo({ ticket: "FOL-1", text: "Deliver", runId: run.id, branch: "feature/FOL-1-x", ops: [push] });
+  w.setCell(id, JOB.delivery, `T-${first.todo.id}`);
+  assert.equal((await jobPanels(w.rawRows(jobs)))[id].delivery?.todoId, first.todo.id, "the named delivery while it is open");
+  // Its push is done (the todo is closed) and the merge request lives on another todo of the ticket.
+  store.setTodoStatus(first.todo.id, "dismissed", "pushed");
+  const mr = store.addManualTodo({ ticket: "FOL-1", text: "Merge request für feature/FOL-1-x öffnen" });
+  store.setTodoOps(mr.id, [{ type: "gitlab-open-mr", repo: "C:\r", project: "grp/p", source: "feature/FOL-1-x", target: "main", title: "t", description: "d" }]);
+  const panel = (await jobPanels(w.rawRows(jobs)))[id];
+  assert.equal(panel.delivery?.todoId, mr.id, "the one that carries the branch's actions now");
+  assert.deepEqual(panel.delivery?.ops.map((o) => o.type), ["gitlab-open-mr"]);
+  assert.equal(panel.delivery?.status, "open");
+});

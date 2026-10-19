@@ -103,6 +103,15 @@ export function jobLinks(v: { baseUrl: string; project: string; local: string; r
   };
 }
 
+/** The open todo of a ticket that carries actions (push, merge request, merge) for one of these branch names — the delivery as it stands now. */
+function liveDeliveryTodo(open: import("@/lib/boards/shared").TodoView[], ticket: string | null | undefined, names: (string | null | undefined)[]): import("@/lib/boards/shared").TodoView | undefined {
+  const wanted = new Set(names.filter((n): n is string => !!n).map((n) => n.replace(/^origin\//, "")));
+  if (!ticket || !wanted.size) return undefined;
+  return open.find(
+    (t) => t.ticket === ticket.toUpperCase() && t.ops.some((o) => (o.type === "git-push" && (wanted.has(o.branch) || wanted.has(o.remote))) || (o.type === "gitlab-open-mr" && wanted.has(o.source)) || (o.type === "git-merge-main" && wanted.has(o.branch))),
+  );
+}
+
 /** What a job's card shows beyond its cells: the question it waits on, the ticket's todos, the branch and merge request, and the delivery proposed under it (a todo with the push and the merge request). */
 export type JobPanel = {
   state?: string;
@@ -117,7 +126,8 @@ const SHOWS_WORK: JobState[] = ["In Arbeit", "Rückfrage", "Zur Prüfung", "Fert
 
 export async function jobPanels(rows: { id: number; cells: Record<string, unknown> }[]): Promise<Record<number, JobPanel>> {
   const out: Record<number, JobPanel> = {};
-  const { getTodo } = await import("@/lib/boards/store");
+  const { getTodo, listTodos } = await import("@/lib/boards/store");
+  const openTodos = listTodos({ status: "open" });
   const { opLabel } = await import("@/lib/boards/shared");
   const { getRun } = await import("@/lib/work/store");
   const { ticketExtras } = await import("@/lib/items/tickets");
@@ -128,8 +138,11 @@ export async function jobPanels(rows: { id: number; cells: Record<string, unknow
     const state = stateOf(r.id);
     const question = String(r.cells[JOB.question] ?? "").trim();
     const todoId = /^T-(\d+)$/.exec(String(r.cells[JOB.delivery] ?? "").trim())?.[1];
-    const todo = todoId ? getTodo(Number(todoId)) : undefined;
+    const named = todoId ? getTodo(Number(todoId)) : undefined;
     const run = runOf(r.cells[JOB.run]) ? getRun(runOf(r.cells[JOB.run])!) : undefined;
+    // The delivery todo the row names — or, when that one is closed (its push is done and the next step lives on another todo, or you
+    // dismissed it), the open todo of the ticket that now carries this branch's actions.
+    const todo = named && named.status === "open" ? named : (run ? liveDeliveryTodo(openTodos, run.ticket, [run.branch, ...(named?.ops ?? []).flatMap((o) => (o.type === "git-push" ? [o.branch, o.remote] : o.type === "gitlab-open-mr" ? [o.source] : []))]) : undefined) ?? named;
     const panel: JobPanel = { ...(state ? { state } : {}) };
     if (question && state === "Rückfrage") panel.question = question;
     if (todo) panel.delivery = { todoId: todo.id, ref: todo.ref, text: todo.text, delivers: todo.ops.some((o) => o.type === "git-push" || o.type === "git-merge-main" || o.type === "gitlab-open-mr"), ops: todo.ops.map((o, at) => ({ at, type: o.type, label: opLabel(o) })), status: todo.status as "open" | "done" | "dismissed", note: todo.note ?? null };

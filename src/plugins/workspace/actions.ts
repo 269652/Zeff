@@ -64,7 +64,10 @@ export async function proposeJobDeliveryAction(rowId: number) {
 export async function runJobDeliveryAction(rowId: number, only?: number[]) {
   return run(async () => {
     const row = store.getPage(Number(rowId));
-    const todoId = /^T-(\d+)$/.exec(String(row?.props[(await import("./jobs")).JOB.delivery] ?? "").trim())?.[1];
+    if (!row) throw new Error(t("No such row."));
+    // The delivery as the card shows it (the todo that carries the branch's actions now).
+    const panel = (await (await import("./jobs")).jobPanels([{ id: row.id, cells: row.props }]))[row.id];
+    const todoId = panel?.delivery?.todoId;
     if (!todoId) throw new Error(t("No delivery is proposed for this job."));
     const { runTodoOpsNow } = await import("@/lib/ops");
     const r = await runTodoOpsNow(Number(todoId), { only: Array.isArray(only) ? only.map(Number).filter(Number.isInteger) : undefined });

@@ -70,3 +70,31 @@ test("deliveryPlan: pushed under the branch's own name when it follows the schem
   assert.equal(plan.branch, "feature/PROJ-436-svg-ohne-source-ausspielen", "pushed under that name");
   assert.doesNotMatch(JSON.stringify(plan.ops), /nachgeprueft|ergebnis/i, "nothing made of the booking line");
 });
+
+test("deliveryPlan: a branch that is on the remote already needs only the merge request", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "plan-"));
+  git(dir, "init", "-q", "-b", "main");
+  git(dir, "config", "user.email", "t@example.com");
+  git(dir, "config", "user.name", "T");
+  fs.writeFileSync(path.join(dir, "a.txt"), "a");
+  git(dir, "add", ".");
+  git(dir, "commit", "-q", "-m", "base");
+  git(dir, "update-ref", "refs/remotes/origin/main", "HEAD");
+  git(dir, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
+  const base = git(dir, "rev-parse", "HEAD");
+  git(dir, "checkout", "-q", "-b", "feature/PROJ-7-pushed");
+  fs.writeFileSync(path.join(dir, "b.txt"), "b");
+  git(dir, "add", ".");
+  git(dir, "commit", "-q", "-m", "feat(PROJ-7): b");
+  const { saveRepo } = await import("@/lib/repos");
+  saveRepo({ name: "plan", path: dir, gitlabProject: "grp/proj", boards: [], tickets: [], instructions: "", delivery: "mr" } as never);
+  const { deliveryPlan } = await import("@/lib/work/runner");
+  const run = { id: 5, cwd: dir, branch: "feature/PROJ-7-pushed", baseSha: base, repo: dir, todoId: 0, ticket: "PROJ-7", entryLine: "B", summary: "s" } as never;
+  const before = await deliveryPlan(run);
+  assert.deepEqual(before!.ops.map((o) => o.type), ["git-push", "gitlab-open-mr"], "not pushed yet: both");
+  // Pushed: the remote-tracking branch is at the commit.
+  git(dir, "update-ref", "refs/remotes/origin/feature/PROJ-7-pushed", "HEAD");
+  const after = await deliveryPlan(run);
+  assert.deepEqual(after!.ops.map((o) => o.type), ["gitlab-open-mr"], "on the remote already: the merge request only");
+  assert.match(after!.text, /merge request/i);
+});

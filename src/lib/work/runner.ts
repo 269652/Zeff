@@ -707,13 +707,16 @@ export async function deliveryPlan(r: WorkRun, res?: { summary?: string; entry?:
   // One todo: push and open the merge request in one go (its "Merge into main" alternative
   // merges straight instead) — or merge straight in, for a repo that delivers so.
   const direct = repo?.delivery === "direct" || !repo?.gitlabProject;
+  // Already on the remote (the remote-tracking branch is at this commit — pushed by you or by an earlier step): only the merge request is left.
+  const head = await gitAsync(r.cwd, ["rev-parse", "HEAD"]).catch(() => "");
+  const onRemote = !!head && (await gitAsync(r.cwd, ["rev-parse", "--verify", "--quiet", `refs/remotes/origin/${remote}`]).catch(() => "")) === head;
   const ops: TodoOp[] = direct
     ? [{ type: "git-merge-main", repo: r.repo, branch: local, target: base }]
     : [
-        { type: "git-push", repo: r.repo, branch: local, remote, target: base, title, description },
-        { type: "gitlab-open-mr", repo: r.repo, project: repo!.gitlabProject!, source: remote, target: base, title, description },
+        ...(onRemote ? [] : [{ type: "git-push" as const, repo: r.repo, branch: local, remote, target: base, title, description }]),
+        { type: "gitlab-open-mr" as const, repo: r.repo, project: repo!.gitlabProject!, source: remote, target: base, title, description },
       ];
-  const text = direct ? `Merge ${local} into ${base} and push` : `Deliver ${local}: push as ${remote}, merge request into ${base}`;
+  const text = direct ? `Merge ${local} into ${base} and push` : onRemote ? `Open the merge request for ${remote} into ${base}` : `Deliver ${local}: push as ${remote}, merge request into ${base}`;
   return { text, ops, branch: direct ? local : remote, local, direct };
 }
 
