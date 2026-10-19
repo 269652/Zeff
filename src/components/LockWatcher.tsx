@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
+import { pollWhileVisible } from "@/lib/poll-visible";
 
 /**
- * While the lock is on: asks /api/lock every second whether this browser is still unlocked. The moment it is not (the key
+ * While the lock is on: asks /api/lock every few seconds — only in the tab you look at — whether this browser is still unlocked. The moment it is not (the key
  * was pulled, "Lock now" somewhere) the page goes blank and reloads — the proxy answers with the lock page. Nothing renders.
  */
 export function LockWatcher({ enabled }: { enabled: boolean }) {
@@ -23,10 +24,11 @@ export function LockWatcher({ enabled }: { enabled: boolean }) {
         // the server is away: nothing to decide
       }
     };
-    const id = setInterval(look, 1000);
+    // (Every tab asking every second, hidden ones too, was a constant load on the server: now one in view, every 3 s.)
+    const end = pollWhileVisible(() => void look(), 3000);
     return () => {
       stop = true;
-      clearInterval(id);
+      end();
     };
   }, [enabled]);
   return null;

@@ -2,6 +2,7 @@
 
 import { LoadingRow, Spinner } from "@/components/Spinner";
 import Link from "next/link";
+import { pollWhileVisible } from "@/lib/poll-visible";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { runSyncAction, runSyncAllAction, stopSyncAction, stopSyncAllAction, syncOverviewAction } from "@/app/actions";
@@ -135,10 +136,11 @@ export function SyncMenu() {
       }
     };
     void poll();
-    const timer = setInterval(poll, open || running ? 2000 : 30000);
+    // (Only the tab in view asks: Zeff is open in many tabs and a hidden one asking every 2 s only loads the server.)
+    const end = pollWhileVisible(() => void poll(), open || running ? 2000 : 30000);
     return () => {
       alive = false;
-      clearInterval(timer);
+      end();
     };
   }, [open, running]);
 
