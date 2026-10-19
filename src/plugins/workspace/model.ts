@@ -105,6 +105,8 @@ export type View = {
   order?: string[];
   /** Board: a column's WIP limit (by its option id) — more cards than that and its count turns red. */
   wip?: Record<string, number>;
+  /** Board / gallery: how a card looks — a card template (card-template.ts); none: the automatic card. */
+  card?: string;
 };
 /** A table column's width in pixels: what a drag may make it, and what "fit to content" may. */
 export const WIDTH_MIN = 60;
@@ -493,7 +495,7 @@ export function choiceColor(p: Property, name: string): string {
 export function normalizeSchema(raw: unknown): DbSchema {
   const o = (raw && typeof raw === "object" ? raw : {}) as Partial<DbSchema>;
   const props = (Array.isArray(o.properties) ? o.properties : []).filter((p): p is Property => !!p && typeof p.id === "string" && (PROP_TYPES as readonly string[]).includes(p.type)).map(withAiColors);
-  const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [] }));
+  const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [], card: typeof v.card === "string" && v.card.trim() ? v.card.slice(0, 8000) : undefined }));
   return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(formOf(o.form, props) ? { form: formOf(o.form, props) } : {}), ...(protectOf(o.protect, props) ? { protect: protectOf(o.protect, props) } : {}), ...(todoListOf(o.todoList, props) ? { todoList: todoListOf(o.todoList, props) } : {}), ...(o.rules === true ? { rules: true } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}) };
 }
 
