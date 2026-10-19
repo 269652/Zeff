@@ -327,3 +327,26 @@ test("what a worker is told: the feature branch's name, to commit but not push, 
   assert.match(text, /todo_needs_input/);
   assert.match(text, /nicht pushen|nicht push/i);
 });
+
+test("what a job's card shows: the question it waits on, and the delivery proposed under it with its actions", async () => {
+  const w = await import("@/plugins/workspace/store");
+  const { addJob, setState, jobPanels, JOB } = await import("@/plugins/workspace/jobs");
+  const { addFollowUp } = await import("@/lib/boards/store");
+  const jobs = await autoJobs();
+  const asking = addJob(jobs, { title: "Fragt", instruction: "a" });
+  const done = addJob(jobs, { title: "Fertig mit Code", instruction: "b" });
+  const quiet = addJob(jobs, { title: "Still", instruction: "c" });
+  w.setCell(asking, JOB.question, "Welche Variante?");
+  setState(asking, "Rückfrage");
+  const t = addFollowUp({ ticket: "DEL-1", text: "Deliver feature/DEL-1-x: push, merge request into main", kind: "merge", parentId: null, workRunId: null, source: "test", ops: [{ type: "git-push", repo: "C:\r", branch: "feature/DEL-1-x", remote: "feature/DEL-1-x", target: "main", title: "t", description: "d" }], owner: "me" });
+  w.setCell(done, JOB.delivery, `T-${t.id}`);
+  const panels = await jobPanels(w.rawRows(jobs));
+  assert.equal(panels[asking].question, "Welche Variante?");
+  assert.equal(panels[done].delivery?.todoId, t.id);
+  assert.equal(panels[done].delivery?.status, "open");
+  assert.ok(panels[done].delivery!.ops.length === 1);
+  assert.equal(panels[quiet], undefined, "a quiet job has no panel");
+  // The question only shows while it is asked.
+  setState(asking, "In Arbeit");
+  assert.equal((await jobPanels(w.rawRows(jobs)))[asking], undefined);
+});

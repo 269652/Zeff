@@ -6103,5 +6103,13 @@
   "and the filter holds": "und der Filter zutrifft",
   "Count": "Anzahl",
   "Latest date": "Spätestes Datum",
-  "Earliest date": "Frühestes Datum"
+  "Earliest date": "Frühestes Datum",
+  "No delivery is proposed for this job.": "Für diesen Auftrag ist keine Auslieferung vorgeschlagen.",
+  "Answered — the agent goes on.": "Beantwortet — der Agent macht weiter.",
+  "Your answer …": "Deine Antwort …",
+  "Your answer": "Deine Antwort",
+  "Delivered": "Ausgeliefert",
+  "Delivery": "Auslieferung",
+  "Dismissed.": "Verworfen.",
+  "Push and open the merge request": "Pushen und Merge Request öffnen"
 }

@@ -83,6 +83,29 @@ export function ensureJobStates(dbId: number): void {
   updateSchema(dbId, { ...d.schema, properties: [...d.schema.properties.map((p) => (p.id === JOB.status ? { ...p, options } : p)), ...extra], views, ...(receive ? { receive } : {}) });
 }
 
+/** What a job's card shows beyond its cells: the question it waits on, and the delivery proposed under it (a todo with the push and the merge request). */
+export type JobPanel = {
+  question?: string;
+  delivery?: { todoId: number; ref: string; text: string; ops: string[]; status: "open" | "done" | "dismissed"; note: string | null };
+};
+
+export async function jobPanels(rows: { id: number; cells: Record<string, unknown> }[]): Promise<Record<number, JobPanel>> {
+  const out: Record<number, JobPanel> = {};
+  const { getTodo } = await import("@/lib/boards/store");
+  const { opLabel } = await import("@/lib/boards/shared");
+  for (const r of rows) {
+    const question = String(r.cells[JOB.question] ?? "").trim();
+    const todoId = /^T-(\d+)$/.exec(String(r.cells[JOB.delivery] ?? "").trim())?.[1];
+    const todo = todoId ? getTodo(Number(todoId)) : undefined;
+    const panel: JobPanel = {
+      ...(question && stateOf(r.id) === "Rückfrage" ? { question } : {}),
+      ...(todo ? { delivery: { todoId: todo.id, ref: todo.ref, text: todo.text, ops: todo.ops.map(opLabel), status: todo.status as "open" | "done" | "dismissed", note: todo.note ?? null } } : {}),
+    };
+    if (panel.question || panel.delivery) out[r.id] = panel;
+  }
+  return out;
+}
+
 /** The state a job row is in (by name; none: not set). */
 export function stateOf(rowId: number): JobState | undefined {
   const row = getPage(rowId);

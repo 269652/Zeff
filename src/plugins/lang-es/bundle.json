@@ -6103,5 +6103,13 @@
   "and the filter holds": "y se cumple el filtro",
   "Count": "Número",
   "Latest date": "Fecha más reciente",
-  "Earliest date": "Fecha más antigua"
+  "Earliest date": "Fecha más antigua",
+  "No delivery is proposed for this job.": "No se ha propuesto ninguna entrega para este trabajo.",
+  "Answered — the agent goes on.": "Respondido — el agente continúa.",
+  "Your answer …": "Tu respuesta …",
+  "Your answer": "Tu respuesta",
+  "Delivered": "Entregado",
+  "Delivery": "Entrega",
+  "Dismissed.": "Descartado.",
+  "Push and open the merge request": "Hacer push y abrir el merge request"
 }

@@ -2,6 +2,7 @@
 
 import { useT } from "@/components/I18nProvider";
 import { cellText, dueTone, type Property, type Row } from "../model";
+import { JobPanel } from "./job-panel";
 import { CardKey, CardLead, CardTodos, extrasOf, SubtaskBadge } from "./card-extras";
 import { CellView, type CellCtx } from "./cells";
 
@@ -126,6 +127,7 @@ export function RowCard({ row, visible, all, ctx, mode }: { row: Row; visible: P
         </div>
       )}
       {!gallery && x.key && ctx.data.extras?.todosOn && <CardTodos k={x.key} ticket={x.ticket} />}
+      {!gallery && ctx.data.extras?.jobs?.[row.id] && <JobPanel rowId={row.id} panel={ctx.data.extras.jobs[row.id]} />}
     </>
   );
 }
