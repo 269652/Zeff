@@ -1414,7 +1414,7 @@ function AddColumn({ add }: { add: (name: string) => void }) {
  * "+ New" at the end of a board column, as Kanban's "+ Card": a field for the title — Enter makes the card (in this column)
  * and keeps the field open for the next one, Shift+Enter a new line, Escape or leaving it empty closes it.
  */
-/** Under a card on hover: a shadow card — a click, a title, Enter: a subtask of it (in its column, right below it). A small button beside the card's menu, top right (it takes no room and covers no other card; the text field it opens does). */
+/** Under a card on hover: a shadow card — a click, a title, Enter: a subtask of it (in its column, right below it). A small rectangular button in the card's bottom right corner (it takes no room and covers no other card; the text field it opens does). */
 function SubtaskGhost({ parentId, after }: { parentId: number; after: () => void }) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -1424,7 +1424,7 @@ function SubtaskGhost({ parentId, after }: { parentId: number; after: () => void
     return (
       <button
         type="button"
-        className="absolute top-1 right-9 z-10 hidden rounded border border-dashed border-zinc-300 bg-white/90 px-1.5 py-0.5 text-xs text-zinc-500 group-hover/sub:block hover:border-indigo-300 hover:text-indigo-600 dark:border-zinc-600 dark:bg-zinc-900/90"
+        className="absolute right-1 bottom-1 z-10 hidden rounded-sm border border-dashed border-zinc-300 bg-white/90 px-1.5 py-0.5 text-xs text-zinc-500 group-hover/sub:block hover:border-indigo-300 hover:text-indigo-600 dark:border-zinc-600 dark:bg-zinc-900/90"
         onClick={() => setOpen(true)}
         data-subtask-ghost={parentId}
       >
