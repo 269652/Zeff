@@ -83,25 +83,78 @@ export function ensureJobStates(dbId: number): void {
   updateSchema(dbId, { ...d.schema, properties: [...d.schema.properties.map((p) => (p.id === JOB.status ? { ...p, options } : p)), ...extra], views, ...(receive ? { receive } : {}) });
 }
 
-/** What a job's card shows beyond its cells: the question it waits on, and the delivery proposed under it (a todo with the push and the merge request). */
+/** Where a job's work is: the branch (a link once it is pushed) and its merge request. */
+export type JobLinks = { branch: { name: string; url: string | null } | null; mr: { label: string; url: string; state: string | null } | null };
+
+/**
+ * The links of a job's card. `local`: the branch the worker committed on, `remote`: the name it is pushed as; `pushed`: it is (the
+ * delivery ran); `mrs`: the merge requests Zeff knows of the repo. A merge request of the branch means it is pushed.
+ */
+export function jobLinks(v: { baseUrl: string; project: string; local: string; remote: string; pushed: boolean; mrs: { ref: string; url: string; state: string | null; branch: string | null }[] }): JobLinks {
+  const names = [v.remote, v.local].filter(Boolean);
+  const mine = v.mrs.filter((m) => m.branch && names.includes(m.branch));
+  const mr = mine.find((m) => /opened/i.test(m.state ?? "")) ?? mine[0];
+  const pushed = v.pushed || !!mr;
+  const name = pushed ? v.remote || v.local : v.local || v.remote;
+  const base = v.baseUrl.replace(/\/+$/, "");
+  return {
+    branch: name ? { name, url: pushed && base && v.project ? `${base}/${v.project}/-/tree/${encodeURI(name)}` : null } : null,
+    mr: mr ? { label: mr.ref, url: mr.url, state: mr.state } : null,
+  };
+}
+
+/** What a job's card shows beyond its cells: the question it waits on, the ticket's todos, the branch and merge request, and the delivery proposed under it (a todo with the push and the merge request). */
 export type JobPanel = {
+  state?: string;
   question?: string;
-  delivery?: { todoId: number; ref: string; text: string; ops: string[]; status: "open" | "done" | "dismissed"; note: string | null };
+  ticket?: string;
+  todos?: import("@/lib/items/shared").ExtraTodo[];
+  links?: JobLinks;
+  delivery?: { todoId: number; ref: string; text: string; /** It carries a push / merge (not just any todo of the ticket). */ delivers: boolean; ops: string[]; status: "open" | "done" | "dismissed"; note: string | null };
 };
+
+const SHOWS_WORK: JobState[] = ["In Arbeit", "Rückfrage", "Zur Prüfung", "Fertig"];
 
 export async function jobPanels(rows: { id: number; cells: Record<string, unknown> }[]): Promise<Record<number, JobPanel>> {
   const out: Record<number, JobPanel> = {};
   const { getTodo } = await import("@/lib/boards/store");
   const { opLabel } = await import("@/lib/boards/shared");
+  const { getRun } = await import("@/lib/work/store");
+  const { ticketExtras } = await import("@/lib/items/tickets");
+  const { getGitlabSettings, listGitlabItems } = await import("@/lib/gitlab/store");
+  const { listRepos } = await import("@/lib/repos");
+  let mrs: ReturnType<typeof listGitlabItems> | null = null;
   for (const r of rows) {
+    const state = stateOf(r.id);
     const question = String(r.cells[JOB.question] ?? "").trim();
     const todoId = /^T-(\d+)$/.exec(String(r.cells[JOB.delivery] ?? "").trim())?.[1];
     const todo = todoId ? getTodo(Number(todoId)) : undefined;
-    const panel: JobPanel = {
-      ...(question && stateOf(r.id) === "Rückfrage" ? { question } : {}),
-      ...(todo ? { delivery: { todoId: todo.id, ref: todo.ref, text: todo.text, ops: todo.ops.map(opLabel), status: todo.status as "open" | "done" | "dismissed", note: todo.note ?? null } } : {}),
-    };
-    if (panel.question || panel.delivery) out[r.id] = panel;
+    const run = runOf(r.cells[JOB.run]) ? getRun(runOf(r.cells[JOB.run])!) : undefined;
+    const panel: JobPanel = { ...(state ? { state } : {}) };
+    if (question && state === "Rückfrage") panel.question = question;
+    if (todo) panel.delivery = { todoId: todo.id, ref: todo.ref, text: todo.text, delivers: todo.ops.some((o) => o.type === "git-push" || o.type === "git-merge-main" || o.type === "gitlab-open-mr"), ops: todo.ops.map(opLabel), status: todo.status as "open" | "done" | "dismissed", note: todo.note ?? null };
+    if (run && state && SHOWS_WORK.includes(state)) {
+      const ticket = run.ticket?.trim().toUpperCase();
+      const list = ticket ? (ticketExtras([ticket])[ticket]?.todos ?? []) : [];
+      if (ticket && (list.length || state === "Zur Prüfung")) {
+        panel.ticket = ticket;
+        panel.todos = list;
+      }
+      const push = todo?.ops.find((o) => o.type === "git-push");
+      const mrOp = todo?.ops.find((o) => o.type === "gitlab-open-mr");
+      const project = (mrOp && mrOp.type === "gitlab-open-mr" ? mrOp.project : "") || listRepos().find((x) => x.path === run.repo)?.gitlabProject || "";
+      mrs ??= listGitlabItems({ kind: "mr", limit: 500 });
+      const links = jobLinks({
+        baseUrl: getGitlabSettings().baseUrl ?? "",
+        project,
+        local: run.branch ?? "",
+        remote: push && push.type === "git-push" ? push.remote : mrOp && mrOp.type === "gitlab-open-mr" ? mrOp.source : "",
+        pushed: todo?.status === "done",
+        mrs: mrs.filter((m) => !project || m.project === project),
+      });
+      if (links.branch || links.mr) panel.links = links;
+    }
+    if (panel.question || panel.delivery || panel.todos || panel.links) out[r.id] = panel;
   }
   return out;
 }
@@ -273,6 +326,7 @@ export async function jobInstruction(rowId: number): Promise<string> {
     `- Zum Schluss trägst du mit workspace_update_row (row: ${rowId}) ins Feld „Ergebnis“ dieser Zeile einen kurzen Bericht ein: was du angelegt oder geändert hast, mit Titel und Seiten-ID. Verlangt der Auftrag nur eine Antwort oder einen Text (nichts im Workspace anzulegen), ist diese Antwort selbst das Ergebnis. Setz dabei „Status“ auf „Zur Prüfung“.`,
     "- Sonst änderst du nichts an dieser Zeile; „Fertig“ setzt nur der Nutzer.",
     "- Fehlt dir etwas oder musst du etwas entscheiden: ruf zuerst todo_needs_input mit deiner Frage auf (ein, zwei Zeilen), dann stell sie und warte — der Nutzer antwortet in der Zeile, und du machst weiter. Rate nicht.",
+    `- Todos am Ticket: Schau mit list_todos, was am Ticket${ticket.key ? ` ${ticket.key}` : ""} schon offen ist (der Nutzer ergänzt dort laufend welche — arbeite alle offenen ab, nicht nur deine). Schreib deine geplanten Schritte mit add_todo (eine kurze Zeile je Schritt) aufs Ticket und hake jeden erledigten mit complete_todo (tick: true) ab. So sieht der Nutzer, was getan ist und was fehlt, und kann dich noch eine Runde drehen lassen.`,
     "- Code: Arbeite auf einem Feature-Branch nach dem Schema feature/<TICKET>-<kurze-beschreibung> (fix/<TICKET>-… bei Fehlern; <TICKET> ist der Schlüssel des Tickets, kleingeschrieben und kurz die Beschreibung). Committe dort; du musst nicht pushen und keinen Merge Request anlegen — Zeff schlägt dem Nutzer den Push und den Merge Request als Aktion vor, wenn du fertig bist. Du darfst also nicht pushen.",
     "- Beende mit einer kurzen Zusammenfassung.",
   ]
@@ -297,7 +351,7 @@ ${earlier}`).content ?? [];
 }
 
 /** A job given to a worker — by your click. Waiting (or failed) jobs only; the job goes "In Arbeit", the worker's ref on it. */
-export async function dispatchJob(rowId: number, deps?: JobDeps, opts: { extra?: string; answering?: boolean } = {}): Promise<{ run: number; todo: number }> {
+export async function dispatchJob(rowId: number, deps?: JobDeps, opts: { extra?: string; answering?: boolean; rerun?: boolean } = {}): Promise<{ run: number; todo: number }> {
   const row = getPage(rowId);
   const db = row?.dbId ? getDatabase(row.dbId) : null;
   if (!row || !db?.schema.jobs) throw new Error("This isn't a job of a jobs database.");
@@ -308,7 +362,7 @@ export async function dispatchJob(rowId: number, deps?: JobDeps, opts: { extra?:
   try {
     // (Checked under the claim: the one who was first has moved the job on by now.)
     const state = stateOf(rowId);
-    if (state && !STARTABLE.includes(state) && !(opts.answering && state === "Rückfrage")) throw new Error(`The job is “${state}” — only waiting or failed jobs are started.`);
+    if (state && !STARTABLE.includes(state) && !(opts.answering && state === "Rückfrage") && !(opts.rerun && state === "Zur Prüfung")) throw new Error(`The job is “${state}” — only waiting or failed jobs are started.`);
     const d = deps ?? (await realDeps());
     await keepEarlierResult(rowId);
     const instruction = [await jobInstruction(rowId), opts.extra].filter(Boolean).join("\n\n");
@@ -416,6 +470,34 @@ export async function settleJobs(deps?: JobDeps): Promise<number> {
     }
   }
   return n;
+}
+
+/**
+ * Another round on a checked job: the user has looked, added todos on the ticket (or left some open) — the worker starts again, works
+ * through the ticket's open todos on the branch's last state, ticks each off and writes what is missing.
+ */
+export async function runJobAgain(rowId: number, deps?: JobDeps): Promise<{ run: number; todo: number }> {
+  if (stateOf(rowId) !== "Zur Prüfung") throw new Error("Only a job in review gets another round.");
+  const extra = [
+    "### Noch eine Runde",
+    "Der Nutzer hat deinen Stand geprüft und am Ticket weitere Todos ergänzt (oder welche offen gelassen). Lies sie mit list_todos, arbeite alle offenen ab — dein bisheriger Stand liegt im Branch —, hake jedes erledigte mit complete_todo (tick: true) ab und schreib fehlende Schritte mit add_todo dazu.",
+  ].join("\n");
+  const r = await dispatchJob(rowId, deps, { extra, rerun: true });
+  jobLog(rowId, "→ another round started on the open todos");
+  return r;
+}
+
+/** The delivery proposed for a job in review once more (a job checked before it was proposed, or the todo gone): its todo is named in the row. */
+export async function proposeJobDelivery(rowId: number, deps?: JobDeps): Promise<{ todoId: number; text: string } | null> {
+  const d = deps ?? (await realDeps());
+  const runId = runOf(getPage(rowId)?.props[JOB.run]);
+  if (!runId) throw new Error("This job has no worker yet.");
+  const p = (await d.propose?.(runId)) ?? null;
+  if (p) {
+    setCell(rowId, JOB.delivery, `T-${p.todoId}`);
+    jobLog(rowId, `delivery proposed: T-${p.todoId} — ${p.text}`);
+  }
+  return p;
 }
 
 /**

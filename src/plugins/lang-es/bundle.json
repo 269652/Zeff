@@ -6111,5 +6111,14 @@
   "Delivered": "Entregado",
   "Delivery": "Entrega",
   "Dismissed.": "Descartado.",
-  "Push and open the merge request": "Hacer push y abrir el merge request"
+  "Push and open the merge request": "Hacer push y abrir el merge request",
+  "Nothing to deliver: the worker's branch has no commits.": "Nada que entregar: la rama del worker no tiene commits.",
+  "Only on this computer so far — not pushed": "Por ahora solo en este equipo — sin push",
+  "The todos on {ticket} — the agent writes and ticks them, you add more": "Las tareas de {ticket}: el agente las escribe y las marca, tú añades más",
+  "Another round started.": "Otra ronda iniciada.",
+  "The agent goes through the open todos on the ticket again": "El agente repasa de nuevo las tareas abiertas del ticket",
+  "Another round": "Otra ronda",
+  "Delivery proposed.": "Entrega propuesta.",
+  "Look at the worker's branch and propose push and merge request": "Revisar la rama del worker y proponer push y merge request",
+  "Propose delivery": "Proponer entrega"
 }

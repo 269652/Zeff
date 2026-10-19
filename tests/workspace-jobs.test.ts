@@ -350,3 +350,49 @@ test("what a job's card shows: the question it waits on, and the delivery propos
   setState(asking, "In Arbeit");
   assert.equal((await jobPanels(w.rawRows(jobs)))[asking], undefined);
 });
+
+test("links on a job's card: the branch (a link once it is pushed) and the merge request", async () => {
+  const { jobLinks } = await import("@/plugins/workspace/jobs");
+  const base = { baseUrl: "https://git.example.com/", project: "grp/proj", local: "feature/PROJ-1-x", remote: "feature/PROJ-1-x-neu" };
+  // Not pushed yet: the branch by name, no link; no merge request.
+  assert.deepEqual(jobLinks({ ...base, pushed: false, mrs: [] }), { branch: { name: "feature/PROJ-1-x", url: null }, mr: null });
+  // Pushed: the branch at GitLab (under the name it was pushed as).
+  assert.deepEqual(jobLinks({ ...base, pushed: true, mrs: [] }), { branch: { name: "feature/PROJ-1-x-neu", url: "https://git.example.com/grp/proj/-/tree/feature/PROJ-1-x-neu" }, mr: null });
+  // A merge request of that branch (the open one first): its link, state and number.
+  const mrs = [
+    { ref: "!4", url: "https://git.example.com/grp/proj/-/merge_requests/4", state: "closed", branch: "feature/PROJ-1-x-neu" },
+    { ref: "!5", url: "https://git.example.com/grp/proj/-/merge_requests/5", state: "opened", branch: "feature/PROJ-1-x-neu" },
+    { ref: "!6", url: "https://git.example.com/grp/proj/-/merge_requests/6", state: "opened", branch: "other" },
+  ];
+  const l = jobLinks({ ...base, pushed: false, mrs });
+  assert.deepEqual(l.mr, { label: "!5", url: "https://git.example.com/grp/proj/-/merge_requests/5", state: "opened" });
+  assert.equal(l.branch?.url, "https://git.example.com/grp/proj/-/tree/feature/PROJ-1-x-neu", "a merge request means it is pushed");
+  // Nothing known: nothing shown.
+  assert.deepEqual(jobLinks({ baseUrl: "", project: "", local: "", remote: "", pushed: false, mrs: [] }), { branch: null, mr: null });
+});
+
+test("another round: only a job in review; the worker is sent through the ticket's open todos", async () => {
+  const { addJob, dispatchJob, settleJobs, runJobAgain, jobInstruction, setState, stateOf } = await import("@/plugins/workspace/jobs");
+  const jobs = await autoJobs();
+  const id = addJob(jobs, { title: "Noch eine Runde", instruction: "Baue es." });
+  const { deps, runs, calls } = fakeDeps();
+  await assert.rejects(() => runJobAgain(id, deps), /in review/);
+  const first = await dispatchJob(id, deps);
+  runs.get(first.run)!.status = "done";
+  await settleJobs(deps);
+  assert.equal(stateOf(id), "Zur Prüfung");
+  const before = calls.instructions.length;
+  const again = await runJobAgain(id, deps);
+  assert.notEqual(again.run, first.run);
+  assert.equal(stateOf(id), "In Arbeit");
+  const told = calls.instructions.at(-1)!;
+  assert.equal(calls.instructions.length, before + 1);
+  assert.match(told, /Noch eine Runde/);
+  assert.match(told, /list_todos/);
+  assert.match(told, /tick: true/);
+  // What every worker is told about the ticket's todos.
+  const text = await jobInstruction(id);
+  assert.match(text, /add_todo/);
+  assert.match(text, /complete_todo/);
+  void setState;
+});

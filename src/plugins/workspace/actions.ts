@@ -51,6 +51,23 @@ export async function answerJobAction(rowId: number, answer: string) {
   });
 }
 
+/** Another round on a job in review: the worker goes through the ticket's open todos. */
+export async function runJobAgainAction(rowId: number) {
+  return run(async () => {
+    await (await import("./jobs")).runJobAgain(Number(rowId));
+    return {};
+  });
+}
+
+/** The delivery (push, merge request) proposed again for a job in review that has none (its commits are looked for again). */
+export async function proposeJobDeliveryAction(rowId: number) {
+  return run(async () => {
+    const p = await (await import("./jobs")).proposeJobDelivery(Number(rowId));
+    if (!p) throw new Error(t("Nothing to deliver: the worker's branch has no commits."));
+    return { text: p.text };
+  });
+}
+
 /** The delivery proposed under a job, run now: push the branch, open the merge request (the todo's actions). */
 export async function runJobDeliveryAction(rowId: number) {
   return run(async () => {
