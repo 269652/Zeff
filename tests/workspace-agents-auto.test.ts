@@ -38,7 +38,7 @@ test("a new jobs database receives tickets in Eingang and has a Ready column", a
   const jobs = createJobsDatabase(null, "Auto 1");
   const d = w.getDatabase(jobs)!;
   const names = d.schema.properties.find((p) => p.id === JOB.status)!.options!.map((o) => o.name);
-  assert.deepEqual(names, ["Eingang", "Ready", "In Arbeit", "Zur Prüfung", "Fertig", "Fehlgeschlagen"]);
+  assert.deepEqual(names, ["Eingang", "Ready", "In Arbeit", "Rückfrage", "Zur Prüfung", "Fertig", "Fehlgeschlagen"]);
   const inbox = d.schema.properties.find((p) => p.id === JOB.status)!.options![0].id;
   assert.deepEqual(d.schema.receive, { prop: JOB.status, value: inbox });
 
@@ -66,7 +66,7 @@ test("an older jobs database gets Eingang (its Offen renamed), Ready and the rec
   ensureJobStates(old);
   const d = w.getDatabase(old)!;
   const opts = d.schema.properties.find((p) => p.id === JOB.status)!.options!;
-  assert.deepEqual(opts.map((o) => o.name), ["Eingang", "Ready", "In Arbeit"], "Offen is Eingang now (same id: its cards stay), Ready after it");
+  assert.deepEqual(opts.map((o) => o.name), ["Eingang", "Ready", "In Arbeit", "Rückfrage"], "Offen is Eingang now (same id: its cards stay), Ready after it");
   assert.equal(opts[0].id, "o_open");
   assert.equal(w.getPage(row)!.props[JOB.status], "o_open");
   assert.deepEqual(d.schema.receive, { prop: JOB.status, value: "o_open" });
