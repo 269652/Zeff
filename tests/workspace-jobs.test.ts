@@ -440,3 +440,30 @@ test("links: the ticket's open merge request is shown when the worker's own bran
   assert.equal(l.mr?.label, "!185");
   assert.deepEqual(l.branch, { name: "feature/PROJ-9-svg-direct-output", url: "https://git.example.com/grp/proj/-/tree/feature/PROJ-9-svg-direct-output" });
 });
+
+test("a delivery whose merge request is open already becomes a merge: 'open merge request' is replaced by 'merge !n'", async () => {
+  const w = await import("@/plugins/workspace/store");
+  const { addJob, setState, upgradeDeliveries, jobPanels, JOB } = await import("@/plugins/workspace/jobs");
+  const store = await import("@/lib/boards/store");
+  const { createRun } = await import("@/lib/work/store");
+  const { recordOpenedMr } = await import("@/lib/gitlab/store");
+  const jobs = await autoJobs();
+  const id = addJob(jobs, { title: "MR steht schon", instruction: "x" });
+  const run = createRun({ ticket: "UPG-1", todoId: 1, mode: "instruct", provider: "claude", model: "sonnet", permissionMode: "auto", repo: "C:\r", prompt: "p", branch: "feature/UPG-1-x" });
+  w.setCell(id, JOB.run, `W-${run.id}`);
+  setState(id, "Zur Prüfung");
+  const push = { type: "git-push" as const, repo: "C:\r", branch: "feature/UPG-1-x", remote: "feature/UPG-1-x", target: "main", title: "t", description: "d" };
+  const open = { type: "gitlab-open-mr" as const, repo: "C:\r", project: "grp/upg", source: "feature/UPG-1-x", target: "main", title: "t", description: "d" };
+  const t = store.deliveryTodo({ ticket: "UPG-1", text: "Deliver", runId: run.id, branch: "feature/UPG-1-x", ops: [push, open] });
+  w.setCell(id, JOB.delivery, `T-${t.todo.id}`);
+  // No merge request known yet: nothing changes.
+  await upgradeDeliveries(w.rawRows(jobs));
+  assert.deepEqual(store.getTodo(t.todo.id)!.ops.map((o) => o.type), ["git-push", "gitlab-open-mr"]);
+  // The merge request is there (GitLab's sync, or opened by Zeff): the open step becomes the merge.
+  recordOpenedMr({ project: "grp/upg", iid: 185, url: "https://git.example.com/grp/upg/-/merge_requests/185", title: "t", description: "", source: "feature/UPG-1-x", author: null });
+  await upgradeDeliveries(w.rawRows(jobs));
+  const ops = store.getTodo(t.todo.id)!.ops;
+  assert.deepEqual(ops.map((o) => o.type), ["git-push", "gitlab-merge"]);
+  assert.deepEqual(ops[1], { type: "gitlab-merge", project: "grp/upg", iid: 185, source: "feature/UPG-1-x" });
+  assert.deepEqual((await jobPanels(w.rawRows(jobs)))[id].delivery?.ops.map((o) => o.type), ["git-push", "gitlab-merge"]);
+});

@@ -99,7 +99,7 @@ test("deliveryPlan: a branch that is on the remote already needs only the merge 
   assert.match(after!.text, /merge request/i);
 });
 
-test("deliveryPlan: a branch with a merge request open already gets only its new commits pushed — no second merge request", async () => {
+test("deliveryPlan: a branch with a merge request open already: its new commits are pushed, then the merge request is merged — never opened a second time", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "plan-"));
   git(dir, "init", "-q", "-b", "main");
   git(dir, "config", "user.email", "t@example.com");
@@ -125,9 +125,11 @@ test("deliveryPlan: a branch with a merge request open already gets only its new
   const { deliveryPlan } = await import("@/lib/work/runner");
   const run = { id: 6, cwd: dir, branch: "feature/PROJ-8-open-mr", baseSha: base, repo: dir, todoId: 0, ticket: "PROJ-8", entryLine: "C", summary: "s" } as never;
   const plan = await deliveryPlan(run);
-  assert.deepEqual(plan!.ops.map((o) => o.type), ["git-push"], "push the new commit; the merge request exists");
-  assert.match(plan!.text, /!185|merge request.*(already|open)/i);
-  // Nothing new beyond what is pushed: nothing to deliver.
+  assert.deepEqual(plan!.ops.map((o) => o.type), ["git-push", "gitlab-merge"], "push the new commit; the merge request exists: it is merged, not opened again");
+  assert.deepEqual(plan!.ops[1], { type: "gitlab-merge", project: "grp/proj2", iid: 185, source: "feature/PROJ-8-open-mr" });
+  assert.match(plan!.text, /!185/);
+  // Everything pushed: the merge is what is left.
   git(dir, "update-ref", "refs/remotes/origin/feature/PROJ-8-open-mr", "HEAD");
-  assert.equal(await deliveryPlan(run), null);
+  const merge = await deliveryPlan(run);
+  assert.deepEqual(merge!.ops.map((o) => o.type), ["gitlab-merge"]);
 });

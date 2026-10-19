@@ -717,10 +717,12 @@ export async function deliveryPlan(r: WorkRun, res?: { summary?: string; entry?:
     ? [{ type: "git-merge-main", repo: r.repo, branch: local, target: base }]
     : [
         ...(onRemote ? [] : [{ type: "git-push" as const, repo: r.repo, branch: local, remote, target: base, title, description }]),
-        ...(openMr ? [] : [{ type: "gitlab-open-mr" as const, repo: r.repo, project: repo!.gitlabProject!, source: remote, target: base, title, description }]),
+        // The merge request is open already (an earlier round's): it is merged, never opened a second time.
+        openMr
+          ? { type: "gitlab-merge" as const, project: repo!.gitlabProject!, iid: Number(openMr.ref.replace("!", "")), source: remote }
+          : { type: "gitlab-open-mr" as const, repo: r.repo, project: repo!.gitlabProject!, source: remote, target: base, title, description },
       ];
-  if (!ops.length) return null; // (pushed already, merge request open: nothing left to deliver)
-  const text = direct ? `Merge ${local} into ${base} and push` : openMr ? `Push the new commits of ${local} to ${remote} (${openMr.ref} is open already)` : onRemote ? `Open the merge request for ${remote} into ${base}` : `Deliver ${local}: push as ${remote}, merge request into ${base}`;
+  const text = direct ? `Merge ${local} into ${base} and push` : openMr ? (onRemote ? `Merge ${openMr.ref} (${remote}) into ${base}` : `Push the new commits of ${local} to ${remote}, then merge ${openMr.ref}`) : onRemote ? `Open the merge request for ${remote} into ${base}` : `Deliver ${local}: push as ${remote}, merge request into ${base}`;
   return { text, ops, branch: direct ? local : remote, local, direct };
 }
 

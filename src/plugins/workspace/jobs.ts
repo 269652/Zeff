@@ -105,12 +105,47 @@ export function jobLinks(v: { baseUrl: string; project: string; local: string; r
   };
 }
 
+/**
+ * A delivery that would open a merge request while one is open already (it was opened since, by you or by an earlier step) becomes the
+ * merge of that one: the "open merge request" action of the job's delivery todo is replaced by "merge !n". Called when a jobs
+ * database is opened; what is not a job's delivery is left alone.
+ */
+export async function upgradeDeliveries(rows: { id: number; cells: Record<string, unknown> }[]): Promise<void> {
+  const { getTodo, listTodos, setTodoOps } = await import("@/lib/boards/store");
+  const { getRun } = await import("@/lib/work/store");
+  const { listGitlabItems } = await import("@/lib/gitlab/store");
+  const open = listTodos({ status: "open" });
+  let mrs: ReturnType<typeof listGitlabItems> | null = null;
+  for (const r of rows) {
+    const state = stateOf(r.id);
+    if (state !== "Zur Prüfung" && state !== "In Arbeit" && state !== "Rückfrage") continue;
+    const todoId = /^T-(\d+)$/.exec(String(r.cells[JOB.delivery] ?? "").trim())?.[1];
+    const named = todoId ? getTodo(Number(todoId)) : undefined;
+    const run = runOf(r.cells[JOB.run]) ? getRun(runOf(r.cells[JOB.run])!) : undefined;
+    const todo = named && named.status === "open" ? named : run ? liveDeliveryTodo(open, run.ticket, [run.branch, ...(named?.ops ?? []).flatMap((o) => (o.type === "git-push" ? [o.branch, o.remote] : o.type === "gitlab-open-mr" ? [o.source] : []))]) : undefined;
+    if (!todo || !todo.ops.some((o) => o.type === "gitlab-open-mr")) continue;
+    mrs ??= listGitlabItems({ kind: "mr", limit: 500 });
+    let changed = false;
+    const ops = todo.ops.map((o) => {
+      if (o.type !== "gitlab-open-mr") return o;
+      const mr = mrs!.find((m) => m.project === o.project && m.branch === o.source && /opened/i.test(m.state ?? ""));
+      if (!mr) return o;
+      changed = true;
+      return { type: "gitlab-merge" as const, project: o.project, iid: Number(mr.ref.replace("!", "")), source: o.source };
+    });
+    if (changed) {
+      setTodoOps(todo.id, ops);
+      jobLog(r.id, `delivery T-${todo.id}: the merge request is open already — “open” became “merge”`);
+    }
+  }
+}
+
 /** The open todo of a ticket that carries actions (push, merge request, merge) for one of these branch names — the delivery as it stands now. */
 function liveDeliveryTodo(open: import("@/lib/boards/shared").TodoView[], ticket: string | null | undefined, names: (string | null | undefined)[]): import("@/lib/boards/shared").TodoView | undefined {
   const wanted = new Set(names.filter((n): n is string => !!n).map((n) => n.replace(/^origin\//, "")));
   if (!ticket || !wanted.size) return undefined;
   return open.find(
-    (t) => t.ticket === ticket.toUpperCase() && t.ops.some((o) => (o.type === "git-push" && (wanted.has(o.branch) || wanted.has(o.remote))) || (o.type === "gitlab-open-mr" && wanted.has(o.source)) || (o.type === "git-merge-main" && wanted.has(o.branch))),
+    (t) => t.ticket === ticket.toUpperCase() && t.ops.some((o) => (o.type === "git-push" && (wanted.has(o.branch) || wanted.has(o.remote))) || (o.type === "gitlab-open-mr" && wanted.has(o.source)) || (o.type === "gitlab-merge" && wanted.has(o.source)) || (o.type === "git-merge-main" && wanted.has(o.branch))),
   );
 }
 
@@ -147,7 +182,7 @@ export async function jobPanels(rows: { id: number; cells: Record<string, unknow
     const todo = named && named.status === "open" ? named : (run ? liveDeliveryTodo(openTodos, run.ticket, [run.branch, ...(named?.ops ?? []).flatMap((o) => (o.type === "git-push" ? [o.branch, o.remote] : o.type === "gitlab-open-mr" ? [o.source] : []))]) : undefined) ?? named;
     const panel: JobPanel = { ...(state ? { state } : {}) };
     if (question && state === "Rückfrage") panel.question = question;
-    if (todo) panel.delivery = { todoId: todo.id, ref: todo.ref, text: todo.text, delivers: todo.ops.some((o) => o.type === "git-push" || o.type === "git-merge-main" || o.type === "gitlab-open-mr"), ops: todo.ops.map((o, at) => ({ at, type: o.type, label: opLabel(o) })), status: todo.status as "open" | "done" | "dismissed", note: todo.note ?? null };
+    if (todo) panel.delivery = { todoId: todo.id, ref: todo.ref, text: todo.text, delivers: todo.ops.some((o) => o.type === "git-push" || o.type === "git-merge-main" || o.type === "gitlab-open-mr" || o.type === "gitlab-merge"), ops: todo.ops.map((o, at) => ({ at, type: o.type, label: opLabel(o) })), status: todo.status as "open" | "done" | "dismissed", note: todo.note ?? null };
     if (run && state && SHOWS_WORK.includes(state)) {
       const ticket = run.ticket?.trim().toUpperCase();
       const list = ticket ? (ticketExtras([ticket])[ticket]?.todos ?? []) : [];

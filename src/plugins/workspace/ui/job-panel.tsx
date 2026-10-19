@@ -156,7 +156,7 @@ export function JobPanel({ rowId, panel, todosShown = false }: { rowId: number; 
                 <div className="flex flex-wrap items-center gap-1.5">
                   {d.ops.map((o, i) => (
                     <button key={o.at} type="button" className={`btn btn-sm ${i === 0 ? "btn-primary" : ""}`} disabled={busy} title={o.label} onClick={() => void deliver(o.at)}>
-                      {o.type === "git-push" ? `⬆ ${t("Push")}` : o.type === "gitlab-open-mr" ? `⎇ ${t("Open MR")}` : o.type === "git-merge-main" ? `⎇ ${t("Merge into main")}` : o.label}
+                      {o.type === "git-push" ? `⬆ ${t("Push")}` : o.type === "gitlab-open-mr" ? `⎇ ${t("Open MR")}` : o.type === "gitlab-merge" ? `⎇ ${t("Merge")}` : o.type === "git-merge-main" ? `⎇ ${t("Merge into main")}` : o.label}
                     </button>
                   ))}
                 </div>
