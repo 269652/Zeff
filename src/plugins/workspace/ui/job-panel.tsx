@@ -4,14 +4,14 @@ import { useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { TodoBlock } from "@/components/todos/TodoBlock";
-import { answerJobAction, proposeJobDeliveryAction, runJobAgainAction, runJobDeliveryAction } from "../actions";
+import { answerJobAction, proposeJobDeliveryAction, runJobDeliveryAction } from "../actions";
 import type { JobPanel as JobPanelData } from "../jobs";
 import { WS_CHANGED } from "./ChatPanel";
 
 /**
  * What a job's card shows beneath its cells: the question a worker waits on (with the box to answer it), the branch and merge request
  * as links, the ticket's todos (the agent writes and ticks them; you add more), and — in review — the delivery Zeff proposes (push,
- * merge request) folded in, and "another round" to send the agent through the open todos.
+ * merge request) folded in.
  */
 export function JobPanel({ rowId, panel }: { rowId: number; panel: JobPanelData }) {
   const t = useT();
@@ -121,9 +121,6 @@ export function JobPanel({ rowId, panel }: { rowId: number; panel: JobPanelData 
 
       {panel.state === "Zur Prüfung" && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void act(() => runJobAgainAction(rowId), t("Another round started."))} title={t("The agent goes through the open todos on the ticket again")}>
-            ↻ {t("Another round")}
-          </button>
           {!hasPush && (
             <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void act(() => proposeJobDeliveryAction(rowId), t("Delivery proposed."))} title={t("Look at the worker's branch and propose push and merge request")}>
               ⚡ {t("Propose delivery")}

@@ -351,7 +351,7 @@ ${earlier}`).content ?? [];
 }
 
 /** A job given to a worker — by your click. Waiting (or failed) jobs only; the job goes "In Arbeit", the worker's ref on it. */
-export async function dispatchJob(rowId: number, deps?: JobDeps, opts: { extra?: string; answering?: boolean; rerun?: boolean } = {}): Promise<{ run: number; todo: number }> {
+export async function dispatchJob(rowId: number, deps?: JobDeps, opts: { extra?: string; answering?: boolean } = {}): Promise<{ run: number; todo: number }> {
   const row = getPage(rowId);
   const db = row?.dbId ? getDatabase(row.dbId) : null;
   if (!row || !db?.schema.jobs) throw new Error("This isn't a job of a jobs database.");
@@ -362,7 +362,7 @@ export async function dispatchJob(rowId: number, deps?: JobDeps, opts: { extra?:
   try {
     // (Checked under the claim: the one who was first has moved the job on by now.)
     const state = stateOf(rowId);
-    if (state && !STARTABLE.includes(state) && !(opts.answering && state === "Rückfrage") && !(opts.rerun && state === "Zur Prüfung")) throw new Error(`The job is “${state}” — only waiting or failed jobs are started.`);
+    if (state && !STARTABLE.includes(state) && !(opts.answering && state === "Rückfrage")) throw new Error(`The job is “${state}” — only waiting or failed jobs are started.`);
     const d = deps ?? (await realDeps());
     await keepEarlierResult(rowId);
     const instruction = [await jobInstruction(rowId), opts.extra].filter(Boolean).join("\n\n");
@@ -470,21 +470,6 @@ export async function settleJobs(deps?: JobDeps): Promise<number> {
     }
   }
   return n;
-}
-
-/**
- * Another round on a checked job: the user has looked, added todos on the ticket (or left some open) — the worker starts again, works
- * through the ticket's open todos on the branch's last state, ticks each off and writes what is missing.
- */
-export async function runJobAgain(rowId: number, deps?: JobDeps): Promise<{ run: number; todo: number }> {
-  if (stateOf(rowId) !== "Zur Prüfung") throw new Error("Only a job in review gets another round.");
-  const extra = [
-    "### Noch eine Runde",
-    "Der Nutzer hat deinen Stand geprüft und am Ticket weitere Todos ergänzt (oder welche offen gelassen). Lies sie mit list_todos, arbeite alle offenen ab — dein bisheriger Stand liegt im Branch —, hake jedes erledigte mit complete_todo (tick: true) ab und schreib fehlende Schritte mit add_todo dazu.",
-  ].join("\n");
-  const r = await dispatchJob(rowId, deps, { extra, rerun: true });
-  jobLog(rowId, "→ another round started on the open todos");
-  return r;
 }
 
 /** The delivery proposed for a job in review once more (a job checked before it was proposed, or the todo gone): its todo is named in the row. */

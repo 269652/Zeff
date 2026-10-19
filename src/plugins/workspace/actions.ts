@@ -51,14 +51,6 @@ export async function answerJobAction(rowId: number, answer: string) {
   });
 }
 
-/** Another round on a job in review: the worker goes through the ticket's open todos. */
-export async function runJobAgainAction(rowId: number) {
-  return run(async () => {
-    await (await import("./jobs")).runJobAgain(Number(rowId));
-    return {};
-  });
-}
-
 /** The delivery (push, merge request) proposed again for a job in review that has none (its commits are looked for again). */
 export async function proposeJobDeliveryAction(rowId: number) {
   return run(async () => {

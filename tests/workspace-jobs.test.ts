@@ -371,28 +371,3 @@ test("links on a job's card: the branch (a link once it is pushed) and the merge
   assert.deepEqual(jobLinks({ baseUrl: "", project: "", local: "", remote: "", pushed: false, mrs: [] }), { branch: null, mr: null });
 });
 
-test("another round: only a job in review; the worker is sent through the ticket's open todos", async () => {
-  const { addJob, dispatchJob, settleJobs, runJobAgain, jobInstruction, setState, stateOf } = await import("@/plugins/workspace/jobs");
-  const jobs = await autoJobs();
-  const id = addJob(jobs, { title: "Noch eine Runde", instruction: "Baue es." });
-  const { deps, runs, calls } = fakeDeps();
-  await assert.rejects(() => runJobAgain(id, deps), /in review/);
-  const first = await dispatchJob(id, deps);
-  runs.get(first.run)!.status = "done";
-  await settleJobs(deps);
-  assert.equal(stateOf(id), "Zur Prüfung");
-  const before = calls.instructions.length;
-  const again = await runJobAgain(id, deps);
-  assert.notEqual(again.run, first.run);
-  assert.equal(stateOf(id), "In Arbeit");
-  const told = calls.instructions.at(-1)!;
-  assert.equal(calls.instructions.length, before + 1);
-  assert.match(told, /Noch eine Runde/);
-  assert.match(told, /list_todos/);
-  assert.match(told, /tick: true/);
-  // What every worker is told about the ticket's todos.
-  const text = await jobInstruction(id);
-  assert.match(text, /add_todo/);
-  assert.match(text, /complete_todo/);
-  void setState;
-});

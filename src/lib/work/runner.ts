@@ -681,12 +681,15 @@ Die Commits liegen auf ${r.branch} (dem gewählten Branch) - nichts wird von Zef
  */
 export async function deliveryPlan(r: WorkRun, res?: { summary?: string; entry?: string }): Promise<{ text: string; ops: TodoOp[]; branch: string; direct: boolean } | null> {
   if (!r.cwd || !r.branch || !r.baseSha || !r.repo) return null;
-  const commits = await gitAsync(r.cwd, ["rev-list", "--count", `${r.baseSha}..HEAD`]).catch(() => "0");
+  // Delivered into the default branch (main) — whatever branch the worker started from.
+  const base = (await gitAsync(r.cwd, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]).catch(() => "origin/main")).replace(/^origin\//, "") || "main";
+  // What there is to deliver: the commits beyond the default branch — also the ones of earlier runs on this branch (a run that went on
+  // from one, another round or an answered question, made none of its own). Unknown default branch: the run's own.
+  const ahead = await gitAsync(r.cwd, ["rev-list", "--count", `origin/${base}..HEAD`]).catch(() => "");
+  const commits = ahead !== "" ? ahead : await gitAsync(r.cwd, ["rev-list", "--count", `${r.baseSha}..HEAD`]).catch(() => "0");
   if (!Number(commits)) return null;
   const todo = getTodo(r.todoId);
   const repo = listRepos().find((x) => x.path === r.repo);
-  // Delivered into the default branch (main) — whatever branch the worker started from.
-  const base = (await gitAsync(r.cwd, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]).catch(() => "origin/main")).replace(/^origin\//, "") || "main";
   const what = res?.entry || r.entryLine || todo?.text || r.branch;
   const summary = res?.summary || r.summary || "";
   const title = `${r.ticket}: ${what}`;
