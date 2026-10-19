@@ -268,7 +268,7 @@ async function realDeps(): Promise<JobDeps> {
       const run = getRun(runId);
       const plan = run ? await runner.deliveryPlan(run) : null;
       if (!run || !plan) return null;
-      const { todo } = deliveryTodo({ ticket: run.ticket, text: plan.text, runId: run.id, branch: run.branch ?? plan.branch, ops: plan.ops });
+      const { todo } = deliveryTodo({ ticket: run.ticket, text: plan.text, runId: run.id, branch: plan.local, ops: plan.ops });
       return { todoId: todo.id, text: todo.text };
     },
   };
@@ -328,7 +328,7 @@ export async function jobInstruction(rowId: number): Promise<string> {
     "- Sonst änderst du nichts an dieser Zeile; „Fertig“ setzt nur der Nutzer.",
     "- Fehlt dir etwas oder musst du etwas entscheiden: ruf zuerst todo_needs_input mit deiner Frage auf (ein, zwei Zeilen), dann stell sie und warte — der Nutzer antwortet in der Zeile, und du machst weiter. Rate nicht.",
     `- Todos am Ticket: Schau mit list_todos, was am Ticket${ticket.key ? ` ${ticket.key}` : ""} schon offen ist (der Nutzer ergänzt dort laufend welche — arbeite alle offenen ab, nicht nur deine). Schreib deine geplanten Schritte mit add_todo (eine kurze Zeile je Schritt) aufs Ticket und hake jeden erledigten mit complete_todo (tick: true) ab. So sieht der Nutzer, was getan ist und was fehlt, und kann dich noch eine Runde drehen lassen.`,
-    "- Code: Arbeite auf einem Feature-Branch nach dem Schema feature/<TICKET>-<kurze-beschreibung> (fix/<TICKET>-… bei Fehlern; <TICKET> ist der Schlüssel des Tickets, kleingeschrieben und kurz die Beschreibung). Committe dort; du musst nicht pushen und keinen Merge Request anlegen — Zeff schlägt dem Nutzer den Push und den Merge Request als Aktion vor, wenn du fertig bist. Du darfst also nicht pushen.",
+    "- Code: Arbeite auf einem Feature-Branch nach dem Schema feature/<TICKET>-<kurze-beschreibung> (fix/<TICKET>-… bei Fehlern; <TICKET> ist der Schlüssel des Tickets, kleingeschrieben und kurz die Beschreibung). Passt der Branch-Name, den Zeff angelegt hat, nicht zur Änderung (2–4 Wörter, die beschreiben, was du im Code änderst — nicht der Titel des Tickets, nicht „Ergebnis geprüft“), benenne ihn am Ende um: git branch -m feature/<TICKET>-<kurze-beschreibung>. Committe dort; du musst nicht pushen und keinen Merge Request anlegen — Zeff schlägt dem Nutzer den Push und den Merge Request als Aktion vor, wenn du fertig bist. Du darfst also nicht pushen.",
     "- Beende mit einer kurzen Zusammenfassung.",
   ]
     .join("\n")

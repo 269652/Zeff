@@ -17,7 +17,7 @@ import { asksForApproval, opsSettle, todoRef } from "@/lib/boards/shared";
 import type { TodoOp, TodoView } from "@/lib/boards/shared";
 import { linkBranchContext, linkedBranchesOf } from "./branch-context";
 import { newBranchName } from "./branch-name";
-import { namingBlock, proposeBranchName } from "./branch-naming";
+import { branchNameFor, namingBlock, proposeBranchName } from "./branch-naming";
 import { addFollowUp, addTestedDelivery, addTodoInstruction, getTodo, handOverPlan, setTodoOps } from "@/lib/boards/store";
 import { commentOnMr, openGitlabMr, postGitlabReply } from "@/lib/gitlab/reply";
 import { runTodoOps } from "@/lib/ops";
@@ -682,7 +682,7 @@ Die Commits liegen auf ${r.branch} (dem gewählten Branch) - nichts wird von Zef
  * feature/<TICKET>-<what>, fix/ for a fix) and open the merge request into the default branch — or merge it straight in.
  * Null: no commits, or no branch/repo to deliver from. `branch`: where the commits will be (the pushed name, or the local one).
  */
-export async function deliveryPlan(r: WorkRun, res?: { summary?: string; entry?: string }): Promise<{ text: string; ops: TodoOp[]; branch: string; direct: boolean } | null> {
+export async function deliveryPlan(r: WorkRun, res?: { summary?: string; entry?: string }): Promise<{ text: string; ops: TodoOp[]; branch: string; /** The branch the commits are on (the worker may have renamed it). */ local: string; direct: boolean } | null> {
   if (!r.cwd || !r.branch || !r.baseSha || !r.repo) return null;
   // Delivered into the default branch (main) — whatever branch the worker started from.
   const base = (await gitAsync(r.cwd, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]).catch(() => "origin/main")).replace(/^origin\//, "") || "main";
@@ -693,22 +693,28 @@ export async function deliveryPlan(r: WorkRun, res?: { summary?: string; entry?:
   if (!Number(commits)) return null;
   const todo = getTodo(r.todoId);
   const repo = listRepos().find((x) => x.path === r.repo);
+  // The branch as it is now: a worker may have renamed it to say what the change is (git branch -m) — that name is the one to push.
+  const current = await gitAsync(r.cwd, ["rev-parse", "--abbrev-ref", "HEAD"]).catch(() => "");
+  const local = current && current !== "HEAD" ? current : r.branch;
   const what = res?.entry || r.entryLine || todo?.text || r.branch;
   const summary = res?.summary || r.summary || "";
   const title = `${r.ticket}: ${what}`;
   const description = `${summary}\n\nZeff ${workRef(r.id)}${todo ? ` · ${todoRef(todo.id)}` : ""}`;
-  const remote = `${todo?.kind === "fix" ? "fix" : "feature"}/${r.ticket}-${slug(what) || `w${r.id}`}`;
+  // Pushed under the branch's own name when it follows the scheme (feature/<TICKET>-<short-change>); else the scheme's name for the todo —
+  // never made of the time-booking line ("… geprüft, Ergebnis eingetragen").
+  const schemed = /^(feature|fix|bugfix|hotfix)\//i.test(local) && local.slice(local.indexOf("/") + 1).toLowerCase().startsWith(`${r.ticket.toLowerCase()}-`);
+  const remote = schemed ? local : ((todo ? branchNameFor(todo)?.name : null) ?? `${todo?.kind === "fix" ? "fix" : "feature"}/${r.ticket}-${slug(what) || `w${r.id}`}`);
   // One todo: push and open the merge request in one go (its "Merge into main" alternative
   // merges straight instead) — or merge straight in, for a repo that delivers so.
   const direct = repo?.delivery === "direct" || !repo?.gitlabProject;
   const ops: TodoOp[] = direct
-    ? [{ type: "git-merge-main", repo: r.repo, branch: r.branch, target: base }]
+    ? [{ type: "git-merge-main", repo: r.repo, branch: local, target: base }]
     : [
-        { type: "git-push", repo: r.repo, branch: r.branch, remote, target: base, title, description },
+        { type: "git-push", repo: r.repo, branch: local, remote, target: base, title, description },
         { type: "gitlab-open-mr", repo: r.repo, project: repo!.gitlabProject!, source: remote, target: base, title, description },
       ];
-  const text = direct ? `Merge ${r.branch} into ${base} and push` : `Deliver ${r.branch}: push as ${remote}, merge request into ${base}`;
-  return { text, ops, branch: direct ? r.branch : remote, direct };
+  const text = direct ? `Merge ${local} into ${base} and push` : `Deliver ${local}: push as ${remote}, merge request into ${base}`;
+  return { text, ops, branch: direct ? local : remote, local, direct };
 }
 
 /** Runs being finished right now (finishing can wait for Copilot), so a second exit signal doesn't finish them twice. */

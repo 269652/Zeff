@@ -43,3 +43,30 @@ test("deliveryPlan: commits beyond the default branch count, also when the run i
   const empty = await deliveryPlan({ ...(run(git(dir, "rev-parse", "HEAD")) as object), branch: "feature/PROJ-2-empty" } as never);
   assert.equal(empty, null);
 });
+
+test("deliveryPlan: pushed under the branch's own name when it follows the scheme (also renamed) — not made of the booking line", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "plan-"));
+  git(dir, "init", "-q", "-b", "main");
+  git(dir, "config", "user.email", "t@example.com");
+  git(dir, "config", "user.name", "T");
+  fs.writeFileSync(path.join(dir, "a.txt"), "a");
+  git(dir, "add", ".");
+  git(dir, "commit", "-q", "-m", "base");
+  git(dir, "update-ref", "refs/remotes/origin/main", "HEAD");
+  git(dir, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
+  const base = git(dir, "rev-parse", "HEAD");
+  git(dir, "checkout", "-q", "-b", "feature/PROJ-436-responsive-images-fuer");
+  fs.writeFileSync(path.join(dir, "b.txt"), "b");
+  git(dir, "add", ".");
+  git(dir, "commit", "-q", "-m", "feat(PROJ-436): svg");
+  // The worker names the branch for what the change is.
+  git(dir, "branch", "-m", "feature/PROJ-436-svg-ohne-source-ausspielen");
+
+  const { deliveryPlan } = await import("@/lib/work/runner");
+  const run = { id: 91, cwd: dir, branch: "feature/PROJ-436-responsive-images-fuer", baseSha: base, repo: dir, todoId: 0, ticket: "PROJ-436", entryLine: "SVG-Umsetzung nachgeprüft, Ergebnis eingetragen", summary: "s" } as never;
+  const plan = await deliveryPlan(run);
+  assert.ok(plan);
+  assert.equal(plan.local, "feature/PROJ-436-svg-ohne-source-ausspielen", "the branch as it is now");
+  assert.equal(plan.branch, "feature/PROJ-436-svg-ohne-source-ausspielen", "pushed under that name");
+  assert.doesNotMatch(JSON.stringify(plan.ops), /nachgeprueft|ergebnis/i, "nothing made of the booking line");
+});
