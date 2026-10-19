@@ -6120,5 +6120,6 @@
   "Another round": "Otra ronda",
   "Delivery proposed.": "Entrega propuesta.",
   "Look at the worker's branch and propose push and merge request": "Revisar la rama del worker y proponer push y merge request",
-  "Propose delivery": "Proponer entrega"
+  "Propose delivery": "Proponer entrega",
+  "Merge into main": "Fusionar en main"
 }

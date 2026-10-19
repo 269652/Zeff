@@ -61,13 +61,13 @@ export async function proposeJobDeliveryAction(rowId: number) {
 }
 
 /** The delivery proposed under a job, run now: push the branch, open the merge request (the todo's actions). */
-export async function runJobDeliveryAction(rowId: number) {
+export async function runJobDeliveryAction(rowId: number, only?: number[]) {
   return run(async () => {
     const row = store.getPage(Number(rowId));
     const todoId = /^T-(\d+)$/.exec(String(row?.props[(await import("./jobs")).JOB.delivery] ?? "").trim())?.[1];
     if (!todoId) throw new Error(t("No delivery is proposed for this job."));
     const { runTodoOpsNow } = await import("@/lib/ops");
-    const r = await runTodoOpsNow(Number(todoId));
+    const r = await runTodoOpsNow(Number(todoId), { only: Array.isArray(only) ? only.map(Number).filter(Number.isInteger) : undefined });
     return { done: r.done };
   });
 }

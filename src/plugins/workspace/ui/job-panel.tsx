@@ -15,7 +15,8 @@ import { WS_CHANGED } from "./ChatPanel";
  */
 export function JobPanel({ rowId, panel }: { rowId: number; panel: JobPanelData }) {
   const t = useT();
-  const [open, setOpen] = useState(false);
+  // The delivery is open from the start while the job waits for your check.
+  const [open, setOpen] = useState(panel.state === "Zur Prüfung");
   const [todosOpen, setTodosOpen] = useState(false);
   const [answer, setAnswer] = useState("");
   const [busy, setBusy] = useState(false);
@@ -40,9 +41,9 @@ export function JobPanel({ rowId, panel }: { rowId: number; panel: JobPanelData 
     setAnswer("");
   };
 
-  const deliver = async () => {
+  const deliver = async (at: number) => {
     setBusy(true);
-    const r = await runJobDeliveryAction(rowId);
+    const r = await runJobDeliveryAction(rowId, [at]);
     setBusy(false);
     if (!r.ok) {
       toast(r.error, { tone: "error" });
@@ -143,19 +144,19 @@ export function JobPanel({ rowId, panel }: { rowId: number; panel: JobPanelData 
           {open && (
             <div className="mt-1 space-y-1 rounded-md border border-indigo-200 p-2 text-xs dark:border-indigo-900">
               <div className="text-zinc-700 dark:text-zinc-200">{d.text}</div>
-              <ul className="list-disc pl-4 text-zinc-500">
-                {d.ops.map((o, i) => (
-                  <li key={i}>{o}</li>
-                ))}
-              </ul>
               {d.status === "done" ? (
                 <div className="text-emerald-700 dark:text-emerald-400">{d.note || t("Done.")}</div>
               ) : d.status === "dismissed" ? (
                 <div className="text-zinc-400">{t("Dismissed.")}</div>
               ) : (
-                <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void deliver()}>
-                  ⚡ {t("Push and open the merge request")}
-                </button>
+                // One button per action, in order: push, then the merge request (each runs on its own; what ran leaves the list).
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {d.ops.map((o, i) => (
+                    <button key={o.at} type="button" className={`btn btn-sm ${i === 0 ? "btn-primary" : ""}`} disabled={busy} title={o.label} onClick={() => void deliver(o.at)}>
+                      {o.type === "git-push" ? `⬆ ${t("Push")}` : o.type === "gitlab-open-mr" ? `⎇ ${t("Open MR")}` : o.type === "git-merge-main" ? `⎇ ${t("Merge into main")}` : o.label}
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
           )}

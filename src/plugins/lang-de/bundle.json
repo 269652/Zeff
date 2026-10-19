@@ -6120,5 +6120,6 @@
   "Another round": "Noch eine Runde",
   "Delivery proposed.": "Auslieferung vorgeschlagen.",
   "Look at the worker's branch and propose push and merge request": "Den Branch des Workers ansehen und Push und Merge Request vorschlagen",
-  "Propose delivery": "Auslieferung vorschlagen"
+  "Propose delivery": "Auslieferung vorschlagen",
+  "Merge into main": "In main mergen"
 }

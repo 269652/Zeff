@@ -110,7 +110,7 @@ export type JobPanel = {
   ticket?: string;
   todos?: import("@/lib/items/shared").ExtraTodo[];
   links?: JobLinks;
-  delivery?: { todoId: number; ref: string; text: string; /** It carries a push / merge (not just any todo of the ticket). */ delivers: boolean; ops: string[]; status: "open" | "done" | "dismissed"; note: string | null };
+  delivery?: { todoId: number; ref: string; text: string; /** It carries a push / merge (not just any todo of the ticket). */ delivers: boolean; /** Its actions in order (`at`: their place on the todo — the one to run). */ ops: { at: number; type: string; label: string }[]; status: "open" | "done" | "dismissed"; note: string | null };
 };
 
 const SHOWS_WORK: JobState[] = ["In Arbeit", "Rückfrage", "Zur Prüfung", "Fertig"];
@@ -132,7 +132,7 @@ export async function jobPanels(rows: { id: number; cells: Record<string, unknow
     const run = runOf(r.cells[JOB.run]) ? getRun(runOf(r.cells[JOB.run])!) : undefined;
     const panel: JobPanel = { ...(state ? { state } : {}) };
     if (question && state === "Rückfrage") panel.question = question;
-    if (todo) panel.delivery = { todoId: todo.id, ref: todo.ref, text: todo.text, delivers: todo.ops.some((o) => o.type === "git-push" || o.type === "git-merge-main" || o.type === "gitlab-open-mr"), ops: todo.ops.map(opLabel), status: todo.status as "open" | "done" | "dismissed", note: todo.note ?? null };
+    if (todo) panel.delivery = { todoId: todo.id, ref: todo.ref, text: todo.text, delivers: todo.ops.some((o) => o.type === "git-push" || o.type === "git-merge-main" || o.type === "gitlab-open-mr"), ops: todo.ops.map((o, at) => ({ at, type: o.type, label: opLabel(o) })), status: todo.status as "open" | "done" | "dismissed", note: todo.note ?? null };
     if (run && state && SHOWS_WORK.includes(state)) {
       const ticket = run.ticket?.trim().toUpperCase();
       const list = ticket ? (ticketExtras([ticket])[ticket]?.todos ?? []) : [];
@@ -149,7 +149,8 @@ export async function jobPanels(rows: { id: number; cells: Record<string, unknow
         project,
         local: run.branch ?? "",
         remote: push && push.type === "git-push" ? push.remote : mrOp && mrOp.type === "gitlab-open-mr" ? mrOp.source : "",
-        pushed: todo?.status === "done",
+        // (Run actions are taken off the todo: a merge request left without its push means the push is done.)
+        pushed: todo?.status === "done" || (!!mrOp && !push),
         mrs: mrs.filter((m) => !project || m.project === project),
       });
       if (links.branch || links.mr) panel.links = links;

@@ -344,7 +344,7 @@ test("what a job's card shows: the question it waits on, and the delivery propos
   assert.equal(panels[asking].question, "Welche Variante?");
   assert.equal(panels[done].delivery?.todoId, t.id);
   assert.equal(panels[done].delivery?.status, "open");
-  assert.ok(panels[done].delivery!.ops.length === 1);
+  assert.deepEqual(panels[done].delivery!.ops.map((o) => o.type), ["git-push"]);
   assert.equal(panels[quiet], undefined, "a quiet job has no panel");
   // The question only shows while it is asked.
   setState(asking, "In Arbeit");
