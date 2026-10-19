@@ -1221,7 +1221,7 @@ function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, new
         >
           <ColumnHead g={g} gp={gp} view={view} rows={rows} api={api} locked={!!ctx.data.locked} />
           {g.rows.map((r) => (
-            <div key={r.id} className="group/sub">
+            <div key={r.id} className="group/sub relative">
             <div
               data-row={r.id}
               data-attention={ctx.data.extras?.tickets[ctx.data.extras.keys[r.id] ?? ""]?.attention ?? undefined}
@@ -1414,7 +1414,7 @@ function AddColumn({ add }: { add: (name: string) => void }) {
  * "+ New" at the end of a board column, as Kanban's "+ Card": a field for the title — Enter makes the card (in this column)
  * and keeps the field open for the next one, Shift+Enter a new line, Escape or leaving it empty closes it.
  */
-/** Under a card on hover: a shadow card — a click, a title, Enter: a subtask of it (in its column, right below it). */
+/** Under a card on hover: a shadow card — a click, a title, Enter: a subtask of it (in its column, right below it). It floats over the gap (never takes room: the cards below would jump under the pointer). */
 function SubtaskGhost({ parentId, after }: { parentId: number; after: () => void }) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -1424,7 +1424,7 @@ function SubtaskGhost({ parentId, after }: { parentId: number; after: () => void
     return (
       <button
         type="button"
-        className="mt-1 hidden w-full rounded-md border border-dashed border-zinc-300 px-2 py-1 text-left text-xs text-zinc-400 group-hover/sub:block hover:border-indigo-300 hover:text-indigo-600 dark:border-zinc-700"
+        className="absolute inset-x-0 top-full z-10 mt-0.5 hidden w-full rounded-md border border-dashed bg-white/95 dark:bg-zinc-900/95 border-zinc-300 px-2 py-1 text-left text-xs text-zinc-400 group-hover/sub:block hover:border-indigo-300 hover:text-indigo-600 dark:border-zinc-700"
         onClick={() => setOpen(true)}
         data-subtask-ghost={parentId}
       >
