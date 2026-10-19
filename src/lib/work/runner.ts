@@ -31,7 +31,7 @@ import { endSideWork } from "./actions";
 import { attachmentsDir, attachmentsNote, attachmentsPrompt } from "./attachments";
 import { briefFor, sessionTodoNote, taskFor, workerRules } from "./brief";
 import { listRepos, repoForTicket } from "@/lib/repos";
-import { addBranchWorktree, addWorktree, baseFor, git, gitSummary, repoRoot, switchBranch } from "./git";
+import { addBranchWorktree, addWorktreeAsync, baseForAsync, git, gitSummary, repoRoot, switchBranch } from "./git";
 import { startInteractive } from "@/plugins/copilot-cli/interactive";
 import { readSessionOpts, saveSessionOpts } from "@/plugins/claude-cli/live";
 import { liveDriverFor, liveDriverOf, liveDrivers, liveIdle } from "./live-driver";
@@ -279,7 +279,7 @@ export function pump(): void {
       busy.add(r.repo);
     }
     free--;
-    start(r.id);
+    void start(r.id);
   }
 }
 
@@ -298,7 +298,7 @@ const resumes = (provider: string, from: Pick<WorkRun, "provider" | "sessionId" 
 const codeLike = (mode: string) => mode === "code" || mode === "instruct";
 
 /** One run begins: where it works (a worktree of its own, the repo, or a scratch folder), its full prompt, its process. */
-function start(id: number): void {
+async function start(id: number): Promise<void> {
   let r = getRun(id);
   if (!r || r.status !== "queued") return;
   // Sent while the run before it worked: it goes on with that conversation, where it worked — or, if there's none to resume, from the todo's brief.
@@ -351,8 +351,9 @@ function start(id: number): void {
         base = git(cwd, ["rev-parse", "--abbrev-ref", "HEAD"]);
         baseSha = git(cwd, ["rev-parse", "HEAD"]);
       } else {
-        base = r.base || baseFor(r.repo, r.ticket);
-        ({ cwd, branch, baseSha } = addWorktree(r.repo, r.ticket, id, base, (todo && proposeBranchName(todo)) || undefined));
+        // (Without blocking: checking out a worktree of a big repo takes seconds, and the server answers the others meanwhile.)
+        base = r.base || (await baseForAsync(r.repo, r.ticket));
+        ({ cwd, branch, baseSha } = await addWorktreeAsync(r.repo, r.ticket, id, base, (todo && proposeBranchName(todo)) || undefined));
       }
     } else if (mode === "draft" && r.repo) {
       cwd = r.repo; // to look things up — read only

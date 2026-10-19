@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { gitFailure } from "@/lib/git";
@@ -77,6 +77,65 @@ export function addWorktree(repo: string, ticket: string, runId: number, base: s
     // Half made: gone again, so the next try starts clean.
     tryGit(repo, ["worktree", "remove", "--force", cwd]);
     tryGit(repo, ["branch", "-D", branch]);
+    throw e;
+  }
+  return { cwd, branch, baseSha };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The same, without blocking the server: a worktree of a big repo takes seconds to check out, and while git ran inside the server's
+// own thread nothing else was answered (a card dragged to "Ready" waited for it).
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** git in a folder, asynchronously: its output (trimmed), or throws with what git said. */
+function gitA(cwd: string, args: string[], timeoutMs = 60000): Promise<string> {
+  return new Promise((resolve, reject) =>
+    execFile("git", args, { cwd, encoding: "utf8", timeout: timeoutMs, windowsHide: true, maxBuffer: 64 * 1024 * 1024 }, (err, out) => (err ? reject(gitFailure(err)) : resolve(String(out).trim()))),
+  );
+}
+const tryGitA = (cwd: string, args: string[]) => gitA(cwd, args).catch(() => "");
+
+/** baseFor, without blocking. */
+export async function baseForAsync(repo: string, ticket: string): Promise<string> {
+  const refs = (await tryGitA(repo, ["for-each-ref", "--sort=-committerdate", "--format=%(refname:short)", "refs/heads", "refs/remotes"]))
+    .split("\n")
+    .map((r) => r.trim())
+    .filter(Boolean);
+  const key = new RegExp(`(^|[^A-Za-z0-9])${ticket}(?![0-9])`, "i");
+  const own = refs.find((r) => key.test(r) && !/^(origin\/)?zeff\//.test(r));
+  if (own) return own;
+  const head = await tryGitA(repo, ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]);
+  return head || "HEAD";
+}
+
+/** addWorktree, without blocking: the same names, the same folder, the same clean-up of a half made one. */
+export async function addWorktreeAsync(repo: string, ticket: string, runId: number, base: string, preferred?: string): Promise<{ cwd: string; branch: string; baseSha: string }> {
+  const baseSha = await gitA(repo, ["rev-parse", base]);
+  const prefix = ticket.trim() || "run";
+  const name = (n: number) => (n ? `-w${runId}-${n + 1}` : `-w${runId}`);
+  const folderOf = (n: number) => path.join(path.dirname(repo), ".zeff-worktrees", `${path.basename(repo)}${name(n)}`);
+  const hasBranch = async (b: string) => !!(await tryGitA(repo, ["rev-parse", "--verify", "--quiet", `refs/heads/${b}`]));
+  let n = 0;
+  while (n < 20 && ((await hasBranch(`zeff/${prefix}${name(n)}`)) || fs.existsSync(/*turbopackIgnore: true*/ folderOf(n)))) n++;
+  let branch = `zeff/${prefix}${name(n)}`;
+  if (preferred && /^[A-Za-z0-9._/-]+$/.test(preferred) && (await gitA(repo, ["check-ref-format", "--branch", preferred]).then(() => true, () => false))) {
+    for (let i = 1; i <= 6; i++) {
+      const candidate = i === 1 ? preferred : `${preferred}-${i}`;
+      if (!(await hasBranch(candidate)) && !(await tryGitA(repo, ["rev-parse", "--verify", "--quiet", `refs/remotes/origin/${candidate}`]))) {
+        branch = candidate;
+        break;
+      }
+    }
+  }
+  const cwd = folderOf(n);
+  fs.mkdirSync(/*turbopackIgnore: true*/ path.dirname(cwd), { recursive: true });
+  const noHooks = path.join(path.dirname(cwd), ".no-hooks");
+  fs.mkdirSync(/*turbopackIgnore: true*/ noHooks, { recursive: true });
+  try {
+    await gitA(repo, ["-c", `core.hooksPath=${noHooks}`, "worktree", "add", "--quiet", "-b", branch, cwd, baseSha], 300000);
+  } catch (e) {
+    await tryGitA(repo, ["worktree", "remove", "--force", cwd]);
+    await tryGitA(repo, ["branch", "-D", branch]);
     throw e;
   }
   return { cwd, branch, baseSha };

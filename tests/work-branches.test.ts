@@ -109,3 +109,29 @@ test("a worker's worktree gets the branch name asked for (the next free one when
     fs.rmSync(base, { recursive: true, force: true });
   }
 });
+
+test("the worktree made without blocking the server: the same names as the blocking one, and the event loop keeps turning meanwhile", async () => {
+  const { addWorktreeAsync, baseForAsync } = await import("@/lib/work/git");
+  const { base, repo } = makeRepo();
+  try {
+    assert.equal(await baseForAsync(repo, "ABC-9"), "HEAD", "no ticket branch and no origin: what is checked out");
+    git(repo, "branch", "feature/ABC-9-old");
+    assert.equal(await baseForAsync(repo, "ABC-9"), "feature/ABC-9-old", "the ticket's own branch");
+    // Timers still fire while git works.
+    let ticks = 0;
+    const timer = setInterval(() => ticks++, 1);
+    const a = await addWorktreeAsync(repo, "ABC-8", 31, "main", "feature/ABC-8-footer-link");
+    clearInterval(timer);
+    assert.equal(a.branch, "feature/ABC-8-footer-link");
+    assert.equal(git(a.cwd, "symbolic-ref", "--short", "HEAD"), "feature/ABC-8-footer-link");
+    assert.equal(a.baseSha, git(repo, "rev-parse", "main"));
+    // Taken: the next free name; not a name git takes: the worker's own zeff/… one.
+    assert.equal((await addWorktreeAsync(repo, "ABC-8", 32, "main", "feature/ABC-8-footer-link")).branch, "feature/ABC-8-footer-link-2");
+    assert.match((await addWorktreeAsync(repo, "ABC-8", 33, "main", "feature/ABC 8 ..bad")).branch, /^zeff\/ABC-8-w33/);
+    assert.match((await addWorktreeAsync(repo, "ABC-8", 34, "main")).branch, /^zeff\/ABC-8-w34/);
+    await assert.rejects(() => addWorktreeAsync(repo, "ABC-8", 35, "nope-branch"), /nope-branch|ambiguous|unknown revision/i);
+    void ticks;
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+});
