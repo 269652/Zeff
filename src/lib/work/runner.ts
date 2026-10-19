@@ -44,6 +44,8 @@ import { parseMrTarget, WORK_RESULT_SCHEMA, workModeOf, workRef, type SessionOpt
 
 /** Zeff's own booking tools — a worker never books: Zeff books its runs (Weekly report). (complete_todo is allowed: it only marks a todo "done by the worker".) */
 const ZEFF_TOOLS = ["report_time", "update_time_entry", "delete_time_entry", "create_job"].map((tool) => `mcp__zeff__${tool}`);
+/** The todo tools a worker uses for its own steps on the ticket (add_todo, complete_todo with tick). */
+const TODO_TOOLS = ["list_todos", "add_todo", "complete_todo", "todo_needs_input"].map((tool) => `mcp__zeff__${tool}`);
 /** The Jira tools a send run may use, from Zeff's own Jira connection (server "zeff-jira"). */
 const JIRA_SEND_TOOLS = ["jira_add_comment", "jira_get_transitions", "jira_transition_issue", "jira_update_issue", "jira_get_issue"].map((tool) => `mcp__zeff-jira__${tool}`);
 
@@ -400,7 +402,7 @@ function start(id: number): void {
           prompt,
           name: `Zeff ${workRef(id)} · ${r.ticket || "session"}`,
           disallowedTools: [...ZEFF_TOOLS, ...(codeLike(mode) ? [] : ["Edit", "Write", "MultiEdit", "NotebookEdit"])],
-          allowedTools: approvedToolsFor(id),
+          allowedTools: [...TODO_TOOLS, ...approvedToolsFor(id)],
           resumeSession: resume ? sessionId : null,
           newSessionId: resume ? null : sessionId,
         })
@@ -485,7 +487,8 @@ function start(id: number): void {
       }
       fs.writeFileSync(/*turbopackIgnore: true*/ jiraConfigPath(id), JSON.stringify(workerMcpServers(currentAccountId(), extra)), { mode: 0o600 });
       args.push("--mcp-config", jiraConfigPath(id));
-      const preApproved = [...(mode === "send" ? JIRA_SEND_TOOLS : []), ...approvedToolsFor(id)];
+      // (A worker writes its steps as todos on the ticket and ticks them off: no permission prompt for that, there is nobody to answer it.)
+      const preApproved = [...(mode === "send" ? JIRA_SEND_TOOLS : []), ...TODO_TOOLS, ...approvedToolsFor(id)];
       if (preApproved.length) args.push("--allowedTools", preApproved.join(","));
       stdin = prompt;
     }

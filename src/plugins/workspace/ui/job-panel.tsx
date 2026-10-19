@@ -13,7 +13,8 @@ import { WS_CHANGED } from "./ChatPanel";
  * as links, the ticket's todos (the agent writes and ticks them; you add more), and — in review — the delivery Zeff proposes (push,
  * merge request) folded in.
  */
-export function JobPanel({ rowId, panel }: { rowId: number; panel: JobPanelData }) {
+/** `todosShown`: the card has its own todos chip (it has a ticket key) — this panel doesn't show them twice. */
+export function JobPanel({ rowId, panel, todosShown = false }: { rowId: number; panel: JobPanelData; todosShown?: boolean }) {
   const t = useT();
   // The delivery is open from the start while the job waits for your check.
   const [open, setOpen] = useState(panel.state === "Zur Prüfung");
@@ -101,7 +102,7 @@ export function JobPanel({ rowId, panel }: { rowId: number; panel: JobPanelData 
         </div>
       )}
 
-      {panel.ticket && (
+      {panel.ticket && !todosShown && (
         <div>
           <button
             type="button"
