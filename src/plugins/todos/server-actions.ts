@@ -458,6 +458,25 @@ export async function saveTodoOpTextAction(todoId: number, index: number, text: 
   }
 }
 
+/** A transfer's fields changed on its card (recipient, account, amount, purpose) — checked like the action itself. */
+export async function saveTransferAction(todoId: number, index: number, fields: { name: string; iban: string; bic: string; amount: string; purpose: string }): Promise<ActionState> {
+  try {
+    const { getTodo, setTodoOps } = await import("@/lib/boards/store");
+    const todo = getTodo(Number(todoId));
+    if (!todo || todo.status !== "open") return { ok: false, error: t("That todo isn't open.") };
+    const op = todo.ops[Number(index)];
+    if (!op || op.type !== "bank-transfer") return { ok: false, error: t("That action isn't on the todo (any more).") };
+    const { CASES_ACTIONS } = await import("@/plugins/cases/actions");
+    const next = CASES_ACTIONS[0].clean({ ...fields }, { ticket: todo.ticket });
+    if (!next) return { ok: false, error: t("Not a valid IBAN.") };
+    setTodoOps(todo.id, todo.ops.map((o, i) => (i === Number(index) ? next : o)) as typeof todo.ops);
+    revalidateAll();
+    return { ok: true, message: t("Saved.") };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
 /** A ticket followed in the Ticket-Lage besides the boards' filter (1), not any more (-1), or as it comes (0). */
 export async function setTicketFollowAction(key: string, value: 1 | -1 | 0): Promise<ActionState> {
   try {
@@ -497,14 +516,19 @@ export async function doneBrowserOpAction(todoId: number, index: number): Promis
           : t("Meeting “{subject}” created in Outlook ({when}, {minutes} min).", { subject: op.subject, when: when(op.start), minutes: op.minutes })
         : op.type === "gcal-event"
           ? t("Meeting “{subject}” created in Google Calendar ({when}, {minutes} min).", { subject: op.title, when: when(op.start), minutes: op.minutes })
-          : op.type === "mail-compose"
+          : op.type === "bank-transfer"
+            ? op.amount
+              ? t("Transfer of {amount} to {name} sent.", { amount: `${Number(op.amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €`, name: op.name })
+              : t("Transfer to {name} sent.", { name: op.name })
+            : op.type === "mail-compose"
             ? op.to
               ? t("Mail “{subject}” to {to} sent.", { subject: op.subject, to: op.to.replace(/;/g, ", ") })
               : t("Mail “{subject}” sent.", { subject: op.subject })
             : t("Done in the browser.");
     addTodoUserNote(todo.id, `✓ ${what}`);
     // A mail that answers or asks — the todo itself, done with it.
-    const settles = op.type === "mail-compose" && !left.length && todo.owner === "me" && ["reply", "comment", "clarify", "update"].includes(todo.kind);
+    // A transfer: paying is the todo (only the todos that ask you to pay get one) — done with it, whatever else is on it.
+    const settles = (op.type === "mail-compose" && !left.length && todo.owner === "me" && ["reply", "comment", "clarify", "update"].includes(todo.kind)) || op.type === "bank-transfer";
     if (settles) {
       const { attributed } = await import("@/lib/boards/activity");
       attributed("you", () => setTodoStatus(todo.id, "done", `Done: ${what}`));

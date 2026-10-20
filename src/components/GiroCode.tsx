@@ -12,7 +12,7 @@ const euros = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 
  * A transfer as a GiroCode (EPC QR code) to scan with a banking app — black on white with its quiet zone, in dark
  * mode too — and its fields (recipient, IBAN, BIC, amount, purpose) to copy one by one, for an app that doesn't scan.
  */
-export function GiroCode({ name, iban, bic, bank, amount, purpose }: { name: string; iban: string; bic?: string | null; bank?: string | null; amount?: number | null; purpose?: string | null }) {
+export function GiroCode({ name, iban, bic, bank, amount, purpose, codeOnly = false }: { name: string; iban: string; bic?: string | null; bank?: string | null; amount?: number | null; purpose?: string | null; /** Only the code: the fields stand beside it (as inputs). */ codeOnly?: boolean }) {
   const t = useT();
   const qr = useMemo(() => {
     try {
@@ -42,6 +42,7 @@ export function GiroCode({ name, iban, bic, bank, amount, purpose }: { name: str
       ) : (
         <p className="text-xs text-red-600 dark:text-red-400">{t("No GiroCode: {error}", { error: qr.error })}</p>
       )}
+      {!codeOnly && (
       <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-1 text-sm">
         {fields.map((f) => (
           <Fragment key={f.label}>
@@ -53,6 +54,7 @@ export function GiroCode({ name, iban, bic, bank, amount, purpose }: { name: str
           </Fragment>
         ))}
       </dl>
+      )}
     </div>
   );
 }

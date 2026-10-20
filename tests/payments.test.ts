@@ -65,3 +65,24 @@ test("cases: the payee the AI names is the account holder — a bank in brackets
   const { checked } = await import("@/plugins/cases/compile");
   assert.equal(checked({ payee: "Nathanael Dienstkonto (BBBank Karlsruhe)" }, "DR II 1/26", 1).payee, "Nathanael Dienstkonto");
 });
+
+test("transfer card: its fields saved on the todo — checked like the action (a wrong IBAN refused); sent, it is noted and the todo is done", async () => {
+  await seed();
+  const { getDb, schema } = await import("@/db");
+  const now = new Date().toISOString();
+  const op = { type: "bank-transfer", name: "Nathanael Dienstkonto", iban: IBAN, bic: "GENODE61BBB", amount: "11.52", purpose: "DR II 810/26" };
+  const row = getDb().insert(schema.todos).values({ ticket: "", text: "Rest 11,52 € überweisen", kind: "other", owner: "me", status: "open", source: "Mail", refs: "[]", ops: JSON.stringify([op]), createdAt: now, updatedAt: now } as never).returning().get() as { id: number };
+  const { saveTransferAction, doneBrowserOpAction } = await import("@/plugins/todos/server-actions");
+  const { getTodo } = await import("@/lib/boards/store");
+  const ok = await saveTransferAction(row.id, 0, { name: "Nathanael Dienstkonto", iban: IBAN, bic: "GENODE61BBB", amount: "20,00", purpose: "DR II 810/26 Rest" });
+  assert.equal(ok?.ok, true);
+  assert.deepEqual(getTodo(row.id)!.ops[0], { ...op, amount: "20.00", purpose: "DR II 810/26 Rest" });
+  const bad = await saveTransferAction(row.id, 0, { ...op, iban: "DE23 6609 0800 0007 7773 02" });
+  assert.equal(bad?.ok, false);
+  assert.equal((getTodo(row.id)!.ops[0] as typeof op).amount, "20.00", "unchanged");
+  const done = await doneBrowserOpAction(row.id, 0);
+  assert.equal(done?.ok, true);
+  const after = getTodo(row.id)!;
+  assert.equal(after.status, "done", "paying is the todo");
+  assert.match(after.userNotes.at(-1)!.text, /20,00 €.*Nathanael Dienstkonto/);
+});

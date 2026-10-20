@@ -10,6 +10,7 @@ import { ActionCard, TOOL_BUTTON } from "./ActionCard";
 import { toast } from "../Toaster";
 import { CheckIcon, CloseIcon, PencilIcon } from "../icons";
 import { useT } from "@/components/I18nProvider";
+import { TransferCard } from "@/plugins/cases/ui/TransferCard";
 
 /** A todo's operations (what "Run" runs), as notes. */
 export function OpChips({
@@ -63,10 +64,12 @@ function OpChip({
   const [text, setText] = useState(body ?? "");
   const [pending, start] = useTransition();
   const look = opLook(op.type);
+  // A transfer: its fields and its GiroCode right in the card — no window to open, no text to edit.
+  const transfer = op.type === "bank-transfer" ? op : null;
   const [more, setMore] = useState(false);
   const tools = (
     <>
-      {body !== null && todoId !== undefined && !editing && (
+      {body !== null && !transfer && todoId !== undefined && !editing && (
         <button
           type="button"
           className={TOOL_BUTTON}
@@ -93,7 +96,7 @@ function OpChip({
               router.refresh();
             })
           }
-          title={op.type === "calendar-event" ? t("Done: the meeting is created in Outlook — note it on the todo") : t("Done: the mail is sent — note it on the todo")}
+          title={op.type === "calendar-event" ? t("Done: the meeting is created in Outlook — note it on the todo") : transfer ? t("Done: the money is sent — note it, the todo is done") : t("Done: the mail is sent — note it on the todo")}
           aria-label={t("Done")}
         >
           <CheckIcon className="size-3.5" />
@@ -135,7 +138,8 @@ function OpChip({
   );
   return (
     <ActionCard tone={look.tone} icon={look.icon} title={heading} detail={detailNode} action={action} tools={tools}>
-      {href && (
+      {transfer && <TransferCard op={transfer} todoId={todoId} index={index} />}
+      {href && !transfer && (
         <a
           href={href}
           target="_blank"
@@ -164,6 +168,7 @@ function OpChip({
         </details>
       )}
       {body !== null &&
+        !transfer &&
         (editing ? (
           <span className="mt-1 block space-y-1">
             <textarea

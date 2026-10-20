@@ -6475,5 +6475,11 @@
   "No account known": "Sin cuenta conocida",
   "Being summed up from its mails, letters and todos …": "Se está resumiendo a partir de sus correos, cartas y tareas …",
   "No account known for {name} yet — add the IBAN to their details.": "Aún no se conoce ninguna cuenta de {name}: añade el IBAN en sus datos.",
-  "No account known for it yet — choose the person it is with.": "Aún no se conoce ninguna cuenta: elige la persona del expediente."
+  "No account known for it yet — choose the person it is with.": "Aún no se conoce ninguna cuenta: elige la persona del expediente.",
+  "Transfer of {amount} to {name} sent.": "Transferencia de {amount} a {name} enviada.",
+  "Transfer to {name} sent.": "Transferencia a {name} enviada.",
+  "Done: the money is sent — note it, the todo is done": "Hecho: el dinero está enviado — se anota y la tarea queda hecha",
+  "Who gets it?": "¿Quién lo recibe?",
+  "Not a valid IBAN.": "No es un IBAN válido.",
+  "The GiroCode shows once recipient and IBAN are right.": "El GiroCode aparece en cuanto el beneficiario y el IBAN son correctos."
 }
