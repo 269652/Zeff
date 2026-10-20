@@ -2,7 +2,9 @@
 
 import { FormError } from "@/components/FormError";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { addTodoNoteAction, draftReplyAction, instructTodoAction, openReplyTargetAction, suggestTodoActionsAction } from "@/plugins/todos/server-actions";
+import { addTodoNoteAction, draftReplyAction, instructTodoAction, openReplyTargetAction, paymentForTodoAction, suggestTodoActionsAction } from "@/plugins/todos/server-actions";
+import type { TodoPayment } from "@/lib/girocode-todo";
+import { GiroCode } from "../GiroCode";
 import type { ReplyTarget } from "@/lib/boards/reply-draft";
 import { MentionTextarea } from "../MentionTextarea";
 import { TagSuggestions } from "@/plugins/people/TagSuggestions";
@@ -18,13 +20,13 @@ import { usePluginOn } from "../PluginFlags";
 import { TodoTimePanel } from "./TodoTime";
 import type { TimeRecord } from "@/lib/work/shared";
 
-export type QuickPanel = "note" | "ai" | "reply" | "doc" | "time" | null;
+export type QuickPanel = "note" | "ai" | "reply" | "doc" | "time" | "pay" | null;
 
 const ICON_BTN =
   "inline-flex size-5 items-center justify-center rounded align-middle text-zinc-400 hover:bg-zinc-100 hover:text-indigo-600 disabled:opacity-40 dark:hover:bg-zinc-800 dark:hover:text-indigo-400";
 
-/** The todo's two small buttons: a note to it (context), an instruction for Copilot. */
-export function TodoQuickButtons({ todoId, panel, onToggle, aiDisabled, canReply }: { todoId: number; panel: QuickPanel; onToggle: (p: QuickPanel) => void; aiDisabled?: string; canReply?: boolean }) {
+/** The todo's small buttons: a document, time, a note to it (context), an instruction for Copilot, a reply — and paying it, when it names an amount or an IBAN. */
+export function TodoQuickButtons({ todoId, panel, onToggle, aiDisabled, canReply, canPay }: { todoId: number; panel: QuickPanel; onToggle: (p: QuickPanel) => void; aiDisabled?: string; canReply?: boolean; canPay?: boolean }) {
   const t = useT();
   const drafts = useTodoDrafts(todoId);
   const dot = <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-amber-500" aria-hidden />;
@@ -97,6 +99,23 @@ export function TodoQuickButtons({ todoId, panel, onToggle, aiDisabled, canReply
           {drafts.reply && dot}
         </button>
       )}
+      {canPay && (
+        <button
+          type="button"
+          className={`${ICON_BTN} ${panel === "pay" ? "bg-zinc-100 text-indigo-600 dark:bg-zinc-800 dark:text-indigo-400" : ""}`}
+          title={t("Pay with GiroCode — scan it with your banking app")}
+          aria-label={t("Pay with GiroCode")}
+          aria-expanded={panel === "pay"}
+          onClick={() => onToggle(panel === "pay" ? null : "pay")}
+        >
+          <svg viewBox="0 0 20 20" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" aria-hidden>
+            <rect x="3" y="3" width="5" height="5" />
+            <rect x="12" y="3" width="5" height="5" />
+            <rect x="3" y="12" width="5" height="5" />
+            <path d="M12 12h2v2h-2zM15 15h2v2h-2z" fill="currentColor" stroke="none" />
+          </svg>
+        </button>
+      )}
       {/* Not sent yet: said beside them (a click opens it). */}
       {!panel && (drafts.ai || drafts.note) && (
         <button type="button" className="ml-1 text-xs font-medium text-amber-700 hover:underline dark:text-amber-400" onClick={() => onToggle(drafts.ai ? "ai" : "note")} title={(drafts.ai || drafts.note).slice(0, 200)}>
@@ -119,6 +138,7 @@ export function TodoQuickPanel({ todoId, todoRef, panel, onClose, time }: { todo
   if (panel === "reply") return <ReplyPanel todoId={todoId} onClose={onClose} />;
   if (panel === "doc") return <AttachPanel todoId={todoId} onClose={onClose} />;
   if (panel === "time") return <TodoTimePanel todoId={todoId} time={time} onClose={onClose} />;
+  if (panel === "pay") return <PayPanel todoId={todoId} onClose={onClose} />;
   const ai = panel === "ai";
   const text = drafts[panel];
   const setText = (v: string) => saveDraft(todoId, panel, v);
@@ -364,6 +384,39 @@ function ReplyPanel({ todoId, onClose }: { todoId: number; onClose: () => void }
           </button>
         </span>
       </div>
+    </div>
+  );
+}
+
+/** "Pay with GiroCode": the account the todo's payment goes to (its text, your notes, a person it names, its knowledge), as a code to scan. */
+function PayPanel({ todoId, onClose }: { todoId: number; onClose: () => void }) {
+  const t = useT();
+  const [payment, setPayment] = useState<TodoPayment | null | undefined>(undefined);
+  useEffect(() => {
+    let live = true;
+    paymentForTodoAction(todoId).then(
+      (p) => live && setPayment(p),
+      () => live && setPayment(null),
+    );
+    return () => {
+      live = false;
+    };
+  }, [todoId]);
+  return (
+    <div className="mt-1.5 space-y-2 rounded-md border border-zinc-200 p-2.5 dark:border-zinc-800">
+      <div className="flex items-baseline justify-between gap-2 text-xs font-semibold text-zinc-500">
+        <span>{payment?.via ? t("Pay with GiroCode — the account of {name}", { name: payment.via }) : t("Pay with GiroCode")}</span>
+        <button type="button" className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200" aria-label={t("Close")} onClick={onClose}>
+          ×
+        </button>
+      </div>
+      {payment === undefined ? (
+        <p className="text-xs text-zinc-500">{t("Looking for the account…")}</p>
+      ) : payment ? (
+        <GiroCode {...payment} />
+      ) : (
+        <p className="text-xs text-zinc-500">{t("No account to pay found — an IBAN in the todo or a note, or the bank account of a person it names (People).")}</p>
+      )}
     </div>
   );
 }

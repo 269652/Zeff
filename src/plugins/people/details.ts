@@ -7,7 +7,10 @@
  */
 import { getSqlite } from "@/db";
 import { emitChange } from "@/lib/events";
+import { BIC_RE, IBAN_RE, ibanValid } from "@/lib/girocode";
+import type { Payee } from "@/lib/girocode-todo";
 import { claimsOf } from "./graph";
+import { listPeople, namesThem } from "./store";
 
 export const DETAIL_KEYS = ["iban", "bic", "bank", "address", "phone", "hours"] as const;
 export type DetailKey = (typeof DETAIL_KEYS)[number];
@@ -19,21 +22,9 @@ export type PersonDetail = { id: number; key: DetailKey; value: string; /** The 
 // Reading them off a text
 // ---------------------------------------------------------------------------
 
-/** ISO 13616: the letters as numbers, the country and check digits moved to the end, mod 97 is 1. */
-function ibanValid(iban: string): boolean {
-  const s = iban.replace(/\s+/g, "").toUpperCase();
-  if (!/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(s)) return false;
-  const digits = (s.slice(4) + s.slice(0, 4)).replace(/[A-Z]/g, (c) => String(c.charCodeAt(0) - 55));
-  let rest = 0;
-  for (const ch of digits) rest = (rest * 10 + Number(ch)) % 97;
-  return rest === 1;
-}
-
 const STREET = String.raw`[\p{Lu}][\p{L}\-]*?(?:[Ss]tra(?:ß|ss)e|[Ss]tr\.|[Ww]eg|[Pp]latz|[Aa]llee|[Gg]asse|[Rr]ing|[Dd]amm|[Uu]fer|[Mm]arkt)`;
 const CITY = String.raw`[\p{Lu}][\p{L}\-]*(?: (?:im|am|an der|in der|ob der) [\p{Lu}][\p{L}\-]*| [\p{Lu}][\p{L}\-]*)*`;
 const ADDRESS = new RegExp(String.raw`(${STREET} \d+ ?[a-zA-Z]?),? (\d{5}) (${CITY})`, "gu");
-const IBAN = /\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){2,7}(?: ?[A-Z0-9]{1,4})?\b/g;
-const BIC = /\bBIC:?\s*([A-Z]{6}[A-Z0-9]{2}(?:[A-Z0-9]{3})?)\b/;
 const PHONE = /\b(?:Telefon|Tel\.|Tel|Mobil|Handy|Fon)\b:?\s*(\+?\d[\d /()-]{4,}\d)/gi;
 const HOURS = /\b(?:Sprechstunden?|Sprechzeiten|Öffnungszeiten|Bürozeiten)\b:?\s*([^;]*?\d{1,2}(?:[:.]\d{2})?\s*(?:–|-|bis)\s*\d{1,2}(?:[:.]\d{2})?\s*Uhr)/gi;
 
@@ -44,8 +35,8 @@ export function detailsFromText(text: string): { key: DetailKey; value: string }
     const v = value.replace(/\s+/g, " ").trim().replace(/[.,;:]$/, "");
     if (v && !out.some((x) => x.key === key && x.value === v)) out.push({ key, value: v, at });
   };
-  for (const m of text.matchAll(IBAN)) if (ibanValid(m[0])) add("iban", m[0], m.index);
-  const bic = BIC.exec(text);
+  for (const m of text.matchAll(IBAN_RE)) if (ibanValid(m[0])) add("iban", m[0], m.index);
+  const bic = BIC_RE.exec(text);
   if (bic) add("bic", bic[1], bic.index);
   // The bank: "Bank BBBank Karlsruhe", or the part of the account's sentence that names one.
   if (out.some((x) => x.key === "iban")) {
@@ -116,4 +107,14 @@ export function addDetail(personId: number, key: DetailKey, value: string): void
 export function removeDetail(personId: number, key: DetailKey, value: string): void {
   db().prepare("update people_details set removed = 1 where person_id = ? and key = ? and norm = ?").run(personId, key, norm(key, value));
   emitChange("todos");
+}
+
+/** The people with a bank account, as payees for a todo's GiroCode (see girocode-todo.ts): their details, what was said about them. */
+export function payees(): Payee[] {
+  return listPeople().flatMap((p) => {
+    const details = detailsOf(p.id);
+    if (!details.some((d) => d.key === "iban")) return [];
+    const texts = claimsOf(p.id, { status: ["proposed", "confirmed"] }).map((c) => c.text);
+    return [{ name: p.name, details, texts, names: (text: string) => namesThem(p, text) }];
+  });
 }

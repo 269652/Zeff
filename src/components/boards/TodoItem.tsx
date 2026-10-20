@@ -41,6 +41,7 @@ import { LastError } from "./LastError";
 import { TodoQuickButtons, TodoQuickPanel, type QuickPanel } from "./TodoQuick";
 import { useTodoNew } from "./todo-seen";
 import { formatMinutes } from "@/lib/work/shared";
+import { amountIn, ibansIn } from "@/lib/girocode";
 
 const TICKET_KEY = /\b([A-Z][A-Z0-9]+-\d+)\b/g;
 const LINK =
@@ -327,7 +328,7 @@ export function TodoItem({
           )}
           {todo.deferred && !closed && <span className="text-zinc-400"> · {t("deferred")}</span>}
           {todo.bubbledUp && !closed && <span className="text-amber-600 dark:text-amber-400" title={t("You had moved it down — it's back on top")}> · {t("back on top: {why}", { why: todo.bubbledUp })}</span>}
-          {!closed && <TodoQuickButtons todoId={todo.id} panel={quick} onToggle={setQuick} canReply={todo.owner === "me" && [...todo.refs, ...todo.mailRefs].some((r) => r.startsWith("mail:") || r.startsWith("teams:"))} aiDisabled={!workOn ? t("Code isn't installed (Menu → Plugins)") : running || doing ? t("Being worked on — once the run is done") : undefined} />}
+          {!closed && <TodoQuickButtons todoId={todo.id} panel={quick} onToggle={setQuick} canReply={todo.owner === "me" && [...todo.refs, ...todo.mailRefs].some((r) => r.startsWith("mail:") || r.startsWith("teams:"))} canPay={amountIn(todo.text) != null || ibansIn(`${todo.text} ${todo.note ?? ""}`).length > 0} aiDisabled={!workOn ? t("Code isn't installed (Menu → Plugins)") : running || doing ? t("Being worked on — once the run is done") : undefined} />}
         </span>
         <TodoQuickPanel todoId={todo.id} todoRef={todo.ref} panel={closed && quick !== "time" ? null : quick} onClose={() => setQuick(null)} time={todo.time} />
         {todo.note ? (
