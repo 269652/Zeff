@@ -76,7 +76,7 @@ export function CommandPalette({ pages }: { pages: PaletteItem[] }) {
     return [...recs.filter((r) => r.group === "Actions"), ...found, ...recs.filter((r) => r.group !== "Actions")];
   }, [pages, q, records]);
   const cur = Math.min(active, Math.max(results.length - 1, 0));
-  const group = (g: string) => (g === "Todos" ? t("Todos") : g === "Pages" ? t("Pages") : g === "Actions" ? t("Actions") : g);
+  const group = (g: string) => (g === "Todos" ? t("Todos") : g === "Pages" ? t("Pages") : g === "Actions" ? t("Actions") : g === "People" ? t("People") : g);
 
   const go = async (item: PaletteItem | undefined) => {
     if (!item) return;

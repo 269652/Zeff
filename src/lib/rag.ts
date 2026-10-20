@@ -13,7 +13,7 @@ import { getDb, schema } from "@/db";
 
 const { emails, teamsMessages, gitlabItems, jiraComments, jiraTickets, contexts, facts, documents } = schema;
 
-export const RAG_SOURCES = ["knowledge", "mails", "teams", "gitlab", "jira", "notes", "facts", "todos", "documents", "pages"] as const;
+export const RAG_SOURCES = ["knowledge", "mails", "teams", "gitlab", "jira", "notes", "facts", "todos", "documents", "pages", "people"] as const;
 export type RagSource = (typeof RAG_SOURCES)[number];
 
 /** What an AI step asks for when it misses context: search words, in all sources or only in some. */
@@ -21,7 +21,7 @@ export type Need = { query: string; where?: string[] };
 export type RagHit = { source: RagSource; ref: string; title: string; text: string; when?: string };
 
 /** What a step adds to its prompt so the AI knows it can ask — and how. */
-export const RAG_INSTRUCTIONS = `Fehlt dir Kontext, um sicher zu antworten (ein Name, ein Beschluss, was in einer Rückfrage steht, wie etwas funktioniert), rate nicht: lass die Antwort leer und nenne unter needs bis zu 3 Suchanfragen — query: 2–5 Suchwörter, die in den gesuchten Texten stehen dürften; where (optional): knowledge (Dokumentation), mails, teams, gitlab, jira, notes, facts, todos, documents (Dokumente und Bilder, die ich an Todos gehängt habe: was darin steht oder zu sehen ist), pages (meine Workspace-Seiten: Notizen, Wiki, Beschlüsse, Meeting-Protokolle). Zeff sucht dort und fragt dich mit den Fundstellen noch einmal. Ist der Kontext unten schon ausreichend, antworte gleich und lass needs weg.`;
+export const RAG_INSTRUCTIONS = `Fehlt dir Kontext, um sicher zu antworten (ein Name, ein Beschluss, was in einer Rückfrage steht, wie etwas funktioniert), rate nicht: lass die Antwort leer und nenne unter needs bis zu 3 Suchanfragen — query: 2–5 Suchwörter, die in den gesuchten Texten stehen dürften; where (optional): knowledge (Dokumentation), mails, teams, gitlab, jira, notes, facts, todos, documents (Dokumente und Bilder, die ich an Todos gehängt habe: was darin steht oder zu sehen ist), pages (meine Workspace-Seiten: Notizen, Wiki, Beschlüsse, Meeting-Protokolle), people (was Zeff über Personen weiß: Rollen, Fakten, Bankverbindung, Adressen, Telefon). Zeff sucht dort und fragt dich mit den Fundstellen noch einmal. Ist der Kontext unten schon ausreichend, antworte gleich und lass needs weg.`;
 
 /** The optional `needs` field added to a step's answer schema. */
 const NEEDS_PROPERTY = {
@@ -124,6 +124,12 @@ export const SEARCHERS: Record<Exclude<RagSource, "knowledge">, Searcher> = {
     if (!(await import("@/plugins/state")).isInstalled("workspace")) return [];
     const { pageHits } = await import("@/plugins/workspace/store");
     return pageHits(words).map((h) => ({ source: "pages" as const, ref: h.ref, title: h.title, text: clip(h.text, 400), when: h.when, score: h.score }));
+  },
+  // What Zeff learned about people (the People plugin): their claims and details — "IBAN Nathanael", "Dienstkonto".
+  people: async (words) => {
+    if (!(await import("@/plugins/state")).isInstalled("people")) return [];
+    const { searchPeople } = await import("@/plugins/people/search");
+    return searchPeople(words).map((h) => ({ source: "people" as const, ref: `person:${h.personId}`, title: `${h.name} (Person)`, text: clip(h.text, 400), score: h.score }));
   },
   todos: async (words, q) => {
     const { searchTodos } = await import("@/lib/boards/store");
