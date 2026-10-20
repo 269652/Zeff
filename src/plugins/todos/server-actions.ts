@@ -131,6 +131,14 @@ export async function draftReplyAction(todoId: number): Promise<import("@/lib/bo
   }
 }
 
+/** A todo that is a payment, as a GiroCode: the account (its text, your notes, a person it names, its knowledge), amount and purpose — or null. */
+export async function paymentForTodoAction(todoId: number): Promise<import("@/lib/girocode-todo").TodoPayment | null> {
+  const todo = (await import("@/lib/boards/store")).getTodo(Number(todoId));
+  if (!todo) return null;
+  const people = (await import("@/plugins/state")).isInstalled("people") ? (await import("@/plugins/people/details")).payees() : [];
+  return (await import("@/lib/girocode-todo")).paymentForTodo(todo, people);
+}
+
 /** A reply's "Öffnen": WhatsApp Web, Gmail, Outlook or Teams at the front of the automation Chrome (signed in there). */
 export async function openReplyTargetAction(url: string): Promise<ActionState> {
   try {

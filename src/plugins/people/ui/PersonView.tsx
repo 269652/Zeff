@@ -6,6 +6,9 @@ import { Fragment, useCallback, useEffect, useState, useSyncExternalStore, type 
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { confirmAction } from "@/components/confirm";
+import { GiroCode } from "@/components/GiroCode";
+import { Overlay } from "@/components/Overlay";
+import { accountFor, amountIn } from "@/lib/girocode";
 import { personBundleAction, personOpAction, personWikiAction, type KnowledgeOfPerson } from "../block-actions";
 import type { PersonBundle, PersonOperation } from "../blocks";
 
@@ -480,8 +483,10 @@ function Details({ d, run }: { d: PersonBundle; run: RunFn }) {
     ) : (
       x.value
     );
+  // Their bank account, paid to the recipient what was said about them names ("Empfänger …").
+  const account = accountFor(d.name, d.details, d.claims.filter((c) => c.status !== "rejected").map((c) => c.text));
   return (
-    <Card title={t("Details")}>
+    <Card title={t("Details")} extra={account && <Transfer account={account} />}>
       {d.details.length ? (
         <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-1.5 text-sm">
           {d.details.map((x) => (
@@ -527,6 +532,38 @@ function Details({ d, run }: { d: PersonBundle; run: RunFn }) {
         <button className="btn btn-sm">{t("Add")}</button>
       </form>
     </Card>
+  );
+}
+
+/** "Transfer money": a dialog with the amount and purpose to fill in, and the GiroCode of the transfer to their account. */
+function Transfer({ account }: { account: NonNullable<ReturnType<typeof accountFor>> }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [purpose, setPurpose] = useState("");
+  const euros = amount.trim() ? amountIn(`${amount.trim()} €`) : null;
+  return (
+    <>
+      <button type="button" className="text-xs font-medium normal-case text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setOpen(true)}>
+        {t("Transfer money")}
+      </button>
+      <Overlay open={open} onClose={() => setOpen(false)} label={t("Transfer money")} side="center" className="max-w-sm">
+        <div className="space-y-3 overflow-y-auto p-4">
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold">{t("Transfer to {name}", { name: account.name })}</h2>
+            <button type="button" className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200" aria-label={t("Close")} onClick={() => setOpen(false)}>
+              ×
+            </button>
+          </div>
+          <div className="flex gap-1.5">
+            <input className="input w-28" inputMode="decimal" placeholder="0,00 €" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label={t("Amount")} />
+            <input className="input min-w-0 flex-1" maxLength={140} placeholder={t("Purpose")} value={purpose} onChange={(e) => setPurpose(e.target.value)} aria-label={t("Purpose")} />
+          </div>
+          {amount.trim() && euros == null && <p className="text-xs text-amber-600 dark:text-amber-400">{t("Not an amount — e.g. 11,52")}</p>}
+          <GiroCode {...account} amount={euros} purpose={purpose} />
+        </div>
+      </Overlay>
+    </>
   );
 }
 

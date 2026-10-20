@@ -8,7 +8,9 @@
 import { getSqlite } from "@/db";
 import { emitChange } from "@/lib/events";
 import { BIC_RE, IBAN_RE, ibanValid } from "@/lib/girocode";
+import type { Payee } from "@/lib/girocode-todo";
 import { claimsOf } from "./graph";
+import { listPeople, namesThem } from "./store";
 
 export const DETAIL_KEYS = ["iban", "bic", "bank", "address", "phone", "hours"] as const;
 export type DetailKey = (typeof DETAIL_KEYS)[number];
@@ -105,4 +107,14 @@ export function addDetail(personId: number, key: DetailKey, value: string): void
 export function removeDetail(personId: number, key: DetailKey, value: string): void {
   db().prepare("update people_details set removed = 1 where person_id = ? and key = ? and norm = ?").run(personId, key, norm(key, value));
   emitChange("todos");
+}
+
+/** The people with a bank account, as payees for a todo's GiroCode (see girocode-todo.ts): their details, what was said about them. */
+export function payees(): Payee[] {
+  return listPeople().flatMap((p) => {
+    const details = detailsOf(p.id);
+    if (!details.some((d) => d.key === "iban")) return [];
+    const texts = claimsOf(p.id, { status: ["proposed", "confirmed"] }).map((c) => c.text);
+    return [{ name: p.name, details, texts, names: (text: string) => namesThem(p, text) }];
+  });
 }
