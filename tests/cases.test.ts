@@ -163,3 +163,10 @@ test("widgets: the money of the open cases as figures, the payments and deadline
   const theirs = (await owed.data({ who: "theirs" })) as { kind: "list"; items: { text: string }[] };
   assert.deepEqual(theirs.items.map((i) => i.text), ["Sie schickt den Ratenplan schriftlich."]);
 });
+
+test("cases: a long summary is cut at its last whole sentence", async () => {
+  const { sentences } = await import("@/plugins/cases/compile");
+  assert.equal(sentences("Erster Satz. Zweiter Satz ist länger.", 20), "Erster Satz.");
+  assert.equal(sentences("Kurz.", 20), "Kurz.");
+  assert.equal(sentences("Einwortlangertextohnepunkt und noch mehr Wörter hier", 30), "Einwortlangertextohnepunkt …");
+});
