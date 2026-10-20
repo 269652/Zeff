@@ -64,6 +64,8 @@ export const timeEntries = sqliteTable(
     /** Hours as a decimal, e.g. 1.5 = 1h 30m. */
     hours: real("hours").notNull(),
     description: text("description").notNull(),
+    /** A note of your own on the entry — kept beside its report text, never part of what is booked. */
+    comment: text("comment"),
     /** Kind of work (an entry_types key) — drives report grouping and analysis. */
     type: text("type").notNull().default("other"),
     /** Optional ticket reference, e.g. "PROJ-337". */

@@ -736,6 +736,13 @@
       "when": 1792900000000,
       "tag": "0104_work_reports",
       "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "6",
+      "when": 1793000000000,
+      "tag": "0105_entry_comment",
+      "breakpoints": true
     }
   ]
 }

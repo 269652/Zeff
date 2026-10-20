@@ -159,6 +159,7 @@ export function EntriesTable({
             </Link>
             <GroupMenu entryId={e.id} currentSpanId={e.spanId} headOfSpan={own?.id ?? null} options={groupsOfDay.get(e.date) ?? []} />
           </div>
+          {e.comment && <p className="mt-0.5 text-xs whitespace-pre-wrap text-zinc-500 dark:text-zinc-400" title={t("Your comment — not part of the booking's report text")}>💬 {e.comment}</p>}
           {fromTodos[e.id]?.n > 0 && <EntryTodoContextToggle entryId={e.id} summary={fromTodos[e.id]} />}
         </td>
         <td className="whitespace-nowrap">{e.ticket && <TicketLink ticket={e.ticket} card={ticketCards[e.ticket.toUpperCase()]} />}</td>
@@ -228,7 +229,7 @@ export function EntriesTable({
             {showJob && <th scope="col">{t("Job")}</th>}
             {projectColumn && <th scope="col">{t("Project")}</th>}
             <th scope="col" className="num">{t("Hours")}</th>
-            <th scope="col" className="w-full">{t("Description")}</th>
+            <th scope="col" className="w-full">{t("Report")}</th>
             <th scope="col">{t("Ticket")}</th>
             <th scope="col">{t("Type · Tags")}</th>
             <th scope="col"><span className="sr-only">{t("Actions")}</span></th>

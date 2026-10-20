@@ -6154,5 +6154,7 @@
   "Actions as a gallery": "Acciones como galería",
   "Merging": "Fusionar",
   "Hold the Merge button until the merge request is approved": "Bloquear el botón Merge hasta que se apruebe el merge request",
-  "On: the button waits for the approval (the GitLab sync notices it). Off: it can be clicked at once; a merge request that is merged or closed already stays blocked.": "Activado: el botón espera la aprobación (la sincronización de GitLab la detecta). Desactivado: se puede pulsar de inmediato; un merge request ya fusionado o cerrado sigue bloqueado."
+  "On: the button waits for the approval (the GitLab sync notices it). Off: it can be clicked at once; a merge request that is merged or closed already stays blocked.": "Activado: el botón espera la aprobación (la sincronización de GitLab la detecta). Desactivado: se puede pulsar de inmediato; un merge request ya fusionado o cerrado sigue bloqueado.",
+  "Your comment — not part of the booking's report text": "Tu comentario — no forma parte del texto del informe de la reserva",
+  "Your own note on this entry — it isn't part of the booking's report text": "Tu propia nota sobre este registro — no forma parte del texto del informe"
 }

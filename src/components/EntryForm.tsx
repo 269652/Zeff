@@ -35,6 +35,8 @@ export type EntryFormDefaults = Partial<{
   date: string;
   hours: number;
   description: string;
+  /** A note of your own on the entry (not part of the booking's text). */
+  comment: string;
   ticket: string;
   reportedBy: string;
   type: EntryType;
@@ -91,6 +93,8 @@ export function EntryForm({
   const [contextOpen, setContextOpen] = useState(false);
   // On a day with a group entry (a mob day) an entry is grouped by default — "Separate entry" books it on its own.
   const [entryDate, setEntryDate] = useState(defaults.date ?? "");
+  // The comment field is there from the start when the entry has one, else behind "+ Comment".
+  const [commentOpen, setCommentOpen] = useState(!!defaults.comment);
   const [separate, setSeparate] = useState(false);
   const [isGroup, setIsGroup] = useState(!!defaults.isGroup);
 
@@ -270,7 +274,7 @@ export function EntryForm({
           <TicketCombobox value={ticket} onChange={onTicketChange} suggestions={ticketSuggestions} />
         </div>
         <div className="sm:col-span-6">
-          <label className="label">{t("Description")}</label>
+          <label className="label">{t("Report")}</label>
           <TagInput
             key={tagKey}
             allTags={allTags}
@@ -280,6 +284,18 @@ export function EntryForm({
             autoTags={autoTags}
             required
           />
+        </div>
+        <div className="sm:col-span-6">
+          {commentOpen ? (
+            <>
+              <label className="label" htmlFor="comment">{t("Comment")}</label>
+              <textarea id="comment" name="comment" rows={2} className="input w-full" defaultValue={defaults.comment ?? ""} placeholder={t("Your own note on this entry — it isn't part of the booking's report text")} autoFocus={!defaults.comment} />
+            </>
+          ) : (
+            <button type="button" className="text-sm text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setCommentOpen(true)}>
+              + {t("Comment")}
+            </button>
+          )}
         </div>
         {groupDays[entryDate] && !isGroup && (
           <div className="flex flex-wrap items-center gap-3 sm:col-span-6">

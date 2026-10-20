@@ -55,6 +55,7 @@ export async function createEntryAction(_prev: ActionState, fd: FormData): Promi
         date,
         hours,
         description: str(fd, "description") ?? "",
+        comment: str(fd, "comment") ?? null,
         ticket,
         type: entryTypeFrom(fd),
         tags: tagsFrom(fd),
@@ -115,6 +116,8 @@ export async function updateEntryAction(
       date: str(fd, "date"),
       hours,
       description: str(fd, "description"),
+      // (The comment box is on the form only once opened: absent means unchanged, an empty one clears it.)
+      ...(fd.has("comment") ? { comment: str(fd, "comment") ?? null } : {}),
       ticket: str(fd, "ticket") ?? null,
       type: entryTypeFrom(fd),
       tags: tagsFrom(fd),

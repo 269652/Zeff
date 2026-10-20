@@ -36,6 +36,8 @@ export const timeEntryInputSchema = z.object({
     .trim()
     .min(1, "Description is required")
     .max(2000, "Description is too long"),
+  /** A note of your own, not part of the booking's text. */
+  comment: z.string().trim().max(4000).nullable().optional(),
   ticket: z.string().trim().max(100).optional(),
   reportedBy: z.string().trim().max(100).optional(),
   type: entryTypeSchema.optional(),
@@ -55,6 +57,7 @@ export const timeEntryPatchSchema = z.object({
   date: isoDateSchema.optional(),
   hours: hoursSchema.optional(),
   description: z.string().trim().min(1).max(2000).optional(),
+  comment: z.string().trim().max(4000).nullable().optional(),
   ticket: z.string().trim().max(100).nullable().optional(),
   reportedBy: z.string().trim().min(1).max(100).optional(),
   type: entryTypeSchema.optional(),

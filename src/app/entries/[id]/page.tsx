@@ -107,6 +107,7 @@ export default async function EntryPage({ params }: { params: Promise<{ id: stri
             // (a task of grouped work edits what it worked; what it books follows the group)
             hours: entry.spanId ? workedOf(entry) : entry.hours,
             description: entry.description,
+            comment: entry.comment ?? "",
             ticket: entry.ticket ?? "",
             reportedBy: entry.reportedBy,
             type: entry.type,
