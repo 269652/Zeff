@@ -451,13 +451,15 @@ export function TodoItem({
                 const sig = runOps.map((o) => JSON.stringify(o)).join("|");
                 const justRan = ran.includes(sig);
                 if (foldable && !showActions) return null;
+                // Waiting for an approval holds back the merge only — a reply, a resolve, a push or a hand-over don't wait for it.
+                const waiting = !!todo.blockedBy && runOps.some((o) => o.type === "gitlab-merge");
                 const button =
                   runOps.length > 0 ? (
                     <button
                       type="button"
                       className="btn btn-sm btn-primary shrink-0 rounded-full px-3.5 shadow-sm"
-                      disabled={doing || doingAt !== null || justRan || (running && runOps.some((o) => o.type === "work-instruct")) || !!todo.blockedBy}
-                      title={todo.blockedBy ? t("Waiting: {what} — the GitLab sync notices once it's ready", { what: todo.blockedBy }) : t("Zeff does it itself, no AI: {ops}", { ops: runOps.map((o) => opTitle(o, t)).join(" · ") })}
+                      disabled={doing || doingAt !== null || justRan || (running && runOps.some((o) => o.type === "work-instruct")) || waiting}
+                      title={waiting ? t("Waiting: {what} — the GitLab sync notices once it's ready", { what: todo.blockedBy }) : t("Zeff does it itself, no AI: {ops}", { ops: runOps.map((o) => opTitle(o, t)).join(" · ") })}
                       onClick={() => {
                         // Off at once (not only when the transition has started): until it has worked or failed.
                         setDoingAt(gi);
