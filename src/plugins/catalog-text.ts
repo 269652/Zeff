@@ -89,6 +89,8 @@ export const catalogTexts = (t: T) => [
   t("People"),
   t("A profile for everyone who matters to you: your notes, their dates (birthday, anniversaries, whatever you want to remember) with a reminder — on the Today page and as a desktop notification — plus what Zeff knows about them: the knowledge (with the Knowledge plugin), their latest messages (WhatsApp, mail), the todos they appear in. Zeff finds dates in your facts and — with the LLM plugin — the AI finds them in knowledge and messages; you confirm them."),
   t("Profiles, birthdays, reminders"),
+  t("Cases"),
+  t("One place per matter: the case numbers (Aktenzeichen) in your mails, letters and todos hold together what belongs to one case — its sources in time order, the person on the other side, what is owed, the next instalment or deadline and where to pay (with a GiroCode). A database of the Workspace, one row per case; with the LLM plugin the AI sums each case up."),
   t("Accounts"),
   t("Several accounts — e.g. work and private — and switching between them. Each has its own data, settings, AI backends and installed plugins; a new one can take over another one's settings."),
   t("Create and switch accounts"),
