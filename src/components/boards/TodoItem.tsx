@@ -428,7 +428,7 @@ export function TodoItem({
             {/* Proposed by the auto-actions review: said so, and why. */}
             {proposed && (
               <span
-                className="flex items-start gap-1 text-xs text-violet-700 dark:text-violet-300"
+                className="flex items-start gap-1.5 rounded-md bg-violet-50 px-2 py-1 text-xs text-violet-800 dark:bg-violet-950/40 dark:text-violet-200"
                 title={t("Suggested by the auto-actions step — review, adjust (✎), then run")}
               >
                 <SparkIcon className="mt-px size-3.5 shrink-0" />
@@ -443,7 +443,7 @@ export function TodoItem({
               const sig = runOps.map((o) => JSON.stringify(o)).join("|");
               const justRan = ran.includes(sig);
               return (
-                <span key={gi} className="flex items-center gap-2 max-sm:flex-col max-sm:items-start">
+                <span key={gi} className="flex items-center gap-2 max-sm:flex-col max-sm:items-stretch">
                   {(!foldable || showActions) && (
                     <OpChips
                       ops={g.idx.map((i) => todo.ops[i])}
@@ -456,7 +456,7 @@ export function TodoItem({
                   {runOps.length > 0 && (
                     <button
                       type="button"
-                      className="btn btn-sm btn-primary shrink-0"
+                      className="btn btn-sm btn-primary shrink-0 self-center rounded-full px-3.5 shadow-sm"
                       disabled={doing || doingAt !== null || justRan || (running && runOps.some((o) => o.type === "work-instruct")) || !!todo.blockedBy}
                       title={todo.blockedBy ? t("Waiting: {what} — the GitLab sync notices once it's ready", { what: todo.blockedBy }) : t("Zeff does it itself, no AI: {ops}", { ops: runOps.map((o) => opTitle(o, t)).join(" · ") })}
                       onClick={() => {

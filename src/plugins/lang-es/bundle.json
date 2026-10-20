@@ -6145,5 +6145,8 @@
   "Worker runs": "Ejecuciones de workers",
   "The runs of your workers with their ticket, state, branch, minutes and cost — tickets can count them or add up the cost.": "Las ejecuciones de tus workers con ticket, estado, rama, minutos y coste — los tickets pueden contarlas o sumar el coste.",
   "days since": "días desde",
-  "Also show it as days since (a column that counts up)": "Mostrar también como «días desde» (una columna que va subiendo)"
+  "Also show it as days since (a column that counts up)": "Mostrar también como «días desde» (una columna que va subiendo)",
+  "Done — click: reopen it": "Hecho — clic: reabrir",
+  "Resolve this thread in GitLab": "Resolver este hilo en GitLab",
+  "Mark as done": "Marcar como hecho"
 }

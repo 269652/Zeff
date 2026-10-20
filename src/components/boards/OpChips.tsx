@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { doneBrowserOpAction, removeTodoOpAction, saveTodoOpTextAction } from "@/plugins/todos/server-actions";
 import { opNote, type TodoView } from "@/lib/boards/shared";
-import { OP_CHIP } from "./TodoAlternatives";
+import { opLook, TONE } from "@/lib/boards/op-look";
 import { toast } from "../Toaster";
 import { CheckIcon, CloseIcon, PencilIcon } from "../icons";
 import { useT } from "@/components/I18nProvider";
@@ -56,101 +56,105 @@ function OpChip({
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(body ?? "");
   const [pending, start] = useTransition();
+  const look = opLook(op.type);
+  const [more, setMore] = useState(false);
+  const icon = "rounded p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-50 dark:hover:bg-zinc-800 dark:hover:text-zinc-200";
   return (
-    <span className={`${OP_CHIP} max-w-full`}>
-      <span className="flex items-start gap-1.5">
-        <span className="min-w-0 flex-1">⚡ {heading}</span>
+    <span className={`group/op flex max-w-full flex-col gap-1.5 rounded-lg border border-l-4 border-zinc-200 bg-white px-2.5 py-2 shadow-sm transition hover:shadow dark:border-zinc-700 dark:bg-zinc-900 ${TONE[look.tone].bar}`}>
+      <span className="flex items-start gap-2.5">
+        <span className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold ${TONE[look.tone].bubble}`} aria-hidden>
+          {look.icon}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm leading-snug font-medium">{heading}</span>
+          {note ? (
+            <a
+              href={note.url}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-0.5 block text-xs break-words text-zinc-500 hover:text-indigo-600 hover:underline dark:text-zinc-400 dark:hover:text-indigo-300"
+              title={t("{note} — open in GitLab", { note: "note" in op ? op.note : "" })}
+            >
+              {note.author ?? t("Comment")}: “{note.excerpt}”{note.state === "resolved" ? ` ${t("(already resolved)")}` : ""} ↗
+            </a>
+          ) : (
+            detail && <span className="mt-0.5 block text-xs break-words text-zinc-500 dark:text-zinc-400">{detail}</span>
+          )}
+        </span>
         {href && (
           <a
             href={href}
             target="_blank"
             rel="noreferrer"
-            className="shrink-0 rounded px-1.5 font-medium text-sky-700 hover:bg-sky-100 dark:text-sky-300 dark:hover:bg-sky-900"
+            className="shrink-0 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700 hover:bg-sky-100 dark:bg-sky-950 dark:text-sky-300 dark:hover:bg-sky-900"
             title={t("Opens filled in in {app} — check it and send it yourself", { app: openIn(href) })}
           >
             {t("Open in {app}", { app: openIn(href) })} ↗
           </a>
         )}
-        <span className="flex shrink-0 items-center gap-0.5">
-        {body !== null && todoId !== undefined && !editing && (
-          <button
-            type="button"
-            className="shrink-0 rounded px-1 text-sky-700 hover:bg-sky-100 dark:text-sky-300 dark:hover:bg-sky-900"
-            onClick={() => {
-              setText(body);
-              setEditing(true);
-            }}
-            title={t("Edit the text")}
-            aria-label={t("Edit the text")}
-          >
-            <PencilIcon className="size-3.5" />
-          </button>
-        )}
-        {/* Done in Outlook (saved, sent): Zeff can't see it — you say so (✓), and it's noted on the todo. */}
-        {href && todoId !== undefined && (
-          <button
-            type="button"
-            className="shrink-0 rounded px-1 text-sky-700 hover:bg-sky-100 hover:text-emerald-700 disabled:opacity-50 dark:text-sky-300 dark:hover:bg-sky-900 dark:hover:text-emerald-400"
-            disabled={pending}
-            onClick={() =>
-              start(async () => {
-                const r = await doneBrowserOpAction(todoId, index);
-                toast(r?.ok ? (r.message ?? t("Noted.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" });
-                router.refresh();
-              })
-            }
-            title={op.type === "calendar-event" ? t("Done: the meeting is created in Outlook — note it on the todo") : t("Done: the mail is sent — note it on the todo")}
-            aria-label={t("Done")}
-          >
-            <CheckIcon className="size-3.5" />
-          </button>
-        )}
-        {/* Not wanted: off the todo, no trace (×). */}
-        {todoId !== undefined && (
-          <button
-            type="button"
-            className="shrink-0 rounded px-1 text-sky-700 hover:bg-sky-100 hover:text-red-600 disabled:opacity-50 dark:text-sky-300 dark:hover:bg-sky-900 dark:hover:text-red-400"
-            disabled={pending}
-            onClick={() =>
-              start(async () => {
-                const r = await removeTodoOpAction(todoId, index);
-                if (!r?.ok) toast(r?.error ?? t("Didn't work."), { tone: "error" });
-                router.refresh();
-              })
-            }
-            title={t("Dismiss — takes the action off the todo, without a note")}
-            aria-label={t("Dismiss the action")}
-          >
-            <CloseIcon className="size-3.5" />
-          </button>
-        )}
+        <span className="flex shrink-0 items-center gap-0.5 opacity-50 transition group-hover/op:opacity-100 focus-within:opacity-100">
+          {body !== null && todoId !== undefined && !editing && (
+            <button
+              type="button"
+              className={icon}
+              onClick={() => {
+                setText(body);
+                setEditing(true);
+              }}
+              title={t("Edit the text")}
+              aria-label={t("Edit the text")}
+            >
+              <PencilIcon className="size-3.5" />
+            </button>
+          )}
+          {/* Done in Outlook (saved, sent): Zeff can't see it — you say so (✓), and it's noted on the todo. */}
+          {href && todoId !== undefined && (
+            <button
+              type="button"
+              className={`${icon} hover:!text-emerald-600`}
+              disabled={pending}
+              onClick={() =>
+                start(async () => {
+                  const r = await doneBrowserOpAction(todoId, index);
+                  toast(r?.ok ? (r.message ?? t("Noted.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" });
+                  router.refresh();
+                })
+              }
+              title={op.type === "calendar-event" ? t("Done: the meeting is created in Outlook — note it on the todo") : t("Done: the mail is sent — note it on the todo")}
+              aria-label={t("Done")}
+            >
+              <CheckIcon className="size-3.5" />
+            </button>
+          )}
+          {/* Not wanted: off the todo, no trace (×). */}
+          {todoId !== undefined && (
+            <button
+              type="button"
+              className={`${icon} hover:!text-red-600`}
+              disabled={pending}
+              onClick={() =>
+                start(async () => {
+                  const r = await removeTodoOpAction(todoId, index);
+                  if (!r?.ok) toast(r?.error ?? t("Didn't work."), { tone: "error" });
+                  router.refresh();
+                })
+              }
+              title={t("Dismiss — takes the action off the todo, without a note")}
+              aria-label={t("Dismiss the action")}
+            >
+              <CloseIcon className="size-3.5" />
+            </button>
+          )}
         </span>
       </span>
-      {note ? (
-        <a
-          href={note.url}
-          target="_blank"
-          rel="noreferrer"
-          className="block text-xs break-words text-sky-950/80 hover:underline dark:text-sky-100/80"
-          title={t("{note} — open in GitLab", { note: "note" in op ? op.note : "" })}
-        >
-          {note.author ?? t("Comment")}: “{note.excerpt}”{note.state === "resolved" ? ` ${t("(already resolved)")}` : ""} ↗
-        </a>
-      ) : (
-        detail && (
-          <span className="block text-xs break-words text-sky-950/80 dark:text-sky-100/80">
-            {detail}
-          </span>
-        )
-      )}
       {!!files?.length && (
-        <details className="mt-0.5 text-xs text-sky-950/80 dark:text-sky-100/80">
+        <details className="text-xs text-zinc-500 dark:text-zinc-400">
           <summary className="cursor-pointer">{t("Show files")}</summary>
           <ul className="mt-0.5 space-y-0.5 font-mono text-xs">
             {files.map((f) => (
               <li key={f} className="break-all" title={f}>
                 {f.includes("/") ? (
-                  <span className="text-sky-900/50 dark:text-sky-100/50">
+                  <span className="text-zinc-400 dark:text-zinc-500">
                     {f.slice(0, f.lastIndexOf("/") + 1)}
                   </span>
                 ) : null}
@@ -201,13 +205,19 @@ function OpChip({
           body &&
           (op.type === "jira-create" ? (
             // A new ticket's description is long: folded, its title above says what it is.
-            <details className="mt-0.5 text-xs text-sky-950/80 dark:text-sky-100/80">
+            <details className="text-xs text-zinc-500 dark:text-zinc-400">
               <summary className="cursor-pointer">{t("Show description")}</summary>
               <span className="mt-0.5 block whitespace-pre-wrap">{body}</span>
             </details>
           ) : (
-            <span className="mt-0.5 block text-xs whitespace-pre-wrap text-sky-950/80 dark:text-sky-100/80">
-              {body}
+            // The draft, as a quote: what will be sent, readable at a glance (longer ones fold).
+            <span className="block rounded-md bg-zinc-50 px-2.5 py-2 text-sm text-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-200">
+              <span className={`block whitespace-pre-wrap ${more || body.length < 320 ? "" : "line-clamp-5"}`}>{body}</span>
+              {body.length >= 320 && (
+                <button type="button" className="mt-1 text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setMore((v) => !v)}>
+                  {more ? t("Show less") : t("Show all")}
+                </button>
+              )}
             </span>
           ))
         ))}

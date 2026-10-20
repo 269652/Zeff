@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { toast } from "./Toaster";
 import { findGitlabItemsAction, setGitlabResolvedAction } from "@/plugins/gitlab/server-actions";
-import { gitlabDone, gitlabKindLabels, gitlabLinkKey, gitlabMarkdown, resolvedInGitlab, type GitlabItemView, type GitlabKind } from "@/lib/gitlab/shared";
+import { gitlabDone, gitlabKindLabels, gitlabLinkKey, gitlabMarkdown, type GitlabItemView, type GitlabKind } from "@/lib/gitlab/shared";
 import { SourceCard } from "./SourceCard";
 import { Markdown } from "./Markdown";
 import { ResolvedMark } from "./ResolvedMark";
@@ -47,6 +48,50 @@ export function GitlabResolve({ item, className = "" }: { item: Pick<GitlabItemV
           : undefined
       }
     />
+  );
+}
+
+/**
+ * The mark on a GitLab comment's card: a click resolves the thread (in GitLab too, through its API) — and again reopens it. Shown at once,
+ * back as it was if GitLab refuses. `resolved`: done by another account than its own (its copy in Jira): shown done, no click.
+ */
+export function GitlabResolveMark({ item, resolved }: { item: Pick<GitlabItemView, "key" | "kind" | "state" | "resolvedAt">; resolved?: boolean }) {
+  const t = useT();
+  const [done, setDone] = useState(!!resolved || gitlabDone(item));
+  const [pending, start] = useTransition();
+  const thread = item.state === "resolved" || item.state === "unresolved";
+  const title = done
+    ? thread
+      ? t("Resolved in GitLab — click: reopen it there (and here)")
+      : t("Done — click: reopen it")
+    : thread
+      ? t("Resolve this thread in GitLab")
+      : t("Mark as done");
+  return (
+    <button
+      type="button"
+      disabled={pending || !!resolved}
+      aria-pressed={done}
+      title={title}
+      onClick={(e) => {
+        e.stopPropagation();
+        start(async () => {
+          const next = !done;
+          setDone(next);
+          const r = await setGitlabResolvedAction(item.key, next);
+          if (r && !r.ok) {
+            setDone(!next);
+            toast(r.error ?? t("Didn't work."), { tone: "error" });
+          }
+        });
+      }}
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-xs font-medium transition disabled:opacity-60 ${
+        done ? "text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950" : "border border-zinc-300 text-zinc-600 hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-emerald-950"
+      }`}
+    >
+      <ResolvedMark done={done} title={title} />
+      {done ? t("Resolved") : t("Resolve")}
+    </button>
   );
 }
 
@@ -126,7 +171,7 @@ export function GitlabItemBadge({
       tone="orange"
       icon={icon}
       kind={kind}
-      mark={item.kind === "comment" ? <ResolvedMark done={resolved || gitlabDone(item)} title={resolvedInGitlab(item) ? t("resolved in GitLab") : undefined} /> : undefined}
+      mark={item.kind === "comment" ? <GitlabResolveMark item={item} resolved={resolved} /> : undefined}
       state={item.state ? { text: item.state, className: STATE_STYLE(item.state) } : undefined}
       when={day ? when(day) : undefined}
       title={(item.kind === "branch" ? item.ref : item.kind === "mr" ? item.title : item.title || item.ref) || kind}
