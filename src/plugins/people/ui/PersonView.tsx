@@ -133,6 +133,10 @@ export default function PersonView({ rowId }: { rowId: number }) {
       <Messages d={d} />
       <TodosOf d={d} />
       <div className="grid gap-x-8 gap-y-5 @2xl:grid-cols-2">
+        <CasesOf d={d} />
+        <Letters d={d} />
+      </div>
+      <div className="grid gap-x-8 gap-y-5 @2xl:grid-cols-2">
         <Pages d={d} />
         <Tickets d={d} />
       </div>
@@ -183,6 +187,51 @@ function TodosOf({ d }: { d: PersonBundle }) {
       ) : (
         <Empty>{t("No open todo names them.")}</Empty>
       )}
+    </Card>
+  );
+}
+
+/** Their cases (the Cases plugin): what is open and what is next, each leading to the case's page. */
+function CasesOf({ d }: { d: PersonBundle }) {
+  const t = useT();
+  if (!d.cases.length) return null;
+  return (
+    <Card title={t("Cases")}>
+      <ul className="space-y-1.5 text-sm">
+        {d.cases.map((c) => (
+          <li key={c.id} className={`flex items-baseline gap-2 ${c.done ? "text-zinc-400" : ""}`}>
+            <span className="shrink-0 font-mono text-xs text-zinc-500">{c.label}</span>
+            <Link href={c.href} className="min-w-0 flex-1 truncate hover:underline">
+              {c.title}
+            </Link>
+            {c.open != null && !c.done && <span className="shrink-0 tabular-nums">{c.open.toLocaleString(undefined, { style: "currency", currency: "EUR" })}</span>}
+            {c.nextDue && !c.done && <span className="shrink-0 text-xs text-zinc-500">{new Date(c.nextDue).toLocaleDateString()}</span>}
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+/** Their letters: the documents with their address or their name in them. */
+function Letters({ d }: { d: PersonBundle }) {
+  const t = useT();
+  if (!d.documents.length) return null;
+  return (
+    <Card title={t("Letters and documents")}>
+      <ul className="space-y-1.5 text-sm">
+        {d.documents.map((doc) => (
+          <li key={doc.id}>
+            <div className="flex items-baseline gap-2">
+              <a href={`/api/documents/${doc.id}/file`} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate hover:underline">
+                📄 {doc.name}
+              </a>
+              <span className="shrink-0 text-xs text-zinc-500">{new Date(doc.at).toLocaleDateString()}</span>
+            </div>
+            {doc.summary && <p className="line-clamp-2 text-xs text-zinc-500">{doc.summary}</p>}
+          </li>
+        ))}
+      </ul>
     </Card>
   );
 }

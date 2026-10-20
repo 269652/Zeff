@@ -3,6 +3,7 @@ import { isInstalled } from "@/plugins/state";
 import { t } from "@/lib/i18n/server";
 import { claimsOf, linksOf, reviewClaim, reviewLink } from "./graph";
 import { findDates } from "./dates";
+import { buildPeopleIndex, mentionMatcher, splitMentions } from "./mentions";
 import { addDetail, detailsOf, isDetailKey, removeDetail, syncDetails, type PersonDetail } from "./details";
 import { compilePerson } from "./compile";
 import { dateKindLabels, dateText, daysBetween, inDaysText, isDateKind, isoDay, nextOccurrence, parseDayMonth, type DateKind, type PersonSummary } from "./shared";
@@ -50,7 +51,37 @@ export type PersonBundle = {
   pages: { id: number; title: string; icon: string }[];
   tickets: string[];
   others: { id: number; name: string }[];
+  /** Their letters: documents with their address in them, or naming them — the newest first. */
+  documents: { id: number; name: string; summary: string; at: string }[];
+  /** Their cases (the Cases plugin): the money and the next step at a glance. */
+  cases: { id: number; label: string; title: string; open: number | null; nextDue: string | null; done: boolean; href: string }[];
 };
+
+/** The documents that are theirs: their address in the text, or their name in the title, summary or text. */
+function documentsOf(p: NonNullable<ReturnType<typeof getPerson>>): PersonBundle["documents"] {
+  let rows: { id: number; name: string; summary: string; text: string; at: string }[] = [];
+  try {
+    rows = getSqlite().prepare("select id, name, summary, substr(text, 1, 6000) text, created_at at from documents where status = 'ready' order by created_at desc").all() as typeof rows;
+  } catch {
+    return []; // the Documents plugin never ran
+  }
+  const emails = p.emails.map((e) => e.toLowerCase());
+  // Their name as people write it — a last name alone too, when it is no one else's ("U. Nathanael").
+  const matcher = mentionMatcher(buildPeopleIndex(listPeople()));
+  const named = (text: string) => splitMentions(text, matcher).some((m) => m.person?.id === p.id);
+  return rows
+    .filter((d) => emails.some((e) => d.text.toLowerCase().includes(e)) || namesThem(p, `${d.name} ${d.summary}`) || named(`${d.name} ${d.summary} ${d.text}`))
+    .slice(0, 30)
+    .map((d) => ({ id: d.id, name: d.name, summary: d.summary, at: d.at }));
+}
+
+async function casesOfPerson(personId: number): Promise<PersonBundle["cases"]> {
+  if (!isInstalled("cases")) return [];
+  const { casesOfPerson: ofPerson } = await import("@/plugins/cases/store");
+  const { caseHref } = await import("@/plugins/cases/database");
+  const { caseTitle } = await import("@/plugins/cases/shared");
+  return Promise.all(ofPerson(personId).map(async (c) => ({ id: c.id, label: c.label, title: caseTitle(c), open: c.compiled?.open ?? null, nextDue: c.compiled?.nextDue ?? null, done: c.status === "closed" || !!c.compiled?.done, href: await caseHref(c.id) })));
+}
 
 export async function personBundle(personId: number, today = new Date()): Promise<PersonBundle> {
   const p = getPerson(personId);
@@ -100,6 +131,8 @@ export async function personBundle(personId: number, today = new Date()): Promis
     pages,
     tickets: [...new Set(links.filter((l) => l.targetType === "ticket").map((l) => l.targetRef))],
     others: listPeople().filter((x) => x.id !== personId).map((x) => ({ id: x.id, name: x.name })),
+    documents: documentsOf(p),
+    cases: await casesOfPerson(personId),
   };
 }
 

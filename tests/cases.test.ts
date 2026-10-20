@@ -121,3 +121,12 @@ test("cases: a row per case in the Workspace — the money and the next step as 
   assert.equal(swr.status.group, "done", "the AI said done in the test before");
   assert.equal(swr.dataType, "cases");
 });
+
+test("cases: a person's page lists their letters (their address in them, or their name) and their cases", async () => {
+  const { ogv } = await seed();
+  const { personBundle } = await import("@/plugins/people/blocks");
+  const b = await personBundle(ogv);
+  assert.deepEqual(b.documents.map((d) => d.name).sort(), ["Mein Zeichen DR II 1121 26.pdf", "Mein Zeichen DR II 810 26.pdf"], "the second names her (Nathanael) without her address");
+  assert.deepEqual(b.cases.map((c) => c.label).sort(), ["DR II 1121/26", "DR II 810/26"]);
+  assert.equal(b.cases.find((c) => c.label === "DR II 810/26")?.open, 11.52);
+});
