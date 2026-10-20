@@ -321,7 +321,12 @@ async function knowledgeRecords(c: NonNullable<PipelineStep["knowledge"]>, self:
 
 async function read(step: PipelineStep, self: number): Promise<SourceRecord[]> {
   if (step.from === "knowledge") return knowledgeRecords(step.knowledge ?? { terms: [] }, self);
-  if (step.from === "ext") return (await (await import("./source-point")).extSources()).find((x) => x.id === step.ext)?.read({ label: step.label }) ?? [];
+  if (step.from === "ext") {
+    // A plugin's source that isn't there (not loaded yet in this process, uninstalled) is no empty source: its rows stay.
+    const src = (await (await import("./source-point")).extSources()).find((x) => x.id === step.ext);
+    if (!src) throw new Error(`The source "${step.ext}" isn't available — its rows are kept.`);
+    return src.read({ label: step.label });
+  }
   if (step.from === "mail") return mailRecords(step.mail ?? {});
   if (step.from === "messages") return messageRecords(step.messages ?? {});
   if (step.from === "jira") return jiraRecords(step.jira ?? {});
