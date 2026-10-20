@@ -187,7 +187,7 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
             // The bank: payments made settle their todos and cases; an instalment ten days late warns.
             const bank = await import("@/plugins/cases/bank");
             if ((await import("@/plugins/cases/bank-sync")).bankConnected()) await (await import("@/plugins/cases/bank-sync")).syncBank().catch((e) => console.error("[cases] the bank:", errorMessage(e)));
-            bank.importStatementDocuments();
+            if ((await import("@/plugins/state")).isInstalled("revolut")) (await import("@/plugins/revolut/statement")).importStatementDocuments();
             bank.matchPayments();
             bank.overdueWarnings(new Date().toISOString().slice(0, 10));
           } catch (e) {

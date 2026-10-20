@@ -17,7 +17,7 @@ TRANSFER,Current,${day(0)} 10:00:00,,To Nathanael Dienstkonto,-300.00,0.00,EUR,P
 
 async function seed() {
   const { setInstalled } = await import("@/plugins/state");
-  for (const p of ["people", "todos", "cases"]) setInstalled(p, true);
+  for (const p of ["people", "todos", "cases", "revolut"]) setInstalled(p, true);
   const { createPerson, listPeople } = await import("@/plugins/people/store");
   const had = listPeople().find((p) => p.name === "Ulla Nathanael");
   if (had) return;
@@ -38,7 +38,7 @@ async function seed() {
 }
 
 test("bank: a statement read — Revolut's export or any CSV with a date, an amount and a text; the same booking never twice; pending ones not yet", async () => {
-  const { parseStatement } = await import("@/plugins/cases/bank");
+  const { parseStatement } = await import("@/plugins/revolut/statement");
   const rows = parseStatement(REVOLUT);
   assert.equal(rows.length, 3, "the pending transfer waits until it is completed");
   assert.deepEqual(rows.map((r) => [r.date, r.amount, r.text]), [
@@ -60,7 +60,8 @@ test("bank: a statement read — Revolut's export or any CSV with a date, an amo
   assert.deepEqual(revDe.map((r) => [r.date, r.amount, r.counterparty]), [["2026-03-24", -64.06, "Ulrike Nathanael"]]);
 
   await seed();
-  const { importStatement, listTransactions } = await import("@/plugins/cases/bank");
+  const { importStatement } = await import("@/plugins/revolut/statement");
+  const { listTransactions } = await import("@/plugins/cases/bank");
   const r = importStatement(REVOLUT, "Revolut");
   assert.equal(r.added, 3);
   assert.equal(importStatement(REVOLUT, "Revolut").added, 0, "not twice");
@@ -117,40 +118,40 @@ test("bank: the same payment read again from another source (the bank connection
   assert.equal(paymentsOf(caseByKey("DR II 810/26")!.id).length, 1);
 });
 
-test("bank: a PDF statement by its words' places (Revolut) — a dated line opens a booking, the lines under it (An:, Referenz:) belong to it; out or in by the column", async () => {
-  const { bookingsFromWords } = await import("@/plugins/cases/bank");
-  const w = (x: number, y: number, text: string) => ({ x, y, text });
-  const page = [
-    w(42, 142, "Datum"), w(124, 142, "Beschreibung"), w(335, 142, "Geldausgang"), w(417, 142, "Geldeingang"), w(513, 142, "Kontostand"),
-    w(42, 162, "23.02.2026"), w(124, 162, "To"), w(137, 162, "Ulrike"), w(165, 162, "Nathanael"), w(335, 162, "76,50€"), w(526, 162, "391,45€"),
-    w(124, 172, "Referenz:"), w(160, 172, "11"), w(170, 172, "DR"), w(182, 172, "II"), w(190, 172, "1168/25"),
-    w(124, 180, "An:"), w(140, 180, "Ulrike"), w(170, 180, "Nathanael,"), w(210, 180, "DE22660908000007777302"),
-    w(42, 196, "24.02.2026"), w(124, 196, "Zahlung"), w(160, 196, "von"), w(180, 196, "MORITZ"), w(220, 196, "ROESSLER"), w(417, 196, "2.100,00€"), w(526, 196, "2.491,45€"),
-    w(124, 206, "Referenz:"), w(160, 206, "Gehalt"),
-    w(85, 722, "Verlorene"), w(122, 722, "oder"), w(141, 722, "gestohlene"),
-  ];
-  assert.deepEqual(bookingsFromWords([page]).map((b) => [b.date, b.amount, b.counterparty, b.iban, b.reference]), [
-    ["2026-02-23", -76.5, "Ulrike Nathanael", "DE22660908000007777302", "11 DR II 1168/25"],
-    ["2026-02-24", 2100, "MORITZ ROESSLER", "", "Gehalt"],
-  ]);
-  // English statements: Money out / Money in / Balance, dates as "Oct 17, 2026".
-  const en = [
-    w(42, 100, "Date"), w(124, 100, "Description"), w(335, 100, "Money"), w(362, 100, "out"), w(417, 100, "Money"), w(444, 100, "in"), w(513, 100, "Balance"),
-    w(42, 120, "Oct"), w(58, 120, "17,"), w(72, 120, "2026"), w(124, 120, "To"), w(137, 120, "Nathanael"), w(180, 120, "Dienstkonto"), w(335, 120, "€11.52"), w(526, 120, "€120.40"),
-  ];
-  assert.deepEqual(bookingsFromWords([en]).map((b) => [b.date, b.amount, b.counterparty]), [["2026-10-17", -11.52, "Nathanael Dienstkonto"]]);
-});
-
 test("bank: a statement that comes in as a document (a CSV from your Drive folder) is read by itself — once", async () => {
   await seed();
   const { addDocument } = await import("@/plugins/documents/store");
   const csv = "Art,Produkt,Datum des Beginns,Datum des Abschlusses,Beschreibung,Betrag,Gebühr,Währung,Status,Kontostand\nTransfer,Giro,2026-10-21 09:00:00,2026-10-21 09:00:01,To Nathanael Dienstkonto,-300.00,0.00,EUR,ABGESCHLOSSEN,100.00\n";
   addDocument("account-statement_2026-10_de-de.csv", Buffer.from(csv), "text/csv");
   addDocument("Einkaufsliste.csv", Buffer.from("Ding,Menge\nMilch,1\n"), "text/csv");
-  const { importStatementDocuments, listTransactions } = await import("@/plugins/cases/bank");
+  const { importStatementDocuments } = await import("@/plugins/revolut/statement");
+  const { listTransactions } = await import("@/plugins/cases/bank");
   const before = listTransactions().length;
   const r = importStatementDocuments();
   assert.equal(r.documents, 1, "the shopping list is no statement");
   assert.equal(listTransactions().length, before + 1);
   assert.equal(importStatementDocuments().documents, 0, "once");
+});
+
+test("revolut: a statement among the documents is kept as a note, not as its text — its bookings don't go to the knowledge, the people or the cases", async () => {
+  await seed();
+  const fs = await import("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const { extractText } = await import("@/plugins/documents/extract");
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "zeff-stmt-")), "account-statement_2026-10_de-de.csv");
+  fs.writeFileSync(file, REVOLUT);
+  const text = await extractText(file, path.basename(file), "text", { lane: "fast" });
+  assert.match(text, /Kontoauszug/);
+  assert.match(text, /3 Buchungen/, "the pending one isn't a booking yet");
+  assert.doesNotMatch(text, /Nathanael|Rewe|Gehalt/, "none of its bookings");
+  const { statementNote } = await import("@/plugins/revolut/statement");
+  // An ordinary list or letter: none.
+  assert.equal(statementNote("Einkaufsliste.csv", "Ding,Menge\nMilch,1\n"), null);
+  assert.equal(statementNote("Brief.txt", "Sehr geehrter Herr Roessler, am 23.02.2026 haben wir 76,50 € erhalten."), null);
+  // Without the Revolut plugin a CSV is read as it is.
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("revolut", false);
+  assert.match(await extractText(file, path.basename(file), "text", { lane: "fast" }), /Rewe/);
+  setInstalled("revolut", true);
 });

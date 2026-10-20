@@ -1,19 +1,16 @@
 import { createHash } from "node:crypto";
-import fs from "node:fs";
 import { getSqlite } from "@/db";
 import { caseRefs } from "@/lib/boards/similar";
-import { ibanValid } from "@/lib/girocode";
 import { addManualTodo, addTodoUserNote, listTodos, setTodoDue, setTodoOps, setTodoStatus } from "@/lib/boards/store";
 import { detailsOf } from "@/plugins/people/details";
 import { getPerson } from "@/plugins/people/store";
-import { documentFile } from "@/plugins/documents/store";
 import { isInstalled } from "@/plugins/state";
 import { caseTitle } from "./shared";
 import { caseByKey, getCase, listCases } from "./store";
 
 /**
- * The bank (the Cases plugin): your account's bookings — read from a statement (Revolut's export, any CSV with a date,
- * an amount and a text) or fetched from a bank connection — matched to what you owe. A payment out that fits a todo's
+ * The bank (the Cases plugin): your account's bookings — read from a statement (the Revolut plugin) or fetched from a
+ * bank connection (bank-sync) — matched to what you owe. A payment out that fits a todo's
  * transfer (the amount, and the recipient, the account or the case number) settles the todo with a note and counts for
  * its case; a case's open amount follows. An instalment ten days late, with nothing paid, makes a todo before the plan
  * lapses. And one overview of every debt, with the months ahead against your income. Server only.
@@ -21,198 +18,6 @@ import { caseByKey, getCase, listCases } from "./store";
 
 export type Booking = { date: string; amount: number; currency: string; text: string; counterparty: string; iban: string; reference: string };
 export type Transaction = Booking & { id: string; account: string; caseId: number | null; todoId: number | null };
-
-// ---------------------------------------------------------------------------
-// Reading a statement
-// ---------------------------------------------------------------------------
-
-/** The cells of a CSV line (quotes, doubled quotes inside them). */
-function cells(line: string, sep: string): string[] {
-  const out: string[] = [];
-  let cur = "";
-  let quoted = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (quoted) {
-      if (ch === '"' && line[i + 1] === '"') (cur += '"'), i++;
-      else if (ch === '"') quoted = false;
-      else cur += ch;
-    } else if (ch === '"') quoted = true;
-    else if (ch === sep) out.push(cur.trim()), (cur = "");
-    else cur += ch;
-  }
-  out.push(cur.trim());
-  return out;
-}
-
-/** The columns a statement may have, by what they are called (Revolut, German banks, English ones) — the first found wins. */
-const COLUMNS = {
-  date: ["completed date", "datum des abschlusses", "buchungstag", "buchungsdatum", "datum", "date", "booking date", "started date", "datum des beginns", "valutadatum", "wertstellung"],
-  amount: ["amount", "betrag", "betrag (eur)", "umsatz", "betrag in eur"],
-  text: ["description", "beschreibung", "buchungstext", "text", "details"],
-  counterparty: ["empfänger", "zahlungsempfänger", "auftraggeber", "name", "counterparty", "beguenstigter/zahlungspflichtiger", "begünstigter/zahlungspflichtiger", "zahlungsempfänger*in"],
-  reference: ["verwendungszweck", "reference", "referenz", "payment reference"],
-  iban: ["iban", "kontonummer/iban", "iban des empfängers"],
-  currency: ["currency", "währung", "waehrung"],
-  state: ["state", "status"],
-} as const;
-
-/** "-11.52", "-300,00", "1.234,56", "1,234.56" → a number (NaN when it is none). */
-function amountOf(s: string): number {
-  const v = s.replace(/[€\s]|EUR/gi, "");
-  if (/,\d{1,2}$/.test(v)) return Number(v.replace(/\./g, "").replace(",", "."));
-  return Number(v.replace(/,/g, ""));
-}
-
-/** "2026-10-17 09:12:05", "17.10.2026", "17.10.26" → "2026-10-17" (empty when it is none). */
-function dayOf(s: string): string {
-  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
-  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
-  const de = /^(\d{1,2})\.(\d{1,2})\.(\d{2,4})/.exec(s);
-  if (de) return `${de[3].length === 2 ? `20${de[3]}` : de[3]}-${de[2].padStart(2, "0")}-${de[1].padStart(2, "0")}`;
-  return "";
-}
-
-/** Revolut writes the other side into the description: "To Nathanael Dienstkonto", "Transfer to …", "From …". */
-const fromText = (text: string) => /^(?:transfer\s+)?(?:to|from|an|von)\s+(.+)$/i.exec(text.trim())?.[1]?.trim() ?? "";
-
-/** The bookings of a statement (CSV, comma or semicolon) — the ones not yet completed (Revolut's PENDING) left for later. */
-export function parseStatement(csv: string): Booking[] {
-  const lines = csv.replace(/^﻿/, "").split(/\r?\n/).filter((l) => l.trim());
-  if (!lines.length) return [];
-  const sep = (lines[0].match(/;/g)?.length ?? 0) > (lines[0].match(/,/g)?.length ?? 0) ? ";" : ",";
-  const head = cells(lines[0], sep).map((h) => h.toLowerCase().replace(/^"|"$/g, ""));
-  const col = (names: readonly string[]) => names.map((n) => head.indexOf(n)).find((i) => i >= 0) ?? -1;
-  const at = { date: col(COLUMNS.date), amount: col(COLUMNS.amount), text: col(COLUMNS.text), counterparty: col(COLUMNS.counterparty), reference: col(COLUMNS.reference), iban: col(COLUMNS.iban), currency: col(COLUMNS.currency), state: col(COLUMNS.state) };
-  if (at.date < 0 || at.amount < 0) throw new Error("The statement needs a date and an amount column.");
-  const out: Booking[] = [];
-  for (const line of lines.slice(1)) {
-    const c = cells(line, sep);
-    const get = (i: number) => (i >= 0 ? (c[i] ?? "") : "");
-    const state = get(at.state).toUpperCase();
-    if (state && !["COMPLETED", "ABGESCHLOSSEN", "GEBUCHT", "BOOKED"].includes(state)) continue;
-    const date = dayOf(get(at.date)) || dayOf(get(col(["started date", "datum des beginns"])));
-    const amount = amountOf(get(at.amount));
-    if (!date || !Number.isFinite(amount)) continue;
-    const text = get(at.text) || get(at.reference) || get(at.counterparty);
-    const iban = get(at.iban).replace(/\s+/g, "").toUpperCase();
-    out.push({ date, amount, currency: get(at.currency) || "EUR", text, counterparty: get(at.counterparty) || fromText(text), iban: ibanValid(iban) ? iban : "", reference: at.reference !== at.text ? get(at.reference) : "" });
-  }
-  return out;
-}
-
-// ---------------------------------------------------------------------------
-// Reading a PDF statement (Revolut): by where its words stand
-// ---------------------------------------------------------------------------
-
-export type PlacedWord = { x: number; y: number; text: string };
-
-const MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, mär: 3, apr: 4, may: 5, mai: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, okt: 10, nov: 11, dec: 12, dez: 12 };
-
-/** "23.02.2026", "Oct 17, 2026", "17. Okt. 2026" → "2026-10-17"; empty when it is no date. */
-function dateOfWords(s: string): string {
-  const de = dayOf(s.trim());
-  if (de) return de;
-  const en = /^([A-Za-zä]{3})[a-zä]*\.?\s+(\d{1,2}),?\s+(\d{4})$/.exec(s.trim());
-  if (en && MONTHS[en[1].toLowerCase()]) return `${en[3]}-${String(MONTHS[en[1].toLowerCase()]).padStart(2, "0")}-${en[2].padStart(2, "0")}`;
-  const dm = /^(\d{1,2})\.\s+([A-Za-zä]{3})[a-zä]*\.?\s+(\d{4})$/.exec(s.trim());
-  if (dm && MONTHS[dm[2].toLowerCase()]) return `${dm[3]}-${String(MONTHS[dm[2].toLowerCase()]).padStart(2, "0")}-${dm[1].padStart(2, "0")}`;
-  return "";
-}
-
-type Columns = { date: number; text: number; out: number; in: number; balance: number };
-
-/** The columns of a statement's table, by its head line: Datum / Beschreibung / Geldausgang / Geldeingang / Kontostand (or English). */
-function columnsOf(line: PlacedWord[]): Columns | null {
-  const at = (re: RegExp) => line.find((w) => re.test(w.text))?.x;
-  const date = at(/^(Datum|Date)$/i);
-  const text = at(/^(Beschreibung|Description)$/i);
-  const balance = at(/^(Kontostand|Saldo|Balance)$/i);
-  let out = at(/^Geldausgang$/i);
-  let inn = at(/^Geldeingang$/i);
-  if (out === undefined || inn === undefined) {
-    // "Money out" / "Money in": the word before each.
-    const money = line.filter((w) => /^Money$/i.test(w.text)).map((w) => ({ w, next: line.find((n) => n.x > w.x && Math.abs(n.y - w.y) < 3 && n !== w) })).sort((a, b) => a.w.x - b.w.x);
-    out ??= money.find((m) => /^out$/i.test(m.next?.text ?? ""))?.w.x;
-    inn ??= money.find((m) => /^in$/i.test(m.next?.text ?? ""))?.w.x;
-  }
-  return date !== undefined && text !== undefined && out !== undefined && inn !== undefined && balance !== undefined ? { date, text, out, in: inn, balance } : null;
-}
-
-/** The words of a page in lines (by their height, top first), each line left to right. */
-function linesOf(words: PlacedWord[]): PlacedWord[][] {
-  const lines: PlacedWord[][] = [];
-  for (const w of [...words].sort((a, b) => a.y - b.y || a.x - b.x)) {
-    const line = lines.at(-1);
-    if (line && Math.abs(line[0].y - w.y) <= 3) line.push(w);
-    else lines.push([w]);
-  }
-  return lines.map((l) => l.sort((a, b) => a.x - b.x));
-}
-
-const isAmount = (s: string) => /^[€$£]?-?[\d.,]+[€$£]?$/.test(s) && /\d[.,]\d{2}[€$£]?$/.test(s);
-
-/**
- * A PDF statement's bookings from its words and where they stand (pdf.ts reads them): a line with a date opens a booking —
- * its description, and its amount in the out or the in column; the lines under it without a date ("An: name, IBAN",
- * "Referenz: …", "Karte: …") belong to it. Pages without a head line go on with the last one's columns.
- */
-export function bookingsFromWords(pages: PlacedWord[][]): Booking[] {
-  const out: Booking[] = [];
-  let cols: Columns | null = null;
-  for (const page of pages) {
-    let open: (Booking & { lines: string[] }) | null = null;
-    const close = () => {
-      if (!open) return;
-      const { lines: _l, ...b } = open;
-      out.push(b);
-      open = null;
-    };
-    for (const line of linesOf(page)) {
-      const head = columnsOf(line);
-      if (head) {
-        close();
-        cols = head;
-        continue;
-      }
-      if (!cols) continue;
-      const c: Columns = cols;
-      const dateWords = line.filter((w) => w.x < c.text - 4);
-      const date = dateOfWords(dateWords.map((w) => w.text).join(" "));
-      const desc = line.filter((w) => w.x >= c.text - 4 && w.x < c.out - 20 && !isAmount(w.text)).map((w) => w.text).join(" ").trim();
-      const amounts = line.filter((w) => w.x >= c.out - 20 && isAmount(w.text));
-      if (date) {
-        close();
-        // The amount by its column: the out column's, else the in column's (the balance is neither).
-        const nearest = (x: number) => (["out", "in", "balance"] as const).reduce((best, k) => (Math.abs(c[k] - x) < Math.abs(c[best] - x) ? k : best), "out" as "out" | "in" | "balance");
-        const outAmt = amounts.find((a) => nearest(a.x) === "out");
-        const inAmt = amounts.find((a) => nearest(a.x) === "in");
-        const value = outAmt ? -Math.abs(amountOf(outAmt.text)) : inAmt ? Math.abs(amountOf(inAmt.text)) : NaN;
-        if (!Number.isFinite(value)) continue;
-        open = { date, amount: value, currency: /\$/.test((outAmt ?? inAmt)!.text) ? "USD" : "EUR", text: desc, counterparty: /^(?:to|an|von|from)\s+/i.test(desc) ? fromText(desc) : (/^zahlung von\s+(.+)$/i.exec(desc)?.[1] ?? ""), iban: "", reference: "", lines: [] };
-        continue;
-      }
-      // A line under the booking: what it says about it — or, far left (a footer), its end.
-      if (!open || !desc || dateWords.length) {
-        if (dateWords.length) close();
-        continue;
-      }
-      const o: Booking & { lines: string[] } = open;
-      const ref = /^(?:Referenz|Reference):\s*(.*)$/i.exec(desc);
-      const party = /^(?:An|Von|To|From):\s*(.*)$/i.exec(desc);
-      if (ref) o.reference = ref[1].trim();
-      else if (party) {
-        const [name, rest] = party[1].split(/,\s*/, 2);
-        const iban = (rest ?? "").replace(/\s+/g, "").toUpperCase();
-        if (ibanValid(iban)) o.iban = iban;
-        if (!o.counterparty || ibanValid(iban)) o.counterparty = name.trim();
-      }
-      o.lines.push(desc);
-    }
-    close();
-  }
-  return out;
-}
 
 // ---------------------------------------------------------------------------
 // Kept
@@ -245,48 +50,6 @@ export function addBookings(bookings: Booking[], account: string): { added: numb
     added += insert.run(id, account, b.date, b.amount, b.currency, b.text.slice(0, 300), b.counterparty.slice(0, 120), b.iban, b.reference.slice(0, 300), new Date().toISOString()).changes;
   }
   return { added, total: bookings.length };
-}
-
-/** A statement read and kept. */
-export const importStatement = (csv: string, account: string) => addBookings(parseStatement(csv), account);
-
-/**
- * The statements among the documents (a CSV from your Drive folder, one you dropped in): read by themselves, each once —
- * a CSV is one when it has a date and an amount column. The account is named after the bank its name or columns say.
- */
-export function importStatementDocuments(): { documents: number; added: number } {
-  const d = db();
-  d.exec("create table if not exists bank_documents (doc_id integer primary key, added integer not null, at text not null)");
-  const done = new Set((d.prepare("select doc_id from bank_documents").all() as { doc_id: number }[]).map((r) => r.doc_id));
-  let rows: { id: number; name: string; mime: string }[] = [];
-  try {
-    rows = d.prepare("select id, name, mime from documents where lower(name) like '%.csv' or mime = 'text/csv'").all() as typeof rows;
-  } catch {
-    return { documents: 0, added: 0 }; // the Documents plugin never ran
-  }
-  let documents = 0;
-  let added = 0;
-  for (const doc of rows.filter((r) => !done.has(r.id))) {
-    const file = documentFile(doc.id);
-    let n = 0;
-    if (file) {
-      const csv = fs.readFileSync(file.path, "utf8");
-      let bookings: Booking[] = [];
-      try {
-        bookings = parseStatement(csv);
-      } catch {
-        bookings = []; // no date and amount: no statement
-      }
-      if (bookings.length) {
-        const account = /revolut/i.test(doc.name) || /^Art,Produkt,|^Type,Product,/.test(csv) ? "Revolut" : doc.name.replace(/\.csv$/i, "").slice(0, 40);
-        n = addBookings(bookings, account).added;
-        documents++;
-        added += n;
-      }
-    }
-    d.prepare("insert or replace into bank_documents (doc_id, added, at) values (?, ?, ?)").run(doc.id, n, new Date().toISOString());
-  }
-  return { documents, added };
 }
 
 export const listTransactions = (limit = 500): Transaction[] => (db().prepare("select * from bank_transactions order by date desc, id limit ?").all(limit) as TRow[]).map(toTx);

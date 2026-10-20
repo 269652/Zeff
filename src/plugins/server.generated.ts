@@ -12,6 +12,7 @@ import "./llm/server";
 import "./mail-client/server";
 import "./news/server";
 import "./people/server";
+import "./revolut/server";
 import "./todos/server";
 import "./weekly-report/server";
 import "./work/server";

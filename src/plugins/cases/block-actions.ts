@@ -39,17 +39,6 @@ export async function caseOpAction(rowId: number, op: CaseOperation): Promise<Re
   });
 }
 
-/** A bank statement (CSV) read: its bookings kept, the payments matched, the late instalments warned of. */
-export async function importStatementAction(csv: string, account: string): Promise<Result<{ message: string }>> {
-  return run(async () => {
-    const bank = await import("./bank");
-    const r = bank.importStatement(String(csv ?? ""), String(account || "Bank").slice(0, 40));
-    const m = bank.matchPayments();
-    const w = bank.overdueWarnings(new Date().toISOString().slice(0, 10));
-    return { message: t("{added} new bookings of {total} — {matched} payments matched, {warned} warnings", { added: r.added, total: r.total, matched: m.matched, warned: w }) };
-  });
-}
-
 /** The overview of the debts (the printable page), with the income kept for the months ahead. */
 export async function debtOverviewAction(): Promise<Result<{ overview: import("./bank").DebtOverview }>> {
   return run(async () => {
@@ -77,10 +66,9 @@ export type CasesOverview = {
 export async function casesOverviewAction(): Promise<Result<{ overview: CasesOverview }>> {
   return run(async () => {
     (await import("./detect")).detectCases();
-    // The statements that came in as documents (your Drive folder), read; the payments matched.
-    const bank = await import("./bank");
-    bank.importStatementDocuments();
-    bank.matchPayments();
+    // The statements that came in as documents (your Drive folder; the Revolut plugin), read; the payments matched.
+    if (isInstalled("revolut")) (await import("@/plugins/revolut/statement")).importStatementDocuments();
+    (await import("./bank")).matchPayments();
     const { listCases } = await import("./store");
     const { casePayment } = await import("./payments");
     const { caseTitle } = await import("./shared");
@@ -105,7 +93,7 @@ export async function casesOverviewAction(): Promise<Result<{ overview: CasesOve
   });
 }
 
-export type BankStatus = { configured: boolean; connected: boolean; appId: string; aspsp: string; country: string; validUntil: string | null; lastSync: string | null; transactions: number };
+export type BankStatus = { /** Statements can be imported (the Revolut plugin). */ statements: boolean; configured: boolean; connected: boolean; appId: string; aspsp: string; country: string; validUntil: string | null; lastSync: string | null; transactions: number };
 
 /** How the bank connection stands (the key is never sent to the page). */
 export async function bankStatusAction(): Promise<Result<{ bank: BankStatus }>> {
@@ -113,7 +101,7 @@ export async function bankStatusAction(): Promise<Result<{ bank: BankStatus }>> 
     const sync = await import("./bank-sync");
     const s = sync.bankSettings();
     const { listTransactions } = await import("./bank");
-    return { bank: { configured: !!(s?.appId && s.privateKey), connected: sync.bankConnected(), appId: s?.appId ?? "", aspsp: s?.aspsp ?? "Revolut", country: s?.country ?? "DE", validUntil: s?.validUntil ?? null, lastSync: s?.lastSync ?? null, transactions: listTransactions(100000).length } };
+    return { bank: { statements: isInstalled("revolut"), configured: !!(s?.appId && s.privateKey), connected: sync.bankConnected(), appId: s?.appId ?? "", aspsp: s?.aspsp ?? "Revolut", country: s?.country ?? "DE", validUntil: s?.validUntil ?? null, lastSync: s?.lastSync ?? null, transactions: listTransactions(100000).length } };
   });
 }
 

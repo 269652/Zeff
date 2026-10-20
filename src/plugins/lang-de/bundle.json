@@ -6518,5 +6518,7 @@
   "Private key (PEM)": "Privater Schlüssel (PEM)",
   "Sign in at the bank again": "Erneut bei der Bank anmelden",
   "Sign in at the bank": "Bei der Bank anmelden",
-  "Paid (bank)": "Bezahlt (Bank)"
+  "Paid (bank)": "Bezahlt (Bank)",
+  "The Revolut plugin is not installed (Menu → Plugins).": "Das Revolut-Plugin ist nicht installiert (Menü → Plugins).",
+  "Reads your Revolut statements (the CSV export, in German or English — other banks' CSV too): a file you import on the cases' overview, or one that comes in as a document (from your Drive folder) by itself. Its bookings go to the cases' bank, where payments settle their todos and cases. Among the documents a statement is kept as a note, not as its bookings.": "Liest deine Revolut-Kontoauszüge (den CSV-Export, deutsch oder englisch – auch die CSV anderer Banken): eine Datei, die du in der Übersicht der Vorgänge importierst, oder eine, die als Dokument hereinkommt (aus deinem Drive-Ordner), von selbst. Die Buchungen gehen an die Bank der Vorgänge, wo Zahlungen ihre Todos und Vorgänge erledigen. Unter den Dokumenten bleibt ein Kontoauszug eine Notiz, nicht seine Buchungen."
 }

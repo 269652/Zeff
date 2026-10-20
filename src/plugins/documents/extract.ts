@@ -361,6 +361,12 @@ export async function extractText(file: string, name: string, kind: DocKind, opt
     if (fast) throw new NeedsSlowLane();
     text = await transcribe(file, name, command);
   } else throw new UnsupportedError(t("This kind of file can't be read (text, Office files, PDFs, pictures and audio can)."));
+  // What another plugin says it is instead (a bank statement: a note, not its bookings).
+  await import("@/plugins/contributions");
+  for (const c of (await import("./text-point")).documentTexts.list()) {
+    const said = c.impl(name, text);
+    if (said) return said;
+  }
   text = tidy(text).slice(0, MAX_TEXT);
   if (!text) throw new UnsupportedError(t("No text found in it."));
   // A big PDF that gave a line or two: a note about the content, not the content — not kept as if it were.

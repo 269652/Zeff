@@ -1,18 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
-import { bankStatusAction, importStatementAction, saveBankSettingsAction, startBankAuthAction, syncBankAction, type BankStatus } from "../block-actions";
+import { ImportStatement } from "@/plugins/revolut/ui/ImportStatement";
+import { bankStatusAction, saveBankSettingsAction, startBankAuthAction, syncBankAction, type BankStatus } from "../block-actions";
 
 /**
- * The bank above the cases: a statement read from a file (CSV — Revolut's export or your bank's), the overview of the
+ * The bank above the cases: a statement read from a file (with the Revolut plugin), the overview of the
  * debts, and the bank connection (Enable Banking: your application's id and key, then signing in at your bank once).
  */
 export function BankBar({ onChanged }: { onChanged: () => void }) {
   const t = useT();
-  const file = useRef<HTMLInputElement>(null);
   const [bank, setBank] = useState<BankStatus | null>(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -25,22 +25,10 @@ export function BankBar({ onChanged }: { onChanged: () => void }) {
     if (r.ok) onChanged();
     status();
   };
-  const read = async (list: FileList | null) => {
-    const one = list?.[0];
-    if (!one) return;
-    setBusy(true);
-    const r = await importStatementAction(await one.text(), /revolut/i.test(one.name) ? "Revolut" : one.name.replace(/\.csv$/i, ""));
-    setBusy(false);
-    say(r.ok ? { ok: true, message: r.message } : r);
-    if (file.current) file.current.value = "";
-  };
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <input ref={file} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => void read(e.target.files)} />
-        <button type="button" className="btn btn-sm" disabled={busy} onClick={() => file.current?.click()}>
-          {busy ? "…" : t("Import statement (CSV)")}
-        </button>
+        {bank?.statements && <ImportStatement onDone={say} />}
         <Link href="/vorgaenge/uebersicht" className="btn btn-sm">
           {t("Debt overview")}
         </Link>
