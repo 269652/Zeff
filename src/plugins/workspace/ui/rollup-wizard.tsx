@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { databaseSchemaAction, relationSourcesAction, type DatabaseData } from "../actions";
+import { daysSinceFormula } from "../formula";
 import { newId, TITLE, type DbSchema, type Filter, type Property, type RollupFn } from "../model";
 import { FilterEditor } from "./db-menus";
 
@@ -40,6 +41,7 @@ export function RollupWizard({ draft, data, databases, dbId, onAdd, onClose }: {
   const [prop, setProp] = useState("");
   const [filter, setFilter] = useState<Filter | null>(null);
   const [name, setName] = useState("");
+  const [days, setDays] = useState(false);
 
   useEffect(() => {
     void relationSourcesAction().then((r) => r.ok && setSources(r.sources));
@@ -89,7 +91,9 @@ export function RollupWizard({ draft, data, databases, dbId, onAdd, onClose }: {
       rollup: { relation: rel.id, property: fn === "count" ? TITLE : prop, fn, ...(filter?.rules.length ? { filter } : {}) },
       ...(target && /hour|stund/i.test(target.name) ? { format: "hours" as const } : {}),
     };
-    onAdd([rel, roll], rel.id);
+    // A rollup of the latest date, shown as days since ("3 days since the customer wrote"): a formula beside it.
+    const extra: Property[] = days && (fn === "latest" || fn === "earliest") ? [{ id: newId("p"), name: `${name.trim()} (${t("days since")})`, type: "formula", formula: daysSinceFormula(name.trim()), format: "number" }] : [];
+    onAdd([rel, roll, ...extra], rel.id);
     onClose();
   };
 
@@ -179,6 +183,11 @@ export function RollupWizard({ draft, data, databases, dbId, onAdd, onClose }: {
             </div>
           </div>
 
+          {(fn === "latest" || fn === "earliest") && (
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={days} onChange={(e) => setDays(e.target.checked)} /> {t("Also show it as days since (a column that counts up)")}
+            </label>
+          )}
           <div className="space-y-1">
             <div className={label}>4 · {t("Only some of them? (optional)")}</div>
             {filter ? (

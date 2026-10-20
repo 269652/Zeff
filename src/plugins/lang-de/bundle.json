@@ -6138,5 +6138,12 @@
   "How the cards look — a card template": "Wie die Karten aussehen — eine Kartenvorlage",
   "From my fields": "Aus meinen Feldern",
   "Compact": "Kompakt",
-  "Cover": "Titelbild"
+  "Cover": "Titelbild",
+  "Your GitLab merge requests with their ticket, state and branch — tickets can count the open ones.": "Deine GitLab-Merge-Requests mit Ticket, Status und Branch — Tickets können die offenen zählen.",
+  "The comments on your Jira tickets — tickets can show the date of the last one or count them.": "Die Kommentare an deinen Jira-Tickets — Tickets können das Datum des letzten zeigen oder sie zählen.",
+  "Your todos with their ticket, status and owner — tickets can count the open ones.": "Deine Todos mit Ticket, Status und Besitzer — Tickets können die offenen zählen.",
+  "Worker runs": "Worker-Läufe",
+  "The runs of your workers with their ticket, state, branch, minutes and cost — tickets can count them or add up the cost.": "Die Läufe deiner Worker mit Ticket, Status, Branch, Minuten und Kosten — Tickets können sie zählen oder die Kosten summieren.",
+  "days since": "Tage seit",
+  "Also show it as days since (a column that counts up)": "Auch als „Tage seit“ zeigen (eine Spalte, die hochzählt)"
 }

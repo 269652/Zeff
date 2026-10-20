@@ -2,6 +2,8 @@
 import "./actions/server";
 import "./calendar/server";
 import "./documents/server";
+import "./gitlab/server";
+import "./jira/server";
 import "./jira-lage/server";
 import "./kanban/server";
 import "./keep/server";

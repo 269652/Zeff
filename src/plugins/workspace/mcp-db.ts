@@ -250,6 +250,18 @@ export function registerWorkspaceDbTools(server: McpServer, h: Helpers): void {
   );
 
   server.registerTool(
+    "workspace_relation_sources",
+    {
+      title: "What a database can join",
+      description:
+        "The sources of Zeff's own data a database can join live — the booked time, GitLab merge requests, Jira comments, todos, worker runs — with their properties, and how: a relation property with `source` and `match` (workspace_update_database add_property), then a rollup over it (count, sum, latest …, with a filter). Use it when someone asks for a table of tickets/projects with hours, open MRs, last comment, open todos or runs.",
+      inputSchema: z.object({}),
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    guard(async () => h.ok((await import("./source-table")).relationSourceHelp())),
+  );
+
+  server.registerTool(
     "workspace_update_database",
     {
       title: "Change a database's properties and views",

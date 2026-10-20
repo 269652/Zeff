@@ -24,7 +24,7 @@ test("booked time as the source of a matching relation: hours per ticket, with a
   const { relationSources, sourceTable } = await import("@/plugins/workspace/source-table");
   const { sourcesOverview } = await import("@/plugins/workspace/sources");
   w.tree(); // (makes the Workspace tables)
-  assert.deepEqual(relationSources().map((s) => s.id), ["time"]);
+  assert.ok(relationSources().some((s) => s.id === "time"), "the booked time is one of them");
   assert.ok(!sourcesOverview().some((s) => s.key === "ext:time"), "it is not offered as a database of its own");
   const table = sourceTable("time")!;
   assert.equal(table.rows.length, 4);
@@ -68,7 +68,7 @@ test("booked time as the source of a matching relation: hours per ticket, with a
   // What the rollup wizard offers.
   const { relationSourcesAction } = await import("@/plugins/workspace/actions");
   const r = await relationSourcesAction();
-  assert.ok(r.ok && r.sources[0].id === "time" && r.sources[0].schema.properties.some((p) => p.name === "Hours"));
+  assert.ok(r.ok && r.sources.find((s) => s.id === "time")!.schema.properties.some((p) => p.name === "Hours"));
 });
 
 test("date filters by calendar month and year (a rollup of this month's hours)", async () => {

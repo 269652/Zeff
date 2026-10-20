@@ -22,6 +22,8 @@ export type WorkspaceSource = {
   read: (ctx?: { label?: string }) => SourceRecord[] | Promise<SourceRecord[]>;
   /** Its records, read at once: with this the source can be what a relation points at (a rollup over the booked time) — no database of it is made. */
   table?: () => SourceRecord[];
+  /** Its columns (id, name, type) — known without a record (an empty source is still something to join). */
+  columns?: { id: string; name: string; type: "text" | "date" | "number" | "checkbox" | "url" }[];
   /** Only for relations (`table`): it isn't offered as a database of its own. */
   relationOnly?: boolean;
   /** Its records are only read from where they live: a row cannot be made by hand in a database of it. */

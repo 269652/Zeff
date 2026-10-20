@@ -15,10 +15,24 @@ export function relationSources(): { id: string; label: string; icon: string }[]
   return workspaceSources.list().flatMap((c) => c.impl).filter((s) => s.table).map((s) => ({ id: s.id, label: s.label, icon: s.icon }));
 }
 
+/** What an agent needs to join a database with the sources: their ids and properties, and how (relation.source + relation.match). */
+export function relationSourceHelp(): string {
+  const lines = relationSources().map((s) => {
+    const props = sourceTable(s.id)?.schema.properties.map((p) => `${p.name} (${p.type})`).join(", ") ?? "";
+    return `- ${s.id} (${s.label}): ${props}`;
+  });
+  return [
+    "Sources a database can join (a relation with `source`, matched by value, then a rollup over it — nothing is copied, it is live):",
+    ...lines,
+    'Example: on a database of tickets (title = key): relation {source: "mrs", match: {from: "title", to: "Ticket"}}, then a rollup of it (property "title", fn count, filter State is opened) = open merge requests per ticket; a rollup of jira-comments with property Date and fn latest = the last comment, and a formula dateBetween(prop("Last comment"), today(), "days") = days since.',
+  ].join("\n");
+}
+
 export function sourceTable(id: string): SourceTable | null {
   const s = impl(id);
   if (!s?.table) return null;
   const props = new Map<string, Property>();
+  for (const c of s.columns ?? []) props.set(c.id, { id: c.id, name: c.name, type: c.type });
   const records = s.table();
   for (const r of records) for (const f of r.typed ?? []) if (!props.has(f.id)) props.set(f.id, { id: f.id, name: f.name, type: f.type === "select" ? "text" : f.type });
   const now = new Date().toISOString();

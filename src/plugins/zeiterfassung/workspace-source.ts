@@ -36,6 +36,15 @@ export const TIME_SOURCE: WorkspaceSource = {
   get hint() {
     return t("Your booked time, one row per entry — with date, hours, ticket, job and project. Tickets, projects or jobs can add it up (a matching relation and a rollup).");
   },
+  columns: [
+    { id: F.date, name: "Date", type: "date" },
+    { id: F.hours, name: "Hours", type: "number" },
+    { id: F.ticket, name: "Ticket", type: "text" },
+    { id: F.job, name: "Job", type: "text" },
+    { id: F.project, name: "Project", type: "text" },
+    { id: F.type, name: "Type", type: "text" },
+    { id: F.by, name: "Reported by", type: "text" },
+  ],
   count: () => listBookedEntries().length,
   read: timeRecords,
   table: timeRecords,

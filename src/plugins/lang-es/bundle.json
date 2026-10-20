@@ -6138,5 +6138,12 @@
   "How the cards look — a card template": "Cómo se ven las tarjetas — una plantilla de tarjeta",
   "From my fields": "De mis campos",
   "Compact": "Compacta",
-  "Cover": "Portada"
+  "Cover": "Portada",
+  "Your GitLab merge requests with their ticket, state and branch — tickets can count the open ones.": "Tus merge requests de GitLab con su ticket, estado y rama — los tickets pueden contar los abiertos.",
+  "The comments on your Jira tickets — tickets can show the date of the last one or count them.": "Los comentarios de tus tickets de Jira — los tickets pueden mostrar la fecha del último o contarlos.",
+  "Your todos with their ticket, status and owner — tickets can count the open ones.": "Tus tareas con su ticket, estado y responsable — los tickets pueden contar las abiertas.",
+  "Worker runs": "Ejecuciones de workers",
+  "The runs of your workers with their ticket, state, branch, minutes and cost — tickets can count them or add up the cost.": "Las ejecuciones de tus workers con ticket, estado, rama, minutos y coste — los tickets pueden contarlas o sumar el coste.",
+  "days since": "días desde",
+  "Also show it as days since (a column that counts up)": "Mostrar también como «días desde» (una columna que va subiendo)"
 }

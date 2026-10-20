@@ -427,3 +427,6 @@ export function formulaToStored(v: FormulaValue): string | number | boolean | nu
   if (Array.isArray(v)) return v.map((x) => formulaToStored(x) as string | number | boolean | null);
   return v;
 }
+
+/** The formula for "days since" a date property (the rollup wizard adds it beside a rollup of the latest date): counts up as the date goes by. */
+export const daysSinceFormula = (prop: string): string => `dateBetween(today(), prop(${JSON.stringify(prop)}), "days")`;
