@@ -42,7 +42,8 @@ export function opensPalette(e: { key: string; ctrlKey: boolean; metaKey: boolea
 export function opensShortcuts(e: { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; target: EventTarget | { tagName?: string } | null }): boolean {
   return e.key === "?" && !typing(e) && !e.ctrlKey && !e.metaKey && !e.altKey;
 }
-function typing(e: { target: EventTarget | { tagName?: string } | null }): boolean {
+/** Is the key press typing in a field (an input, a text area, something editable)? */
+export function typing(e: { target: EventTarget | { tagName?: string } | null }): boolean {
   const el = e.target as { tagName?: string; isContentEditable?: boolean } | null;
   if (!el) return false;
   return !!el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes((el.tagName ?? "").toUpperCase());

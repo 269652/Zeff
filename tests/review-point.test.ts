@@ -77,3 +77,16 @@ test("the weekly report's booking suggestions: counted and linked, not listed â€
   skipSuggestion(a.id);
   assert.equal((await reviewItems()).links.find((l) => l.id === "booking-suggestions")!.count, 1);
 });
+
+test("the queue's keys: j/k or the arrows move, y and n answer, e or Enter opens â€” not while typing, not with a modifier, Enter not on a button", async () => {
+  const { reviewKey } = await import("@/lib/review/keys");
+  const press = (key: string, target: { tagName?: string } | null = { tagName: "LI" }, mods: Partial<{ ctrlKey: boolean; metaKey: boolean; altKey: boolean }> = {}) =>
+    reviewKey({ key, target, ctrlKey: false, metaKey: false, altKey: false, ...mods });
+  assert.deepEqual(["j", "ArrowDown", "k", "ArrowUp", "y", "n", "e", "Enter", "x"].map((k) => press(k)), ["next", "next", "prev", "prev", "yes", "no", "open", "open", null]);
+  assert.equal(press("y", { tagName: "INPUT" }), null);
+  assert.equal(press("j", { tagName: "TEXTAREA" }), null);
+  assert.equal(press("n", undefined, { ctrlKey: true }), null);
+  assert.equal(press("Enter", { tagName: "BUTTON" }), null);
+  assert.equal(press("Enter", { tagName: "A" }), null);
+  assert.equal(press("Y"), "yes");
+});
