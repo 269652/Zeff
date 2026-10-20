@@ -8,6 +8,7 @@ import { toast } from "@/components/Toaster";
 import { useAction } from "@/components/useAction";
 import { formatDayTime } from "@/lib/format";
 import { useT } from "@/components/I18nProvider";
+import { DriveFolders } from "./DriveFolders";
 
 export type DriveStepView = { key: "drivebackup" | "drivedocs"; name: string; on: boolean; lastAt: string | null; lastOk: boolean | null; lastMessage: string | null };
 export type DriveView = {
@@ -22,6 +23,8 @@ export type DriveView = {
   mirrorBackupRetention: boolean;
   uploadUnencrypted: boolean;
   pullDocuments: boolean;
+  /** Folders of your Drive Zeff reads into the documents. */
+  pullFolders: { id: string; path: string }[];
   backupsInDrive: number;
   documentsInDrive: number;
 };
@@ -46,7 +49,7 @@ export function GoogleDriveSettings({ s, steps, error, justConnected, redirectUr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const needsReconnect = s.connected && pull && !s.fullAccess;
+  const needsReconnect = s.connected && (pull || s.pullFolders.length > 0) && !s.fullAccess;
 
   return (
     <>
@@ -117,7 +120,7 @@ export function GoogleDriveSettings({ s, steps, error, justConnected, redirectUr
           </>
         ) : (
           <>
-            <p className="text-sm text-zinc-500">{pull ? t("Google will ask for access to all of your Drive, because you set Zeff to read what you add there.") : t("Google will ask only for the files Zeff makes itself.")}</p>
+            <p className="text-sm text-zinc-500">{pull || s.pullFolders.length > 0 ? t("Google will ask for access to all of your Drive, because you set Zeff to read what you add there.") : t("Google will ask only for the files Zeff makes itself.")}</p>
             {s.clientId && s.hasSecret ? (
               <a className="btn btn-primary w-fit" href="/api/google-drive/connect">
                 {t("Connect Google Drive")}
@@ -163,6 +166,8 @@ export function GoogleDriveSettings({ s, steps, error, justConnected, redirectUr
           {t("Save")}
         </button>
       </section>
+
+      <DriveFolders folders={s.pullFolders} connected={s.connected} fullAccess={s.fullAccess} />
 
       <section className="card space-y-3 p-4">
         <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Syncs")}</h2>

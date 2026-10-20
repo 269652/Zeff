@@ -14,6 +14,7 @@ import { addDocument, documentFile, listDocuments } from "@/plugins/documents/st
 import { MAX_DOCUMENT_BYTES } from "@/plugins/documents/shared";
 import { deleteFile, download, ensureFolder, exportFile, folderExists, FOLDER_MIME, listFolder, uploadFile } from "./api";
 import { driveFiles, driveRow, folderNameOf, forgetDriveFile, hasFullAccess, isConnected, recordDriveFile, updateDrive } from "./config";
+import { pullFolders } from "./folders";
 
 export type SyncResult = { ok: boolean; message: string };
 
@@ -131,12 +132,19 @@ export function syncDocuments(): Promise<SyncResult> {
       }
     }
 
-    // Drive → Zeff: what you added to the folder (when set — and Zeff may see it).
-    if (row.pullDocuments) {
-      if (!hasFullAccess(row)) {
-        note ||= t("Files you add in Drive can't be read with the access Zeff has — connect again to give it.");
-      } else {
-        for (const f of await listFolder(folder)) {
+    // Drive → Zeff: what you added to Zeff's folder (when set) and to the folders of yours you chose — when Zeff may see it.
+    const from = [...(row.pullDocuments ? [folder] : []), ...pullFolders().map((f) => f.id)];
+    if (from.length && !hasFullAccess(row)) note ||= t("Files you add in Drive can't be read with the access Zeff has — connect again to give it.");
+    else {
+      for (const id of from) {
+        let files: Awaited<ReturnType<typeof listFolder>>;
+        try {
+          files = await listFolder(id);
+        } catch (e) {
+          if (++failed === 1) note ||= errorMessage(e);
+          continue;
+        }
+        for (const f of files) {
           if (pulled >= PULL_MAX) break;
           if (f.mimeType === FOLDER_MIME) continue;
           const version = f.md5Checksum ?? f.modifiedTime ?? "";
@@ -150,6 +158,8 @@ export function syncDocuments(): Promise<SyncResult> {
             const name = exp && !f.name.toLowerCase().endsWith(exp.ext) ? `${f.name}${exp.ext}` : f.name;
             const { doc } = addDocument(name, data, exp ? exp.mime : f.mimeType);
             recordDriveFile({ kind: "document", key: `doc:${doc.id}`, driveId: f.id, version, size: data.length, origin: "pull" });
+            // (Seen now: the same file in two chosen folders comes in once.)
+            byDrive.set(f.id, { id: 0, kind: "document", key: `doc:${doc.id}`, driveId: f.id, version, size: data.length, origin: "pull", syncedAt: "" });
             pulled++;
           } catch (e) {
             // Remembered as it is (not tried again until it changes in Drive).

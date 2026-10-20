@@ -84,3 +84,36 @@ export async function syncDriveNowAction(step: string): Promise<ActionState> {
     return { ok: false, error: errorMessage(err) };
   }
 }
+
+/** The folders in a folder of your Drive ("root": My Drive) — to choose from. */
+export async function listDriveFoldersAction(parentId: string): Promise<{ ok: true; folders: { id: string; name: string }[] } | { ok: false; error: string }> {
+  try {
+    return { ok: true, folders: await (await import("./folders")).listDriveFolders(String(parentId || "root")) };
+  } catch (e) {
+    return { ok: false, error: errorMessage(e) };
+  }
+}
+
+/** A folder of your Drive chosen: what you put there comes into the documents. */
+export async function addPullFolderAction(f: { id: string; path: string }): Promise<ActionState> {
+  try {
+    const { addPullFolder } = await import("./folders");
+    const { driveRow, hasFullAccess, isConnected } = await import("./config");
+    addPullFolder({ id: String(f.id), path: String(f.path ?? "") });
+    revalidatePath("/google-drive");
+    const row = driveRow();
+    return { ok: true, message: isConnected(row) && !hasFullAccess(row) ? t("Added. To read the files you put there, connect again — Google then asks for access to all of Drive.") : t("Added — its files come in with the next sync.") };
+  } catch (e) {
+    return { ok: false, error: errorMessage(e) };
+  }
+}
+
+export async function removePullFolderAction(id: string): Promise<ActionState> {
+  try {
+    (await import("./folders")).removePullFolder(String(id));
+    revalidatePath("/google-drive");
+    return { ok: true, message: t("Removed — what came in from it stays in the documents.") };
+  } catch (e) {
+    return { ok: false, error: errorMessage(e) };
+  }
+}

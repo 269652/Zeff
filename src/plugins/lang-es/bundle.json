@@ -6481,5 +6481,17 @@
   "Done: the money is sent — note it, the todo is done": "Hecho: el dinero está enviado — se anota y la tarea queda hecha",
   "Who gets it?": "¿Quién lo recibe?",
   "Not a valid IBAN.": "No es un IBAN válido.",
-  "The GiroCode shows once recipient and IBAN are right.": "El GiroCode aparece en cuanto el beneficiario y el IBAN son correctos."
+  "The GiroCode shows once recipient and IBAN are right.": "El GiroCode aparece en cuanto el beneficiario y el IBAN son correctos.",
+  "My Drive": "Mi unidad",
+  "Folders of your Drive": "Carpetas de tu Drive",
+  "Choose folders of your own Drive — e.g. where you keep your bank statements. What you put there comes into the documents with each sync; Zeff only reads there.": "Elige carpetas de tu propio Drive — p. ej. donde guardas tus extractos. Lo que pongas ahí entra en los documentos con cada sincronización; Zeff solo lee ahí.",
+  "To read the files you put there, connect again — Google then asks for access to all of Drive.": "Para leer los archivos que pongas ahí, vuelve a conectar — Google pedirá acceso a todo tu Drive.",
+  "Connect Google Drive first (step 2) — then choose its folders here.": "Conecta primero Google Drive (paso 2) — luego elige aquí sus carpetas.",
+  "Choose a folder …": "Elegir una carpeta …",
+  "Use this folder": "Usar esta carpeta",
+  "No folders in here.": "No hay carpetas aquí.",
+  "Added. To read the files you put there, connect again — Google then asks for access to all of Drive.": "Añadida. Para leer los archivos de ahí, vuelve a conectar — Google pedirá acceso a todo tu Drive.",
+  "Added — its files come in with the next sync.": "Añadida — sus archivos entran con la próxima sincronización.",
+  "Removed — what came in from it stays in the documents.": "Quitada — lo que entró desde ella se queda en los documentos.",
+  "Chosen": "Elegida"
 }

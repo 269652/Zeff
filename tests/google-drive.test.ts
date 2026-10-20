@@ -299,3 +299,30 @@ test("a revoked sign-in says so; disconnecting keeps what Drive has (the same ac
   await exchangeCode({ code: "other", redirectUri: "http://localhost:9333/api/google-drive/callback", verifier: "v" });
   assert.equal(driveFiles("document").length, 0, "another account: the list starts over");
 });
+
+test("folders of your Drive you choose (My Drive → Kontoauszug): browsed, added, their files come in once — read only; they need full access", async () => {
+  const { listDriveFolders, addPullFolder, pullFolders, removePullFolder, needsFullAccess } = await import("@/plugins/google-drive/folders");
+  const { syncDocuments } = await import("@/plugins/google-drive/sync");
+  const { listDocuments } = await import("@/plugins/documents/store");
+  await connect(true);
+  (await import("@/plugins/google-drive/config")).updateDrive({ pullDocuments: false }); // (only the folder of yours)
+  const statements = google.addByHand("Kontoauszug", "root", Buffer.alloc(0), "application/vnd.google-apps.folder");
+  google.addByHand("Kontoauszug_Oktober.pdf", statements.id, Buffer.from("%PDF-1.4 Revolut"), "application/pdf");
+  const top = await listDriveFolders("root");
+  assert.ok(top.some((f) => f.id === statements.id && f.name === "Kontoauszug"), "My Drive's folders, to choose from");
+  assert.equal(needsFullAccess(), false);
+  addPullFolder({ id: statements.id, path: "Meine Ablage / Kontoauszug" });
+  addPullFolder({ id: statements.id, path: "Meine Ablage / Kontoauszug" });
+  assert.deepEqual(pullFolders(), [{ id: statements.id, path: "Meine Ablage / Kontoauszug" }], "once");
+  assert.equal(needsFullAccess(), true, "files you put there are no files Zeff made");
+  const before = listDocuments().length;
+  const r = await syncDocuments();
+  assert.equal(r.ok, true, r.message);
+  assert.ok(listDocuments().some((d) => d.name === "Kontoauszug_Oktober.pdf"));
+  assert.equal(listDocuments().length, before + 1);
+  await syncDocuments();
+  assert.equal(listDocuments().length, before + 1, "not twice");
+  assert.ok(google.childrenOf(statements.id).length === 1, "nothing written there");
+  removePullFolder(statements.id);
+  assert.deepEqual(pullFolders(), []);
+});
