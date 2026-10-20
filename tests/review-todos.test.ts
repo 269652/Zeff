@@ -46,7 +46,7 @@ test("Todos' queue: todos a worker or the AI says are done, and actions the AI p
   assert.deepEqual(suggested.actions.map((a) => [a.id, !!a.primary]), [["yes", true], ["no", false]]);
   assert.match(proposed.title, /Rico nach dem Approval fragen/);
   assert.match(proposed.detail!, /Rico wartet auf eine Erinnerung/);
-  assert.deepEqual(proposed.actions.map((a) => [a.id, !!a.primary]), [["yes", true], ["no", false]]);
+  assert.deepEqual(proposed.actions.map((a) => [a.id, !!a.primary]), [["yes", false], ["no", false]], "sending is never the \"y\" key — a click on the button");
 });
 
 test("done: yes closes the todo, no takes the worker's word back — it stays open", async () => {

@@ -58,7 +58,8 @@ export const TODOS_REVIEW: ReviewSource[] = [
           title: title(x),
           detail: [x.ops.map((o) => opTitle(o, t)).join(" · "), x.autoOpsWhy].join(" — "),
           href: href(x),
-          actions: [{ id: "yes", label: opsButton(x.ops, t), primary: true }, { id: "no", label: t("Dismiss") }],
+          // Not primary: "y" would send them — that takes a click on the button itself.
+          actions: [{ id: "yes", label: opsButton(x.ops, t) }, { id: "no", label: t("Dismiss") }],
         })),
     act: async (id, action) => {
       if (action === "yes") return done((await import("./server-actions")).runTodoOpsAction(Number(id)));
