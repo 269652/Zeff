@@ -55,7 +55,7 @@ export function runClaude<T>(
     // Closed: no tools — except, for reading a picture or a PDF, the Read tool on one folder.
     "--tools",
     opts.readDir ? "Read" : "",
-    ...(opts.readDir ? ["--add-dir", opts.readDir] : []),
+    ...(opts.readDir ? ["--add-dir", opts.readDir, "--allowedTools", "Read"] : []),
     "--strict-mcp-config",
     "--no-session-persistence",
     "--disable-slash-commands",

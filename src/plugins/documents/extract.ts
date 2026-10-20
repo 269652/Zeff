@@ -265,7 +265,16 @@ async function readWithClaude(file: string, name: string, extraPath?: string, ti
   const { findClaudeCli, runClaude } = await import("@/plugins/claude-cli/cli");
   if (!findClaudeCli()) throw new UnsupportedError(t("The Claude CLI isn't installed — it reads pictures and scanned PDFs."));
   // A folder of its own for the one file: the AI may read there, nowhere else.
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "zeff-doc-"));
+  // (Beside the stored document, not in the system's temp folder: a Claude CLI in the Docker container sees Zeff's documents folder, not that.)
+  const dir = (() => {
+    try {
+      const base = path.join(path.dirname(file), ".reading");
+      fs.mkdirSync(base, { recursive: true });
+      return fs.mkdtempSync(path.join(base, "r-"));
+    } catch {
+      return fs.mkdtempSync(path.join(os.tmpdir(), "zeff-doc-"));
+    }
+  })();
   try {
     const copy = path.join(dir, `file${path.extname(name).toLowerCase()}`);
     fs.copyFileSync(file, copy);
@@ -275,6 +284,8 @@ async function readWithClaude(file: string, name: string, extraPath?: string, ti
       { readDir: dir, timeoutMs, maxBudgetUsd: 1, extraPath, plain: true },
     );
     const text = (r.output?.text ?? "").trim();
+    // The CLI was not allowed to read (or could not reach) the copy: that is not the document's fault — a failure to try again, not "unreadable".
+    if (/^UNREADABLE:.*(nicht gewährt|permission|not granted|denied|Freigabe|Zugriff|access)/i.test(text)) throw new Error(t("The AI was not allowed to read the file — click “Read again”."));
     if (/^UNREADABLE:/i.test(text) || /pdftoppm|poppler/i.test(text)) {
       throw new UnsupportedError(/pdftoppm|poppler/i.test(text) ? t("A scanned or complex PDF: the Claude CLI needs Poppler's pdftoppm on this machine to read it (e.g. scoop install poppler).") : text.replace(/^UNREADABLE:\s*/i, ""));
     }
