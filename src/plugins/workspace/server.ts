@@ -6,6 +6,7 @@ import "./routine-reports"; // (an agent's reports become final when its todo is
 import "./routine-agent"; // (an agent routine's permissions: guards and the tools approved for its worker)
 import { workspaceWidgets } from "./widget-point";
 import { WORKSPACE_WIDGETS } from "./widgets-workspace";
+import { OVERVIEW_WIDGETS } from "./widgets-overview";
 import { workspaceSources } from "./source-point";
 import { workspaceFieldTypes } from "./field-point";
 import { CORE_FIELD_TYPES } from "./field-types";
@@ -19,7 +20,7 @@ import { todoDone } from "./todo-engine";
 collectionProviders.contribute("workspace", workspaceCollections);
 // Its methods for plugins and agents — and offered to the AI as auto actions ("zeff-do").
 apiPoint.contribute("workspace", WORKSPACE_API);
-workspaceWidgets.contribute("workspace", WORKSPACE_WIDGETS);
+workspaceWidgets.contribute("workspace", [...WORKSPACE_WIDGETS, ...OVERVIEW_WIDGETS]);
 // Its automations and their runs as rows (the databases "Automations" and "Automation runs").
 workspaceSources.contribute("workspace", [ROUTINES_SOURCE, RUNS_SOURCE, TASKS_SOURCE]);
 // A todo closed in the engine ticks the row or the list item it came from.

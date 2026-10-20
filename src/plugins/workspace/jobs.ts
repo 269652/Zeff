@@ -211,6 +211,24 @@ export async function jobPanels(rows: { id: number; cells: Record<string, unknow
   return out;
 }
 
+/** The jobs that wait for you: ones with a question (Rückfrage) and ones to check (Zur Prüfung), in every jobs database. */
+export function jobsNeedingYou(): { dbId: number; rowId: number; title: string; state: "Rückfrage" | "Zur Prüfung" }[] {
+  let ids: { id: number }[] = [];
+  try {
+    ids = getSqlite().prepare("select id from ws_pages where kind = 'database' and archived_at is null").all() as { id: number }[];
+  } catch {
+    return []; // (no Workspace tables yet: no jobs)
+  }
+  const dbs = ids.filter((x) => getDatabase(x.id)?.schema.jobs);
+  const out: { dbId: number; rowId: number; title: string; state: "Rückfrage" | "Zur Prüfung" }[] = [];
+  for (const { id: dbId } of dbs)
+    for (const r of rawRows(dbId)) {
+      const state = stateOf(r.id);
+      if (state === "Rückfrage" || state === "Zur Prüfung") out.push({ dbId, rowId: r.id, title: r.title, state });
+    }
+  return out;
+}
+
 /** The state a job row is in (by name; none: not set). */
 export function stateOf(rowId: number): JobState | undefined {
   const row = getPage(rowId);

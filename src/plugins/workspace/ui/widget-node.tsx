@@ -8,8 +8,9 @@ import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { widgetActAction, widgetCatalogAction, widgetDataAction } from "../actions";
 import type { CatalogWidget } from "../widgets";
-import type { WidgetData, WidgetItem } from "../widget-point";
+import type { WidgetData, WidgetItem, WidgetTile } from "../widget-point";
 import { WS_CHANGED } from "./ChatPanel";
+import { TemplateBody } from "./card-template";
 
 /**
  * A widget a plugin supplies, as a block of a page (the dashboard is a page of them): live data with an action right there. The plugin
@@ -29,6 +30,39 @@ const parseConfig = (s: unknown): Record<string, string | number | boolean> => {
   }
 };
 
+const TONE_BADGE = {
+  none: "bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300",
+  good: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+  warn: "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
+  bad: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300",
+};
+const TONE_BAR = { none: "border-l-zinc-300 dark:border-l-zinc-600", good: "border-l-emerald-500", warn: "border-l-amber-500", bad: "border-l-red-500" };
+const TONE_BAR_FILL = { none: "bg-indigo-500", good: "bg-emerald-500", warn: "bg-amber-500", bad: "bg-red-500" };
+
+function Tile({ tile }: { tile: WidgetTile }) {
+  const tone = tile.tone ?? "none";
+  const body = (
+    <>
+      <span className="block text-xs text-zinc-500 dark:text-zinc-400">{tile.label}</span>
+      <span className="block text-2xl leading-tight font-semibold tabular-nums">{tile.value}</span>
+      {tile.detail && <span className="block text-xs text-zinc-500 dark:text-zinc-400">{tile.detail}</span>}
+      {tile.bar && (
+        <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+          <span className={`block h-full rounded-full ${TONE_BAR_FILL[tone]}`} style={{ width: `${Math.max(0, Math.min(100, (tile.bar.value / (tile.bar.max || 1)) * 100))}%` }} />
+        </span>
+      )}
+    </>
+  );
+  const cls = `block min-w-0 rounded-lg border border-l-4 border-zinc-200 bg-white px-3 py-2 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 ${TONE_BAR[tone]}`;
+  return tile.href ? (
+    <Link href={tile.href} className={`${cls} text-inherit no-underline transition hover:shadow-md`}>
+      {body}
+    </Link>
+  ) : (
+    <div className={cls}>{body}</div>
+  );
+}
+
 function ItemRow({ item, busy, act }: { item: WidgetItem; busy: boolean; act: (action: string, id: string) => void }) {
   const external = !!item.href && /^https?:\/\//.test(item.href);
   const body = (
@@ -37,7 +71,7 @@ function ItemRow({ item, busy, act }: { item: WidgetItem; busy: boolean; act: (a
         <span className="line-clamp-2 break-words">{item.text}</span>
         {item.detail && <span className="line-clamp-2 text-xs text-zinc-500">{item.detail}</span>}
       </span>
-      {item.badge && <span className="max-w-28 shrink-0 truncate rounded-full bg-indigo-50 px-2 text-xs text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">{item.badge}</span>}
+      {item.badge && <span className={`max-w-28 shrink-0 truncate rounded-full px-2 text-xs ${TONE_BADGE[item.tone ?? "none"]}`}>{item.badge}</span>}
     </>
   );
   const link = "flex min-w-0 items-start gap-2 text-inherit no-underline hover:underline";
@@ -77,6 +111,36 @@ function WidgetBody({ data, busy, act }: { data: WidgetData; busy: boolean; act:
         <p className="text-3xl font-semibold tabular-nums">{data.value}</p>
         <p className="text-sm text-zinc-500">{data.caption}</p>
         {data.detail && <p className="text-xs text-zinc-400">{data.detail}</p>}
+      </div>
+    );
+  if (data.kind === "stats") return <div className="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(9.5rem,1fr))]">{data.tiles.map((x) => <Tile key={x.label} tile={x} />)}</div>;
+  if (data.kind === "cards")
+    return (
+      <div className="space-y-2">
+        {data.cards.length ? (
+          <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(15rem,1fr))]">
+            {data.cards.map((c) => {
+              const inner = <TemplateBody nodes={c.nodes} />;
+              const cls = "block min-w-0 rounded-lg border border-zinc-200 bg-white p-2.5 text-inherit no-underline shadow-sm transition hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900";
+              return c.href ? (
+                <Link key={c.id} href={c.href} className={cls}>
+                  {inner}
+                </Link>
+              ) : (
+                <div key={c.id} className={cls}>
+                  {inner}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-zinc-400">{data.empty ?? "—"}</p>
+        )}
+        {data.footer && (
+          <Link href={data.footer.href} className="text-xs text-indigo-600 hover:underline dark:text-indigo-400">
+            {data.footer.text} →
+          </Link>
+        )}
       </div>
     );
   return (
@@ -186,9 +250,9 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode }: Node
           </ul>
         </section>
       ) : (
-        <section className="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800" data-widget={id}>
+        <section className={data?.kind === "stats" ? "space-y-2" : "space-y-2 rounded-xl border border-zinc-200 bg-zinc-50/50 p-3 dark:border-zinc-800 dark:bg-zinc-900/30"} data-widget={id}>
           <div className="flex items-center gap-2">
-            <h4 className="flex-1 text-xs font-semibold text-zinc-500 uppercase">
+            <h4 className="flex-1 text-xs font-semibold tracking-wide text-zinc-500 uppercase">
               {def ? `${def.icon} ${def.label}` : id}
             </h4>
             <button type="button" className="icon-btn" title={t("Read again")} aria-label={t("Read again")} onClick={() => void load()}>
@@ -222,7 +286,7 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode }: Node
               ))}
             </div>
           )}
-          {data ? <WidgetBody data={data} busy={busy} act={(a, itemId) => void act(a, itemId)} /> : <p className="text-sm text-zinc-400">…</p>}
+          {data ? <WidgetBody data={data} busy={busy} act={(a, itemId) => void act(a, itemId)} /> : <div className="h-14 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" aria-hidden />}
         </section>
       )}
     </NodeViewWrapper>

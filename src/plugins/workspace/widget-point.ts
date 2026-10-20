@@ -1,4 +1,5 @@
 import { extensionPoint } from "@/lib/plugin-kit/extension-point";
+import type { VNode } from "./card-template";
 
 /**
  * Widgets plugins give the Workspace: a block of a page — or of the dashboard — that shows live data you would otherwise open another
@@ -16,13 +17,22 @@ export type WidgetItem = {
   /** Where a click on it goes (inside Zeff or out). */
   href?: string;
   badge?: string;
+  /** What the badge says: wrong / watch it / fine (its colour). */
+  tone?: "good" | "warn" | "bad";
   /** A tick shown (its action "toggle" ticks it). */
   done?: boolean;
   /** Buttons on the row, by the action they run on the plugin. */
   actions?: { id: string; label: string }[];
 };
 
+/** A figure of the day: a value with its label, a quiet line under it, a tone (what it says: fine, watch it, wrong), a bar, a link. */
+export type WidgetTile = { label: string; value: string; detail?: string; tone?: "good" | "warn" | "bad"; href?: string; bar?: { value: number; max: number } };
+/** A card: what a card template made of a row (nodes), where a click goes. */
+export type WidgetCard = { id: string; nodes: VNode[]; href?: string };
+
 export type WidgetData =
+  | { kind: "stats"; tiles: WidgetTile[] }
+  | { kind: "cards"; cards: WidgetCard[]; empty?: string; footer?: { text: string; href: string } }
   | { kind: "list"; items: WidgetItem[]; title?: string; empty?: string; footer?: { text: string; href: string } }
   | { kind: "figure"; value: string; caption: string; detail?: string; href?: string }
   | { kind: "error"; message: string };
@@ -35,6 +45,8 @@ export type WorkspaceWidget = {
   /** One line: what it shows — why it is worth a place on a page. */
   description: string;
   settings?: WidgetSetting[];
+  /** How much room it takes on a page: a figure strip is full width, a list half, a small one a third (default: half). */
+  size?: "third" | "half" | "full";
   /** Seconds its data is kept (default 30). */
   ttl?: number;
   data: (config: WidgetConfig) => WidgetData | Promise<WidgetData>;

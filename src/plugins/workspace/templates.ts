@@ -12,6 +12,7 @@ import { newsDatabaseTitle } from "./news-database";
 import { installPackage, listPackages } from "./packages";
 import { widgetCatalog } from "./widgets";
 import { createRoutine } from "./routines";
+import { createTicketCockpit } from "./ticket-cockpit";
 import { addRow, createPage, getDatabase, updateSchema } from "./store";
 
 export type TemplateMeta = { key: string; name: string; icon: string; description: string; kind: "page" | "database" };
@@ -40,7 +41,8 @@ function dashboardPage(parentId: number | null): number {
   const doc = {
     type: "doc",
     content: [
-      { type: "flexBox", attrs: { dir: "row", gap: "md" }, content: [col("mail.unread", "people.upcoming"), col("news.top"), col("work.runs", "workspace.routines")] },
+      ...widget("workspace.overview"),
+      { type: "flexBox", attrs: { dir: "row", gap: "md" }, content: [col("workspace.attention", "mail.unread", "people.upcoming"), col("news.top"), col("work.runs", "workspace.routines")] },
       { type: "paragraph" },
     ],
   };
@@ -48,6 +50,14 @@ function dashboardPage(parentId: number | null): number {
 }
 
 const TEMPLATES: Template[] = [
+  {
+    key: "ticket-cockpit",
+    name: "Ticket cockpit",
+    icon: "🧭",
+    description: "Your tickets as cards with hours booked, open merge requests and todos, worker runs and the days since the last comment — joined live, nothing copied.",
+    kind: "database",
+    build: (parentId) => createTicketCockpit(parentId),
+  },
   {
     key: "dashboard",
     name: "Dashboard",
