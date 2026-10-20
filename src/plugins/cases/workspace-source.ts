@@ -21,7 +21,8 @@ export async function caseRecords() {
   if (isInstalled("people")) for (const p of (await import("@/plugins/people/store")).listPeople()) names.set(p.id, p.name);
   return listCases().map((c) => {
     const s = c.compiled;
-    const text = [s?.summary ?? "", c.note].filter(Boolean).join(String.fromCharCode(10, 10));
+    // The row's page text: your note only — the summary is shown by the case's view at the top of the page (twice would repeat it).
+    const text = c.note;
     return {
       ref: `case:${c.id}`,
       title: caseTitle(c),
