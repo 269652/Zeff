@@ -24,13 +24,15 @@ export async function ensureCasesDatabase(): Promise<void> {
   const known = await casesDatabase();
   if (known) {
     (await import("@/plugins/workspace/row-views")).ensureRowViews();
-    // The overview (a database made before it existed): put first.
+    // Its type (a database made before its source had one — without it the overview shows as a raw table) and the
+    // overview (a database made before it existed): put first.
     const { getDatabase, updateSchema } = await import("@/plugins/workspace/store");
     const { appViewsFor } = await import("@/plugins/workspace/app-views");
     const { newView } = await import("@/plugins/workspace/model");
     const cur = getDatabase(known)!.schema;
     const app = appViewsFor("cases")[0];
-    if (app && !cur.views.some((v) => v.type === "app" && v.app === app.id)) updateSchema(known, { ...cur, views: [{ ...newView(t(app.label), "table"), type: "app", app: app.id }, ...cur.views] });
+    const views = app && !cur.views.some((v) => v.type === "app" && v.app === app.id) ? [{ ...newView(t(app.label), "table"), type: "app" as const, app: app.id }, ...cur.views] : cur.views;
+    if (cur.dataType !== "cases" || views !== cur.views) updateSchema(known, { ...cur, dataType: "cases", views });
     return;
   }
   if (getPref<number | null>(CASES, null) !== null) return;

@@ -170,3 +170,20 @@ test("cases: a long summary is cut at its last whole sentence", async () => {
   assert.equal(sentences("Kurz.", 20), "Kurz.");
   assert.equal(sentences("Einwortlangertextohnepunkt und noch mehr Wörter hier", 30), "Einwortlangertextohnepunkt …");
 });
+
+test("cases: a cases database made before its type was known gets it back — its overview is the cases app, not a raw table", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const p of ["workspace", "cases"]) setInstalled(p, true);
+  const { createPage, getDatabase } = await import("@/plugins/workspace/store");
+  const { newView } = await import("@/plugins/workspace/model");
+  const { setPref } = await import("@/lib/prefs");
+  const id = createPage({ kind: "database", title: "Vorgänge", schema: { titleName: "Name", properties: [], views: [{ ...newView("Übersicht", "table"), type: "app", app: "cases" }, newView("Galerie", "gallery")], pipeline: { steps: [] } } });
+  setPref("workspace.casesDb", id);
+  const { ensureCasesDatabase } = await import("@/plugins/cases/database");
+  await ensureCasesDatabase();
+  const schema = getDatabase(id)!.schema;
+  assert.equal(schema.dataType, "cases");
+  assert.deepEqual(schema.views.map((v) => v.name), ["Übersicht", "Galerie"], "no second overview");
+  const { appViewsFor } = await import("@/plugins/workspace/app-views");
+  assert.deepEqual(appViewsFor(schema.dataType).map((a) => a.id), ["cases"]);
+});
