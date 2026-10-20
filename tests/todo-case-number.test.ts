@@ -48,3 +48,25 @@ test("the duplicates already there are merged by their case number: the survivor
   assert.match(getTodo(a.id)!.text, /Vergleich mit Ratenzahlung/, "the newer text");
   void b;
 });
+
+test("which one is newer is the date of what it rests on (the document, the mail), not which todo was made first — the older information never replaces the newer", async () => {
+  const { addDocTodo, getTodo } = await import("@/lib/boards/store");
+  const { addDocument } = await import("@/plugins/documents/store");
+  const { getDb, schema } = await import("@/db");
+  const { eq } = await import("drizzle-orm");
+  const doc = (name: string, at: string) => {
+    const d = addDocument(name, Buffer.from(name), "text/plain").doc;
+    getDb().update(schema.documents).set({ createdAt: at }).where(eq(schema.documents.id, d.id)).run();
+    return `doc:${d.id}`;
+  };
+  const letterNew = doc("Brief neu.txt", "2026-10-19T08:00:00.000Z");
+  const letterOld = doc("Brief alt.txt", "2026-08-10T08:00:00.000Z");
+  // The todo of the newer letter is made first — the todo of the older letter comes after it (found later).
+  const first = addDocTodo({ ticket: "KB-5", text: "Restforderung 11,52 € (Az. DR II 99/26) heute überweisen", kind: "other", refs: [letterNew], runId: null, due: "2026-10-20" });
+  const later = addDocTodo({ ticket: "KB-5", text: "Rate von 50,00 € (Az. DR II 99/26) bis 15.11.2026 überweisen, danach monatlich", kind: "other", refs: [letterOld], runId: null, due: "2026-11-15" });
+  assert.equal(later.id, first.id, "one todo");
+  const t = getTodo(first.id)!;
+  assert.match(t.text, /Restforderung 11,52/, "the text of the newer letter stays");
+  assert.equal(t.due, "2026-10-20");
+  assert.ok(t.userNotes.some((n) => /Rate von 50,00/.test(n.text)), "the older one's wording is a note");
+});

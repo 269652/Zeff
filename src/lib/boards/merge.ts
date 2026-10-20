@@ -32,13 +32,33 @@ export type MergeCandidate = {
   needsInput?: string | null;
   runId?: number | null;
   workRunId?: number | null;
-  /** It is the newer of the two: about the same case (Aktenzeichen), its text, deadline and operations replace the older's (which stays as a note). */
-  newer?: boolean;
+  /** When it was found, where its sources have no date of their own (default: now): it is the newer of the two when what it rests on is — then, about the same case (Aktenzeichen), its text, deadline and operations replace the older's (which stays as a note). */
+  at?: string;
   /** Where it came from, in words ("Mail-Durchsicht", "Follow-up from W-45", "T-12 (merged)") - the history's note. */
   from: string;
   /** Who made it: "lage:3", "work:45", "you", "agent:x" - none: whoever `attributed()` says. */
   actor?: string | null;
 };
+
+/** When the information of a todo is from: the latest date of what it rests on (the mail's, the document's — the letter's arrival), else `fallback`. */
+export function infoAt(refs: string[], fallback: string): string {
+  const db = getDb();
+  const dates: string[] = [];
+  for (const r of refs) {
+    if (r.startsWith("mail:")) {
+      const m = db.select({ at: schema.emails.receivedAt }).from(schema.emails).where(eq(schema.emails.key, r.slice(5))).get();
+      if (m?.at) dates.push(m.at);
+    } else if (/^doc:\d+$/.test(r)) {
+      const id = Number(r.slice(4));
+      const d = db.select({ at: schema.documents.createdAt }).from(schema.documents).where(eq(schema.documents.id, id)).get();
+      const att = db.select({ key: schema.mailAttachments.mailKey }).from(schema.mailAttachments).where(eq(schema.mailAttachments.docId, id)).get();
+      const mail = att && db.select({ at: schema.emails.receivedAt }).from(schema.emails).where(eq(schema.emails.key, att.key)).get();
+      if (mail?.at) dates.push(mail.at);
+      else if (d?.at) dates.push(d.at);
+    }
+  }
+  return dates.sort().at(-1) ?? fallback;
+}
 
 const union = (a: string[], b: string[] = [], cap = 40) => [...new Set([...a, ...b])].slice(-cap);
 
@@ -58,7 +78,9 @@ export function absorb(survivorId: number, c: MergeCandidate): boolean {
   // Operations: the oldest's stay; the new ones only where it doesn't do that already (same action, same message to the same one).
   const had = cleanOps(parse<unknown[]>(row.ops, []), ticket);
   // The newer information about the same case replaces what the older said.
-  const replaces = !!c.newer && !!c.text.trim() && sameCase(c.text, row.text) && c.text.trim() !== row.text.trim();
+  const survivorAt = infoAt([...parse<string[]>(row.refs, []), ...parse<string[]>(row.mailRefs, [])], row.createdAt);
+  const newer = infoAt([...(c.refs ?? []), ...(c.mailRefs ?? [])], c.at ?? now) >= survivorAt;
+  const replaces = newer && !!c.text.trim() && sameCase(c.text, row.text) && c.text.trim() !== row.text.trim();
   const newOps = cleanOps(c.ops, ticket);
   const ops: TodoOp[] = replaces && newOps.length ? [] : [...had];
   for (const o of newOps) if (!ops.some((x) => sameOp(x, o))) ops.push(o);
@@ -149,7 +171,7 @@ export function mergeInto(survivorId: number, loserId: number, actor: string | n
     needsInput: loser.needsInput,
     runId: null,
     workRunId: null,
-    newer: loserId > survivorId,
+    at: loser.createdAt,
     from: `${todoRef(loserId)}${loser.source ? ` (${loser.source})` : ""}`,
     actor,
   });
