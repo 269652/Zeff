@@ -205,3 +205,35 @@ export async function attachOpenMrOps(): Promise<number> {
   }
   return n;
 }
+
+/**
+ * Ops with every "open merge request" turned into "merge !n" where that merge request is open already (opened since — by you, by an earlier
+ * step, on GitLab's side). Null: nothing to change.
+ */
+export function upgradeOpenOps(ops: TodoOp[], mrs: { project: string; branch: string | null; state: string | null; ref: string }[]): TodoOp[] | null {
+  let changed = false;
+  const next = ops.map((o) => {
+    if (o.type !== "gitlab-open-mr") return o;
+    const mr = mrs.find((m) => m.project === o.project && m.branch === o.source && /opened/i.test(m.state ?? ""));
+    if (!mr) return o;
+    changed = true;
+    return { type: "gitlab-merge" as const, project: o.project, iid: Number(mr.ref.replace("!", "")), source: o.source };
+  });
+  return changed ? next : null;
+}
+
+/** The open todos' "open merge request" actions whose merge request exists already become its merge. Returns how many todos changed. */
+export async function upgradeOpenMrOps(): Promise<number> {
+  const todos = listTodos({ status: "open" }).filter((t) => t.ops.some((o) => o.type === "gitlab-open-mr"));
+  if (!todos.length) return 0;
+  const mrs = listGitlabItems({ kind: "mr", limit: 500 });
+  let n = 0;
+  for (const t of todos) {
+    const next = upgradeOpenOps(t.ops, mrs);
+    if (next) {
+      setTodoOps(t.id, next);
+      n++;
+    }
+  }
+  return n;
+}

@@ -127,6 +127,9 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
           // Merge requests to open, asked for in words: their button (push → open MR), worked out from git.
           try {
             await (await import("./delivery-ops")).attachOpenMrOps();
+            await (await import("./delivery-ops")).upgradeOpenMrOps();
+            // The review comments a todo stands for: "Resolve" for each thread still open.
+            await (await import("./comment-ops")).attachCommentOps();
             // Waiting ones to "Wartet auf andere", joint ones with their "when do you have time?" message.
             (await import("./todo-rules")).applyTodoRules();
           } catch {

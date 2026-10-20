@@ -20,6 +20,7 @@ import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { cleanOps, opsDictionary, sourcesOf, TODO_KIND_LABELS, type TodoOp, type TodoView } from "@/lib/boards/shared";
 import { plain } from "@/lib/boards/collect";
+import { commentTodos, dropObsoleteInstructs, withCommentOps } from "@/lib/boards/comment-ops";
 import { todoSources } from "@/lib/boards/sources";
 import { lastGoodRun, listTodos } from "@/lib/boards/store";
 import { entityHeadline, entitySourceLabel, entityText, entityWhoWhen } from "@/lib/entities-shared";
@@ -77,8 +78,8 @@ Für JEDES Todo: welche Aktionen erledigen es oder bringen es den nächsten echt
 - Nach einer Übergabe an einen Worker (work-instruct) legt Zeff selbst ein Todo zum Testen an — dafür keinen eigenen Termin.
 - Ticket-Pflege (Status, Zuweisung, Kommentar, neues Ticket) → jira-transition / jira-assign / jira-comment / jira-create — Übergänge nur aus den möglichen, Zuweisungen mit dem Benutzernamen.
 - Ein neues Ticket / eine Story / ein Task soll angelegt werden („… anlegen“, „… Story erstellen“, „auslagern“) → IMMER eine jira-create, nie nur ein Kommentar: summary = ein präziser Titel (was geliefert wird, nicht „Ticket zu …“); body = vollständige Beschreibung in Markdown NUR aus dem Context unten (Beschreibung und Kommentare des Quell-Tickets, Quellen, Berichte, Notizen): Hintergrund mit Verweis auf das Quell-Ticket, was genau gebraucht wird (konkrete Seiten, Komponenten, Verhalten, Vorgaben aus dem Ticket), offene Fragen, Akzeptanzkriterien als prüfbare Liste. Nichts erfinden — was der Context nicht hergibt, steht unter „Offene Fragen“. issueType Story, wenn das Todo Story sagt, sonst Task. ticket = das Quell-Ticket. Wer es bearbeiten soll, schreibst du in die Beschreibung, nicht als jira-assign (das neue Ticket hat noch keinen Schlüssel).
-- Antwort auf einen GitLab-Kommentar / Thread erledigt → gitlab-reply / gitlab-resolve mit note:<id>.
-- Etwas umsetzen, fixen, im Code nachsehen, ausarbeiten → work-instruct mit einer konkreten, vollständigen Anweisung.
+- Ein GitLab-Kommentar / Thread (gitlab:note:<id>): zeigt der Kontext schon, dass es erledigt ist (ein Commit auf dem Branch, der Bericht eines Workers, eine Notiz), dann die fertige Antwort als gitlab-reply (note:<id>, Markdown, kurz, sachlich, mit dem, was geändert wurde) — kein work-instruct dafür; Zeff hängt das Resolve selbst an. Ist noch etwas zu tun, schlägst du keine Antwort vor, sondern das work-instruct.
+- Etwas umsetzen, fixen, im Code nachsehen, ausarbeiten → work-instruct mit einer konkreten, vollständigen Anweisung — nie für etwas, das laut Kontext schon umgesetzt ist.
 - Sagt jemand, wie in Zeff selbst etwas gehandhabt werden soll (eine Regel, eine Absprache: wie Branches heißen, wie Antworten klingen, worauf ein KI-Schritt achten soll) → zeff-do mit einer Methode aus dem Wörterbuch; die neuen Anweisungen schreibst du als Anpassung dessen, was unter „Bestehendes in Zeff“ steht.
 - Mehrere Aktionen, wenn sie zusammengehören (z. B. Kommentar + Übergang + Zuweisung an den Tester), in der Reihenfolge, in der sie laufen.
 
@@ -275,10 +276,13 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
         })
         .map((t) => t.id),
     );
+    // A todo that stands for review comments, with actions of someone else's (a delivery, a hand-over): only the replies it still lacks are
+    // asked for — they are added to its actions, before their thread's Resolve; nothing else of what is proposed is used.
+    const gaps = new Map(commentTodos().filter((c) => c.open.some((n) => !c.ops.some((o) => o.type === "gitlab-reply" && o.note === n))).map((c) => [c.id, c]));
     // Asked for on given todos: those (unless they have actions not proposed here — the Lage's, a delivery's).
     const list = opts.ids
-      ? open.filter((t) => opts.ids!.includes(t.id) && (!t.ops.length || !!t.autoOpsWhy))
-      : open.filter((t) => due.has(t.id) && (!t.ops.length || (!!t.autoOpsWhy && (all || learned.has(t.id)))));
+      ? open.filter((t) => opts.ids!.includes(t.id) && (!t.ops.length || !!t.autoOpsWhy || gaps.has(t.id)))
+      : open.filter((t) => due.has(t.id) && (!t.ops.length || (!!t.autoOpsWhy && (all || learned.has(t.id))) || (!t.autoOpsWhy && gaps.has(t.id))));
     if (!opts.ids) setPref("autoactions:offered", offered);
     if (!list.length) return { ok: true, reviewed: 0, withActions: 0, batches: 0 };
     const sources = todoSources(list, board?.tickets ?? []);
@@ -359,10 +363,20 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
                 : o,
           );
         const set: Partial<typeof todos.$inferInsert> = { actionsReviewedAt: now };
+        const gap = gaps.get(t.id);
         // Only onto a todo that still has none (the Lage or you may have given it some meanwhile) — or
         // whose actions this review proposed itself, looked at again (on request, or new kinds came).
         const still = getDb().select({ ops: todos.ops }).from(todos).where(eq(todos.id, t.id)).get();
-        if (ops.length && still && ((JSON.parse(still.ops) as unknown[]).length === 0 || ((opts.ids || all || learned.has(t.id)) && t.autoOpsWhy))) {
+        if (gap && t.ops.length && !t.autoOpsWhy && still) {
+          // (Someone else's actions stay: only the drafted replies are added.)
+          const replies = ops.filter((o) => o.type === "gitlab-reply");
+          if (replies.length) {
+            // (Replies for every open thread: the hand-over to a worker is obsolete — the replies answer from what is known.)
+            const next = dropObsoleteInstructs(withCommentOps(JSON.parse(still.ops) as TodoOp[], gap.open, replies), gap.open);
+            set.ops = JSON.stringify(next);
+            withActions++;
+          }
+        } else if (ops.length && still && ((JSON.parse(still.ops) as unknown[]).length === 0 || ((opts.ids || all || learned.has(t.id)) && t.autoOpsWhy))) {
           set.ops = JSON.stringify(ops);
           set.autoOpsWhy = (a?.why ?? "").trim().slice(0, 500) || "Vorgeschlagen aus dem Kontext.";
           withActions++;

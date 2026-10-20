@@ -60,6 +60,9 @@ export async function syncGitlab({ background = false } = {}): Promise<{ ok: boo
     // Merge requests a todo asks to open (none open for the branch, as now synced): their button.
     try {
       await (await import("@/lib/boards/delivery-ops")).attachOpenMrOps();
+      await (await import("@/lib/boards/delivery-ops")).upgradeOpenMrOps();
+      // The review comments a todo stands for (now synced, with their state): "Resolve" for each thread still open.
+      await (await import("@/lib/boards/comment-ops")).attachCommentOps();
       (await import("@/lib/boards/todo-rules")).applyTodoRules();
     } catch {
       // without buttons, then
