@@ -48,6 +48,7 @@ export default function InboxView({ data, rows, openRow, reload }: AppViewProps)
     return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- channelOf reads data, which rows come with
   }, [rows, data]);
+  // eslint-disable-next-line react-hooks/purity -- what is snoozed is so at the time it is drawn
   const now = Date.now();
   const visible = rows.filter((r) => (!channel || channelOf(r) === channel) && (!unreadOnly || r.cells.communread));
   // By conversation: one entry per thread; the snoozed ones are away (their own list: the 💤 chip).

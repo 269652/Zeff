@@ -54,6 +54,7 @@ export function TimelineView({ view, rows, schema, api, openRow, locked }: { vie
   if (!startProp)
     return <p className="rounded-md border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700">{t("Pick the date field the bars start at (“Date by …” above).")}</p>;
 
+  // eslint-disable-next-line react-hooks/purity -- today is the day it is drawn
   const today = Math.round(Date.now() / DAY);
   const first = Math.min(today, ...bars.map((b) => b.start)) - 3;
   const last = Math.max(today, ...bars.map((b) => b.end)) + 10;

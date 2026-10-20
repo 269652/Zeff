@@ -237,6 +237,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
       StarterKit.configure({ codeBlock: false, heading: { levels: [1, 2, 3] }, link: { openOnClick: false, autolink: true, HTMLAttributes: { rel: "noopener noreferrer nofollow", target: "_blank" } } }),
       CodeBlockLowlight.configure({ lowlight, defaultLanguage: null }),
       Placeholder.configure({ placeholder: ({ node }) => (node.type.name === "heading" ? `${t("Heading")} ${node.attrs.level}` : t("Type '/' for blocks, '@' to mention …")), showOnlyCurrent: true }),
+      // eslint-disable-next-line react-hooks/refs -- flush reads its refs when it is called (a to-do list saved), not while the editor is set up
       TaskListBlock.configure({ pageId, flush: () => flush() }),
       TaskItemWithId.configure({ nested: true }),
       TaskIds,

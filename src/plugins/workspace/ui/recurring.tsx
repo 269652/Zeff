@@ -23,6 +23,7 @@ export function RecurringDialog({ dbId, schema, templates, onClose }: { dbId: nu
     const r = await recurrencesAction(dbId);
     if (r.ok) setRules(r.rules);
   }, [dbId]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- read when shown (the state is set once the answer is there)
   useEffect(() => void load(), [load]);
 
   const describe = (r: Recurrence) =>

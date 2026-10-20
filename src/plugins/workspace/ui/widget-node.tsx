@@ -264,6 +264,7 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode }: Node
       live.current = false;
     };
   }, []);
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- it reads whether the block is still there (a ref) when its answer comes
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
@@ -271,8 +272,11 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode }: Node
     if (!live.current) return;
     setLoading(false);
     setData(r.ok ? r.data : { kind: "error", message: r.error });
+    // eslint-disable-next-line react-hooks/preserve-manual-memoization -- see above
   }, [id, configKey]);
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- see load
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- read when shown, again every minute and when the workspace changes
     void load();
     const every = setInterval(() => document.visibilityState === "visible" && void load(), 60000);
     const again = () => document.visibilityState === "visible" && void load();

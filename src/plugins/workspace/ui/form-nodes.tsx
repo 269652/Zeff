@@ -45,6 +45,7 @@ function FormView({ node, updateAttributes, editor }: NodeViewProps) {
     if (editor.isEditable) void routineChoicesAction().then((r) => r.ok && setDatabases(r.databases.map((d) => ({ id: d.id, title: d.title }))));
   }, [editor.isEditable]);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- no database chosen: no choices
     if (!dbId) return setChoices(null);
     let live = true;
     void formChoicesAction(dbId).then((r) => live && setChoices(r.ok ? r.choices : null));

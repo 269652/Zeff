@@ -17,6 +17,7 @@ export function HistoryList() {
     const r = await undoEntriesAction();
     if (r.ok) setEntries(r.entries);
   }, []);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- read when shown (the state is set once the answer is there)
   useEffect(() => void load(), [load]);
 
   const revert = async (e: UndoEntry) => {

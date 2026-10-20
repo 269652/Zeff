@@ -129,6 +129,7 @@ export default function DocumentsView(props: AppViewProps) {
     [rows, data.extras, local],
   );
 
+  // eslint-disable-next-line react-hooks/purity -- "this week" is the week of when it is drawn
   const week = Date.now() - 7 * 864e5;
   const inScope = useCallback(
     (d: Doc, s: Scope) => (s === "inbox" ? d.unread : s === "all" ? true : s === "week" ? Date.parse(d.added) >= week : s === "mail" ? !!d.from : s === "processing" ? d.status !== "ready" : d.kind === s.slice(5)),

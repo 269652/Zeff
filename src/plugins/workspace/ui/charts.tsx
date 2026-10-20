@@ -96,14 +96,16 @@ export function LineChart({ points, unit }: { points: ChartPoint[]; unit: string
 export function PieChart({ points, unit }: { points: ChartPoint[]; unit: string }) {
   const total = points.reduce((a, p) => a + p.value, 0) || 1;
   const R = 70;
-  let angle = -Math.PI / 2;
-  const arcs = points.map((p) => {
-    const sweep = (p.value / total) * Math.PI * 2;
-    const a0 = angle;
-    angle += sweep;
+  const sweeps = points.map((p) => (p.value / total) * Math.PI * 2);
+  // Where each slice starts: the top, turned by the slices before it.
+  const starts = sweeps.map((_, i) => -Math.PI / 2 + sweeps.slice(0, i).reduce((a, b) => a + b, 0));
+  const arcs = points.map((p, i) => {
+    const sweep = sweeps[i];
+    const a0 = starts[i];
+    const a1 = a0 + sweep;
     const large = sweep > Math.PI ? 1 : 0;
     const [x0, y0] = [90 + R * Math.cos(a0), 90 + R * Math.sin(a0)];
-    const [x1, y1] = [90 + R * Math.cos(angle), 90 + R * Math.sin(angle)];
+    const [x1, y1] = [90 + R * Math.cos(a1), 90 + R * Math.sin(a1)];
     return { p, d: sweep >= Math.PI * 2 - 1e-6 ? `M 90 ${90 - R} A ${R} ${R} 0 1 1 89.99 ${90 - R} Z` : `M 90 90 L ${x0} ${y0} A ${R} ${R} 0 ${large} 1 ${x1} ${y1} Z` };
   });
   return (

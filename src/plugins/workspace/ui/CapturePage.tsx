@@ -58,6 +58,7 @@ export function CapturePage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- what waits in this browser's storage is only known once it is shown
     setWaiting(load().length);
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/capture/sw", { scope: "/capture" }).catch(() => undefined);
     const kick = () => void flush();
