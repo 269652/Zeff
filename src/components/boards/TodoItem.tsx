@@ -26,7 +26,7 @@ import { entitiesFor, pagesFor } from "@/plugins/knowledge/shared";
 import { useTodoDisplayOff } from "@/components/PluginFlags";
 import { areaOn, kindOfPage, kindOn } from "@/lib/todo-display";
 import { TodoKnowledgeList, TodoKnowledgePreview } from "@/plugins/knowledge/TodoKnowledge";
-import { DueBadge } from "./DueBadge";
+import { DueBadge, RepeatBadge } from "./DueBadge";
 import { FlagButton } from "./FlagButton";
 import { WorkedOnButton } from "./WorkedOnButton";
 import { TicketLink } from "../TicketLink";
@@ -289,6 +289,7 @@ export function TodoItem({
           <TodoMrLinks mrs={todo.links?.mrs} />
           {" "}· {todoKindLabels(t)[todo.kind]}
           <DueBadge todoId={todo.id} due={todo.due} closed={closed} />
+          <RepeatBadge todoId={todo.id} rule={todo.recurrence} due={todo.due} closed={closed} />
           {/* A repeat of it was merged into it since you looked (the Activity tab says which). */}
           {!closed && todo.mergedAt && fresh && (
             <>

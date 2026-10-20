@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { setTodoDueAction } from "@/plugins/todos/server-actions";
+import { setTodoDueAction, setTodoRecurrenceAction } from "@/plugins/todos/server-actions";
 import { dueText, dueTone } from "@/lib/boards/due-shared";
 import { formatDate } from "@/lib/format";
 import { toast } from "../Toaster";
@@ -57,6 +57,71 @@ export function DueBadge({ todoId, due, closed }: { todoId: number; due: string 
   ) : (
     <button type="button" className="opacity-0 transition group-hover:opacity-100 hover:text-zinc-600 hover:underline focus:opacity-100" onClick={() => setEditing(true)} title={t("Set a due date")}>
       {" · "}{t("due date")}
+    </button>
+  );
+}
+
+const FREQS = ["daily", "weekly", "monthly", "yearly"] as const;
+
+/**
+ * A todo that comes back (a rate on the 15th of every month): "↻ monthly" with a little calendar that leads to its series in the calendar;
+ * a choice on hover sets it (every day, week, month, year) or takes it away. The rule follows the due day.
+ */
+export function RepeatBadge({ todoId, rule, due, closed }: { todoId: number; rule: { freq: (typeof FREQS)[number]; interval: number } | null; due: string | null; closed: boolean }) {
+  const t = useT();
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [pending, start] = useTransition();
+  const names = { daily: t("every day"), weekly: t("every week"), monthly: t("every month"), yearly: t("every year") };
+  const save = (v: (typeof FREQS)[number] | null) =>
+    start(async () => {
+      const r = await setTodoRecurrenceAction(todoId, v);
+      if (!r?.ok) toast(r?.error ?? t("Didn't work."), { tone: "error" });
+      setEditing(false);
+      router.refresh();
+    });
+  if (editing)
+    return (
+      <span className="inline-flex items-center gap-1">
+        {" · "}
+        <select
+          className="rounded border border-zinc-300 px-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+          autoFocus
+          disabled={pending}
+          aria-label={t("Repeat")}
+          value={rule?.freq ?? ""}
+          onChange={(e) => save((e.target.value || null) as (typeof FREQS)[number] | null)}
+          onBlur={() => setEditing(false)}
+          onKeyDown={(e) => e.key === "Escape" && setEditing(false)}
+        >
+          <option value="">{t("does not repeat")}</option>
+          {FREQS.map((f) => (
+            <option key={f} value={f}>
+              {names[f]}
+            </option>
+          ))}
+        </select>
+      </span>
+    );
+  if (rule)
+    return (
+      <>
+        {" · "}
+        <button type="button" className="hover:underline" onClick={() => !closed && setEditing(true)} title={t("Comes back {when} — change", { when: names[rule.freq] })}>
+          ↻ {names[rule.freq]}
+        </button>
+        {due && (
+          // eslint-disable-next-line @next/next/no-html-link-for-pages -- a redirect to the calendar's day
+          <a href={`/api/todos/${todoId}/calendar`} className="ml-1 no-underline" title={t("Show it in the calendar")} aria-label={t("Show it in the calendar")}>
+            📅
+          </a>
+        )}
+      </>
+    );
+  if (closed) return null;
+  return (
+    <button type="button" className="opacity-0 transition group-hover:opacity-100 hover:text-zinc-600 hover:underline focus:opacity-100" onClick={() => setEditing(true)} title={t("Make it come back")}>
+      {" · "}{t("repeat")}
     </button>
   );
 }

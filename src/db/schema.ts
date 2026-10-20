@@ -964,6 +964,8 @@ export const todos = sqliteTable(
     workRunId: integer("work_run_id"),
     /** The time entry it was booked into (Weekly report's "Done today"); -1: not to be booked. */
     entryId: integer("entry_id"),
+    /** JSON (calendar/recurrence.ts): it comes back — when it is done, the next one is made, due on the next day the rule names. */
+    recurrence: text("recurrence"),
     /** JSON [TodoOp]: what doing it takes, as operations Zeff runs itself (a transition, an assignee, a comment, a GitLab reply or resolve). */
     ops: text("ops").notNull().default("[]"),
     /**

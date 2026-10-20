@@ -170,6 +170,19 @@ export async function setTodoDueAction(todoId: number, due: string | null): Prom
   }
 }
 
+/** A todo that comes back: its rule (monthly on its due day, weekly, yearly, every day) — or none. The calendar shows the series. */
+export async function setTodoRecurrenceAction(todoId: number, freq: "daily" | "weekly" | "monthly" | "yearly" | null): Promise<ActionState> {
+  try {
+    const { setRecurrence } = await import("@/lib/boards/recurring");
+    setRecurrence(Number(todoId), freq ? { freq, interval: 1 } : null);
+    (await import("@/lib/events")).emitChange("todos");
+    revalidateAll();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
 /** A todo put to the bottom for now — it comes back up when something new happens on it — or taken back up. */
 export async function deferTodoAction(todoId: number, deferred: boolean): Promise<ActionState> {
   try {

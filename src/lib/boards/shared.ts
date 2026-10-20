@@ -286,6 +286,8 @@ export type TodoView = {
   workerDone: { at: string; by: string; note: string | null; suggested?: boolean } | null;
   /** A worker made it: it's on the "Worker" tab, not in your list — workers may close such todos themselves. */
   byWorker: boolean;
+  /** It comes back: its rule (a rate on the 15th of every month) — done, the next one is made. */
+  recurrence: import("@/lib/calendar/recurrence").Recurrence | null;
   /** Other tickets it's about too (linked: the same thing on two tickets); `ticket` is the main one. */
   alsoTickets: string[];
   /** Set: this todo was a duplicate and went into that one (it is closed; /t/<id> leads there). */

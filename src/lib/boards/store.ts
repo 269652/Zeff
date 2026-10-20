@@ -3,6 +3,8 @@ import "@/plugins/actions/server";
 import { parseTodoKnowledge, type TodoKnowledge } from "@/plugins/knowledge/shared";
 import { summaryForTicket } from "@/plugins/knowledge/repo-systems-store";
 import { repeatsByRecord, similarText } from "./similar";
+import { parseRecurrence } from "@/lib/calendar/recurrence";
+import { spawnNext, syncSeries } from "./recurring";
 import { absorb, mergeInto } from "./merge";
 import { jiraNoteBody } from "@/plugins/people/accounts";
 import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
@@ -247,6 +249,7 @@ const toTodo = (r: Todo): TodoView => {
   workerDone: parse<TodoView["workerDone"]>(r.workerDone ?? "null", null),
   byWorker: !!r.byWorker,
   alsoTickets: parse<string[]>(r.alsoTickets, []).filter((k) => typeof k === "string"),
+  recurrence: parseRecurrence(r.recurrence),
   createdAt: iso(r.createdAt),
   updatedAt: iso(r.updatedAt),
   doneAt: r.doneAt && iso(r.doneAt),
@@ -491,6 +494,8 @@ export function setTodoStatus(id: number, status: TodoStatus, note?: string | nu
   if (status === "done" && before.status !== "done") {
     afterDone(id);
     runTodoDoneHooks(id);
+    // A todo that comes back (a rate on the 15th): the next one is there.
+    if (before.recurrence) spawnNext(id);
   }
   // After the status and the follow-ups it brings are written: a page that refreshes on this finds both the closed todo and the next one.
   emitChange("todos");
@@ -1047,6 +1052,7 @@ export function addTodoContext(id: number, refs: string[], note: string, by: str
 /** A todo's deadline (YYYY-MM-DD), set or taken away by hand. */
 export function setTodoDue(id: number, due: string | null): void {
   getDb().update(todos).set({ due: dueDay(due), updatedAt: new Date().toISOString() }).where(eq(todos.id, id)).run();
+  syncSeries(id); // (a todo that comes back: its calendar series starts on the new day)
   emitChange("todos");
 }
 

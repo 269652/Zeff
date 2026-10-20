@@ -6184,5 +6184,13 @@
   "The AI was not allowed to read the file — click “Read again”.": "Die KI durfte die Datei nicht lesen — „Neu lesen“ klicken.",
   "Navigation in the Workspace tree": "Navigation im Workspace-Baum",
   "Hide the hidden": "Ausgeblendete verbergen",
-  "{n} hidden": "{n} ausgeblendet"
+  "{n} hidden": "{n} ausgeblendet",
+  "every week": "jede Woche",
+  "every month": "jeden Monat",
+  "every year": "jedes Jahr",
+  "does not repeat": "wiederholt sich nicht",
+  "Comes back {when} — change": "Kommt wieder {when} — ändern",
+  "Show it in the calendar": "Im Kalender zeigen",
+  "Make it come back": "Wiederkehren lassen",
+  "repeat": "wiederholen"
 }
