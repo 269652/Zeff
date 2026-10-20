@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { aiBlockAction, mentionStateAction } from "../actions";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
+import { PersonHover } from "@/plugins/people/PersonMention";
 import { DatabaseBlock } from "./DatabaseView";
 import { embedPage } from "./page-embed";
 import { RowViewHost } from "./row-view";
@@ -192,30 +193,40 @@ function RefView({ node, editor, getPos }: NodeViewProps) {
   // A page's chip: shown inline instead (its content in place) — a click on ⤢.
   const pageId = kind === "page" ? Number(/^\/workspace\/(\d+)/.exec(href ?? "")?.[1] ?? ref) : 0;
   const inline = editor.isEditable && pageId > 0 && !state.missing;
+  const chip = (
+    <a
+      className="ws-chip"
+      data-kind={kind}
+      data-done={state.done ? "true" : undefined}
+      data-missing={state.missing ? "true" : undefined}
+      href={href || undefined}
+      target={external ? "_blank" : undefined}
+      rel={external ? "noreferrer" : undefined}
+      title={[state.label && state.label !== text ? state.label : "", state.status ?? ""].filter(Boolean).join(" · ") || undefined}
+      onClick={(e) => {
+        if (!href) return e.preventDefault();
+        if (!external && !e.metaKey && !e.ctrlKey) {
+          e.preventDefault();
+          router.push(href);
+        }
+      }}
+      contentEditable={false}
+    >
+      <span aria-hidden>{icon}</span>
+      {text}
+      {state.status && kind === "todo" && !state.done ? <span className="opacity-60">· {state.status}</span> : null}
+    </a>
+  );
   return (
     <NodeViewWrapper as="span" className="group/ref inline">
-      <a
-        className="ws-chip"
-        data-kind={kind}
-        data-done={state.done ? "true" : undefined}
-        data-missing={state.missing ? "true" : undefined}
-        href={href || undefined}
-        target={external ? "_blank" : undefined}
-        rel={external ? "noreferrer" : undefined}
-        title={[state.label && state.label !== text ? state.label : "", state.status ?? ""].filter(Boolean).join(" · ") || undefined}
-        onClick={(e) => {
-          if (!href) return e.preventDefault();
-          if (!external && !e.metaKey && !e.ctrlKey) {
-            e.preventDefault();
-            router.push(href);
-          }
-        }}
-        contentEditable={false}
-      >
-        <span aria-hidden>{icon}</span>
-        {text}
-        {state.status && kind === "todo" && !state.done ? <span className="opacity-60">· {state.status}</span> : null}
-      </a>
+      {/* A person: their hover card (who they are, how to reach them, what's open with them). */}
+      {kind === "person" && !state.missing && Number(ref) > 0 ? (
+        <PersonHover id={Number(ref)} name={text}>
+          {chip}
+        </PersonHover>
+      ) : (
+        chip
+      )}
       {inline && (
         <button
           type="button"

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { HoverCard, useHoverSide } from "@/components/HoverCard";
 import { useT } from "@/components/I18nProvider";
-import { formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { isChatFolder } from "@/lib/mail/shared";
 import { mentionMatcher, splitMentions, splitTags, type PersonIndexEntry } from "./mentions";
 import { personCardAction, type PersonCardData } from "./server-actions";
@@ -144,10 +144,25 @@ export function PersonMention({ id, name, children, tagged = false }: { id: numb
     );
   }
   return (
-    <HoverCard width={360} card={<PersonCard id={id} name={name} />}>
+    <PersonHover id={id} name={name}>
       <Link href={href} className={underline} onClick={(e) => e.stopPropagation()}>
         {children}
       </Link>
+    </PersonHover>
+  );
+}
+
+/**
+ * Anything standing for a person (a name in a text, a person chip in a table or a page) with their hover card: after a moment's
+ * rest of the pointer, or on keyboard focus. Without the People plugin (no people known) just the children.
+ */
+export function PersonHover({ id, name, children }: { id: number; name: string; children: ReactNode }) {
+  const t = useT();
+  const matcher = useContext(Ctx);
+  if (!matcher) return <>{children}</>;
+  return (
+    <HoverCard width={360} delay={300} label={t("About {name}", { name })} card={<PersonCard id={id} name={name} />}>
+      {children}
     </HoverCard>
   );
 }
@@ -188,19 +203,26 @@ function SummaryBlock({ summary }: { summary: { connection: string; keyFacts: st
   );
 }
 
-/** Loaded cards (for this page's life): a card opened again shows at once. */
-const cache = new Map<number, PersonCardData | null>();
+/** Loaded cards, for a minute: a card opened again shows at once. */
+const cache = new Map<number, { at: number; data: PersonCardData | null }>();
+const CACHE_MS = 60_000;
+const cached = (id: number) => {
+  const hit = cache.get(id);
+  return hit && Date.now() - hit.at < CACHE_MS ? hit.data : undefined;
+};
+
+const DETAIL_ICONS: Record<string, string> = { phone: "📞", address: "📍", iban: "🏦" };
 
 function PersonCard({ id, name, flat = false }: { id: number; name: string; flat?: boolean }) {
   const href = useHref(id);
   const t = useT();
-  const [data, setData] = useState<PersonCardData | null | undefined>(cache.get(id));
+  const [data, setData] = useState<PersonCardData | null | undefined>(() => cached(id));
   useEffect(() => {
-    if (cache.has(id)) return;
+    if (cached(id) !== undefined) return;
     let alive = true;
     personCardAction(id)
       .then((d) => {
-        cache.set(id, d);
+        cache.set(id, { at: Date.now(), data: d });
         if (alive) setData(d);
       })
       .catch(() => alive && setData(null));
@@ -220,6 +242,21 @@ function PersonCard({ id, name, flat = false }: { id: number; name: string; flat
       {data === null && <p className="text-zinc-400">{t("Nothing known about them yet.")}</p>}
       {data && (
         <>
+          {data.role && <p className="text-zinc-600 dark:text-zinc-300">{data.role}</p>}
+          {data.away && (
+            <p className="rounded-md bg-amber-50 px-2 py-1 font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-300" title={data.away.text}>
+              {t("Away until {date}", { date: formatDate(data.away.until) })}
+            </p>
+          )}
+          {data.details.length > 0 && (
+            <ul className="space-y-0.5">
+              {data.details.map((d) => (
+                <li key={d.key} className="truncate" title={d.value}>
+                  <span aria-hidden>{DETAIL_ICONS[d.key] ?? "•"}</span> <span className={d.key === "iban" ? "font-mono" : undefined}>{d.value}</span>
+                </li>
+              ))}
+            </ul>
+          )}
           {data.summary && <SummaryBlock summary={data.summary} />}
           {data.dates.length > 0 && (
             <ul className="space-y-0.5">
@@ -294,7 +331,7 @@ function PersonCard({ id, name, flat = false }: { id: number; name: string; flat
               ))}
             </div>
           )}
-          {!data.summary && !data.dates.length && !data.facts.length && !data.relations.length && !data.note && !data.messages.length && !data.todos.length && !data.claims.length && !data.links.length && !data.owed.length && <p className="text-zinc-400">{t("Nothing known about them yet.")}</p>}
+          {!data.summary && !data.dates.length && !data.facts.length && !data.relations.length && !data.note && !data.messages.length && !data.todos.length && !data.claims.length && !data.links.length && !data.owed.length && !data.role && !data.details.length && !data.away && <p className="text-zinc-400">{t("Nothing known about them yet.")}</p>}
         </>
       )}
     </div>

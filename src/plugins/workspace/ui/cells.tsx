@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { Markdown } from "@/components/Markdown";
+import { PersonHover } from "@/plugins/people/PersonMention";
 import { aiFillCellAction, cellChoicesAction, type DatabaseData } from "../actions";
 import { choiceColor, COLORS, dateRange, formatNumber, isComputed, newId, type Option, type Property, type Row } from "../model";
 import { Dropdown, useDismiss } from "./kit";
@@ -116,9 +117,11 @@ export function CellView({ p, row, ctx }: { p: Property; row: Row; ctx: CellCtx 
       return (
         <>
           {asArr(v).map((id) => (
-            <Link key={String(id)} href={labels.personHref?.[Number(id)] ?? "/workspace"} onClick={(e) => e.stopPropagation()} className="ws-chip" data-kind="person">
-              👤 {labels.people[Number(id)] ?? `#${id}`}
-            </Link>
+            <PersonHover key={String(id)} id={Number(id)} name={labels.people[Number(id)] ?? `#${id}`}>
+              <Link href={labels.personHref?.[Number(id)] ?? "/workspace"} onClick={(e) => e.stopPropagation()} className="ws-chip" data-kind="person">
+                👤 {labels.people[Number(id)] ?? `#${id}`}
+              </Link>
+            </PersonHover>
           ))}
         </>
       );

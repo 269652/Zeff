@@ -58,6 +58,12 @@ export type PersonCardData = {
   links: string[];
   /** Open commitments with them: who owes what, by when. */
   owed: { direction: "mine" | "theirs"; text: string; due: string }[];
+  /** What they do (a role read about them, a confirmed one first). */
+  role: string | null;
+  /** Phone, address, IBAN — one each. */
+  details: { key: string; value: string }[];
+  /** A claim says they are away until this day ("YYYY-MM-DD", not passed yet). */
+  away: { until: string; text: string } | null;
 };
 
 /** A person's hover card's contents — loaded when it opens. Null: no such person (or the plugin is off). */
@@ -74,6 +80,8 @@ export async function personCardAction(id: number): Promise<PersonCardData | nul
   const { listFacts } = await import("@/lib/facts");
   const { listTodos } = await import("@/lib/boards/store");
   const today = new Date();
+  const { personCardExtras } = await import("./card");
+  const extras = personCardExtras(p.id, isoDay(today));
   const dates = datesOf(p.id)
     .filter((d) => d.confirmed)
     .flatMap((d) => {
@@ -101,17 +109,17 @@ export async function personCardAction(id: number): Promise<PersonCardData | nul
       ...relationsOf(p.id).in.map((r) => `${r.personName}: ${r.rel}`),
     ].slice(0, 6),
     claims: visibleClaims(p.id)
-      .filter((c) => c.kind !== "commitment")
+      .filter((c) => c.kind !== "commitment" && c.text !== extras.role && c.text !== extras.away?.text)
       .slice(0, 5)
       .map((c) => ({ kind: c.kind, text: c.text, confirmed: c.status === "confirmed" })),
     links: linksOf(p.id)
       .filter((l) => l.rel !== "commented-on")
       .slice(0, 6)
       .map((l) => `${l.rel.replace(/-/g, " ")} ${l.targetType === "person" ? (getPerson(Number(l.targetRef))?.name ?? "?") : l.targetRef}`),
-    owed: visibleClaims(p.id)
-      .filter((c) => c.kind === "commitment" && (c.direction === "mine" || c.direction === "theirs"))
-      .slice(0, 3)
-      .map((c) => ({ direction: c.direction as "mine" | "theirs", text: c.text, due: c.due })),
+    owed: extras.owed,
+    role: extras.role,
+    details: extras.details,
+    away: extras.away,
     messages: contactsOf(p, 3).map((c) => ({ who: c.who, text: c.text.slice(0, 220), at: c.at, folder: c.folder })),
     todos: listTodos({ status: "open" })
       .filter((x) => names(x.text))
