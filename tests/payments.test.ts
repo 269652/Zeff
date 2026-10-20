@@ -60,3 +60,8 @@ test("cases: the payment of a case not summed up yet is its person's account, wi
   assert.deepEqual([p.name, p.iban, p.bic, p.purpose], ["Nathanael Dienstkonto", IBAN, "GENODE61BBB", "DR II 1121/26"]);
   assert.equal(p.amount, null);
 });
+
+test("cases: the payee the AI names is the account holder — a bank in brackets after it dropped", async () => {
+  const { checked } = await import("@/plugins/cases/compile");
+  assert.equal(checked({ payee: "Nathanael Dienstkonto (BBBank Karlsruhe)" }, "DR II 1/26", 1).payee, "Nathanael Dienstkonto");
+});

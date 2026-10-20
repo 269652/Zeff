@@ -65,7 +65,8 @@ export function checked(a: Answer, key: string, sources: number): CaseSummary {
     nextWhat: clip(a.next_what, 120),
     iban: validIban ? iban : "",
     bic: validIban && /^[A-Z]{6}[A-Z0-9]{2}(?:[A-Z0-9]{3})?$/.test(bic) ? bic : "",
-    payee: clip(a.payee, 70),
+    // The account holder only — a bank in brackets after it ("… (BBBank Karlsruhe)") is no part of the name.
+    payee: clip(a.payee, 70).replace(/\s*\([^)]*\)$/, ""),
     purpose: clip(a.purpose, 140) || key,
     done: a.done === true,
     at: new Date().toISOString(),
