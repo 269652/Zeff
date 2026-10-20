@@ -7,6 +7,7 @@
  */
 import { getSqlite } from "@/db";
 import { emitChange } from "@/lib/events";
+import { claimReviewed, flushSoon } from "./knowledge-sync";
 import { getPerson, listPeople, namesOf } from "./store";
 
 export const CLAIM_KINDS = ["fact", "role", "owns", "preference", "commitment"] as const;
@@ -153,6 +154,24 @@ export const staleClaims = (): (Claim & { personName: string })[] =>
 export const openCommitments = (): (Claim & { personName: string })[] =>
   (db().prepare("select c.*, p.name person_name from people_claims c join people p on p.id = c.person_id where c.kind = 'commitment' and c.done_at is null and c.status != 'rejected' and (c.status = 'confirmed' or c.confidence >= ?) order by c.direction = 'mine' desc, c.due = '', c.due, c.id").all(SHOW_FROM) as (CRow & { person_name: string })[]).map((r) => ({ ...toClaim(r), personName: r.person_name }));
 
+/** The claims read from a source ("fact:12") — or, `prefix`, from any of its kind ("fact:") — whatever became of them. */
+export const claimsFrom = (ref: string, opts: { prefix?: boolean } = {}): Claim[] =>
+  (opts.prefix
+    ? (db().prepare("select * from people_claims where substr(source_ref, 1, length(?)) = ?").all(ref, ref) as CRow[])
+    : (db().prepare("select * from people_claims where source_ref = ?").all(ref) as CRow[])
+  ).map(toClaim);
+
+/** A claim's text and evidence changed (its source changed); false when another claim of theirs says that already. */
+export function setClaimText(id: number, text: string, evidence: string): boolean {
+  const r = db().prepare("update or ignore people_claims set text = ?, evidence = ? where id = ?").run(clip(text, 300), clip(evidence, 300), id);
+  if (r.changes) changed();
+  return r.changes > 0;
+}
+
+export function deleteClaim(id: number): void {
+  if (db().prepare("delete from people_claims where id = ?").run(id).changes) changed();
+}
+
 export function reviewClaim(id: number, op: "confirm" | "reject" | "done" | "recheck"): void {
   const d = db();
   const row = d.prepare("select kind from people_claims where id = ?").get(id) as { kind: string } | undefined;
@@ -162,6 +181,8 @@ export function reviewClaim(id: number, op: "confirm" | "reject" | "done" | "rec
   else if (op === "recheck") d.prepare("update people_claims set confirmed_at = ?, expires_at = ? where id = ?").run(now(), days(shelf ?? 120), id);
   else if (op === "done") d.prepare("update people_claims set done_at = ? where id = ?").run(now(), id);
   else d.prepare("update people_claims set status = 'rejected' where id = ?").run(id);
+  // Confirmed: knowledge of their entity on the knowledge server (taken out again when rejected later).
+  if ((op === "confirm" || op === "reject") && claimReviewed(id)) flushSoon();
   changed();
 }
 

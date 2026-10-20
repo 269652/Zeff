@@ -67,3 +67,9 @@ export async function knowledgePerson(v: { id?: number | null; name?: string }):
     throw e;
   }
 }
+
+/** A fact you confirmed about a person, kept with their entity (a line of their page; the same ref replaces it, an empty text removes it). */
+export const knowledgePersonFact = (entityId: number, v: { ref: string; text: string }) => call<{ page: string }>(`/api/people/${entityId}/facts`, { method: "POST", body: v, timeoutMs: 8000 });
+
+/** One person the knowledge keeps as several entities made one: `drop`'s pages, relations and names go to `keep`. */
+export const knowledgeMergePeople = (keep: number, drop: number[]) => call<KnowledgeEntityDetail>("/api/people/merge", { method: "POST", body: { keep, drop }, timeoutMs: 15000 });

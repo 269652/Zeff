@@ -152,6 +152,13 @@ async function matchNames(): Promise<NormalizeResult> {
     } catch {
       // the sources aren't there, then
     }
+    // Zeff's facts on the profiles they name (no AI); what you confirmed and the knowledge didn't get yet, sent.
+    try {
+      (await import("./synergy")).syncFactClaims();
+      (await import("./knowledge-sync")).flushSoon();
+    } catch (e) {
+      console.warn("[people] facts:", errorMessage(e));
+    }
     const people = listPeople();
     // The todos: open ones, and those of the last 30 days.
     const since = new Date(Date.now() - 30 * 864e5).toISOString();

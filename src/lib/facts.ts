@@ -1,6 +1,8 @@
 import { desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { emitChange } from "@/lib/events";
+import { isInstalled } from "@/plugins/state";
+import { mirrorFact, unmirrorFact } from "@/plugins/people/synergy";
 import { factRef, type FactView } from "./facts-shared";
 
 export type { FactView } from "./facts-shared";
@@ -23,8 +25,26 @@ const toView = (r: typeof facts.$inferSelect): FactView => ({
   updatedAt: r.updatedAt,
 });
 
-/** A fact kept — one per subject (case aside): a newer text replaces the old one, its sources added. */
-export function addFact(v: { subject: string; text: string; refs: string[] }): FactView | null {
+/** What a fact about someone becomes on their profile (the People plugin): a claim of theirs — never in the way of keeping it. */
+function onPeople(fn: () => void) {
+  try {
+    if (isInstalled("people")) fn();
+  } catch (e) {
+    console.warn("[facts] people:", e instanceof Error ? e.message : String(e));
+  }
+}
+
+/**
+ * A fact kept — one per subject (case aside): a newer text replaces the old one, its sources added.
+ * `fromUser`: you said it (its claim on a profile is confirmed at once).
+ */
+export function addFact(v: { subject: string; text: string; refs: string[] }, opts: { fromUser?: boolean } = {}): FactView | null {
+  const view = keepFact(v);
+  if (view) onPeople(() => mirrorFact(view, opts));
+  return view;
+}
+
+function keepFact(v: { subject: string; text: string; refs: string[] }): FactView | null {
   const subject = v.subject.trim().slice(0, 200);
   const text = v.text.trim().slice(0, 2000);
   if (!subject || !text) return null;
@@ -40,6 +60,13 @@ export function addFact(v: { subject: string; text: string; refs: string[] }): F
   const row = db.insert(facts).values({ subject, text, refs: JSON.stringify([...new Set(v.refs)].slice(0, 20)), createdAt: now, updatedAt: now }).returning().get();
   emitChange("todos");
   return toView(row);
+}
+
+/** A fact gone — and its claims on profiles with it. */
+export function deleteFact(id: number): void {
+  if (!getDb().delete(facts).where(eq(facts.id, id)).run().changes) return;
+  onPeople(() => unmirrorFact(id));
+  emitChange("todos");
 }
 
 /** The facts with these refs ("fact:12"), by ref. */
