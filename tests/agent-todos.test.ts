@@ -79,3 +79,23 @@ test("deliveryTodo: its own todo with the actions; one that already pushes the b
   const mrOp = c.todo.ops[1] as { source: string };
   assert.equal(mrOp.source, "feature/PROJ-10-x", "the merge request is from what that push pushes");
 });
+
+test("todo_note: the AI leaves a note on a todo (an AI note, with its name; shown among the todo's notes)", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("todos", true);
+  const t = await tools();
+  assert.ok(t.todo_note, "the tool is there");
+  const { addManualTodo, getTodo } = await import("@/lib/boards/store");
+  const todo = addManualTodo({ ticket: "NOTE-1", text: "Etwas prüfen" });
+  const r = await t.todo_note({ todo: todo.ref, note: "Der Fix liegt auf feature/NOTE-1-x; Tests laufen.", agent: "Copilot", url: "https://git.example.com/mr/1", urlLabel: "MR !1" });
+  assert.ok(!r.isError, text(r));
+  const notes = getTodo(todo.id)!.userNotes;
+  assert.equal(notes.length, 1);
+  assert.equal(notes[0].text, "Der Fix liegt auf feature/NOTE-1-x; Tests laufen.");
+  assert.equal((notes[0] as { by?: string }).by, "Copilot");
+  assert.equal((notes[0] as { urlLabel?: string }).urlLabel, "MR !1");
+  const empty = await t.todo_note({ todo: todo.ref, note: "   " });
+  assert.ok(empty.isError, "an empty note is refused");
+  const gone = await t.todo_note({ todo: "T-999999", note: "x" });
+  assert.ok(gone.isError);
+});

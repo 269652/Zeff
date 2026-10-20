@@ -15,7 +15,7 @@ import {
   type WeeklyReport,
 } from "@/lib/entries";
 import { attributed } from "@/lib/boards/activity";
-import { addAgentTodo, getTodo, listTodos, markWorkerDone, setTodoStatus, tickAgentTodo } from "@/lib/boards/store";
+import { addAgentTodo, addTodoAiNote, getTodo, listTodos, markWorkerDone, setTodoStatus, tickAgentTodo } from "@/lib/boards/store";
 import { parseTodoRef, todoRef } from "@/lib/boards/shared";
 import { formatHours } from "@/lib/format";
 import { getTicketDefaultJob } from "@/lib/jira/store";
@@ -761,6 +761,36 @@ export function registerZeffTools(server: McpServer): void {
             (r.added.length ? ` Follow-ups: ${r.added.map((id) => todoRef(id)).join(", ")}.` : "") +
             (r.delivery ? ` Delivery: ${r.delivery}.` : args.branch ? "" : " No branch given — if you changed code, tell the user which branch it's on."),
         );
+      }),
+  );
+
+  server.registerTool(
+    "todo_note",
+    {
+      title: "Leave an AI note on a todo",
+      description:
+        "Write a note on a todo (T-<id>, see list_todos) — what you found, did or decided, in a few lines, optionally with a link (a merge request, a page). It shows among the todo's notes as an AI note with your name, and is context for the user, the Lage and the next worker. Not for questions to the user (todo_needs_input) and not a progress line (todo_progress).",
+      inputSchema: z.object({
+        todo: z.string().min(1).describe("The todo, e.g. 'T-12'."),
+        note: z.string().min(1).describe("The note, a few lines (Markdown)."),
+        agent: z.string().optional().describe("Your name, e.g. 'Copilot' or 'W-45'. Shown with the note."),
+        url: z.string().optional().describe("A link the note refers to."),
+        urlLabel: z.string().optional().describe("The link's text."),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    },
+    async (args) =>
+      run(() => {
+        const off = pluginOff("todos");
+        if (off) return off;
+        const id = parseTodoRef(args.todo);
+        if (id === null) return fail(`"${args.todo}" isn't a todo reference like T-12.`);
+        const t = getTodo(id);
+        if (!t) return fail(`Todo ${args.todo} not found.`);
+        if (!args.note.trim()) return fail("The note is empty.");
+        const url = args.url && /^https?:\/\//i.test(args.url.trim()) ? args.url.trim() : undefined;
+        attributed(`agent:${args.agent || "MCP"}`, () => addTodoAiNote(id, { text: args.note, by: (args.agent || "MCP").slice(0, 80), ...(url ? { url, urlLabel: args.urlLabel?.slice(0, 80) } : {}) }));
+        return ok(`Note left on ${t.ref} (${t.ticket || "no ticket"}).`);
       }),
   );
 
