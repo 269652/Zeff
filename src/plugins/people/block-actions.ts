@@ -46,7 +46,15 @@ export async function personOpAction(rowId: number, op: PersonOperation): Promis
   });
 }
 
-export type KnowledgeOfPerson = { summary: string; related: { name: string; rels: string[] }[]; pages: { id: string; title: string; space: string; href: string }[]; graph: string | null; error: string | null };
+export type KnowledgeOfPerson = {
+  summary: string;
+  related: { name: string; rels: string[] }[];
+  pages: { id: string; title: string; space: string; href: string }[];
+  graph: string | null;
+  error: string | null;
+  /** The knowledge keeps them as several entries: a merge to confirm. */
+  merge?: { id: number; names: string[] } | null;
+};
 
 const wikiCache = new Map<number, { at: number; wiki: KnowledgeOfPerson | null }>();
 
@@ -74,7 +82,11 @@ async function personWiki(id: number): Promise<KnowledgeOfPerson | null> {
       const { knowledgeEntitiesOf } = await import("./identity");
       // Every entity that is them — the knowledge may keep someone twice, under a name the profile has only as an alias
       // (or the other way round), or by their address. The kept one first; without the list, the kept one or the name.
-      const matched = knowledgeEntitiesOf(p, await knowledgePersons().catch(() => []));
+      const persons = await knowledgePersons().catch(() => null);
+      const matched = knowledgeEntitiesOf(p, persons ?? []);
+      // Several: one entry to make of them (you confirm it on the card) — the list not read, what waits stays.
+      const { knowledgeMergeOf, proposeKnowledgeMerge } = await import("./knowledge-sync");
+      const merge = persons ? proposeKnowledgeMerge(p.id, matched) : knowledgeMergeOf(p.id);
       const ids = [...new Set([...(p.entityId ? [p.entityId] : []), ...matched.map((e) => e.id)])].slice(0, 3);
       let entities = (await Promise.all(ids.map((eid) => knowledgePerson({ id: eid })))).filter((e) => !!e);
       if (!entities.length) for (const n of [p.name, ...p.aliases]) if ((entities = [await knowledgePerson({ name: n })].filter((e) => !!e)).length) break;
@@ -102,11 +114,28 @@ async function personWiki(id: number): Promise<KnowledgeOfPerson | null> {
         pages: [...pages.values()].slice(0, 30),
         graph: `${base}/graph?e=${entity.id}`,
         error: null,
+        merge: merge ? { id: merge.id, names: merge.names } : null,
       };
     } catch (e) {
       return { summary: "", related: [], pages: [], graph: null, error: errorMessage(e) };
     }
   }
+}
+
+/** The knowledge's entries of them made one (`merge`), or the proposal dismissed. */
+export async function personKnowledgeMergeAction(rowId: number, mergeId: number, op: "merge" | "dismiss"): Promise<Result<{ entityId?: number }>> {
+  return run(async () => {
+    const id = personId(rowId);
+    const { acceptKnowledgeMerge, knowledgeMergeOf, rejectKnowledgeMerge } = await import("./knowledge-sync");
+    if (knowledgeMergeOf(id)?.id !== Number(mergeId)) throw new Error(t("This proposal is no longer open."));
+    wikiCache.delete(id);
+    if (op === "dismiss") {
+      rejectKnowledgeMerge(Number(mergeId));
+      return {};
+    }
+    const m = await acceptKnowledgeMerge(Number(mergeId));
+    return { entityId: m?.keepId };
+  });
 }
 
 /** The overview of the people database (its "People" view). */

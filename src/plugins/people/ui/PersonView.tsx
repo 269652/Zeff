@@ -6,7 +6,7 @@ import { Fragment, useCallback, useEffect, useState, useSyncExternalStore, type 
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { confirmAction } from "@/components/confirm";
-import { personBundleAction, personOpAction, personWikiAction, type KnowledgeOfPerson } from "../block-actions";
+import { personBundleAction, personKnowledgeMergeAction, personOpAction, personWikiAction, type KnowledgeOfPerson } from "../block-actions";
 import type { PersonBundle, PersonOperation } from "../blocks";
 
 /**
@@ -657,13 +657,14 @@ function Known({ d, run }: { d: PersonBundle; run: RunFn }) {
 function Wiki({ rowId }: { rowId: number }) {
   const t = useT();
   const [wiki, setWiki] = useState<KnowledgeOfPerson | null | undefined>(undefined);
+  const [reload, setReload] = useState(0);
   useEffect(() => {
     let live = true;
     void personWikiAction(rowId).then((r) => live && setWiki(r.ok ? r.wiki : null));
     return () => {
       live = false;
     };
-  }, [rowId]);
+  }, [rowId, reload]);
   if (wiki === null) return null;
   return (
     <Card title={t("What the knowledge knows")} extra={wiki?.graph ? <a href={wiki.graph} target="_blank" rel="noreferrer" className="text-xs font-normal tracking-normal text-indigo-600 normal-case hover:underline dark:text-indigo-400">{t("In the graph ↗")}</a> : undefined}>
@@ -675,6 +676,7 @@ function Wiki({ rowId }: { rowId: number }) {
         <Empty>{t("The knowledge knows nobody of this name. An alias — what the person is called in your pages — helps.")}</Empty>
       ) : (
         <>
+          {wiki.merge && <KnowledgeMerge rowId={rowId} merge={wiki.merge} done={() => setReload((n) => n + 1)} />}
           {wiki.summary && <p className="text-sm">{wiki.summary}</p>}
           {wiki.related.length > 0 && (
             <ul className="space-y-1 text-sm">
@@ -708,6 +710,33 @@ function Wiki({ rowId }: { rowId: number }) {
         </>
       )}
     </Card>
+  );
+}
+
+/** The knowledge keeps them as several entries: merged there once you say so (Wiki card). */
+function KnowledgeMerge({ rowId, merge, done }: { rowId: number; merge: NonNullable<KnowledgeOfPerson["merge"]>; done: () => void }) {
+  const t = useT();
+  const [busy, setBusy] = useState(false);
+  const act = async (op: "merge" | "dismiss") => {
+    setBusy(true);
+    const r = await personKnowledgeMergeAction(rowId, merge.id, op);
+    setBusy(false);
+    if (!r.ok) return toast(r.error, { tone: "error" });
+    if (op === "merge") toast(t("Merged in the knowledge."));
+    done();
+  };
+  return (
+    <div className="rounded border border-amber-200 bg-amber-50 p-2 text-xs dark:border-amber-900 dark:bg-amber-950/40">
+      <p>{t("The knowledge keeps them as {n} entries: {names}.", { n: merge.names.length, names: merge.names.join(", ") })}</p>
+      <div className="mt-1 flex gap-2">
+        <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void act("merge")}>
+          {t("Merge the {n} knowledge entries", { n: merge.names.length })}
+        </button>
+        <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void act("dismiss")}>
+          {t("Not the same")}
+        </button>
+      </div>
+    </div>
   );
 }
 
