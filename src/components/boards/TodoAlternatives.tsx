@@ -6,6 +6,8 @@ import { useTransition } from "react";
 import { runTodoAlternativeAction } from "@/plugins/todos/server-actions";
 import { opsButton, type TodoView } from "@/lib/boards/shared";
 import { toast } from "../Toaster";
+import { opLook } from "@/lib/boards/op-look";
+import { ActionCard } from "./ActionCard";
 import { useT } from "@/components/I18nProvider";
 
 /** The blue chip an operation (or an alternative) is shown as. */
@@ -29,42 +31,36 @@ export function TodoAlternatives({
   if (!todo.alternatives?.length) return null;
   return (
     <>
-      {todo.alternatives.map((a) => (
-        <span
-          key={a.label}
-          className="flex items-center gap-2 max-sm:flex-col max-sm:items-start"
-        >
-          <span className={`${OP_CHIP} min-w-0 flex-1`}>
-            ⚡ {a.label}
-            <span className="block text-xs text-sky-950/80 dark:text-sky-100/80">
-              {a.title}
-            </span>
-          </span>
-          <button
-            type="button"
-            className="btn btn-sm btn-primary shrink-0"
-            disabled={disabled || pending}
-            title={a.title}
-            onClick={() => {
-              if (
-                a.ops.some((o) => o.type === "git-merge-main") &&
-                !confirmAction(`${a.title}?`)
-              )
-                return;
-              start(async () => {
-                const r = await runTodoAlternativeAction(todo.id, a.label);
-                toast(
-                  r?.ok ? (r.message ?? t("Running.")) : (r?.error ?? t("Didn't work.")),
-                  { tone: r?.ok ? "ok" : "error" },
-                );
-                router.refresh();
-              });
-            }}
-          >
-            {pending ? "…" : opsButton(a.ops, t)}
-          </button>
-        </span>
-      ))}
+      {todo.alternatives.map((a) => {
+        const look = opLook(a.ops[0]?.type ?? "");
+        return (
+          <ActionCard
+            key={a.label}
+            tone={look.tone}
+            icon={look.icon}
+            title={a.label}
+            detail={a.title}
+            action={
+              <button
+                type="button"
+                className="btn btn-sm btn-primary rounded-full px-3.5 shadow-sm"
+                disabled={disabled || pending}
+                title={a.title}
+                onClick={() => {
+                  if (a.ops.some((o) => o.type === "git-merge-main") && !confirmAction(`${a.title}?`)) return;
+                  start(async () => {
+                    const r = await runTodoAlternativeAction(todo.id, a.label);
+                    toast(r?.ok ? (r.message ?? t("Running.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" });
+                    router.refresh();
+                  });
+                }}
+              >
+                {pending ? "…" : opsButton(a.ops, t)}
+              </button>
+            }
+          />
+        );
+      })}
     </>
   );
 }

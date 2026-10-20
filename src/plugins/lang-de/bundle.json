@@ -6148,5 +6148,8 @@
   "Also show it as days since (a column that counts up)": "Auch als „Tage seit“ zeigen (eine Spalte, die hochzählt)",
   "Done — click: reopen it": "Erledigt — Klick: wieder öffnen",
   "Resolve this thread in GitLab": "Diesen Thread in GitLab auflösen",
-  "Mark as done": "Als erledigt markieren"
+  "Mark as done": "Als erledigt markieren",
+  "Layout of the actions": "Anordnung der Aktionen",
+  "Actions as rows": "Aktionen als Zeilen",
+  "Actions as a gallery": "Aktionen als Galerie"
 }

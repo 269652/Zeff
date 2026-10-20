@@ -2,10 +2,11 @@
 
 import { actionHref } from "@/plugins/actions/catalog";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { doneBrowserOpAction, removeTodoOpAction, saveTodoOpTextAction } from "@/plugins/todos/server-actions";
 import { opNote, type TodoView } from "@/lib/boards/shared";
-import { opLook, TONE } from "@/lib/boards/op-look";
+import { opLook } from "@/lib/boards/op-look";
+import { ActionCard, TOOL_BUTTON } from "./ActionCard";
 import { toast } from "../Toaster";
 import { CheckIcon, CloseIcon, PencilIcon } from "../icons";
 import { useT } from "@/components/I18nProvider";
@@ -17,8 +18,11 @@ export function OpChips({
   todoId,
   notes = {},
   indices,
+  action,
 }: {
   ops: TodoView["ops"];
+  /** The button that runs the (single) action, shown inside its card. */
+  action?: ReactNode;
   /** Where `ops` sit on the todo (when they're only some of its operations) — what editing or removing one refers to. */
   indices?: number[];
   className?: string;
@@ -30,7 +34,7 @@ export function OpChips({
   return (
     <span className={`flex flex-col gap-1 ${className}`}>
       {ops.map((o, i) => (
-        <OpChip key={i} op={o} index={indices?.[i] ?? i} todoId={todoId} note={"note" in o ? notes[o.note] : undefined} />
+        <OpChip key={i} op={o} index={indices?.[i] ?? i} todoId={todoId} note={"note" in o ? notes[o.note] : undefined} action={ops.length === 1 ? action : undefined} />
       ))}
     </span>
   );
@@ -42,8 +46,10 @@ function OpChip({
   index,
   todoId,
   note,
+  action,
 }: {
   op: TodoView["ops"][number];
+  action?: ReactNode;
   index: number;
   todoId?: number;
   /** The GitLab comment it's about, as synced. */
@@ -58,95 +64,88 @@ function OpChip({
   const [pending, start] = useTransition();
   const look = opLook(op.type);
   const [more, setMore] = useState(false);
-  const icon = "rounded p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-50 dark:hover:bg-zinc-800 dark:hover:text-zinc-200";
+  const tools = (
+    <>
+      {body !== null && todoId !== undefined && !editing && (
+        <button
+          type="button"
+          className={TOOL_BUTTON}
+          onClick={() => {
+            setText(body);
+            setEditing(true);
+          }}
+          title={t("Edit the text")}
+          aria-label={t("Edit the text")}
+        >
+          <PencilIcon className="size-3.5" />
+        </button>
+      )}
+      {/* Done in Outlook (saved, sent): Zeff can't see it — you say so (✓), and it's noted on the todo. */}
+      {href && todoId !== undefined && (
+        <button
+          type="button"
+          className={`${TOOL_BUTTON} hover:!text-emerald-600`}
+          disabled={pending}
+          onClick={() =>
+            start(async () => {
+              const r = await doneBrowserOpAction(todoId, index);
+              toast(r?.ok ? (r.message ?? t("Noted.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" });
+              router.refresh();
+            })
+          }
+          title={op.type === "calendar-event" ? t("Done: the meeting is created in Outlook — note it on the todo") : t("Done: the mail is sent — note it on the todo")}
+          aria-label={t("Done")}
+        >
+          <CheckIcon className="size-3.5" />
+        </button>
+      )}
+      {/* Not wanted: off the todo, no trace (×). */}
+      {todoId !== undefined && (
+        <button
+          type="button"
+          className={`${TOOL_BUTTON} hover:!text-red-600`}
+          disabled={pending}
+          onClick={() =>
+            start(async () => {
+              const r = await removeTodoOpAction(todoId, index);
+              if (!r?.ok) toast(r?.error ?? t("Didn't work."), { tone: "error" });
+              router.refresh();
+            })
+          }
+          title={t("Dismiss — takes the action off the todo, without a note")}
+          aria-label={t("Dismiss the action")}
+        >
+          <CloseIcon className="size-3.5" />
+        </button>
+      )}
+    </>
+  );
+  const detailNode = note ? (
+    <a
+      href={note.url}
+      target="_blank"
+      rel="noreferrer"
+      className="hover:text-indigo-600 hover:underline dark:hover:text-indigo-300"
+      title={t("{note} — open in GitLab", { note: "note" in op ? op.note : "" })}
+    >
+      {note.author ?? t("Comment")}: “{note.excerpt}”{note.state === "resolved" ? ` ${t("(already resolved)")}` : ""} ↗
+    </a>
+  ) : (
+    detail
+  );
   return (
-    <span className={`group/op flex max-w-full flex-col gap-1.5 rounded-lg border border-l-4 border-zinc-200 bg-white px-2.5 py-2 shadow-sm transition hover:shadow dark:border-zinc-700 dark:bg-zinc-900 ${TONE[look.tone].bar}`}>
-      <span className="flex items-start gap-2.5">
-        <span className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold ${TONE[look.tone].bubble}`} aria-hidden>
-          {look.icon}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm leading-snug font-medium">{heading}</span>
-          {note ? (
-            <a
-              href={note.url}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-0.5 block text-xs break-words text-zinc-500 hover:text-indigo-600 hover:underline dark:text-zinc-400 dark:hover:text-indigo-300"
-              title={t("{note} — open in GitLab", { note: "note" in op ? op.note : "" })}
-            >
-              {note.author ?? t("Comment")}: “{note.excerpt}”{note.state === "resolved" ? ` ${t("(already resolved)")}` : ""} ↗
-            </a>
-          ) : (
-            detail && <span className="mt-0.5 block text-xs break-words text-zinc-500 dark:text-zinc-400">{detail}</span>
-          )}
-        </span>
-        {href && (
-          <a
-            href={href}
-            target="_blank"
-            rel="noreferrer"
-            className="shrink-0 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700 hover:bg-sky-100 dark:bg-sky-950 dark:text-sky-300 dark:hover:bg-sky-900"
-            title={t("Opens filled in in {app} — check it and send it yourself", { app: openIn(href) })}
-          >
-            {t("Open in {app}", { app: openIn(href) })} ↗
-          </a>
-        )}
-        <span className="flex shrink-0 items-center gap-0.5 opacity-50 transition group-hover/op:opacity-100 focus-within:opacity-100">
-          {body !== null && todoId !== undefined && !editing && (
-            <button
-              type="button"
-              className={icon}
-              onClick={() => {
-                setText(body);
-                setEditing(true);
-              }}
-              title={t("Edit the text")}
-              aria-label={t("Edit the text")}
-            >
-              <PencilIcon className="size-3.5" />
-            </button>
-          )}
-          {/* Done in Outlook (saved, sent): Zeff can't see it — you say so (✓), and it's noted on the todo. */}
-          {href && todoId !== undefined && (
-            <button
-              type="button"
-              className={`${icon} hover:!text-emerald-600`}
-              disabled={pending}
-              onClick={() =>
-                start(async () => {
-                  const r = await doneBrowserOpAction(todoId, index);
-                  toast(r?.ok ? (r.message ?? t("Noted.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" });
-                  router.refresh();
-                })
-              }
-              title={op.type === "calendar-event" ? t("Done: the meeting is created in Outlook — note it on the todo") : t("Done: the mail is sent — note it on the todo")}
-              aria-label={t("Done")}
-            >
-              <CheckIcon className="size-3.5" />
-            </button>
-          )}
-          {/* Not wanted: off the todo, no trace (×). */}
-          {todoId !== undefined && (
-            <button
-              type="button"
-              className={`${icon} hover:!text-red-600`}
-              disabled={pending}
-              onClick={() =>
-                start(async () => {
-                  const r = await removeTodoOpAction(todoId, index);
-                  if (!r?.ok) toast(r?.error ?? t("Didn't work."), { tone: "error" });
-                  router.refresh();
-                })
-              }
-              title={t("Dismiss — takes the action off the todo, without a note")}
-              aria-label={t("Dismiss the action")}
-            >
-              <CloseIcon className="size-3.5" />
-            </button>
-          )}
-        </span>
-      </span>
+    <ActionCard tone={look.tone} icon={look.icon} title={heading} detail={detailNode} action={action} tools={tools}>
+      {href && (
+        <a
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          className="self-start rounded-full bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700 hover:bg-sky-100 dark:bg-sky-950 dark:text-sky-300 dark:hover:bg-sky-900"
+          title={t("Opens filled in in {app} — check it and send it yourself", { app: openIn(href) })}
+        >
+          {t("Open in {app}", { app: openIn(href) })} ↗
+        </a>
+      )}
       {!!files?.length && (
         <details className="text-xs text-zinc-500 dark:text-zinc-400">
           <summary className="cursor-pointer">{t("Show files")}</summary>
@@ -221,7 +220,7 @@ function OpChip({
             </span>
           ))
         ))}
-    </span>
+    </ActionCard>
   );
 }
 

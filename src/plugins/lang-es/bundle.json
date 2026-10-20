@@ -6148,5 +6148,8 @@
   "Also show it as days since (a column that counts up)": "Mostrar también como «días desde» (una columna que va subiendo)",
   "Done — click: reopen it": "Hecho — clic: reabrir",
   "Resolve this thread in GitLab": "Resolver este hilo en GitLab",
-  "Mark as done": "Marcar como hecho"
+  "Mark as done": "Marcar como hecho",
+  "Layout of the actions": "Disposición de las acciones",
+  "Actions as rows": "Acciones en filas",
+  "Actions as a gallery": "Acciones como galería"
 }

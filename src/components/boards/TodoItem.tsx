@@ -14,6 +14,7 @@ import {
   type TodoStatus,
   type TodoView,
 } from "@/lib/boards/shared";
+import { ActionLayoutToggle, layoutClass, useActionLayout } from "./ActionCard";
 import { OpChips } from "./OpChips";
 import type { TicketCard } from "@/lib/jira/ticket-card-shared";
 import { isChatFolder } from "@/lib/mail/shared";
@@ -222,6 +223,7 @@ export function TodoItem({
     : undefined;
   // Every action has its own button: a hand-over to a worker keeps running while a reply is posted, a push is no part of either.
   const opGroups: { idx: number[] }[] = todo.ops.map((_, i) => ({ idx: [i] }));
+  const [layout] = useActionLayout();
   // New since you last looked: lightly highlighted till the mouse passes over it.
   const [fresh, markSeen] = useTodoNew(todo.id, todo.createdAt, todo.mergedAt);
   // (A worker's own todo is quiet: never "new".)
@@ -425,38 +427,35 @@ export function TodoItem({
         )}
         {todo.ops.length > 0 && !closed && (proposedAll ? proposed && showActions : foldable ? showActions : true) && (
           <span className="mt-1.5 flex flex-col gap-1.5">
-            {/* Proposed by the auto-actions review: said so, and why. */}
-            {proposed && (
-              <span
-                className="flex items-start gap-1.5 rounded-md bg-violet-50 px-2 py-1 text-xs text-violet-800 dark:bg-violet-950/40 dark:text-violet-200"
-                title={t("Suggested by the auto-actions step — review, adjust (✎), then run")}
-              >
-                <SparkIcon className="mt-px size-3.5 shrink-0" />
-                <span>{t("Suggested: {why}", { why: todo.autoOpsWhy })}</span>
-                <ProposeAgain todoId={todo.id} />
-              </span>
-            )}
-            {/* Each group of actions with its own button: a push of the branch is no part of a hand-over to a worker. */}
-            {opGroups.map((g, gi) => {
-              const runnable = g.idx.filter((i) => !actionHref(todo.ops[i]));
-              const runOps = runnable.map((i) => todo.ops[i]);
-              const sig = runOps.map((o) => JSON.stringify(o)).join("|");
-              const justRan = ran.includes(sig);
-              return (
-                <span key={gi} className="flex items-center gap-2 max-sm:flex-col max-sm:items-stretch">
-                  {(!foldable || showActions) && (
-                    <OpChips
-                      ops={g.idx.map((i) => todo.ops[i])}
-                      indices={g.idx}
-                      className="min-w-0 flex-1 items-stretch"
-                      todoId={doing || running ? undefined : todo.id}
-                      notes={todo.links?.notes}
-                    />
-                  )}
-                  {runOps.length > 0 && (
+            {/* Proposed by the auto-actions review: said so, and why — and the switch between rows and a gallery. */}
+            <span className="flex items-start justify-between gap-2">
+              {proposed ? (
+                <span
+                  className="flex min-w-0 flex-1 items-start gap-1.5 rounded-md bg-violet-50 px-2 py-1 text-xs text-violet-800 dark:bg-violet-950/40 dark:text-violet-200"
+                  title={t("Suggested by the auto-actions step — review, adjust (✎), then run")}
+                >
+                  <SparkIcon className="mt-px size-3.5 shrink-0" />
+                  <span>{t("Suggested: {why}", { why: todo.autoOpsWhy })}</span>
+                  <ProposeAgain todoId={todo.id} />
+                </span>
+              ) : (
+                <span />
+              )}
+              {todo.ops.length + (todo.alternatives?.length ?? 0) > 1 && <ActionLayoutToggle />}
+            </span>
+            {/* Each action is a card of its own, with its button inside: a push of the branch is no part of a hand-over to a worker. */}
+            <span className={layoutClass(layout)}>
+              {opGroups.map((g, gi) => {
+                const runnable = g.idx.filter((i) => !actionHref(todo.ops[i]));
+                const runOps = runnable.map((i) => todo.ops[i]);
+                const sig = runOps.map((o) => JSON.stringify(o)).join("|");
+                const justRan = ran.includes(sig);
+                if (foldable && !showActions) return null;
+                const button =
+                  runOps.length > 0 ? (
                     <button
                       type="button"
-                      className="btn btn-sm btn-primary shrink-0 self-center rounded-full px-3.5 shadow-sm"
+                      className="btn btn-sm btn-primary shrink-0 rounded-full px-3.5 shadow-sm"
                       disabled={doing || doingAt !== null || justRan || (running && runOps.some((o) => o.type === "work-instruct")) || !!todo.blockedBy}
                       title={todo.blockedBy ? t("Waiting: {what} — the GitLab sync notices once it's ready", { what: todo.blockedBy }) : t("Zeff does it itself, no AI: {ops}", { ops: runOps.map((o) => opTitle(o, t)).join(" · ") })}
                       onClick={() => {
@@ -479,16 +478,26 @@ export function TodoItem({
                     >
                       {doingAt === gi || (running && runOps.some((o) => o.type === "work-instruct")) ? t("running…") : justRan ? t("done") : opsButton(runOps, t)}
                     </button>
-                  )}
-                </span>
-              );
-            })}
+                  ) : undefined;
+                return (
+                  <OpChips
+                    key={gi}
+                    ops={g.idx.map((i) => todo.ops[i])}
+                    indices={g.idx}
+                    className="min-w-0 items-stretch"
+                    todoId={doing || running ? undefined : todo.id}
+                    notes={todo.links?.notes}
+                    action={button}
+                  />
+                );
+              })}
+              <TodoAlternatives t={todo} disabled={doing || running} />
+            </span>
             {outcome && (
               <span role="status" className={`text-xs ${outcome.ok ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
                 {outcome.ok ? "✓" : "✗"} {outcome.text}
               </span>
             )}
-            <TodoAlternatives t={todo} disabled={doing || running} />
           </span>
         )}
         {/* What comes after it — last, under its actions. */}
