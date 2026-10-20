@@ -18,6 +18,7 @@ import { aiChoice, runAi } from "@/lib/ai";
 import { emitChange } from "@/lib/events";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
+import { withoutAppointments } from "@/lib/boards/recurring";
 import { cleanOps, opsDictionary, sourcesOf, TODO_KIND_LABELS, type TodoOp, type TodoView } from "@/lib/boards/shared";
 import { plain } from "@/lib/boards/collect";
 import { commentTodos, dropObsoleteInstructs, withCommentOps } from "@/lib/boards/comment-ops";
@@ -352,7 +353,8 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
       for (const { t } of batch) {
         const a = said.get(t.id);
         // Its actions, by their own rules, of installed plugins — none to myself.
-        const ops: TodoOp[] = cleanOps(a?.ops ?? [], t.ticket || "")
+        // (A todo that comes back has its series in the calendar: no appointment for it.)
+        const ops: TodoOp[] = withoutAppointments(cleanOps(a?.ops ?? [], t.ticket || ""), !!t.recurrence)
           .filter((o) => opAvailable(o.type) && !(o.type === "teams-message" && me && o.to.toLowerCase() === me.toLowerCase()))
           // An appointment into a free time (mine, and the ones placed before it).
           .map((o) =>

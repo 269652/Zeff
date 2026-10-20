@@ -97,3 +97,17 @@ test("the appointments are the todo's context: its sources list the series and t
   const next = listTodos({ status: "open" }).find((x) => x.text === t.text)!;
   assert.equal(calRefs(next.id).length, 1, "the next todo has the series");
 });
+
+test("a todo with its series in the calendar needs no appointment actions — they go, and the auto-actions don't propose them", async () => {
+  const { addManualTodo, getTodo, setTodoDue, setTodoOps } = await import("@/lib/boards/store");
+  const { setRecurrence, withoutAppointments } = await import("@/lib/boards/recurring");
+  const t = addManualTodo({ ticket: "KB-2", text: "Rate 300 € überweisen (Az. DR II 9/26)" });
+  setTodoDue(t.id, "2026-11-15");
+  const entry = { type: "calendar-entry", calendar: "", title: "Rate", start: "2026-11-15T11:00", minutes: 15, body: "" } as const;
+  const transfer = { type: "bank-transfer", name: "Dienstkonto", iban: "DE22 6609 0800 0007 7773 02", bic: "", amount: "300.00", purpose: "DR II 9/26" } as const;
+  setTodoOps(t.id, [entry, transfer] as never, undefined, true);
+  setRecurrence(t.id, monthly15);
+  assert.deepEqual(getTodo(t.id)!.ops.map((o) => o.type), ["bank-transfer"], "the series is the appointment");
+  assert.deepEqual(withoutAppointments([entry, transfer] as never, true).map((o) => o.type), ["bank-transfer"]);
+  assert.equal(withoutAppointments([entry] as never, false).length, 1, "a todo without a rule keeps its appointment");
+});

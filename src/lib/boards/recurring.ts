@@ -4,7 +4,7 @@ import { addEvent, deleteEvent, updateEvent, zeffCalendar } from "@/lib/calendar
 import { addDays, occurrenceDays, parseTodoRecurrence, type TodoRecurrence } from "@/lib/calendar/recurrence";
 import { getPref, setPref } from "@/lib/prefs";
 import { recurrenceFromText } from "./recurrence-text";
-import { dueDay } from "./shared";
+import { dueDay, type TodoOp } from "./shared";
 
 const { todos, calendarEvents } = schema;
 
@@ -25,6 +25,12 @@ export function nextDue(rule: TodoRecurrence, due: string, from = today()): stri
   const days = occurrenceDays(rule.start ?? due, rule, FAR, 4000);
   return days.find((d) => d > due && d >= from) ?? null;
 }
+
+/** The actions that make an appointment (Zeff's calendar, Google, Outlook). */
+const APPOINTMENTS = new Set<string>(["calendar-entry", "gcal-event", "calendar-event"]);
+
+/** A todo's actions without the appointments when it comes back (`recurring`): its series in the calendar is its appointment. */
+export const withoutAppointments = <T extends Pick<TodoOp, "type">>(ops: T[], recurring: boolean): T[] => (recurring ? ops.filter((o) => !APPOINTMENTS.has(o.type)) : ops);
 
 /** The series of the calendar for a todo (its repeats), and the appointment of its first due day. */
 const seriesOf = (todoId: number) => getDb().select().from(calendarEvents).where(and(eq(calendarEvents.todoId, todoId), isNotNull(calendarEvents.recurrence))).get();
@@ -74,6 +80,15 @@ function syncEvents(todoId: number): void {
   // The first due day is its own appointment when the repeats begin later.
   if (rule.start && due && due < rule.start) make({ title: titleOf(t.text, false), start: due, end: addDays(due, 1), allDay: true, todoId, showAs: "free" }, single);
   else if (single) deleteEvent(single.id);
+  // Its appointment actions are the series now: they go (the other actions stay, proposed as they were).
+  let ops: TodoOp[] = [];
+  try {
+    ops = JSON.parse(t.ops ?? "[]") as TodoOp[];
+  } catch {
+    return;
+  }
+  const kept = withoutAppointments(ops, true);
+  if (kept.length !== ops.length) getDb().update(todos).set({ ops: JSON.stringify(kept), ...(kept.length ? {} : { autoOpsWhy: null }) }).where(eq(todos.id, todoId)).run();
 }
 
 /** A todo's rule set (null: taken away). The calendar follows. */

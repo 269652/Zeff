@@ -451,7 +451,7 @@ export function TodoItem({
               ) : (
                 <span />
               )}
-              {todo.ops.length + (todo.alternatives?.length ?? 0) > 1 && <ActionLayoutToggle />}
+              <ActionLayoutToggle />
             </span>
             {/* Each action is a card of its own, with its button inside: a push of the branch is no part of a hand-over to a worker. */}
             <span className={layoutClass(layout)}>
