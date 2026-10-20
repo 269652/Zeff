@@ -28,7 +28,7 @@ export function attachPayments(): number {
     const p = paymentForTodo(todo, people);
     if (!p) continue;
     const op: TodoOp = { type: "bank-transfer", name: p.name, iban: p.iban, bic: p.bic ?? "", amount: p.amount != null ? p.amount.toFixed(2) : "", purpose: p.purpose };
-    setTodoOps(todo.id, [...todo.ops, op]);
+    setTodoOps(todo.id, [...todo.ops, op], undefined, true);
     n++;
   }
   return n;

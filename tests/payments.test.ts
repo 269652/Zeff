@@ -86,3 +86,16 @@ test("transfer card: its fields saved on the todo — checked like the action (a
   assert.equal(after.status, "done", "paying is the todo");
   assert.match(after.userNotes.at(-1)!.text, /20,00 €.*Nathanael Dienstkonto/);
 });
+
+test("payments: a transfer added beside proposed actions leaves them proposed (folded behind their toggle)", async () => {
+  await seed();
+  const { getDb, schema } = await import("@/db");
+  const now = new Date().toISOString();
+  const row = getDb().insert(schema.todos).values({ ticket: "", text: "Erste Rate 300 € (Az. DR II 1121/26) überweisen", kind: "other", owner: "me", status: "open", source: "Mail", refs: "[]", ops: JSON.stringify([{ type: "calendar-entry", calendar: "", title: "Rate", start: "2026-11-15T09:00", minutes: 15, body: "" }]), autoOpsWhy: "Die Rate ist fällig.", createdAt: now, updatedAt: now } as never).returning().get() as { id: number };
+  const { attachPayments } = await import("@/plugins/cases/payments");
+  attachPayments();
+  const { getTodo } = await import("@/lib/boards/store");
+  const todo = getTodo(row.id)!;
+  assert.equal(todo.ops.at(-1)?.type, "bank-transfer");
+  assert.equal(todo.autoOpsWhy, "Die Rate ist fällig.");
+});

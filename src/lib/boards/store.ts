@@ -1005,11 +1005,12 @@ export function setTodoText(id: number, text: string): TodoView {
   return getTodo(id)!;
 }
 
-export function setTodoOps(id: number, ops: TodoView["ops"], text?: string): TodoView {
+/** `keepWhy`: an action added beside the proposed ones (a transfer Zeff puts on a payment) — they stay proposed. */
+export function setTodoOps(id: number, ops: TodoView["ops"], text?: string, keepWhy = false): TodoView {
   emitChange("todos");
   getDb()
     .update(todos)
-    .set({ ops: JSON.stringify(ops), autoOpsWhy: null, ...(text ? { text: text.slice(0, 500) } : {}), updatedAt: new Date().toISOString() })
+    .set({ ops: JSON.stringify(ops), ...(keepWhy ? {} : { autoOpsWhy: null }), ...(text ? { text: text.slice(0, 500) } : {}), updatedAt: new Date().toISOString() })
     .where(eq(todos.id, id))
     .run();
   return getTodo(id)!;
