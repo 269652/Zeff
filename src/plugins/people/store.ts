@@ -379,6 +379,7 @@ export function mergePeople(keepId: number, dropId: number): void {
     // Their claims and links too; links to them point to the kept one.
     graphSql("update or ignore people_claims set person_id = ? where person_id = ?", keep.id, drop.id);
     graphSql("update or ignore people_links set person_id = ? where person_id = ?", keep.id, drop.id);
+    graphSql("update or ignore people_details set person_id = ? where person_id = ?", keep.id, drop.id);
     graphSql("update or ignore people_links set target_ref = ? where target_type = 'person' and target_ref = ?", String(keep.id), String(drop.id));
     graphSql("delete from people_links where person_id = ? and target_type = 'person' and target_ref = ?", keep.id, String(keep.id));
     deletePerson(drop.id);

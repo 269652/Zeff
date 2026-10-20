@@ -6321,5 +6321,17 @@
   "View (its name; empty: the first board or gallery)": "Ansicht (Name; leer: das erste Board oder die erste Galerie)",
   "Routines": "Routinen",
   "Your agents and automations and how they last ended — run one from here.": "Deine Agenten und Automationen und wie sie zuletzt endeten – von hier starten.",
-  "No routines yet — make an agent or an automation from a template.": "Noch keine Routinen – leg einen Agenten oder eine Automation aus einer Vorlage an."
+  "No routines yet — make an agent or an automation from a template.": "Noch keine Routinen – leg einen Agenten oder eine Automation aus einer Vorlage an.",
+  "Unknown detail.": "Unbekannte Angabe.",
+  "Bank": "Bank",
+  "Phone": "Telefon",
+  "Office hours": "Sprechzeiten",
+  "Read from a message — confirm it under To check.": "Aus einer Nachricht gelesen — bestätige es unter Zu prüfen.",
+  "unchecked": "ungeprüft",
+  "No bank account, address or phone known yet — Zeff takes them from what it reads, or add one.": "Noch keine Bankverbindung, Adresse oder Telefonnummer bekannt — Zeff übernimmt sie aus dem Gelesenen, oder füge eine hinzu.",
+  "Preferences": "Vorlieben",
+  "Commitments": "Zusagen",
+  "To check": "Zu prüfen",
+  "Nothing to check.": "Nichts zu prüfen.",
+  "No confirmed facts yet — check what was read under To check.": "Noch keine bestätigten Fakten — prüfe das Gelesene unter Zu prüfen."
 }

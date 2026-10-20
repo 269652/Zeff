@@ -6321,5 +6321,17 @@
   "View (its name; empty: the first board or gallery)": "Vista (nombre; vacío: el primer tablero o galería)",
   "Routines": "Rutinas",
   "Your agents and automations and how they last ended — run one from here.": "Tus agentes y automatizaciones y cómo terminaron la última vez – ejecútalos desde aquí.",
-  "No routines yet — make an agent or an automation from a template.": "Aún no hay rutinas – crea un agente o una automatización desde una plantilla."
+  "No routines yet — make an agent or an automation from a template.": "Aún no hay rutinas – crea un agente o una automatización desde una plantilla.",
+  "Unknown detail.": "Dato desconocido.",
+  "Bank": "Banco",
+  "Phone": "Teléfono",
+  "Office hours": "Horario de atención",
+  "Read from a message — confirm it under To check.": "Leído de un mensaje — confírmalo en Por revisar.",
+  "unchecked": "sin revisar",
+  "No bank account, address or phone known yet — Zeff takes them from what it reads, or add one.": "Aún no se conoce cuenta bancaria, dirección ni teléfono — Zeff los toma de lo que lee, o añade uno.",
+  "Preferences": "Preferencias",
+  "Commitments": "Compromisos",
+  "To check": "Por revisar",
+  "Nothing to check.": "Nada que revisar.",
+  "No confirmed facts yet — check what was read under To check.": "Aún no hay hechos confirmados — revisa lo leído en Por revisar."
 }

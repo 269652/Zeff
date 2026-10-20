@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { confirmAction } from "@/components/confirm";
@@ -117,6 +117,7 @@ export default function PersonView({ rowId }: { rowId: number }) {
       <div className="ws-person grid gap-x-8 gap-y-5 @2xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
         <aside className="space-y-5">
           <Profile d={d} run={p.run} />
+          <Details d={d} run={p.run} />
           <Note d={d} run={p.run} />
           <Dates d={d} run={p.run} />
           <Manage d={d} run={p.run} />
@@ -457,39 +458,185 @@ function Dates({ d, run }: { d: PersonBundle; run: RunFn }) {
 const KIND_LABEL: Record<string, string> = { fact: "Fact", role: "Role", owns: "Responsible for", preference: "Preference", commitment: "Commitment" };
 const REL_LABEL: Record<string, string> = { "reports-to": "reports to", manages: "manages", "works-with": "works with", decides: "decides on", owns: "is responsible for", "on-ticket": "is on", "commented-on": "commented on", authored: "wrote in", "active-in": "is active in", "knows-about": "knows about" };
 
+type Tr = ReturnType<typeof useT>;
+const detailLabels = (t: Tr): Record<string, string> => ({ iban: "IBAN", bic: "BIC", bank: t("Bank"), address: t("Address"), phone: t("Phone"), hours: t("Office hours") });
+
+/** Their bank account, addresses, phone, office hours — properties of the profile, to copy; read off what was said, or yours. */
+function Details({ d, run }: { d: PersonBundle; run: RunFn }) {
+  const t = useT();
+  const [key, setKey] = useState("iban");
+  const [value, setValue] = useState("");
+  const labels = detailLabels(t);
+  const copy = (v: string) => void navigator.clipboard.writeText(v).then(() => toast(t("Copied.")));
+  const shown = (x: PersonBundle["details"][number]) =>
+    x.key === "phone" ? (
+      <a href={`tel:${x.value.replace(/[^\d+]/g, "")}`} className="hover:underline">
+        {x.value}
+      </a>
+    ) : x.key === "address" ? (
+      <a href={`https://www.openstreetmap.org/search?query=${encodeURIComponent(x.value)}`} target="_blank" rel="noreferrer" className="hover:underline">
+        {x.value}
+      </a>
+    ) : (
+      x.value
+    );
+  return (
+    <Card title={t("Details")}>
+      {d.details.length ? (
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-1.5 text-sm">
+          {d.details.map((x) => (
+            <Fragment key={x.id}>
+              <dt className="text-xs text-zinc-500">{labels[x.key] ?? x.key}</dt>
+              <dd className={`min-w-0 break-words ${x.key === "iban" || x.key === "bic" ? "font-mono text-[13px]" : ""}`}>
+                {shown(x)}
+                {!x.confirmed && (
+                  <span className="ml-1.5 text-xs text-amber-600 dark:text-amber-400" title={t("Read from a message — confirm it under To check.")}>
+                    {t("unchecked")}
+                  </span>
+                )}
+              </dd>
+              <span className="flex gap-1">
+                <button type="button" className="text-xs text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200" aria-label={t("Copy")} title={t("Copy")} onClick={() => copy(x.value)}>
+                  ⧉
+                </button>
+                <button type="button" className="text-xs text-zinc-400 hover:text-red-600" aria-label={t("Remove")} title={t("Remove")} onClick={() => void run({ op: "detail", action: "remove", key: x.key, value: x.value })}>
+                  ×
+                </button>
+              </span>
+            </Fragment>
+          ))}
+        </dl>
+      ) : (
+        <Empty>{t("No bank account, address or phone known yet — Zeff takes them from what it reads, or add one.")}</Empty>
+      )}
+      <form
+        className="flex flex-wrap gap-1.5"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (value.trim()) void run({ op: "detail", action: "add", key, value }).then((ok) => ok && setValue(""));
+        }}
+      >
+        <select className="input w-auto" value={key} onChange={(e) => setKey(e.target.value)} aria-label={t("Kind")}>
+          {Object.entries(labels).map(([k, label]) => (
+            <option key={k} value={k}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <input className="input min-w-28 flex-1" value={value} onChange={(e) => setValue(e.target.value)} aria-label={t("Value")} />
+        <button className="btn btn-sm">{t("Add")}</button>
+      </form>
+    </Card>
+  );
+}
+
+/** The kinds as the Facts tab groups them. */
+const KIND_ORDER = ["role", "owns", "fact", "preference", "commitment"];
+const kindGroups = (t: Tr): Record<string, string> => ({ role: t("Role"), owns: t("Responsible for"), fact: t("Facts"), preference: t("Preferences"), commitment: t("Commitments") });
+
+/**
+ * What was read from your messages, in tabs: what is still to check (with the quote, Right / Wrong), the facts you
+ * confirmed (by kind), and what is done (commitments kept) — not all in one list.
+ */
 function Known({ d, run }: { d: PersonBundle; run: RunFn }) {
   const t = useT();
   const names = new Map(d.others.map((o) => [String(o.id), o.name]));
+  const toCheck = d.claims.filter((c) => c.status !== "confirmed" && !c.done);
+  const facts = d.claims.filter((c) => c.status === "confirmed" && !c.done);
+  const done = d.claims.filter((c) => c.done);
+  const [tab, setTab] = useState<"check" | "facts" | "done">(toCheck.length ? "check" : "facts");
+  const tabs = [
+    { id: "check" as const, label: t("To check"), n: toCheck.length },
+    { id: "facts" as const, label: t("Facts"), n: facts.length },
+    { id: "done" as const, label: t("Done"), n: done.length },
+  ];
+  const text = (c: PersonBundle["claims"][number]) => (
+    <>
+      {c.text}
+      {c.kind === "commitment" && c.due ? <span className="text-zinc-500"> · {c.due}</span> : null}
+    </>
+  );
+  const doneButton = (c: PersonBundle["claims"][number]) =>
+    c.kind === "commitment" && (
+      <button type="button" className="btn btn-sm shrink-0" onClick={() => void run({ op: "review", what: "claim", id: c.id, action: "done" })}>
+        {t("Done")}
+      </button>
+    );
   return (
     <Card title={t("Read from your messages")}>
       {d.claims.length === 0 && d.links.length === 0 && <Empty>{t("Nothing read from your messages yet — Zeff reads new ones after each briefing.")}</Empty>}
       {d.claims.length > 0 && (
-        <ul className="space-y-1.5">
-          {d.claims.map((c) => (
-            <li key={c.id} className="flex flex-wrap items-baseline gap-2 text-sm">
-              <span className="text-xs text-zinc-400">{t(KIND_LABEL[c.kind] ?? c.kind)}</span>
-              <span className={`min-w-0 ${c.done ? "text-zinc-400 line-through" : ""}`}>
-                {c.text}
-                {c.kind === "commitment" && c.due ? ` · ${c.due}` : ""}
-              </span>
-              {c.status === "confirmed" ? (
-                <span className="text-xs text-emerald-600 dark:text-emerald-400">✓</span>
-              ) : (
-                <>
-                  <span className="min-w-0 flex-1 truncate text-xs text-zinc-500" title={c.evidence}>
-                    {c.evidence && <>“{c.evidence}” · </>}
-                    {Math.round(c.confidence * 100)}%
-                  </span>
-                  <span className="flex shrink-0 gap-1">
-                    <button type="button" className="btn btn-primary btn-sm" onClick={() => void run({ op: "review", what: "claim", id: c.id, action: "confirm" })}>
-                      {t("Right")}
-                    </button>
-                    <button type="button" className="btn btn-sm" onClick={() => void run({ op: "review", what: "claim", id: c.id, action: "reject" })}>
-                      {t("Wrong")}
-                    </button>
-                  </span>
-                </>
-              )}
+        <div role="tablist" className="flex gap-1 border-b border-zinc-200 text-sm dark:border-zinc-800">
+          {tabs.map((x) => (
+            <button
+              key={x.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === x.id}
+              className={`-mb-px border-b-2 px-2 py-1 ${tab === x.id ? "border-indigo-500 font-medium text-zinc-900 dark:text-zinc-100" : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}
+              onClick={() => setTab(x.id)}
+            >
+              {x.label}
+              {x.n > 0 && <span className="ml-1 rounded-full bg-zinc-100 px-1.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">{x.n}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+      {d.claims.length > 0 && tab === "check" && (
+        <ul className="space-y-2.5">
+          {toCheck.length === 0 && <Empty>{t("Nothing to check.")}</Empty>}
+          {toCheck.map((c) => (
+            <li key={c.id} className="space-y-0.5 text-sm">
+              <div className="flex items-baseline gap-2">
+                <span className="shrink-0 text-xs text-zinc-400">{t(KIND_LABEL[c.kind] ?? c.kind)}</span>
+                <span className="min-w-0 flex-1">{text(c)}</span>
+                <span className="flex shrink-0 gap-1">
+                  <button type="button" className="btn btn-primary btn-sm" onClick={() => void run({ op: "review", what: "claim", id: c.id, action: "confirm" })}>
+                    {t("Right")}
+                  </button>
+                  <button type="button" className="btn btn-sm" onClick={() => void run({ op: "review", what: "claim", id: c.id, action: "reject" })}>
+                    {t("Wrong")}
+                  </button>
+                </span>
+              </div>
+              <p className="truncate text-xs text-zinc-500" title={c.evidence}>
+                {c.evidence && <>“{c.evidence}” · </>}
+                {Math.round(c.confidence * 100)}%
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+      {d.claims.length > 0 && tab === "facts" && (
+        <div className="space-y-3">
+          {facts.length === 0 && <Empty>{t("No confirmed facts yet — check what was read under To check.")}</Empty>}
+          {KIND_ORDER.map((k) => {
+            const of = facts.filter((c) => c.kind === k);
+            return (
+              of.length > 0 && (
+                <div key={k} className="space-y-1">
+                  <h4 className="text-xs text-zinc-500">{kindGroups(t)[k]}</h4>
+                  <ul className="space-y-1 text-sm">
+                    {of.map((c) => (
+                      <li key={c.id} className="flex items-baseline gap-2" title={c.evidence ? `“${c.evidence}”` : undefined}>
+                        <span className="min-w-0 flex-1">{text(c)}</span>
+                        {doneButton(c)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )
+            );
+          })}
+        </div>
+      )}
+      {d.claims.length > 0 && tab === "done" && (
+        <ul className="space-y-1 text-sm text-zinc-500">
+          {done.length === 0 && <Empty>{t("Nothing done yet.")}</Empty>}
+          {done.map((c) => (
+            <li key={c.id} className="flex items-baseline gap-2">
+              <span className="shrink-0 text-xs text-zinc-400">{t(KIND_LABEL[c.kind] ?? c.kind)}</span>
+              <span className="min-w-0 line-through">{text(c)}</span>
             </li>
           ))}
         </ul>

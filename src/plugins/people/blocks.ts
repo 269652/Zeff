@@ -3,6 +3,7 @@ import { isInstalled } from "@/plugins/state";
 import { t } from "@/lib/i18n/server";
 import { claimsOf, linksOf, reviewClaim, reviewLink } from "./graph";
 import { findDates } from "./dates";
+import { addDetail, detailsOf, isDetailKey, removeDetail, syncDetails, type PersonDetail } from "./details";
 import { compilePerson } from "./compile";
 import { dateKindLabels, dateText, daysBetween, inDaysText, isDateKind, isoDay, nextOccurrence, parseDayMonth, type DateKind, type PersonSummary } from "./shared";
 import { addDate, addRelation, contactsOf, datesOf, deleteDate, deletePerson, deleteRelation, getPerson, listPeople, mergePeople, namesThem, relationsOf, updateDate, updatePerson, type Contact, type PersonRelation } from "./store";
@@ -39,6 +40,8 @@ export type PersonBundle = {
   starred: boolean;
   compiled: PersonSummary | null;
   dates: { id: number; kind: DateKind; label: string; text: string; confirmed: boolean; remindDays: number; sourceText: string; when: string | null; turns: number | null }[];
+  /** Bank account, addresses, phone, office hours — read off the claims, or yours. */
+  details: PersonDetail[];
   claims: { id: number; kind: string; text: string; status: string; evidence: string; confidence: number; due: string; done: boolean; source: string }[];
   links: { id: number; rel: string; targetType: string; targetRef: string; label: string; status: string }[];
   relations: { out: PersonRelation[]; in: (PersonRelation & { personName: string })[] };
@@ -53,6 +56,7 @@ export async function personBundle(personId: number, today = new Date()): Promis
   const p = getPerson(personId);
   if (!p) throw new Error(t("Unknown person."));
   const label = dateKindLabels(t);
+  syncDetails(personId);
   const links = linksOf(personId);
   let todos: PersonBundle["todos"] = [];
   if (isInstalled("todos")) {
@@ -87,6 +91,7 @@ export async function personBundle(personId: number, today = new Date()): Promis
         turns: on && d.year && d.yearly && d.kind === "birthday" ? on.getFullYear() - d.year : null,
       };
     }),
+    details: detailsOf(personId),
     claims: claimsOf(personId).map((c) => ({ id: c.id, kind: c.kind, text: c.text, status: c.status, evidence: c.evidence, confidence: c.confidence, due: c.due, done: !!c.doneAt, source: c.sourceRef })),
     links: links.map((l) => ({ id: l.id, rel: l.rel, targetType: l.targetType, targetRef: l.targetRef, label: l.label, status: l.status })),
     relations: relationsOf(personId),
@@ -110,6 +115,7 @@ export type PersonOperation =
   | { op: "findDates" }
   | { op: "compile" }
   | { op: "review"; what: "claim" | "link"; id: number; action: "confirm" | "reject" | "done" | "recheck" }
+  | { op: "detail"; action: "add" | "remove"; key: string; value: string }
   | { op: "addRelation"; rel: string; other: number }
   | { op: "deleteRelation"; id: number }
   | { op: "merge"; keep: number }
@@ -162,6 +168,11 @@ export async function personOp(personId: number, o: PersonOperation): Promise<{ 
     case "review":
       if (o.what === "link") reviewLink(Number(o.id), o.action === "confirm" ? "confirm" : "reject");
       else if (o.action === "confirm" || o.action === "reject" || o.action === "done" || o.action === "recheck") reviewClaim(Number(o.id), o.action);
+      return {};
+    case "detail":
+      if (!isDetailKey(String(o.key))) throw new Error(t("Unknown detail."));
+      if (o.action === "remove") removeDetail(personId, o.key as PersonDetail["key"], String(o.value ?? ""));
+      else addDetail(personId, o.key as PersonDetail["key"], String(o.value ?? ""));
       return {};
     case "addRelation":
       if (!addRelation(personId, String(o.rel ?? ""), Number(o.other) || 0, "", "manual")) throw new Error(t("Enter what they are (e.g. mother, landlord) — it can't be saved twice."));

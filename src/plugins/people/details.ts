@@ -1,0 +1,119 @@
+/**
+ * A person's details (the People plugin): their bank account (IBAN, BIC, bank), addresses, phone numbers
+ * and office hours — properties of the profile, not sentences in a list. Read off what was said about them
+ * (the claims the extraction made, see graph.ts) by rule, no AI: an IBAN only with its check digits right.
+ * A detail from a claim lives as long as the claim does (rejected: gone); one you removed isn't read again;
+ * one you add is yours. Server only.
+ */
+import { getSqlite } from "@/db";
+import { emitChange } from "@/lib/events";
+import { claimsOf } from "./graph";
+
+export const DETAIL_KEYS = ["iban", "bic", "bank", "address", "phone", "hours"] as const;
+export type DetailKey = (typeof DETAIL_KEYS)[number];
+export const isDetailKey = (k: string): k is DetailKey => (DETAIL_KEYS as readonly string[]).includes(k);
+
+export type PersonDetail = { id: number; key: DetailKey; value: string; /** The claim it was read from (0: added by you). */ claimId: number; /** Yours, or its claim confirmed. */ confirmed: boolean };
+
+// ---------------------------------------------------------------------------
+// Reading them off a text
+// ---------------------------------------------------------------------------
+
+/** ISO 13616: the letters as numbers, the country and check digits moved to the end, mod 97 is 1. */
+function ibanValid(iban: string): boolean {
+  const s = iban.replace(/\s+/g, "").toUpperCase();
+  if (!/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(s)) return false;
+  const digits = (s.slice(4) + s.slice(0, 4)).replace(/[A-Z]/g, (c) => String(c.charCodeAt(0) - 55));
+  let rest = 0;
+  for (const ch of digits) rest = (rest * 10 + Number(ch)) % 97;
+  return rest === 1;
+}
+
+const STREET = String.raw`[\p{Lu}][\p{L}\-]*?(?:[Ss]tra(?:ß|ss)e|[Ss]tr\.|[Ww]eg|[Pp]latz|[Aa]llee|[Gg]asse|[Rr]ing|[Dd]amm|[Uu]fer|[Mm]arkt)`;
+const CITY = String.raw`[\p{Lu}][\p{L}\-]*(?: (?:im|am|an der|in der|ob der) [\p{Lu}][\p{L}\-]*| [\p{Lu}][\p{L}\-]*)*`;
+const ADDRESS = new RegExp(String.raw`(${STREET} \d+ ?[a-zA-Z]?),? (\d{5}) (${CITY})`, "gu");
+const IBAN = /\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){2,7}(?: ?[A-Z0-9]{1,4})?\b/g;
+const BIC = /\bBIC:?\s*([A-Z]{6}[A-Z0-9]{2}(?:[A-Z0-9]{3})?)\b/;
+const PHONE = /\b(?:Telefon|Tel\.|Tel|Mobil|Handy|Fon)\b:?\s*(\+?\d[\d /()-]{4,}\d)/gi;
+const HOURS = /\b(?:Sprechstunden?|Sprechzeiten|Öffnungszeiten|Bürozeiten)\b:?\s*([^;]*?\d{1,2}(?:[:.]\d{2})?\s*(?:–|-|bis)\s*\d{1,2}(?:[:.]\d{2})?\s*Uhr)/gi;
+
+/** The details a sentence carries, in the order they stand. */
+export function detailsFromText(text: string): { key: DetailKey; value: string }[] {
+  const out: { key: DetailKey; value: string; at: number }[] = [];
+  const add = (key: DetailKey, value: string, at: number) => {
+    const v = value.replace(/\s+/g, " ").trim().replace(/[.,;:]$/, "");
+    if (v && !out.some((x) => x.key === key && x.value === v)) out.push({ key, value: v, at });
+  };
+  for (const m of text.matchAll(IBAN)) if (ibanValid(m[0])) add("iban", m[0], m.index);
+  const bic = BIC.exec(text);
+  if (bic) add("bic", bic[1], bic.index);
+  // The bank: "Bank BBBank Karlsruhe", or the part of the account's sentence that names one.
+  if (out.some((x) => x.key === "iban")) {
+    const named = /\b(?:Bank|Kreditinstitut)\b:?\s+([^;,.]+)/.exec(text);
+    const piece = named?.[1] ?? text.split(/[;,]/).find((s) => /bank|sparkasse|kasse\b/i.test(s) && !/IBAN|BIC|Konto\b/i.test(s));
+    if (piece) add("bank", piece, text.indexOf(piece));
+  }
+  for (const m of text.matchAll(ADDRESS)) add("address", `${m[1]}, ${m[2]} ${m[3]}`, m.index);
+  for (const m of text.matchAll(PHONE)) if (m[1].replace(/\D/g, "").length >= 6) add("phone", m[1], m.index);
+  for (const m of text.matchAll(HOURS)) add("hours", m[1], m.index);
+  const order = (k: DetailKey) => DETAIL_KEYS.indexOf(k);
+  return out.sort((a, b) => order(a.key) - order(b.key) || a.at - b.at).map(({ key, value }) => ({ key, value }));
+}
+
+// ---------------------------------------------------------------------------
+// Kept with the profile
+// ---------------------------------------------------------------------------
+
+function db() {
+  const d = getSqlite();
+  d.exec(`create table if not exists people_details (id integer primary key autoincrement, person_id integer not null references people(id) on delete cascade, key text not null, value text not null, norm text not null, claim_id integer not null default 0, removed integer not null default 0, created_at text not null, unique (person_id, key, norm));`);
+  return d;
+}
+
+/** For comparing: an IBAN or BIC without spaces, the rest in lower case with single spaces. */
+const norm = (key: DetailKey, value: string) => (key === "iban" || key === "bic" ? value.replace(/\s+/g, "").toUpperCase() : value.replace(/\s+/g, " ").trim().toLowerCase());
+
+type Row = { id: number; key: string; value: string; claim_id: number; removed: number };
+
+/** Their details, in the order of DETAIL_KEYS, then as they came. */
+export function detailsOf(personId: number): PersonDetail[] {
+  const status = new Map(claimsOf(personId, { status: ["proposed", "confirmed"] }).map((c) => [c.id, c.status]));
+  return (db().prepare("select id, key, value, claim_id, removed from people_details where person_id = ? and removed = 0 order by id").all(personId) as Row[])
+    .filter((r): r is Row & { key: DetailKey } => isDetailKey(r.key))
+    .map((r) => ({ id: r.id, key: r.key, value: r.value, claimId: r.claim_id, confirmed: !r.claim_id || status.get(r.claim_id) === "confirmed" }))
+    .sort((a, b) => DETAIL_KEYS.indexOf(a.key) - DETAIL_KEYS.indexOf(b.key) || a.id - b.id);
+}
+
+/**
+ * The details read again from their claims: new ones added, those of a claim that is gone or rejected
+ * dropped. One you removed stays removed; yours stay. Whether anything changed.
+ */
+export function syncDetails(personId: number): boolean {
+  const d = db();
+  const claims = claimsOf(personId, { status: ["proposed", "confirmed"] });
+  const live = new Set(claims.map((c) => c.id));
+  let changed = d.prepare("delete from people_details where person_id = ? and claim_id != 0 and removed = 0 and claim_id not in (select value from json_each(?))").run(personId, JSON.stringify([...live])).changes > 0;
+  const insert = d.prepare("insert or ignore into people_details (person_id, key, value, norm, claim_id, created_at) values (?, ?, ?, ?, ?, ?)");
+  // The confirmed first: when two say the same, the detail goes with the checked one.
+  for (const c of [...claims].sort((a, b) => Number(b.status === "confirmed") - Number(a.status === "confirmed") || a.id - b.id)) {
+    for (const x of detailsFromText(c.text)) if (insert.run(personId, x.key, x.value, norm(x.key, x.value), c.id, new Date().toISOString()).changes) changed = true;
+  }
+  if (changed) emitChange("todos");
+  return changed;
+}
+
+/** A detail you add (one you removed before comes back as yours). */
+export function addDetail(personId: number, key: DetailKey, value: string): void {
+  const v = value.replace(/\s+/g, " ").trim().slice(0, 300);
+  if (!v || !isDetailKey(key)) return;
+  db()
+    .prepare("insert into people_details (person_id, key, value, norm, claim_id, created_at) values (?, ?, ?, ?, 0, ?) on conflict (person_id, key, norm) do update set value = excluded.value, claim_id = 0, removed = 0")
+    .run(personId, key, v, norm(key, v), new Date().toISOString());
+  emitChange("todos");
+}
+
+/** A detail removed — kept as removed, so reading the claims again doesn't bring it back. */
+export function removeDetail(personId: number, key: DetailKey, value: string): void {
+  db().prepare("update people_details set removed = 1 where person_id = ? and key = ? and norm = ?").run(personId, key, norm(key, value));
+  emitChange("todos");
+}
