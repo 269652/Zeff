@@ -131,7 +131,7 @@ export function SuggestionsPanel({ items }: { items: SuggestionView[] }) {
   if (!items.length) return null;
   const total = items.reduce((a, s) => a + s.hours, 0);
   return (
-    <section className="card p-4">
+    <section id="suggestions" className="card p-4">
       <h2 className="text-sm font-semibold text-zinc-500 uppercase">
         {t("Suggested entries")} <span className="font-normal normal-case text-zinc-400">({items.length} · {formatHours(total)} h)</span>
       </h2>

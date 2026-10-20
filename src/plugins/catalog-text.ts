@@ -45,6 +45,8 @@ export const catalogTexts = (t: T) => [
   t("Todos"),
   t("The briefing: your tickets read by the AI — what happened, what to do — and the todos with their context, activity and recap."),
   t("The briefing's JQL filter"),
+  t("Review"),
+  t("Everything waiting for your yes or no"),
   t("Today"),
   t("Tickets"),
   t("The Tickets tab: the briefing per ticket — where it stands, what happened, its todos, comments, mails, merge requests and suggested actions — filterable by state. Builds on Todos (the same briefing run)."),

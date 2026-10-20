@@ -263,6 +263,11 @@ export function openSuggestions(): SuggestionView[] {
     .map(toView);
 }
 
+/** How many suggestions are open, of any day — counted, nothing made (the review queue's figure). */
+export function openSuggestionCount(): number {
+  return getDb().select({ count: sql<number>`count(*)` }).from(entrySuggestions).where(eq(entrySuggestions.status, "open")).get()?.count ?? 0;
+}
+
 /** How many suggestions are open in a period (YYYY-MM-DD, inclusive) and their hours — counted, not built. */
 export function openSuggestionTotals(from: string, to: string): { count: number; hours: number } {
   suggestDueTodos();

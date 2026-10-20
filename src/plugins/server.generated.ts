@@ -13,6 +13,7 @@ import "./mail-client/server";
 import "./news/server";
 import "./people/server";
 import "./todos/server";
+import "./weekly-report/server";
 import "./work/server";
 import "./workspace/server";
 import "./zeiterfassung/server";
