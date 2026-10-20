@@ -436,10 +436,10 @@ export function TodoItem({
           </span>
         )}
         {todo.ops.length > 0 && !closed && (proposedAll ? proposed && showActions : foldable ? showActions : true) && (
-          <span className="mt-1.5 flex flex-col gap-1.5">
-            {/* Proposed by the auto-actions review: said so, and why — and the switch between rows and a gallery. */}
-            <span className="flex items-start justify-between gap-2">
-              {proposed ? (
+          <span className="relative mt-1.5 flex flex-col gap-1.5">
+            {/* Proposed by the auto-actions review: said so, and why — the switch between rows and a gallery beside it. */}
+            {proposed ? (
+              <span className="flex items-start justify-between gap-2">
                 <span
                   className="flex min-w-0 flex-1 items-start gap-1.5 rounded-md bg-violet-50 px-2 py-1 text-xs text-violet-800 dark:bg-violet-950/40 dark:text-violet-200"
                   title={t("Suggested by the auto-actions step — review, adjust (✎), then run")}
@@ -448,11 +448,14 @@ export function TodoItem({
                   <span>{t("Suggested: {why}", { why: todo.autoOpsWhy })}</span>
                   <ProposeAgain todoId={todo.id} />
                 </span>
-              ) : (
-                <span />
-              )}
-              <ActionLayoutToggle />
-            </span>
+                <ActionLayoutToggle />
+              </span>
+            ) : (
+              // Else it floats up into the row of the toggles (context, actions, knowledge) — no line of its own.
+              <span className="absolute -top-8 right-0">
+                <ActionLayoutToggle />
+              </span>
+            )}
             {/* Each action is a card of its own, with its button inside: a push of the branch is no part of a hand-over to a worker. */}
             <span className={layoutClass(layout)}>
               {opGroups.map((g, gi) => {
