@@ -4,6 +4,7 @@ import { t } from "@/lib/i18n/server";
 import { claimsOf, linksOf, reviewClaim, reviewLink } from "./graph";
 import { findDates } from "./dates";
 import { addDetail, detailsOf, isDetailKey, removeDetail, syncDetails, type PersonDetail } from "./details";
+import { appointmentsOf, type PersonAppointments } from "./appointments";
 import { compilePerson } from "./compile";
 import { dateKindLabels, dateText, daysBetween, inDaysText, isDateKind, isoDay, nextOccurrence, parseDayMonth, type DateKind, type PersonSummary } from "./shared";
 import { addDate, addRelation, contactsOf, datesOf, deleteDate, deletePerson, deleteRelation, getPerson, listPeople, mergePeople, namesThem, relationsOf, updateDate, updatePerson, type Contact, type PersonRelation } from "./store";
@@ -50,6 +51,8 @@ export type PersonBundle = {
   pages: { id: number; title: string; icon: string }[];
   tickets: string[];
   others: { id: number; name: string }[];
+  /** Their appointments (attendee, or named in one): the next and the last 30 days — null without the Calendar plugin. */
+  events: PersonAppointments | null;
 };
 
 export async function personBundle(personId: number, today = new Date()): Promise<PersonBundle> {
@@ -100,6 +103,7 @@ export async function personBundle(personId: number, today = new Date()): Promis
     pages,
     tickets: [...new Set(links.filter((l) => l.targetType === "ticket").map((l) => l.targetRef))],
     others: listPeople().filter((x) => x.id !== personId).map((x) => ({ id: x.id, name: x.name })),
+    events: await appointmentsOf(personId, today),
   };
 }
 
