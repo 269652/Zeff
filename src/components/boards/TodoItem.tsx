@@ -328,6 +328,13 @@ export function TodoItem({
           )}
           {todo.deferred && !closed && <span className="text-zinc-400"> · {t("deferred")}</span>}
           {todo.bubbledUp && !closed && <span className="text-amber-600 dark:text-amber-400" title={t("You had moved it down — it's back on top")}> · {t("back on top: {why}", { why: todo.bubbledUp })}</span>}
+          {!closed &&
+            todo.away?.map((a) => (
+              <span key={a.personId} className="text-amber-600 dark:text-amber-400" title={t("Read from their messages — a question to them waits until they are back")}>
+                {" "}
+                · 🏖 {t("{name} is away until {date}", { name: a.name, date: new Date(a.until).toLocaleDateString() })}
+              </span>
+            ))}
           {!closed && <TodoQuickButtons todoId={todo.id} panel={quick} onToggle={setQuick} canReply={todo.owner === "me" && [...todo.refs, ...todo.mailRefs].some((r) => r.startsWith("mail:") || r.startsWith("teams:"))} canPay={amountIn(todo.text) != null || ibansIn(`${todo.text} ${todo.note ?? ""}`).length > 0} aiDisabled={!workOn ? t("Code isn't installed (Menu → Plugins)") : running || doing ? t("Being worked on — once the run is done") : undefined} />}
         </span>
         <TodoQuickPanel todoId={todo.id} todoRef={todo.ref} panel={closed && quick !== "time" ? null : quick} onClose={() => setQuick(null)} time={todo.time} />

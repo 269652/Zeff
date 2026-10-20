@@ -95,4 +95,22 @@ export const PEOPLE_REVIEW: ReviewSource[] = [
     },
     act: (id, action) => said(decide(action, { tool: "dateConfirm", id: Number(id) }, { tool: "dateDelete", id: Number(id) })),
   },
+  {
+    id: "people-followup",
+    get label() {
+      return t("Follow up?");
+    },
+    list: async () =>
+      (await import("./away")).followUps(new Date().toISOString().slice(0, 10)).map((c) => ({
+        id: String(c.id),
+        title: `${c.personName}: ${c.text}`,
+        detail: c.due ? t("Due {date} — not kept yet", { date: c.due }) : t("Promised a week ago or more — not kept yet"),
+        href: profile(c.personId),
+        actions: verdict(t("Follow up"), t("Not needed")),
+      })),
+    act: async (id, action) => {
+      if (action !== "yes" && action !== "no") throw new Error(t("Unknown action: {action}", { action }));
+      return (await (await import("./away")).decideFollowUp(Number(id), action === "yes")).message;
+    },
+  },
 ];

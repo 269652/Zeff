@@ -302,6 +302,8 @@ export type TodoView = {
   deferred?: boolean;
   /** Put down, but back up again: why (new message, three days on, an agent asks). */
   bubbledUp?: string;
+  /** The people it names who are away now (the People plugin: "Urlaub bis …"), until when — filled in for the pages. */
+  away?: { personId: number; name: string; until: string }[];
   createdAt: string;
   updatedAt: string;
   doneAt: string | null;
