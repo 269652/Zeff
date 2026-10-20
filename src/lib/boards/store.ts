@@ -685,7 +685,7 @@ export function gateTodo(c: TodoCandidate, opts: { closed?: boolean; planned?: b
   if (same.length) {
     const [oldest, ...rest] = same;
     const actor = c.actor ?? (c.workRunId ? `work:${c.workRunId}` : c.runId ? `lage:${c.runId}` : null);
-    absorb(oldest.id, { ...c, ticket, text, ops, actor, from: c.source ?? "" });
+    absorb(oldest.id, { ...c, ticket, text, ops, actor, newer: true, from: c.source ?? "" });
     for (const r of rest) mergeInto(oldest.id, r.id, actor);
     // The same thing on another ticket: the tickets are linked on the todo (the original its main one).
     if (ticket && oldest.ticket !== ticket && !oldest.alsoTickets.includes(ticket)) linkTodoTicket(oldest.id, ticket);

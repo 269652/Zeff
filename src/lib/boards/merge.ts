@@ -1,7 +1,7 @@
 import { and, eq, gt, like, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { cleanOps, cleanPlan, dueDay, isTodoKind, todoRef, type TodoOp, type TodoPath, type TodoUserNote } from "./shared";
-import { sameOp, similarText, wordOverlap } from "./similar";
+import { sameCase, sameOp, similarText, wordOverlap } from "./similar";
 
 const { todos, todoEvents, workRuns, todoTime, todoLinks, entrySuggestions, calendarEvents } = schema;
 
@@ -32,6 +32,8 @@ export type MergeCandidate = {
   needsInput?: string | null;
   runId?: number | null;
   workRunId?: number | null;
+  /** It is the newer of the two: about the same case (Aktenzeichen), its text, deadline and operations replace the older's (which stays as a note). */
+  newer?: boolean;
   /** Where it came from, in words ("Mail-Durchsicht", "Follow-up from W-45", "T-12 (merged)") - the history's note. */
   from: string;
   /** Who made it: "lage:3", "work:45", "you", "agent:x" - none: whoever `attributed()` says. */
@@ -55,10 +57,13 @@ export function absorb(survivorId: number, c: MergeCandidate): boolean {
   const mailRefs = union(parse<string[]>(row.mailRefs, []), c.mailRefs);
   // Operations: the oldest's stay; the new ones only where it doesn't do that already (same action, same message to the same one).
   const had = cleanOps(parse<unknown[]>(row.ops, []), ticket);
-  const ops: TodoOp[] = [...had];
-  for (const o of cleanOps(c.ops, ticket)) if (!ops.some((x) => sameOp(x, o))) ops.push(o);
-  // The earlier deadline wins.
-  const due = [row.due, dueDay(c.due)].filter((d): d is string => !!d).sort()[0] ?? null;
+  // The newer information about the same case replaces what the older said.
+  const replaces = !!c.newer && !!c.text.trim() && sameCase(c.text, row.text) && c.text.trim() !== row.text.trim();
+  const newOps = cleanOps(c.ops, ticket);
+  const ops: TodoOp[] = replaces && newOps.length ? [] : [...had];
+  for (const o of newOps) if (!ops.some((x) => sameOp(x, o))) ops.push(o);
+  // The earlier deadline wins — but the newer information about a case brings its own.
+  const due = replaces && dueDay(c.due) ? dueDay(c.due) : ([row.due, dueDay(c.due)].filter((d): d is string => !!d).sort()[0] ?? null);
   // Its plan takes the steps it doesn't plan already.
   let planned = cleanPlan(parse<unknown[]>(row.planned, []), ticket);
   const fresh = (c.planned ?? []).flatMap((p) => p.steps).filter((s) => !planned.flatMap((p) => p.steps).some((h) => similarText(h.text, s.text)));
@@ -67,10 +72,12 @@ export function absorb(survivorId: number, c: MergeCandidate): boolean {
   const notes = parse<TodoUserNote[]>(row.userNotes, []);
   for (const n of c.userNotes ?? []) if (!notes.some((x) => x.text === n.text)) notes.push(n);
   const text = c.text.trim();
-  if (text && wordOverlap(text, row.text) < 0.85 && !notes.some((x) => x.text.includes(text.slice(0, 120)))) notes.push({ at: now, text: `Merged duplicate: ${text}`.slice(0, 600), by: "Zeff" });
+  if (replaces) notes.push({ at: now, text: `Replaced by newer information: ${row.text}`.slice(0, 600), by: "Zeff" });
+  else if (text && wordOverlap(text, row.text) < 0.85 && !notes.some((x) => x.text.includes(text.slice(0, 120)))) notes.push({ at: now, text: `Merged duplicate: ${text}`.slice(0, 600), by: "Zeff" });
   const noDraft = !row.draft?.trim();
   db.update(todos)
     .set({
+      ...(replaces ? { text } : {}),
       refs: JSON.stringify(refs),
       mailRefs: JSON.stringify(mailRefs),
       ops: JSON.stringify(ops),
@@ -142,6 +149,7 @@ export function mergeInto(survivorId: number, loserId: number, actor: string | n
     needsInput: loser.needsInput,
     runId: null,
     workRunId: null,
+    newer: loserId > survivorId,
     from: `${todoRef(loserId)}${loser.source ? ` (${loser.source})` : ""}`,
     actor,
   });

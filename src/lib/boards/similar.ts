@@ -62,8 +62,21 @@ export function duplicateTodo(c: { text: string; ops: TodoOp[] }, open: TodoView
   return open.find((t) => repeatsByRecord(c, t) || similarText(c.text, t.text));
 }
 
+/** The case numbers (Aktenzeichen) in a text — "DR II 810/26", "AG 55/26", "12 O 345/26" — normalized; none for dates, fractions and invoice numbers. */
+export function caseRefs(text: string): string[] {
+  const found = [...text.matchAll(/(?<![\p{L}\p{N}])(?:\d{1,2}\s)?[A-ZÄÖÜ]{1,4}(?:\s[IVX]{1,4})?\s\d{1,6}\/\d{2,4}(?![\p{L}\p{N}\/])/gu)].map((m) => m[0].replace(/\s+/g, " ").toUpperCase());
+  return [...new Set(found)];
+}
+
+/** Whether two texts are about the same case: they name one case number alike. */
+export function sameCase(a: string, b: string): boolean {
+  const x = caseRefs(a);
+  return x.length > 0 && caseRefs(b).some((r) => x.includes(r));
+}
+
 /** By what's on record, not the words: the same message to the same one, or the same long numbers (comments, merge requests) — on any ticket. */
 export function repeatsByRecord(c: { text: string; ops: TodoOp[] }, t: TodoView): boolean {
+  if (sameCase(c.text, t.text)) return true; // the same case (Aktenzeichen): one todo, whatever the words
   const mine = c.ops.map(messageOf).filter((m): m is { to: string; body: string } => !!m);
   for (const m of mine) for (const o of t.ops.map(messageOf)) if (o && o.to === m.to && wordOverlap(o.body, m.body) >= 0.6) return true;
   const ids = [...idsOf({ text: c.text, ops: c.ops })].filter((x) => !x.startsWith("!"));
