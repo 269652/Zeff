@@ -81,7 +81,7 @@ export function registerGmailTools(server: McpServer, { run, ok, fail }: Helpers
     {
       title: "Make a Gmail filter",
       description:
-        "Makes a filter (rule) in Gmail: mails from a sender / with a subject / with words get a label, skip the inbox (archive) and/or are marked read, from now on. With applyToExisting the mails that match now get the same (up to 1000). Never forwards, never trashes. Works only when the agent routine's permissions allow changing Gmail.",
+        "Makes a filter (rule) in Gmail: mails from a sender / with a subject / with words get a label, skip the inbox (archive) and/or are marked read, from now on — for every mail that comes, so name something that stays (a sender, a list, a subject, words), never only 'is:important', 'is:unread' or a date range. To tidy mails that are there already use gmail_change. With applyToExisting the mails that match now get the same (up to 1000). Never forwards, never trashes. Works only when the agent routine's permissions allow changing Gmail.",
       inputSchema: z.object({
         from: z.string().optional().describe("Sender: a name or address part, e.g. 'flink' or 'calendar-notification@google.com'"),
         to: z.string().optional(),
@@ -100,6 +100,10 @@ export function registerGmailTools(server: McpServer, { run, ok, fail }: Helpers
         const gone = off();
         if (gone) return gone;
         if (!mayChangeGmail(callerRunId())) return fail("This agent may not change Gmail. Turn on the Gmail permission in the permissions of its routine page (and allow changes to Gmail on the Connections page).");
+        // A filter works for every mail that comes: not one about a state of the moment or a date range (see the guard).
+        const { filterProblem } = await import("@/lib/google/gmail-filter-guard");
+        const problem = filterProblem(args);
+        if (problem) return fail(problem);
         const { createGmailFilter } = await import("@/lib/google/gmail-write");
         const { from, to, subject, query, hasAttachment, ...rest } = args;
         const r = await createGmailFilter({ criteria: { from, to, subject, query, hasAttachment }, ...rest });
