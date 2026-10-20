@@ -6,6 +6,7 @@ import { rowViewAction } from "../actions";
 /** The custom views plugins bring for the rows of a database, by id — each its plugin's (loaded when shown). */
 const VIEWS: Record<string, LazyExoticComponent<ComponentType<{ rowId: number }>>> = {
   person: lazy(() => import("@/plugins/people/ui/PersonView")),
+  case: lazy(() => import("@/plugins/cases/ui/CaseView")),
 };
 
 /** The custom view of a row — whatever its database's plugin brings; nothing where there is none (its plugin isn't installed). */

@@ -66,3 +66,58 @@ test("cases: a case you set aside isn't made again; one closed stays closed unti
   assert.equal(listCases().some((c) => c.key === "DR II 1121/26"), false, "ignored ones aren't listed");
   assert.equal(getCase(spk.id)?.status, "ignored");
 });
+
+test("cases: the AI sums a case up from its sources — the money checked (a wrong IBAN, a bad date or a negative amount dropped), the case number as purpose when none is said", async () => {
+  await seed();
+  const { detectCases } = await import("@/plugins/cases/detect");
+  const { compileCases } = await import("@/plugins/cases/compile");
+  const { listCases, getCase } = await import("@/plugins/cases/store");
+  detectCases();
+  const swr = listCases().find((c) => c.key === "DR II 810/26")!;
+  const prompts: string[] = [];
+  const r = await compileCases({
+    ids: [swr.id],
+    ask: async (p) => (
+      prompts.push(p),
+      { title: "Rundfunkbeitrag SWR — Zwangsvollstreckung", party: "SWR / Beitragsservice", summary: "Ratenplan 50 € monatlich, Rest 11,52 € offen.", total: 297.27, open: 11.52, installment: -50, next_due: "2026-11-15", next_what: "Rate 50 €", iban: "DE22 6609 0800 0007 7773 02", bic: "GENODE61BBB", payee: "Nathanael Dienstkonto", purpose: "", done: false }
+    ),
+  });
+  assert.equal(r.compiled, 1);
+  assert.match(prompts[0], /DR II 810\/26/);
+  assert.match(prompts[0], /Restforderung 11,52/, "the todo is a source");
+  assert.match(prompts[0], /DE22 6609/, "the letter's text is read");
+  const s = getCase(swr.id)!.compiled!;
+  assert.equal(s.title, "Rundfunkbeitrag SWR — Zwangsvollstreckung");
+  assert.equal(s.open, 11.52);
+  assert.equal(s.installment, null, "a negative amount is no amount");
+  assert.equal(s.nextDue, "2026-11-15");
+  assert.equal(s.purpose, "DR II 810/26");
+  assert.equal(s.sources, 3);
+  // Nothing new since: not asked again.
+  const { setCaseStatus, caseByKey } = await import("@/plugins/cases/store");
+  setCaseStatus(caseByKey("DR II 1121/26")!.id, "open"); // set aside in the test before
+  const again: string[] = [];
+  await compileCases({ ask: async (p) => (again.push(p), { title: "Sparkasse", party: "", summary: "", total: null, open: null, installment: null, next_due: "", next_what: "", iban: "", bic: "", payee: "", purpose: "", done: false }) });
+  assert.equal(again.length, 1, "only the other case, which was never compiled");
+  assert.doesNotMatch(again[0], /# Vorgang DR II 810\/26/);
+  const bad = await compileCases({ ids: [swr.id], force: true, ask: async () => ({ title: "x", party: "", summary: "", total: null, open: null, installment: null, next_due: "15.11.", next_what: "", iban: "DE23 6609 0800 0007 7773 02", bic: "", payee: "", purpose: "", done: true }) });
+  assert.equal(bad.compiled, 1);
+  assert.equal(getCase(swr.id)!.compiled!.iban, "", "a wrong IBAN is dropped");
+  assert.equal(getCase(swr.id)!.compiled!.nextDue, null);
+});
+
+test("cases: a row per case in the Workspace — the money and the next step as typed fields, closed when done", async () => {
+  await seed();
+  const { caseRecords, CASE_FIELDS } = await import("@/plugins/cases/workspace-source");
+  const { caseByKey, updateCase } = await import("@/plugins/cases/store");
+  const { checked } = await import("@/plugins/cases/compile");
+  updateCase(caseByKey("DR II 810/26")!.id, { compiled: checked({ title: "Rundfunkbeitrag", open: 11.52, done: true }, "DR II 810/26", 3) });
+  const recs = await caseRecords();
+  const swr = recs.find((r) => r.key === "DR II 810/26")!;
+  const field = (id: string) => swr.typed.find((f) => f.id === id)?.value;
+  assert.equal(field(CASE_FIELDS.open), 11.52);
+  assert.equal(field(CASE_FIELDS.person), "Ulla Nathanael");
+  assert.equal(field(CASE_FIELDS.sources), 3);
+  assert.equal(swr.status.group, "done", "the AI said done in the test before");
+  assert.equal(swr.dataType, "cases");
+});

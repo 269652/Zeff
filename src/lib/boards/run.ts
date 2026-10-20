@@ -177,6 +177,16 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
           state.__zeffBoardRun = { id, phase: "people", since: t0, provider };
           await syncAndWait("peoplenorm");
         }
+        // The Cases plugin: the case numbers in what came in (by rule), then the cases with new sources summed up (AI) — a
+        // failure there doesn't stop the run.
+        if ((await import("@/plugins/state")).isInstalled("cases")) {
+          try {
+            (await import("@/plugins/cases/detect")).detectCases();
+            if ((await import("@/plugins/state")).isInstalled("llm")) await (await import("@/plugins/cases/compile")).compileCases();
+          } catch (e) {
+            console.error("[cases] after the briefing:", errorMessage(e));
+          }
+        }
         throwIfAborted();
         // The duplicates the steps above may have left (and any from before): merged into the oldest, before the actions look at them.
         await syncAndWait("tododupes");

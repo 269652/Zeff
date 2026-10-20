@@ -13,7 +13,10 @@ import { archivePage, getDatabase, getPage, subtree, updatePage } from "./store"
  */
 export type RowView = { id: string; plugin: string; dataType: DataType; label: string };
 
-export const ROW_VIEWS: RowView[] = [{ id: "person", plugin: "people", dataType: "people", label: "Person" }];
+export const ROW_VIEWS: RowView[] = [
+  { id: "person", plugin: "people", dataType: "people", label: "Person" },
+  { id: "case", plugin: "cases", dataType: "cases", label: "Case" },
+];
 
 /** The custom view the rows of a database of this type have now (its plugin installed). */
 export const rowViewOf = (dataType: DataType | undefined): RowView | undefined => (dataType ? ROW_VIEWS.find((v) => v.dataType === dataType && isInstalled(v.plugin)) : undefined);

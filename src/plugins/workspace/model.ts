@@ -219,7 +219,7 @@ function formOf(raw: unknown, props: Property[]): FormSpec | undefined {
 /** The sources a pipeline can read: Jira's tickets, Google Keep's notes, the todos, another database of the Workspace, the addresses of the knowledge base. */
 export const PIPELINE_SOURCES = ["jira", "keep", "todos", "database", "mail", "messages", "knowledge", "ext"] as const;
 /** What a database's rows can be, by their sources: mails (Outlook, Gmail), messages (Teams, WhatsApp, Signal). */
-export const DATA_TYPES = ["mail", "message", "inbox", "people", "news", "calendar", "documents"] as const;
+export const DATA_TYPES = ["mail", "message", "inbox", "people", "news", "calendar", "documents", "cases"] as const;
 export type DataType = (typeof DATA_TYPES)[number];
 export const MAIL_ACCOUNTS = ["outlook", "gmail"] as const;
 export const MESSAGE_CHANNELS = ["teams", "whatsapp", "signal"] as const;
@@ -943,7 +943,7 @@ export function removeOption(schema: DbSchema, propId: string, optionId: string,
 export function detailModules(schema: DbSchema, source: string | null | undefined): DetailModule[] {
   if (schema.detail) return schema.detail;
   // A plugin's custom view of the rows (a person) is a block of the row's own page.
-  if (schema.dataType === "people") return ["page"];
+  if (schema.dataType === "people" || schema.dataType === "cases") return ["page"];
   if (source === "jira") return ["properties", "briefing", "todos", "questions", "actions", "flags", "context", "chat"];
   // A database that receives rows from others: the linked ticket first, then what Zeff knows of it (by the key the copy carries).
   if (schema.receive) return ["properties", "source", "briefing", "todos", "context", "page"];
