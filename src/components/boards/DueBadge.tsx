@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { setTodoDueAction, setTodoRecurrenceAction } from "@/plugins/todos/server-actions";
+import { regenerateRecurringAction, setTodoDueAction, setTodoRecurrenceAction } from "@/plugins/todos/server-actions";
 import { dueText, dueTone } from "@/lib/boards/due-shared";
 import { formatDate } from "@/lib/format";
 import { toast } from "../Toaster";
@@ -115,6 +115,11 @@ export function RepeatBadge({ todoId, rule, due, closed }: { todoId: number; rul
           <a href={`/api/todos/${todoId}/calendar`} className="ml-1 no-underline" title={t("Show it in the calendar")} aria-label={t("Show it in the calendar")}>
             📅
           </a>
+        )}
+        {!closed && (
+          <button type="button" className="ml-1 opacity-0 transition group-hover:opacity-100 hover:text-zinc-600 hover:underline focus:opacity-100" disabled={pending} title={t("Make the calendar appointments and the actions again")} onClick={() => start(async () => { const r = await regenerateRecurringAction(todoId); toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" }); router.refresh(); })}>
+            {t("make again")}
+          </button>
         )}
       </>
     );

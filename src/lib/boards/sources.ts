@@ -1,6 +1,7 @@
 import { mailsByKeys } from "@/lib/mail/store";
 import { notificationOf } from "./notification-mails";
 import { factsByRefs, type FactView } from "@/lib/facts";
+import { calendarBriefsByRefs, type CalendarBrief } from "@/lib/calendar/brief";
 import { docsByRefs } from "@/plugins/documents/store";
 import type { DocView } from "@/plugins/documents/shared";
 import { noteBriefsByRefs } from "@/plugins/keep/boards";
@@ -119,6 +120,8 @@ export function todoSources(
   const facts = refs.some((r) => r.startsWith("fact:")) ? factsByRefs(refs) : new Map<string, FactView>();
   // Documents of the store attached by hand.
   const docs = refs.some((r) => r.startsWith("doc:")) ? docsByRefs(refs) : new Map<string, DocView>();
+  // Appointments of its calendar series (a recurring todo's).
+  const appointments = refs.some((r) => r.startsWith("cal:")) ? calendarBriefsByRefs(refs) : new Map<string, CalendarBrief>();
   const gitlab = gitlabItemsByKeys([
     ...of("gitlab:"),
     ...originals.filter((r) => r.startsWith("gitlab:")).map((r) => r.slice(7)),
@@ -179,6 +182,10 @@ export function todoSources(
     if (ref.startsWith("doc:")) {
       const d = docs.get(ref);
       return d ? { source: "document", doc: d } : null;
+    }
+    if (ref.startsWith("cal:")) {
+      const e = appointments.get(ref);
+      return e ? { source: "calendar", event: e } : null;
     }
     if (ref.startsWith("teams:")) {
       const m = teams.get(ref.slice(6));

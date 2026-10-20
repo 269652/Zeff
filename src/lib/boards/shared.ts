@@ -287,7 +287,7 @@ export type TodoView = {
   /** A worker made it: it's on the "Worker" tab, not in your list — workers may close such todos themselves. */
   byWorker: boolean;
   /** It comes back: its rule (a rate on the 15th of every month) — done, the next one is made. */
-  recurrence: import("@/lib/calendar/recurrence").Recurrence | null;
+  recurrence: import("@/lib/calendar/recurrence").TodoRecurrence | null;
   /** Other tickets it's about too (linked: the same thing on two tickets); `ticket` is the main one. */
   alsoTickets: string[];
   /** Set: this todo was a duplicate and went into that one (it is closed; /t/<id> leads there). */
@@ -473,7 +473,9 @@ export type TodoSource =
   /** A fact of yours it needs ("Nadines Geburtstag: 16.10.") — found in your messages. */
   | { source: "fact"; fact: import("@/lib/facts-shared").FactView }
   /** A document of the store attached to it (by hand) — its abstract is its context. */
-  | { source: "document"; doc: import("@/plugins/documents/shared").DocView };
+  | { source: "document"; doc: import("@/plugins/documents/shared").DocView }
+  /** An appointment of its calendar series (a recurring todo's) — shown in its context. */
+  | { source: "calendar"; event: import("@/lib/calendar/brief").CalendarBrief };
 
 /** A source's identity: its message, whichever ref named it. */
 export const sourceKey = (s: TodoSource) =>
@@ -489,7 +491,9 @@ export const sourceKey = (s: TodoSource) =>
             ? s.fact.ref
             : s.source === "document"
               ? s.doc.ref
-              : `gitlab:${s.gitlab.key}`;
+              : s.source === "calendar"
+                ? s.event.ref
+                : `gitlab:${s.gitlab.key}`;
 
 /**
  * A todo's sources from its refs, each once (a message and its synced copy are one); a GitLab

@@ -43,6 +43,7 @@ function sourceText(s: TodoSource): string {
     return `- [${n.ref}] Notiz „${noteHeadline(n)}“ (${n.where}${n.labels.length ? `, Labels: ${n.labels.join(", ")}` : ""}), ${day(n.updatedAt)}${n.archived ? " [archiviert]" : ""}:\n${indent(cut(n.text, 2500))}`;
   }
   if (s.source === "fact") return `- [${s.fact.ref}] Fakt: ${s.fact.subject}: ${s.fact.text}`;
+  if (s.source === "calendar") return `- [${s.event.ref}] Termin${s.event.rule ? ` (Serie: ${s.event.rule})` : ""}: ${s.event.title}, ab ${s.event.start.slice(0, 10)}`;
   if (s.source === "document") return `- [${s.doc.ref}] Dokument „${s.doc.name}“ (${s.doc.kind}): ${s.doc.abstract}`;
   const g = s.gitlab;
   return `- [gitlab:${g.key}] GitLab-${g.kind === "comment" ? "Kommentar" : "Eintrag"} auf ${g.ref} „${g.title}“ von ${g.author ?? "?"}, ${day(g.createdAt)}${g.state ? ` (${g.state})` : ""}${g.resolvedAt ? " [erledigt]" : ""} — ${g.url}:\n${indent(cut(g.body, 2500))}`;

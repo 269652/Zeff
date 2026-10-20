@@ -59,3 +59,41 @@ test("a todo dropped (not done) does not come back", async () => {
   setTodoStatus(t.id, "dismissed");
   assert.equal(listTodos({ status: "open" }).filter((x) => x.text === t.text).length, 0);
 });
+
+test("the first due day is a one-off: pay today, the repeats begin on the 15th — two appointments, the series from its start; regenerated on demand", async () => {
+  const { addManualTodo, getTodo, listTodos, setTodoStatus, setTodoDue } = await import("@/lib/boards/store");
+  const { setRecurrence, regenerateSeries, nextDue } = await import("@/lib/boards/recurring");
+  const { eventsBetween } = await import("@/lib/calendar/ir");
+  assert.equal(nextDue({ ...monthly15, start: "2026-11-15" }, "2026-10-20", "2026-10-20"), "2026-11-15", "after the one-off: the first of the repeats");
+  const t = addManualTodo({ ticket: "KB-2", text: "300 € Rate (Az. DR II 1121/26) überweisen" });
+  setTodoDue(t.id, "2026-10-20");
+  setRecurrence(t.id, { ...monthly15, start: "2026-11-15", until: "2027-01-31" });
+  assert.equal(getTodo(t.id)!.recurrence!.start, "2026-11-15");
+  const mine = () => eventsBetween("2026-10-01", "2027-03-01").filter((e) => e.todoId === t.id).map((e) => e.start.slice(0, 10)).sort();
+  assert.deepEqual(mine(), ["2026-10-20", "2026-11-15", "2026-12-15", "2027-01-15"]);
+  // Regenerated: the same, not twice.
+  regenerateSeries(t.id);
+  assert.deepEqual(mine(), ["2026-10-20", "2026-11-15", "2026-12-15", "2027-01-15"]);
+  setTodoStatus(t.id, "done");
+  const next = listTodos({ status: "open" }).find((x) => x.text === t.text)!;
+  assert.equal(next.due, "2026-11-15", "the first of the repeats");
+  assert.equal(next.recurrence!.start, "2026-11-15");
+});
+
+test("the appointments are the todo's context: its sources list the series and the one-off — the series follows the next todo", async () => {
+  const { addManualTodo, setTodoDue, getTodo, setTodoStatus, listTodos } = await import("@/lib/boards/store");
+  const { setRecurrence } = await import("@/lib/boards/recurring");
+  const { todoSources } = await import("@/lib/boards/sources");
+  const t = addManualTodo({ ticket: "KB-2", text: "Eine Rate (Az. DR II 77/26) überweisen" });
+  setTodoDue(t.id, "2026-10-20");
+  setRecurrence(t.id, { ...monthly15, start: "2026-11-15" });
+  const calRefs = (id: number) => getTodo(id)!.refs.filter((r: string) => r.startsWith("cal:"));
+  assert.equal(calRefs(t.id).length, 2, "the series and the one-off");
+  const found = Object.values(todoSources([getTodo(t.id)!], []));
+  const cal = found.flatMap((x) => (x.source === "calendar" ? [x.event] : []));
+  assert.equal(cal.length, 2);
+  assert.ok(cal.some((e) => e.rule && /month/i.test(e.rule)), "the series says its rule");
+  setTodoStatus(t.id, "done");
+  const next = listTodos({ status: "open" }).find((x) => x.text === t.text)!;
+  assert.equal(calRefs(next.id).length, 1, "the next todo has the series");
+});

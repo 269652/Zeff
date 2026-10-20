@@ -171,7 +171,7 @@ function ContextSource({ s, todoId }: { s: TodoSource; todoId?: number }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const posted = s.source === "jira-comment" ? s.comment.postedBy : undefined;
-  const synced = s.source === "jira-comment" || s.source === "keep" || s.source === "fact" || s.source === "document" ? undefined : s.synced;
+  const synced = s.source === "jira-comment" || s.source === "keep" || s.source === "fact" || s.source === "document" || s.source === "calendar" ? undefined : s.synced;
   return (
     <span className="group relative flex w-full flex-col items-stretch gap-1">
       <SourceBadge entity={s} className="min-w-0 flex-1" resolved={synced?.resolved || undefined} onToggle={() => setOpen(true)} />

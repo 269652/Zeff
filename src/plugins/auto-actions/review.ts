@@ -229,7 +229,7 @@ function factsFor(t: TodoView, from: Parameters<typeof entityText>[0][]): string
 
 /** A source's ref, as the todo's refs name it. */
 const sourceRef = (s: Parameters<typeof entityText>[0]) =>
-  s.source === "teams" ? `teams:${s.teams.key}` : s.source === "mail" ? `mail:${s.mail.key}` : s.source === "jira-comment" ? `jira-comment:${s.comment.id}` : s.source === "gitlab" ? `gitlab:${s.gitlab.key}` : s.source === "fact" ? s.fact.ref : s.source === "document" ? s.doc.ref : s.source;
+  s.source === "teams" ? `teams:${s.teams.key}` : s.source === "mail" ? `mail:${s.mail.key}` : s.source === "jira-comment" ? `jira-comment:${s.comment.id}` : s.source === "gitlab" ? `gitlab:${s.gitlab.key}` : s.source === "fact" ? s.fact.ref : s.source === "document" ? s.doc.ref : s.source === "calendar" ? s.event.ref : s.source;
 
 const state = globalThis as unknown as { __zeffAutoActions?: Promise<AutoActionsResult> | null };
 export type AutoActionsResult = { ok: boolean; reviewed: number; withActions: number; batches: number; error?: string };

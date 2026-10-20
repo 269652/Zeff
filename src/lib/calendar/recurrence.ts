@@ -25,6 +25,25 @@ export type Recurrence = {
   count?: number;
 };
 
+/** A todo's rule: a series' rule and — when its first due day is a one-off (pay now, then every 15th) — the day the repeats begin. */
+export type TodoRecurrence = Recurrence & { start?: string };
+
+/** A todo's rule as stored (JSON) — cleaned; null when it isn't one. */
+export function parseTodoRecurrence(raw: unknown): TodoRecurrence | null {
+  const r = parseRecurrence(raw);
+  if (!r) return null;
+  let v: unknown = raw;
+  if (typeof v === "string") {
+    try {
+      v = JSON.parse(v);
+    } catch {
+      return r;
+    }
+  }
+  const start = (v as { start?: unknown } | null)?.start;
+  return typeof start === "string" && /^\d{4}-\d{2}-\d{2}$/.test(start) ? { ...r, start } : r;
+}
+
 const SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const ymd = (d: Date) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;

@@ -3,7 +3,7 @@ import "@/plugins/actions/server";
 import { parseTodoKnowledge, type TodoKnowledge } from "@/plugins/knowledge/shared";
 import { summaryForTicket } from "@/plugins/knowledge/repo-systems-store";
 import { repeatsByRecord, similarText } from "./similar";
-import { parseRecurrence } from "@/lib/calendar/recurrence";
+import { parseTodoRecurrence } from "@/lib/calendar/recurrence";
 import { spawnNext, syncSeries } from "./recurring";
 import { absorb, mergeInto } from "./merge";
 import { jiraNoteBody } from "@/plugins/people/accounts";
@@ -141,7 +141,7 @@ const isNoteRef = (r: string) => r.startsWith("keep:") || /^page:\d+$/.test(r);
  * What a todo is related to, by the relation runs (its mail_refs column): the mails (Mail-Zuordnung,
  * "mail:…") and the notes (Notiz-Zuordnung, Keep's extension, "keep:…" and database rows "page:…").
  */
-const relatedRefsOf = (r: Todo) => parse<string[]>(r.mailRefs, []).filter((k) => typeof k === "string" && (k.startsWith("mail:") || isNoteRef(k) || k.startsWith("doc:")));
+const relatedRefsOf = (r: Todo) => parse<string[]>(r.mailRefs, []).filter((k) => typeof k === "string" && (k.startsWith("mail:") || isNoteRef(k) || k.startsWith("doc:") || k.startsWith("cal:")));
 /** The mails related to a todo (by the mail relation run). */
 const mailRefsOf = (r: Todo) => relatedRefsOf(r).filter((k) => k.startsWith("mail:"));
 
@@ -249,7 +249,7 @@ const toTodo = (r: Todo): TodoView => {
   workerDone: parse<TodoView["workerDone"]>(r.workerDone ?? "null", null),
   byWorker: !!r.byWorker,
   alsoTickets: parse<string[]>(r.alsoTickets, []).filter((k) => typeof k === "string"),
-  recurrence: parseRecurrence(r.recurrence),
+  recurrence: parseTodoRecurrence(r.recurrence),
   createdAt: iso(r.createdAt),
   updatedAt: iso(r.updatedAt),
   doneAt: r.doneAt && iso(r.doneAt),

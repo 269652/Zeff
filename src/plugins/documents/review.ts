@@ -41,6 +41,8 @@ const SCHEMA = {
           due: { type: "string", description: "Frist als JJJJ-MM-TT, wenn das Dokument eine nennt — sonst weglassen." },
           refs: { type: "array", items: { type: "string" } },
           repeat: { type: "string", enum: ["daily", "weekly", "monthly", "yearly"], description: "Nur wenn die Aufgabe regelmäßig wiederkehrt (z. B. eine Rate jeden Monat am 15.) — sonst weglassen." },
+          repeatFrom: { type: "string", description: "Der erste Tag der Wiederholungen (JJJJ-MM-TT), wenn er nicht die Frist (due) ist — z. B. heute fällig und danach jeden 15., ab 15.11." },
+          repeatUntil: { type: "string", description: "Der letzte Tag der Wiederholungen (JJJJ-MM-TT), wenn das Dokument ein Ende nennt." },
         },
         required: ["text", "refs"],
       },
@@ -48,11 +50,11 @@ const SCHEMA = {
   },
   required: ["todos"],
 };
-type Answer = { todos?: { text?: string; kind?: string; owner?: string; ticket?: string; due?: string; refs?: string[]; repeat?: string }[] };
+type Answer = { todos?: { text?: string; kind?: string; owner?: string; ticket?: string; due?: string; refs?: string[]; repeat?: string; repeatFrom?: string; repeatUntil?: string }[] };
 
 export const INSTRUCTIONS = `Du gehst meine abgelegten Dokumente durch (Briefe, Rechnungen, Verträge, Berichte, Protokolle, Formulare, Notizen, Scans) und findest, was ICH zu tun habe. Unten stehen die Dokumente (Kennung in eckigen Klammern, z. B. [doc:12], dann Name, Art, Ablagedatum, Kurzfassung und Text — bei langen Dokumenten Anfang und Ende), meine Tickets und die Todos, die schon offen sind.
 
-Lege für jede Aufgabe, die ein Dokument an mich stellt, ein Todo an: ein Satz, Verb zuerst, prüfbar, mit Frist, wenn das Dokument eine nennt (die Frist auch als Datum unter due, JJJJ-MM-TT) — z. B. „Rechnung 4711 über 186,83 € bis 16.10. bezahlen“, „Mietvertrag bis zum 3. Werktag kündigen, falls nicht verlängert werden soll“, „Offene Frage zur Spalte ‚Anmerkung‘ im Migrationsbericht klären“, „Formular unterschreiben und zurücksenden“. Kehrt eine Aufgabe regelmäßig wieder (eine Rate jeden Monat am 15., eine Gebühr jedes Jahr), ist es EIN Todo mit repeat (daily, weekly, monthly, yearly) und der Frist der ersten Fälligkeit unter due — die folgenden legt Zeff selbst an. Gehören mehrere Punkte zusammen, ist es EIN Todo. Zu jedem Todo unter refs die Kennungen der Dokumente, aus denen es folgt. Gehört es zu einem meiner Tickets, gib dessen Schlüssel unter ticket an, sonst lass ticket leer. owner = other nur, wenn ich auf jemand anderen warte (eine Antwort, eine Lieferung).
+Lege für jede Aufgabe, die ein Dokument an mich stellt, ein Todo an: ein Satz, Verb zuerst, prüfbar, mit Frist, wenn das Dokument eine nennt (die Frist auch als Datum unter due, JJJJ-MM-TT) — z. B. „Rechnung 4711 über 186,83 € bis 16.10. bezahlen“, „Mietvertrag bis zum 3. Werktag kündigen, falls nicht verlängert werden soll“, „Offene Frage zur Spalte ‚Anmerkung‘ im Migrationsbericht klären“, „Formular unterschreiben und zurücksenden“. Kehrt eine Aufgabe regelmäßig wieder (eine Rate jeden Monat am 15., eine Gebühr jedes Jahr), ist es EIN Todo mit repeat (daily, weekly, monthly, yearly): unter due die Frist der ersten Fälligkeit (auch wenn sie eine einmalige ist — „heute 300 € überweisen, danach jeden 15.“), unter repeatFrom der erste Tag der Wiederholungen, wenn er ein anderer ist (15.11.), unter repeatUntil der letzte Tag, wenn das Dokument ein Ende nennt — die folgenden legt Zeff selbst an. Gehören mehrere Punkte zusammen, ist es EIN Todo. Zu jedem Todo unter refs die Kennungen der Dokumente, aus denen es folgt. Gehört es zu einem meiner Tickets, gib dessen Schlüssel unter ticket an, sonst lass ticket leer. owner = other nur, wenn ich auf jemand anderen warte (eine Antwort, eine Lieferung).
 
 KEINE Todos für: reine Information und Nachschlagewerke, Berichte über Vergangenes ohne offene Punkte oder Fragen, Werbung, Zugangsdaten, Erledigtes (schon bezahlt, schon abgegeben, laut Dokument abgeschlossen) — und nichts, was ein schon offenes Todo abdeckt. Ein Dokument ohne Aufgabe ergibt kein Todo; gibt es insgesamt nichts zu tun, ist die Liste leer.`;
 
@@ -156,7 +158,7 @@ export function reviewDocumentsForTodos(runId: number | null = null): Promise<Do
           addDocTodo({ ticket: tickets.includes(ticket) ? ticket : "", text, kind: isTodoKind(td.kind) ? td.kind : "other", owner: td.owner === "other" ? "other" : "me", refs, runId, due: td.due ?? null }),
         );
         // A todo that comes back (a rate every month): its rule is kept on it — the calendar shows the series, done it comes again.
-        if (td.repeat && ["daily", "weekly", "monthly", "yearly"].includes(td.repeat) && made.outcome !== "known") (await import("@/lib/boards/recurring")).setRecurrence(made.id, { freq: td.repeat as "monthly", interval: 1 });
+        if (td.repeat && ["daily", "weekly", "monthly", "yearly"].includes(td.repeat) && made.outcome !== "known") (await import("@/lib/boards/recurring")).setRecurrence(made.id, { freq: td.repeat as "monthly", interval: 1, ...(/^\d{4}-\d{2}-\d{2}$/.test(td.repeatUntil ?? "") ? { until: td.repeatUntil } : {}), ...(/^\d{4}-\d{2}-\d{2}$/.test(td.repeatFrom ?? "") ? { start: td.repeatFrom } : {}) });
         if (made.outcome === "merged") merged++;
         else if (!made.outcome) {
           open.push(made);

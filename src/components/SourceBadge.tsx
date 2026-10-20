@@ -7,6 +7,7 @@ import { GripIcon } from "./icons";
 import { KeepNoteBadge, KeepNoteDetails } from "@/plugins/keep/KeepNoteBadge";
 import { FactBadge, FactDetails } from "./FactBadge";
 import { DocBadge, DocDetails } from "@/plugins/documents/DocBadge";
+import { CalendarBadge, CalendarDetails } from "./CalendarBadge";
 import { MailBadge, MailDetails } from "./MailBadge";
 import { JiraCommentBadge, JiraCommentDetails, JiraTicketBadge, JiraTicketDetails } from "./JiraBadges";
 import { TeamsMessageBadge, TeamsMessageDetails } from "./TeamsMessageBadge";
@@ -32,6 +33,7 @@ export function SourceBadge({ entity, resolved, ...rest }: { entity: Sourced; cl
   if (entity.source === "keep") return <KeepNoteBadge n={entity.note} {...rest} />;
   if (entity.source === "fact") return <FactBadge f={entity.fact} {...rest} />;
   if (entity.source === "document") return <DocBadge d={entity.doc} {...rest} />;
+  if (entity.source === "calendar") return <CalendarBadge e={entity.event} {...rest} />;
   return <GitlabItemBadge item={entity.gitlab} resolved={resolved} {...rest} />;
 }
 
@@ -47,6 +49,7 @@ export function SourceDetails({ entity }: { entity: Sourced }) {
   if (entity.source === "keep") return <KeepNoteDetails n={entity.note} />;
   if (entity.source === "fact") return <FactDetails f={entity.fact} />;
   if (entity.source === "document") return <DocDetails d={entity.doc} />;
+  if (entity.source === "calendar") return <CalendarDetails e={entity.event} />;
   return <GitlabItemDetails item={entity.gitlab} />;
 }
 

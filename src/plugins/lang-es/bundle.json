@@ -6192,5 +6192,12 @@
   "Comes back {when} — change": "Vuelve {when} — cambiar",
   "Show it in the calendar": "Mostrar en el calendario",
   "Make it come back": "Hacer que vuelva",
-  "repeat": "repetir"
+  "repeat": "repetir",
+  "Make the calendar appointments and the actions again": "Volver a crear las citas del calendario y las acciones",
+  "make again": "volver a crear",
+  "Calendar series": "Serie del calendario",
+  "Appointment": "Cita",
+  "Show the appointment": "Mostrar la cita",
+  "from {date}": "desde {date}",
+  "Calendar appointments made again.": "Citas del calendario creadas de nuevo."
 }

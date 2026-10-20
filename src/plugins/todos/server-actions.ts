@@ -183,6 +183,25 @@ export async function setTodoRecurrenceAction(todoId: number, freq: "daily" | "w
   }
 }
 
+/** A recurring todo's calendar appointments and its actions made again (the actions the AI proposed; ones you made stay). */
+export async function regenerateRecurringAction(todoId: number): Promise<ActionState> {
+  try {
+    (await import("@/lib/boards/recurring")).regenerateSeries(Number(todoId));
+    const { isInstalled } = await import("@/plugins/state");
+    let actions = "";
+    if (isInstalled("auto-actions")) {
+      const { reviewTodosForActions } = await import("@/plugins/auto-actions/review");
+      const r = await reviewTodosForActions({ ids: [Number(todoId)] });
+      actions = r.ok ? ` ${r.withActions ? t("Actions suggested — on the todo.") : t("No fitting action found.")}` : ` ${r.error ?? ""}`;
+    }
+    (await import("@/lib/events")).emitChange("todos");
+    revalidateAll();
+    return { ok: true, message: `${t("Calendar appointments made again.")}${actions}`.trim() };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
 /** A todo put to the bottom for now — it comes back up when something new happens on it — or taken back up. */
 export async function deferTodoAction(todoId: number, deferred: boolean): Promise<ActionState> {
   try {

@@ -124,7 +124,9 @@ export const entityKey = (e: Sourced) =>
                   ? e.fact.ref
                   : e.source === "document"
                     ? e.doc.ref
-                    : `todo:${e.todo.id}`;
+                    : e.source === "calendar"
+                      ? e.event.ref
+                      : `todo:${e.todo.id}`;
 
 /** Who wrote it and when (ISO). A todo: nobody's words — when it was done (else found). */
 export function entityWhoWhen(e: Sourced): { author: string | null; at: string | null } {
@@ -138,6 +140,7 @@ export function entityWhoWhen(e: Sourced): { author: string | null; at: string |
   if (e.source === "keep") return { author: null, at: e.note.updatedAt };
   if (e.source === "fact") return { author: null, at: e.fact.updatedAt };
   if (e.source === "document") return { author: null, at: e.doc.createdAt };
+  if (e.source === "calendar") return { author: null, at: e.event.start };
   const g = e.gitlab;
   return { author: g.author, at: g.kind === "branch" ? g.updatedAt : g.createdAt };
 }
@@ -154,6 +157,7 @@ export function entityHeadline(e: Sourced): string {
   if (e.source === "keep") return `Notiz: ${noteHeadline(e.note)} (${e.note.where})`;
   if (e.source === "fact") return `Fakt: ${e.fact.subject}`;
   if (e.source === "document") return `Dokument: ${e.doc.name}`;
+  if (e.source === "calendar") return `Termin: ${e.event.title}${e.event.rule ? ` (${e.event.rule})` : ""}`;
   return gitlabHeadline(e.gitlab);
 }
 
@@ -169,12 +173,13 @@ export function entityText(e: Sourced): string {
   if (e.source === "keep") return [e.note.title, e.note.text, e.note.labels.length ? `Labels: ${e.note.labels.join(", ")}` : ""].filter(Boolean).join("\n");
   if (e.source === "fact") return `${e.fact.subject}: ${e.fact.text}`;
   if (e.source === "document") return e.doc.abstract;
+  if (e.source === "calendar") return [e.event.title, e.event.rule, e.event.start.slice(0, 10)].filter(Boolean).join(" — ");
   return e.gitlab.body;
 }
 
 /** Where it lives: "Teams" / "GitLab" / "Jira" / "Todo". */
 export const entitySourceLabel = (e: Sourced) =>
-  e.source === "teams" ? "Teams" : e.source === "gitlab" ? "GitLab" : e.source === "mail" ? "Mail" : e.source === "todo" ? "Todo" : e.source === "work" ? "Lauf" : e.source === "time" ? "Zeit" : e.source === "keep" ? "Notiz" : e.source === "fact" ? "Fakt" : e.source === "document" ? "Dokument" : "Jira";
+  e.source === "teams" ? "Teams" : e.source === "gitlab" ? "GitLab" : e.source === "mail" ? "Mail" : e.source === "todo" ? "Todo" : e.source === "work" ? "Lauf" : e.source === "time" ? "Zeit" : e.source === "keep" ? "Notiz" : e.source === "fact" ? "Fakt" : e.source === "document" ? "Dokument" : e.source === "calendar" ? "Termin" : "Jira";
 
 /** Whether it's been dealt with (marked done here, resolved where it lives). */
 export const entityDone = (e: Sourced): boolean =>
