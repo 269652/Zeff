@@ -22,7 +22,7 @@ export const useHoverSide = () => useContext(SideCtx);
  * above when there's more room there — no taller than that room (it scrolls inside), kept in the
  * window. It stays while the pointer is on it, to click what's in it.
  */
-export function HoverCard({ card, children, width = 420, className = "", side: sideProp, label }: { card: ReactNode; children: ReactNode; width?: number; className?: string; /** A sidebar beside the card, whenever it's open (the people a note names). */ side?: ReactNode; /** The card's accessible name. */ label?: string }) {
+export function HoverCard({ card, children, width = 420, className = "", side: sideProp, label, delay = 250 }: { card: ReactNode; children: ReactNode; width?: number; className?: string; /** A sidebar beside the card, whenever it's open (the people a note names). */ side?: ReactNode; /** The card's accessible name. */ label?: string; /** How long the pointer (or focus) rests before it opens, ms. */ delay?: number }) {
   const t = useT();
   const id = useId();
   const [place, setPlace] = useState<Place | null>(null);
@@ -106,7 +106,7 @@ export function HoverCard({ card, children, width = 420, className = "", side: s
   // A touch fires emulated mouse/focus events after its pointerdown: those must not undo the toggle.
   const recentTouch = () => Date.now() - touchAt.current < 800;
   const show = () => {
-    if (!recentTouch()) later(locate, 250);
+    if (!recentTouch()) later(locate, delay);
   };
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.pointerType !== "touch" && e.pointerType !== "pen") return;

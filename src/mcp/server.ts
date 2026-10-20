@@ -333,12 +333,12 @@ export function registerZeffTools(server: McpServer): void {
     {
       title: "Search everything Zeff keeps",
       description:
-        "Missing context? Look through everything Zeff has: the knowledge base (Confluence, notes), mails, Teams messages, GitLab comments and merge requests, Jira tickets and their comments, the user's context notes and facts, and todos. " +
+        "Missing context? Look through everything Zeff has: the knowledge base (Confluence, notes), mails, Teams messages, GitLab comments and merge requests, Jira tickets and their comments, the user's context notes and facts, todos, and what Zeff learned about people (roles, facts, bank details, addresses, phone; hits [person:<id>]). " +
         "Hits come with a reference ([mail:…], [teams:…], [jira-comment:…], T-12 …) and the passage found. Use it before guessing who decided what, what a question was about or how something works — " +
         "and before asking the user. German and English words both work; 2–5 specific words find more than a sentence.",
       inputSchema: z.object({
         query: z.string().min(2).describe("What to look for — words that stand in the texts: names, systems, ticket keys."),
-        where: z.array(z.enum(["knowledge", "mails", "teams", "gitlab", "jira", "notes", "facts", "todos", "documents", "pages"])).optional().describe("Only look in these sources (default: all)."),
+        where: z.array(z.enum(["knowledge", "mails", "teams", "gitlab", "jira", "notes", "facts", "todos", "documents", "pages", "people"])).optional().describe("Only look in these sources (default: all)."),
       }),
       annotations: { readOnlyHint: true, idempotentHint: true },
     },

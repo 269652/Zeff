@@ -5,6 +5,7 @@ import { claimsOf, linksOf, reviewClaim, reviewLink } from "./graph";
 import { findDates } from "./dates";
 import { buildPeopleIndex, mentionMatcher, splitMentions } from "./mentions";
 import { addDetail, detailsOf, isDetailKey, removeDetail, syncDetails, type PersonDetail } from "./details";
+import { appointmentsOf, type PersonAppointments } from "./appointments";
 import { compilePerson } from "./compile";
 import { dateKindLabels, dateText, daysBetween, inDaysText, isDateKind, isoDay, nextOccurrence, parseDayMonth, type DateKind, type PersonSummary } from "./shared";
 import { addDate, addRelation, contactsOf, datesOf, deleteDate, deletePerson, deleteRelation, getPerson, listPeople, mergePeople, namesThem, relationsOf, updateDate, updatePerson, type Contact, type PersonRelation } from "./store";
@@ -55,6 +56,8 @@ export type PersonBundle = {
   documents: { id: number; name: string; summary: string; at: string }[];
   /** Their cases (the Cases plugin): the money and the next step at a glance. */
   cases: { id: number; label: string; title: string; open: number | null; nextDue: string | null; done: boolean; href: string }[];
+  /** Their appointments (attendee, or named in one): the next and the last 30 days — null without the Calendar plugin. */
+  events: PersonAppointments | null;
 };
 
 /** The documents that are theirs: their address in the text, or their name in the title, summary or text. */
@@ -133,6 +136,7 @@ export async function personBundle(personId: number, today = new Date()): Promis
     others: listPeople().filter((x) => x.id !== personId).map((x) => ({ id: x.id, name: x.name })),
     documents: documentsOf(p),
     cases: await casesOfPerson(personId),
+    events: await appointmentsOf(personId, today),
   };
 }
 

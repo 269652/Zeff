@@ -10,7 +10,9 @@ import { GiroCode } from "@/components/GiroCode";
 import { Overlay } from "@/components/Overlay";
 import { accountFor, amountIn } from "@/lib/girocode";
 import { personBundleAction, personKnowledgeMergeAction, personOpAction, personWikiAction, type KnowledgeOfPerson } from "../block-actions";
+import type { Appointment } from "../appointments";
 import type { PersonBundle, PersonOperation } from "../blocks";
+import { formatDate, formatDayTime } from "@/lib/format";
 
 /**
  * The sections of a person's page — all read one bundle per row, so a change in one shows in the others.
@@ -135,6 +137,7 @@ export default function PersonView({ rowId }: { rowId: number }) {
       <Wiki rowId={rowId} />
       <Messages d={d} />
       <TodosOf d={d} />
+      {d.events && <Appointments events={d.events} />}
       <div className="grid gap-x-8 gap-y-5 @2xl:grid-cols-2">
         <CasesOf d={d} />
         <Letters d={d} />
@@ -166,6 +169,44 @@ function Messages({ d }: { d: PersonBundle }) {
         </ul>
       ) : (
         <Empty>{t("No messages — enter the WhatsApp chat or the mail addresses in the profile.")}</Empty>
+      )}
+    </Card>
+  );
+}
+
+/** Appointments with them (the Calendar plugin): the next 30 days, then the last 30 — each opens its day in the calendar. */
+function Appointments({ events }: { events: NonNullable<PersonBundle["events"]> }) {
+  const t = useT();
+  const when = (e: Appointment) => (e.allDay ? formatDate(e.start) : formatDayTime(e.start));
+  const list = (items: Appointment[]) => (
+    <ul className="space-y-1 text-sm">
+      {items.map((e) => (
+        <li key={`${e.id}:${e.start}`} className="flex items-baseline gap-2">
+          <span className="size-2 shrink-0 self-center rounded-full" style={{ background: e.color }} title={e.calendar} aria-hidden />
+          <span className="w-36 shrink-0 text-xs text-zinc-500">{when(e)}</span>
+          <Link href={e.href} className="min-w-0 flex-1 truncate hover:underline">
+            {e.title}
+          </Link>
+          {e.location && <span className="max-w-[40%] shrink truncate text-xs text-zinc-400">{e.location}</span>}
+        </li>
+      ))}
+    </ul>
+  );
+  return (
+    <Card title={t("Appointments")}>
+      {events.upcoming.length || events.recent.length ? (
+        <div className="grid gap-x-8 gap-y-3 @2xl:grid-cols-2">
+          <div className="space-y-1">
+            <h4 className="label">{t("Coming up")}</h4>
+            {events.upcoming.length ? list(events.upcoming) : <Empty>{t("Nothing in the next 30 days.")}</Empty>}
+          </div>
+          <div className="space-y-1">
+            <h4 className="label">{t("Recently")}</h4>
+            {events.recent.length ? list(events.recent) : <Empty>{t("Nothing in the last 30 days.")}</Empty>}
+          </div>
+        </div>
+      ) : (
+        <Empty>{t("No appointment with them in the last or next 30 days — Zeff looks for their mail address among the attendees and their name in the title.")}</Empty>
       )}
     </Card>
   );
