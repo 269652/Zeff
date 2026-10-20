@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { TodoSources } from "@/components/boards/TodoSources";
+import { GiroCode } from "@/components/GiroCode";
 import { caseBundleAction, caseOpAction } from "../block-actions";
 import type { CaseBundle, CaseOperation } from "../blocks";
 
@@ -119,22 +120,7 @@ export default function CaseView({ rowId }: { rowId: number }) {
 
         <aside className="space-y-5">
           <Card title={t("Payment")}>
-            {s?.iban ? (
-              <dl className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-1.5 text-sm">
-                {[
-                  [t("Recipient"), s.payee],
-                  ["IBAN", s.iban],
-                  ["BIC", s.bic],
-                  [t("Purpose"), s.purpose],
-                ]
-                  .filter(([, v]) => v)
-                  .map(([k, v]) => (
-                    <Copyable key={k} label={k} value={v} mono={k === "IBAN" || k === "BIC"} />
-                  ))}
-              </dl>
-            ) : (
-              <Empty>{t("No account known for it yet.")}</Empty>
-            )}
+            {s?.iban ? <Pay name={s.payee || d.person?.name || s.party || d.label} iban={s.iban} bic={s.bic} purpose={s.purpose} suggested={s.installment ?? s.open} /> : <Empty>{t("No account known for it yet.")}</Empty>}
           </Card>
 
           <Card title={t("Person")}>
@@ -155,16 +141,19 @@ export default function CaseView({ rowId }: { rowId: number }) {
   );
 }
 
-function Copyable({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+/** The payment as a GiroCode: the instalment (else what is open) as the amount to start with — yours to change. */
+function Pay({ name, iban, bic, purpose, suggested }: { name: string; iban: string; bic: string; purpose: string; suggested: number | null }) {
   const t = useT();
+  const [amount, setAmount] = useState(suggested != null ? suggested.toFixed(2).replace(".", ",") : "");
+  const value = Number(amount.replace(/\./g, "").replace(",", "."));
   return (
-    <>
-      <dt className="text-xs text-zinc-500">{label}</dt>
-      <dd className={`min-w-0 break-words ${mono ? "font-mono text-[13px]" : ""}`}>{value}</dd>
-      <button type="button" className="text-xs text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200" aria-label={t("Copy")} title={t("Copy")} onClick={() => void navigator.clipboard.writeText(value).then(() => toast(t("Copied.")))}>
-        ⧉
-      </button>
-    </>
+    <div className="space-y-2">
+      <label className="block text-sm">
+        <span className="label">{t("Amount")}</span>
+        <input className="input" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0,00" />
+      </label>
+      <GiroCode name={name} iban={iban} bic={bic || null} amount={amount.trim() && value > 0 ? value : null} purpose={purpose} />
+    </div>
   );
 }
 
