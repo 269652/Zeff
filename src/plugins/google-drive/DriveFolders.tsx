@@ -66,13 +66,8 @@ export function DriveFolders({ folders, connected, fullAccess }: { folders: { id
               </span>
             ))}
             <span className="ml-auto flex gap-1">
-              {trail.length > 1 && (
-                <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void addPullFolderAction({ id: trail.at(-1)!.id, path: here }).then((r) => (say(r), setTrail(null)))}>
-                  {t("Use this folder")}
-                </button>
-              )}
               <button type="button" className="btn btn-sm" onClick={() => setTrail(null)}>
-                {t("Cancel")}
+                {t("Done")}
               </button>
             </span>
           </div>
@@ -80,14 +75,25 @@ export function DriveFolders({ folders, connected, fullAccess }: { folders: { id
             <p className="text-sm text-zinc-400">…</p>
           ) : list.length ? (
             <ul className="max-h-64 space-y-0.5 overflow-auto text-sm">
-              {list.map((f) => (
-                <li key={f.id}>
-                  <button type="button" className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => void open([...trail, f])}>
-                    <span aria-hidden>📁</span>
-                    <span className="truncate">{f.name}</span>
-                  </button>
-                </li>
-              ))}
+              {list.map((f) => {
+                const chosen = folders.some((x) => x.id === f.id);
+                return (
+                  <li key={f.id} className="flex items-center gap-2 rounded px-1.5 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                    {/* The name opens it (its folders); the button on the right takes it — as many as you like, the list stays open. */}
+                    <button type="button" className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-left" title={t("Open")} onClick={() => void open([...trail, f])}>
+                      <span aria-hidden>📁</span>
+                      <span className="truncate">{f.name}</span>
+                    </button>
+                    {chosen ? (
+                      <span className="shrink-0 text-xs text-emerald-600 dark:text-emerald-400">✓ {t("Chosen")}</span>
+                    ) : (
+                      <button type="button" className="btn btn-sm shrink-0" onClick={() => void addPullFolderAction({ id: f.id, path: `${here} / ${f.name}` }).then(say)}>
+                        {t("Add")}
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <p className="text-sm text-zinc-400">{t("No folders in here.")}</p>
