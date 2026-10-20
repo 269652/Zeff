@@ -88,3 +88,18 @@ test("identity: one address written as several names is one person — the addre
   const made = acceptSuggestion(found[0].id);
   assert.deepEqual(getPerson(made!)?.emails, ["ogv.nathanael@gvjustiz.de"]);
 });
+
+test("identity: the knowledge's entities of a profile — by a name, an alias or the address on either side; the one with the address first, then the one with more pages", async () => {
+  const { knowledgeEntitiesOf } = await import("@/plugins/people/identity");
+  const p = { name: "Obergerichtsvollzieherin Nathanael", aliases: [], emails: ["ogv.nathanael@gvjustiz.de"], whatsapp: "" };
+  const e = (id: number, name: string, aliases: string[], pages: number) => ({ id, key: name.toLowerCase(), name, aliases, summary: "", pages, degree: 0 });
+  const entities = [
+    e(2226, "U. Nathanael", ["OGVin Nathanael", "Nathanael", "Obergerichtsvollzieherin Nathanael"], 5),
+    e(2880, "Nathanael", ["Obergerichtsvollzieherin Nathanael", "ogv.nathanael@gvjustiz.de"], 2),
+    e(12, "Natha", [], 9), // another person
+    e(13, "Amtsgericht Freiburg", ["Nathanael's court"], 30),
+  ];
+  assert.deepEqual(knowledgeEntitiesOf(p, entities).map((x) => x.id), [2880, 2226]);
+  assert.deepEqual(knowledgeEntitiesOf({ ...p, emails: [] }, entities).map((x) => x.id), [2226, 2880]);
+  assert.deepEqual(knowledgeEntitiesOf({ name: "Someone Else", aliases: [], emails: [], whatsapp: "" }, entities), []);
+});

@@ -70,24 +70,36 @@ async function personWiki(id: number): Promise<KnowledgeOfPerson | null> {
     const p = getPerson(id);
     if (!p || !isInstalled("knowledge")) return null;
     try {
-      const { knowledgePerson, knowledgeBrowserUrl } = await import("@/plugins/knowledge/client");
-      let entity = p.entityId ? await knowledgePerson({ id: p.entityId }) : null;
-      if (!entity) for (const n of [p.name, ...p.aliases]) if ((entity = await knowledgePerson({ name: n }))) break;
+      const { knowledgePerson, knowledgePersons, knowledgeBrowserUrl } = await import("@/plugins/knowledge/client");
+      const { knowledgeEntitiesOf } = await import("./identity");
+      // Every entity that is them — the knowledge may keep someone twice, under a name the profile has only as an alias
+      // (or the other way round), or by their address. The kept one first; without the list, the kept one or the name.
+      const matched = knowledgeEntitiesOf(p, await knowledgePersons().catch(() => []));
+      const ids = [...new Set([...(p.entityId ? [p.entityId] : []), ...matched.map((e) => e.id)])].slice(0, 3);
+      let entities = (await Promise.all(ids.map((eid) => knowledgePerson({ id: eid })))).filter((e) => !!e);
+      if (!entities.length) for (const n of [p.name, ...p.aliases]) if ((entities = [await knowledgePerson({ name: n })].filter((e) => !!e)).length) break;
+      const entity = entities[0];
       if (!entity) return { summary: "", related: [], pages: [], graph: null, error: null };
       if (entity.id !== p.entityId) rememberEntity(p.id, entity.id);
       const h = await headers();
       const base = knowledgeBrowserUrl(h.get("x-forwarded-host") ?? h.get("host"), h.get("x-forwarded-proto"));
       const related = new Map<number, { name: string; rels: string[] }>();
-      for (const r of entity.relations ?? []) {
-        const g = related.get(r.other.id) ?? { name: r.other.name, rels: [] };
-        const text = r.fact || `${r.dir === "out" ? "→" : "←"} ${r.rel}`;
-        if (!g.rels.includes(text) && g.rels.length < 3) g.rels.push(text);
-        related.set(r.other.id, g);
+      const pages = new Map<string, KnowledgeOfPerson["pages"][number]>();
+      const own = new Set(entities.map((e) => e.id));
+      for (const e of entities) {
+        for (const r of e.relations ?? []) {
+          if (own.has(r.other.id)) continue;
+          const g = related.get(r.other.id) ?? { name: r.other.name, rels: [] };
+          const text = r.fact || `${r.dir === "out" ? "→" : "←"} ${r.rel}`;
+          if (!g.rels.includes(text) && g.rels.length < 3) g.rels.push(text);
+          related.set(r.other.id, g);
+        }
+        for (const pg of e.pages) if (!pages.has(pg.id)) pages.set(pg.id, { id: pg.id, title: pg.title, space: pg.space, href: `${base}/seite/${encodeURIComponent(pg.id)}` });
       }
       return {
-        summary: entity.summary ?? "",
+        summary: [...new Set(entities.map((e) => (e.summary ?? "").trim()).filter(Boolean))].join("\n\n"),
         related: [...related.values()].slice(0, 15),
-        pages: entity.pages.slice(0, 30).map((pg) => ({ id: pg.id, title: pg.title, space: pg.space, href: `${base}/seite/${encodeURIComponent(pg.id)}` })),
+        pages: [...pages.values()].slice(0, 30),
         graph: `${base}/graph?e=${entity.id}`,
         error: null,
       };

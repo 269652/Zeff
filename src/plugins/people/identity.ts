@@ -163,6 +163,22 @@ function ownAddress(email: string, words: string[]): boolean {
   return named.some((w) => normalizeName(local).includes(w)) && !named.some((w) => domain.includes(w));
 }
 
+/**
+ * The knowledge's entities that are this profile: one of its names, aliases or addresses is the
+ * entity's name or alias (the knowledge may keep someone twice — "U. Nathanael" and "Nathanael").
+ * The one carrying the profile's address first, then the one with more pages.
+ */
+export function knowledgeEntitiesOf<E extends { id: number; name: string; aliases: string[]; pages: number }>(p: Pick<Person, "name" | "aliases" | "emails" | "whatsapp">, entities: E[]): E[] {
+  const forms = new Set([p.name, ...p.aliases, p.whatsapp].map(normalizeName).filter((n) => n.length >= 3));
+  const addresses = new Set(p.emails.map((e) => e.toLowerCase()));
+  const ranked = entities.flatMap((e) => {
+    const theirs = [e.name, ...e.aliases];
+    const byAddress = theirs.some((n) => addresses.has(n.trim().toLowerCase()));
+    return byAddress || theirs.some((n) => forms.has(normalizeName(n))) ? [{ e, byAddress }] : [];
+  });
+  return ranked.sort((a, b) => Number(b.byAddress) - Number(a.byAddress) || b.e.pages - a.e.pages).map((x) => x.e);
+}
+
 /** Whether a profile already goes by this name (or its normalized form). */
 const hasName = (p: Person, name: string) => namesOf(p).some((n) => normalizeName(n) === normalizeName(name));
 
