@@ -6151,5 +6151,8 @@
   "Mark as done": "Als erledigt markieren",
   "Layout of the actions": "Anordnung der Aktionen",
   "Actions as rows": "Aktionen als Zeilen",
-  "Actions as a gallery": "Aktionen als Galerie"
+  "Actions as a gallery": "Aktionen als Galerie",
+  "Merging": "Mergen",
+  "Hold the Merge button until the merge request is approved": "Merge-Button sperren, bis der Merge Request freigegeben ist",
+  "On: the button waits for the approval (the GitLab sync notices it). Off: it can be clicked at once; a merge request that is merged or closed already stays blocked.": "An: Der Button wartet auf die Freigabe (der GitLab-Sync bemerkt sie). Aus: Er ist sofort klickbar; ein bereits gemergter oder geschlossener Merge Request bleibt gesperrt."
 }

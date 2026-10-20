@@ -2,7 +2,7 @@ import { getPref, setPref } from "@/lib/prefs";
 import { AREAS, DEFAULT_OFF, KNOWLEDGE_KINDS } from "@/lib/todo-display";
 
 const KEY = "todo.display";
-const VALID = new Set<string>([...AREAS.map((a) => `area:${a}`), ...KNOWLEDGE_KINDS.map((k) => `kind:${k}`), "entities", "links"]);
+const VALID = new Set<string>([...AREAS.map((a) => `area:${a}`), ...KNOWLEDGE_KINDS.map((k) => `kind:${k}`), "entities", "links", "mergeGate"]);
 
 /** The ids switched off (until someone sets it: the kinds that are Zeff's own data, not knowledge). */
 export function getTodoDisplayOff(): string[] {

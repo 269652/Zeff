@@ -518,7 +518,7 @@ export async function removeTodoOpAction(todoId: number, index: number): Promise
 export async function saveTodoDisplayFormAction(fd: FormData): Promise<void> {
   const { AREAS, KNOWLEDGE_KINDS } = await import("@/lib/todo-display");
   const { setTodoDisplayOff } = await import("@/lib/todo-display-store");
-  const ids = [...AREAS.map((a) => `area:${a}`), ...KNOWLEDGE_KINDS.map((k) => `kind:${k}`), "entities", "links"];
+  const ids = [...AREAS.map((a) => `area:${a}`), ...KNOWLEDGE_KINDS.map((k) => `kind:${k}`), "entities", "links", "mergeGate"];
   setTodoDisplayOff(ids.filter((id) => fd.get(id) !== "on"));
   // The rules of the knowledge's picking stage (only on the form when the Knowledge plugin is installed): unchanged = the built-in ones.
   const rules = fd.get("repoPrompt");

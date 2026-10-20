@@ -58,6 +58,16 @@ export default async function TodoSettingsPage() {
           ))}
         </section>
         <section className="card space-y-3 p-4">
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Merging")}</h2>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" name="mergeGate" defaultChecked={!off.has("mergeGate")} className="mt-1" />
+            <span>
+              <span className="font-medium">{t("Hold the Merge button until the merge request is approved")}</span>
+              <span className="block text-xs text-zinc-500">{t("On: the button waits for the approval (the GitLab sync notices it). Off: it can be clicked at once; a merge request that is merged or closed already stays blocked.")}</span>
+            </span>
+          </label>
+        </section>
+        <section className="card space-y-3 p-4">
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("What counts as knowledge")}</h2>
           <p className="text-xs text-zinc-500">{t("Knowledge should be what Zeff learned or found out — not what a todo shows as context anyway. Unticked kinds are left out when the knowledge is assigned and are hidden in the todos right away; ticking one again picks it up with the next assignment.")}</p>
           {KNOWLEDGE_KINDS.map((k) => (

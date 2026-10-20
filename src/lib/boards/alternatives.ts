@@ -3,6 +3,7 @@ import { desc, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { commentsOfTickets } from "@/lib/jira/comments";
 import { getJiraTicket, myJiraName } from "@/lib/jira/store";
+import { getTodoDisplayOff } from "@/lib/todo-display-store";
 import { gitlabItemsByKeys } from "@/lib/gitlab/store";
 import { listRepos } from "@/lib/repos";
 import { t } from "@/lib/i18n/server";
@@ -173,11 +174,13 @@ export function blockedBy(list: TodoView[]): Record<number, string> {
   if (!merges.length) return {};
   const items = gitlabItemsByKeys(merges.map((m) => m.key));
   const out: Record<number, string> = {};
+  // The merge waits for the approval unless that is switched off (Settings → Todos).
+  const gate = !getTodoDisplayOff().includes("mergeGate");
   for (const m of merges) {
     const state = items.get(m.key)?.state ?? "";
     if (/merged/.test(state)) out[m.todo.id] = t("!{iid} is merged already", { iid: m.iid });
     else if (/closed/.test(state)) out[m.todo.id] = t("!{iid} is closed", { iid: m.iid });
-    else if (!/approved/.test(state))
+    else if (gate && !/approved/.test(state))
       out[m.todo.id] = state ? t("!{iid} isn't approved yet", { iid: m.iid }) : t("!{iid} isn't approved yet (unknown to the GitLab sync)", { iid: m.iid });
   }
   return out;
