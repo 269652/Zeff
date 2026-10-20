@@ -6199,5 +6199,6 @@
   "Appointment": "Termin",
   "Show the appointment": "Termin zeigen",
   "from {date}": "ab {date}",
-  "Calendar appointments made again.": "Kalendertermine neu erzeugt."
+  "Calendar appointments made again.": "Kalendertermine neu erzeugt.",
+  "{n} todos repeat — their series are in the calendar.": "{n} Todos wiederholen sich — ihre Serien stehen im Kalender."
 }

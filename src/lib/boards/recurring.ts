@@ -2,6 +2,8 @@ import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { addEvent, deleteEvent, updateEvent, zeffCalendar } from "@/lib/calendar/ir";
 import { addDays, occurrenceDays, parseTodoRecurrence, type TodoRecurrence } from "@/lib/calendar/recurrence";
+import { getPref, setPref } from "@/lib/prefs";
+import { recurrenceFromText } from "./recurrence-text";
 import { dueDay } from "./shared";
 
 const { todos, calendarEvents } = schema;
@@ -137,4 +139,27 @@ export function spawnNext(todoId: number): number | null {
     relate(made.id);
   } else syncSeries(made.id);
   return made.id;
+}
+
+/**
+ * After an evaluation: the open todos whose text names a repetition (“danach jeweils 300 € am 15. von 15.11.2026 bis 15.09.2027”) get
+ * their rule — the day the repeats begin, their last day — and with it the series in the calendar. Each todo (its text) is looked at once:
+ * a rule you set or took away by hand stays as you left it.
+ */
+export function detectRecurrences(): { set: number } {
+  const key = "todos:recurrenceChecked";
+  const seen = getPref<Record<string, string>>(key, {});
+  const next: Record<string, string> = {};
+  let set = 0;
+  for (const t of getDb().select().from(todos).where(eq(todos.status, "open")).all()) {
+    const mark = `${t.text.length}:${t.text.slice(0, 40)}${t.text.slice(-40)}`;
+    next[t.id] = mark;
+    if (seen[t.id] === mark || t.recurrence || t.byWorker) continue;
+    const rule = recurrenceFromText(t.text, dueDay(t.due));
+    if (!rule) continue;
+    setRecurrence(t.id, rule);
+    set++;
+  }
+  if (JSON.stringify(next) !== JSON.stringify(seen)) setPref(key, next);
+  return { set };
 }
