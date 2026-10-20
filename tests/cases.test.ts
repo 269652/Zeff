@@ -130,3 +130,36 @@ test("cases: a person's page lists their letters (their address in them, or thei
   assert.deepEqual(b.cases.map((c) => c.label).sort(), ["DR II 1121/26", "DR II 810/26"]);
   assert.equal(b.cases.find((c) => c.label === "DR II 810/26")?.open, 11.52);
 });
+
+test("widgets: the money of the open cases as figures, the payments and deadlines coming up (overdue first), what is owed between you and your people", async () => {
+  const { ogv } = await seed();
+  const { caseByKey, updateCase, setCaseStatus } = await import("@/plugins/cases/store");
+  const { checked } = await import("@/plugins/cases/compile");
+  const swr = caseByKey("DR II 810/26")!;
+  const spk = caseByKey("DR II 1121/26")!;
+  setCaseStatus(swr.id, "open");
+  setCaseStatus(spk.id, "open");
+  const day = (d: number) => new Date(Date.now() + d * 864e5).toISOString().slice(0, 10);
+  updateCase(swr.id, { compiled: checked({ title: "Rundfunkbeitrag", open: 11.52, installment: 50, next_due: day(-5), next_what: "Rest 11,52 €" }, swr.key, 3) });
+  updateCase(spk.id, { compiled: checked({ title: "Sparkasse", open: 3618.13, installment: 300, next_due: day(10), next_what: "Rate 300 €" }, spk.key, 3) });
+  const { CASES_WIDGETS } = await import("@/plugins/cases/widgets");
+  const w = (id: string) => CASES_WIDGETS.find((x) => x.id === id)!;
+  const figures = (await w("cases.figures").data({})) as { kind: "stats"; tiles: { label: string; value: string; tone?: string }[] };
+  assert.equal(figures.kind, "stats");
+  assert.match(figures.tiles[0].value, /3[.,]629[.,]65/, "open in all: 11,52 + 3.618,13");
+  assert.equal(figures.tiles.find((x) => x.tone === "bad")?.value, "1", "one overdue");
+  const due = (await w("cases.due").data({ days: 30 })) as { kind: "list"; items: { text: string; tone?: string }[] };
+  assert.deepEqual(due.items.map((i) => i.tone), ["bad", undefined]);
+  assert.match(due.items[0].text, /Rundfunkbeitrag/);
+
+  const { addClaim } = await import("@/plugins/people/graph");
+  addClaim({ personId: ogv, kind: "commitment", text: "Ich soll die Restforderung von 11,52 € überweisen.", evidence: "Bitte … 11,52 € anweisen", sourceRef: "mail:m3", confidence: 0.9, direction: "mine", due: day(-1) });
+  addClaim({ personId: ogv, kind: "commitment", text: "Sie schickt den Ratenplan schriftlich.", evidence: "teilt … schriftlich mit", sourceRef: "doc:1", confidence: 0.9, direction: "theirs" });
+  const { PEOPLE_WIDGETS } = await import("@/plugins/people/widgets");
+  const owed = PEOPLE_WIDGETS.find((x) => x.id === "people.owed")!;
+  const mine = (await owed.data({ who: "mine" })) as { kind: "list"; items: { text: string; tone?: string }[] };
+  assert.deepEqual(mine.items.map((i) => i.text), ["Ich soll die Restforderung von 11,52 € überweisen."]);
+  assert.equal(mine.items[0].tone, "bad", "past its day");
+  const theirs = (await owed.data({ who: "theirs" })) as { kind: "list"; items: { text: string }[] };
+  assert.deepEqual(theirs.items.map((i) => i.text), ["Sie schickt den Ratenplan schriftlich."]);
+});

@@ -81,3 +81,45 @@ export function wikiHomePage(parentId: number | null): number {
     true,
   );
 }
+
+export function financesPage(parentId: number | null): number {
+  return make(
+    parentId,
+    t("Finances"),
+    "💶",
+    [
+      ...md(`:::callout 💶 blue\n${t("Your cases at a glance: what is open, what is due, what you owe. The figures are live — a payment opens its case with the GiroCode.")}\n:::`),
+      ...widget("cases.figures"),
+      ...widget("cases.due", { days: 30, limit: 10 }),
+      ...widget("cases.open", { limit: 10 }),
+      ...widget("people.owed", { who: "mine", limit: 8 }),
+      ...md(`:::toggle ${t("Budget notes")}\n- \n:::`),
+    ],
+    true,
+  );
+}
+
+export function whoOwesPage(parentId: number | null): number {
+  return make(
+    parentId,
+    t("Who owes whom"),
+    "🤝",
+    [
+      ...md(`:::callout 🤝 gray\n${t("What was promised between you and your people — read from your messages. Tick one off when it is kept.")}\n:::`),
+      ...widget("people.owed", { who: "mine", limit: 12 }),
+      ...widget("people.owed", { who: "theirs", limit: 12 }),
+    ],
+    true,
+  );
+}
+
+export function authorityPage(parentId: number | null): number {
+  return make(parentId, t("Authority"), "🏛️", [
+    ...md(`:::callout 🏛️ gray\n${t("An office, a court, an insurer: who to reach, your numbers there, what runs and what you sent. Type @ to link the person and the case.")}\n:::`),
+    columns(
+      `## ${t("Contact")}\n\n| | |\n| --- | --- |\n| ${t("Address")} |  |\n| ${t("Phone")} |  |\n| ${t("Mail")} |  |\n| ${t("Office hours")} |  |`,
+      `## ${t("Your numbers")}\n\n| | |\n| --- | --- |\n| ${t("Case number")} |  |\n| ${t("Customer number")} |  |\n| ${t("Contact person")} |  |`,
+    ),
+    ...md(`## ${t("Running")}\n\n- [ ] \n\n## ${t("Deadlines")}\n\n- [ ] ${t("What — by when")}\n\n:::toggle ${t("Correspondence log")}\n**${today()}** — \n:::`),
+  ]);
+}

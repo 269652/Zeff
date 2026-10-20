@@ -13,7 +13,7 @@ import { installPackage, listPackages } from "./packages";
 import { widgetCatalog } from "./widgets";
 import { createRoutine } from "./routines";
 import { createTicketCockpit } from "./ticket-cockpit";
-import { meetingPage, oneOnOnePage, projectBriefPage, weeklyReviewPage, wikiHomePage } from "./templates-pages";
+import { authorityPage, financesPage, meetingPage, oneOnOnePage, projectBriefPage, weeklyReviewPage, whoOwesPage, wikiHomePage } from "./templates-pages";
 import { addRow, createPage, getDatabase, updatePage, updateSchema } from "./store";
 
 /** The group a template is shown in (the gallery's tabs). */
@@ -369,6 +369,105 @@ const TEMPLATES: Template[] = [
       addRow(tasks, { title: t("Design the start page"), cells: { [project.id]: [p], [status.id]: st[1].id, [hours.id]: 5 } });
       addRow(tasks, { title: t("Go live"), cells: { [project.id]: [p], [status.id]: st[0].id } });
       return projects;
+    },
+  },
+  {
+    key: "finances",
+    category: "overview",
+    get name() {
+      return t("Finances");
+    },
+    icon: "💶",
+    get description() {
+      return t("Your cases in figures, the payments and deadlines coming up, the open cases and what you owe — live.");
+    },
+    kind: "page",
+    build: (parentId) => financesPage(parentId),
+  },
+  {
+    key: "who-owes",
+    category: "overview",
+    get name() {
+      return t("Who owes whom");
+    },
+    icon: "🤝",
+    get description() {
+      return t("What you owe your people and what they owe you — read from your messages, ticked off when kept.");
+    },
+    kind: "page",
+    build: (parentId) => whoOwesPage(parentId),
+  },
+  {
+    key: "authority",
+    category: "notes",
+    get name() {
+      return t("Authority");
+    },
+    icon: "🏛️",
+    get description() {
+      return t("An office, a court, an insurer: contact, your numbers there, what runs, deadlines and a log of what you sent.");
+    },
+    kind: "page",
+    build: (parentId) => authorityPage(parentId),
+  },
+  {
+    key: "installment-plan",
+    category: "work",
+    get name() {
+      return t("Instalment plans");
+    },
+    icon: "🧾",
+    get description() {
+      return t("Two linked databases: the plans (creditor, case number, total, instalment, account) and their payments — each plan sums up what is paid and what is open.");
+    },
+    kind: "database",
+    build: (parentId) => {
+      const plans = createPage({ parentId, title: t("Instalment plans"), icon: "🧾", kind: "database", schema: { titleName: t("Creditor"), properties: [], views: [view(t("Table"), "table")] } });
+      const payments = createPage({ parentId, title: t("Payments"), icon: "💸", kind: "database", schema: { titleName: t("Payment"), properties: [], views: [view(t("Table"), "table")] } });
+      const plan = { ...newProperty(t("Plan"), "relation"), relationDb: plans };
+      const amount = { ...newProperty(t("Amount"), "number"), format: "euro" as const };
+      const paidOn = newProperty(t("Paid on"), "date");
+      updateSchema(payments, { titleName: t("Payment"), properties: [plan, amount, paidOn], views: [view(t("Table"), "table", { sorts: [{ prop: paidOn.id, dir: "desc" }] })] });
+      const back = { ...newProperty(t("Payments"), "relation"), relationDb: payments, backOf: plan.id };
+      const total = { ...newProperty(t("Total"), "number"), format: "euro" as const };
+      const rate = { ...newProperty(t("Instalment"), "number"), format: "euro" as const };
+      const paid = { ...newProperty(t("Paid"), "rollup"), format: "euro" as const, rollup: { relation: back.id, property: amount.id, fn: "sum" as const } };
+      const open = { ...newProperty(t("Open"), "formula"), format: "euro" as const, formula: `prop(${JSON.stringify(t("Total"))}) - prop(${JSON.stringify(t("Paid"))})` };
+      const caseNo = newProperty(t("Case number"), "text");
+      const next = newProperty(t("Next due"), "date");
+      const iban = newProperty("IBAN", "text");
+      const status = { ...newProperty(t("Status"), "status"), options: [{ id: newId("o"), name: t("Running"), color: "blue", group: "doing" as const }, { id: newId("o"), name: t("Paid off"), color: "green", group: "done" as const }] };
+      updateSchema(plans, { titleName: t("Creditor"), properties: [status, caseNo, total, rate, paid, open, next, iban, back], views: [view(t("Table"), "table", { sorts: [{ prop: next.id, dir: "asc" }] }), view(t("Board"), "board", { groupBy: status.id })] });
+      // An example: a plan with two payments made — what is paid and open follow.
+      const p = addRow(plans, { title: t("Example creditor"), cells: { [status.id]: status.options[0].id, [caseNo.id]: "DR II 123/26", [total.id]: 600, [rate.id]: 100 } });
+      addRow(payments, { title: t("Instalment 1"), cells: { [plan.id]: [p], [amount.id]: 100, [paidOn.id]: new Date(Date.now() - 30 * 864e5).toLocaleDateString("sv-SE") } });
+      addRow(payments, { title: t("Instalment 2"), cells: { [plan.id]: [p], [amount.id]: 100, [paidOn.id]: new Date().toLocaleDateString("sv-SE") } });
+      return plans;
+    },
+  },
+  {
+    key: "contracts",
+    category: "work",
+    get name() {
+      return t("Contracts and subscriptions");
+    },
+    icon: "📜",
+    get description() {
+      return t("What you pay regularly: cost a month and a year, until when it runs, when to cancel by, your customer number.");
+    },
+    kind: "database",
+    build: (parentId) => {
+      const monthly = { ...newProperty(t("Per month"), "number"), format: "euro" as const };
+      const yearly = { ...newProperty(t("Per year"), "formula"), format: "euro" as const, formula: `prop(${JSON.stringify(t("Per month"))}) * 12` };
+      const until = newProperty(t("Runs until"), "date");
+      const cancel = newProperty(t("Cancel by"), "date");
+      const customer = newProperty(t("Customer number"), "text");
+      const kind = select(t("Kind"), [t("Insurance"), t("Subscription"), t("Utilities"), t("Phone & internet"), t("Other")]);
+      const status = { ...newProperty(t("Status"), "status"), options: [{ id: newId("o"), name: t("Active"), color: "green", group: "doing" as const }, { id: newId("o"), name: t("Cancelled"), color: "gray", group: "done" as const }] };
+      const schema: DbSchema = { titleName: t("Contract"), properties: [status, kind, monthly, yearly, until, cancel, customer], views: [view(t("Table"), "table", { sorts: [{ prop: cancel.id, dir: "asc" }] }), view(t("By kind"), "board", { groupBy: kind.id })] };
+      const id = createPage({ parentId, title: t("Contracts"), icon: "📜", kind: "database", schema });
+      addRow(id, { title: t("Example: mobile phone"), cells: { [status.id]: status.options[0].id, [kind.id]: kind.options![3].id, [monthly.id]: 15 } });
+      return id;
     },
   },
 ];
