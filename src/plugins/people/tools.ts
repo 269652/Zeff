@@ -3,8 +3,8 @@ import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { findAllProgress } from "./dates";
 import { compileProgress, startCompile } from "./compile";
-import { acceptSuggestion, pendingSuggestions, rejectSuggestion } from "./identity";
-import { openCommitments, proposedClaims, proposedLinks, reviewClaim, reviewLink, staleClaims } from "./graph";
+import { acceptSuggestion, pendingSuggestions, rejectSuggestion, type Suggestion } from "./identity";
+import { openCommitments, proposedClaims, proposedLinks, reviewClaim, reviewLink, staleClaims, type Link } from "./graph";
 import { dateKindLabels, dateText, inDaysText, upcomingTitle } from "./shared";
 import { createPerson, deleteDate, getPerson, listPeople, proposedDates, updateDate, upcoming, whatsappChats } from "./store";
 
@@ -26,6 +26,17 @@ export type PeopleOverview = {
   suggestions: { persons: { id: number; name: string; aliases: string[]; pages: number }[]; chats: { name: string; messages: number }[]; error: string | null };
   progress: { dates: { done: number; total: number; found: number } | null; compile: { done: number; total: number; current?: string } | null };
 };
+
+/** What an identity suggestion proposes, in words (`nameOf`: a profile's name by its id). */
+export function suggestionText(s: Suggestion, nameOf: (id: number) => string | undefined): string {
+  const target = nameOf(s.personId) ?? "?";
+  const other = nameOf(s.otherId ?? 0) ?? s.name;
+  if (s.kind === "merge") return t("Merge {other} into {name}", { other, name: target });
+  return s.kind === "alias" ? t("“{alias}” is another name of {name}", { alias: s.name, name: target }) : t("New profile for {name}", { name: s.name });
+}
+
+/** A link without its person: "works-with Rico Clemen", "on-ticket PC-1". */
+export const linkText = (l: Pick<Link, "rel" | "targetType" | "targetRef">, who: (id: number) => string) => `${l.rel} ${l.targetType === "person" ? who(Number(l.targetRef)) : l.targetRef}`;
 
 export async function peopleOverview(): Promise<PeopleOverview> {
   const people = listPeople();
@@ -49,17 +60,12 @@ export async function peopleOverview(): Promise<PeopleOverview> {
       .map((u) => ({ key: String(u.date.id), personId: u.person.id, title: upcomingTitle(u, t), when: inDaysText(u.inDays, u.on, t), soon: u.inDays <= u.date.remindDays })),
     identities: pendingSuggestions()
       .slice(0, 30)
-      .map((s) => {
-        const target = byId.get(s.personId)?.name ?? "?";
-        const other = byId.get(s.otherId ?? 0)?.name ?? s.name;
-        const text = s.kind === "merge" ? t("Merge {other} into {name}", { other, name: target }) : s.kind === "alias" ? t("“{alias}” is another name of {name}", { alias: s.name, name: target }) : t("New profile for {name}", { name: s.name });
-        return { id: s.id, text, evidence: s.evidence, confidence: s.confidence };
-      }),
+      .map((s) => ({ id: s.id, text: suggestionText(s, (id) => byId.get(id)?.name), evidence: s.evidence, confidence: s.confidence })),
     dates: proposedDates().map((d) => ({ id: d.id, personId: d.personId, person: d.personName, text: `${d.kind === "other" ? d.label || t("Date") : dateKindLabels(t)[d.kind]}: ${dateText(d)}`, source: d.sourceText })),
     claims: proposedClaims()
       .filter((c) => c.kind !== "commitment" || !c.doneAt)
       .map((c) => ({ id: c.id, personId: c.personId, person: c.personName, kind: c.kind, text: c.text, evidence: c.evidence, confidence: c.confidence })),
-    links: proposedLinks().map((l) => ({ id: l.id, personId: l.personId, person: l.personName, text: `${l.rel} ${l.targetType === "person" ? who(Number(l.targetRef)) : l.targetRef}`, evidence: l.evidence })),
+    links: proposedLinks().map((l) => ({ id: l.id, personId: l.personId, person: l.personName, text: linkText(l, who), evidence: l.evidence })),
     stale: staleClaims().map((c) => ({ id: c.id, personId: c.personId, person: c.personName, text: c.text })),
     owed: openCommitments().map((c) => ({ id: c.id, personId: c.personId, person: c.personName, text: c.text, direction: c.direction, due: c.due })),
     suggestions,
