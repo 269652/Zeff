@@ -11,7 +11,7 @@
 ARG NODE_VERSION=24
 FROM node:${NODE_VERSION}-bookworm-slim
 RUN apt-get update \
- && apt-get install -y --no-install-recommends git openssh-client ca-certificates curl ripgrep tini python3 python3-pip make g++ unzip jq \
+ && apt-get install -y --no-install-recommends git openssh-client ca-certificates curl ripgrep poppler-utils tini python3 python3-pip make g++ unzip jq \
  && rm -rf /var/lib/apt/lists/*
 RUN npm install -g @anthropic-ai/claude-code @github/copilot @openai/codex
 # Folders from Windows show other owners and file modes: git must not mind. (Claude Code refuses its bypass modes as root: the node user.)
