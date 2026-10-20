@@ -289,6 +289,11 @@ export type DatabaseData = {
 
 export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: DatabaseData }>> {
   return run(async () => {
+    // A documents database: what waits to be read is read (the documents page and the server's start do the same) — also after a reset or a refused read.
+    if (store.getDatabase(Number(dbId))?.schema.dataType === "documents") {
+      const { queuedDocuments, startProcessing } = await import("@/plugins/documents/store").then(async (m) => ({ queuedDocuments: m.queuedDocuments, startProcessing: (await import("@/plugins/documents/process")).startProcessing }));
+      if (queuedDocuments().length) startProcessing();
+    }
     // A jobs database: the jobs whose worker has finished are taken in first (the page shows how they ended).
     if (store.getDatabase(Number(dbId))?.schema.jobs) {
       const jobs = await import("./jobs");
