@@ -184,6 +184,12 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
             (await import("@/plugins/cases/detect")).detectCases();
             if ((await import("@/plugins/state")).isInstalled("llm")) await (await import("@/plugins/cases/compile")).compileCases();
             (await import("@/plugins/cases/payments")).attachPayments();
+            // The bank: payments made settle their todos and cases; an instalment ten days late warns.
+            const bank = await import("@/plugins/cases/bank");
+            if ((await import("@/plugins/cases/bank-sync")).bankConnected()) await (await import("@/plugins/cases/bank-sync")).syncBank().catch((e) => console.error("[cases] the bank:", errorMessage(e)));
+            bank.importStatementDocuments();
+            bank.matchPayments();
+            bank.overdueWarnings(new Date().toISOString().slice(0, 10));
           } catch (e) {
             console.error("[cases] after the briefing:", errorMessage(e));
           }

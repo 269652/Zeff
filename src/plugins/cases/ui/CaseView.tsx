@@ -39,6 +39,7 @@ export default function CaseView({ rowId }: { rowId: number }) {
     if (r.ok) setD(r.case);
     else setError(r.error);
   }, [rowId]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- read when shown (the state is set once the answer is there)
   useEffect(() => void load(), [load]);
   // While it is being summed up: read again every few seconds until the summary is there.
   useEffect(() => {
@@ -88,7 +89,7 @@ export default function CaseView({ rowId }: { rowId: number }) {
               <dl className="grid grid-cols-2 gap-2 @lg:grid-cols-4">
                 {[
                   [t("Total"), euro(s.total)],
-                  [t("Open"), euro(s.open)],
+                  [t("Open"), euro(d.openNow ?? s.open)],
                   [t("Instalment"), euro(s.installment)],
                   [t("Next"), s.nextDue ? `${new Date(s.nextDue).toLocaleDateString()}${s.nextWhat ? ` · ${s.nextWhat}` : ""}` : "—"],
                 ].map(([k, v]) => (
@@ -129,6 +130,19 @@ export default function CaseView({ rowId }: { rowId: number }) {
             {d.payment ? <Pay name={d.payment.name} iban={d.payment.iban} bic={d.payment.bic} purpose={d.payment.purpose} suggested={d.payment.amount} /> : <Empty>{d.person ? t("No account known for {name} yet — add the IBAN to their details.", { name: d.person.name }) : t("No account known for it yet — choose the person it is with.")}</Empty>}
           </Card>
 
+          {d.paid.length > 0 && (
+            <Card title={t("Paid (bank)")}>
+              <ul className="space-y-1 text-sm">
+                {[...d.paid].reverse().map((p, i) => (
+                  <li key={i} className="flex items-baseline justify-between gap-2">
+                    <span className="text-zinc-500">{new Date(p.date).toLocaleDateString()}</span>
+                    <span className="tabular-nums">{euro(p.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+
           <Card title={t("Person")}>
             <select className="input" value={d.person?.id ?? ""} onChange={(e) => void run({ op: "person", personId: e.target.value ? Number(e.target.value) : null })} aria-label={t("Person")}>
               <option value="">{t("— nobody —")}</option>
@@ -166,6 +180,7 @@ function Pay({ name, iban, bic, purpose, suggested }: { name: string; iban: stri
 function NoteCard({ note, onSave }: { note: string; onSave: (note: string) => Promise<void> }) {
   const t = useT();
   const [v, setV] = useState(note);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- the note as saved elsewhere follows
   useEffect(() => setV(note), [note]);
   return (
     <Card title={t("Notes")}>

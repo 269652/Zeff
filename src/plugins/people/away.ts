@@ -58,7 +58,9 @@ export function followUps(today: string): (Claim & { personName: string })[] {
   const asked = new Set((db().prepare("select claim_id from people_followups").all() as { claim_id: number }[]).map((r) => r.claim_id));
   const away = awayPeople(today);
   const weekAgo = new Date(Date.parse(today) - WAIT_DAYS * 864e5).toISOString();
-  return openCommitments().filter((c) => c.direction === "theirs" && !asked.has(c.id) && !away.has(c.personId) && (c.due ? c.due < today : c.createdAt < weekAgo));
+  // Back from an absence in the last week: what waited on them is due now (no week to wait).
+  const back = new Set([...awayPeople(weekAgo.slice(0, 10))].filter(([id, a]) => a.until < today && !away.has(id)).map(([id]) => id));
+  return openCommitments().filter((c) => c.direction === "theirs" && !asked.has(c.id) && !away.has(c.personId) && (back.has(c.personId) || (c.due ? c.due < today : c.createdAt < weekAgo)));
 }
 
 /** Yes: a todo to follow up, on the promise's source (its mail or letter) — its actions are proposed like any todo's. No: not asked again. */

@@ -39,6 +39,35 @@ export async function caseOpAction(rowId: number, op: CaseOperation): Promise<Re
   });
 }
 
+/** A bank statement (CSV) read: its bookings kept, the payments matched, the late instalments warned of. */
+export async function importStatementAction(csv: string, account: string): Promise<Result<{ message: string }>> {
+  return run(async () => {
+    const bank = await import("./bank");
+    const r = bank.importStatement(String(csv ?? ""), String(account || "Bank").slice(0, 40));
+    const m = bank.matchPayments();
+    const w = bank.overdueWarnings(new Date().toISOString().slice(0, 10));
+    return { message: t("{added} new bookings of {total} — {matched} payments matched, {warned} warnings", { added: r.added, total: r.total, matched: m.matched, warned: w }) };
+  });
+}
+
+/** The overview of the debts (the printable page), with the income kept for the months ahead. */
+export async function debtOverviewAction(): Promise<Result<{ overview: import("./bank").DebtOverview }>> {
+  return run(async () => {
+    const { getPref } = await import("@/lib/prefs");
+    return { overview: (await import("./bank")).debtOverview({ income: getPref<number | null>("cases.income", null) }) };
+  });
+}
+
+/** Your monthly income, for the months ahead (null: not said). */
+export async function setIncomeAction(income: number | null): Promise<Result> {
+  return run(async () => {
+    const { setPref } = await import("@/lib/prefs");
+    const n = income == null ? null : Number(income);
+    setPref("cases.income", n != null && Number.isFinite(n) && n >= 0 ? n : null);
+    return {};
+  });
+}
+
 export type CasesOverview = {
   figures: { open: number; dueSoon: number; overdue: number; running: number };
   cases: { id: number; rowId: number | null; title: string; label: string; person: string; open: number | null; nextDue: string | null; nextWhat: string; payment: import("./payments").CasePayment | null; summed: boolean }[];
@@ -48,6 +77,10 @@ export type CasesOverview = {
 export async function casesOverviewAction(): Promise<Result<{ overview: CasesOverview }>> {
   return run(async () => {
     (await import("./detect")).detectCases();
+    // The statements that came in as documents (your Drive folder), read; the payments matched.
+    const bank = await import("./bank");
+    bank.importStatementDocuments();
+    bank.matchPayments();
     const { listCases } = await import("./store");
     const { casePayment } = await import("./payments");
     const { caseTitle } = await import("./shared");
@@ -69,5 +102,46 @@ export async function casesOverviewAction(): Promise<Result<{ overview: CasesOve
       running: cases.length,
     };
     return { overview: { figures, cases } };
+  });
+}
+
+export type BankStatus = { configured: boolean; connected: boolean; appId: string; aspsp: string; country: string; validUntil: string | null; lastSync: string | null; transactions: number };
+
+/** How the bank connection stands (the key is never sent to the page). */
+export async function bankStatusAction(): Promise<Result<{ bank: BankStatus }>> {
+  return run(async () => {
+    const sync = await import("./bank-sync");
+    const s = sync.bankSettings();
+    const { listTransactions } = await import("./bank");
+    return { bank: { configured: !!(s?.appId && s.privateKey), connected: sync.bankConnected(), appId: s?.appId ?? "", aspsp: s?.aspsp ?? "Revolut", country: s?.country ?? "DE", validUntil: s?.validUntil ?? null, lastSync: s?.lastSync ?? null, transactions: listTransactions(100000).length } };
+  });
+}
+
+/** The application's id and key (empty key: the one kept stays), the bank and its country. */
+export async function saveBankSettingsAction(v: { appId: string; privateKey?: string; aspsp: string; country: string }): Promise<Result> {
+  return run(async () => {
+    (await import("./bank-sync")).saveBankSettings({ appId: String(v.appId ?? ""), privateKey: v.privateKey ? String(v.privateKey) : undefined, aspsp: String(v.aspsp ?? "Revolut"), country: String(v.country ?? "DE") });
+    return {};
+  });
+}
+
+/** Where to sign in at your bank — it comes back to Zeff's /api/bank/callback. */
+export async function startBankAuthAction(): Promise<Result<{ url: string }>> {
+  return run(async () => {
+    const { headers } = await import("next/headers");
+    const h = await headers();
+    const origin = `${h.get("x-forwarded-proto") ?? "http"}://${h.get("x-forwarded-host") ?? h.get("host")}`;
+    return { url: (await (await import("./bank-sync")).startBankAuth(`${origin}/api/bank/callback`)).url };
+  });
+}
+
+/** The bookings fetched now, matched, the late instalments warned of. */
+export async function syncBankAction(): Promise<Result<{ message: string }>> {
+  return run(async () => {
+    const r = await (await import("./bank-sync")).syncBank();
+    const bank = await import("./bank");
+    const m = bank.matchPayments();
+    const w = bank.overdueWarnings(new Date().toISOString().slice(0, 10));
+    return { message: t("{added} new bookings of {total} — {matched} payments matched, {warned} warnings", { added: r.added, total: r.total, matched: m.matched, warned: w }) };
   });
 }

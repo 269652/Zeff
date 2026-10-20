@@ -63,3 +63,16 @@ test("follow-ups: what others promised and didn't keep — past its day, or a we
   assert.equal(followUps(day(0)).length, 0, "asked once");
   void rico;
 });
+
+test("follow-ups: a question waiting on someone away comes up the day they are back — no week to wait", async () => {
+  await seed();
+  const { createPerson } = await import("@/plugins/people/store");
+  const { addClaim } = await import("@/plugins/people/graph");
+  const back = createPerson({ name: "Berta Rückkehr" });
+  const [d, m, y] = day(-1).split("-").reverse();
+  addClaim({ personId: back, kind: "fact", text: `Urlaub bis ${d}.${m}.${y}.`, evidence: "Urlaub", sourceRef: "mail:b0", confidence: 0.9 });
+  addClaim({ personId: back, kind: "commitment", text: "Berta antwortet auf meine Frage zu den Raten.", evidence: "Antwort steht aus", sourceRef: "mail:b1", confidence: 0.9, direction: "theirs" });
+  const { followUps } = await import("@/plugins/people/away");
+  assert.ok(followUps(day(0)).some((c) => /Berta antwortet/.test(c.text)), "she is back since today: ask");
+  assert.equal(followUps(day(-2)).some((c) => /Berta antwortet/.test(c.text)), false, "still away: not yet");
+});

@@ -35,6 +35,7 @@ export default function PeopleView({ rows, openRow }: AppViewProps) {
     if (r.ok) setO(r.overview);
   }, []);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- read when shown (the state is set once the answer is there)
     void load();
   }, [load]);
   // Running things (finding dates, compiling) go on in the background: look again until they are done.

@@ -5,6 +5,7 @@ import { useT } from "@/components/I18nProvider";
 import { GiroCode } from "@/components/GiroCode";
 import type { AppViewProps } from "@/plugins/workspace/ui/app-view";
 import { casesOverviewAction, type CasesOverview } from "../block-actions";
+import { BankBar } from "./BankBar";
 
 /**
  * The cases database's overview: what is open in all, what is due in 30 days, what is overdue — then the running cases by
@@ -18,9 +19,9 @@ export default function CasesView({ openRow }: AppViewProps) {
   const [o, setO] = useState<CasesOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [paying, setPaying] = useState<number | null>(null);
-  useEffect(() => {
-    void casesOverviewAction().then((r) => (r.ok ? setO(r.overview) : setError(r.error)));
-  }, []);
+  const load = () => void casesOverviewAction().then((r) => (r.ok ? setO(r.overview) : setError(r.error)));
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- read when shown (the state is set once the answer is there)
+  useEffect(load, []);
   if (!o) return <p className="text-sm text-zinc-400">{error ?? "…"}</p>;
   const today = new Date().toISOString().slice(0, 10);
   const tiles = [
@@ -31,6 +32,7 @@ export default function CasesView({ openRow }: AppViewProps) {
   ];
   return (
     <div className="space-y-4" data-cases-view>
+      <BankBar onChanged={load} />
       <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {tiles.map((x) => (
           <div key={x.label} className="rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-800">

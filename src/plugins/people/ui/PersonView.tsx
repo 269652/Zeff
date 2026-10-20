@@ -338,6 +338,7 @@ function Profile({ d, run }: { d: PersonBundle; run: RunFn }) {
   const [f, setF] = useState({ name: d.name, aliases: d.aliases.join(", "), emails: d.emails.join(", "), whatsapp: d.whatsapp, jira: d.jira.join(", ") });
   const [saved, flash] = useSaved();
   const current = { name: d.name, aliases: d.aliases.join(", "), emails: d.emails.join(", "), whatsapp: d.whatsapp, jira: d.jira.join(", ") };
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- the fields follow the profile as saved
   useEffect(() => setF({ name: d.name, aliases: d.aliases.join(", "), emails: d.emails.join(", "), whatsapp: d.whatsapp, jira: d.jira.join(", ") }), [d.name, d.aliases, d.emails, d.whatsapp, d.jira]);
   const commit = async (key: keyof typeof f) => {
     if (f[key] === current[key]) return;
@@ -382,6 +383,7 @@ function Note({ d, run }: { d: PersonBundle; run: RunFn }) {
   const t = useT();
   const [note, setNote] = useState(d.note);
   const [saved, flash] = useSaved();
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- the note as saved elsewhere follows
   useEffect(() => setNote(d.note), [d.note]);
   // Saved while you write (a moment after the last key) and on leaving it — no Save button.
   useEffect(() => {

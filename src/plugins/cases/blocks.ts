@@ -5,6 +5,7 @@ import type { TodoSource, TodoView } from "@/lib/boards/shared";
 import { compileCases } from "./compile";
 import { detectCases } from "./detect";
 import { casePayment, type CasePayment } from "./payments";
+import { caseStanding, paymentsOf } from "./bank";
 import { CASE_STATUSES, caseTitle, type CaseStatus, type CaseSummary } from "./shared";
 import { getCase, setCaseStatus, sourcesOf, updateCase } from "./store";
 
@@ -29,6 +30,9 @@ export type CaseBundle = {
   payment: CasePayment | null;
   /** Being summed up now (the first time it is opened). */
   compiling: boolean;
+  /** The payments the bank shows for it, and what is open after those since its summary. */
+  paid: { date: string; amount: number }[];
+  openNow: number | null;
 };
 
 export async function caseBundle(caseId: number): Promise<CaseBundle> {
@@ -73,6 +77,8 @@ export async function caseBundle(caseId: number): Promise<CaseBundle> {
     canCompile: isInstalled("llm"),
     payment: casePayment(caseId),
     compiling,
+    paid: paymentsOf(caseId).map((p) => ({ date: p.date, amount: p.amount })),
+    openNow: caseStanding(caseId).open,
   };
 }
 

@@ -29,7 +29,8 @@ export function TransferCard({ op, todoId, index }: { op: Fields; todoId?: numbe
   const router = useRouter();
   const [f, setF] = useState<Fields>({ ...op, amount: shown(op.amount) });
   const [pending, start] = useTransition();
-  useEffect(() => setF({ ...op, amount: shown(op.amount) }), [op.name, op.iban, op.bic, op.amount, op.purpose]); // eslint-disable-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps -- the fields follow the transfer as saved
+  useEffect(() => setF({ ...op, amount: shown(op.amount) }), [op.name, op.iban, op.bic, op.amount, op.purpose]);
   const ibanOk = ibanValid(f.iban);
   const amount = euros(f.amount);
   const changed = f.name !== op.name || f.iban !== op.iban || f.bic !== op.bic || (amount?.toFixed(2) ?? "") !== op.amount || f.purpose !== op.purpose;
