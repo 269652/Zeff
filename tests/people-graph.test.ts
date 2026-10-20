@@ -130,3 +130,27 @@ test("a claim that ages comes back to be checked", async () => {
   reviewClaim(claimsOf(p)[0].id, "recheck");
   assert.equal(staleClaims().length, 0);
 });
+
+test("extraction: a sender is known by their address, letters (documents) are read too, and a new profile is read back for", async () => {
+  const { getDb, schema } = await import("@/db");
+  const { createPerson } = await import("@/plugins/people/store");
+  const { extractKnowledge } = await import("@/plugins/people/extract");
+  const db = getDb();
+  await extractKnowledge({ ask: async () => ({ claims: [], links: [] }) }); // what came before is read
+  db.insert(schema.emails).values({ key: "ogv1", convId: "c-ogv1", syncedAt: ago(0), folder: "Posteingang", fromName: "ogv.nathanael", fromEmail: "ogv.nathanael@gvjustiz.de", subject: "Re: 11 DR II 1121/26", preview: "Ich befinde mich bis 29.10.2026 nicht im Dienst. E-Mails werden nicht weitergeleitet.", receivedAt: ago(20) } as never).run();
+  db.insert(schema.documents).values({ name: "Mein Zeichen DR II 810 26.pdf", sha256: "x1", kind: "pdf", status: "ready", file: "x1.pdf", summary: "Schreiben der Obergerichtsvollzieherin im Verfahren DR II 810/26.", text: `U. Nathanael\nObergerichtsvollzieherin\nE-Mail: ogv.nathanael@gvjustiz.de\n${"Sprechstunden Montag 10 bis 11 Uhr. ".repeat(12)}\nDienstkonto IBAN: DE22 6609 0800 0007 7773 02`, createdAt: ago(20), updatedAt: ago(20) } as never).run();
+  // The profile comes after the messages: the regular run is past them.
+  const ogv = createPerson({ name: "Obergerichtsvollzieherin Nathanael", emails: ["ogv.nathanael@gvjustiz.de"] });
+  const regular: string[] = [];
+  assert.equal((await extractKnowledge({ ask: async (p) => (regular.push(p), { claims: [], links: [] }) })).items, 0);
+
+  // Read back for her alone: her mail (by the address) and her letter (with the account, past the first 500 characters).
+  const prompts: string[] = [];
+  const r = await extractKnowledge({ ask: async (p) => (prompts.push(p), { claims: [], links: [] }), sinceDays: 90, only: [ogv] });
+  assert.equal(r.items, 2);
+  assert.match(prompts[0], /nicht im Dienst/);
+  assert.match(prompts[0], /DE22 6609 0800 0007 7773 02/);
+  assert.doesNotMatch(prompts[0], /\[\d+\] Julia|Figma-Nodes/, "only what concerns her");
+  // A read-back doesn't move the marks: the regular run still has nothing new.
+  assert.equal((await extractKnowledge({ ask: async () => ({ claims: [], links: [] }) })).items, 0);
+});

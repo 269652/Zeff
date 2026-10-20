@@ -106,7 +106,20 @@ export function observedNames(): Seen[] {
       return []; // the plugin behind it never ran
     }
   };
-  for (const r of all<{ n: string | null; e: string | null; c: number }>("select from_name n, lower(from_email) e, count(*) c from emails where folder not in ('WhatsApp', 'Signal') and from_name is not null and from_name != 'Ich' group by n, e")) note(r.n, "mail", { email: r.e, count: r.c });
+  // One address, several ways of writing it ("ogv.nathanael", the address itself, a cut-off "Obergerichtsvollzie."):
+  // those count for the real name the address also writes, the most frequent — else each stands on its own.
+  const byAddress = new Map<string, { n: string; c: number }[]>();
+  for (const r of all<{ n: string | null; e: string | null; c: number }>("select from_name n, lower(from_email) e, count(*) c from emails where folder not in ('WhatsApp', 'Signal') and from_name is not null and from_name != 'Ich' group by n, e")) {
+    // A shop's or a bot's address writes many names: those aren't one person.
+    if (!r.e?.includes("@") || NOT_A_PERSON.test(r.e)) note(r.n, "mail", { email: r.e, count: r.c });
+    else byAddress.set(r.e, [...(byAddress.get(r.e) ?? []), { n: r.n ?? "", c: r.c }]);
+  }
+  const weak = (name: string) => name.includes("@") || !name.trim().includes(" ") || name.trim().endsWith(".");
+  for (const [email, rows] of byAddress) {
+    const real = rows.filter((r) => !weak(r.n)).sort((a, b) => b.c - a.c || b.n.length - a.n.length);
+    const extra = real.length ? rows.filter((r) => weak(r.n)).reduce((sum, r) => sum + r.c, 0) : 0;
+    for (const r of real.length ? real : rows) note(r.n, "mail", { email, count: r.c + (r === real[0] ? extra : 0) });
+  }
   for (const r of all<{ n: string | null; c: number }>("select sender_name n, count(*) c from teams_messages where sender_name is not null group by n")) note(r.n, "teams", { count: r.c });
   for (const r of all<{ n: string; c: number }>("select author n, count(*) c from jira_comments where author != '' group by n")) note(r.n, "jira", { count: r.c });
   for (const r of all<{ n: string | null; c: number }>("select author n, count(*) c from gitlab_items where author is not null group by n")) note(r.n, "gitlab", { count: r.c });
@@ -214,25 +227,31 @@ export function findIdentitySuggestions(): number {
   return queued;
 }
 
-/** Accept a proposal: do what it says. Throws when it no longer fits (the profiles are gone). */
-export function acceptSuggestion(id: number): void {
+/**
+ * Accept a proposal: do what it says. Throws when it no longer fits (the profiles are gone). The profile
+ * that is new or got a new name or address — the one whose past messages are worth reading again.
+ */
+export function acceptSuggestion(id: number): number | undefined {
   const r = db().prepare("select * from people_suggestions where id = ? and status = 'pending'").get(id) as Row | undefined;
-  if (!r) return;
+  if (!r) return undefined;
   const s = toSuggestion(r);
+  let touched: number | undefined;
   if (s.kind === "merge") mergePeople(s.personId, s.otherId);
   else if (s.kind === "alias") {
     if (!getPerson(s.personId)) throw new Error("Unknown person.");
     addAliases(s.personId, [s.name]);
     for (const e of s.emails) updatePerson(s.personId, { emails: [...new Set([...(getPerson(s.personId)?.emails ?? []), e])] });
     if (s.jira) addAccount(s.personId, "jira", s.jira);
+    touched = s.personId;
   } else {
-    const pid = createPerson({ name: s.name, emails: s.emails });
-    if (s.jira) addAccount(pid, "jira", s.jira);
+    touched = createPerson({ name: s.name, emails: s.emails });
+    if (s.jira) addAccount(touched, "jira", s.jira);
   }
   db().prepare("update people_suggestions set status = 'accepted', decided_at = ? where id = ?").run(now(), id);
   // Others that concerned a profile that is gone now.
   db().prepare("update people_suggestions set status = 'obsolete', decided_at = ? where status = 'pending' and kind != 'person' and ((person_id != 0 and person_id not in (select id from people)) or (other_id != 0 and other_id not in (select id from people)))").run(now());
   emitChange("todos");
+  return touched;
 }
 
 export function rejectSuggestion(id: number): void {

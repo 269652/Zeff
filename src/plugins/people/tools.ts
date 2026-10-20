@@ -115,8 +115,11 @@ export async function peopleTool(o: PeopleTool): Promise<{ message?: string }> {
     case "compile":
       return { message: startCompile({ force: !!o.force }) ? t("Started — the summaries appear as they are done.") : t("A compile run is going already.") };
     case "suggestion":
-      if (o.accept) acceptSuggestion(Number(o.id));
-      else rejectSuggestion(Number(o.id));
+      if (o.accept) {
+        const pid = acceptSuggestion(Number(o.id));
+        // The messages before the profile existed were read past it: read the last 90 days again, for it alone.
+        if (pid && isInstalled("llm")) void import("./extract").then((x) => x.extractKnowledge({ sinceDays: 90, only: [pid] })).catch(() => {});
+      } else rejectSuggestion(Number(o.id));
       return {};
     case "dateConfirm":
       updateDate(Number(o.id), { confirmed: true });
