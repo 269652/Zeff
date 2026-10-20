@@ -10,12 +10,14 @@ setupTempData();
 const A = "18a2b3c4d5e6f701";
 const B = "18a2b3c4d5e6f702";
 const S = "18a2b3c4d5e6f703";
+const IMP = "18a2b3c4d5e6f704";
 const hours = (h: number) => String(Date.now() - h * 3600e3);
 
 async function fakeGmail() {
   const state = { inbox: [A, B], sent: [] as string[], labels: {} as Record<string, string[]> };
   const meta = (id: string, subject: string, from: string, ago: number) => ({ id, threadId: id, labelIds: ["INBOX"], snippet: subject, internalDate: hours(ago), payload: { headers: [{ name: "From", value: from }, { name: "Subject", value: subject }] } });
-  const msgs: Record<string, unknown> = { [A]: meta(A, "Bestelldetails", "Flink <info@flink.com>", 5), [B]: meta(B, "Hallo", "Anna <anna@example.com>", 6), [S]: { ...meta(S, "Re: Hallo", "Ich <me@example.com>", 4), labelIds: ["SENT"] } };
+  const msgs: Record<string, unknown> = { [A]: meta(A, "Bestelldetails", "Flink <info@flink.com>", 5), [B]: meta(B, "Hallo", "Anna <anna@example.com>", 6), [S]: { ...meta(S, "Re: Hallo", "Ich <me@example.com>", 4), labelIds: ["SENT"] }, [IMP]: { ...meta(IMP, "Wichtige Frist", "Amt <amt@example.de>", 30), labelIds: ["IMPORTANT", "UNREAD"] } };
+  const queries: string[] = [];
   const server = http.createServer((req, res) => {
     const u = new URL(req.url ?? "/", "http://x");
     const json = (v: unknown) => (res.writeHead(200, { "content-type": "application/json" }), res.end(JSON.stringify(v)));
@@ -24,6 +26,7 @@ async function fakeGmail() {
     if (u.pathname === "/gmail/v1/users/me/messages") {
       const q = u.searchParams.get("q") ?? "";
       const label = u.searchParams.get("labelIds");
+      queries.push(`${label ?? ""}|${q}`);
       const ids = label ? (state.labels[label] ?? []) : q.startsWith("in:inbox") ? state.inbox : q.startsWith("in:sent") ? state.sent : [];
       return json(q.includes("has:attachment") ? {} : { messages: ids.map((id) => ({ id, threadId: id })) });
     }
@@ -36,7 +39,7 @@ async function fakeGmail() {
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   process.env.ZEFF_GOOGLE_API_URL = base;
   process.env.ZEFF_GOOGLE_TOKEN_URL = `${base}/token`;
-  return { state, close: () => server.close() };
+  return { state, queries, close: () => server.close() };
 }
 
 async function signIn() {
@@ -129,4 +132,23 @@ test("a list cut off says nothing; a legacy mail stays while its conversation is
   assert.equal(archiveOf("Gmail · work"), "Gmail · work · Archive", "an account's own archive");
   assert.equal(isArchiveFolder("Gmail · Archive"), true);
   assert.equal(isArchiveFolder("Gmail"), false);
+});
+
+test("Gmail reads what is important too (not only the inbox), and at least the last 14 days — however short the background sync reads", async () => {
+  const g = await fakeGmail();
+  try {
+    await signIn();
+    g.state.labels.IMPORTANT = [IMP];
+    const { syncMail } = await import("@/lib/mail/sync");
+    assert.equal((await syncMail()).ok, true);
+    assert.equal((await folders())["Wichtige Frist"], "Gmail/Important", "an important mail that is not in the inbox (a filter archived it) is still here");
+    assert.ok(g.queries.some((x) => x.startsWith("IMPORTANT|") && /newer_than:\d+d/.test(x)));
+    const { getDb, schema } = await import("@/db");
+    getDb().update(schema.emails).set({ unread: false }).run();
+    await syncMail(); // (a later, short background sync)
+    const days = g.queries.filter((x) => x.includes("in:inbox newer_than:")).map((x) => Number(/newer_than:(\d+)d/.exec(x)![1]));
+    assert.ok(days.every((d) => d >= 14), `inbox read ${days.join(",")} days`);
+  } finally {
+    g.close();
+  }
 });

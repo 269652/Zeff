@@ -149,6 +149,7 @@ function toInput(m: Msg, folder: string, o: { attach: boolean; text?: string }):
 export type GmailMirror = { folder: string; complete: boolean; keys: string[]; convIds: string[] };
 
 const ID_PAGES = 60;
+const MIN_DAYS = 14;
 
 /** The mirror of a folder: Gmail's own list of it (ids only — cheap), as the keys the mails have here. */
 async function mirrorOf(folder: string, q: string, labelId?: string): Promise<GmailMirror> {
@@ -158,7 +159,8 @@ async function mirrorOf(folder: string, q: string, labelId?: string): Promise<Gm
 
 export async function readGmail(o: { days: number; maxPages?: number; folder?: string; fullKnown?: string[]; /** Labels (names) kept as folders of their own: "<folder>/<label>". */ labels?: string[] }): Promise<{ messages: MailInput[]; mirrors: GmailMirror[] }> {
   const folder = o.folder ?? "Gmail";
-  const span = Math.min(120, Math.max(1, Math.round(Number(o.days) || 3)));
+  // However short the background sync reads, the inbox and what is important are kept for at least two weeks.
+  const span = Math.min(120, Math.max(MIN_DAYS, Math.round(Number(o.days) || 3)));
   const maxPages = Math.min(30, Math.max(1, Number(o.maxPages) || 10));
   const messages: MailInput[] = [];
   const have = new Set<string>();
@@ -178,12 +180,12 @@ export async function readGmail(o: { days: number; maxPages?: number; folder?: s
     }
     if (box === "inbox") mirrors.push(await mirrorOf(folder, "in:inbox"));
   }
-  // The labels you chose: each a folder of its own (a mail in the inbox stays in the inbox's folder).
-  if (o.labels?.length) {
-    const all = (await apiGet<{ labels?: { id: string; name: string }[] }>("google", `${GM}/labels`)).labels ?? [];
-    for (const name of o.labels) {
-      const label = all.find((l) => l.name.toLowerCase() === name.trim().toLowerCase());
-      if (!label) continue;
+  // What Gmail rates important (even when a filter took it out of the inbox) and the labels you chose: each a folder of its own
+  // (a mail in the inbox stays in the inbox's folder).
+  const all = o.labels?.length ? ((await apiGet<{ labels?: { id: string; name: string }[] }>("google", `${GM}/labels`)).labels ?? []) : [];
+  const kept = [{ id: "IMPORTANT", name: "Important" }, ...(o.labels ?? []).flatMap((name) => all.find((l) => l.name.toLowerCase() === name.trim().toLowerCase()) ?? [])];
+  for (const label of kept) {
+    {
       const lf = `${folder}/${label.name}`;
       const found = await searchPages(`newer_than:${span}d`, maxPages, label.id);
       const withAttachment = new Set((await searchPages("has:attachment newer_than:" + span + "d", maxPages, label.id)).ids.map((x) => x.id));
