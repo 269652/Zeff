@@ -21,7 +21,18 @@ export async function casesDatabase(): Promise<number | null> {
 /** Your cases as a database of the Workspace — once, while Cases is installed. Its rows get the case's view. */
 export async function ensureCasesDatabase(): Promise<void> {
   if (!isInstalled("workspace") || !isInstalled("cases")) return;
-  if (await casesDatabase()) return void (await import("@/plugins/workspace/row-views")).ensureRowViews();
+  const known = await casesDatabase();
+  if (known) {
+    (await import("@/plugins/workspace/row-views")).ensureRowViews();
+    // The overview (a database made before it existed): put first.
+    const { getDatabase, updateSchema } = await import("@/plugins/workspace/store");
+    const { appViewsFor } = await import("@/plugins/workspace/app-views");
+    const { newView } = await import("@/plugins/workspace/model");
+    const cur = getDatabase(known)!.schema;
+    const app = appViewsFor("cases")[0];
+    if (app && !cur.views.some((v) => v.type === "app" && v.app === app.id)) updateSchema(known, { ...cur, views: [{ ...newView(t(app.label), "table"), type: "app", app: app.id }, ...cur.views] });
+    return;
+  }
   if (getPref<number | null>(CASES, null) !== null) return;
   const { createExtSourceDatabase } = await import("@/plugins/workspace/derived");
   const id = await createExtSourceDatabase("cases", t("Cases"));

@@ -183,6 +183,7 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
           try {
             (await import("@/plugins/cases/detect")).detectCases();
             if ((await import("@/plugins/state")).isInstalled("llm")) await (await import("@/plugins/cases/compile")).compileCases();
+            (await import("@/plugins/cases/payments")).attachPayments();
           } catch (e) {
             console.error("[cases] after the briefing:", errorMessage(e));
           }

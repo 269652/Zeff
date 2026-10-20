@@ -15,6 +15,7 @@ export const APP_VIEWS: AppView[] = [
   { id: "people", plugin: "people", dataType: "people", label: "Overview", icon: "👥" },
   { id: "calendar", plugin: "calendar", dataType: "calendar", label: "Calendar", icon: "📅" },
   { id: "documents", plugin: "documents", dataType: "documents", label: "Documents", icon: "🗂" },
+  { id: "cases", plugin: "cases", dataType: "cases", label: "Overview", icon: "💶" },
 ];
 
 /** The app views a database of this type can have now (their plugins installed). */

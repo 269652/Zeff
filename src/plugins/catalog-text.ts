@@ -211,6 +211,8 @@ export const catalogTexts = (t: T) => [
   t("Send Signal message"),
   t("Write mail (Gmail)"),
   t("Open in Gmail"),
+  t("Transfer (GiroCode)"),
+  t("Transfer"),
   t("Add"),
   t("Open in Google"),
   // The texts of the mounted integrations' plugins (Chrono, Punch): their repositories list them.

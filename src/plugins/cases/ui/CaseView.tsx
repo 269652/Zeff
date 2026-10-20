@@ -40,6 +40,12 @@ export default function CaseView({ rowId }: { rowId: number }) {
     else setError(r.error);
   }, [rowId]);
   useEffect(() => void load(), [load]);
+  // While it is being summed up: read again every few seconds until the summary is there.
+  useEffect(() => {
+    if (!d?.compiling || d.compiled) return;
+    const id = setInterval(() => void load(), 8000);
+    return () => clearInterval(id);
+  }, [d?.compiling, d?.compiled, load]);
   const run = async (op: CaseOperation) => {
     setBusy(true);
     const r = await caseOpAction(rowId, op);
@@ -77,7 +83,7 @@ export default function CaseView({ rowId }: { rowId: number }) {
       <div className="grid gap-x-8 gap-y-5 @2xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="space-y-5">
           <Card title={t("Where it stands")}>
-            {s?.summary ? <p className="text-sm">{s.summary}</p> : <Empty>{d.canCompile ? t("Not summed up yet — Sum up reads its mails, letters and todos.") : t("With the LLM plugin the AI sums the case up.")}</Empty>}
+            {s?.summary ? <p className="text-sm">{s.summary}</p> : <Empty>{d.compiling ? t("Being summed up from its mails, letters and todos …") : d.canCompile ? t("Not summed up yet — Sum up reads its mails, letters and todos.") : t("With the LLM plugin the AI sums the case up.")}</Empty>}
             {s && (
               <dl className="grid grid-cols-2 gap-2 @lg:grid-cols-4">
                 {[
@@ -120,7 +126,7 @@ export default function CaseView({ rowId }: { rowId: number }) {
 
         <aside className="space-y-5">
           <Card title={t("Payment")}>
-            {s?.iban ? <Pay name={s.payee || d.person?.name || s.party || d.label} iban={s.iban} bic={s.bic} purpose={s.purpose} suggested={s.installment ?? s.open} /> : <Empty>{t("No account known for it yet.")}</Empty>}
+            {d.payment ? <Pay name={d.payment.name} iban={d.payment.iban} bic={d.payment.bic} purpose={d.payment.purpose} suggested={d.payment.amount} /> : <Empty>{d.person ? t("No account known for {name} yet — add the IBAN to their details.", { name: d.person.name }) : t("No account known for it yet — choose the person it is with.")}</Empty>}
           </Card>
 
           <Card title={t("Person")}>

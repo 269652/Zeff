@@ -6466,5 +6466,14 @@
   "By kind": "Por tipo",
   "Contracts": "Contratos",
   "Example: mobile phone": "Ejemplo: móvil",
-  "One place per matter: the case numbers (Aktenzeichen) in your mails, letters and todos hold together what belongs to one case — its sources in time order, the person on the other side, what is owed, the next instalment or deadline and where to pay (with a GiroCode). A database of the Workspace, one row per case; with the LLM plugin the AI sums each case up.": "Un lugar por asunto: los números de expediente de tus correos, cartas y tareas reúnen lo que pertenece a un expediente — sus fuentes en orden cronológico, la persona al otro lado, lo pendiente, la próxima cuota o plazo y adónde pagar (con GiroCode). Una base de datos del Workspace, una fila por expediente; con el plugin LLM la IA resume cada uno."
+  "One place per matter: the case numbers (Aktenzeichen) in your mails, letters and todos hold together what belongs to one case — its sources in time order, the person on the other side, what is owed, the next instalment or deadline and where to pay (with a GiroCode). A database of the Workspace, one row per case; with the LLM plugin the AI sums each case up.": "Un lugar por asunto: los números de expediente de tus correos, cartas y tareas reúnen lo que pertenece a un expediente — sus fuentes en orden cronológico, la persona al otro lado, lo pendiente, la próxima cuota o plazo y adónde pagar (con GiroCode). Una base de datos del Workspace, una fila por expediente; con el plugin LLM la IA resume cada uno.",
+  "Transfer (GiroCode)": "Transferir (GiroCode)",
+  "No account given.": "No se indicó ninguna cuenta.",
+  "Transfer {amount} to {name}": "Transferir {amount} a {name}",
+  "Overdue since {date}": "Vencido desde el {date}",
+  "Not summed up yet": "Aún sin resumir",
+  "No account known": "Sin cuenta conocida",
+  "Being summed up from its mails, letters and todos …": "Se está resumiendo a partir de sus correos, cartas y tareas …",
+  "No account known for {name} yet — add the IBAN to their details.": "Aún no se conoce ninguna cuenta de {name}: añade el IBAN en sus datos.",
+  "No account known for it yet — choose the person it is with.": "Aún no se conoce ninguna cuenta: elige la persona del expediente."
 }

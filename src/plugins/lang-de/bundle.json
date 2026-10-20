@@ -6466,5 +6466,14 @@
   "By kind": "Nach Art",
   "Contracts": "Verträge",
   "Example: mobile phone": "Beispiel: Handyvertrag",
-  "One place per matter: the case numbers (Aktenzeichen) in your mails, letters and todos hold together what belongs to one case — its sources in time order, the person on the other side, what is owed, the next instalment or deadline and where to pay (with a GiroCode). A database of the Workspace, one row per case; with the LLM plugin the AI sums each case up.": "Ein Ort pro Sache: die Aktenzeichen in deinen Mails, Briefen und Todos halten zusammen, was zu einem Vorgang gehört — seine Quellen in zeitlicher Reihenfolge, die Person auf der anderen Seite, was offen ist, die nächste Rate oder Frist und wohin zu zahlen ist (mit GiroCode). Eine Datenbank im Workspace, eine Zeile pro Vorgang; mit dem LLM-Plugin fasst die KI jeden Vorgang zusammen."
+  "One place per matter: the case numbers (Aktenzeichen) in your mails, letters and todos hold together what belongs to one case — its sources in time order, the person on the other side, what is owed, the next instalment or deadline and where to pay (with a GiroCode). A database of the Workspace, one row per case; with the LLM plugin the AI sums each case up.": "Ein Ort pro Sache: die Aktenzeichen in deinen Mails, Briefen und Todos halten zusammen, was zu einem Vorgang gehört — seine Quellen in zeitlicher Reihenfolge, die Person auf der anderen Seite, was offen ist, die nächste Rate oder Frist und wohin zu zahlen ist (mit GiroCode). Eine Datenbank im Workspace, eine Zeile pro Vorgang; mit dem LLM-Plugin fasst die KI jeden Vorgang zusammen.",
+  "Transfer (GiroCode)": "Überweisen (GiroCode)",
+  "No account given.": "Kein Konto angegeben.",
+  "Transfer {amount} to {name}": "{amount} an {name} überweisen",
+  "Overdue since {date}": "Überfällig seit {date}",
+  "Not summed up yet": "Noch nicht zusammengefasst",
+  "No account known": "Kein Konto bekannt",
+  "Being summed up from its mails, letters and todos …": "Wird aus seinen Mails, Briefen und Todos zusammengefasst …",
+  "No account known for {name} yet — add the IBAN to their details.": "Noch kein Konto von {name} bekannt — trag die IBAN bei den Details ein.",
+  "No account known for it yet — choose the person it is with.": "Noch kein Konto bekannt — wähle die Person, mit der der Vorgang läuft."
 }

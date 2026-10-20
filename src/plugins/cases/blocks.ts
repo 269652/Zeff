@@ -4,6 +4,7 @@ import { isInstalled } from "@/plugins/state";
 import type { TodoSource, TodoView } from "@/lib/boards/shared";
 import { compileCases } from "./compile";
 import { detectCases } from "./detect";
+import { casePayment, type CasePayment } from "./payments";
 import { CASE_STATUSES, caseTitle, type CaseStatus, type CaseSummary } from "./shared";
 import { getCase, setCaseStatus, sourcesOf, updateCase } from "./store";
 
@@ -24,11 +25,18 @@ export type CaseBundle = {
   todos: { id: number; ref: string; text: string; done: boolean; due: string | null }[];
   counts: { mail: number; doc: number; todo: number };
   canCompile: boolean;
+  /** Where it pays to: its summary's account, else its person's. */
+  payment: CasePayment | null;
+  /** Being summed up now (the first time it is opened). */
+  compiling: boolean;
 };
 
 export async function caseBundle(caseId: number): Promise<CaseBundle> {
   const c = getCase(caseId);
   if (!c) throw new Error(t("Unknown case."));
+  // Never summed up: now, in the background — the page shows it once it is done.
+  const compiling = !c.compiled && c.status === "open" && isInstalled("llm");
+  if (compiling) void compileCases({ ids: [caseId] }).catch(() => {});
   const all = sourcesOf(caseId);
   const refs = all.filter((s) => s.kind !== "todo").map((s) => s.ref);
   let sources: TodoSource[] = [];
@@ -63,6 +71,8 @@ export async function caseBundle(caseId: number): Promise<CaseBundle> {
     todos,
     counts: { mail: all.filter((s) => s.kind === "mail").length, doc: all.filter((s) => s.kind === "doc").length, todo: todos.length },
     canCompile: isInstalled("llm"),
+    payment: casePayment(caseId),
+    compiling,
   };
 }
 
