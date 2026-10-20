@@ -6180,5 +6180,9 @@
   "There is no database “{name}”.": "No existe la base de datos «{name}».",
   "Pick a database in the widget's settings.": "Elige una base de datos en los ajustes del widget.",
   "No rows.": "Sin filas.",
-  "{title} — {n} more": "{title} — {n} más"
+  "{title} — {n} more": "{title} — {n} más",
+  "The AI was not allowed to read the file — click “Read again”.": "La IA no pudo leer el archivo — pulsa «Leer de nuevo».",
+  "Navigation in the Workspace tree": "Navegación en el árbol del Workspace",
+  "Hide the hidden": "Ocultar los ocultos",
+  "{n} hidden": "{n} ocultos"
 }

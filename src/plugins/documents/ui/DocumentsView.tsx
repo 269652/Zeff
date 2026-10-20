@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { confirmAction } from "@/components/confirm";
 import { useT } from "@/components/I18nProvider";
@@ -63,9 +64,17 @@ function StateBadge({ doc }: { doc: Doc }) {
   return doc.compiled ? <span className="text-[11px] whitespace-nowrap text-emerald-600 dark:text-emerald-400" title={t("Compiled by the knowledge server")}>✓ {t("compiled")}</span> : null;
 }
 
-export default function DocumentsView({ rows, data, openRow, reload }: AppViewProps) {
+export default function DocumentsView(props: AppViewProps) {
+  const { rows, data, openRow, reload } = props;
   const t = useT();
-  const [scope, setScope] = useState<Scope>("inbox");
+  // The navigation is in the Workspace tree (the view's setting): the entry asked for is in the address (?nav=); else it is this view's own.
+  const inTree = props.view.nav === "workspace";
+  const asked = useSearchParams().get("nav");
+  const [own, setOwn] = useState<Scope>("inbox");
+  const router = useRouter();
+  const path = usePathname();
+  const setScope = (s: Scope) => (inTree ? router.replace(`${path}?nav=${encodeURIComponent(s)}`, { scroll: false }) : setOwn(s));
+  const scope: Scope = inTree ? ((asked as Scope | null) ?? "inbox") : own;
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<Sort>("newest");
   const [layout, setLayout] = useState<"grid" | "list">("grid");
@@ -226,7 +235,7 @@ export default function DocumentsView({ rows, data, openRow, reload }: AppViewPr
     <div
       ref={root}
       tabIndex={-1}
-      className={`grid min-h-[34rem] grid-cols-1 overflow-hidden rounded-xl border bg-white outline-none dark:bg-zinc-950 ${over ? "border-indigo-400 ring-2 ring-indigo-300/50" : "border-zinc-200 dark:border-zinc-800"} ${doc ? "lg:grid-cols-[12.5rem_minmax(0,1fr)_22rem]" : "lg:grid-cols-[12.5rem_minmax(0,1fr)]"}`}
+      className={`grid min-h-[34rem] grid-cols-1 overflow-hidden rounded-xl border bg-white outline-none dark:bg-zinc-950 ${over ? "border-indigo-400 ring-2 ring-indigo-300/50" : "border-zinc-200 dark:border-zinc-800"} ${inTree ? (doc ? "lg:grid-cols-[minmax(0,1fr)_22rem]" : "") : doc ? "lg:grid-cols-[12.5rem_minmax(0,1fr)_22rem]" : "lg:grid-cols-[12.5rem_minmax(0,1fr)]"}`}
       data-app-view="documents"
       onDragOver={(e) => {
         if (![...e.dataTransfer.types].includes("Files")) return;
@@ -243,6 +252,7 @@ export default function DocumentsView({ rows, data, openRow, reload }: AppViewPr
       }}
     >
       {/* Scopes */}
+      {!inTree && (
       <nav className="flex gap-1 overflow-x-auto border-b border-zinc-100 p-2 lg:flex-col lg:overflow-visible lg:border-r lg:border-b-0 dark:border-zinc-800" aria-label={t("Documents")}>
         <label className="btn btn-primary btn-sm mb-1 shrink-0 cursor-pointer justify-center lg:mb-2">
           + {t("Add files")}
@@ -264,10 +274,17 @@ export default function DocumentsView({ rows, data, openRow, reload }: AppViewPr
           </button>
         ))}
       </nav>
+      )}
 
       {/* The documents */}
       <div className="flex min-h-0 min-w-0 flex-col">
         <div className="flex flex-wrap items-center gap-2 border-b border-zinc-100 px-3 py-2 dark:border-zinc-800">
+          {inTree && (
+            <label className="btn btn-primary btn-sm cursor-pointer">
+              + {t("Add files")}
+              <input type="file" multiple hidden onChange={(e) => (void upload([...(e.target.files ?? [])]), (e.target.value = ""))} />
+            </label>
+          )}
           {chosen.length > 0 ? (
             <>
               <span className="text-sm font-medium">{t("{n} selected", { n: chosen.length })}</span>

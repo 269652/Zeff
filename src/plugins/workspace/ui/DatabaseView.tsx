@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { templateParamsAction, addRowAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, makeInboxAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { templateParamsAction, addRowAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, makeInboxAction, setNavPlaceAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
 import { DEFAULT_COLUMN, fitWidth, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
@@ -577,6 +577,21 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
         <Dropdown label="⋯" align="right" title={t("More")} className="btn btn-sm">
           {(close) => (
             <>
+              {view.type === "app" && data.extras?.appViews?.find((a) => a.id === view.app)?.nav && (
+                <MenuItem
+                  checked={view.nav === "workspace"}
+                  onClick={() => {
+                    close();
+                    void setNavPlaceAction(dbId, view.id, view.nav === "workspace" ? "view" : "workspace").then((r) => {
+                      if (!r.ok) return toast(r.error, { tone: "error" });
+                      void api.reload();
+                      router.refresh();
+                    });
+                  }}
+                >
+                  🧭 {t("Navigation in the Workspace tree")}
+                </MenuItem>
+              )}
               <MenuItem onClick={() => (close(), setSchemaOpen(true))}>⚙ {t("Edit properties …")}</MenuItem>
               <MenuItem onClick={() => (close(), setFormOpen(true))}>📝 {t("Form …")}</MenuItem>
               <MenuItem onClick={() => (close(), setRepeatOpen(true))}>🔁 {t("Repeating rows …")}</MenuItem>

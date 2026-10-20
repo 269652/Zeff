@@ -84,6 +84,10 @@ export type View = {
   type: ViewType;
   /** An app's view (type "app"): which (the mail client's "mail", the chat's "chat") — shown while its plugin is installed. */
   app?: string;
+  /** An app's view: where its navigation (the entries of its sidebar) is — in the view (default), or in the Workspace tree under its database. */
+  nav?: "workspace";
+  /** The navigation's entries hidden (their ids) — in the tree they are only hidden and shown again, never deleted. */
+  navHidden?: string[];
   filter: Filter;
   sorts: Sort[];
   /** Board: the columns; table/list: the groups. */
@@ -495,7 +499,7 @@ export function choiceColor(p: Property, name: string): string {
 export function normalizeSchema(raw: unknown): DbSchema {
   const o = (raw && typeof raw === "object" ? raw : {}) as Partial<DbSchema>;
   const props = (Array.isArray(o.properties) ? o.properties : []).filter((p): p is Property => !!p && typeof p.id === "string" && (PROP_TYPES as readonly string[]).includes(p.type)).map(withAiColors);
-  const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [], card: typeof v.card === "string" && v.card.trim() ? v.card.slice(0, 8000) : undefined }));
+  const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [], card: typeof v.card === "string" && v.card.trim() ? v.card.slice(0, 8000) : undefined, nav: v.nav === "workspace" && v.app ? ("workspace" as const) : undefined, navHidden: Array.isArray(v.navHidden) && v.navHidden.length ? v.navHidden.filter((x): x is string => typeof x === "string").slice(0, 100) : undefined }));
   return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(formOf(o.form, props) ? { form: formOf(o.form, props) } : {}), ...(protectOf(o.protect, props) ? { protect: protectOf(o.protect, props) } : {}), ...(todoListOf(o.todoList, props) ? { todoList: todoListOf(o.todoList, props) } : {}), ...(o.rules === true ? { rules: true } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}) };
 }
 

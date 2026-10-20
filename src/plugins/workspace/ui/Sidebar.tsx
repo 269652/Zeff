@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { favoriteOrderAction, archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, savePageAction, installPackageAction, searchAction, templatesAction, todayPageAction } from "../actions";
+import { setNavHiddenAction, favoriteOrderAction, archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, savePageAction, installPackageAction, searchAction, templatesAction, todayPageAction } from "../actions";
 import { moveBefore } from "../model";
 import type { TreeItem } from "../store";
+import type { AppNav } from "../app-nav";
 import { ChatPanel } from "./ChatPanel";
 import { Dropdown, MenuItem, useSortable } from "./kit";
 import "./workspace.css";
@@ -44,13 +45,15 @@ function useOpen(): [Set<number>, (id: number, on?: boolean) => void] {
 }
 
 /** The page tree, favorites, search and "new" — the left column of the Workspace. */
-export function Sidebar({ items, favorites, unread = {}, channels, extSources = [] }: { /** Sources plugins bring (People …): a database of each from the New menu. */ extSources?: { id: string; label: string; icon: string }[]; /** The channels that can be sources (mail, messages) — what the New menu offers as a database of them. */ channels?: { mail: boolean; messages: boolean }; items: TreeItem[]; favorites: { id: number; title: string; icon: string; kind: string }[]; /** Mail databases' unread rows, by id. */ unread?: Record<number, number> }) {
+export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, extSources = [] }: { /** The navigation of app views kept in the tree (the documents' inbox, all, by type), by database id. */ appNav?: Record<number, AppNav>; /** Sources plugins bring (People …): a database of each from the New menu. */ extSources?: { id: string; label: string; icon: string }[]; /** The channels that can be sources (mail, messages) — what the New menu offers as a database of them. */ channels?: { mail: boolean; messages: boolean }; items: TreeItem[]; favorites: { id: number; title: string; icon: string; kind: string }[]; /** Mail databases' unread rows, by id. */ unread?: Record<number, number> }) {
   const t = useT();
   const router = useRouter();
   const path = usePathname();
   const current = Number(/^\/workspace\/(\d+)/.exec(path)?.[1] ?? 0) || null;
   const [open, toggle] = useOpen();
   const [q, setQ] = useState("");
+  const [showHidden, setShowHidden] = useState<Set<number>>(new Set());
+  const navParam = useSearchParams().get("nav");
   const [hits, setHits] = useState<Hit[] | null>(null);
   const [templates, setTemplates] = useState<Meta[] | null>(null);
   const [over, setOver] = useState<{ id: number; where: "before" | "into" | "after" } | null>(null);
@@ -129,6 +132,50 @@ export function Sidebar({ items, favorites, unread = {}, channels, extSources = 
     router.refresh();
   };
 
+  // An app's navigation under its database: links to its entries; one is hidden (and shown again), never deleted.
+  const navEntries = (dbId: number, nav: AppNav, depth: number): React.ReactNode => {
+    const shown = showHidden.has(dbId);
+    const hiddenN = nav.entries.filter((e) => e.hidden).length;
+    const set = async (entry: string, hidden: boolean) => {
+      const r = await setNavHiddenAction(dbId, nav.viewId, entry, hidden);
+      if (!r.ok) toast(r.error, { tone: "error" });
+      router.refresh();
+    };
+    let group = "";
+    return (
+      <>
+        {nav.entries.filter((e) => shown || !e.hidden).map((e) => {
+          const heading = e.group && e.group !== group ? e.group : "";
+          group = e.group ?? group;
+          return (
+            <li key={`nav-${dbId}-${e.id}`} data-nav-entry={e.id}>
+              {heading && <div className="px-2 pt-1 text-[11px] font-semibold tracking-wide text-zinc-400 uppercase" style={{ paddingLeft: `${depth * 0.9 + 1.4}rem` }}>{heading}</div>}
+              <div className={`ws-tree-row ${e.hidden ? "opacity-50" : ""}`} data-active={current === dbId && (navParam ?? "inbox") === e.id} style={{ paddingLeft: `${depth * 0.9 + 1.4}rem` }}>
+                <Link href={`/workspace/${dbId}?nav=${encodeURIComponent(e.id)}`} className="flex min-w-0 flex-1 items-center gap-1.5 py-0.5">
+                  <span className="shrink-0">{e.icon}</span>
+                  <span className="truncate">{e.label}</span>
+                  {e.n > 0 && <span className={`ml-auto shrink-0 pl-1 text-xs tabular-nums ${e.id === "inbox" ? "font-semibold text-indigo-600 dark:text-indigo-400" : "text-zinc-400"}`}>{e.n}</span>}
+                </Link>
+                <span data-hover className="flex shrink-0 items-center">
+                  <button type="button" className="icon-btn size-5 text-xs" title={e.hidden ? t("Show again") : t("Hide")} aria-label={e.hidden ? t("Show again") : t("Hide")} onClick={() => void set(e.id, !e.hidden)}>
+                    {e.hidden ? "👁" : "🚫"}
+                  </button>
+                </span>
+              </div>
+            </li>
+          );
+        })}
+        {hiddenN > 0 && (
+          <li>
+            <button type="button" className="px-2 py-0.5 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200" style={{ paddingLeft: `${depth * 0.9 + 1.4}rem` }} onClick={() => setShowHidden((cur) => { const n = new Set(cur); if (n.has(dbId)) n.delete(dbId); else n.add(dbId); return n; })}>
+              {shown ? t("Hide the hidden") : t("{n} hidden", { n: hiddenN })}
+            </button>
+          </li>
+        )}
+      </>
+    );
+  };
+
   const node = (item: TreeItem, depth: number): React.ReactNode => {
     const kids = byParent.get(item.id) ?? [];
     const isOpen = open.has(item.id);
@@ -154,7 +201,7 @@ export function Sidebar({ items, favorites, unread = {}, channels, extSources = 
             void drop(item, over?.id === item.id ? over.where : "into");
           }}
         >
-          <button type="button" className="icon-btn size-5 shrink-0 text-xs" onClick={() => toggle(item.id)} aria-label={isOpen ? t("Collapse") : t("Expand")} aria-expanded={isOpen} style={{ visibility: kids.length ? "visible" : "hidden" }}>
+          <button type="button" className="icon-btn size-5 shrink-0 text-xs" onClick={() => toggle(item.id)} aria-label={isOpen ? t("Collapse") : t("Expand")} aria-expanded={isOpen} style={{ visibility: kids.length || appNav[item.id] ? "visible" : "hidden" }}>
             {isOpen ? "▾" : "▸"}
           </button>
           <Link href={`/workspace/${item.id}`} className="flex min-w-0 flex-1 items-center gap-1.5 py-0.5">
@@ -225,7 +272,12 @@ export function Sidebar({ items, favorites, unread = {}, channels, extSources = 
             </button>
           </span>
         </div>
-        {isOpen && kids.length > 0 && <ul>{kids.map((k) => node(k, depth + 1))}</ul>}
+        {isOpen && (kids.length > 0 || appNav[item.id]) && (
+          <ul>
+            {appNav[item.id] && navEntries(item.id, appNav[item.id], depth + 1)}
+            {kids.map((k) => node(k, depth + 1))}
+          </ul>
+        )}
       </li>
     );
   };
