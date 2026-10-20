@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const { verifier, challenge } = newPkce();
   const state = newState();
   // All of Drive only when files you add there should come in; else just the files Zeff makes.
-  const res = NextResponse.redirect(authorizeUrl({ clientId: row.clientId, redirectUri, state, challenge, full: row.pullDocuments }));
+  const res = NextResponse.redirect(authorizeUrl({ clientId: row.clientId, redirectUri, state, challenge, full: (await import("@/plugins/google-drive/folders")).needsFullAccess() }));
   res.cookies.set(DRIVE_COOKIE, JSON.stringify({ state, verifier, redirectUri }), { httpOnly: true, sameSite: "lax", secure: origin.startsWith("https://"), path: "/api/google-drive", maxAge: 600 });
   return res;
 }

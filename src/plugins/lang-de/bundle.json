@@ -6481,5 +6481,16 @@
   "Done: the money is sent — note it, the todo is done": "Erledigt: das Geld ist überwiesen — wird notiert, das Todo ist erledigt",
   "Who gets it?": "Wer bekommt es?",
   "Not a valid IBAN.": "Keine gültige IBAN.",
-  "The GiroCode shows once recipient and IBAN are right.": "Der GiroCode erscheint, sobald Empfänger und IBAN stimmen."
+  "The GiroCode shows once recipient and IBAN are right.": "Der GiroCode erscheint, sobald Empfänger und IBAN stimmen.",
+  "My Drive": "Meine Ablage",
+  "Folders of your Drive": "Ordner aus deinem Drive",
+  "Choose folders of your own Drive — e.g. where you keep your bank statements. What you put there comes into the documents with each sync; Zeff only reads there.": "Wähle Ordner aus deinem eigenen Drive — z. B. den mit deinen Kontoauszügen. Was du dort ablegst, kommt bei jedem Sync in die Dokumente; Zeff liest dort nur.",
+  "To read the files you put there, connect again — Google then asks for access to all of Drive.": "Um die Dateien dort lesen zu können, verbinde dich neu — Google fragt dann nach Zugriff auf dein ganzes Drive.",
+  "Connect Google Drive first (step 2) — then choose its folders here.": "Verbinde zuerst Google Drive (Schritt 2) — dann wählst du hier seine Ordner.",
+  "Choose a folder …": "Ordner wählen …",
+  "Use this folder": "Diesen Ordner verwenden",
+  "No folders in here.": "Hier sind keine Ordner.",
+  "Added. To read the files you put there, connect again — Google then asks for access to all of Drive.": "Hinzugefügt. Um die Dateien dort lesen zu können, verbinde dich neu — Google fragt dann nach Zugriff auf dein ganzes Drive.",
+  "Added — its files come in with the next sync.": "Hinzugefügt — seine Dateien kommen mit dem nächsten Sync.",
+  "Removed — what came in from it stays in the documents.": "Entfernt — was daraus gekommen ist, bleibt in den Dokumenten."
 }

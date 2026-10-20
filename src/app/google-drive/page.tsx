@@ -58,6 +58,7 @@ export default async function GoogleDrivePage({ searchParams }: { searchParams: 
           fullAccess: hasFullAccess(row),
           folderName: row.folderName,
           defaultFolder: defaultFolderName(),
+          pullFolders: (await import("@/plugins/google-drive/folders")).pullFolders(),
           mirrorBackupRetention: row.mirrorBackupRetention,
           uploadUnencrypted: row.uploadUnencrypted,
           pullDocuments: row.pullDocuments,
