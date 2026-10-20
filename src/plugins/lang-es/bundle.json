@@ -6520,5 +6520,18 @@
   "Sign in at the bank": "Iniciar sesión en el banco",
   "Paid (bank)": "Pagado (banco)",
   "The Revolut plugin is not installed (Menu → Plugins).": "El plugin Revolut no está instalado (Menú → Plugins).",
-  "Reads your Revolut statements (the CSV export, in German or English — other banks' CSV too): a file you import on the cases' overview, or one that comes in as a document (from your Drive folder) by itself. Its bookings go to the cases' bank, where payments settle their todos and cases. Among the documents a statement is kept as a note, not as its bookings.": "Lee tus extractos de Revolut (la exportación CSV, en alemán o inglés; también el CSV de otros bancos): un archivo que importas en la vista general de los expedientes, o uno que llega como documento (desde tu carpeta de Drive) por sí solo. Sus movimientos van al banco de los expedientes, donde los pagos cierran sus tareas y expedientes. Entre los documentos, un extracto se guarda como nota, no como sus movimientos."
+  "Reads your Revolut statements (the CSV export, in German or English — other banks' CSV too): a file you import on the cases' overview, or one that comes in as a document (from your Drive folder) by itself. Its bookings go to the cases' bank, where payments settle their todos and cases. Among the documents a statement is kept as a note, not as its bookings.": "Lee tus extractos de Revolut (la exportación CSV, en alemán o inglés; también el CSV de otros bancos): un archivo que importas en la vista general de los expedientes, o uno que llega como documento (desde tu carpeta de Drive) por sí solo. Sus movimientos van al banco de los expedientes, donde los pagos cierran sus tareas y expedientes. Entre los documentos, un extracto se guarda como nota, no como sus movimientos.",
+  "Starred": "Destacadas",
+  "With todos": "Con tareas",
+  "Dates soon": "Fechas pronto",
+  "By name": "Por nombre",
+  "Next date first": "Próxima fecha primero",
+  "Most todos first": "Más tareas primero",
+  "1 todo": "1 tarea",
+  "1 ticket": "1 ticket",
+  "No one matches.": "Nadie coincide.",
+  "No people yet — add one above, or import them from your mails and chats (Tools).": "Aún no hay personas: añade una arriba o impórtalas de tus correos y chats (Herramientas).",
+  "All in the review queue": "Todo en la cola de revisión",
+  "What the AI read": "Lo que leyó la IA",
+  "Dates found": "Fechas encontradas"
 }

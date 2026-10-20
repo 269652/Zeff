@@ -6520,5 +6520,18 @@
   "Sign in at the bank": "Bei der Bank anmelden",
   "Paid (bank)": "Bezahlt (Bank)",
   "The Revolut plugin is not installed (Menu → Plugins).": "Das Revolut-Plugin ist nicht installiert (Menü → Plugins).",
-  "Reads your Revolut statements (the CSV export, in German or English — other banks' CSV too): a file you import on the cases' overview, or one that comes in as a document (from your Drive folder) by itself. Its bookings go to the cases' bank, where payments settle their todos and cases. Among the documents a statement is kept as a note, not as its bookings.": "Liest deine Revolut-Kontoauszüge (den CSV-Export, deutsch oder englisch – auch die CSV anderer Banken): eine Datei, die du in der Übersicht der Vorgänge importierst, oder eine, die als Dokument hereinkommt (aus deinem Drive-Ordner), von selbst. Die Buchungen gehen an die Bank der Vorgänge, wo Zahlungen ihre Todos und Vorgänge erledigen. Unter den Dokumenten bleibt ein Kontoauszug eine Notiz, nicht seine Buchungen."
+  "Reads your Revolut statements (the CSV export, in German or English — other banks' CSV too): a file you import on the cases' overview, or one that comes in as a document (from your Drive folder) by itself. Its bookings go to the cases' bank, where payments settle their todos and cases. Among the documents a statement is kept as a note, not as its bookings.": "Liest deine Revolut-Kontoauszüge (den CSV-Export, deutsch oder englisch – auch die CSV anderer Banken): eine Datei, die du in der Übersicht der Vorgänge importierst, oder eine, die als Dokument hereinkommt (aus deinem Drive-Ordner), von selbst. Die Buchungen gehen an die Bank der Vorgänge, wo Zahlungen ihre Todos und Vorgänge erledigen. Unter den Dokumenten bleibt ein Kontoauszug eine Notiz, nicht seine Buchungen.",
+  "Starred": "Markiert",
+  "With todos": "Mit Todos",
+  "Dates soon": "Bald Termine",
+  "By name": "Nach Name",
+  "Next date first": "Nächstes Datum zuerst",
+  "Most todos first": "Meiste Todos zuerst",
+  "1 todo": "1 Todo",
+  "1 ticket": "1 Ticket",
+  "No one matches.": "Niemand passt.",
+  "No people yet — add one above, or import them from your mails and chats (Tools).": "Noch keine Personen — oben eine hinzufügen oder aus deinen Mails und Chats importieren (Werkzeuge).",
+  "All in the review queue": "Alles in der Prüfliste",
+  "What the AI read": "Was die KI gelesen hat",
+  "Dates found": "Gefundene Daten"
 }
