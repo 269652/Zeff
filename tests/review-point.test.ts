@@ -67,3 +67,13 @@ test("count: how many wait in the queue and on the linked pages", async () => {
   const q = await reviewItems();
   assert.equal(q.count, q.items.length + q.links.reduce((n, l) => n + l.count, 0));
 });
+
+test("the weekly report's booking suggestions: counted and linked, not listed — they have their own page", async () => {
+  const { suggestEntry, skipSuggestion } = await import("@/lib/work/suggestions");
+  const { reviewItems } = await import("@/lib/review");
+  const a = suggestEntry({ hours: 1, description: "Footer-Links", reportedBy: "Claude" });
+  suggestEntry({ hours: 0.5, description: "Navigation", reportedBy: "Claude" });
+  assert.deepEqual((await reviewItems()).links.find((l) => l.id === "booking-suggestions"), { id: "booking-suggestions", label: "Suggested entries", href: "/#suggestions", count: 2 });
+  skipSuggestion(a.id);
+  assert.equal((await reviewItems()).links.find((l) => l.id === "booking-suggestions")!.count, 1);
+});

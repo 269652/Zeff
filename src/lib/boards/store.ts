@@ -1148,6 +1148,23 @@ export function suggestDone(id: number, by: string, note?: string | null): TodoV
   return getTodo(id)!;
 }
 
+/** Not done after all: the worker's or the AI's word on it taken back — the todo stays open, as it was. */
+export function clearWorkerDone(id: number): void {
+  getDb().update(todos).set({ workerDone: null }).where(eq(todos.id, id)).run();
+  emitChange("todos");
+}
+
+/**
+ * The actions the auto-actions proposed on it, not wanted: taken off without a trace — not proposed again till
+ * the todo changes. Actions that aren't proposed (yours, a run's) stay.
+ */
+export function dropProposedOps(id: number): void {
+  const t = getTodo(id);
+  if (!t?.autoOpsWhy) return;
+  getDb().update(todos).set({ ops: "[]", autoOpsWhy: null, actionsReviewedAt: new Date().toISOString() }).where(eq(todos.id, id)).run();
+  emitChange("todos");
+}
+
 const suggestedDoneJson = (by: string, note?: string | null) =>
   JSON.stringify({ at: new Date().toISOString(), by: by.slice(0, 100), note: note?.trim().slice(0, 500) || null, suggested: true });
 
