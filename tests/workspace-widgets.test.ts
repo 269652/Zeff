@@ -87,7 +87,7 @@ test("the widget block in a page: its widget and its settings kept; what is not 
     ],
   }) as { content: { type: string; attrs: Record<string, unknown> }[] };
   assert.deepEqual(doc.content.map((n) => n.attrs.widget), ["news.top", "x.y"], "one without a widget is dropped");
-  assert.deepEqual(doc.content[0].attrs, { widget: "news.top", config: '{"limit":5}' });
+  assert.deepEqual(doc.content[0].attrs, { widget: "news.top", config: '{"limit":5}', title: "" });
   assert.equal(doc.content[1].attrs.config, "{}", "a config that is no JSON object is an empty one");
 });
 

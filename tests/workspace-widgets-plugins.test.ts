@@ -14,7 +14,7 @@ async function world() {
   await import("@/plugins/contributions");
   return await import("@/plugins/workspace/widgets");
 }
-const list = (d: { kind: string; items?: { id: string; text: string; badge?: string; detail?: string; href?: string; actions?: { id: string }[] }[] }) => (d.kind === "list" ? d.items! : []);
+const list = (d: { kind: string; items?: { id: string; text: string; badge?: string; detail?: string; href?: string; icon?: string; meta?: string; actions?: { id: string }[] }[] }) => (d.kind === "list" ? d.items! : []);
 
 test("every plugin's widgets are registered with a plugin that is installed — and carry the one thing that makes them worth it", async () => {
   const x = await world();
@@ -23,7 +23,7 @@ test("every plugin's widgets are registered with a plugin that is installed — 
   for (const w of x.widgetCatalog().filter((w) => ["mail.unread", "people.upcoming", "work.runs", "news.top", "workspace.routines"].includes(w.id))) assert.ok(w.actions, `${w.id} has an action`);
 });
 
-test("unread: the inboxes with their unread counts — read again from the widget", async () => {
+test("unread: the newest unread messages (who, what, when) with the count — or the inboxes with theirs; read again from the widget", async () => {
   const x = await world();
   const { saveMails } = await import("@/lib/mail/store");
   const { createSourceDatabase } = await import("@/plugins/workspace/derived");
@@ -37,16 +37,18 @@ test("unread: the inboxes with their unread counts — read again from the widge
   const db = createSourceDatabase("mail");
   await runPipeline(db, { ai: false });
   const d = await x.widgetData("mail.unread", {});
+  assert.equal(d.kind === "list" && d.count, 2, "two unread");
   const items = list(d);
-  const mine = items.find((i) => i.href === `/workspace/${db}`)!;
+  assert.deepEqual(items.map((i) => i.text), ["Eins", "Zwei"], "the newest first, the read one not");
+  assert.equal(items[0].icon, "AN", "the sender as initials");
+  assert.equal(items[0].href, `/workspace/${db}`, "into the inbox");
+  const boxes = list(await x.widgetData("mail.unread", { show: "inboxes" }));
+  const mine = boxes.find((i) => i.href === `/workspace/${db}`)!;
   assert.ok(mine, "the mail database");
-  assert.equal(mine.badge, "2", "two unread");
+  assert.equal(mine.meta, "2", "two unread");
   assert.ok(mine.actions?.some((a) => a.id === "refresh"));
-  const after = await x.widgetAct("mail.unread", "refresh", { id: String(db) }, {});
+  const after = await x.widgetAct("mail.unread", "refresh", { id: String(db) }, { show: "inboxes" });
   assert.equal(after.kind, "list");
-  // none unread anywhere: said so
-  const { setCell } = await import("@/plugins/workspace/store");
-  void setCell;
 });
 
 test("upcoming dates: the next dates of your people — done for this time takes one off", async () => {

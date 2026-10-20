@@ -4,10 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { toast } from "@/components/Toaster";
+import { formatAgo } from "@/lib/format";
 import { useT } from "@/components/I18nProvider";
 import { askWorkspaceAction, createPageAction, importCsvAction, importMarkdownAction } from "../actions";
 import type { PageRef } from "../store";
 import type { TemplateMeta } from "../templates";
+import { TemplateGallery } from "./TemplateGallery";
 
 /** The Workspace's start page: recent pages, a question to your pages, templates, imports. */
 export function Home({ recent, templates, llm }: { recent: PageRef[]; templates: TemplateMeta[]; llm: boolean }) {
@@ -15,6 +17,7 @@ export function Home({ recent, templates, llm }: { recent: PageRef[]; templates:
   const router = useRouter();
   const [answer, setAnswer] = useState<{ answer: string; pages: { id: number; title: string }[] } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [making, setMaking] = useState<string | null>(null);
   const mdInput = useRef<HTMLInputElement>(null);
   const csvInput = useRef<HTMLInputElement>(null);
 
@@ -26,7 +29,7 @@ export function Home({ recent, templates, llm }: { recent: PageRef[]; templates:
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8">
+    <div className="mx-auto max-w-5xl space-y-8">
       <div>
         <h1 className="text-3xl font-bold">{t("Workspace")}</h1>
         <p className="mt-1 text-sm text-zinc-500">{t("Pages and databases — and your people, todos and tickets one @ away.")}</p>
@@ -119,15 +122,19 @@ export function Home({ recent, templates, llm }: { recent: PageRef[]; templates:
       )}
 
       <section className="space-y-2">
-        <h2 className="text-xs font-semibold text-zinc-500 uppercase">{t("Recent")}</h2>
+        <h2 className="text-lg font-semibold">{t("Recent")}</h2>
         {recent.length ? (
-          <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(13.5rem,1fr))]">
             {recent.map((p) => (
               <li key={p.id}>
-                <Link href={`/workspace/${p.id}`} className="card block p-3 text-sm hover:border-indigo-300">
-                  <span className="text-xl">{p.icon || (p.kind === "database" ? "🗂️" : "📄")}</span>
-                  <span className="mt-1 block truncate font-medium">{p.title || t("Untitled")}</span>
-                  <span className="text-xs text-zinc-500">{new Date(p.updatedAt).toLocaleDateString()}</span>
+                <Link href={`/workspace/${p.id}`} className="flex items-center gap-2.5 rounded-xl border border-zinc-200/80 bg-white px-3 py-2 text-sm shadow-sm transition hover:-translate-y-px hover:border-indigo-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-indigo-700">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-zinc-100 text-base dark:bg-zinc-800" aria-hidden>
+                    {p.icon || (p.kind === "database" ? "🗂️" : "📄")}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium">{p.title || t("Untitled")}</span>
+                    <span className="block text-xs text-zinc-500">{formatAgo(p.updatedAt)}</span>
+                  </span>
                 </Link>
               </li>
             ))}
@@ -137,19 +144,19 @@ export function Home({ recent, templates, llm }: { recent: PageRef[]; templates:
         )}
       </section>
 
-      <section className="space-y-2">
-        <h2 className="text-xs font-semibold text-zinc-500 uppercase">{t("Templates")}</h2>
-        <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {templates.map((tp) => (
-            <li key={tp.key}>
-              <button type="button" className="card h-full w-full p-3 text-left text-sm hover:border-indigo-300" onClick={() => void go({ templateKey: tp.key })}>
-                <span className="text-xl">{tp.icon}</span>
-                <span className="mt-1 block font-medium">{tp.name}</span>
-                <span className="block text-xs text-zinc-500">{tp.description}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold">{t("Start from a template")}</h2>
+          <p className="text-sm text-zinc-500">{t("Dashboards, task boards, meeting notes, agents — ready to use, yours to change.")}</p>
+        </div>
+        <TemplateGallery
+          templates={templates}
+          busy={making}
+          onPick={(key) => {
+            setMaking(key);
+            void go({ templateKey: key }).finally(() => setMaking(null));
+          }}
+        />
       </section>
     </div>
   );

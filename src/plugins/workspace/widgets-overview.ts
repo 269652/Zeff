@@ -5,7 +5,7 @@ import { jobsNeedingYou } from "./jobs";
 import { filterRows, noLabels, sortRows, type Row } from "./model";
 import { sourceTable } from "./source-table";
 import { getDatabase, labelsFor, rowsOf } from "./store";
-import type { WidgetCard, WidgetData, WidgetItem, WidgetTile, WorkspaceWidget } from "./widget-point";
+import type { WidgetCard, WidgetData, WidgetItem, WidgetTile, WorkspaceWidget, WidgetSetting } from "./widget-point";
 
 /**
  * Widgets made of what Zeff knows — the same data the rollups and joins use (booked time, merge requests, todos, worker runs, agent jobs):
@@ -64,11 +64,13 @@ function overview(): WidgetData {
 }
 
 const URGENCY: Record<string, number> = { question: 0, overdue: 1, failed: 2, "due today": 3, "to check": 4, "MR waiting": 5 };
+const ICON: Record<string, string> = { question: "❓", overdue: "⏰", failed: "⚠️", "due today": "📌", "to check": "👀", "MR waiting": "🔀" };
 
 function attention(limit: number): WidgetData {
   const today = iso(new Date());
   const items: (WidgetItem & { rank: number })[] = [];
-  const add = (badge: string, tone: "bad" | "warn", item: Omit<WidgetItem, "badge" | "tone">) => items.push({ ...item, badge, tone, rank: URGENCY[badge] ?? 9 });
+  const add = (badge: string, tone: "bad" | "warn", item: Omit<WidgetItem, "badge" | "tone">) => items.push({ icon: ICON[badge], ...item, badge: BADGE[badge] ?? badge, tone, rank: URGENCY[badge] ?? 9 });
+  const BADGE: Record<string, string> = { question: t("question"), overdue: t("overdue"), failed: t("failed"), "due today": t("due today"), "to check": t("to check"), "MR waiting": t("MR waiting") };
 
   for (const j of jobsNeedingYou()) {
     add(j.state === "Rückfrage" ? "question" : "to check", j.state === "Rückfrage" ? "warn" : "warn", { id: `job:${j.rowId}`, text: j.title, detail: j.state === "Rückfrage" ? t("An agent asks you something") : t("Agent job to check"), href: `/workspace/${j.dbId}?row=${j.rowId}` });
@@ -89,7 +91,7 @@ function attention(limit: number): WidgetData {
     add("failed", "bad", { id: `run:${r.Run}`, text: `${r.Run}${r.Ticket ? ` · ${r.Ticket}` : ""}`, detail: t("A worker run failed"), href: "/code" });
   }
   items.sort((a, b) => a.rank - b.rank);
-  return { kind: "list", items: items.slice(0, limit).map(({ rank: _rank, ...i }) => i), empty: t("Nothing needs you right now. ✓"), footer: items.length > limit ? { text: t("{n} more", { n: items.length - limit }), href: "/todos" } : undefined };
+  return { kind: "list", count: items.length || undefined, items: items.slice(0, limit).map(({ rank: _rank, ...i }) => i), empty: t("Nothing needs you right now. ✓"), footer: items.length > limit ? { text: t("{n} more", { n: items.length - limit }), href: "/todos" } : undefined };
 }
 
 /** The database a setting names: a page id, or a title (case does not matter). */
@@ -131,33 +133,49 @@ async function databaseCards(config: { database: string; view: string; limit: nu
 export const OVERVIEW_WIDGETS: WorkspaceWidget[] = [
   {
     id: "workspace.overview",
-    label: "Overview",
+    get label() {
+      return t("Overview");
+    },
     icon: "📊",
-    description: "Your day in figures: hours booked, open todos, merge requests, workers and agent jobs — what to look at first.",
+    get description() {
+      return t("Your day in figures: hours booked, open todos, merge requests, workers and agent jobs — what to look at first.");
+    },
     size: "full",
     ttl: 20,
     data: () => overview(),
   },
   {
     id: "workspace.attention",
-    label: "Needs attention",
+    get label() {
+      return t("Needs attention");
+    },
     icon: "🔔",
-    description: "What waits for you, the most pressing first: an agent's question, overdue todos, a job to check, a merge request without movement, a failed run.",
-    settings: [{ key: "limit", label: "How many", kind: "number", default: 8, min: 1, max: 30 }],
+    get description() {
+      return t("What waits for you, the most pressing first: an agent's question, overdue todos, a job to check, a merge request without movement, a failed run.");
+    },
+    get settings(): WidgetSetting[] {
+      return [{ key: "limit", label: t("How many"), kind: "number", default: 8, min: 1, max: 30 }];
+    },
     size: "half",
     ttl: 20,
     data: (config) => attention(Number(config.limit)),
   },
   {
     id: "workspace.database",
-    label: "Database as cards",
+    get label() {
+      return t("Database as cards");
+    },
     icon: "🗂️",
-    description: "Any database of the Workspace drawn as cards by one of its views — its filter, sort and card template (rollups and joins included).",
-    settings: [
-      { key: "database", label: "Database (its name or page number)", kind: "text", default: "" },
-      { key: "view", label: "View (its name; empty: the first board or gallery)", kind: "text", default: "" },
-      { key: "limit", label: "How many", kind: "number", default: 6, min: 1, max: 30 },
-    ],
+    get description() {
+      return t("Any database of the Workspace drawn as cards by one of its views — its filter, sort and card template (rollups and joins included).");
+    },
+    get settings(): WidgetSetting[] {
+      return [
+        { key: "database", label: t("Database (its name or page number)"), kind: "text", default: "" },
+        { key: "view", label: t("View (its name; empty: the first board or gallery)"), kind: "text", default: "" },
+        { key: "limit", label: t("How many"), kind: "number", default: 6, min: 1, max: 30 },
+      ];
+    },
     size: "half",
     ttl: 20,
     data: (config) => databaseCards({ database: String(config.database ?? ""), view: String(config.view ?? ""), limit: Number(config.limit) }),

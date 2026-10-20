@@ -11,11 +11,12 @@ import { moveBefore } from "../model";
 import type { TreeItem } from "../store";
 import type { AppNav } from "../app-nav";
 import { ChatPanel } from "./ChatPanel";
-import { Dropdown, MenuItem, useSortable } from "./kit";
+import { Dropdown, MenuItem, Modal, useSortable } from "./kit";
+import { TemplateGallery } from "./TemplateGallery";
 import "./workspace.css";
 
 type Hit = { id: number; title: string; icon: string; kind: string; snippet: string; path: string };
-type Meta = { key: string; name: string; icon: string; description: string; kind: "page" | "database" };
+type Meta = import("../templates").TemplateMeta;
 
 const OPEN_KEY = "zeff.workspace.open";
 
@@ -56,6 +57,7 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
   const navParam = useSearchParams().get("nav");
   const [hits, setHits] = useState<Hit[] | null>(null);
   const [templates, setTemplates] = useState<Meta[] | null>(null);
+  const [making, setMaking] = useState<string | null>(null);
   const [over, setOver] = useState<{ id: number; where: "before" | "into" | "after" } | null>(null);
   const dragging = useRef<number | null>(null);
   // The favorites: dragged into the order you want (shown at once, saved a moment later).
@@ -285,6 +287,21 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
   const roots = byParent.get(null) ?? [];
   return (
     <div className="space-y-3 text-sm">
+      {templates && (
+        <Modal title={t("Templates")} onClose={() => setTemplates(null)} wide>
+          <TemplateGallery
+            templates={templates}
+            busy={making}
+            onPick={(key) => {
+              setMaking(key);
+              void create({ templateKey: key }).finally(() => {
+                setMaking(null);
+                setTemplates(null);
+              });
+            }}
+          />
+        </Modal>
+      )}
       <div className="flex items-center gap-1">
         <Link href="/workspace" className="flex-1 text-lg font-semibold hover:underline">
           {t("Workspace")}
@@ -359,19 +376,14 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
               >
                 📦 {t("Import a package …")}
               </MenuItem>
-              <div className="px-2 pt-1 text-xs font-semibold text-zinc-500 uppercase">{t("From a template")}</div>
-              {templates === null ? (
-                <MenuItem onClick={() => void templatesAction().then((r) => setTemplates(r.ok ? r.templates : []))}>{t("Show templates …")}</MenuItem>
-              ) : (
-                templates.map((tp) => (
-                  <MenuItem key={tp.key} onClick={() => (close(), void create({ templateKey: tp.key }))}>
-                    <span>{tp.icon}</span>
-                    <span className="min-w-0">
-                      <span className="block truncate">{tp.name}</span>
-                    </span>
-                  </MenuItem>
-                ))
-              )}
+              <MenuItem
+                onClick={() => {
+                  close();
+                  void templatesAction().then((r) => setTemplates(r.ok ? r.templates : []));
+                }}
+              >
+                🧩 {t("From a template …")}
+              </MenuItem>
             </>
           )}
         </Dropdown>

@@ -1011,7 +1011,13 @@
   text-decoration: none;
 }
 .ws-editor .ProseMirror .ws-widget a:hover {
-  text-decoration: underline;
+  text-decoration: none;
+}
+.ws-editor .ProseMirror .ws-widget a.ws-widget-link {
+  color: var(--color-indigo-600, #4f46e5);
+}
+.dark .ws-editor .ProseMirror .ws-widget a.ws-widget-link {
+  color: var(--color-indigo-400, #818cf8);
 }
 .ws-editor .ProseMirror .ws-widget li {
   margin: 0;

@@ -14,6 +14,10 @@ export type WidgetItem = {
   id: string;
   text: string;
   detail?: string;
+  /** What leads the row: an emoji, or a person's initials (two letters) — none: a quiet dot in its tone. */
+  icon?: string;
+  /** A short word on the right (a time, "in 3 d", a count). */
+  meta?: string;
   /** Where a click on it goes (inside Zeff or out). */
   href?: string;
   badge?: string;
@@ -21,8 +25,8 @@ export type WidgetItem = {
   tone?: "good" | "warn" | "bad";
   /** A tick shown (its action "toggle" ticks it). */
   done?: boolean;
-  /** Buttons on the row, by the action they run on the plugin. */
-  actions?: { id: string; label: string }[];
+  /** Buttons on the row, by the action they run on the plugin — shown on hover; with an icon the label is its tooltip. */
+  actions?: { id: string; label: string; icon?: string }[];
 };
 
 /** A figure of the day: a value with its label, a quiet line under it, a tone (what it says: fine, watch it, wrong), a bar, a link. */
@@ -32,8 +36,8 @@ export type WidgetCard = { id: string; nodes: VNode[]; href?: string };
 
 export type WidgetData =
   | { kind: "stats"; tiles: WidgetTile[] }
-  | { kind: "cards"; cards: WidgetCard[]; empty?: string; footer?: { text: string; href: string } }
-  | { kind: "list"; items: WidgetItem[]; title?: string; empty?: string; footer?: { text: string; href: string } }
+  | { kind: "cards"; cards: WidgetCard[]; count?: number; empty?: string; footer?: { text: string; href: string } }
+  | { kind: "list"; items: WidgetItem[]; title?: string; /** A number beside the widget's name (unread, open, running). */ count?: number; empty?: string; footer?: { text: string; href: string } }
   | { kind: "figure"; value: string; caption: string; detail?: string; href?: string }
   | { kind: "error"; message: string };
 

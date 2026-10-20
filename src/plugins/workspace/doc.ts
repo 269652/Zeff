@@ -529,7 +529,7 @@ const NODE_ATTRS: Record<string, string[]> = {
   callout: ["icon", "tone"],
   flexBox: ["dir", "gap", "wrap", "span"],
   zeffRoutine: [],
-  zeffWidget: ["widget", "config"],
+  zeffWidget: ["widget", "config", "title"],
   zeffForm: ["dbId", "fields", "label"],
   zeffIf: ["field", "op", "value"],
   zeffField: ["prop", "label"],
@@ -636,6 +636,7 @@ export function sanitizeDoc(input: unknown): Doc {
           // not JSON: no settings
         }
         attrs.config = config;
+        attrs.title = String(attrs.title ?? "").trim().slice(0, 80);
       }
       if (o.type === "zeffRelated") {
         const id = Math.floor(Number(attrs.dbId));

@@ -13,15 +13,30 @@ import { installPackage, listPackages } from "./packages";
 import { widgetCatalog } from "./widgets";
 import { createRoutine } from "./routines";
 import { createTicketCockpit } from "./ticket-cockpit";
-import { addRow, createPage, getDatabase, updateSchema } from "./store";
+import { meetingPage, oneOnOnePage, projectBriefPage, weeklyReviewPage, wikiHomePage } from "./templates-pages";
+import { addRow, createPage, getDatabase, updatePage, updateSchema } from "./store";
 
-export type TemplateMeta = { key: string; name: string; icon: string; description: string; kind: "page" | "database" };
+/** The group a template is shown in (the gallery's tabs). */
+export type TemplateCategory = "overview" | "work" | "notes" | "automation" | "packages";
+export type TemplateMeta = { key: string; name: string; icon: string; description: string; kind: "page" | "database"; category: TemplateCategory };
 
-const page = (md: string) => markdownToDoc(md);
 
 const select = (name: string, names: string[], colors?: string[]): Property => ({ ...newProperty(name, "select"), options: names.map((n, i): Option => ({ id: newId("o"), name: n, color: colors?.[i] ?? COLORS[(i + 1) % COLORS.length] })) });
 const multi = (name: string, names: string[]): Property => ({ ...newProperty(name, "multi_select"), options: names.map((n, i): Option => ({ id: newId("o"), name: n, color: COLORS[(i + 3) % COLORS.length] })) });
 const view = (name: string, type: View["type"], extra: Partial<View> = {}): View => ({ ...newView(name, type), ...extra });
+
+/** How the cards of the template databases look (card-template.ts): the title, then what tells them apart at a glance. */
+const TASK_CARD = `<b>{{ title }}</b>
+<row gap=1>{{ Priority | chip }}<grow/>{{ Due | relative | muted }}</row>
+{{ Owner | muted }}`;
+const READING_CARD = `<b>{{ title }}</b>
+<row gap=1>{{ Status | chip }} {{ Tags | chip }}</row>
+<row>{{#if Rating}}{{ Rating }} ★{{/if}}<grow/>{{ Link | link }}</row>`;
+const DECISION_CARD = `<b>{{ title }}</b>
+<row gap=1>{{ Area | chip }}<grow/>{{ [Decided on] | date | muted }}</row>`;
+const PROJECT_CARD = `<row><b>{{ title }}</b><grow/>{{ Progress | percent }}</row>
+{{ Progress | bar }}
+<row>{{ Owner | muted }}<grow/>{{ [Total hours] | hours | muted }}</row>`;
 
 type Template = TemplateMeta & { build: (parentId: number | null) => number };
 
@@ -33,52 +48,81 @@ function routinePage(kind: "agent" | "automation", parentId: number | null, titl
   return id;
 }
 
-/** The dashboard: the widgets of the installed plugins in boxes — what is unread and coming up, the news, the workers, the routines. */
+/**
+ * The dashboard, full width: your day in figures across the top, then three columns — what needs you and the news (the wide one), the
+ * calendar and what is unread, the workers, dates and routines. Only the widgets of installed plugins.
+ */
 function dashboardPage(parentId: number | null): number {
   const have = new Set(widgetCatalog().map((w) => w.id));
-  const widget = (id: string): DocNode[] => (have.has(id) ? [{ type: "zeffWidget", attrs: { widget: id, config: "{}" } }] : []);
-  const col = (...ids: string[]): DocNode => ({ type: "flexBox", attrs: { dir: "col", gap: "md" }, content: ids.flatMap(widget).length ? ids.flatMap(widget) : [{ type: "paragraph" }] });
+  const widget = (id: string, config: Record<string, unknown> = {}): DocNode[] => (have.has(id) ? [{ type: "zeffWidget", attrs: { widget: id, config: JSON.stringify(config), title: "" } }] : []);
+  const col = (span: number | null, ...parts: DocNode[][]): DocNode[] => {
+    const content = parts.flat();
+    return content.length ? [{ type: "flexBox", attrs: { dir: "col", gap: "md", span }, content }] : [];
+  };
+  const columns = [
+    ...col(2, widget("workspace.attention", { limit: 8 }), widget("news.top", { limit: 6 })),
+    ...col(null, widget("calendar.agenda"), widget("mail.unread", { limit: 6 })),
+    ...col(null, widget("work.runs"), widget("people.upcoming"), widget("workspace.routines")),
+  ];
   const doc = {
     type: "doc",
-    content: [
-      ...widget("workspace.overview"),
-      { type: "flexBox", attrs: { dir: "row", gap: "md" }, content: [col("workspace.attention", "mail.unread", "people.upcoming"), col("news.top"), col("work.runs", "workspace.routines")] },
-      { type: "paragraph" },
-    ],
+    content: [...widget("workspace.overview"), ...(columns.length ? [{ type: "flexBox", attrs: { dir: "row", gap: "md" }, content: columns }] : []), { type: "paragraph" }],
   };
-  return createPage({ parentId, title: "Dashboard", icon: "🧭", content: doc });
+  const id = createPage({ parentId, title: t("Dashboard"), icon: "🧭", content: doc });
+  updatePage(id, { fullWidth: true });
+  return id;
 }
 
 const TEMPLATES: Template[] = [
   {
     key: "ticket-cockpit",
-    name: "Ticket cockpit",
+    category: "overview",
+    get name() {
+      return t("Ticket cockpit");
+    },
     icon: "🧭",
-    description: "Your tickets as cards with hours booked, open merge requests and todos, worker runs and the days since the last comment — joined live, nothing copied.",
+    get description() {
+      return t("Your tickets as cards with hours booked, open merge requests and todos, worker runs and the days since the last comment — joined live, nothing copied.");
+    },
     kind: "database",
     build: (parentId) => createTicketCockpit(parentId),
   },
   {
     key: "dashboard",
-    name: "Dashboard",
+    category: "overview",
+    get name() {
+      return t("Dashboard");
+    },
     icon: "🧭",
-    description: "Widgets of your plugins on one page: what is unread and coming up, the news for you, the workers, your routines.",
+    get description() {
+      return t("Your day at a glance, live: the figures, what needs you, the calendar, unread mail, the news, the workers.");
+    },
     kind: "page",
     build: (parentId) => dashboardPage(parentId),
   },
   {
     key: "agent",
-    name: "Agent",
+    category: "automation",
+    get name() {
+      return t("Agent");
+    },
     icon: "🤖",
-    description: "An LLM run on the instructions you write here — by hand, on a schedule or on an event; it knows its parent and sibling pages.",
+    get description() {
+      return t("An LLM run on the instructions you write here — by hand, on a schedule or on an event; it knows its parent and sibling pages.");
+    },
     kind: "page",
     build: (parentId) => routinePage("agent", parentId, "New agent", "🤖", "Write what the agent should do — one block per instruction.\n\n- Read the pages next to this one.\n- Write what you find as a short summary under this page.\n"),
   },
   {
     key: "news-summary",
-    name: "News summary (agent)",
+    category: "automation",
+    get name() {
+      return t("News summary (agent)");
+    },
     icon: "📰",
-    description: "An agent that reads the news you saved or liked and writes a summary for you — start it by hand or on a schedule.",
+    get description() {
+      return t("An agent that reads the news you saved or liked and writes a summary for you — start it by hand or on a schedule.");
+    },
     kind: "page",
     build: (parentId) =>
       routinePage(
@@ -96,78 +140,117 @@ const TEMPLATES: Template[] = [
   },
   {
     key: "automation",
-    name: "Automation",
+    category: "automation",
+    get name() {
+      return t("Automation");
+    },
     icon: "⚙️",
-    description: "Steps that run one after another, with gates, branches and conditions — no AI; on a schedule, on an event or by hand.",
+    get description() {
+      return t("Steps that run one after another, with gates, branches and conditions — no AI; on a schedule, on an event or by hand.");
+    },
     kind: "page",
     build: (parentId) => routinePage("automation", parentId, "New automation", "⚙️", "What this automation is for, in a line — its steps are above."),
   },  {
     key: "agent-jobs",
-    name: "Jobs for agents",
+    category: "automation",
+    get name() {
+      return t("Jobs for agents");
+    },
     icon: "🤖",
-    description: "Jobs a worker takes on your click — a board by status; the result comes back into the row for your check.",
+    get description() {
+      return t("Jobs a worker takes on your click — a board by status; the result comes back into the row for your check.");
+    },
     kind: "database",
     build: (parentId) => createJobsDatabase(parentId),
   },
   {
     key: "rules",
-    name: "Rules",
+    category: "automation",
+    get name() {
+      return t("Rules");
+    },
     icon: "📏",
-    description: "When / then rules a pipeline applies to its records: drop, set a field, hand to an agent — or a hint every agent gets.",
+    get description() {
+      return t("When / then rules a pipeline applies to its records: drop, set a field, hand to an agent — or a hint every agent gets.");
+    },
     kind: "database",
     build: (parentId) => createRulesDatabase(parentId),
   },
   {
     key: "meeting",
-    name: "Meeting notes",
+    category: "notes",
+    get name() {
+      return t("Meeting notes");
+    },
     icon: "🗓️",
-    description: "Attendees, agenda, notes, decisions and action items.",
+    get description() {
+      return t("Attendees, agenda, notes, decisions and action items.");
+    },
     kind: "page",
-    build: (parentId) =>
-      createPage({
-        parentId,
-        title: "Meeting",
-        icon: "🗓️",
-        content: page("**Date:** \n\n**Attendees:** \n\n## Agenda\n\n- \n\n## Notes\n\n\n## Decisions\n\n- \n\n## Action items\n\n- [ ] \n"),
-      }),
+    build: (parentId) => meetingPage(parentId),
   },
   {
     key: "one-on-one",
-    name: "1:1",
+    category: "notes",
+    get name() {
+      return t("1:1");
+    },
     icon: "🤝",
-    description: "A recurring conversation: wins, blockers, feedback, next steps.",
+    get description() {
+      return t("A recurring conversation: wins, blockers, feedback, next steps.");
+    },
     kind: "page",
-    build: (parentId) => createPage({ parentId, title: "1:1", icon: "🤝", content: page("## Since last time\n\n- \n\n## Wins\n\n- \n\n## Blockers\n\n- \n\n## Feedback\n\n\n## Next steps\n\n- [ ] \n") }),
+    build: (parentId) => oneOnOnePage(parentId),
   },
   {
     key: "project-brief",
-    name: "Project brief",
+    category: "work",
+    get name() {
+      return t("Project brief");
+    },
     icon: "🎯",
-    description: "Goal, scope, stakeholders, milestones, risks.",
+    get description() {
+      return t("Goal, scope, stakeholders, milestones, risks.");
+    },
     kind: "page",
-    build: (parentId) => createPage({ parentId, title: "Project brief", icon: "🎯", content: page("> 🎯 One sentence: what are we doing, for whom, and why now?\n\n## Goal\n\n\n## Scope\n\n**In:**\n\n- \n\n**Out:**\n\n- \n\n## People\n\n\n## Milestones\n\n- [ ] \n\n## Risks\n\n| Risk | Impact | What we do |\n| --- | --- | --- |\n|  |  |  |\n") }),
+    build: (parentId) => projectBriefPage(parentId),
   },
   {
     key: "weekly-review",
-    name: "Weekly review",
+    category: "notes",
+    get name() {
+      return t("Weekly review");
+    },
     icon: "🔁",
-    description: "What got done, what didn't, what's next — and what to change.",
+    get description() {
+      return t("What got done, what didn't, what's next — and what to change.");
+    },
     kind: "page",
-    build: (parentId) => createPage({ parentId, title: "Weekly review", icon: "🔁", content: page("## Done\n\n- \n\n## Not done — and why\n\n- \n\n## Next week\n\n- [ ] \n\n## One thing to change\n\n") }),
+    build: (parentId) => weeklyReviewPage(parentId),
   },
   {
     key: "wiki-home",
-    name: "Team wiki home",
+    category: "notes",
+    get name() {
+      return t("Team wiki home");
+    },
     icon: "📚",
-    description: "A start page with sections to link your pages from.",
+    get description() {
+      return t("A start page with sections to link your pages from.");
+    },
     kind: "page",
-    build: (parentId) => createPage({ parentId, title: "Wiki", icon: "📚", content: page("Welcome. Type **@** to link a page, a person, a todo or a ticket.\n\n## Start here\n\n- \n\n## Processes\n\n- \n\n## Who to ask\n\n- \n\n## Decisions\n\n- \n") }),
+    build: (parentId) => wikiHomePage(parentId),
   },
   {
     key: "tasks",
-    name: "Tasks",
+    category: "work",
+    get name() {
+      return t("Tasks");
+    },
     icon: "✅",
-    description: "A task database with status, due date, priority, owner — tied to your Zeff todos and Jira tickets. Table, board and calendar views.",
+    get description() {
+      return t("A task database with status, due date, priority, owner — tied to your Zeff todos and Jira tickets. Table, board and calendar views.");
+    },
     kind: "database",
     build: (parentId) => {
       const status = newProperty("Status", "status");
@@ -181,29 +264,41 @@ const TEMPLATES: Template[] = [
         properties: [status, due, priority, owner, todo, ticket],
         views: [
           view("Table", "table", { sorts: [{ prop: due.id, dir: "asc" }] }),
-          view("Board", "board", { groupBy: status.id, hidden: [todo.id, ticket.id] }),
+          view("Board", "board", { groupBy: status.id, hidden: [todo.id, ticket.id], card: TASK_CARD }),
           view("Calendar", "calendar", { dateProp: due.id }),
           view("Open", "table", { filter: { op: "and", rules: [{ prop: status.id, cond: "is_not", value: status.options![2].id }] } }),
         ],
       };
       const id = createPage({ parentId, title: "Tasks", icon: "✅", kind: "database", schema });
-      addRow(id, { title: "Try the board view", cells: { [status.id]: status.options![1].id, [priority.id]: priority.options![1].id } });
+      addRow(id, { title: t("Try the board view"), cells: { [status.id]: status.options![1].id, [priority.id]: priority.options![1].id } });
+      addRow(id, { title: t("Drag a card to another column"), cells: { [status.id]: status.options![0].id, [priority.id]: priority.options![0].id } });
+      addRow(id, { title: t("Link a Zeff todo or a Jira ticket"), cells: { [status.id]: status.options![0].id, [priority.id]: priority.options![2].id } });
       return id;
     },
   },
   {
     key: "keep-board",
-    name: "Keep board",
+    category: "notes",
+    get name() {
+      return t("Keep board");
+    },
     icon: "🗒️",
-    description: "Notes like in Google Keep: cards with colours, labels and pinning, lists as checkboxes.",
+    get description() {
+      return t("Notes like in Google Keep: cards with colours, labels and pinning, lists as checkboxes.");
+    },
     kind: "database",
     build: (parentId) => createNotesBoard(parentId, t("Keep board")),
   },
   {
     key: "decisions",
-    name: "Decision log",
+    category: "work",
+    get name() {
+      return t("Decision log");
+    },
     icon: "⚖️",
-    description: "What was decided, by whom, when — so nobody asks twice.",
+    get description() {
+      return t("What was decided, by whom, when — so nobody asks twice.");
+    },
     kind: "database",
     build: (parentId) => {
       const status = { ...newProperty("Status", "status"), options: [{ id: newId("o"), name: "Proposed", color: "yellow", group: "todo" as const }, { id: newId("o"), name: "Decided", color: "green", group: "done" as const }, { id: newId("o"), name: "Superseded", color: "gray", group: "done" as const }] };
@@ -211,30 +306,47 @@ const TEMPLATES: Template[] = [
       const who = newProperty("Deciders", "person");
       const ticket = newProperty("Ticket", "ticket");
       const area = multi("Area", ["Frontend", "Backend", "Process", "Design"]);
-      const schema: DbSchema = { titleName: "Decision", properties: [status, decided, who, area, ticket], views: [view("Table", "table", { sorts: [{ prop: decided.id, dir: "desc" }] }), view("By status", "board", { groupBy: status.id })] };
-      return createPage({ parentId, title: "Decisions", icon: "⚖️", kind: "database", schema });
+      const schema: DbSchema = { titleName: "Decision", properties: [status, decided, who, area, ticket], views: [view("Table", "table", { sorts: [{ prop: decided.id, dir: "desc" }] }), view("By status", "board", { groupBy: status.id, card: DECISION_CARD })] };
+      const id = createPage({ parentId, title: "Decisions", icon: "⚖️", kind: "database", schema });
+      addRow(id, { title: t("We review merge requests within one working day"), cells: { [status.id]: status.options[1].id, [decided.id]: new Date().toLocaleDateString("sv-SE"), [area.id]: [area.options![2].id] } });
+      addRow(id, { title: t("Design tokens come from one shared file"), cells: { [status.id]: status.options[0].id, [area.id]: [area.options![0].id, area.options![3].id] } });
+      return id;
     },
   },
   {
     key: "reading-list",
-    name: "Reading list",
+    category: "notes",
+    get name() {
+      return t("Reading list");
+    },
     icon: "📖",
-    description: "Articles and books: status, rating, tags, link — in a gallery too.",
+    get description() {
+      return t("Articles and books: status, rating, tags, link — in a gallery too.");
+    },
     kind: "database",
     build: (parentId) => {
       const status = { ...newProperty("Status", "status"), options: [{ id: newId("o"), name: "To read", color: "gray", group: "todo" as const }, { id: newId("o"), name: "Reading", color: "blue", group: "doing" as const }, { id: newId("o"), name: "Read", color: "green", group: "done" as const }] };
       const rating = { ...newProperty("Rating", "number") };
       const tags = multi("Tags", ["Tech", "Design", "Business", "Fiction"]);
       const url = newProperty("Link", "url");
-      const schema: DbSchema = { titleName: "Title", properties: [status, rating, tags, url], views: [view("List", "table"), view("Board", "board", { groupBy: status.id }), view("Gallery", "gallery")] };
-      return createPage({ parentId, title: "Reading list", icon: "📖", kind: "database", schema });
+      const schema: DbSchema = { titleName: "Title", properties: [status, rating, tags, url], views: [view("Gallery", "gallery", { card: READING_CARD }), view("Board", "board", { groupBy: status.id, card: READING_CARD }), view("List", "table")] };
+      const id = createPage({ parentId, title: "Reading list", icon: "📖", kind: "database", schema });
+      addRow(id, { title: "Shape Up", cells: { [status.id]: status.options[2].id, [rating.id]: 5, [tags.id]: [tags.options![2].id], [url.id]: "https://basecamp.com/shapeup" } });
+      addRow(id, { title: "Refactoring UI", cells: { [status.id]: status.options[1].id, [tags.id]: [tags.options![1].id], [url.id]: "https://www.refactoringui.com" } });
+      addRow(id, { title: t("An article you want to read"), cells: { [status.id]: status.options[0].id, [tags.id]: [tags.options![0].id] } });
+      return id;
     },
   },
   {
     key: "projects",
-    name: "Projects with tasks",
+    category: "work",
+    get name() {
+      return t("Projects with tasks");
+    },
     icon: "🗂️",
-    description: "Two linked databases: projects and their tasks — each project rolls up its tasks' progress and hours.",
+    get description() {
+      return t("Two linked databases: projects and their tasks — each project rolls up its tasks' progress and hours.");
+    },
     kind: "database",
     build: (parentId) => {
       const projects = createPage({ parentId, title: "Projects", icon: "🗂️", kind: "database", schema: { titleName: "Project", properties: [], views: [view("Table", "table")] } });
@@ -248,17 +360,22 @@ const TEMPLATES: Template[] = [
       const done = { ...newProperty("Progress", "rollup"), format: "percent" as const, rollup: { relation: back.id, property: status.id, fn: "percent_done" as const } };
       const total = { ...newProperty("Total hours", "rollup"), rollup: { relation: back.id, property: hours.id, fn: "sum" as const } };
       const owner = newProperty("Owner", "person");
-      const projSchema: DbSchema = { titleName: "Project", properties: [owner, newProperty("Due", "date"), back, done, total], views: [view("Table", "table")] };
+      const projSchema: DbSchema = { titleName: "Project", properties: [owner, newProperty("Due", "date"), back, done, total], views: [view("Cards", "gallery", { card: PROJECT_CARD }), view("Table", "table")] };
       updateSchema(projects, projSchema);
-      void getDatabase;
+      // An example: a project with three tasks, one done — its progress and hours roll up.
+      const p = addRow(projects, { title: t("Website relaunch") });
+      const st = getDatabase(tasks)!.schema.properties.find((x) => x.id === status.id)!.options!;
+      addRow(tasks, { title: t("Collect the requirements"), cells: { [project.id]: [p], [status.id]: st[2].id, [hours.id]: 3 } });
+      addRow(tasks, { title: t("Design the start page"), cells: { [project.id]: [p], [status.id]: st[1].id, [hours.id]: 5 } });
+      addRow(tasks, { title: t("Go live"), cells: { [project.id]: [p], [status.id]: st[0].id } });
       return projects;
     },
   },
 ];
 
 export const templateMetas = (): TemplateMeta[] => [
-  ...TEMPLATES.map(({ key, name, icon, description, kind }) => ({ key, name, icon, description, kind })),
-  ...listPackages().map((p): TemplateMeta => ({ key: `pkg:${p.id}`, name: t(p.name), icon: p.icon, description: p.description ? t(p.description) : "", kind: "page" })),
+  ...TEMPLATES.map(({ key, name, icon, description, kind, category }) => ({ key, name, icon, description, kind, category })),
+  ...listPackages().map((p): TemplateMeta => ({ key: `pkg:${p.id}`, name: t(p.name), icon: p.icon, description: p.description ? t(p.description) : "", kind: "page", category: "packages" })),
 ];
 
 /** A template made as a new page (a database: with what belongs to it). Returns the new page's id. */

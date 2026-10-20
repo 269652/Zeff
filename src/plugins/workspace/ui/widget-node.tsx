@@ -3,7 +3,7 @@
 import { mergeAttributes, Node } from "@tiptap/core";
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { widgetActAction, widgetCatalogAction, widgetDataAction } from "../actions";
@@ -14,153 +14,233 @@ import { TemplateBody } from "./card-template";
 
 /**
  * A widget a plugin supplies, as a block of a page (the dashboard is a page of them): live data with an action right there. The plugin
- * gives the data (a list or a figure); every widget is drawn alike. It reads again every minute, when you come back to the tab and
- * when something changed in the Workspace.
+ * gives the data (figures, a list, cards); every widget is drawn alike — a quiet card with its name, the rows, their actions on hover.
+ * It reads again every minute, when you come back to the tab and when something changed in the Workspace.
  */
 
 let catalogMemo: Promise<CatalogWidget[]> | null = null;
 const catalog = () => (catalogMemo ??= widgetCatalogAction().then((r) => (r.ok ? r.widgets : [])));
 
-const parseConfig = (s: unknown): Record<string, string | number | boolean> => {
+type Config = Record<string, string | number | boolean>;
+const parseConfig = (s: unknown): Config => {
   try {
     const o = JSON.parse(String(s || "{}")) as unknown;
-    return o && typeof o === "object" && !Array.isArray(o) ? (o as Record<string, string | number | boolean>) : {};
+    return o && typeof o === "object" && !Array.isArray(o) ? (o as Config) : {};
   } catch {
     return {};
   }
 };
 
-const TONE_BADGE = {
-  none: "bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300",
-  good: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-  warn: "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
-  bad: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300",
+type Tone = "none" | "good" | "warn" | "bad";
+const TONE_TEXT: Record<Tone, string> = { none: "text-zinc-500 dark:text-zinc-400", good: "text-emerald-600 dark:text-emerald-400", warn: "text-amber-600 dark:text-amber-400", bad: "text-red-600 dark:text-red-400" };
+const TONE_BADGE: Record<Tone, string> = {
+  none: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
+  good: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/15 dark:bg-emerald-950/60 dark:text-emerald-300",
+  warn: "bg-amber-50 text-amber-800 ring-1 ring-amber-600/20 dark:bg-amber-950/60 dark:text-amber-300",
+  bad: "bg-red-50 text-red-700 ring-1 ring-red-600/15 dark:bg-red-950/60 dark:text-red-300",
 };
-const TONE_BAR = { none: "border-l-zinc-300 dark:border-l-zinc-600", good: "border-l-emerald-500", warn: "border-l-amber-500", bad: "border-l-red-500" };
-const TONE_BAR_FILL = { none: "bg-indigo-500", good: "bg-emerald-500", warn: "bg-amber-500", bad: "bg-red-500" };
+const TONE_DOT: Record<Tone, string> = { none: "bg-zinc-300 dark:bg-zinc-600", good: "bg-emerald-500", warn: "bg-amber-500", bad: "bg-red-500" };
+const TONE_FILL: Record<Tone, string> = { none: "bg-indigo-500", good: "bg-emerald-500", warn: "bg-amber-500", bad: "bg-red-500" };
+const AVATAR = ["bg-indigo-100 text-indigo-700", "bg-emerald-100 text-emerald-700", "bg-amber-100 text-amber-800", "bg-rose-100 text-rose-700", "bg-sky-100 text-sky-700", "bg-violet-100 text-violet-700"];
+const hash = (s: string) => [...s].reduce((n, c) => (n * 31 + c.charCodeAt(0)) >>> 0, 7);
 
-function Tile({ tile }: { tile: WidgetTile }) {
-  const tone = tile.tone ?? "none";
-  const body = (
-    <>
-      <span className="block text-xs text-zinc-500 dark:text-zinc-400">{tile.label}</span>
-      <span className="block text-2xl leading-tight font-semibold tabular-nums">{tile.value}</span>
-      {tile.detail && <span className="block text-xs text-zinc-500 dark:text-zinc-400">{tile.detail}</span>}
-      {tile.bar && (
-        <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-          <span className={`block h-full rounded-full ${TONE_BAR_FILL[tone]}`} style={{ width: `${Math.max(0, Math.min(100, (tile.bar.value / (tile.bar.max || 1)) * 100))}%` }} />
-        </span>
-      )}
-    </>
-  );
-  const cls = `block min-w-0 rounded-lg border border-l-4 border-zinc-200 bg-white px-3 py-2 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 ${TONE_BAR[tone]}`;
-  return tile.href ? (
-    <Link href={tile.href} className={`${cls} text-inherit no-underline transition hover:shadow-md`}>
-      {body}
-    </Link>
+const external = (href: string) => /^https?:\/\//.test(href);
+function Go({ href, className, children, title }: { href?: string; className: string; children: ReactNode; title?: string }) {
+  if (!href) return <div className={className}>{children}</div>;
+  return external(href) ? (
+    <a href={href} target="_blank" rel="noreferrer" className={className} title={title}>
+      {children}
+    </a>
   ) : (
-    <div className={cls}>{body}</div>
+    <Link href={href} className={className} title={title}>
+      {children}
+    </Link>
+  );
+}
+
+/** What leads a row: an emoji in a soft square, initials in a circle, else a small dot in the row's tone. */
+function Lead({ icon, tone }: { icon?: string; tone: Tone }) {
+  if (!icon) return <span className={`mt-[0.45rem] size-2 shrink-0 rounded-full ${TONE_DOT[tone]}`} aria-hidden />;
+  if (/^[A-ZÄÖÜ]{1,2}$/.test(icon))
+    return (
+      <span className={`grid size-8 shrink-0 place-items-center rounded-full text-[11px] font-semibold ${AVATAR[hash(icon) % AVATAR.length]} dark:bg-zinc-800 dark:text-zinc-200`} aria-hidden>
+        {icon}
+      </span>
+    );
+  return (
+    <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-zinc-100 text-[15px] leading-none dark:bg-zinc-800" aria-hidden>
+      {icon}
+    </span>
   );
 }
 
 function ItemRow({ item, busy, act }: { item: WidgetItem; busy: boolean; act: (action: string, id: string) => void }) {
-  const external = !!item.href && /^https?:\/\//.test(item.href);
-  const body = (
-    <>
-      <span className={`min-w-0 flex-1 ${item.done ? "text-zinc-400 line-through" : ""}`}>
-        <span className="line-clamp-2 break-words">{item.text}</span>
-        {item.detail && <span className="line-clamp-2 text-xs text-zinc-500">{item.detail}</span>}
-      </span>
-      {item.badge && <span className={`max-w-28 shrink-0 truncate rounded-full px-2 text-xs ${TONE_BADGE[item.tone ?? "none"]}`}>{item.badge}</span>}
-    </>
-  );
-  const link = "flex min-w-0 items-start gap-2 text-inherit no-underline hover:underline";
+  const tone: Tone = item.tone ?? "none";
+  const big = !!item.icon;
   return (
-    <li className="space-y-1 pb-1.5 text-sm">
-      {item.href ? (
-        external ? (
-          <a href={item.href} target="_blank" rel="noreferrer" className={link}>
-            {body}
-          </a>
-        ) : (
-          <Link href={item.href} className={link}>
-            {body}
-          </Link>
-        )
-      ) : (
-        <div className="flex min-w-0 items-start gap-2">{body}</div>
-      )}
-      {!!item.actions?.length && (
-        <div className="flex flex-wrap gap-1">
-          {item.actions.map((a) => (
-            <button key={a.id} type="button" className="btn btn-sm" disabled={busy} onClick={() => act(a.id, item.id)}>
-              {a.label}
-            </button>
-          ))}
-        </div>
-      )}
+    <li className={`group/item relative flex items-start gap-3 rounded-xl px-2 ${big ? "py-1.5" : "py-1"} transition hover:bg-zinc-50 dark:hover:bg-zinc-800/50`}>
+      <Lead icon={item.icon} tone={tone} />
+      <Go href={item.href} className="min-w-0 flex-1 text-inherit no-underline" title={item.text}>
+        <span className={`block truncate text-sm ${item.done ? "text-zinc-400 line-through" : "font-medium text-zinc-800 dark:text-zinc-100"}`}>{item.text}</span>
+        {item.detail && <span className="block truncate text-xs text-zinc-500 dark:text-zinc-400">{item.detail}</span>}
+      </Go>
+      <span className="flex shrink-0 items-center gap-1.5 self-center">
+        {item.badge && <span className={`max-w-32 truncate rounded-full px-2 py-0.5 text-[11px] font-medium ${TONE_BADGE[tone]}`}>{item.badge}</span>}
+        {item.meta && <span className="text-xs whitespace-nowrap text-zinc-400 tabular-nums group-hover/item:hidden group-focus-within/item:hidden">{item.meta}</span>}
+        {!!item.actions?.length && (
+          <span className="hidden items-center gap-0.5 group-hover/item:flex group-focus-within/item:flex [@media(hover:none)]:flex">
+            {item.actions.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                disabled={busy}
+                title={a.label}
+                aria-label={a.label}
+                onClick={() => act(a.id, item.id)}
+                className={a.icon ? "grid size-7 place-items-center rounded-lg text-sm text-zinc-500 hover:bg-white hover:text-zinc-800 hover:shadow-sm disabled:opacity-40 dark:hover:bg-zinc-700 dark:hover:text-zinc-100" : "rounded-lg px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-white hover:shadow-sm disabled:opacity-40 dark:text-indigo-300 dark:hover:bg-zinc-700"}
+              >
+                {a.icon ?? a.label}
+              </button>
+            ))}
+          </span>
+        )}
+      </span>
     </li>
   );
 }
 
+function Tile({ tile }: { tile: WidgetTile }) {
+  const tone: Tone = tile.tone ?? "none";
+  return (
+    <Go href={tile.href} className={`group/tile block min-w-0 rounded-2xl border border-zinc-200/80 bg-white p-4 text-inherit no-underline shadow-sm transition dark:border-zinc-800 dark:bg-zinc-900 ${tile.href ? "hover:-translate-y-px hover:shadow-md" : ""}`}>
+      <span className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+        {tone !== "none" && <span className={`size-1.5 rounded-full ${TONE_DOT[tone]}`} aria-hidden />}
+        {tile.label}
+      </span>
+      <span className="mt-1 block text-3xl leading-none font-semibold tracking-tight text-zinc-900 tabular-nums dark:text-white">{tile.value}</span>
+      {tile.detail && <span className={`mt-2 block truncate text-xs ${TONE_TEXT[tone]}`}>{tile.detail}</span>}
+      {tile.bar && (
+        <span className="mt-2 block h-1 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+          <span className={`block h-full rounded-full ${TONE_FILL[tone]}`} style={{ width: `${Math.max(0, Math.min(100, (tile.bar.value / (tile.bar.max || 1)) * 100))}%` }} />
+        </span>
+      )}
+    </Go>
+  );
+}
+
+function Footer({ footer }: { footer?: { text: string; href: string } }) {
+  if (!footer) return null;
+  return (
+    <Go href={footer.href} className="ws-widget-link mt-1 inline-flex items-center gap-1 px-2 text-xs font-medium text-indigo-600 no-underline hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">
+      {footer.text} <span aria-hidden>→</span>
+    </Go>
+  );
+}
+
+function Empty({ text }: { text?: string }) {
+  return (
+    <p className="flex items-center gap-2 px-2 py-1.5 text-sm text-zinc-400 dark:text-zinc-500">
+      <span className="grid size-5 place-items-center rounded-full bg-zinc-100 text-[10px] dark:bg-zinc-800" aria-hidden>
+        ✓
+      </span>
+      {text ?? "—"}
+    </p>
+  );
+}
+
 function WidgetBody({ data, busy, act }: { data: WidgetData; busy: boolean; act: (action: string, id: string) => void }) {
-  if (data.kind === "error") return <p className="text-sm text-amber-700 dark:text-amber-400">{data.message}</p>;
+  if (data.kind === "error") return <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">{data.message}</p>;
   if (data.kind === "figure")
     return (
-      <div>
-        <p className="text-3xl font-semibold tabular-nums">{data.value}</p>
-        <p className="text-sm text-zinc-500">{data.caption}</p>
-        {data.detail && <p className="text-xs text-zinc-400">{data.detail}</p>}
+      <Go href={data.href} className="block px-2 text-inherit no-underline">
+        <span className="block text-4xl leading-none font-semibold tracking-tight tabular-nums">{data.value}</span>
+        <span className="mt-1 block text-sm text-zinc-500">{data.caption}</span>
+        {data.detail && <span className="block text-xs text-zinc-400">{data.detail}</span>}
+      </Go>
+    );
+  if (data.kind === "stats")
+    return (
+      <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(10.5rem,1fr))]">
+        {data.tiles.map((x) => (
+          <Tile key={x.label} tile={x} />
+        ))}
       </div>
     );
-  if (data.kind === "stats") return <div className="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(9.5rem,1fr))]">{data.tiles.map((x) => <Tile key={x.label} tile={x} />)}</div>;
   if (data.kind === "cards")
     return (
       <div className="space-y-2">
         {data.cards.length ? (
-          <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(15rem,1fr))]">
-            {data.cards.map((c) => {
-              const inner = <TemplateBody nodes={c.nodes} />;
-              const cls = "block min-w-0 rounded-lg border border-zinc-200 bg-white p-2.5 text-inherit no-underline shadow-sm transition hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900";
-              return c.href ? (
-                <Link key={c.id} href={c.href} className={cls}>
-                  {inner}
-                </Link>
-              ) : (
-                <div key={c.id} className={cls}>
-                  {inner}
-                </div>
-              );
-            })}
+          <div className="grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(15rem,1fr))]">
+            {data.cards.map((c) => (
+              <Go key={c.id} href={c.href} className="block min-w-0 rounded-xl border border-zinc-200/80 bg-white p-3 text-inherit no-underline shadow-sm transition hover:-translate-y-px hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900">
+                <TemplateBody nodes={c.nodes} />
+              </Go>
+            ))}
           </div>
         ) : (
-          <p className="text-sm text-zinc-400">{data.empty ?? "—"}</p>
+          <Empty text={data.empty} />
         )}
-        {data.footer && (
-          <Link href={data.footer.href} className="text-xs text-indigo-600 hover:underline dark:text-indigo-400">
-            {data.footer.text} →
-          </Link>
-        )}
+        <Footer footer={data.footer} />
       </div>
     );
   return (
-    <div className="space-y-1.5">
-      {data.title && <p className="text-xs text-zinc-500">{data.title}</p>}
+    <div>
+      {data.title && <p className="px-2 pb-1 text-xs text-zinc-500">{data.title}</p>}
       {data.items.length ? (
-        <ul className="space-y-1.5">
+        <ul className="-mx-0.5 space-y-0.5">
           {data.items.map((i) => (
             <ItemRow key={i.id} item={i} busy={busy} act={act} />
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-zinc-400">{data.empty ?? "—"}</p>
+        <Empty text={data.empty} />
       )}
-      {data.footer && (
-        <Link href={data.footer.href} className="text-xs text-indigo-600 hover:underline dark:text-indigo-400">
-          {data.footer.text} →
-        </Link>
-      )}
+      <Footer footer={data.footer} />
     </div>
+  );
+}
+
+function Skeleton() {
+  return (
+    <div className="space-y-2 px-2 py-1" aria-hidden>
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="flex items-center gap-3">
+          <span className="size-8 shrink-0 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
+          <span className="h-3 flex-1 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" style={{ maxWidth: `${80 - i * 15}%` }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** The widgets to pick from, by the plugin that brings them: a gallery of cards. */
+function Picker({ defs, pick }: { defs: CatalogWidget[]; pick: (id: string) => void }) {
+  const t = useT();
+  const [q, setQ] = useState("");
+  const shown = useMemo(() => defs.filter((d) => !q.trim() || `${d.label} ${d.description}`.toLowerCase().includes(q.trim().toLowerCase())), [defs, q]);
+  return (
+    <section className="space-y-3 rounded-2xl border border-dashed border-zinc-300 bg-white/60 p-4 dark:border-zinc-700 dark:bg-zinc-900/40">
+      <div className="flex flex-wrap items-center gap-2">
+        <h4 className="flex-1 text-sm font-semibold">{t("Pick a widget")}</h4>
+        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Search …")} className="input w-48 py-1 text-sm" aria-label={t("Search")} />
+      </div>
+      {defs.length === 0 && <p className="text-sm text-zinc-400">{t("No plugin brings a widget yet.")}</p>}
+      <ul className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(14rem,1fr))]">
+        {shown.map((d) => (
+          <li key={d.id}>
+            <button type="button" className="flex h-full w-full items-start gap-3 rounded-xl border border-zinc-200 bg-white p-3 text-left shadow-sm transition hover:-translate-y-px hover:border-indigo-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-indigo-700" onClick={() => pick(d.id)}>
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-indigo-50 text-lg dark:bg-indigo-950" aria-hidden>
+                {d.icon}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold">{d.label}</span>
+                <span className="mt-0.5 line-clamp-3 block text-xs text-zinc-500">{d.description}</span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -169,9 +249,11 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode }: Node
   const id = String(node.attrs.widget ?? "");
   const config = parseConfig(node.attrs.config);
   const configKey = JSON.stringify(config);
+  const ownTitle = String(node.attrs.title ?? "");
   const [defs, setDefs] = useState<CatalogWidget[]>([]);
   const [data, setData] = useState<WidgetData | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState(false);
   const live = useRef(true);
   const def = defs.find((d) => d.id === id);
@@ -184,13 +266,16 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode }: Node
   }, []);
   const load = useCallback(async () => {
     if (!id) return;
+    setLoading(true);
     const r = await widgetDataAction(id, JSON.parse(configKey));
-    if (live.current) setData(r.ok ? r.data : { kind: "error", message: r.error });
+    if (!live.current) return;
+    setLoading(false);
+    setData(r.ok ? r.data : { kind: "error", message: r.error });
   }, [id, configKey]);
   useEffect(() => {
     void load();
     const every = setInterval(() => document.visibilityState === "visible" && void load(), 60000);
-    const again = () => void load();
+    const again = () => document.visibilityState === "visible" && void load();
     window.addEventListener(WS_CHANGED, again);
     document.addEventListener("visibilitychange", again);
     return () => {
@@ -208,14 +293,18 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode }: Node
     window.dispatchEvent(new Event(WS_CHANGED));
   };
   const setConfig = (key: string, value: string | number | boolean) => updateAttributes({ config: JSON.stringify({ ...config, [key]: value }) });
+  const label = ownTitle || def?.label || id;
+  const count = data && (data.kind === "list" || data.kind === "cards") ? data.count : undefined;
+  // Figures stand on their own: no card around the tiles.
+  const bare = data?.kind === "stats";
   return (
-    <NodeViewWrapper className="ws-widget ws-module-block my-2" contentEditable={false} data-app-block="widget">
+    <NodeViewWrapper className="ws-widget ws-module-block my-1" contentEditable={false} data-app-block="widget">
       {editor.isEditable && (
         <div className="ws-grip-bar" contentEditable={false}>
           <span data-drag-handle className="ws-grip-btn" title="Drag to move" aria-label="Drag to move">
             ⠿
           </span>
-          <span className="ws-grip-label">{def?.label ?? "widget"}</span>
+          <span className="ws-grip-label">{label || "widget"}</span>
           <button
             type="button"
             title="A new line after this block"
@@ -233,44 +322,41 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode }: Node
         </div>
       )}
       {!id ? (
-        <section className="space-y-1.5 rounded-lg border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
-          <h4 className="text-xs font-semibold text-zinc-500 uppercase">{t("Pick a widget")}</h4>
-          {defs.length === 0 && <p className="text-sm text-zinc-400">{t("No plugin brings a widget yet.")}</p>}
-          <ul className="grid gap-1.5 sm:grid-cols-2">
-            {defs.map((d) => (
-              <li key={d.id}>
-                <button type="button" className="block w-full rounded-md border border-zinc-200 p-2 text-left text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800" onClick={() => updateAttributes({ widget: d.id, config: "{}" })}>
-                  <span className="font-medium">
-                    {d.icon} {d.label}
-                  </span>
-                  <span className="block text-xs text-zinc-500">{d.description}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <Picker defs={defs} pick={(w) => updateAttributes({ widget: w, config: "{}" })} />
       ) : (
-        <section className={data?.kind === "stats" ? "space-y-2" : "space-y-2 rounded-xl border border-zinc-200 bg-zinc-50/50 p-3 dark:border-zinc-800 dark:bg-zinc-900/30"} data-widget={id}>
-          <div className="flex items-center gap-2">
-            <h4 className="flex-1 text-xs font-semibold tracking-wide text-zinc-500 uppercase">
-              {def ? `${def.icon} ${def.label}` : id}
-            </h4>
-            <button type="button" className="icon-btn" title={t("Read again")} aria-label={t("Read again")} onClick={() => void load()}>
-              ↻
-            </button>
-            {editor.isEditable && !!def?.settings.length && (
-              <button type="button" className="icon-btn" title={t("Settings")} aria-label={t("Settings")} aria-pressed={settings} onClick={() => setSettings(!settings)}>
-                ⚙
-              </button>
+        <section className={`group/widget ${bare ? "" : "rounded-2xl border border-zinc-200/80 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"}`} data-widget={id}>
+          <header className={`flex items-center gap-2 ${bare ? "mb-2 px-1" : "mb-1.5 px-1"}`}>
+            {def && !bare && (
+              <span className="text-base leading-none" aria-hidden>
+                {def.icon}
+              </span>
             )}
-          </div>
-          {settings && def && (
-            <div className="flex flex-wrap items-center gap-3 rounded-md bg-zinc-50 p-2 text-xs dark:bg-zinc-900/50">
-              {def.settings.map((s) => (
-                <label key={s.key} className="flex items-center gap-1.5">
-                  {s.label}
+            <h4 className={`min-w-0 flex-1 truncate ${bare ? "text-xs font-medium tracking-wide text-zinc-500 uppercase" : "text-sm font-semibold text-zinc-800 dark:text-zinc-100"}`}>
+              {label}
+              {count !== undefined && count > 0 && <span className="ml-2 rounded-full bg-indigo-50 px-1.5 py-0.5 align-middle text-[11px] font-semibold text-indigo-700 tabular-nums dark:bg-indigo-950 dark:text-indigo-300">{count}</span>}
+            </h4>
+            <span className={`flex items-center gap-0.5 transition ${settings ? "opacity-100" : "opacity-0 group-hover/widget:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100"}`}>
+              <button type="button" className="grid size-7 place-items-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200" title={t("Read again")} aria-label={t("Read again")} onClick={() => void load()}>
+                <span className={loading ? "inline-block animate-spin" : ""}>↻</span>
+              </button>
+              {editor.isEditable && (
+                <button type="button" className="grid size-7 place-items-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200" title={t("Settings")} aria-label={t("Settings")} aria-pressed={settings} onClick={() => setSettings(!settings)}>
+                  ⚙
+                </button>
+              )}
+            </span>
+          </header>
+          {settings && (
+            <div className="mb-2 flex flex-wrap items-end gap-3 rounded-xl bg-zinc-50 p-3 text-xs dark:bg-zinc-800/60">
+              <label className="flex flex-col gap-1">
+                <span className="text-zinc-500">{t("Title")}</span>
+                <input className="input w-44 py-1 text-xs" value={ownTitle} placeholder={def?.label} onChange={(e) => updateAttributes({ title: e.target.value })} />
+              </label>
+              {def?.settings.map((s) => (
+                <label key={s.key} className="flex flex-col gap-1">
+                  <span className="text-zinc-500">{s.label}</span>
                   {s.kind === "select" ? (
-                    <select className="input w-auto py-0.5 text-xs" value={String(config[s.key] ?? s.default ?? "")} onChange={(e) => setConfig(s.key, e.target.value)}>
+                    <select className="input w-auto py-1 text-xs" value={String(config[s.key] ?? s.default ?? "")} onChange={(e) => setConfig(s.key, e.target.value)}>
                       {s.options?.map((o) => (
                         <option key={o.value} value={o.value}>
                           {o.label}
@@ -278,15 +364,18 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode }: Node
                       ))}
                     </select>
                   ) : s.kind === "checkbox" ? (
-                    <input type="checkbox" checked={config[s.key] === undefined ? !!s.default : config[s.key] === true} onChange={(e) => setConfig(s.key, e.target.checked)} />
+                    <input type="checkbox" className="size-4" checked={config[s.key] === undefined ? !!s.default : config[s.key] === true} onChange={(e) => setConfig(s.key, e.target.checked)} />
                   ) : (
-                    <input className="input w-20 py-0.5 text-xs" type={s.kind === "number" ? "number" : "text"} min={s.min} max={s.max} value={String(config[s.key] ?? s.default ?? "")} onChange={(e) => setConfig(s.key, s.kind === "number" ? Number(e.target.value) : e.target.value)} />
+                    <input className={`input py-1 text-xs ${s.kind === "number" ? "w-20" : "w-52"}`} type={s.kind === "number" ? "number" : "text"} min={s.min} max={s.max} value={String(config[s.key] ?? s.default ?? "")} onChange={(e) => setConfig(s.key, s.kind === "number" ? Number(e.target.value) : e.target.value)} />
                   )}
                 </label>
               ))}
+              <button type="button" className="ml-auto text-xs text-zinc-500 hover:text-zinc-800 hover:underline dark:hover:text-zinc-200" onClick={() => setSettings(false)}>
+                {t("Done")}
+              </button>
             </div>
           )}
-          {data ? <WidgetBody data={data} busy={busy} act={(a, itemId) => void act(a, itemId)} /> : <div className="h-14 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" aria-hidden />}
+          {data ? <WidgetBody data={data} busy={busy} act={(a, itemId) => void act(a, itemId)} /> : <Skeleton />}
         </section>
       )}
     </NodeViewWrapper>
@@ -300,7 +389,7 @@ export const ZeffWidget = Node.create({
   atom: true,
   draggable: true,
   addAttributes() {
-    return { widget: { default: "" }, config: { default: "{}" } };
+    return { widget: { default: "" }, config: { default: "{}" }, title: { default: "" } };
   },
   parseHTML() {
     return [{ tag: "div[data-zeff-widget]" }];
