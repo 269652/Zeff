@@ -163,6 +163,8 @@ Pages and databases of the Workspace — by their names (or ids).
 | `workspace.rows.update` | `workspace.write` | `database`*, `row`* (title or id), `fields`, `markdown` (added at its page's end) | `{ id }` |
 | `workspace.pages.create` | `workspace.write` | `title`*, `parent` (a page's title or id), `markdown` | `{ id }` |
 | `workspace.pages.append` | `workspace.write` | `page`* (title or id), `markdown`* | `{ id, text }` |
+| `workspace.signals.send` | `workspace.write` | `name`* (e.g. `invoice.paid`), `payload` (a JSON object of text values the routines use as `{{payload.x}}`) | the routines listening to it run |
+| `workspace.routines.run` | `workspace.write` | `routine`* (an automation's or agent's page title or id), `row` (a row's id it is about) | `{ id, status, run?, error? }` |
 
 The AI may also propose `llm.steps.update` (and `kanban.cards.add`, the `workspace.*` methods, `todos.add`) as an **Auto-Aktion** from what a colleague wrote
 ("Do in Zeff"): a method is offered to the AI by an `offer` on it (`ApiOffer` in `lib/plugins/api-kit.ts`), with the
