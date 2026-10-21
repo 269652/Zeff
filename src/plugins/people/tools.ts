@@ -5,8 +5,13 @@ import { findAllProgress } from "./dates";
 import { compileProgress, startCompile } from "./compile";
 import { acceptSuggestion, pendingSuggestions, rejectSuggestion, type Suggestion } from "./identity";
 import { openCommitments, proposedClaims, proposedLinks, reviewClaim, reviewLink, staleClaims, type Link } from "./graph";
-import { dateKindLabels, dateText, inDaysText, upcomingTitle } from "./shared";
-import { createPerson, deleteDate, getPerson, listPeople, proposedDates, updateDate, upcoming, whatsappChats } from "./store";
+import { addManualTodo } from "@/lib/boards/store";
+import { personCardExtras } from "./card";
+import { detailsOf } from "./details";
+import { acceptConfident, applyCircleRules, lastContactsAll, meetingBriefs, myName, nudgeWeeks, nudges, setMyName, setNudgeWeeks, snoozeNudge, type LastContact, type MeetingBrief, type Nudge } from "./pulse";
+import { greetingDraft } from "./greeting";
+import { dateKindLabels, dateText, inDaysText, isCircle, upcomingTitle, type Circle, type Person } from "./shared";
+import { createPerson, deleteDate, getPerson, listPeople, namesThem, proposedDates, setCircle, updateDate, upcoming, whatsappChats } from "./store";
 
 /**
  * The tools of the people database's overview (its "People" view): what to look at (dates coming up, names that may be one
@@ -25,6 +30,30 @@ export type PeopleOverview = {
   owed: { id: number; personId: number; person: string; text: string; direction: string; due: string }[];
   suggestions: { persons: { id: number; name: string; aliases: string[]; pages: number }[]; chats: { name: string; messages: number }[]; error: string | null };
   progress: { dates: { done: number; total: number; found: number } | null; compile: { done: number; total: number; current?: string } | null };
+  /** Per person (by id): what their card shows beyond the row — last contact, circle, role, what is open, how to reach or pay them. */
+  cards: Record<number, PersonCardInfo>;
+  /** Who you care about and haven't been in touch with for a while. */
+  nudges: Nudge[];
+  /** Appointments with someone in the next 24 hours, a brief each. */
+  meetings: MeetingBrief[];
+  /** How many proposed claims and links the AI is sure of (90 % and more) — to take at once. */
+  confident: number;
+  settings: { weeks: number; myName: string };
+};
+
+export type PersonCardInfo = {
+  lastContact: LastContact | null;
+  circle: Circle | "";
+  circleSource: Person["circleSource"];
+  role: string | null;
+  owed: { id: number; direction: "mine" | "theirs"; text: string; due: string }[];
+  away: string | null;
+  email: string;
+  chat: string;
+  /** Their account, to pay them (a GiroCode). */
+  pay: { iban: string; bic: string } | null;
+  /** Their birthday is today (0) or tomorrow (1) — a greeting to draft. */
+  birthdayIn: number | null;
 };
 
 /** What an identity suggestion proposes, in words (`nameOf`: a profile's name by its id). */
@@ -39,6 +68,8 @@ export function suggestionText(s: Suggestion, nameOf: (id: number) => string | u
 export const linkText = (l: Pick<Link, "rel" | "targetType" | "targetRef">, who: (id: number) => string) => `${l.rel} ${l.targetType === "person" ? who(Number(l.targetRef)) : l.targetRef}`;
 
 export async function peopleOverview(): Promise<PeopleOverview> {
+  // The circles by rule (no AI, quick) — so a new profile has one at once, not only after the next briefing.
+  applyCircleRules();
   const people = listPeople();
   const byId = new Map(people.map((p) => [p.id, p]));
   const who = (id: number) => byId.get(id)?.name ?? "?";
@@ -53,7 +84,34 @@ export async function peopleOverview(): Promise<PeopleOverview> {
     }
   }
   const compile = compileProgress();
+  const contacts = await lastContactsAll(people);
+  const today = new Date().toISOString().slice(0, 10);
+  const owedAll = openCommitments();
+  const birthdays = new Map(upcoming({ days: 1 }).filter((u) => u.date.kind === "birthday").map((u) => [u.person.id, u.inDays]));
+  const cards: PeopleOverview["cards"] = {};
+  for (const p of people) {
+    const x = personCardExtras(p.id, today);
+    const details = detailsOf(p.id);
+    const iban = details.find((d) => d.key === "iban")?.value ?? "";
+    cards[p.id] = {
+      lastContact: contacts.get(p.id) ?? null,
+      circle: p.circle,
+      circleSource: p.circleSource,
+      role: x.role,
+      owed: owedAll.filter((c) => c.personId === p.id && (c.direction === "mine" || c.direction === "theirs")).map((c) => ({ id: c.id, direction: c.direction as "mine" | "theirs", text: c.text, due: c.due })),
+      away: x.away?.until ?? null,
+      email: p.emails[0] ?? "",
+      chat: p.whatsapp,
+      pay: iban ? { iban, bic: details.find((d) => d.key === "bic")?.value ?? "" } : null,
+      birthdayIn: birthdays.get(p.id) ?? null,
+    };
+  }
   return {
+    cards,
+    nudges: nudges({ contacts }),
+    meetings: await meetingBriefs().catch(() => []),
+    confident: proposedClaims().filter((c) => c.confidence >= 0.9).length + proposedLinks().filter((l) => l.confidence >= 0.9).length,
+    settings: { weeks: nudgeWeeks(), myName: myName() },
     count: people.length,
     upcoming: upcoming({ days: 60 })
       .slice(0, 12)
@@ -80,11 +138,45 @@ export type PeopleTool =
   | { tool: "compile"; force?: boolean }
   | { tool: "suggestion"; id: number; accept: boolean }
   | { tool: "dateConfirm" | "dateDelete"; id: number }
-  | { tool: "claim" | "link"; id: number; action: "confirm" | "reject" | "done" | "recheck" };
+  | { tool: "claim" | "link"; id: number; action: "confirm" | "reject" | "done" | "recheck" }
+  | { tool: "circle"; id: number; circle: Circle | "" }
+  | { tool: "snooze"; id: number; days?: number }
+  | { tool: "acceptConfident" }
+  | { tool: "settings"; weeks?: number; myName?: string }
+  | { tool: "todo"; id: number; text: string }
+  | { tool: "greeting"; id: number };
 
 /** A tool of the overview; what came of it, in words. */
-export async function peopleTool(o: PeopleTool): Promise<{ message?: string }> {
+export async function peopleTool(o: PeopleTool): Promise<{ message?: string; draft?: string }> {
   switch (o.tool) {
+    case "circle":
+      if (o.circle && !isCircle(o.circle)) throw new Error(t("Unknown circle."));
+      setCircle(Number(o.id), o.circle, "manual");
+      return {};
+    case "snooze":
+      snoozeNudge(Number(o.id), Math.max(1, Math.min(365, Number(o.days) || 14)));
+      return {};
+    case "acceptConfident": {
+      const r = acceptConfident(0.9);
+      return { message: t("{c} claims and {l} links taken", { c: r.claims, l: r.links }) };
+    }
+    case "settings":
+      if (o.weeks !== undefined) setNudgeWeeks(Number(o.weeks));
+      if (o.myName !== undefined) {
+        setMyName(String(o.myName));
+        applyCircleRules();
+      }
+      return { message: t("Saved.") };
+    case "todo": {
+      const p = getPerson(Number(o.id));
+      if (!p || !String(o.text ?? "").trim()) throw new Error(t("A text, please."));
+      const text = String(o.text).trim();
+      // The todo names them, so it shows on their page and card.
+      addManualTodo({ ticket: "", text: namesThem(p, text) ? text : `${text} (${p.name})` });
+      return { message: t("Todo added ✓") };
+    }
+    case "greeting":
+      return { draft: await greetingDraft(Number(o.id)) };
     case "add": {
       const id = createPerson({ name: String(o.name ?? ""), whatsapp: o.whatsapp, entityId: o.entityId ?? null, aliases: o.aliases });
       // Its dates from the facts right away (no AI — that is a click on the profile).

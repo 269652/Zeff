@@ -26,7 +26,7 @@ const shift = (d: Date, days: number) => {
 const at = (s: string) => (s.length === 10 ? `${s}T00:00` : s);
 
 /** Whether an appointment is with them: an attendee or the organizer (an address of theirs, or their name), or named in it. */
-function withThem(p: Person, e: Pick<CalendarEventView, "title" | "description" | "attendees" | "organizer">): boolean {
+export function withThem(p: Person, e: Pick<CalendarEventView, "title" | "description" | "attendees" | "organizer">): boolean {
   const mails = p.emails.map((m) => m.trim().toLowerCase()).filter(Boolean);
   const people = [...e.attendees, e.organizer].filter(Boolean);
   if (people.some((a) => mails.some((m) => a.toLowerCase().includes(m)) || namesThem(p, a))) return true;

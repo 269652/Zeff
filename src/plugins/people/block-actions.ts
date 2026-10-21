@@ -144,7 +144,7 @@ export async function peopleOverviewAction(): Promise<Result<{ overview: import(
 }
 
 /** A tool of the overview; the people database reads the profiles again after it. */
-export async function peopleToolAction(tool: import("./tools").PeopleTool): Promise<Result<{ message?: string }>> {
+export async function peopleToolAction(tool: import("./tools").PeopleTool): Promise<Result<{ message?: string; draft?: string }>> {
   return run(async () => {
     const r = await (await import("./tools")).peopleTool(tool);
     if (isInstalled("workspace")) {

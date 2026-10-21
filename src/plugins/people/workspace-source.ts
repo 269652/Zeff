@@ -4,7 +4,7 @@ import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { createPerson, datesOf, getPerson, listPeople, namesThem, relationsOf, updatePerson, upcoming } from "./store";
 import { linksOf, visibleClaims } from "./graph";
-import { dateKindLabels } from "./shared";
+import { circleLabels, dateKindLabels } from "./shared";
 
 /**
  * People as a source of the Workspace's pipelines — one record per profile, with the fields a profile has. The profiles stay in
@@ -14,7 +14,7 @@ import { dateKindLabels } from "./shared";
 
 const REF = /^person:(\d+)$/;
 /** Fixed field ids: what a people database's views and joins rely on. */
-const F = { aliases: "peoplealiases", emails: "peopleemails", chat: "peoplechat", jira: "peoplejira", note: "peoplenote", starred: "peoplestar", next: "peoplenext", nextKind: "peoplenextkind", pages: "peoplepages", context: "peoplecontext", knowledge: "peopleknowledge", todos: "peopletodos", tickets: "peopletickets" };
+const F = { aliases: "peoplealiases", emails: "peopleemails", chat: "peoplechat", jira: "peoplejira", note: "peoplenote", starred: "peoplestar", next: "peoplenext", nextKind: "peoplenextkind", pages: "peoplepages", context: "peoplecontext", knowledge: "peopleknowledge", todos: "peopletodos", tickets: "peopletickets", last: "peoplelast", circle: "peoplecircle" };
 const list = (v: unknown) => [...new Set(String(v ?? "").split(/[,;\n]+/).map((x) => x.trim()).filter(Boolean))];
 
 export async function peopleRecords() {
@@ -24,7 +24,10 @@ export async function peopleRecords() {
   const { pagesMentioning } = await import("@/plugins/workspace/store");
   const todos = isInstalled("todos") ? (await import("@/lib/boards/store")).listTodos({ status: "open" }) : [];
   const clip = (items: string[], n = 8) => items.slice(0, n).join(" · ");
-  return listPeople().map((p) => {
+  const people = listPeople();
+  const last = await (await import("./pulse")).lastContactsAll(people);
+  const circles = circleLabels(t);
+  return people.map((p) => {
     const claims = visibleClaims(p.id);
     const tickets = [...new Set(linksOf(p.id).filter((l) => l.targetType === "ticket").map((l) => l.targetRef))];
     const mine = todos.filter((todo) => namesThem(p, `${todo.text} ${todo.note ?? ""}`)).map((todo) => `${todo.ref} ${todo.text}`);
@@ -62,6 +65,8 @@ export async function peopleRecords() {
       { id: F.knowledge, name: "Knowledge", type: "text" as const, value: clip(claims.map((c) => c.text)) },
       { id: F.todos, name: "Todos", type: "text" as const, value: clip(mine) },
       { id: F.tickets, name: "Tickets", type: "text" as const, value: tickets.join(", ") },
+      { id: F.last, name: "Last contact", type: "date" as const, value: last.get(p.id)?.at.slice(0, 10) ?? null },
+      { id: F.circle, name: "Circle", type: "text" as const, value: p.circle ? circles[p.circle] : "" },
     ],
     };
   });

@@ -2,7 +2,7 @@ import { getSqlite } from "@/db";
 import { emitChange } from "@/lib/events";
 import { isChatFolder } from "@/lib/mail/shared";
 import { t } from "@/lib/i18n/server";
-import { daysBetween, isDateKind, isoDay, nextOccurrence, type DateKind, type Person, type PersonAccount, type PersonDate, type PersonSummary, type Upcoming } from "./shared";
+import { daysBetween, isCircle, isDateKind, isoDay, nextOccurrence, type Circle, type DateKind, type Person, type PersonAccount, type PersonDate, type PersonSummary, type Upcoming } from "./shared";
 
 /**
  * People (the Personen plugin): a profile per person you care about — your notes, their dates
@@ -23,6 +23,8 @@ function db() {
   if (!(d.prepare("pragma table_info(people)").all() as { name: string }[]).some((c) => c.name === "compiled")) d.exec("alter table people add column compiled text");
   // Linked accounts (Jira usernames): a column added later.
   if (!(d.prepare("pragma table_info(people)").all() as { name: string }[]).some((c) => c.name === "accounts")) d.exec("alter table people add column accounts text not null default '[]'");
+  // Their circle (family, work …) and who set it (a rule, the AI, you): columns added later.
+  if (!(d.prepare("pragma table_info(people)").all() as { name: string }[]).some((c) => c.name === "circle")) d.exec("alter table people add column circle text not null default ''; alter table people add column circle_source text not null default ''");
   return d;
 }
 
@@ -36,7 +38,7 @@ const parse = <T>(s: string, d: T): T => {
 const now = () => new Date().toISOString();
 const changed = () => emitChange("todos");
 
-type PRow = { id: number; name: string; aliases: string; accounts?: string; compiled?: string | null; note: string; whatsapp: string; emails: string; entity_id: number | null; starred: number; created_at: string; updated_at: string };
+type PRow = { id: number; name: string; aliases: string; accounts?: string; compiled?: string | null; circle?: string; circle_source?: string; note: string; whatsapp: string; emails: string; entity_id: number | null; starred: number; created_at: string; updated_at: string };
 type DRow = { id: number; person_id: number; kind: string; label: string; day: number; month: number; year: number | null; yearly: number; remind_days: number; source: string; source_text: string; confirmed: number };
 
 const toPerson = (r: PRow): Person => ({
@@ -45,6 +47,8 @@ const toPerson = (r: PRow): Person => ({
   aliases: parse<string[]>(r.aliases, []),
   accounts: parse<unknown[]>(r.accounts ?? "[]", []).flatMap((a) => (a && typeof a === "object" && (a as PersonAccount).kind === "jira" && typeof (a as PersonAccount).value === "string" ? [{ kind: "jira" as const, value: (a as PersonAccount).value }] : [])),
   compiled: parse<PersonSummary | null>(r.compiled ?? "null", null),
+  circle: isCircle(r.circle ?? "") ? (r.circle as Circle) : "",
+  circleSource: r.circle_source === "rule" || r.circle_source === "ai" || r.circle_source === "manual" ? r.circle_source : "",
   note: r.note,
   whatsapp: r.whatsapp,
   emails: parse<string[]>(r.emails, []),
@@ -114,6 +118,17 @@ export function updatePerson(id: number, patch: { name?: string; aliases?: strin
   set("updated_at", now());
   db().prepare(`update people set ${sets.join(", ")} where id = ?`).run(...args, id);
   changed();
+}
+
+/** Their circle, and who set it — yours stays: a rule or the AI never overwrites what you chose. Whether it changed. */
+export function setCircle(id: number, circle: Circle | "", source: "rule" | "ai" | "manual"): boolean {
+  const p = getPerson(id);
+  if (!p || (p.circleSource === "manual" && source !== "manual") || (p.circle === circle && p.circleSource === source)) return false;
+  // The AI's word goes over a rule's guess; a rule doesn't undo the AI's.
+  if (source === "rule" && p.circleSource === "ai" && p.circle) return false;
+  db().prepare("update people set circle = ?, circle_source = ? where id = ?").run(circle, circle ? source : "", id);
+  changed();
+  return true;
 }
 
 /** A person's compiled summary, kept. */

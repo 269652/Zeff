@@ -40,6 +40,13 @@ export type PersonDate = {
 export type PersonAccount = { kind: "jira"; value: string };
 
 /** A person's compiled summary: what connects you, the key facts, the fun facts — and when, from how many things Zeff had on them. */
+/** The circles a person can be in: what they are to you. */
+export const CIRCLES = ["family", "friends", "work", "authorities", "services"] as const;
+export type Circle = (typeof CIRCLES)[number];
+export const isCircle = (v: string): v is Circle => (CIRCLES as readonly string[]).includes(v);
+/** A circle's name (`t` the translation). */
+export const circleLabels = (t: (s: string) => string): Record<Circle, string> => ({ family: t("Family"), friends: t("Friends"), work: t("Work"), authorities: t("Authorities & creditors"), services: t("Services") });
+
 export type PersonSummary = { connection: string; keyFacts: string[]; funFacts: string[]; at: string; sources: number };
 
 export type Person = {
@@ -50,6 +57,10 @@ export type Person = {
   accounts: PersonAccount[];
   /** Their compiled summary (the Compile page); null: not compiled yet. */
   compiled: PersonSummary | null;
+  /** Their circle — empty: not known yet. */
+  circle: Circle | "";
+  /** Who set the circle: a rule, the AI, you (yours stays). */
+  circleSource: "rule" | "ai" | "manual" | "";
   note: string;
   /** The WhatsApp chat (its name) — their messages. */
   whatsapp: string;

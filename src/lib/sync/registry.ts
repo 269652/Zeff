@@ -460,6 +460,8 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
     get what() { return t("Who is meant by the names in your todos — aliases added, profiles for contacts made, duplicates merged (after each briefing)"); },
     run: async () => {
       const r = await (await import("@/plugins/people/normalize")).normalizePeople();
+      // The circles by rule, the summaries out of date compiled (in the background) — a failure there doesn't fail the step.
+      await (await import("@/plugins/people/pulse")).afterBriefing().catch((e) => console.error("[people] after the briefing:", e));
       return r.ok ? { ok: true, message: t("{a} aliases, {c} new, {m} merged, {r} relations", { a: r.aliases, c: r.created, m: r.merged, r: r.relations }) } : { ok: false, message: r.error ?? t("Failed.") };
     },
     busy: () => flag("__zeffPeopleNormalize"),

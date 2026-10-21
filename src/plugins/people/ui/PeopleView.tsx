@@ -7,31 +7,31 @@ import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import type { Row } from "@/plugins/workspace/model";
 import type { AppViewProps } from "@/plugins/workspace/ui/app-view";
-import { initials } from "@/plugins/workspace/widget-shared";
 import { peopleOverviewAction, peopleToolAction } from "../block-actions";
+import { CIRCLES, circleLabels, type Circle } from "../shared";
 import type { PeopleOverview, PeopleTool } from "../tools";
+import { Meetings, Nudges } from "./PeoplePulse";
+import { PersonCard, type CardPerson } from "./PersonCard";
 
 /**
- * The people database's overview: the people themselves — cards to filter and sort (the database's search narrows them), each with what connects you, the
- * next date and the open todos — beside what comes up and what to check (names that may be one person, what the AI read, dates
- * it found, who to take over). The tools (import, find dates, match names, read messages, link Jira, compile) fold away.
+ * The people database's overview: the people themselves — cards by circle, to filter and sort (the database's search narrows
+ * them), each with when you were last in touch, what is open between you, the next date, the todos and what to do — beside the
+ * appointments with them coming up (a brief each), who to get in touch with, the dates coming up and what to check. The tools
+ * (import, find dates, match names, read messages, link Jira, compile) and the settings fold away.
  */
 
 /** The people source's fixed field ids (workspace-source.ts). */
-const F = { starred: "peoplestar", next: "peoplenext", nextKind: "peoplenextkind", context: "peoplecontext", todos: "peopletodos", tickets: "peopletickets", emails: "peopleemails" };
+const F = { starred: "peoplestar", next: "peoplenext", nextKind: "peoplenextkind", context: "peoplecontext", todos: "peopletodos", tickets: "peopletickets" };
 
-type Filter = "all" | "starred" | "todos" | "soon";
-type Sort = "name" | "next" | "todos";
-
-const TONES = ["bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300", "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300", "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300", "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300", "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300", "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300"];
-/** A name's colour: always the same one for the same name. */
-const toneOf = (name: string) => TONES[[...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % TONES.length];
+type Only = "" | "starred" | "todos" | "owed" | "soon" | "quiet";
+type Sort = "name" | "quiet" | "recent" | "next" | "todos";
 
 /** A row as the card needs it. */
-function personOf(r: Row) {
+function personOf(r: Row): CardPerson {
   const text = (id: string) => String(r.cells[id] ?? "").trim();
   const count = (id: string) => (text(id) ? text(id).split(" · ").length : 0);
-  return { id: r.id, name: r.title || "—", starred: r.cells[F.starred] === true, next: text(F.next) || null, nextKind: text(F.nextKind), context: text(F.context), todos: count(F.todos), tickets: text(F.tickets) ? text(F.tickets).split(/,\s*/).length : 0, email: text(F.emails).split(/,\s*/)[0] ?? "" };
+  const ref = /^person:(\d+)$/.exec(String(r.cells.srcref ?? ""));
+  return { id: r.id, personId: ref ? Number(ref[1]) : null, name: r.title || "—", starred: r.cells[F.starred] === true, next: text(F.next) || null, nextKind: text(F.nextKind), context: text(F.context), todos: count(F.todos), tickets: text(F.tickets) ? text(F.tickets).split(/,\s*/).length : 0 };
 }
 
 function Section({ title, children, aside }: { title: string; children: ReactNode; aside?: ReactNode }) {
@@ -53,7 +53,8 @@ export default function PeopleView({ rows, openRow }: AppViewProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [days, setDays] = useState("0");
-  const [filter, setFilter] = useState<Filter>("all");
+  const [circle, setCircle] = useState<Circle | "" | "none">("");
+  const [only, setOnly] = useState<Only>("");
   const [sort, setSort] = useState<Sort>("name");
   const load = useCallback(async () => {
     const r = await peopleOverviewAction();
@@ -71,26 +72,49 @@ export default function PeopleView({ rows, openRow }: AppViewProps) {
     return () => clearInterval(id);
   }, [running, load]);
 
-  // "Soon": today to 30 days ahead — fixed when the view opens.
-  const [[today, in30]] = useState(() => [new Date().toISOString().slice(0, 10), new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10)]);
+  // "Now" and "soon" (today to 30 days ahead) — fixed when the view opens.
+  const [[now, today, in30]] = useState(() => [Date.now(), new Date().toISOString().slice(0, 10), new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10)] as const);
+  const cards = o?.cards;
+  const weeks = o?.settings.weeks ?? 6;
+  const all = useMemo(() => rows.map(personOf), [rows]);
   const people = useMemo(() => {
-    const list = rows
-      .map(personOf)
-      .filter((p) => (filter === "starred" ? p.starred : filter === "todos" ? p.todos > 0 : filter === "soon" ? !!p.next && p.next >= today && p.next <= in30 : true));
-    const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, "de");
-    return list.sort((a, b) =>
-      sort === "next" ? (a.next ?? "9999").localeCompare(b.next ?? "9999") || byName(a, b) : sort === "todos" ? b.todos - a.todos || byName(a, b) : Number(b.starred) - Number(a.starred) || byName(a, b),
-    );
-  }, [rows, filter, sort, today, in30]);
+    const info = (p: CardPerson) => (p.personId ? cards?.[p.personId] : undefined);
+    const last = (p: CardPerson) => info(p)?.lastContact?.at ?? "";
+    const cared = (p: CardPerson) => p.starred || info(p)?.circle === "family" || info(p)?.circle === "friends";
+    const list = all
+      .filter((p) => (circle === "" ? true : circle === "none" ? !info(p)?.circle : info(p)?.circle === circle))
+      .filter((p) => {
+        if (only === "starred") return p.starred;
+        if (only === "todos") return p.todos > 0;
+        if (only === "owed") return (info(p)?.owed.length ?? 0) > 0;
+        if (only === "soon") return !!p.next && p.next >= today && p.next <= in30;
+        if (only === "quiet") return cared(p) && !!last(p) && now - Date.parse(last(p)) >= weeks * 7 * 864e5;
+        return true;
+      });
+    const byName = (a: CardPerson, b: CardPerson) => a.name.localeCompare(b.name, "de");
+    const cmp: Record<Sort, (a: CardPerson, b: CardPerson) => number> = {
+      name: (a, b) => Number(b.starred) - Number(a.starred) || byName(a, b),
+      // The longest without contact first; never in touch at the end.
+      quiet: (a, b) => (last(a) || "9999").localeCompare(last(b) || "9999") || byName(a, b),
+      recent: (a, b) => last(b).localeCompare(last(a)) || byName(a, b),
+      next: (a, b) => (a.next ?? "9999").localeCompare(b.next ?? "9999") || byName(a, b),
+      todos: (a, b) => b.todos - a.todos || byName(a, b),
+    };
+    return list.sort(cmp[sort]);
+  }, [all, cards, circle, only, sort, today, in30, now, weeks]);
 
-  const run = async (tool: PeopleTool, key: string) => {
+  const run = async (tool: PeopleTool, key: string): Promise<{ ok: boolean; draft?: string }> => {
     setBusy(key);
     const r = await peopleToolAction(tool);
     setBusy(null);
     if (!r.ok) toast(r.error, { tone: "error" });
     else if (r.message) toast(r.message);
-    await load();
-    router.refresh();
+    // A greeting drafted changes nothing to read again.
+    if (tool.tool !== "greeting") {
+      await load();
+      router.refresh();
+    }
+    return r.ok ? { ok: true, draft: r.draft } : { ok: false };
   };
   const rowOfPerson = (personId: number) => rows.find((r) => r.cells.srcref === `person:${personId}`);
   const person = (personId: number, label: string) => {
@@ -110,30 +134,32 @@ export default function PeopleView({ rows, openRow }: AppViewProps) {
     </button>
   );
   const toCheck = o.identities.length + o.claims.length + o.links.length + o.stale.length + o.owed.length + o.dates.length;
-  const day = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" });
-  const filters: { id: Filter; label: string }[] = [
-    { id: "all", label: t("All") },
-    { id: "starred", label: t("Starred") },
+  const labels = circleLabels(t);
+  const inCircle = (c: Circle | "none") => all.filter((p) => (p.personId ? (c === "none" ? !o.cards[p.personId]?.circle : o.cards[p.personId]?.circle === c) : false)).length;
+  const none = inCircle("none");
+  const circles: { id: Circle | "" | "none"; label: string; n: number }[] = [
+    { id: "", label: t("All"), n: all.length },
+    ...CIRCLES.map((c) => ({ id: c, label: labels[c], n: inCircle(c) })).filter((c) => c.n > 0),
+    ...(none && none < all.length ? [{ id: "none" as const, label: t("No circle"), n: none }] : []),
+  ];
+  const onlies: { id: Only; label: string }[] = [
+    { id: "starred", label: `★ ${t("Starred")}` },
+    { id: "quiet", label: t("Long not heard of") },
+    { id: "owed", label: t("Open promises") },
     { id: "todos", label: t("With todos") },
     { id: "soon", label: t("Dates soon") },
   ];
+  const pill = (on: boolean) => `rounded-full px-2.5 py-0.5 text-sm ${on ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"}`;
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]" data-app-view="people">
       <div className="min-w-0 space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex gap-1" role="group" aria-label={t("Filter")}>
-            {filters.map((f) => (
-              <button key={f.id} type="button" aria-pressed={filter === f.id} className={`rounded-full px-2.5 py-0.5 text-sm ${filter === f.id ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"}`} onClick={() => setFilter(f.id)}>
-                {f.label}
-              </button>
-            ))}
-          </div>
-          <select className="input w-48 text-sm" value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label={t("Sort")}>
-            <option value="name">{t("By name")}</option>
-            <option value="next">{t("Next date first")}</option>
-            <option value="todos">{t("Most todos first")}</option>
-          </select>
+        <div className="flex flex-wrap items-center gap-1" role="group" aria-label={t("Circle")}>
+          {circles.map((c) => (
+            <button key={c.id || "all"} type="button" aria-pressed={circle === c.id} className={pill(circle === c.id)} onClick={() => setCircle(c.id)}>
+              {c.label} <span className="text-xs opacity-60">{c.n}</span>
+            </button>
+          ))}
           <span className="flex-1" />
           <form
             className="flex gap-1"
@@ -150,39 +176,35 @@ export default function PeopleView({ rows, openRow }: AppViewProps) {
             </button>
           </form>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap gap-1" role="group" aria-label={t("Filter")}>
+            {onlies.map((f) => (
+              <button key={f.id} type="button" aria-pressed={only === f.id} className={`${pill(only === f.id)} text-xs`} onClick={() => setOnly(only === f.id ? "" : f.id)}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <span className="flex-1" />
+          <select className="input w-56 text-sm" value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label={t("Sort")}>
+            <option value="name">{t("By name")}</option>
+            <option value="quiet">{t("Longest without contact first")}</option>
+            <option value="recent">{t("Last in touch first")}</option>
+            <option value="next">{t("Next date first")}</option>
+            <option value="todos">{t("Most todos first")}</option>
+          </select>
+        </div>
 
         <p className="text-xs text-zinc-500">
           {people.length === rows.length ? (o.count === 1 ? t("1 person") : t("{n} people", { n: o.count })) : t("{n} of {total}", { n: people.length, total: rows.length })}
         </p>
 
         {people.length ? (
-          <ul className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-3">
-            {people.map((p) => {
-              const soon = !!p.next && p.next >= today && p.next <= in30;
-              return (
-                <li key={p.id}>
-                  <button type="button" className="card flex h-full w-full items-start gap-3 p-3 text-left transition hover:border-zinc-300 hover:shadow-sm dark:hover:border-zinc-600" onClick={() => openRow(p.id)}>
-                    <span className={`flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${toneOf(p.name)}`} aria-hidden>
-                      {initials(p.name) || "?"}
-                    </span>
-                    <span className="min-w-0 flex-1 space-y-1">
-                      <span className="flex items-baseline gap-1">
-                        <span className="truncate font-medium">{p.name}</span>
-                        {p.starred && <span className="text-amber-500" title={t("Starred")}>★</span>}
-                      </span>
-                      {p.context ? <span className="line-clamp-2 block text-xs text-zinc-500">{p.context}</span> : p.email ? <span className="block truncate text-xs text-zinc-400">{p.email}</span> : null}
-                      {(p.next || p.todos > 0 || p.tickets > 0) && (
-                        <span className="flex flex-wrap gap-1 pt-0.5 text-xs">
-                          {p.next && <span className={`rounded px-1.5 py-0.5 ${soon ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"}`}>{p.nextKind ? `${p.nextKind} · ${day(p.next)}` : day(p.next)}</span>}
-                          {p.todos > 0 && <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">{p.todos === 1 ? t("1 todo") : t("{n} todos", { n: p.todos })}</span>}
-                          {p.tickets > 0 && <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">{p.tickets === 1 ? t("1 ticket") : t("{n} tickets", { n: p.tickets })}</span>}
-                        </span>
-                      )}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
+          <ul className="grid items-start gap-2 sm:grid-cols-2 2xl:grid-cols-3">
+            {people.map((p) => (
+              <li key={p.id}>
+                <PersonCard p={p} info={p.personId ? o.cards[p.personId] : undefined} now={now} soonUntil={in30} weeks={weeks} open={() => openRow(p.id)} run={run} />
+              </li>
+            ))}
           </ul>
         ) : (
           <p className="card p-6 text-center text-sm text-zinc-400">{rows.length ? t("No one matches.") : t("No people yet — add one above, or import them from your mails and chats (Tools).")}</p>
@@ -190,6 +212,18 @@ export default function PeopleView({ rows, openRow }: AppViewProps) {
       </div>
 
       <div className="min-w-0 space-y-4">
+        {o.meetings.length > 0 && (
+          <Section title={t("Appointments in the next 24 hours")}>
+            <Meetings meetings={o.meetings} person={person} now={now} />
+          </Section>
+        )}
+
+        {o.nudges.length > 0 && (
+          <Section title={t("Get in touch again?")} aside={<span className="text-xs text-zinc-400">{t("after {n} weeks", { n: weeks })}</span>}>
+            <Nudges nudges={o.nudges} cards={o.cards} person={person} run={run} busy={busy !== null} />
+          </Section>
+        )}
+
         {o.upcoming.length > 0 && (
           <Section title={t("Coming up")}>
             <ul className="space-y-1 text-sm">
@@ -212,6 +246,11 @@ export default function PeopleView({ rows, openRow }: AppViewProps) {
               </Link>
             }
           >
+            {o.confident > 0 && (
+              <button type="button" className="btn btn-sm w-full" disabled={busy !== null} title={t("Claims and links the AI is sure of (90 % and more) — identity suggestions still wait for you.")} onClick={() => void run({ tool: "acceptConfident" }, "confident")}>
+                {busy === "confident" ? "…" : t("Take all from 90 % ({n})", { n: o.confident })}
+              </button>
+            )}
             <div className="max-h-[28rem] space-y-3 overflow-y-auto pr-1">
               {o.identities.length > 0 && (
                 <Group title={t("Same person?")}>
@@ -348,6 +387,7 @@ export default function PeopleView({ rows, openRow }: AppViewProps) {
               </div>
             )}
             <p className="text-xs text-zinc-400">{t("Two profiles that are one person? Open one: “Merge or delete” merges it into the other.")}</p>
+            <Settings weeks={weeks} myName={o.settings.myName} save={(v) => void run({ tool: "settings", ...v }, "settings")} />
           </div>
         </details>
       </div>
@@ -390,5 +430,22 @@ function Verdict({ onYes, onNo, yes, no }: { onYes: () => unknown; onNo: () => u
         {no ?? t("Wrong")}
       </button>
     </span>
+  );
+}
+
+/** The settings: after how many weeks someone you care about comes up, and your name (your family by your last name). */
+function Settings({ weeks, myName, save }: { weeks: number; myName: string; save: (v: { weeks?: number; myName?: string }) => void }) {
+  const t = useT();
+  return (
+    <div className="grid grid-cols-[auto_1fr] items-center gap-2 border-t border-zinc-100 pt-3 text-sm dark:border-zinc-800">
+      <label htmlFor="people-weeks" className="text-xs text-zinc-500">
+        {t("Remind after (weeks)")}
+      </label>
+      <input id="people-weeks" type="number" min={1} max={52} className="input w-20 text-sm" defaultValue={weeks} onBlur={(e) => Number(e.target.value) !== weeks && save({ weeks: Number(e.target.value) })} />
+      <label htmlFor="people-me" className="text-xs text-zinc-500">
+        {t("Your name")}
+      </label>
+      <input id="people-me" className="input text-sm" defaultValue={myName} placeholder={t("First and last name")} title={t("People with your last name count as family.")} onBlur={(e) => e.target.value.trim() !== myName && save({ myName: e.target.value })} />
+    </div>
   );
 }
