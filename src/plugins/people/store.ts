@@ -2,7 +2,7 @@ import { getSqlite } from "@/db";
 import { emitChange } from "@/lib/events";
 import { isChatFolder } from "@/lib/mail/shared";
 import { t } from "@/lib/i18n/server";
-import { daysBetween, isCircle, isDateKind, isoDay, nextOccurrence, type Circle, type DateKind, type Person, type PersonAccount, type PersonDate, type PersonSummary, type Upcoming } from "./shared";
+import { daysBetween, isCircle, isDateKind, isoDay, nextOccurrence, type Circle, type ContactKind, type DateKind, type Person, type PersonAccount, type PersonDate, type PersonSummary, type Upcoming } from "./shared";
 
 /**
  * People (the Personen plugin): a profile per person you care about — your notes, their dates
@@ -25,6 +25,8 @@ function db() {
   if (!(d.prepare("pragma table_info(people)").all() as { name: string }[]).some((c) => c.name === "accounts")) d.exec("alter table people add column accounts text not null default '[]'");
   // Their circle (family, work …) and who set it (a rule, the AI, you): columns added later.
   if (!(d.prepare("pragma table_info(people)").all() as { name: string }[]).some((c) => c.name === "circle")) d.exec("alter table people add column circle text not null default ''; alter table people add column circle_source text not null default ''");
+  // A person or an organisation (a bank, an authority, a company), and who said so: columns added later.
+  if (!(d.prepare("pragma table_info(people)").all() as { name: string }[]).some((c) => c.name === "kind")) d.exec("alter table people add column kind text not null default 'person'; alter table people add column kind_source text not null default ''");
   return d;
 }
 
@@ -38,7 +40,7 @@ const parse = <T>(s: string, d: T): T => {
 const now = () => new Date().toISOString();
 const changed = () => emitChange("todos");
 
-type PRow = { id: number; name: string; aliases: string; accounts?: string; compiled?: string | null; circle?: string; circle_source?: string; note: string; whatsapp: string; emails: string; entity_id: number | null; starred: number; created_at: string; updated_at: string };
+type PRow = { id: number; name: string; aliases: string; accounts?: string; compiled?: string | null; circle?: string; circle_source?: string; kind?: string; kind_source?: string; note: string; whatsapp: string; emails: string; entity_id: number | null; starred: number; created_at: string; updated_at: string };
 type DRow = { id: number; person_id: number; kind: string; label: string; day: number; month: number; year: number | null; yearly: number; remind_days: number; source: string; source_text: string; confirmed: number };
 
 const toPerson = (r: PRow): Person => ({
@@ -49,6 +51,8 @@ const toPerson = (r: PRow): Person => ({
   compiled: parse<PersonSummary | null>(r.compiled ?? "null", null),
   circle: isCircle(r.circle ?? "") ? (r.circle as Circle) : "",
   circleSource: r.circle_source === "rule" || r.circle_source === "ai" || r.circle_source === "manual" ? r.circle_source : "",
+  kind: r.kind === "organization" ? "organization" : "person",
+  kindSource: r.kind_source === "ai" || r.kind_source === "manual" ? r.kind_source : "",
   note: r.note,
   whatsapp: r.whatsapp,
   emails: parse<string[]>(r.emails, []),
@@ -126,7 +130,17 @@ export function setCircle(id: number, circle: Circle | "", source: "rule" | "ai"
   if (!p || (p.circleSource === "manual" && source !== "manual") || (p.circle === circle && p.circleSource === source)) return false;
   // The AI's word goes over a rule's guess; a rule doesn't undo the AI's.
   if (source === "rule" && p.circleSource === "ai" && p.circle) return false;
-  db().prepare("update people set circle = ?, circle_source = ? where id = ?").run(circle, circle ? source : "", id);
+  // Who said so stays even for "no circle": asked once, not again each briefing.
+  db().prepare("update people set circle = ?, circle_source = ? where id = ?").run(circle, source, id);
+  changed();
+  return true;
+}
+
+/** A person or an organisation — yours stays: the AI never overwrites what you chose. Whether it changed. */
+export function setKind(id: number, kind: ContactKind, source: "ai" | "manual"): boolean {
+  const p = getPerson(id);
+  if (!p || (p.kindSource === "manual" && source !== "manual") || (p.kind === kind && p.kindSource === source)) return false;
+  db().prepare("update people set kind = ?, kind_source = ? where id = ?").run(kind, source, id);
   changed();
   return true;
 }

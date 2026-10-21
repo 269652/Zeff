@@ -40,6 +40,9 @@ export type PersonDate = {
 export type PersonAccount = { kind: "jira"; value: string };
 
 /** A person's compiled summary: what connects you, the key facts, the fun facts — and when, from how many things Zeff had on them. */
+/** A contact is a person or an organisation. */
+export type ContactKind = "person" | "organization";
+
 /** The circles a person can be in: what they are to you. */
 export const CIRCLES = ["family", "friends", "work", "authorities", "services"] as const;
 export type Circle = (typeof CIRCLES)[number];
@@ -59,6 +62,10 @@ export type Person = {
   compiled: PersonSummary | null;
   /** Their circle — empty: not known yet. */
   circle: Circle | "";
+  /** A person, or an organisation (a bank, an authority, a company). */
+  kind: ContactKind;
+  /** Who said which: the AI or you (yours stays). */
+  kindSource: "ai" | "manual" | "";
   /** Who set the circle: a rule, the AI, you (yours stays). */
   circleSource: "rule" | "ai" | "manual" | "";
   note: string;

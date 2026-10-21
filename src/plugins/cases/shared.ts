@@ -27,6 +27,15 @@ export type CaseSummary = {
   purpose: string;
   /** What the AI thinks: running or done. */
   done: boolean;
+  /** Who it is owed to and who collects it (a bailiff, a collection agency), as the AI named them — the contacts are the case's parties. */
+  creditor?: string;
+  creditorKind?: "person" | "organization";
+  collector?: string;
+  collectorKind?: "person" | "organization";
+  /** A debt you wrote down yourself (no case number): kept as you wrote it — never summed up by the AI. */
+  manual?: boolean;
+  /** Made from a promise of yours (a claim of the People plugin). */
+  fromClaim?: number;
   at: string;
   sources: number;
 };

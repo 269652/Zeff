@@ -80,6 +80,19 @@ create table if not exists relations (
   unique (src, dst, rel, page_id)
 );
 create index if not exists relations_src on relations(src);
+-- What the pages say about the owner (compile.ts → profile.ts): a figure for a period — the net income of a month from a
+-- bank statement or a payslip — with the page it is from (gone with it).
+create table if not exists profile_facts (
+  id integer primary key,
+  key text not null,
+  period text not null,
+  amount real not null,
+  text text not null default '',
+  page_id text not null references pages(id) on delete cascade,
+  at text not null,
+  unique (key, period, page_id)
+);
+create index if not exists profile_facts_key on profile_facts(key, period);
 create index if not exists relations_dst on relations(dst);
 -- Normalizing (normalize.ts): entities found to be one merged — the keys of those merged away
 -- (and their aliases) point to the one that stays, so compiling finds it again instead of making

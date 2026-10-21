@@ -5,7 +5,9 @@ import { useT } from "@/components/I18nProvider";
 import { GiroCode } from "@/components/GiroCode";
 import type { AppViewProps } from "@/plugins/workspace/ui/app-view";
 import { casesOverviewAction, type CasesOverview } from "../block-actions";
+import { AddDebt } from "./AddDebt";
 import { BankBar } from "./BankBar";
+import { EditMoney } from "./EditMoney";
 
 /**
  * The cases database's overview: what is open in all, what is due in 30 days, what is overdue — then the running cases by
@@ -29,11 +31,12 @@ export default function CasesView({ openRow }: AppViewProps) {
     { label: t("Due in 30 days"), value: euro(o.figures.dueSoon), bad: false },
     { label: t("Running cases"), value: String(o.figures.running), bad: false },
     { label: t("Overdue"), value: String(o.figures.overdue), bad: o.figures.overdue > 0 },
+    { label: o.figures.incomeSource === "manual" ? t("Income a month (yours)") : t("Income a month"), value: o.figures.income != null ? euro(o.figures.income) : t("not known yet"), bad: false },
   ];
   return (
     <div className="space-y-4" data-cases-view>
       <BankBar onChanged={load} />
-      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         {tiles.map((x) => (
           <div key={x.label} className="rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-800">
             <dt className="text-xs text-zinc-500">{x.label}</dt>
@@ -41,6 +44,7 @@ export default function CasesView({ openRow }: AppViewProps) {
           </div>
         ))}
       </dl>
+      <AddDebt contacts={o.contacts} suggestions={o.suggestions} onDone={load} />
       {o.cases.length === 0 ? (
         <p className="text-sm text-zinc-400">{t("No case running.")}</p>
       ) : (
@@ -50,12 +54,20 @@ export default function CasesView({ openRow }: AppViewProps) {
             return (
               <li key={c.id} className="space-y-2 px-3 py-2.5">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <span className="font-mono text-xs text-zinc-500">{c.label}</span>
-                  <button type="button" className="min-w-0 flex-1 truncate text-left font-medium hover:underline" disabled={!c.rowId} onClick={() => c.rowId && openRow(c.rowId)}>
-                    {c.title}
-                  </button>
-                  {c.person && <span className="text-xs text-zinc-500">{c.person}</span>}
-                  {c.open != null && <span className="tabular-nums">{euro(c.open)}</span>}
+                  {c.manual ? <span className="rounded bg-zinc-100 px-1.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">{t("Own debt")}</span> : <span className="font-mono text-xs text-zinc-500">{c.label}</span>}
+                  <span className="min-w-0 flex-1">
+                    <button type="button" className="block max-w-full truncate text-left font-medium hover:underline" disabled={!c.rowId} onClick={() => c.rowId && openRow(c.rowId)}>
+                      {c.creditor || c.title}
+                    </button>
+                    {(c.creditor || c.collector) && (
+                      <span className="block truncate text-xs text-zinc-500">
+                        {c.creditor ? c.title : ""}
+                        {c.collector ? `${c.creditor ? " · " : ""}${t("via {name}", { name: c.collector })}` : ""}
+                      </span>
+                    )}
+                  </span>
+                  {!c.creditor && c.person && <span className="text-xs text-zinc-500">{c.person}</span>}
+                  <EditMoney caseId={c.id} field="open" value={c.open} onSaved={load} />
                 </div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                   {c.nextDue ? (

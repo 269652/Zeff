@@ -190,6 +190,8 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
             if ((await import("@/plugins/state")).isInstalled("revolut")) (await import("@/plugins/revolut/statement")).importStatementDocuments();
             bank.matchPayments();
             bank.overdueWarnings(new Date().toISOString().slice(0, 10));
+            // Your income as the knowledge read it off your statements (it compiles them as a source of its own).
+            await (await import("@/plugins/cases/income")).refreshIncome();
           } catch (e) {
             console.error("[cases] after the briefing:", errorMessage(e));
           }

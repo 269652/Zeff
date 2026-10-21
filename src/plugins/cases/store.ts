@@ -13,14 +13,21 @@ function db() {
     create table if not exists cases (id integer primary key autoincrement, key text not null unique, label text not null, status text not null default 'open', person_id integer, note text not null default '', compiled text, created_at text not null, updated_at text not null, last_at text not null);
     create table if not exists case_sources (case_id integer not null references cases(id) on delete cascade, ref text not null, kind text not null, at text not null, title text not null default '', primary key (case_id, ref));
     create index if not exists case_sources_ref on case_sources (ref);
+    create table if not exists case_parties (case_id integer not null references cases(id) on delete cascade, role text not null, person_id integer not null, source text not null default 'rule', primary key (case_id, role));
+    create index if not exists case_parties_person on case_parties (person_id);
   `);
+  // Your corrections of a case's money (total, open, instalment, due): over what the AI sums up — a column added later.
+  if (!(d.prepare("pragma table_info(cases)").all() as { name: string }[]).some((c) => c.name === "overrides")) d.exec("alter table cases add column overrides text");
   return d;
 }
+
+/** The cases' database (for parties.ts: its tables made). */
+export const casesDb = () => db();
 
 const now = () => new Date().toISOString();
 const changed = () => emitChange("todos");
 
-type Row = { id: number; key: string; label: string; status: string; person_id: number | null; note: string; compiled: string | null; created_at: string; updated_at: string; last_at: string };
+type Row = { id: number; key: string; label: string; status: string; person_id: number | null; note: string; compiled: string | null; overrides?: string | null; created_at: string; updated_at: string; last_at: string };
 
 const toCase = (r: Row): Case => ({
   id: r.id,
@@ -31,7 +38,8 @@ const toCase = (r: Row): Case => ({
   note: r.note,
   compiled: (() => {
     try {
-      return r.compiled ? (JSON.parse(r.compiled) as CaseSummary) : null;
+      // What the AI summed up, your corrections over it.
+      return r.compiled ? ({ ...(JSON.parse(r.compiled) as CaseSummary), ...(r.overrides ? (JSON.parse(r.overrides) as Partial<CaseSummary>) : {}) } as CaseSummary) : null;
     } catch {
       return null;
     }
@@ -81,8 +89,9 @@ export const sourcesOf = (caseId: number): CaseSource[] =>
 /** The cases a source belongs to (a mail, a todo …). */
 export const casesOfRef = (ref: string): Case[] => (db().prepare("select c.* from cases c join case_sources s on s.case_id = c.id where s.ref = ? and c.status != 'ignored'").all(ref) as Row[]).map(toCase);
 
-/** The cases of a person, the newest activity first. */
-export const casesOfPerson = (personId: number): Case[] => (db().prepare("select * from cases where person_id = ? and status != 'ignored' order by last_at desc").all(personId) as Row[]).map(toCase);
+/** The cases of a person — theirs, or one they are a party of (creditor, collector, payee) — the newest activity first. */
+export const casesOfPerson = (personId: number): Case[] =>
+  (db().prepare("select * from cases where (person_id = ? or id in (select case_id from case_parties where person_id = ?)) and status != 'ignored' order by last_at desc").all(personId, personId) as Row[]).map(toCase);
 
 export function setCaseStatus(id: number, status: CaseStatus): void {
   db().prepare("update cases set status = ?, updated_at = ? where id = ?").run(status, now(), id);
@@ -103,7 +112,29 @@ export function updateCase(id: number, patch: { personId?: number | null; note?:
   changed();
 }
 
+export type MoneyOverrides = Partial<Pick<CaseSummary, "total" | "open" | "installment" | "nextDue">>;
+
+/** Your corrections of a case's money: a value set, or (null) taken back — the AI's again. */
+export function setOverrides(id: number, patch: { [K in keyof MoneyOverrides]?: MoneyOverrides[K] | null }): void {
+  const r = db().prepare("select overrides from cases where id = ?").get(id) as { overrides: string | null } | undefined;
+  if (!r) return;
+  const cur = (() => {
+    try {
+      return r.overrides ? (JSON.parse(r.overrides) as Record<string, unknown>) : {};
+    } catch {
+      return {};
+    }
+  })();
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === null) delete cur[k];
+    else if (v !== undefined) cur[k] = v;
+  }
+  db().prepare("update cases set overrides = ?, updated_at = ? where id = ?").run(Object.keys(cur).length ? JSON.stringify(cur) : null, now(), id);
+  changed();
+}
+
 /** A person merged into another: their cases go along. */
 export function movePersonCases(from: number, to: number): void {
   db().prepare("update cases set person_id = ? where person_id = ?").run(to, from);
+  db().prepare("update case_parties set person_id = ? where person_id = ?").run(to, from);
 }

@@ -402,6 +402,7 @@ export default function PeopleView({ rows, openRow }: AppViewProps) {
                 </select>
               </div>
             )}
+            {o.count > 0 && tool("classify", t("Place contacts (AI)"), { tool: "classify" }, t("The AI says for each contact not placed yet whether it is a person or an organisation and which circle it is in — from what Zeff knows of them. Yours stay. It also runs after each briefing."))}
             {o.count > 0 && tool("linkJira", t("Link Jira accounts"), { tool: "linkJira" }, t("Ties Jira users to the profiles by their names — so @-mentions in notes synced to Jira point to the right person. No AI."))}
             {o.progress.compile ? (
               <p className="text-sm text-zinc-500">

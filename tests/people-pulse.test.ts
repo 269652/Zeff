@@ -67,34 +67,6 @@ test("pulse: who to get in touch with — the starred, family and friends you ha
   assert.equal(nudges({ now: new Date(NOW.getTime() + 15 * 864e5), weeks: 4 })[0]?.personId, ids.ulla, "and back after them");
 });
 
-test("circles by rule: a relation (mother, sister …) or your last name is family; a case or an authority's address is authorities & creditors; a Jira account or Teams is work — yours and the AI's stay", async () => {
-  const ids = await seed();
-  const { createPerson, getPerson, addRelation, addAccount, setCircle } = await import("@/plugins/people/store");
-  const { applyCircleRules, ruleCircle } = await import("@/plugins/people/pulse");
-  const mum = createPerson({ name: "Johanna Roessler" });
-  const lotte = createPerson({ name: "Lotte" });
-  addRelation(lotte, "meine Schwester", 0, "", "manual");
-  const dev = createPerson({ name: "Christopher Kruger" });
-  addAccount(dev, "jira", "ckruger");
-  const n = applyCircleRules();
-  assert.ok(n >= 4);
-  assert.equal(getPerson(mum)!.circle, "family", "your last name (from the mails you sent)");
-  assert.equal(getPerson(lotte)!.circle, "family", "a relation");
-  assert.equal(getPerson(ids.ulla)!.circle, "authorities", "gvjustiz.de");
-  assert.equal(getPerson(dev)!.circle, "work", "a Jira account");
-  assert.equal(getPerson(ids.rico)!.circle, "work", "Teams");
-  const benni = createPerson({ name: "Benni" });
-  applyCircleRules();
-  assert.equal(getPerson(benni)!.circleSource, "", "nothing to go by: left to the AI");
-  setCircle(dev, "friends", "manual");
-  applyCircleRules();
-  assert.equal(getPerson(dev)!.circle, "friends", "yours stays");
-  setCircle(benni, "friends", "ai");
-  assert.equal(setCircle(benni, "work", "rule"), false, "a rule doesn't undo the AI");
-  assert.equal(getPerson(benni)!.circle, "friends");
-  assert.equal(ruleCircle(getPerson(ids.nie)!, { me: ["moritz roessler"] }), "");
-});
-
 test("accept the confident ones: claims and links from 90 % on are confirmed at once — the rest, and every identity suggestion, wait", async () => {
   const ids = await seed();
   const { addClaim, addLink, claimsOf, proposedLinks } = await import("@/plugins/people/graph");

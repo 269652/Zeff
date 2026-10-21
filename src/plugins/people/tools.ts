@@ -8,7 +8,7 @@ import { openCommitments, proposedClaims, proposedLinks, reviewClaim, reviewLink
 import { addManualTodo } from "@/lib/boards/store";
 import { personCardExtras } from "./card";
 import { detailsOf } from "./details";
-import { acceptConfident, applyCircleRules, lastContactsAll, meetingBriefs, myName, nudgeWeeks, nudges, setMyName, setNudgeWeeks, snoozeNudge, type LastContact, type MeetingBrief, type Nudge } from "./pulse";
+import { acceptConfident, lastContactsAll, meetingBriefs, myName, nudgeWeeks, nudges, setMyName, setNudgeWeeks, snoozeNudge, type LastContact, type MeetingBrief, type Nudge } from "./pulse";
 import { greetingDraft } from "./greeting";
 import { dateKindLabels, dateText, inDaysText, isCircle, upcomingTitle, type Circle, type Person } from "./shared";
 import { createPerson, deleteDate, getPerson, listPeople, namesThem, proposedDates, setCircle, updateDate, upcoming, whatsappChats } from "./store";
@@ -68,8 +68,6 @@ export function suggestionText(s: Suggestion, nameOf: (id: number) => string | u
 export const linkText = (l: Pick<Link, "rel" | "targetType" | "targetRef">, who: (id: number) => string) => `${l.rel} ${l.targetType === "person" ? who(Number(l.targetRef)) : l.targetRef}`;
 
 export async function peopleOverview(): Promise<PeopleOverview> {
-  // The circles by rule (no AI, quick) — so a new profile has one at once, not only after the next briefing.
-  applyCircleRules();
   const people = listPeople();
   const byId = new Map(people.map((p) => [p.id, p]));
   const who = (id: number) => byId.get(id)?.name ?? "?";
@@ -144,7 +142,8 @@ export type PeopleTool =
   | { tool: "acceptConfident" }
   | { tool: "settings"; weeks?: number; myName?: string }
   | { tool: "todo"; id: number; text: string }
-  | { tool: "greeting"; id: number };
+  | { tool: "greeting"; id: number }
+  | { tool: "classify"; force?: boolean };
 
 /** A tool of the overview; what came of it, in words. */
 export async function peopleTool(o: PeopleTool): Promise<{ message?: string; draft?: string }> {
@@ -162,10 +161,7 @@ export async function peopleTool(o: PeopleTool): Promise<{ message?: string; dra
     }
     case "settings":
       if (o.weeks !== undefined) setNudgeWeeks(Number(o.weeks));
-      if (o.myName !== undefined) {
-        setMyName(String(o.myName));
-        applyCircleRules();
-      }
+      if (o.myName !== undefined) setMyName(String(o.myName));
       return { message: t("Saved.") };
     case "todo": {
       const p = getPerson(Number(o.id));
@@ -177,6 +173,11 @@ export async function peopleTool(o: PeopleTool): Promise<{ message?: string; dra
     }
     case "greeting":
       return { draft: await greetingDraft(Number(o.id)) };
+    case "classify": {
+      if (!isInstalled("llm")) throw new Error(t("The LLM plugin is needed for this (Menu → Plugins)."));
+      const r = await (await import("./classify")).classifyContacts({ force: !!o.force, myName: myName() || undefined });
+      return { message: r.asked ? t("{n} contacts placed — {c} changes", { n: r.asked, c: r.changed }) : t("Every contact is placed already.") };
+    }
     case "add": {
       const id = createPerson({ name: String(o.name ?? ""), whatsapp: o.whatsapp, entityId: o.entityId ?? null, aliases: o.aliases });
       // Its dates from the facts right away (no AI — that is a click on the profile).

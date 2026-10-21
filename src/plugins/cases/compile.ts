@@ -3,6 +3,7 @@ import { runAi } from "@/lib/ai";
 import { promptText } from "@/lib/prompts";
 import { detailsFromText } from "@/plugins/people/details";
 import type { CaseSummary } from "./shared";
+import { assignParties } from "./parties";
 import { getCase, listCases, sourcesOf, updateCase } from "./store";
 
 /**
@@ -17,6 +18,10 @@ const SCHEMA = {
   properties: {
     title: { type: "string", description: "Worum es geht, in 3–8 Wörtern (z. B. „Rundfunkbeitrag SWR — Ratenplan“)." },
     party: { type: "string", description: "Wer auf der anderen Seite steht: Gläubiger, Behörde, Firma." },
+    creditor: { type: "string", description: "Wem ich das Geld schulde (der Gläubiger selbst, z. B. die Bank, der Rundfunkbeitrag, ein Versorger, eine Person) — leer, wenn es um keine Schuld geht." },
+    creditor_kind: { type: "string", enum: ["person", "organization", ""], description: "Ist der Gläubiger ein Mensch oder eine Organisation?" },
+    collector: { type: "string", description: "Wer die Forderung für den Gläubiger eintreibt (Gerichtsvollzieher/in, Inkassobüro, Anwalt/Kanzlei) — leer, wenn der Gläubiger selbst schreibt." },
+    collector_kind: { type: "string", enum: ["person", "organization", ""], description: "Ist der Eintreiber ein Mensch oder eine Organisation?" },
     summary: { type: "string", description: "Stand der Sache in 1–3 Sätzen: was ist passiert, was ist vereinbart, was ist offen." },
     total: { type: ["number", "null"], description: "Die ganze Forderung in Euro, sonst null." },
     open: { type: ["number", "null"], description: "Was davon noch offen ist, in Euro, sonst null." },
@@ -29,10 +34,10 @@ const SCHEMA = {
     purpose: { type: "string", description: "Der Verwendungszweck, wie verlangt — sonst leer." },
     done: { type: "boolean", description: "true, wenn die Sache erledigt ist (bezahlt, eingestellt, abgeschlossen)." },
   },
-  required: ["title", "party", "summary", "total", "open", "installment", "next_due", "next_what", "iban", "bic", "payee", "purpose", "done"],
+  required: ["title", "party", "creditor", "creditor_kind", "collector", "collector_kind", "summary", "total", "open", "installment", "next_due", "next_what", "iban", "bic", "payee", "purpose", "done"],
 };
 
-type Answer = { title?: string; party?: string; summary?: string; total?: unknown; open?: unknown; installment?: unknown; next_due?: string; next_what?: string; iban?: string; bic?: string; payee?: string; purpose?: string; done?: boolean };
+type Answer = { title?: string; party?: string; creditor?: string; creditor_kind?: string; collector?: string; collector_kind?: string; summary?: string; total?: unknown; open?: unknown; installment?: unknown; next_due?: string; next_what?: string; iban?: string; bic?: string; payee?: string; purpose?: string; done?: boolean };
 
 export const INSTRUCTIONS = `Du fasst einen Vorgang zusammen — alles, was zu einem Aktenzeichen gehört: Mails, Briefe (ihr Text), Todos. Ich will auf einen Blick sehen, worum es geht, wie viel offen ist, was als Nächstes fällig ist und wohin ich zahle.
 
@@ -69,6 +74,10 @@ export function checked(a: Answer, key: string, sources: number): CaseSummary {
     payee: clip(a.payee, 70).replace(/\s*\([^)]*\)$/, ""),
     purpose: clip(a.purpose, 140) || key,
     done: a.done === true,
+    creditor: clip(a.creditor, 120),
+    ...(a.creditor_kind === "person" || a.creditor_kind === "organization" ? { creditorKind: a.creditor_kind } : {}),
+    collector: clip(a.collector, 120),
+    ...(a.collector_kind === "person" || a.collector_kind === "organization" ? { collectorKind: a.collector_kind } : {}),
     at: new Date().toISOString(),
     sources,
   };
@@ -113,11 +122,15 @@ export async function compileCases(opts: { ids?: number[]; force?: boolean; limi
     const ask = opts.ask ?? realAsk();
     const due = listCases()
       .filter((c) => c.status === "open" && (!opts.ids || opts.ids.includes(c.id)))
-      .filter((c) => opts.force || !c.compiled || c.compiled.sources < sourcesOf(c.id).length)
+      // A debt you wrote down yourself is never summed up anew; one summed up before the creditor was asked for: once more.
+      .filter((c) => !c.compiled?.manual)
+      .filter((c) => opts.force || !c.compiled || c.compiled.sources < sourcesOf(c.id).length || c.compiled.creditor === undefined)
       .slice(0, opts.limit ?? 8);
     for (const c of due) {
       const answer = await ask(promptFor(c.id), SCHEMA);
       updateCase(c.id, { compiled: checked(answer, c.key, sourcesOf(c.id).length) });
+      // Its creditor and who collects it as contacts.
+      assignParties(c.id);
       compiled++;
     }
     return { compiled };

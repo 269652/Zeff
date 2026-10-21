@@ -20,7 +20,11 @@ export type CaseBundle = {
   note: string;
   compiled: CaseSummary | null;
   person: { id: number; name: string; href: string } | null;
-  people: { id: number; name: string }[];
+  people: { id: number; name: string; kind: "person" | "organization" }[];
+  /** Who it is owed to, who collects it, who is paid — contacts, with their pages; `source` manual: chosen by you. */
+  parties: Partial<Record<import("./parties").PartyRole, { personId: number; name: string; href: string; source: "ai" | "manual" }>>;
+  /** A debt you wrote down yourself: its money is yours to change. */
+  manual: boolean;
   /** Its mails, letters, appointments — as a todo's sources are shown. */
   sources: TodoSource[];
   todos: { id: number; ref: string; text: string; done: boolean; due: string | null }[];
@@ -57,13 +61,19 @@ export async function caseBundle(caseId: number): Promise<CaseBundle> {
   let people: CaseBundle["people"] = [];
   if (isInstalled("people")) {
     const { listPeople, getPerson } = await import("@/plugins/people/store");
-    people = listPeople().map((p) => ({ id: p.id, name: p.name }));
+    people = listPeople().map((p) => ({ id: p.id, name: p.name, kind: p.kind }));
     const p = c.personId ? getPerson(c.personId) : null;
     if (p) person = { id: p.id, name: p.name, href: isInstalled("workspace") ? (await import("@/plugins/workspace/people-database")).personHref(p.id) : "/personen" };
   }
+  const { partiesOf } = await import("./parties");
+  const hrefOf = async (id: number) => (isInstalled("workspace") ? (await import("@/plugins/workspace/people-database")).personHref(id) : "/personen");
+  const parties: CaseBundle["parties"] = {};
+  for (const [role, p] of Object.entries(partiesOf(caseId))) if (p) parties[role as keyof CaseBundle["parties"]] = { ...p, href: await hrefOf(p.personId) };
   return {
     id: c.id,
     key: c.key,
+    parties,
+    manual: !!c.compiled?.manual,
     label: c.label,
     title: caseTitle(c),
     status: c.status,
@@ -82,7 +92,17 @@ export async function caseBundle(caseId: number): Promise<CaseBundle> {
   };
 }
 
-export type CaseOperation = { op: "status"; status: string } | { op: "note"; note: string } | { op: "person"; personId: number | null } | { op: "compile" } | { op: "refresh" };
+export type CaseOperation =
+  | { op: "status"; status: string }
+  | { op: "note"; note: string }
+  | { op: "person"; personId: number | null }
+  | { op: "compile" }
+  | { op: "refresh" }
+  /** A party chosen by you (null: none) — or a new contact by its name, a person or an organisation. */
+  | { op: "party"; role: string; personId: number | null }
+  | { op: "newParty"; role: string; name: string; kind: "person" | "organization" }
+  /** A debt of your own changed. */
+  | { op: "debt"; title?: string; total?: number | null; open?: number | null; installment?: number | null; due?: string | null };
 
 export async function caseOp(caseId: number, o: CaseOperation): Promise<{ message?: string }> {
   if (!getCase(caseId)) throw new Error(t("Unknown case."));
@@ -97,6 +117,30 @@ export async function caseOp(caseId: number, o: CaseOperation): Promise<{ messag
     case "person":
       updateCase(caseId, { personId: o.personId ? Number(o.personId) : null });
       return {};
+    case "party":
+    case "newParty": {
+      const { PARTY_ROLES, setParty } = await import("./parties");
+      if (!(PARTY_ROLES as readonly string[]).includes(o.role)) throw new Error(t("Unknown role."));
+      const role = o.role as (typeof PARTY_ROLES)[number];
+      let id = o.op === "party" ? (o.personId ? Number(o.personId) : null) : null;
+      if (o.op === "newParty") {
+        const { createPerson, setKind, setCircle } = await import("@/plugins/people/store");
+        if (!String(o.name ?? "").trim()) throw new Error(t("A name, please."));
+        id = createPerson({ name: String(o.name) });
+        setKind(id, o.kind === "organization" ? "organization" : "person", "manual");
+        if (role === "creditor" && o.kind === "organization") setCircle(id, "authorities", "ai");
+      }
+      setParty(caseId, role, id, "manual");
+      // The case's person follows its creditor when it had none.
+      if (role === "creditor" && id && !getCase(caseId)?.personId) updateCase(caseId, { personId: id });
+      return {};
+    }
+    case "debt": {
+      const { updateDebt } = await import("./parties");
+      const num = (v: unknown) => (v == null || v === "" ? null : Number(v));
+      updateDebt(caseId, { ...(o.title !== undefined ? { title: String(o.title) } : {}), ...(o.total !== undefined ? { total: num(o.total) } : {}), ...(o.open !== undefined ? { open: num(o.open) } : {}), ...(o.installment !== undefined ? { installment: num(o.installment) } : {}), ...(o.due !== undefined ? { due: o.due ? String(o.due) : null } : {}) });
+      return {};
+    }
     case "refresh": {
       const r = detectCases();
       return { message: t("{c} new cases, {l} new sources", { c: r.created, l: r.linked }) };

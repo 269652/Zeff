@@ -73,3 +73,8 @@ export const knowledgePersonFact = (entityId: number, v: { ref: string; text: st
 
 /** One person the knowledge keeps as several entities made one: `drop`'s pages, relations and names go to `keep`. */
 export const knowledgeMergePeople = (keep: number, drop: number[]) => call<KnowledgeEntityDetail>("/api/people/merge", { method: "POST", body: { keep, drop }, timeoutMs: 15000 });
+
+/** A figure the knowledge read about you off your pages (your net income a month, your rent), with the page it is from. */
+export type KnowledgeProfileFact = { key: string; period: string; amount: number; text: string; pageId: string; pageTitle: string; at: string };
+/** What the knowledge knows about you as figures (one key, or all), the newest month first. */
+export const knowledgeProfile = (key?: string) => call<{ facts: KnowledgeProfileFact[] }>(`/api/profile${key ? `?key=${encodeURIComponent(key)}` : ""}`, { timeoutMs: 5000 }).then((r) => r.facts);

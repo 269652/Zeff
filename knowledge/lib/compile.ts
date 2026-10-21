@@ -11,6 +11,9 @@ import { db, endRun, startRun } from "./db";
 
 export const ENTITY_TYPES = ["system", "component", "service", "project", "person", "team", "customer", "process", "term", "ticket", "document", "environment"] as const;
 
+/** What the pages may say about the owner, as figures (profile.ts). */
+export const PROFILE_KEYS = ["net_income", "rent"] as const;
+
 type Extracted = {
   pages: {
     id: string;
@@ -18,6 +21,8 @@ type Extracted = {
     concepts: string[];
     entities: { name: string; type: string; aliases?: string[]; summary?: string }[];
     relations: { from: string; rel: string; to: string; fact?: string }[];
+    /** What the page says about the owner, as figures (profile.ts). */
+    profile?: { key: string; period: string; amount: number; text?: string }[];
   }[];
 };
 
@@ -42,6 +47,10 @@ const SCHEMA = {
             type: "array",
             items: { type: "object", required: ["from", "rel", "to"], properties: { from: { type: "string" }, rel: { type: "string" }, to: { type: "string" }, fact: { type: "string" } } },
           },
+          profile: {
+            type: "array",
+            items: { type: "object", required: ["key", "period", "amount"], properties: { key: { type: "string", enum: [...PROFILE_KEYS] }, period: { type: "string", description: "YYYY-MM" }, amount: { type: "number" }, text: { type: "string" } } },
+          },
         },
       },
     },
@@ -53,6 +62,10 @@ const INSTRUCTIONS = `Du baust die Wissensbasis eines Menschen aus seinen Seiten
 - concepts: 10–25 Begriffe, unter denen man die Seite suchen würde — Synonyme, Oberbegriffe, deutsche UND englische Wörter, Abkürzungen ausgeschrieben, Fachbegriffe (z. B. "Bestelllink", "order link", "Publikation", "publication", "TYPO3", "Fluid-Template").
 - entities: die wichtigen Dinge der Seite — Systeme, Komponenten, Services, Projekte, Personen, Teams, Kunden, Prozesse, Fachbegriffe, Tickets (z. B. PROJ-123), Dokumente, Umgebungen (Test, Live …). Name so, wie er üblich heißt; aliases für andere Schreibweisen; summary ein Satz, was es ist.
 - relations: wie die Entitäten zusammenhängen (from/to: Namen aus entities; rel kurz, z. B. "nutzt", "gehört zu", "verantwortet", "läuft auf", "ersetzt", "dokumentiert"); fact: der Satz der Seite, der es belegt.
+- profile: nur bei Seiten über MEINE Finanzen (Kontoauszug eines Monats, Gehaltsabrechnung, Leistungsbescheid) — Kennzahlen über mich je Monat (period "YYYY-MM", amount in Euro, text: woraus, kurz):
+  - net_income: was in dem Monat an Einkommen kam — Lohn/Gehalt, Sozialleistungen (Kindergeld, Arbeitslosengeld, Wohngeld, Rente), regelmäßige Einkünfte (Honorar, Miete, Unterhalt). NICHT: Umbuchungen zwischen meinen eigenen Konten, Unterkonten, Spartöpfen, Pockets oder Aufladungen; Erstattungen und Rückbuchungen; Geld von Familie oder Freunden. Bei einem Monat, der noch läuft: keins.
+  - rent: die Miete, die ich in dem Monat gezahlt habe.
+  Sonst eine leere Liste.
 Nur, was auf der Seite steht — nichts erfinden. Willst oder kannst du eine Seite nicht auswerten, gib für sie summary "" und leere Listen zurück — antworte aber IMMER mit gültigem JSON, nur JSON, nach diesem Schema:
 ${JSON.stringify(SCHEMA)}`;
 
@@ -94,12 +107,18 @@ function promptOf(list: PageRow[]): string {
   return `${INSTRUCTIONS}\n\n${pages}`;
 }
 
-/** What Copilot made of a page, stored: its summary and concepts, its entities and relations (those before replaced). */
-function save(page: PageRow, x: Extracted["pages"][number]): void {
+/** What Copilot made of a page, stored: its summary and concepts, its entities and relations, what it says about you (those before replaced). */
+export function savePage(page: PageRow, x: Extracted["pages"][number]): void {
   const d = db();
   const now = new Date().toISOString();
   d.transaction(() => {
     d.prepare("delete from relations where page_id = ?").run(page.id);
+    d.prepare("delete from profile_facts where page_id = ?").run(page.id);
+    const fact = d.prepare("insert or replace into profile_facts (key, period, amount, text, page_id, at) values (?, ?, ?, ?, ?, ?)");
+    for (const f of x.profile ?? []) {
+      const amount = Number(f.amount);
+      if ((PROFILE_KEYS as readonly string[]).includes(f.key) && /^\d{4}-(0[1-9]|1[0-2])$/.test(String(f.period)) && Number.isFinite(amount) && amount > 0 && amount < 1e7) fact.run(f.key, f.period, Math.round(amount * 100) / 100, String(f.text ?? "").slice(0, 300), page.id, now);
+    }
     d.prepare("delete from entity_pages where page_id = ?").run(page.id);
     const concepts = [...new Set((x.concepts ?? []).map((c) => c.trim()).filter(Boolean))].slice(0, 40).join(", ");
     d.prepare("update pages set summary = ?, concepts = ?, compiled_version = ?, compiled_at = ? where id = ?").run(x.summary ?? "", concepts, page.version, now, page.id);
@@ -175,7 +194,7 @@ export function compilePages(maxBatches = 250): Promise<CompileResult> {
     const skip = (p: PageRow, why: string) => {
       skipped++;
       console.warn(`[knowledge compile] ${p.title}: ohne Auswertung übernommen (${why})`);
-      save(p, { id: p.id, summary: "", concepts: [], entities: [], relations: [] });
+      savePage(p, { id: p.id, summary: "", concepts: [], entities: [], relations: [] });
     };
     const one = async (list: PageRow[]): Promise<void> => {
       if (state.__knowledgeCompileStop) return;
@@ -186,7 +205,7 @@ export function compilePages(maxBatches = 250): Promise<CompileResult> {
         for (const p of list) {
           const x = byId.get(p.id);
           if (x) {
-            save(p, x);
+            savePage(p, x);
             pages++;
           } else missing.push(p);
         }

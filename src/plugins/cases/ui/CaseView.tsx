@@ -8,6 +8,7 @@ import { TodoSources } from "@/components/boards/TodoSources";
 import { GiroCode } from "@/components/GiroCode";
 import { caseBundleAction, caseOpAction } from "../block-actions";
 import type { CaseBundle, CaseOperation } from "../blocks";
+import { DebtFields, PartiesCard } from "./Parties";
 
 /**
  * A case's page — the custom view of the cases database's rows: what it is about and where it stands, the money and where to
@@ -60,20 +61,38 @@ export default function CaseView({ rowId }: { rowId: number }) {
   return (
     <div className="@container space-y-5" data-case-view>
       <header className="flex flex-wrap items-center gap-2">
-        <span className="rounded-md border border-zinc-200 px-2 py-0.5 font-mono text-xs dark:border-zinc-700">{d.label}</span>
-        {d.person && (
-          <Link href={d.person.href} className="ws-chip" data-kind="person">
-            {d.person.name}
-          </Link>
+        {d.manual ? (
+          <span className="rounded-md bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">{t("Own debt")}</span>
+        ) : (
+          <span className="rounded-md border border-zinc-200 px-2 py-0.5 font-mono text-xs dark:border-zinc-700">{d.label}</span>
         )}
-        {s?.party && <span className="text-sm text-zinc-500">{s.party}</span>}
+        {d.parties.creditor ? (
+          <Link href={d.parties.creditor.href} className="ws-chip" data-kind="person" title={t("Creditor")}>
+            {d.parties.creditor.name}
+          </Link>
+        ) : (
+          d.person && (
+            <Link href={d.person.href} className="ws-chip" data-kind="person">
+              {d.person.name}
+            </Link>
+          )
+        )}
+        {d.parties.collector && (
+          <span className="text-sm text-zinc-500">
+            {t("via")}{" "}
+            <Link href={d.parties.collector.href} className="hover:underline">
+              {d.parties.collector.name}
+            </Link>
+          </span>
+        )}
+        {!d.parties.creditor && s?.party && <span className="text-sm text-zinc-500">{s.party}</span>}
         <span className="ml-auto flex items-center gap-2">
           <select className="input w-auto" value={d.status} onChange={(e) => void run({ op: "status", status: e.target.value })} aria-label={t("Status")}>
             <option value="open">{t("Open")}</option>
             <option value="closed">{t("Closed")}</option>
             <option value="ignored">{t("Not a case")}</option>
           </select>
-          {d.canCompile && (
+          {d.canCompile && !d.manual && (
             <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void run({ op: "compile" })}>
               {busy ? "…" : s ? t("Sum up again") : t("Sum up")}
             </button>
@@ -84,8 +103,14 @@ export default function CaseView({ rowId }: { rowId: number }) {
       <div className="grid gap-x-8 gap-y-5 @2xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="space-y-5">
           <Card title={t("Where it stands")}>
-            {s?.summary ? <p className="text-sm">{s.summary}</p> : <Empty>{d.compiling ? t("Being summed up from its mails, letters and todos …") : d.canCompile ? t("Not summed up yet — Sum up reads its mails, letters and todos.") : t("With the LLM plugin the AI sums the case up.")}</Empty>}
-            {s && (
+            {d.manual ? (
+              <DebtFields d={d} run={run} />
+            ) : s?.summary ? (
+              <p className="text-sm">{s.summary}</p>
+            ) : (
+              <Empty>{d.compiling ? t("Being summed up from its mails, letters and todos …") : d.canCompile ? t("Not summed up yet — Sum up reads its mails, letters and todos.") : t("With the LLM plugin the AI sums the case up.")}</Empty>
+            )}
+            {s && !d.manual && (
               <dl className="grid grid-cols-2 gap-2 @lg:grid-cols-4">
                 {[
                   [t("Total"), euro(s.total)],
@@ -143,15 +168,8 @@ export default function CaseView({ rowId }: { rowId: number }) {
             </Card>
           )}
 
-          <Card title={t("Person")}>
-            <select className="input" value={d.person?.id ?? ""} onChange={(e) => void run({ op: "person", personId: e.target.value ? Number(e.target.value) : null })} aria-label={t("Person")}>
-              <option value="">{t("— nobody —")}</option>
-              {d.people.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+          <Card title={t("Parties")}>
+            <PartiesCard d={d} run={run} />
           </Card>
 
           <NoteCard note={d.note} onSave={(note) => run({ op: "note", note })} />

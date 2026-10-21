@@ -3,13 +3,13 @@ import { getPref, setPref } from "@/lib/prefs";
 import { isInstalled } from "@/plugins/state";
 import { withThem } from "./appointments";
 import { claimsOf, openCommitments, proposedClaims, proposedLinks, reviewClaim, reviewLink } from "./graph";
-import type { Circle, Person } from "./shared";
-import { contactsOf, getPerson, listPeople, namesOf, relationsOf, setCircle } from "./store";
+import type { Person } from "./shared";
+import { contactsOf, getPerson, listPeople, namesOf, relationsOf } from "./store";
 
 /**
  * The pulse of your people (the People plugin): when you were last in touch with each — their chat either way, a mail thread
  * with them, Teams, an appointment that's over — and who you haven't heard of for a while (the starred, family and friends);
- * the circle each is in by rule; the confident claims taken at once; who to compile again; and a brief before an appointment
+ * the confident claims taken at once; who to compile again; and a brief before an appointment
  * with someone. Server only.
  */
 
@@ -144,54 +144,6 @@ export function myNames(): string[] {
   return [...out].filter(Boolean);
 }
 
-const FAMILY = /\b(mutter|vater|mama|papa|eltern|bruder|schwester|geschwister|sohn|tochter|kind|onkel|tante|oma|opa|gro(ß|ss)(mutter|vater|eltern)|enkel\w*|cousine?|nichte|neffe|schwager|schwägerin|schwieger\w+|ehefrau|ehemann|mother|father|mum|mom|dad|sister|brother|son|daughter|aunt|uncle|grand\w+|cousin|niece|nephew|wife|husband)\b|\bmein(e)?\s+(frau|mann|partner(in)?)\b/i;
-const FRIENDS = /\b(freund(in)?|kumpel|bekannte?r?|friend|buddy|mitbewohner(in)?)\b/i;
-const WORK = /\b(kolleg(e|in)|chef(in)?|vorgesetzte?r?|teamleiter(in)?|kunde|kundin|auftraggeber(in)?|colleague|boss|manager|client)\b/i;
-const AUTHORITY = /(justiz|gericht|finanzamt|\.gov\b|bund\.de|landkreis|landratsamt|stadt-|rathaus|beitragsservice|jobcenter|arbeitsagentur|polizei|inkasso|krankenkasse|\baok\b|\btk\.de|rentenversicherung)/i;
-
-export type CircleContext = { me: string[]; teams?: Set<string>; cases?: Set<number> };
-
-/** Their circle by what Zeff knows for sure — "" when nothing says it (the AI decides then). */
-export function ruleCircle(p: Person, ctx: CircleContext): Circle | "" {
-  const rels = relationsOf(p.id).out.map((r) => r.rel);
-  if (rels.some((r) => FAMILY.test(r))) return "family";
-  if (ctx.cases?.has(p.id) || p.emails.some((m) => AUTHORITY.test(m.split("@")[1] ?? ""))) return "authorities";
-  // Your last name (not you): family.
-  const last = (n: string) => n.trim().split(/\s+/).at(-1)?.toLowerCase() ?? "";
-  const mine = ctx.me.filter((n) => n.includes(" ")).map(last);
-  if (p.name.trim().includes(" ") && !ctx.me.includes(p.name.toLowerCase()) && mine.includes(last(p.name))) return "family";
-  if (rels.some((r) => FRIENDS.test(r))) return "friends";
-  if (rels.some((r) => WORK.test(r)) || p.accounts.some((a) => a.kind === "jira") || namesOf(p).some((n) => ctx.teams?.has(n.toLowerCase()))) return "work";
-  return "";
-}
-
-/** Everyone's circle by rule (what you or the AI set stays). How many changed. */
-export function applyCircleRules(): number {
-  const d = getSqlite();
-  let teams = new Set<string>();
-  try {
-    teams = new Set((d.prepare("select distinct lower(sender_name) n from teams_messages where sender_name is not null").all() as { n: string }[]).map((r) => r.n));
-  } catch {
-    // no Teams kept
-  }
-  let cases = new Set<number>();
-  if (isInstalled("cases")) {
-    try {
-      cases = new Set((d.prepare("select distinct person_id id from cases where person_id is not null and status != 'ignored'").all() as { id: number }[]).map((r) => r.id));
-    } catch {
-      // no cases yet
-    }
-  }
-  const ctx: CircleContext = { me: myNames(), teams, cases };
-  let n = 0;
-  for (const p of listPeople()) {
-    if (p.circleSource === "manual" || p.circleSource === "ai") continue;
-    const c = ruleCircle(p, ctx);
-    if (c && setCircle(p.id, c, "rule")) n++;
-  }
-  return n;
-}
-
 // ---------------------------------------------------------------------------
 // The confident ones, and who to compile again
 // ---------------------------------------------------------------------------
@@ -284,12 +236,13 @@ export async function meetingBriefs(now = new Date()): Promise<MeetingBrief[]> {
 export const personForPulse = (id: number) => getPerson(id);
 
 /**
- * After each briefing (the People matching step): everyone's circle by rule, and — with the LLM plugin — the summaries that
- * are missing or out of date compiled in the background. How many circles changed and how many are compiled.
+ * After each briefing (the People matching step), with the LLM plugin: the contacts not placed yet — person or organisation,
+ * their circle — by the AI, and the summaries that are missing or out of date compiled in the background. How many changed
+ * and how many are compiled.
  */
 export async function afterBriefing(now = new Date()): Promise<{ circles: number; compiling: number }> {
-  const circles = applyCircleRules();
-  if (!isInstalled("llm")) return { circles, compiling: 0 };
+  if (!isInstalled("llm")) return { circles: 0, compiling: 0 };
+  const circles = (await (await import("./classify")).classifyContacts({ myName: myName() || undefined })).changed;
   const ids = staleForCompile(now, await lastContactsAll(listPeople(), now));
   if (!ids.length) return { circles, compiling: 0 };
   const { startCompile } = await import("./compile");

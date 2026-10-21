@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { t } from "@/lib/i18n/server";
-import { getPref } from "@/lib/prefs";
 import { isInstalled } from "@/plugins/state";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { DebtView } from "./DebtView";
@@ -19,6 +18,10 @@ export default async function DebtOverviewPage() {
   await connection();
   if (!isInstalled("cases")) return <PluginNotInstalled id="cases" />;
   const { debtOverview } = await import("@/plugins/cases/bank");
-  const income = getPref<number | null>("cases.income", null);
-  return <DebtView overview={debtOverview({ income })} today={new Date().toISOString().slice(0, 10)} />;
+  // Your income as the knowledge read it off your statements, read again.
+  await (await import("@/plugins/cases/income")).refreshIncome();
+  const parties = await import("@/plugins/cases/parties");
+  parties.assignAllParties();
+  const contacts = isInstalled("people") ? (await import("@/plugins/people/store")).listPeople().map((p) => ({ id: p.id, name: p.name, kind: p.kind })) : [];
+  return <DebtView overview={debtOverview()} today={new Date().toISOString().slice(0, 10)} contacts={contacts} suggestions={parties.debtSuggestions()} />;
 }

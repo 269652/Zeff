@@ -6,7 +6,7 @@ import { listTodos } from "@/lib/boards/store";
 import { errorMessage } from "@/lib/errors";
 import { emitChange } from "@/lib/events";
 import { isCircle, type Person, type PersonSummary } from "./shared";
-import { contactsOf, datesOf, getPerson, listPeople, namesOf, namesThem, relationsOf, setCircle, setCompiled } from "./store";
+import { contactsOf, datesOf, getPerson, listPeople, namesOf, namesThem, relationsOf, setCircle, setCompiled, setKind } from "./store";
 
 /**
  * Compile (the People plugin): a summary of each person from everything Zeff has on them — what
@@ -15,7 +15,7 @@ import { contactsOf, datesOf, getPerson, listPeople, namesOf, namesThem, relatio
  * someone Zeff knows nothing about isn't asked about. Server only.
  */
 
-export type CompileAnswer = { connection?: string; keyFacts?: string[]; funFacts?: string[]; circle?: string };
+export type CompileAnswer = { connection?: string; keyFacts?: string[]; funFacts?: string[]; circle?: string; kind?: string };
 export type CompileDeps = { ask: (prompt: string) => Promise<CompileAnswer> };
 export type CompileOne = { state: "compiled" | "nothing-known" | "fresh"; summary?: PersonSummary };
 export type CompileAllResult = { compiled: number; skipped: number; failed: string[] };
@@ -30,6 +30,7 @@ const SCHEMA = {
     connection: { type: "string", description: "Was euch verbindet: woher ihr euch kennt, woran ihr zusammen arbeitet (Tickets, Projekte), wie ihr Kontakt habt — 2–4 Sätze." },
     keyFacts: { type: "array", items: { type: "string" }, description: "Die wichtigen Fakten über die Person: Rolle, Zuständigkeiten, wie man sie erreicht, Absprachen — je ein kurzer Satz, höchstens 8." },
     funFacts: { type: "array", items: { type: "string" }, description: "Persönliches und Nettes: Hobbys, Geburtstag, Vorlieben, Anekdoten — je ein kurzer Satz, höchstens 6; leer, wenn die Daten nichts hergeben." },
+    kind: { type: "string", enum: ["person", "organization"], description: "person: ein Mensch. organization: Firma, Bank, Behörde, Gericht, Amt, Inkasso, Kanzlei, Verein, Shop, Dienst." },
     circle: { type: "string", enum: ["family", "friends", "work", "authorities", "services", ""], description: "Was die Person für mich ist: family (Familie, Verwandte, Partner), friends (Freunde, Bekannte), work (Kollegen, Kunden, beruflich), authorities (Behörden, Gerichte, Gläubiger, Inkasso, Ämter), services (Dienstleister, Handwerker, Ärzte, Vermieter, Shops) — leer, wenn die Daten es nicht klar sagen." },
   },
 };
@@ -147,6 +148,7 @@ export async function compilePerson(id: number, opts: { ask?: CompileDeps["ask"]
   setCompiled(id, summary);
   // Their circle, as the AI read it (what you chose stays).
   if (a?.circle && isCircle(a.circle)) setCircle(id, a.circle, "ai");
+  if (a?.kind === "person" || a?.kind === "organization") setKind(id, a.kind, "ai");
   return { state: "compiled", summary };
 }
 

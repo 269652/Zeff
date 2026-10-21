@@ -14,6 +14,8 @@ export async function importStatementAction(csv: string, fileName: string): Prom
     const bank = await import("@/plugins/cases/bank");
     const m = bank.matchPayments();
     const w = bank.overdueWarnings(new Date().toISOString().slice(0, 10));
+    // The knowledge reads the new months (and your income in them) — synced and compiled in the background.
+    if (r.added && isInstalled("knowledge")) void import("@/plugins/knowledge/client").then((k) => k.knowledgeSync()).catch(() => {});
     return { ok: true, message: t("{added} new bookings of {total} — {matched} payments matched, {warned} warnings", { added: r.added, total: r.total, matched: m.matched, warned: w }) };
   } catch (e) {
     return { ok: false, error: errorMessage(e) };
