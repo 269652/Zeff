@@ -36,9 +36,9 @@ function personOf(r: Row): CardPerson {
 
 function Section({ title, children, aside }: { title: string; children: ReactNode; aside?: ReactNode }) {
   return (
-    <section className="card space-y-2 p-4">
+    <section className="card space-y-3 p-4">
       <div className="flex items-baseline gap-2">
-        <h2 className="flex-1 text-xs font-semibold text-zinc-500 uppercase">{title}</h2>
+        <h2 className="flex-1 text-sm font-semibold text-zinc-800 dark:text-zinc-200">{title}</h2>
         {aside}
       </div>
       {children}
@@ -52,6 +52,7 @@ export default function PeopleView({ rows, openRow }: AppViewProps) {
   const [o, setO] = useState<PeopleOverview | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [name, setName] = useState("");
+  const [adding, setAdding] = useState(false);
   const [days, setDays] = useState("0");
   const [circle, setCircle] = useState<Circle | "" | "none">("");
   const [only, setOnly] = useState<Only>("");
@@ -134,6 +135,8 @@ export default function PeopleView({ rows, openRow }: AppViewProps) {
     </button>
   );
   const toCheck = o.identities.length + o.claims.length + o.links.length + o.stale.length + o.owed.length + o.dates.length;
+  // How many kinds there are to check: just one — it is open.
+  const kinds = [o.identities.length, o.owed.length, o.claims.length + o.links.length, o.stale.length, o.dates.length].filter((n) => n > 0).length;
   const labels = circleLabels(t);
   const inCircle = (c: Circle | "none") => all.filter((p) => (p.personId ? (c === "none" ? !o.cards[p.personId]?.circle : o.cards[p.personId]?.circle === c) : false)).length;
   const none = inCircle("none");
@@ -149,57 +152,77 @@ export default function PeopleView({ rows, openRow }: AppViewProps) {
     { id: "todos", label: t("With todos") },
     { id: "soon", label: t("Dates soon") },
   ];
-  const pill = (on: boolean) => `rounded-full px-2.5 py-0.5 text-sm ${on ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"}`;
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]" data-app-view="people">
       <div className="min-w-0 space-y-3">
-        <div className="flex flex-wrap items-center gap-1" role="group" aria-label={t("Circle")}>
-          {circles.map((c) => (
-            <button key={c.id || "all"} type="button" aria-pressed={circle === c.id} className={pill(circle === c.id)} onClick={() => setCircle(c.id)}>
-              {c.label} <span className="text-xs opacity-60">{c.n}</span>
-            </button>
-          ))}
-          <span className="flex-1" />
-          <form
-            className="flex gap-1"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (!name.trim()) return;
-              await run({ tool: "add", name }, "add");
-              setName("");
-            }}
-          >
-            <input className="input w-40" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("Name…")} aria-label={t("New person")} />
-            <button className="btn btn-primary btn-sm" disabled={busy !== null}>
-              + {t("Person")}
-            </button>
-          </form>
-        </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex flex-wrap gap-1" role="group" aria-label={t("Filter")}>
-            {onlies.map((f) => (
-              <button key={f.id} type="button" aria-pressed={only === f.id} className={`${pill(only === f.id)} text-xs`} onClick={() => setOnly(only === f.id ? "" : f.id)}>
-                {f.label}
+          <div className="inline-flex flex-wrap items-center gap-0.5 rounded-lg bg-zinc-100 p-0.5 dark:bg-zinc-800/70" role="group" aria-label={t("Circle")}>
+            {circles.map((c) => (
+              <button
+                key={c.id || "all"}
+                type="button"
+                aria-pressed={circle === c.id}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium transition ${circle === c.id ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-950 dark:text-zinc-100" : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"}`}
+                onClick={() => setCircle(c.id)}
+              >
+                {c.label}
+                <span className="text-xs text-zinc-400 tabular-nums">{c.n}</span>
               </button>
             ))}
           </div>
           <span className="flex-1" />
-          <select className="input w-56 text-sm" value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label={t("Sort")}>
+          <select className="input w-auto py-1 text-sm" value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label={t("Sort")}>
             <option value="name">{t("By name")}</option>
             <option value="quiet">{t("Longest without contact first")}</option>
             <option value="recent">{t("Last in touch first")}</option>
             <option value="next">{t("Next date first")}</option>
             <option value="todos">{t("Most todos first")}</option>
           </select>
+          {adding ? (
+            <form
+              className="flex gap-1"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!name.trim()) return;
+                await run({ tool: "add", name }, "add");
+                setName("");
+                setAdding(false);
+              }}
+            >
+              <input className="input w-44 py-1 text-sm" autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Escape" && setAdding(false)} placeholder={t("Name…")} aria-label={t("New person")} />
+              <button className="btn btn-primary btn-sm" disabled={busy !== null || !name.trim()}>
+                {t("Add")}
+              </button>
+            </form>
+          ) : (
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => setAdding(true)}>
+              + {t("Person")}
+            </button>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <span className="text-xs text-zinc-500 tabular-nums">
+            {people.length === rows.length ? (o.count === 1 ? t("1 person") : t("{n} people", { n: o.count })) : t("{n} of {total}", { n: people.length, total: rows.length })}
+          </span>
+          <span className="h-3 w-px bg-zinc-200 dark:bg-zinc-700" aria-hidden />
+          <div className="flex flex-wrap gap-1" role="group" aria-label={t("Filter")}>
+            {onlies.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                aria-pressed={only === f.id}
+                className={`rounded-full px-2.5 py-0.5 text-xs ring-1 ring-inset transition ${only === f.id ? "bg-zinc-900 text-white ring-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:ring-zinc-100" : "text-zinc-600 ring-zinc-200 hover:ring-zinc-300 dark:text-zinc-300 dark:ring-zinc-700"}`}
+                onClick={() => setOnly(only === f.id ? "" : f.id)}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <p className="text-xs text-zinc-500">
-          {people.length === rows.length ? (o.count === 1 ? t("1 person") : t("{n} people", { n: o.count })) : t("{n} of {total}", { n: people.length, total: rows.length })}
-        </p>
-
         {people.length ? (
-          <ul className="grid items-start gap-2 sm:grid-cols-2 2xl:grid-cols-3">
+          <ul className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-3">
             {people.map((p) => (
               <li key={p.id}>
                 <PersonCard p={p} info={p.personId ? o.cards[p.personId] : undefined} now={now} soonUntil={in30} weeks={weeks} open={() => openRow(p.id)} run={run} />
@@ -239,10 +262,10 @@ export default function PeopleView({ rows, openRow }: AppViewProps) {
 
         {toCheck > 0 && (
           <Section
-            title={`${t("To check")} (${toCheck})`}
+            title={t("To check")}
             aside={
-              <Link href="/review" className="text-xs text-zinc-500 hover:underline">
-                {t("All in the review queue")} →
+              <Link href="/review" className="text-xs text-zinc-500 hover:text-zinc-800 hover:underline dark:hover:text-zinc-200">
+                {t("{n} in the review queue", { n: toCheck })} →
               </Link>
             }
           >
@@ -251,9 +274,9 @@ export default function PeopleView({ rows, openRow }: AppViewProps) {
                 {busy === "confident" ? "…" : t("Take all from 90 % ({n})", { n: o.confident })}
               </button>
             )}
-            <div className="max-h-[28rem] space-y-3 overflow-y-auto pr-1">
+            <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
               {o.identities.length > 0 && (
-                <Group title={t("Same person?")}>
+                <Group title={t("Same person?")} n={o.identities.length} open={kinds === 1}>
                   {o.identities.map((s) => (
                     <Item key={s.id} detail={`${s.evidence} · ${Math.round(s.confidence * 100)}%`} verdict={<Verdict onYes={() => run({ tool: "suggestion", id: s.id, accept: true }, `s${s.id}`)} onNo={() => run({ tool: "suggestion", id: s.id, accept: false }, `s${s.id}`)} />}>
                       {s.text}
@@ -262,16 +285,12 @@ export default function PeopleView({ rows, openRow }: AppViewProps) {
                 </Group>
               )}
               {o.owed.length > 0 && (
-                <Group title={t("Open commitments")}>
+                <Group title={t("Open commitments")} n={o.owed.length} open={kinds === 1}>
                   {o.owed.map((c) => (
                     <Item
                       key={c.id}
                       detail={`${c.direction === "mine" ? t("you owe") : t("they owe")}${c.due ? ` · ${c.due}` : ""}`}
-                      verdict={
-                        <button type="button" className="btn btn-sm" onClick={() => void run({ tool: "claim", id: c.id, action: "done" }, `c${c.id}`)}>
-                          {t("Done")}
-                        </button>
-                      }
+                      verdict={<Verdict yes={t("Done")} onYes={() => run({ tool: "claim", id: c.id, action: "done" }, `c${c.id}`)} />}
                     >
                       {person(c.personId, c.person)}: {c.text}
                     </Item>
@@ -279,7 +298,7 @@ export default function PeopleView({ rows, openRow }: AppViewProps) {
                 </Group>
               )}
               {(o.claims.length > 0 || o.links.length > 0) && (
-                <Group title={t("What the AI read")}>
+                <Group title={t("What the AI read")} n={o.claims.length + o.links.length} open={kinds === 1}>
                   {o.claims.map((c) => (
                     <Item key={`c${c.id}`} detail={`${c.evidence ? `“${c.evidence}” · ` : ""}${Math.round(c.confidence * 100)}%`} verdict={<Verdict onYes={() => run({ tool: "claim", id: c.id, action: "confirm" }, `c${c.id}`)} onNo={() => run({ tool: "claim", id: c.id, action: "reject" }, `c${c.id}`)} />}>
                       {person(c.personId, c.person)}: {c.text}
@@ -293,7 +312,7 @@ export default function PeopleView({ rows, openRow }: AppViewProps) {
                 </Group>
               )}
               {o.stale.length > 0 && (
-                <Group title={t("Still true?")}>
+                <Group title={t("Still true?")} n={o.stale.length} open={kinds === 1}>
                   {o.stale.map((c) => (
                     <Item key={c.id} verdict={<Verdict yes={t("Still true")} no={t("Outdated")} onYes={() => run({ tool: "claim", id: c.id, action: "recheck" }, `c${c.id}`)} onNo={() => run({ tool: "claim", id: c.id, action: "reject" }, `c${c.id}`)} />}>
                       {person(c.personId, c.person)}: {c.text}
@@ -302,7 +321,7 @@ export default function PeopleView({ rows, openRow }: AppViewProps) {
                 </Group>
               )}
               {o.dates.length > 0 && (
-                <Group title={t("Dates found")}>
+                <Group title={t("Dates found")} n={o.dates.length} open={kinds === 1}>
                   {o.dates.map((d) => (
                     <Item key={d.id} detail={d.source} verdict={<Verdict onYes={() => run({ tool: "dateConfirm", id: d.id }, `d${d.id}`)} onNo={() => run({ tool: "dateDelete", id: d.id }, `d${d.id}`)} />}>
                       {person(d.personId, d.person)}: {d.text}
@@ -315,7 +334,13 @@ export default function PeopleView({ rows, openRow }: AppViewProps) {
         )}
 
         {(o.suggestions.persons.length > 0 || o.suggestions.chats.length > 0 || o.suggestions.error) && (
-          <Section title={t("Suggestions")}>
+          <details className="card group p-4">
+            <summary className="flex cursor-pointer list-none items-baseline gap-2 text-sm font-semibold text-zinc-800 select-none dark:text-zinc-200">
+              <span className="flex-1">{t("Suggestions")}</span>
+              <span className="text-xs font-normal text-zinc-400">{t("{n} to take over", { n: o.suggestions.persons.length + o.suggestions.chats.length })}</span>
+              <span className="text-zinc-400 transition group-open:rotate-90" aria-hidden>›</span>
+            </summary>
+            <div className="mt-3 space-y-3">
             {o.suggestions.error && <p className="text-xs text-amber-700 dark:text-amber-400">{t("Knowledge: {error}", { error: o.suggestions.error })}</p>}
             {o.suggestions.persons.length > 0 && (
               <div className="space-y-1">
@@ -345,12 +370,16 @@ export default function PeopleView({ rows, openRow }: AppViewProps) {
                 </ul>
               </div>
             )}
-          </Section>
+            </div>
+          </details>
         )}
 
         <details className="card group p-4" open={running || undefined}>
-          <summary className="cursor-pointer text-xs font-semibold text-zinc-500 uppercase select-none">{t("Tools")}</summary>
-          <div className="mt-3 flex flex-col gap-2">
+          <summary className="flex cursor-pointer list-none items-baseline gap-2 text-sm font-semibold text-zinc-800 select-none dark:text-zinc-200">
+            <span className="flex-1">{t("Tools and settings")}</span>
+            <span className="text-zinc-400 transition group-open:rotate-90" aria-hidden>›</span>
+          </summary>
+          <div className="mt-3 grid gap-2 [&>.btn]:justify-start">
             {tool("import", t("Import from context (AI)"), { tool: "import" }, t("The AI goes through the last 14 days of your mails, WhatsApp and Teams and makes profiles of the people in them."), true)}
             {o.progress.dates ? (
               <p className="text-sm text-zinc-500">
@@ -395,40 +424,54 @@ export default function PeopleView({ rows, openRow }: AppViewProps) {
   );
 }
 
-function Group({ title, children }: { title: string; children: ReactNode }) {
+/** A kind of thing to check: its name and count, folded (open when it is the only kind). */
+function Group({ title, n, open, children }: { title: string; n: number; open?: boolean; children: ReactNode }) {
   return (
-    <div className="space-y-1.5">
-      <h3 className="text-xs text-zinc-500">{title}</h3>
-      <ul className="space-y-2">{children}</ul>
-    </div>
+    <details className="group/g py-2 first:pt-0 last:pb-0" open={open}>
+      <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-zinc-700 select-none dark:text-zinc-300">
+        <span className="text-zinc-400 transition group-open/g:rotate-90" aria-hidden>›</span>
+        <span className="flex-1">{title}</span>
+        <span className="rounded-full bg-zinc-100 px-1.5 text-xs text-zinc-600 tabular-nums dark:bg-zinc-800 dark:text-zinc-300">{n}</span>
+      </summary>
+      <ul className="mt-2 max-h-80 space-y-2.5 overflow-y-auto pr-1">{children}</ul>
+    </details>
   );
 }
 
 /** One thing to check: what it says, where it's from (small), the buttons under it — fits the narrow column. */
 function Item({ children, detail, verdict }: { children: ReactNode; detail?: string; verdict: ReactNode }) {
   return (
-    <li className="space-y-1 text-sm">
-      <p className="min-w-0">{children}</p>
-      {detail && (
-        <p className="truncate text-xs text-zinc-500" title={detail}>
-          {detail}
-        </p>
-      )}
+    <li className="flex items-start gap-2 text-sm">
+      <div className="min-w-0 flex-1">
+        <p className="line-clamp-3">{children}</p>
+        {detail && (
+          <p className="truncate text-xs text-zinc-500" title={detail}>
+            {detail}
+          </p>
+        )}
+      </div>
       {verdict}
     </li>
   );
 }
 
-function Verdict({ onYes, onNo, yes, no }: { onYes: () => unknown; onNo: () => unknown; yes?: string; no?: string }) {
+function Verdict({ onYes, onNo, yes, no }: { onYes: () => unknown; onNo?: () => unknown; yes?: string; no?: string }) {
   const t = useT();
+  const btn = "flex size-7 items-center justify-center rounded-md ring-1 ring-inset transition";
   return (
     <span className="flex shrink-0 gap-1">
-      <button type="button" className="btn btn-primary btn-sm" onClick={() => void onYes()}>
-        {yes ?? t("Right")}
+      <button type="button" className={`${btn} bg-indigo-600 text-white ring-indigo-600 hover:bg-indigo-700`} title={yes ?? t("Right")} aria-label={yes ?? t("Right")} onClick={() => void onYes()}>
+        <svg viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="m3.5 8.5 3 3 6-7" />
+        </svg>
       </button>
-      <button type="button" className="btn btn-sm" onClick={() => void onNo()}>
-        {no ?? t("Wrong")}
-      </button>
+      {onNo && (
+        <button type="button" className={`${btn} text-zinc-500 ring-zinc-200 hover:bg-zinc-100 hover:text-zinc-800 dark:ring-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-100`} title={no ?? t("Wrong")} aria-label={no ?? t("Wrong")} onClick={() => void onNo()}>
+          <svg viewBox="0 0 16 16" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+            <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
+          </svg>
+        </button>
+      )}
     </span>
   );
 }

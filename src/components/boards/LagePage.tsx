@@ -104,7 +104,8 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
           <BoardRunControls running={running} phase={live?.phase ?? null} since={live?.since ?? null} provider={live?.provider ?? aiLabel} presync={presync} />
           {/* The Lage's filter chips (from the tickets beside it) and its lede. */}
           {part === "tickets" && <div id="todos-filter-slot" />}
-          {shown?.result?.lede && (
+          {/* The briefing's text: on the Tickets tab only — the todos speak for themselves. */}
+          {part === "tickets" && shown?.result?.lede && (
             <section className="rounded-lg border border-zinc-200 bg-zinc-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">
               <h2 className="mb-1 text-xs font-semibold tracking-wide text-zinc-500">{t("Briefing")}</h2>
               <p className="text-[13px] leading-relaxed text-zinc-700 dark:text-zinc-300">{shown.result.lede}</p>
