@@ -84,22 +84,32 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
         <>
           <WorkFollow active={busy.length > 0} />
           {part === "todos" && <ViewTabs view="lage" />}
-          <div className="space-y-1">
-          <h1 className="text-lg font-semibold">{part === "tickets" ? t("Tickets") : t("Todos")}</h1>
+          <div className="space-y-2">
+          <h1 className="text-xl font-semibold tracking-tight">{part === "tickets" ? t("Tickets") : t("Todos")}</h1>
           {shown && (
-            <p className="flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-xs text-zinc-400">
-              <span>{t("As of: {when}", { when: when(shown.finishedAt ?? shown.startedAt) })}</span>
-              {shown.model && <span>{shown.model}</span>}
-              {shown.durationMs ? <span>{minutes(shown.durationMs)}</span> : null}
-              {shown.costUsd != null && <span>≈ {formatUsd(shown.costUsd)}</span>}
-              <span>{analyzed === 1 ? t("1 ticket analyzed") : t("{n} tickets analyzed", { n: analyzed })}</span>
-            </p>
+            <>
+              <p className="text-xs text-zinc-500">{t("As of: {when}", { when: when(shown.finishedAt ?? shown.startedAt) })}</p>
+              <p className="flex flex-wrap gap-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+                {[analyzed === 1 ? t("1 ticket analyzed") : t("{n} tickets analyzed", { n: analyzed }), shown.model, shown.durationMs ? minutes(shown.durationMs) : null, shown.costUsd != null ? `≈ ${formatUsd(shown.costUsd)}` : null]
+                  .filter(Boolean)
+                  .map((x) => (
+                    <span key={x} className="rounded-md bg-zinc-100 px-1.5 py-0.5 dark:bg-zinc-800">
+                      {x}
+                    </span>
+                  ))}
+              </p>
+            </>
           )}
           </div>
           <BoardRunControls running={running} phase={live?.phase ?? null} since={live?.since ?? null} provider={live?.provider ?? aiLabel} presync={presync} />
           {/* The Lage's filter chips (from the tickets beside it) and its lede. */}
           {part === "tickets" && <div id="todos-filter-slot" />}
-          {shown?.result?.lede && <p className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{shown.result.lede}</p>}
+          {shown?.result?.lede && (
+            <section className="rounded-lg border border-zinc-200 bg-zinc-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">
+              <h2 className="mb-1 text-xs font-semibold tracking-wide text-zinc-500">{t("Briefing")}</h2>
+              <p className="text-[13px] leading-relaxed text-zinc-700 dark:text-zinc-300">{shown.result.lede}</p>
+            </section>
+          )}
           {failed && (
             <div role="alert" className="alert-error text-sm">
               {t("The last run ({when}) failed: {error}", { when: when(failed.startedAt), error: failed.error ?? "" })}

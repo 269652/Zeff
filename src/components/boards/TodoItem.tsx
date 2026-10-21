@@ -20,7 +20,7 @@ import type { TicketCard } from "@/lib/jira/ticket-card-shared";
 import { isChatFolder } from "@/lib/mail/shared";
 import { CopyButton } from "../CopyButton";
 import { HoverCard } from "../HoverCard";
-import { BookIcon, SparkIcon, ToBottomIcon, ToTopIcon } from "../icons";
+import { BookIcon, FlagIcon, SparkIcon, ToBottomIcon, ToTopIcon } from "../icons";
 import { usePluginOn } from "../PluginFlags";
 import { entitiesFor, pagesFor } from "@/plugins/knowledge/shared";
 import { useTodoDisplayOff } from "@/components/PluginFlags";
@@ -233,29 +233,39 @@ export function TodoItem({
   return (
     <li
       id={anchor ? `todo-${todo.id}` : undefined}
-      className={`group relative flex scroll-mt-24 items-start gap-2 rounded target:bg-amber-50 dark:target:bg-amber-950/40 ${asking ? "-mx-2 bg-amber-50 px-2 py-1.5 ring-1 ring-amber-300 dark:bg-amber-950/40 dark:ring-amber-800" : suggested ? "-mx-2 bg-zinc-100/80 px-2 py-1.5 ring-1 ring-zinc-200 dark:bg-zinc-800/40 dark:ring-zinc-700" : reported ? "-mx-2 bg-emerald-50 px-2 py-1.5 ring-1 ring-emerald-300 dark:bg-emerald-950/30 dark:ring-emerald-800" : running || doing ? "-mx-2 bg-indigo-50 px-2 py-1.5 ring-1 ring-indigo-200 dark:bg-indigo-950/40 dark:ring-indigo-900" : isFresh ? "-mx-2 bg-sky-50/80 px-2 py-1.5 ring-1 ring-sky-100 dark:bg-sky-950/30 dark:ring-sky-900/60" : todo.deferred && !closed ? "opacity-60 hover:opacity-100" : ""}`}
+      className={`group relative flex scroll-mt-24 items-start gap-3 max-sm:flex-wrap max-sm:gap-y-1 rounded-lg px-3 py-2.5 transition-colors target:bg-amber-50 dark:target:bg-amber-950/40 ${asking ? "bg-amber-50 ring-1 ring-amber-300 dark:bg-amber-950/40 dark:ring-amber-800" : suggested ? "bg-zinc-100/80 ring-1 ring-zinc-200 dark:bg-zinc-800/40 dark:ring-zinc-700" : reported ? "bg-emerald-50 ring-1 ring-emerald-300 dark:bg-emerald-950/30 dark:ring-emerald-800" : running || doing ? "bg-indigo-50 ring-1 ring-indigo-200 dark:bg-indigo-950/40 dark:ring-indigo-900" : isFresh ? "bg-sky-50/80 ring-1 ring-sky-100 dark:bg-sky-950/30 dark:ring-sky-900/60" : todo.deferred && !closed ? "opacity-60 hover:bg-zinc-50 hover:opacity-100 dark:hover:bg-zinc-800/40" : "hover:bg-zinc-50 dark:hover:bg-zinc-800/40"}`}
       onMouseEnter={fresh ? markSeen : undefined}
       title={asking ? t("The agent is waiting for you: {question}", { question: asking }) : running ? t("Being worked on (worker or agent)") : undefined}
     >
+      <span className="relative mt-px flex size-[18px] shrink-0">
       <input
         type="checkbox"
-        className={`mt-1 size-4 shrink-0 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 ${suggested ? "accent-zinc-400" : "accent-indigo-600"}`}
+        className={`peer size-[18px] shrink-0 cursor-pointer appearance-none rounded-full border-[1.5px] bg-white transition hover:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/40 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-900 ${suggested ? "border-zinc-400 checked:border-zinc-400 checked:bg-zinc-400" : "border-zinc-300 checked:border-indigo-600 checked:bg-indigo-600 dark:border-zinc-600"}`}
         checked={status === "done" || suggested}
         disabled={running || doing}
         title={running || doing ? t("Being worked on — once the run is done") : suggested ? suggestedTip : undefined}
         onChange={() => set(closed ? "open" : "done")}
         aria-label={closed ? t("{ref} open again", { ref: todo.ref }) : t("{ref} done", { ref: todo.ref })}
       />
+      <svg viewBox="0 0 16 16" className="pointer-events-none absolute inset-0 m-auto size-3 text-white opacity-0 peer-checked:opacity-100" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="m3.5 8.5 3 3 6-7" />
+      </svg>
+      </span>
       <div className="min-w-0 flex-1 text-sm" data-hover-column>
         <span
-          className={`block pr-28 ${
+          className={`block leading-snug ${
             closed
               ? "text-zinc-400 line-through"
               : todo.owner === "other"
                 ? "text-zinc-600 italic dark:text-zinc-300"
-                : ""
+                : "font-medium text-zinc-900 dark:text-zinc-100"
           }`}
         >
+          {todo.flaggedAt && !closed && (
+            <span className="mr-1 inline-flex align-[-2px] text-red-600 dark:text-red-400" title={t("important")}>
+              <FlagIcon filled className="size-3.5" />
+            </span>
+          )}
           {asking && (
             <span className="mr-1 font-bold text-amber-600 not-italic dark:text-amber-400" title={t("The agent is waiting for you: {question}", { question: asking })} aria-label={t("Waiting for you")}>
               ❗
@@ -270,8 +280,8 @@ export function TodoItem({
           <Linked text={todo.text} cards={cards} mrs={todo.links?.mrs} />
         </span>
         {status === "dismissed" && <span className="ml-2 rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-medium text-zinc-500 uppercase dark:bg-zinc-800 dark:text-zinc-400">{t("Dismissed")}</span>}
-        <span className="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-zinc-400">
-          <CopyButton text={todo.ref} className="font-mono hover:text-indigo-600 hover:underline dark:hover:text-indigo-400" title={t("Copy “{text}” — for Copilot / Claude Code", { text: todo.ref })}>
+        <span className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+          <CopyButton text={todo.ref} className="font-mono text-zinc-400 hover:text-indigo-600 hover:underline dark:hover:text-indigo-400" title={t("Copy “{text}” — for Copilot / Claude Code", { text: todo.ref })}>
             {todo.ref}
           </CopyButton>
           {/* Linked to more than one ticket (the same thing on both): all of them, the main one first. */}
@@ -311,7 +321,6 @@ export function TodoItem({
             </>
           )}
           {todo.path && <> · {t("Path “{path}”", { path: todo.path })}</>}
-          {todo.flaggedAt && !closed && <span className="font-medium text-red-600 dark:text-red-400"> · {t("important")}</span>}
           {reported && todo.workerDone && (
             <span
               className="font-medium text-emerald-700 dark:text-emerald-400"
@@ -336,7 +345,6 @@ export function TodoItem({
                 · 🏖 {t("{name} is away until {date}", { name: a.name, date: new Date(a.until).toLocaleDateString() })}
               </span>
             ))}
-          {!closed && <TodoQuickButtons todoId={todo.id} panel={quick} onToggle={setQuick} canReply={todo.owner === "me" && [...todo.refs, ...todo.mailRefs].some((r) => r.startsWith("mail:") || r.startsWith("teams:"))} canPay={!todo.ops.some((o) => o.type === "bank-transfer") && (amountIn(todo.text) != null || ibansIn(`${todo.text} ${todo.note ?? ""}`).length > 0)} aiDisabled={!workOn ? t("Code isn't installed (Menu → Plugins)") : running || doing ? t("Being worked on — once the run is done") : undefined} />}
         </span>
         <TodoQuickPanel todoId={todo.id} todoRef={todo.ref} panel={closed && quick !== "time" ? null : quick} onClose={() => setQuick(null)} time={todo.time} />
         {todo.note ? (
@@ -359,7 +367,7 @@ export function TodoItem({
         {todo.lastError && !closed && !running && !doing && <LastError text={todo.lastError} run={todo.lastErrorRun} />}
         {/* Its toggles in one row — context, proposed actions; each unfolds its area below the row, stacked. */}
         {((context.items.length > 0 && areaOn(off, "context")) || proposed || foldable || knowledge) && (
-          <span className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+          <span className="mt-2 flex flex-wrap items-center gap-1.5">
             <ContextToggle
               items={areaOn(off, "context") ? context.items : []}
               unread={context.unread}
@@ -519,7 +527,18 @@ export function TodoItem({
         <TodoPlan t={{ planned: todo.planned, status }} />
       </div>
       {/* Its icons in one container in the top right corner, out of the row — so the content below takes the whole width; about 8px between the glyphs (each button is 28px wide, the -mx pulls them together). */}
-      <div className="absolute top-1 right-1 flex items-center [&>.icon-btn]:-mx-0.5">
+      <div className={`absolute top-1.5 right-2 flex items-center gap-0.5 rounded-lg bg-white/95 p-0.5 shadow-sm ring-1 ring-zinc-200 backdrop-blur transition dark:bg-zinc-900/95 dark:ring-zinc-700 max-sm:static max-sm:order-last max-sm:ml-[30px] max-sm:basis-full max-sm:justify-start max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none max-sm:ring-0 max-sm:[&>*]:!opacity-100 ${quick ? "" : "sm:pointer-events-none sm:opacity-0 sm:group-has-[:focus-visible]:pointer-events-auto sm:group-has-[:focus-visible]:opacity-100 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100"}`}>
+        {!closed && (
+          <TodoQuickButtons
+            todoId={todo.id}
+            panel={quick}
+            onToggle={setQuick}
+            canReply={todo.owner === "me" && [...todo.refs, ...todo.mailRefs].some((r) => r.startsWith("mail:") || r.startsWith("teams:"))}
+            canPay={!todo.ops.some((o) => o.type === "bank-transfer") && (amountIn(todo.text) != null || ibansIn(`${todo.text} ${todo.note ?? ""}`).length > 0)}
+            aiDisabled={!workOn ? t("Code isn't installed (Menu → Plugins)") : running || doing ? t("Being worked on — once the run is done") : undefined}
+          />
+        )}
+        {!closed && <span className="mx-0.5 h-4 w-px bg-zinc-200 dark:bg-zinc-700" aria-hidden />}
         {!closed && todo.ticket && <WorkedOnButton todoId={todo.id} todoRef={todo.ref} />}
         {!closed && <FlagButton todoId={todo.id} todoRef={todo.ref} flagged={!!todo.flaggedAt} />}
         {!closed && (

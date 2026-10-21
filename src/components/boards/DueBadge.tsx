@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { regenerateRecurringAction, setTodoDueAction, setTodoRecurrenceAction } from "@/plugins/todos/server-actions";
-import { dueText, dueTone } from "@/lib/boards/due-shared";
+import { duePill, dueText } from "@/lib/boards/due-shared";
 import { formatDate } from "@/lib/format";
 import { toast } from "../Toaster";
 import { useT } from "@/components/I18nProvider";
@@ -48,15 +48,12 @@ export function DueBadge({ todoId, due, closed }: { todoId: number; due: string 
       </span>
     );
   return due ? (
-    <>
-      {" · "}
-      <button type="button" className={`hover:underline ${closed ? "text-zinc-400" : dueTone(due)}`} onClick={() => !closed && setEditing(true)} title={t("Due: {date} — change", { date: formatDate(due, { year: true }) })}>
-        {dueText(due, t)}
-      </button>
-    </>
+    <button type="button" className={`ml-0.5 rounded-full px-2 py-px font-medium ring-1 ring-inset ${closed ? "bg-transparent text-zinc-400 ring-zinc-200 dark:ring-zinc-700" : `${duePill(due)} hover:brightness-95`}`} onClick={() => !closed && setEditing(true)} title={t("Due: {date} — change", { date: formatDate(due, { year: true }) })}>
+      {dueText(due, t)}
+    </button>
   ) : (
-    <button type="button" className="opacity-0 transition group-hover:opacity-100 hover:text-zinc-600 hover:underline focus:opacity-100" onClick={() => setEditing(true)} title={t("Set a due date")}>
-      {" · "}{t("due date")}
+    <button type="button" className="ml-0.5 rounded-full px-2 py-px text-zinc-400 opacity-0 ring-1 ring-zinc-200 ring-inset transition group-hover:opacity-100 hover:text-zinc-600 focus:opacity-100 dark:ring-zinc-700" onClick={() => setEditing(true)} title={t("Set a due date")}>
+      + {t("due date")}
     </button>
   );
 }

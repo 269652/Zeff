@@ -102,10 +102,17 @@ export function useContextItems(list: TodoSource[], notes: TodoUserNote[], todoI
 
 /** A toggle in a todo's row of toggles ("Context", "Actions", "Knowledge"): it unfolds its area below the row. */
 export function AreaToggle({ open, onToggle, label, tone = "indigo", title, children }: { open: boolean; onToggle: () => void; label: string; tone?: "indigo" | "violet" | "emerald"; title?: string; children?: React.ReactNode }) {
-  const color = tone === "violet" ? "text-violet-700 dark:text-violet-300" : tone === "emerald" ? "text-emerald-700 dark:text-emerald-300" : "text-indigo-600 dark:text-indigo-400";
+  // A quiet chip: the colour only in its icons, the chip itself neutral (darker while open).
+  const color = tone === "violet" ? "[&_svg]:text-violet-600 dark:[&_svg]:text-violet-400" : tone === "emerald" ? "[&_svg]:text-emerald-600 dark:[&_svg]:text-emerald-400" : "[&_svg]:text-indigo-500 dark:[&_svg]:text-indigo-400";
   return (
-    <button type="button" onClick={onToggle} className={`flex flex-wrap items-center gap-x-1 gap-y-0.5 text-left text-xs font-medium hover:underline ${color}`} aria-expanded={open} title={title}>
-      {open ? <CollapseIcon className="size-3.5" /> : <ExpandIcon className="size-3.5" />}
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`inline-flex flex-wrap items-center gap-x-1 gap-y-0.5 rounded-md border px-2 py-0.5 text-left text-xs font-medium transition ${open ? "border-zinc-300 bg-zinc-100 text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100" : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"} ${color}`}
+      aria-expanded={open}
+      title={title}
+    >
+      {open ? <CollapseIcon className="size-3 !text-zinc-400" /> : <ExpandIcon className="size-3 !text-zinc-400" />}
       <span>{label}</span>
       {children}
     </button>

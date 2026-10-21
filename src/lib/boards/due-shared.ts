@@ -18,6 +18,12 @@ export const dueText = (due: string, t: T = translator("en")) => {
   return t("due {date}", { date: formatDate(due) });
 };
 
+/** The same as a pill (the todo list): red today or past, amber within three days, grey after. */
+export const duePill = (due: string) => {
+  const d = daysUntil(due);
+  return d <= 0 ? "bg-red-50 text-red-700 ring-red-200 dark:bg-red-950/50 dark:text-red-300 dark:ring-red-900" : d <= 3 ? "bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900" : "bg-zinc-50 text-zinc-600 ring-zinc-200 dark:bg-zinc-800/60 dark:text-zinc-300 dark:ring-zinc-700";
+};
+
 export const dueTone = (due: string) => {
   const d = daysUntil(due);
   return d <= 0 ? "text-red-600 dark:text-red-400 font-medium" : d <= 3 ? "text-amber-600 dark:text-amber-400" : "text-zinc-500";

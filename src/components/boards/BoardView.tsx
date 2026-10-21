@@ -1,5 +1,6 @@
 "use client";
 
+import { groupTodos, type TodoGroup } from "@/lib/boards/todo-groups";
 import { confirmAction } from "@/components/confirm";
 import type { MailView } from "@/lib/mail/shared";
 import { HoverCard } from "../HoverCard";
@@ -69,6 +70,9 @@ const ATT: Record<Attention, { stripe: string; chip: string }> = {
     chip: "bg-stone-100 text-stone-600 dark:bg-stone-900 dark:text-stone-300",
   },
 };
+
+/** The dot before a group of todos: how urgent it is. */
+const GROUP_DOT: Record<TodoGroup, string> = { important: "bg-red-500", overdue: "bg-red-500", today: "bg-amber-500", week: "bg-sky-500", later: "bg-zinc-300 dark:bg-zinc-600", none: "bg-zinc-300 dark:bg-zinc-600", deferred: "bg-zinc-200 dark:bg-zinc-700" };
 
 const day = (iso: string | null | undefined) =>
   iso ? formatDate(iso.slice(0, 10), { weekday: false }) : "";
@@ -574,6 +578,7 @@ export function BoardView({
   const mine = ranked(open.filter((t) => t.owner === "me" && passes(t)));
   const waiting = ranked(open.filter((t) => t.owner === "other" && passes(t)));
   const doneShown = doneList.filter(passes);
+  const groupLabels: Record<TodoGroup, string> = { important: t("Important"), overdue: t("Overdue"), today: t("Today"), week: t("This week"), later: t("Later"), none: t("No due date"), deferred: t("Set aside") };
   const workerShown = workerList.filter(passes);
   const left = run.tickets.filter((t) => t.left);
   const listed = run.tickets.filter((t) => !t.analyzed && !t.left);
@@ -620,7 +625,7 @@ export function BoardView({
       {part !== "tickets" && (
       <section className="card space-y-3 p-4">
         <div
-          className="flex flex-wrap items-center gap-1"
+          className="inline-flex flex-wrap items-center gap-0.5 rounded-lg bg-zinc-100 p-0.5 dark:bg-zinc-800/70"
           role="tablist"
           aria-label={t("Todos")}
         >
@@ -638,12 +643,12 @@ export function BoardView({
               scroll={false}
               role="tab"
               aria-selected={tab === key}
-              className={`rounded-md px-2.5 py-1 text-sm font-semibold uppercase ${tab === key ? "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-100" : "text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-900"}`}
+              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium transition ${tab === key ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-950 dark:text-zinc-100" : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"}`}
             >
-              {label}{" "}
+              {label}
               {n !== null && (
-                <span className="font-normal normal-case text-zinc-400">
-                  ({n})
+                <span className={`rounded-full px-1.5 text-xs tabular-nums ${tab === key ? "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300" : "text-zinc-400"}`}>
+                  {n}
                 </span>
               )}
               {key === "activity" && tab !== "activity" && <UnseenActivityBadge ids={activityIds} className="ml-0.5 align-[1px]" />}
@@ -673,7 +678,7 @@ export function BoardView({
           <>
             <p className="text-xs text-zinc-500">Todos, die Worker selbst anlegen — sie schließen sie auch selbst. Sie stehen nicht in deiner Liste.</p>
             {workerShown.length > 0 ? (
-              <ul className="space-y-1">
+              <ul className="space-y-0.5">
                 {workerShown.map((t) => (
                   <TodoItem workOn={workOn} key={t.id} t={t} showTicket cards={cards} sources={sources} anchor running={runningTodos.includes(t.id)} />
                 ))}
@@ -684,7 +689,7 @@ export function BoardView({
           </>
         ) : tab === "done" ? (
           doneShown.length > 0 ? (
-            <ul className="space-y-1">
+            <ul className="space-y-0.5">
               {doneShown.map((t) => (
                 <TodoItem
                   workOn={workOn}
@@ -704,20 +709,22 @@ export function BoardView({
         ) : (
           <>
             {mine.length > 0 ? (
-              <ul className="space-y-1">
-                {mine.map((t) => (
-                  <TodoItem
-                  workOn={workOn}
-                    key={t.id}
-                    t={t}
-                    showTicket
-                    cards={cards}
-                    sources={sources}
-                    anchor
-                    running={runningTodos.includes(t.id)}
-                  />
+              <div className="space-y-5">
+                {groupTodos(mine).map((g) => (
+                  <section key={g.key} aria-label={groupLabels[g.key]}>
+                    <h3 className="mb-1 flex items-center gap-2 px-3 text-xs font-semibold tracking-wide text-zinc-500 dark:text-zinc-400">
+                      <span className={`size-1.5 rounded-full ${GROUP_DOT[g.key]}`} aria-hidden />
+                      <span className={g.key === "overdue" ? "text-red-600 dark:text-red-400" : undefined}>{groupLabels[g.key]}</span>
+                      <span className="font-normal text-zinc-400 tabular-nums">{g.items.length}</span>
+                    </h3>
+                    <ul className="space-y-0.5">
+                      {g.items.map((t) => (
+                        <TodoItem workOn={workOn} key={t.id} t={t} showTicket cards={cards} sources={sources} anchor running={runningTodos.includes(t.id)} />
+                      ))}
+                    </ul>
+                  </section>
                 ))}
-              </ul>
+              </div>
             ) : (
               <p className="text-sm text-zinc-500">{filtering ? "Nichts passt zum Filter." : t("Nothing open for you.")}</p>
             )}
@@ -725,7 +732,7 @@ export function BoardView({
               <PersistedDetails
                 storageKey="boards-waiting"
                 className="pt-1"
-                summaryClassName="text-xs font-semibold text-zinc-500 uppercase"
+                summaryClassName="px-3 text-xs font-semibold tracking-wide text-zinc-500"
                 summary={t("Waiting on others ({n})", { n: waiting.length })}
               >
                 <ul className="mt-1.5 space-y-1">
