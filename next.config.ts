@@ -15,10 +15,12 @@ const nextConfig: NextConfig = {
   // Chrome profile). None of it is a build dependency, and some files are held
   // open by another process (the dev server has the DB open; a running Chrono
   // Chrome exclusively locks its `Cookies`), which makes output file tracing
-  // fail with "os error 32 (file in use)". Keep the whole folder out of the trace.
+  // fail with "os error 32 (file in use)". Keep the whole folder out of the trace. The same for what is big and no part of
+  // the app: the launcher and its release packages (dist/ — a trace reading a 380 MB zip ran out of system resources, os
+  // error 1450), the worktrees (.claude/), the knowledge server's data, the build before the last.
   outputFileTracingExcludes: {
-    "/": ["data/**", "data/**/*"],
-    "/**": ["data/**", "data/**/*"],
+    "/": ["data/**", "data/**/*", "dist/**", ".claude/**", "knowledge/data/**", ".next-old/**"],
+    "/**": ["data/**", "data/**/*", "dist/**", ".claude/**", "knowledge/data/**", ".next-old/**"],
   },
   // The Boards tab is the Todos tab now — old links (bookmarks, notifications) land there.
   redirects() {
