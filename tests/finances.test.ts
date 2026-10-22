@@ -109,3 +109,21 @@ test("promises offered: yours with an amount as a debt, theirs as a claim — no
   createDebtFromClaim(s.find((x) => x.name === "Lea Lustig")!.claimId);
   assert.deepEqual(debtSuggestions().map((x) => x.name), ["Johanna Roessler"], "taken");
 });
+
+test("fixed costs: the value published as Fixkosten (a sum in a database of yours) — none published: none", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("workspace", true);
+  const { fixedCosts } = await import("@/plugins/finances/fixed");
+  assert.deepEqual(fixedCosts(), { amount: null, source: null });
+  const { createPage, addRow, getDatabase } = await import("@/plugins/workspace/store");
+  const { newProperty, newView } = await import("@/plugins/workspace/model");
+  const amount = newProperty("Betrag", "number");
+  const db = createPage({ kind: "database", title: "Monatskosten", schema: { titleName: "Posten", properties: [amount], views: [newView("Alle", "table")] } });
+  addRow(db, { title: "Miete", cells: { [amount.id]: 650 } });
+  addRow(db, { title: "Handy", cells: { [amount.id]: 15.5 } });
+  const { publishValue } = await import("@/plugins/workspace/values");
+  publishValue({ label: "Fixkosten", dbId: db, viewId: getDatabase(db)!.schema.views[0].id, propId: amount.id, fn: "sum" });
+  const f = fixedCosts();
+  assert.equal(f.amount, 665.5);
+  assert.match(f.source ?? "", /Monatskosten/);
+});

@@ -36,6 +36,9 @@ export const COLORS = ["gray", "brown", "orange", "yellow", "green", "blue", "pu
 export type Option = { id: string; name: string; color: string; /** Status options sit in a group (to do / doing / done). */ group?: "todo" | "doing" | "done" };
 export const ROLLUP_FNS = ["count", "count_values", "count_unique", "count_empty", "count_not_empty", "percent_empty", "percent_not_empty", "sum", "average", "median", "min", "max", "range", "earliest", "latest", "show_original", "show_unique", "checked", "unchecked", "percent_checked", "percent_done"] as const;
 export type RollupFn = (typeof ROLLUP_FNS)[number];
+/** The calculations a table column offers under it (its sum row), over the rows the view shows — and what a published value is made of. */
+export const CALC_FNS = ["sum", "average", "median", "min", "max", "count", "count_values"] as const satisfies readonly RollupFn[];
+export type CalcFn = (typeof CALC_FNS)[number];
 
 export type Property = {
   id: string;
@@ -111,6 +114,8 @@ export type View = {
   wip?: Record<string, number>;
   /** Board / gallery: how a card looks — a card template (card-template.ts); none: the automatic card. */
   card?: string;
+  /** Table: the calculation under a column (its sum row), by property id. */
+  calcs?: Record<string, CalcFn>;
 };
 /** A table column's width in pixels: what a drag may make it, and what "fit to content" may. */
 export const WIDTH_MIN = 60;

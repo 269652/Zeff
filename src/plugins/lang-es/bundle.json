@@ -6706,5 +6706,19 @@
   "Owed by debtor": "Pendiente por deudor",
   "{amount} open": "{amount} pendiente",
   "Enter your income": "Introduce tus ingresos",
-  "a month (yours)": "al mes (tuyos)"
+  "a month (yours)": "al mes (tuyos)",
+  "Fixed costs": "Gastos fijos",
+  "Left after instalments and fixed costs": "Queda tras cuotas y gastos fijos",
+  "fixed costs {amount}": "gastos fijos {amount}",
+  "Count in fixed costs ({amount})": "Incluir gastos fijos ({amount})",
+  "Fixed costs: publish a sum as “Fixkosten” under a column of a database of yours": "Gastos fijos: publica una suma como «Fixkosten» bajo una columna de una de tus bases de datos",
+  "Median": "Mediana",
+  "Min": "Mín.",
+  "Max": "Máx.",
+  "Count values": "Contar valores",
+  "“{name}” is now available in Zeff: {value}": "«{name}» ya está disponible en Zeff: {value}",
+  "Available in Zeff as “{name}” — click to take it back": "Disponible en Zeff como «{name}» — haz clic para retirarlo",
+  "Make available …": "Poner a disposición …",
+  "e.g. Fixkosten": "p. ej. Fixkosten",
+  "in use": "en uso"
 }

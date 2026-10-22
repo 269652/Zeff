@@ -23,6 +23,7 @@ import { FilterEditor, PropertiesMenu, SchemaModal, SortEditor } from "./db-menu
 import { Dropdown, MenuItem, Modal, useSortable } from "./kit";
 import { PipelineEditor, PipelineSummaries } from "./pipeline";
 import { AppViewHost } from "./app-view";
+import { CalcCell, usePublished } from "./calc-row";
 
 /** A database on a page: its views (table, board, list, gallery, calendar), filters, sorts, groups, and the rows in place. */
 
@@ -1037,6 +1038,9 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
     }
     setView(withWidths(view, next));
   };
+  // The sum row: the values published from this database (their columns marked), the names to pick from.
+  const published = usePublished(ctx.data.id);
+  const numeric = visible.some((p) => p.type === "number" || p.type === "formula" || p.type === "rollup");
   const handle = (id: string) => (
     <span role="separator" aria-orientation="vertical" className="ws-resize" title={t("Drag to resize — double-click to fit")} onPointerDown={(e) => startResize(e, id)} onDoubleClick={(e) => (e.stopPropagation(), fit([id]))} onClick={(e) => e.stopPropagation()} />
   );
@@ -1177,6 +1181,17 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
             )}
           </tbody>
         ))}
+        {numeric && rows.length > 0 && (
+          <tfoot className="border-t border-zinc-200 dark:border-zinc-800">
+            <tr>
+              <td />
+              {cols.map((id) => (
+                <CalcCell key={id} p={byId.get(id)} view={view} rows={rows} dbId={ctx.data.id} setView={setView} published={published} />
+              ))}
+              <td />
+            </tr>
+          </tfoot>
+        )}
       </table>
     </div>
   );

@@ -32,6 +32,8 @@ export type FinancesOverview = {
   debts: DebtPlan[];
   summary: PlanSummary;
   income: MonthlyIncome;
+  /** Your monthly fixed costs: the value published as "Fixkosten" in the Workspace (none: none). */
+  fixed: import("./fixed").FixedCosts;
   contacts: { id: number; name: string; kind: "person" | "organization" }[];
   suggestions: DebtSuggestion[];
 };
@@ -49,7 +51,7 @@ export async function financesOverviewAction(dir: Direction): Promise<Result<{ o
     await income.refreshIncome();
     const contacts = isInstalled("people") ? (await import("@/plugins/people/store")).listPeople().map((p) => ({ id: p.id, name: p.name, kind: p.kind })) : [];
     const suggestions = (await import("./own")).debtSuggestions().filter((s) => s.dir === d);
-    return { overview: { dir: d, debts: plans.debts, summary: plans.summary, income: income.monthlyIncome(), contacts, suggestions } };
+    return { overview: { dir: d, debts: plans.debts, summary: plans.summary, income: income.monthlyIncome(), fixed: (await import("./fixed")).fixedCosts(), contacts, suggestions } };
   });
 }
 

@@ -55,11 +55,32 @@ export default function DebtsView({ openRow }: AppViewProps) {
   useEffect(load, [load]);
   // Today — fixed when the view opens.
   const [today] = useState(() => new Date().toISOString().slice(0, 10));
+  // The fixed costs counted in (the charts, what is left) — or not; kept in this browser.
+  const [withFixed, setWithFixed] = useState(true);
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- this browser's choice, known once it is shown
+      setWithFixed(localStorage.getItem("finances.withFixed") !== "0");
+    } catch {
+      // (no storage: counted in)
+    }
+  }, []);
+  const toggleFixed = (on: boolean) => {
+    setWithFixed(on);
+    try {
+      localStorage.setItem("finances.withFixed", on ? "1" : "0");
+    } catch {
+      // (not kept)
+    }
+  };
   if (!o || o.dir !== dir) return <p className="text-sm text-zinc-400">{error ?? "…"}</p>;
 
   const owe = dir === "owe";
   const s = o.summary;
   const income = o.income.amount;
+  // The fixed costs, when they are counted in (only what you owe: they are yours to pay).
+  const fixed = owe && withFixed ? o.fixed.amount : null;
+  const left = income != null ? income - s.monthlyRates - (fixed ?? 0) : null;
   const open = o.debts.reduce((a, d) => a + d.open, 0);
   const total = o.debts.reduce((a, d) => a + (d.total ?? d.open), 0);
   const allRates = o.debts.reduce((a, d) => a + (d.plan.kind === "plan" ? (d.installment ?? 0) : 0), 0);
@@ -89,8 +110,20 @@ export default function DebtsView({ openRow }: AppViewProps) {
     { label: owe ? t("Instalments a month") : t("Coming back a month"), value: euro(s.monthlyRates, 0), sub: later > 0 ? t("running now — {amount} more starting later", { amount: euro(later, 0) }) : t("running now") },
     { label: owe ? t("Debt-free") : t("All back"), value: s.debtFree ? monthYear(s.debtFree, true) : "—", sub: s.debtFree ? `${months ? t("in {n} months", { n: months }) : ""}${s.unplanned > 0 ? ` · ${t("{amount} without a plan not in it", { amount: euro(s.unplanned, 0) })}` : ""}` : t("no plan yet") },
     owe
-      ? income != null
-        ? { label: t("Left after the instalments"), value: euro(income - s.monthlyRates, 0), sub: incomeField, tone: income - s.monthlyRates < 0 ? "bad" : "good" }
+      ? left != null
+        ? {
+            label: fixed != null ? t("Left after instalments and fixed costs") : t("Left after the instalments"),
+            value: euro(left, 0),
+            // What it is made of: the income — and the fixed costs, when they are counted in.
+            sub: fixed != null ? (
+              <>
+                {incomeField} · {t("fixed costs {amount}", { amount: euro(fixed, 0) })}
+              </>
+            ) : (
+              incomeField
+            ),
+            tone: left < 0 ? "bad" : "good",
+          }
         : { label: t("Left after the instalments"), value: "—", sub: incomeField }
       : { label: t("Next payment"), value: s.next ? euro(s.next.amount) : "—", sub: s.next ? day(s.next.date) : "", tone: s.next && s.next.date < today ? "bad" : undefined },
   ];
@@ -284,9 +317,20 @@ export default function DebtsView({ openRow }: AppViewProps) {
             </div>
           </section>
           <section className="space-y-2 break-inside-avoid lg:col-span-2">
-            <h2 className="text-sm font-semibold">{owe ? t("Monthly payments until debt-free") : t("Coming back a month until all is back")}</h2>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-sm font-semibold">{owe ? t("Monthly payments until debt-free") : t("Coming back a month until all is back")}</h2>
+              {owe &&
+                (o.fixed.amount != null ? (
+                  <label className="flex items-center gap-1.5 text-xs text-zinc-600 print:hidden dark:text-zinc-300" title={o.fixed.source ?? ""}>
+                    <input type="checkbox" className="accent-indigo-600" checked={withFixed} onChange={(e) => toggleFixed(e.target.checked)} />
+                    {t("Count in fixed costs ({amount})", { amount: euro(o.fixed.amount, 0) })}
+                  </label>
+                ) : (
+                  <span className="text-xs text-zinc-400 print:hidden">{t("Fixed costs: publish a sum as “Fixkosten” under a column of a database of yours")}</span>
+                ))}
+            </div>
             <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
-              <DebtChart months={s.months} creditorOf={creditorOf} income={owe ? income : null} />
+              <DebtChart months={s.months} creditorOf={creditorOf} income={owe ? income : null} fixed={fixed} />
             </div>
           </section>
         </div>

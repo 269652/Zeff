@@ -6706,5 +6706,19 @@
   "Owed by debtor": "Ausstehend nach Schuldner",
   "{amount} open": "{amount} offen",
   "Enter your income": "Einkommen eintragen",
-  "a month (yours)": "im Monat (von dir)"
+  "a month (yours)": "im Monat (von dir)",
+  "Fixed costs": "Fixkosten",
+  "Left after instalments and fixed costs": "Übrig nach Raten und Fixkosten",
+  "fixed costs {amount}": "Fixkosten {amount}",
+  "Count in fixed costs ({amount})": "Fixkosten einbeziehen ({amount})",
+  "Fixed costs: publish a sum as “Fixkosten” under a column of a database of yours": "Fixkosten: stelle in einer deiner Datenbanken eine Spaltensumme als „Fixkosten“ bereit",
+  "Median": "Median",
+  "Min": "Min.",
+  "Max": "Max.",
+  "Count values": "Werte zählen",
+  "“{name}” is now available in Zeff: {value}": "„{name}“ steht jetzt in Zeff bereit: {value}",
+  "Available in Zeff as “{name}” — click to take it back": "In Zeff bereitgestellt als „{name}“ — Klick nimmt es zurück",
+  "Make available …": "Bereitstellen …",
+  "e.g. Fixkosten": "z. B. Fixkosten",
+  "in use": "vergeben"
 }
