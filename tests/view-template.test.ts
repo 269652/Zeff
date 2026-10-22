@@ -185,3 +185,15 @@ test("an object of the app is there or not ({{#if app.creditor}}); crossed out; 
   assert.equal(find(r.nodes, "strike").length, 1);
   assert.equal(find(r.nodes, "section")[0].a.aside, "7 Mails · 1 Brief");
 });
+
+test("comments are left out; tabs whose options are worked out leave the start to <state>; a phone number as a link; a text keeps its line breaks", async () => {
+  const { viewDefaults } = await import("../src/plugins/workspace/view-template");
+  const { safeUrl } = await import("../src/plugins/workspace/card-template");
+  const r = renderView('{{! a note for whoever writes the template }}<text pre=true>Zeile 1\nZeile 2</text><a href="tel:+491723420865">Anrufen</a>', data(), { parts });
+  assert.deepEqual(r.errors, []);
+  assert.doesNotMatch(vnodeToString(r.nodes), /note for/);
+  assert.equal(find(r.nodes, "text")[0].a.pre, "true");
+  assert.equal(find(r.nodes, "a")[0].a.href, "tel:+491723420865");
+  assert.equal(safeUrl("javascript:alert(1)"), "");
+  assert.deepEqual(viewDefaults('<state name="known" value="{{ app.first }}"/><tabs bind="known" options="{{ app.tabs }}"/>'), {});
+});

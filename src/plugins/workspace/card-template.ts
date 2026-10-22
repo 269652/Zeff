@@ -232,6 +232,8 @@ export function parseTemplate(src: string, tags: Record<string, TagDef> = CARD_T
       } else if (inner === "/each") {
         if (top().kind === "each") stack.pop();
         else errors.push({ line, message: "{{/each}} without a {{#each}}." });
+      } else if (inner.startsWith("!")) {
+        // {{! a comment }}: for whoever reads the template, not drawn.
       } else if (inner.startsWith("#") || inner.startsWith("/")) {
         errors.push({ line, message: `Unknown block {{${inner.split(/\s/)[0]}}} — there are #if, #else and #each.` });
       } else {
@@ -468,7 +470,7 @@ export const FILTERS: Record<string, (v: unknown, a: (string | number)[], ctx: C
 // ---------------------------------------------------------------------------
 
 /** An address a card may link to or show: http(s), mailto, or one of Zeff's own (relative). */
-export const safeUrl = (s: string): string => (/^(https?:\/\/|mailto:|\/(?!\/)|#)/i.test(s.trim()) ? s.trim() : "");
+export const safeUrl = (s: string): string => (/^(https?:\/\/|mailto:|tel:|\/(?!\/)|#)/i.test(s.trim()) ? s.trim() : "");
 
 function interpolate(raw: string, ctx: Ctx, line: number): string {
   return raw.replace(/\{\{([\s\S]*?)\}\}/g, (_m, inner: string) => {

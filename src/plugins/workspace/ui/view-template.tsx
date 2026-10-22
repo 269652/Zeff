@@ -229,7 +229,7 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
       }
       case "text":
         return (
-          <div key={key} className={`text-sm ${TONE[a.tone ?? ""] ?? ""}`} title={a.tip || undefined}>
+          <div key={key} className={`text-sm ${a.pre === "true" ? "whitespace-pre-line" : ""} ${TONE[a.tone ?? ""] ?? ""}`} title={a.tip || undefined}>
             {kids(n.c)}
           </div>
         );

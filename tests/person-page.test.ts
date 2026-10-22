@@ -132,7 +132,7 @@ test("details: each with its label, copy and remove; a phone to call, an address
   assert.match(s, /IBAN/);
   assert.deepEqual(buttons(r.nodes, "person.copy").map((b) => b.a.value), ["DE89 3704 0044 0532 0130 00", "+49 (221) 123 45", "Ringstraße 1, 50667 Köln"]);
   assert.deepEqual(buttons(r.nodes, "person.removeDetail").map((b) => b.a.value), ["7", "8", "9"]);
-  assert.deepEqual(buttons(r.nodes, "person.call").map((b) => b.a.value), ["+4922112345"]);
+  assert.ok(find(r.nodes, "a").some((l) => l.a.href === "tel:+4922112345"), "a phone to call — a tel: link");
   assert.ok(find(r.nodes, "a").some((a) => a.a.href === "https://www.openstreetmap.org/search?query=Ringstra%C3%9Fe%201%2C%2050667%20K%C3%B6ln"));
   assert.match(s, /unchecked/);
   assert.equal(parts(r.nodes, "person.transfer").length, 1);

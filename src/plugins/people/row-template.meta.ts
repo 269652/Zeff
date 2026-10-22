@@ -56,7 +56,7 @@ const template = (t: T) => `<state name="keep" value=""/>
           <row gap=3 align=baseline wrap=false>
             <small><muted>{{ label }}</muted></small>
             <col gap=0 fill=true>
-              <row gap=1 align=baseline>{{#if phone}}<button action="person.call" value="{{ dial }}" label="{{ value }}" variant=link/>{{#else}}{{#if map}}<a href="{{ map }}">{{ value }}</a>{{#else}}{{#if mono}}<mono>{{ value }}</mono>{{#else}}{{ value }}{{/if}}{{/if}}{{/if}}{{#if !confirmed}}<text tone=warn tip="${t("Read from a message — confirm it under To check.")}"><small>${t("unchecked")}</small></text>{{/if}}</row>
+              <row gap=1 align=baseline>{{#if phone}}<a href="tel:{{ dial }}">{{ value }}</a>{{#else}}{{#if map}}<a href="{{ map }}">{{ value }}</a>{{#else}}{{#if mono}}<mono>{{ value }}</mono>{{#else}}{{ value }}{{/if}}{{/if}}{{/if}}{{#if !confirmed}}<text tone=warn tip="${t("Read from a message — confirm it under To check.")}"><small>${t("unchecked")}</small></text>{{/if}}</row>
             </col>
             <button action="person.copy" value="{{ value }}" label="⧉" tip="${t("Copy")}" variant=quiet/>
             <button action="person.removeDetail" value="{{ id }}" label="×" tip="${t("Remove")}" variant=quiet/>
@@ -116,7 +116,7 @@ const template = (t: T) => `<state name="keep" value=""/>
     <box>
       ${head(t("Summary"), `<button action="person.compile" ${busy("compile", "app.compileLabel")} variant=quiet/>`)}
       {{#if app.compiled}}
-        {{#if app.summary.connection}}<col gap=0><muted>${t("What connects you")}</muted><text>{{ app.summary.connection }}</text></col>{{/if}}
+        {{#if app.summary.connection}}<col gap=0><muted>${t("What connects you")}</muted><text pre=true>{{ app.summary.connection }}</text></col>{{/if}}
         {{#if app.summary.keyFacts}}<col gap=0><muted>${t("Key facts")}</muted>{{#each app.summary.keyFacts}}<text>• {{ this }}</text>{{/each}}</col>{{/if}}
         {{#if app.summary.funFacts}}<col gap=0><muted>${t("Fun facts")}</muted>{{#each app.summary.funFacts}}<text>🎈 {{ this }}</text>{{/each}}</col>{{/if}}
         <muted>${t("Compiled from {n} things", { n: "{{ app.summary.sources }}" })}</muted>
@@ -130,7 +130,7 @@ const template = (t: T) => `<state name="keep" value=""/>
       {{#if app.known.nothing}}<text tone=muted>${t("Nothing read from your messages yet — Zeff reads new ones after each briefing.")}</text>{{/if}}
       {{#if app.known.any}}
         <state name="known" value="{{ app.known.first }}"/>
-        <tabs bind="{{ 'known' }}" options="{{ app.known.tabs }}"/>
+        <tabs bind="known" options="{{ app.known.tabs }}"/>
         {{#if state.known == 'facts'}}
           {{#if app.known.hasFacts}}
             {{#each app.known.facts}}

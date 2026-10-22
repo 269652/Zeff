@@ -77,7 +77,7 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   strike: T({}),
   box: T({ title: "text", tone: { oneOf: ["plain", "muted", "good", "warn", "bad"] }, scroll: "int" }),
   heading: T({ level: { oneOf: ["1", "2", "3"] } }),
-  text: T({ tone: { oneOf: ["plain", "muted", "good", "warn", "bad"] }, tip: "text" }),
+  text: T({ tone: { oneOf: ["plain", "muted", "good", "warn", "bad"] }, tip: "text", pre: { oneOf: ["true", "false"] } }),
   tile: T({ label: "text", value: "text", sub: "text", tone: { oneOf: ["plain", "good", "warn", "bad"] }, tip: "text" }),
   bar: T({ value: "num", max: "num", color: "color", fill: "paint" }, true),
   dot: T({ color: "paint" }, true),
@@ -345,7 +345,7 @@ function pipe(src: string, ctx: Ctx, line: number): unknown {
       const own = LIST_FILTERS[call.name];
       const card = CARD_FILTERS[call.name];
       if (!own && !card) throw new Error(`There is no filter “${call.name}”.`);
-      v = own ? own(v, argsOf(call, ctx, line), ctx) : card(isRows(v) ? v.rows.length : v, argsOf(call, ctx, line), cardCtx(ctx));
+      v = own ? own(v, argsOf(call, ctx), ctx) : card(isRows(v) ? v.rows.length : v, argsOf(call, ctx), cardCtx(ctx));
     } catch (e) {
       ctx.errors.push({ line, message: (e as Error).message });
     }
@@ -354,7 +354,7 @@ function pipe(src: string, ctx: Ctx, line: number): unknown {
 }
 
 /** A filter's arguments: the bare ones read (state.q, a field of the row or item, app.…) — words in quotes stay words. */
-function argsOf(call: { args: (string | number)[]; names?: boolean[] }, ctx: Ctx, line: number): (string | number)[] {
+function argsOf(call: { args: (string | number)[]; names?: boolean[] }, ctx: Ctx): (string | number)[] {
   return call.args.map((a, i) => {
     if (!call.names?.[i] || typeof a !== "string") return a;
     // (A field's name as the first argument of where/sort/sum … is a name of a column, not a value: kept when nothing else has it.)
@@ -590,7 +590,7 @@ function drawList(list: TNode[], ctx: Ctx): VNode[] {
           continue;
         }
         try {
-          v = own ? own(v, argsOf(f, ctx, n.line), ctx) : card(isRows(v) ? v.rows.length : v, argsOf(f, ctx, n.line), cardCtx(ctx));
+          v = own ? own(v, argsOf(f, ctx), ctx) : card(isRows(v) ? v.rows.length : v, argsOf(f, ctx), cardCtx(ctx));
         } catch (e) {
           ctx.errors.push({ line: n.line, message: (e as Error).message });
         }
@@ -634,11 +634,11 @@ export function renderView(src: string, data: ViewData, opts: { parts?: PartMeta
 /** The language as the editor's help and the AI read it: tags, filters, actions, names — and this view's parts and actions. */
 export function viewReference(parts: PartMeta[] = [], actions: ActionMeta[] = []): string {
   return [
-    "VIEW TEMPLATE LANGUAGE — tags from this list only, {{ value | filter }}, {{#if …}}…{{#else}}…{{/if}}, {{#each …}}…{{/each}}. No HTML, no script.",
+    "VIEW TEMPLATE LANGUAGE — tags from this list only, {{ value | filter }}, {{#if …}}…{{#else}}…{{/if}}, {{#each …}}…{{/each}}, {{! a comment }}. No HTML, no script.",
     "",
     "NAMES: rows (the view's rows — a collection), a row's properties by name ([Name with spaces]) inside a row (a list's item, {{#each rows}}, <selected>), title, id, state.<name> (the view's state), app.<path> (the app's data), db.title, now, this (the current item).",
     "",
-    "LAYOUT: <row gap=2 align=center justify=between wrap=true fill=true>, <col gap=2 fill=true> (fill: takes the room left in a row), <grid cols=3 gap=3 min=220>, <section title=\"…\" aside=\"… (right of the title)\" collapsible=true open=false scroll=20> (scroll: at most 20rem high), <box title=\"…\" tone=muted|good|warn|bad>, <heading level=1|2|3>, <text tone=muted>, <split ratio=1:2> or <split side=right width=352> (two children side by side — a side column of a fixed width; stacked on a phone), <hr/>, <grow/>.",
+    "LAYOUT: <row gap=2 align=center justify=between wrap=true fill=true>, <col gap=2 fill=true> (fill: takes the room left in a row), <grid cols=3 gap=3 min=220>, <section title=\"…\" aside=\"… (right of the title)\" collapsible=true open=false scroll=20> (scroll: at most 20rem high), <box title=\"…\" tone=muted|good|warn|bad>, <heading level=1|2|3>, <text tone=muted pre=true> (pre: keeps the line breaks), <split ratio=1:2> or <split side=right width=352> (two children side by side — a side column of a fixed width; stacked on a phone), <hr/>, <grow/>.",
     "TEXT: <b> <i> <small> <muted> <code> <mono> <truncate> (one line, cut) <strike> — tip=\"…\" on text, tiles, buttons, rows: a tooltip; <clamp lines=3> <chip color=…> <badge color=…> <bar value= max= fill=\"#hex\"/> <dot color=\"#hex or name\"/> <img src= h=/> <a href=…>, <printonly>…</printonly> (only on paper), <noprint>…</noprint>.",
     "FIGURES: <tile label=\"…\" value=\"{{ … }}\" sub=\"…\" tone=good|warn|bad/> — or <tile …>content under the value (text, a part)</tile>.",
     "DATA: <list source=\"rows | …\" select=true open=true spacing=roomy empty=\"…\">item template</list>, <cards source=\"…\" cols=3>item template</cards>, <table source=\"rows | …\" columns=\"title, Status, [Due]\" sum=\"Amount\" empty=\"…\"/>, <chart kind=bar|column|line|pie source=\"rows\" group=\"Status\" value=\"Amount\" calc=count|sum|avg/>, <selected empty=\"…\">template of the row picked (a list with select=true picks)</selected>, <field name=\"Status\"/> (a row's property, editable), <datatable source=\"app.list | …\" empty=\"…\"><column label=\"…\" align=right nowrap=true foot=\"{{ … }}\">cell template (the item's fields by name)</column>…</datatable> (a table of any list).",
@@ -669,7 +669,8 @@ export function viewDefaults(src: string): Record<string, string> {
       if (n.k === "tag") {
         const a = Object.fromEntries(n.attrs);
         if (n.name === "state" && a.name && !(a.name in out) && !a.value?.includes("{{")) out[a.name] = a.value ?? "";
-        if ((n.name === "tabs" || n.name === "select") && a.bind && !(a.bind in out)) {
+        // (Options worked out of the data aren't known before it is drawn: the start is the <state>'s, or the first one when drawn.)
+        if ((n.name === "tabs" || n.name === "select") && a.bind && !(a.bind in out) && !a.options?.includes("{{")) {
           const first = optionPairs(a.options ?? "")[0];
           if (first) out[a.bind] = first[0];
         }

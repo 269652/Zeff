@@ -115,7 +115,8 @@ export function draw(n: VNode, key: number, ext?: DrawExt): ReactNode {
     case "a": {
       const href = safeUrl(n.a.href ?? "");
       return href ? (
-        <a key={key} href={href} target="_blank" rel="noreferrer noopener" className="text-indigo-600 hover:underline dark:text-indigo-400" onClick={(e) => e.stopPropagation()}>
+        // (The web in a new tab; Zeff's own pages, a call, a mail in place.)
+        <a key={key} href={href} {...(/^https?:/i.test(href) ? { target: "_blank", rel: "noreferrer noopener" } : {})} className="text-indigo-600 hover:underline dark:text-indigo-400" onClick={(e) => e.stopPropagation()}>
           {kids}
         </a>
       ) : (
