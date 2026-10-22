@@ -5,7 +5,6 @@ import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { GiroCode } from "@/components/GiroCode";
 import type { AppViewProps } from "@/plugins/workspace/ui/app-view";
-import { DEBT } from "../fields";
 import type { Direction } from "../own";
 import { financesOverviewAction, setIncomeAction, type FinancesOverview } from "../server-actions";
 import { AddDebt } from "./AddDebt";
@@ -28,7 +27,7 @@ const euro = (v: number | null | undefined, digits = 2) => (v == null ? "—" : 
 const day = (iso: string | null | undefined) => (iso ? new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString() : "—");
 const monthYear = (iso: string, long = false) => new Date(`${iso.slice(0, 7)}-15T12:00:00`).toLocaleDateString(undefined, { month: long ? "long" : "short", year: "numeric" });
 
-export default function DebtsView({ openRow, rows, newRowDefaults }: AppViewProps) {
+export default function DebtsView({ openRow, rows, onNew }: AppViewProps) {
   const t = useT();
   const [dir, setDir] = useState<Direction>("owe");
   const [o, setO] = useState<FinancesOverview | null>(null);
@@ -56,11 +55,12 @@ export default function DebtsView({ openRow, rows, newRowDefaults }: AppViewProp
   // Read again when the database's rows change (a debt made with "New" and filled in, one changed in its page).
   const rowsKey = JSON.stringify(rows.map((r) => [r.id, r.title, r.cells]));
   useEffect(load, [load, rowsKey]);
-  // The toolbar's "New" here: a debt of this direction.
+  // The toolbar's "New" here: the form for a debt (of the direction shown).
+  const [adding, setAdding] = useState(false);
   useEffect(() => {
-    newRowDefaults?.({ [DEBT.dir]: dir });
-    return () => newRowDefaults?.(null);
-  }, [newRowDefaults, dir]);
+    onNew?.(() => setAdding(true));
+    return () => onNew?.(null);
+  }, [onNew]);
   // Today — fixed when the view opens.
   const [today] = useState(() => new Date().toISOString().slice(0, 10));
   // The fixed costs counted in (the charts, what is left) — or not; kept in this browser.
@@ -213,7 +213,7 @@ export default function DebtsView({ openRow, rows, newRowDefaults }: AppViewProp
       </dl>
 
       <div className="print:hidden">
-        <AddDebt dir={dir} contacts={o.contacts} suggestions={o.suggestions} onDone={load} hideButton />
+        <AddDebt dir={dir} contacts={o.contacts} suggestions={o.suggestions} onDone={load} hideButton open={adding} onOpenChange={setAdding} />
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 print:overflow-visible print:rounded-none print:border-0">

@@ -58,7 +58,7 @@ export function Modal({ title, onClose, children, wide = false }: { title: strin
  * A button with a dropdown under it (any content); closes on a click outside, Escape, a scroll or when `close` is called.
  * The menu is a portal to the body (fixed under the button): inside a sidebar or a table it would be cut off or make it scroll.
  */
-export function Dropdown({ label, children, align = "left", title, className = "btn btn-sm" }: { label: ReactNode; children: (close: () => void) => ReactNode; align?: "left" | "right"; title?: string; className?: string }) {
+export function Dropdown({ label, children, align = "left", title, className = "btn btn-sm", wrapClassName = "relative inline-block" }: { label: ReactNode; children: (close: () => void) => ReactNode; align?: "left" | "right"; title?: string; className?: string; /** The box around the button (a split button's half: "relative flex", so it is as high as the other half). */ wrapClassName?: string }) {
   const [open, setOpen] = useState(false);
   const [at, setAt] = useState<{ top: number; left?: number; right?: number } | null>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -99,7 +99,7 @@ export function Dropdown({ label, children, align = "left", title, className = "
     };
   }, [open, align]);
   return (
-    <div className="relative inline-block">
+    <div className={wrapClassName}>
       <button ref={button} type="button" className={className} title={title} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
         {label}
       </button>

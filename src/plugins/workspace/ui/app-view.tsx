@@ -11,8 +11,8 @@ export type AppViewProps = {
   rows: Row[];
   openRow: (id: number) => void;
   reload: () => void;
-  /** What a row made with the toolbar's "New" starts with while the app is shown (its cells by property id; null: nothing). */
-  newRowDefaults?: (cells: Record<string, unknown> | null) => void;
+  /** The toolbar's "New" taken over while the app is shown (its own form for a new row); null: given back. */
+  onNew?: (fn: (() => void) | null) => void;
 };
 
 /** The apps' views, by id — each its plugin's (loaded when shown). */
