@@ -14,12 +14,38 @@ import { widgetCatalog } from "./widgets";
 import { createRoutine } from "./routines";
 import { createTicketCockpit } from "./ticket-cockpit";
 import { authorityPage, financesPage, meetingPage, oneOnOnePage, projectBriefPage, weeklyReviewPage, whoOwesPage, wikiHomePage } from "./templates-pages";
-import { createPage, updatePage } from "./store";
+import { getPref, setPref } from "@/lib/prefs";
+import { createPage, getPage, updatePage } from "./store";
 import { contractsDatabase, decisionsDatabase, instalmentPlansDatabase, projectsDatabase, readingDatabase, tasksDatabase } from "./templates-databases";
 
 /** The group a template is shown in (the gallery's tabs). */
 export type TemplateCategory = "overview" | "work" | "notes" | "automation" | "packages";
-export type TemplateMeta = { key: string; name: string; icon: string; description: string; kind: "page" | "database"; category: TemplateCategory };
+export type TemplateMeta = {
+  key: string;
+  name: string;
+  icon: string;
+  description: string;
+  kind: "page" | "database";
+  category: TemplateCategory;
+  /** Shown first, large — where most start. */
+  featured?: boolean;
+  /** What was made of it before and is still there (the gallery offers to open it instead of a second one). */
+  made?: { id: number; title: string }[];
+};
+
+/** Where the templates' pages are kept (per template, the pages made of it — newest last). */
+const MADE = "workspace.templatesMade";
+/** The templates most start with (in this order). */
+const FEATURED = ["dashboard", "tasks", "finances", "weekly-review", "meeting", "contracts"];
+const rank = (key: string) => (FEATURED.includes(key) ? FEATURED.indexOf(key) : FEATURED.length);
+
+function madeOf(key: string): { id: number; title: string }[] {
+  const ids = getPref<Record<string, number[]>>(MADE, {})[key] ?? [];
+  return ids.flatMap((id) => {
+    const p = getPage(id);
+    return p && !p.archivedAt ? [{ id, title: p.title }] : [];
+  });
+}
 
 
 type Template = TemplateMeta & {
@@ -303,7 +329,9 @@ const TEMPLATES: Template[] = [
     },
     icon: "💶",
     get description() {
-      return t("Your cases in figures, the payments and deadlines coming up, the open cases and what you owe — live.");
+      return isInstalled("finances")
+        ? t("Your money at a glance, live: what is open, the instalments a month, when you are debt-free, what is left — and the payments coming up.")
+        : t("Your cases in figures, the payments and deadlines coming up, the open cases and what you owe — live.");
     },
     kind: "page",
     build: (parentId) => financesPage(parentId),
@@ -383,7 +411,10 @@ const TEMPLATES: Template[] = [
 ];
 
 export const templateMetas = (): TemplateMeta[] => [
-  ...TEMPLATES.filter((x) => x.offered?.() ?? true).map(({ key, name, icon, description, kind, category }) => ({ key, name, icon, description, kind, category })),
+  ...TEMPLATES.filter((x) => x.offered?.() ?? true)
+    .map(({ key, name, icon, description, kind, category }): TemplateMeta => ({ key, name, icon, description, kind, category, featured: FEATURED.includes(key), made: madeOf(key) }))
+    // The featured first, in their order; the rest as they are.
+    .sort((a, b) => rank(a.key) - rank(b.key)),
   ...listPackages().map((p): TemplateMeta => ({ key: `pkg:${p.id}`, name: t(p.name), icon: p.icon, description: p.description ? t(p.description) : "", kind: "page", category: "packages" })),
 ];
 
@@ -393,5 +424,8 @@ export async function fromTemplate(key: string, parentId: number | null): Promis
   if (pkg) return installPackage(pkg.pkg, parentId).rootId;
   const t = TEMPLATES.find((x) => x.key === key);
   if (!t) throw new Error("No such template.");
-  return await t.build(parentId);
+  const id = await t.build(parentId);
+  const made = getPref<Record<string, number[]>>(MADE, {});
+  setPref(MADE, { ...made, [key]: [...(made[key] ?? []).filter((x) => x !== id), id].slice(-10) });
+  return id;
 }

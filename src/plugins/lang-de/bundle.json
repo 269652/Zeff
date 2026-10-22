@@ -6792,5 +6792,12 @@
   "{n} messages since": "{n} Nachrichten seitdem",
   "{n} open between you": "{n} offen zwischen euch",
   "{n} cases": "{n} Vorgänge",
-  "No appointments with your people in the next 24 hours.": "Keine Termine mit deinen Leuten in den nächsten 24 Stunden."
+  "No appointments with your people in the next 24 hours.": "Keine Termine mit deinen Leuten in den nächsten 24 Stunden.",
+  "Open “{title}”": "„{title}“ öffnen",
+  "{n} made": "{n} angelegt",
+  "Where most start": "Womit die meisten beginnen",
+  "Make another": "Noch eine anlegen",
+  "Use this template": "Vorlage verwenden",
+  "Make “{name}”": "„{name}“ anlegen",
+  "Your money at a glance, live: what is open, the instalments a month, when you are debt-free, what is left — and the payments coming up.": "Dein Geld auf einen Blick, live: was offen ist, die Raten im Monat, wann du schuldenfrei bist, was bleibt — und die anstehenden Zahlungen."
 }

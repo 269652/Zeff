@@ -55,3 +55,21 @@ test("with the Finances plugin: its debts database is a template (made once — 
   assert.equal(await fromTemplate("debts", null), a);
   assert.equal((await import("@/plugins/workspace/store")).getDatabase(a)!.schema.dataType, "debts");
 });
+
+test("the gallery: where most start first; what was made of a template (and is still there) is offered to open — a page in the bin is not", async () => {
+  await setup();
+  const { templateMetas, fromTemplate } = await import("@/plugins/workspace/templates");
+  assert.deepEqual(
+    templateMetas()
+      .filter((m) => m.featured)
+      .map((m) => m.key)
+      .slice(0, 2),
+    ["dashboard", "tasks"],
+  );
+  const a = await fromTemplate("decisions", null);
+  const b = await fromTemplate("decisions", null);
+  const made = () => templateMetas().find((m) => m.key === "decisions")!.made!.map((x) => x.id);
+  assert.deepEqual(made().slice(-2), [a, b], "the newest last");
+  (await import("@/plugins/workspace/store")).archivePage(b);
+  assert.ok(made().includes(a) && !made().includes(b), "the one in the bin isn't offered");
+});
