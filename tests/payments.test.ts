@@ -99,3 +99,26 @@ test("payments: a transfer added beside proposed actions leaves them proposed (f
   assert.equal(todo.ops.at(-1)?.type, "bank-transfer");
   assert.equal(todo.autoOpsWhy, "Die Rate ist fällig.");
 });
+
+test("a transfer to a contact whose account isn't known: proposed without the IBAN; entered once on the card, it is kept with the contact — the next transfer has it", async () => {
+  await seed();
+  const { CASES_ACTIONS } = await import("@/plugins/cases/actions");
+  const a = CASES_ACTIONS.find((x) => x.type === "bank-transfer")!;
+  const op = a.clean({ name: "Chris Ballhaus", iban: "", amount: "150", purpose: "Zurück, danke!" }, { ticket: "" });
+  assert.deepEqual(op, { type: "bank-transfer", name: "Chris Ballhaus", iban: "", bic: "", amount: "150.00", purpose: "Zurück, danke!" }, "no IBAN yet");
+  assert.equal(a.clean({ name: "", iban: "" }, { ticket: "" }), null, "but someone to pay");
+  const { createPerson } = await import("@/plugins/people/store");
+  const chris = createPerson({ name: "Chris Ballhaus" });
+  const { getDb, schema } = await import("@/db");
+  const now = new Date().toISOString();
+  const row = getDb().insert(schema.todos).values({ ticket: "", text: "Chris am Freitag die geliehenen 150 € zurückschicken", kind: "other", owner: "me", status: "open", source: "WhatsApp", refs: "[]", ops: JSON.stringify([op]), createdAt: now, updatedAt: now } as never).returning().get() as { id: number };
+  const { saveTransferAction } = await import("@/plugins/todos/server-actions");
+  const r = await saveTransferAction(row.id, 0, { ...op!, iban: "DE89 3704 0044 0532 0130 00" });
+  assert.equal(r.ok, true);
+  assert.equal(r.kept, "Chris Ballhaus");
+  const { detailsOf, payees } = await import("@/plugins/people/details");
+  assert.ok(detailsOf(chris).some((d) => d.key === "iban" && d.value.replace(/\s/g, "") === "DE89370400440532013000"));
+  assert.ok(payees().some((p) => p.name === "Chris Ballhaus"), "a payee now — the next transfer to him has the account");
+  const again = await saveTransferAction(row.id, 0, { ...op!, iban: "DE89 3704 0044 0532 0130 00", amount: "100" });
+  assert.equal(again.kept, undefined, "known already: not kept twice");
+});

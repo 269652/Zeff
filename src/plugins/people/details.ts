@@ -9,6 +9,7 @@ import { getSqlite } from "@/db";
 import { emitChange } from "@/lib/events";
 import { BIC_RE, IBAN_RE, ibanValid } from "@/lib/girocode";
 import type { Payee } from "@/lib/girocode-todo";
+import { isInstalled } from "@/plugins/state";
 import { claimsOf } from "./graph";
 import { listPeople, namesThem } from "./store";
 
@@ -101,6 +102,23 @@ export function addDetail(personId: number, key: DetailKey, value: string): void
     .prepare("insert into people_details (person_id, key, value, norm, claim_id, created_at) values (?, ?, ?, ?, 0, ?) on conflict (person_id, key, norm) do update set value = excluded.value, claim_id = 0, removed = 0")
     .run(personId, key, v, norm(key, v), new Date().toISOString());
   emitChange("todos");
+}
+
+/**
+ * A transfer's account kept with its recipient: the one contact the name means (none or several: nobody), the IBAN (and BIC)
+ * added as theirs unless they have it. The contact's name, or null.
+ */
+export function rememberAccount(name: string, iban: string, bic = ""): string | null {
+  if (!isInstalled("people") || !ibanValid(iban)) return null;
+  const who = listPeople().filter((p) => p.name.toLowerCase() === name.trim().toLowerCase());
+  const matches = who.length ? who : listPeople().filter((p) => namesThem(p, name));
+  if (matches.length !== 1) return null;
+  const p = matches[0];
+  const has = (key: DetailKey, v: string) => detailsOf(p.id).some((d) => d.key === key && norm(key, d.value) === norm(key, v));
+  if (has("iban", iban)) return null;
+  addDetail(p.id, "iban", iban);
+  if (bic && !has("bic", bic)) addDetail(p.id, "bic", bic);
+  return p.name;
 }
 
 /** A detail removed — kept as removed, so reading the claims again doesn't bring it back. */

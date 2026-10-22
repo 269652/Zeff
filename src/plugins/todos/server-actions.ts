@@ -459,7 +459,7 @@ export async function saveTodoOpTextAction(todoId: number, index: number, text: 
 }
 
 /** A transfer's fields changed on its card (recipient, account, amount, purpose) — checked like the action itself. */
-export async function saveTransferAction(todoId: number, index: number, fields: { name: string; iban: string; bic: string; amount: string; purpose: string }): Promise<ActionState> {
+export async function saveTransferAction(todoId: number, index: number, fields: { name: string; iban: string; bic: string; amount: string; purpose: string }): Promise<ActionState & { kept?: string }> {
   try {
     const { getTodo, setTodoOps } = await import("@/lib/boards/store");
     const todo = getTodo(Number(todoId));
@@ -470,8 +470,10 @@ export async function saveTransferAction(todoId: number, index: number, fields: 
     const next = CASES_ACTIONS[0].clean({ ...fields }, { ticket: todo.ticket });
     if (!next) return { ok: false, error: t("Not a valid IBAN.") };
     setTodoOps(todo.id, todo.ops.map((o, i) => (i === Number(index) ? next : o)) as typeof todo.ops);
+    // The account entered for a contact (the one person the recipient names): kept with them — the next transfer has it.
+    const kept = next.type === "bank-transfer" && next.iban ? await (await import("@/plugins/people/details")).rememberAccount(next.name, next.iban, next.bic) : null;
     revalidateAll();
-    return { ok: true, message: t("Saved.") };
+    return { ok: true, message: kept ? t("Saved — the account is kept with {name}.", { name: kept }) : t("Saved."), ...(kept ? { kept } : {}) };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

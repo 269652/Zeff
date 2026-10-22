@@ -6842,5 +6842,8 @@
   "Dates & to check": "Termine & Prüfen",
   "Detail page": "Detailseite",
   "This page as code (for all rows of “{db}”)": "Diese Seite als Code (für alle Zeilen von „{db}“)",
-  "The database is gone.": "Die Datenbank ist weg."
+  "The database is gone.": "Die Datenbank ist weg.",
+  "The account isn't known yet — enter the IBAN once, Zeff keeps it with the contact.": "Das Konto ist noch nicht bekannt — trag die IBAN einmal ein, Zeff merkt sie sich am Kontakt.",
+  "Saved — the account is kept with {name}.": "Gespeichert — das Konto ist bei {name} gemerkt.",
+  "IBAN of {name}": "IBAN von {name}"
 }

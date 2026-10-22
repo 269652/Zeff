@@ -31,10 +31,10 @@ export const CASES_ACTIONS = [
     label: "Transfer (GiroCode)",
     verb: "Transfer",
     offer: {
-      when: "Eine Überweisung: das Todo verlangt, Geld zu zahlen (eine Rate, eine Rechnung, eine Restforderung), und Empfänger und IBAN stehen fest — im Todo, in seinen Quellen oder im Wissen (z. B. ein Dienstkonto). Ein Klick zeigt den GiroCode für die Banking-App. Nie eine IBAN erfinden.",
+      when: "Eine Überweisung: das Todo verlangt, Geld zu zahlen oder zurückzugeben (eine Rate, eine Rechnung, eine Restforderung, Geld, das ich jemandem schulde), und der Empfänger steht fest. Die IBAN aus dem Todo, seinen Quellen, dem Wissen oder den Konten meiner Kontakte (unten); kennt sie keiner, bleibt sie leer — ich trage sie einmal ein, Zeff merkt sie sich am Kontakt. Ein Klick zeigt den GiroCode für die Banking-App. Nie eine IBAN erfinden.",
       fields: {
-        name: "der Empfänger, wie er angegeben ist (Kontoinhaber)",
-        iban: "die IBAN, genau abgeschrieben",
+        name: "der Empfänger, wie er angegeben ist (Kontoinhaber; bei einem Kontakt sein Name)",
+        iban: "die IBAN, genau abgeschrieben — leer, wenn sie nirgends steht",
         bic: "die BIC, wenn angegeben — sonst leer",
         amount: "der Betrag in Euro (z. B. 11,52) — leer, wenn er nicht feststeht",
         purpose: "der Verwendungszweck, wie verlangt (meist das Aktenzeichen)",
@@ -42,12 +42,13 @@ export const CASES_ACTIONS = [
       example: { type: "bank-transfer", name: "Nathanael Dienstkonto", iban: "DE22 6609 0800 0007 7773 02", bic: "GENODE61BBB", amount: "11,52", purpose: "DR II 810/26" },
     },
     clean: (o) => {
+      // No IBAN yet (a contact's account isn't known): you enter it on the card, once — a wrong one is never kept.
       const iban = str(o.iban).toUpperCase();
-      if (!str(o.name) || !ibanValid(iban)) return null;
+      if (!str(o.name) || (iban && !ibanValid(iban))) return null;
       return { type: "bank-transfer", name: str(o.name).slice(0, 70), iban, bic: str(o.bic).replace(/\s+/g, "").toUpperCase().slice(0, 11), amount: amountOf(o.amount), purpose: str(o.purpose).slice(0, 140) };
     },
     title: (op, t = EN) => (op.amount ? t("Transfer {amount} to {name}", { amount: euro(op.amount), name: op.name }) : t("Transfer to {name}", { name: op.name })),
-    note: (op, t = EN) => ({ heading: t("Transfer to {name}", { name: op.name }), detail: [euro(op.amount), op.purpose].filter(Boolean).join(" · ") || null, body: `IBAN ${op.iban}${op.bic ? ` · BIC ${op.bic}` : ""}` }),
+    note: (op, t = EN) => ({ heading: t("Transfer to {name}", { name: op.name }), detail: [euro(op.amount), op.purpose].filter(Boolean).join(" · ") || null, body: op.iban ? `IBAN ${op.iban}${op.bic ? ` · BIC ${op.bic}` : ""}` : t("The account isn't known yet — enter the IBAN once, Zeff keeps it with the contact.") }),
     // Zeff's page with the GiroCode: scan it with your banking app — you send the money yourself.
     href: (op) => `/pay?${new URLSearchParams({ name: op.name, iban: op.iban, ...(op.bic ? { bic: op.bic } : {}), ...(op.amount ? { amount: op.amount } : {}), ...(op.purpose ? { purpose: op.purpose } : {}) })}`,
   }),

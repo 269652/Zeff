@@ -93,6 +93,20 @@ Regeln:
 - why: ein Satz, warum genau diese Aktionen.`;
 
 /** The people whose mail addresses are known (from the mails read): "Name <address>", for those the todos name. */
+/** The bank accounts of the people the todos name (the People plugin's details): "Name: IBAN (BIC …)". */
+async function accountsOf(text: string): Promise<string[]> {
+  const { isInstalled } = await import("@/plugins/state");
+  if (!isInstalled("people")) return [];
+  const { payees } = await import("@/plugins/people/details");
+  return payees()
+    .filter((p) => p.names(text))
+    .flatMap((p) => {
+      const iban = p.details.find((d) => d.key === "iban")?.value;
+      const bic = p.details.find((d) => d.key === "bic")?.value;
+      return iban ? [`- ${p.name}: ${iban}${bic ? ` (BIC ${bic})` : ""}`] : [];
+    });
+}
+
 function addressBook(text: string): string[] {
   const rows = getDb()
     .select({ name: emails.fromName, email: emails.fromEmail })
@@ -321,6 +335,7 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
       throwIfAborted();
       const text = batch.map((b) => b.text).join("\n\n");
       const book = addressBook(text);
+      const accounts = await accountsOf(text);
       const prompt = [
         fillPrompt("auto-actions", INSTRUCTIONS, { me: me || "der Nutzer", today }) + extraBlock("autoactions"),
         "",
@@ -328,6 +343,9 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
         "",
         "# Adressbuch (Mail-Adressen aus meinen Mails)",
         ...(book.length ? book : ["(keine passenden)"]),
+        "",
+        "# Konten meiner Kontakte (für bank-transfer)",
+        ...(accounts.length ? accounts : ["(keins bekannt — bei einer Rückzahlung an eine Person die IBAN leer lassen)"]),
         "",
         "# Meine belegten Zeiten (nächste Tage)",
         ...(busyLines.length ? busyLines : ["(keine bekannt)"]),

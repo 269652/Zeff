@@ -39,6 +39,7 @@ export function TransferCard({ op, todoId, index }: { op: Fields; todoId?: numbe
     start(async () => {
       const r = await saveTransferAction(todoId, index, { ...f, amount: amount != null ? amount.toFixed(2) : "" });
       if (!r?.ok) toast(r?.error ?? t("Didn't work."), { tone: "error" });
+      else if ("kept" in r && r.kept) toast(t("Saved — the account is kept with {name}.", { name: r.kept }));
       router.refresh();
     });
   };
