@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { GiroCode } from "@/components/GiroCode";
@@ -32,7 +32,25 @@ export default function DebtsView({ openRow }: AppViewProps) {
   const [o, setO] = useState<FinancesOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [paying, setPaying] = useState<number | null>(null);
-  const load = useCallback(() => void financesOverviewAction(dir).then((r) => (r.ok ? setO(r.overview) : setError(r.error))), [dir]);
+  // Only the latest load counts (a slower one before it doesn't put the old figures back); one that fails is tried once more.
+  const seq = useRef(0);
+  const load = useCallback(() => {
+    const n = ++seq.current;
+    const once = (again: boolean): Promise<void> =>
+      financesOverviewAction(dir).then(
+        (r) => {
+          if (n !== seq.current) return;
+          if (r.ok) setO(r.overview);
+          else setError(r.error);
+        },
+        (e: unknown) => {
+          if (n !== seq.current) return;
+          if (again) return new Promise<void>((ok) => setTimeout(ok, 1000)).then(() => once(false));
+          toast(e instanceof Error ? e.message : String(e), { tone: "error" });
+        },
+      );
+    void once(true);
+  }, [dir]);
   useEffect(load, [load]);
   // Today — fixed when the view opens.
   const [today] = useState(() => new Date().toISOString().slice(0, 10));
@@ -59,6 +77,7 @@ export default function DebtsView({ openRow }: AppViewProps) {
           const r = await setIncomeAction(v == null ? null : Number(v));
           if (!r.ok) toast(r.error, { tone: "error" });
           load();
+          return r.ok;
         }}
       />
       {income != null && ` ${o.income.source === "manual" ? t("a month (yours)") : t("a month, from the statements")}`}

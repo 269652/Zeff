@@ -12,7 +12,10 @@ export function InlineAmount({ value, onSave, date = false, hint, className = ""
   const t = useT();
   const [editing, setEditing] = useState(false);
   const [v, setV] = useState("");
-  const shown = value == null || value === "" ? empty : date ? new Date(`${String(value).slice(0, 10)}T12:00:00`).toLocaleDateString() : Number(value).toLocaleString(undefined, { style: "currency", currency: "EUR", minimumFractionDigits: digits, maximumFractionDigits: digits });
+  // What was just saved — shown until the new value comes back (else the old one would stand there meanwhile).
+  const [saved, setSaved] = useState<{ v: number | string | null; over: number | string | null } | null>(null);
+  const current = saved && saved.over === value ? saved.v : value;
+  const shown = current == null || current === "" ? empty : date ? new Date(`${String(current).slice(0, 10)}T12:00:00`).toLocaleDateString() : Number(current).toLocaleString(undefined, { style: "currency", currency: "EUR", minimumFractionDigits: digits, maximumFractionDigits: digits });
   const save = async () => {
     setEditing(false);
     const raw = v.trim();
@@ -25,8 +28,11 @@ export function InlineAmount({ value, onSave, date = false, hint, className = ""
         next = n;
       }
     }
-    if (next === value) return;
-    await onSave(next);
+    if (next === current) return;
+    setSaved({ v: next, over: value });
+    // Not saved (onSave says false or fails): the value before.
+    const ok = await Promise.resolve(onSave(next)).catch(() => false);
+    if (ok === false) setSaved(null);
   };
   if (editing)
     return (
@@ -51,7 +57,7 @@ export function InlineAmount({ value, onSave, date = false, hint, className = ""
       className={`rounded px-1 tabular-nums hover:bg-zinc-100 hover:ring-1 hover:ring-zinc-200 dark:hover:bg-zinc-800 dark:hover:ring-zinc-700 print:hover:bg-transparent ${className}`}
       title={t("Click to change")}
       onClick={() => {
-        setV(value == null ? "" : date ? String(value) : String(value).replace(".", ","));
+        setV(current == null ? "" : date ? String(current) : String(current).replace(".", ","));
         setEditing(true);
       }}
     >

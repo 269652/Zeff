@@ -26,8 +26,11 @@ export function EditMoney({ rowId, field, value, onSaved, className = "", readOn
       className={className}
       onSave={async (next) => {
         const r = await debtMoneyAction(rowId, { [field]: next });
-        if (!r.ok) toast(r.error, { tone: "error" });
-        else onSaved();
+        if (!r.ok) {
+          toast(r.error, { tone: "error" });
+          return false;
+        }
+        onSaved();
       }}
     />
   );
