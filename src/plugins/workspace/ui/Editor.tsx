@@ -18,6 +18,7 @@ import { toast } from "@/components/Toaster";
 import { useLang, useT } from "@/components/I18nProvider";
 import { aiTextAction, aiTodosFromPageAction, createPageAction, createTodoListAction, createTodosAction, databasesAction, pageContentAction, savePageAction, taskListsAction, treeAction, type AiMode, type TaskListInfo } from "../actions";
 import { markdownToDoc } from "../doc";
+import { fitAiContent, relocate, type TextBlock } from "../ai-fit";
 import { embedChoices } from "../embed-picker";
 import type { TreeItem } from "../store";
 import { Modal } from "./kit";
@@ -41,7 +42,8 @@ export type SaveState = "saved" | "saving" | "error" | "conflict";
 /** Markdown typed or pasted as plain text: headings, lists, fences, tables or links over several lines. */
 const MD_HINT = /(^#{1,6} |^\s*[-*] |^\s*\d+\. |^```|^\|.+\|$|\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/m;
 
-type Proposal = { markdown: string; mode: AiMode; from: number; to: number; replace: boolean };
+/** The AI's answer waiting for you: where it goes, and what was selected (to find it again if the page changed meanwhile). */
+type Proposal = { markdown: string; mode: AiMode; from: number; to: number; replace: boolean; original: string };
 
 export function Editor({ pageId, contextRowId, initial, rev, editable, smallText, onSave, dragHandles = true }: { /** The handle at the side of each top-level block (drag, add below). */ dragHandles?: boolean; pageId: number; /** The row whose data the modules of this page show (a detail view laid out on a row: the page saves, the modules are the row's). */ contextRowId?: number; initial: JSONContent; rev: number; editable: boolean; smallText: boolean; onSave?: (s: SaveState) => void }) {
   const t = useT();
@@ -150,7 +152,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
           const chain = ed.chain().focus();
           (empty ? chain.insertContentAt(Math.min(from, size), content) : chain.insertContentAt({ from: Math.min(from, size), to: Math.min(to, size) }, content)).run();
           toast(t("Written — Ctrl+Z undoes it."), { tone: "ok" });
-        } else setProposal({ markdown: r.markdown, mode, from, to, replace: !empty && !wholePage && mode !== "continue" });
+        } else setProposal({ markdown: r.markdown, mode, from, to, replace: !empty && !wholePage && mode !== "continue", original: empty || wholePage ? "" : text });
       } finally {
         setAiBusy(false);
       }
@@ -351,12 +353,32 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
     };
   }, [flush]);
 
+  // The AI's text put in: over the selection (found again if the page changed meanwhile — gone: nothing replaced), or below it.
+  // One paragraph within one line goes in as its text — a paragraph there would split the line.
   const accept = (replaceSel: boolean) => {
     if (!proposal || !editor) return;
-    const content = markdownToDoc(proposal.markdown).content as JSONContent[];
+    const doc = editor.state.doc;
+    const blocks = markdownToDoc(proposal.markdown).content as JSONContent[];
     const chain = editor.chain().focus();
-    if (replaceSel && proposal.replace) chain.insertContentAt({ from: proposal.from, to: proposal.to }, content).run();
-    else chain.insertContentAt(proposal.mode === "continue" ? proposal.from : proposal.to, content).run();
+    if (replaceSel && proposal.replace) {
+      const lines: TextBlock[] = [];
+      doc.descendants((node, pos) => {
+        if (node.isTextblock) lines.push({ start: pos + 1, text: node.textContent });
+        return !node.isTextblock;
+      });
+      const at = relocate(proposal.original, { from: proposal.from, to: proposal.to }, (a, b) => doc.textBetween(a, b, "\n"), lines);
+      if (!at) return void toast(t("The selected text isn't there any more — nothing replaced."), { tone: "error" });
+      const oneLine = doc.resolve(at.from).sameParent(doc.resolve(at.to));
+      chain.insertContentAt(at, fitAiContent(blocks, oneLine)).run();
+    } else if (proposal.mode === "continue") {
+      const at = Math.min(proposal.from, doc.content.size);
+      chain.insertContentAt(at, fitAiContent(blocks, doc.resolve(at).parent.isTextblock)).run();
+    } else {
+      // Below: after the line the selection ends in (not into it).
+      const $to = doc.resolve(Math.min(proposal.to, doc.content.size));
+      const after = $to.parent.isTextblock && $to.depth > 0 ? $to.after($to.depth) : $to.pos;
+      chain.insertContentAt(after, blocks).run();
+    }
     setProposal(null);
   };
 
