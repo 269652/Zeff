@@ -185,7 +185,7 @@ export function profileFor(port, dataDir = DATA, userDir = zeffUserDir()) {
   return path.join(userDir, `chrome-port-${port}`);
 }
 
-function launchBrowser({ port, urls }) {
+export function launchBrowser({ port, urls }) {
   if (port === 9339) throw new Error("Signal Desktop is started by Zeff's Signal plugin on this computer, not by the bridge.");
   const browser = findBrowser();
   if (!browser) throw new Error(`No browser found for the automation window. ${NO_BROWSER_MESSAGE}`);

@@ -51,12 +51,13 @@ export function tokens(dataDir = DATA) {
 }
 
 /**
- * The services and how each starts. `bind`: the address the pages listen on inside the container (0.0.0.0: the published port reaches it).
+ * The services and how each starts. `bind`: the address the pages listen on inside the container (0.0.0.0: the published port reaches it;
+ * ZEFF_BIND=127.0.0.1 on a server whose container shares the host's network — only the edge in front of it, Caddy, reaches them).
  * @typedef {{ name: string, args: string[], env: Record<string, string | undefined> }} Service
  * @param {{ app?: string, data?: string, tok?: { work: string, sync: string }, bind?: string }} [o]
  * @returns {Service[]}
  */
-export function services({ app = APP, data = DATA, tok = tokens(DATA), bind = "0.0.0.0" } = {}) {
+export function services({ app = APP, data = DATA, tok = tokens(DATA), bind = process.env.ZEFF_BIND || "0.0.0.0" } = {}) {
   const env = {
     ...process.env,
     NODE_ENV: "production",

@@ -1,0 +1,10 @@
+# The edge of Zeff on a server: HTTPS on 443 (Let's Encrypt for ZEFF_DOMAIN), everything passed on to Zeff on 127.0.0.1:9333 with
+# the header x-zeff-edge — Zeff's gate (src/lib/gate.ts) asks each such request for its session or token. header_up sets the
+# header, so a client cannot leave it out.
+{$ZEFF_DOMAIN} {
+	encode zstd gzip
+	header -Server
+	reverse_proxy 127.0.0.1:9333 {
+		header_up X-Zeff-Edge 1
+	}
+}
