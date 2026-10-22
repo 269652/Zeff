@@ -31,7 +31,9 @@ export function withEntities(events: TimelineEvent[], skip: string[] = []): Show
     return cache.get(ref)!;
   };
   const own = /^(mail|msg|entry|event|doc):/;
-  return events.map((e) => ({ ...e, entities: e.refs.filter((r) => !own.test(r) && !skip.includes(r)).slice(0, 8).map(label) }));
+  // A todo's own events: the todo is the event itself (its title), not one of the entities around it.
+  const itself = (e: TimelineEvent, r: string) => own.test(r) || (e.source === "todos" && r.startsWith("todo:")) || (e.source === "workspace" && r === e.url.replace("/workspace/", "page:"));
+  return events.map((e) => ({ ...e, entities: e.refs.filter((r) => !itself(e, r) && !skip.includes(r)).slice(0, 8).map(label) }));
 }
 
 export type ForQuery = { ref?: string; q?: string; row?: number; since?: string; until?: string; kinds?: string[]; sources?: string[]; limit?: number; before?: { at: string; id: number } };
