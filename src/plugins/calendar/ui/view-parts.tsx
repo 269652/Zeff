@@ -85,6 +85,37 @@ function useAddress(state: Record<string, string>, setState: (name: string, valu
 
 const FRAME = "flex h-[calc(100dvh-10rem)] min-h-[32rem] min-w-0 flex-[1_1_32rem] flex-col";
 
+/**
+ * The frame as high as the room left below it — down to the bottom of what scrolls (the page, or the pane it sits in) — so only
+ * the time grid scrolls, not the page around it too (what sits above it differs: the Workspace's title, tabs and toolbar).
+ */
+function useFill(): [React.RefObject<HTMLDivElement | null>, number | null] {
+  const ref = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let pane: HTMLElement | null = el.parentElement;
+    while (pane && !/(auto|scroll)/.test(getComputedStyle(pane).overflowY)) pane = pane.parentElement;
+    const measure = () => {
+      const top = el.getBoundingClientRect().top;
+      const offset = pane ? top - pane.getBoundingClientRect().top + pane.scrollTop : top + window.scrollY;
+      const room = pane ? pane.clientHeight : window.innerHeight;
+      setHeight(Math.max(512, Math.floor(room - offset - 16)));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(document.documentElement);
+    if (pane) ro.observe(pane);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+  return [ref, height];
+}
+
 /** The calendar itself, beside the sidebar (the room left in its row): day, week, month or agenda of state.view and state.day. */
 function GridPart(p: PartProps) {
   const t = useT();
@@ -126,8 +157,9 @@ function Grid({ d, state, setState, reloadApp, onNew }: PartProps & { d: Calenda
     setState("saving", pending ? "true" : "");
   }, [pending, setState]);
 
+  const [frame, height] = useFill();
   return (
-    <div className={FRAME}>
+    <div ref={frame} className={FRAME} style={height ? { height } : undefined}>
       <section className="card min-h-0 flex-1 overflow-hidden">{grid}</section>
       {overlays}
     </div>
@@ -189,7 +221,9 @@ const view: ViewAppModule = {
     "calendar.new": (env) => env.setState("new", String(Date.now())),
     "calendar.sync": (env) => {
       env.setState("saving", "true");
-      void syncCalendarsAction().then(
+      // (The days shown are read too — a month gone by.)
+      const day = /^\d{4}-\d{2}-\d{2}$/.test(env.state.day ?? "") ? env.state.day : ymd(new Date());
+      void syncCalendarsAction(viewRange(isView(env.state.view) ? env.state.view : "week", day)).then(
         (r) => {
           env.setState("saving", "");
           toast(r?.ok ? (r.message ?? "") : (r?.error ?? ""), { tone: r?.ok ? "ok" : "error" });

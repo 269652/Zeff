@@ -38,7 +38,7 @@ export function CalendarSettings({
   outlook,
 }: {
   calendars: CalendarView[];
-  google: { account: string; weeks: number } | null;
+  google: { account: string; weeks: number; pastMonths: number } | null;
   /** The Google accounts signed in in the automation Chrome (null: Chrome isn't running). */
   signedIn: { email: string; name: string; number: number }[] | null;
   outlook: boolean;
@@ -48,7 +48,7 @@ export function CalendarSettings({
   const [pending, start] = useTransition();
   const [fresh, setFresh] = useState({ name: "", color: CALENDAR_COLORS[0] });
   const [names, setNames] = useState<Record<number, string>>(() => Object.fromEntries(calendars.map((c) => [c.id, c.name])));
-  const [g, setG] = useState(google ?? { account: "0", weeks: 5 });
+  const [g, setG] = useState(google ?? { account: "0", weeks: 5, pastMonths: 3 });
   const done = (r: { ok: boolean; message?: string; error?: string } | null) => {
     toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("That didn't work.")), { tone: r?.ok ? "ok" : "error" });
     if (r?.ok) router.refresh();
@@ -173,6 +173,10 @@ export function CalendarSettings({
                 <label className="space-y-1">
                   <span className="block text-xs text-zinc-500">{t("Weeks to read")}</span>
                   <input type="number" min={1} max={12} className="input w-20" value={g.weeks} onChange={(e) => setG({ ...g, weeks: Number(e.target.value) })} />
+                </label>
+                <label className="space-y-1" title={t("Read from the 1st of the month so many months back (through Google's API). An older month: open it in the calendar and press Sync.")}>
+                  <span className="block text-xs text-zinc-500">{t("Months back")}</span>
+                  <input type="number" min={0} max={24} className="input w-20" value={g.pastMonths} onChange={(e) => setG({ ...g, pastMonths: Number(e.target.value) })} />
                 </label>
                 <button type="button" className="btn btn-sm" disabled={pending} onClick={() => start(async () => void done(await saveGoogleCalendarSettingsAction(g)))}>
                   {t("Save")}

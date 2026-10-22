@@ -25,6 +25,8 @@ export const HOST_OPS: Record<string, Op> = {
     return { ok: stopped, message: stopped ? "Stopping." : "Not running." };
   },
   "sync.wait": async (a) => (await import("@/lib/sync/registry")).syncAndWaitHere(str(a.key) as never),
+  // Google Calendar with the days shown (a month gone by) besides its window.
+  "gcal.range": async (a) => (await import("@/plugins/google-calendar/sync")).syncGoogleCalendar({ range: { from: str(a.from), to: str(a.to) } }),
 
   // The Ticket-Lage, the day recap, the Board-Lage's scope.
   "board.run": async (a) => (await import("@/lib/boards/run")).startBoardRun({ syncJira: !!a.syncJira }),

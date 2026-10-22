@@ -150,21 +150,34 @@ export async function deleteEventAction(id: number, series?: { occurrence: strin
   });
 }
 
-/** Google Calendar's account and how many weeks it reads. */
-export async function saveGoogleCalendarSettingsAction(v: { account: string; weeks: number }): Promise<ActionState> {
+/** Google Calendar's account, how many weeks ahead it reads and how many months back. */
+export async function saveGoogleCalendarSettingsAction(v: { account: string; weeks: number; pastMonths?: number }): Promise<ActionState> {
   return run(async () => {
     const { setPref } = await import("@/lib/prefs");
     const account = String(v.account ?? "0").trim() || "0";
     const weeks = Math.max(1, Math.min(12, Math.round(Number(v.weeks) || 5)));
-    setPref("plugin:google-calendar", { account, weeks });
+    const pastMonths = Math.max(0, Math.min(24, Math.round(Number(v.pastMonths ?? 3))));
+    setPref("plugin:google-calendar", { account, weeks, pastMonths });
     return t("Saved.");
   });
 }
 
 /** "Jetzt syncen": the calendars' sources now (Google's sync; Outlook's is read in when its own sync brought something). */
-export async function syncCalendarsAction(): Promise<ActionState> {
+export async function syncCalendarsAction(range?: { from: string; to: string }): Promise<ActionState> {
   const { isInstalled } = await import("@/plugins/state");
   if (!isInstalled("google-calendar")) return { ok: false, error: t("Google Calendar is not installed (Menu → Plugins).") };
+  // The days shown (a month gone by): read with the window of the settings.
+  const day = /^\d{4}-\d{2}-\d{2}$/;
+  if (range && day.test(String(range.from)) && day.test(String(range.to))) {
+    // (On the sync host when there is one — the syncs run there.)
+    const { delegates } = await import("@/lib/host/role");
+    const asked = { from: range.from, to: range.to };
+    const r = delegates()
+      ? await (await import("@/lib/host/client")).callHost<{ ok: boolean; message: string }>("gcal.range", asked, 10 * 60000).catch((e: unknown) => ({ ok: false, message: e instanceof Error ? e.message : String(e) }))
+      : await (await import("@/plugins/google-calendar/sync")).syncGoogleCalendar({ range: asked });
+    changed();
+    return r.ok ? { ok: true, message: `Google Calendar: ${r.message}` } : { ok: false, error: r.message };
+  }
   const { syncAndWait } = await import("@/lib/sync/registry");
   const r = await syncAndWait("gcalendar");
   changed();

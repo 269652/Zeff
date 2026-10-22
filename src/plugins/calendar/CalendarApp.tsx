@@ -10,7 +10,7 @@ import type { T } from "@/lib/i18n/shared";
 import { useCalendarBody } from "./CalendarBody";
 import { MiniMonth } from "./MiniMonth";
 import { syncCalendarsAction, updateCalendarAction } from "./server-actions";
-import { itemOn, stepDay, viewLabels, VIEWS, viewTitle, ymd, type ViewKind } from "./view-shared";
+import { itemOn, stepDay, viewLabels, viewRange, VIEWS, viewTitle, ymd, type ViewKind } from "./view-shared";
 
 const shortcuts = (t: T): [string, string][] => [
   ["T", t("Today")],
@@ -177,7 +177,7 @@ export function CalendarApp({
             ))}
           </div>
           {canSync && (
-            <button type="button" className="btn btn-sm" disabled={pending} onClick={() => start(async () => void done(await syncCalendarsAction()))} title={t("Read Google Calendar now")}>
+            <button type="button" className="btn btn-sm" disabled={pending} onClick={() => start(async () => void done(await syncCalendarsAction(viewRange(view, day))))} title={t("Read Google Calendar now — the days shown too")}>
               ⟳ {t("Sync")}
             </button>
           )}

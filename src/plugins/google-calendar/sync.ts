@@ -12,8 +12,27 @@ import { t } from "@/lib/i18n/server";
 import { getPref } from "@/lib/prefs";
 import { automationEnv, automationUp, driverPath } from "@/plugins/drivers";
 
-export type GoogleCalendarSettings = { account: string; weeks: number };
-export const googleCalendarSettings = (): GoogleCalendarSettings => ({ account: "0", weeks: 5, ...getPref<Partial<GoogleCalendarSettings>>("plugin:google-calendar", {}) });
+/** `weeks`: how far ahead it reads; `pastMonths`: how far back (the API — from the 1st of that month). */
+export type GoogleCalendarSettings = { account: string; weeks: number; pastMonths: number };
+export const googleCalendarSettings = (): GoogleCalendarSettings => ({ account: "0", weeks: 5, pastMonths: 3, ...getPref<Partial<GoogleCalendarSettings>>("plugin:google-calendar", {}) });
+
+export type DayRange = { from: string; to: string };
+
+/** What a sync reads: from the 1st of the month `pastMonths` back (at least the Monday of last week), up to `weeks` weeks from that Monday. */
+export function syncWindow(s: Pick<GoogleCalendarSettings, "weeks" | "pastMonths">, now = new Date()): DayRange {
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7) - 7);
+  const back = new Date(now.getFullYear(), now.getMonth() - Math.max(0, s.pastMonths), 1);
+  const to = new Date(monday);
+  to.setDate(to.getDate() + 7 * Math.max(1, s.weeks));
+  return { from: isoDay(back < monday ? back : monday), to: isoDay(to) };
+}
+
+/** The ranges to read: the window, and a range asked for (the month shown) — joined when they touch, else both. */
+export function rangesToRead(window: DayRange, asked?: DayRange): DayRange[] {
+  if (!asked || asked.to <= asked.from) return [window];
+  if (asked.from <= window.to && asked.to >= window.from) return [{ from: asked.from < window.from ? asked.from : window.from, to: asked.to > window.to ? asked.to : window.to }];
+  return [window, asked];
+}
 
 /** One Google sync at a time across the whole server. */
 const flag = globalThis as { __zeffGcalSyncing?: boolean };
@@ -33,40 +52,46 @@ async function chromeUp(): Promise<boolean> {
   return automationUp();
 }
 
-export async function syncGoogleCalendar({ background = false } = {}): Promise<{ ok: boolean; message: string }> {
+/** `range`: the days shown (a month gone by) — read too, besides the window of the settings (the API only). */
+export async function syncGoogleCalendar({ background = false, range }: { background?: boolean; range?: DayRange } = {}): Promise<{ ok: boolean; message: string }> {
   if (flag.__zeffGcalSyncing) return { ok: false, message: t("A Google Calendar sync is already running.") };
   flag.__zeffGcalSyncing = true;
   try {
     const viaApi = driverOf("gcalendar") === "api";
     if (!viaApi && background && !(await chromeUp())) return { ok: false, message: t("The automation Chrome isn't running. Not synced.") };
     const s = googleCalendarSettings();
-    let data: Read | null;
-    if (viaApi) data = await (await import("@/lib/google/calendar-api")).readCalendar({ weeks: s.weeks });
-    else {
+    // What was read, each with the days it covers (what Zeff has of those days is replaced by it).
+    const reads: { data: Read; range: DayRange }[] = [];
+    if (viaApi) {
+      const { readCalendar } = await import("@/lib/google/calendar-api");
+      for (const r of rangesToRead(syncWindow(s), range)) reads.push({ data: await readCalendar(r), range: r });
+    } else {
       const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
       const out = await runStdioSession(
         { command: process.execPath, args: [driverPath("google-calendar")], env: automationEnv(), label: "Google Calendar sync" },
         async (call) => resultToPayload(await call("gcal_events", { account: s.account, weeks: s.weeks, launch: !background })),
         300000,
       );
-      data = (typeof out === "string" ? (out.trim().startsWith("{") ? JSON.parse(out) : null) : out) as Read | null;
+      const data = (typeof out === "string" ? (out.trim().startsWith("{") ? JSON.parse(out) : null) : out) as Read | null;
       if (!data || !Array.isArray(data.calendars) || !Array.isArray(data.events)) throw new Error(typeof out === "string" ? out.replace(/^Error:\s*/, "").slice(0, 300) : t("Google Calendar returned nothing readable."));
+      // The weeks read: from their Monday, so many weeks on.
+      const to = new Date(`${data.from}T00:00:00`);
+      to.setDate(to.getDate() + 7 * s.weeks);
+      reads.push({ data, range: { from: data.from, to: isoDay(to) } });
     }
-    // The weeks read: from their Monday, so many weeks on.
-    const to = new Date(`${data.from}T00:00:00`);
-    to.setDate(to.getDate() + 7 * s.weeks);
-    const range = { from: data.from, to: isoDay(to) };
     let events = 0;
-    for (const c of data.calendars) {
-      const cal = ensureCalendar(`google:${c.id}`, { source: "google", name: c.name, color: /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : undefined, visible: c.shown, busy: !NOT_BUSY.test(c.id) });
-      // A calendar hidden in Google shows nothing there: what Zeff has of it stays.
-      if (!c.shown) continue;
-      events += replaceEvents(
-        cal.id,
-        data.events.filter((e) => e.calendarId === c.id).map(({ calendarId: _c, ...e }) => e),
-        range,
-      );
-    }
+    for (const { data, range: days } of reads)
+      for (const c of data.calendars) {
+        const cal = ensureCalendar(`google:${c.id}`, { source: "google", name: c.name, color: /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : undefined, visible: c.shown, busy: !NOT_BUSY.test(c.id) });
+        // A calendar hidden in Google shows nothing there: what Zeff has of it stays.
+        if (!c.shown) continue;
+        events += replaceEvents(
+          cal.id,
+          data.events.filter((e) => e.calendarId === c.id).map(({ calendarId: _c, ...e }) => e),
+          days,
+        );
+      }
+    const data = reads[0].data;
     clearAttention("login:gcalendar");
     return {
       ok: true,
