@@ -13,6 +13,7 @@ import { formatSmart } from "@/lib/format";
 import { isInstalled } from "@/plugins/state";
 import { HistoryButton } from "@/plugins/whatsapp/HistoryButton";
 import { pushTo } from "@/lib/collections";
+import { LoopChip } from "@/plugins/loops/ui/LoopChip";
 
 export const metadata: Metadata = { title: "WhatsApp" };
 
@@ -37,6 +38,8 @@ export default async function WhatsappAppPage({ searchParams }: { searchParams: 
   const step = syncOverview().steps.find((s) => s.key === "whatsapp");
   const href = (chat: string, n?: number) => `/apps/whatsapp?${new URLSearchParams({ chat, ...(q ? { q } : {}), ...(n ? { limit: String(n) } : {}) })}`;
 
+  // The open loops said in this chat's messages (Open loops plugin): a chip on each.
+  const loops = isInstalled("loops") ? (await import("@/plugins/loops/query")).mailLoops().byMessage : null;
   return (
     <div className="page">
       <div className="page-aside">
@@ -87,6 +90,11 @@ export default async function WhatsappAppPage({ searchParams }: { searchParams: 
                   <div className={`max-w-[75%] rounded-lg px-3 py-1.5 text-sm ${mine ? "bg-emerald-50 dark:bg-emerald-950/40" : "bg-zinc-100 dark:bg-zinc-800"}`}>
                     {!mine && m.fromName && m.fromName !== openName &&<div className="text-xs font-medium text-emerald-700 dark:text-emerald-400">{m.fromName}</div>}
                     <div className="whitespace-pre-line">{m.preview}</div>
+                    {loops?.get(`mail:${m.key}`) && (
+                      <div className="mt-0.5 flex justify-end">
+                        <LoopChip mine={loops.get(`mail:${m.key}`)!.filter((l) => l.direction === "mine").length} theirs={loops.get(`mail:${m.key}`)!.filter((l) => l.direction === "theirs").length} overdue={loops.get(`mail:${m.key}`)!.filter((l) => l.overdue).length} texts={loops.get(`mail:${m.key}`)!.map((l) => l.text)} />
+                      </div>
+                    )}
                     <div className="text-right text-xs text-zinc-400">
                       {mine && <span className="sr-only">{t("Me")}, </span>}
                       {formatSmart(m.receivedAt)}

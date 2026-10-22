@@ -240,6 +240,8 @@ const template = (t: T) => `<state name="keep" value=""/>
   </list>
 </section>
 
+<part name="person.loops"/>
+
 <part name="person.timeline"/>
 
 <section title="${t("Todos they appear in")}">
@@ -310,6 +312,7 @@ export const PERSON_PAGE: ViewAppMeta = {
   label: "Person",
   parts: [
     { name: "person.input", description: "A line of the profile, saved on leaving it (or Enter) — “Saved ✓” for a moment (state.saved)", attrs: { field: "name | aliases | emails | whatsapp | jira", label: "its label", placeholder: "a hint in it" } },
+    { name: "person.loops", description: "What is open with them: promises either way, questions and requests waiting — with Done, Not a loop, Confirm and the proposals to close (the Open loops plugin; nothing while it is off or nothing is open) — under its own heading" },
     { name: "person.timeline", description: "What happened with them, by day: mails, chats, Teams, comments, appointments, todos, payments, documents — with the kinds to filter by and a line where your last visit was (the Timeline plugin; nothing while it is off) — under its own heading" },
     { name: "person.note", description: "Your notes on them, saved while you write and on leaving it", attrs: { placeholder: "a hint in it" } },
     { name: "person.transfer", description: "“Transfer money”: a dialog with the amount and purpose, and the GiroCode of the transfer to their account (app.canPay)" },

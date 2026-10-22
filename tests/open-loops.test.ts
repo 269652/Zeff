@@ -210,6 +210,11 @@ test("the views: what I owe, what I'm owed, overdue first; a person's loops", as
   assert.ok(!overdue.some((l) => /Rechnung/.test(l.text)), "two days old, no day: not yet");
   const all = listLoops({});
   assert.ok(all[0].overdue, "overdue first");
+  // The chips of the inbox and the chats: by thread and by message.
+  const { mailLoops } = await import("@/plugins/loops/query");
+  const chips = mailLoops();
+  assert.ok((chips.byThread.get("wa:Anna")?.mine ?? 0) >= 1, "Anna's chat: something I owe");
+  assert.ok([...chips.byMessage.keys()].some((k) => k.startsWith("mail:wa:Anna|")));
   const ricos = listLoops({ personId: s.rico });
   assert.ok(ricos.length >= 2 && ricos.every((l) => l.personId === s.rico));
 });

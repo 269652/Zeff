@@ -11,6 +11,7 @@ import { dayFrame, dayProgress, freeWindows, phaseOf, workSpan, type DayPhase } 
 import { DayTimeline } from "./DayTimeline";
 import type { TodoView } from "@/lib/boards/shared";
 import { remindedFormAction } from "@/plugins/people/server-actions";
+import { loopFormAction } from "@/plugins/loops/server-actions";
 import { peopleHome, personHref } from "@/plugins/workspace/people-database";
 import { inDaysText, upcomingTitle } from "@/plugins/people/shared";
 import { isInstalled } from "@/plugins/state";
@@ -107,9 +108,23 @@ async function heuteData() {
     reminders = upcoming({ withinReminder: true });
   }
 
-  // What was promised, by them or by you, and is due (or has no date): read from the messages (Personen plugin).
+  // The open loops past their day (or open a week): a gentle nudge — at most a few, yours first, not those put off (Open loops plugin).
+  let loopNudges: { loops: { ref: string; who: string; personId: number | null; text: string; due: string; at: string; mine: boolean }[]; total: number } | null = null;
+  if (isInstalled("loops")) {
+    try {
+      const { nudges } = await import("@/plugins/loops/query");
+      const { NUDGE_CAP } = await import("@/plugins/loops/shared");
+      const n = nudges(NUDGE_CAP, new Date(now));
+      loopNudges = { loops: n.loops.map((l) => ({ ref: l.ref, who: l.who, personId: l.personId, text: l.text, due: l.due, at: l.at, mine: l.direction === "mine" })), total: n.total };
+    } catch (e) {
+      console.error("[heute] open loops", e);
+    }
+  }
+
+  // What was promised, by them or by you, and is due (or has no date): read from the messages (Personen plugin) — the Open loops
+  // plugin's nudges take its place while it is installed.
   let commitments: { id: number; personId: number; personName: string; text: string; due: string; mine: boolean }[] = [];
-  if (isInstalled("people")) {
+  if (isInstalled("people") && !loopNudges) {
     const { openCommitments } = await import("@/plugins/people/graph");
     const day = iso;
     commitments = openCommitments()
@@ -148,7 +163,7 @@ async function heuteData() {
     t,
   });
 
-  return { run, open, mine, asking, reportedDone, due, flagged, waiting, meetings, unanswered, hours, problems, sourceIssues, reminders, commitments, next, today, now };
+  return { run, open, mine, asking, reportedDone, due, flagged, waiting, meetings, unanswered, hours, problems, sourceIssues, reminders, commitments, loopNudges, next, today, now };
 }
 
 const NEXT_TONE: Record<import("@/lib/heute-next").NextTone, string> = {
@@ -237,7 +252,7 @@ function Card({ id, title, href, count, tone = "zinc", children }: { id?: string
 export default async function HeutePage() {
   await connection();
   if (!isInstalled("todos")) return <PluginNotInstalled id="todos" />;
-  const { run, mine, asking, reportedDone, due, flagged, waiting, meetings, unanswered, hours, problems, sourceIssues, reminders, commitments, next, today, now } = await heuteData();
+  const { run, mine, asking, reportedDone, due, flagged, waiting, meetings, unanswered, hours, problems, sourceIssues, reminders, commitments, loopNudges, next, today, now } = await heuteData();
 
   const problem = problemLabels();
   const phase = phaseOf(now);
@@ -446,6 +461,41 @@ export default async function HeutePage() {
                 </li>
               ))}
             </ul>
+          </Card>
+        )}
+
+        {loopNudges && loopNudges.loops.length > 0 && (
+          <Card id="loops" title={t("Open loops overdue")} count={loopNudges.total} href="/loops?view=overdue" tone="indigo">
+            <ul className="space-y-1.5">
+              {loopNudges.loops.map((l) => (
+                <li key={l.ref} className="flex items-baseline gap-2 text-sm">
+                  <span className={`shrink-0 text-xs font-medium ${l.mine ? "text-amber-700 dark:text-amber-400" : "text-sky-700 dark:text-sky-400"}`}>{l.mine ? t("I owe") : t("They owe")}</span>
+                  <Link href={l.personId ? personHref(l.personId) : "/loops?view=overdue"} className="min-w-0 flex-1 hover:underline">
+                    {l.who}: {l.text}
+                  </Link>
+                  <span className="shrink-0 text-xs text-zinc-500">{l.due || l.at.slice(0, 10)}</span>
+                  <form action={loopFormAction} className="shrink-0">
+                    <input type="hidden" name="ref" value={l.ref} />
+                    <input type="hidden" name="op" value="later" />
+                    <button className="text-xs text-zinc-400 hover:text-zinc-700 hover:underline dark:hover:text-zinc-200" title={t("Not on the Today page for a few days")}>
+                      {t("later")}
+                    </button>
+                  </form>
+                  <form action={loopFormAction} className="shrink-0">
+                    <input type="hidden" name="ref" value={l.ref} />
+                    <input type="hidden" name="op" value="close" />
+                    <button className="text-xs text-zinc-400 hover:text-zinc-700 hover:underline dark:hover:text-zinc-200" title={t("Kept or answered — closed")}>
+                      {t("done")}
+                    </button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+            {loopNudges.total > loopNudges.loops.length && (
+              <Link href="/loops?view=overdue" className="mt-1 block text-xs text-indigo-600 hover:underline dark:text-indigo-400">
+                {t("{n} more →", { n: loopNudges.total - loopNudges.loops.length })}
+              </Link>
+            )}
           </Card>
         )}
 

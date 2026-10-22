@@ -12,6 +12,7 @@ import type { PersonOperation } from "../blocks";
 import { detailLabels, personPageData } from "../row-data";
 import { loadPerson, runPersonOp, usePersonEntry } from "./person-store";
 import { TimelineList } from "@/plugins/timeline/ui/TimelineList";
+import { LoopsList } from "@/plugins/loops/ui/LoopsList";
 
 /**
  * A person's own page, client side: what its template reads as app.* (their bundle and what the knowledge knows), its actions (a
@@ -63,6 +64,13 @@ function TimelinePart(p: PartProps) {
   const t = useT();
   const row = rowOf(p);
   return row ? <TimelineList row={row} limit={25} title={t("Timeline")} hideWhenOff /> : null;
+}
+
+/** What is open with them (the Open loops plugin) — nothing while that plugin is off or nothing is open. */
+function LoopsPart(p: PartProps) {
+  const t = useT();
+  const row = rowOf(p);
+  return row ? <LoopsList row={row} tabs={false} compact title={t("Open loops")} hideWhenOff hideWhenEmpty /> : null;
 }
 
 function InputPart(p: PartProps) {
@@ -258,6 +266,7 @@ const knowledge = (what: "merge" | "dismiss") => async (env: ActionEnv) => {
 const page: ViewAppModule = {
   parts: {
     "person.input": InputPart,
+    "person.loops": LoopsPart,
     "person.timeline": TimelinePart,
     "person.note": NotePart,
     "person.transfer": TransferPart,

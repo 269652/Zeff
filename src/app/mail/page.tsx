@@ -19,6 +19,7 @@ import { agoText } from "@/lib/teams/time";
 import { syncOverview } from "@/lib/sync/registry";
 import { pushTo } from "@/lib/collections";
 import { formatSmart } from "@/lib/format";
+import { LoopChip } from "@/plugins/loops/ui/LoopChip";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("Messages") };
@@ -67,6 +68,8 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
   const href = (f?: string) => query({ f });
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
 
+  // The open loops said in these threads (Open loops plugin): a chip on each.
+  const loops = isInstalled("loops") ? (await import("@/plugins/loops/query")).mailLoops().byThread : null;
   return (
     <div className="page">
       <div className="page-aside">
@@ -154,6 +157,7 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
                           <span className={`truncate ${unread ? "font-semibold" : "font-medium"}`}>{chat ? latest.subject : <TodoRefs text={latest.subject} />}</span>
                           {!isInboxFolder(latest.folder) && <span className="shrink-0 rounded bg-zinc-100 px-1.5 text-xs text-zinc-500 dark:bg-zinc-800">{latest.folder}</span>}
                           {list.length > 1 && <span className="shrink-0 text-xs text-zinc-400 tabular-nums">{list.length}</span>}
+                          {loops?.get(latest.convId) && <LoopChip {...loops.get(latest.convId)!} />}
                           <span className="ml-auto shrink-0 text-xs text-zinc-400">{formatSmart(latest.receivedAt)}</span>
                         </div>
                         <div className="truncate text-xs text-zinc-500">{people.slice(0, 4).join(", ")}{people.length > 4 ? ` +${people.length - 4}` : ""}</div>

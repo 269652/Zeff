@@ -138,3 +138,25 @@ export function loopCounts(now = new Date()): { mine: number; theirs: number; ov
   const all = listLoops({ now });
   return { mine: all.filter((l) => l.direction === "mine").length, theirs: all.filter((l) => l.direction === "theirs").length, overdue: all.filter((l) => l.overdue).length };
 }
+
+export type ThreadLoops = { mine: number; theirs: number; overdue: number; texts: string[] };
+
+/**
+ * The open loops of the mails and chats (said in a mail, a WhatsApp or Signal message), by thread (its conv id) and by message
+ * (its source ref "mail:<key>") — the chips in the inbox and the chats.
+ */
+export function mailLoops(now = new Date()): { byThread: Map<string, ThreadLoops>; byMessage: Map<string, Loop[]> } {
+  const byThread = new Map<string, ThreadLoops>();
+  const byMessage = new Map<string, Loop[]>();
+  for (const l of listLoops({ now })) {
+    if (!l.sourceRef.startsWith("mail:")) continue;
+    const conv = l.sourceRef.slice("mail:".length).split("|")[0];
+    const t = byThread.get(conv) ?? { mine: 0, theirs: 0, overdue: 0, texts: [] };
+    t[l.direction]++;
+    if (l.overdue) t.overdue++;
+    t.texts.push(l.text);
+    byThread.set(conv, t);
+    byMessage.set(l.sourceRef, [...(byMessage.get(l.sourceRef) ?? []), l]);
+  }
+  return { byThread, byMessage };
+}
