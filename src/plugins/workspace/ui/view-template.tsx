@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { formatNumber, type Labels, type Property, type Row } from "../model";
@@ -37,7 +37,7 @@ export function TemplateView({ src, onErrors, module, meta, ...props }: Props) {
   const defaults = useMemo(() => viewDefaults(src), [src]);
   const [own, setOwn] = useState<Record<string, string>>({});
   const state = useMemo(() => ({ ...defaults, ...own }), [defaults, own]);
-  const setState = (name: string, value: string) => setOwn((s) => ({ ...s, [name]: value }));
+  const setState = useCallback((name: string, value: string) => setOwn((s) => ({ ...s, [name]: value })), []);
   const app = module.useAppData(props, state);
   const labels: Labels = useMemo(() => ({ person: (id) => props.data.labels.people[id] ?? `#${id}`, page: (id) => props.data.labels.pages[id]?.title ?? `#${id}`, todo: (id) => props.data.labels.todos[id] ?? `T-${id}` }), [props.data.labels]);
   const r = useMemo(
@@ -331,7 +331,7 @@ export function TemplateView({ src, onErrors, module, meta, ...props }: Props) {
       case "cards": {
         const items = n.c.filter((c): c is Extract<VNode, object> => typeof c !== "string");
         if (!items.length) return a.empty ? <p key={key} className="text-sm text-zinc-500">{a.empty}</p> : null;
-        const active = (it: Extract<VNode, object>) => it.a.row && it.a.row === state.selected;
+        const active = (it: Extract<VNode, object>) => it.a.row && it.a.row === r.state.selected;
         const click = (it: Extract<VNode, object>) => (it.a.row ? () => (a.select === "true" ? setState("selected", it.a.row) : a.open === "true" ? props.openRow(Number(it.a.row)) : undefined) : undefined);
         const clickable = a.select === "true" || a.open === "true";
         if (n.t === "cards")
@@ -395,7 +395,7 @@ export function TemplateView({ src, onErrors, module, meta, ...props }: Props) {
         const { name, row: rowAttr, ...attrs } = a;
         const Part = module.parts[name];
         if (!Part) return null;
-        return <Part key={key} {...props} attrs={attrs} state={state} setState={setState} app={app.data} reloadApp={app.reload} rowId={rowAttr ? Number(rowAttr) : null}>{n.c.length ? kids(n.c) : undefined}</Part>;
+        return <Part key={key} {...props} attrs={attrs} state={r.state} setState={setState} app={app.data} reloadApp={app.reload} rowId={rowAttr ? Number(rowAttr) : null}>{n.c.length ? kids(n.c) : undefined}</Part>;
       }
       case "widget": {
         const { id, title, ...config } = a;

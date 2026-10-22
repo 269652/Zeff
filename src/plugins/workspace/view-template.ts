@@ -341,12 +341,24 @@ function pipe(src: string, ctx: Ctx, line: number): unknown {
       const own = LIST_FILTERS[call.name];
       const card = CARD_FILTERS[call.name];
       if (!own && !card) throw new Error(`There is no filter “${call.name}”.`);
-      v = own ? own(v, call.args, ctx) : card(isRows(v) ? v.rows.length : v, call.args, cardCtx(ctx));
+      v = own ? own(v, argsOf(call, ctx, line), ctx) : card(isRows(v) ? v.rows.length : v, argsOf(call, ctx, line), cardCtx(ctx));
     } catch (e) {
       ctx.errors.push({ line, message: (e as Error).message });
     }
   }
   return v;
+}
+
+/** A filter's arguments: the bare ones read (state.q, a field of the row or item, app.…) — words in quotes stay words. */
+function argsOf(call: { args: (string | number)[]; names?: boolean[] }, ctx: Ctx, line: number): (string | number)[] {
+  return call.args.map((a, i) => {
+    if (!call.names?.[i] || typeof a !== "string") return a;
+    // (A field's name as the first argument of where/sort/sum … is a name of a column, not a value: kept when nothing else has it.)
+    const x = resolve(ctx, a.replace(/^\[|\]$/g, ""));
+    if (!x.found) return a;
+    const v = plain(x.value);
+    return typeof v === "number" ? v : textOf(v);
+  });
 }
 
 const cardCtx = (ctx: Ctx): CardCtx => ({ scope: { get: () => undefined, now: ctx.data.now ?? new Date(), names: [] }, locals: new Map(), errors: ctx.errors });
@@ -455,7 +467,9 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
       const src = source();
       const items = itemsOf(src).map((it, i) => {
         const c = withItem(ctx, it);
-        return { t: "item", a: c.row ? { row: String(c.row.id) } : { index: String(i) }, c: drawList(n.kids, c) } as VNode;
+        // (An item of an app's list with an id is picked by it, as a row is.)
+        const id = c.row ? String(c.row.id) : c.item && (typeof c.item.id === "number" || typeof c.item.id === "string") ? String(c.item.id) : null;
+        return { t: "item", a: id ? { row: id } : { index: String(i) }, c: drawList(n.kids, c) } as VNode;
       });
       return [{ t: n.name, a: { ...a, source: "" }, c: items }];
     }
@@ -572,7 +586,7 @@ function drawList(list: TNode[], ctx: Ctx): VNode[] {
           continue;
         }
         try {
-          v = own ? own(v, f.args, ctx) : card(isRows(v) ? v.rows.length : v, f.args, cardCtx(ctx));
+          v = own ? own(v, argsOf(f, ctx, n.line), ctx) : card(isRows(v) ? v.rows.length : v, argsOf(f, ctx, n.line), cardCtx(ctx));
         } catch (e) {
           ctx.errors.push({ line: n.line, message: (e as Error).message });
         }

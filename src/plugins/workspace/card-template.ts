@@ -16,7 +16,8 @@ import { cellText, COLORS, noLabels, type Labels, type Property, type Row } from
 export type VNode = string | { t: string; a: Record<string, string>; c: VNode[] };
 export type TplError = { line: number; message: string };
 
-export type FilterCall = { name: string; args: (string | number)[] };
+/** A filter and its arguments — `names`: the arguments written bare (state.q, a field), not in quotes and not numbers. */
+export type FilterCall = { name: string; args: (string | number)[]; names?: boolean[] };
 export type TNode =
   | { k: "text"; v: string }
   | { k: "out"; expr: string; filters: FilterCall[]; line: number }
@@ -89,6 +90,7 @@ export function parseFilter(src: string): FilterCall {
   const m = /^([A-Za-z]+)\s*(?:\(([\s\S]*)\))?$/.exec(src.trim());
   if (!m) throw new Error(`Not a filter: ${src}`);
   const args: (string | number)[] = [];
+  const names: boolean[] = [];
   if (m[2]?.trim()) {
     let cur = "";
     let quote = "";
@@ -98,6 +100,7 @@ export function parseFilter(src: string): FilterCall {
       if (!a) return;
       const q = /^(["'])([\s\S]*)\1$/.exec(a);
       args.push(q ? q[2] : Number.isFinite(Number(a)) ? Number(a) : a);
+      names.push(!q && !Number.isFinite(Number(a)) && /^[A-Za-z_\[]/.test(a));
     };
     for (const c of m[2]) {
       if (quote) {
@@ -111,7 +114,7 @@ export function parseFilter(src: string): FilterCall {
     }
     flush();
   }
-  return { name: m[1], args };
+  return { name: m[1], args, names };
 }
 
 type Tok =
@@ -487,7 +490,7 @@ function interpolate(raw: string, ctx: Ctx, line: number): string {
 
 export function checkAttr(kind: AttrKind, v: string): string | null {
   const s = v.trim();
-  if (kind === "text" || kind === "list") return s.slice(0, 500);
+  if (kind === "text" || kind === "list") return s.slice(0, 4000);
   if (kind === "int") return /^\d{1,3}$/.test(s) ? s : null;
   if (kind === "num") return s !== "" && Number.isFinite(Number(s)) ? s : null;
   if (kind === "color") return (COLORS as readonly string[]).includes(s) ? s : null;

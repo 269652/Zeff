@@ -148,3 +148,18 @@ test("a part holding template content; a side column of a fixed width; buttons d
   assert.deepEqual(JSON.parse(find(r.nodes, "tabs")[0].a.options), [["all", "Alle", "12"], ["fam", "Familie", "3"]]);
   assert.equal(find(r.nodes, "section")[0].a.scroll, "20");
 });
+
+test("filters read names: the view's state, a row's field; quoted words stay words", () => {
+  const d = data({ state: { q: "str", st: "Aktiv" } });
+  const r = renderView('{{ rows | search(state.q) | count }} · {{ rows | where("Status", state.st) | count }} · {{ rows | where("Status", "state.st") | count }}', d, { parts });
+  assert.deepEqual(r.errors, []);
+  assert.match(vnodeToString(r.nodes), /^1 · 3 · 0$/);
+});
+
+test("an app list's items are picked by their id (select), the pick drawn from the state a template sets", () => {
+  const d = data({ app: { mails: [{ id: 41, subject: "Hallo" }, { id: 42, subject: "Rechnung" }], first: 42 } });
+  const r = renderView('<state name="selected" value="{{ app.first }}"/><list source="app.mails" select=true>{{ subject }}</list>', d, { parts });
+  assert.deepEqual(r.errors, []);
+  assert.deepEqual(find(r.nodes, "list")[0].c.map((i) => (typeof i === "string" ? i : i.a.row)), ["41", "42"]);
+  assert.equal(r.state.selected, "42");
+});
