@@ -63,6 +63,10 @@ test("details: a RevTag — after RevTag or Revolut, or as a revolut.me link —
   assert.deepEqual(pick("Revolut: @chrisb93"), ["revtag: @chrisb93"]);
   assert.deepEqual(pick("Zahlen geht über https://revolut.me/chrisb93"), ["revtag: @chrisb93"]);
   assert.deepEqual(pick("Mail an chris@example.org, im Chat @chris erwähnt"), []);
+  // Called a RevTag, the @ may be missing.
+  assert.deepEqual(pick("Chris' RevTag ist christu8gw."), ["revtag: @christu8gw"]);
+  assert.deepEqual(pick("RevTag von Chris: christu8gw"), ["revtag: @christu8gw"]);
+  assert.deepEqual(pick("Revolut Support hat geantwortet"), [], "a word after Revolut is no tag");
 });
 
 test("the Revolut action: a payment by RevTag opens their revolut.me page — never without a tag", async () => {

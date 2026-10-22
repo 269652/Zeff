@@ -26,8 +26,12 @@ export type PersonDetail = { id: number; key: DetailKey; value: string; /** The 
 const STREET = String.raw`[\p{Lu}][\p{L}\-]*?(?:[Ss]tra(?:ß|ss)e|[Ss]tr\.|[Ww]eg|[Pp]latz|[Aa]llee|[Gg]asse|[Rr]ing|[Dd]amm|[Uu]fer|[Mm]arkt)`;
 const CITY = String.raw`[\p{Lu}][\p{L}\-]*(?: (?:im|am|an der|in der|ob der) [\p{Lu}][\p{L}\-]*| [\p{Lu}][\p{L}\-]*)*`;
 const ADDRESS = new RegExp(String.raw`(${STREET} \d+ ?[a-zA-Z]?),? (\d{5}) (${CITY})`, "gu");
-/** A RevTag: "RevTag @chris.b", "Revolut: @chris.b", or the link revolut.me/chris.b — kept as "@chris.b". */
-const REVTAG = /(?:\brevolut\.me\/([A-Za-z0-9][A-Za-z0-9._-]{2,30})|\b(?:Rev-?Tag|Revolut(?:-?(?:Tag|Name|Handle))?)\b[^@\n]{0,24}@([A-Za-z0-9][A-Za-z0-9._-]{2,30}))/gi;
+/**
+ * A RevTag: "RevTag @chris.b", "Revolut: @chris.b", the link revolut.me/chris.b — or without the @ when it is called a RevTag
+ * ("RevTag: chris.b", "sein RevTag ist chris.b", "RevTag von Chris: chris.b"). Kept as "@chris.b".
+ */
+const REVTAG =
+  /(?:\brevolut\.me\/([A-Za-z0-9][A-Za-z0-9._-]{2,30})|\b(?:Rev-?Tag|Revolut(?:-?(?:Tag|Name|Handle))?)\b[^@\n]{0,24}@([A-Za-z0-9][A-Za-z0-9._-]{2,30})|\bRev-?Tag\b(?:\s+von\s+[^:\n]{1,30}?)?(?:\s*:|\s+(?:ist|lautet))\s*([A-Za-z0-9][A-Za-z0-9._-]{2,30}))/gi;
 const PHONE = /\b(?:Telefon|Tel\.|Tel|Mobil|Handy|Fon)\b:?\s*(\+?\d[\d /()-]{4,}\d)/gi;
 const HOURS = /\b(?:Sprechstunden?|Sprechzeiten|Öffnungszeiten|Bürozeiten)\b:?\s*([^;]*?\d{1,2}(?:[:.]\d{2})?\s*(?:–|-|bis)\s*\d{1,2}(?:[:.]\d{2})?\s*Uhr)/gi;
 
@@ -47,7 +51,7 @@ export function detailsFromText(text: string): { key: DetailKey; value: string }
     const piece = named?.[1] ?? text.split(/[;,]/).find((s) => /bank|sparkasse|kasse\b/i.test(s) && !/IBAN|BIC|Konto\b/i.test(s));
     if (piece) add("bank", piece, text.indexOf(piece));
   }
-  for (const m of text.matchAll(REVTAG)) add("revtag", `@${(m[1] ?? m[2]).replace(/[.]+$/, "").toLowerCase()}`, m.index);
+  for (const m of text.matchAll(REVTAG)) add("revtag", `@${(m[1] ?? m[2] ?? m[3]).replace(/[.]+$/, "").toLowerCase()}`, m.index);
   for (const m of text.matchAll(ADDRESS)) add("address", `${m[1]}, ${m[2]} ${m[3]}`, m.index);
   for (const m of text.matchAll(PHONE)) if (m[1].replace(/\D/g, "").length >= 6) add("phone", m[1], m.index);
   for (const m of text.matchAll(HOURS)) add("hours", m[1], m.index);
