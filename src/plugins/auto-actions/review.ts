@@ -9,7 +9,6 @@
 import "@/plugins/actions/server";
 import { fillPrompt, promptText } from "@/lib/prompts";
 import { createHash } from "node:crypto";
-import { pad2 as two } from "@/lib/text";
 import { throwIfAborted } from "@/lib/abort";
 import { extraBlock } from "@/lib/boards/context-prefs";
 import { and, desc, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
@@ -19,6 +18,7 @@ import { emitChange } from "@/lib/events";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { withoutAppointments } from "@/lib/boards/recurring";
+import { appointmentsAllowed, placeAppointment, PRIVATE_WINDOW } from "./placing";
 import { cleanOps, opsDictionary, sourcesOf, TODO_KIND_LABELS, type TodoOp, type TodoView } from "@/lib/boards/shared";
 import { plain } from "@/lib/boards/collect";
 import { commentTodos, dropObsoleteInstructs, withCommentOps } from "@/lib/boards/comment-ops";
@@ -30,7 +30,6 @@ import { busyBetween } from "@/lib/calendar/ir";
 import { listFacts } from "@/lib/facts";
 import { conversationOf } from "@/lib/mail/store";
 import { isChatFolder } from "@/lib/mail/shared";
-import { parseLocalDateTime } from "@/lib/calendar/meetings";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { opAvailable } from "@/plugins/ops";
 import { OFFERED_ACTIONS } from "@/plugins/actions/catalog";
@@ -161,36 +160,6 @@ function addressBook(text: string): string[] {
 function busyTimes(days = 14): { start: Date; end: Date; subject: string }[] {
   const from = new Date();
   return busyBetween(from, new Date(from.getTime() + days * 864e5)).map((b) => ({ start: b.start, end: b.end, subject: b.title }));
-}
-
-/** When an appointment may go: work ones on workdays 9–17, private ones (Zeff's calendar, Google) any day 8–21. */
-type Window = { workdays: boolean; from: number; to: number };
-const WORK: Window = { workdays: true, from: 9, to: 17 };
-const PRIVATE: Window = { workdays: false, from: 8, to: 21 };
-
-const localStamp = (d: Date) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}T${two(d.getHours())}:${two(d.getMinutes())}`;
-
-/**
- * An appointment's start, moved to the first free time from the one asked for: a workday, 9–17
- * o'clock, not before now, clear of my appointments and of those already placed (`taken`).
- */
-function placeAppointment(start: string, minutes: number, busy: { start: Date; end: Date }[], taken: { start: Date; end: Date }[], window: Window = WORK): string {
-  const wanted = parseLocalDateTime(start.length === 16 ? `${start}:00` : start);
-  const now = new Date();
-  now.setMinutes(Math.ceil(now.getMinutes() / 15) * 15, 0, 0);
-  let t = new Date(Math.max(wanted.getTime(), now.getTime()));
-  for (let i = 0; i < 4 * 24 * 21; i++) {
-    const end = new Date(t.getTime() + minutes * 60000);
-    const day = t.getDay();
-    const inHours = t.getHours() >= window.from && (end.getHours() < window.to || (end.getHours() === window.to && end.getMinutes() === 0)) && end.getDate() === t.getDate();
-    const clash = [...busy, ...taken].some((b) => t < b.end && end > b.start);
-    if ((!window.workdays || (day >= 1 && day <= 5)) && inHours && !clash) {
-      taken.push({ start: t, end });
-      return localStamp(t);
-    }
-    t = new Date(t.getTime() + 15 * 60000);
-  }
-  return start;
 }
 
 /** The addresses of the systems the todo is about (Test, Prod …), as the Wissens-Zuordnung found them in the knowledge: for comments and messages that point to the right one. */
@@ -380,8 +349,15 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
     const dictionary = opsDictionary(opAvailable);
     const busy = busyTimes();
     const busyLines = busyLinesOf(busy);
-    // The appointments placed so far in this review (and those already on todos): not on top of each other.
-    const taken: { start: Date; end: Date }[] = [];
+    // The appointments placed so far in this review — and those other open todos suggest already: not on top of each other, and
+    // at most a few a day (placing.ts).
+    const reviewing = new Set(list.map((x) => x.id));
+    const taken: { start: Date; end: Date }[] = open
+      .filter((x) => !reviewing.has(x.id))
+      .flatMap((x) => x.ops)
+      .flatMap((o) => (o.type === "calendar-event" || o.type === "calendar-entry" || o.type === "gcal-event" ? [o] : []))
+      .map((o) => ({ start: new Date(`${o.start.slice(0, 16)}:00`), end: new Date(new Date(`${o.start.slice(0, 16)}:00`).getTime() + o.minutes * 60000) }))
+      .filter((b) => !Number.isNaN(b.start.getTime()));
     const limit = aiChoice().provider === "copilot" ? BATCH_CHARS : 3 * BATCH_CHARS;
     const batches: (typeof blocks)[] = [];
     let size = 0;
@@ -422,14 +398,15 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
         const a = said.get(t.id);
         // Its actions, by their own rules, of installed plugins — none to myself.
         // (A todo that comes back has its series in the calendar: no appointment for it.)
-        const ops: TodoOp[] = withoutAppointments(cleanOps(a?.ops ?? [], t.ticket || ""), !!t.recurrence)
+        // (An agent's follow-up is its work, not a time of mine: no appointment for it either.)
+        const ops: TodoOp[] = withoutAppointments(cleanOps(a?.ops ?? [], t.ticket || ""), !!t.recurrence || !appointmentsAllowed(t))
           .filter((o) => opAvailable(o.type) && !(o.type === "teams-message" && me && o.to.toLowerCase() === me.toLowerCase()))
           // An appointment into a free time (mine, and the ones placed before it).
           .map((o) =>
             o.type === "calendar-event"
               ? { ...o, start: placeAppointment(o.start, o.minutes, busy, taken) }
               : o.type === "calendar-entry" || o.type === "gcal-event"
-                ? { ...o, start: placeAppointment(o.start, o.minutes, busy, taken, PRIVATE) }
+                ? { ...o, start: placeAppointment(o.start, o.minutes, busy, taken, PRIVATE_WINDOW) }
                 : o,
           );
         const set: Partial<typeof todos.$inferInsert> = { actionsReviewedAt: now };
