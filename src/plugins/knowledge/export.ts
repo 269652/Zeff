@@ -59,7 +59,9 @@ export function collectionDocs(plugin?: string, ids?: Set<string>): KnowledgeDoc
   return placed
     .filter(({ item: n }) => n.title || n.text)
     .map(({ item: n, collection: c }) => {
-      const meta = [`${KIND_DE[n.kind]} in „${c.name}“`, n.status ? `Status: ${n.status.name}` : "", n.labels.length ? `Labels: ${n.labels.join(", ")}` : "", n.pinned ? "angeheftet" : "", n.archived ? "archiviert" : ""].filter(Boolean).join(" · ");
+      // (A row with fields has its status and labels among them, by their names.)
+      const own = !n.fields?.length;
+      const meta = [`${KIND_DE[n.kind]} in „${c.name}“`, own && n.status ? `Status: ${n.status.name}` : "", own && n.labels.length ? `Labels: ${n.labels.join(", ")}` : "", n.pinned ? "angeheftet" : "", n.archived ? "archiviert" : ""].filter(Boolean).join(" · ");
       return doc({
         id: n.ref,
         space: c.space ?? c.name,
@@ -67,7 +69,8 @@ export function collectionDocs(plugin?: string, ids?: Set<string>): KnowledgeDoc
         url: /^https?:/.test(n.href) ? n.href : "",
         updatedAt: n.updatedAt ?? n.createdAt,
         author: null,
-        body: `${meta}\n\n${clean(n.text)}`,
+        // (A database row's fields under it, one a line: a journal's day keeps its date, mood, energy.)
+        body: `${[meta, ...(n.fields ?? []).map((f) => `${f.name}: ${clean(f.value)}`)].join("\n")}\n\n${clean(n.text)}`,
       });
     });
 }

@@ -68,6 +68,8 @@ export type Item = {
   href: string;
   createdAt: string | null;
   updatedAt: string | null;
+  /** A database row's fields with a value, as text, in the database's order (a journal's day: its date, mood, energy …). */
+  fields?: { name: string; value: string }[];
 };
 
 /** A todo on a card (its checklist): open or done, with its deadline. */
