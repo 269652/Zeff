@@ -153,7 +153,7 @@ workflow" on the Actions tab builds and checks without publishing.
 npm install
 npm test          # each test file on its own temporary database
 npm run deploy    # typecheck, lint, tests, build, restart, page probes
-npm run eval:mail # before/after of the Mail-Durchsicht prompt on your real mails — nothing may get lost
+npm run eval -- mail   # before/after of an AI step's prompt on your own decisions — nothing may get lost (docs/evals.md)
 npm run plugin:check -- examples/plugins/run-dashboard   # validate an external plugin
 ```
 
