@@ -12,6 +12,7 @@ import { runAi } from "@/lib/ai";
 import { listTodos } from "@/lib/boards/store";
 import { plain } from "@/lib/boards/collect";
 import { errorMessage } from "@/lib/errors";
+import { isInstalled } from "@/plugins/state";
 import { buildPeopleIndex, mentionMatcher, splitMentions } from "./mentions";
 import { addAliases, addRelation, createPerson, getPerson, listPeople, mergePeople, namesOf, namesThem, relationsOf, updatePerson, whatsappChats } from "./store";
 import type { Person } from "./shared";
@@ -151,6 +152,16 @@ async function matchNames(): Promise<NormalizeResult> {
       (await import("./identity")).findIdentitySuggestions();
     } catch {
       // the sources aren't there, then
+    }
+    // Organisations, projects and places the sources name, queued for review; people linked to the ones confirmed (no AI).
+    if (isInstalled("entities")) {
+      try {
+        const e = await import("@/plugins/entities/suggest");
+        e.findEntitySuggestions();
+        e.deriveEntityLinks();
+      } catch (err) {
+        console.warn("[people] entities:", errorMessage(err));
+      }
     }
     // Zeff's facts on the profiles they name (no AI); what you confirmed and the knowledge didn't get yet, sent.
     try {

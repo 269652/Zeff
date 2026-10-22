@@ -15,9 +15,15 @@ import { getPerson, listPeople, namesOf } from "./store";
 export const CLAIM_KINDS = ["fact", "role", "owns", "preference", "commitment"] as const;
 export type ClaimKind = (typeof CLAIM_KINDS)[number];
 export const LINK_TYPES = ["reports-to", "manages", "works-with", "decides", "owns", "on-ticket", "commented-on", "authored", "active-in", "knows-about"] as const;
-export type LinkType = (typeof LINK_TYPES)[number];
+/** Links the Entities plugin reads off the sources (not the AI's to propose): someone works at an organisation, lives or sits at a place. */
+export const ENTITY_LINK_TYPES = ["works-at", "located-at"] as const;
+export type LinkType = (typeof LINK_TYPES)[number] | (typeof ENTITY_LINK_TYPES)[number];
 export const TARGET_TYPES = ["person", "ticket", "repo", "project", "topic"] as const;
-export type TargetType = (typeof TARGET_TYPES)[number];
+/** The Entities plugin's targets: an organisation, a place (target_ref: its id; label: its name). */
+export const ENTITY_TARGET_TYPES = ["org", "place"] as const;
+export type TargetType = (typeof TARGET_TYPES)[number] | (typeof ENTITY_TARGET_TYPES)[number];
+const ALL_LINK_TYPES: readonly string[] = [...LINK_TYPES, ...ENTITY_LINK_TYPES];
+const ALL_TARGET_TYPES: readonly string[] = [...TARGET_TYPES, ...ENTITY_TARGET_TYPES];
 export type Status = "proposed" | "confirmed" | "rejected";
 
 /** A claim of this kind is a snapshot that ages: it is asked about again after this many days. */
@@ -104,8 +110,8 @@ const toClaim = (r: CRow): Claim => ({
 const toLink = (r: LRow): Link => ({
   id: r.id,
   personId: r.person_id,
-  rel: (LINK_TYPES as readonly string[]).includes(r.rel) ? (r.rel as LinkType) : "knows-about",
-  targetType: (TARGET_TYPES as readonly string[]).includes(r.target_type) ? (r.target_type as TargetType) : "topic",
+  rel: ALL_LINK_TYPES.includes(r.rel) ? (r.rel as LinkType) : "knows-about",
+  targetType: ALL_TARGET_TYPES.includes(r.target_type) ? (r.target_type as TargetType) : "topic",
   targetRef: r.target_ref,
   label: r.label,
   evidence: r.evidence,

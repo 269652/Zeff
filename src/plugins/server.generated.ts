@@ -4,6 +4,7 @@ import "./calendar/server";
 import "./cases/server";
 import "./correlations/server";
 import "./documents/server";
+import "./entities/server";
 import "./finances/server";
 import "./gitlab/server";
 import "./jira/server";

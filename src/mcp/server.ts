@@ -6,6 +6,7 @@ import { registerWorkspaceTools } from "@/plugins/workspace/mcp";
 import { registerWebSearchTools } from "@/plugins/web-search/mcp";
 import { registerAiQualityTool } from "@/lib/learning/mcp";
 import { registerCorrelationTools } from "@/plugins/correlations/mcp";
+import { registerEntityTools } from "@/plugins/entities/mcp";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { ConflictError, NotFoundError, ValidationError, errorMessage } from "@/lib/errors";
@@ -1063,6 +1064,7 @@ export function registerZeffTools(server: McpServer): void {
   // The Workspace's pages and databases (when that plugin is installed, the tools say so otherwise).
   registerWorkspaceTools(server, { run, ok, fail });
   registerWebSearchTools(server, { run, ok, fail } as never);
+  registerEntityTools(server, { run, ok, fail } as never);
   registerGmailTools(server, { run, ok, fail } as never);
   registerReportTool(server, { run, ok, fail } as never);
   // How useful each AI step is, from the user's decisions (read-only).
