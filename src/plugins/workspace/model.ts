@@ -116,6 +116,8 @@ export type View = {
   card?: string;
   /** Table: the calculation under a column (its sum row), by property id. */
   calcs?: Record<string, CalcFn>;
+  /** The database's hidden rows shown too (set back) — a switch in the view's menu. */
+  showHidden?: boolean;
 };
 /** A table column's width in pixels: what a drag may make it, and what "fit to content" may. */
 export const WIDTH_MIN = 60;
@@ -163,7 +165,27 @@ export type DbSchema = {
   todoList?: TodoListSpec;
   /** What may be done to its rows (the store holds to it, for you and the AI alike; a source writing its own records is let through). */
   protect?: Protect;
+  /** Rows hidden from its views (their ids) — the rows themselves untouched (a synced one too); a view can show them again. */
+  hiddenRows?: number[];
 };
+
+/** The schema with these rows hidden (`hide`) or shown again — each id once; none left: no key. */
+export function hideRows(schema: DbSchema, ids: number[], hide: boolean): DbSchema {
+  const now = new Set(schema.hiddenRows ?? []);
+  for (const id of ids) {
+    if (hide) now.add(id);
+    else now.delete(id);
+  }
+  const { hiddenRows: _was, ...rest } = schema;
+  return now.size ? { ...rest, hiddenRows: [...now] } : rest;
+}
+
+/** The rows a view shows: the hidden ones left out — unless it shows them too. */
+export function shownRows<R extends { id: number }>(rows: R[], schema: Pick<DbSchema, "hiddenRows">, view: Pick<View, "showHidden">): R[] {
+  if (view.showHidden || !schema.hiddenRows?.length) return rows;
+  const hidden = new Set(schema.hiddenRows);
+  return rows.filter((r) => !hidden.has(r.id));
+}
 
 export type TodoListSpec = { done: string; due?: string; engine?: boolean };
 
@@ -501,11 +523,17 @@ export function choiceColor(p: Property, name: string): string {
   return p.aiColors?.[name] ?? COLORS[(i + 1) % COLORS.length];
 }
 
+/** Hidden rows as kept: row ids, each once (none: undefined). */
+const hiddenRowsOf = (v: unknown): number[] | undefined => {
+  const ids = Array.isArray(v) ? [...new Set(v.filter((x): x is number => Number.isInteger(x) && x > 0))] : [];
+  return ids.length ? ids : undefined;
+};
+
 export function normalizeSchema(raw: unknown): DbSchema {
   const o = (raw && typeof raw === "object" ? raw : {}) as Partial<DbSchema>;
   const props = (Array.isArray(o.properties) ? o.properties : []).filter((p): p is Property => !!p && typeof p.id === "string" && (PROP_TYPES as readonly string[]).includes(p.type)).map(withAiColors);
   const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [], card: typeof v.card === "string" && v.card.trim() ? v.card.slice(0, 8000) : undefined, nav: v.nav === "workspace" && v.app ? ("workspace" as const) : undefined, navHidden: Array.isArray(v.navHidden) && v.navHidden.length ? v.navHidden.filter((x): x is string => typeof x === "string").slice(0, 100) : undefined }));
-  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(formOf(o.form, props) ? { form: formOf(o.form, props) } : {}), ...(protectOf(o.protect, props) ? { protect: protectOf(o.protect, props) } : {}), ...(todoListOf(o.todoList, props) ? { todoList: todoListOf(o.todoList, props) } : {}), ...(o.rules === true ? { rules: true } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}) };
+  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(formOf(o.form, props) ? { form: formOf(o.form, props) } : {}), ...(protectOf(o.protect, props) ? { protect: protectOf(o.protect, props) } : {}), ...(todoListOf(o.todoList, props) ? { todoList: todoListOf(o.todoList, props) } : {}), ...(o.rules === true ? { rules: true } : {}), ...(hiddenRowsOf(o.hiddenRows) ? { hiddenRows: hiddenRowsOf(o.hiddenRows) } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}) };
 }
 
 export const propById = (props: Property[], id: string): Property | undefined => props.find((p) => p.id === id);

@@ -51,7 +51,7 @@ function ValueInput({ p, value, onChange }: { p: Property; value: unknown; onCha
   return <input className="input w-48 text-sm" type={p.type === "number" ? "number" : p.type === "date" ? "date" : "text"} value={String(value ?? "")} onChange={(e) => onChange(p.type === "number" && e.target.value !== "" ? Number(e.target.value) : e.target.value)} aria-label={t("Value")} />;
 }
 
-export function BulkBar({ ids, schema, dbId, onChanged, onClear }: { ids: number[]; schema: DbSchema; dbId: number; onChanged: () => void; onClear: () => void }) {
+export function BulkBar({ ids, schema, dbId, onChanged, onClear, onHide }: { ids: number[]; schema: DbSchema; dbId: number; onChanged: () => void; onClear: () => void; /** Hide the picked rows (or show them again). */ onHide?: (hide: boolean) => void }) {
   const t = useT();
   const [prop, setProp] = useState("");
   const [value, setValue] = useState<unknown>(null);
@@ -141,6 +141,12 @@ export function BulkBar({ ids, schema, dbId, onChanged, onClear }: { ids: number
           </div>
         )}
       </Dropdown>
+      {onHide && (
+        // All picked hidden already: shown again; else hidden.
+        <button type="button" className="btn btn-sm" disabled={busy} onClick={() => onHide(!ids.every((id) => schema.hiddenRows?.includes(id)))}>
+          {ids.every((id) => schema.hiddenRows?.includes(id)) ? `👁 ${t("Show again")}` : `🙈 ${t("Hide rows")}`}
+        </button>
+      )}
       <button type="button" className="btn btn-sm btn-danger" disabled={busy} onClick={() => void trash()}>
         🗑 {t("Delete")}
       </button>

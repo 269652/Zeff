@@ -273,3 +273,62 @@ body {
     border: 1px solid ButtonText;
   }
 }
+
+/*
+ * Printing (a PDF): a view that marks itself with data-print-root is printed alone — everything around it left out,
+ * the boxes it sits in no longer scrolling or cut off (their height, overflow, the sticky/fixed bars undone).
+ */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 12mm;
+  }
+  html,
+  body {
+    background: #fff !important;
+    color: #18181b !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  body:has([data-print-root]) *:not([data-print-root], [data-print-root] *, :has([data-print-root])) {
+    display: none !important;
+  }
+  body *:has([data-print-root]) {
+    display: block !important;
+    position: static !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    width: auto !important;
+    max-width: none !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    transform: none !important;
+  }
+  [data-print-root] {
+    font-size: 10pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  [data-print-root] button,
+  [data-print-root] input,
+  [data-print-root] select {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  [data-print-root] table {
+    width: 100% !important;
+  }
+  [data-print-root] tr,
+  [data-print-root] section,
+  [data-print-root] dl > div {
+    break-inside: avoid;
+  }
+  [data-print-root] thead {
+    display: table-header-group;
+  }
+}

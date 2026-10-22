@@ -6815,5 +6815,11 @@
   "Type a function or a property — Ctrl+Space offers them.": "Tippe eine Funktion oder Eigenschaft — Strg+Leertaste schlägt sie vor.",
   "Enter saves · Shift+Enter a new line": "Enter speichert · Umschalt+Enter neue Zeile",
   "All functions and properties (Ctrl+Space)": "Alle Funktionen und Eigenschaften (Strg+Leertaste)",
-  "Functions": "Funktionen"
+  "Functions": "Funktionen",
+  "Show hidden rows ({n})": "Versteckte Zeilen einblenden ({n})",
+  "Show hidden rows": "Versteckte Zeilen einblenden",
+  "{n} hidden shown — leave them out": "{n} versteckte eingeblendet — ausblenden",
+  "{n} hidden — show": "{n} versteckt — einblenden",
+  "Hide row": "Zeile verstecken",
+  "Hide rows": "Zeilen verstecken"
 }

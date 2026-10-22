@@ -1094,3 +1094,10 @@
     background: rgb(39 39 42 / 0.4);
   }
 }
+/* A hidden row, shown because the view shows the hidden ones too: set back. */
+.ws-table tr.ws-row-hidden > td {
+  opacity: 0.45;
+}
+.ws-table tr.ws-row-hidden:hover > td {
+  opacity: 0.8;
+}

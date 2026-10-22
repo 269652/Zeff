@@ -6,7 +6,7 @@ import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { templateParamsAction, addRowAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, makeInboxAction, setNavPlaceAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
-import { DEFAULT_COLUMN, fitWidth, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
+import { DEFAULT_COLUMN, fitWidth, hideRows, shownRows, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
 import { RowPeek } from "./RowPeek";
@@ -294,7 +294,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const rows = useMemo(() => {
     if (!data || !view) return [];
     const props = data.schema.properties;
-    let r = filterRows(data.rows, view.filter, props, labels);
+    // The rows hidden in the database left out (unless the view shows them too).
+    let r = filterRows(shownRows(data.rows, data.schema, view), view.filter, props, labels);
     // A view kept as "only mine" shows only your rows, whatever is picked.
     const onlyMine = mine || !!view.mine;
     if (personProp && (onlyMine || people.size)) r = filterByPeople(r, personProp, onlyMine ? mineKeys(personProp, data.extras?.me ?? { names: [], ids: [] }) : people);
@@ -302,6 +303,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
     if (w) r = r.filter((x) => x.title.toLowerCase().includes(w) || props.some((p) => cellText(p, x.cells[p.id], labels).toLowerCase().includes(w)));
     return sortRows(r, view.sorts, props);
   }, [data, view, q, labels, personProp, mine, people]);
+  // How many of its rows the database hides.
+  const hiddenCount = data?.schema.hiddenRows?.length ? data.rows.filter((r) => data.schema.hiddenRows!.includes(r.id)).length : 0;
 
   if (api.error && !data) return <p className="alert-error text-sm">{api.error}</p>;
   if (!data || !view) return <p className="py-6 text-sm text-zinc-500">{t("Loading …")}</p>;
@@ -596,6 +599,10 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
                   🧭 {t("Navigation in the Workspace tree")}
                 </MenuItem>
               )}
+              {/* The rows hidden in the database: shown too (set back), or left out again. */}
+              <MenuItem checked={!!view.showHidden} onClick={() => (close(), setView({ ...view, showHidden: !view.showHidden }))}>
+                👁 {hiddenCount ? t("Show hidden rows ({n})", { n: hiddenCount }) : t("Show hidden rows")}
+              </MenuItem>
               <MenuItem onClick={() => (close(), setSchemaOpen(true))}>⚙ {t("Edit properties …")}</MenuItem>
               <MenuItem onClick={() => (close(), setFormOpen(true))}>📝 {t("Form …")}</MenuItem>
               <MenuItem onClick={() => (close(), setRepeatOpen(true))}>🔁 {t("Repeating rows …")}</MenuItem>
@@ -751,7 +758,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
       {data.extras?.running && <p className="text-sm text-indigo-600 dark:text-indigo-400" data-running>✨ {t("The AI is going through the rows — they change as it writes them …")}</p>}
       <PipelineSummaries pipeline={schema.pipeline} />
       {view.type === "app" && <AppViewHost view={view} data={data} rows={rows} openRow={openRow} reload={() => void api.reload()} fallback={<TableView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />} />}
-      {view.type === "table" && picked.size > 0 && <BulkBar ids={[...picked]} schema={schema} dbId={dbId} onChanged={() => void api.reload()} onClear={() => setPicked(new Set())} />}
+      {view.type === "table" && picked.size > 0 && <BulkBar ids={[...picked]} schema={schema} dbId={dbId} onChanged={() => void api.reload()} onClear={() => setPicked(new Set())} onHide={(hide) => (api.changeSchema((s) => hideRows(s, [...picked], hide)), setPicked(new Set()))} />}
       {view.type === "table" && <TableView fill={!embedded} sel={selection} view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />}
       {view.type === "board" && <BoardView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} newRow={newRow} />}
       {view.type === "list" && <ListView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} />}
@@ -760,7 +767,17 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
       {view.type === "todo" && <TodoView dbId={dbId} rows={rows} schema={schema} api={api} openRow={openRow} locked={!!data.locked} canAdd={!data.noNewRows} />}
       {view.type === "chart" && <ChartView view={view} rows={rows} schema={schema} />}
       {view.type === "calendar" && <CalendarView canAdd={!data.noNewRows} view={view} rows={rows} schema={schema} api={api} openRow={openRow} newRow={newRow} />}
-      <p className="text-xs text-zinc-500">{rows.length === data.rows.length ? (rows.length === 1 ? t("1 row") : t("{n} rows", { n: rows.length })) : t("{n} of {total} rows", { n: rows.length, total: data.rows.length })}</p>
+      <p className="text-xs text-zinc-500">
+        {rows.length === data.rows.length ? (rows.length === 1 ? t("1 row") : t("{n} rows", { n: rows.length })) : t("{n} of {total} rows", { n: rows.length, total: data.rows.length })}
+        {hiddenCount > 0 && (
+          <>
+            {" · "}
+            <button type="button" className="hover:underline" onClick={() => setView({ ...view, showHidden: !view.showHidden })}>
+              {view.showHidden ? t("{n} hidden shown — leave them out", { n: hiddenCount }) : t("{n} hidden — show", { n: hiddenCount })}
+            </button>
+          </>
+        )}
+      </p>
 
       {asking && (
         <Modal title={asking.title} onClose={() => setAsking(null)}>
@@ -876,6 +893,10 @@ function RowMenu({ row, api }: { row: Row; api: Api }) {
                 ⛓ {t("Unlink — make it a copy")}
               </MenuItem>
             )}
+            {/* Hidden from the views (the row itself untouched — a synced one too). */}
+            <MenuItem onClick={() => (close(), api.changeSchema((s) => hideRows(s, [row.id], !s.hiddenRows?.includes(row.id))))}>
+              {api.data?.schema.hiddenRows?.includes(row.id) ? `👁 ${t("Show again")}` : `🙈 ${t("Hide row")}`}
+            </MenuItem>
             {!locked && <MenuItem onClick={() => (close(), void api.duplicateRow(row.id))}>⧉ {t("Duplicate")}</MenuItem>}
             {!locked && (
               <MenuItem danger onClick={() => (close(), void api.removeRow(row.id))}>
@@ -1002,6 +1023,8 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
   const cols = columnOrder(view, schema).filter((id) => id === TITLE || visible.some((p) => p.id === id));
   const byId = new Map(visible.map((p) => [p.id, p]));
   const sort = useSortable((from, to, after) => setView({ ...view, order: moveBefore(columnOrder(view, schema), from, to, after) }), "x", "text/ws-col");
+  // Hidden rows (shown because the view shows them too): set back.
+  const hiddenIds = new Set(schema.hiddenRows ?? []);
   // A formula cell open: its column's formula changed from there; the columns it names coloured meanwhile.
   const [refs, setRefs] = useState<{ rowId: number; colors: Record<string, string> } | null>(null);
   const cellCtx: CellCtx = { ...ctx, showRefs: setRefs, setFormula: (id, formula) => api.changeSchema((s) => ({ ...s, properties: s.properties.map((q) => (q.id === id ? { ...q, formula } : q)) })) };
@@ -1219,7 +1242,7 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
             )}
             {!folded.has(g.key) &&
               g.rows.map((r) => (
-                <tr key={r.id} className="group/row">
+                <tr key={r.id} className={`group/row ${hiddenIds.has(r.id) ? "ws-row-hidden" : ""}`}>
                   <td className="w-14 text-center align-middle">
                     <span className="inline-flex items-center gap-1">
                       {sel && <input type="checkbox" className={`size-4 accent-indigo-600 ${sel.has(r.id) || sel.any ? "" : "opacity-0 group-hover/row:opacity-100 focus:opacity-100"}`} checked={sel.has(r.id)} onChange={() => undefined} onClick={(e) => sel.toggle(r.id, e.shiftKey, rows.map((x) => x.id))} aria-label={t("Select {name}", { name: r.title || t("Untitled") })} />}

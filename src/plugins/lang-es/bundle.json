@@ -6815,5 +6815,11 @@
   "Type a function or a property — Ctrl+Space offers them.": "Escribe una función o una propiedad — Ctrl+Espacio las ofrece.",
   "Enter saves · Shift+Enter a new line": "Intro guarda · Mayús+Intro nueva línea",
   "All functions and properties (Ctrl+Space)": "Todas las funciones y propiedades (Ctrl+Espacio)",
-  "Functions": "Funciones"
+  "Functions": "Funciones",
+  "Show hidden rows ({n})": "Mostrar filas ocultas ({n})",
+  "Show hidden rows": "Mostrar filas ocultas",
+  "{n} hidden shown — leave them out": "{n} ocultas mostradas — ocultar",
+  "{n} hidden — show": "{n} ocultas — mostrar",
+  "Hide row": "Ocultar fila",
+  "Hide rows": "Ocultar filas"
 }

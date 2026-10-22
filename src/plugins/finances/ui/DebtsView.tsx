@@ -171,7 +171,7 @@ export default function DebtsView({ openRow }: AppViewProps) {
   };
 
   return (
-    <div className="space-y-6" data-debts-view>
+    <div className="space-y-6 print:space-y-4" data-debts-view data-print-root>
       <div className="flex flex-wrap items-end gap-4">
         <div className="inline-flex items-center gap-0.5 rounded-lg bg-zinc-100 p-0.5 print:hidden dark:bg-zinc-800/70" role="tablist" aria-label={t("Direction")}>
           {(
@@ -185,7 +185,11 @@ export default function DebtsView({ openRow }: AppViewProps) {
             </button>
           ))}
         </div>
-        <h2 className="hidden text-xl font-semibold print:block">{owe ? t("Creditors overview") : t("Debtors overview")}</h2>
+        {/* Printed: what it is and as of when (the controls left out). */}
+        <div className="hidden print:block">
+          <h2 className="text-xl font-semibold">{owe ? t("Creditors overview") : t("Debtors overview")}</h2>
+          <p className="text-xs text-zinc-500">{t("As of {date}", { date: new Date().toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }) })}</p>
+        </div>
         <span className="flex-1" />
         <button type="button" className="btn btn-sm print:hidden" aria-expanded={adding} onClick={() => setAdding(true)}>
           + {t("Debt")}
