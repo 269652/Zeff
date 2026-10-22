@@ -68,6 +68,12 @@ export function markUnread(ids: number[]): void {
 }
 
 /** The Workspace's documents databases read again (a document came, was opened or marked) - in the background. */
+const timer = globalThis as unknown as { __zeffDocRefresh?: ReturnType<typeof setTimeout> | null };
 export function refresh(): void {
-  void import("@/plugins/workspace/document-databases").then((m) => m.refreshDocumentDatabases()).catch(() => undefined);
+  // Several changes in a moment (a batch read one after the other): one refresh after them.
+  if (timer.__zeffDocRefresh) clearTimeout(timer.__zeffDocRefresh);
+  timer.__zeffDocRefresh = setTimeout(() => {
+    timer.__zeffDocRefresh = null;
+    void import("@/plugins/workspace/document-databases").then((m) => m.refreshDocumentDatabases()).catch(() => undefined);
+  }, 1500);
 }

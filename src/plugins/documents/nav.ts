@@ -21,7 +21,8 @@ export function inScope(d: DocFacts, scope: string, now = Date.now()): boolean {
   if (scope === "all") return true;
   if (scope === "week") return Date.parse(d.added) >= now - 7 * 864e5;
   if (scope === "mail") return !!d.from;
-  if (scope === "processing") return d.status !== "ready";
+  // Being read: waiting or reading now — not a failed or unreadable one (those stay what they are).
+  if (scope === "processing") return d.status === "queued" || d.status === "extracting";
   if (scope.startsWith("kind:")) return d.kind === scope.slice(5);
   return false;
 }

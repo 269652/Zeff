@@ -100,6 +100,8 @@ export function addDocument(name: string, data: Buffer, mime = ""): { doc: DocVi
 export function setStatus(id: number, status: DocStatus, error = ""): void {
   getDb().update(documents).set({ status, error: error.slice(0, 500), updatedAt: new Date().toISOString() }).where(eq(documents.id, id)).run();
   emitChange("todos");
+  // The Workspace's document inbox follows (its row said "waiting" while this one was read long ago).
+  void import("./seen").then((m) => m.refresh()).catch(() => undefined);
 }
 
 /** What was read from it: its text — it's ready. A new text is to be compiled again. */
@@ -110,6 +112,7 @@ export function setExtracted(id: number, text: string): void {
     .where(eq(documents.id, id))
     .run();
   emitChange("todos");
+  void import("./seen").then((m) => m.refresh()).catch(() => undefined);
 }
 
 /** The knowledge server's abstract and concepts for it. */

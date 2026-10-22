@@ -48,7 +48,7 @@ test("the scopes: the inbox the unread, the last 7 days, from mail, being read, 
   assert.deepEqual(shownIds(app({ scope: "all" })), [1, 2, 3, 4]);
   assert.deepEqual(shownIds(app({ scope: "week" })), [1, 2]);
   assert.deepEqual(shownIds(app({ scope: "mail" })), [1]);
-  assert.deepEqual(shownIds(app({ scope: "processing" })), [3, 4]);
+  assert.deepEqual(shownIds(app({ scope: "processing" })), [3], "being read: waiting or reading — a failed one is not");
   assert.deepEqual(shownIds(app({ scope: "kind:pdf" })), [1, 4]);
   assert.deepEqual(shownIds(app({})), [1, 3], "the inbox when nothing is set");
 });
@@ -65,7 +65,7 @@ test("the search looks in the name, where it came from, the concepts and the tex
 
 test("the scopes as tab options with their counts; a type only while there is one of it", () => {
   const a = app({ scope: "all" });
-  assert.equal(a.scopeOptions, "inbox:📥 Inbox 2, all:🗂️ All documents 4, week:🕑 Last 7 days 2, mail:✉️ From mail 1, processing:⏳ Being read 2, kind-pdf:📕 PDF 2, kind-office:📘 Office 1, kind-image:🖼️ Images 1");
+  assert.equal(a.scopeOptions, "inbox:📥 Inbox 2, all:🗂️ All documents 4, week:🕑 Last 7 days 2, mail:✉️ From mail 1, processing:⏳ Being read 1, kind-pdf:📕 PDF 2, kind-office:📘 Office 1, kind-image:🖼️ Images 1");
   assert.equal(a.showScopes, true);
   assert.equal(app({}, true).showScopes, false, "the scopes in the Workspace tree");
 });
