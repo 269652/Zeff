@@ -10,6 +10,7 @@ import { runAi } from "@/lib/ai";
 import { docToMarkdown } from "./doc";
 import { registerWorkspaceTools } from "./mcp";
 import { registerWebSearchTools } from "@/plugins/web-search/mcp";
+import { registerEntityTools } from "@/plugins/entities/mcp";
 import * as store from "./store";
 
 export type ChatMessage = { role: "user" | "assistant"; text: string };
@@ -41,6 +42,8 @@ function collectTools(): Map<string, Tool> {
   registerWorkspaceTools(stand, helpers);
   // The web (search, read a page) — while its plugin is installed: the chat can look up facts and fill a database with them.
   registerWebSearchTools(stand, helpers);
+  // Organisations, projects and places (while that plugin is installed): which customer, which project a ticket is.
+  registerEntityTools(stand, helpers);
   return tools;
 }
 
