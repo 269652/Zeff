@@ -6,6 +6,8 @@ import { filterRows, noLabels, sortRows, type Row } from "./model";
 import { sourceTable } from "./source-table";
 import { getDatabase, labelsFor, rowsOf } from "./store";
 import type { WidgetCard, WidgetData, WidgetItem, WidgetTile, WorkspaceWidget, WidgetSetting } from "./widget-point";
+import { deadlines } from "./deadlines";
+
 
 /**
  * Widgets made of what Zeff knows — the same data the rollups and joins use (booked time, merge requests, todos, worker runs, agent jobs):
@@ -63,14 +65,20 @@ function overview(): WidgetData {
   return { kind: "stats", tiles };
 }
 
-const URGENCY: Record<string, number> = { question: 0, overdue: 1, failed: 2, "due today": 3, "to check": 4, "MR waiting": 5 };
-const ICON: Record<string, string> = { question: "❓", overdue: "⏰", failed: "⚠️", "due today": "📌", "to check": "👀", "MR waiting": "🔀" };
+const URGENCY: Record<string, number> = { question: 0, overdue: 1, failed: 2, "due today": 3, deadline: 4, "to check": 5, "MR waiting": 6 };
+const ICON: Record<string, string> = { question: "❓", overdue: "⏰", failed: "⚠️", "due today": "📌", deadline: "📅", "to check": "👀", "MR waiting": "🔀" };
 
 function attention(limit: number): WidgetData {
   const today = iso(new Date());
   const items: (WidgetItem & { rank: number })[] = [];
   const add = (badge: string, tone: "bad" | "warn", item: Omit<WidgetItem, "badge" | "tone">) => items.push({ icon: ICON[badge], ...item, badge: BADGE[badge] ?? badge, tone, rank: URGENCY[badge] ?? 9 });
-  const BADGE: Record<string, string> = { question: t("question"), overdue: t("overdue"), failed: t("failed"), "due today": t("due today"), "to check": t("to check"), "MR waiting": t("MR waiting") };
+  const BADGE: Record<string, string> = { question: t("question"), overdue: t("overdue"), failed: t("failed"), "due today": t("due today"), deadline: t("deadline"), "to check": t("to check"), "MR waiting": t("MR waiting") };
+
+  // The deadline radar: the date fields set to remind, in every database — past ones as overdue, near ones as a deadline.
+  for (const d of deadlines(today)) {
+    const when = d.days < 0 ? t("{n} days overdue", { n: -d.days }) : d.days === 0 ? t("today") : d.days === 1 ? t("tomorrow") : t("in {n} d", { n: d.days });
+    add(d.days < 0 ? "overdue" : d.days === 0 ? "due today" : "deadline", d.days <= 0 ? "bad" : "warn", { id: `deadline:${d.rowId}:${d.field}`, text: d.title || t("Untitled"), detail: `${d.field} · ${when} · ${d.db}`, href: `/workspace/${d.dbId}?row=${d.rowId}` });
+  }
 
   for (const j of jobsNeedingYou()) {
     add(j.state === "Rückfrage" ? "question" : "to check", j.state === "Rückfrage" ? "warn" : "warn", { id: `job:${j.rowId}`, text: j.title, detail: j.state === "Rückfrage" ? t("An agent asks you something") : t("Agent job to check"), href: `/workspace/${j.dbId}?row=${j.rowId}` });

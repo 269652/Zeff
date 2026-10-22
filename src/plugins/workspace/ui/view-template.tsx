@@ -1,12 +1,12 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { formatNumber, type Labels, type Property, type Row } from "../model";
 import type { ViewAppMeta } from "../view-apps";
-import { renderView, viewDefaults, type VNode } from "../view-template";
+import { navOf, renderView, viewDefaults, type ViewNavEntry, type VNode } from "../view-template";
 import type { ActionEnv, AppViewProps, ViewAppModule } from "./app-view";
 import { draw, Level, type DrawExt } from "./card-template";
 import { Cell } from "./cells";
@@ -36,14 +36,28 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
   const schema = props.data.schema;
   const defaults = useMemo(() => viewDefaults(src), [src]);
   const [own, setOwn] = useState<Record<string, string>>({});
-  const state = useMemo(() => ({ ...defaults, ...own }), [defaults, own]);
+  // In the tree, the entry picked there (?nav=state=value) is the view's state — read with it, not set after it is drawn.
+  const asked = useSearchParams().get("nav");
+  const inTree = props.view.nav === "workspace";
+  const fromTree = useMemo((): Record<string, string> => {
+    const i = asked?.indexOf("=") ?? -1;
+    return inTree && asked && i > 0 ? { [asked.slice(0, i)]: asked.slice(i + 1) } : {};
+  }, [inTree, asked]);
+  const state = useMemo(() => ({ ...defaults, ...own, ...fromTree }), [defaults, own, fromTree]);
   const setState = useCallback((name: string, value: string) => setOwn((s) => ({ ...s, [name]: value })), []);
   const app = module.useAppData(props, state);
   const labels: Labels = useMemo(() => ({ person: (id) => props.data.labels.people[id] ?? `#${id}`, page: (id) => props.data.labels.pages[id]?.title ?? `#${id}`, todo: (id) => props.data.labels.todos[id] ?? `T-${id}` }), [props.data.labels]);
+  // What the rows' pages say (their first lines — a task ticked or not, a list's bullet): `text` in a row.
+  const previews = props.data.extras?.previews;
+  const texts = useMemo(() => Object.fromEntries(Object.entries(previews ?? {}).map(([id, lines]) => [id, lines.map((l) => (l.kind === "task" ? `${l.checked ? "☑" : "☐"} ${l.text}` : l.text)).join("\n")])), [previews]);
   const r = useMemo(
-    () => renderView(src, { rows: props.rows, props: schema.properties, titleName: schema.titleName, state, app: app.data, db: { id: props.data.id, title: props.data.title }, labels, locale: typeof navigator !== "undefined" ? navigator.language : "de-DE", current }, { parts: meta.parts, actions: meta.actions }),
-    [src, props.rows, schema, state, app.data, props.data.id, props.data.title, labels, meta, current],
+    () => renderView(src, { rows: props.rows, props: schema.properties, titleName: schema.titleName, state, app: app.data, db: { id: props.data.id, title: props.data.title }, labels, locale: typeof navigator !== "undefined" ? navigator.language : "de-DE", current, texts }, { parts: meta.parts, actions: meta.actions }),
+    [src, props.rows, schema, state, app.data, props.data.id, props.data.title, labels, meta, current, texts],
   );
+  // Its sidebar (a <nav>): beside the view — or, the view's setting, in the Workspace tree, whose entry picked (?nav=) sets the state.
+  const nav = useMemo(() => navOf(r.nodes), [r.nodes]);
+  const go = (e: ViewNavEntry) => (e.row ? props.openRow(e.row) : e.state ? setState(e.state, e.value ?? "") : e.href ? router.push(e.href) : undefined);
+
   // The toolbar's New, when the app takes it over: run with the view as it is at the click.
   const envRef = useRef<ActionEnv | null>(null);
   useEffect(() => {
@@ -128,11 +142,22 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
     switch (n.t) {
       case "row":
       case "col": {
-        if (a.fill !== "true" && !a.tip) return undefined;
-        // (Taking the room left — and letting what is in it be cut to one line.)
-        const inner = draw({ ...n, a: { ...a, fill: "", tip: "" } }, key, ext);
+        // (A column of a fixed width — what follows it starts at the same place in every row; align=end puts its content at the
+        // right edge, so a shorter one leaves room on its left.)
+        if (n.t === "col" && Number(a.width) > 0) {
+          const inner = draw({ ...n, a: { ...a, width: "" } }, key, ext);
+          return (
+            <div key={key} className="min-w-0 shrink-0" style={{ width: Math.min(800, Number(a.width)) }} title={a.tip || undefined}>
+              {inner}
+            </div>
+          );
+        }
+        if (a.fill !== "true" && !a.tip && !a.max) return undefined;
+        // (Taking the room left — and letting what is in it be cut to one line; max=70ch: not wider than that.)
+        const inner = draw({ ...n, a: { ...a, fill: "", tip: "", max: "" } }, key, ext);
+        const max = /^\d+(?:\.\d+)?(?:ch|px|rem|%)$/.test(a.max ?? "") ? a.max : undefined;
         return (
-          <div key={key} className={a.fill === "true" ? "min-w-0 flex-1" : ""} title={a.tip || undefined}>
+          <div key={key} className={a.fill === "true" ? "min-w-0 flex-1" : ""} style={max ? { maxWidth: max } : undefined} title={a.tip || undefined}>
             {inner}
           </div>
         );
@@ -368,6 +393,29 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
               ))}
             </div>
           );
+        // grid="max-content minmax(0,70ch) 1fr max-content": the rows share one grid — each column as wide as its widest
+        // cell in any row; an item's one <row> gives its parts as the cells.
+        const template = /^[\w\s().,%-]+$/.test(a.grid ?? "") ? a.grid : "";
+        if (template)
+          return (
+            <ul key={key} className="grid divide-y divide-zinc-100 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800" style={{ gridTemplateColumns: template }}>
+              {items.map((it, i) => {
+                const parts = it.c.filter((c) => typeof c !== "string" || c.trim());
+                const one = parts.length === 1 && typeof parts[0] !== "string" && parts[0].t === "row" ? parts[0] : null;
+                const cells = one ? one.c.filter((c) => typeof c !== "string" || c.trim()) : parts;
+                return (
+                  <li
+                    key={it.a.row ?? i}
+                    className={`col-span-full grid items-start ${a.spacing === "roomy" ? "px-4 py-3" : "px-3 py-2"} text-sm ${active(it) ? "bg-indigo-50/70 dark:bg-indigo-950/40" : ""} ${clickable ? "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900/50" : ""}`}
+                    style={{ gridTemplateColumns: "subgrid", columnGap: one ? (Number(one.a.gap) || 3) * 4 : 12 }}
+                    onClick={click(it)}
+                  >
+                    {kids(cells)}
+                  </li>
+                );
+              })}
+            </ul>
+          );
         return (
           <ul key={key} className="divide-y divide-zinc-100 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
             {items.map((it, i) => (
@@ -421,6 +469,9 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
         if (!Part) return null;
         return <Part key={key} {...props} attrs={attrs} state={r.state} setState={setState} app={app.data} reloadApp={app.reload} rowId={rowAttr ? Number(rowAttr) : null}>{n.c.length ? kids(n.c) : undefined}</Part>;
       }
+      case "nav":
+      case "entry":
+        return null; // (drawn beside the view, below — or in the tree)
       case "widget": {
         const { id, title, ...config } = a;
         const conf = Object.fromEntries(Object.entries(config).map(([k, v]) => [k, /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : v === "true" ? true : v === "false" ? false : v]));
@@ -431,10 +482,45 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
     }
   };
 
+  if (nav && !inTree && props.view.nav !== "off")
+    return (
+      <div className="flex flex-col gap-5 md:flex-row md:items-start" data-print-root>
+        <ViewNav title={nav.title} entries={nav.entries} active={(e) => (e.state ? (r.state[e.state] ?? "") === (e.value ?? "") : false)} onPick={go} />
+        <div className="min-w-0 flex-1 space-y-5">
+          <Level nodes={r.nodes} ext={ext} />
+        </div>
+      </div>
+    );
   return (
     <div className="space-y-5" data-print-root>
       <Level nodes={r.nodes} ext={ext} />
     </div>
+  );
+}
+
+/** A view's sidebar: its entries (under their headings), the one picked marked, a count on the right. */
+function ViewNav({ title, entries, active, onPick }: { title: string; entries: ViewNavEntry[]; active: (e: ViewNavEntry) => boolean; onPick: (e: ViewNavEntry) => void }) {
+  return (
+    <nav className="w-full shrink-0 md:sticky md:top-2 md:w-56 print:hidden">
+      {title && <div className="px-2 pb-1 text-xs font-semibold tracking-wide text-zinc-400 uppercase">{title}</div>}
+      <ul className="space-y-0.5">
+        {entries.map((e, i) => {
+          // A heading where a group starts.
+          const heading = e.group && e.group !== entries.slice(0, i).findLast((x) => x.group)?.group ? e.group : "";
+          const on = active(e);
+          return (
+            <li key={e.id}>
+              {heading && <div className="px-2 pt-3 pb-1 text-[11px] font-semibold tracking-wide text-zinc-400 uppercase">{heading}</div>}
+              <button type="button" onClick={() => onPick(e)} aria-current={on || undefined} className={`flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1 text-left text-sm ${on ? "bg-indigo-50 font-medium text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300" : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"}`}>
+                {e.icon && <span className="shrink-0">{e.icon}</span>}
+                <span className="min-w-0 flex-1 truncate">{e.label}</span>
+                {e.n > 0 && <span className="shrink-0 text-xs text-zinc-400 tabular-nums">{e.n}</span>}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
   );
 }
 

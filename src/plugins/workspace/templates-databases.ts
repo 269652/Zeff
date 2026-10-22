@@ -33,7 +33,7 @@ const notDone = (p: Property & { options: Option[] }): View["filter"] => ({ op: 
 
 export function tasksDatabase(parentId: number | null): number {
   const st = workStatus();
-  const due = newProperty(t("Due"), "date");
+  const due = { ...newProperty(t("Due"), "date"), remind: 2 };
   const priority = select(t("Priority"), [t("Low"), t("Medium"), t("High")], ["gray", "yellow", "red"]);
   const owner = newProperty(t("Owner"), "person");
   const todo = newProperty(t("Zeff todo"), "todo");
@@ -162,7 +162,7 @@ export function instalmentPlansDatabase(parentId: number | null): number {
   const paid = { ...newProperty(t("Paid"), "rollup"), format: "euro" as const, rollup: { relation: back.id, property: amount.id, fn: "sum" as const } };
   const open = { ...newProperty(t("Open"), "formula"), format: "euro" as const, formula: `prop(${JSON.stringify(total.name)}) - prop(${JSON.stringify(paid.name)})` };
   const caseNo = newProperty(t("Case number"), "text");
-  const next = newProperty(t("Next due"), "date");
+  const next = { ...newProperty(t("Next due"), "date"), remind: 5 };
   const iban = newProperty("IBAN", "text");
   const st = status([
     [t("Running"), "blue", "doing"],
@@ -194,7 +194,8 @@ export function contractsDatabase(parentId: number | null): number {
   const next = { ...newProperty(t("Next payment"), "date"), id: CONTRACT.next };
   const yearly = { ...euro(t("Per year")), type: "formula" as const, formula: `prop(${JSON.stringify(monthly.name)}) * 12` };
   const until = newProperty(t("Runs until"), "date");
-  const cancel = newProperty(t("Cancel by"), "date");
+  // A cancellation date: in "Needs attention" a month before.
+  const cancel = { ...newProperty(t("Cancel by"), "date"), remind: 30 };
   const customer = newProperty(t("Customer number"), "text");
   const provider = newProperty(t("Provider"), "person");
   const kinds = [t("Insurance"), t("Subscription"), t("Utilities"), t("Phone & internet"), t("Rent"), t("Other")];

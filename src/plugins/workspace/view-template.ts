@@ -40,6 +40,8 @@ export type ViewData = {
   locale?: string;
   /** A row's own page: the row it is — its fields are names, its buttons and parts act on it. */
   current?: Row;
+  /** What the rows' pages say (their first lines), by row id — `text` in a row. */
+  texts?: Record<number, string>;
 };
 
 export const MAX_VIEW_TEMPLATE = 20000;
@@ -65,9 +67,12 @@ const ANY: Record<string, AttrKind> = new Proxy({}, { get: () => "text" as const
 /** The tags of a view: a card's, and those for a page. */
 export const VIEW_TAGS: Record<string, TagDef> = {
   ...CARD_TAGS,
+  // A sidebar of entries: drawn beside the view, or (the view's setting) under its database in the Workspace tree.
+  nav: T({ title: "text" }),
+  entry: T({ id: "text", label: "text", icon: "text", row: "text", state: "text", value: "text", href: "url", n: "text", group: "text" }, true),
   row: T({ fill: { oneOf: ["true", "false"] }, tip: "text", gap: "int", align: { oneOf: ["start", "center", "end", "baseline"] }, wrap: { oneOf: ["true", "false"] }, justify: { oneOf: ["start", "between", "end"] } }),
   grid: T({ cols: "int", gap: "int", min: "int" }),
-  col: T({ gap: "int", fill: { oneOf: ["true", "false"] }, tip: "text" }),
+  col: T({ gap: "int", fill: { oneOf: ["true", "false"] }, width: "int", tip: "text", align: { oneOf: ["start", "center", "end"] }, max: "text" }),
   truncate: T({ tip: "text" }),
   mono: T({ tip: "text" }),
   b: T({ tip: "text" }),
@@ -88,7 +93,8 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   state: T({ name: "text", value: "text" }, true),
   tabs: T({ bind: "text", options: "text" }, true),
   split: T({ ratio: { oneOf: ["1:1", "1:2", "2:1", "2:3", "3:2", "1:3", "3:1"] }, side: { oneOf: ["left", "right"] }, width: "int" }),
-  list: T({ spacing: { oneOf: ["compact", "roomy"] }, source: "list", select: { oneOf: ["true", "false"] }, open: { oneOf: ["true", "false"] }, empty: "text" }),
+  // grid: the rows share one grid of these columns ("max-content minmax(0,80ch) 1fr max-content") — each as wide as its widest cell.
+  list: T({ spacing: { oneOf: ["compact", "roomy"] }, source: "list", select: { oneOf: ["true", "false"] }, open: { oneOf: ["true", "false"] }, empty: "text", grid: "text" }),
   cards: T({ spacing: { oneOf: ["compact", "roomy"] }, source: "list", cols: "int", open: { oneOf: ["true", "false"] }, select: { oneOf: ["true", "false"] }, empty: "text" }),
   table: T({ source: "list", columns: "text", sum: "text", empty: "text" }, true),
   chart: T({ source: "list", kind: { oneOf: ["bar", "column", "line", "pie"] }, group: "text", value: "text", calc: { oneOf: ["count", "sum", "avg"] } }, true),
@@ -131,7 +137,7 @@ const norm = (s: string) => s.trim().toLowerCase();
 function scopeOf(ctx: Ctx, row: Row): CardScope {
   let s = ctx.scopes.get(row.id);
   if (!s) {
-    s = cardScope({ row, props: ctx.data.props, titleName: ctx.data.titleName, labels: ctx.data.labels ?? noLabels, now: ctx.data.now });
+    s = cardScope({ row, props: ctx.data.props, titleName: ctx.data.titleName, labels: ctx.data.labels ?? noLabels, now: ctx.data.now, text: ctx.data.texts?.[row.id] ?? "" });
     ctx.scopes.set(row.id, s);
   }
   return s;
@@ -527,6 +533,16 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
       });
       return [{ t: "datatable", a: { cols: JSON.stringify(meta), ...(a.empty ? { empty: a.empty } : {}) }, c: rows }];
     }
+    case "nav":
+      return [{ t: "nav", a: { title: a.title ?? "" }, c: kids().filter((k) => typeof k !== "string" || k.trim()) }];
+    case "entry": {
+      if (!a.label) return (err("<entry> needs a label."), []);
+      if (a.state && a.value === undefined) return (err('<entry state="…"> needs a value="…" (what it sets).'), []);
+      // What it does: opens a row (inside a row: that row), sets the view's state, or goes to an address.
+      const row = a.row ?? (!a.state && !a.href && ctx.row ? String(ctx.row.id) : undefined);
+      const id = a.id || (row ? `row:${row}` : a.state ? `${a.state}=${a.value}` : a.href || a.label);
+      return [{ t: "entry", a: { ...a, id, ...(row ? { row } : {}) }, c: [] }];
+    }
     case "selected": {
       const id = Number(ctx.state.selected);
       const row = Number.isFinite(id) ? ctx.data.rows.find((r) => r.id === id) : undefined;
@@ -631,14 +647,30 @@ export function renderView(src: string, data: ViewData, opts: { parts?: PartMeta
   return { nodes, errors, state: ctx.state };
 }
 
+export type ViewNavEntry = { id: string; label: string; icon: string; n: number; group?: string; row?: number; state?: string; value?: string; href?: string };
+
+/** The entries of a drawn view's <nav> (none: it has no sidebar). */
+export function navOf(nodes: VNode[]): { title: string; entries: ViewNavEntry[] } | null {
+  for (const n of nodes) {
+    if (typeof n === "string") continue;
+    if (n.t === "nav") {
+      const entries = n.c.flatMap((e): ViewNavEntry[] => (typeof e === "string" || e.t !== "entry" ? [] : [{ id: e.a.id, label: e.a.label, icon: e.a.icon ?? "", n: Number(e.a.n) || 0, ...(e.a.group ? { group: e.a.group } : {}), ...(e.a.row ? { row: Number(e.a.row) } : {}), ...(e.a.state ? { state: e.a.state, value: e.a.value ?? "" } : {}), ...(e.a.href ? { href: e.a.href } : {}) }]));
+      return { title: n.a.title ?? "", entries };
+    }
+    const inner = navOf(n.c);
+    if (inner) return inner;
+  }
+  return null;
+}
+
 /** The language as the editor's help and the AI read it: tags, filters, actions, names — and this view's parts and actions. */
 export function viewReference(parts: PartMeta[] = [], actions: ActionMeta[] = []): string {
   return [
     "VIEW TEMPLATE LANGUAGE — tags from this list only, {{ value | filter }}, {{#if …}}…{{#else}}…{{/if}}, {{#each …}}…{{/each}}, {{! a comment }}. No HTML, no script.",
     "",
-    "NAMES: rows (the view's rows — a collection), a row's properties by name ([Name with spaces]) inside a row (a list's item, {{#each rows}}, <selected>), title, id, state.<name> (the view's state), app.<path> (the app's data), db.title, now, this (the current item).",
+    "NAMES: rows (the view's rows — a collection), a row's properties by name ([Name with spaces]) inside a row (a list's item, {{#each rows}}, <selected>), title, id, text (what the row's page says — its first lines; show it with <text pre=true>), state.<name> (the view's state), app.<path> (the app's data), db.title, now, this (the current item).",
     "",
-    "LAYOUT: <row gap=2 align=center justify=between wrap=true fill=true>, <col gap=2 fill=true> (fill: takes the room left in a row), <grid cols=3 gap=3 min=220>, <section title=\"…\" aside=\"… (right of the title)\" collapsible=true open=false scroll=20> (scroll: at most 20rem high), <box title=\"…\" tone=muted|good|warn|bad>, <heading level=1|2|3>, <text tone=muted pre=true> (pre: keeps the line breaks), <split ratio=1:2> or <split side=right width=352> (two children side by side — a side column of a fixed width; stacked on a phone), <hr/>, <grow/>.",
+    "LAYOUT: <row gap=2 align=center justify=between wrap=true fill=true>, <col gap=2 fill=true width=120> (fill: takes the room left in a row; width: a fixed width in pixels — a column that lines the rows up), <grid cols=3 gap=3 min=220>, <section title=\"…\" aside=\"… (right of the title)\" collapsible=true open=false scroll=20> (scroll: at most 20rem high), <box title=\"…\" tone=muted|good|warn|bad>, <heading level=1|2|3>, <text tone=muted pre=true> (pre: keeps the line breaks), <split ratio=1:2> or <split side=right width=352> (two children side by side — a side column of a fixed width; stacked on a phone), <hr/>, <grow/>.",
     "TEXT: <b> <i> <small> <muted> <code> <mono> <truncate> (one line, cut) <strike> — tip=\"…\" on text, tiles, buttons, rows: a tooltip; <clamp lines=3> <chip color=…> <badge color=…> <bar value= max= fill=\"#hex\"/> <dot color=\"#hex or name\"/> <img src= h=/> <a href=…>, <printonly>…</printonly> (only on paper), <noprint>…</noprint>.",
     "FIGURES: <tile label=\"…\" value=\"{{ … }}\" sub=\"…\" tone=good|warn|bad/> — or <tile …>content under the value (text, a part)</tile>.",
     "DATA: <list source=\"rows | …\" select=true open=true spacing=roomy empty=\"…\">item template</list>, <cards source=\"…\" cols=3>item template</cards>, <table source=\"rows | …\" columns=\"title, Status, [Due]\" sum=\"Amount\" empty=\"…\"/>, <chart kind=bar|column|line|pie source=\"rows\" group=\"Status\" value=\"Amount\" calc=count|sum|avg/>, <selected empty=\"…\">template of the row picked (a list with select=true picks)</selected>, <field name=\"Status\"/> (a row's property, editable), <datatable source=\"app.list | …\" empty=\"…\"><column label=\"…\" align=right nowrap=true foot=\"{{ … }}\">cell template (the item's fields by name)</column>…</datatable> (a table of any list).",
@@ -648,6 +680,7 @@ export function viewReference(parts: PartMeta[] = [], actions: ActionMeta[] = []
       .join(", ")}${actions.length ? `, ${actions.map((x) => `${x.name} (${x.description})`).join(", ")}` : ""}.`,
     "FILTERS for collections: where(\"Field\", \"value\") or where(\"Field\", \">\", 5) (=, !=, >, <, >=, <=, contains, empty, filled), sort(\"Field\", \"desc\"), limit(5), search(state.q), count, sum(\"Field\"), avg(\"Field\"), min(\"Field\"), max(\"Field\"), pluck(\"Field\").",
     "FILTERS for values: euro (euro(0): whole euros), number(2), percent, hours, date, relative, chip, upper, lower, truncate(40), clamp(3), default(\"—\"), join(\", \"), first, last, count, check, bold, muted, small, code, link, img(80), bar(max), initials.",
+    "NAV: <nav title=\"…\"><entry label=\"…\" icon=\"📥\" state=\"scope\" value=\"inbox\" n=\"{{ … }}\" group=\"…\"/>…</nav> — the view's sidebar (beside the view, or — its setting — in the Workspace tree under the database); an entry sets the view's state, opens a row (row=\"{{ id }}\" — in {{#each}} the row by itself) or goes to an address (href). E.g. the newest five: {{#each rows | sort('Date', 'desc') | limit(5)}}<entry label=\"{{ title }}\" group=\"Newest\"/>{{/each}}.",
     "WIDGETS: <widget id=\"plugin.widget\" setting=value/> — a plugin's widget (as on pages).",
     parts.length ? `PARTS of this app (its own blocks; <part name=…>template content</part> where a part shows content): ${parts.map((p) => `<part name="${p.name}"${Object.entries(p.attrs ?? {}).map(([k, v]) => ` ${k}="${v}"`).join("")}/> — ${p.description}`).join("; ")}.` : "PARTS: none (a view of any table: build it from the tags above).",
     "",

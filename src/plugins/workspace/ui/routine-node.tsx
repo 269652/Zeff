@@ -145,6 +145,9 @@ export function RoutineControls({ pageId, editable }: { pageId: number; editable
             <button type="button" className="btn btn-sm" onClick={() => setTriggers([...view.triggers, { kind: "schedule", at: "08:00" }])}>
               ＋ {t("At a time")}
             </button>
+            <button type="button" className="btn btn-sm" onClick={() => setTriggers([...view.triggers, { kind: "schedule", at: "08:00", monthDay: 1 }])}>
+              ＋ {t("Monthly")}
+            </button>
             <button type="button" className="btn btn-sm" onClick={() => setTriggers([...view.triggers, { kind: "event", event: "row.added" }])}>
               ＋ {t("On an event")}
             </button>
@@ -301,6 +304,15 @@ function TriggerLine({ tr, choices, editable, onChange }: { tr: Trigger; choices
         ⏱ {t("Every")}
         <input type="number" min={1} className="input w-20 py-0.5 text-sm" value={tr.everyMinutes} disabled={!editable} onChange={(e) => onChange({ kind: "schedule", everyMinutes: Math.max(1, Number(e.target.value) || 1) })} aria-label={t("Minutes")} />
         {t("minutes")}
+      </span>
+    );
+  if (tr.kind === "schedule" && tr.monthDay)
+    return (
+      <span className="flex flex-wrap items-center gap-1.5">
+        📅 {t("Monthly on day")}
+        <input type="number" min={1} max={28} className="input w-16 py-0.5 text-sm" value={tr.monthDay} disabled={!editable} onChange={(e) => onChange({ ...tr, monthDay: Math.min(28, Math.max(1, Number(e.target.value) || 1)) })} aria-label={t("Day of the month")} />
+        {t("at")}
+        <input type="time" className="input w-28 py-0.5 text-sm" value={tr.at ?? "08:00"} disabled={!editable} onChange={(e) => onChange({ ...tr, at: e.target.value || "08:00" })} aria-label={t("Time")} />
       </span>
     );
   if (tr.kind === "schedule")

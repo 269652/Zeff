@@ -1,6 +1,7 @@
 import { formatDate } from "@/lib/format";
 import { t } from "@/lib/i18n/server";
 import { markdownToDoc, type DocNode } from "./doc";
+import { createRoutine } from "./routines";
 import { createPage, updatePage } from "./store";
 import { widgetCatalog } from "./widgets";
 
@@ -63,7 +64,7 @@ export function projectBriefPage(parentId: number | null): number {
 }
 
 export function weeklyReviewPage(parentId: number | null): number {
-  return make(
+  const id = make(
     parentId,
     t("Weekly review"),
     "🔁",
@@ -76,6 +77,8 @@ export function weeklyReviewPage(parentId: number | null): number {
     ],
     true,
   );
+  weeklyDraftAgent(id);
+  return id;
 }
 
 export function wikiHomePage(parentId: number | null): number {
@@ -141,4 +144,25 @@ export function authorityPage(parentId: number | null): number {
     ),
     ...md(`## ${t("Running")}\n\n- [ ] \n\n## ${t("Deadlines")}\n\n- [ ] ${t("What — by when")}\n\n:::toggle ${t("Correspondence log")}\n**${today()}** — \n:::`),
   ]);
+}
+
+/**
+ * The weekly review writes itself: an agent under it that drafts the week every Friday at three (what got done, the
+ * appointments, the hours booked, what is left and why, what to do next week) as a sub page — you read it and correct it.
+ * Switched on; it can be switched off on its page.
+ */
+function weeklyDraftAgent(parentId: number): number {
+  const intro = [
+    t("Write a draft of this week's review as a new sub page of the page above you (the weekly review), titled with the week (“Week 43”). Short, in bullet points, linking todos and pages with @."),
+    "",
+    `- ${t("What got done this week (list_todos: the ones done since Monday) — grouped by topic.")}`,
+    `- ${t("The appointments of the week and what came of them.")}`,
+    `- ${t("The hours booked (get_weekly_report), if there is time tracking.")}`,
+    `- ${t("What is still open and why — the overdue first.")}`,
+    `- ${t("Three suggestions for next week.")}`,
+    "",
+  ].join("\n");
+  const id = createPage({ parentId, title: t("Write the weekly review"), icon: "✍️", content: { type: "doc", content: [{ type: "zeffRoutine" }, ...md(intro)] } });
+  createRoutine(id, "agent", { enabled: true, triggers: [{ kind: "manual" }, { kind: "schedule", at: "15:00", days: [5] }], permissions: { scope: "parent" } });
+  return id;
 }

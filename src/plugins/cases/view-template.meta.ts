@@ -29,37 +29,41 @@ const template = (t: T) => `<state name="paying" value=""/>
   <tile label="${t("Overdue")}" value="{{ app.overdue }}" tone="{{ app.overdue > 0 ? 'bad' : 'plain' }}"/>
 </grid>
 
-<list source="app.cases" spacing=roomy empty="${t("No case running.")}">
-  <row gap=4 align=baseline>
-    {{#if label}}<mono>{{ label }}</mono>{{/if}}
-    <col gap=0 fill=true>
-      <truncate>{{#if rowId}}<button action="open" row="{{ rowId }}" label="{{ name }}" variant=link print=true/>{{#else}}<b>{{ name }}</b>{{/if}}</truncate>
-      {{#if sub}}<truncate><muted>{{ sub }}</muted></truncate>{{/if}}
+<list source="app.cases" spacing=roomy grid="max-content minmax(0,80ch) 1fr max-content" empty="${t("No case running.")}">
+  <row gap=2>
+    <col align=end><mono>{{ label }}</mono></col>
+    <col gap=1>
+      <row>{{#if rowId}}<button action="open" row="{{ rowId }}" label="{{ name }}" variant=link print=true/>{{#else}}<b>{{ name }}</b>{{/if}}</row>
+      {{#if sub}}<row><muted>{{ sub }}</muted></row>{{/if}}
+      <row gap=3 align=baseline>
+        {{#if hasDue}}
+          {{#if overdue}}
+            <text tone=bad>${t("Overdue since {date}", { date: "{{ due }}" })}{{#if nextWhat}} · {{ nextWhat }}{{/if}}</text>
+          {{#else}}
+            <text>{{ due }}{{#if nextWhat}} · {{ nextWhat }}{{/if}}</text>
+          {{/if}}
+        {{#else}}
+          <text tone=muted>{{ summed ? ${q(t("Nothing due."))} : ${q(t("Not summed up yet"))} }}</text>
+        {{/if}}
+      </row>
+      {{#if paying}}<part name="cases.girocode" case="{{ id }}"/>{{/if}}
     </col>
-    <b tip="${t("From the case's letters and mails")}">{{ open | euro | default('—') }}</b>
-  </row>
-  <row gap=3>
-    {{#if hasDue}}
-      {{#if overdue}}
-        <text tone=bad>${t("Overdue since {date}", { date: "{{ due }}" })}{{#if nextWhat}} · {{ nextWhat }}{{/if}}</text>
-      {{#else}}
-        <text>{{ due }}{{#if nextWhat}} · {{ nextWhat }}{{/if}}</text>
-      {{/if}}
-    {{#else}}
-      <text tone=muted>{{ summed ? ${q(t("Nothing due."))} : ${q(t("Not summed up yet"))} }}</text>
-    {{/if}}
     <grow/>
-    {{#if paying}}
-      <button action="state" state="paying" value="" label="${t("Close")}"/>
-    {{#else}}
-      {{#if payment}}
-        <button action="state" state="paying" value="{{ id }}" label="${t("Pay with GiroCode")}" variant=primary/>
-      {{#else}}
-        <small><muted>${t("No account known")}</muted></small>
-      {{/if}}
-    {{/if}}
+    <col gap=2 align=end>
+      <row><b tip="${t("From the case's letters and mails")}">{{ open | euro | default('—') }}</b></row>
+      <row>
+        {{#if paying}}
+          <button action="state" state="paying" value="" label="${t("Close")}"/>
+        {{#else}}
+          {{#if payment}}
+            <button action="state" state="paying" value="{{ id }}" label="${t("Pay with GiroCode")}" variant=primary/>
+          {{#else}}
+            <small><muted>${t("No account known")}</muted></small>
+          {{/if}}
+        {{/if}}
+      </row>
+    </col>
   </row>
-  {{#if paying}}<part name="cases.girocode" case="{{ id }}"/>{{/if}}
 </list>
 
 {{/if}}`;

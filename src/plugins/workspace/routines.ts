@@ -22,7 +22,7 @@ export type RoutineEvent = (typeof EVENTS)[number];
 /** When a routine runs: when you start it, on a schedule, when something happens, or when something else calls it. */
 export type Trigger =
   | { kind: "manual" }
-  | { kind: "schedule"; everyMinutes?: number; at?: string; days?: number[] }
+  | { kind: "schedule"; everyMinutes?: number; at?: string; days?: number[]; /** Once a month, on this day (1–28) — instead of the weekdays. */ monthDay?: number }
   | { kind: "event"; event: RoutineEvent; db?: number; field?: string; /** Only when the field has this value now (row.changed): "Status becomes Done". */ equals?: string; /** A signal: its name. */ name?: string }
   | { kind: "called" };
 
@@ -94,7 +94,9 @@ function normalizeTrigger(raw: unknown): Trigger | null {
     const every = posInt(o.everyMinutes);
     const at = normalizeTime(o.at);
     const days = Array.isArray(o.days) ? [...new Set(o.days.map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort() : [];
+    const monthDay = posInt(o.monthDay);
     if (every) return { kind: "schedule", everyMinutes: Math.min(10080, every) };
+    if (at && monthDay) return { kind: "schedule", at, monthDay: Math.min(28, monthDay) };
     if (at) return { kind: "schedule", at, ...(days.length ? { days } : {}) };
     return null;
   }

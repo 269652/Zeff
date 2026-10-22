@@ -56,4 +56,13 @@ test("the weekly review shows what you got done this week, the agenda and the da
   const done = await widgetData("todos.done", { since: "week", limit: 10 });
   assert.ok(done.kind === "list" && done.items.some((i) => i.text === "Angebot verschickt") && !done.items.some((i) => i.text === "Vor Monaten"));
   assert.equal((await widgetsOf(await fromTemplate("meeting", null)))[0], "people.briefs");
+  // The review writes itself: an agent under it, on Fridays at three.
+  const reviewPage = await fromTemplate("weekly-review", null);
+  const { tree } = await import("@/plugins/workspace/store");
+  const agent = tree().find((x) => x.parentId === reviewPage)!;
+  const { getRoutine } = await import("@/plugins/workspace/routines");
+  const r = getRoutine(agent.id)!;
+  assert.equal(r.kind, "agent");
+  assert.ok(r.enabled);
+  assert.ok(r.triggers.some((x) => x.kind === "schedule" && x.at === "15:00" && x.days?.includes(5)), "Fridays at three");
 });

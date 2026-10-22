@@ -13,9 +13,10 @@ export function setNavHidden(dbId: number, viewId: string, entry: string, hidden
 }
 
 /** Where an app view's navigation is: in the view, or in the Workspace tree. */
-export function setNavPlace(dbId: number, viewId: string, place: "view" | "workspace"): void {
+/** Where a view's sidebar is: in the Workspace tree, beside the view, or nowhere ("off"). */
+export function setNavPlace(dbId: number, viewId: string, place: "view" | "workspace" | "off"): void {
   const d = getDatabase(dbId);
   if (!d) throw new Error("No such database.");
-  const views = d.schema.views.map((v) => (v.id === viewId ? { ...v, nav: place === "workspace" ? ("workspace" as const) : undefined } : v));
+  const views = d.schema.views.map((v) => (v.id === viewId ? { ...v, nav: place === "workspace" || place === "off" ? place : undefined } : v));
   saveSchema(dbId, { ...d.schema, views }, "Relation");
 }

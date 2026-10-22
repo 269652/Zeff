@@ -36,6 +36,17 @@ test("nextRunAfter: every N minutes from a moment; at a time of day (local) on t
   assert.equal(nextRunAfter({ kind: "manual" }, from), null);
 });
 
+test("nextRunAfter: once a month on a day — this month when it is still ahead, else the next; normalized to 1–28", async () => {
+  const { nextRunAfter } = await import("@/plugins/workspace/routine-triggers");
+  const { normalizeRoutine } = await import("@/plugins/workspace/routines");
+  const from = new Date(2026, 9, 17, 10, 30);
+  assert.deepEqual(nextRunAfter({ kind: "schedule", at: "07:00", monthDay: 1 }, from), new Date(2026, 10, 1, 7, 0), "the 1st of November");
+  assert.deepEqual(nextRunAfter({ kind: "schedule", at: "07:00", monthDay: 20 }, from), new Date(2026, 9, 20, 7, 0), "still this month");
+  assert.deepEqual(nextRunAfter({ kind: "schedule", at: "07:00", monthDay: 1 }, new Date(2026, 11, 1, 7, 0)), new Date(2027, 0, 1, 7, 0), "over the year's end");
+  const tr = normalizeRoutine({ kind: "agent", triggers: [{ kind: "schedule", at: "07:00", monthDay: 31, days: [1] }] }).triggers[0];
+  assert.deepEqual(tr, { kind: "schedule", at: "07:00", monthDay: 28 });
+});
+
 test("scheduled routines: due when their time has come — run once, then planned again; disabled ones and others never", async () => {
   const { r, tasks, automation, w } = await world();
   const { runDueRoutines } = await import("@/plugins/workspace/routine-triggers");

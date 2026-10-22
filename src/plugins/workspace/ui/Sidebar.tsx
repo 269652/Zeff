@@ -152,8 +152,8 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
           return (
             <li key={`nav-${dbId}-${e.id}`} data-nav-entry={e.id}>
               {heading && <div className="px-2 pt-1 text-[11px] font-semibold tracking-wide text-zinc-400 uppercase" style={{ paddingLeft: `${depth * 0.9 + 1.4}rem` }}>{heading}</div>}
-              <div className={`ws-tree-row ${e.hidden ? "opacity-50" : ""}`} data-active={current === dbId && (navParam ?? "inbox") === e.id} style={{ paddingLeft: `${depth * 0.9 + 1.4}rem` }}>
-                <Link href={`/workspace/${dbId}?nav=${encodeURIComponent(e.id)}`} className="flex min-w-0 flex-1 items-center gap-1.5 py-0.5">
+              <div className={`ws-tree-row ${e.hidden ? "opacity-50" : ""}`} data-active={e.href ? e.href === `/workspace/${current}` : current === dbId && (navParam ?? "inbox") === e.id} style={{ paddingLeft: `${depth * 0.9 + 1.4}rem` }}>
+                <Link href={e.href ?? `/workspace/${dbId}?nav=${encodeURIComponent(e.id)}`} className="flex min-w-0 flex-1 items-center gap-1.5 py-0.5">
                   <span className="shrink-0">{e.icon}</span>
                   <span className="truncate">{e.label}</span>
                   {e.n > 0 && <span className={`ml-auto shrink-0 pl-1 text-xs tabular-nums ${e.id === "inbox" ? "font-semibold text-indigo-600 dark:text-indigo-400" : "text-zinc-400"}`}>{e.n}</span>}
